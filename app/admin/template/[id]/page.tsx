@@ -3,6 +3,7 @@ import { getTemplates } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, FileText, Calendar, User, CheckSquare } from 'lucide-react';
+import { WorkflowStep } from '@/types/workflow';
 
 export default async function TemplateDetailPage({ params }: { params: { id: string } }) {
   const { user } = await getCurrentUser();
@@ -95,7 +96,7 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
 
               {template.steps_schema && template.steps_schema.length > 0 ? (
                 <div className="space-y-3">
-                  {template.steps_schema.map((step, index) => (
+                  {template.steps_schema.map((step: WorkflowStep, index: number) => (
                     <div
                       key={index}
                       className="flex items-start gap-4 p-4 bg-gray-50 rounded-lg border border-gray-200"
@@ -104,7 +105,7 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
                         {index + 1}
                       </div>
                       <div className="flex-1">
-                        <p className="text-gray-900 font-medium">{step.title}</p>
+                        <p className="text-gray-900 font-medium">{step.label}</p>
                         {step.description && (
                           <p className="text-sm text-gray-600 mt-1">{step.description}</p>
                         )}
