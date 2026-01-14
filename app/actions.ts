@@ -685,7 +685,17 @@ export async function getArchivedAssignments() {
     let query = supabase
       .from('assignments')
       .select(`
-        *,
+        id,
+        template_id,
+        assigned_to,
+        created_by,
+        status,
+        created_at,
+        archived,
+        archived_at,
+        archived_by,
+        completed_at,
+        department,
         template:templates(*)
       `)
       .eq('archived', true)
