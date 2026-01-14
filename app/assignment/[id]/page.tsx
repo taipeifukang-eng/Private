@@ -37,8 +37,11 @@ export default async function AssignmentPage({
 
   const assignment = result.data;
 
-  // Check if user has access to this assignment
-  if (assignment.assigned_to !== user.id && user.profile?.role !== 'admin') {
+  // Check if user has access to this assignment (must be a collaborator or admin)
+  const isCollaborator = assignment.collaborators?.some((c: any) => c.id === user.id);
+  const isAdmin = user.profile?.role === 'admin' || user.profile?.role === 'manager';
+  
+  if (!isCollaborator && !isAdmin) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-8">
         <div className="text-center">

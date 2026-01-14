@@ -25,6 +25,14 @@ export interface Assignment {
   created_at: string;
 }
 
+// AssignmentCollaborator: Junction table for multi-user assignments
+export interface AssignmentCollaborator {
+  id: string;
+  assignment_id: string;
+  user_id: string;
+  created_at: string;
+}
+
 // Log: The audit trail for each check action
 export interface Log {
   id: string;

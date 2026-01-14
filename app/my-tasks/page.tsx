@@ -1,7 +1,7 @@
 import { getCurrentUser } from '@/app/auth/actions';
 import { getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
-import { ClipboardList, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { ClipboardList, CheckCircle2, Clock, AlertCircle, Users } from 'lucide-react';
 import Link from 'next/link';
 
 export default async function MyTasksPage() {
@@ -11,14 +11,9 @@ export default async function MyTasksPage() {
     redirect('/login');
   }
 
-  // Get all assignments
+  // Get all assignments (already filtered by collaborations in getAssignments)
   const result = await getAssignments();
-  const allAssignments = result.success ? result.data : [];
-
-  // Filter assignments for current user
-  const myAssignments = allAssignments.filter(
-    (assignment) => assignment.assigned_to === user.id
-  );
+  const myAssignments = result.success ? result.data : [];
 
   // Calculate stats
   const pendingCount = myAssignments.filter(a => a.status === 'pending').length;
@@ -133,7 +128,7 @@ export default async function MyTasksPage() {
                     </div>
 
                     {/* Meta Info */}
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-4 flex-wrap">
                       <div className="flex items-center gap-1">
                         <ClipboardList size={16} />
                         <span>{assignment.template?.steps_schema?.length || 0} 個步驟</span>
@@ -142,6 +137,12 @@ export default async function MyTasksPage() {
                         <Clock size={16} />
                         <span>{formatRelativeTime(lastActivity)}</span>
                       </div>
+                      {assignment.collaborators && assignment.collaborators.length > 1 && (
+                        <div className="flex items-center gap-1 text-purple-600">
+                          <Users size={16} />
+                          <span>{assignment.collaborators.length} 人協作</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Action Button */}

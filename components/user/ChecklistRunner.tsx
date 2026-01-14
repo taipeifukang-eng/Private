@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, ArrowLeft } from 'lucide-react';
-import type { Assignment, WorkflowStep } from '@/types/workflow';
+import { CheckCircle2, Circle, ArrowLeft, Users } from 'lucide-react';
+import type { Assignment, WorkflowStep, Profile } from '@/types/workflow';
 
 interface ChecklistRunnerProps {
   assignment: Assignment & {
@@ -11,6 +11,7 @@ interface ChecklistRunnerProps {
       title: string;
       steps_schema: WorkflowStep[];
     };
+    collaborators?: Profile[];
   };
   initialCheckedSteps?: Set<string>;
 }
@@ -27,6 +28,40 @@ export default function ChecklistRunner({
   const totalSteps = steps.length;
   const completedSteps = checkedSteps.size;
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
+
+  // Auto-refresh every 3 seconds to sync with other collaborators
+  useEffect(() => {
+    const refreshInterval = setInterval(async () => {
+      try {
+        const { getAssignment } = await import('@/app/actions');
+        const result = await getAssignment(assignment.id);
+        
+        if (result.success && result.data) {
+          // Recalculate checked steps from logs
+          const newCheckedSteps = new Set<string>();
+          const logs = result.data.logs || [];
+          
+          // Process logs in chronological order
+          logs.forEach((log: any) => {
+            if (log.step_id !== null && log.step_id !== undefined) {
+              const stepIdStr = log.step_id.toString();
+              if (log.action === 'checked') {
+                newCheckedSteps.add(stepIdStr);
+              } else if (log.action === 'unchecked') {
+                newCheckedSteps.delete(stepIdStr);
+              }
+            }
+          });
+          
+          setCheckedSteps(newCheckedSteps);
+        }
+      } catch (error) {
+        console.error('Failed to refresh assignment:', error);
+      }
+    }, 3000); // Refresh every 3 seconds
+
+    return () => clearInterval(refreshInterval);
+  }, [assignment.id]);
 
   // Update assignment status when progress changes
   useEffect(() => {
@@ -92,14 +127,41 @@ export default function ChecklistRunner({
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
             {assignment.template.title}
           </h1>
-          <div className="flex items-center gap-4 text-sm text-gray-600">
+          <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
             <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
               {assignment.status === 'pending' && '待處理'}
               {assignment.status === 'in_progress' && '進行中'}
               {assignment.status === 'completed' && '已完成'}
             </span>
             <span>指派日期: {new Date(assignment.created_at).toLocaleDateString('zh-TW')}</span>
+            
+            {/* Collaborators Info */}
+            {assignment.collaborators && assignment.collaborators.length > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-full">
+                <Users size={16} />
+                <span className="font-medium">
+                  協作中 ({assignment.collaborators.length}人)
+                </span>
+              </div>
+            )}
           </div>
+          
+          {/* Collaborators List */}
+          {assignment.collaborators && assignment.collaborators.length > 1 && (
+            <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 mb-2">協作成員：</p>
+              <div className="flex flex-wrap gap-2">
+                {assignment.collaborators.map((collaborator) => (
+                  <span
+                    key={collaborator.id}
+                    className="px-2 py-1 bg-white border border-gray-300 rounded text-sm text-gray-700"
+                  >
+                    {collaborator.full_name || collaborator.email}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Progress Bar */}

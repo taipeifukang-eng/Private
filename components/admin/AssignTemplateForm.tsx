@@ -19,7 +19,7 @@ interface AssignTemplateFormProps {
 
 export default function AssignTemplateForm({ templateId, templateTitle }: AssignTemplateFormProps) {
   const router = useRouter();
-  const [userId, setUserId] = useState('');
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -53,8 +53,8 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!userId) {
-      alert('請選擇要指派的使用者');
+    if (selectedUserIds.length === 0) {
+      alert('請至少選擇一位使用者');
       return;
     }
 
@@ -64,11 +64,12 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
       const { createAssignment } = await import('@/app/actions');
       const result = await createAssignment({
         template_id: templateId,
-        assigned_to: userId,
+        assigned_to: selectedUserIds,
       });
 
       if (result.success) {
-        alert('✅ 任務指派成功！');
+        const userCount = selectedUserIds.length;
+        alert(`✅ 任務指派成功！已指派給 ${userCount} 位使用者`);
         router.push('/dashboard');
       } else {
         alert(`❌ 指派失敗：${result.error}`);
@@ -79,6 +80,16 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
   };
 
   return (
@@ -106,8 +117,16 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
           <form onSubmit={handleSubmit}>
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                選擇使用者 <span className="text-red-500">*</span>
+                選擇使用者（可多選進行協作） <span className="text-red-500">*</span>
               </label>
+              
+              {selectedUserIds.length > 0 && (
+                <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm text-green-800 font-medium">
+                    已選擇 {selectedUserIds.length} 位使用者
+                  </p>
+                </div>
+              )}
 
               {isLoadingUsers ? (
                 <div className="text-center py-8 text-gray-500">
@@ -138,46 +157,47 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
                         沒有符合的使用者
                       </div>
                     ) : (
-                      filteredUsers.map((user) => (
-                        <label
-                          key={user.id}
-                          className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors border-b last:border-b-0 ${
-                            userId === user.id ? 'bg-blue-50' : ''
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="user"
-                            value={user.id}
-                            checked={userId === user.id}
-                            onChange={(e) => setUserId(e.target.value)}
-                            className="w-4 h-4 text-blue-600"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-gray-900">
-                                {user.full_name || user.email}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 text-xs font-semibold rounded ${
-                                  user.role === 'admin'
-                                    ? 'bg-purple-100 text-purple-800'
-                                    : user.role === 'manager'
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}
-                              >
-                                {user.role === 'admin' && '管理員'}
-                                {user.role === 'manager' && '經理'}
-                                {user.role === 'member' && '成員'}
-                              </span>
+                      filteredUsers.map((user) => {
+                        const isSelected = selectedUserIds.includes(user.id);
+                        return (
+                          <label
+                            key={user.id}
+                            className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors border-b last:border-b-0 ${
+                              isSelected ? 'bg-blue-50' : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleUserSelection(user.id)}
+                              className="w-4 h-4 text-blue-600"
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-gray-900">
+                                  {user.full_name || user.email}
+                                </span>
+                                <span
+                                  className={`px-2 py-0.5 text-xs font-semibold rounded ${
+                                    user.role === 'admin'
+                                      ? 'bg-purple-100 text-purple-800'
+                                      : user.role === 'manager'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-100 text-gray-800'
+                                  }`}
+                                >
+                                  {user.role === 'admin' && '管理員'}
+                                  {user.role === 'manager' && '經理'}
+                                  {user.role === 'member' && '成員'}
+                                </span>
+                              </div>
+                              {user.full_name && (
+                                <span className="text-sm text-gray-500">{user.email}</span>
+                              )}
                             </div>
-                            {user.full_name && (
-                              <span className="text-sm text-gray-500">{user.email}</span>
-                            )}
-                          </div>
-                        </label>
-                      ))
+                          </label>
+                        );
+                      })
                     )}
                   </div>
                 </>
@@ -187,7 +207,7 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
             <div className="flex gap-4">
               <button
                 type="submit"
-                disabled={isLoading || !userId}
+                disabled={isLoading || selectedUserIds.length === 0}
                 className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
               >
                 {isLoading ? '處理中...' : '確認指派'}
