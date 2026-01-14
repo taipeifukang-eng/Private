@@ -34,14 +34,18 @@ export default function ChecklistRunner({
     const refreshInterval = setInterval(async () => {
       // Skip refresh if there's an ongoing operation
       if (isLoading) {
+        console.log('[ChecklistRunner] Auto-refresh skipped (operation in progress)');
         return;
       }
 
+      console.log('[ChecklistRunner] Auto-refresh triggered');
       try {
         const { getAssignment } = await import('@/app/actions');
         const result = await getAssignment(assignment.id);
         
         if (result.success && result.data) {
+          console.log('[ChecklistRunner] Auto-refresh got logs:', result.data.logs);
+          
           // Recalculate checked steps from logs
           const newCheckedSteps = new Set<string>();
           const logs = result.data.logs || [];
@@ -50,6 +54,7 @@ export default function ChecklistRunner({
           logs.forEach((log: any) => {
             if (log.step_id !== null && log.step_id !== undefined) {
               const stepIdStr = log.step_id.toString();
+              console.log('[ChecklistRunner] Auto-refresh processing:', { step_id: log.step_id, stepIdStr, action: log.action });
               if (log.action === 'complete') {
                 newCheckedSteps.add(stepIdStr);
               } else if (log.action === 'uncomplete') {
@@ -58,10 +63,11 @@ export default function ChecklistRunner({
             }
           });
           
+          console.log('[ChecklistRunner] Auto-refresh setting checked steps:', Array.from(newCheckedSteps));
           setCheckedSteps(newCheckedSteps);
         }
       } catch (error) {
-        console.error('Failed to refresh assignment:', error);
+        console.error('[ChecklistRunner] Failed to refresh assignment:', error);
       }
     }, 3000); // Refresh every 3 seconds
 
@@ -92,6 +98,8 @@ export default function ChecklistRunner({
 
   // Handle checkbox toggle
   const handleToggle = async (stepId: string, isChecked: boolean) => {
+    console.log('[ChecklistRunner] Toggle clicked:', { stepId, isChecked, currentCheckedSteps: Array.from(checkedSteps) });
+    
     // Optimistic UI update
     const newCheckedSteps = new Set(checkedSteps);
     if (isChecked) {
@@ -99,11 +107,13 @@ export default function ChecklistRunner({
     } else {
       newCheckedSteps.delete(stepId);
     }
+    console.log('[ChecklistRunner] Optimistic update:', { newCheckedSteps: Array.from(newCheckedSteps) });
     setCheckedSteps(newCheckedSteps);
 
     // Call Server Action
     try {
       setIsLoading(true);
+      console.log('[ChecklistRunner] Calling logAction API...');
       const { logAction } = await import('@/app/actions');
       const result = await logAction(
         assignment.id,
@@ -111,15 +121,20 @@ export default function ChecklistRunner({
         isChecked ? 'checked' : 'unchecked'
       );
 
+      console.log('[ChecklistRunner] logAction result:', result);
       if (!result.success) {
         throw new Error(result.error);
       }
 
       // Successfully logged, refresh to get the latest state
+      console.log('[ChecklistRunner] Refreshing assignment data...');
       const { getAssignment } = await import('@/app/actions');
       const refreshResult = await getAssignment(assignment.id);
       
+      console.log('[ChecklistRunner] Refresh result:', refreshResult.success);
       if (refreshResult.success && refreshResult.data) {
+        console.log('[ChecklistRunner] Raw logs:', refreshResult.data.logs);
+        
         // Recalculate checked steps from logs
         const refreshedCheckedSteps = new Set<string>();
         const logs = refreshResult.data.logs || [];
@@ -127,23 +142,28 @@ export default function ChecklistRunner({
         logs.forEach((log: any) => {
           if (log.step_id !== null && log.step_id !== undefined) {
             const stepIdStr = log.step_id.toString();
+            console.log('[ChecklistRunner] Processing log:', { step_id: log.step_id, stepIdStr, action: log.action });
             if (log.action === 'complete') {
               refreshedCheckedSteps.add(stepIdStr);
+              console.log('[ChecklistRunner] Added to checked:', stepIdStr);
             } else if (log.action === 'uncomplete') {
               refreshedCheckedSteps.delete(stepIdStr);
+              console.log('[ChecklistRunner] Removed from checked:', stepIdStr);
             }
           }
         });
         
+        console.log('[ChecklistRunner] Final refreshed checked steps:', Array.from(refreshedCheckedSteps));
         setCheckedSteps(refreshedCheckedSteps);
       }
     } catch (error) {
       // Rollback on error
-      console.error('Failed to log action:', error);
+      console.error('[ChecklistRunner] Failed to log action:', error);
       setCheckedSteps(checkedSteps);
       alert('操作失敗，請重試');
     } finally {
       setIsLoading(false);
+      console.log('[ChecklistRunner] Toggle complete');
     }
   };
 
