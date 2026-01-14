@@ -392,6 +392,7 @@ export async function getAssignments() {
         template:templates(*)
       `)
       .in('id', assignmentIds)
+      .eq('archived', false)
       .order('created_at', { ascending: false });
 
     if (assignmentsError) {
@@ -570,6 +571,195 @@ export async function updateAssignmentStatus(
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}
+
+/**
+ * Archive a completed assignment
+ */
+export async function archiveAssignment(assignmentId: string) {
+  try {
+    const supabase = createClient();
+    
+    // Check user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return { success: false, error: '權限不足' };
+    }
+
+    // Check if assignment exists and is completed
+    const { data: assignment } = await supabase
+      .from('assignments')
+      .select('status, archived')
+      .eq('id', assignmentId)
+      .single();
+
+    if (!assignment) {
+      return { success: false, error: '任務不存在' };
+    }
+
+    if (assignment.status !== 'completed') {
+      return { success: false, error: '只能封存已完成的任務' };
+    }
+
+    if (assignment.archived) {
+      return { success: false, error: '任務已經封存' };
+    }
+
+    // Archive assignment
+    const { error } = await supabase
+      .from('assignments')
+      .update({
+        archived: true,
+        archived_at: new Date().toISOString(),
+        archived_by: user.id,
+      })
+      .eq('id', assignmentId);
+
+    if (error) {
+      console.error('Error archiving assignment:', error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/admin/templates');
+    revalidatePath('/dashboard');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '封存任務失敗' };
+  }
+}
+
+/**
+ * Get archived assignments (for history view)
+ */
+export async function getArchivedAssignments() {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入', data: [] };
+    }
+
+    // Get user profile to check role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    // Build query for archived assignments
+    let query = supabase
+      .from('assignments')
+      .select(`
+        *,
+        template:templates(*)
+      `)
+      .eq('archived', true)
+      .order('archived_at', { ascending: false });
+
+    // If not admin, only show templates created by current user
+    if (profile?.role !== 'admin') {
+      // Get templates created by current user
+      const { data: userTemplates } = await supabase
+        .from('templates')
+        .select('id')
+        .eq('created_by', user.id);
+      
+      const templateIds = userTemplates?.map(t => t.id) || [];
+      
+      if (templateIds.length === 0) {
+        return { success: true, data: [] };
+      }
+      
+      query = query.in('template_id', templateIds);
+    }
+
+    const { data: assignments, error: assignmentsError } = await query;
+
+    if (assignmentsError) {
+      console.error('Error fetching archived assignments:', assignmentsError);
+      return { success: false, error: assignmentsError.message, data: [] };
+    }
+
+    // Get all template creator IDs
+    const creatorIds = Array.from(new Set(
+      assignments?.map(a => a.template?.created_by).filter(Boolean) || []
+    ));
+
+    // Fetch creator profiles
+    const { data: creatorProfiles } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, department')
+      .in('id', creatorIds);
+
+    const creatorMap = new Map(creatorProfiles?.map(p => [p.id, p]) || []);
+
+    // Get assignment IDs
+    const assignmentIds = assignments?.map(a => a.id) || [];
+
+    // Fetch logs for all assignments
+    const { data: logs } = await supabase
+      .from('logs')
+      .select('*')
+      .in('assignment_id', assignmentIds);
+
+    // Fetch all collaborators
+    const { data: allCollaborators } = await supabase
+      .from('assignment_collaborators')
+      .select('assignment_id, user_id')
+      .in('assignment_id', assignmentIds);
+
+    // Fetch user profiles for collaborators and archived_by
+    const allUserIds = Array.from(new Set([
+      ...(allCollaborators?.map(c => c.user_id) || []),
+      ...(assignments?.map(a => a.archived_by).filter(Boolean) || []),
+      ...(assignments?.map(a => a.assigned_to).filter(Boolean) || [])
+    ]));
+
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, department')
+      .in('id', allUserIds);
+
+    const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+
+    // Combine data
+    const enrichedAssignments = assignments?.map(assignment => {
+      const assignmentLogs = logs?.filter(log => log.assignment_id === assignment.id) || [];
+      const assignmentCollaborators = allCollaborators?.filter(c => c.assignment_id === assignment.id) || [];
+      const collaboratorProfiles = assignmentCollaborators.map(c => profileMap.get(c.user_id)).filter(Boolean);
+      
+      const enrichedTemplate = assignment.template ? {
+        ...assignment.template,
+        creator: creatorMap.get(assignment.template.created_by) || null
+      } : null;
+
+      return {
+        ...assignment,
+        template: enrichedTemplate,
+        logs: assignmentLogs,
+        assigned_user: profileMap.get(assignment.assigned_to) || null,
+        collaborators: collaboratorProfiles,
+        archived_by_user: profileMap.get(assignment.archived_by) || null,
+      };
+    }) || [];
+
+    return { success: true, data: enrichedAssignments };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤', data: [] };
   }
 }
 

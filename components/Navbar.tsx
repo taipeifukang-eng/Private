@@ -14,7 +14,8 @@ import {
   X,
   Shield,
   Crown,
-  User as UserIcon
+  User as UserIcon,
+  Archive
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 
@@ -59,6 +60,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/my-tasks', label: '我的任務', icon: ClipboardList, roles: ['admin', 'manager', 'member'] },
     { href: '/dashboard', label: '儀表板', icon: LayoutDashboard, roles: ['admin', 'manager'] },
     { href: '/admin/templates', label: '任務管理', icon: FileText, roles: ['admin', 'manager'] },
+    { href: '/admin/archived', label: '已封存任務', icon: Archive, roles: ['admin', 'manager'] },
     { href: '/admin/users', label: '使用者管理', icon: Users, roles: ['admin'] },
   ].filter(item => item.roles.includes(role));
 

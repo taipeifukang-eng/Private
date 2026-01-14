@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical, Edit } from 'lucide-react';
+import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical, Edit, Archive } from 'lucide-react';
 import type { Template } from '@/types/workflow';
 
 interface TemplateCardWithStatsProps {
@@ -150,6 +150,82 @@ export default function TemplateCardWithStats({
     }
   };
 
+  const handleArchiveCompleted = async () => {
+    console.log('[TemplateCardWithStats] handleArchiveCompleted called');
+    
+    if (totalAssignments === 0 || completedAssignments !== totalAssignments) {
+      alert('只有當所有任務都已完成時才能封存');
+      return;
+    }
+
+    const confirmed = confirm(
+      `確定要封存「${template.title}」的所有任務嗎？\n\n` +
+      `將封存 ${completedAssignments} 個已完成任務。\n` +
+      `封存後的任務可以在歷史記錄中查看。`
+    );
+
+    if (!confirmed) {
+      console.log('[TemplateCardWithStats] Archive cancelled by user');
+      return;
+    }
+
+    setIsDeleting(true);
+    setShowMenu(false);
+    console.log('[TemplateCardWithStats] Starting archive process...');
+
+    try {
+      const { getAssignments, archiveAssignment } = await import('@/app/actions');
+      console.log('[TemplateCardWithStats] Actions imported successfully');
+      
+      const result = await getAssignments();
+      console.log('[TemplateCardWithStats] getAssignments result:', result);
+      
+      if (result.success) {
+        const assignments = result.data.filter(
+          (a: any) => a.template_id === template.id && a.status === 'completed' && !a.archived
+        );
+        console.log('[TemplateCardWithStats] Found completed assignments to archive:', assignments.length);
+
+        let successCount = 0;
+        let failCount = 0;
+        const errors: string[] = [];
+
+        for (const assignment of assignments) {
+          console.log('[TemplateCardWithStats] Archiving assignment:', assignment.id);
+          const archiveResult = await archiveAssignment(assignment.id);
+          console.log('[TemplateCardWithStats] Archive result:', archiveResult);
+          
+          if (archiveResult.success) {
+            successCount++;
+          } else {
+            failCount++;
+            errors.push(`${assignment.id}: ${archiveResult.error}`);
+          }
+        }
+
+        console.log('[TemplateCardWithStats] Archive complete:', { successCount, failCount });
+
+        if (failCount === 0) {
+          alert(`✅ 成功封存 ${successCount} 個已完成任務`);
+          router.refresh();
+        } else {
+          console.error('[TemplateCardWithStats] Archive errors:', errors);
+          alert(`⚠️ 成功封存 ${successCount} 個任務，${failCount} 個失敗\n\n錯誤詳情：\n${errors.join('\n')}`);
+          router.refresh();
+        }
+      } else {
+        console.error('[TemplateCardWithStats] Failed to get assignments:', result.error);
+        alert(`❌ 無法獲取任務列表: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('[TemplateCardWithStats] Error archiving assignments:', error);
+      alert(`❌ 封存失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setIsDeleting(false);
+      console.log('[TemplateCardWithStats] Archive process ended');
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow overflow-hidden relative">
       {/* Menu Button - Always visible */}
@@ -176,6 +252,19 @@ export default function TemplateCardWithStats({
                 <Edit size={16} />
                 編輯任務
               </Link>
+              {totalAssignments > 0 && completedAssignments === totalAssignments && (
+                <>
+                  <div className="border-t border-gray-200 my-1"></div>
+                  <button
+                    onClick={handleArchiveCompleted}
+                    disabled={isDeleting}
+                    className="w-full text-left px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Archive size={16} />
+                    {isDeleting ? '封存中...' : `完成並封存 (${completedAssignments} 個任務)`}
+                  </button>
+                </>
+              )}
               {completedAssignments > 0 && (
                 <>
                   <div className="border-t border-gray-200 my-1"></div>

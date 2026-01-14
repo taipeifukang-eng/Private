@@ -16,6 +16,9 @@ CREATE TABLE assignments (
   assigned_to UUID REFERENCES auth.users(id),
   status TEXT DEFAULT 'pending', -- pending, in_progress, completed
   department TEXT, -- Department of the task creator
+  archived BOOLEAN DEFAULT FALSE, -- Whether the task is archived
+  archived_at TIMESTAMPTZ, -- When the task was archived
+  archived_by UUID REFERENCES auth.users(id), -- Who archived the task
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
