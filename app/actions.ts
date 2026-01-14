@@ -40,10 +40,18 @@ export async function createTemplate(data: {
       return { success: false, error: '未登入' };
     }
 
+    // Get creator's profile to fetch department
+    const { data: creatorProfile } = await supabase
+      .from('profiles')
+      .select('department')
+      .eq('id', user.id)
+      .single();
+
     console.log('Inserting template:', {
       title: data.title,
       steps_count: data.steps_schema.length,
       assigned_to: data.assigned_to,
+      creator_department: creatorProfile?.department,
     });
 
     // Create template
@@ -71,13 +79,14 @@ export async function createTemplate(data: {
     
     console.log('[createTemplate] Creating assignment for:', allUserIds);
 
-    // Create the assignment
+    // Create the assignment with creator's department
     const { data: assignment, error: assignmentError } = await supabase
       .from('assignments')
       .insert({
         template_id: template.id,
         assigned_to: allUserIds[0],
         status: 'pending',
+        department: creatorProfile?.department || null,
       })
       .select()
       .single();

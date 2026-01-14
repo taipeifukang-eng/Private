@@ -15,6 +15,18 @@ export default async function MyTasksPage() {
   const result = await getAssignments();
   const myAssignments = result.success ? result.data : [];
 
+  // Group assignments by department
+  const assignmentsByDepartment = myAssignments.reduce((acc: any, assignment: any) => {
+    const dept = assignment.department || '未分類';
+    if (!acc[dept]) {
+      acc[dept] = [];
+    }
+    acc[dept].push(assignment);
+    return acc;
+  }, {});
+
+  const departments = Object.keys(assignmentsByDepartment).sort();
+
   // Calculate stats
   const pendingCount = myAssignments.filter(a => a.status === 'pending').length;
   const inProgressCount = myAssignments.filter(a => a.status === 'in_progress').length;
@@ -83,8 +95,25 @@ export default async function MyTasksPage() {
             <p className="text-gray-600">當主管指派任務給您時，會顯示在這裡</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {myAssignments.map((assignment) => {
+          <div className="space-y-8">
+            {departments.map((department) => (
+              <div key={department} className="bg-white rounded-lg shadow-lg p-6">
+                {/* Department Header */}
+                <div className="mb-6 pb-4 border-b border-gray-200">
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                    <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-600 text-lg font-bold">
+                      {department[0]}
+                    </span>
+                    {department}
+                  </h2>
+                  <p className="text-gray-600 mt-2">
+                    共 {assignmentsByDepartment[department].length} 個任務
+                  </p>
+                </div>
+
+                {/* Tasks in this department */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {assignmentsByDepartment[department].map((assignment: any) => {
               const progress = getProgress(assignment);
               const lastActivity = assignment.logs.length > 0
                 ? new Date(assignment.logs[assignment.logs.length - 1].created_at)
@@ -156,6 +185,9 @@ export default async function MyTasksPage() {
                 </div>
               );
             })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

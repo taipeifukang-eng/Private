@@ -7,7 +7,7 @@ import type { Profile } from '@/types/workflow';
 
 export default function UserManagementTable({ users }: { users: Profile[] }) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ full_name: '', role: 'member' as Profile['role'] });
+  const [editForm, setEditForm] = useState({ full_name: '', role: 'member' as Profile['role'], department: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
@@ -27,6 +27,7 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
     setEditForm({
       full_name: user.full_name || '',
       role: user.role,
+      department: user.department || '',
     });
   };
 
@@ -154,6 +155,9 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                 電子郵件
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                部門
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 角色
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -196,6 +200,32 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900">{user.email}</div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {editingUser === user.id ? (
+                    <input
+                      type="text"
+                      value={editForm.department}
+                      onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                      className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="輸入部門"
+                    />
+                  ) : (
+                    <div className="text-sm text-gray-900">{user.department || '未設定'}</div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {editingUser === user.id ? (
+                    <input
+                      type="text"
+                      value={editForm.department}
+                      onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                      className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
+                      placeholder="輸入部門"
+                    />
+                  ) : (
+                    <div className="text-sm text-gray-900">{user.department || '未設定'}</div>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   {editingUser === user.id ? (

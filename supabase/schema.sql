@@ -15,6 +15,7 @@ CREATE TABLE assignments (
   template_id UUID REFERENCES templates(id),
   assigned_to UUID REFERENCES auth.users(id),
   status TEXT DEFAULT 'pending', -- pending, in_progress, completed
+  department TEXT, -- Department of the task creator
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -34,6 +35,7 @@ CREATE TABLE profiles (
   email TEXT,
   full_name TEXT,
   role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'manager', 'member')),
+  department TEXT, -- User's department
   avatar_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

@@ -22,6 +22,7 @@ export interface Assignment {
   template_id: string | null;
   assigned_to: string | null;
   status: 'pending' | 'in_progress' | 'completed';
+  department: string | null; // Department of the task creator
   created_at: string;
 }
 
@@ -49,6 +50,7 @@ export interface Profile {
   email: string | null;
   full_name: string | null;
   role: 'admin' | 'manager' | 'member';
+  department: string | null; // User's department
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
