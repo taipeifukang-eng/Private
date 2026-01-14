@@ -326,7 +326,7 @@ export async function logAction(
       .insert({
         assignment_id: assignmentId,
         user_id: user.id,
-        step_id: parseInt(stepId),
+        step_id: stepId, // Keep as string, don't use parseInt
         action: dbAction,
       })
       .select()

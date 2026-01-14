@@ -28,8 +28,8 @@ CREATE TABLE logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   assignment_id UUID REFERENCES assignments(id),
   user_id UUID REFERENCES auth.users(id),
-  step_id INT, -- Corresponds to the ID inside the JSONB steps
-  action TEXT, -- e.g., "checked", "unchecked"
+  step_id TEXT, -- Step ID from template (supports both sequential numbers and UUIDs)
+  action TEXT, -- e.g., "complete", "uncomplete"
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

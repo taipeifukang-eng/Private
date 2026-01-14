@@ -86,8 +86,13 @@ export default function WorkflowBuilder({
 
   // Add a new step
   const addStep = () => {
+    // Use sequential ID (1, 2, 3, ...) instead of UUID
+    const nextId = steps.length > 0 
+      ? Math.max(...steps.map(s => parseInt(s.id) || 0)) + 1 
+      : 1;
+    
     const newStep: WorkflowStep = {
-      id: crypto.randomUUID(),
+      id: nextId.toString(),
       label: '',
       description: '',
       required: false,
