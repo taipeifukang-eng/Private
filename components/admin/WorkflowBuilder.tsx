@@ -2,9 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, ChevronUp, ChevronDown, Save, AlertTriangle, Lock } from 'lucide-react';
+import { Plus, Trash2, ChevronUp, ChevronDown, Save, AlertTriangle, Lock, Search } from 'lucide-react';
 import type { WorkflowStep } from '@/types/workflow';
 import type { Template } from '@/types/workflow';
+
+interface User {
+  id: string;
+  email: string;
+  role: string;
+  full_name: string | null;
+}
 
 interface WorkflowBuilderProps {
   template?: Template;
@@ -25,6 +32,10 @@ export default function WorkflowBuilder({
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
   const [steps, setSteps] = useState<WorkflowStep[]>(template?.steps_schema || []);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (template) {
@@ -33,6 +44,45 @@ export default function WorkflowBuilder({
       setSteps(template.steps_schema || []);
     }
   }, [template]);
+
+  // Load users for assignment (only for new templates)
+  useEffect(() => {
+    if (!isEditing) {
+      loadUsers();
+    } else {
+      setIsLoadingUsers(false);
+    }
+  }, [isEditing]);
+
+  const loadUsers = async () => {
+    try {
+      const { getAllUsers } = await import('@/app/auth/actions');
+      const result = await getAllUsers();
+      
+      if (result.success && result.data) {
+        setUsers(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const filteredUsers = users.filter(user => 
+    user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (user.full_name && user.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUserIds(prev => {
+      if (prev.includes(userId)) {
+        return prev.filter(id => id !== userId);
+      } else {
+        return [...prev, userId];
+      }
+    });
+  };
 
   // Add a new step
   const addStep = () => {
@@ -129,22 +179,29 @@ export default function WorkflowBuilder({
           title: title.trim(),
           description: description.trim(),
           steps_count: steps.length,
+          assigned_users: selectedUserIds,
         });
         
         const result = await createTemplate({
           title: title.trim(),
           description: description.trim(),
           steps_schema: steps,
+          assigned_to: selectedUserIds,
         });
 
         console.log('Server Action 回應:', result);
 
         if (result.success) {
-          alert('✅ 任務儲存成功！');
+          if (selectedUserIds.length === 0) {
+            alert('✅ 任務儲存成功！任務已指派給您自己');
+          } else {
+            alert(`✅ 任務儲存成功！已指派給 ${selectedUserIds.length} 位使用者`);
+          }
           // Reset form
           setTitle('');
           setDescription('');
           setSteps([]);
+          setSelectedUserIds([]);
           // Redirect to templates page
           router.push('/admin/templates');
         } else {
@@ -223,6 +280,80 @@ export default function WorkflowBuilder({
             placeholder="輸入專案描述（選填）"
           />
         </div>
+
+        {/* User Assignment Section - Only for new templates */}
+        {!isEditing && (
+          <div className="mb-6 p-6 bg-blue-50 border border-blue-200 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-900 mb-3">指派任務對象</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              💡 選擇要指派此任務的使用者（可多選）。如果不選擇，任務會自動指派給您自己。
+            </p>
+            
+            {selectedUserIds.length > 0 && (
+              <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800 font-medium">
+                  已選擇 {selectedUserIds.length} 位使用者（加上您自己共 {selectedUserIds.length + 1} 人）
+                </p>
+              </div>
+            )}
+
+            {isLoadingUsers ? (
+              <div className="text-center py-4 text-gray-500">
+                載入使用者清單中...
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-4 text-gray-500">
+                目前沒有其他使用者
+              </div>
+            ) : (
+              <>
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-3 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                    placeholder="搜尋使用者（Email 或姓名）"
+                  />
+                </div>
+
+                <div className="max-h-60 overflow-y-auto space-y-2 border border-gray-200 rounded-lg p-3">
+                  {filteredUsers.map(user => (
+                    <label
+                      key={user.id}
+                      className="flex items-center gap-3 p-3 hover:bg-white rounded-lg cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedUserIds.includes(user.id)}
+                        onChange={() => toggleUserSelection(user.id)}
+                        className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900">
+                          {user.full_name || user.email}
+                        </div>
+                        {user.full_name && (
+                          <div className="text-sm text-gray-500">{user.email}</div>
+                        )}
+                        <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 mt-1">
+                          {user.role === 'admin' ? '管理員' : user.role === 'manager' ? '成員' : '成員'}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                {filteredUsers.length === 0 && searchQuery && (
+                  <div className="text-center py-4 text-gray-500">
+                    找不到符合「{searchQuery}」的使用者
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
 
         {/* Steps Section */}
         <div className="mb-6">

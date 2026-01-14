@@ -11,6 +11,7 @@ export async function createTemplate(data: {
   title: string;
   description: string;
   steps_schema: WorkflowStep[];
+  assigned_to?: string[];
 }) {
   try {
     // Check environment variables
@@ -33,13 +34,19 @@ export async function createTemplate(data: {
 
     const supabase = createClient();
 
+    // Get current user (creator)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
     console.log('Inserting template:', {
       title: data.title,
       steps_count: data.steps_schema.length,
+      assigned_to: data.assigned_to,
     });
 
-    // TODO: Get current user ID from auth
-    // For now, we'll insert without user tracking
+    // Create template
     const { data: template, error } = await supabase
       .from('templates')
       .insert({
@@ -56,8 +63,47 @@ export async function createTemplate(data: {
     }
 
     console.log('Template created successfully:', template);
+
+    // Automatically create assignment with specified users (or creator only)
+    const userIds = Array.isArray(data.assigned_to) ? data.assigned_to : [];
+    const userIdSet = new Set([user.id, ...userIds]);
+    const allUserIds = Array.from(userIdSet);
+    
+    console.log('[createTemplate] Creating assignment for:', allUserIds);
+
+    // Create the assignment
+    const { data: assignment, error: assignmentError } = await supabase
+      .from('assignments')
+      .insert({
+        template_id: template.id,
+        assigned_to: allUserIds[0],
+        status: 'pending',
+      })
+      .select()
+      .single();
+
+    if (assignmentError) {
+      console.error('Error creating assignment:', assignmentError);
+      // Don't fail template creation if assignment fails
+    } else {
+      // Add all users as collaborators
+      const collaborators = allUserIds.map(userId => ({
+        assignment_id: assignment.id,
+        user_id: userId,
+      }));
+
+      const { error: collaboratorError } = await supabase
+        .from('assignment_collaborators')
+        .insert(collaborators);
+
+      if (collaboratorError) {
+        console.error('Error adding collaborators:', collaboratorError);
+      }
+    }
+
     revalidatePath('/dashboard');
     revalidatePath('/admin/templates');
+    revalidatePath('/my-tasks');
     return { success: true, data: template };
   } catch (error: any) {
     console.error('Unexpected error:', error);
