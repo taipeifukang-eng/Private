@@ -408,7 +408,7 @@ export async function getAssignments() {
 
     // Get all template creator IDs
     const creatorIds = Array.from(new Set(
-      assignments?.map(a => a.template?.created_by).filter(Boolean) || []
+      assignments?.map((a: any) => a.template?.created_by).filter(Boolean) || []
     ));
 
     // Fetch creator profiles
@@ -727,7 +727,7 @@ export async function getArchivedAssignments() {
 
     // Get all template creator IDs
     const creatorIds = Array.from(new Set(
-      assignments?.map(a => a.template?.created_by).filter(Boolean) || []
+      assignments?.map((a: any) => a.template?.created_by).filter(Boolean) || []
     ));
 
     // Fetch creator profiles
