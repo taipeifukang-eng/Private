@@ -61,6 +61,7 @@ export async function createTemplate(data: {
         title: data.title,
         description: data.description,
         steps_schema: data.steps_schema,
+        created_by: user.id,
       })
       .select()
       .single();
@@ -195,10 +196,31 @@ export async function getTemplates() {
   try {
     const supabase = createClient();
 
-    const { data, error } = await supabase
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入', data: [] };
+    }
+
+    // Get user profile to check role
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    // Build query
+    let query = supabase
       .from('templates')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // If not admin, only show templates created by current user
+    if (profile?.role !== 'admin') {
+      query = query.eq('created_by', user.id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching templates:', error);

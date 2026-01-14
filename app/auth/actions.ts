@@ -113,9 +113,11 @@ export async function getAllUsers() {
   try {
     const supabase = createClient();
 
-    // Check if current user is admin
+    // Check if current user is admin or manager
     const currentUser = await getCurrentUser();
-    if (!currentUser.success || currentUser.user?.profile?.role !== 'admin') {
+    const userRole = currentUser.user?.profile?.role;
+    
+    if (!currentUser.success || (userRole !== 'admin' && userRole !== 'manager')) {
       return { success: false, error: '權限不足', data: [] };
     }
 
