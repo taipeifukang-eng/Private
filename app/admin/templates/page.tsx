@@ -16,7 +16,7 @@ export default async function TemplatesPage() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">流程管理</h1>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">任務管理</h1>
             <p className="text-gray-600">管理所有工作流程</p>
           </div>
           <Link

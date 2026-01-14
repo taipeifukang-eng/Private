@@ -61,7 +61,7 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
             className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium mb-4"
           >
             <ArrowLeft size={20} />
-            返回流程列表
+            返回任務管理
           </Link>
 
           <div className="bg-white rounded-lg shadow-lg p-8">

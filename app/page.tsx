@@ -174,7 +174,7 @@ export default async function HomePage() {
                         <FileText className="text-purple-600" size={24} />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">流程管理</h3>
+                        <h3 className="font-semibold text-gray-900">任務管理</h3>
                         <p className="text-sm text-gray-500">建立和編輯工作流程</p>
                       </div>
                     </div>
