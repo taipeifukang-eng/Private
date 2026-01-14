@@ -106,39 +106,94 @@ export default function TemplateCardWithStats({
     }
   };
 
+  const handleDeleteTemplate = async () => {
+    console.log('[TemplateCardWithStats] handleDeleteTemplate called');
+    
+    const confirmed = confirm(
+      `⚠️ 確定要刪除流程模板「${template.title}」嗎？\n\n` +
+      `這將永久刪除：\n` +
+      `• 此流程模板\n` +
+      `• 所有相關的任務（包括進行中和已完成的任務）\n` +
+      `• 所有任務記錄\n\n` +
+      `此操作無法復原！`
+    );
+
+    if (!confirmed) {
+      console.log('[TemplateCardWithStats] Delete template cancelled by user');
+      return;
+    }
+
+    setIsDeleting(true);
+    setShowMenu(false);
+    console.log('[TemplateCardWithStats] Deleting template:', template.id);
+
+    try {
+      const { deleteTemplate } = await import('@/app/actions');
+      console.log('[TemplateCardWithStats] Action imported successfully');
+      
+      const result = await deleteTemplate(template.id);
+      console.log('[TemplateCardWithStats] Delete template result:', result);
+      
+      if (result.success) {
+        alert('✅ 流程模板已成功刪除');
+        router.refresh();
+      } else {
+        console.error('[TemplateCardWithStats] Delete template failed:', result.error);
+        alert(`❌ 刪除失敗: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('[TemplateCardWithStats] Error deleting template:', error);
+      alert(`❌ 刪除失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setIsDeleting(false);
+      console.log('[TemplateCardWithStats] Delete template process ended');
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow overflow-hidden relative">
-      {/* Delete Menu Button */}
-      {completedAssignments > 0 && (
-        <div className="absolute top-4 right-4 z-10">
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-            title="更多選項"
-          >
-            <MoreVertical size={20} className="text-gray-600" />
-          </button>
-          
-          {showMenu && (
-            <>
-              <div
-                className="fixed inset-0"
-                onClick={() => setShowMenu(false)}
-              />
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20">
-                <button
-                  onClick={handleDeleteCompleted}
-                  disabled={isDeleting}
-                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
-                >
-                  <Trash2 size={16} />
-                  {isDeleting ? '刪除中...' : `刪除 ${completedAssignments} 個已完成任務`}
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      )}
+      {/* Menu Button - Always visible */}
+      <div className="absolute top-4 right-4 z-10">
+        <button
+          onClick={() => setShowMenu(!showMenu)}
+          className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          title="更多選項"
+        >
+          <MoreVertical size={20} className="text-gray-600" />
+        </button>
+        
+        {showMenu && (
+          <>
+            <div
+              className="fixed inset-0"
+              onClick={() => setShowMenu(false)}
+            />
+            <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20">
+              {completedAssignments > 0 && (
+                <>
+                  <button
+                    onClick={handleDeleteCompleted}
+                    disabled={isDeleting}
+                    className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <Trash2 size={16} />
+                    {isDeleting ? '刪除中...' : `刪除 ${completedAssignments} 個已完成任務`}
+                  </button>
+                  <div className="border-t border-gray-200 my-1"></div>
+                </>
+              )}
+              <button
+                onClick={handleDeleteTemplate}
+                disabled={isDeleting}
+                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50 font-medium"
+              >
+                <Trash2 size={16} />
+                {isDeleting ? '刪除中...' : '刪除整個流程模板'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="p-6">
         {/* Header */}

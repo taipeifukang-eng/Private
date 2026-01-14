@@ -444,3 +444,58 @@ export async function deleteAssignment(assignmentId: string) {
     return { success: false, error: error.message || '發生未知錯誤' };
   }
 }
+
+/**
+ * Delete a template and all related assignments
+ */
+export async function deleteTemplate(templateId: string) {
+  try {
+    const supabase = createClient();
+    
+    // Check user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return { success: false, error: '權限不足，只有管理員和主管可以刪除流程模板' };
+    }
+
+    // Check if template exists
+    const { data: template } = await supabase
+      .from('templates')
+      .select('id, title')
+      .eq('id', templateId)
+      .single();
+
+    if (!template) {
+      return { success: false, error: '流程模板不存在' };
+    }
+
+    // Delete template (will cascade delete all assignments, logs, and collaborators)
+    const { error } = await supabase
+      .from('templates')
+      .delete()
+      .eq('id', templateId);
+
+    if (error) {
+      console.error('Error deleting template:', error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/admin/templates');
+    revalidatePath('/dashboard');
+    revalidatePath('/my-tasks');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}
