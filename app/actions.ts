@@ -367,7 +367,7 @@ export async function getAssignments() {
       .from('assignments')
       .select(`
         *,
-        template:templates(*)
+        template:templates(*, creator:created_by(id, email, full_name, department))
       `)
       .in('id', assignmentIds)
       .order('created_at', { ascending: false });

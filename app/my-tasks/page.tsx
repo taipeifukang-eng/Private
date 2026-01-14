@@ -1,38 +1,82 @@
-import { getCurrentUser } from '@/app/auth/actions';
-import { getAssignments } from '@/app/actions';
-import { redirect } from 'next/navigation';
-import { ClipboardList, CheckCircle2, Clock, AlertCircle, Users } from 'lucide-react';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { ClipboardList, CheckCircle2, Clock, AlertCircle, Users, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 
-export default async function MyTasksPage() {
-  const { user } = await getCurrentUser();
+export default function MyTasksPage() {
+  const router = useRouter();
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeDepartment, setActiveDepartment] = useState<string>('');
+  const [user, setUser] = useState<any>(null);
 
-  if (!user) {
-    redirect('/login');
-  }
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
-  // Get all assignments (already filtered by collaborations in getAssignments)
-  const result = await getAssignments();
-  const myAssignments = result.success ? result.data : [];
-
-  // Group assignments by department
-  const assignmentsByDepartment = myAssignments.reduce((acc: any, assignment: any) => {
-    const dept = assignment.department || '未分類';
-    if (!acc[dept]) {
-      acc[dept] = [];
+  const checkAuth = async () => {
+    try {
+      const { getCurrentUser } = await import('@/app/auth/actions');
+      const result = await getCurrentUser();
+      
+      if (!result.user) {
+        router.push('/login');
+        return;
+      }
+      
+      setUser(result.user);
+      loadAssignments();
+    } catch (error) {
+      console.error('Error checking auth:', error);
+      router.push('/login');
     }
-    acc[dept].push(assignment);
-    return acc;
-  }, {});
+  };
 
-  const departments = Object.keys(assignmentsByDepartment).sort();
+  const loadAssignments = async () => {
+    try {
+      const { getAssignments } = await import('@/app/actions');
+      const result = await getAssignments();
+      
+      if (result.success && result.data) {
+        setAssignments(result.data);
+        
+        // Set first department as active by default
+        const depts = getDepartments(result.data);
+        if (depts.length > 0) {
+          setActiveDepartment(depts[0]);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading assignments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Calculate stats
-  const pendingCount = myAssignments.filter(a => a.status === 'pending').length;
-  const inProgressCount = myAssignments.filter(a => a.status === 'in_progress').length;
-  const completedCount = myAssignments.filter(a => a.status === 'completed').length;
+  const getDepartments = (data: any[]) => {
+    const deptMap = new Map<string, number>();
+    data.forEach(assignment => {
+      const dept = assignment.department || '未分類';
+      deptMap.set(dept, (deptMap.get(dept) || 0) + 1);
+    });
+    return Array.from(deptMap.keys()).sort();
+  };
 
-  // Calculate progress for each assignment
+  const getDepartmentCount = (dept: string) => {
+    return assignments.filter(a => (a.department || '未分類') === dept).length;
+  };
+
+  const getDepartmentAssignments = (dept: string) => {
+    return assignments.filter(a => (a.department || '未分類') === dept);
+  };
+
+  const departments = getDepartments(assignments);
+  const pendingCount = assignments.filter(a => a.status === 'pending').length;
+  const inProgressCount = assignments.filter(a => a.status === 'in_progress').length;
+  const completedCount = assignments.filter(a => a.status === 'completed').length;
+
   const getProgress = (assignment: any) => {
     if (!assignment.template?.steps_schema) return 0;
     const totalSteps = assignment.template.steps_schema.length;
@@ -50,6 +94,14 @@ export default async function MyTasksPage() {
     return Math.round((checkedStepIds.size / totalSteps) * 100);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <div className="text-gray-600">載入中...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
@@ -63,7 +115,7 @@ export default async function MyTasksPage() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <StatCard
             title="總任務"
-            value={myAssignments.length}
+            value={assignments.length}
             icon={<ClipboardList className="w-6 h-6" />}
             color="blue"
           />
@@ -88,106 +140,141 @@ export default async function MyTasksPage() {
         </div>
 
         {/* Tasks List */}
-        {myAssignments.length === 0 ? (
+        {assignments.length === 0 ? (
           <div className="bg-white rounded-lg shadow-lg p-12 text-center">
             <ClipboardList className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">目前沒有任務</h3>
             <p className="text-gray-600">當主管指派任務給您時，會顯示在這裡</p>
           </div>
         ) : (
-          <div className="space-y-8">
-            {departments.map((department) => (
-              <div key={department} className="bg-white rounded-lg shadow-lg p-6">
-                {/* Department Header */}
-                <div className="mb-6 pb-4 border-b border-gray-200">
-                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                    <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-100 text-blue-600 text-lg font-bold">
-                      {department[0]}
-                    </span>
-                    {department}
-                  </h2>
-                  <p className="text-gray-600 mt-2">
-                    共 {assignmentsByDepartment[department].length} 個任務
-                  </p>
-                </div>
-
-                {/* Tasks in this department */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {assignmentsByDepartment[department].map((assignment: any) => {
-              const progress = getProgress(assignment);
-              const lastActivity = assignment.logs.length > 0
-                ? new Date(assignment.logs[assignment.logs.length - 1].created_at)
-                : new Date(assignment.created_at);
-
-              return (
-                <div key={assignment.id} className="bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow overflow-hidden">
-                  <div className="p-6">
-                    {/* Status Badge */}
-                    <div className="flex items-start justify-between mb-4">
-                      <h3 className="text-xl font-bold text-gray-900 flex-1">
-                        {assignment.template?.title || '未知專案'}
-                      </h3>
-                      <StatusBadge status={assignment.status} />
-                    </div>
-
-                    {assignment.template?.description && (
-                      <p className="text-sm text-gray-600 mb-4">
-                        {assignment.template.description}
-                      </p>
-                    )}
-
-                    {/* Progress Bar */}
-                    <div className="mb-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700">完成進度</span>
-                        <span className="text-sm font-semibold text-blue-600">{progress}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className={`h-2 rounded-full transition-all ${
-                            progress === 100
-                              ? 'bg-green-500'
-                              : progress > 50
-                              ? 'bg-blue-500'
-                              : 'bg-yellow-500'
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Meta Info */}
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-4 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <ClipboardList size={16} />
-                        <span>{assignment.template?.steps_schema?.length || 0} 個步驟</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock size={16} />
-                        <span>{formatRelativeTime(lastActivity)}</span>
-                      </div>
-                      {assignment.collaborators && assignment.collaborators.length > 1 && (
-                        <div className="flex items-center gap-1 text-purple-600">
-                          <Users size={16} />
-                          <span>{assignment.collaborators.length} 人協作</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Button */}
-                    <Link
-                      href={`/assignment/${assignment.id}`}
-                      className="block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            {/* Department Tabs */}
+            <div className="border-b border-gray-200">
+              <div className="flex overflow-x-auto">
+                {departments.map((dept) => {
+                  const count = getDepartmentCount(dept);
+                  const isActive = activeDepartment === dept;
+                  
+                  return (
+                    <button
+                      key={dept}
+                      onClick={() => setActiveDepartment(dept)}
+                      className={`px-6 py-4 font-medium text-sm whitespace-nowrap border-b-2 transition-colors ${
+                        isActive
+                          ? 'border-blue-600 text-blue-600'
+                          : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                      }`}
                     >
-                      {progress === 0 ? '開始執行' : progress === 100 ? '查看詳情' : '繼續執行'}
-                    </Link>
-                  </div>
-                </div>
-              );
-            })}
-                </div>
+                      {dept}
+                      <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                        isActive
+                          ? 'bg-blue-100 text-blue-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+
+            {/* Department Content */}
+            <div className="p-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {getDepartmentAssignments(activeDepartment).map((assignment) => {
+                  const progress = getProgress(assignment);
+                  const lastActivity = assignment.logs.length > 0
+                    ? new Date(assignment.logs[assignment.logs.length - 1].created_at)
+                    : new Date(assignment.created_at);
+                  const creator = assignment.template?.creator;
+
+                  return (
+                    <div key={assignment.id} className="bg-gray-50 rounded-lg shadow hover:shadow-md transition-shadow overflow-hidden border border-gray-200">
+                      <div className="p-6">
+                        {/* Status Badge */}
+                        <div className="flex items-start justify-between mb-4">
+                          <h3 className="text-xl font-bold text-gray-900 flex-1">
+                            {assignment.template?.title || '未知專案'}
+                          </h3>
+                          <StatusBadge status={assignment.status} />
+                        </div>
+
+                        {/* Creator Info */}
+                        {creator && (
+                          <div className="mb-4 flex items-center gap-2 text-sm bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <UserIcon className="w-4 h-4 text-blue-600" />
+                            <span className="font-medium text-gray-700">發起人：</span>
+                            <span className="text-gray-900 font-semibold">
+                              {creator.full_name || creator.email}
+                            </span>
+                            {creator.department && (
+                              <span className="ml-auto px-2 py-0.5 bg-blue-600 text-white rounded text-xs font-medium">
+                                {creator.department}
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        {assignment.template?.description && (
+                          <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                            {assignment.template.description}
+                          </p>
+                        )}
+
+                        {/* Progress */}
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between text-sm mb-2">
+                            <span className="text-gray-600">完成進度</span>
+                            <span className="font-semibold text-gray-900">{progress}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full transition-all ${
+                                progress === 100
+                                  ? 'bg-green-500'
+                                  : progress > 0
+                                  ? 'bg-blue-500'
+                                  : 'bg-gray-300'
+                              }`}
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Meta Info */}
+                        <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                          <div className="flex items-center gap-1">
+                            <ClipboardList className="w-4 h-4" />
+                            <span>{assignment.template?.steps_schema?.length || 0} 個步驟</span>
+                          </div>
+                          {assignment.collaborators && assignment.collaborators.length > 1 && (
+                            <div className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              <span>{assignment.collaborators.length} 位協作者</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Last Activity */}
+                        <div className="text-xs text-gray-500 mb-4">
+                          最後更新：{lastActivity.toLocaleString('zh-TW')}
+                        </div>
+
+                        {/* Action Button */}
+                        <Link
+                          href={`/assignment/${assignment.id}`}
+                          className="block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                        >
+                          {progress === 0 ? '開始執行' : progress === 100 ? '查看詳情' : '繼續執行'}
+                        </Link>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -230,31 +317,25 @@ function StatCard({
 
 function StatusBadge({ status }: { status: string }) {
   const statusConfig = {
-    pending: { label: '待處理', classes: 'bg-gray-100 text-gray-800' },
-    in_progress: { label: '進行中', classes: 'bg-blue-100 text-blue-800' },
-    completed: { label: '已完成', classes: 'bg-green-100 text-green-800' },
+    pending: {
+      label: '待處理',
+      classes: 'bg-gray-100 text-gray-800',
+    },
+    in_progress: {
+      label: '進行中',
+      classes: 'bg-yellow-100 text-yellow-800',
+    },
+    completed: {
+      label: '已完成',
+      classes: 'bg-green-100 text-green-800',
+    },
   };
 
   const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
 
   return (
-    <span className={`px-3 py-1 text-xs font-semibold rounded-full ${config.classes}`}>
+    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${config.classes}`}>
       {config.label}
     </span>
   );
-}
-
-function formatRelativeTime(date: Date): string {
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  const diffDays = Math.floor(diffMs / 86400000);
-
-  if (diffMins < 1) return '剛剛';
-  if (diffMins < 60) return `${diffMins} 分鐘前`;
-  if (diffHours < 24) return `${diffHours} 小時前`;
-  if (diffDays < 7) return `${diffDays} 天前`;
-
-  return date.toLocaleDateString('zh-TW');
 }
