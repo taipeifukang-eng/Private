@@ -28,6 +28,9 @@ export default function TemplateCardWithStats({
   const completionRate = totalAssignments > 0 ? Math.round((completedAssignments / totalAssignments) * 100) : 0;
 
   const handleDeleteCompleted = async () => {
+    console.log('[TemplateCardWithStats] handleDeleteCompleted called');
+    console.log('[TemplateCardWithStats] completedAssignments:', completedAssignments);
+    
     if (completedAssignments === 0) {
       alert('沒有已完成的任務可以刪除');
       return;
@@ -37,45 +40,65 @@ export default function TemplateCardWithStats({
       `確定要刪除「${template.title}」的所有已完成任務嗎？\n\n將刪除 ${completedAssignments} 個已完成任務，此操作無法復原。`
     );
 
-    if (!confirmed) return;
+    if (!confirmed) {
+      console.log('[TemplateCardWithStats] Delete cancelled by user');
+      return;
+    }
 
     setIsDeleting(true);
     setShowMenu(false);
+    console.log('[TemplateCardWithStats] Starting delete process...');
 
     try {
       const { getAssignments, deleteAssignment } = await import('@/app/actions');
+      console.log('[TemplateCardWithStats] Actions imported successfully');
+      
       const result = await getAssignments();
+      console.log('[TemplateCardWithStats] getAssignments result:', result);
       
       if (result.success) {
         const assignments = result.data.filter(
           (a: any) => a.template_id === template.id && a.status === 'completed'
         );
+        console.log('[TemplateCardWithStats] Found completed assignments:', assignments.length);
 
         let successCount = 0;
         let failCount = 0;
+        const errors: string[] = [];
 
         for (const assignment of assignments) {
+          console.log('[TemplateCardWithStats] Deleting assignment:', assignment.id);
           const deleteResult = await deleteAssignment(assignment.id);
+          console.log('[TemplateCardWithStats] Delete result:', deleteResult);
+          
           if (deleteResult.success) {
             successCount++;
           } else {
             failCount++;
+            errors.push(`${assignment.id}: ${deleteResult.error}`);
           }
         }
+
+        console.log('[TemplateCardWithStats] Delete complete:', { successCount, failCount });
 
         if (failCount === 0) {
           alert(`✅ 成功刪除 ${successCount} 個已完成任務`);
         } else {
-          alert(`⚠️ 成功刪除 ${successCount} 個任務，${failCount} 個失敗`);
+          console.error('[TemplateCardWithStats] Delete errors:', errors);
+          alert(`⚠️ 成功刪除 ${successCount} 個任務，${failCount} 個失敗\n\n錯誤詳情：\n${errors.join('\n')}`);
         }
 
         window.location.reload();
+      } else {
+        console.error('[TemplateCardWithStats] Failed to get assignments:', result.error);
+        alert(`❌ 無法獲取任務列表: ${result.error}`);
       }
     } catch (error) {
-      console.error('Error deleting assignments:', error);
-      alert('❌ 刪除失敗，請稍後再試');
+      console.error('[TemplateCardWithStats] Error deleting assignments:', error);
+      alert(`❌ 刪除失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setIsDeleting(false);
+      console.log('[TemplateCardWithStats] Delete process ended');
     }
   };
 
