@@ -36,7 +36,8 @@ export default function DeleteAssignmentButton({
 
       if (result.success) {
         alert('✅ 任務已成功刪除');
-        window.location.reload(); // Refresh the page
+        // Reload the page to refresh the data
+        window.location.reload();
       } else {
         alert(`❌ 刪除失敗：${result.error}`);
       }
@@ -56,7 +57,7 @@ export default function DeleteAssignmentButton({
     <button
       onClick={handleDelete}
       disabled={isDeleting}
-      className="ml-3 text-red-600 hover:text-red-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1"
+      className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1 transition-colors whitespace-nowrap"
       title="刪除已完成的任務"
     >
       <Trash2 size={16} />
