@@ -4,8 +4,8 @@ import { getCurrentUser } from '@/app/auth/actions';
 import Navbar from '@/components/Navbar';
 
 export const metadata: Metadata = {
-  title: '動態工作流程與檢查清單系統',
-  description: '專為富康程式開發打造的流程審核系統',
+  title: '富康任務派發系統',
+  description: '專為富康程式開發打造的任務派發與協作系統',
 };
 
 export default async function RootLayout({

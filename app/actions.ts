@@ -384,3 +384,61 @@ export async function updateAssignmentStatus(
     return { success: false, error: error.message || '發生未知錯誤' };
   }
 }
+
+/**
+ * Delete a completed assignment (only admins and managers)
+ */
+export async function deleteAssignment(assignmentId: string) {
+  try {
+    const supabase = createClient();
+    
+    // Check user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return { success: false, error: '權限不足' };
+    }
+
+    // Check if assignment is completed
+    const { data: assignment } = await supabase
+      .from('assignments')
+      .select('status')
+      .eq('id', assignmentId)
+      .single();
+
+    if (!assignment) {
+      return { success: false, error: '任務不存在' };
+    }
+
+    if (assignment.status !== 'completed') {
+      return { success: false, error: '只能刪除已完成的任務' };
+    }
+
+    // Delete assignment (will cascade delete logs and collaborators)
+    const { error } = await supabase
+      .from('assignments')
+      .delete()
+      .eq('id', assignmentId);
+
+    if (error) {
+      console.error('Error deleting assignment:', error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/dashboard');
+    revalidatePath('/my-tasks');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}

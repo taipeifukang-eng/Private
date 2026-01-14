@@ -77,7 +77,7 @@ export default function Navbar({ user }: NavbarProps) {
                 <ClipboardList className="w-6 h-6 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900 hidden sm:block">
-                流程審核系統
+                富康任務派發系統
               </span>
             </Link>
 

@@ -64,7 +64,7 @@ export default function RegisterPage() {
           建立帳號
         </h1>
         <p className="text-center text-gray-600 mb-8">
-          註冊以開始使用流程審核系統
+          註冊以開始使用富康任務派發系統
         </p>
 
         {error && (

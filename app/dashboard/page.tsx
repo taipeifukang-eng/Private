@@ -1,6 +1,7 @@
 import { getAssignments } from '@/app/actions';
 import { Activity, CheckCircle2, Clock, User } from 'lucide-react';
 import type { Assignment, Template, Log } from '@/types/workflow';
+import DeleteAssignmentButton from '@/components/admin/DeleteAssignmentButton';
 
 // Extended types for joined data
 interface AssignmentWithDetails extends Assignment {
@@ -241,6 +242,11 @@ export default async function DashboardPage() {
                           >
                             查看詳情
                           </a>
+                          <DeleteAssignmentButton
+                            assignmentId={assignment.id}
+                            assignmentTitle={assignment.template?.title || '未知任務'}
+                            isCompleted={assignment.status === 'completed'}
+                          />
                         </td>
                       </tr>
                     );

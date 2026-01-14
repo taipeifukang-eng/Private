@@ -16,7 +16,7 @@ export default async function HomePage() {
             動態工作流程與檢查清單系統
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            歡迎使用富康程式開發流程審核系統
+            歡迎使用富康任務派發系統
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link
