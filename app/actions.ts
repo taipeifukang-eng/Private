@@ -747,7 +747,8 @@ export async function getArchivedAssignments() {
     const allUserIds = Array.from(new Set([
       ...(allCollaborators?.map(c => c.user_id) || []),
       ...(assignments?.map(a => a.archived_by).filter(Boolean) || []),
-      ...(assignments?.map(a => a.assigned_to).filter(Boolean) || [])
+      ...(assignments?.map(a => a.assigned_to).filter(Boolean) || []),
+      ...(assignments?.map(a => a.created_by).filter(Boolean) || [])
     ]));
 
     const { data: profiles } = await supabase
@@ -772,8 +773,12 @@ export async function getArchivedAssignments() {
         ...assignment,
         template: enrichedTemplate,
         logs: assignmentLogs,
-        assigned_user: profileMap.get(assignment.assigned_to) || null,
-        collaborators: collaboratorProfiles,
+        assignee: profileMap.get(assignment.assigned_to) || null,
+        creator: profileMap.get(assignment.created_by) || null,
+        collaborators: assignmentCollaborators.map(c => ({
+          user_id: c.user_id,
+          user: profileMap.get(c.user_id) || null
+        })),
         archived_by_user: profileMap.get(assignment.archived_by) || null,
       };
     }) || [];
