@@ -751,12 +751,18 @@ export async function getArchivedAssignments() {
       ...(assignments?.map(a => a.created_by).filter(Boolean) || [])
     ]));
 
+    console.log('[getArchivedAssignments] All user IDs to fetch:', allUserIds);
+    console.log('[getArchivedAssignments] Assignments created_by:', assignments?.map(a => ({ id: a.id, created_by: a.created_by })));
+
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, email, full_name, department')
       .in('id', allUserIds);
 
+    console.log('[getArchivedAssignments] Fetched profiles:', profiles);
+
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
+    console.log('[getArchivedAssignments] Profile map size:', profileMap.size);
 
     // Combine data
     const enrichedAssignments = assignments?.map(assignment => {
@@ -769,12 +775,15 @@ export async function getArchivedAssignments() {
         creator: creatorMap.get(assignment.template.created_by) || null
       } : null;
 
+      const creatorProfile = profileMap.get(assignment.created_by);
+      console.log('[getArchivedAssignments] Assignment:', assignment.id, '{ created_by:', assignment.created_by, ', creator profile:', creatorProfile, '}');
+
       return {
         ...assignment,
         template: enrichedTemplate,
         logs: assignmentLogs,
         assignee: profileMap.get(assignment.assigned_to) || null,
-        creator: profileMap.get(assignment.created_by) || null,
+        creator: creatorProfile || null,
         collaborators: assignmentCollaborators.map(c => ({
           user_id: c.user_id,
           user: profileMap.get(c.user_id) || null
@@ -782,6 +791,13 @@ export async function getArchivedAssignments() {
         archived_by_user: profileMap.get(assignment.archived_by) || null,
       };
     }) || [];
+
+    console.log('[getArchivedAssignments] Final enriched assignments:', enrichedAssignments.map(a => ({
+      id: a.id,
+      created_by: a.created_by,
+      creator: a.creator,
+      assignee: a.assignee
+    })));
 
     return { success: true, data: enrichedAssignments };
   } catch (error: any) {

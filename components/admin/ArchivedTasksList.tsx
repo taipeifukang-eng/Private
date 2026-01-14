@@ -13,6 +13,17 @@ export default function ArchivedTasksList({ groupedByMonth, sortedMonths }: Arch
   const [activeTab, setActiveTab] = useState(sortedMonths[0] || '');
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
+  console.log('[ArchivedTasksList] Received data:', {
+    sortedMonths,
+    activeTab,
+    tasksInActiveTab: groupedByMonth[activeTab]?.map(a => ({
+      id: a.id,
+      created_by: a.created_by,
+      creator: a.creator,
+      assignee: a.assignee
+    }))
+  });
+
   const toggleTask = (taskId: string) => {
     const newExpanded = new Set(expandedTasks);
     if (newExpanded.has(taskId)) {
