@@ -13,7 +13,7 @@ export default async function HomePage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center px-4">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            動態工作流程與檢查清單系統
+            富康活力連鎖藥局任務派發系統
           </h1>
           <p className="text-xl text-gray-600 mb-8">
             歡迎使用富康任務派發系統
