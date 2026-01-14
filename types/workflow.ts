@@ -6,13 +6,22 @@ export interface WorkflowStep {
   required: boolean;
 }
 
+// DepartmentSection: A group of steps assigned to a specific department
+export interface DepartmentSection {
+  id: string;
+  department: string;
+  assigned_users: string[];
+  steps: WorkflowStep[];
+}
+
 // Template: Stores the flow design
 export interface Template {
   id: string;
   title: string;
   description: string | null;
   created_by: string | null;
-  steps_schema: WorkflowStep[];
+  steps_schema: WorkflowStep[];  // Legacy: flat steps (for backward compatibility)
+  sections?: DepartmentSection[]; // New: department-based sections
   created_at: string;
 }
 
@@ -35,6 +44,7 @@ export interface AssignmentCollaborator {
   id: string;
   assignment_id: string;
   user_id: string;
+  section_id?: string | null; // Which section this user is assigned to
   created_at: string;
 }
 

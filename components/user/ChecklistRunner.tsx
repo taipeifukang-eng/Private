@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, ArrowLeft, Users } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowLeft, Users, Building } from 'lucide-react';
 import type { Assignment, WorkflowStep, Profile } from '@/types/workflow';
 
 interface ChecklistRunnerProps {
@@ -10,6 +10,10 @@ interface ChecklistRunnerProps {
     template: {
       title: string;
       steps_schema: WorkflowStep[];
+      userSection?: {
+        id: string;
+        department: string;
+      };
     };
     collaborators?: Profile[];
   };
@@ -193,6 +197,16 @@ export default function ChecklistRunner({
               day: '2-digit'
             }) : '-'}</span>
             
+            {/* User's Department Section */}
+            {assignment.template.userSection && (
+              <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full">
+                <Building size={16} />
+                <span className="font-medium">
+                  {assignment.template.userSection.department}
+                </span>
+              </div>
+            )}
+            
             {/* Collaborators Info */}
             {assignment.collaborators && assignment.collaborators.length > 0 && (
               <div className="flex items-center gap-2 px-3 py-1 bg-purple-100 text-purple-800 rounded-full">
@@ -225,7 +239,9 @@ export default function ChecklistRunner({
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">完成進度</span>
+            <span className="text-sm font-medium text-gray-700">
+              {assignment.template.userSection ? `${assignment.template.userSection.department} 進度` : '完成進度'}
+            </span>
             <span className="text-sm font-semibold text-blue-600">
               {completedSteps} / {totalSteps} ({Math.round(progress)}%)
             </span>

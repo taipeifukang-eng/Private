@@ -373,10 +373,10 @@ export async function getAssignments() {
       return { success: false, error: '未登入', data: [] };
     }
 
-    // Get all assignment IDs where user is a collaborator
+    // Get all assignment IDs where user is a collaborator (with section_id)
     const { data: collaborations, error: collabError } = await supabase
       .from('assignment_collaborators')
-      .select('assignment_id')
+      .select('assignment_id, section_id')
       .eq('user_id', user.id);
 
     if (collabError) {
@@ -384,6 +384,11 @@ export async function getAssignments() {
     }
 
     const assignmentIds = collaborations?.map(c => c.assignment_id) || [];
+
+    // Create a map of user's section_id for each assignment
+    const userSectionMap = new Map(
+      collaborations?.map(c => [c.assignment_id, c.section_id]) || []
+    );
 
     // If no assignments found, return empty array early
     if (assignmentIds.length === 0) {
@@ -434,10 +439,10 @@ export async function getAssignments() {
       console.error('Error fetching logs:', logsError);
     }
 
-    // Fetch all collaborators for these assignments
+    // Fetch all collaborators for these assignments (with section_id for display)
     const { data: allCollaborators, error: allCollabError } = await supabase
       .from('assignment_collaborators')
-      .select('assignment_id, user_id')
+      .select('assignment_id, user_id, section_id')
       .in('assignment_id', assignmentIds);
 
     if (allCollabError) {
@@ -458,24 +463,55 @@ export async function getAssignments() {
     // Create a map of user profiles
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
-    // Combine data
+    // Combine data with section-aware filtering
     const enrichedAssignments = assignments?.map((assignment: any) => {
       const assignmentLogs = logs?.filter(log => log.assignment_id === assignment.id) || [];
       const assignmentCollaborators = allCollaborators?.filter(c => c.assignment_id === assignment.id) || [];
       const collaboratorProfiles = assignmentCollaborators.map(c => profileMap.get(c.user_id)).filter(Boolean);
       
-      // Add creator info to template
-      const enrichedTemplate = assignment.template ? {
-        ...assignment.template,
-        creator: creatorMap.get(assignment.template.created_by) || null
-      } : null;
+      // Get user's section_id for this assignment
+      const userSectionId = userSectionMap.get(assignment.id);
+      
+      // Process template based on sections
+      let processedTemplate = assignment.template;
+      
+      if (assignment.template?.sections && Array.isArray(assignment.template.sections) && assignment.template.sections.length > 0 && userSectionId) {
+        // Find user's section
+        const userSection = assignment.template.sections.find((s: any) => s.id === userSectionId);
+        
+        if (userSection) {
+          // Replace steps_schema with user's section steps only
+          processedTemplate = {
+            ...assignment.template,
+            steps_schema: userSection.steps || [],
+            userSection: {
+              id: userSection.id,
+              department: userSection.department,
+            },
+            creator: creatorMap.get(assignment.template.created_by) || null
+          };
+        } else {
+          // Add creator info even if section not found
+          processedTemplate = {
+            ...assignment.template,
+            creator: creatorMap.get(assignment.template.created_by) || null
+          };
+        }
+      } else {
+        // No sections or no section_id - use original steps
+        processedTemplate = assignment.template ? {
+          ...assignment.template,
+          creator: creatorMap.get(assignment.template.created_by) || null
+        } : null;
+      }
 
       return {
         ...assignment,
-        template: enrichedTemplate,
+        template: processedTemplate,
         logs: assignmentLogs,
         assigned_user: profileMap.get(assignment.assigned_to) || null,
         collaborators: collaboratorProfiles,
+        userSectionId: userSectionId || null,
       };
     }) || [];
 
@@ -492,6 +528,9 @@ export async function getAssignments() {
 export async function getAssignment(assignmentId: string) {
   try {
     const supabase = createClient();
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
 
     const { data: assignment, error: assignmentError } = await supabase
       .from('assignments')
@@ -518,10 +557,10 @@ export async function getAssignment(assignmentId: string) {
       console.error('Error fetching logs:', logsError);
     }
 
-    // Fetch collaborators for this assignment
+    // Fetch collaborators for this assignment with section_id
     const { data: collaborations, error: collabError } = await supabase
       .from('assignment_collaborators')
-      .select('user_id')
+      .select('user_id, section_id')
       .eq('assignment_id', assignmentId);
 
     if (collabError) {
@@ -539,10 +578,47 @@ export async function getAssignment(assignmentId: string) {
       console.error('Error fetching profiles:', profilesError);
     }
 
+    // Process template for section-based filtering
+    let processedTemplate = assignment.template;
+    
+    // If template has sections and user is logged in, filter steps for this user
+    if (user && assignment.template?.sections && Array.isArray(assignment.template.sections) && assignment.template.sections.length > 0) {
+      console.log('[getAssignment] Template has sections, filtering for user:', user.id);
+      
+      // Find user's section_id from collaborations
+      const userCollab = collaborations?.find(c => c.user_id === user.id);
+      const userSectionId = userCollab?.section_id;
+      
+      console.log('[getAssignment] User section_id:', userSectionId);
+      
+      if (userSectionId) {
+        // Find the user's section in template
+        const userSection = assignment.template.sections.find((s: any) => s.id === userSectionId);
+        
+        if (userSection) {
+          console.log('[getAssignment] Found user section:', userSection.department, 'with', userSection.steps?.length, 'steps');
+          
+          // Replace steps_schema with only this user's section steps
+          processedTemplate = {
+            ...assignment.template,
+            steps_schema: userSection.steps || [],
+            userSection: {
+              id: userSection.id,
+              department: userSection.department,
+            }
+          };
+        }
+      } else {
+        // User doesn't have a specific section, show all steps (for backward compatibility)
+        console.log('[getAssignment] User has no section_id, showing all steps');
+      }
+    }
+
     return {
       success: true,
       data: {
         ...assignment,
+        template: processedTemplate,
         logs: logs || [],
         collaborators: profiles || [],
       },
@@ -928,5 +1004,317 @@ export async function deleteTemplate(templateId: string) {
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}
+
+/**
+ * Create a new template with department-based sections (V2)
+ * Each section has its own department, assigned users, and steps
+ */
+export async function createTemplateV2(data: {
+  title: string;
+  description: string;
+  sections: {
+    id: string;
+    department: string;
+    assigned_users: string[];
+    steps: { id: string; label: string; description?: string; required: boolean }[];
+  }[];
+}) {
+  try {
+    const supabase = createClient();
+
+    // Get current user (creator)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // Get creator's profile to fetch department
+    const { data: creatorProfile } = await supabase
+      .from('profiles')
+      .select('department')
+      .eq('id', user.id)
+      .single();
+
+    console.log('[createTemplateV2] Creating template with sections:', {
+      title: data.title,
+      sections_count: data.sections.length,
+      total_users: data.sections.reduce((sum, s) => sum + s.assigned_users.length, 0),
+      total_steps: data.sections.reduce((sum, s) => sum + s.steps.length, 0),
+    });
+
+    // Create template with sections
+    // Note: steps_schema will store a flattened version for backward compatibility
+    const allSteps = data.sections.flatMap(section => section.steps);
+    
+    const { data: template, error } = await supabase
+      .from('templates')
+      .insert({
+        title: data.title,
+        description: data.description,
+        steps_schema: allSteps, // Flattened for backward compatibility
+        sections: data.sections, // New: full department sections
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return { success: false, error: `資料庫錯誤: ${error.message}` };
+    }
+
+    console.log('[createTemplateV2] Template created:', template.id);
+
+    // Create assignment with all unique users as collaborators
+    const allUserIds = new Set<string>();
+    allUserIds.add(user.id); // Always include creator
+    data.sections.forEach(section => {
+      section.assigned_users.forEach(userId => allUserIds.add(userId));
+    });
+
+    const userIdArray = Array.from(allUserIds);
+    console.log('[createTemplateV2] Creating assignment for users:', userIdArray);
+
+    // Create the main assignment record
+    const { data: assignment, error: assignmentError } = await supabase
+      .from('assignments')
+      .insert({
+        template_id: template.id,
+        assigned_to: userIdArray[0], // Primary assignee (creator)
+        status: 'pending',
+        department: creatorProfile?.department || null,
+        created_by: user.id,
+      })
+      .select()
+      .single();
+
+    if (assignmentError) {
+      console.error('[createTemplateV2] Error creating assignment:', assignmentError);
+      // Don't fail template creation if assignment fails
+    } else {
+      // Add all users as collaborators with their section info
+      const collaborators = userIdArray.map(userId => {
+        // Find which section this user belongs to
+        const userSection = data.sections.find(s => s.assigned_users.includes(userId));
+        return {
+          assignment_id: assignment.id,
+          user_id: userId,
+          section_id: userSection?.id || null, // Store which section this user is assigned to
+        };
+      });
+
+      const { error: collaboratorError } = await supabase
+        .from('assignment_collaborators')
+        .insert(collaborators);
+
+      if (collaboratorError) {
+        console.error('[createTemplateV2] Error adding collaborators:', collaboratorError);
+      }
+    }
+
+    revalidatePath('/dashboard');
+    revalidatePath('/admin/templates');
+    revalidatePath('/my-tasks');
+    return { success: true, data: template };
+  } catch (error: any) {
+    console.error('[createTemplateV2] Unexpected error:', error);
+    return { 
+      success: false, 
+      error: `發生錯誤: ${error.message || '未知錯誤'}` 
+    };
+  }
+}
+
+/**
+ * Update an existing template with department-based sections (V2)
+ */
+export async function updateTemplateV2(templateId: string, data: {
+  title: string;
+  description: string;
+  sections: {
+    id: string;
+    department: string;
+    assigned_users: string[];
+    steps: { id: string; label: string; description?: string; required: boolean }[];
+  }[];
+}) {
+  try {
+    const supabase = createClient();
+
+    // Check user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return { success: false, error: '權限不足' };
+    }
+
+    // Check if template has completed assignments
+    const { data: assignments } = await supabase
+      .from('assignments')
+      .select('id, status')
+      .eq('template_id', templateId);
+
+    const hasCompletedAssignments = assignments?.some(a => a.status === 'completed');
+    if (hasCompletedAssignments) {
+      return { success: false, error: '此任務已有完成的指派記錄，無法編輯' };
+    }
+
+    console.log('[updateTemplateV2] Updating template:', templateId);
+
+    // Flatten steps for backward compatibility
+    const allSteps = data.sections.flatMap(section => section.steps);
+
+    // Update the template
+    const { data: template, error } = await supabase
+      .from('templates')
+      .update({
+        title: data.title,
+        description: data.description,
+        steps_schema: allSteps,
+        sections: data.sections,
+      })
+      .eq('id', templateId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[updateTemplateV2] Error updating template:', error);
+      return { success: false, error: error.message };
+    }
+
+    // Update collaborators for all active assignments
+    for (const assignment of assignments || []) {
+      // Get current collaborators
+      const { data: currentCollaborators } = await supabase
+        .from('assignment_collaborators')
+        .select('user_id')
+        .eq('assignment_id', assignment.id);
+      
+      const currentUserIds = new Set(currentCollaborators?.map(c => c.user_id) || []);
+      
+      // Get new user IDs from sections
+      const newUserIds = new Set<string>();
+      data.sections.forEach(section => {
+        section.assigned_users.forEach(userId => newUserIds.add(userId));
+      });
+
+      // Find users to add (use Array.from instead of spread)
+      const usersToAdd = Array.from(newUserIds).filter(id => !currentUserIds.has(id));
+      
+      // Find users to remove (use Array.from instead of spread)
+      const usersToRemove = Array.from(currentUserIds).filter(id => !newUserIds.has(id as string)) as string[];
+
+      // Add new collaborators
+      if (usersToAdd.length > 0) {
+        const newCollaborators = usersToAdd.map(userId => {
+          const userSection = data.sections.find(s => s.assigned_users.includes(userId));
+          return {
+            assignment_id: assignment.id,
+            user_id: userId,
+            section_id: userSection?.id || null,
+          };
+        });
+        
+        await supabase
+          .from('assignment_collaborators')
+          .insert(newCollaborators);
+      }
+
+      // Remove old collaborators (except if they've already completed steps)
+      if (usersToRemove.length > 0) {
+        for (const userId of usersToRemove) {
+          // Check if user has any logs
+          const { data: userLogs } = await supabase
+            .from('logs')
+            .select('id')
+            .eq('assignment_id', assignment.id)
+            .eq('user_id', userId)
+            .limit(1);
+          
+          // Only remove if no logs
+          if (!userLogs || userLogs.length === 0) {
+            await supabase
+              .from('assignment_collaborators')
+              .delete()
+              .eq('assignment_id', assignment.id)
+              .eq('user_id', userId);
+          }
+        }
+      }
+    }
+
+    revalidatePath('/admin/templates');
+    revalidatePath('/admin/template/[id]', 'page');
+    revalidatePath('/dashboard');
+    revalidatePath('/my-tasks');
+    return { success: true, data: template };
+  } catch (error: any) {
+    console.error('[updateTemplateV2] Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}
+
+/**
+ * Get all unique departments from profiles
+ */
+export async function getAllDepartments() {
+  try {
+    const supabase = createClient();
+    
+    const { data: profiles, error } = await supabase
+      .from('profiles')
+      .select('department')
+      .not('department', 'is', null)
+      .not('department', 'eq', '');
+    
+    if (error) {
+      console.error('Error fetching departments:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+
+    // Get unique departments (use Array.from instead of spread)
+    const departmentSet = new Set(profiles?.map(p => p.department).filter(Boolean));
+    const departments = Array.from(departmentSet) as string[];
+    
+    return { success: true, data: departments.sort() };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤', data: [] };
+  }
+}
+
+/**
+ * Get users by department
+ */
+export async function getUsersByDepartment(department: string) {
+  try {
+    const supabase = createClient();
+    
+    const { data: users, error } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, role, department, job_title')
+      .eq('department', department)
+      .order('full_name');
+    
+    if (error) {
+      console.error('Error fetching users by department:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+
+    return { success: true, data: users || [] };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤', data: [] };
   }
 }

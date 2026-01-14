@@ -6,6 +6,8 @@ CREATE TABLE templates (
   created_by UUID REFERENCES auth.users(id),
   -- The dynamic steps structure: [{ id: 1, label: "Step Name", required: true }]
   steps_schema JSONB NOT NULL DEFAULT '[]'::jsonb,
+  -- Department-based sections: [{ id: "sec-1", department: "營業部", assigned_users: [], steps: [] }]
+  sections JSONB DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
