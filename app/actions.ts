@@ -302,6 +302,11 @@ export async function getAssignments() {
 
     const assignmentIds = collaborations?.map(c => c.assignment_id) || [];
 
+    // If no assignments found, return empty array early
+    if (assignmentIds.length === 0) {
+      return { success: true, data: [] };
+    }
+
     // Fetch assignments where user is a collaborator
     const { data: assignments, error: assignmentsError } = await supabase
       .from('assignments')

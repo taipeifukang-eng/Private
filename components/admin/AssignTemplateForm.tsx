@@ -53,23 +53,27 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (selectedUserIds.length === 0) {
-      alert('請至少選擇一位使用者');
-      return;
-    }
-
+    // If no users selected, assignment will be automatically assigned to creator
+    // The createAssignment function will add the creator automatically
+    
     setIsLoading(true);
 
     try {
       const { createAssignment } = await import('@/app/actions');
+      
+      // If no users selected, pass empty array - creator will be added automatically
       const result = await createAssignment({
         template_id: templateId,
-        assigned_to: selectedUserIds,
+        assigned_to: selectedUserIds.length > 0 ? selectedUserIds : [],
       });
 
       if (result.success) {
         const userCount = selectedUserIds.length;
-        alert(`✅ 任務指派成功！已指派給 ${userCount} 位使用者`);
+        if (userCount === 0) {
+          alert(`✅ 任務建立成功！已指派給您自己`);
+        } else {
+          alert(`✅ 任務指派成功！已指派給 ${userCount} 位使用者`);
+        }
         router.push('/dashboard');
       } else {
         alert(`❌ 指派失敗：${result.error}`);
@@ -117,13 +121,16 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
           <form onSubmit={handleSubmit}>
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                選擇使用者（可多選進行協作） <span className="text-red-500">*</span>
+                選擇協作使用者（可多選，不選則僅指派給自己）
               </label>
+              <p className="text-sm text-gray-500 mb-3">
+                💡 提示：任務會自動指派給您（創建者）。您可以額外選擇其他使用者進行協作。
+              </p>
               
               {selectedUserIds.length > 0 && (
                 <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
                   <p className="text-sm text-green-800 font-medium">
-                    已選擇 {selectedUserIds.length} 位使用者
+                    已選擇 {selectedUserIds.length} 位協作者（加上您自己共 {selectedUserIds.length + 1} 人）
                   </p>
                 </div>
               )}
