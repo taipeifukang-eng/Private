@@ -55,6 +55,7 @@ export interface Profile {
   full_name: string | null;
   role: 'admin' | 'manager' | 'member';
   department: string | null; // User's department
+  job_title: string | null; // User's job title/position
   avatar_url: string | null;
   created_at: string;
   updated_at: string;

@@ -7,7 +7,7 @@ import type { Profile } from '@/types/workflow';
 
 export default function UserManagementTable({ users }: { users: Profile[] }) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ full_name: '', role: 'member' as Profile['role'], department: '' });
+  const [editForm, setEditForm] = useState({ full_name: '', role: 'member' as Profile['role'], department: '', job_title: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
@@ -28,6 +28,7 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
       full_name: user.full_name || '',
       role: user.role,
       department: user.department || '',
+      job_title: user.job_title || '',
     });
   };
 
@@ -158,6 +159,9 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                 部門
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                職稱
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 角色
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -218,13 +222,13 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                   {editingUser === user.id ? (
                     <input
                       type="text"
-                      value={editForm.department}
-                      onChange={(e) => setEditForm({ ...editForm, department: e.target.value })}
+                      value={editForm.job_title}
+                      onChange={(e) => setEditForm({ ...editForm, job_title: e.target.value })}
                       className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 outline-none"
-                      placeholder="輸入部門"
+                      placeholder="輸入職稱"
                     />
                   ) : (
-                    <div className="text-sm text-gray-900">{user.department || '未設定'}</div>
+                    <div className="text-sm text-gray-900">{user.job_title || '未設定'}</div>
                   )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
