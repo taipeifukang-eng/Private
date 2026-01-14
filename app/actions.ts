@@ -459,7 +459,7 @@ export async function getAssignments() {
     const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
 
     // Combine data
-    const enrichedAssignments = assignments?.map(assignment => {
+    const enrichedAssignments = assignments?.map((assignment: any) => {
       const assignmentLogs = logs?.filter(log => log.assignment_id === assignment.id) || [];
       const assignmentCollaborators = allCollaborators?.filter(c => c.assignment_id === assignment.id) || [];
       const collaboratorProfiles = assignmentCollaborators.map(c => profileMap.get(c.user_id)).filter(Boolean);
@@ -775,7 +775,7 @@ export async function getArchivedAssignments() {
     console.log('[getArchivedAssignments] Profile map size:', profileMap.size);
 
     // Combine data
-    const enrichedAssignments = assignments?.map(assignment => {
+    const enrichedAssignments = assignments?.map((assignment: any) => {
       const assignmentLogs = logs?.filter(log => log.assignment_id === assignment.id) || [];
       const assignmentCollaborators = allCollaborators?.filter(c => c.assignment_id === assignment.id) || [];
       const collaboratorProfiles = assignmentCollaborators.map(c => profileMap.get(c.user_id)).filter(Boolean);
