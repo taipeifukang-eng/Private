@@ -37,6 +37,7 @@ export default function WorkflowBuilder({
   const [users, setUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (template) {
@@ -132,6 +133,11 @@ export default function WorkflowBuilder({
 
   // Save template
   const handleSaveTemplate = async () => {
+    if (isSaving) {
+      console.log('⏳ 正在儲存中，請勿重複提交');
+      return;
+    }
+
     if (hasCompletedAssignments) {
       alert('❌ 此任務已有完成的指派記錄，無法編輯');
       return;
@@ -153,6 +159,7 @@ export default function WorkflowBuilder({
       return;
     }
 
+    setIsSaving(true);
     try {
       if (isEditing && template) {
         const { updateTemplate } = await import('@/app/actions');
@@ -219,6 +226,8 @@ export default function WorkflowBuilder({
     } catch (error) {
       console.error('發生錯誤:', error);
       alert(`❌ 發生錯誤：${error instanceof Error ? error.message : '請稍後再試'}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -498,11 +507,11 @@ export default function WorkflowBuilder({
         <div className="flex gap-4">
           <button
             onClick={handleSaveTemplate}
-            disabled={hasCompletedAssignments}
+            disabled={hasCompletedAssignments || isSaving}
             className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Save size={20} />
-            {isEditing ? '更新任務' : '儲存任務'}
+            {isSaving ? '儲存中...' : (isEditing ? '更新任務' : '儲存任務')}
           </button>
           <button
             onClick={() => router.push('/admin/templates')}
