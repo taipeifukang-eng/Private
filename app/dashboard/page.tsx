@@ -43,10 +43,10 @@ function calculateProgress(assignment: AssignmentWithDetails): number {
     console.log('Processing log:', log);
     if (log.step_id !== null && log.step_id !== undefined) {
       const stepIdStr = log.step_id.toString();
-      if (log.action === 'checked') {
+      if (log.action === 'complete') {
         checkedStepIds.add(stepIdStr);
         console.log('Added step:', stepIdStr);
-      } else if (log.action === 'unchecked') {
+      } else if (log.action === 'uncomplete') {
         checkedStepIds.delete(stepIdStr);
         console.log('Removed step:', stepIdStr);
       }

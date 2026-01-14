@@ -84,10 +84,13 @@ export default function MyTasksPage() {
 
     const checkedStepIds = new Set();
     assignment.logs.forEach((log: any) => {
-      if (log.action === 'checked') {
-        checkedStepIds.add(log.step_id);
-      } else if (log.action === 'unchecked') {
-        checkedStepIds.delete(log.step_id);
+      if (log.step_id !== null && log.step_id !== undefined) {
+        const stepIdStr = log.step_id.toString();
+        if (log.action === 'complete') {
+          checkedStepIds.add(stepIdStr);
+        } else if (log.action === 'uncomplete') {
+          checkedStepIds.delete(stepIdStr);
+        }
       }
     });
 
