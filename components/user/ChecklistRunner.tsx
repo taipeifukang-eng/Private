@@ -23,11 +23,17 @@ export default function ChecklistRunner({
   const router = useRouter();
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(initialCheckedSteps);
   const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   const steps = assignment.template.steps_schema;
   const totalSteps = steps.length;
   const completedSteps = checkedSteps.size;
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
+
+  // Handle hydration
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Auto-refresh every 3 seconds to sync with other collaborators
   useEffect(() => {
@@ -181,7 +187,11 @@ export default function ChecklistRunner({
               {assignment.status === 'in_progress' && '進行中'}
               {assignment.status === 'completed' && '已完成'}
             </span>
-            <span>指派日期: {new Date(assignment.created_at).toLocaleDateString('zh-TW')}</span>
+            <span>指派日期: {mounted ? new Date(assignment.created_at).toLocaleDateString('zh-TW', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit'
+            }) : '-'}</span>
             
             {/* Collaborators Info */}
             {assignment.collaborators && assignment.collaborators.length > 0 && (
