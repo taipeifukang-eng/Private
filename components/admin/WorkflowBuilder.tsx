@@ -374,21 +374,3 @@ export default function WorkflowBuilder({
     </div>
   );
 }
-            </div>
-          )}
-        </div>
-
-        {/* Save Button */}
-        <div className="flex justify-end pt-6 border-t border-gray-200">
-          <button
-            onClick={handleSaveTemplate}
-            className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold"
-          >
-            <Save size={20} />
-            儲存流程
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
