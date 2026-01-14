@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical } from 'lucide-react';
+import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical, Edit } from 'lucide-react';
 import type { Template } from '@/types/workflow';
 
 interface TemplateCardWithStatsProps {
@@ -169,8 +169,16 @@ export default function TemplateCardWithStats({
               onClick={() => setShowMenu(false)}
             />
             <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-20">
+              <Link
+                href={`/admin/edit/${template.id}`}
+                className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+              >
+                <Edit size={16} />
+                編輯任務
+              </Link>
               {completedAssignments > 0 && (
                 <>
+                  <div className="border-t border-gray-200 my-1"></div>
                   <button
                     onClick={handleDeleteCompleted}
                     disabled={isDeleting}
@@ -179,9 +187,9 @@ export default function TemplateCardWithStats({
                     <Trash2 size={16} />
                     {isDeleting ? '刪除中...' : `刪除 ${completedAssignments} 個已完成任務`}
                   </button>
-                  <div className="border-t border-gray-200 my-1"></div>
                 </>
               )}
+              <div className="border-t border-gray-200 my-1"></div>
               <button
                 onClick={handleDeleteTemplate}
                 disabled={isDeleting}

@@ -57,6 +57,7 @@ export async function createTemplate(data: {
 
     console.log('Template created successfully:', template);
     revalidatePath('/dashboard');
+    revalidatePath('/admin/templates');
     return { success: true, data: template };
   } catch (error: any) {
     console.error('Unexpected error:', error);
@@ -64,6 +65,71 @@ export async function createTemplate(data: {
       success: false, 
       error: `發生錯誤: ${error.message || '未知錯誤'}。詳細資訊請查看 Console。` 
     };
+  }
+}
+
+/**
+ * Update an existing template
+ */
+export async function updateTemplate(templateId: string, data: {
+  title: string;
+  description: string;
+  steps_schema: WorkflowStep[];
+}) {
+  try {
+    const supabase = createClient();
+
+    // Check user role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return { success: false, error: '權限不足' };
+    }
+
+    // Check if template has completed assignments
+    const { data: assignments } = await supabase
+      .from('assignments')
+      .select('status')
+      .eq('template_id', templateId);
+
+    const hasCompletedAssignments = assignments?.some(a => a.status === 'completed');
+    if (hasCompletedAssignments) {
+      return { success: false, error: '此任務已有完成的指派記錄，無法編輯' };
+    }
+
+    // Update the template
+    const { data: template, error } = await supabase
+      .from('templates')
+      .update({
+        title: data.title,
+        description: data.description,
+        steps_schema: data.steps_schema,
+      })
+      .eq('id', templateId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating template:', error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/admin/templates');
+    revalidatePath('/admin/template/[id]', 'page');
+    revalidatePath('/dashboard');
+    return { success: true, data: template };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤' };
   }
 }
 

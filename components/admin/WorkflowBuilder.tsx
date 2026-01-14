@@ -1,13 +1,38 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, Trash2, ChevronUp, ChevronDown, Save } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { Plus, Trash2, ChevronUp, ChevronDown, Save, AlertTriangle, Lock } from 'lucide-react';
 import type { WorkflowStep } from '@/types/workflow';
+import type { Template } from '@/types/workflow';
 
-export default function WorkflowBuilder() {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [steps, setSteps] = useState<WorkflowStep[]>([]);
+interface WorkflowBuilderProps {
+  template?: Template;
+  isEditing?: boolean;
+  hasActiveAssignments?: boolean;
+  hasCompletedAssignments?: boolean;
+  checkedStepIds?: number[];
+}
+
+export default function WorkflowBuilder({ 
+  template, 
+  isEditing = false,
+  hasActiveAssignments = false,
+  hasCompletedAssignments = false,
+  checkedStepIds = []
+}: WorkflowBuilderProps) {
+  const router = useRouter();
+  const [title, setTitle] = useState(template?.title || '');
+  const [description, setDescription] = useState(template?.description || '');
+  const [steps, setSteps] = useState<WorkflowStep[]>(template?.steps_schema || []);
+
+  useEffect(() => {
+    if (template) {
+      setTitle(template.title);
+      setDescription(template.description || '');
+      setSteps(template.steps_schema || []);
+    }
+  }, [template]);
 
   // Add a new step
   const addStep = () => {
@@ -50,6 +75,11 @@ export default function WorkflowBuilder() {
 
   // Save template
   const handleSaveTemplate = async () => {
+    if (hasCompletedAssignments) {
+      alert('❌ 此任務已有完成的指派記錄，無法編輯');
+      return;
+    }
+
     if (!title.trim()) {
       alert('請輸入專案標題');
       return;
@@ -67,33 +97,60 @@ export default function WorkflowBuilder() {
     }
 
     try {
-      const { createTemplate } = await import('@/app/actions');
-      
-      console.log('正在儲存流程...', {
-        title: title.trim(),
-        description: description.trim(),
-        steps_count: steps.length,
-      });
-      
-      const result = await createTemplate({
-        title: title.trim(),
-        description: description.trim(),
-        steps_schema: steps,
-      });
+      if (isEditing && template) {
+        const { updateTemplate } = await import('@/app/actions');
+        
+        console.log('正在更新任務...', {
+          templateId: template.id,
+          title: title.trim(),
+          description: description.trim(),
+          steps_count: steps.length,
+        });
+        
+        const result = await updateTemplate(template.id, {
+          title: title.trim(),
+          description: description.trim(),
+          steps_schema: steps,
+        });
 
-      console.log('Server Action 回應:', result);
+        console.log('Server Action 回應:', result);
 
-      if (result.success) {
-        alert('✅ 流程儲存成功！');
-        // Reset form
-        setTitle('');
-        setDescription('');
-        setSteps([]);
-        // Redirect to templates page
-        window.location.href = '/admin/templates';
+        if (result.success) {
+          alert('✅ 任務更新成功！');
+          router.push('/admin/templates');
+        } else {
+          console.error('更新失敗:', result.error);
+          alert(`❌ 更新失敗：${result.error}`);
+        }
       } else {
-        console.error('儲存失敗:', result.error);
-        alert(`❌ 儲存失敗：${result.error}`);
+        const { createTemplate } = await import('@/app/actions');
+        
+        console.log('正在儲存任務...', {
+          title: title.trim(),
+          description: description.trim(),
+          steps_count: steps.length,
+        });
+        
+        const result = await createTemplate({
+          title: title.trim(),
+          description: description.trim(),
+          steps_schema: steps,
+        });
+
+        console.log('Server Action 回應:', result);
+
+        if (result.success) {
+          alert('✅ 任務儲存成功！');
+          // Reset form
+          setTitle('');
+          setDescription('');
+          setSteps([]);
+          // Redirect to templates page
+          router.push('/admin/templates');
+        } else {
+          console.error('儲存失敗:', result.error);
+          alert(`❌ 儲存失敗：${result.error}`);
+        }
       }
     } catch (error) {
       console.error('發生錯誤:', error);
@@ -104,7 +161,40 @@ export default function WorkflowBuilder() {
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="bg-white rounded-lg shadow-lg p-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-6">建立新任務</h1>
+        <h1 className="text-3xl font-bold text-gray-900 mb-6">
+          {isEditing ? '編輯任務' : '建立新任務'}
+        </h1>
+
+        {/* Warnings for editing active assignments */}
+        {isEditing && hasActiveAssignments && (
+          <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="text-yellow-600 flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <h3 className="font-semibold text-yellow-900 mb-1">⚠️ 此任務有進行中的指派</h3>
+                <p className="text-sm text-yellow-800">
+                  此任務模板已被使用，編輯時請謹慎。已完成的步驟會標示為
+                  <Lock className="inline mx-1" size={14} />
+                  ，表示有員工已勾選完成。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isEditing && hasCompletedAssignments && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Lock className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-900 mb-1">🔒 無法編輯</h3>
+                <p className="text-sm text-red-800">
+                  此任務已有完成的指派記錄，無法再進行編輯。
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Project Title */}
         <div className="mb-6">
@@ -153,16 +243,35 @@ export default function WorkflowBuilder() {
             </div>
           ) : (
             <div className="space-y-4">
-              {steps.map((step, index) => (
-                <div
-                  key={step.id}
-                  className="bg-gray-50 border border-gray-200 rounded-lg p-4"
-                >
-                  <div className="flex items-start gap-4">
-                    {/* Step Number */}
-                    <div className="flex-shrink-0 w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-semibold">
-                      {index + 1}
-                    </div>
+              {steps.map((step, index) => {
+                const stepIdNum = typeof step.id === 'string' ? parseInt(step.id) : step.id;
+                const isStepChecked = checkedStepIds.includes(stepIdNum);
+                
+                return (
+                  <div
+                    key={step.id}
+                    className={`border rounded-lg p-4 ${
+                      isStepChecked 
+                        ? 'bg-yellow-50 border-yellow-300' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}
+                  >
+                    {isStepChecked && (
+                      <div className="mb-3 flex items-center gap-2 text-sm text-yellow-800">
+                        <Lock size={16} />
+                        <span className="font-medium">此步驟已有員工完成記錄</span>
+                      </div>
+                    )}
+                    
+                    <div className="flex items-start gap-4">
+                      {/* Step Number */}
+                      <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
+                        isStepChecked 
+                          ? 'bg-yellow-600 text-white' 
+                          : 'bg-blue-600 text-white'
+                      }`}>
+                        {index + 1}
+                      </div>
 
                     {/* Step Content */}
                     <div className="flex-1 space-y-3">
@@ -229,15 +338,42 @@ export default function WorkflowBuilder() {
                       </button>
                       <button
                         onClick={() => removeStep(index)}
-                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                        title="刪除"
+                        disabled={hasCompletedAssignments}
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={hasCompletedAssignments ? "已有完成記錄，無法刪除" : "刪除"}
                       >
                         <Trash2 size={20} />
                       </button>
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <div className="flex gap-4">
+          <button
+            onClick={handleSaveTemplate}
+            disabled={hasCompletedAssignments}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Save size={20} />
+            {isEditing ? '更新任務' : '儲存任務'}
+          </button>
+          <button
+            onClick={() => router.push('/admin/templates')}
+            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
             </div>
           )}
         </div>
