@@ -11,6 +11,7 @@ interface User {
   email: string;
   role: string;
   full_name: string | null;
+  job_title: string | null;
 }
 
 interface WorkflowBuilderProps {
