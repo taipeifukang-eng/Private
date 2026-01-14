@@ -14,6 +14,7 @@ CREATE TABLE assignments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   template_id UUID REFERENCES templates(id),
   assigned_to UUID REFERENCES auth.users(id),
+  created_by UUID REFERENCES auth.users(id), -- Who created/initiated this assignment
   status TEXT DEFAULT 'pending', -- pending, in_progress, completed
   department TEXT, -- Department of the task creator
   completed_at TIMESTAMPTZ, -- When the task was completed
