@@ -71,7 +71,8 @@ export default function WorkflowBuilder({
 
   const filteredUsers = users.filter(user => 
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (user.full_name && user.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    (user.full_name && user.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (user.job_title && user.job_title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const toggleUserSelection = (userId: string) => {
@@ -319,7 +320,7 @@ export default function WorkflowBuilder({
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                    placeholder="搜尋使用者（Email 或姓名）"
+                    placeholder="搜尋使用者（Email、姓名或職稱）"
                   />
                 </div>
 
@@ -337,13 +338,16 @@ export default function WorkflowBuilder({
                       />
                       <div className="flex-1">
                         <div className="font-medium text-gray-900">
-                          {user.full_name || user.email}
+                          {user.job_title || user.full_name || user.email}
                         </div>
-                        {user.full_name && (
+                        {user.job_title && user.full_name && (
+                          <div className="text-sm text-gray-600">{user.full_name}</div>
+                        )}
+                        {(user.job_title || user.full_name) && (
                           <div className="text-sm text-gray-500">{user.email}</div>
                         )}
                         <span className="inline-block px-2 py-0.5 text-xs font-medium rounded-full bg-blue-100 text-blue-800 mt-1">
-                          {user.role === 'admin' ? '管理員' : user.role === 'manager' ? '成員' : '成員'}
+                          {user.role === 'admin' ? '管理員' : user.role === 'manager' ? '主管' : '成員'}
                         </span>
                       </div>
                     </label>

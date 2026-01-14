@@ -10,6 +10,7 @@ interface User {
   email: string;
   role: string;
   full_name: string | null;
+  job_title: string | null;
 }
 
 interface AssignTemplateFormProps {
@@ -47,7 +48,8 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
 
   const filteredUsers = users.filter(user => 
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (user.full_name && user.full_name.toLowerCase().includes(searchQuery.toLowerCase()))
+    (user.full_name && user.full_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+    (user.job_title && user.job_title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,7 +155,7 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                      placeholder="搜尋使用者（Email 或姓名）"
+                      placeholder="搜尋使用者（Email、姓名或職稱）"
                     />
                   </div>
 
@@ -182,7 +184,7 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-gray-900">
-                                  {user.full_name || user.email}
+                                  {user.job_title || user.full_name || user.email}
                                 </span>
                                 <span
                                   className={`px-2 py-0.5 text-xs font-semibold rounded ${
@@ -194,11 +196,14 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
                                   }`}
                                 >
                                   {user.role === 'admin' && '管理員'}
-                                  {user.role === 'manager' && '經理'}
+                                  {user.role === 'manager' && '主管'}
                                   {user.role === 'member' && '成員'}
                                 </span>
                               </div>
-                              {user.full_name && (
+                              {user.job_title && user.full_name && (
+                                <span className="text-sm text-gray-600">{user.full_name}</span>
+                              )}
+                              {(user.job_title || user.full_name) && (
                                 <span className="text-sm text-gray-500">{user.email}</span>
                               )}
                             </div>
