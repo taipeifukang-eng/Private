@@ -177,7 +177,8 @@ export async function createAssignment(data: {
     const userIds = Array.isArray(data.assigned_to) ? data.assigned_to : [data.assigned_to];
     
     // Automatically add creator to the assignment if not already included
-    const allUserIds = [...new Set([user.id, ...userIds])]; // Use Set to avoid duplicates
+    const userIdSet = new Set([user.id, ...userIds]);
+    const allUserIds = Array.from(userIdSet); // Use Array.from() to avoid downlevelIteration issues
     
     console.log('[createAssignment] Creator:', user.id);
     console.log('[createAssignment] Original assigned users:', userIds);
