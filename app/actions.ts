@@ -210,7 +210,8 @@ export async function getAssignments() {
     }
 
     // Fetch user profiles for all assignments
-    const userIds = [...new Set(assignments?.map(a => a.assigned_to).filter(Boolean))];
+    const userIdsSet = new Set(assignments?.map(a => a.assigned_to).filter(Boolean));
+    const userIds = Array.from(userIdsSet);
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('id, email, full_name')
