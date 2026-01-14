@@ -24,7 +24,7 @@ export default async function TemplatesPage() {
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
           >
             <Plus size={20} />
-            建立新流程
+            建立新任務
           </Link>
         </div>
 
