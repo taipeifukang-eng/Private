@@ -46,6 +46,10 @@ export default async function TemplatesPage() {
             {templates.map((template) => {
               const templateAssignments = allAssignments.filter((a: any) => a.template_id === template.id);
               const totalAssignments = templateAssignments.length;
+              
+              // Skip templates with no active assignments (all archived or deleted)
+              if (totalAssignments === 0) return null;
+              
               const completedAssignments = templateAssignments.filter((a: any) => a.status === 'completed').length;
               const inProgressAssignments = templateAssignments.filter((a: any) => a.status === 'in_progress').length;
               const pendingAssignments = templateAssignments.filter((a: any) => a.status === 'pending').length;

@@ -557,9 +557,17 @@ export async function updateAssignmentStatus(
   try {
     const supabase = createClient();
 
+    // Prepare update data
+    const updateData: any = { status };
+    
+    // If status is completed, record completion time
+    if (status === 'completed') {
+      updateData.completed_at = new Date().toISOString();
+    }
+
     const { error } = await supabase
       .from('assignments')
-      .update({ status })
+      .update(updateData)
       .eq('id', assignmentId);
 
     if (error) {
@@ -600,7 +608,7 @@ export async function archiveAssignment(assignmentId: string) {
     // Check if assignment exists and is completed
     const { data: assignment } = await supabase
       .from('assignments')
-      .select('status, archived')
+      .select('status, archived, completed_at')
       .eq('id', assignmentId)
       .single();
 
@@ -616,14 +624,22 @@ export async function archiveAssignment(assignmentId: string) {
       return { success: false, error: '任務已經封存' };
     }
 
+    // Prepare update data
+    const updateData: any = {
+      archived: true,
+      archived_at: new Date().toISOString(),
+      archived_by: user.id,
+    };
+
+    // If completed_at is not set, set it now
+    if (!assignment.completed_at) {
+      updateData.completed_at = new Date().toISOString();
+    }
+
     // Archive assignment
     const { error } = await supabase
       .from('assignments')
-      .update({
-        archived: true,
-        archived_at: new Date().toISOString(),
-        archived_by: user.id,
-      })
+      .update(updateData)
       .eq('id', assignmentId);
 
     if (error) {

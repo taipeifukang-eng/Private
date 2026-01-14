@@ -2,6 +2,10 @@
 -- Date: 2026-01-14
 -- Purpose: Enable archiving completed tasks for historical reference
 
+-- Add completed_at column (timestamp when task completed)
+ALTER TABLE assignments
+ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+
 -- Add archived column (default FALSE)
 ALTER TABLE assignments
 ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE;
@@ -15,6 +19,7 @@ ALTER TABLE assignments
 ADD COLUMN IF NOT EXISTS archived_by UUID REFERENCES auth.users(id);
 
 -- Add comments
+COMMENT ON COLUMN assignments.completed_at IS 'Timestamp when the task was completed';
 COMMENT ON COLUMN assignments.archived IS 'Whether the task has been archived';
 COMMENT ON COLUMN assignments.archived_at IS 'Timestamp when the task was archived';
 COMMENT ON COLUMN assignments.archived_by IS 'User ID who archived the task';

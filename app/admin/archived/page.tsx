@@ -79,16 +79,26 @@ export default async function ArchivedPage() {
         ) : (
           <div className="space-y-4">
             {archivedAssignments.map((assignment) => {
-              const createdDate = new Date(assignment.created_at).toLocaleDateString('zh-TW');
+              const createdDate = new Date(assignment.created_at).toLocaleDateString('zh-TW', {
+                year: 'numeric', month: '2-digit', day: '2-digit', 
+                hour: '2-digit', minute: '2-digit'
+              });
               const completedDate = assignment.completed_at 
-                ? new Date(assignment.completed_at).toLocaleDateString('zh-TW')
+                ? new Date(assignment.completed_at).toLocaleDateString('zh-TW', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                  })
                 : '-';
               const archivedDate = assignment.archived_at
-                ? new Date(assignment.archived_at).toLocaleDateString('zh-TW')
+                ? new Date(assignment.archived_at).toLocaleDateString('zh-TW', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit'
+                  })
                 : '-';
               
               const totalSteps = assignment.template?.steps_schema?.length || 0;
-              const completedSteps = assignment.logs?.filter((log: any) => log.action === 'complete').length || 0;
+              const completeLogs = assignment.logs?.filter((log: any) => log.action === 'complete') || [];
+              const completedSteps = completeLogs.length;
 
               return (
                 <div key={assignment.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6">
@@ -220,6 +230,51 @@ export default async function ArchivedPage() {
                       <span className="inline-flex items-center px-3 py-1 bg-indigo-50 text-indigo-700 rounded-full text-sm font-medium">
                         {assignment.department}
                       </span>
+                    </div>
+                  )}
+
+                  {/* Timeline of Step Completions */}
+                  {completeLogs.length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-sm font-medium text-gray-700 mb-3">任務執行時間軌跡</p>
+                      <div className="bg-gray-50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <div className="space-y-3">
+                          {completeLogs
+                            .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+                            .map((log: any, index: number) => {
+                              const step = assignment.template?.steps_schema?.find((s: any) => s.id === log.step_id);
+                              const logDate = new Date(log.created_at).toLocaleDateString('zh-TW', {
+                                year: 'numeric',
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit'
+                              });
+                              
+                              return (
+                                <div key={log.id} className="flex items-start gap-3 pb-3 border-b border-gray-200 last:border-0">
+                                  <div className="flex-shrink-0 w-8 h-8 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-sm font-bold">
+                                    {index + 1}
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {step?.label || `步驟 ${log.step_id}`}
+                                    </p>
+                                    {step?.description && (
+                                      <p className="text-xs text-gray-600 mt-1">{step.description}</p>
+                                    )}
+                                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                      <Clock size={12} />
+                                      <span>{logDate}</span>
+                                    </div>
+                                  </div>
+                                  <CheckCircle size={20} className="text-green-500 flex-shrink-0" />
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
                     </div>
                   )}
 
