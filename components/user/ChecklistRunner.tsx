@@ -32,6 +32,11 @@ export default function ChecklistRunner({
   // Auto-refresh every 3 seconds to sync with other collaborators
   useEffect(() => {
     const refreshInterval = setInterval(async () => {
+      // Skip refresh if there's an ongoing operation
+      if (isLoading) {
+        return;
+      }
+
       try {
         const { getAssignment } = await import('@/app/actions');
         const result = await getAssignment(assignment.id);
@@ -61,7 +66,7 @@ export default function ChecklistRunner({
     }, 3000); // Refresh every 3 seconds
 
     return () => clearInterval(refreshInterval);
-  }, [assignment.id]);
+  }, [assignment.id, isLoading]);
 
   // Update assignment status when progress changes
   useEffect(() => {
@@ -108,6 +113,29 @@ export default function ChecklistRunner({
 
       if (!result.success) {
         throw new Error(result.error);
+      }
+
+      // Successfully logged, refresh to get the latest state
+      const { getAssignment } = await import('@/app/actions');
+      const refreshResult = await getAssignment(assignment.id);
+      
+      if (refreshResult.success && refreshResult.data) {
+        // Recalculate checked steps from logs
+        const refreshedCheckedSteps = new Set<string>();
+        const logs = refreshResult.data.logs || [];
+        
+        logs.forEach((log: any) => {
+          if (log.step_id !== null && log.step_id !== undefined) {
+            const stepIdStr = log.step_id.toString();
+            if (log.action === 'complete') {
+              refreshedCheckedSteps.add(stepIdStr);
+            } else if (log.action === 'uncomplete') {
+              refreshedCheckedSteps.delete(stepIdStr);
+            }
+          }
+        });
+        
+        setCheckedSteps(refreshedCheckedSteps);
       }
     } catch (error) {
       // Rollback on error
