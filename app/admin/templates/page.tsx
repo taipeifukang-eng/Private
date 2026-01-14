@@ -1,5 +1,5 @@
 import { getTemplates, getAssignments } from '@/app/actions';
-import { Plus, FileText, Calendar, Trash2, CheckCircle, Clock, Users } from 'lucide-react';
+import { Plus, FileText } from 'lucide-react';
 import Link from 'next/link';
 import type { Template } from '@/types/workflow';
 import TemplateCardWithStats from '@/components/admin/TemplateCardWithStats';
@@ -54,19 +54,19 @@ export default async function TemplatesPage() {
               const inProgressAssignments = templateAssignments.filter((a: any) => a.status === 'in_progress').length;
               const pendingAssignments = templateAssignments.filter((a: any) => a.status === 'pending').length;
               
-          <Link
-            href={`/admin/assign/${template.id}`}
-            className="flex-1 text-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
-          >
-            指派任務
-          </Link>
-          <Link
-            href={`/admin/template/${template.id}`}
-            className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-          >
-            查看詳情
-          </Link>
-        </div>
+              return (
+                <TemplateCardWithStats
+                  key={template.id}
+                  template={template}
+                  totalAssignments={totalAssignments}
+                  completedAssignments={completedAssignments}
+                  inProgressAssignments={inProgressAssignments}
+                  pendingAssignments={pendingAssignments}
+                />
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
