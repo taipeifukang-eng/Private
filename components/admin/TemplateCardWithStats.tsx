@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical } from 'lucide-react';
 import type { Template } from '@/types/workflow';
@@ -20,6 +21,7 @@ export default function TemplateCardWithStats({
   inProgressAssignments,
   pendingAssignments,
 }: TemplateCardWithStatsProps) {
+  const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -83,12 +85,14 @@ export default function TemplateCardWithStats({
 
         if (failCount === 0) {
           alert(`✅ 成功刪除 ${successCount} 個已完成任務`);
+          // Use router.refresh() to revalidate the page data
+          router.refresh();
         } else {
           console.error('[TemplateCardWithStats] Delete errors:', errors);
           alert(`⚠️ 成功刪除 ${successCount} 個任務，${failCount} 個失敗\n\n錯誤詳情：\n${errors.join('\n')}`);
+          // Still refresh to show any successful deletions
+          router.refresh();
         }
-
-        window.location.reload();
       } else {
         console.error('[TemplateCardWithStats] Failed to get assignments:', result.error);
         alert(`❌ 無法獲取任務列表: ${result.error}`);

@@ -436,6 +436,8 @@ export async function deleteAssignment(assignmentId: string) {
 
     revalidatePath('/dashboard');
     revalidatePath('/my-tasks');
+    revalidatePath('/admin/templates');
+    revalidatePath('/admin/template/[id]', 'page');
     return { success: true };
   } catch (error: any) {
     console.error('Unexpected error:', error);
