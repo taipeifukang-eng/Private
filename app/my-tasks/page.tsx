@@ -40,6 +40,14 @@ export default function MyTasksPage() {
       const result = await getAssignments();
       
       if (result.success && result.data) {
+        console.log('[MyTasks] All assignments:', result.data.map(a => ({
+          id: a.id,
+          title: a.template?.title,
+          department: a.department,
+          status: a.status,
+          collaborators: a.collaborators?.length
+        })));
+        
         setAssignments(result.data);
         
         // Set first department as active by default
