@@ -4,6 +4,7 @@ import ChecklistRunner from '@/components/user/ChecklistRunner';
 import { redirect } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { Log } from '@/types/workflow';
 
 export default async function AssignmentPage({
   params,
@@ -56,7 +57,7 @@ export default async function AssignmentPage({
 
   // Calculate initially checked steps from logs
   const checkedStepIds = new Set<string>();
-  assignment.logs.forEach((log) => {
+  assignment.logs.forEach((log: Log) => {
     if (log.step_id !== null && log.step_id !== undefined) {
       if (log.action === 'checked') {
         checkedStepIds.add(log.step_id.toString());
