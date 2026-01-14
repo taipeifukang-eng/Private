@@ -367,7 +367,7 @@ export async function getAssignments() {
       .from('assignments')
       .select(`
         *,
-        template:templates(*, creator:created_by(id, email, full_name, department))
+        template:templates(*)
       `)
       .in('id', assignmentIds)
       .order('created_at', { ascending: false });
@@ -376,6 +376,24 @@ export async function getAssignments() {
       console.error('Error fetching assignments:', assignmentsError);
       return { success: false, error: assignmentsError.message, data: [] };
     }
+
+    // Get all template creator IDs
+    const creatorIds = Array.from(new Set(
+      assignments?.map(a => a.template?.created_by).filter(Boolean) || []
+    ));
+
+    // Fetch creator profiles
+    const { data: creatorProfiles, error: creatorError } = await supabase
+      .from('profiles')
+      .select('id, email, full_name, department')
+      .in('id', creatorIds);
+
+    if (creatorError) {
+      console.error('Error fetching creator profiles:', creatorError);
+    }
+
+    // Create a map of creator profiles
+    const creatorMap = new Map(creatorProfiles?.map(p => [p.id, p]) || []);
 
     // Fetch logs for all assignments
     const { data: logs, error: logsError } = await supabase
@@ -416,9 +434,16 @@ export async function getAssignments() {
       const assignmentLogs = logs?.filter(log => log.assignment_id === assignment.id) || [];
       const assignmentCollaborators = allCollaborators?.filter(c => c.assignment_id === assignment.id) || [];
       const collaboratorProfiles = assignmentCollaborators.map(c => profileMap.get(c.user_id)).filter(Boolean);
+      
+      // Add creator info to template
+      const enrichedTemplate = assignment.template ? {
+        ...assignment.template,
+        creator: creatorMap.get(assignment.template.created_by) || null
+      } : null;
 
       return {
         ...assignment,
+        template: enrichedTemplate,
         logs: assignmentLogs,
         assigned_user: profileMap.get(assignment.assigned_to) || null,
         collaborators: collaboratorProfiles,
