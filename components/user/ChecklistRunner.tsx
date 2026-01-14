@@ -45,9 +45,9 @@ export default function ChecklistRunner({
           logs.forEach((log: any) => {
             if (log.step_id !== null && log.step_id !== undefined) {
               const stepIdStr = log.step_id.toString();
-              if (log.action === 'checked') {
+              if (log.action === 'complete') {
                 newCheckedSteps.add(stepIdStr);
-              } else if (log.action === 'unchecked') {
+              } else if (log.action === 'uncomplete') {
                 newCheckedSteps.delete(stepIdStr);
               }
             }

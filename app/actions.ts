@@ -312,21 +312,22 @@ export async function logAction(
   try {
     const supabase = createClient();
 
-    // TODO: Get current user ID from auth
-    // For now, we'll use the assigned_to user from the assignment
-    const { data: assignment } = await supabase
-      .from('assignments')
-      .select('assigned_to')
-      .eq('id', assignmentId)
-      .single();
+    // Get current user ID from auth
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // Map UI actions to database actions
+    const dbAction = action === 'checked' ? 'complete' : 'uncomplete';
 
     const { data: log, error } = await supabase
       .from('logs')
       .insert({
         assignment_id: assignmentId,
-        user_id: assignment?.assigned_to || null,
+        user_id: user.id,
         step_id: parseInt(stepId),
-        action: action,
+        action: dbAction,
       })
       .select()
       .single();
@@ -337,12 +338,17 @@ export async function logAction(
     }
 
     // Update assignment status to in_progress if it was pending
-    if (assignment) {
+    const { data: assignment } = await supabase
+      .from('assignments')
+      .select('status')
+      .eq('id', assignmentId)
+      .single();
+
+    if (assignment?.status === 'pending') {
       await supabase
         .from('assignments')
         .update({ status: 'in_progress' })
-        .eq('id', assignmentId)
-        .eq('status', 'pending');
+        .eq('id', assignmentId);
     }
 
     revalidatePath(`/assignment/${assignmentId}`);

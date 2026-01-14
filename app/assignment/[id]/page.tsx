@@ -62,9 +62,9 @@ export default async function AssignmentPage({
   const checkedStepIds = new Set<string>();
   assignment.logs.forEach((log: Log) => {
     if (log.step_id !== null && log.step_id !== undefined) {
-      if (log.action === 'checked') {
+      if (log.action === 'complete') {
         checkedStepIds.add(log.step_id.toString());
-      } else if (log.action === 'unchecked') {
+      } else if (log.action === 'uncomplete') {
         checkedStepIds.delete(log.step_id.toString());
       }
     }
