@@ -101,15 +101,28 @@ export async function createAssignment(data: {
   try {
     const supabase = createClient();
 
+    // Get current user (creator/manager)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
     // Convert to array for consistent handling
     const userIds = Array.isArray(data.assigned_to) ? data.assigned_to : [data.assigned_to];
+    
+    // Automatically add creator to the assignment if not already included
+    const allUserIds = [...new Set([user.id, ...userIds])]; // Use Set to avoid duplicates
+    
+    console.log('[createAssignment] Creator:', user.id);
+    console.log('[createAssignment] Original assigned users:', userIds);
+    console.log('[createAssignment] All users (with creator):', allUserIds);
     
     // Create the assignment (assigned_to will be the first user for backward compatibility)
     const { data: assignment, error } = await supabase
       .from('assignments')
       .insert({
         template_id: data.template_id,
-        assigned_to: userIds[0],
+        assigned_to: allUserIds[0],
         status: 'pending',
       })
       .select()
@@ -120,8 +133,8 @@ export async function createAssignment(data: {
       return { success: false, error: error.message };
     }
 
-    // Add all users as collaborators
-    const collaborators = userIds.map(userId => ({
+    // Add all users (including creator) as collaborators
+    const collaborators = allUserIds.map(userId => ({
       assignment_id: assignment.id,
       user_id: userId,
     }));
@@ -136,6 +149,7 @@ export async function createAssignment(data: {
     }
 
     revalidatePath('/dashboard');
+    revalidatePath('/my-tasks');
     return { success: true, data: assignment };
   } catch (error: any) {
     console.error('Unexpected error:', error);
