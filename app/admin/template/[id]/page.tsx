@@ -136,6 +136,11 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
                 href="/admin/templates"
                 className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-semibold"
               >
+                返回列表
+              </Link>
+            </div>
+          </div>
+        </div>
 
         {/* Assignments Section */}
         <div className="bg-white rounded-lg shadow-lg p-8 mt-6">
@@ -279,11 +284,6 @@ function StatusBadge({ status }: { status: string }) {
       className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${config.classes}`}
     >
       {config.label}
-    </span     </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </span>
   );
 }
