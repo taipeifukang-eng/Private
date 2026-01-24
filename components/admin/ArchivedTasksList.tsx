@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, Calendar, User, Clock, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Archive, Calendar, User, Clock, CheckCircle, ChevronDown, ChevronRight, Copy } from 'lucide-react';
 
 interface ArchivedTasksListProps {
   groupedByMonth: Record<string, any[]>;
@@ -10,8 +11,10 @@ interface ArchivedTasksListProps {
 }
 
 export default function ArchivedTasksList({ groupedByMonth, sortedMonths }: ArchivedTasksListProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState(sortedMonths[0] || '');
   const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
+  const [isDuplicating, setIsDuplicating] = useState(false);
 
   console.log('[ArchivedTasksList] Received data:', {
     sortedMonths,
@@ -32,6 +35,48 @@ export default function ArchivedTasksList({ groupedByMonth, sortedMonths }: Arch
       newExpanded.add(taskId);
     }
     setExpandedTasks(newExpanded);
+  };
+
+  const handleDuplicate = async (assignmentId: string, originalTitle: string) => {
+    console.log('[ArchivedTasksList] handleDuplicate called for:', assignmentId);
+    
+    const confirmed = confirm(
+      `複製已封存任務「${originalTitle}」\n\n` +
+      `將建立一個新的任務並指派給您。\n` +
+      `新任務將使用相同的流程模板，所有步驟重置為未完成狀態。\n\n` +
+      `確定要複製嗎？`
+    );
+
+    // User cancelled
+    if (!confirmed) {
+      console.log('[ArchivedTasksList] Duplicate cancelled by user');
+      return;
+    }
+
+    setIsDuplicating(true);
+    console.log('[ArchivedTasksList] Duplicating assignment:', assignmentId);
+
+    try {
+      const { duplicateArchivedAssignment } = await import('@/app/actions');
+      console.log('[ArchivedTasksList] Action imported successfully');
+      
+      const result = await duplicateArchivedAssignment(assignmentId);
+      console.log('[ArchivedTasksList] Duplicate result:', result);
+      
+      if (result.success) {
+        alert(`✅ 成功複製任務\n\n新任務已指派給您，可在「我的任務」頁面查看。`);
+        router.refresh();
+      } else {
+        console.error('[ArchivedTasksList] Duplicate failed:', result.error);
+        alert(`❌ 複製失敗: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('[ArchivedTasksList] Error duplicating assignment:', error);
+      alert(`❌ 複製失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setIsDuplicating(false);
+      console.log('[ArchivedTasksList] Duplicate process ended');
+    }
   };
 
   return (
@@ -317,6 +362,14 @@ export default function ArchivedTasksList({ groupedByMonth, sortedMonths }: Arch
 
                   {/* View Details Button */}
                   <div className="flex gap-2 pt-4 border-t border-gray-200">
+                    <button
+                      onClick={() => handleDuplicate(assignment.id, assignment.template?.title || assignment.title)}
+                      disabled={isDuplicating}
+                      className="flex-1 text-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Copy size={16} />
+                      {isDuplicating ? '複製中...' : '複製為新任務'}
+                    </button>
                     <Link
                       href={`/assignment/${assignment.id}`}
                       className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"

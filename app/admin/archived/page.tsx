@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { Archive, Calendar, User, Clock, CheckCircle, FileText, ChevronLeft, ChevronDown, ChevronRight } from 'lucide-react';
 import ArchivedTasksList from '@/components/admin/ArchivedTasksList';
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function ArchivedPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

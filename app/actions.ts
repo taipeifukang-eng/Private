@@ -250,6 +250,15 @@ export async function createAssignment(data: {
       return { success: false, error: '未登入' };
     }
 
+    // Get creator's profile to get their department
+    const { data: creatorProfile } = await supabase
+      .from('profiles')
+      .select('department')
+      .eq('id', user.id)
+      .single();
+
+    console.log('[createAssignment] Creator department:', creatorProfile?.department);
+
     // Convert to array for consistent handling
     const userIds = Array.isArray(data.assigned_to) ? data.assigned_to : [data.assigned_to];
     
@@ -268,6 +277,8 @@ export async function createAssignment(data: {
         template_id: data.template_id,
         assigned_to: allUserIds[0],
         status: 'pending',
+        department: creatorProfile?.department || null, // Set creator's department
+        created_by: user.id,
       })
       .select()
       .single();
@@ -364,6 +375,64 @@ export async function logAction(
 /**
  * Get all assignments with template and logs data (including collaborative assignments)
  */
+// Get ALL assignments for admin views (includes logs)
+export async function getAllAssignments() {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入', data: [] };
+    }
+
+    // Fetch all assignments (for admin)
+    const { data: assignments, error: assignmentsError } = await supabase
+      .from('assignments')
+      .select(`
+        *,
+        template:templates(*)
+      `)
+      .eq('archived', false)
+      .order('created_at', { ascending: false });
+
+    if (assignmentsError) {
+      console.error('Error fetching assignments:', assignmentsError);
+      return { success: false, error: assignmentsError.message, data: [] };
+    }
+
+    if (!assignments || assignments.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const assignmentIds = assignments.map((a: any) => a.id);
+
+    // Fetch logs for all assignments
+    const { data: logs, error: logsError } = await supabase
+      .from('logs')
+      .select('*')
+      .in('assignment_id', assignmentIds);
+
+    if (logsError) {
+      console.error('Error fetching logs:', logsError);
+    }
+
+    // Combine data
+    const enrichedAssignments = assignments.map((assignment: any) => {
+      const assignmentLogs = logs?.filter(log => log.assignment_id === assignment.id) || [];
+      
+      return {
+        ...assignment,
+        logs: assignmentLogs,
+      };
+    });
+
+    return { success: true, data: enrichedAssignments };
+  } catch (error: any) {
+    console.error('Error in getAllAssignments:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
 export async function getAssignments() {
   try {
     const supabase = createClient();
@@ -657,6 +726,11 @@ export async function updateAssignmentStatus(
       return { success: false, error: error.message };
     }
 
+    // Revalidate all pages that show assignment status
+    revalidatePath('/my-tasks');
+    revalidatePath('/dashboard');
+    revalidatePath('/admin/templates');
+
     return { success: true };
   } catch (error: any) {
     console.error('Unexpected error:', error);
@@ -687,10 +761,14 @@ export async function archiveAssignment(assignmentId: string) {
       return { success: false, error: '權限不足' };
     }
 
-    // Check if assignment exists and is completed
+    // Get assignment with template and logs to check actual progress
     const { data: assignment } = await supabase
       .from('assignments')
-      .select('status, archived, completed_at')
+      .select(`
+        *,
+        template:templates(*),
+        logs:logs(*)
+      `)
       .eq('id', assignmentId)
       .single();
 
@@ -698,12 +776,39 @@ export async function archiveAssignment(assignmentId: string) {
       return { success: false, error: '任務不存在' };
     }
 
-    if (assignment.status !== 'completed') {
-      return { success: false, error: '只能封存已完成的任務' };
-    }
-
     if (assignment.archived) {
       return { success: false, error: '任務已經封存' };
+    }
+
+    // Calculate actual progress from logs
+    const template = assignment.template as any;
+    if (template?.steps_schema) {
+      const totalSteps = template.steps_schema.reduce((count: number, step: any) => {
+        return count + 1 + (step.subSteps?.length || 0);
+      }, 0);
+
+      const logs = assignment.logs as any[];
+      const sortedLogs = [...logs].sort(
+        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+
+      const checkedSteps = new Set<string>();
+      sortedLogs.forEach((log) => {
+        if (log.step_id !== null && log.step_id !== undefined) {
+          const stepIdStr = log.step_id.toString();
+          if (log.action === 'complete') {
+            checkedSteps.add(stepIdStr);
+          } else if (log.action === 'uncomplete') {
+            checkedSteps.delete(stepIdStr);
+          }
+        }
+      });
+
+      const progress = totalSteps > 0 ? Math.round((checkedSteps.size / totalSteps) * 100) : 0;
+
+      if (progress < 100) {
+        return { success: false, error: '只能封存進度100%的任務' };
+      }
     }
 
     // Prepare update data
@@ -711,6 +816,7 @@ export async function archiveAssignment(assignmentId: string) {
       archived: true,
       archived_at: new Date().toISOString(),
       archived_by: user.id,
+      status: 'completed', // Ensure status is set to completed
     };
 
     // If completed_at is not set, set it now
@@ -730,7 +836,9 @@ export async function archiveAssignment(assignmentId: string) {
     }
 
     revalidatePath('/admin/templates');
+    revalidatePath('/admin/archived');
     revalidatePath('/dashboard');
+    revalidatePath('/my-tasks');
     return { success: true };
   } catch (error: any) {
     console.error('Unexpected error:', error);
@@ -777,21 +885,9 @@ export async function getArchivedAssignments() {
       .eq('archived', true)
       .order('archived_at', { ascending: false });
 
-    // If not admin, only show templates created by current user
+    // If not admin, show assignments where user is archived_by or created_by
     if (profile?.role !== 'admin') {
-      // Get templates created by current user
-      const { data: userTemplates } = await supabase
-        .from('templates')
-        .select('id')
-        .eq('created_by', user.id);
-      
-      const templateIds = userTemplates?.map(t => t.id) || [];
-      
-      if (templateIds.length === 0) {
-        return { success: true, data: [] };
-      }
-      
-      query = query.in('template_id', templateIds);
+      query = query.or(`archived_by.eq.${user.id},created_by.eq.${user.id}`);
     }
 
     const { data: assignments, error: assignmentsError } = await query;
@@ -1318,3 +1414,134 @@ export async function getUsersByDepartment(department: string) {
     return { success: false, error: error.message || '發生未知錯誤', data: [] };
   }
 }
+
+/**
+ * Duplicate/Copy a template
+ */
+export async function duplicateTemplate(templateId: string, newTitle?: string) {
+  try {
+    const supabase = createClient();
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // Get the original template
+    const { data: originalTemplate, error: fetchError } = await supabase
+      .from('templates')
+      .select('*')
+      .eq('id', templateId)
+      .single();
+
+    if (fetchError || !originalTemplate) {
+      console.error('Error fetching template:', fetchError);
+      return { success: false, error: '找不到原始任務' };
+    }
+
+    // Create new title
+    const copiedTitle = newTitle || `${originalTemplate.title} (副本)`;
+
+    // Create the duplicated template
+    const { data: newTemplate, error: createError } = await supabase
+      .from('templates')
+      .insert({
+        title: copiedTitle,
+        description: originalTemplate.description,
+        steps_schema: originalTemplate.steps_schema,
+        sections: originalTemplate.sections,
+        created_by: user.id, // Set current user as creator
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating duplicate template:', createError);
+      return { success: false, error: `複製失敗: ${createError.message}` };
+    }
+
+    revalidatePath('/admin/templates');
+    return { success: true, data: newTemplate };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}
+
+/**
+ * 從已封存的任務複製創建新任務
+ * @param archivedAssignmentId - 要複製的已封存任務 ID
+ * @param newTitle - 新任務標題（可選，默認為原標題 + "副本"）
+ * @returns 新創建的任務
+ */
+export async function duplicateArchivedAssignment(
+  archivedAssignmentId: string,
+  newTitle?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const supabase = createClient();
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // Get user's profile to get department
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('department')
+      .eq('id', user.id)
+      .single();
+
+    // Fetch the archived assignment with all its data
+    const { data: originalAssignment, error: fetchError } = await supabase
+      .from('assignments')
+      .select(`
+        *,
+        template:templates(*)
+      `)
+      .eq('id', archivedAssignmentId)
+      .eq('archived', true)
+      .single();
+
+    if (fetchError || !originalAssignment) {
+      console.error('Error fetching archived assignment:', fetchError);
+      return { success: false, error: '找不到該封存任務' };
+    }
+
+    if (!originalAssignment.template) {
+      return { success: false, error: '該任務的模板已被刪除，無法複製' };
+    }
+
+    // Create new assignment with the same template
+    // Use current user's department instead of original assignment's department
+    const { data: newAssignment, error: createError } = await supabase
+      .from('assignments')
+      .insert({
+        template_id: originalAssignment.template_id,
+        assigned_to: user.id, // Assign to current user
+        department: profile?.department || null, // Use current user's department
+        status: 'pending',
+        created_by: user.id
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating duplicate assignment:', createError);
+      return { success: false, error: `複製失敗: ${createError.message}` };
+    }
+
+    revalidatePath('/admin/archived');
+    revalidatePath('/my-tasks');
+    revalidatePath('/dashboard');
+    
+    return { success: true, data: newAssignment };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤' };
+  }
+}
+

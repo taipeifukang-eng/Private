@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, ArrowLeft, Users, Building } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowLeft, Users, Building, CornerDownRight } from 'lucide-react';
 import type { Assignment, WorkflowStep, Profile } from '@/types/workflow';
 
 interface ChecklistRunnerProps {
@@ -28,9 +28,15 @@ export default function ChecklistRunner({
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(initialCheckedSteps);
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const isProcessingRef = useRef(false);
+  const pendingActionsRef = useRef<Array<{ stepId: string; action: 'checked' | 'unchecked' }>>([]);
 
   const steps = assignment.template.steps_schema;
-  const totalSteps = steps.length;
+  
+  // Calculate total steps including sub-steps
+  const totalSteps = steps.reduce((count, step) => {
+    return count + 1 + (step.subSteps?.length || 0);
+  }, 0);
   const completedSteps = checkedSteps.size;
   const progress = totalSteps > 0 ? (completedSteps / totalSteps) * 100 : 0;
 
@@ -39,32 +45,30 @@ export default function ChecklistRunner({
     setMounted(true);
   }, []);
 
-  // Auto-refresh every 3 seconds to sync with other collaborators
+  // Auto-refresh every 30 seconds to sync with other collaborators (increased interval)
   useEffect(() => {
     const refreshInterval = setInterval(async () => {
       // Skip refresh if there's an ongoing operation
-      if (isLoading) {
-        console.log('[ChecklistRunner] Auto-refresh skipped (operation in progress)');
+      if (isLoading || isProcessingRef.current) {
         return;
       }
 
-      console.log('[ChecklistRunner] Auto-refresh triggered');
       try {
         const { getAssignment } = await import('@/app/actions');
         const result = await getAssignment(assignment.id);
         
         if (result.success && result.data) {
-          console.log('[ChecklistRunner] Auto-refresh got logs:', result.data.logs);
-          
-          // Recalculate checked steps from logs
           const newCheckedSteps = new Set<string>();
           const logs = result.data.logs || [];
           
-          // Process logs in chronological order
-          logs.forEach((log: any) => {
+          // Sort logs by created_at to ensure correct order
+          const sortedLogs = [...logs].sort(
+            (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          );
+          
+          sortedLogs.forEach((log: any) => {
             if (log.step_id !== null && log.step_id !== undefined) {
               const stepIdStr = log.step_id.toString();
-              console.log('[ChecklistRunner] Auto-refresh processing:', { step_id: log.step_id, stepIdStr, action: log.action });
               if (log.action === 'complete') {
                 newCheckedSteps.add(stepIdStr);
               } else if (log.action === 'uncomplete') {
@@ -73,13 +77,12 @@ export default function ChecklistRunner({
             }
           });
           
-          console.log('[ChecklistRunner] Auto-refresh setting checked steps:', Array.from(newCheckedSteps));
           setCheckedSteps(newCheckedSteps);
         }
       } catch (error) {
         console.error('[ChecklistRunner] Failed to refresh assignment:', error);
       }
-    }, 3000); // Refresh every 3 seconds
+    }, 30000); // Refresh every 30 seconds
 
     return () => clearInterval(refreshInterval);
   }, [assignment.id, isLoading]);
@@ -87,6 +90,11 @@ export default function ChecklistRunner({
   // Update assignment status when progress changes
   useEffect(() => {
     const updateStatus = async () => {
+      // Wait for any pending actions to complete
+      if (isProcessingRef.current || pendingActionsRef.current.length > 0) {
+        return;
+      }
+      
       const { updateAssignmentStatus } = await import('@/app/actions');
       
       if (progress === 100 && assignment.status !== 'completed') {
@@ -101,79 +109,171 @@ export default function ChecklistRunner({
     updateStatus();
   }, [progress, assignment.id, assignment.status]);
 
-  // Handle complete and return
-  const handleCompleteAndReturn = () => {
+  // Handle complete and return - wait for all pending actions
+  const handleCompleteAndReturn = async () => {
+    // If there are pending actions, wait for them to complete
+    if (isProcessingRef.current || pendingActionsRef.current.length > 0) {
+      setIsLoading(true);
+      
+      // Wait for processing to complete
+      let attempts = 0;
+      while ((isProcessingRef.current || pendingActionsRef.current.length > 0) && attempts < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      // Force process any remaining actions
+      if (pendingActionsRef.current.length > 0) {
+        const actionsToProcess = [...pendingActionsRef.current];
+        pendingActionsRef.current = [];
+        
+        try {
+          const { logAction } = await import('@/app/actions');
+          for (const { stepId: sid, action } of actionsToProcess) {
+            await logAction(assignment.id, sid, action);
+          }
+        } catch (error) {
+          console.error('[ChecklistRunner] Failed to process remaining actions:', error);
+        }
+      }
+      
+      // Update status to completed if progress is 100%
+      if (progress === 100) {
+        try {
+          const { updateAssignmentStatus } = await import('@/app/actions');
+          await updateAssignmentStatus(assignment.id, 'completed');
+        } catch (error) {
+          console.error('[ChecklistRunner] Failed to update status:', error);
+        }
+      }
+      
+      setIsLoading(false);
+    }
+    
     router.push('/my-tasks');
   };
 
-  // Handle checkbox toggle
+  // Handle checkbox toggle with parent-child sync
   const handleToggle = async (stepId: string, isChecked: boolean) => {
-    console.log('[ChecklistRunner] Toggle clicked:', { stepId, isChecked, currentCheckedSteps: Array.from(checkedSteps) });
-    
-    // Optimistic UI update
-    const newCheckedSteps = new Set(checkedSteps);
-    if (isChecked) {
-      newCheckedSteps.add(stepId);
-    } else {
-      newCheckedSteps.delete(stepId);
+    // Prevent rapid clicking
+    if (isProcessingRef.current) {
+      return;
     }
-    console.log('[ChecklistRunner] Optimistic update:', { newCheckedSteps: Array.from(newCheckedSteps) });
-    setCheckedSteps(newCheckedSteps);
-
-    // Call Server Action
-    try {
-      setIsLoading(true);
-      console.log('[ChecklistRunner] Calling logAction API...');
-      const { logAction } = await import('@/app/actions');
-      const result = await logAction(
-        assignment.id,
-        stepId,
-        isChecked ? 'checked' : 'unchecked'
-      );
-
-      console.log('[ChecklistRunner] logAction result:', result);
-      if (!result.success) {
-        throw new Error(result.error);
+    
+    // Find if this is a main step or sub-step
+    let mainStep: WorkflowStep | null = null;
+    let isSubStep = false;
+    let parentStepId: string | null = null;
+    
+    for (const step of steps) {
+      if (step.id === stepId) {
+        mainStep = step;
+        break;
       }
+      if (step.subSteps?.some(sub => sub.id === stepId)) {
+        mainStep = step;
+        isSubStep = true;
+        parentStepId = step.id;
+        break;
+      }
+    }
 
-      // Successfully logged, refresh to get the latest state
-      console.log('[ChecklistRunner] Refreshing assignment data...');
-      const { getAssignment } = await import('@/app/actions');
-      const refreshResult = await getAssignment(assignment.id);
-      
-      console.log('[ChecklistRunner] Refresh result:', refreshResult.success);
-      if (refreshResult.success && refreshResult.data) {
-        console.log('[ChecklistRunner] Raw logs:', refreshResult.data.logs);
+    // Optimistic UI update with parent-child logic
+    const newCheckedSteps = new Set(checkedSteps);
+    const stepsToLog: Array<{ stepId: string; action: 'checked' | 'unchecked' }> = [];
+
+    if (isSubStep && parentStepId && mainStep) {
+      // Toggling a sub-step
+      if (isChecked) {
+        newCheckedSteps.add(stepId);
+        stepsToLog.push({ stepId, action: 'checked' });
         
-        // Recalculate checked steps from logs
-        const refreshedCheckedSteps = new Set<string>();
-        const logs = refreshResult.data.logs || [];
+        // Check if all sub-steps are now checked
+        const allSubStepsChecked = mainStep.subSteps?.every(sub => 
+          sub.id === stepId || newCheckedSteps.has(sub.id)
+        );
         
-        logs.forEach((log: any) => {
-          if (log.step_id !== null && log.step_id !== undefined) {
-            const stepIdStr = log.step_id.toString();
-            console.log('[ChecklistRunner] Processing log:', { step_id: log.step_id, stepIdStr, action: log.action });
-            if (log.action === 'complete') {
-              refreshedCheckedSteps.add(stepIdStr);
-              console.log('[ChecklistRunner] Added to checked:', stepIdStr);
-            } else if (log.action === 'uncomplete') {
-              refreshedCheckedSteps.delete(stepIdStr);
-              console.log('[ChecklistRunner] Removed from checked:', stepIdStr);
-            }
+        if (allSubStepsChecked && !newCheckedSteps.has(parentStepId)) {
+          newCheckedSteps.add(parentStepId);
+          stepsToLog.push({ stepId: parentStepId, action: 'checked' });
+        }
+      } else {
+        newCheckedSteps.delete(stepId);
+        stepsToLog.push({ stepId, action: 'unchecked' });
+        
+        // Uncheck parent step if it was checked
+        if (newCheckedSteps.has(parentStepId)) {
+          newCheckedSteps.delete(parentStepId);
+          stepsToLog.push({ stepId: parentStepId, action: 'unchecked' });
+        }
+      }
+    } else if (mainStep && mainStep.subSteps && mainStep.subSteps.length > 0) {
+      // Toggling a main step that has sub-steps
+      if (isChecked) {
+        // Check main step and all sub-steps
+        newCheckedSteps.add(stepId);
+        stepsToLog.push({ stepId, action: 'checked' });
+        
+        mainStep.subSteps.forEach(subStep => {
+          if (!newCheckedSteps.has(subStep.id)) {
+            newCheckedSteps.add(subStep.id);
+            stepsToLog.push({ stepId: subStep.id, action: 'checked' });
           }
         });
+      } else {
+        // Uncheck main step and all sub-steps
+        newCheckedSteps.delete(stepId);
+        stepsToLog.push({ stepId, action: 'unchecked' });
         
-        console.log('[ChecklistRunner] Final refreshed checked steps:', Array.from(refreshedCheckedSteps));
-        setCheckedSteps(refreshedCheckedSteps);
+        mainStep.subSteps.forEach(subStep => {
+          if (newCheckedSteps.has(subStep.id)) {
+            newCheckedSteps.delete(subStep.id);
+            stepsToLog.push({ stepId: subStep.id, action: 'unchecked' });
+          }
+        });
       }
-    } catch (error) {
-      // Rollback on error
-      console.error('[ChecklistRunner] Failed to log action:', error);
-      setCheckedSteps(checkedSteps);
-      alert('操作失敗，請重試');
-    } finally {
-      setIsLoading(false);
-      console.log('[ChecklistRunner] Toggle complete');
+    } else {
+      // Normal step without sub-steps
+      if (isChecked) {
+        newCheckedSteps.add(stepId);
+      } else {
+        newCheckedSteps.delete(stepId);
+      }
+      stepsToLog.push({ stepId, action: isChecked ? 'checked' : 'unchecked' });
+    }
+
+    // Update UI immediately
+    setCheckedSteps(newCheckedSteps);
+
+    // Queue actions for batch processing
+    pendingActionsRef.current.push(...stepsToLog);
+    
+    // Process actions with debouncing
+    if (!isProcessingRef.current) {
+      isProcessingRef.current = true;
+      
+      // Wait a bit to collect more actions if user is clicking rapidly
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Process all pending actions
+      const actionsToProcess = [...pendingActionsRef.current];
+      pendingActionsRef.current = [];
+      
+      try {
+        const { logAction } = await import('@/app/actions');
+        
+        // Process actions sequentially to maintain order
+        for (const { stepId: sid, action } of actionsToProcess) {
+          await logAction(assignment.id, sid, action);
+        }
+      } catch (error) {
+        console.error('[ChecklistRunner] Failed to log actions:', error);
+        // Revert on error
+        setCheckedSteps(checkedSteps);
+        alert('操作失敗，請重試');
+      } finally {
+        isProcessingRef.current = false;
+      }
     }
   };
 
@@ -287,8 +387,7 @@ export default function ChecklistRunner({
                 <div className="flex-1 flex items-start gap-3">
                   <button
                     onClick={() => handleToggle(step.id, !isChecked)}
-                    disabled={isLoading}
-                    className="flex-shrink-0 mt-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110 disabled:opacity-50"
+                    className="flex-shrink-0 mt-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110"
                   >
                     {isChecked ? (
                       <CheckCircle2 className="w-6 h-6 text-green-600" />
@@ -330,6 +429,51 @@ export default function ChecklistRunner({
                         {step.description}
                       </p>
                     )}
+
+                    {/* Sub-steps */}
+                    {step.subSteps && step.subSteps.length > 0 && (
+                      <div className="mt-3 space-y-2">
+                        {step.subSteps.map((subStep) => {
+                          const isSubChecked = checkedSteps.has(subStep.id);
+                          return (
+                            <div
+                              key={subStep.id}
+                              className={`
+                                flex items-start gap-2 p-2 rounded-lg transition-all
+                                ${isSubChecked ? 'bg-green-100' : 'bg-gray-50'}
+                              `}
+                            >
+                              <CornerDownRight size={14} className="text-gray-400 mt-1 flex-shrink-0" />
+                              <button
+                                onClick={() => handleToggle(subStep.id, !isSubChecked)}
+                                className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110"
+                              >
+                                {isSubChecked ? (
+                                  <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                ) : (
+                                  <Circle className="w-5 h-5 text-gray-400" />
+                                )}
+                              </button>
+                              <div className="flex-1 flex items-center gap-2">
+                                <span
+                                  className={`
+                                    text-sm transition-all
+                                    ${isSubChecked ? 'text-gray-500 line-through' : 'text-gray-700'}
+                                  `}
+                                >
+                                  {subStep.label}
+                                </span>
+                                {subStep.required && (
+                                  <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                                    必填
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -349,22 +493,14 @@ export default function ChecklistRunner({
         {/* Summary */}
         {progress === 100 && (
           <div className="mt-8 p-6 bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300 rounded-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-8 h-8 text-green-600" />
-                <div>
-                  <h3 className="text-xl font-bold text-gray-900">恭喜！所有項目已完成</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    您已完成所有檢查清單項目，可以返回任務列表。
-                  </p>
-                </div>
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-8 h-8 text-green-600" />
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">恭喜！所有項目已完成</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  您已完成所有檢查清單項目，可以返回任務列表。
+                </p>
               </div>
-              <button
-                onClick={handleCompleteAndReturn}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold whitespace-nowrap"
-              >
-                完成並返回
-              </button>
             </div>
           </div>
         )}
@@ -382,9 +518,14 @@ export default function ChecklistRunner({
           {progress === 100 && (
             <button
               onClick={handleCompleteAndReturn}
-              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              disabled={isLoading}
+              className={`flex-1 px-6 py-3 text-white rounded-lg transition-colors font-semibold ${
+                isLoading 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700'
+              }`}
             >
-              確認完成並返回任務列表
+              {isLoading ? '儲存中...' : '確認完成並返回任務列表'}
             </button>
           )}
           

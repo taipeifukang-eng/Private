@@ -1,9 +1,18 @@
+// SubStep: A child step under a main step
+export interface SubStep {
+  id: string;
+  label: string;
+  description?: string;
+  required: boolean;
+}
+
 // WorkflowStep: The structure stored in JSONB for dynamic steps
 export interface WorkflowStep {
   id: string;
   label: string;
   description?: string;
   required: boolean;
+  subSteps?: SubStep[];  // Optional sub-steps under this step
 }
 
 // DepartmentSection: A group of steps assigned to a specific department

@@ -87,7 +87,12 @@ export default function MyTasksPage() {
 
   const getProgress = (assignment: any) => {
     if (!assignment.template?.steps_schema) return 0;
-    const totalSteps = assignment.template.steps_schema.length;
+    
+    // Calculate total steps including sub-steps
+    const totalSteps = assignment.template.steps_schema.reduce((count: number, step: any) => {
+      return count + 1 + (step.subSteps?.length || 0);
+    }, 0);
+    
     if (totalSteps === 0) return 0;
 
     const checkedStepIds = new Set();
@@ -208,7 +213,7 @@ export default function MyTasksPage() {
                           <h3 className="text-xl font-bold text-gray-900 flex-1">
                             {assignment.template?.title || '未知專案'}
                           </h3>
-                          <StatusBadge status={assignment.status} />
+                          <StatusBadge status={progress === 100 ? 'completed' : progress > 0 ? 'in_progress' : 'pending'} />
                         </div>
 
                         {/* Creator Info */}

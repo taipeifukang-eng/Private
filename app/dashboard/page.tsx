@@ -1,5 +1,8 @@
-import { getAssignments } from '@/app/actions';
-import { Activity, CheckCircle2, Clock, User } from 'lucide-react';
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Activity, CheckCircle2, Clock, User, RefreshCw } from 'lucide-react';
 import type { Assignment, Template, Log } from '@/types/workflow';
 
 // Extended types for joined data
@@ -12,51 +15,38 @@ interface AssignmentWithDetails extends Assignment {
   };
 }
 
-async function fetchAssignments(): Promise<AssignmentWithDetails[]> {
-  const result = await getAssignments();
-  
-  if (!result.success) {
-    console.error('Failed to fetch assignments:', result.error);
-    return [];
-  }
-  
-  return result.data as AssignmentWithDetails[];
-}
-
 // Calculate progress for an assignment
 function calculateProgress(assignment: AssignmentWithDetails): number {
   if (!assignment.template?.steps_schema) return 0;
   
-  const totalSteps = assignment.template.steps_schema.length;
+  // Calculate total steps including sub-steps
+  const totalSteps = assignment.template.steps_schema.reduce((count, step) => {
+    return count + 1 + (step.subSteps?.length || 0);
+  }, 0);
+  
   if (totalSteps === 0) return 0;
   
-  // Debug logging
-  console.log('Assignment ID:', assignment.id);
-  console.log('Total steps:', totalSteps);
-  console.log('Logs:', assignment.logs);
-  console.log('Steps schema:', assignment.template.steps_schema);
+  // Sort logs by created_at to ensure correct order
+  const sortedLogs = [...(assignment.logs || [])].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
   
   // Process logs in order to determine final state of each step
   const checkedStepIds = new Set<string>();
   
-  assignment.logs.forEach((log) => {
-    console.log('Processing log:', log);
+  sortedLogs.forEach((log) => {
     if (log.step_id !== null && log.step_id !== undefined) {
       const stepIdStr = log.step_id.toString();
       if (log.action === 'complete') {
         checkedStepIds.add(stepIdStr);
-        console.log('Added step:', stepIdStr);
       } else if (log.action === 'uncomplete') {
         checkedStepIds.delete(stepIdStr);
-        console.log('Removed step:', stepIdStr);
       }
     }
   });
   
-  console.log('Final checked steps:', Array.from(checkedStepIds));
   const completedSteps = checkedStepIds.size;
   const progress = Math.round((completedSteps / totalSteps) * 100);
-  console.log('Progress:', progress, '%');
   
   return progress;
 }
@@ -90,8 +80,57 @@ function formatRelativeTime(date: Date | null): string {
   return date.toLocaleDateString('zh-TW');
 }
 
-export default async function DashboardPage() {
-  const assignments = await fetchAssignments();
+export default function DashboardPage() {
+  const router = useRouter();
+  const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadAssignments();
+    
+    // Set up an interval to refresh data periodically
+    const interval = setInterval(() => {
+      loadAssignments();
+    }, 2000); // Refresh every 2 seconds
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const loadAssignments = async () => {
+    try {
+      const { getAssignments } = await import('@/app/actions');
+      const result = await getAssignments();
+      
+      if (result.success) {
+        console.log('[Dashboard] Loaded assignments:', result.data.length);
+        // Log each assignment's progress for debugging
+        result.data.forEach((assignment: any) => {
+          const progress = calculateProgress(assignment as AssignmentWithDetails);
+          console.log(`[Dashboard] ${assignment.template?.title}: ${progress}%, logs count: ${assignment.logs?.length || 0}`);
+        });
+        setAssignments(result.data as AssignmentWithDetails[]);
+      }
+    } catch (error) {
+      console.error('Error loading assignments:', error);
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    await loadAssignments();
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <div className="text-gray-600">載入中...</div>
+      </div>
+    );
+  }
   
   // Calculate statistics
   const totalAssignments = assignments.length;
@@ -103,9 +142,19 @@ export default async function DashboardPage() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">管理儀表板</h1>
-          <p className="text-gray-600">檢視所有專案進度與任務狀態</p>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">管理儀表板</h1>
+            <p className="text-gray-600">檢視所有專案進度與任務狀態</p>
+          </div>
+          <button
+            onClick={handleManualRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
+            {isRefreshing ? '更新中...' : '手動更新'}
+          </button>
         </div>
 
         {/* Statistics Cards */}
@@ -208,7 +257,7 @@ export default async function DashboardPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge status={assignment.status} />
+                          <StatusBadge status={progress === 100 ? 'completed' : progress > 0 ? 'in_progress' : 'pending'} />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">

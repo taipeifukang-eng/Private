@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Trash2, ChevronUp, ChevronDown, Save, AlertTriangle, Lock, Search, Building, Users, ListTodo } from 'lucide-react';
-import type { WorkflowStep, DepartmentSection, Template } from '@/types/workflow';
+import { Plus, Trash2, ChevronUp, ChevronDown, Save, AlertTriangle, Lock, Search, Building, Users, ListTodo, CornerDownRight } from 'lucide-react';
+import type { WorkflowStep, DepartmentSection, Template, SubStep } from '@/types/workflow';
 
 interface User {
   id: string;
@@ -159,6 +159,18 @@ export default function WorkflowBuilderV2({
     
     section.steps = [...section.steps, newStep];
     setSections(newSections);
+
+    // Auto-scroll to the new step after a short delay
+    setTimeout(() => {
+      const stepElements = document.querySelectorAll('[data-step-id]');
+      const lastStep = stepElements[stepElements.length - 1];
+      if (lastStep) {
+        lastStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Focus on the new step's label input
+        const input = lastStep.querySelector('input[placeholder="步驟名稱 *"]') as HTMLInputElement;
+        if (input) input.focus();
+      }
+    }, 100);
   };
 
   // Update step in section
@@ -193,6 +205,49 @@ export default function WorkflowBuilderV2({
     const steps = newSections[sectionIndex].steps;
     if (stepIndex === steps.length - 1) return;
     [steps[stepIndex], steps[stepIndex + 1]] = [steps[stepIndex + 1], steps[stepIndex]];
+    setSections(newSections);
+  };
+
+  // Add sub-step to a step
+  const addSubStep = (sectionIndex: number, stepIndex: number) => {
+    const newSections = [...sections];
+    const step = newSections[sectionIndex].steps[stepIndex];
+    
+    // Generate unique sub-step ID
+    const existingSubSteps = step.subSteps || [];
+    const subStepId = `${step.id}-${existingSubSteps.length + 1}`;
+    
+    const newSubStep: SubStep = {
+      id: subStepId,
+      label: '',
+      description: '',
+      required: false
+    };
+    
+    step.subSteps = [...existingSubSteps, newSubStep];
+    setSections(newSections);
+  };
+
+  // Update sub-step
+  const updateSubStep = (sectionIndex: number, stepIndex: number, subStepIndex: number, field: keyof SubStep, value: any) => {
+    const newSections = [...sections];
+    const subSteps = newSections[sectionIndex].steps[stepIndex].subSteps;
+    if (subSteps) {
+      subSteps[subStepIndex] = {
+        ...subSteps[subStepIndex],
+        [field]: value
+      };
+    }
+    setSections(newSections);
+  };
+
+  // Remove sub-step
+  const removeSubStep = (sectionIndex: number, stepIndex: number, subStepIndex: number) => {
+    const newSections = [...sections];
+    const step = newSections[sectionIndex].steps[stepIndex];
+    if (step.subSteps) {
+      step.subSteps = step.subSteps.filter((_, i) => i !== subStepIndex);
+    }
     setSections(newSections);
   };
 
@@ -499,7 +554,7 @@ export default function WorkflowBuilderV2({
                     ) : (
                       <div className="space-y-3">
                         {currentSection.steps.map((step, stepIndex) => (
-                          <div key={step.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                          <div key={step.id} data-step-id={step.id} className="bg-white rounded-lg p-4 border border-gray-200">
                             <div className="flex items-start gap-3">
                               {/* Step Number */}
                               <div className="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">
@@ -557,8 +612,65 @@ export default function WorkflowBuilderV2({
                                 </button>
                               </div>
                             </div>
+
+                            {/* Sub-steps */}
+                            <div className="mt-3 ml-11">
+                              {step.subSteps && step.subSteps.length > 0 && (
+                                <div className="space-y-2 mb-2">
+                                  {step.subSteps.map((subStep, subStepIndex) => (
+                                    <div key={subStep.id} className="flex items-start gap-2 bg-gray-50 rounded-lg p-3 border border-gray-200">
+                                      <CornerDownRight size={16} className="text-gray-400 mt-2 flex-shrink-0" />
+                                      <div className="flex-1 space-y-2">
+                                        <input
+                                          type="text"
+                                          value={subStep.label}
+                                          onChange={(e) => updateSubStep(activeSectionIndex, stepIndex, subStepIndex, 'label', e.target.value)}
+                                          className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                                          placeholder="子步驟名稱"
+                                        />
+                                        <label className="flex items-center gap-2 text-xs text-gray-600">
+                                          <input
+                                            type="checkbox"
+                                            checked={subStep.required}
+                                            onChange={(e) => updateSubStep(activeSectionIndex, stepIndex, subStepIndex, 'required', e.target.checked)}
+                                            className="w-3 h-3 text-purple-600 rounded"
+                                          />
+                                          必填
+                                        </label>
+                                      </div>
+                                      <button
+                                        onClick={() => removeSubStep(activeSectionIndex, stepIndex, subStepIndex)}
+                                        className="p-1 text-gray-400 hover:text-red-600"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                              <button
+                                onClick={() => addSubStep(activeSectionIndex, stepIndex)}
+                                className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-800"
+                              >
+                                <Plus size={14} />
+                                新增子步驟
+                              </button>
+                            </div>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Bottom Add Button - 底部新增按鈕 */}
+                    {currentSection.steps.length > 0 && (
+                      <div className="mt-4 text-center">
+                        <button
+                          onClick={() => addStepToSection(activeSectionIndex)}
+                          className="inline-flex items-center gap-2 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 shadow-md transition-all hover:shadow-lg"
+                        >
+                          <Plus size={18} />
+                          新增步驟
+                        </button>
                       </div>
                     )}
                   </div>

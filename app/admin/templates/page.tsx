@@ -1,4 +1,4 @@
-import { getTemplates, getAssignments } from '@/app/actions';
+import { getTemplates, getAllAssignments } from '@/app/actions';
 import { Plus, FileText } from 'lucide-react';
 import Link from 'next/link';
 import type { Template } from '@/types/workflow';
@@ -8,8 +8,14 @@ export default async function TemplatesPage() {
   const result = await getTemplates();
   const templates = result.success ? result.data : [];
   
-  const assignmentsResult = await getAssignments();
+  const assignmentsResult = await getAllAssignments();
   const allAssignments = assignmentsResult.success ? assignmentsResult.data : [];
+
+  // Filter: only show templates that have active (non-archived) assignments
+  const templatesWithActiveAssignments = templates.filter((template) => {
+    const templateAssignments = allAssignments.filter((a: any) => a.template_id === template.id);
+    return templateAssignments.length > 0;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -28,40 +34,29 @@ export default async function TemplatesPage() {
           </Link>
         </div>
 
-        {templates.length === 0 ? (
+        {templatesWithActiveAssignments.length === 0 ? (
           <div className="bg-white rounded-lg shadow-lg p-12 text-center">
             <FileText className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">尚未建立任何流程</h3>
-            <p className="text-gray-600 mb-6">點擊上方按鈕開始建立您的第一個工作流程</p>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">目前沒有進行中的任務</h3>
+            <p className="text-gray-600 mb-6">所有任務已完成並封存，或尚未指派任何任務</p>
             <Link
               href="/admin/create"
               className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
             >
               <Plus size={20} />
-              建立流程
+              建立新任務
             </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {templates.map((template) => {
+            {templatesWithActiveAssignments.map((template) => {
               const templateAssignments = allAssignments.filter((a: any) => a.template_id === template.id);
-              const totalAssignments = templateAssignments.length;
-              
-              // Skip templates with no active assignments (all archived or deleted)
-              if (totalAssignments === 0) return null;
-              
-              const completedAssignments = templateAssignments.filter((a: any) => a.status === 'completed').length;
-              const inProgressAssignments = templateAssignments.filter((a: any) => a.status === 'in_progress').length;
-              const pendingAssignments = templateAssignments.filter((a: any) => a.status === 'pending').length;
               
               return (
                 <TemplateCardWithStats
                   key={template.id}
                   template={template}
-                  totalAssignments={totalAssignments}
-                  completedAssignments={completedAssignments}
-                  inProgressAssignments={inProgressAssignments}
-                  pendingAssignments={pendingAssignments}
+                  assignments={templateAssignments}
                 />
               );
             })}

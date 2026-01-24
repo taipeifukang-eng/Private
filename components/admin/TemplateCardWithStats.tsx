@@ -3,23 +3,17 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical, Edit, Archive } from 'lucide-react';
+import { FileText, Calendar, CheckCircle, Clock, AlertCircle, Trash2, MoreVertical, Edit, Archive, Copy } from 'lucide-react';
 import type { Template } from '@/types/workflow';
 
 interface TemplateCardWithStatsProps {
   template: Template;
-  totalAssignments: number;
-  completedAssignments: number;
-  inProgressAssignments: number;
-  pendingAssignments: number;
+  assignments: any[];
 }
 
 export default function TemplateCardWithStats({
   template,
-  totalAssignments,
-  completedAssignments,
-  inProgressAssignments,
-  pendingAssignments,
+  assignments,
 }: TemplateCardWithStatsProps) {
   const router = useRouter();
   const [showMenu, setShowMenu] = useState(false);
@@ -27,7 +21,45 @@ export default function TemplateCardWithStats({
 
   const stepCount = template.steps_schema?.length || 0;
   const createdDate = new Date(template.created_at).toLocaleDateString('zh-TW');
-  const completionRate = totalAssignments > 0 ? Math.round((completedAssignments / totalAssignments) * 100) : 0;
+  
+  // Calculate statistics
+  const totalAssignments = assignments.length;
+  const completedAssignments = assignments.filter(a => a.status === 'completed').length;
+  const inProgressAssignments = assignments.filter(a => a.status === 'in_progress').length;
+  const pendingAssignments = assignments.filter(a => a.status === 'pending').length;
+  
+  // Calculate average step completion progress across all assignments
+  const calculateProgress = () => {
+    if (totalAssignments === 0) return 0;
+    
+    const totalProgress = assignments.reduce((sum, assignment) => {
+      const steps = template.steps_schema || [];
+      const totalSteps = steps.reduce((count, step) => count + 1 + (step.subSteps?.length || 0), 0);
+      
+      if (totalSteps === 0) return sum;
+      
+      const logs = assignment.logs || [];
+      const checkedSteps = new Set<string>();
+      
+      logs.forEach((log: any) => {
+        if (log.step_id !== null && log.step_id !== undefined) {
+          const stepIdStr = log.step_id.toString();
+          if (log.action === 'complete') {
+            checkedSteps.add(stepIdStr);
+          } else if (log.action === 'uncomplete') {
+            checkedSteps.delete(stepIdStr);
+          }
+        }
+      });
+      
+      const progress = (checkedSteps.size / totalSteps) * 100;
+      return sum + progress;
+    }, 0);
+    
+    return Math.round(totalProgress / totalAssignments);
+  };
+  
+  const completionRate = calculateProgress();
 
   const handleDeleteCompleted = async () => {
     console.log('[TemplateCardWithStats] handleDeleteCompleted called');
@@ -153,15 +185,21 @@ export default function TemplateCardWithStats({
   const handleArchiveCompleted = async () => {
     console.log('[TemplateCardWithStats] handleArchiveCompleted called');
     
-    if (totalAssignments === 0 || completedAssignments !== totalAssignments) {
-      alert('只有當所有任務都已完成時才能封存');
+    if (totalAssignments === 0) {
+      alert('沒有任務可以封存');
+      return;
+    }
+    
+    if (completionRate < 100) {
+      alert('只有當所有任務步驟都完成（進度100%）時才能封存');
       return;
     }
 
     const confirmed = confirm(
       `確定要封存「${template.title}」的所有任務嗎？\n\n` +
       `將封存 ${completedAssignments} 個已完成任務。\n` +
-      `封存後的任務可以在歷史記錄中查看。`
+      `封存後將自動刪除此流程模板。\n` +
+      `封存的任務可以在歷史記錄中查看。`
     );
 
     if (!confirmed) {
@@ -174,7 +212,7 @@ export default function TemplateCardWithStats({
     console.log('[TemplateCardWithStats] Starting archive process...');
 
     try {
-      const { getAssignments, archiveAssignment } = await import('@/app/actions');
+      const { getAssignments, archiveAssignment, deleteTemplate } = await import('@/app/actions');
       console.log('[TemplateCardWithStats] Actions imported successfully');
       
       const result = await getAssignments();
@@ -206,6 +244,10 @@ export default function TemplateCardWithStats({
         console.log('[TemplateCardWithStats] Archive complete:', { successCount, failCount });
 
         if (failCount === 0) {
+          // All assignments archived successfully
+          // Template is NOT deleted - archived assignments will be hidden from task management
+          // but visible in archived tasks page
+          console.log('[TemplateCardWithStats] All assignments archived successfully');
           alert(`✅ 成功封存 ${successCount} 個已完成任務`);
           router.refresh();
         } else {
@@ -223,6 +265,47 @@ export default function TemplateCardWithStats({
     } finally {
       setIsDeleting(false);
       console.log('[TemplateCardWithStats] Archive process ended');
+    }
+  };
+
+  const handleDuplicate = async () => {
+    console.log('[TemplateCardWithStats] handleDuplicate called');
+    
+    const newTitle = prompt(
+      `複製流程模板「${template.title}」\n\n請輸入新的標題（留空將自動命名為「${template.title} (副本)」）：`,
+      ''
+    );
+
+    // 用戶取消
+    if (newTitle === null) {
+      console.log('[TemplateCardWithStats] Duplicate cancelled by user');
+      return;
+    }
+
+    setIsDeleting(true);
+    setShowMenu(false);
+    console.log('[TemplateCardWithStats] Duplicating template:', template.id);
+
+    try {
+      const { duplicateTemplate } = await import('@/app/actions');
+      console.log('[TemplateCardWithStats] Action imported successfully');
+      
+      const result = await duplicateTemplate(template.id, newTitle.trim() || undefined);
+      console.log('[TemplateCardWithStats] Duplicate result:', result);
+      
+      if (result.success) {
+        alert(`✅ 成功複製流程模板：${result.data?.title}`);
+        router.refresh();
+      } else {
+        console.error('[TemplateCardWithStats] Duplicate failed:', result.error);
+        alert(`❌ 複製失敗: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('[TemplateCardWithStats] Error duplicating template:', error);
+      alert(`❌ 複製失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+    } finally {
+      setIsDeleting(false);
+      console.log('[TemplateCardWithStats] Duplicate process ended');
     }
   };
 
@@ -252,7 +335,16 @@ export default function TemplateCardWithStats({
                 <Edit size={16} />
                 編輯任務
               </Link>
-              {totalAssignments > 0 && completedAssignments === totalAssignments && (
+              <div className="border-t border-gray-200 my-1"></div>
+              <button
+                onClick={handleDuplicate}
+                disabled={isDeleting}
+                className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2 disabled:opacity-50"
+              >
+                <Copy size={16} />
+                {isDeleting ? '複製中...' : '複製流程模板'}
+              </button>
+              {totalAssignments > 0 && completionRate === 100 && (
                 <>
                   <div className="border-t border-gray-200 my-1"></div>
                   <button
@@ -261,11 +353,11 @@ export default function TemplateCardWithStats({
                     className="w-full text-left px-4 py-2 text-sm text-purple-600 hover:bg-purple-50 flex items-center gap-2 disabled:opacity-50"
                   >
                     <Archive size={16} />
-                    {isDeleting ? '封存中...' : `完成並封存 (${completedAssignments} 個任務)`}
+                    {isDeleting ? '封存中...' : `完成並封存 (${totalAssignments} 個任務)`}
                   </button>
                 </>
               )}
-              {completedAssignments > 0 && (
+              {completionRate === 100 && totalAssignments > 0 && (
                 <>
                   <div className="border-t border-gray-200 my-1"></div>
                   <button
@@ -274,7 +366,7 @@ export default function TemplateCardWithStats({
                     className="w-full text-left px-4 py-2 text-sm text-orange-600 hover:bg-orange-50 flex items-center gap-2 disabled:opacity-50"
                   >
                     <Trash2 size={16} />
-                    {isDeleting ? '刪除中...' : `刪除 ${completedAssignments} 個已完成任務`}
+                    {isDeleting ? '刪除中...' : `刪除 ${totalAssignments} 個已完成任務`}
                   </button>
                 </>
               )}
@@ -323,7 +415,7 @@ export default function TemplateCardWithStats({
         {totalAssignments > 0 && (
           <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-gray-700">任務完成率</span>
+              <span className="text-sm font-medium text-gray-700">完成進度</span>
               <span className="text-sm font-bold text-blue-600">{completionRate}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
