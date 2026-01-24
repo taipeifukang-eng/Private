@@ -15,7 +15,9 @@ import {
   Shield,
   Crown,
   User as UserIcon,
-  Archive
+  Archive,
+  CalendarCheck,
+  Store
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 
@@ -58,9 +60,11 @@ export default function Navbar({ user }: NavbarProps) {
   const navItems = [
     { href: '/', label: '首頁', icon: Home, roles: ['admin', 'manager', 'member'] },
     { href: '/my-tasks', label: '我的任務', icon: ClipboardList, roles: ['admin', 'manager', 'member'] },
+    { href: '/monthly-status', label: '每月人員狀態', icon: CalendarCheck, roles: ['admin', 'manager', 'member'] },
     { href: '/dashboard', label: '儀表板', icon: LayoutDashboard, roles: ['admin', 'manager'] },
     { href: '/admin/templates', label: '任務管理', icon: FileText, roles: ['admin', 'manager'] },
     { href: '/admin/archived', label: '已封存任務', icon: Archive, roles: ['admin', 'manager'] },
+    { href: '/admin/stores', label: '門市管理', icon: Store, roles: ['admin'] },
     { href: '/admin/users', label: '使用者管理', icon: Users, roles: ['admin'] },
   ].filter(item => item.roles.includes(role));
 
@@ -79,7 +83,7 @@ export default function Navbar({ user }: NavbarProps) {
                 <ClipboardList className="w-6 h-6 text-white" />
               </div>
               <span className="text-xl font-bold text-gray-900 hidden sm:block">
-                富康任務派發系統
+                富康內部業務管理系統
               </span>
             </Link>
 
