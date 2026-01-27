@@ -144,7 +144,7 @@ export async function POST(request: NextRequest) {
     let skippedCount = 0;
     const errors: string[] = [];
 
-    for (const [employeeCode, empData] of employeeMap.entries()) {
+    for (const [employeeCode, empData] of Array.from(employeeMap.entries())) {
       // 計算總毛利率
       const totalGrossProfitRate = empData.totalSalesAmount > 0 
         ? (empData.totalGrossProfit / empData.totalSalesAmount) * 100 
