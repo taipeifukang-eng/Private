@@ -43,11 +43,26 @@ export default function ImportStoreStatsModal({
         body: formData
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        throw new Error(data.error || '匯入失敗');
+        const data = await response.json();
+        
+        // 特別處理權限錯誤
+        if (response.status === 403) {
+          const errorMsg = data.details 
+            ? `${data.error}: ${data.details}` 
+            : data.error;
+          throw new Error(errorMsg);
+        }
+        
+        // 特別處理資料庫欄位不存在的錯誤
+        if (data.details?.errors?.some((e: string) => e.includes('migration'))) {
+          throw new Error('資料庫欄位不存在，請聯繫管理員執行資料庫更新腳本');
+        }
+        
+        throw new Error(data.error || `伺服器錯誤 (${response.status})`);
       }
+
+      const data = await response.json();
 
       setResult(data);
       

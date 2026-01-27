@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 
+// 配置 API Route
+export const runtime = 'nodejs'; // 使用 Node.js runtime
+export const maxDuration = 60; // 最大執行時間 60 秒
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -12,19 +16,36 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未授權' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    // 權限檢查：admin, supervisor, area_manager 或營業部助理
+    if (profileError || !profile) {
+      console.error('取得用戶資料失敗:', profileError);
+      return NextResponse.json({ 
+        error: '無法取得用戶資料',
+        details: profileError?.message 
+      }, { status: 403 });
+    }
+
+    // 權限檢查：admin, supervisor, area_manager 或營業部人員（member 或 manager 角色）
     const isAuthorized = 
       ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '') ||
-      (profile?.department?.includes('營業部') && profile?.job_title === '助理');
+      (profile?.department?.startsWith('營業') && (profile?.role === 'member' || profile?.role === 'manager'));
 
-    if (!profile || !isAuthorized) {
-      return NextResponse.json({ error: '權限不足' }, { status: 403 });
+    if (!isAuthorized) {
+      console.log('權限不足:', { role: profile.role, department: profile.department, job_title: profile.job_title });
+      return NextResponse.json({ 
+        error: '權限不足',
+        details: '只有督導以上或營業部人員可以匯入統計資料',
+        userInfo: {
+          role: profile.role,
+          department: profile.department,
+          job_title: profile.job_title
+        }
+      }, { status: 403 });
     }
 
     // 解析表單數據
@@ -94,8 +115,17 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 準備更新數據
+        // 先獲取門市的完整信息
+        const { data: storeInfo } = await supabase
+          .from('stores')
+          .select('*')
+          .eq('id', store.id)
+          .single();
+
+        // 準備更新數據（只更新統計欄位，不影響其他欄位）
         const statsData = {
+          store_name: storeInfo?.store_name || store.store_code,
+          store_code: store.store_code,
           total_staff_count: parseInt(row['門市人數']) || 0,
           admin_staff_count: parseInt(row['行政人數']) || 0,
           newbie_count: parseInt(row['新人人數']) || 0,
@@ -108,12 +138,19 @@ export async function POST(request: NextRequest) {
         };
 
         // 檢查是否已存在記錄
-        const { data: existing } = await supabase
+        const { data: existing, error: existingError } = await supabase
           .from('monthly_store_summary')
           .select('id')
           .eq('year_month', yearMonth)
           .eq('store_id', store.id)
-          .single();
+          .maybeSingle();
+
+        if (existingError) {
+          console.error('查詢記錄錯誤:', existingError);
+          results.errors.push(`查詢失敗 ${store.store_code}: ${existingError.message}`);
+          results.failed++;
+          continue;
+        }
 
         if (existing) {
           // 更新現有記錄
@@ -123,23 +160,23 @@ export async function POST(request: NextRequest) {
             .eq('id', existing.id);
 
           if (updateError) {
-            results.errors.push(`更新失敗 ${store.store_code}: ${updateError.message}`);
+            console.error('更新錯誤:', updateError);
+            // 特別檢查欄位不存在的錯誤
+            if (updateError.message.includes('column') && updateError.message.includes('does not exist')) {
+              results.errors.push(`資料庫欄位不存在，請先執行 migration_add_store_monthly_stats.sql`);
+            } else {
+              results.errors.push(`更新失敗 ${store.store_code}: ${updateError.message}`);
+            }
             results.failed++;
           } else {
+            console.log(`✓ 更新成功: ${store.store_code}`);
             results.success++;
           }
         } else {
-          // 創建新記錄（需要先獲取門市的基本信息）
-          const { data: storeInfo } = await supabase
-            .from('stores')
-            .select('*')
-            .eq('id', store.id)
-            .single();
-
-          // 獲取該門市該月的員工數
-          const { data: staffCount } = await supabase
+          // 創建新記錄（獲取該門市該月的員工數）
+          const { count: staffCount } = await supabase
             .from('monthly_staff_status')
-            .select('id', { count: 'exact' })
+            .select('id', { count: 'exact', head: true })
             .eq('year_month', yearMonth)
             .eq('store_id', store.id);
 
@@ -148,18 +185,23 @@ export async function POST(request: NextRequest) {
             .insert({
               year_month: yearMonth,
               store_id: store.id,
-              store_name: storeInfo?.store_name || '',
-              store_code: store.store_code,
-              total_employees: staffCount?.length || 0,
+              total_employees: staffCount || 0,
               confirmed_count: 0,
               store_status: 'pending',
               ...statsData
             });
 
           if (insertError) {
-            results.errors.push(`新增失敗 ${store.store_code}: ${insertError.message}`);
+            console.error('新增錯誤:', insertError);
+            // 特別檢查欄位不存在的錯誤
+            if (insertError.message.includes('column') && insertError.message.includes('does not exist')) {
+              results.errors.push(`資料庫欄位不存在，請先執行 migration_add_store_monthly_stats.sql`);
+            } else {
+              results.errors.push(`新增失敗 ${store.store_code}: ${insertError.message}`);
+            }
             results.failed++;
           } else {
+            console.log(`✓ 新增成功: ${store.store_code}`);
             results.success++;
           }
         }

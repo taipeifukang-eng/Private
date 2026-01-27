@@ -21,11 +21,15 @@ export default async function StoresPage({
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, department, job_title')
     .eq('id', user.id)
     .single();
 
-  if (!profile || profile.role !== 'admin') {
+  // 檢查權限：admin、營業部主管（manager）或營業部助理（member）
+  const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member';
+  const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager';
+  
+  if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
     redirect('/dashboard');
   }
 
@@ -113,13 +117,16 @@ export default async function StoresPage({
                 )}
               </Link>
             )}
-            <Link
-              href="/admin/stores/create"
-              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-            >
-              <Plus size={20} />
-              新增門市
-            </Link>
+            {/* 只有 admin 和營業部主管可以新增門市 */}
+            {(profile?.role === 'admin' || isBusinessSupervisor) && (
+              <Link
+                href="/admin/stores/create"
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              >
+                <Plus size={20} />
+                新增門市
+              </Link>
+            )}
           </div>
         </div>
 
@@ -214,14 +221,17 @@ export default async function StoresPage({
                     
                     {/* 操作按鈕 */}
                     <div className="col-span-2 flex gap-1 justify-center flex-wrap">
-                      <Link
-                        href={`/admin/stores/${store.id}/edit`}
-                        className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium"
-                        title="編輯門市"
-                      >
-                        <Edit size={12} className="inline mr-1" />
-                        編輯
-                      </Link>
+                      {/* admin 和營業部主管可以編輯門市 */}
+                      {(profile?.role === 'admin' || isBusinessSupervisor) && (
+                        <Link
+                          href={`/admin/stores/${store.id}/edit`}
+                          className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium"
+                          title="編輯門市"
+                        >
+                          <Edit size={12} className="inline mr-1" />
+                          編輯
+                        </Link>
+                      )}
                       <Link
                         href={`/admin/stores/${store.id}/employees`}
                         className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium"
@@ -230,7 +240,8 @@ export default async function StoresPage({
                         <UserPlus size={12} className="inline mr-1" />
                         員工
                       </Link>
-                      {store.is_active && (
+                      {/* admin 和營業部主管可以搬遷門市 */}
+                      {store.is_active && (profile?.role === 'admin' || isBusinessSupervisor) && (
                         <Link
                           href={`/admin/stores/${store.id}/clone`}
                           className="px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-xs font-medium"

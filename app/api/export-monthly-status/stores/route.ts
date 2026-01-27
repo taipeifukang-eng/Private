@@ -15,6 +15,29 @@ export async function GET(request: NextRequest) {
 
     const supabase = createClient();
 
+    // 權限檢查：admin 或營業部主管
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登入' },
+        { status: 401 }
+      );
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, department, job_title')
+      .eq('id', user.id)
+      .single();
+
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.job_title === '主管';
+    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
+      return NextResponse.json(
+        { success: false, error: '權限不足' },
+        { status: 403 }
+      );
+    }
+
     // 獲取所有門市
     const { data: stores, error: storesError } = await supabase
       .from('stores')

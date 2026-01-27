@@ -116,8 +116,8 @@ export default function MonthlyStatusPage() {
     if (['admin', 'supervisor', 'area_manager'].includes(userRole)) {
       return true;
     }
-    // 2. 營業部X部的助理可以看
-    if (userDepartment?.includes('營業部') && userJobTitle === '助理') {
+    // 2. 營業部（營業1部、營業2部等）的助理可以看
+    if (userDepartment?.startsWith('營業') && userJobTitle === '助理') {
       return true;
     }
     return false;
@@ -503,8 +503,8 @@ function StoreStatusDetail({
     if (['admin', 'supervisor', 'area_manager'].includes(userRole)) {
       return true;
     }
-    // 2. 營業部X部的助理可以看
-    if (userDepartment?.includes('營業部') && userJobTitle === '助理') {
+    // 2. 營業部人員（member 或 manager 角色）可以看
+    if (userDepartment?.startsWith('營業') && (userRole === 'member' || userRole === 'manager')) {
       return true;
     }
     return false;
@@ -1627,36 +1627,47 @@ function StoreMonthlyStatsForm({
         {/* 左側：應有人員 */}
         <div>
           <h4 className="text-xs font-semibold text-gray-700 mb-2">應有人員</h4>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-1">
-              <label className="text-xs text-gray-600">門市人數</label>
-              <input
-                type="number"
-                value={stats.total_staff_count}
-                onChange={(e) => setStats({ ...stats, total_staff_count: parseInt(e.target.value) || 0 })}
-                disabled={isReadOnly}
-                className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-              />
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-gray-600">門市人數</label>
+                <input
+                  type="number"
+                  value={stats.total_staff_count}
+                  onChange={(e) => setStats({ ...stats, total_staff_count: parseInt(e.target.value) || 0 })}
+                  disabled={isReadOnly}
+                  className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-gray-600">行政人數</label>
+                <input
+                  type="number"
+                  value={stats.admin_staff_count}
+                  onChange={(e) => setStats({ ...stats, admin_staff_count: parseInt(e.target.value) || 0 })}
+                  disabled={isReadOnly}
+                  className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-gray-600">新人人數</label>
+                <input
+                  type="number"
+                  value={stats.newbie_count}
+                  onChange={(e) => setStats({ ...stats, newbie_count: parseInt(e.target.value) || 0 })}
+                  disabled={isReadOnly}
+                  className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-1">
-              <label className="text-xs text-gray-600">行政人數</label>
-              <input
-                type="number"
-                value={stats.admin_staff_count}
-                onChange={(e) => setStats({ ...stats, admin_staff_count: parseInt(e.target.value) || 0 })}
-                disabled={isReadOnly}
-                className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <label className="text-xs text-gray-600">新人人數</label>
-              <input
-                type="number"
-                value={stats.newbie_count}
-                onChange={(e) => setStats({ ...stats, newbie_count: parseInt(e.target.value) || 0 })}
-                disabled={isReadOnly}
-                className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-              />
+              <label className="text-xs text-gray-600 font-semibold text-purple-600">人力點值</label>
+              <div className="w-20 px-2 py-1 bg-purple-100 text-purple-900 rounded text-xs font-semibold text-center">
+                {((stats.total_staff_count * 1) + (stats.admin_staff_count * 0.5) + (stats.newbie_count * 0.3)).toFixed(1)}
+              </div>
+              <span className="text-xs text-gray-500">
+                (門市×1 + 行政×0.5 + 新人×0.3)
+              </span>
             </div>
           </div>
         </div>
@@ -1679,33 +1690,48 @@ function StoreMonthlyStatsForm({
               <div className="flex items-center gap-1">
                 <label className="text-xs text-gray-600">毛利</label>
                 <input
-                  type="number"
-                  value={stats.total_gross_profit}
-                  onChange={(e) => setStats({ ...stats, total_gross_profit: parseFloat(e.target.value) || 0 })}
+                  type="text"
+                  value={stats.total_gross_profit.toLocaleString()}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/,/g, '');
+                    setStats({ ...stats, total_gross_profit: parseFloat(value) || 0 });
+                  }}
                   disabled={isReadOnly}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-24 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
                 />
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-gray-600">日毛利</label>
+                <div className="w-24 px-2 py-1 border border-gray-300 rounded text-xs bg-gray-50 text-gray-700 text-right">
+                  {(stats.business_days > 0 ? Math.round(stats.total_gross_profit / stats.business_days) : 0).toLocaleString()}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1">
                 <label className="text-xs text-gray-600">總來客數</label>
                 <input
-                  type="number"
-                  value={stats.total_customer_count}
-                  onChange={(e) => setStats({ ...stats, total_customer_count: parseInt(e.target.value) || 0 })}
+                  type="text"
+                  value={stats.total_customer_count.toLocaleString()}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/,/g, '');
+                    setStats({ ...stats, total_customer_count: parseInt(value) || 0 });
+                  }}
                   disabled={isReadOnly}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
                 />
               </div>
               <div className="flex items-center gap-1">
                 <label className="text-xs text-gray-600">單純處方加購</label>
                 <input
-                  type="number"
-                  value={stats.prescription_addon_only_count}
-                  onChange={(e) => setStats({ ...stats, prescription_addon_only_count: parseInt(e.target.value) || 0 })}
+                  type="text"
+                  value={stats.prescription_addon_only_count.toLocaleString()}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/,/g, '');
+                    setStats({ ...stats, prescription_addon_only_count: parseInt(value) || 0 });
+                  }}
                   disabled={isReadOnly}
-                  className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
                 />
               </div>
               <div className="flex items-center gap-1">
@@ -1719,21 +1745,27 @@ function StoreMonthlyStatsForm({
               <div className="flex items-center gap-1">
                 <label className="text-xs text-gray-600">一般箋張數</label>
                 <input
-                  type="number"
-                  value={stats.regular_prescription_count}
-                  onChange={(e) => setStats({ ...stats, regular_prescription_count: parseInt(e.target.value) || 0 })}
+                  type="text"
+                  value={stats.regular_prescription_count.toLocaleString()}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/,/g, '');
+                    setStats({ ...stats, regular_prescription_count: parseInt(value) || 0 });
+                  }}
                   disabled={isReadOnly}
-                  className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
                 />
               </div>
               <div className="flex items-center gap-1">
                 <label className="text-xs text-gray-600">慢箋張數</label>
                 <input
-                  type="number"
-                  value={stats.chronic_prescription_count}
-                  onChange={(e) => setStats({ ...stats, chronic_prescription_count: parseInt(e.target.value) || 0 })}
+                  type="text"
+                  value={stats.chronic_prescription_count.toLocaleString()}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/,/g, '');
+                    setStats({ ...stats, chronic_prescription_count: parseInt(value) || 0 });
+                  }}
                   disabled={isReadOnly}
-                  className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
                 />
               </div>
             </div>

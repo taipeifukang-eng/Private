@@ -66,14 +66,15 @@ export async function createStore(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限
+    // 檢查權限：admin 或營業部主管
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'admin') {
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.job_title === '主管';
+    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
       return { success: false, error: '權限不足' };
     }
 
@@ -129,14 +130,15 @@ export async function cloneStore(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限
+    // 檢查權限：admin 或營業部主管（manager 角色）
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'admin') {
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager';
+    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
       return { success: false, error: '權限不足' };
     }
 
@@ -278,6 +280,15 @@ export async function getUserManagedStores() {
       return { success: false, error: '找不到用戶資料', data: [] };
     }
 
+    console.log('🔍 getUserManagedStores - 用戶資料:', {
+      role: profile.role,
+      department: profile.department,
+      job_title: profile.job_title,
+      isBusinessDept: profile.department?.startsWith('營業'),
+      isBusinessMember: profile.role === 'member',
+      isBusinessManager: profile.role === 'manager'
+    });
+
     // admin 可以看所有門市
     if (profile.role === 'admin') {
       const { data, error } = await supabase
@@ -293,6 +304,26 @@ export async function getUserManagedStores() {
         success: true, 
         data: data || [], 
         role: 'admin',
+        department: profile.department,
+        job_title: profile.job_title
+      };
+    }
+
+    // 營業部人員可以看所有門市（營業1部、營業2部等的 member 或 manager 角色）
+    if (profile.department?.startsWith('營業') && (profile.role === 'member' || profile.role === 'manager')) {
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('is_active', true)
+        .order('store_code');
+
+      if (error) {
+        return { success: false, error: error.message, data: [] };
+      }
+      return { 
+        success: true, 
+        data: data || [], 
+        role: profile.role,
         department: profile.department,
         job_title: profile.job_title
       };
@@ -348,14 +379,15 @@ export async function assignStoreManager(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限
+    // 檢查權限：admin 或營業部主管（manager 角色）
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.role !== 'admin') {
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager';
+    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
       return { success: false, error: '權限不足' };
     }
 

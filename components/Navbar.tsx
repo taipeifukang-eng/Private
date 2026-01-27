@@ -30,6 +30,8 @@ interface NavbarProps {
     profile: {
       full_name: string | null;
       role: 'admin' | 'manager' | 'member';
+      department?: string | null;
+      job_title?: string | null;
     };
   } | null;
 }
@@ -43,6 +45,12 @@ export default function Navbar({ user }: NavbarProps) {
   const taskMenuRef = useRef<HTMLDivElement>(null);
   const storeMenuRef = useRef<HTMLDivElement>(null);
   const monthlyStatusMenuRef = useRef<HTMLDivElement>(null);
+
+  // 判斷是否為營業部助理（部門=營業X部，角色=member）
+  const isBusinessAssistant = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'member';
+  
+  // 判斷是否為營業部主管（部門=營業X部，角色=manager）
+  const isBusinessSupervisor = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'manager';
 
   // 點擊外部關閉下拉選單
   useEffect(() => {
@@ -93,17 +101,24 @@ export default function Navbar({ user }: NavbarProps) {
 
   // 門市管理相關的子選單項目
   const storeSubItems = [
-    { href: '/admin/store-managers', label: '店長指派', icon: Users, roles: ['admin'] },
-    { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, roles: ['admin'] },
-    { href: '/admin/stores', label: '門市管理', icon: Store, roles: ['admin'] },
-    { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'] },
-  ].filter(item => item.roles.includes(role));
+    { href: '/admin/store-managers', label: '店長指派', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
+    { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
+    { href: '/admin/stores', label: '門市管理', icon: Store, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
+    { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'], allowBusinessSupervisor: true },
+  ].filter(item => 
+    item.roles.includes(role) || 
+    (item.allowBusinessAssistant && isBusinessAssistant) ||
+    (item.allowBusinessSupervisor && isBusinessSupervisor)
+  );
 
   // 每月人員狀態相關的子選單項目
   const monthlyStatusSubItems = [
     { href: '/monthly-status', label: '每月人員狀態', icon: CalendarCheck, roles: ['admin', 'manager', 'member'] },
-    { href: '/admin/export-monthly-status', label: '資料匯出', icon: Send, roles: ['admin'] },
-  ].filter(item => item.roles.includes(role));
+    { href: '/admin/export-monthly-status', label: '資料匯出', icon: Send, roles: ['admin'], allowBusinessSupervisor: true },
+  ].filter(item => 
+    item.roles.includes(role) ||
+    (item.allowBusinessSupervisor && isBusinessSupervisor)
+  );
 
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
@@ -201,8 +216,8 @@ export default function Navbar({ user }: NavbarProps) {
                 )}
               </div>
 
-              {/* 門市管理下拉選單 - 只顯示給 admin */}
-              {role === 'admin' && (
+              {/* 門市管理下拉選單 - admin、營業部主管和營業部助理可見 */}
+              {(role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
                 <div className="relative" ref={storeMenuRef}>
                   <button
                     onClick={() => setIsStoreMenuOpen(!isStoreMenuOpen)}
@@ -411,8 +426,8 @@ export default function Navbar({ user }: NavbarProps) {
               </div>
             </div>
 
-            {/* 門市管理區塊 - 只顯示給 admin */}
-            {role === 'admin' && (
+            {/* 門市管理區塊 - admin、營業部主管和營業部助理可見 */}
+            {(role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
               <div className="mt-2">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                   <Store size={14} />
