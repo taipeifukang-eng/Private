@@ -174,7 +174,7 @@ export async function POST(request: NextRequest) {
         '階段': stage, // 第7欄：階段
         '當月個人實際毛利': grossProfit, // 第8欄：當月個人實際毛利
         '時數': record.work_hours || '', // 使用正確的欄位名稱
-        '天數': workDays // 只在未上滿整月時顯示
+        '天數(含休假)': workDays // 只在未上滿整月時顯示
       };
     });
 
