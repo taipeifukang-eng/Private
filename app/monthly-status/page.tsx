@@ -1,10 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
-
-export const dynamic = 'force-dynamic';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
 import { 
   CalendarCheck, 
@@ -38,7 +36,6 @@ import {
 
 export default function MonthlyStatusPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('member');
   const [userDepartment, setUserDepartment] = useState<string>('');
@@ -51,17 +48,12 @@ export default function MonthlyStatusPage() {
   const [showImportStatsModal, setShowImportStatsModal] = useState(false);
   const storeTabsRef = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
-  // 初始化當前年月（從 URL 參數或使用當前月份）
+  // 初始化當前年月（使用當前月份）
   useEffect(() => {
-    const urlYearMonth = searchParams.get('year_month');
-    if (urlYearMonth) {
-      setSelectedYearMonth(urlYearMonth);
-    } else {
-      const now = new Date();
-      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      setSelectedYearMonth(yearMonth);
-    }
-  }, [searchParams]);
+    const now = new Date();
+    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedYearMonth(yearMonth);
+  }, []);
 
   // 載入用戶管理的門市
   useEffect(() => {
