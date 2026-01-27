@@ -101,8 +101,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = createClient();
-
     // 獲取所有選中門市的員工資料（不在資料庫層排序職位，稍後在程式中處理）
     const { data: staffData, error: staffError } = await supabase
       .from('monthly_staff_status')
