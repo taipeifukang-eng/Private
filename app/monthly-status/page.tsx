@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
+
+export const dynamic = 'force-dynamic';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
 import { 
   CalendarCheck, 
