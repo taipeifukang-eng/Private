@@ -171,8 +171,8 @@ export async function POST(request: NextRequest) {
         '員工姓名': record.employee_name || '',
         '計算區塊': calculationBlock,
         '職位': positionName,
-        '當月個人實際毛利': grossProfit, // 第7欄：當月個人實際毛利
-        '階段': stage, // 第8欄：階段
+        '階段': stage, // 第7欄：階段
+        '當月個人實際毛利': grossProfit, // 第8欄：當月個人實際毛利
         '時數': record.work_hours || '', // 使用正確的欄位名稱
         '天數': workDays // 只在未上滿整月時顯示
       };
@@ -190,8 +190,8 @@ export async function POST(request: NextRequest) {
       { wch: 12 }, // 員工姓名
       { wch: 12 }, // 計算區塊
       { wch: 15 }, // 職位
-      { wch: 18 }, // 當月個人實際毛利
       { wch: 15 }, // 階段
+      { wch: 18 }, // 當月個人實際毛利
       { wch: 8 },  // 時數
       { wch: 8 }   // 天數
     ];
