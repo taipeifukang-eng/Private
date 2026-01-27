@@ -89,11 +89,8 @@ export default function MonthlyStatusPage() {
         setUserDepartment(result.department || '');
         setUserJobTitle(result.job_title || '');
         
-        // 從 URL 參數讀取 store_id，若無則自動選擇第一間門市
-        const urlStoreId = searchParams.get('store_id');
-        if (urlStoreId && result.data?.some(s => s.id === urlStoreId)) {
-          setSelectedStoreId(urlStoreId);
-        } else if (result.data?.length === 1) {
+        // 自動選擇第一間門市
+        if (result.data?.length === 1) {
           setSelectedStoreId(result.data[0].id);
         }
       }
