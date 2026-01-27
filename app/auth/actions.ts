@@ -142,6 +142,9 @@ export async function getAllUsers() {
 export async function updateUserProfile(userId: string, updates: {
   full_name?: string;
   role?: 'admin' | 'manager' | 'member';
+  department?: string;
+  job_title?: string;
+  employee_code?: string;
 }) {
   try {
     const supabase = createClient();

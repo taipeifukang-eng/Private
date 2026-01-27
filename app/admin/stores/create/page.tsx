@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ChevronLeft, Save, Store, MapPin, Phone, Hash } from 'lucide-react';
+import { ChevronLeft, Save, Store, MapPin, Phone, Hash, Tag, Building2, User } from 'lucide-react';
 
 export default function CreateStorePage() {
   const router = useRouter();
@@ -11,6 +11,9 @@ export default function CreateStorePage() {
   
   const [storeCode, setStoreCode] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [shortName, setShortName] = useState('');
+  const [hrStoreCode, setHrStoreCode] = useState('');
+  const [managerName, setManagerName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
 
@@ -26,6 +29,9 @@ export default function CreateStorePage() {
       const result = await createStore({
         store_code: storeCode.trim(),
         store_name: storeName.trim(),
+        short_name: shortName.trim() || undefined,
+        hr_store_code: hrStoreCode.trim() || undefined,
+        manager_name: managerName.trim() || undefined,
         address: address.trim() || undefined,
         phone: phone.trim() || undefined
       });
@@ -45,8 +51,8 @@ export default function CreateStorePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full max-w-4xl">
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <Link
@@ -96,6 +102,60 @@ export default function CreateStorePage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="例如: 富康藥局 中正店"
             />
+          </div>
+
+          {/* 簡稱 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Tag size={16} className="inline mr-1" />
+              簡稱
+            </label>
+            <input
+              type="text"
+              value={shortName}
+              onChange={(e) => setShortName(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="例如: 中正店（選填）"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              用於簡化顯示的名稱
+            </p>
+          </div>
+
+          {/* 人資系統門市代碼 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Building2 size={16} className="inline mr-1" />
+              人資系統門市代碼
+            </label>
+            <input
+              type="text"
+              value={hrStoreCode}
+              onChange={(e) => setHrStoreCode(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="人資系統中的門市代碼（選填）"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              對應人資系統的門市識別碼，用於資料匯出對接
+            </p>
+          </div>
+
+          {/* 負責人 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              <User size={16} className="inline mr-1" />
+              負責人
+            </label>
+            <input
+              type="text"
+              value={managerName}
+              onChange={(e) => setManagerName(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="門市負責人姓名（選填）"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              門市主要負責人（店長）
+            </p>
           </div>
 
           {/* 地址 */}

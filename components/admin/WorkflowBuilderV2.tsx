@@ -323,7 +323,7 @@ export default function WorkflowBuilderV2({
 
   if (isLoadingData) {
     return (
-      <div className="max-w-5xl mx-auto p-6">
+      <div className="w-full p-6 lg:p-8">
         <div className="bg-white rounded-lg shadow-lg p-8 text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">載入中...</p>
@@ -333,7 +333,7 @@ export default function WorkflowBuilderV2({
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6">
+    <div className="w-full p-6 lg:p-8">
       <div className="bg-white rounded-lg shadow-lg p-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-6">
           {isEditing ? '編輯任務' : '建立新任務'}

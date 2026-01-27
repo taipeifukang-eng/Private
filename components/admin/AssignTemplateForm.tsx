@@ -99,8 +99,8 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full max-w-4xl">
         <Link
           href="/admin/templates"
           className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 mb-6"

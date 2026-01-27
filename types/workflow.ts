@@ -75,6 +75,7 @@ export interface Profile {
   role: 'admin' | 'manager' | 'member';
   department: string | null; // User's department
   job_title: string | null; // User's job title/position
+  employee_code: string | null; // Employee code (e.g., FK0171)
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -89,6 +90,9 @@ export interface Store {
   id: string;
   store_code: string;
   store_name: string;
+  short_name: string | null;  // 簡稱
+  hr_store_code: string | null;  // 人資系統門市代碼
+  manager_name: string | null;  // 負責人姓名
   address: string | null;
   phone: string | null;
   is_active: boolean;
@@ -147,12 +151,21 @@ export type MonthlyStatusType =
 // 審核狀態
 export type StaffStatusReviewStatus = 'draft' | 'submitted' | 'confirmed';
 
+// 新人階級（也用於行政階級）
+export type NewbieLevel = '未過階新人' | '一階新人' | '二階新人' | '未過階行政' | '過階行政';
+
+// 未上滿整月原因
+export type PartialMonthReason = '復職' | '調入店' | '調出店' | '離職' | '留職停薪' | '店長-雙' | '代理店長-雙';
+
+// 額外任務
+export type ExtraTask = '長照外務' | '診所業務';
+
 // 每月人員狀態
 export interface MonthlyStaffStatus {
   id: string;
   year_month: string;
   store_id: string;
-  user_id: string;
+  user_id: string | null;
   
   // 人員基本資訊快照
   employee_code: string | null;
@@ -160,6 +173,7 @@ export interface MonthlyStaffStatus {
   position: string | null;
   employment_type: EmploymentType;
   is_pharmacist: boolean;
+  start_date: string | null; // 到職日期
   
   // 本月狀態
   monthly_status: MonthlyStatusType;
@@ -169,13 +183,39 @@ export interface MonthlyStaffStatus {
   total_days_in_month: number;
   work_hours: number | null;
   
-  // 特殊標記
+  // 新人階級
+  newbie_level: NewbieLevel | null;
+  
+  // 未上滿整月（區塊3）
+  partial_month_reason: PartialMonthReason | null;
+  partial_month_days: number | null;
+  partial_month_notes: string | null;
+  
+  // 督導卡班資訊（記錄來支援的督導）
+  supervisor_shift_hours: number | null;
+  supervisor_employee_code: string | null;
+  supervisor_name: string | null;
+  supervisor_position: string | null;
+  
+  // 特殊身分
+  extra_tasks: ExtraTask[] | null;
+  
+  // 舊有特殊標記
   is_dual_position: boolean;
   has_manager_bonus: boolean;
   is_supervisor_rotation: boolean;
   
+  // 是否為手動新增
+  is_manually_added: boolean;
+  
   // 自動計算
   calculated_block: number | null;
+  
+  // 業績數據
+  transaction_count: number | null;
+  sales_amount: number | null;
+  gross_profit: number | null;
+  gross_profit_rate: number | null;
   
   // 審核
   status: StaffStatusReviewStatus;
@@ -193,6 +233,24 @@ export interface MonthlyStaffStatus {
   user?: Profile;
 }
 
+// 督導卡班記錄（一個門市可能有多位督導來卡班）
+export interface MonthlySupervisorShift {
+  id: string;
+  year_month: string;
+  store_id: string;
+  
+  supervisor_employee_code: string | null;
+  supervisor_name: string;
+  supervisor_position: string | null;
+  
+  shift_hours: number;
+  shift_days: number | null;
+  notes: string | null;
+  
+  created_at: string;
+  updated_at: string;
+}
+
 // 門市狀態摘要
 export type StoreStatusType = 'pending' | 'in_progress' | 'submitted' | 'confirmed';
 
@@ -205,6 +263,19 @@ export interface MonthlyStoreSummary {
   confirmed_count: number;
   
   store_status: StoreStatusType;
+  
+  // 應有人員
+  total_staff_count: number | null;
+  admin_staff_count: number | null;
+  newbie_count: number | null;
+  
+  // 該月營業狀態
+  business_days: number | null;
+  total_gross_profit: number | null;
+  total_customer_count: number | null;
+  prescription_addon_only_count: number | null;
+  regular_prescription_count: number | null;
+  chronic_prescription_count: number | null;
   
   submitted_at: string | null;
   submitted_by: string | null;
@@ -241,16 +312,58 @@ export const MONTHLY_STATUS_OPTIONS: { value: MonthlyStatusType; label: string }
   { value: 'support_rotation', label: '支援卡班' }
 ];
 
+// 新人階級選項
+export const NEWBIE_LEVEL_OPTIONS: { value: NewbieLevel; label: string }[] = [
+  { value: '未過階新人', label: '未過階新人' },
+  { value: '一階新人', label: '一階新人' },
+  { value: '二階新人', label: '二階新人' }
+];
+
+// 行政階級選項
+export const ADMIN_LEVEL_OPTIONS: { value: NewbieLevel; label: string }[] = [
+  { value: '未過階行政', label: '未過階' },
+  { value: '過階行政', label: '過階' }
+];
+
+// 未上滿整月原因選項
+export const PARTIAL_MONTH_REASON_OPTIONS: { value: PartialMonthReason; label: string }[] = [
+  { value: '復職', label: '復職' },
+  { value: '調入店', label: '調入店' },
+  { value: '調出店', label: '調出店' },
+  { value: '離職', label: '離職' },
+  { value: '留職停薪', label: '留職停薪' },
+  { value: '店長-雙', label: '店長-雙' },
+  { value: '代理店長-雙', label: '代理店長-雙' }
+];
+
+// 額外任務選項
+export const EXTRA_TASK_OPTIONS: { value: ExtraTask; label: string }[] = [
+  { value: '長照外務', label: '長照外務' },
+  { value: '診所業務', label: '診所業務' }
+];
+
+// 特殊身分選項
+export const SPECIAL_ROLE_OPTIONS = [
+  '督導(代理店長)',
+  '區經理(代理店長)',
+  '督導(店長)',
+  '區經理(店長)'
+];
+
 // 職位選項
 export const POSITION_OPTIONS = [
+  '督導',
   '店長',
   '代理店長',
-  '店長-雙',
-  '代理店長-雙',
-  '督導',
   '督導(代理店長)',
-  '督導(代理店長)-雙',
-  '正職',
+  '副店長',
+  '主任',
+  '組長',
+  '專員',
+  '新人',
+  '行政',
+  '兼職專員',
   '兼職藥師',
-  '兼職一般'
+  '兼職藥師專員',
+  '兼職助理'
 ];

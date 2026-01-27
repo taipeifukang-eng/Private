@@ -1,52 +1,107 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
 import { 
   ChevronLeft, 
   Save, 
-  User,
-  Building2,
-  Calendar,
   AlertCircle,
-  Info
+  Info,
+  User,
+  Briefcase,
+  Clock,
+  Star,
+  Plus
 } from 'lucide-react';
-import { MONTHLY_STATUS_OPTIONS, POSITION_OPTIONS, BONUS_BLOCK_DESCRIPTIONS } from '@/types/workflow';
-import type { MonthlyStaffStatus, MonthlyStatusType } from '@/types/workflow';
+import { 
+  MONTHLY_STATUS_OPTIONS, 
+  POSITION_OPTIONS, 
+  BONUS_BLOCK_DESCRIPTIONS,
+  NEWBIE_LEVEL_OPTIONS,
+  ADMIN_LEVEL_OPTIONS,
+  PARTIAL_MONTH_REASON_OPTIONS,
+  EXTRA_TASK_OPTIONS,
+  SPECIAL_ROLE_OPTIONS
+} from '@/types/workflow';
+import type { 
+  MonthlyStaffStatus, 
+  MonthlyStatusType, 
+  NewbieLevel, 
+  PartialMonthReason,
+  ExtraTask 
+} from '@/types/workflow';
 
-interface PageProps {
-  params: Promise<{ id: string }>;
-}
-
-export default function EditStaffStatusPage({ params }: PageProps) {
-  const resolvedParams = use(params);
+export default function EditStaffStatusPage() {
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const yearMonth = searchParams.get('year_month');
+  const storeId = searchParams.get('store_id');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [staffStatus, setStaffStatus] = useState<MonthlyStaffStatus | null>(null);
   
-  // 表單狀態
+  // 基本表單狀態
   const [position, setPosition] = useState('');
+  const [employmentType, setEmploymentType] = useState<'full_time' | 'part_time'>('full_time');
   const [monthlyStatus, setMonthlyStatus] = useState<MonthlyStatusType>('full_month');
   const [workDays, setWorkDays] = useState<number>(0);
   const [workHours, setWorkHours] = useState<number>(0);
   const [isDualPosition, setIsDualPosition] = useState(false);
   const [hasManagerBonus, setHasManagerBonus] = useState(false);
   const [isSupervisorRotation, setIsSupervisorRotation] = useState(false);
+  const [isPharmacist, setIsPharmacist] = useState(false);
   const [notes, setNotes] = useState('');
+  const [startDate, setStartDate] = useState<string>(''); // 到職日期
+
+  // === 新增欄位狀態 ===
+  // 新人等級
+  const [newbieLevel, setNewbieLevel] = useState<NewbieLevel | ''>('');
+  
+  // 非整月詳情
+  const [partialMonthReason, setPartialMonthReason] = useState<PartialMonthReason | ''>('');
+  const [partialMonthDays, setPartialMonthDays] = useState<number>(0);
+  const [partialMonthNotes, setPartialMonthNotes] = useState('');
+  
+  // 督導卡班資訊
+  const [supervisorShiftHours, setSupervisorShiftHours] = useState<number>(0);
+  const [supervisorEmployeeCode, setSupervisorEmployeeCode] = useState('');
+  const [supervisorName, setSupervisorName] = useState('');
+  const [supervisorPosition, setSupervisorPosition] = useState('');
+  
+  // 額外任務
+  const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
 
   // 計算出的區塊 (前端預覽)
   const [previewBlock, setPreviewBlock] = useState<number>(0);
 
   useEffect(() => {
     loadStaffStatus();
-  }, [resolvedParams.id]);
+  }, [id]);
+
+  // 當工作天數變更時，自動判斷是否為整月
+  useEffect(() => {
+    if (employmentType === 'full_time' && staffStatus?.total_days_in_month) {
+      // 正職人員：根據工作天數自動判斷是否整月
+      if (workDays === staffStatus.total_days_in_month) {
+        // 滿天數 → 整月在職
+        if (monthlyStatus !== 'full_month') {
+          setMonthlyStatus('full_month');
+        }
+      } else if (workDays > 0 && workDays < staffStatus.total_days_in_month) {
+        // 非滿天數 → 自動改為非整月（如果目前是整月的話）
+        if (monthlyStatus === 'full_month') {
+          setMonthlyStatus('new_hire'); // 預設為新進，用戶可自行修改
+        }
+      }
+    }
+  }, [workDays, employmentType, staffStatus?.total_days_in_month]);
 
   // 當表單值變更時，重新計算區塊
   useEffect(() => {
     calculateBlock();
-  }, [position, monthlyStatus, isDualPosition, isSupervisorRotation, staffStatus?.employment_type, staffStatus?.is_pharmacist]);
+  }, [position, monthlyStatus, isDualPosition, isSupervisorRotation, employmentType, staffStatus?.is_pharmacist, workDays]);
 
   const loadStaffStatus = async () => {
     try {
@@ -58,7 +113,7 @@ export default function EditStaffStatusPage({ params }: PageProps) {
           *,
           store:stores(store_code, store_name)
         `)
-        .eq('id', resolvedParams.id)
+        .eq('id', id)
         .single();
 
       if (error) {
@@ -70,15 +125,29 @@ export default function EditStaffStatusPage({ params }: PageProps) {
 
       setStaffStatus(data);
       
-      // 設置表單初始值
+      // 設置表單初始值 - 基本欄位
       setPosition(data.position || '');
+      setEmploymentType(data.employment_type || 'full_time');
       setMonthlyStatus(data.monthly_status);
       setWorkDays(data.work_days || 0);
       setWorkHours(data.work_hours || 0);
       setIsDualPosition(data.is_dual_position || false);
       setHasManagerBonus(data.has_manager_bonus || false);
       setIsSupervisorRotation(data.is_supervisor_rotation || false);
+      setIsPharmacist(data.is_pharmacist || false);
       setNotes(data.notes || '');
+      setStartDate(data.start_date || ''); // 設置到職日期
+
+      // 設置新增欄位
+      setNewbieLevel(data.newbie_level || '');
+      setPartialMonthReason(data.partial_month_reason || '');
+      setPartialMonthDays(data.partial_month_days || 0);
+      setPartialMonthNotes(data.partial_month_notes || '');
+      setSupervisorShiftHours(data.supervisor_shift_hours || 0);
+      setSupervisorEmployeeCode(data.supervisor_employee_code || '');
+      setSupervisorName(data.supervisor_name || '');
+      setSupervisorPosition(data.supervisor_position || '');
+      setExtraTasks(data.extra_tasks || []);
     } catch (error) {
       console.error('Error:', error);
       alert('載入失敗');
@@ -91,7 +160,7 @@ export default function EditStaffStatusPage({ params }: PageProps) {
   const calculateBlock = () => {
     if (!staffStatus) return;
 
-    const empType = staffStatus.employment_type;
+    const empType = employmentType;
     const isPharmacist = staffStatus.is_pharmacist;
 
     // 區塊 2：督導卡班
@@ -100,15 +169,15 @@ export default function EditStaffStatusPage({ params }: PageProps) {
       return;
     }
 
-    // 區塊 6：兼職一般人
-    if (empType === 'part_time' && !isPharmacist) {
-      setPreviewBlock(6);
+    // 區塊 5：兼職藥師 和 兼職專員
+    if (empType === 'part_time' && (isPharmacist || position.includes('兼職專員'))) {
+      setPreviewBlock(5);
       return;
     }
 
-    // 區塊 5：兼職藥師
-    if (empType === 'part_time' && isPharmacist) {
-      setPreviewBlock(5);
+    // 區塊 6：兼職一般人（兼職助理等）
+    if (empType === 'part_time') {
+      setPreviewBlock(6);
       return;
     }
 
@@ -118,8 +187,8 @@ export default function EditStaffStatusPage({ params }: PageProps) {
       return;
     }
 
-    // 區塊 3：非整月正職 (但店長-雙、代理店長-雙也在這)
-    if (empType === 'full_time' && monthlyStatus !== 'full_month') {
+    // 區塊 3：非整月正職 (包含工作天數為0的情況)
+    if (empType === 'full_time' && (monthlyStatus !== 'full_month' || workDays === 0)) {
       setPreviewBlock(3);
       return;
     }
@@ -139,25 +208,96 @@ export default function EditStaffStatusPage({ params }: PageProps) {
     setPreviewBlock(0);
   };
 
+  const handleExtraTaskToggle = (task: ExtraTask) => {
+    if (extraTasks.includes(task)) {
+      setExtraTasks(extraTasks.filter(t => t !== task));
+    } else {
+      setExtraTasks([...extraTasks, task]);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
+      // 檢查新人階段
+      if (startDate && (position === '新人' || monthlyStatus === 'new_hire')) {
+        const hireDate = new Date(startDate);
+        const currentYearMonth = yearMonth || '';
+        const [currentYear, currentMonth] = currentYearMonth.split('-').map(Number);
+        const currentDate = new Date(currentYear, currentMonth - 1, 1); // 當前月份的第一天
+        
+        // 計算到職後經過了幾個月
+        const monthsDiff = (currentDate.getFullYear() - hireDate.getFullYear()) * 12 + 
+                          (currentDate.getMonth() - hireDate.getMonth());
+
+        let alertMessage = '';
+        
+        // 到職日的第二個月，應該要過一階段
+        if (monthsDiff === 1 && newbieLevel !== '一階新人') {
+          alertMessage = '此新人應該過一階段，是否要改成一階新人？';
+        }
+        // 到職日的第三個月，應該要過二階段
+        else if (monthsDiff === 2 && newbieLevel !== '二階新人') {
+          alertMessage = '此新人應該過二階段，是否要改成二階新人？';
+        }
+        // 到職日的第七個月，應該要過專員考試
+        else if (monthsDiff === 6 && position === '新人') {
+          alertMessage = '此新人應該要過專員考試，是否要改成專員？';
+        }
+
+        if (alertMessage) {
+          const shouldUpdate = confirm(alertMessage);
+          if (!shouldUpdate) {
+            setSaving(false);
+            return; // 使用者選擇不繼續，取消保存
+          }
+          // 使用者確認要更新，這裡可以自動更新狀態
+          if (monthsDiff === 1) {
+            setNewbieLevel('一階新人');
+          } else if (monthsDiff === 2) {
+            setNewbieLevel('二階新人');
+          }
+        }
+      }
+
       const { updateStaffStatus } = await import('@/app/store/actions');
       
-      const result = await updateStaffStatus(resolvedParams.id, {
+      // 判斷是否為督導(代理店長)-雙（需要填時數）
+      const isSupervisorActingManagerDual = position.includes('督導') && position.includes('代理店長') && isDualPosition;
+      
+      const result = await updateStaffStatus(id, {
         position,
+        employment_type: employmentType,
         monthly_status: monthlyStatus,
-        work_days: staffStatus?.employment_type === 'full_time' ? workDays : undefined,
-        work_hours: staffStatus?.employment_type === 'part_time' ? workHours : undefined,
+        work_days: (!isSupervisorActingManagerDual && employmentType === 'full_time') ? workDays : undefined,
+        work_hours: (isSupervisorActingManagerDual || employmentType === 'part_time') ? workHours : undefined,
         is_dual_position: isDualPosition,
         has_manager_bonus: hasManagerBonus,
         is_supervisor_rotation: isSupervisorRotation,
-        notes
+        is_pharmacist: isPharmacist,
+        notes,
+        start_date: startDate || null, // 儲存到職日期
+        // 新增欄位
+        newbie_level: newbieLevel || null,
+        partial_month_reason: partialMonthReason || null,
+        partial_month_days: partialMonthDays || null,
+        partial_month_notes: partialMonthNotes || null,
+        // 督導(代理店長)-雙 的工作時數同時儲存到 supervisor_shift_hours
+        supervisor_shift_hours: isSupervisorActingManagerDual ? workHours : (supervisorShiftHours || null),
+        supervisor_employee_code: supervisorEmployeeCode || null,
+        supervisor_name: supervisorName || null,
+        supervisor_position: supervisorPosition || null,
+        extra_tasks: extraTasks.length > 0 ? extraTasks : null
       });
 
       if (result.success) {
         alert('✅ 儲存成功');
-        router.back();
+        // 跳轉回原本的年月和門市頁面
+        if (yearMonth && storeId) {
+          router.push(`/monthly-status?year_month=${yearMonth}&store_id=${storeId}`);
+        } else {
+          router.push('/monthly-status');
+        }
       } else {
         alert(`❌ 儲存失敗: ${result.error}`);
       }
@@ -168,6 +308,18 @@ export default function EditStaffStatusPage({ params }: PageProps) {
       setSaving(false);
     }
   };
+
+  // 判斷是否需要顯示新人等級選項
+  const showNewbieLevel = position === '新人' || monthlyStatus === 'new_hire';
+  
+  // 判斷是否需要顯示行政等級選項
+  const showAdminLevel = position === '行政';
+
+  // 判斷是否非整月（需要填寫詳細原因）
+  const isPartialMonth = monthlyStatus !== 'full_month';
+
+  // 判斷是否顯示督導卡班詳細資訊
+  const showSupervisorDetails = isSupervisorRotation;
 
   if (loading) {
     return (
@@ -188,8 +340,8 @@ export default function EditStaffStatusPage({ params }: PageProps) {
   // 已確認的狀態不能編輯
   if (staffStatus.status === 'confirmed') {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-2xl mx-auto">
+      <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+        <div className="w-full max-w-4xl">
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
             <AlertCircle className="w-12 h-12 mx-auto text-yellow-600 mb-4" />
             <h2 className="text-xl font-semibold text-yellow-800 mb-2">此資料已確認</h2>
@@ -207,8 +359,8 @@ export default function EditStaffStatusPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <button
@@ -226,7 +378,13 @@ export default function EditStaffStatusPage({ params }: PageProps) {
         <div className="bg-white rounded-lg shadow-lg p-6 space-y-6">
           {/* 員工基本資訊 (唯讀) */}
           <div className="bg-gray-50 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-gray-500 mb-3">員工基本資訊</h3>
+            <h3 className="text-sm font-semibold text-gray-500 mb-3 flex items-center gap-2">
+              <User size={16} />
+              員工基本資訊
+              {staffStatus.is_manually_added && (
+                <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">手動新增</span>
+              )}
+            </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <label className="text-xs text-gray-500">姓名</label>
@@ -238,15 +396,34 @@ export default function EditStaffStatusPage({ params }: PageProps) {
               </div>
               <div>
                 <label className="text-xs text-gray-500">雇用類型</label>
-                <p className="font-medium text-gray-900">
-                  {staffStatus.employment_type === 'full_time' ? '正職' : '兼職'}
-                </p>
+                <select
+                  value={employmentType}
+                  onChange={(e) => setEmploymentType(e.target.value as 'full_time' | 'part_time')}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-900"
+                >
+                  <option value="full_time">正職</option>
+                  <option value="part_time">兼職</option>
+                </select>
               </div>
               <div>
                 <label className="text-xs text-gray-500">是否藥師</label>
-                <p className="font-medium text-gray-900">
-                  {staffStatus.is_pharmacist ? '是' : '否'}
-                </p>
+                <select
+                  value={isPharmacist ? 'true' : 'false'}
+                  onChange={(e) => setIsPharmacist(e.target.value === 'true')}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-medium text-gray-900"
+                >
+                  <option value="false">否</option>
+                  <option value="true">是</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500">到職日期</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
             </div>
           </div>
@@ -254,6 +431,7 @@ export default function EditStaffStatusPage({ params }: PageProps) {
           {/* 職位選擇 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Briefcase size={16} className="inline mr-2" />
               職位 *
             </label>
             <select
@@ -268,9 +446,89 @@ export default function EditStaffStatusPage({ params }: PageProps) {
             </select>
           </div>
 
+          {/* 新人等級 - 只在職位為新人或狀態為到職時顯示 */}
+          {showNewbieLevel && (
+            <div className="bg-blue-50 rounded-lg p-4">
+              <label className="block text-sm font-medium text-blue-700 mb-2">
+                新人等級
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {NEWBIE_LEVEL_OPTIONS.map(opt => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                      newbieLevel === opt.value 
+                        ? 'bg-blue-600 text-white' 
+                        : 'bg-white text-gray-700 hover:bg-blue-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="newbieLevel"
+                      value={opt.value}
+                      checked={newbieLevel === opt.value}
+                      onChange={(e) => setNewbieLevel(e.target.value as NewbieLevel)}
+                      className="hidden"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+                <label
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                    newbieLevel === '' 
+                      ? 'bg-gray-600 text-white' 
+                      : 'bg-white text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="newbieLevel"
+                    value=""
+                    checked={newbieLevel === ''}
+                    onChange={() => setNewbieLevel('')}
+                    className="hidden"
+                  />
+                  無（已過階）
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* 行政等級 - 只在職位為行政時顯示 */}
+          {showAdminLevel && (
+            <div className="bg-green-50 rounded-lg p-4">
+              <label className="block text-sm font-medium text-green-700 mb-2">
+                行政階級
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {ADMIN_LEVEL_OPTIONS.map(opt => (
+                  <label
+                    key={opt.value}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                      newbieLevel === opt.value 
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-white text-gray-700 hover:bg-green-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="adminLevel"
+                      value={opt.value}
+                      checked={newbieLevel === opt.value}
+                      onChange={(e) => setNewbieLevel(e.target.value as NewbieLevel)}
+                      className="hidden"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 本月狀態 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              <Clock size={16} className="inline mr-2" />
               本月狀態 *
             </label>
             <select
@@ -284,8 +542,86 @@ export default function EditStaffStatusPage({ params }: PageProps) {
             </select>
           </div>
 
+          {/* 非整月詳細資訊 */}
+          {isPartialMonth && (
+            <div className="bg-yellow-50 rounded-lg p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-yellow-700 flex items-center gap-2">
+                <AlertCircle size={16} />
+                非整月在職詳細資訊
+              </h3>
+              
+              <div>
+                <label className="block text-sm font-medium text-yellow-700 mb-2">
+                  非整月原因
+                </label>
+                <select
+                  value={partialMonthReason}
+                  onChange={(e) => setPartialMonthReason(e.target.value as PartialMonthReason)}
+                  className="w-full px-4 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                >
+                  <option value="">請選擇原因</option>
+                  {PARTIAL_MONTH_REASON_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-yellow-700 mb-2">
+                  實際工作天數
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    max={staffStatus.total_days_in_month}
+                    step="0.1"
+                    value={partialMonthDays}
+                    onChange={(e) => setPartialMonthDays(parseFloat(e.target.value) || 0)}
+                    className="w-24 px-4 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  />
+                  <span className="text-yellow-700">/ {staffStatus.total_days_in_month} 天</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-yellow-700 mb-2">
+                  說明
+                </label>
+                <textarea
+                  value={partialMonthNotes}
+                  onChange={(e) => setPartialMonthNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                  placeholder="如有特殊情況請說明，例如：5/15 到職"
+                />
+              </div>
+            </div>
+          )}
+
           {/* 天數/時數輸入 */}
-          {staffStatus.employment_type === 'full_time' ? (
+          {/* 督導(代理店長)-雙 需要填寫時數 */}
+          {(position.includes('督導') && position.includes('代理店長') && isDualPosition) ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                本月工作時數
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={workHours}
+                  onChange={(e) => setWorkHours(parseFloat(e.target.value) || 0)}
+                  className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <span className="text-gray-600">小時 (基準: 160 小時)</span>
+              </div>
+              <p className="text-sm text-gray-500 mt-1">
+                督導(代理店長)-雙 請填寫工作時數
+              </p>
+            </div>
+          ) : employmentType === 'full_time' ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 本月工作天數
@@ -295,8 +631,9 @@ export default function EditStaffStatusPage({ params }: PageProps) {
                   type="number"
                   min="0"
                   max={staffStatus.total_days_in_month}
+                  step="0.1"
                   value={workDays}
-                  onChange={(e) => setWorkDays(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setWorkDays(parseFloat(e.target.value) || 0)}
                   className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
                 <span className="text-gray-600">/ {staffStatus.total_days_in_month} 天</span>
@@ -314,7 +651,7 @@ export default function EditStaffStatusPage({ params }: PageProps) {
                 <input
                   type="number"
                   min="0"
-                  step="0.5"
+                  step="0.1"
                   value={workHours}
                   onChange={(e) => setWorkHours(parseFloat(e.target.value) || 0)}
                   className="w-32 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -327,6 +664,7 @@ export default function EditStaffStatusPage({ params }: PageProps) {
           {/* 特殊標記 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">
+              <Star size={16} className="inline mr-2" />
               特殊標記
             </label>
             <div className="space-y-3">
@@ -375,6 +713,99 @@ export default function EditStaffStatusPage({ params }: PageProps) {
                 </div>
               </label>
             </div>
+          </div>
+
+          {/* 督導卡班詳細資訊 */}
+          {showSupervisorDetails && (
+            <div className="bg-purple-50 rounded-lg p-4 space-y-4">
+              <h3 className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                <Briefcase size={16} />
+                督導卡班資訊
+              </h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">
+                    員編
+                  </label>
+                  <input
+                    type="text"
+                    value={supervisorEmployeeCode}
+                    onChange={(e) => setSupervisorEmployeeCode(e.target.value)}
+                    className="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="員工編號"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">
+                    姓名
+                  </label>
+                  <input
+                    type="text"
+                    value={supervisorName}
+                    onChange={(e) => setSupervisorName(e.target.value)}
+                    className="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="督導姓名"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">
+                    職位
+                  </label>
+                  <input
+                    type="text"
+                    value={supervisorPosition}
+                    onChange={(e) => setSupervisorPosition(e.target.value)}
+                    className="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="督導職位"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-purple-700 mb-2">
+                    時數
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={supervisorShiftHours}
+                    onChange={(e) => setSupervisorShiftHours(parseFloat(e.target.value) || 0)}
+                    className="w-full px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    placeholder="卡班時數"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 額外任務 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-3">
+              額外任務
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {EXTRA_TASK_OPTIONS.map(opt => (
+                <label
+                  key={opt.value}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transition-colors ${
+                    extraTasks.includes(opt.value)
+                      ? 'bg-green-600 text-white' 
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={extraTasks.includes(opt.value)}
+                    onChange={() => handleExtraTaskToggle(opt.value)}
+                    className="hidden"
+                  />
+                  {opt.label}
+                </label>
+              ))}
+            </div>
+            <p className="text-sm text-gray-500 mt-2">
+              選擇此員工本月有負責的額外任務（可複選）
+            </p>
           </div>
 
           {/* 備註 */}

@@ -52,6 +52,9 @@ export async function getStores() {
 export async function createStore(data: {
   store_code: string;
   store_name: string;
+  short_name?: string;
+  hr_store_code?: string;
+  manager_name?: string;
   address?: string;
   phone?: string;
 }) {
@@ -79,6 +82,9 @@ export async function createStore(data: {
       .insert({
         store_code: data.store_code,
         store_name: data.store_name,
+        short_name: data.short_name || null,
+        hr_store_code: data.hr_store_code || null,
+        manager_name: data.manager_name || null,
         address: data.address || null,
         phone: data.phone || null
       })
@@ -92,6 +98,154 @@ export async function createStore(data: {
 
     revalidatePath('/admin/stores');
     return { success: true, data: store };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 複製門市（搬移功能）
+ * 將原門市的督導/經理關聯和員工複製到新門市
+ */
+export async function cloneStore(data: {
+  source_store_id: string;
+  new_store_code: string;
+  new_store_name: string;
+  new_short_name?: string;
+  new_hr_store_code?: string;
+  new_manager_name?: string;
+  new_address?: string;
+  new_phone?: string;
+  copy_managers: boolean;  // 是否複製督導/經理關聯
+  copy_employees: boolean; // 是否複製員工
+  deactivate_source: boolean; // 是否停用原門市
+}) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 檢查權限
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || profile.role !== 'admin') {
+      return { success: false, error: '權限不足' };
+    }
+
+    // 1. 取得原門市資料
+    const { data: sourceStore, error: sourceError } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', data.source_store_id)
+      .single();
+
+    if (sourceError || !sourceStore) {
+      return { success: false, error: '找不到原門市' };
+    }
+
+    // 2. 建立新門市
+    const { data: newStore, error: createError } = await supabase
+      .from('stores')
+      .insert({
+        store_code: data.new_store_code,
+        store_name: data.new_store_name,
+        short_name: data.new_short_name || sourceStore.short_name,
+        hr_store_code: data.new_hr_store_code || sourceStore.hr_store_code,
+        manager_name: data.new_manager_name || sourceStore.manager_name,
+        address: data.new_address || sourceStore.address,
+        phone: data.new_phone || sourceStore.phone,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating new store:', createError);
+      return { success: false, error: `建立新門市失敗: ${createError.message}` };
+    }
+
+    let copiedManagers = 0;
+    let copiedEmployees = 0;
+
+    // 3. 複製督導/經理關聯
+    if (data.copy_managers) {
+      const { data: managers } = await supabase
+        .from('store_managers')
+        .select('*')
+        .eq('store_id', data.source_store_id);
+
+      if (managers && managers.length > 0) {
+        const newManagerRecords = managers.map(m => ({
+          store_id: newStore.id,
+          user_id: m.user_id,
+          role_type: m.role_type,
+          is_primary: m.is_primary
+        }));
+
+        const { error: managerError } = await supabase
+          .from('store_managers')
+          .insert(newManagerRecords);
+
+        if (!managerError) {
+          copiedManagers = managers.length;
+        }
+      }
+    }
+
+    // 4. 複製員工
+    if (data.copy_employees) {
+      const { data: employees } = await supabase
+        .from('store_employees')
+        .select('*')
+        .eq('store_id', data.source_store_id)
+        .eq('is_active', true);
+
+      if (employees && employees.length > 0) {
+        const newEmployeeRecords = employees.map(e => ({
+          store_id: newStore.id,
+          user_id: e.user_id,
+          employee_code: e.employee_code,
+          position: e.position,
+          employment_type: e.employment_type,
+          is_pharmacist: e.is_pharmacist,
+          is_active: true,
+          start_date: e.start_date
+        }));
+
+        const { error: employeeError } = await supabase
+          .from('store_employees')
+          .insert(newEmployeeRecords);
+
+        if (!employeeError) {
+          copiedEmployees = employees.length;
+        }
+      }
+    }
+
+    // 5. 停用原門市（如果選擇）
+    if (data.deactivate_source) {
+      await supabase
+        .from('stores')
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq('id', data.source_store_id);
+    }
+
+    revalidatePath('/admin/stores');
+    return { 
+      success: true, 
+      data: newStore,
+      copiedManagers,
+      copiedEmployees,
+      sourceDeactivated: data.deactivate_source
+    };
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message };
@@ -113,10 +267,10 @@ export async function getUserManagedStores() {
       return { success: false, error: '未登入', data: [] };
     }
 
-    // 獲取用戶角色
+    // 獲取用戶角色、部門和職位
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
@@ -135,7 +289,13 @@ export async function getUserManagedStores() {
       if (error) {
         return { success: false, error: error.message, data: [] };
       }
-      return { success: true, data: data || [], role: 'admin' };
+      return { 
+        success: true, 
+        data: data || [], 
+        role: 'admin',
+        department: profile.department,
+        job_title: profile.job_title
+      };
     }
 
     // 其他角色只能看自己管理的門市
@@ -158,7 +318,13 @@ export async function getUserManagedStores() {
     
     const roleType = managedStores?.[0]?.role_type || 'member';
 
-    return { success: true, data: stores, role: roleType };
+    return { 
+      success: true, 
+      data: stores, 
+      role: roleType,
+      department: profile.department,
+      job_title: profile.job_title
+    };
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message, data: [] };
@@ -328,7 +494,7 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
       .from('monthly_staff_status')
       .select(`
         *,
-        user:profiles(id, email, full_name)
+        user:profiles!monthly_staff_status_user_id_fkey(id, email, full_name)
       `)
       .eq('year_month', yearMonth)
       .eq('store_id', storeId)
@@ -371,47 +537,116 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       return { success: true, message: '資料已存在', initialized: false };
     }
 
-    // 獲取門市員工
-    const { data: employees, error: empError } = await supabase
-      .from('store_employees')
-      .select(`
-        *,
-        user:profiles(id, email, full_name)
-      `)
-      .eq('store_id', storeId)
-      .eq('is_active', true);
-
-    if (empError) {
-      return { success: false, error: empError.message };
-    }
-
-    if (!employees || employees.length === 0) {
-      return { success: false, error: '該門市沒有員工資料' };
-    }
-
     // 計算本月天數
     const [year, month] = yearMonth.split('-').map(Number);
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    // 批量插入
-    const statusRecords = employees.map(emp => ({
-      year_month: yearMonth,
-      store_id: storeId,
-      user_id: emp.user_id,
-      employee_code: emp.employee_code,
-      employee_name: emp.user?.full_name || emp.user?.email || '',
-      position: emp.position,
-      employment_type: emp.employment_type,
-      is_pharmacist: emp.is_pharmacist,
-      monthly_status: 'full_month' as MonthlyStatusType,
-      work_days: emp.employment_type === 'full_time' ? daysInMonth : null,
-      total_days_in_month: daysInMonth,
-      work_hours: emp.employment_type === 'part_time' ? 0 : null,
-      is_dual_position: false,
-      has_manager_bonus: emp.position?.includes('店長') || emp.position?.includes('代理店長') || false,
-      is_supervisor_rotation: false,
-      status: 'draft' as const
-    }));
+    // 計算上個月的年月
+    const prevDate = new Date(year, month - 2, 1); // month-2 因為 JS 月份從 0 開始
+    const prevYearMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+    // 嘗試獲取上個月的資料
+    const { data: prevMonthData } = await supabase
+      .from('monthly_staff_status')
+      .select('*')
+      .eq('year_month', prevYearMonth)
+      .eq('store_id', storeId);
+
+    let statusRecords: any[] = [];
+
+    if (prevMonthData && prevMonthData.length > 0) {
+      // 有上個月的資料，從上個月複製
+      statusRecords = prevMonthData.map(prev => {
+        // 判斷是否為兼職（工作時數需重設為0）
+        const isPartTime = prev.employment_type === 'part_time';
+        
+        // 判斷是否為區塊3（非整月，天數需重設）
+        const isBlock3 = prev.calculated_block === 3;
+        
+        // 判斷是否為督導(代理店長)-雙（區塊4，時數需重設）
+        const isBlock4 = prev.calculated_block === 4;
+
+        return {
+          year_month: yearMonth,
+          store_id: storeId,
+          user_id: prev.user_id,
+          employee_code: prev.employee_code,
+          employee_name: prev.employee_name,
+          position: prev.position,
+          employment_type: prev.employment_type,
+          is_pharmacist: prev.is_pharmacist,
+          start_date: prev.start_date,
+          // 從上個月複製狀態，但區塊3的非整月需重設為整月
+          monthly_status: isBlock3 ? 'full_month' as MonthlyStatusType : prev.monthly_status,
+          // 正職：區塊3需重設天數為本月天數，其他維持上個月設定
+          work_days: prev.employment_type === 'full_time' ? (isBlock3 ? daysInMonth : prev.work_days) : null,
+          total_days_in_month: daysInMonth,
+          // 兼職時數重設為0，區塊4時數也重設為0
+          work_hours: (isPartTime || isBlock4) ? 0 : prev.work_hours,
+          is_dual_position: prev.is_dual_position,
+          has_manager_bonus: prev.has_manager_bonus,
+          is_supervisor_rotation: prev.is_supervisor_rotation,
+          // 新人等級維持
+          newbie_level: prev.newbie_level,
+          // 非整月原因（區塊3需清除）
+          partial_month_reason: isBlock3 ? null : prev.partial_month_reason,
+          partial_month_days: isBlock3 ? null : prev.partial_month_days,
+          partial_month_notes: isBlock3 ? null : prev.partial_month_notes,
+          // 督導卡班時數（區塊4需重設）
+          supervisor_shift_hours: isBlock4 ? 0 : prev.supervisor_shift_hours,
+          supervisor_employee_code: prev.supervisor_employee_code,
+          supervisor_name: prev.supervisor_name,
+          supervisor_position: prev.supervisor_position,
+          // 額外任務維持
+          extra_tasks: prev.extra_tasks,
+          status: 'draft' as const
+        };
+      });
+    } else {
+      // 沒有上個月的資料，從員工設定初始化
+      const { data: employees, error: empError } = await supabase
+        .from('store_employees')
+        .select('*')
+        .eq('store_id', storeId)
+        .eq('is_active', true);
+
+      if (empError) {
+        return { success: false, error: empError.message };
+      }
+
+      if (!employees || employees.length === 0) {
+        return { success: false, error: '該門市沒有員工資料' };
+      }
+
+      statusRecords = employees.map(emp => {
+        // 判斷是否有店長加成：只有「店長」或「代理店長」才有，「副店長」沒有
+        const position = emp.position || '';
+        const hasManagerBonus = position === '店長' || 
+                               position === '代理店長' || 
+                               position.includes('店長-雙') || 
+                               position.includes('代理店長-雙');
+        
+        return {
+          year_month: yearMonth,
+          store_id: storeId,
+          user_id: emp.user_id || null,
+          employee_code: emp.employee_code,
+          employee_name: emp.employee_name || '',
+          position: emp.position,
+          employment_type: emp.employment_type,
+          is_pharmacist: emp.is_pharmacist,
+          start_date: emp.start_date || null,
+          monthly_status: 'full_month' as MonthlyStatusType,
+          work_days: emp.employment_type === 'full_time' ? daysInMonth : null,
+          total_days_in_month: daysInMonth,
+          work_hours: emp.employment_type === 'part_time' ? 0 : null,
+          is_dual_position: false,
+          has_manager_bonus: hasManagerBonus,
+          is_supervisor_rotation: false,
+          status: 'draft' as const
+        };
+      });
+    }
 
     const { error: insertError } = await supabase
       .from('monthly_staff_status')
@@ -428,7 +663,7 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       .upsert({
         year_month: yearMonth,
         store_id: storeId,
-        total_employees: employees.length,
+        total_employees: statusRecords.length,
         confirmed_count: 0,
         store_status: 'pending'
       }, {
@@ -436,7 +671,7 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       });
 
     revalidatePath('/monthly-status');
-    return { success: true, initialized: true, count: employees.length };
+    return { success: true, initialized: true, count: statusRecords.length };
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message };
@@ -449,14 +684,27 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
 export async function updateStaffStatus(
   statusId: string,
   updates: Partial<{
+    employment_type: 'full_time' | 'part_time';
     monthly_status: MonthlyStatusType;
     work_days: number;
     work_hours: number;
     is_dual_position: boolean;
     has_manager_bonus: boolean;
     is_supervisor_rotation: boolean;
+    is_pharmacist: boolean;
     position: string;
     notes: string;
+    start_date: string | null; // 到職日期
+    // 新增欄位
+    newbie_level: string | null;
+    partial_month_reason: string | null;
+    partial_month_days: number | null;
+    partial_month_notes: string | null;
+    supervisor_shift_hours: number | null;
+    supervisor_employee_code: string | null;
+    supervisor_name: string | null;
+    supervisor_position: string | null;
+    extra_tasks: string[] | null;
   }>
 ) {
   try {
@@ -491,15 +739,90 @@ export async function updateStaffStatus(
 }
 
 /**
+ * 檢查新人階段狀態
+ */
+export async function checkNewbieStatus(yearMonth: string, storeId: string) {
+  try {
+    const supabase = await createClient();
+    
+    const { data: staffList } = await supabase
+      .from('monthly_staff_status')
+      .select('*')
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId)
+      .eq('status', 'draft');
+
+    if (!staffList || staffList.length === 0) {
+      return { success: true, newbiesNeedCheck: [] };
+    }
+
+    const [year, month] = yearMonth.split('-').map(Number);
+    const currentDate = new Date(year, month - 1, 1);
+    const newbiesNeedCheck: any[] = [];
+
+    for (const staff of staffList) {
+      if (staff.start_date && (staff.position === '新人' || staff.monthly_status === 'new_hire')) {
+        const hireDate = new Date(staff.start_date);
+        const monthsDiff = (currentDate.getFullYear() - hireDate.getFullYear()) * 12 + 
+                          (currentDate.getMonth() - hireDate.getMonth());
+
+        let suggestedAction = '';
+        
+        // 到職日的第二個月，應該要過一階段
+        if (monthsDiff >= 1 && staff.newbie_level !== '一階新人' && staff.newbie_level !== '二階新人') {
+          suggestedAction = '應該過一階段';
+        }
+        // 到職日的第三個月，應該要過二階段
+        else if (monthsDiff >= 2 && staff.newbie_level !== '二階新人') {
+          suggestedAction = '應該過二階段';
+        }
+        // 到職日的第七個月，應該要過專員考試
+        if (monthsDiff >= 6 && staff.position === '新人') {
+          suggestedAction = '應該要過專員考試';
+        }
+
+        if (suggestedAction) {
+          newbiesNeedCheck.push({
+            id: staff.id,
+            employee_code: staff.employee_code,
+            employee_name: staff.employee_name,
+            start_date: staff.start_date,
+            current_level: staff.newbie_level || '未設定',
+            suggested_action: suggestedAction
+          });
+        }
+      }
+    }
+
+    return { success: true, newbiesNeedCheck };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message, newbiesNeedCheck: [] };
+  }
+}
+
+/**
  * 提交門市狀態（店長送出審核）
  */
-export async function submitStoreStatus(yearMonth: string, storeId: string) {
+export async function submitStoreStatus(yearMonth: string, storeId: string, skipNewbieCheck: boolean = false) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
       return { success: false, error: '未登入' };
+    }
+
+    // 如果沒有跳過檢查，先檢查新人階段狀態
+    if (!skipNewbieCheck) {
+      const checkResult = await checkNewbieStatus(yearMonth, storeId);
+      if (checkResult.newbiesNeedCheck && checkResult.newbiesNeedCheck.length > 0) {
+        return { 
+          success: false, 
+          needNewbieCheck: true,
+          newbiesNeedCheck: checkResult.newbiesNeedCheck
+        };
+      }
     }
 
     // 更新所有該門市該月的狀態為 submitted
@@ -595,6 +918,69 @@ export async function confirmStoreStatus(yearMonth: string, storeId: string) {
         confirmed_count: count || 0,
         confirmed_at: new Date().toISOString(),
         confirmed_by: user.id
+      })
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId);
+
+    if (summaryError) {
+      return { success: false, error: summaryError.message };
+    }
+
+    revalidatePath('/monthly-status');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 取消確認門市狀態（督導/經理取消確認）
+ */
+export async function unconfirmStoreStatus(yearMonth: string, storeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 檢查權限：只有 admin、manager 或 supervisor 可以取消確認
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || !['admin', 'manager', 'supervisor'].includes(profile.role)) {
+      return { success: false, error: '權限不足，只有督導或經理可以取消確認' };
+    }
+
+    // 將所有該門市該月的狀態從 confirmed 改回 submitted
+    const { error: statusError } = await supabase
+      .from('monthly_staff_status')
+      .update({
+        status: 'submitted',
+        confirmed_at: null,
+        confirmed_by: null
+      })
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId)
+      .eq('status', 'confirmed');
+
+    if (statusError) {
+      return { success: false, error: statusError.message };
+    }
+
+    // 更新門市摘要
+    const { error: summaryError } = await supabase
+      .from('monthly_store_summary')
+      .update({
+        store_status: 'submitted',
+        confirmed_count: 0,
+        confirmed_at: null,
+        confirmed_by: null
       })
       .eq('year_month', yearMonth)
       .eq('store_id', storeId);
@@ -731,4 +1117,343 @@ function getMonthlyStatusLabel(status: MonthlyStatusType): string {
     'support_rotation': '支援卡班'
   };
   return labels[status] || status;
+}
+
+/**
+ * 手動新增員工至每月狀態
+ * 用於新增臨時或未在系統內的員工
+ */
+export async function addManualEmployee(
+  yearMonth: string,
+  storeId: string,
+  employeeData: {
+    employee_code?: string;
+    employee_name: string;
+    position: string;
+    employment_type: 'full_time' | 'part_time';
+    is_pharmacist: boolean;
+    monthly_status: MonthlyStatusType;
+    work_days?: number;
+    work_hours?: number;
+    notes?: string;
+    // 新增欄位
+    newbie_level?: string;
+    partial_month_reason?: string;
+    partial_month_days?: number;
+    partial_month_notes?: string;
+    supervisor_shift_hours?: number;
+    supervisor_employee_code?: string;
+    supervisor_name?: string;
+    supervisor_position?: string;
+    extra_tasks?: string[];
+  }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 計算當月天數
+    const [year, month] = yearMonth.split('-').map(Number);
+    const totalDays = new Date(year, month, 0).getDate();
+
+    // 預設工作天數
+    const workDays = employeeData.work_days ?? (
+      employeeData.monthly_status === 'full_month' ? totalDays : 0
+    );
+
+    const { data, error } = await supabase
+      .from('monthly_staff_status')
+      .insert({
+        year_month: yearMonth,
+        store_id: storeId,
+        user_id: null, // 手動新增的員工沒有 user_id
+        employee_code: employeeData.employee_code || null,
+        employee_name: employeeData.employee_name,
+        position: employeeData.position,
+        employment_type: employeeData.employment_type,
+        is_pharmacist: employeeData.is_pharmacist,
+        monthly_status: employeeData.monthly_status,
+        work_days: workDays,
+        work_hours: employeeData.work_hours || null,
+        total_days_in_month: totalDays,
+        notes: employeeData.notes || null,
+        status: 'draft',
+        is_manually_added: true,
+        // 新增欄位
+        newbie_level: employeeData.newbie_level || null,
+        partial_month_reason: employeeData.partial_month_reason || null,
+        partial_month_days: employeeData.partial_month_days || null,
+        partial_month_notes: employeeData.partial_month_notes || null,
+        supervisor_shift_hours: employeeData.supervisor_shift_hours || null,
+        supervisor_employee_code: employeeData.supervisor_employee_code || null,
+        supervisor_name: employeeData.supervisor_name || null,
+        supervisor_position: employeeData.supervisor_position || null,
+        extra_tasks: employeeData.extra_tasks || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error adding manual employee:', error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/monthly-status');
+    return { success: true, data };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 刪除每月狀態記錄（允許管理員和店長刪除）
+ */
+export async function deleteMonthlyStatusRecord(statusId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 檢查用戶權限
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    // 獲取記錄信息以檢查權限
+    const { data: existing, error: fetchError } = await supabase
+      .from('monthly_staff_status')
+      .select('is_manually_added, store_id')
+      .eq('id', statusId)
+      .single();
+
+    if (fetchError) {
+      return { success: false, error: '找不到該記錄' };
+    }
+
+    // 檢查是否為管理員或該門市的店長
+    const { data: storeManager } = await supabase
+      .from('store_managers')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('store_id', existing.store_id)
+      .maybeSingle();
+
+    const isAdmin = profile?.role === 'admin';
+    const isStoreManager = !!storeManager;
+
+    if (!isAdmin && !isStoreManager) {
+      return { success: false, error: '您沒有權限刪除此記錄' };
+    }
+
+    // 執行刪除
+    const { error } = await supabase
+      .from('monthly_staff_status')
+      .delete()
+      .eq('id', statusId);
+
+    if (error) {
+      console.error('Error deleting monthly status record:', error);
+      return { success: false, error: error.message };
+    }
+
+    revalidatePath('/monthly-status');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 刪除員工及其相關記錄（包含月度狀態）
+ */
+export async function deleteStoreEmployee(employeeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 檢查用戶角色和權限
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    console.log('User role:', profile?.role);
+
+    // 獲取員工資料，使用 .maybeSingle() 避免錯誤
+    const { data: employeeData, error: fetchError } = await supabase
+      .from('store_employees')
+      .select('user_id, store_id, employee_code, position')
+      .eq('id', employeeId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching employee:', fetchError);
+      return { success: false, error: `無法取得員工資料: ${fetchError.message}` };
+    }
+
+    if (!employeeData) {
+      return { success: false, error: '找不到該員工' };
+    }
+
+    console.log('Employee data:', employeeData);
+
+    // 先刪除該員工在此門市的所有月度狀態記錄（使用 store_id 和 employee_code 來匹配）
+    if (employeeData.employee_code) {
+      const { error: deleteStatusError } = await supabase
+        .from('monthly_staff_status')
+        .delete()
+        .eq('employee_code', employeeData.employee_code)
+        .eq('store_id', employeeData.store_id);
+
+      if (deleteStatusError) {
+        console.error('Error deleting monthly status:', deleteStatusError);
+        return { success: false, error: `刪除月度記錄失敗: ${deleteStatusError.message}` };
+      }
+    }
+
+    // 刪除員工記錄
+    const { error: deleteError } = await supabase
+      .from('store_employees')
+      .delete()
+      .eq('id', employeeId);
+
+    if (deleteError) {
+      console.error('Error deleting employee:', deleteError);
+      return { success: false, error: `刪除員工失敗: ${deleteError.message}` };
+    }
+
+    revalidatePath('/admin/stores');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// =====================================================
+// 門市每月統計資料 Actions
+// =====================================================
+
+/**
+ * 獲取門市每月統計資料
+ */
+export async function getStoreMonthlySummary(yearMonth: string, storeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入', data: null };
+    }
+
+    const { data, error } = await supabase
+      .from('monthly_store_summary')
+      .select('*')
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = not found
+      console.error('Error fetching store summary:', error);
+      return { success: false, error: error.message, data: null };
+    }
+
+    return { success: true, data: data || null };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message, data: null };
+  }
+}
+
+/**
+ * 更新門市每月統計資料
+ */
+export async function updateStoreMonthlySummary(
+  yearMonth: string,
+  storeId: string,
+  stats: {
+    total_staff_count: number;
+    admin_staff_count: number;
+    newbie_count: number;
+    business_days: number;
+    total_gross_profit: number;
+    total_customer_count: number;
+    prescription_addon_only_count: number;
+    regular_prescription_count: number;
+    chronic_prescription_count: number;
+  }
+) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 檢查是否已存在
+    const { data: existing } = await supabase
+      .from('monthly_store_summary')
+      .select('id')
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId)
+      .single();
+
+    if (existing) {
+      // 更新
+      const { error } = await supabase
+        .from('monthly_store_summary')
+        .update({
+          ...stats,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id);
+
+      if (error) {
+        console.error('Error updating store summary:', error);
+        return { success: false, error: error.message };
+      }
+    } else {
+      // 新增
+      const { error } = await supabase
+        .from('monthly_store_summary')
+        .insert({
+          year_month: yearMonth,
+          store_id: storeId,
+          ...stats,
+          total_employees: 0,
+          confirmed_count: 0,
+          store_status: 'in_progress'
+        });
+
+      if (error) {
+        console.error('Error inserting store summary:', error);
+        return { success: false, error: error.message };
+      }
+    }
+
+    revalidatePath('/monthly-status');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
 }

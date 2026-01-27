@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Activity, CheckCircle2, Clock, User, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { Activity, CheckCircle2, Clock, User, RefreshCw, Store, ArrowRight, Calendar } from 'lucide-react';
 import type { Assignment, Template, Log } from '@/types/workflow';
 
 // Extended types for joined data
@@ -13,6 +14,20 @@ interface AssignmentWithDetails extends Assignment {
     email: string;
     full_name?: string;
   };
+}
+
+interface ManagedStore {
+  id: number;
+  store_code: string;
+  store_name: string;
+}
+
+interface UserProfile {
+  id: string;
+  email: string;
+  full_name: string | null;
+  role: string;
+  job_title: string | null;
 }
 
 // Calculate progress for an assignment
@@ -83,19 +98,55 @@ function formatRelativeTime(date: Date | null): string {
 export default function DashboardPage() {
   const router = useRouter();
   const [assignments, setAssignments] = useState<AssignmentWithDetails[]>([]);
+  const [managedStores, setManagedStores] = useState<ManagedStore[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    loadAssignments();
+    loadData();
     
     // Set up an interval to refresh data periodically
     const interval = setInterval(() => {
-      loadAssignments();
+      loadData();
     }, 2000); // Refresh every 2 seconds
     
     return () => clearInterval(interval);
   }, []);
+
+  const loadData = async () => {
+    await Promise.all([
+      loadAssignments(),
+      loadManagedStores(),
+      loadUserProfile()
+    ]);
+  };
+
+  const loadUserProfile = async () => {
+    try {
+      const response = await fetch('/api/user/profile');
+      if (response.ok) {
+        const data = await response.json();
+        setUserProfile(data.profile);
+      }
+    } catch (error) {
+      console.error('Error loading user profile:', error);
+    }
+  };
+
+  const loadManagedStores = async () => {
+    try {
+      const response = await fetch('/api/user/managed-stores');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setManagedStores(data.stores || []);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading managed stores:', error);
+    }
+  };
 
   const loadAssignments = async () => {
     try {
@@ -121,7 +172,7 @@ export default function DashboardPage() {
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
-    await loadAssignments();
+    await loadData();
   };
 
   if (loading) {
@@ -137,58 +188,123 @@ export default function DashboardPage() {
   const completedAssignments = assignments.filter(a => a.status === 'completed').length;
   const inProgressAssignments = assignments.filter(a => a.status === 'in_progress').length;
   const pendingAssignments = assignments.filter(a => a.status === 'pending').length;
+  
+  // 獲取當前年月
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">管理儀表板</h1>
-            <p className="text-gray-600">檢視所有專案進度與任務狀態</p>
-          </div>
-          <button
-            onClick={handleManualRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
-            {isRefreshing ? '更新中...' : '手動更新'}
-          </button>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            歡迎回來，{userProfile?.full_name || userProfile?.email}
+          </h1>
+          <p className="text-gray-600">您是專案經理 · 可以管理流程和指派任務</p>
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="總任務數"
-            value={totalAssignments}
-            icon={<Activity className="w-6 h-6" />}
-            color="blue"
-          />
-          <StatCard
-            title="進行中"
-            value={inProgressAssignments}
-            icon={<Clock className="w-6 h-6" />}
-            color="yellow"
-          />
-          <StatCard
-            title="已完成"
-            value={completedAssignments}
-            icon={<CheckCircle2 className="w-6 h-6" />}
-            color="green"
-          />
-          <StatCard
-            title="待處理"
-            value={pendingAssignments}
-            icon={<User className="w-6 h-6" />}
-            color="gray"
-          />
-        </div>
+        {/* 管理功能區 */}
+        {managedStores && managedStores.length > 0 && (
+          <div className="mb-8 bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <Store className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900">管理功能</h2>
+                  <p className="text-sm text-gray-600">查看和管理所負責門市和團隊狀態</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 指派檔案表數 */}
+              <Link
+                href="/admin/assign/create"
+                className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                    <Activity className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">指派檔案表數</div>
+                    <div className="text-sm text-gray-500">建立和指派工作流程</div>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
+              </Link>
+
+              {/* 月人員狀態管理 */}
+              <Link
+                href="/monthly-status"
+                className="flex items-center justify-between p-4 border-2 border-blue-200 bg-blue-50 rounded-lg hover:border-blue-500 hover:bg-blue-100 transition-all group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                    <Calendar className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900">月人員狀態</div>
+                    <div className="text-sm text-gray-600">
+                      {currentYear}年{currentMonth}月 · {managedStores.length} 間門市
+                    </div>
+                  </div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* 快速連結區（適用於所有人員） */}
+        {(!managedStores || managedStores.length === 0) && (
+          <div className="mb-8 bg-white rounded-lg shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-blue-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">快速功能</h2>
+                <p className="text-sm text-gray-600">查看個人相關資訊</p>
+              </div>
+            </div>
+
+            <Link
+              href="/monthly-status"
+              className="flex items-center justify-between p-4 border-2 border-blue-200 bg-blue-50 rounded-lg hover:border-blue-500 hover:bg-blue-100 transition-all group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                  <Calendar className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">查看本月人員狀態</div>
+                  <div className="text-sm text-gray-600">
+                    {currentYear}年{currentMonth}月
+                  </div>
+                </div>
+              </div>
+              <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+        )}
 
         {/* Assignments Table */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-900">所有任務</h2>
+          <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">我的任務</h2>
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+              {isRefreshing ? '更新中' : '刷新'}
+            </button>
           </div>
 
           {assignments.length === 0 ? (

@@ -2,7 +2,7 @@ import { getCurrentUser } from '@/app/auth/actions';
 import { getTemplates, getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, Users, FileText, TrendingUp, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { ClipboardList, Users, FileText, TrendingUp, ArrowRight, CheckCircle2, Calendar } from 'lucide-react';
 
 export default async function HomePage() {
   const { user } = await getCurrentUser();
@@ -13,10 +13,10 @@ export default async function HomePage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
         <div className="text-center px-4">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            富康活力連鎖藥局任務派發系統
+            富康活力連鎖藥局內部業務管理系統
           </h1>
           <p className="text-xl text-gray-600 mb-8">
-            歡迎使用富康任務派發系統
+            歡迎使用富康內部業務管理系統
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Link
@@ -58,8 +58,8 @@ export default async function HomePage() {
   const templatesCount = templates.length;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full">
         {/* Welcome Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -183,13 +183,31 @@ export default async function HomePage() {
                 </Link>
 
                 <Link
-                  href="/dashboard"
+                  href="/monthly-status"
                   className="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="bg-blue-100 p-2 rounded-lg">
-                        <TrendingUp className="text-blue-600" size={24} />
+                        <Calendar className="text-blue-600" size={24} />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-gray-900">每月人員狀態</h3>
+                        <p className="text-sm text-gray-500">查看和管理門市人員狀態</p>
+                      </div>
+                    </div>
+                    <ArrowRight className="text-gray-400" size={20} />
+                  </div>
+                </Link>
+
+                <Link
+                  href="/dashboard"
+                  className="block p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-purple-100 p-2 rounded-lg">
+                        <TrendingUp className="text-purple-600" size={24} />
                       </div>
                       <div>
                         <h3 className="font-semibold text-gray-900">指派儀表板</h3>

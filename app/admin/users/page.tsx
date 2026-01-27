@@ -9,8 +9,8 @@ export default async function UsersManagementPage() {
 
   if (!result.success && result.error === '權限不足') {
     return (
-      <div className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-4xl mx-auto">
+      <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+        <div className="w-full">
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <h2 className="text-2xl font-bold text-red-900 mb-2">權限不足</h2>
             <p className="text-red-700 mb-4">只有管理員可以訪問使用者管理頁面</p>
@@ -31,8 +31,8 @@ export default async function UsersManagementPage() {
   const memberCount = users.filter(u => u.role === 'member').length;
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>

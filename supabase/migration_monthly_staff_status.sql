@@ -163,47 +163,62 @@ ALTER TABLE monthly_staff_status ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monthly_store_summary ENABLE ROW LEVEL SECURITY;
 
 -- Stores: 所有人可讀，管理員可寫
+DROP POLICY IF EXISTS "Anyone can view stores" ON stores;
 CREATE POLICY "Anyone can view stores" ON stores FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Admins can manage stores" ON stores;
 CREATE POLICY "Admins can manage stores" ON stores FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Store Managers: 相關人員可讀，管理員可寫
+DROP POLICY IF EXISTS "Users can view their store management" ON store_managers;
 CREATE POLICY "Users can view their store management" ON store_managers FOR SELECT USING (
   user_id = auth.uid() OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
 );
+
+DROP POLICY IF EXISTS "Admins can manage store managers" ON store_managers;
 CREATE POLICY "Admins can manage store managers" ON store_managers FOR ALL USING (
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Store Employees: 相關門市人員可讀，管理員/店長可寫
+DROP POLICY IF EXISTS "Users can view store employees" ON store_employees;
 CREATE POLICY "Users can view store employees" ON store_employees FOR SELECT USING (
   user_id = auth.uid() OR
   EXISTS (SELECT 1 FROM store_managers WHERE user_id = auth.uid() AND store_id = store_employees.store_id) OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
 );
+
+DROP POLICY IF EXISTS "Managers can manage store employees" ON store_employees;
 CREATE POLICY "Managers can manage store employees" ON store_employees FOR ALL USING (
   EXISTS (SELECT 1 FROM store_managers WHERE user_id = auth.uid() AND store_id = store_employees.store_id) OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- Monthly Staff Status: 相關門市人員可讀，店長可編輯草稿，督導/經理可確認
+DROP POLICY IF EXISTS "Users can view monthly staff status" ON monthly_staff_status;
 CREATE POLICY "Users can view monthly staff status" ON monthly_staff_status FOR SELECT USING (
   user_id = auth.uid() OR
   EXISTS (SELECT 1 FROM store_managers WHERE user_id = auth.uid() AND store_id = monthly_staff_status.store_id) OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
 );
+
+DROP POLICY IF EXISTS "Store managers can edit monthly status" ON monthly_staff_status;
 CREATE POLICY "Store managers can edit monthly status" ON monthly_staff_status FOR ALL USING (
   EXISTS (SELECT 1 FROM store_managers WHERE user_id = auth.uid() AND store_id = monthly_staff_status.store_id) OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
 );
 
 -- Monthly Store Summary: 相關門市人員可讀，店長/督導/經理可寫
+DROP POLICY IF EXISTS "Users can view monthly store summary" ON monthly_store_summary;
 CREATE POLICY "Users can view monthly store summary" ON monthly_store_summary FOR SELECT USING (
   EXISTS (SELECT 1 FROM store_managers WHERE user_id = auth.uid() AND store_id = monthly_store_summary.store_id) OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
 );
+
+DROP POLICY IF EXISTS "Managers can manage monthly store summary" ON monthly_store_summary;
 CREATE POLICY "Managers can manage monthly store summary" ON monthly_store_summary FOR ALL USING (
   EXISTS (SELECT 1 FROM store_managers WHERE user_id = auth.uid() AND store_id = monthly_store_summary.store_id) OR
   EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'manager'))
@@ -227,14 +242,14 @@ BEGIN
     RETURN 2;
   END IF;
   
-  -- 區塊 6：兼職一般人
-  IF p_employment_type = 'part_time' AND NOT p_is_pharmacist THEN
-    RETURN 6;
+  -- 區塊 5：兼職藥師 和 兼職專員
+  IF p_employment_type = 'part_time' AND (p_is_pharmacist OR p_position LIKE '%兼職專員%') THEN
+    RETURN 5;
   END IF;
   
-  -- 區塊 5：兼職藥師
-  IF p_employment_type = 'part_time' AND p_is_pharmacist THEN
-    RETURN 5;
+  -- 區塊 6：兼職一般人（兼職助理等）
+  IF p_employment_type = 'part_time' THEN
+    RETURN 6;
   END IF;
   
   -- 區塊 4：特殊時數 (督導(代理店長)-雙)
@@ -242,13 +257,13 @@ BEGIN
     RETURN 4;
   END IF;
   
-  -- 區塊 3：非整月正職 (但店長-雙、代理店長-雙也在這)
-  IF p_employment_type = 'full_time' AND p_monthly_status != 'full_month' THEN
+  -- 區塊 3：店長-雙、代理店長-雙
+  IF p_is_dual_position AND (p_position LIKE '%店長%' OR p_position LIKE '%代理店長%') THEN
     RETURN 3;
   END IF;
   
-  -- 區塊 3：店長-雙、代理店長-雙
-  IF p_is_dual_position AND (p_position LIKE '%店長%' OR p_position LIKE '%代理店長%') THEN
+  -- 區塊 3：非整月正職（所有非full_month的正職）
+  IF p_employment_type = 'full_time' AND p_monthly_status != 'full_month' THEN
     RETURN 3;
   END IF;
   
@@ -279,6 +294,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trigger_update_calculated_block ON monthly_staff_status;
 CREATE TRIGGER trigger_update_calculated_block
   BEFORE INSERT OR UPDATE ON monthly_staff_status
   FOR EACH ROW
@@ -290,6 +306,6 @@ CREATE TRIGGER trigger_update_calculated_block
 
 -- 插入範例門市
 -- INSERT INTO stores (store_code, store_name) VALUES
--- ('F001', '富康藥局 中正店'),
--- ('F002', '富康藥局 信義店'),
--- ('F003', '富康藥局 大安店');
+-- ('0002', '富康活力藥局 南港店'),
+-- ('0003', '富康活力藥局 東湖店'),
+-- ('0004', '富康活力藥局 文德店');

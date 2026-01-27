@@ -31,8 +31,8 @@ export default async function ArchivedPage() {
 
   if (!result.success) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
-        <div className="max-w-7xl mx-auto">
+      <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+        <div className="w-full">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-800">錯誤: {result.error}</p>
           </div>
@@ -59,8 +59,8 @@ export default async function ArchivedPage() {
   const sortedMonths = Object.keys(groupedByMonth).sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-4">

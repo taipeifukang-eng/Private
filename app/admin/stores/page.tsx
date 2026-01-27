@@ -1,11 +1,17 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus } from 'lucide-react';
+import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus, Building2, Hash, User, Copy, Eye, EyeOff } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
-export default async function StoresPage() {
+export default async function StoresPage({
+  searchParams,
+}: {
+  searchParams: { showInactive?: string };
+}) {
+  const showInactive = searchParams.showInactive === 'true';
+  
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -23,11 +29,24 @@ export default async function StoresPage() {
     redirect('/dashboard');
   }
 
-  // 獲取所有門市
-  const { data: stores } = await supabase
+  // 獲取所有門市（根據參數決定是否包含已停止的）
+  const storesQuery = supabase
     .from('stores')
     .select('*')
     .order('store_code');
+  
+  // 如果不顯示已停止的，則只取營運中的門市
+  if (!showInactive) {
+    storesQuery.eq('is_active', true);
+  }
+  
+  const { data: stores } = await storesQuery;
+  
+  // 計算已停止的門市數量
+  const { count: inactiveCount } = await supabase
+    .from('stores')
+    .select('*', { count: 'exact', head: true })
+    .eq('is_active', false);
 
   // 獲取門市管理者資訊
   const { data: storeManagers } = await supabase
@@ -59,8 +78,8 @@ export default async function StoresPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
+      <div className="w-full">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -70,13 +89,38 @@ export default async function StoresPage() {
             </h1>
             <p className="text-gray-600">管理所有門市及其負責人</p>
           </div>
-          <Link
-            href="/admin/stores/create"
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-          >
-            <Plus size={20} />
-            新增門市
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* 顯示/隱藏已停止門市按鈕 */}
+            {(inactiveCount ?? 0) > 0 && (
+              <Link
+                href={showInactive ? '/admin/stores' : '/admin/stores?showInactive=true'}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium ${
+                  showInactive 
+                    ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {showInactive ? (
+                  <>
+                    <EyeOff size={18} />
+                    隱藏已停止 ({inactiveCount})
+                  </>
+                ) : (
+                  <>
+                    <Eye size={18} />
+                    顯示已停止 ({inactiveCount})
+                  </>
+                )}
+              </Link>
+            )}
+            <Link
+              href="/admin/stores/create"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+            >
+              <Plus size={20} />
+              新增門市
+            </Link>
+          </div>
         </div>
 
         {/* 門市列表 */}
@@ -87,27 +131,78 @@ export default async function StoresPage() {
             <p className="text-gray-600 mb-6">點擊上方按鈕開始新增門市</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {stores.map((store) => {
-              const managers = storeManagersMap[store.id] || [];
-              const employeeCount = storeEmployeeCount[store.id] || 0;
-              
-              return (
-                <div
-                  key={store.id}
-                  className="bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow overflow-hidden"
-                >
-                  <div className="p-6">
-                    {/* 門市標題 */}
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <div className="text-sm text-blue-600 font-medium mb-1">
-                          {store.store_code}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            {/* 表頭 */}
+            <div className="bg-gray-50 border-b border-gray-200">
+              <div className="grid grid-cols-12 gap-4 px-6 py-3 text-sm font-semibold text-gray-700">
+                <div className="col-span-1">代碼</div>
+                <div className="col-span-2">門市名稱</div>
+                <div className="col-span-1">簡稱</div>
+                <div className="col-span-1">負責人</div>
+                <div className="col-span-2">地址</div>
+                <div className="col-span-1">電話</div>
+                <div className="col-span-1">員工</div>
+                <div className="col-span-1">狀態</div>
+                <div className="col-span-2 text-center">操作</div>
+              </div>
+            </div>
+            
+            {/* 表內容 */}
+            <div className="divide-y divide-gray-200">
+              {stores.map((store) => {
+                const managers = storeManagersMap[store.id] || [];
+                const employeeCount = storeEmployeeCount[store.id] || 0;
+                
+                return (
+                  <div
+                    key={store.id}
+                    className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors"
+                  >
+                    {/* 代碼 */}
+                    <div className="col-span-1">
+                      <span className="font-mono text-blue-600 font-medium">{store.store_code}</span>
+                    </div>
+                    
+                    {/* 門市名稱 */}
+                    <div className="col-span-2">
+                      <div className="font-semibold text-gray-900">{store.store_name}</div>
+                      {managers.length > 0 && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {managers.map(m => m.user?.full_name || m.user?.email).join(', ')}
                         </div>
-                        <h3 className="text-xl font-bold text-gray-900">
-                          {store.store_name}
-                        </h3>
-                      </div>
+                      )}
+                    </div>
+                    
+                    {/* 簡稱 */}
+                    <div className="col-span-1 text-sm text-gray-600">
+                      {store.short_name || '-'}
+                    </div>
+                    
+                    {/* 負責人 */}
+                    <div className="col-span-1 text-sm text-gray-700 font-medium">
+                      {store.manager_name || '-'}
+                    </div>
+                    
+                    {/* 地址 */}
+                    <div className="col-span-2 text-sm text-gray-600 truncate" title={store.address || ''}>
+                      {store.address || '-'}
+                    </div>
+                    
+                    {/* 電話 */}
+                    <div className="col-span-1 text-sm text-gray-600">
+                      {store.phone || '-'}
+                    </div>
+                    
+                    {/* 員工數 */}
+                    <div className="col-span-1">
+                      <span className="inline-flex items-center gap-1 text-sm text-gray-600">
+                        <Users size={14} className="text-gray-400" />
+                        {employeeCount}
+                      </span>
+                    </div>
+                    
+                    {/* 狀態 */}
+                    <div className="col-span-1">
                       <span className={`px-2 py-1 text-xs rounded-full ${
                         store.is_active 
                           ? 'bg-green-100 text-green-800' 
@@ -116,81 +211,54 @@ export default async function StoresPage() {
                         {store.is_active ? '營運中' : '已停止'}
                       </span>
                     </div>
-
-                    {/* 門市資訊 */}
-                    <div className="space-y-2 mb-4">
-                      {store.address && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <MapPin size={16} className="text-gray-400" />
-                          <span>{store.address}</span>
-                        </div>
-                      )}
-                      {store.phone && (
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <Phone size={16} className="text-gray-400" />
-                          <span>{store.phone}</span>
-                        </div>
-                      )}
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <Users size={16} className="text-gray-400" />
-                        <span>{employeeCount} 位員工</span>
-                      </div>
-                    </div>
-
-                    {/* 管理者列表 */}
-                    <div className="border-t pt-4">
-                      <h4 className="text-sm font-semibold text-gray-700 mb-2">門市管理者</h4>
-                      {managers.length === 0 ? (
-                        <p className="text-sm text-gray-500">尚未指派管理者</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {managers.map((manager) => (
-                            <div key={manager.id} className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                                  <Users size={14} className="text-gray-600" />
-                                </div>
-                                <div>
-                                  <div className="text-sm font-medium text-gray-900">
-                                    {manager.user?.full_name || manager.user?.email}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    {getRoleLabel(manager.role_type)}
-                                  </div>
-                                </div>
-                              </div>
-                              {manager.is_primary && (
-                                <span className="px-2 py-0.5 text-xs bg-yellow-100 text-yellow-800 rounded">
-                                  主要
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
+                    
                     {/* 操作按鈕 */}
-                    <div className="flex gap-2 mt-4 pt-4 border-t">
+                    <div className="col-span-2 flex gap-1 justify-center flex-wrap">
                       <Link
                         href={`/admin/stores/${store.id}/edit`}
-                        className="flex-1 text-center px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                        className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium"
+                        title="編輯門市"
                       >
-                        <Edit size={16} className="inline mr-1" />
+                        <Edit size={12} className="inline mr-1" />
                         編輯
                       </Link>
                       <Link
                         href={`/admin/stores/${store.id}/employees`}
-                        className="flex-1 text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                        className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium"
+                        title="管理員工"
                       >
-                        <UserPlus size={16} className="inline mr-1" />
-                        員工管理
+                        <UserPlus size={12} className="inline mr-1" />
+                        員工
                       </Link>
+                      {store.is_active && (
+                        <Link
+                          href={`/admin/stores/${store.id}/clone`}
+                          className="px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-xs font-medium"
+                          title="複製/搬遷門市"
+                        >
+                          <Copy size={12} className="inline mr-1" />
+                          搬遷
+                        </Link>
+                      )}
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+            
+            {/* 表尾統計 */}
+            <div className="bg-gray-50 border-t border-gray-200 px-6 py-3">
+              <div className="text-sm text-gray-600 flex items-center gap-4">
+                <span>
+                  共 <span className="font-semibold text-gray-900">{stores.length}</span> 間門市
+                  {showInactive && (inactiveCount ?? 0) > 0 && (
+                    <span className="text-gray-500 ml-2">
+                      （含 <span className="text-orange-600">{inactiveCount}</span> 間已停止）
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
           </div>
         )}
       </div>
