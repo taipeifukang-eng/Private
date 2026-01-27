@@ -22,12 +22,15 @@ export async function GET() {
     }
 
     // 格式化資料
-    const assignments = (data || []).map(item => ({
-      store_id: item.store_id,
-      user_id: item.user_id,
-      user_name: item.user?.full_name || '未知',
-      employee_code: item.user?.employee_code || null
-    }));
+    const assignments = (data || []).map(item => {
+      const user = Array.isArray(item.user) ? item.user[0] : item.user;
+      return {
+        store_id: item.store_id,
+        user_id: item.user_id,
+        user_name: user?.full_name || '未知',
+        employee_code: user?.employee_code || null
+      };
+    });
 
     return NextResponse.json({ success: true, assignments });
   } catch (error: any) {
