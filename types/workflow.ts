@@ -204,6 +204,10 @@ export interface MonthlyStaffStatus {
   extra_task_planned_hours: number | null;  // 該店規劃實上時數
   extra_task_external_hours: number | null; // 外務時數
   
+  // 獎金費用
+  last_month_single_item_bonus: number | null; // 上個月個人單品獎金
+  talent_cultivation_bonus: number | null;     // 本月育才獎金
+  
   // 交通費用
   monthly_transport_expense: number | null;
   transport_expense_notes: string | null;

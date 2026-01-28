@@ -1277,6 +1277,10 @@ function AddManualEmployeeModal({
   const [extraTaskPlannedHours, setExtraTaskPlannedHours] = useState<number>(0);
   const [extraTaskExternalHours, setExtraTaskExternalHours] = useState<number>(0);
   
+  // 獎金費用
+  const [lastMonthSingleItemBonus, setLastMonthSingleItemBonus] = useState<number>(0);
+  const [talentCultivationBonus, setTalentCultivationBonus] = useState<number>(0);
+  
   // 店長/代理店長支援時數
   const [supportToOtherStoresHours, setSupportToOtherStoresHours] = useState<number>(0);
   const [supportFromOtherStoresHours, setSupportFromOtherStoresHours] = useState<number>(0);
@@ -1331,6 +1335,8 @@ function AddManualEmployeeModal({
         extra_tasks: extraTasks.length > 0 ? extraTasks : undefined,
         extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? extraTaskPlannedHours : undefined,
         extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? extraTaskExternalHours : undefined,
+        last_month_single_item_bonus: lastMonthSingleItemBonus || undefined,
+        talent_cultivation_bonus: talentCultivationBonus || undefined,
         support_to_other_stores_hours: supportToOtherStoresHours || undefined,
         support_from_other_stores_hours: supportFromOtherStoresHours || undefined
       });
@@ -1656,6 +1662,44 @@ function AddManualEmployeeModal({
               </div>
             </div>
           )}
+
+          {/* 上個月個人單品獎金 */}
+          <div className="bg-purple-50 rounded-lg p-4">
+            <label className="block text-sm font-medium text-purple-700 mb-2">
+              上個月個人單品獎金
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={lastMonthSingleItemBonus}
+                onChange={(e) => setLastMonthSingleItemBonus(parseInt(e.target.value) || 0)}
+                className="w-32 px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
+                placeholder="0"
+              />
+              <span className="text-purple-600 text-sm">元</span>
+            </div>
+          </div>
+
+          {/* 本月育才獎金 */}
+          <div className="bg-indigo-50 rounded-lg p-4">
+            <label className="block text-sm font-medium text-indigo-700 mb-2">
+              本月育才獎金
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={talentCultivationBonus}
+                onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
+                className="w-32 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                placeholder="0"
+              />
+              <span className="text-indigo-600 text-sm">元</span>
+            </div>
+          </div>
 
           {/* 備註 */}
           <div>
