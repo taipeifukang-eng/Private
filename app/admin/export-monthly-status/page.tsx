@@ -21,6 +21,7 @@ export default function ExportMonthlyStatusPage() {
   const [downloadingTransport, setDownloadingTransport] = useState(false);
   const [downloadingSingleItemBonus, setDownloadingSingleItemBonus] = useState(false);
   const [downloadingTalentBonus, setDownloadingTalentBonus] = useState(false);
+  const [downloadingMealAllowance, setDownloadingMealAllowance] = useState(false);
   
   // 年月選擇
   const now = new Date();
@@ -236,6 +237,43 @@ export default function ExportMonthlyStatusPage() {
     }
   };
 
+  const handleDownloadMealAllowance = async () => {
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingMealAllowance(true);
+
+    try {
+      const response = await fetch('/api/export-monthly-status/meal-allowance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      // 下載檔案
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `誤餐費_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading meal allowance:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingMealAllowance(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges = {
       pending: { label: '未提交', className: 'bg-gray-100 text-gray-700' },
@@ -394,6 +432,16 @@ export default function ExportMonthlyStatusPage() {
               >
                 <Download size={20} />
                 {downloadingTalentBonus ? '匯出中...' : `匯出育才獎金 (${selectedStoreIds.size} 間門市)`}
+              </button>
+
+              {/* 誤餐費 */}
+              <button
+                onClick={handleDownloadMealAllowance}
+                disabled={downloadingMealAllowance || selectedStoreIds.size === 0}
+                className="w-full px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingMealAllowance ? '匯出中...' : `匯出誤餐費 (${selectedStoreIds.size} 間門市)`}
               </button>
             </div>
           </div>
