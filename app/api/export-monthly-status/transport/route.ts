@@ -80,17 +80,6 @@ export async function POST(request: NextRequest) {
       '備註原因': staff.transport_expense_notes || ''
     }));
 
-    // 加入總計行
-    const totalExpense = staffData.reduce((sum: number, staff: any) => sum + (staff.monthly_transport_expense || 0), 0);
-    excelData.push({
-      '門市代號': '',
-      '月份': '',
-      '員編': '',
-      '姓名': '總計',
-      '交通費': totalExpense,
-      '備註原因': ''
-    });
-
     // 創建工作表
     const worksheet = XLSX.utils.json_to_sheet(excelData);
 
