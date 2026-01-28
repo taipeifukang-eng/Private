@@ -200,6 +200,10 @@ export interface MonthlyStaffStatus {
   // 特殊身分
   extra_tasks: ExtraTask[] | null;
   
+  // 外務相關（長照外務、診所業務）
+  extra_task_planned_hours: number | null;  // 該店規劃實上時數
+  extra_task_external_hours: number | null; // 外務時數
+  
   // 交通費用
   monthly_transport_expense: number | null;
   transport_expense_notes: string | null;

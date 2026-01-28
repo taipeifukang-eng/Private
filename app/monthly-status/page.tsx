@@ -1011,6 +1011,10 @@ function StoreStatusDetail({
                     {staff.extra_tasks && staff.extra_tasks.length > 0 && (
                       <span className="px-2 py-0.5 text-xs rounded bg-indigo-100 text-indigo-800">
                         {staff.extra_tasks.join(', ')}
+                        {(staff.extra_tasks.includes('長照外務') || staff.extra_tasks.includes('診所業務')) && 
+                         staff.extra_task_external_hours && staff.extra_task_external_hours > 0 && (
+                          <span className="ml-1 font-semibold">({staff.extra_task_external_hours}h)</span>
+                        )}
                       </span>
                     )}
                   </div>
@@ -1267,6 +1271,10 @@ function AddManualEmployeeModal({
   const [partialMonthNotes, setPartialMonthNotes] = useState('');
   const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
   
+  // 外務時數（長照外務/診所業務）
+  const [extraTaskPlannedHours, setExtraTaskPlannedHours] = useState<number>(0);
+  const [extraTaskExternalHours, setExtraTaskExternalHours] = useState<number>(0);
+  
   // 店長/代理店長支援時數
   const [supportToOtherStoresHours, setSupportToOtherStoresHours] = useState<number>(0);
   const [supportFromOtherStoresHours, setSupportFromOtherStoresHours] = useState<number>(0);
@@ -1319,6 +1327,8 @@ function AddManualEmployeeModal({
         partial_month_days: partialMonthDays || undefined,
         partial_month_notes: partialMonthNotes || undefined,
         extra_tasks: extraTasks.length > 0 ? extraTasks : undefined,
+        extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? extraTaskPlannedHours : undefined,
+        extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? extraTaskExternalHours : undefined,
         support_to_other_stores_hours: supportToOtherStoresHours || undefined,
         support_from_other_stores_hours: supportFromOtherStoresHours || undefined
       });
@@ -1562,6 +1572,42 @@ function AddManualEmployeeModal({
                 </label>
               ))}
             </div>
+            
+            {/* 當選擇長照外務或診所業務時顯示時數輸入框 */}
+            {(extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) && (
+              <div className="mt-3 bg-green-50 rounded-lg p-3 space-y-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs text-green-700 mb-1">
+                      該店規劃實上時數
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={extraTaskPlannedHours}
+                      onChange={(e) => setExtraTaskPlannedHours(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                      placeholder="實上時數"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-green-700 mb-1">
+                      外務時數
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={extraTaskExternalHours}
+                      onChange={(e) => setExtraTaskExternalHours(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500"
+                      placeholder="外務時數"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 店長/代理店長支援時數 */}

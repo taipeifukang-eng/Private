@@ -743,6 +743,9 @@ export async function updateStaffStatus(
     supervisor_name: string | null;
     supervisor_position: string | null;
     extra_tasks: string[] | null;
+    // 外務時數
+    extra_task_planned_hours: number | null;
+    extra_task_external_hours: number | null;
     // 交通費用
     monthly_transport_expense: number | null;
     transport_expense_notes: string | null;
@@ -1257,6 +1260,10 @@ export async function addManualEmployee(
     supervisor_name?: string;
     supervisor_position?: string;
     extra_tasks?: string[];
+    extra_task_planned_hours?: number;
+    extra_task_external_hours?: number;
+    monthly_transport_expense?: number;
+    transport_expense_notes?: string;
     // 店長/代理店長支援時數
     support_to_other_stores_hours?: number;
     support_from_other_stores_hours?: number;
@@ -1307,6 +1314,10 @@ export async function addManualEmployee(
         supervisor_name: employeeData.supervisor_name || null,
         supervisor_position: employeeData.supervisor_position || null,
         extra_tasks: employeeData.extra_tasks || null,
+        extra_task_planned_hours: employeeData.extra_task_planned_hours || null,
+        extra_task_external_hours: employeeData.extra_task_external_hours || null,
+        monthly_transport_expense: employeeData.monthly_transport_expense || null,
+        transport_expense_notes: employeeData.transport_expense_notes || null,
         support_to_other_stores_hours: employeeData.support_to_other_stores_hours || null,
         support_from_other_stores_hours: employeeData.support_from_other_stores_hours || null,
         created_at: new Date().toISOString(),

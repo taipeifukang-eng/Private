@@ -76,6 +76,10 @@ export default function EditStaffStatusPage() {
   // 本月交通費用
   const [monthlyTransportExpense, setMonthlyTransportExpense] = useState<number>(0);
   const [transportExpenseNotes, setTransportExpenseNotes] = useState('');
+  
+  // 外務時數（長照外務/診所業務）
+  const [extraTaskPlannedHours, setExtraTaskPlannedHours] = useState<number>(0);
+  const [extraTaskExternalHours, setExtraTaskExternalHours] = useState<number>(0);
 
   // 計算出的區塊 (前端預覽)
   const [previewBlock, setPreviewBlock] = useState<number>(0);
@@ -154,6 +158,8 @@ export default function EditStaffStatusPage() {
       setExtraTasks(data.extra_tasks || []);
       setMonthlyTransportExpense(data.monthly_transport_expense || 0);
       setTransportExpenseNotes(data.transport_expense_notes || '');
+      setExtraTaskPlannedHours(data.extra_task_planned_hours || 0);
+      setExtraTaskExternalHours(data.extra_task_external_hours || 0);
     } catch (error) {
       console.error('Error:', error);
       alert('載入失敗');
@@ -187,8 +193,9 @@ export default function EditStaffStatusPage() {
       return;
     }
 
-    // 區塊 4：特殊時數 (督導(代理店長)-雙)
-    if (position.includes('督導') && position.includes('代理店長') && isDualPosition) {
+    // 區塊 4：特殊時數 (督導(代理店長)-雙 或 長照外務/診所業務)
+    if ((position.includes('督導') && position.includes('代理店長') && isDualPosition) ||
+        (extraTasks.length > 0 && (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')))) {
       setPreviewBlock(4);
       return;
     }
@@ -287,13 +294,18 @@ export default function EditStaffStatusPage() {
         newbie_level: newbieLevel || null,
         partial_month_reason: partialMonthReason || null,
         partial_month_days: partialMonthDays || null,
-        partial_month_notes: partialMonthNotes || null,
+        // 如果有外務時數，將其寫入 partial_month_notes，否則使用原本的備註
+        partial_month_notes: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) && extraTaskExternalHours > 0
+          ? `外務時數: ${extraTaskExternalHours}小時${partialMonthNotes ? '; ' + partialMonthNotes : ''}`
+          : partialMonthNotes || null,
         // 督導(代理店長)-雙 的工作時數同時儲存到 supervisor_shift_hours
         supervisor_shift_hours: isSupervisorActingManagerDual ? workHours : (supervisorShiftHours || null),
         supervisor_employee_code: supervisorEmployeeCode || null,
         supervisor_name: supervisorName || null,
         supervisor_position: supervisorPosition || null,
         extra_tasks: extraTasks.length > 0 ? extraTasks : null,
+        extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskPlannedHours || null) : null,
+        extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskExternalHours || null) : null,
         monthly_transport_expense: monthlyTransportExpense || null,
         transport_expense_notes: transportExpenseNotes || null
       });
@@ -811,6 +823,42 @@ export default function EditStaffStatusPage() {
                 </label>
               ))}
             </div>
+            
+            {/* 當選擇長照外務或診所業務時顯示時數輸入框 */}
+            {(extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) && (
+              <div className="mt-4 bg-green-50 rounded-lg p-4 border border-green-200">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-green-700 mb-1">
+                      該店規劃實上時數
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={extraTaskPlannedHours}
+                      onChange={(e) => setExtraTaskPlannedHours(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="實上時數"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-green-700 mb-1">
+                      外務時數
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={extraTaskExternalHours}
+                      onChange={(e) => setExtraTaskExternalHours(parseFloat(e.target.value) || 0)}
+                      className="w-full px-4 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                      placeholder="外務時數"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 本月交通費用 */}
