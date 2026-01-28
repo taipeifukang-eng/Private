@@ -749,6 +749,7 @@ export async function updateStaffStatus(
     // 獎金費用
     last_month_single_item_bonus: number | null;
     talent_cultivation_bonus: number | null;
+    talent_cultivation_target: string | null;
     // 交通費用
     monthly_transport_expense: number | null;
     transport_expense_notes: string | null;
@@ -1267,6 +1268,7 @@ export async function addManualEmployee(
     extra_task_external_hours?: number;
     last_month_single_item_bonus?: number;
     talent_cultivation_bonus?: number;
+    talent_cultivation_target?: string;
     monthly_transport_expense?: number;
     transport_expense_notes?: string;
     // 店長/代理店長支援時數
@@ -1323,6 +1325,7 @@ export async function addManualEmployee(
         extra_task_external_hours: employeeData.extra_task_external_hours || null,
         last_month_single_item_bonus: employeeData.last_month_single_item_bonus || null,
         talent_cultivation_bonus: employeeData.talent_cultivation_bonus || null,
+        talent_cultivation_target: employeeData.talent_cultivation_target || null,
         monthly_transport_expense: employeeData.monthly_transport_expense || null,
         transport_expense_notes: employeeData.transport_expense_notes || null,
         support_to_other_stores_hours: employeeData.support_to_other_stores_hours || null,

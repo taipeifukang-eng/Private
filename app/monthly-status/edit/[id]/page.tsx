@@ -76,6 +76,7 @@ export default function EditStaffStatusPage() {
   // 獎金費用
   const [lastMonthSingleItemBonus, setLastMonthSingleItemBonus] = useState<number>(0);
   const [talentCultivationBonus, setTalentCultivationBonus] = useState<number>(0);
+  const [talentCultivationTarget, setTalentCultivationTarget] = useState('');
   
   // 本月交通費用
   const [monthlyTransportExpense, setMonthlyTransportExpense] = useState<number>(0);
@@ -162,6 +163,7 @@ export default function EditStaffStatusPage() {
       setExtraTasks(data.extra_tasks || []);
       setLastMonthSingleItemBonus(data.last_month_single_item_bonus || 0);
       setTalentCultivationBonus(data.talent_cultivation_bonus || 0);
+      setTalentCultivationTarget(data.talent_cultivation_target || '');
       setMonthlyTransportExpense(data.monthly_transport_expense || 0);
       setTransportExpenseNotes(data.transport_expense_notes || '');
       setExtraTaskPlannedHours(data.extra_task_planned_hours || 0);
@@ -314,6 +316,7 @@ export default function EditStaffStatusPage() {
         extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskExternalHours || null) : null,
         last_month_single_item_bonus: lastMonthSingleItemBonus || null,
         talent_cultivation_bonus: talentCultivationBonus || null,
+        talent_cultivation_target: talentCultivationTarget || null,
         monthly_transport_expense: monthlyTransportExpense || null,
         transport_expense_notes: transportExpenseNotes || null
       });
@@ -894,21 +897,35 @@ export default function EditStaffStatusPage() {
           {/* 本月育才獎金 */}
           <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
             <h3 className="text-base font-semibold text-indigo-700 mb-4">本月育才獎金</h3>
-            <div>
-              <label className="block text-sm font-medium text-indigo-700 mb-2">
-                獎金金額
-              </label>
-              <div className="flex items-center gap-2">
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-indigo-700 mb-2">
+                  獎金金額
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={talentCultivationBonus}
+                    onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
+                    className="w-32 px-4 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                  <span className="text-indigo-600">元</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-indigo-700 mb-2">
+                  育才對象
+                </label>
                 <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={talentCultivationBonus}
-                  onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
-                  className="w-32 px-4 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="0"
+                  type="text"
+                  value={talentCultivationTarget}
+                  onChange={(e) => setTalentCultivationTarget(e.target.value)}
+                  className="w-full px-4 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="請輸入育才對象姓名"
                 />
-                <span className="text-indigo-600">元</span>
               </div>
             </div>
           </div>

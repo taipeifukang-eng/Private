@@ -207,6 +207,7 @@ export interface MonthlyStaffStatus {
   // 獎金費用
   last_month_single_item_bonus: number | null; // 上個月個人單品獎金
   talent_cultivation_bonus: number | null;     // 本月育才獎金
+  talent_cultivation_target: string | null;    // 育才對象
   
   // 交通費用
   monthly_transport_expense: number | null;

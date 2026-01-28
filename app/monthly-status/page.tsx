@@ -1280,6 +1280,7 @@ function AddManualEmployeeModal({
   // 獎金費用
   const [lastMonthSingleItemBonus, setLastMonthSingleItemBonus] = useState<number>(0);
   const [talentCultivationBonus, setTalentCultivationBonus] = useState<number>(0);
+  const [talentCultivationTarget, setTalentCultivationTarget] = useState('');
   
   // 店長/代理店長支援時數
   const [supportToOtherStoresHours, setSupportToOtherStoresHours] = useState<number>(0);
@@ -1337,6 +1338,7 @@ function AddManualEmployeeModal({
         extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? extraTaskExternalHours : undefined,
         last_month_single_item_bonus: lastMonthSingleItemBonus || undefined,
         talent_cultivation_bonus: talentCultivationBonus || undefined,
+        talent_cultivation_target: talentCultivationTarget || undefined,
         support_to_other_stores_hours: supportToOtherStoresHours || undefined,
         support_from_other_stores_hours: supportFromOtherStoresHours || undefined
       });
@@ -1687,17 +1689,31 @@ function AddManualEmployeeModal({
             <label className="block text-sm font-medium text-indigo-700 mb-2">
               本月育才獎金
             </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={talentCultivationBonus}
-                onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
-                className="w-32 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                placeholder="0"
-              />
-              <span className="text-indigo-600 text-sm">元</span>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={talentCultivationBonus}
+                  onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
+                  className="w-32 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                  placeholder="0"
+                />
+                <span className="text-indigo-600 text-sm">元</span>
+              </div>
+              <div>
+                <label className="block text-xs text-indigo-600 mb-1">
+                  育才對象
+                </label>
+                <input
+                  type="text"
+                  value={talentCultivationTarget}
+                  onChange={(e) => setTalentCultivationTarget(e.target.value)}
+                  className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                  placeholder="請輸入育才對象姓名"
+                />
+              </div>
             </div>
           </div>
 

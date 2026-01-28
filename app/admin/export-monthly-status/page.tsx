@@ -19,6 +19,8 @@ export default function ExportMonthlyStatusPage() {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [downloadingTransport, setDownloadingTransport] = useState(false);
+  const [downloadingSingleItemBonus, setDownloadingSingleItemBonus] = useState(false);
+  const [downloadingTalentBonus, setDownloadingTalentBonus] = useState(false);
   
   // 年月選擇
   const now = new Date();
@@ -159,6 +161,80 @@ export default function ExportMonthlyStatusPage() {
     }
   };
 
+  const handleDownloadSingleItemBonus = async () => {
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingSingleItemBonus(true);
+
+    try {
+      const response = await fetch('/api/export-monthly-status/single-item-bonus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      // 下載檔案
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `單品獎金_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading single item bonus:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingSingleItemBonus(false);
+    }
+  };
+
+  const handleDownloadTalentBonus = async () => {
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingTalentBonus(true);
+
+    try {
+      const response = await fetch('/api/export-monthly-status/talent-cultivation-bonus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      // 下載檔案
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `育才獎金_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading talent bonus:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingTalentBonus(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges = {
       pending: { label: '未提交', className: 'bg-gray-100 text-gray-700' },
@@ -285,15 +361,40 @@ export default function ExportMonthlyStatusPage() {
               {downloading ? '下載中...' : `下載 Excel (${selectedStoreIds.size} 間門市)`}
             </button>
 
-            {/* 匯出交通費用按鈕 */}
-            <button
-              onClick={handleDownloadTransport}
-              disabled={downloadingTransport}
-              className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
-            >
-              <Download size={20} />
-              {downloadingTransport ? '匯出中...' : '匯出交通費用 Excel'}
-            </button>
+            {/* 匯出交通費用、單品獎金、育才獎金 */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-gray-700 pt-4 border-t">匯出交通費用、單品獎金、育才獎金 Excel</h3>
+              
+              {/* 交通費用 */}
+              <button
+                onClick={handleDownloadTransport}
+                disabled={downloadingTransport}
+                className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingTransport ? '匯出中...' : '匯出交通費用'}
+              </button>
+
+              {/* 單品獎金 */}
+              <button
+                onClick={handleDownloadSingleItemBonus}
+                disabled={downloadingSingleItemBonus || selectedStoreIds.size === 0}
+                className="w-full px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingSingleItemBonus ? '匯出中...' : `匯出單品獎金 (${selectedStoreIds.size} 間門市)`}
+              </button>
+
+              {/* 育才獎金 */}
+              <button
+                onClick={handleDownloadTalentBonus}
+                disabled={downloadingTalentBonus || selectedStoreIds.size === 0}
+                className="w-full px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingTalentBonus ? '匯出中...' : `匯出育才獎金 (${selectedStoreIds.size} 間門市)`}
+              </button>
+            </div>
           </div>
 
           {/* 右側：門市列表 */}
