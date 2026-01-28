@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
+import MealAllowanceModal from '@/components/MealAllowanceModal';
 import { 
   CalendarCheck, 
   Building2, 
@@ -498,6 +499,7 @@ function StoreStatusDetail({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showMealAllowanceModal, setShowMealAllowanceModal] = useState(false);
 
   // 判斷是否可以查看門市統計資料
   const canViewStoreStats = () => {
@@ -881,13 +883,22 @@ function StoreStatusDetail({
 
           <div className="flex gap-2 flex-shrink-0">
             {storeStatus !== 'confirmed' && (
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-              >
-                <Plus size={16} />
-                手動新增員工
-              </button>
+              <>
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  手動新增員工
+                </button>
+                <button
+                  onClick={() => setShowMealAllowanceModal(true)}
+                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+                >
+                  <CalendarCheck size={16} />
+                  誤餐費登記
+                </button>
+              </>
             )}
             <button
               onClick={loadStaffStatus}
@@ -920,6 +931,17 @@ function StoreStatusDetail({
             loadStaffStatus();
             onRefresh();
           }}
+        />
+      )}
+
+      {/* 誤餐費登記 Modal */}
+      {showMealAllowanceModal && (
+        <MealAllowanceModal
+          isOpen={showMealAllowanceModal}
+          onClose={() => setShowMealAllowanceModal(false)}
+          yearMonth={yearMonth}
+          storeId={store.id}
+          storeName={store.store_name}
         />
       )}
 
