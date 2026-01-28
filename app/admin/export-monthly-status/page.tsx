@@ -134,7 +134,8 @@ export default function ExportMonthlyStatusPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          year_month: yearMonth
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
         })
       });
 
@@ -368,11 +369,11 @@ export default function ExportMonthlyStatusPage() {
               {/* 交通費用 */}
               <button
                 onClick={handleDownloadTransport}
-                disabled={downloadingTransport}
+                disabled={downloadingTransport || selectedStoreIds.size === 0}
                 className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
               >
                 <Download size={20} />
-                {downloadingTransport ? '匯出中...' : '匯出交通費用'}
+                {downloadingTransport ? '匯出中...' : `匯出交通費用 (${selectedStoreIds.size} 間門市)`}
               </button>
 
               {/* 單品獎金 */}

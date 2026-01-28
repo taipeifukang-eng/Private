@@ -37,10 +37,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { year_month } = body;
+    const { year_month, store_ids } = body;
 
-    if (!year_month) {
-      return NextResponse.json({ success: false, error: '缺少年月參數' }, { status: 400 });
+    if (!year_month || !store_ids || !Array.isArray(store_ids)) {
+      return NextResponse.json({ success: false, error: '缺少年月或門市參數' }, { status: 400 });
     }
 
     // 查詢有填寫交通費用的員工資料
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
         store:stores(store_code, store_name)
       `)
       .eq('year_month', year_month)
+      .in('store_id', store_ids)
       .not('monthly_transport_expense', 'is', null)
       .gt('monthly_transport_expense', 0)
       .order('store_id', { ascending: true })
