@@ -130,14 +130,15 @@ export async function cloneStore(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：admin 或營業部主管（manager 角色）
+    // 檢查權限：admin 或營業部主管（manager 角色，但不是需要指派的職位）
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager';
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
     if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
       return { success: false, error: '權限不足' };
     }
@@ -309,8 +310,12 @@ export async function getUserManagedStores() {
       };
     }
 
-    // 營業部人員可以看所有門市（營業1部、營業2部等的 member 或 manager 角色）
-    if (profile.department?.startsWith('營業') && (profile.role === 'member' || profile.role === 'manager')) {
+    // 需要指派才能看門市的職位：督導、店長、代理店長、督導(代理店長)
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
+    
+    // 營業部人員（但不是需要指派的職位）可以看所有門市
+    // 包括：助理、區經理等行政管理職位
+    if (profile.department?.startsWith('營業') && (profile.role === 'member' || profile.role === 'manager') && !needsAssignment) {
       const { data, error } = await supabase
         .from('stores')
         .select('*')
@@ -379,14 +384,15 @@ export async function assignStoreManager(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：admin 或營業部主管（manager 角色）
+    // 檢查權限：admin 或營業部主管（manager 角色，但不是需要指派的職位）
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager';
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
     if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
       return { success: false, error: '權限不足' };
     }
@@ -737,6 +743,12 @@ export async function updateStaffStatus(
     supervisor_name: string | null;
     supervisor_position: string | null;
     extra_tasks: string[] | null;
+    // 交通費用
+    monthly_transport_expense: number | null;
+    transport_expense_notes: string | null;
+    // 店長/代理店長支援時數
+    support_to_other_stores_hours: number | null;
+    support_from_other_stores_hours: number | null;
   }>
 ) {
   try {
@@ -967,6 +979,67 @@ export async function confirmStoreStatus(yearMonth: string, storeId: string) {
 }
 
 /**
+ * 恢復提交狀態（將已提交回到待填寫）
+ */
+export async function revertSubmitStatus(yearMonth: string, storeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    // 檢查權限：只有 admin 或 manager 可以恢復
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, department, job_title')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+      return { success: false, error: '權限不足，只有經理或管理員可以恢復提交狀態' };
+    }
+
+    // 將所有該門市該月的狀態從 submitted 改回 in_progress
+    const { error: statusError } = await supabase
+      .from('monthly_staff_status')
+      .update({
+        status: 'in_progress',
+        submitted_at: null,
+        submitted_by: null
+      })
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId)
+      .eq('status', 'submitted');
+
+    if (statusError) {
+      return { success: false, error: statusError.message };
+    }
+
+    // 更新門市摘要
+    const { error: summaryError } = await supabase
+      .from('monthly_store_summary')
+      .update({
+        store_status: 'in_progress',
+        submitted_at: null,
+        submitted_by: null
+      })
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId);
+
+    if (summaryError) {
+      return { success: false, error: summaryError.message };
+    }
+
+    revalidatePath('/monthly-status');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 取消確認門市狀態（督導/經理取消確認）
  */
 export async function unconfirmStoreStatus(yearMonth: string, storeId: string) {
@@ -978,15 +1051,21 @@ export async function unconfirmStoreStatus(yearMonth: string, storeId: string) {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：只有 admin、manager 或 supervisor 可以取消確認
+    // 檢查權限：只有 admin、manager（經理）、或營業部助理主管可以取消確認
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    if (!profile || !['admin', 'manager', 'supervisor'].includes(profile.role)) {
-      return { success: false, error: '權限不足，只有督導或經理可以取消確認' };
+    const canUnconfirm = profile && (
+      profile.role === 'admin' ||
+      profile.role === 'manager' ||
+      (profile.department === '營業部' && profile.job_title === '助理' && profile.role === 'manager')
+    );
+
+    if (!canUnconfirm) {
+      return { success: false, error: '權限不足，只有經理或營業部助理主管可以取消確認' };
     }
 
     // 將所有該門市該月的狀態從 confirmed 改回 submitted
@@ -1178,6 +1257,9 @@ export async function addManualEmployee(
     supervisor_name?: string;
     supervisor_position?: string;
     extra_tasks?: string[];
+    // 店長/代理店長支援時數
+    support_to_other_stores_hours?: number;
+    support_from_other_stores_hours?: number;
   }
 ) {
   try {
@@ -1225,6 +1307,8 @@ export async function addManualEmployee(
         supervisor_name: employeeData.supervisor_name || null,
         supervisor_position: employeeData.supervisor_position || null,
         extra_tasks: employeeData.extra_tasks || null,
+        support_to_other_stores_hours: employeeData.support_to_other_stores_hours || null,
+        support_from_other_stores_hours: employeeData.support_from_other_stores_hours || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -1431,6 +1515,8 @@ export async function updateStoreMonthlySummary(
     prescription_addon_only_count: number;
     regular_prescription_count: number;
     chronic_prescription_count: number;
+    support_to_other_stores_hours?: number;
+    support_from_other_stores_hours?: number;
   }
 ) {
   try {

@@ -25,9 +25,12 @@ export default async function StoresPage({
     .eq('id', user.id)
     .single();
 
-  // 檢查權限：admin、營業部主管（manager）或營業部助理（member）
-  const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member';
-  const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager';
+  // 檢查是否為需要指派的職位
+  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+
+  // 檢查權限：admin、營業部主管（manager 但不是需要指派的職位）或營業部助理（member 但不是需要指派的職位）
+  const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
+  const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
   
   if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
     redirect('/dashboard');

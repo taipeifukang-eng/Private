@@ -18,6 +18,7 @@ export default function ExportMonthlyStatusPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingTransport, setDownloadingTransport] = useState(false);
   
   // 年月選擇
   const now = new Date();
@@ -119,6 +120,42 @@ export default function ExportMonthlyStatusPage() {
       alert('下載失敗');
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleDownloadTransport = async () => {
+    setDownloadingTransport(true);
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    
+    try {
+      const response = await fetch('/api/export-monthly-status/transport', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      // 下載檔案
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `交通費用_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading transport:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingTransport(false);
     }
   };
 
@@ -246,6 +283,16 @@ export default function ExportMonthlyStatusPage() {
             >
               <FileSpreadsheet size={20} />
               {downloading ? '下載中...' : `下載 Excel (${selectedStoreIds.size} 間門市)`}
+            </button>
+
+            {/* 匯出交通費用按鈕 */}
+            <button
+              onClick={handleDownloadTransport}
+              disabled={downloadingTransport}
+              className="w-full px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+            >
+              <Download size={20} />
+              {downloadingTransport ? '匯出中...' : '匯出交通費用 Excel'}
             </button>
           </div>
 

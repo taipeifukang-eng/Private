@@ -72,6 +72,10 @@ export default function EditStaffStatusPage() {
   
   // 額外任務
   const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
+  
+  // 本月交通費用
+  const [monthlyTransportExpense, setMonthlyTransportExpense] = useState<number>(0);
+  const [transportExpenseNotes, setTransportExpenseNotes] = useState('');
 
   // 計算出的區塊 (前端預覽)
   const [previewBlock, setPreviewBlock] = useState<number>(0);
@@ -148,6 +152,8 @@ export default function EditStaffStatusPage() {
       setSupervisorName(data.supervisor_name || '');
       setSupervisorPosition(data.supervisor_position || '');
       setExtraTasks(data.extra_tasks || []);
+      setMonthlyTransportExpense(data.monthly_transport_expense || 0);
+      setTransportExpenseNotes(data.transport_expense_notes || '');
     } catch (error) {
       console.error('Error:', error);
       alert('載入失敗');
@@ -287,7 +293,9 @@ export default function EditStaffStatusPage() {
         supervisor_employee_code: supervisorEmployeeCode || null,
         supervisor_name: supervisorName || null,
         supervisor_position: supervisorPosition || null,
-        extra_tasks: extraTasks.length > 0 ? extraTasks : null
+        extra_tasks: extraTasks.length > 0 ? extraTasks : null,
+        monthly_transport_expense: monthlyTransportExpense || null,
+        transport_expense_notes: transportExpenseNotes || null
       });
 
       if (result.success) {
@@ -803,9 +811,42 @@ export default function EditStaffStatusPage() {
                 </label>
               ))}
             </div>
-            <p className="text-sm text-gray-500 mt-2">
-              選擇此員工本月有負責的額外任務（可複選）
-            </p>
+          </div>
+
+          {/* 本月交通費用 */}
+          <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
+            <h3 className="text-base font-semibold text-orange-700 mb-4">本月交通費用</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-orange-700 mb-2">
+                  費用金額
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={monthlyTransportExpense}
+                    onChange={(e) => setMonthlyTransportExpense(parseInt(e.target.value) || 0)}
+                    className="w-32 px-4 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                  <span className="text-orange-600">元</span>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-orange-700 mb-2">
+                  備註
+                </label>
+                <textarea
+                  value={transportExpenseNotes}
+                  onChange={(e) => setTransportExpenseNotes(e.target.value)}
+                  rows={2}
+                  className="w-full px-4 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="如有特殊交通費用說明請在此填寫..."
+                />
+              </div>
+            </div>
           </div>
 
           {/* 備註 */}

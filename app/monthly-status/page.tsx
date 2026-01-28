@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
 import { 
@@ -34,8 +34,9 @@ import {
   SPECIAL_ROLE_OPTIONS
 } from '@/types/workflow';
 
-export default function MonthlyStatusPage() {
+function MonthlyStatusContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string>('member');
   const [userDepartment, setUserDepartment] = useState<string>('');
@@ -48,12 +49,17 @@ export default function MonthlyStatusPage() {
   const [showImportStatsModal, setShowImportStatsModal] = useState(false);
   const storeTabsRef = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
-  // 初始化當前年月（使用當前月份）
+  // 初始化當前年月（使用當前月份或 URL 參數）
   useEffect(() => {
-    const now = new Date();
-    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    setSelectedYearMonth(yearMonth);
-  }, []);
+    const urlYearMonth = searchParams.get('year_month');
+    if (urlYearMonth) {
+      setSelectedYearMonth(urlYearMonth);
+    } else {
+      const now = new Date();
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      setSelectedYearMonth(yearMonth);
+    }
+  }, [searchParams]);
 
   // 載入用戶管理的門市
   useEffect(() => {
@@ -89,8 +95,13 @@ export default function MonthlyStatusPage() {
         setUserDepartment(result.department || '');
         setUserJobTitle(result.job_title || '');
         
-        // 自動選擇第一間門市
-        if (result.data?.length === 1) {
+        // 檢查 URL 參數中是否有指定門市
+        const urlStoreId = searchParams.get('store_id');
+        if (urlStoreId && result.data?.some(s => s.id === urlStoreId)) {
+          // 如果 URL 中有指定門市且該門市在管理列表中，則選擇該門市
+          setSelectedStoreId(urlStoreId);
+        } else if (result.data?.length === 1) {
+          // 否則，如果只有一間門市，自動選擇
           setSelectedStoreId(result.data[0].id);
         }
       }
@@ -494,8 +505,9 @@ function StoreStatusDetail({
     if (['admin', 'supervisor', 'area_manager'].includes(userRole)) {
       return true;
     }
-    // 2. 營業部人員（member 或 manager 角色）可以看
-    if (userDepartment?.startsWith('營業') && (userRole === 'member' || userRole === 'manager')) {
+    // 2. 營業部人員（member 或 manager 角色），但不包括需要指派的職位
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
+    if (userDepartment?.startsWith('營業') && (userRole === 'member' || userRole === 'manager') && !needsAssignment) {
       return true;
     }
     return false;
@@ -722,6 +734,31 @@ function StoreStatusDetail({
     }
   };
 
+  const handleRevert = async () => {
+    if (!confirm('確定要恢復此門市的人員狀態？恢復後將回到待填寫狀態，店長可重新編輯。')) {
+      return;
+    }
+
+    setIsConfirming(true);
+    try {
+      const { revertSubmitStatus } = await import('@/app/store/actions');
+      const result = await revertSubmitStatus(yearMonth, store.id);
+      
+      if (result.success) {
+        alert('✅ 已恢復至待填寫狀態');
+        loadStaffStatus();
+        onRefresh();
+      } else {
+        alert(`❌ 恢復失敗: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error reverting:', error);
+      alert('恢復失敗');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   const handleExport = async () => {
     try {
       const { exportMonthlyStatusForBonus } = await import('@/app/store/actions');
@@ -827,6 +864,17 @@ function StoreStatusDetail({
                 storeId={store.id}
                 yearMonth={yearMonth}
                 isReadOnly={false}
+              />
+            </div>
+          )}
+
+          {/* 門市支援時數 - 店長/代理店長/督導可以填寫 */}
+          {(userJobTitle === '店長' || userJobTitle === '代理店長' || userJobTitle === '督導' || userJobTitle === '督導(代理店長)') && !canViewStoreStats() && (
+            <div className="flex-1">
+              <StoreSupportHoursForm
+                storeId={store.id}
+                yearMonth={yearMonth}
+                isReadOnly={storeStatus === 'confirmed'}
               />
             </div>
           )}
@@ -1107,25 +1155,53 @@ function StoreStatusDetail({
             {isSubmitting ? '提交中...' : '送出審核'}
           </button>
         )}
-        {storeStatus === 'submitted' && (userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager') && (
-          <button
-            onClick={handleConfirm}
-            disabled={isConfirming}
-            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
-          >
-            <Check size={18} />
-            {isConfirming ? '確認中...' : '確認審核'}
-          </button>
+        {storeStatus === 'submitted' && (
+          <>
+            {(userRole === 'admin' || userRole === 'area_manager') && (
+              <button
+                onClick={handleRevert}
+                disabled={isConfirming}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw size={18} />
+                {isConfirming ? '處理中...' : '恢復至待填寫'}
+              </button>
+            )}
+            {(userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager') && (
+              <button
+                onClick={handleConfirm}
+                disabled={isConfirming}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
+              >
+                <Check size={18} />
+                {isConfirming ? '確認中...' : '確認審核'}
+              </button>
+            )}
+          </>
         )}
-        {storeStatus === 'confirmed' && (userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager') && (
-          <button
-            onClick={handleUnconfirm}
-            disabled={isConfirming}
-            className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw size={18} />
-            {isConfirming ? '處理中...' : '取消確認'}
-          </button>
+        {storeStatus === 'confirmed' && (
+          <>
+            {(userRole === 'admin' || userRole === 'area_manager') && (
+              <button
+                onClick={handleRevert}
+                disabled={isConfirming}
+                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw size={18} />
+                {isConfirming ? '處理中...' : '恢復至待填寫'}
+              </button>
+            )}
+            {(userRole === 'admin' || userRole === 'area_manager' || (userDepartment === '營業部' && userJobTitle === '助理' && userRole === 'manager')) && (
+              <button
+                onClick={handleUnconfirm}
+                disabled={isConfirming}
+                className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
+              >
+                <RefreshCw size={18} />
+                {isConfirming ? '處理中...' : '取消確認'}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -1190,6 +1266,10 @@ function AddManualEmployeeModal({
   const [partialMonthDays, setPartialMonthDays] = useState<number>(0);
   const [partialMonthNotes, setPartialMonthNotes] = useState('');
   const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
+  
+  // 店長/代理店長支援時數
+  const [supportToOtherStoresHours, setSupportToOtherStoresHours] = useState<number>(0);
+  const [supportFromOtherStoresHours, setSupportFromOtherStoresHours] = useState<number>(0);
 
   // 計算當月天數
   const [year, month] = yearMonth.split('-').map(Number);
@@ -1238,7 +1318,9 @@ function AddManualEmployeeModal({
         partial_month_reason: partialMonthReason || undefined,
         partial_month_days: partialMonthDays || undefined,
         partial_month_notes: partialMonthNotes || undefined,
-        extra_tasks: extraTasks.length > 0 ? extraTasks : undefined
+        extra_tasks: extraTasks.length > 0 ? extraTasks : undefined,
+        support_to_other_stores_hours: supportToOtherStoresHours || undefined,
+        support_from_other_stores_hours: supportFromOtherStoresHours || undefined
       });
 
       if (result.success) {
@@ -1482,6 +1564,51 @@ function AddManualEmployeeModal({
             </div>
           </div>
 
+          {/* 店長/代理店長支援時數 */}
+          {(position === '店長' || position === '代理店長' || position === '督導(代理店長)') && (
+            <div className="bg-purple-50 rounded-lg p-4 space-y-3">
+              <label className="block text-sm font-medium text-purple-700 mb-2">
+                本月支援時數
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-purple-600 mb-1">
+                    支援分店時數
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={supportToOtherStoresHours}
+                      onChange={(e) => setSupportToOtherStoresHours(parseFloat(e.target.value) || 0)}
+                      className="w-24 px-3 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    <span className="text-purple-600 text-sm">小時</span>
+                  </div>
+                  <p className="text-xs text-purple-500 mt-1">去其他分店支援的時數</p>
+                </div>
+                <div>
+                  <label className="block text-xs text-purple-600 mb-1">
+                    分店支援時數
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.5"
+                      value={supportFromOtherStoresHours}
+                      onChange={(e) => setSupportFromOtherStoresHours(parseFloat(e.target.value) || 0)}
+                      className="w-24 px-3 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                    />
+                    <span className="text-purple-600 text-sm">小時</span>
+                  </div>
+                  <p className="text-xs text-purple-500 mt-1">其他分店來支援的時數</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 備註 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
@@ -1538,7 +1665,9 @@ function StoreMonthlyStatsForm({
     total_customer_count: 0,
     prescription_addon_only_count: 0,
     regular_prescription_count: 0,
-    chronic_prescription_count: 0
+    chronic_prescription_count: 0,
+    support_to_other_stores_hours: 0,
+    support_from_other_stores_hours: 0
   });
 
   useEffect(() => {
@@ -1561,7 +1690,9 @@ function StoreMonthlyStatsForm({
           total_customer_count: result.data.total_customer_count || 0,
           prescription_addon_only_count: result.data.prescription_addon_only_count || 0,
           regular_prescription_count: result.data.regular_prescription_count || 0,
-          chronic_prescription_count: result.data.chronic_prescription_count || 0
+          chronic_prescription_count: result.data.chronic_prescription_count || 0,
+          support_to_other_stores_hours: result.data.support_to_other_stores_hours || 0,
+          support_from_other_stores_hours: result.data.support_from_other_stores_hours || 0
         });
       }
     } catch (error) {
@@ -1763,6 +1894,173 @@ function StoreMonthlyStatsForm({
           </div>
         </div>
       </div>
+
+      {/* 支援時數資訊（唯讀顯示，由店長透過另一表單填寫） */}
+      <div className="mt-3 pt-3 border-t border-blue-300">
+        <h4 className="text-xs font-semibold text-purple-700 mb-2">本月支援時數（由店長填寫）</h4>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-600">支援分店時數</label>
+            <div className="w-20 px-2 py-1 border border-purple-200 bg-purple-50 rounded text-xs text-purple-900 text-center">
+              {stats.support_to_other_stores_hours || 0}
+            </div>
+            <span className="text-xs text-purple-600">小時</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <label className="text-xs text-gray-600">分店支援時數</label>
+            <div className="w-20 px-2 py-1 border border-purple-200 bg-purple-50 rounded text-xs text-purple-900 text-center">
+              {stats.support_from_other_stores_hours || 0}
+            </div>
+            <span className="text-xs text-purple-600">小時</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-500 mt-1">此資料由店長透過「本月支援時數」表單填寫</p>
+      </div>
     </div>
+  );
+}
+
+// 門市支援時數表單（獨立組件，供店長/代理店長/督導使用）
+function StoreSupportHoursForm({
+  storeId,
+  yearMonth,
+  isReadOnly
+}: {
+  storeId: string;
+  yearMonth: string;
+  isReadOnly: boolean;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [supportHours, setSupportHours] = useState({
+    support_to_other_stores_hours: 0,
+    support_from_other_stores_hours: 0
+  });
+
+  useEffect(() => {
+    loadSupportHours();
+  }, [storeId, yearMonth]);
+
+  const loadSupportHours = async () => {
+    setLoading(true);
+    try {
+      const { getStoreMonthlySummary } = await import('@/app/store/actions');
+      const result = await getStoreMonthlySummary(yearMonth, storeId);
+      
+      if (result.success && result.data) {
+        setSupportHours({
+          support_to_other_stores_hours: result.data.support_to_other_stores_hours || 0,
+          support_from_other_stores_hours: result.data.support_from_other_stores_hours || 0
+        });
+      }
+    } catch (error) {
+      console.error('Error loading support hours:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { updateStoreMonthlySummary } = await import('@/app/store/actions');
+      const result = await updateStoreMonthlySummary(yearMonth, storeId, supportHours as any);
+      
+      if (result.success) {
+        alert('✅ 已儲存');
+      } else {
+        alert(`❌ 儲存失敗: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error saving support hours:', error);
+      alert('❌ 儲存失敗');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-purple-50 rounded-lg p-4 flex items-center justify-center">
+        <div className="text-purple-600">載入中...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-purple-50 rounded-lg p-4 space-y-3 border-2 border-purple-200">
+      <div className="flex items-center justify-between mb-2">
+        <h3 className="text-sm font-semibold text-purple-800">
+          📊 本月門市支援時數
+        </h3>
+        {!isReadOnly && (
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs font-medium disabled:opacity-50"
+          >
+            {saving ? '儲存中...' : '💾 儲存'}
+          </button>
+        )}
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-lg p-3 border border-purple-200">
+          <label className="block text-xs font-medium text-purple-700 mb-2">
+            支援分店時數
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={supportHours.support_to_other_stores_hours}
+              onChange={(e) => setSupportHours({ 
+                ...supportHours, 
+                support_to_other_stores_hours: parseFloat(e.target.value) || 0 
+              })}
+              disabled={isReadOnly}
+              className="w-24 px-3 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm disabled:bg-gray-100"
+            />
+            <span className="text-purple-600 text-sm font-medium">小時</span>
+          </div>
+          <p className="text-xs text-purple-500 mt-1">本店去其他分店支援</p>
+        </div>
+
+        <div className="bg-white rounded-lg p-3 border border-purple-200">
+          <label className="block text-xs font-medium text-purple-700 mb-2">
+            分店支援時數
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              value={supportHours.support_from_other_stores_hours}
+              onChange={(e) => setSupportHours({ 
+                ...supportHours, 
+                support_from_other_stores_hours: parseFloat(e.target.value) || 0 
+              })}
+              disabled={isReadOnly}
+              className="w-24 px-3 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm disabled:bg-gray-100"
+            />
+            <span className="text-purple-600 text-sm font-medium">小時</span>
+          </div>
+          <p className="text-xs text-purple-500 mt-1">其他分店來本店支援</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function MonthlyStatusPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <div className="text-gray-600">載入中...</div>
+      </div>
+    }>
+      <MonthlyStatusContent />
+    </Suspense>
   );
 }

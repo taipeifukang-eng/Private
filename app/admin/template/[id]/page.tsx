@@ -6,6 +6,8 @@ import { ArrowLeft, FileText, Calendar, User, CheckSquare, Users, Trash2 } from 
 import { WorkflowStep } from '@/types/workflow';
 import DeleteAssignmentButton from '@/components/admin/DeleteAssignmentButton';
 
+export const dynamic = 'force-dynamic';
+
 export default async function TemplateDetailPage({ params }: { params: { id: string } }) {
   const { user } = await getCurrentUser();
 

@@ -46,11 +46,14 @@ export default function Navbar({ user }: NavbarProps) {
   const storeMenuRef = useRef<HTMLDivElement>(null);
   const monthlyStatusMenuRef = useRef<HTMLDivElement>(null);
 
-  // 判斷是否為營業部助理（部門=營業X部，角色=member）
-  const isBusinessAssistant = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'member';
+  // 判斷是否為需要指派的職位（督導、店長、代理店長等）
+  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(user?.profile?.job_title || '');
+
+  // 判斷是否為營業部助理（部門=營業X部，角色=member，但不是需要指派的職位）
+  const isBusinessAssistant = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'member' && !needsAssignment;
   
-  // 判斷是否為營業部主管（部門=營業X部，角色=manager）
-  const isBusinessSupervisor = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'manager';
+  // 判斷是否為營業部主管（部門=營業X部，角色=manager，但不是需要指派的職位）
+  const isBusinessSupervisor = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'manager' && !needsAssignment;
 
   // 點擊外部關閉下拉選單
   useEffect(() => {

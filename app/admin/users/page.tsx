@@ -3,6 +3,8 @@ import { Users, UserPlus, Shield, User as UserIcon } from 'lucide-react';
 import Link from 'next/link';
 import UserManagementTable from '@/components/admin/UserManagementTable';
 
+export const dynamic = 'force-dynamic';
+
 export default async function UsersManagementPage() {
   const result = await getAllUsers();
   const users = result.success ? result.data : [];

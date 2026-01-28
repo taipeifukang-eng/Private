@@ -30,8 +30,10 @@ export async function GET(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.job_title === '主管';
-    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
+    // 權限：admin 或營業部的 manager（但不包括需要指派的職位）
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    const isBusinessManager = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
+    if (!profile || (profile.role !== 'admin' && !isBusinessManager)) {
       return NextResponse.json(
         { success: false, error: '權限不足' },
         { status: 403 }

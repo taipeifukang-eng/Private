@@ -4,6 +4,8 @@ import Link from 'next/link';
 import type { Template } from '@/types/workflow';
 import TemplateCardWithStats from '@/components/admin/TemplateCardWithStats';
 
+export const dynamic = 'force-dynamic';
+
 export default async function TemplatesPage() {
   const result = await getTemplates();
   const templates = result.success ? result.data : [];

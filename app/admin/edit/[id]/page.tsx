@@ -2,6 +2,8 @@ import { getTemplates, getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import WorkflowBuilder from '@/components/admin/WorkflowBuilder';
 
+export const dynamic = 'force-dynamic';
+
 export default async function EditTemplatePage({ params }: { params: { id: string } }) {
   const result = await getTemplates();
   const templates = result.success ? result.data : [];

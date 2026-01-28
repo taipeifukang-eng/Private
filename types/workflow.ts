@@ -200,6 +200,10 @@ export interface MonthlyStaffStatus {
   // 特殊身分
   extra_tasks: ExtraTask[] | null;
   
+  // 交通費用
+  monthly_transport_expense: number | null;
+  transport_expense_notes: string | null;
+  
   // 舊有特殊標記
   is_dual_position: boolean;
   has_manager_bonus: boolean;
@@ -276,6 +280,10 @@ export interface MonthlyStoreSummary {
   prescription_addon_only_count: number | null;
   regular_prescription_count: number | null;
   chronic_prescription_count: number | null;
+  
+  // 門市支援時數
+  support_to_other_stores_hours: number | null;  // 本店人員去其他分店支援的總時數
+  support_from_other_stores_hours: number | null; // 其他分店來本店支援的總時數
   
   submitted_at: string | null;
   submitted_by: string | null;
