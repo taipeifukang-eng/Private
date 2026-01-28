@@ -375,7 +375,15 @@ export default function StoreManagersPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {assignments.map((assignment) => {
+                {assignments
+                  .sort((a, b) => {
+                    const storeA = stores.find(s => s.id === a.store_id);
+                    const storeB = stores.find(s => s.id === b.store_id);
+                    const codeA = storeA?.store_code || '';
+                    const codeB = storeB?.store_code || '';
+                    return codeA.localeCompare(codeB);
+                  })
+                  .map((assignment) => {
                   const store = stores.find(s => s.id === assignment.store_id);
                   return (
                     <div
