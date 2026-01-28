@@ -165,6 +165,9 @@ export async function POST(request: NextRequest) {
 
       // 當月個人實際毛利（四捨五入到整數）
       const grossProfit = record.gross_profit ? Math.round(record.gross_profit) : '';
+      
+      // 時數：如果有外務實上規劃時數則使用該時數，否則使用一般工作時數
+      const hours = record.extra_task_planned_hours || record.work_hours || '';
 
       return {
         '門市代碼': record.stores?.store_code || '',
@@ -175,7 +178,7 @@ export async function POST(request: NextRequest) {
         '職位': positionName,
         '階段': stage, // 第7欄：階段
         '當月個人實際毛利': grossProfit, // 第8欄：當月個人實際毛利
-        '時數': record.work_hours || '', // 使用正確的欄位名稱
+        '時數': hours, // 優先使用外務實上規劃時數
         '天數(含休假)': workDays // 只在未上滿整月時顯示
       };
     });
