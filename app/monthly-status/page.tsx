@@ -989,9 +989,11 @@ function StoreStatusDetail({
                 <td className="px-4 py-3 text-sm text-gray-700">
                   {staff.supervisor_shift_hours && staff.supervisor_shift_hours > 0
                     ? `${staff.supervisor_shift_hours} 小時`
-                    : staff.employment_type === 'full_time' 
-                      ? `${staff.work_days || 0}/${staff.total_days_in_month} 天`
-                      : `${staff.work_hours || 0} 小時`
+                    : staff.extra_task_planned_hours && staff.extra_task_planned_hours > 0
+                      ? `${staff.extra_task_planned_hours} 小時`
+                      : staff.employment_type === 'full_time' 
+                        ? `${staff.work_days || 0}/${staff.total_days_in_month} 天`
+                        : `${staff.work_hours || 0} 小時`
                   }
                 </td>
                 <td className="px-4 py-3">
