@@ -1001,11 +1001,11 @@ export async function revertSubmitStatus(yearMonth: string, storeId: string) {
       return { success: false, error: '權限不足，只有經理或管理員可以恢復提交狀態' };
     }
 
-    // 將所有該門市該月的狀態從 submitted 改回 in_progress
+    // 將所有該門市該月的狀態從 submitted 改回 draft
     const { error: statusError } = await supabase
       .from('monthly_staff_status')
       .update({
-        status: 'in_progress',
+        status: 'draft',
         submitted_at: null,
         submitted_by: null
       })
