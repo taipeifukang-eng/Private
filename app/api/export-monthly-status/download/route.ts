@@ -168,6 +168,9 @@ export async function POST(request: NextRequest) {
       
       // 時數：如果有外務實上規劃時數則使用該時數，否則使用一般工作時數
       const hours = record.extra_task_planned_hours || record.work_hours || '';
+      
+      // 外務時數：如果有外務時數則顯示
+      const externalHours = record.extra_task_external_hours || '';
 
       return {
         '門市代碼': record.stores?.store_code || '',
@@ -179,7 +182,8 @@ export async function POST(request: NextRequest) {
         '階段': stage, // 第7欄：階段
         '當月個人實際毛利': grossProfit, // 第8欄：當月個人實際毛利
         '時數': hours, // 優先使用外務實上規劃時數
-        '天數(含休假)': workDays // 只在未上滿整月時顯示
+        '天數(含休假)': workDays, // 只在未上滿整月時顯示
+        '外務時數': externalHours // 第11欄：外務時數
       };
     });
 
@@ -198,7 +202,8 @@ export async function POST(request: NextRequest) {
       { wch: 15 }, // 階段
       { wch: 18 }, // 當月個人實際毛利
       { wch: 8 },  // 時數
-      { wch: 8 }   // 天數
+      { wch: 8 },  // 天數
+      { wch: 10 }  // 外務時數
     ];
     worksheet['!cols'] = columnWidths;
 

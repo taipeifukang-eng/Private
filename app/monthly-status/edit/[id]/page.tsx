@@ -116,6 +116,28 @@ export default function EditStaffStatusPage() {
     calculateBlock();
   }, [position, monthlyStatus, isDualPosition, isSupervisorRotation, employmentType, staffStatus?.is_pharmacist, workDays]);
 
+  // 自動計算「該店規劃實上時數」當選擇額外任務時
+  useEffect(() => {
+    if (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) {
+      let calculatedHours = 0;
+      
+      // 1. 如果是正職整月任職則就算160小時
+      if (employmentType === 'full_time' && monthlyStatus === 'full_month') {
+        calculatedHours = 160;
+      }
+      // 2. 如果有選督導(代理店長)-雙，原本就會填入本月上班時數
+      else if (position.includes('督導') && position.includes('代理店長') && isDualPosition) {
+        calculatedHours = workHours || 0;
+      }
+      // 3. 如果有填入本月工作天數不滿(則代表有其他狀況)則要用天數計算上班時數→時數計算方式為:上班天數/5*32
+      else if (employmentType === 'full_time' && monthlyStatus !== 'full_month' && workDays > 0) {
+        calculatedHours = Math.round((workDays / 5 * 32) * 10) / 10; // 保留一位小數
+      }
+      
+      setExtraTaskPlannedHours(calculatedHours);
+    }
+  }, [extraTasks, employmentType, monthlyStatus, workDays, workHours, position, isDualPosition]);
+
   const loadStaffStatus = async () => {
     try {
       const supabase = (await import('@/lib/supabase/client')).createClient();
@@ -841,16 +863,16 @@ export default function EditStaffStatusPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-green-700 mb-1">
-                      該店規劃實上時數
+                      該店規劃實上時數（自動計算）
                     </label>
                     <input
                       type="number"
                       min="0"
                       step="0.5"
                       value={extraTaskPlannedHours}
-                      onChange={(e) => setExtraTaskPlannedHours(parseFloat(e.target.value) || 0)}
-                      className="w-full px-4 py-2 border border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                      placeholder="實上時數"
+                      readOnly
+                      className="w-full px-4 py-2 border border-green-300 rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                      placeholder="自動計算"
                     />
                   </div>
                   <div>
