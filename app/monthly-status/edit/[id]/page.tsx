@@ -121,13 +121,13 @@ export default function EditStaffStatusPage() {
     if (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) {
       let calculatedHours = 0;
       
-      // 1. 如果是正職整月任職則就算160小時
-      if (employmentType === 'full_time' && monthlyStatus === 'full_month') {
-        calculatedHours = 160;
-      }
-      // 2. 如果有選督導(代理店長)-雙，原本就會填入本月上班時數
-      else if (position.includes('督導') && position.includes('代理店長') && isDualPosition) {
+      // 1. 如果選擇督導(代理店長)職位，或是督導+代理店長且為雙職，使用本月上班時數
+      if (position === '督導(代理店長)' || (position.includes('督導') && position.includes('代理店長') && isDualPosition)) {
         calculatedHours = workHours || 0;
+      }
+      // 2. 如果是正職整月任職則就算160小時
+      else if (employmentType === 'full_time' && monthlyStatus === 'full_month') {
+        calculatedHours = 160;
       }
       // 3. 如果有填入本月工作天數不滿(則代表有其他狀況)則要用天數計算上班時數→時數計算方式為:上班天數/5*32
       else if (employmentType === 'full_time' && monthlyStatus !== 'full_month' && workDays > 0) {
