@@ -724,8 +724,8 @@ export async function updateStaffStatus(
   updates: Partial<{
     employment_type: 'full_time' | 'part_time';
     monthly_status: MonthlyStatusType;
-    work_days: number;
-    work_hours: number;
+    work_days: number | null;
+    work_hours: number | null;
     is_dual_position: boolean;
     has_manager_bonus: boolean;
     is_supervisor_rotation: boolean;
