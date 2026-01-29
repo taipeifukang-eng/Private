@@ -104,10 +104,13 @@ export default function Navbar({ user }: NavbarProps) {
   // 派發任務相關的子選單項目
   const taskSubItems = [
     { href: '/my-tasks', label: '我的任務', icon: ClipboardList, roles: ['admin', 'manager', 'member'] },
-    { href: '/dashboard', label: '儀表板', icon: LayoutDashboard, roles: ['admin', 'manager'] },
-    { href: '/admin/templates', label: '任務管理', icon: FileText, roles: ['admin', 'manager'] },
-    { href: '/admin/archived', label: '已封存任務', icon: Archive, roles: ['admin', 'manager'] },
-  ].filter(item => item.roles.includes(role));
+    { href: '/dashboard', label: '儀表板', icon: LayoutDashboard, roles: ['admin', 'manager'], allowBusinessAssistant: true },
+    { href: '/admin/templates', label: '任務管理', icon: FileText, roles: ['admin', 'manager'], allowBusinessAssistant: true },
+    { href: '/admin/archived', label: '已封存任務', icon: Archive, roles: ['admin', 'manager'], allowBusinessAssistant: true },
+  ].filter(item => 
+    item.roles.includes(role) || 
+    (item.allowBusinessAssistant && isBusinessAssistant)
+  );
 
   // 門市管理相關的子選單項目
   const storeSubItems = [
