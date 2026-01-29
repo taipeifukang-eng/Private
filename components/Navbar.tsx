@@ -94,6 +94,13 @@ export default function Navbar({ user }: NavbarProps) {
     return 'bg-gray-100 text-gray-800';
   };
 
+  // 格式化職稱顯示
+  const formatJobTitle = (jobTitle: string | null | undefined) => {
+    const title = jobTitle || '使用者';
+    const isHighPosition = title.includes('經理') || title.includes('督導') || title.includes('店長');
+    return isHighPosition ? `親愛的${title}大人` : `親愛的${title}`;
+  };
+
   // 派發任務相關的子選單項目
   const taskSubItems = [
     { href: '/my-tasks', label: '我的任務', icon: ClipboardList, roles: ['admin', 'manager', 'member'] },
@@ -336,7 +343,7 @@ export default function Navbar({ user }: NavbarProps) {
                 </div>
                 <div className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${getRoleBgColor()}`}>
                   {getRoleIcon()}
-                  親愛的{user.profile?.job_title || '使用者'}大人
+                  {formatJobTitle(user.profile?.job_title)}
                 </div>
               </div>
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
@@ -379,7 +386,7 @@ export default function Navbar({ user }: NavbarProps) {
                   </div>
                   <div className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1 ${getRoleBgColor()}`}>
                     {getRoleIcon()}
-                    親愛的{user.profile?.job_title || '使用者'}大人
+                    {formatJobTitle(user.profile?.job_title)}
                   </div>
                 </div>
               </div>
