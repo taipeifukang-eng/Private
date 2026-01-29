@@ -336,7 +336,7 @@ export default function Navbar({ user }: NavbarProps) {
                 </div>
                 <div className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${getRoleBgColor()}`}>
                   {getRoleIcon()}
-                  {getRoleLabel()}
+                  親愛的{user.profile?.job_title || '使用者'}大人
                 </div>
               </div>
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
@@ -379,7 +379,7 @@ export default function Navbar({ user }: NavbarProps) {
                   </div>
                   <div className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1 ${getRoleBgColor()}`}>
                     {getRoleIcon()}
-                    {getRoleLabel()}
+                    親愛的{user.profile?.job_title || '使用者'}大人
                   </div>
                 </div>
               </div>
