@@ -446,7 +446,12 @@ export default function StoreManagersPage() {
                   }, {} as Record<string, { userId: string; userName: string; employeeCode: string | null; storeIds: string[] }>);
 
                   return Object.values(groupedByUser)
-                    .sort((a, b) => a.userName.localeCompare(b.userName))
+                    .sort((a, b) => {
+                      // 優先用員工編號排序，沒有編號的排在後面
+                      const codeA = a.employeeCode || 'ZZZZZ';
+                      const codeB = b.employeeCode || 'ZZZZZ';
+                      return codeA.localeCompare(codeB);
+                    })
                     .map((group) => (
                       <div
                         key={group.userId}
@@ -454,9 +459,11 @@ export default function StoreManagersPage() {
                       >
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex-1">
-                            <div className="font-semibold text-gray-900">
-                              {group.userName}
-                              {group.employeeCode && ` (${group.employeeCode})`}
+                            <div className="font-semibold text-gray-900 flex items-center gap-2">
+                              {group.employeeCode && (
+                                <span className="text-blue-600 font-mono">{group.employeeCode}</span>
+                              )}
+                              <span>{group.userName}</span>
                             </div>
                             <div className="text-sm text-gray-500 mt-1">
                               管理 {group.storeIds.length} 間門市
