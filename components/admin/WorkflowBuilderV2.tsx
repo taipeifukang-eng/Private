@@ -12,6 +12,7 @@ interface User {
   full_name: string | null;
   job_title: string | null;
   department: string | null;
+  employee_code: string | null;
 }
 
 interface WorkflowBuilderV2Props {
@@ -320,6 +321,18 @@ export default function WorkflowBuilderV2({
 
   const currentSection = sections[activeSectionIndex];
   const departmentUsers = currentSection ? getUsersForDepartment(currentSection.department) : [];
+  
+  // 根據搜尋關鍵字過濾人員
+  const filteredDepartmentUsers = departmentUsers.filter(user => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      user.full_name?.toLowerCase().includes(query) ||
+      user.email?.toLowerCase().includes(query) ||
+      user.employee_code?.toLowerCase().includes(query) ||
+      user.job_title?.toLowerCase().includes(query)
+    );
+  });
 
   if (isLoadingData) {
     return (
@@ -504,29 +517,49 @@ export default function WorkflowBuilderV2({
                           ⚠️ 此部門目前沒有成員，請先在「使用者管理」中設定員工部門
                         </p>
                       ) : (
-                        <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
-                          {departmentUsers.map(user => (
-                            <label
-                              key={user.id}
-                              className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={currentSection.assigned_users.includes(user.id)}
-                                onChange={() => toggleUserInSection(activeSectionIndex, user.id)}
-                                className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
-                              />
-                              <div className="flex-1">
-                                <div className="font-medium text-gray-900">
-                                  {user.job_title || user.full_name || user.email}
-                                </div>
-                                {(user.job_title || user.full_name) && (
-                                  <div className="text-sm text-gray-500">{user.email}</div>
-                                )}
+                        <>
+                          {/* 搜尋框 */}
+                          <div className="mb-3">
+                            <input
+                              type="text"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              placeholder="搜尋姓名、Email、員工代號或職位..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                            />
+                          </div>
+                          
+                          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg bg-white">
+                            {filteredDepartmentUsers.length === 0 ? (
+                              <div className="p-4 text-center text-gray-500 text-sm">
+                                找不到符合「{searchQuery}」的人員
                               </div>
-                            </label>
-                          ))}
-                        </div>
+                            ) : (
+                              filteredDepartmentUsers.map(user => (
+                                <label
+                                  key={user.id}
+                                  className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={currentSection.assigned_users.includes(user.id)}
+                                    onChange={() => toggleUserInSection(activeSectionIndex, user.id)}
+                                    className="w-4 h-4 text-green-600 rounded focus:ring-2 focus:ring-green-500"
+                                  />
+                                  <div className="flex-1">
+                                    <div className="font-medium text-gray-900">
+                                      {user.full_name || user.email}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      {user.employee_code && <span className="mr-2">{user.employee_code}</span>}
+                                      {user.job_title && <span>{user.job_title}</span>}
+                                    </div>
+                                  </div>
+                                </label>
+                              ))
+                            )}
+                          </div>
+                        </>
                       )}
                     </div>
                   )}
