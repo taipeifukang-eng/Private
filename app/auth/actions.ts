@@ -113,14 +113,15 @@ export async function getAllUsers() {
   try {
     const supabase = createClient();
 
-    // Check if current user is admin or manager
+    // Check if current user is authenticated
     const currentUser = await getCurrentUser();
     const userRole = currentUser.user?.profile?.role;
     
-    if (!currentUser.success || (userRole !== 'admin' && userRole !== 'manager')) {
-      return { success: false, error: '權限不足', data: [] };
+    if (!currentUser.success) {
+      return { success: false, error: '請先登入', data: [] };
     }
 
+    // 只要是已登入的使用者都可以獲取用戶列表（用於任務指派等功能）
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
