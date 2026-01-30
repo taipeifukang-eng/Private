@@ -447,9 +447,17 @@ export default function StoreManagersPage() {
 
                   return Object.values(groupedByUser)
                     .sort((a, b) => {
-                      // 優先用員工編號排序，沒有編號的排在後面
-                      const codeA = a.employeeCode || 'ZZZZZ';
-                      const codeB = b.employeeCode || 'ZZZZZ';
+                      // 找出每個店長管理的門市中代號最小的（第一個）
+                      const getFirstStoreCode = (storeIds: string[]) => {
+                        const storeCodes = storeIds
+                          .map(id => stores.find(s => s.id === id)?.store_code)
+                          .filter(Boolean)
+                          .sort();
+                        return storeCodes[0] || 'ZZZZZ';
+                      };
+                      
+                      const codeA = getFirstStoreCode(a.storeIds);
+                      const codeB = getFirstStoreCode(b.storeIds);
                       return codeA.localeCompare(codeB);
                     })
                     .map((group) => (
