@@ -1185,7 +1185,7 @@ function StoreStatusDetail({
         )}
         {storeStatus === 'submitted' && (
           <>
-            {(userRole === 'admin' || userRole === 'area_manager') && (
+            {(userRole === 'admin' || userRole === 'area_manager' || userRole === 'store_manager') && (
               <button
                 onClick={handleRevert}
                 disabled={isConfirming}
@@ -1209,7 +1209,7 @@ function StoreStatusDetail({
         )}
         {storeStatus === 'confirmed' && (
           <>
-            {(userRole === 'admin' || userRole === 'area_manager') && (
+            {(userRole === 'admin' || userRole === 'area_manager' || userRole === 'store_manager') && (
               <button
                 onClick={handleRevert}
                 disabled={isConfirming}
