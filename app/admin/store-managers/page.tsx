@@ -23,6 +23,7 @@ interface StoreManagerAssignment {
   user_id: string;
   user_name: string;
   employee_code: string | null;
+  store_ids?: string[]; // 一個店長管理的所有門市ID列表
 }
 
 export default function StoreManagersPage() {
@@ -38,22 +39,24 @@ export default function StoreManagersPage() {
   
   // 門市相關
   const [stores, setStores] = useState<StoreData[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const [selectedStoreIds, setSelectedStoreIds] = useState<string[]>([]); // 改為複數，支援多選
   
   // 現有指派
   const [assignments, setAssignments] = useState<StoreManagerAssignment[]>([]);
-  const [currentAssignment, setCurrentAssignment] = useState<string | null>(null); // 該店長目前管理的門市ID
+  const [currentAssignments, setCurrentAssignments] = useState<string[]>([]); // 該店長目前管理的門市ID列表
 
   useEffect(() => {
     loadData();
   }, []);
 
   useEffect(() => {
-    // 當選擇店長後，查找其當前管理的門市
+    // 當選擇店長後，查找其當前管理的所有門市
     if (selectedManager) {
-      const existing = assignments.find(a => a.user_id === selectedManager.id);
-      setCurrentAssignment(existing?.store_id || null);
-      setSelectedStoreId(existing?.store_id || '');
+      const managerStores = assignments
+        .filter(a => a.user_id === selectedManager.id)
+        .map(a => a.store_id);
+      setCurrentAssignments(managerStores);
+      setSelectedStoreIds(managerStores);
     }
   }, [selectedManager, assignments]);
 
@@ -132,8 +135,8 @@ export default function StoreManagersPage() {
   const handleClearSelection = () => {
     setSelectedManager(null);
     setSearchTerm('');
-    setSelectedStoreId('');
-    setCurrentAssignment(null);
+    setSelectedStoreIds([]);
+    setCurrentAssignments([]);
   };
 
   const handleSave = async () => {
@@ -142,8 +145,8 @@ export default function StoreManagersPage() {
       return;
     }
 
-    if (!selectedStoreId) {
-      alert('請選擇門市');
+    if (selectedStoreIds.length === 0) {
+      alert('請至少選擇一個門市');
       return;
     }
 
@@ -154,7 +157,7 @@ export default function StoreManagersPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: selectedManager.id,
-          storeId: selectedStoreId
+          storeIds: selectedStoreIds // 傳送門市ID陣列
         })
       });
 
@@ -175,18 +178,23 @@ export default function StoreManagersPage() {
     }
   };
 
-  const handleRemoveAssignment = async (userId: string) => {
-    if (!confirm('確定要移除此店長的指派嗎？')) {
+  const handleRemoveAssignment = async (userId: string, storeId?: string) => {
+    // 如果指定 storeId，只移除該門市；否則移除所有門市
+    const confirmMsg = storeId 
+      ? '確定要移除此店長對該門市的指派嗎？'
+      : '確定要移除此店長的所有指派嗎？';
+    
+    if (!confirm(confirmMsg)) {
       return;
     }
 
     try {
       const response = await fetch('/api/store-managers/assign', {
-        method: 'POST',
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: userId,
-          storeId: null // null 表示移除指派
+          storeId: storeId || null // null 表示移除所有指派
         })
       });
 
@@ -202,6 +210,18 @@ export default function StoreManagersPage() {
       console.error('Error removing assignment:', error);
       alert('移除失敗');
     }
+  };
+
+  const handleToggleStore = (storeId: string) => {
+    setSelectedStoreIds(prev => {
+      if (prev.includes(storeId)) {
+        // 如果已選擇，則移除
+        return prev.filter(id => id !== storeId);
+      } else {
+        // 如果未選擇，則新增
+        return [...prev, storeId];
+      }
+    });
   };
 
   const filteredUsers = users.filter(user => {
@@ -309,10 +329,20 @@ export default function StoreManagersPage() {
                       {selectedManager.employee_code || '無員編'} · {selectedManager.job_title || '無職稱'}
                     </div>
                   </div>
-                  {currentAssignment && (
+                  {currentAssignments.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-blue-300">
-                      <div className="text-xs text-blue-600">
-                        目前管理：{stores.find(s => s.id === currentAssignment)?.store_name || '未知門市'}
+                      <div className="text-xs text-blue-600 font-medium mb-1">
+                        目前管理 {currentAssignments.length} 間門市：
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {currentAssignments.map(storeId => {
+                          const store = stores.find(s => s.id === storeId);
+                          return store ? (
+                            <span key={storeId} className="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded">
+                              {store.store_code}
+                            </span>
+                          ) : null;
+                        })}
                       </div>
                     </div>
                   )}
@@ -321,42 +351,66 @@ export default function StoreManagersPage() {
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     <Store size={16} className="inline mr-2" />
-                    指派門市
+                    指派門市 (可複選)
                   </label>
-                  <select
-                    value={selectedStoreId}
-                    onChange={(e) => setSelectedStoreId(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">-- 請選擇門市 --</option>
+                  <div className="border border-gray-300 rounded-lg max-h-60 overflow-y-auto">
                     {stores.map((store) => {
-                      const hasManager = assignments.find(a => a.store_id === store.id);
+                      const isSelected = selectedStoreIds.includes(store.id);
+                      const otherManager = assignments.find(
+                        a => a.store_id === store.id && a.user_id !== selectedManager.id
+                      );
+                      
                       return (
-                        <option key={store.id} value={store.id}>
-                          {store.store_code} - {store.store_name}
-                          {hasManager && hasManager.user_id !== selectedManager.id ? ` (已有店長: ${hasManager.user_name})` : ''}
-                        </option>
+                        <label
+                          key={store.id}
+                          className={`flex items-center px-3 py-2 border-b border-gray-200 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors ${
+                            isSelected ? 'bg-blue-50' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleToggleStore(store.id)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <div className="ml-3 flex-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {store.store_code} - {store.store_name}
+                            </div>
+                            {otherManager && (
+                              <div className="text-xs text-amber-600">
+                                已有店長: {otherManager.user_name}
+                              </div>
+                            )}
+                          </div>
+                        </label>
                       );
                     })}
-                  </select>
+                  </div>
+                  {selectedStoreIds.length > 0 && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      已選擇 {selectedStoreIds.length} 間門市
+                    </div>
+                  )}
                 </div>
 
-                {currentAssignment && currentAssignment !== selectedStoreId && selectedStoreId && (
+                {currentAssignments.length > 0 && 
+                 JSON.stringify([...currentAssignments].sort()) !== JSON.stringify([...selectedStoreIds].sort()) && (
                   <div className="mb-6 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
                     <AlertCircle size={16} className="text-yellow-600 mt-0.5" />
                     <div className="text-sm text-yellow-800">
-                      注意：此操作會將店長從原門市移除，並指派到新門市。
+                      注意：此操作會更新店長的門市指派關係。
                     </div>
                   </div>
                 )}
 
                 <button
                   onClick={handleSave}
-                  disabled={saving || !selectedStoreId}
+                  disabled={saving || selectedStoreIds.length === 0}
                   className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <Save size={20} />
-                  {saving ? '儲存中...' : currentAssignment === selectedStoreId ? '更新指派' : '儲存指派'}
+                  {saving ? '儲存中...' : '儲存指派'}
                 </button>
               </>
             )}
@@ -365,7 +419,7 @@ export default function StoreManagersPage() {
           {/* 右側：現有指派列表 */}
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">
-              現有店長指派 ({assignments.length})
+              現有店長指派
             </h2>
 
             {assignments.length === 0 ? (
@@ -374,43 +428,79 @@ export default function StoreManagersPage() {
                 <p>尚無店長指派</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {assignments
-                  .sort((a, b) => {
-                    const storeA = stores.find(s => s.id === a.store_id);
-                    const storeB = stores.find(s => s.id === b.store_id);
-                    const codeA = storeA?.store_code || '';
-                    const codeB = storeB?.store_code || '';
-                    return codeA.localeCompare(codeB);
-                  })
-                  .map((assignment) => {
-                  const store = stores.find(s => s.id === assignment.store_id);
-                  return (
-                    <div
-                      key={assignment.user_id}
-                      className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="font-semibold text-gray-900">
-                            {store?.store_code} - {store?.store_name}
+              <div className="space-y-4">
+                {/* 按店長分組顯示 */}
+                {(() => {
+                  // 將 assignments 按 user_id 分組
+                  const groupedByUser = assignments.reduce((acc, assignment) => {
+                    if (!acc[assignment.user_id]) {
+                      acc[assignment.user_id] = {
+                        userId: assignment.user_id,
+                        userName: assignment.user_name,
+                        employeeCode: assignment.employee_code,
+                        storeIds: []
+                      };
+                    }
+                    acc[assignment.user_id].storeIds.push(assignment.store_id);
+                    return acc;
+                  }, {} as Record<string, { userId: string; userName: string; employeeCode: string | null; storeIds: string[] }>);
+
+                  return Object.values(groupedByUser)
+                    .sort((a, b) => a.userName.localeCompare(b.userName))
+                    .map((group) => (
+                      <div
+                        key={group.userId}
+                        className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="font-semibold text-gray-900">
+                              {group.userName}
+                              {group.employeeCode && ` (${group.employeeCode})`}
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              管理 {group.storeIds.length} 間門市
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            店長：{assignment.user_name}
-                            {assignment.employee_code && ` (${assignment.employee_code})`}
-                          </div>
+                          <button
+                            onClick={() => handleRemoveAssignment(group.userId)}
+                            className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="移除所有指派"
+                          >
+                            <X size={18} />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handleRemoveAssignment(assignment.user_id)}
-                          className="ml-4 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="移除指派"
-                        >
-                          <X size={18} />
-                        </button>
+                        
+                        {/* 門市列表 */}
+                        <div className="space-y-2">
+                          {group.storeIds
+                            .map(storeId => stores.find(s => s.id === storeId))
+                            .filter(Boolean)
+                            .sort((a, b) => a!.store_code.localeCompare(b!.store_code))
+                            .map((store) => (
+                              <div
+                                key={store!.id}
+                                className="flex items-center justify-between p-2 bg-gray-50 rounded text-sm"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Store size={14} className="text-gray-400" />
+                                  <span className="text-gray-700">
+                                    {store!.store_code} - {store!.store_name}
+                                  </span>
+                                </div>
+                                <button
+                                  onClick={() => handleRemoveAssignment(group.userId, store!.id)}
+                                  className="p-1 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                  title="移除此門市"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            ))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    ));
+                })()}
               </div>
             )}
           </div>
