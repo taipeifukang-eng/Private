@@ -33,6 +33,16 @@ const MEAL_PERIODS = [
   { value: '晚晚餐', label: '晚晚餐 (21:00-21:30) (S班)' }
 ];
 
+interface BatchRecord {
+  id: string;
+  date: string;
+  employeeCode: string;
+  employeeName: string;
+  workHours: string;
+  mealPeriod: string;
+  employeeType: string;
+}
+
 export default function MealAllowanceModal({ 
   isOpen, 
   onClose, 
@@ -45,13 +55,18 @@ export default function MealAllowanceModal({
   const [records, setRecords] = useState<MealAllowanceRecord[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   
-  // 新增記錄的表單
-  const [formDate, setFormDate] = useState('');
-  const [formEmployeeCode, setFormEmployeeCode] = useState('');
-  const [formEmployeeName, setFormEmployeeName] = useState('');
-  const [formWorkHours, setFormWorkHours] = useState('');
-  const [formMealPeriod, setFormMealPeriod] = useState('');
-  const [formEmployeeType, setFormEmployeeType] = useState('');
+  // 批次新增的記錄列表
+  const [batchRecords, setBatchRecords] = useState<BatchRecord[]>([
+    {
+      id: Date.now().toString(),
+      date: '',
+      employeeCode: '',
+      employeeName: '',
+      workHours: '',
+      mealPeriod: '',
+      employeeType: ''
+    }
+  ]);
 
   useEffect(() => {
     if (isOpen) {
@@ -104,68 +119,115 @@ export default function MealAllowanceModal({
     }
   };
 
-  const handleEmployeeChange = (employeeCode: string) => {
-    setFormEmployeeCode(employeeCode);
-    
+  const handleEmployeeChange = (index: number, employeeCode: string) => {
     const employee = employees.find(e => e.employee_code === employeeCode);
-    if (employee) {
-      setFormEmployeeName(employee.employee_name);
-      setFormEmployeeType(employee.is_pharmacist ? '藥師' : '非藥師');
-    } else {
-      setFormEmployeeName('');
-      setFormEmployeeType('');
-    }
+    const updatedRecords = [...batchRecords];
+    updatedRecords[index] = {
+      ...updatedRecords[index],
+      employeeCode,
+      employeeName: employee?.employee_name || '',
+      employeeType: employee ? (employee.is_pharmacist ? '藥師' : '非藥師') : ''
+    };
+    setBatchRecords(updatedRecords);
   };
 
-  const handleAddRecord = async () => {
-    if (!formDate || !formEmployeeName || !formWorkHours || !formMealPeriod || !formEmployeeType) {
-      alert('請填寫所有必填欄位');
+  const updateBatchRecord = (index: number, field: keyof BatchRecord, value: string) => {
+    const updatedRecords = [...batchRecords];
+    updatedRecords[index] = {
+      ...updatedRecords[index],
+      [field]: value
+    };
+    setBatchRecords(updatedRecords);
+  };
+
+  const addNewBatchRecord = () => {
+    setBatchRecords([
+      ...batchRecords,
+      {
+        id: Date.now().toString(),
+        date: '',
+        employeeCode: '',
+        employeeName: '',
+        workHours: '',
+        mealPeriod: '',
+        employeeType: ''
+      }
+    ]);
+  };
+
+  const removeBatchRecord = (index: number) => {
+    if (batchRecords.length === 1) {
+      alert('至少需要保留一筆記錄');
+      return;
+    }
+    const updatedRecords = batchRecords.filter((_, i) => i !== index);
+    setBatchRecords(updatedRecords);
+  };
+
+  const handleBatchAdd = async () => {
+    // 驗證所有記錄
+    const validRecords = batchRecords.filter(record => 
+      record.date && record.employeeName && record.workHours && record.mealPeriod && record.employeeType
+    );
+
+    if (validRecords.length === 0) {
+      alert('請至少填寫一筆完整的記錄');
       return;
     }
 
-    // 驗證上班區間格式
+    // 驗證時間格式
     const timePattern = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
-    if (!timePattern.test(formWorkHours)) {
-      alert('上班區間格式錯誤，請使用 HH:MM-HH:MM 格式');
+    const invalidTimeRecords = validRecords.filter(record => !timePattern.test(record.workHours));
+    if (invalidTimeRecords.length > 0) {
+      alert('部分記錄的上班區間格式錯誤，請使用 HH:MM-HH:MM 格式');
       return;
     }
 
     setSaving(true);
     try {
-      const response = await fetch('/api/meal-allowance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          year_month: yearMonth,
-          store_id: storeId,
-          record_date: formDate,
-          employee_code: formEmployeeCode || null,
-          employee_name: formEmployeeName,
-          work_hours: formWorkHours,
-          meal_period: formMealPeriod,
-          employee_type: formEmployeeType
+      const requests = validRecords.map(record =>
+        fetch('/api/meal-allowance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            year_month: yearMonth,
+            store_id: storeId,
+            record_date: record.date,
+            employee_code: record.employeeCode || null,
+            employee_name: record.employeeName,
+            work_hours: record.workHours,
+            meal_period: record.mealPeriod,
+            employee_type: record.employeeType
+          })
         })
-      });
+      );
 
-      const data = await response.json();
+      const responses = await Promise.all(requests);
+      const results = await Promise.all(responses.map(r => r.json()));
       
-      if (data.success) {
-        alert('✅ 新增成功');
-        // 清空表單
-        setFormDate('');
-        setFormEmployeeCode('');
-        setFormEmployeeName('');
-        setFormWorkHours('');
-        setFormMealPeriod('');
-        setFormEmployeeType('');
-        // 重新載入
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+
+      if (failCount === 0) {
+        alert(`✅ 成功新增 ${successCount} 筆記錄`);
+        // 重置表單
+        setBatchRecords([{
+          id: Date.now().toString(),
+          date: '',
+          employeeCode: '',
+          employeeName: '',
+          workHours: '',
+          mealPeriod: '',
+          employeeType: ''
+        }]);
         loadRecords();
       } else {
-        alert(`❌ 新增失敗: ${data.error}`);
+        alert(`⚠️ 新增完成：成功 ${successCount} 筆，失敗 ${failCount} 筆`);
+        loadRecords();
       }
     } catch (error) {
-      console.error('Error adding record:', error);
-      alert('新增失敗');
+      console.error('Error batch adding records:', error);
+      alert('批次新增失敗');
     } finally {
       setSaving(false);
     }
@@ -218,117 +280,159 @@ export default function MealAllowanceModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* 新增記錄表單 */}
+          {/* 批次新增記錄表單 */}
           <div className="bg-blue-50 rounded-lg p-6 mb-6 border border-blue-200">
-            <h3 className="text-lg font-semibold text-blue-900 mb-4 flex items-center gap-2">
-              <Plus size={20} />
-              新增誤餐費記錄
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
+                <Plus size={20} />
+                批次新增誤餐費記錄
+              </h3>
+              <button
+                onClick={addNewBatchRecord}
+                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1"
+              >
+                <Plus size={16} />
+                新增一筆
+              </button>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {/* 日期 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  日期 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formDate}
-                  onChange={(e) => setFormDate(e.target.value)}
-                  placeholder="MM/DD"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">格式: MM/DD (例: 01/28)</p>
-              </div>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {batchRecords.map((record, index) => (
+                <div key={record.id} className="bg-white rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-start justify-between mb-3">
+                    <span className="text-sm font-medium text-gray-600">記錄 #{index + 1}</span>
+                    {batchRecords.length > 1 && (
+                      <button
+                        onClick={() => removeBatchRecord(index)}
+                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                        title="移除此記錄"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {/* 日期 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        日期 <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={record.date}
+                        onChange={(e) => updateBatchRecord(index, 'date', e.target.value)}
+                        placeholder="MM/DD"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                      <p className="text-xs text-gray-500 mt-0.5">格式: MM/DD (例: 01/28)</p>
+                    </div>
 
-              {/* 員編 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  員編 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formEmployeeCode}
-                  onChange={(e) => handleEmployeeChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">請選擇員編</option>
-                  {employees.map((emp) => (
-                    <option key={emp.employee_code || emp.employee_name} value={emp.employee_code || ''}>
-                      {emp.employee_code ? `${emp.employee_code} - ${emp.employee_name}` : emp.employee_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    {/* 員編 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        員編 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={record.employeeCode}
+                        onChange={(e) => handleEmployeeChange(index, e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="">請選擇員編</option>
+                        {employees.map((emp) => (
+                          <option key={emp.employee_code || emp.employee_name} value={emp.employee_code || ''}>
+                            {emp.employee_code ? `${emp.employee_code} - ${emp.employee_name}` : emp.employee_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              {/* 姓名 (自動帶入) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  姓名
-                </label>
-                <input
-                  type="text"
-                  value={formEmployeeName}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                />
-              </div>
+                    {/* 姓名 (自動帶入) */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        姓名
+                      </label>
+                      <input
+                        type="text"
+                        value={record.employeeName}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                      />
+                    </div>
 
-              {/* 上班區間 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  上班區間 <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formWorkHours}
-                  onChange={(e) => setFormWorkHours(e.target.value)}
-                  placeholder="HH:MM-HH:MM"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">格式: HH:MM-HH:MM (例: 09:00-18:00)</p>
-              </div>
+                    {/* 上班區間 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        上班區間 <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={record.workHours}
+                        onChange={(e) => updateBatchRecord(index, 'workHours', e.target.value)}
+                        placeholder="HH:MM-HH:MM"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      />
+                      <p className="text-xs text-gray-500 mt-0.5">格式: HH:MM-HH:MM (例: 09:00-18:00)</p>
+                    </div>
 
-              {/* 誤餐時段 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  誤餐時段 <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formMealPeriod}
-                  onChange={(e) => setFormMealPeriod(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">請選擇時段</option>
-                  {MEAL_PERIODS.map((period) => (
-                    <option key={period.value} value={period.value}>
-                      {period.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    {/* 誤餐時段 */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        誤餐時段 <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={record.mealPeriod}
+                        onChange={(e) => updateBatchRecord(index, 'mealPeriod', e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="">請選擇時段</option>
+                        {MEAL_PERIODS.map((period) => (
+                          <option key={period.value} value={period.value}>
+                            {period.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-              {/* 身分 (自動帶入) */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  身分
-                </label>
-                <input
-                  type="text"
-                  value={formEmployeeType}
-                  readOnly
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                />
-              </div>
+                    {/* 身分 (自動帶入) */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        身分
+                      </label>
+                      <input
+                        type="text"
+                        value={record.employeeType}
+                        readOnly
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-end gap-3">
               <button
-                onClick={handleAddRecord}
+                onClick={() => setBatchRecords([{
+                  id: Date.now().toString(),
+                  date: '',
+                  employeeCode: '',
+                  employeeName: '',
+                  workHours: '',
+                  mealPeriod: '',
+                  employeeType: ''
+                }])}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm"
+              >
+                清空全部
+              </button>
+              <button
+                onClick={handleBatchAdd}
                 disabled={saving}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <Plus size={18} />
-                {saving ? '新增中...' : '新增記錄'}
+                {saving ? '新增中...' : `批次新增 (${batchRecords.filter(r => r.date && r.employeeName && r.workHours && r.mealPeriod).length} 筆)`}
               </button>
             </div>
           </div>
