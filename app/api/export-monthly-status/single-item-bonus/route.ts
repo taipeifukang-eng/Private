@@ -47,11 +47,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // 查詢支援人員獎金資料（從 support_staff_bonus）
+    // 查詢支援人員獎金資料（從 support_staff_bonus，包含門市關聯）
     const { data: supportBonusData, error: supportError } = await supabase
       .from('support_staff_bonus')
-      .select('*')
-      .eq('year_month', year_month);
+      .select(`
+        *,
+        stores!inner (
+          store_code,
+          store_name
+        )
+      `)
+      .eq('year_month', year_month)
+      .in('store_id', store_ids);
 
     if (supportError) {
       console.error('Support bonus query error:', supportError);
@@ -67,10 +74,10 @@ export async function POST(request: NextRequest) {
       '單品獎金總額': record.last_month_single_item_bonus || 0
     }));
 
-    // 加入支援人員獎金資料（沒有門市代號的支援人員）
+    // 加入支援人員獎金資料（帶門市代號）
     if (supportBonusData && supportBonusData.length > 0) {
       const supportExcelData = supportBonusData.map((record: any) => ({
-        '門市代號': '', // 支援人員沒有門市代號
+        '門市代號': record.stores?.store_code || '',
         '月份': year_month,
         '員編': record.employee_code || '',
         '姓名': record.employee_name || '',

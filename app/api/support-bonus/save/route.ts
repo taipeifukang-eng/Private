@@ -32,9 +32,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { year_month, bonuses } = body as { year_month: string; bonuses: BonusInput[] };
+    const { year_month, store_id, bonuses } = body as { 
+      year_month: string; 
+      store_id: string;
+      bonuses: BonusInput[] 
+    };
 
-    if (!year_month || !bonuses || bonuses.length === 0) {
+    if (!year_month || !store_id || !bonuses || bonuses.length === 0) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
     }
 
@@ -48,11 +52,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 先刪除該月份的所有記錄
+    // 先刪除該月份該門市的所有記錄
     const { error: deleteError } = await supabase
       .from('support_staff_bonus')
       .delete()
-      .eq('year_month', year_month);
+      .eq('year_month', year_month)
+      .eq('store_id', store_id);
 
     if (deleteError) {
       console.error('Error deleting old records:', deleteError);
@@ -65,6 +70,7 @@ export async function POST(request: NextRequest) {
     // 批次插入新資料
     const records = bonuses.map(bonus => ({
       year_month,
+      store_id,
       employee_code: bonus.employee_code.toUpperCase(),
       employee_name: bonus.employee_name,
       bonus_amount: bonus.bonus_amount || 0,

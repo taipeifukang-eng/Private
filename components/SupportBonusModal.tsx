@@ -19,12 +19,14 @@ interface SupportBonusModalProps {
   isOpen: boolean;
   onClose: () => void;
   yearMonth: string;
+  storeId: string;
 }
 
 export default function SupportBonusModal({ 
   isOpen, 
   onClose, 
-  yearMonth
+  yearMonth,
+  storeId
 }: SupportBonusModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,7 +59,7 @@ export default function SupportBonusModal({
   const loadRecords = async () => {
     try {
       const response = await fetch(
-        `/api/support-bonus?year_month=${yearMonth}`
+        `/api/support-bonus?year_month=${yearMonth}&store_id=${storeId}`
       );
       const data = await response.json();
       
@@ -141,6 +143,7 @@ export default function SupportBonusModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           year_month: yearMonth,
+          store_id: storeId,
           bonuses: validRecords.map(r => ({
             employee_code: r.employee_code,
             employee_name: r.employee_name,

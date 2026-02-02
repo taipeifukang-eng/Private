@@ -15,17 +15,24 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const year_month = searchParams.get('year_month');
+    const store_id = searchParams.get('store_id');
 
     if (!year_month) {
       return NextResponse.json({ error: '缺少 year_month 參數' }, { status: 400 });
     }
 
-    // 查詢該月份的支援人員獎金
-    const { data: records, error } = await supabase
+    // 查詢該月份該門市的支援人員獎金
+    let query = supabase
       .from('support_staff_bonus')
       .select('*')
-      .eq('year_month', year_month)
-      .order('employee_code');
+      .eq('year_month', year_month);
+    
+    // 如果有提供 store_id，則按門市過濾
+    if (store_id) {
+      query = query.eq('store_id', store_id);
+    }
+
+    const { data: records, error } = await query.order('employee_code');
 
     if (error) {
       console.error('Query error:', error);

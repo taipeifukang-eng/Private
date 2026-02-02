@@ -964,6 +964,7 @@ function StoreStatusDetail({
           isOpen={showSupportBonusModal}
           onClose={() => setShowSupportBonusModal(false)}
           yearMonth={yearMonth}
+          storeId={store.id}
         />
       )}
 
