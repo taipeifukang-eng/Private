@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Search } from 'lucide-react';
+import { X, Plus, Trash2 } from 'lucide-react';
 
 interface SupportBonusRecord {
   id: string;
@@ -205,51 +205,6 @@ export default function SupportBonusModal({
             <div className="space-y-4">
               {/* 操作按鈕 */}
               <div className="flex items-center gap-3 flex-wrap">
-                <label className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors cursor-pointer text-sm font-medium flex items-center gap-2">
-                  <Upload size={16} />
-                  匯入 Excel
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleExcelImport}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={handleExcelExport}
-                  className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium flex items-center gap-2"
-                  disabled={records.length === 0}
-                >
-                  <Download size={16} />
-                  匯出 Excel
-                </button>
-                <button
-                  onClick={addRow}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  新增一列
-                </button>
-                <div className="ml-auto text-lg font-semibold text-purple-600">
-                  總計：NT$ {totalBonus.toLocaleString()}
-                </div>
-              </div>
-
-              {/* 說明 */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-900 mb-2">使用說明</h3>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名</li>
-                  <li>• 支援 Excel 匯入，格式：員編 | 姓名 | 單品獎金</li>
-                  <li>• 儲存時會覆蓋該月份的所有資料</li>
-                  <li>• 同一員工在同一月份只能有一筆獎金記錄</li>
-                </ul>
-              </div>
-
-              {/* 資料表格 */}
-              {records.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                  <p className="text-gray-500">尚無獎金資料，請點擊「新增一列」開始輸入</p>
                 <button
                   onClick={addRow}
                   className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium flex items-center gap-2"
@@ -266,7 +221,52 @@ export default function SupportBonusModal({
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <h3 className="font-semibold text-blue-900 mb-2">使用說明</h3>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名InputIndex === index && filteredEmployees.length > 0 && (
+                  <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名</li>
+                  <li>• 儲存時會覆蓋該月份的所有資料</li>
+                  <li>• 同一員工在同一月份只能有一筆獎金記錄</li>
+                </ul>
+              </div>
+
+              {/* 資料表格 */}
+              {records.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                  <p className="text-gray-500">尚無獎金資料，請點擊「新增一列」開始輸入</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100 border-b border-gray-300">
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-12">#</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">員編</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">姓名</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">單品獎金</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-20">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.map((record, index) => (
+                        <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm text-gray-600">{index + 1}</td>
+                          <td className="px-4 py-3">
+                            <div className="relative">
+                              <input
+                                type="text"
+                                value={activeInputIndex === index ? searchTerm : record.employee_code}
+                                onChange={(e) => {
+                                  setSearchTerm(e.target.value);
+                                  setActiveInputIndex(index);
+                                  setShowDropdown(true);
+                                }}
+                                onFocus={() => {
+                                  setActiveInputIndex(index);
+                                  setSearchTerm('');
+                                  setShowDropdown(true);
+                                }}
+                                placeholder="搜尋員編或姓名..."
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              />
+                              {showDropdown && activeInputIndex === index && filteredEmployees.length > 0 && (
                                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                                   {filteredEmployees.map((emp) => (
                                     <button
