@@ -48,7 +48,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 批次插入新資料（不刪除舊資料）
+    // 先刪除該月份的所有記錄
+    const { error: deleteError } = await supabase
+      .from('support_staff_bonus')
+      .delete()
+      .eq('year_month', year_month);
+
+    if (deleteError) {
+      console.error('Error deleting old records:', deleteError);
+      return NextResponse.json({ 
+        success: false, 
+        error: `刪除舊資料失敗: ${deleteError.message}` 
+      }, { status: 500 });
+    }
+
+    // 批次插入新資料
     const records = bonuses.map(bonus => ({
       year_month,
       employee_code: bonus.employee_code.toUpperCase(),
@@ -72,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      saved: data.length,
+      count: data.length,
       message: `成功儲存 ${data.length} 筆支援人員獎金資料`
     });
 
