@@ -328,12 +328,12 @@ export default function EditStaffStatusPage() {
         partial_month_notes: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) && extraTaskExternalHours > 0
           ? `外務時數: ${extraTaskExternalHours}小時${partialMonthNotes ? '; ' + partialMonthNotes : ''}`
           : partialMonthNotes || null,
-        // 督導(代理店長)-雙 的工作時數同時儲存到 supervisor_shift_hours
-        // 如果不是督導(代理店長)-雙，則清除此欄位（設為 null）
-        supervisor_shift_hours: isSupervisorActingManagerDual ? workHours : null,
-        supervisor_employee_code: supervisorEmployeeCode || null,
-        supervisor_name: supervisorName || null,
-        supervisor_position: supervisorPosition || null,
+        // 督導卡班資訊
+        // 如果是督導(代理店長)-雙，使用 workHours；如果只是督導卡班，使用 supervisorShiftHours
+        supervisor_shift_hours: isSupervisorRotation ? (isSupervisorActingManagerDual ? workHours : supervisorShiftHours) : null,
+        supervisor_employee_code: isSupervisorRotation ? (supervisorEmployeeCode || null) : null,
+        supervisor_name: isSupervisorRotation ? (supervisorName || null) : null,
+        supervisor_position: isSupervisorRotation ? (supervisorPosition || null) : null,
         extra_tasks: extraTasks.length > 0 ? extraTasks : null,
         extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskPlannedHours || null) : null,
         extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskExternalHours || null) : null,
