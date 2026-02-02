@@ -997,15 +997,15 @@ export async function revertSubmitStatus(yearMonth: string, storeId: string) {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：只有 admin 或 manager 可以恢復
+    // 檢查權限：只有 admin、manager 或 supervisor 可以恢復
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
-      return { success: false, error: '權限不足，只有經理或管理員可以恢復提交狀態' };
+    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager' && profile.role !== 'supervisor')) {
+      return { success: false, error: '權限不足，只有經理、督導或管理員可以恢復提交狀態' };
     }
 
     // 將所有該門市該月的狀態從 submitted 改回 draft
