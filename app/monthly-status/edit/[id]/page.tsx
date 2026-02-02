@@ -61,7 +61,6 @@ export default function EditStaffStatusPage() {
   
   // 非整月詳情
   const [partialMonthReason, setPartialMonthReason] = useState<PartialMonthReason | ''>('');
-  const [partialMonthDays, setPartialMonthDays] = useState<number>(0);
   const [partialMonthNotes, setPartialMonthNotes] = useState('');
   
   // 督導卡班資訊
@@ -176,7 +175,6 @@ export default function EditStaffStatusPage() {
       // 設置新增欄位
       setNewbieLevel(data.newbie_level || '');
       setPartialMonthReason(data.partial_month_reason || '');
-      setPartialMonthDays(data.partial_month_days || 0);
       setPartialMonthNotes(data.partial_month_notes || '');
       setSupervisorShiftHours(data.supervisor_shift_hours || 0);
       setSupervisorEmployeeCode(data.supervisor_employee_code || '');
@@ -323,7 +321,7 @@ export default function EditStaffStatusPage() {
         // 新增欄位
         newbie_level: newbieLevel || null,
         partial_month_reason: partialMonthReason || null,
-        partial_month_days: partialMonthDays || null,
+        partial_month_days: (employmentType === 'full_time' && workDays > 0) ? workDays : null,
         // 如果有外務時數，將其寫入 partial_month_notes，否則使用原本的備註
         partial_month_notes: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) && extraTaskExternalHours > 0
           ? `外務時數: ${extraTaskExternalHours}小時${partialMonthNotes ? '; ' + partialMonthNotes : ''}`
@@ -618,24 +616,6 @@ export default function EditStaffStatusPage() {
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-yellow-700 mb-2">
-                  實際工作天數
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    max={staffStatus.total_days_in_month}
-                    step="0.1"
-                    value={partialMonthDays}
-                    onChange={(e) => setPartialMonthDays(parseFloat(e.target.value) || 0)}
-                    className="w-24 px-4 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                  />
-                  <span className="text-yellow-700">/ {staffStatus.total_days_in_month} 天</span>
-                </div>
               </div>
 
               <div>

@@ -1291,7 +1291,6 @@ function AddManualEmployeeModal({
   // 新增欄位
   const [newbieLevel, setNewbieLevel] = useState<NewbieLevel | ''>('');
   const [partialMonthReason, setPartialMonthReason] = useState<PartialMonthReason | ''>('');
-  const [partialMonthDays, setPartialMonthDays] = useState<number>(0);
   const [partialMonthNotes, setPartialMonthNotes] = useState('');
   const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
   
@@ -1376,7 +1375,7 @@ function AddManualEmployeeModal({
         notes: notes || undefined,
         newbie_level: newbieLevel || undefined,
         partial_month_reason: partialMonthReason || undefined,
-        partial_month_days: partialMonthDays || undefined,
+        partial_month_days: (employmentType === 'full_time' && workDays > 0) ? workDays : undefined,
         partial_month_notes: partialMonthNotes || undefined,
         extra_tasks: extraTasks.length > 0 ? extraTasks : undefined,
         extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? extraTaskPlannedHours : undefined,
@@ -1549,17 +1548,6 @@ function AddManualEmployeeModal({
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  max={totalDays}
-                  value={partialMonthDays}
-                  onChange={(e) => setPartialMonthDays(parseInt(e.target.value) || 0)}
-                  className="w-24 px-3 py-2 border border-yellow-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                />
-                <span className="text-yellow-700 text-sm">/ {totalDays} 天</span>
-              </div>
               <input
                 type="text"
                 value={partialMonthNotes}
