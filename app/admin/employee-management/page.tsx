@@ -42,7 +42,7 @@ export default async function EmployeeManagementPage() {
       is_active,
       start_date,
       store_id,
-      stores:store_id (
+      stores!store_id (
         store_code,
         store_name
       )
@@ -164,7 +164,7 @@ export default async function EmployeeManagementPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         <div className="flex items-center gap-2">
                           <Building2 size={14} className="text-gray-400" />
-                          {emp.stores?.store_name || '-'}
+                          {(emp.stores as any)?.store_name || '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
