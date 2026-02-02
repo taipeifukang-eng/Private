@@ -170,12 +170,32 @@ export default function SupportBonusModal({
     if (!editingValue) return employees.slice(0, 50);
     
     const search = editingValue.toLowerCase();
-    return employees
-      .filter(emp => 
-        emp.employee_code.toLowerCase().includes(search) ||
-        emp.employee_name.toLowerCase().includes(search)
-      )
-      .slice(0, 50);
+    
+    // 精確匹配優先，然後是前綴匹配，最後是包含匹配
+    const exactMatches: EmployeeOption[] = [];
+    const prefixMatches: EmployeeOption[] = [];
+    const containsMatches: EmployeeOption[] = [];
+    
+    employees.forEach(emp => {
+      const code = emp.employee_code.toLowerCase();
+      const name = emp.employee_name.toLowerCase();
+      
+      // 精確匹配（完全相同）
+      if (code === search || name === search) {
+        exactMatches.push(emp);
+      }
+      // 前綴匹配（以搜尋詞開頭）
+      else if (code.startsWith(search) || name.startsWith(search)) {
+        prefixMatches.push(emp);
+      }
+      // 包含匹配（任意位置包含）
+      else if (code.includes(search) || name.includes(search)) {
+        containsMatches.push(emp);
+      }
+    });
+    
+    // 合併結果：精確匹配 -> 前綴匹配 -> 包含匹配，取前 50 筆
+    return [...exactMatches, ...prefixMatches, ...containsMatches].slice(0, 50);
   }, [employees, editingValue]);
 
   const totalBonus = records.reduce((sum, r) => sum + (r.bonus_amount || 0), 0);
