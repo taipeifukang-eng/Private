@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Upload, Download, Search } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { X, Plus, Trash2, Search } from 'lucide-react';
 
 interface SupportBonusRecord {
   id: string;
@@ -12,7 +11,7 @@ interface SupportBonusRecord {
 }
 
 interface EmployeeOption {
-  employee_code: string | null;
+  employee_code: string;
   employee_name: string;
 }
 
@@ -109,7 +108,7 @@ export default function SupportBonusModal({
 
   const handleEmployeeSelect = (index: number, employee: EmployeeOption) => {
     const record = records[index];
-    updateRecord(record.id, 'employee_code', employee.employee_code || '');
+    updateRecord(record.id, 'employee_code', employee.employee_code);
     updateRecord(record.id, 'employee_name', employee.employee_name);
     setSearchTerm('');
     setShowDropdown(false);
@@ -168,56 +167,11 @@ export default function SupportBonusModal({
     }
   };
 
-  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-        const imported = jsonData.map((row: any) => ({
-          id: Date.now().toString() + Math.random(),
-          employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
-          employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
-          bonus_amount: parseFloat(row['單品獎金'] || row['bonus_amount'] || 0)
-        }));
-
-        setRecords(imported);
-        alert(`✅ 成功匯入 ${imported.length} 筆資料`);
-      } catch (error) {
-        console.error('Error importing Excel:', error);
-        alert('❌ 匯入失敗，請確認檔案格式正確');
-      }
-    };
-    reader.readAsArrayBuffer(file);
-    e.target.value = '';
-  };
-
-  const handleExcelExport = () => {
-    const exportData = records
-      .filter(r => r.employee_code && r.employee_name)
-      .map(r => ({
-        '員編': r.employee_code,
-        '姓名': r.employee_name,
-        '單品獎金': r.bonus_amount
-      }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '支援人員獎金');
-    XLSX.writeFile(workbook, `支援人員獎金_${yearMonth}.xlsx`);
-  };
-
   // 過濾員工清單
   const filteredEmployees = employees.filter(emp => {
     const search = searchTerm.toLowerCase();
     return (
-      (emp.employee_code || '').toLowerCase().includes(search) ||
+      emp.employee_code.toLowerCase().includes(search) ||
       emp.employee_name.toLowerCase().includes(search)
     );
   }).slice(0, 50);
@@ -296,42 +250,23 @@ export default function SupportBonusModal({
               {records.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                   <p className="text-gray-500">尚無獎金資料，請點擊「新增一列」開始輸入</p>
+                <button
+                  onClick={addRow}
+                  className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  新增一列
+                </button>
+                <div className="ml-auto text-lg font-semibold text-purple-600">
+                  總計：NT$ {totalBonus.toLocaleString()}
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100 border-b border-gray-300">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-12">#</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">員編</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">姓名</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">單品獎金</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-20">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {records.map((record, index) => (
-                        <tr key={record.id} className="border-b border-gray-200 hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-600">{index + 1}</td>
-                          <td className="px-4 py-3">
-                            <div className="relative">
-                              <input
-                                type="text"
-                                value={activeInputIndex === index ? searchTerm : record.employee_code}
-                                onChange={(e) => {
-                                  setSearchTerm(e.target.value);
-                                  setActiveInputIndex(index);
-                                  setShowDropdown(true);
-                                }}
-                                onFocus={() => {
-                                  setActiveInputIndex(index);
-                                  setSearchTerm('');
-                                  setShowDropdown(true);
-                                }}
-                                placeholder="搜尋員編或姓名..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                              />
-                              {showDropdown && activeInputIndex === index && filteredEmployees.length > 0 && (
+              </div>
+
+              {/* 說明 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-semibold text-blue-900 mb-2">使用說明</h3>
+                <ul className="text-sm text-blue-800 space-y-1">
+                  <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名InputIndex === index && filteredEmployees.length > 0 && (
                                 <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
                                   {filteredEmployees.map((emp) => (
                                     <button
