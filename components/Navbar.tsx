@@ -20,7 +20,9 @@ import {
   Store,
   ChevronDown,
   Send,
-  Upload
+  Upload,
+  UserCog,
+  TrendingUp
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 

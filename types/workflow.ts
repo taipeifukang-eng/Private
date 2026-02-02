@@ -384,3 +384,27 @@ export const POSITION_OPTIONS = [
   '兼職藥師專員',
   '兼職助理'
 ];
+
+// 員工升遷歷程
+export interface EmployeePromotionHistory {
+  id: string;
+  employee_code: string;
+  employee_name: string;
+  store_id: string;
+  promotion_date: string; // YYYY-MM-DD
+  new_position: string;
+  old_position: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// 批次升遷輸入
+export interface BatchPromotionInput {
+  employee_code: string;
+  employee_name: string;
+  position: string;
+  effective_date: string; // YYYY-MM-DD
+  notes?: string;
+}
