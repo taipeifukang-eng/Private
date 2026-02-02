@@ -218,6 +218,7 @@ export default function SupportBonusModal({
                 <div className="flex-1 overflow-auto min-h-0 border border-gray-200 rounded-lg">
                   <table className="w-full border-collapse">
                     <thead className="sticky top-0 bg-gray-100 z-10">
+                      <tr className="border-b border-gray-300">
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-16">#</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-64">員編</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-48">姓名</th>
