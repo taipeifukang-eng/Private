@@ -1279,6 +1279,7 @@ function AddManualEmployeeModal({
   
   // 基本資料
   const [employeeCode, setEmployeeCode] = useState('');
+  const [employeeCodeError, setEmployeeCodeError] = useState('');
   const [employeeName, setEmployeeName] = useState('');
   const [position, setPosition] = useState('');
   const [employmentType, setEmploymentType] = useState<'full_time' | 'part_time'>('full_time');
@@ -1349,6 +1350,46 @@ function AddManualEmployeeModal({
     }
   };
 
+  // 驗證員編格式
+  const validateEmployeeCode = (code: string) => {
+    if (!code.trim()) {
+      setEmployeeCodeError('');
+      return true;
+    }
+
+    const upperCode = code.toUpperCase().trim();
+
+    // 檢查是否為實習生代碼
+    if (/^FKI\d{3}$/.test(upperCode)) {
+      setEmployeeCodeError('💡 實習生不需要填寫員編');
+      return false;
+    }
+
+    // 檢查有效格式
+    const validFormats = [
+      /^FK\d{4}$/,      // FK + 4碼數字
+      /^FKF\d{5}$/,     // FKF + 5碼數字
+      /^FKPT\d{3}$/     // FKPT + 3碼數字
+    ];
+
+    const isValid = validFormats.some(format => format.test(upperCode));
+
+    if (!isValid) {
+      setEmployeeCodeError('❌ 員編格式錯誤。正確格式：FK+4碼數字、FKF+5碼數字、FKPT+3碼數字');
+      return false;
+    }
+
+    setEmployeeCodeError('');
+    return true;
+  };
+
+  // 處理員編輸入
+  const handleEmployeeCodeChange = (value: string) => {
+    const upperValue = value.toUpperCase();
+    setEmployeeCode(upperValue);
+    validateEmployeeCode(upperValue);
+  };
+
   const handleSave = async () => {
     if (!employeeName.trim()) {
       alert('請填寫員工姓名');
@@ -1356,6 +1397,12 @@ function AddManualEmployeeModal({
     }
     if (!position) {
       alert('請選擇職位');
+      return;
+    }
+
+    // 驗證員編
+    if (employeeCode.trim() && !validateEmployeeCode(employeeCode)) {
+      alert('員編格式不正確，請修正後再儲存');
       return;
     }
 
@@ -1427,10 +1474,18 @@ function AddManualEmployeeModal({
               <input
                 type="text"
                 value={employeeCode}
-                onChange={(e) => setEmployeeCode(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="如：A001"
+                onChange={(e) => handleEmployeeCodeChange(e.target.value)}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  employeeCodeError ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
+                placeholder="FK0001"
               />
+              {employeeCodeError && (
+                <p className="text-xs text-red-600 mt-1">{employeeCodeError}</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                格式：FK+4碼、FKF+5碼、FKPT+3碼
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
