@@ -32,6 +32,16 @@ export default async function StoresPage({
   const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
   const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
   
+  // 調試資訊
+  console.log('Profile:', { 
+    role: profile?.role, 
+    department: profile?.department, 
+    job_title: profile?.job_title,
+    needsAssignment,
+    isBusinessAssistant,
+    isBusinessSupervisor
+  });
+  
   if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
     redirect('/dashboard');
   }
