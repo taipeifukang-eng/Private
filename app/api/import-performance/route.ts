@@ -17,6 +17,13 @@ interface PerformanceRow {
   '客單價': number;
 }
 
+interface GrossProfitRow {
+  '門市別': string;
+  '收銀員': string;
+  '商品': string;
+  '銷售毛利 合計': number;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -38,31 +45,79 @@ export async function POST(request: NextRequest) {
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as File;
+    const file1 = formData.get('file1') as File;
+    const file2 = formData.get('file2') as File | null;
     const yearMonth = formData.get('year_month') as string;
 
-    if (!file || !yearMonth) {
+    if (!file1 || !yearMonth) {
       return NextResponse.json({ success: false, error: '缺少檔案或年月參數' }, { status: 400 });
     }
 
-    // 讀取 Excel 檔案
-    const buffer = await file.arrayBuffer();
-    const workbook: XLSX.WorkBook = XLSX.read(buffer, { type: 'buffer' });
-    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    // 讀取檔案 1 - 業績毛利檔
+    const buffer1 = await file1.arrayBuffer();
+    const workbook1: XLSX.WorkBook = XLSX.read(buffer1, { type: 'buffer' });
+    const worksheet1 = workbook1.Sheets[workbook1.SheetNames[0]];
     
     // 從第 2 列開始讀取（第 1 列是 GridBand1，第 2 列才是欄位名稱）
     // range: 1 表示從第 2 列（索引 1）開始讀取
-    let data: PerformanceRow[] = XLSX.utils.sheet_to_json(worksheet, { range: 1 });
+    let data: PerformanceRow[] = XLSX.utils.sheet_to_json(worksheet1, { range: 1 });
 
-    console.log('原始讀取資料筆數:', data.length);
+    console.log('檔案 1 原始讀取資料筆數:', data.length);
     if (data.length > 0) {
-      console.log('第一筆資料:', data[0]);
-      console.log('Excel 欄位名稱:', Object.keys(data[0]));
+      console.log('檔案 1 第一筆資料:', data[0]);
+      console.log('檔案 1 Excel 欄位名稱:', Object.keys(data[0]));
     }
 
     if (!data || data.length === 0) {
-      return NextResponse.json({ success: false, error: 'Excel 檔案沒有資料' }, { status: 400 });
+      return NextResponse.json({ success: false, error: '檔案 1 沒有資料' }, { status: 400 });
     }
+
+    // 讀取檔案 2 - 銷售毛利檔（選填）
+    let grossProfitMap = new Map<string, number>(); // key: 員編, value: 銷售毛利合計（負值轉正）
+    
+    if (file2) {
+      const buffer2 = await file2.arrayBuffer();
+      const workbook2: XLSX.WorkBook = XLSX.read(buffer2, { type: 'buffer' });
+      const worksheet2 = workbook2.Sheets[workbook2.SheetNames[0]];
+      let grossProfitData: GrossProfitRow[] = XLSX.utils.sheet_to_json(worksheet2);
+
+      console.log('檔案 2 原始讀取資料筆數:', grossProfitData.length);
+      if (grossProfitData.length > 0) {
+        console.log('檔案 2 第一筆資料:', grossProfitData[0]);
+      }
+
+      // 過濾掉「合計」行，並按員編聚合
+      grossProfitData = grossProfitData.filter(row => {
+        const storeName = row['門市別']?.toString().trim();
+        return storeName && !storeName.includes('合計');
+      });
+
+      console.log('檔案 2 過濾後資料筆數:', grossProfitData.length);
+
+      // 聚合每個員工的銷售毛利（負值轉正）
+      for (const row of grossProfitData) {
+        const cashierInfo = row['收銀員']?.toString().trim(); // 格式: [FK0048]呂喻心
+        if (!cashierInfo) continue;
+
+        // 提取員編：匹配 [FKXXXX] 格式
+        const match = cashierInfo.match(/\[([^\]]+)\]/);
+        if (!match) continue;
+        
+        const employeeCode = match[1];
+        const grossProfit = Number(row['銷售毛利 合計']) || 0;
+        
+        // 負值轉正
+        const absoluteProfit = Math.abs(grossProfit);
+        
+        if (!grossProfitMap.has(employeeCode)) {
+          grossProfitMap.set(employeeCode, 0);
+        }
+        grossProfitMap.set(employeeCode, grossProfitMap.get(employeeCode)! + absoluteProfit);
+      }
+
+      console.log('檔案 2 員工毛利聚合結果:', Array.from(grossProfitMap.entries()).slice(0, 5));
+    }
+
 
     // 過濾掉最後一列的合計
     const originalLength = data.length;
@@ -145,10 +200,16 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     for (const [employeeCode, empData] of Array.from(employeeMap.entries())) {
+      // 如果有檔案 2 的毛利資料，加上去（負值已轉正）
+      const additionalGrossProfit = grossProfitMap.get(employeeCode) || 0;
+      const finalGrossProfit = empData.totalGrossProfit + additionalGrossProfit;
+      
       // 計算總毛利率
       const totalGrossProfitRate = empData.totalSalesAmount > 0 
-        ? (empData.totalGrossProfit / empData.totalSalesAmount) * 100 
+        ? (finalGrossProfit / empData.totalSalesAmount) * 100 
         : 0;
+
+      console.log(`員工 ${employeeCode}: 檔案1毛利=${empData.totalGrossProfit}, 檔案2毛利=${additionalGrossProfit}, 最終毛利=${finalGrossProfit}`);
 
       // 獲取該員工在該月的所有門市資料
       const { data: staffRecords, error: fetchError } = await supabase
@@ -176,7 +237,7 @@ export async function POST(request: NextRequest) {
           .update({
             transaction_count: empData.totalTransactionCount,
             sales_amount: empData.totalSalesAmount,
-            gross_profit: empData.totalGrossProfit,
+            gross_profit: finalGrossProfit,
             gross_profit_rate: Math.round(totalGrossProfitRate * 100) / 100,
             updated_at: new Date().toISOString()
           })

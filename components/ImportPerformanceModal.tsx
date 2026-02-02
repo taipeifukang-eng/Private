@@ -15,25 +15,36 @@ export default function ImportPerformanceModal({
   onSuccess
 }: ImportPerformanceModalProps) {
   const [uploading, setUploading] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file1, setFile1] = useState<File | null>(null);
+  const [file2, setFile2] = useState<File | null>(null);
+  const fileInput1Ref = useRef<HTMLInputElement>(null);
+  const fileInput2Ref = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange1 = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      setFile1(e.target.files[0]);
+    }
+  };
+
+  const handleFileChange2 = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile2(e.target.files[0]);
     }
   };
 
   const handleUpload = async () => {
-    if (!file) {
-      alert('請選擇檔案');
+    if (!file1) {
+      alert('請選擇檔案 1（業績毛利檔）');
       return;
     }
 
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file1', file1);
+      if (file2) {
+        formData.append('file2', file2);
+      }
       formData.append('year_month', yearMonth);
 
       const response = await fetch('/api/import-performance', {
@@ -88,34 +99,61 @@ export default function ImportPerformanceModal({
             <h3 className="font-semibold text-blue-900 mb-2">檔案格式說明</h3>
             <ul className="text-sm text-blue-800 space-y-1">
               <li>• 支援 Excel (.xlsx, .xls) 格式</li>
-              <li>• 必須包含欄位：門市別、收銀代號、收銀員姓名、交易次數、銷售金額、毛利、毛利率</li>
+              <li>• <strong>檔案 1（必填）</strong>：門市別、收銀代號、收銀員姓名、交易次數、銷售金額、毛利、毛利率</li>
+              <li>• <strong>檔案 2（選填）</strong>：門市別、收銀員、商品、銷售毛利 合計（負值會自動轉正後加總）</li>
               <li>• 系統會自動合併同一員工在不同門市的業績</li>
-              <li>• 如有多門市資料，會保留明細供查看</li>
+              <li>• 帶有「合計」字樣的列會自動忽略</li>
             </ul>
           </div>
 
-          {/* 檔案選擇 */}
+          {/* 檔案 1 選擇 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              選擇檔案
+              檔案 1：業績毛利檔 <span className="text-red-500">*</span>
             </label>
             <div className="flex items-center gap-3">
               <input
-                ref={fileInputRef}
+                ref={fileInput1Ref}
                 type="file"
                 accept=".xlsx,.xls"
-                onChange={handleFileChange}
+                onChange={handleFileChange1}
                 className="hidden"
               />
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => fileInput1Ref.current?.click()}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
               >
                 <Upload size={18} />
                 選擇檔案
               </button>
-              {file && (
-                <span className="text-sm text-gray-600">{file.name}</span>
+              {file1 && (
+                <span className="text-sm text-gray-600">{file1.name}</span>
+              )}
+            </div>
+          </div>
+
+          {/* 檔案 2 選擇 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              檔案 2：銷售毛利檔（選填）
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                ref={fileInput2Ref}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileChange2}
+                className="hidden"
+              />
+              <button
+                onClick={() => fileInput2Ref.current?.click()}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+              >
+                <Upload size={18} />
+                選擇檔案
+              </button>
+              {file2 && (
+                <span className="text-sm text-gray-600">{file2.name}</span>
               )}
             </div>
           </div>
@@ -141,7 +179,7 @@ export default function ImportPerformanceModal({
           </button>
           <button
             onClick={handleUpload}
-            disabled={uploading || !file}
+            disabled={uploading || !file1}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Upload size={18} />
