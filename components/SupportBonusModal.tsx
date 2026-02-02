@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 
 interface SupportBonusRecord {
@@ -158,14 +158,18 @@ export default function SupportBonusModal({
     }
   };
 
-  // 過濾員工清單
-  const filteredEmployees = employees.filter(emp => {
+  // 過濾員工清單（使用 useMemo 優化性能）
+  const filteredEmployees = useMemo(() => {
+    if (!searchTerm) return employees.slice(0, 50);
+    
     const search = searchTerm.toLowerCase();
-    return (
-      emp.employee_code.toLowerCase().includes(search) ||
-      emp.employee_name.toLowerCase().includes(search)
-    );
-  }).slice(0, 50);
+    return employees
+      .filter(emp => 
+        emp.employee_code.toLowerCase().includes(search) ||
+        emp.employee_name.toLowerCase().includes(search)
+      )
+      .slice(0, 50);
+  }, [employees, searchTerm]);
 
   const totalBonus = records.reduce((sum, r) => sum + (r.bonus_amount || 0), 0);
 
