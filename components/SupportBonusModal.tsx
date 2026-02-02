@@ -128,14 +128,6 @@ export default function SupportBonusModal({
       return;
     }
 
-    // 檢查是否有重複的員編
-    const codes = validRecords.map(r => r.employee_code);
-    const uniqueCodes = new Set(codes);
-    if (codes.length !== uniqueCodes.size) {
-      alert('存在重複的員工編號，請檢查');
-      return;
-    }
-
     setSaving(true);
     try {
       const response = await fetch('/api/support-bonus/save', {
@@ -222,8 +214,7 @@ export default function SupportBonusModal({
                 <h3 className="font-semibold text-blue-900 mb-1 text-sm">使用說明</h3>
                 <ul className="text-xs text-blue-800 space-y-0.5">
                   <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名</li>
-                  <li>• 儲存時會覆蓋該月份的所有資料</li>
-                  <li>• 同一員工在同一月份只能有一筆獎金記錄</li>
+                  <li>• 同一員工可以有多筆獎金記錄</li>
                 </ul>
               </div>
 

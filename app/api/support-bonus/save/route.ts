@@ -48,13 +48,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 先刪除該月份的舊資料
-    await supabase
-      .from('support_staff_bonus')
-      .delete()
-      .eq('year_month', year_month);
-
-    // 批次插入新資料
+    // 批次插入新資料（不刪除舊資料）
     const records = bonuses.map(bonus => ({
       year_month,
       employee_code: bonus.employee_code.toUpperCase(),

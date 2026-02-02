@@ -21,10 +21,7 @@ CREATE TABLE IF NOT EXISTS support_staff_bonus (
   -- 系統資訊
   created_by UUID REFERENCES profiles(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW()),
-  
-  -- 唯一約束：同一個員工在同一個月份只能有一筆記錄
-  UNIQUE(employee_code, year_month)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc', NOW())
 );
 
 -- 建立索引
