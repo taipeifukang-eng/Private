@@ -182,7 +182,7 @@ export default function SupportBonusModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-500 to-purple-600 text-white">
           <div>
@@ -233,15 +233,15 @@ export default function SupportBonusModal({
                   <p className="text-gray-500">尚無獎金資料，請點擊「新增一列」開始輸入</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto -mx-2">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-gray-100 border-b border-gray-300">
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-12">#</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">員編</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">姓名</th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">單品獎金</th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-20">操作</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-16">#</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-64">員編</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-48">姓名</th>
+                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-48">單品獎金</th>
+                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 w-24">操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -267,14 +267,14 @@ export default function SupportBonusModal({
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                               />
                               {showDropdown && activeInputIndex === index && filteredEmployees.length > 0 && (
-                                <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-y-auto">
                                   {filteredEmployees.map((emp) => (
                                     <button
                                       key={emp.employee_code}
                                       onClick={() => handleEmployeeSelect(index, emp)}
-                                      className="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 flex items-center justify-between"
+                                      className="w-full px-4 py-3 text-left text-sm hover:bg-purple-50 flex items-center justify-between border-b border-gray-100 last:border-b-0"
                                     >
-                                      <span className="font-medium">{emp.employee_code}</span>
+                                      <span className="font-medium text-gray-900">{emp.employee_code}</span>
                                       <span className="text-gray-600">{emp.employee_name}</span>
                                     </button>
                                   ))}
