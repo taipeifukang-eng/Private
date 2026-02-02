@@ -28,8 +28,41 @@ export default function EmployeeManagementPage() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   useEffect(() => {
-    loadData();
+    checkPermissionAndLoadData();
   }, [storeId]);
+
+  const checkPermissionAndLoadData = async () => {
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    
+    // 檢查權限
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, department, job_title')
+      .eq('id', user.id)
+      .single();
+
+    // 判斷是否為需要指派的職位
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    
+    // 判斷是否為營業部助理或主管
+    const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
+    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
+    
+    // 檢查權限：只有 admin、營業部助理和營業部主管可以訪問
+    if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
+      alert('權限不足');
+      router.push('/admin/stores');
+      return;
+    }
+
+    loadData();
+  };
 
   const loadData = async () => {
     setLoading(true);

@@ -243,22 +243,28 @@ export default async function StoresPage({
                         <UserPlus size={12} className="inline mr-1" />
                         員工
                       </Link>
-                      <Link
-                        href={`/admin/stores/${store.id}/employee-management`}
-                        className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-xs font-medium"
-                        title="員工管理"
-                      >
-                        <UserCog size={12} className="inline mr-1" />
-                        管理
-                      </Link>
-                      <Link
-                        href={`/admin/stores/${store.id}/promotion-management`}
-                        className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors text-xs font-medium"
-                        title="升遷管理"
-                      >
-                        <TrendingUp size={12} className="inline mr-1" />
-                        升遷
-                      </Link>
+                      {/* admin、營業部助理和營業部主管可以使用員工管理 */}
+                      {(profile?.role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
+                        <Link
+                          href={`/admin/stores/${store.id}/employee-management`}
+                          className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-xs font-medium"
+                          title="員工管理"
+                        >
+                          <UserCog size={12} className="inline mr-1" />
+                          管理
+                        </Link>
+                      )}
+                      {/* admin、營業部助理和營業部主管可以使用升遷管理 */}
+                      {(profile?.role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
+                        <Link
+                          href={`/admin/stores/${store.id}/promotion-management`}
+                          className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors text-xs font-medium"
+                          title="升遷管理"
+                        >
+                          <TrendingUp size={12} className="inline mr-1" />
+                          升遷
+                        </Link>
+                      )}
                       {/* admin 和營業部主管可以搬遷門市 */}
                       {store.is_active && (profile?.role === 'admin' || isBusinessSupervisor) && (
                         <Link
