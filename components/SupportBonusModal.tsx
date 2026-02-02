@@ -187,16 +187,16 @@ export default function SupportBonusModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 min-h-0">
+        <div className="flex-1 overflow-hidden p-4 min-h-0 flex flex-col">
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
               <p className="mt-2 text-gray-600">載入中...</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2 h-full flex flex-col">
               {/* 操作按鈕 */}
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
                 <button
                   onClick={addRow}
                   className="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm font-medium flex items-center gap-2"
@@ -209,25 +209,15 @@ export default function SupportBonusModal({
                 </div>
               </div>
 
-              {/* 說明 */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <h3 className="font-semibold text-blue-900 mb-1 text-sm">使用說明</h3>
-                <ul className="text-xs text-blue-800 space-y-0.5">
-                  <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名</li>
-                  <li>• 同一員工可以有多筆獎金記錄</li>
-                </ul>
-              </div>
-
-              {/* 資料表格 */}
+              {/* 資料表格 - 佔用所有剩餘空間 */}
               {records.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
                   <p className="text-gray-500">尚無獎金資料，請點擊「新增一列」開始輸入</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto -mx-2">
+                <div className="flex-1 overflow-auto min-h-0 border border-gray-200 rounded-lg">
                   <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="bg-gray-100 border-b border-gray-300">
+                    <thead className="sticky top-0 bg-gray-100 z-10">
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-16">#</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-64">員編</th>
                         <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 w-48">姓名</th>
