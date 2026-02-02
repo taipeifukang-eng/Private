@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
 import MealAllowanceModal from '@/components/MealAllowanceModal';
+import SupportBonusModal from '@/components/SupportBonusModal';
 import { 
   CalendarCheck, 
   Building2, 
@@ -500,6 +501,7 @@ function StoreStatusDetail({
   const [isConfirming, setIsConfirming] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMealAllowanceModal, setShowMealAllowanceModal] = useState(false);
+  const [showSupportBonusModal, setShowSupportBonusModal] = useState(false);
 
   // 判斷是否可以查看門市統計資料
   const canViewStoreStats = () => {
@@ -898,6 +900,17 @@ function StoreStatusDetail({
                   <CalendarCheck size={16} />
                   誤餐費登記
                 </button>
+                {/* 店長以上可以新增支援人員獎金 */}
+                {(['admin', 'manager', 'supervisor', 'area_manager'].includes(userRole) || 
+                  ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
+                  <button
+                    onClick={() => setShowSupportBonusModal(true)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    支援人員獎金
+                  </button>
+                )}
               </>
             )}
             <button
@@ -942,6 +955,15 @@ function StoreStatusDetail({
           yearMonth={yearMonth}
           storeId={store.id}
           storeName={store.store_name}
+        />
+      )}
+
+      {/* 支援人員獎金 Modal */}
+      {showSupportBonusModal && (
+        <SupportBonusModal
+          isOpen={showSupportBonusModal}
+          onClose={() => setShowSupportBonusModal(false)}
+          yearMonth={yearMonth}
         />
       )}
 

@@ -131,10 +131,12 @@ export default function Navbar({ user }: NavbarProps) {
   // 每月人員狀態相關的子選單項目
   const monthlyStatusSubItems = [
     { href: '/monthly-status', label: '每月人員狀態', icon: CalendarCheck, roles: ['admin', 'manager', 'member'] },
+    { href: '/admin/support-bonus', label: '支援人員獎金', icon: TrendingUp, roles: ['admin', 'manager'], allowStoreManager: true },
     { href: '/admin/export-monthly-status', label: '資料匯出', icon: Send, roles: ['admin'], allowBusinessSupervisor: true },
   ].filter(item => 
     item.roles.includes(role) ||
-    (item.allowBusinessSupervisor && isBusinessSupervisor)
+    (item.allowBusinessSupervisor && isBusinessSupervisor) ||
+    (item.allowStoreManager && ['店長', '代理店長', '督導', '督導(代理店長)'].includes(user?.profile?.job_title || ''))
   );
 
   // 判斷是否在派發任務相關頁面
