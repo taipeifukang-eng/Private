@@ -119,6 +119,8 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/store-managers', label: '店長指派', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
     { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
     { href: '/admin/stores', label: '門市管理', icon: Store, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
+    { href: '/admin/employee-management', label: '員工管理', icon: UserCog, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
+    { href: '/admin/promotion-management', label: '升遷管理', icon: TrendingUp, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'], allowBusinessSupervisor: true },
   ].filter(item => 
     item.roles.includes(role) || 
@@ -141,7 +143,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在門市管理相關頁面
-  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/import-employees'].some(
+  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 

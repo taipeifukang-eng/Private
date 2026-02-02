@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus, Building2, Hash, User, Copy, Eye, EyeOff, UserCog, TrendingUp } from 'lucide-react';
+import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus, Building2, Hash, User, Copy, Eye, EyeOff } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,16 +31,6 @@ export default async function StoresPage({
   // 檢查權限：admin、營業部主管（manager 但不是需要指派的職位）或營業部助理（member 但不是需要指派的職位）
   const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
   const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-  
-  // 調試資訊
-  console.log('Profile:', { 
-    role: profile?.role, 
-    department: profile?.department, 
-    job_title: profile?.job_title,
-    needsAssignment,
-    isBusinessAssistant,
-    isBusinessSupervisor
-  });
   
   if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
     redirect('/dashboard');
@@ -253,28 +243,6 @@ export default async function StoresPage({
                         <UserPlus size={12} className="inline mr-1" />
                         員工
                       </Link>
-                      {/* admin、營業部助理和營業部主管可以使用員工管理 */}
-                      {(profile?.role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
-                        <Link
-                          href={`/admin/stores/${store.id}/employee-management`}
-                          className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-xs font-medium"
-                          title="員工管理"
-                        >
-                          <UserCog size={12} className="inline mr-1" />
-                          管理
-                        </Link>
-                      )}
-                      {/* admin、營業部助理和營業部主管可以使用升遷管理 */}
-                      {(profile?.role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
-                        <Link
-                          href={`/admin/stores/${store.id}/promotion-management`}
-                          className="px-2 py-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors text-xs font-medium"
-                          title="升遷管理"
-                        >
-                          <TrendingUp size={12} className="inline mr-1" />
-                          升遷
-                        </Link>
-                      )}
                       {/* admin 和營業部主管可以搬遷門市 */}
                       {store.is_active && (profile?.role === 'admin' || isBusinessSupervisor) && (
                         <Link
