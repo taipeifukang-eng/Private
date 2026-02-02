@@ -30,9 +30,9 @@ export default function SupportBonusModal({
   const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<SupportBonusRecord[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editingValue, setEditingValue] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [activeInputIndex, setActiveInputIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -108,10 +108,17 @@ export default function SupportBonusModal({
 
   const handleEmployeeSelect = (index: number, employee: EmployeeOption) => {
     const record = records[index];
-    updateRecord(record.id, 'employee_code', employee.employee_code);
-    updateRecord(record.id, 'employee_name', employee.employee_name);
+    const updatedRecords = records.map((r, i) => 
+      i === index ? { 
+        ...r, 
+        employee_code: employee.employee_code,
+        employee_name: employee.employee_name
+      } : r
+    );
+    setRecords(updatedRecords);
     setShowDropdown(false);
-    setActiveInputIndex(null);
+    setEditingIndex(null);
+    setEditingValue('');
   };
 
   const handleSave = async () => {
@@ -160,16 +167,16 @@ export default function SupportBonusModal({
 
   // 過濾員工清單（使用 useMemo 優化性能）
   const filteredEmployees = useMemo(() => {
-    if (!searchTerm) return employees.slice(0, 50);
+    if (!editingValue) return employees.slice(0, 50);
     
-    const search = searchTerm.toLowerCase();
+    const search = editingValue.toLowerCase();
     return employees
       .filter(emp => 
         emp.employee_code.toLowerCase().includes(search) ||
         emp.employee_name.toLowerCase().includes(search)
       )
       .slice(0, 50);
-  }, [employees, searchTerm]);
+  }, [employees, editingValue]);
 
   const totalBonus = records.reduce((sum, r) => sum + (r.bonus_amount || 0), 0);
 
@@ -237,29 +244,30 @@ export default function SupportBonusModal({
                             <div className="relative">
                               <input
                                 type="text"
-                                value={activeInputIndex === index ? searchTerm : record.employee_code}
+                                value={editingIndex === index ? editingValue : record.employee_code}
                                 onChange={(e) => {
                                   const value = e.target.value;
-                                  setSearchTerm(value);
-                                  updateRecord(record.id, 'employee_code', value);
-                                  setActiveInputIndex(index);
+                                  setEditingValue(value);
+                                  setEditingIndex(index);
                                   setShowDropdown(true);
                                 }}
                                 onFocus={() => {
-                                  setActiveInputIndex(index);
-                                  setSearchTerm(record.employee_code);
+                                  setEditingIndex(index);
+                                  setEditingValue(record.employee_code);
                                   setShowDropdown(true);
                                 }}
                                 onBlur={() => {
                                   setTimeout(() => {
                                     setShowDropdown(false);
-                                    setActiveInputIndex(null);
+                                    setEditingIndex(null);
+                                    setEditingValue('');
                                   }, 200);
                                 }}
-                                placeholder="搜尋員編或姓名..."
+                                placeholder="輸入員編或姓名搜尋"
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                               />
-                              {showDropdown && activeInputIndex === index && filteredEmployees.length > 0 && (
+                              {/* 下拉選單 */}
+                              {showDropdown && editingIndex === index && filteredEmployees.length > 0 && (
                                 <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-80 overflow-y-auto">
                                   {filteredEmployees.map((emp) => (
                                     <button
