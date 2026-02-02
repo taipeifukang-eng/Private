@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar } from 'lucide-react';
+import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2 } from 'lucide-react';
 import { POSITION_OPTIONS } from '@/types/workflow';
 
 interface Employee {
@@ -34,6 +34,7 @@ export default function EmployeeManagementClient({
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>(initialEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [promotionHistory, setPromotionHistory] = useState<PromotionHistory[]>([]);
@@ -41,6 +42,14 @@ export default function EmployeeManagementClient({
 
   // 新增員工表單
   const [newEmployee, setNewEmployee] = useState({
+    employee_code: '',
+    employee_name: '',
+    current_position: '',
+    start_date: ''
+  });
+
+  // 編輯員工表單
+  const [editEmployee, setEditEmployee] = useState({
     employee_code: '',
     employee_name: '',
     current_position: '',
@@ -139,6 +148,51 @@ export default function EmployeeManagementClient({
     setSelectedEmployee(employee);
     loadPromotionHistory(employee.employee_code);
     setShowPromotionModal(true);
+  };
+
+  const handleEditEmployee = (employee: Employee) => {
+    setEditEmployee({
+      employee_code: employee.employee_code,
+      employee_name: employee.employee_name,
+      current_position: employee.current_position || '',
+      start_date: employee.start_date || ''
+    });
+    setSelectedEmployee(employee);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editEmployee.employee_name.trim()) {
+      alert('請填寫姓名');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch('/api/employees/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_code: editEmployee.employee_code,
+          employee_name: editEmployee.employee_name.trim(),
+          current_position: editEmployee.current_position || null,
+          start_date: editEmployee.start_date || null
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('✅ 更新成功！');
+        window.location.reload();
+      } else {
+        alert(`❌ 更新失敗：${result.error}`);
+      }
+    } catch (error: any) {
+      alert(`❌ 更新失敗：${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -247,13 +301,22 @@ export default function EmployeeManagementClient({
                         {emp.start_date || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <button
-                          onClick={() => handleViewPromotion(emp)}
-                          className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium"
-                        >
-                          <TrendingUp size={14} />
-                          升遷歷程
-                        </button>
+                        <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleEditEmployee(emp)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
+                          >
+                            <Edit2 size={14} />
+                            編輯
+                          </button>
+                          <button
+                            onClick={() => handleViewPromotion(emp)}
+                            className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors text-sm font-medium"
+                          >
+                            <TrendingUp size={14} />
+                            升遷歷程
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -366,6 +429,105 @@ export default function EmployeeManagementClient({
               </button>
               <button
                 onClick={handleAddEmployee}
+                disabled={loading}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {loading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    儲存中...
+                  </>
+                ) : (
+                  <>
+                    <Save size={18} />
+                    儲存
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 編輯員工 Modal */}
+      {showEditModal && selectedEmployee && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">編輯員工</h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  員編
+                </label>
+                <input
+                  type="text"
+                  value={editEmployee.employee_code}
+                  disabled
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 cursor-not-allowed"
+                />
+                <p className="text-xs text-gray-500 mt-1">員編不可修改</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  姓名 <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editEmployee.employee_name}
+                  onChange={(e) => setEditEmployee({...editEmployee, employee_name: e.target.value})}
+                  placeholder="王小明"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  當前職位
+                </label>
+                <select
+                  value={editEmployee.current_position}
+                  onChange={(e) => setEditEmployee({...editEmployee, current_position: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">請選擇（選填）</option>
+                  {POSITION_OPTIONS.map(pos => (
+                    <option key={pos} value={pos}>{pos}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  到職日
+                </label>
+                <input
+                  type="date"
+                  value={editEmployee.start_date}
+                  onChange={(e) => setEditEmployee({...editEmployee, start_date: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveEdit}
                 disabled={loading}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >

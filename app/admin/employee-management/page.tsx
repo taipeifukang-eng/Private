@@ -29,31 +29,49 @@ export default async function EmployeeManagementPage() {
     redirect('/dashboard');
   }
 
-  // 獲取所有員工資料（使用 DISTINCT ON 避免重複）
-  const { data: employees } = await supabase
+  // 獲取所有在職員工的基本資料
+  const { data: storeEmployees } = await supabase
     .from('store_employees')
-    .select(`
-      id,
-      employee_code,
-      employee_name,
-      current_position,
-      is_active,
-      start_date
-    `)
-    .eq('is_active', true)
-    .order('employee_code');
+    .select('employee_code, employee_name, start_date')
+    .eq('is_active', true);
 
-  // 統計資訊
-  const totalEmployees = employees?.length || 0;
-  const activeEmployees = employees?.filter(e => e.is_active).length || 0;
+  if (!storeEmployees || storeEmployees.length === 0) {
+    return <EmployeeManagementClient 
+      initialEmployees={[]} 
+      totalCount={0}
+      activeCount={0}
+    />;
+  }
+
+  // 獲取每個員工的最新職位（從 monthly_staff_status）
+  const employeesWithPosition = await Promise.all(
+    storeEmployees.map(async (emp) => {
+      const { data: latestStatus } = await supabase
+        .from('monthly_staff_status')
+        .select('position, year_month')
+        .eq('employee_code', emp.employee_code)
+        .order('year_month', { ascending: false })
+        .limit(1)
+        .single();
+
+      return {
+        id: emp.employee_code, // 使用 employee_code 作為 id
+        employee_code: emp.employee_code,
+        employee_name: emp.employee_name,
+        current_position: latestStatus?.position || null,
+        start_date: emp.start_date,
+        is_active: true
+      };
+    })
+  );
 
   // 去重：相同員編只保留一個
-  const uniqueEmployees = employees?.reduce((acc: any[], emp) => {
+  const uniqueEmployees = employeesWithPosition.reduce((acc: any[], emp) => {
     if (!acc.find(e => e.employee_code === emp.employee_code)) {
       acc.push(emp);
     }
     return acc;
-  }, []) || [];
+  }, []);
 
   return <EmployeeManagementClient 
     initialEmployees={uniqueEmployees} 
