@@ -53,19 +53,20 @@ BEGIN
   RAISE NOTICE '✅ monthly_staff_status (督導員編): 更新了 % 筆', affected_rows;
 END $$;
 
--- 4. 更新 monthly_supervisor_shifts 表的督導員編
-UPDATE monthly_supervisor_shifts
-SET supervisor_employee_code = UPPER(supervisor_employee_code)
-WHERE supervisor_employee_code IS NOT NULL
-  AND supervisor_employee_code != UPPER(supervisor_employee_code)
-  AND supervisor_employee_code ~ '^[Ff][Kk]';
-
+-- 4. 更新 monthly_supervisor_shifts 表的督導員編（如果表存在）
 DO $$
-DECLARE
-  affected_rows INTEGER;
 BEGIN
-  GET DIAGNOSTICS affected_rows = ROW_COUNT;
-  RAISE NOTICE '✅ monthly_supervisor_shifts: 更新了 % 筆', affected_rows;
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'monthly_supervisor_shifts') THEN
+    UPDATE monthly_supervisor_shifts
+    SET supervisor_employee_code = UPPER(supervisor_employee_code)
+    WHERE supervisor_employee_code IS NOT NULL
+      AND supervisor_employee_code != UPPER(supervisor_employee_code)
+      AND supervisor_employee_code ~ '^[Ff][Kk]';
+    
+    RAISE NOTICE '✅ monthly_supervisor_shifts: 更新了 % 筆', (SELECT COUNT(*) FROM monthly_supervisor_shifts WHERE supervisor_employee_code IS NOT NULL);
+  ELSE
+    RAISE NOTICE '⚠️  monthly_supervisor_shifts: 表不存在，跳過';
+  END IF;
 END $$;
 
 -- 5. 更新 meal_allowance_records 表的員編
@@ -130,11 +131,11 @@ UNION ALL
 SELECT 
   '檢查結果',
   'monthly_supervisor_shifts',
-  COUNT(*)
-FROM monthly_supervisor_shifts
-WHERE supervisor_employee_code IS NOT NULL
-  AND supervisor_employee_code != UPPER(supervisor_employee_code)
-  AND supervisor_employee_code ~ '^[Ff][Kk]'
+  CASE 
+    WHEN EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'monthly_supervisor_shifts')
+    THEN (SELECT COUNT(*) FROM monthly_supervisor_shifts WHERE supervisor_employee_code IS NOT NULL AND supervisor_employee_code != UPPER(supervisor_employee_code) AND supervisor_employee_code ~ '^[Ff][Kk]')
+    ELSE 0
+  END
 
 UNION ALL
 
