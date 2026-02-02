@@ -181,10 +181,10 @@ export default function SupportBonusModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl max-h-[95vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[98vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+        <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-500 to-purple-600 text-white flex-shrink-0">
           <div>
             <h2 className="text-xl font-bold">支援人員單品獎金</h2>
             <p className="text-sm text-purple-100 mt-1">月份：{yearMonth}</p>
@@ -195,7 +195,7 @@ export default function SupportBonusModal({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 min-h-0">
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
@@ -218,9 +218,9 @@ export default function SupportBonusModal({
               </div>
 
               {/* 說明 */}
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h3 className="font-semibold text-blue-900 mb-2">使用說明</h3>
-                <ul className="text-sm text-blue-800 space-y-1">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <h3 className="font-semibold text-blue-900 mb-1 text-sm">使用說明</h3>
+                <ul className="text-xs text-blue-800 space-y-0.5">
                   <li>• 從員工管理中搜尋員工，點擊選擇後會自動帶入姓名</li>
                   <li>• 儲存時會覆蓋該月份的所有資料</li>
                   <li>• 同一員工在同一月份只能有一筆獎金記錄</li>
@@ -322,7 +322,7 @@ export default function SupportBonusModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50">
+        <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-end gap-3 bg-gray-50 flex-shrink-0">
           <button
             onClick={onClose}
             className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors font-medium"
