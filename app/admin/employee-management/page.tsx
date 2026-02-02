@@ -73,6 +73,9 @@ export default async function EmployeeManagementPage() {
     return acc;
   }, []);
 
+  // 按員編排序
+  uniqueEmployees.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+
   return <EmployeeManagementClient 
     initialEmployees={uniqueEmployees} 
     totalCount={uniqueEmployees.length}

@@ -30,8 +30,13 @@ export default function EmployeeManagementClient({
   totalCount: number;
   activeCount: number;
 }) {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
-  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>(initialEmployees);
+  // 先對初始員工資料按員編排序
+  const sortedInitialEmployees = [...initialEmployees].sort((a, b) => 
+    a.employee_code.localeCompare(b.employee_code)
+  );
+
+  const [employees, setEmployees] = useState<Employee[]>(sortedInitialEmployees);
+  const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>(sortedInitialEmployees);
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -58,17 +63,19 @@ export default function EmployeeManagementClient({
 
   // 搜尋過濾
   useEffect(() => {
+    let result: Employee[];
     if (!searchTerm.trim()) {
-      setFilteredEmployees(employees);
+      result = employees;
     } else {
       const term = searchTerm.toLowerCase();
-      setFilteredEmployees(
-        employees.filter(emp => 
-          emp.employee_code.toLowerCase().includes(term) ||
-          emp.employee_name.toLowerCase().includes(term)
-        )
+      result = employees.filter(emp => 
+        emp.employee_code.toLowerCase().includes(term) ||
+        emp.employee_name.toLowerCase().includes(term)
       );
     }
+    // 按員編排序
+    result.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+    setFilteredEmployees(result);
   }, [searchTerm, employees]);
 
   const handleAddEmployee = async () => {
