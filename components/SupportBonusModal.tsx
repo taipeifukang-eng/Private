@@ -110,7 +110,6 @@ export default function SupportBonusModal({
     const record = records[index];
     updateRecord(record.id, 'employee_code', employee.employee_code);
     updateRecord(record.id, 'employee_name', employee.employee_name);
-    setSearchTerm('');
     setShowDropdown(false);
     setActiveInputIndex(null);
   };
@@ -236,14 +235,22 @@ export default function SupportBonusModal({
                                 type="text"
                                 value={activeInputIndex === index ? searchTerm : record.employee_code}
                                 onChange={(e) => {
-                                  setSearchTerm(e.target.value);
+                                  const value = e.target.value;
+                                  setSearchTerm(value);
+                                  updateRecord(record.id, 'employee_code', value);
                                   setActiveInputIndex(index);
                                   setShowDropdown(true);
                                 }}
                                 onFocus={() => {
                                   setActiveInputIndex(index);
-                                  setSearchTerm('');
+                                  setSearchTerm(record.employee_code);
                                   setShowDropdown(true);
+                                }}
+                                onBlur={() => {
+                                  setTimeout(() => {
+                                    setShowDropdown(false);
+                                    setActiveInputIndex(null);
+                                  }, 200);
                                 }}
                                 placeholder="搜尋員編或姓名..."
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
