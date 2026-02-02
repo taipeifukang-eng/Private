@@ -502,7 +502,6 @@ function StoreStatusDetail({
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMealAllowanceModal, setShowMealAllowanceModal] = useState(false);
   const [showSupportBonusModal, setShowSupportBonusModal] = useState(false);
-  const [supportBonusData, setSupportBonusData] = useState<{ [key: string]: number }>({});
 
   // 判斷是否可以查看門市統計資料
   const canViewStoreStats = () => {
@@ -543,30 +542,7 @@ function StoreStatusDetail({
 
   useEffect(() => {
     loadStaffStatus();
-    loadSupportBonus();
   }, [store.id, yearMonth]);
-
-  const loadSupportBonus = async () => {
-    try {
-      // 計算上個月的年月
-      const [year, month] = yearMonth.split('-').map(Number);
-      const lastMonth = new Date(year, month - 2, 1); // month - 2 因為 JS Date 月份從 0 開始
-      const lastYearMonth = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
-      
-      const response = await fetch(`/api/support-bonus?year_month=${lastYearMonth}`);
-      if (response.ok) {
-        const data = await response.json();
-        // 將數據轉換為 { employee_code: bonus_amount } 格式
-        const bonusMap: { [key: string]: number } = {};
-        data.forEach((record: any) => {
-          bonusMap[record.employee_code] = record.bonus_amount;
-        });
-        setSupportBonusData(bonusMap);
-      }
-    } catch (error) {
-      console.error('載入支援人員獎金失敗:', error);
-    }
-  };
 
   const loadStaffStatus = async () => {
     setLoading(true);
@@ -1091,8 +1067,8 @@ function StoreStatusDetail({
                   </div>
                 </td>
                 <td className="px-4 py-3 text-right text-sm">
-                  {supportBonusData[staff.employee_code] ? (
-                    <span className="font-medium text-purple-600">${supportBonusData[staff.employee_code].toLocaleString()}</span>
+                  {staff.last_month_single_item_bonus ? (
+                    <span className="font-medium text-purple-600">${staff.last_month_single_item_bonus.toLocaleString()}</span>
                   ) : (
                     <span className="text-gray-400">-</span>
                   )}
