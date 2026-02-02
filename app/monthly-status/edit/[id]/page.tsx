@@ -329,7 +329,8 @@ export default function EditStaffStatusPage() {
           ? `外務時數: ${extraTaskExternalHours}小時${partialMonthNotes ? '; ' + partialMonthNotes : ''}`
           : partialMonthNotes || null,
         // 督導(代理店長)-雙 的工作時數同時儲存到 supervisor_shift_hours
-        supervisor_shift_hours: isSupervisorActingManagerDual ? workHours : (supervisorShiftHours || null),
+        // 如果不是督導(代理店長)-雙，則清除此欄位（設為 null）
+        supervisor_shift_hours: isSupervisorActingManagerDual ? workHours : null,
         supervisor_employee_code: supervisorEmployeeCode || null,
         supervisor_name: supervisorName || null,
         supervisor_position: supervisorPosition || null,
