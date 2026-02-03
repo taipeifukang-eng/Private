@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import PDFDocument from 'pdfkit';
-import { Readable } from 'stream';
+import { jsPDF } from 'jspdf';
 
 /**
  * 匯出門市單品獎金 PDF
@@ -62,91 +61,73 @@ export async function POST(request: NextRequest) {
     }
 
     // 創建 PDF
-    const doc = new PDFDocument({
-      size: 'A4',
-      margins: { top: 50, bottom: 50, left: 50, right: 50 }
-    });
-
-    // 收集 PDF 數據
-    const chunks: Buffer[] = [];
-    doc.on('data', (chunk) => chunks.push(chunk));
-
+    const doc = new jsPDF();
+    
     // 標題
-    doc.fontSize(18).font('Helvetica-Bold').text('單品獎金清單', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fontSize(12).font('Helvetica').text(`門市：${store.store_code} ${store.store_name}`, { align: 'center' });
-    doc.text(`月份：${year_month}`, { align: 'center' });
-    doc.moveDown(1);
+    doc.setFontSize(18);
+    doc.text('Single Item Bonus List', 105, 20, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`Store: ${store.store_code} ${store.store_name}`, 105, 30, { align: 'center' });
+    doc.text(`Month: ${year_month}`, 105, 37, { align: 'center' });
 
     // 表格標題
-    const tableTop = doc.y;
-    const colWidths = { code: 100, name: 100, bonus: 150 };
-    const startX = 50;
+    const startY = 50;
+    const lineHeight = 10;
+    let currentY = startY;
 
-    doc.fontSize(10).font('Helvetica-Bold');
-    doc.text('員編', startX, tableTop, { width: colWidths.code, align: 'left' });
-    doc.text('姓名', startX + colWidths.code, tableTop, { width: colWidths.name, align: 'left' });
-    doc.text('單品獎金', startX + colWidths.code + colWidths.name, tableTop, { width: colWidths.bonus, align: 'right' });
-
-    // 繪製表頭下方線
-    doc.moveTo(startX, tableTop + 15)
-       .lineTo(startX + colWidths.code + colWidths.name + colWidths.bonus, tableTop + 15)
-       .stroke();
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Employee Code', 20, currentY);
+    doc.text('Name', 70, currentY);
+    doc.text('Bonus', 140, currentY, { align: 'right' });
+    
+    // 表頭線
+    currentY += 2;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 8;
 
     // 數據行
-    let yPosition = tableTop + 25;
+    doc.setFont('helvetica', 'normal');
     let totalBonus = 0;
 
-    doc.font('Helvetica');
     staffData.forEach((staff: any) => {
       const bonus = staff.last_month_single_item_bonus || 0;
       totalBonus += bonus;
 
       // 檢查是否需要換頁
-      if (yPosition > 700) {
+      if (currentY > 270) {
         doc.addPage();
-        yPosition = 50;
+        currentY = 20;
       }
 
-      doc.text(staff.employee_code || '-', startX, yPosition, { width: colWidths.code, align: 'left' });
-      doc.text(staff.employee_name || '-', startX + colWidths.code, yPosition, { width: colWidths.name, align: 'left' });
-      doc.text(`$${bonus.toLocaleString()}`, startX + colWidths.code + colWidths.name, yPosition, { width: colWidths.bonus, align: 'right' });
+      doc.text(staff.employee_code || '-', 20, currentY);
+      doc.text(staff.employee_name || '-', 70, currentY);
+      doc.text(`$${bonus.toLocaleString()}`, 140, currentY, { align: 'right' });
 
-      yPosition += 20;
+      currentY += lineHeight;
     });
 
     // 總計
-    yPosition += 10;
-    doc.moveTo(startX, yPosition)
-       .lineTo(startX + colWidths.code + colWidths.name + colWidths.bonus, yPosition)
-       .stroke();
+    currentY += 5;
+    doc.line(20, currentY, 190, currentY);
+    currentY += 8;
     
-    yPosition += 15;
-    doc.font('Helvetica-Bold');
-    doc.text('總計', startX, yPosition, { width: colWidths.code + colWidths.name, align: 'left' });
-    doc.text(`$${totalBonus.toLocaleString()}`, startX + colWidths.code + colWidths.name, yPosition, { width: colWidths.bonus, align: 'right' });
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total', 20, currentY);
+    doc.text(`$${totalBonus.toLocaleString()}`, 140, currentY, { align: 'right' });
 
-    // 結束文檔
-    doc.end();
-
-    // 等待 PDF 完成
-    await new Promise((resolve) => {
-      doc.on('end', resolve);
-    });
-
-    // 合併所有 chunks
-    const pdfBuffer = Buffer.concat(chunks);
+    // 生成 PDF buffer
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
     // 設定檔名
-    const filename = `單品獎金_${store.store_code}_${year_month}.pdf`;
-    const encodedFilename = encodeURIComponent(filename);
+    const filename = `${store.store_code}_${year_month}_single_item_bonus.pdf`;
 
     // 回傳 PDF
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename*=UTF-8''${encodedFilename}`
+        'Content-Disposition': `attachment; filename="${filename}"`
       }
     });
 
