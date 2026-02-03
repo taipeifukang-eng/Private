@@ -272,12 +272,14 @@ export default function SupportBonusModal({
                                   const value = e.target.value;
                                   setEditingValue(value);
                                   setEditingIndex(index);
-                                  setShowDropdown(true);
+                                  setShowDropdown(value.length > 0);
                                 }}
                                 onFocus={() => {
                                   setEditingIndex(index);
                                   setEditingValue(record.employee_code);
-                                  setShowDropdown(true);
+                                  if (record.employee_code) {
+                                    setShowDropdown(true);
+                                  }
                                 }}
                                 onBlur={() => {
                                   setTimeout(() => {
