@@ -5,11 +5,12 @@ export async function GET() {
   try {
     const supabase = await createClient();
     
-    // 獲取所有包含「店長」職稱的用戶
+    // 獲取所有包含「店長」、「代理店長」或「督導」職稱的用戶
+    // 督導也可能兼任某間門市的店長
     const { data, error } = await supabase
       .from('profiles')
       .select('id, email, full_name, employee_code, job_title')
-      .or('job_title.ilike.%店長%,job_title.ilike.%代理店長%')
+      .or('job_title.ilike.%店長%,job_title.ilike.%代理店長%,job_title.ilike.%督導%')
       .order('full_name');
 
     if (error) {
