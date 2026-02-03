@@ -35,6 +35,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少必要參數' }, { status: 400 });
     }
 
+    // 查詢門市資訊
+    const { data: store } = await supabase
+      .from('stores')
+      .select('store_code, store_name')
+      .eq('id', store_id)
+      .single();
+
+    if (!store) {
+      return NextResponse.json({ error: '找不到門市' }, { status: 404 });
+    }
+
     // 1. 查詢該門市該月份有單品獎金的一般員工
     const { data: staffData } = await supabase
       .from('monthly_staff_status')
@@ -71,8 +82,12 @@ export async function POST(request: NextRequest) {
     // 按員工編號排序
     allStaff.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
 
-    // 返回 JSON 資料
-    return NextResponse.json(allStaff);
+    // 返回 JSON 資料（包含門市資訊）
+    return NextResponse.json({
+      store_code: store.store_code,
+      store_name: store.store_name,
+      staff: allStaff
+    });
 
   } catch (error) {
     console.error('Error exporting bonus data:', error);

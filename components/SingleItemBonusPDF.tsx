@@ -12,6 +12,7 @@ interface BonusData {
 export async function generateSingleItemBonusPDF(
   bonusData: BonusData[],
   storeCode: string,
+  storeName: string,
   yearMonth: string
 ) {
   // 創建隱藏的容器
@@ -30,7 +31,7 @@ export async function generateSingleItemBonusPDF(
   container.innerHTML = `
     <div style="font-family: 'Microsoft JhengHei', Arial, sans-serif;">
       <h1 style="text-align: center; font-size: 24px; font-weight: bold; margin-bottom: 20px;">
-        ${storeCode} ${yearMonth.substring(0, 4)}年${yearMonth.substring(4)}月單品獎金
+        ${storeCode} ${storeName} ${yearMonth.substring(0, 4)}年${yearMonth.substring(4)}月單品獎金
       </h1>
       
       <table style="width: 100%; border-collapse: collapse; font-size: 14px;">

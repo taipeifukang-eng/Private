@@ -781,12 +781,13 @@ function StoreStatusDetail({
         throw new Error('取得資料失敗');
       }
 
-      const bonusData = await response.json();
+      const result = await response.json();
       
       // 在客戶端生成 PDF
       await generateSingleItemBonusPDF(
-        bonusData,
-        store.store_code,
+        result.staff,
+        result.store_code,
+        result.store_name,
         yearMonth
       );
       
