@@ -318,7 +318,8 @@ export async function createAssignment(data: {
 export async function logAction(
   assignmentId: string,
   stepId: string,
-  action: 'checked' | 'unchecked'
+  action: 'checked' | 'unchecked',
+  note?: string
 ) {
   try {
     const supabase = createClient();
@@ -339,6 +340,7 @@ export async function logAction(
         user_id: user.id,
         step_id: stepId, // Keep as string, don't use parseInt
         action: dbAction,
+        note: note || null,
       })
       .select()
       .single();

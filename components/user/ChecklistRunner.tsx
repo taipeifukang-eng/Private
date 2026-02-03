@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, ArrowLeft, Users, Building, CornerDownRight } from 'lucide-react';
+import { CheckCircle2, Circle, ArrowLeft, Users, Building, CornerDownRight, MessageSquare } from 'lucide-react';
 import type { Assignment, WorkflowStep, Profile } from '@/types/workflow';
 
 interface ChecklistRunnerProps {
@@ -26,10 +26,13 @@ export default function ChecklistRunner({
 }: ChecklistRunnerProps) {
   const router = useRouter();
   const [checkedSteps, setCheckedSteps] = useState<Set<string>>(initialCheckedSteps);
+  const [stepNotes, setStepNotes] = useState<Map<string, string>>(new Map());
+  const [editingNoteStepId, setEditingNoteStepId] = useState<string | null>(null);
+  const [tempNote, setTempNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
   const isProcessingRef = useRef(false);
-  const pendingActionsRef = useRef<Array<{ stepId: string; action: 'checked' | 'unchecked' }>>([]);
+  const pendingActionsRef = useRef<Array<{ stepId: string; action: 'checked' | 'unchecked'; note?: string }>>([]);
 
   const steps = assignment.template.steps_schema;
   
@@ -59,6 +62,7 @@ export default function ChecklistRunner({
         
         if (result.success && result.data) {
           const newCheckedSteps = new Set<string>();
+          const newStepNotes = new Map<string, string>();
           const logs = result.data.logs || [];
           
           // Sort logs by created_at to ensure correct order
@@ -71,13 +75,18 @@ export default function ChecklistRunner({
               const stepIdStr = log.step_id.toString();
               if (log.action === 'complete') {
                 newCheckedSteps.add(stepIdStr);
+                if (log.note) {
+                  newStepNotes.set(stepIdStr, log.note);
+                }
               } else if (log.action === 'uncomplete') {
                 newCheckedSteps.delete(stepIdStr);
+                newStepNotes.delete(stepIdStr);
               }
             }
           });
           
           setCheckedSteps(newCheckedSteps);
+          setStepNotes(newStepNotes);
         }
       } catch (error) {
         console.error('[ChecklistRunner] Failed to refresh assignment:', error);
@@ -154,7 +163,7 @@ export default function ChecklistRunner({
   };
 
   // Handle checkbox toggle with parent-child sync
-  const handleToggle = async (stepId: string, isChecked: boolean) => {
+  const handleToggle = async (stepId: string, isChecked: boolean, note?: string) => {
     // Prevent rapid clicking
     if (isProcessingRef.current) {
       return;
@@ -180,13 +189,17 @@ export default function ChecklistRunner({
 
     // Optimistic UI update with parent-child logic
     const newCheckedSteps = new Set(checkedSteps);
-    const stepsToLog: Array<{ stepId: string; action: 'checked' | 'unchecked' }> = [];
+    const newStepNotes = new Map(stepNotes);
+    const stepsToLog: Array<{ stepId: string; action: 'checked' | 'unchecked'; note?: string }> = [];
 
     if (isSubStep && parentStepId && mainStep) {
       // Toggling a sub-step
       if (isChecked) {
         newCheckedSteps.add(stepId);
-        stepsToLog.push({ stepId, action: 'checked' });
+        if (note) {
+          newStepNotes.set(stepId, note);
+        }
+        stepsToLog.push({ stepId, action: 'checked', note });
         
         // Check if all sub-steps are now checked
         const allSubStepsChecked = mainStep.subSteps?.every(sub => 
@@ -199,6 +212,7 @@ export default function ChecklistRunner({
         }
       } else {
         newCheckedSteps.delete(stepId);
+        newStepNotes.delete(stepId);
         stepsToLog.push({ stepId, action: 'unchecked' });
         
         // Uncheck parent step if it was checked
@@ -212,7 +226,10 @@ export default function ChecklistRunner({
       if (isChecked) {
         // Check main step and all sub-steps
         newCheckedSteps.add(stepId);
-        stepsToLog.push({ stepId, action: 'checked' });
+        if (note) {
+          newStepNotes.set(stepId, note);
+        }
+        stepsToLog.push({ stepId, action: 'checked', note });
         
         mainStep.subSteps.forEach(subStep => {
           if (!newCheckedSteps.has(subStep.id)) {
@@ -223,11 +240,13 @@ export default function ChecklistRunner({
       } else {
         // Uncheck main step and all sub-steps
         newCheckedSteps.delete(stepId);
+        newStepNotes.delete(stepId);
         stepsToLog.push({ stepId, action: 'unchecked' });
         
         mainStep.subSteps.forEach(subStep => {
           if (newCheckedSteps.has(subStep.id)) {
             newCheckedSteps.delete(subStep.id);
+            newStepNotes.delete(subStep.id);
             stepsToLog.push({ stepId: subStep.id, action: 'unchecked' });
           }
         });
@@ -236,14 +255,19 @@ export default function ChecklistRunner({
       // Normal step without sub-steps
       if (isChecked) {
         newCheckedSteps.add(stepId);
+        if (note) {
+          newStepNotes.set(stepId, note);
+        }
       } else {
         newCheckedSteps.delete(stepId);
+        newStepNotes.delete(stepId);
       }
-      stepsToLog.push({ stepId, action: isChecked ? 'checked' : 'unchecked' });
+      stepsToLog.push({ stepId, action: isChecked ? 'checked' : 'unchecked', note });
     }
 
     // Update UI immediately
     setCheckedSteps(newCheckedSteps);
+    setStepNotes(newStepNotes);
 
     // Queue actions for batch processing
     pendingActionsRef.current.push(...stepsToLog);
@@ -263,13 +287,14 @@ export default function ChecklistRunner({
         const { logAction } = await import('@/app/actions');
         
         // Process actions sequentially to maintain order
-        for (const { stepId: sid, action } of actionsToProcess) {
-          await logAction(assignment.id, sid, action);
+        for (const { stepId: sid, action, note: stepNote } of actionsToProcess) {
+          await logAction(assignment.id, sid, action, stepNote);
         }
       } catch (error) {
         console.error('[ChecklistRunner] Failed to log actions:', error);
         // Revert on error
         setCheckedSteps(checkedSteps);
+        setStepNotes(stepNotes);
         alert('操作失敗，請重試');
       } finally {
         isProcessingRef.current = false;
@@ -358,131 +383,243 @@ export default function ChecklistRunner({
         <div className="space-y-3">
           {steps.map((step, index) => {
             const isChecked = checkedSteps.has(step.id);
+            const note = stepNotes.get(step.id);
+            const isEditingNote = editingNoteStepId === step.id;
             
             return (
               <div
                 key={step.id}
                 className={`
-                  relative flex items-start gap-4 p-4 rounded-lg border-2 transition-all duration-200
+                  relative flex flex-col gap-2 p-4 rounded-lg border-2 transition-all duration-200
                   ${isChecked 
                     ? 'bg-green-50 border-green-200' 
                     : 'bg-white border-gray-200 hover:border-blue-300'
                   }
                 `}
               >
-                {/* Step Number Badge */}
-                <div
-                  className={`
-                    flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
-                    ${isChecked 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-gray-200 text-gray-700'
-                    }
-                  `}
-                >
-                  {index + 1}
-                </div>
-
-                {/* Checkbox and Content */}
-                <div className="flex-1 flex items-start gap-3">
-                  <button
-                    onClick={() => handleToggle(step.id, !isChecked)}
-                    className="flex-shrink-0 mt-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110"
+                <div className="flex items-start gap-4">
+                  {/* Step Number Badge */}
+                  <div
+                    className={`
+                      flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold
+                      ${isChecked 
+                        ? 'bg-green-500 text-white' 
+                        : 'bg-gray-200 text-gray-700'
+                      }
+                    `}
                   >
-                    {isChecked ? (
-                      <CheckCircle2 className="w-6 h-6 text-green-600" />
-                    ) : (
-                      <Circle className="w-6 h-6 text-gray-400" />
-                    )}
-                  </button>
+                    {index + 1}
+                  </div>
 
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3
-                        className={`
-                          text-lg font-medium transition-all
-                          ${isChecked 
-                            ? 'text-gray-500 line-through' 
-                            : 'text-gray-900'
-                          }
-                        `}
-                      >
-                        {step.label}
-                      </h3>
-                      {step.required && (
-                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
-                          必填
-                        </span>
+                  {/* Checkbox and Content */}
+                  <div className="flex-1 flex items-start gap-3">
+                    <button
+                      onClick={() => {
+                        if (!isChecked) {
+                          setEditingNoteStepId(step.id);
+                          setTempNote('');
+                        } else {
+                          handleToggle(step.id, false);
+                        }
+                      }}
+                      className="flex-shrink-0 mt-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110"
+                    >
+                      {isChecked ? (
+                        <CheckCircle2 className="w-6 h-6 text-green-600" />
+                      ) : (
+                        <Circle className="w-6 h-6 text-gray-400" />
                       )}
-                    </div>
-                    
-                    {step.description && (
-                      <p
-                        className={`
-                          mt-1 text-sm transition-all
-                          ${isChecked 
-                            ? 'text-gray-400 line-through' 
-                            : 'text-gray-600'
-                          }
-                        `}
-                      >
-                        {step.description}
-                      </p>
-                    )}
+                    </button>
 
-                    {/* Sub-steps */}
-                    {step.subSteps && step.subSteps.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {step.subSteps.map((subStep) => {
-                          const isSubChecked = checkedSteps.has(subStep.id);
-                          return (
-                            <div
-                              key={subStep.id}
-                              className={`
-                                flex items-start gap-2 p-2 rounded-lg transition-all
-                                ${isSubChecked ? 'bg-green-100' : 'bg-gray-50'}
-                              `}
-                            >
-                              <CornerDownRight size={14} className="text-gray-400 mt-1 flex-shrink-0" />
-                              <button
-                                onClick={() => handleToggle(subStep.id, !isSubChecked)}
-                                className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110"
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3
+                          className={`
+                            text-lg font-medium transition-all
+                            ${isChecked 
+                              ? 'text-gray-500 line-through' 
+                              : 'text-gray-900'
+                            }
+                          `}
+                        >
+                          {step.label}
+                        </h3>
+                        {step.required && (
+                          <span className="px-2 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                            必填
+                          </span>
+                        )}
+                      </div>
+                      
+                      {step.description && (
+                        <p
+                          className={`
+                            mt-1 text-sm transition-all
+                            ${isChecked 
+                              ? 'text-gray-400 line-through' 
+                              : 'text-gray-600'
+                            }
+                          `}
+                        >
+                          {step.description}
+                        </p>
+                      )}
+
+                      {/* Sub-steps */}
+                      {step.subSteps && step.subSteps.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {step.subSteps.map((subStep) => {
+                            const isSubChecked = checkedSteps.has(subStep.id);
+                            const subNote = stepNotes.get(subStep.id);
+                            return (
+                              <div
+                                key={subStep.id}
+                                className={`
+                                  flex flex-col gap-2 p-2 rounded-lg transition-all
+                                  ${isSubChecked ? 'bg-green-100' : 'bg-gray-50'}
+                                `}
                               >
-                                {isSubChecked ? (
-                                  <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                ) : (
-                                  <Circle className="w-5 h-5 text-gray-400" />
+                                <div className="flex items-start gap-2">
+                                  <CornerDownRight size={14} className="text-gray-400 mt-1 flex-shrink-0" />
+                                  <button
+                                    onClick={() => {
+                                      if (!isSubChecked) {
+                                        setEditingNoteStepId(subStep.id);
+                                        setTempNote('');
+                                      } else {
+                                        handleToggle(subStep.id, false);
+                                      }
+                                    }}
+                                    className="flex-shrink-0 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded transition-transform hover:scale-110"
+                                  >
+                                    {isSubChecked ? (
+                                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                    ) : (
+                                      <Circle className="w-5 h-5 text-gray-400" />
+                                    )}
+                                  </button>
+                                  <div className="flex-1 flex items-center gap-2">
+                                    <span
+                                      className={`
+                                        text-sm transition-all
+                                        ${isSubChecked ? 'text-gray-500 line-through' : 'text-gray-700'}
+                                      `}
+                                    >
+                                      {subStep.label}
+                                    </span>
+                                    {subStep.required && (
+                                      <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
+                                        必填
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                {/* Sub-step Note */}
+                                {subNote && isSubChecked && (
+                                  <div className="ml-7 mt-1 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                                    <div className="flex items-start gap-2">
+                                      <MessageSquare size={14} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                                      <span className="text-gray-700">{subNote}</span>
+                                    </div>
+                                  </div>
                                 )}
-                              </button>
-                              <div className="flex-1 flex items-center gap-2">
-                                <span
-                                  className={`
-                                    text-sm transition-all
-                                    ${isSubChecked ? 'text-gray-500 line-through' : 'text-gray-700'}
-                                  `}
-                                >
-                                  {subStep.label}
-                                </span>
-                                {subStep.required && (
-                                  <span className="px-1.5 py-0.5 bg-red-100 text-red-700 text-xs font-semibold rounded">
-                                    必填
-                                  </span>
+                                {/* Sub-step Note Input */}
+                                {editingNoteStepId === subStep.id && !isSubChecked && (
+                                  <div className="ml-7 mt-2 flex flex-col gap-2">
+                                    <textarea
+                                      value={tempNote}
+                                      onChange={(e) => setTempNote(e.target.value)}
+                                      placeholder="輸入完成備註（選填）..."
+                                      className="w-full p-2 border border-gray-300 rounded text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                      rows={2}
+                                      autoFocus
+                                    />
+                                    <div className="flex gap-2">
+                                      <button
+                                        onClick={() => {
+                                          handleToggle(subStep.id, true, tempNote || undefined);
+                                          setEditingNoteStepId(null);
+                                          setTempNote('');
+                                        }}
+                                        className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                                      >
+                                        完成
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditingNoteStepId(null);
+                                          setTempNote('');
+                                        }}
+                                        className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300"
+                                      >
+                                        取消
+                                      </button>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
+
+                  {/* Checked Indicator */}
+                  {isChecked && (
+                    <div className="absolute top-2 right-2">
+                      <span className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs font-semibold rounded">
+                        ✓ 已完成
+                      </span>
+                    </div>
+                  )}
                 </div>
 
-                {/* Checked Indicator */}
-                {isChecked && (
-                  <div className="absolute top-2 right-2">
-                    <span className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs font-semibold rounded">
-                      ✓ 已完成
-                    </span>
+                {/* Main Step Note */}
+                {note && isChecked && (
+                  <div className="ml-12 mt-2 p-3 bg-blue-50 border border-blue-200 rounded">
+                    <div className="flex items-start gap-2">
+                      <MessageSquare size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <div className="text-xs font-semibold text-blue-800 mb-1">完成備註</div>
+                        <div className="text-sm text-gray-700">{note}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main Step Note Input */}
+                {isEditingNote && !isChecked && (
+                  <div className="ml-12 mt-2 flex flex-col gap-2">
+                    <textarea
+                      value={tempNote}
+                      onChange={(e) => setTempNote(e.target.value)}
+                      placeholder="輸入完成備註（選填）..."
+                      className="w-full p-3 border border-gray-300 rounded resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          handleToggle(step.id, true, tempNote || undefined);
+                          setEditingNoteStepId(null);
+                          setTempNote('');
+                        }}
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-medium"
+                      >
+                        完成此步驟
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingNoteStepId(null);
+                          setTempNote('');
+                        }}
+                        className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-medium"
+                      >
+                        取消
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
