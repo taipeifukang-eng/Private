@@ -909,24 +909,20 @@ function StoreStatusDetail({
             // 如果可以查看統計資料，顯示統計資料表單（如果同時有編輯權限，則隱藏其中的支援時數區塊）
             if (shouldViewStats) {
               return (
-                <div className="flex-1 flex gap-4">
-                  <div className="flex-1">
-                    <StoreMonthlyStatsForm
-                      storeId={store.id}
-                      yearMonth={yearMonth}
-                      isReadOnly={false}
-                      hideSupportHours={canEditSupportHours}
-                    />
-                  </div>
+                <div className="flex-1 flex flex-col gap-4">
+                  <StoreMonthlyStatsForm
+                    storeId={store.id}
+                    yearMonth={yearMonth}
+                    isReadOnly={false}
+                    hideSupportHours={canEditSupportHours}
+                  />
                   {/* 如果有編輯支援時數的權限，額外顯示支援時數表單 */}
                   {canEditSupportHours && (
-                    <div className="flex-1">
-                      <StoreSupportHoursForm
-                        storeId={store.id}
-                        yearMonth={yearMonth}
-                        isReadOnly={storeStatus === 'confirmed'}
-                      />
-                    </div>
+                    <StoreSupportHoursForm
+                      storeId={store.id}
+                      yearMonth={yearMonth}
+                      isReadOnly={storeStatus === 'confirmed'}
+                    />
                   )}
                 </div>
               );
