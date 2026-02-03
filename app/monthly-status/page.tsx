@@ -899,28 +899,40 @@ function StoreStatusDetail({
             </p>
           </div>
           
-          {/* 門市每月統計資料 - 只有督導以上/營業部助理可見，始終可編輯 */}
-          {canViewStoreStats() && (
-            <div className="flex-1">
-              <StoreMonthlyStatsForm
-                storeId={store.id}
-                yearMonth={yearMonth}
-                isReadOnly={false}
-              />
-            </div>
-          )}
-
-          {/* 門市支援時數 - 該門市的店長/代理店長/督導或管理員可以填寫 */}
-          {((['admin', 'supervisor', 'area_manager'].includes(userRole)) ||
-            (managedStores.some(s => s.id === store.id) && ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle))) && (
-            <div className="flex-1">
-              <StoreSupportHoursForm
-                storeId={store.id}
-                yearMonth={yearMonth}
-                isReadOnly={storeStatus === 'confirmed'}
-              />
-            </div>
-          )}
+          {/* 檢查是否為該門市的店長（包括被指派為店長的督導） */}
+          {(() => {
+            const isStoreManager = managedStores.some(s => s.id === store.id) && 
+              ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
+            const canEditSupportHours = ['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager;
+            
+            // 如果有編輯支援時數的權限，顯示支援時數表單
+            if (canEditSupportHours) {
+              return (
+                <div className="flex-1">
+                  <StoreSupportHoursForm
+                    storeId={store.id}
+                    yearMonth={yearMonth}
+                    isReadOnly={storeStatus === 'confirmed'}
+                  />
+                </div>
+              );
+            }
+            
+            // 否則如果可以查看統計資料，顯示統計資料表單（含唯讀支援時數）
+            if (canViewStoreStats()) {
+              return (
+                <div className="flex-1">
+                  <StoreMonthlyStatsForm
+                    storeId={store.id}
+                    yearMonth={yearMonth}
+                    isReadOnly={false}
+                  />
+                </div>
+              );
+            }
+            
+            return null;
+          })()}
 
           <div className="flex gap-2 flex-shrink-0">
             {storeStatus !== 'confirmed' && (
