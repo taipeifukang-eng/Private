@@ -2376,31 +2376,36 @@ function StoreSupportHoursForm({
     try {
       const { updateStoreMonthlySummary } = await import('@/app/store/actions');
       
-      // 合併現有資料和新的支援時數
+      // 如果沒有現有資料，則創建初始資料（全部為 0，只填寫支援時數）
       const updateData = {
-        total_staff_count: existingData?.total_staff_count || 0,
-        admin_staff_count: existingData?.admin_staff_count || 0,
-        newbie_count: existingData?.newbie_count || 0,
-        business_days: existingData?.business_days || 0,
-        total_gross_profit: existingData?.total_gross_profit || 0,
-        total_customer_count: existingData?.total_customer_count || 0,
-        prescription_addon_only_count: existingData?.prescription_addon_only_count || 0,
-        regular_prescription_count: existingData?.regular_prescription_count || 0,
-        chronic_prescription_count: existingData?.chronic_prescription_count || 0,
+        total_staff_count: existingData?.total_staff_count ?? 0,
+        admin_staff_count: existingData?.admin_staff_count ?? 0,
+        newbie_count: existingData?.newbie_count ?? 0,
+        business_days: existingData?.business_days ?? 0,
+        total_gross_profit: existingData?.total_gross_profit ?? 0,
+        total_customer_count: existingData?.total_customer_count ?? 0,
+        prescription_addon_only_count: existingData?.prescription_addon_only_count ?? 0,
+        regular_prescription_count: existingData?.regular_prescription_count ?? 0,
+        chronic_prescription_count: existingData?.chronic_prescription_count ?? 0,
         support_to_other_stores_hours: supportHours.support_to_other_stores_hours,
         support_from_other_stores_hours: supportHours.support_from_other_stores_hours
       };
+      
+      console.log('儲存支援時數:', { yearMonth, storeId, updateData });
       
       const result = await updateStoreMonthlySummary(yearMonth, storeId, updateData);
       
       if (result.success) {
         alert('✅ 已儲存');
+        // 重新載入以確認資料已儲存
+        await loadSupportHours();
       } else {
+        console.error('儲存失敗:', result.error);
         alert(`❌ 儲存失敗: ${result.error}`);
       }
     } catch (error) {
       console.error('Error saving support hours:', error);
-      alert('❌ 儲存失敗');
+      alert(`❌ 儲存失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
     } finally {
       setSaving(false);
     }

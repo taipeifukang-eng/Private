@@ -301,9 +301,15 @@ export async function getUserManagedStores() {
       if (error) {
         return { success: false, error: error.message, data: [] };
       }
+      
+      // 去重（根據 id）
+      const uniqueStores = data ? Array.from(
+        new Map(data.map(store => [store.id, store])).values()
+      ) : [];
+      
       return { 
         success: true, 
-        data: data || [], 
+        data: uniqueStores, 
         role: profile.role,
         department: profile.department,
         job_title: profile.job_title
@@ -325,9 +331,15 @@ export async function getUserManagedStores() {
       if (error) {
         return { success: false, error: error.message, data: [] };
       }
+      
+      // 去重（根據 id）
+      const uniqueStores = data ? Array.from(
+        new Map(data.map(store => [store.id, store])).values()
+      ) : [];
+      
       return { 
         success: true, 
-        data: data || [], 
+        data: uniqueStores, 
         role: profile.role,
         department: profile.department,
         job_title: profile.job_title
@@ -352,11 +364,16 @@ export async function getUserManagedStores() {
       ?.filter(m => m.store?.is_active)
       .map(m => m.store) || [];
     
+    // 去重（根據 id）
+    const uniqueStores = Array.from(
+      new Map(stores.map(store => [store.id, store])).values()
+    );
+    
     const roleType = managedStores?.[0]?.role_type || 'member';
 
     return { 
       success: true, 
-      data: stores, 
+      data: uniqueStores, 
       role: roleType,
       department: profile.department,
       job_title: profile.job_title
