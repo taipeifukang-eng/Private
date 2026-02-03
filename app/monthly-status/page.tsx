@@ -1227,8 +1227,13 @@ function StoreStatusDetail({
                           </thead>
                           <tbody className="divide-y divide-gray-200">
                             {staffDetails[staff.id].map((detail: any, idx: number) => (
-                              <tr key={idx} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-900">{detail.store_code}</td>
+                              <tr key={idx} className={detail.is_from_file2 ? 'hover:bg-purple-50 bg-purple-25' : 'hover:bg-gray-50'}>
+                                <td className="px-3 py-2 text-gray-900">
+                                  {detail.store_code}
+                                  {detail.is_from_file2 && (
+                                    <span className="ml-2 text-xs text-purple-600 font-medium">(處方加購回補)</span>
+                                  )}
+                                </td>
                                 <td className="px-3 py-2 text-right text-gray-700">{detail.transaction_count?.toLocaleString() || '-'}</td>
                                 <td className="px-3 py-2 text-right text-gray-700">${detail.sales_amount?.toLocaleString() || '0'}</td>
                                 <td className="px-3 py-2 text-right">

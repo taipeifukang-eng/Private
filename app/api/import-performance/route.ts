@@ -74,6 +74,11 @@ export async function POST(request: NextRequest) {
 
     // 讀取檔案 2 - 銷售毛利檔（選填）
     let grossProfitMap = new Map<string, number>(); // key: 員編, value: 銷售毛利合計（負值轉正）
+    let grossProfitDetailsMap = new Map<string, Array<{
+      storeCode: string;
+      storeName: string;
+      grossProfit: number;
+    }>>(); // key: 員編, value: 各門市明細
     
     if (file2) {
       const buffer2 = await file2.arrayBuffer();
@@ -86,7 +91,7 @@ export async function POST(request: NextRequest) {
         console.log('檔案 2 第一筆資料:', grossProfitData[0]);
       }
 
-      // 過濾掉「合計」行，並按員編聚合
+      // 過濾掉「合計」行
       grossProfitData = grossProfitData.filter(row => {
         const storeName = row['門市別']?.toString().trim();
         return storeName && !storeName.includes('合計');
@@ -94,10 +99,13 @@ export async function POST(request: NextRequest) {
 
       console.log('檔案 2 過濾後資料筆數:', grossProfitData.length);
 
-      // 聚合每個員工的銷售毛利（負值轉正）
+      // 按員工+門市聚合銷售毛利（負值轉正）
+      const tempMap = new Map<string, Map<string, number>>(); // 員編 -> (門市 -> 毛利)
+      
       for (const row of grossProfitData) {
         const cashierInfo = row['收銀員']?.toString().trim(); // 格式: [FK0048]呂喻心
-        if (!cashierInfo) continue;
+        const storeCode = row['門市別']?.toString().trim();
+        if (!cashierInfo || !storeCode) continue;
 
         // 提取員編：匹配 [FKXXXX] 格式
         const match = cashierInfo.match(/\[([^\]]+)\]/);
@@ -109,13 +117,33 @@ export async function POST(request: NextRequest) {
         // 負值轉正
         const absoluteProfit = Math.abs(grossProfit);
         
-        if (!grossProfitMap.has(employeeCode)) {
-          grossProfitMap.set(employeeCode, 0);
+        if (!tempMap.has(employeeCode)) {
+          tempMap.set(employeeCode, new Map());
         }
-        grossProfitMap.set(employeeCode, grossProfitMap.get(employeeCode)! + absoluteProfit);
+        const storeMap = tempMap.get(employeeCode)!;
+        storeMap.set(storeCode, (storeMap.get(storeCode) || 0) + absoluteProfit);
+      }
+
+      // 轉換為最終格式
+      for (const [employeeCode, storeMap] of tempMap.entries()) {
+        let totalProfit = 0;
+        const details: Array<{ storeCode: string; storeName: string; grossProfit: number }> = [];
+        
+        for (const [storeCode, profit] of storeMap.entries()) {
+          totalProfit += profit;
+          details.push({
+            storeCode,
+            storeName: storeCode,
+            grossProfit: profit
+          });
+        }
+        
+        grossProfitMap.set(employeeCode, totalProfit);
+        grossProfitDetailsMap.set(employeeCode, details);
       }
 
       console.log('檔案 2 員工毛利聚合結果:', Array.from(grossProfitMap.entries()).slice(0, 5));
+      console.log('檔案 2 門市明細數量:', Array.from(grossProfitDetailsMap.entries()).slice(0, 3));
     }
 
 
@@ -254,16 +282,34 @@ export async function POST(request: NextRequest) {
           .delete()
           .eq('staff_status_id', record.id);
 
-        // 如果有多個門市，插入明細資料
-        if (empData.storeDetails.length > 1) {
-          const detailsToInsert = empData.storeDetails.map(detail => ({
+        // 合併檔案1和檔案2的明細資料
+        const allDetails = [...empData.storeDetails];
+        
+        // 加入檔案2的明細（處方加購回補）
+        const file2Details = grossProfitDetailsMap.get(employeeCode) || [];
+        for (const detail of file2Details) {
+          allDetails.push({
+            storeCode: detail.storeCode,
+            storeName: detail.storeName,
+            transactionCount: 0,
+            salesAmount: 0,
+            grossProfit: detail.grossProfit,
+            grossProfitRate: 0,
+            isFromFile2: true // 標記來自檔案2
+          });
+        }
+
+        // 插入明細資料（檔案1的多門市資料 + 檔案2的處方加購回補）
+        if (allDetails.length > 0) {
+          const detailsToInsert = allDetails.map(detail => ({
             staff_status_id: record.id,
             store_code: detail.storeCode,
             store_name: detail.storeName,
             transaction_count: detail.transactionCount,
             sales_amount: detail.salesAmount,
             gross_profit: detail.grossProfit,
-            gross_profit_rate: Math.round(detail.grossProfitRate * 100) / 100
+            gross_profit_rate: Math.round(detail.grossProfitRate * 100) / 100,
+            is_from_file2: (detail as any).isFromFile2 || false
           }));
 
           const { error: insertError } = await supabase
