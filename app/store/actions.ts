@@ -864,6 +864,27 @@ export async function submitStoreStatus(yearMonth: string, storeId: string, skip
       return { success: false, error: '未登入' };
     }
 
+    // 檢查權限：需要是管理員或該門市的店長
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const isAdmin = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '');
+    
+    // 檢查是否為該門市的店長
+    const { data: storeManager } = await supabase
+      .from('store_managers')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('store_id', storeId)
+      .maybeSingle();
+
+    if (!isAdmin && !storeManager) {
+      return { success: false, error: '您沒有權限提交此門市的狀態' };
+    }
+
     // 如果沒有跳過檢查，先檢查新人階段狀態
     if (!skipNewbieCheck) {
       const checkResult = await checkNewbieStatus(yearMonth, storeId);

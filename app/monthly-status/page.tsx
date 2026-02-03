@@ -1254,7 +1254,7 @@ function StoreStatusDetail({
             匯出單品獎金 PDF
           </button>
         )}
-        {storeStatus === 'in_progress' && (userRole === 'store_manager' || userRole === 'admin') && (
+        {storeStatus === 'in_progress' && ((['admin', 'supervisor', 'area_manager'].includes(userRole)) || managedStores.some(s => s.id === store.id)) && (
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
