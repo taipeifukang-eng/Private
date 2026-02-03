@@ -125,11 +125,11 @@ export async function POST(request: NextRequest) {
       }
 
       // 轉換為最終格式
-      for (const [employeeCode, storeMap] of tempMap.entries()) {
+      for (const [employeeCode, storeMap] of Array.from(tempMap.entries())) {
         let totalProfit = 0;
         const details: Array<{ storeCode: string; storeName: string; grossProfit: number }> = [];
         
-        for (const [storeCode, profit] of storeMap.entries()) {
+        for (const [storeCode, profit] of Array.from(storeMap.entries())) {
           totalProfit += profit;
           details.push({
             storeCode,
@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
         salesAmount: number;
         grossProfit: number;
         grossProfitRate: number;
+        isFromFile2?: boolean;
       }>;
     }>();
 
