@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
         position: current_position || null,
         current_position: current_position || null,
         start_date: start_date || null,
+        employment_type: 'full_time', // 默認為正職
         is_active: true,
         store_id: null // 全域員工，不綁定門市
       })
