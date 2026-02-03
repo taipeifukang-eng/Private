@@ -904,8 +904,35 @@ function StoreStatusDetail({
             const isStoreManager = managedStores.some(s => s.id === store.id) && 
               ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
             const canEditSupportHours = ['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager;
+            const shouldViewStats = canViewStoreStats();
             
-            // 如果有編輯支援時數的權限，顯示支援時數表單
+            // 如果可以查看統計資料，顯示統計資料表單（如果同時有編輯權限，則隱藏其中的支援時數區塊）
+            if (shouldViewStats) {
+              return (
+                <div className="flex-1 flex gap-4">
+                  <div className="flex-1">
+                    <StoreMonthlyStatsForm
+                      storeId={store.id}
+                      yearMonth={yearMonth}
+                      isReadOnly={false}
+                      hideSupportHours={canEditSupportHours}
+                    />
+                  </div>
+                  {/* 如果有編輯支援時數的權限，額外顯示支援時數表單 */}
+                  {canEditSupportHours && (
+                    <div className="flex-1">
+                      <StoreSupportHoursForm
+                        storeId={store.id}
+                        yearMonth={yearMonth}
+                        isReadOnly={storeStatus === 'confirmed'}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            
+            // 否則如果只有編輯支援時數的權限（不能查看統計資料），只顯示支援時數表單
             if (canEditSupportHours) {
               return (
                 <div className="flex-1">
@@ -913,19 +940,6 @@ function StoreStatusDetail({
                     storeId={store.id}
                     yearMonth={yearMonth}
                     isReadOnly={storeStatus === 'confirmed'}
-                  />
-                </div>
-              );
-            }
-            
-            // 否則如果可以查看統計資料，顯示統計資料表單（含唯讀支援時數）
-            if (canViewStoreStats()) {
-              return (
-                <div className="flex-1">
-                  <StoreMonthlyStatsForm
-                    storeId={store.id}
-                    yearMonth={yearMonth}
-                    isReadOnly={false}
                   />
                 </div>
               );
@@ -2038,11 +2052,13 @@ function AddManualEmployeeModal({
 function StoreMonthlyStatsForm({
   storeId,
   yearMonth,
-  isReadOnly
+  isReadOnly,
+  hideSupportHours = false
 }: {
   storeId: string;
   yearMonth: string;
   isReadOnly: boolean;
+  hideSupportHours?: boolean;
 }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -2286,26 +2302,28 @@ function StoreMonthlyStatsForm({
       </div>
 
       {/* 支援時數資訊（唯讀顯示，由店長透過另一表單填寫） */}
-      <div className="mt-3 pt-3 border-t border-blue-300">
-        <h4 className="text-xs font-semibold text-purple-700 mb-2">本月支援時數（由店長填寫）</h4>
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1">
-            <label className="text-xs text-gray-600">支援分店時數</label>
-            <div className="w-20 px-2 py-1 border border-purple-200 bg-purple-50 rounded text-xs text-purple-900 text-center">
-              {stats.support_to_other_stores_hours || 0}
+      {!hideSupportHours && (
+        <div className="mt-3 pt-3 border-t border-blue-300">
+          <h4 className="text-xs font-semibold text-purple-700 mb-2">本月支援時數（由店長填寫）</h4>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-1">
+              <label className="text-xs text-gray-600">支援分店時數</label>
+              <div className="w-20 px-2 py-1 border border-purple-200 bg-purple-50 rounded text-xs text-purple-900 text-center">
+                {stats.support_to_other_stores_hours || 0}
+              </div>
+              <span className="text-xs text-purple-600">小時</span>
             </div>
-            <span className="text-xs text-purple-600">小時</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <label className="text-xs text-gray-600">分店支援時數</label>
-            <div className="w-20 px-2 py-1 border border-purple-200 bg-purple-50 rounded text-xs text-purple-900 text-center">
-              {stats.support_from_other_stores_hours || 0}
+            <div className="flex items-center gap-1">
+              <label className="text-xs text-gray-600">分店支援時數</label>
+              <div className="w-20 px-2 py-1 border border-purple-200 bg-purple-50 rounded text-xs text-purple-900 text-center">
+                {stats.support_from_other_stores_hours || 0}
+              </div>
+              <span className="text-xs text-purple-600">小時</span>
             </div>
-            <span className="text-xs text-purple-600">小時</span>
           </div>
+          <p className="text-xs text-gray-500 mt-1">此資料由店長透過「本月支援時數」表單填寫</p>
         </div>
-        <p className="text-xs text-gray-500 mt-1">此資料由店長透過「本月支援時數」表單填寫</p>
-      </div>
+      )}
     </div>
   );
 }
