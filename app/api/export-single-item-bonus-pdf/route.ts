@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import type { TDocumentDefinitions, TFontDictionary } from 'pdfmake/interfaces';
+
+// 動態導入 pdfmake
+const PdfPrinter = require('pdfmake');
+
+// 定義字體（使用內建字體）
+const fonts: TFontDictionary = {
+  Roboto: {
+    normal: 'Helvetica',
+    bold: 'Helvetica-Bold',
+    italics: 'Helvetica-Oblique',
+    bolditalics: 'Helvetica-BoldOblique'
+  }
+};
 
 /**
  * 匯出門市單品獎金 PDF（包含一般員工和支援人員）
@@ -83,69 +95,124 @@ export async function POST(request: NextRequest) {
     // 按員工編號排序
     allStaff.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
 
-    // 創建 PDF
-    const doc = new jsPDF() as any;
-    
-    // 標題
-    doc.setFontSize(16);
-    doc.text('單品獎金清單', 105, 15, { align: 'center' });
-    
-    doc.setFontSize(11);
-    doc.text(`門市：${store.store_code} - ${store.store_name}`, 105, 23, { align: 'center' });
-    doc.text(`月份：${year_month}`, 105, 30, { align: 'center' });
+    // 計算總計
+    const totalBonus = allStaff.reduce((sum, staff) => sum + (staff.bonus || 0), 0);
 
     // 準備表格數據
-    const tableData = allStaff.map((staff: any) => [
+    const tableBody = allStaff.map((staff: any) => [
       staff.employee_code || '-',
       staff.employee_name || '-',
       `$${(staff.bonus || 0).toLocaleString()}`
     ]);
 
-    // 計算總計
-    const totalBonus = allStaff.reduce((sum, staff) => sum + (staff.bonus || 0), 0);
+    // 添加總計行
+    tableBody.push([
+      { text: '總計', bold: true },
+      '',
+      { text: `$${totalBonus.toLocaleString()}`, bold: true }
+    ]);
 
-    // 使用 autoTable 繪製表格（支援中文）
-    autoTable(doc, {
-      startY: 35,
-      head: [['員工編號', '姓名', '單品獎金']],
-      body: tableData,
-      foot: [['總計', '', `$${totalBonus.toLocaleString()}`]],
-      theme: 'grid',
-      styles: {
-        font: 'helvetica',
-        fontSize: 10,
-        cellPadding: 3,
-      },
-      headStyles: {
-        fillColor: [66, 139, 202],
-        textColor: 255,
-        fontStyle: 'bold',
-        halign: 'center'
-      },
-      footStyles: {
-        fillColor: [240, 240, 240],
-        textColor: 0,
-        fontStyle: 'bold',
-        halign: 'left'
-      },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: 50 },
-        1: { halign: 'left', cellWidth: 80 },
-        2: { halign: 'right', cellWidth: 'auto' }
-      },
-      didParseCell: function(data: any) {
-        // 確保中文正確顯示
-        if (data.cell.text && Array.isArray(data.cell.text)) {
-          data.cell.text = data.cell.text.map((text: string) => {
-            // 使用 escape 方法確保中文字符正確編碼
-            return text;
-          });
+    // 定義 PDF 文檔結構
+    const docDefinition: TDocumentDefinitions = {
+      pageSize: 'A4',
+      pageMargins: [40, 60, 40, 60],
+      content: [
+        {
+          text: '單品獎金清單',
+          style: 'header',
+          alignment: 'center',
+          margin: [0, 0, 0, 10]
+        },
+        {
+          text: `門市：${store.store_code} - ${store.store_name}`,
+          style: 'subheader',
+          alignment: 'center',
+          margin: [0, 0, 0, 5]
+        },
+        {
+          text: `月份：${year_month}`,
+          style: 'subheader',
+          alignment: 'center',
+          margin: [0, 0, 0, 20]
+        },
+        {
+          table: {
+            headerRows: 1,
+            widths: [100, '*', 100],
+            body: [
+              [
+                { text: '員工編號', style: 'tableHeader' },
+                { text: '姓名', style: 'tableHeader' },
+                { text: '單品獎金', style: 'tableHeader', alignment: 'right' }
+              ],
+              ...tableBody.map(row => {
+                if (typeof row[0] === 'object' && 'bold' in row[0]) {
+                  // 總計行
+                  return [
+                    { text: row[0].text, bold: true },
+                    row[1],
+                    { text: row[2].text, bold: true, alignment: 'right' }
+                  ];
+                }
+                // 一般數據行
+                return [
+                  row[0],
+                  row[1],
+                  { text: row[2], alignment: 'right' }
+                ];
+              })
+            ]
+          },
+          layout: {
+            fillColor: (rowIndex: number) => {
+              if (rowIndex === 0) return '#428bca';
+              if (rowIndex === tableBody.length) return '#f0f0f0';
+              return null;
+            },
+            hLineWidth: () => 1,
+            vLineWidth: () => 1,
+            hLineColor: () => '#cccccc',
+            vLineColor: () => '#cccccc'
+          }
         }
+      ],
+      styles: {
+        header: {
+          fontSize: 18,
+          bold: true
+        },
+        subheader: {
+          fontSize: 12
+        },
+        tableHeader: {
+          bold: true,
+          fontSize: 11,
+          color: 'white',
+          alignment: 'center'
+        }
+      },
+      defaultStyle: {
+        fontSize: 10
       }
+    };
+
+    // 創建 PDF
+    const printer = new PdfPrinter(fonts);
+    const pdfDoc = printer.createPdfKitDocument(docDefinition);
+
+    // 收集 PDF 數據
+    const chunks: Buffer[] = [];
+    pdfDoc.on('data', (chunk: Buffer) => chunks.push(chunk));
+    pdfDoc.on('end', () => {});
+    pdfDoc.end();
+
+    // 等待 PDF 完成
+    await new Promise((resolve) => {
+      pdfDoc.on('end', resolve);
     });
 
-    // 生成 PDF buffer
-    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+    // 合併所有 chunks
+    const pdfBuffer = Buffer.concat(chunks);
 
     // 設定檔名
     const filename = `${store.store_code}_${year_month}_單品獎金.pdf`;
