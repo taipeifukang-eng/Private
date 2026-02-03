@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
@@ -1308,6 +1308,11 @@ function AddManualEmployeeModal({
 }) {
   const [saving, setSaving] = useState(false);
   
+  // 員工搜尋相關
+  const [employees, setEmployees] = useState<Array<{employee_code: string; employee_name: string; position: string}>>([]);
+  const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  
   // 基本資料
   const [employeeCode, setEmployeeCode] = useState('');
   const [employeeCodeError, setEmployeeCodeError] = useState('');
@@ -1342,6 +1347,22 @@ function AddManualEmployeeModal({
   // 計算當月天數
   const [year, month] = yearMonth.split('-').map(Number);
   const totalDays = new Date(year, month, 0).getDate();
+
+  // 載入員工列表
+  useEffect(() => {
+    const loadEmployees = async () => {
+      try {
+        const response = await fetch('/api/employees/list');
+        const data = await response.json();
+        if (data.success) {
+          setEmployees(data.employees || []);
+        }
+      } catch (error) {
+        console.error('Error loading employees:', error);
+      }
+    };
+    loadEmployees();
+  }, []);
 
   useEffect(() => {
     // 當狀態為整月在職時，自動設定工作天數
@@ -1414,10 +1435,47 @@ function AddManualEmployeeModal({
     return true;
   };
 
+  // 選擇員工時自動填入資料
+  const handleEmployeeSelect = (employee: {employee_code: string; employee_name: string; position: string}) => {
+    setEmployeeCode(employee.employee_code);
+    setEmployeeName(employee.employee_name);
+    setPosition(employee.position);
+    setShowEmployeeDropdown(false);
+    setIsSearching(false);
+    validateEmployeeCode(employee.employee_code);
+  };
+
+  // 過濾員工列表（精確匹配優先）
+  const filteredEmployees = useMemo(() => {
+    if (!isSearching || !employeeCode) return [];
+    
+    const search = employeeCode.toLowerCase();
+    const exactMatches: typeof employees = [];
+    const prefixMatches: typeof employees = [];
+    const containsMatches: typeof employees = [];
+    
+    employees.forEach(emp => {
+      const code = emp.employee_code.toLowerCase();
+      const name = emp.employee_name.toLowerCase();
+      
+      if (code === search || name === search) {
+        exactMatches.push(emp);
+      } else if (code.startsWith(search) || name.startsWith(search)) {
+        prefixMatches.push(emp);
+      } else if (code.includes(search) || name.includes(search)) {
+        containsMatches.push(emp);
+      }
+    });
+    
+    return [...exactMatches, ...prefixMatches, ...containsMatches].slice(0, 50);
+  }, [employees, employeeCode, isSearching]);
+
   // 處理員編輸入
   const handleEmployeeCodeChange = (value: string) => {
     const upperValue = value.toUpperCase();
     setEmployeeCode(upperValue);
+    setIsSearching(true);
+    setShowEmployeeDropdown(true);
     validateEmployeeCode(upperValue);
   };
 
@@ -1498,7 +1556,7 @@ function AddManualEmployeeModal({
         <div className="p-6 space-y-4">
           {/* 基本資料 */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 員工代號（選填）
               </label>
@@ -1506,11 +1564,40 @@ function AddManualEmployeeModal({
                 type="text"
                 value={employeeCode}
                 onChange={(e) => handleEmployeeCodeChange(e.target.value)}
+                onFocus={() => {
+                  setIsSearching(true);
+                  setShowEmployeeDropdown(true);
+                }}
+                onBlur={() => {
+                  setTimeout(() => {
+                    setShowEmployeeDropdown(false);
+                    setIsSearching(false);
+                  }, 200);
+                }}
                 className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                   employeeCodeError ? 'border-red-300 bg-red-50' : 'border-gray-300'
                 }`}
-                placeholder="FK0001"
+                placeholder="FK0001 或搜尋員工"
               />
+              {/* 員工下拉選單 */}
+              {showEmployeeDropdown && filteredEmployees.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-64 overflow-y-auto">
+                  {filteredEmployees.map((emp) => (
+                    <button
+                      key={emp.employee_code}
+                      onClick={() => handleEmployeeSelect(emp)}
+                      className="w-full px-4 py-3 text-left text-sm hover:bg-blue-50 flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                    >
+                      <div>
+                        <span className="font-medium text-gray-900">{emp.employee_code}</span>
+                        <span className="mx-2 text-gray-400">-</span>
+                        <span className="text-gray-600">{emp.employee_name}</span>
+                      </div>
+                      <span className="text-xs text-gray-500">{emp.position}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {employeeCodeError && (
                 <p className="text-xs text-red-600 mt-1">{employeeCodeError}</p>
               )}
