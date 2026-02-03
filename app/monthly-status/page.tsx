@@ -36,6 +36,7 @@ import {
   EXTRA_TASK_OPTIONS,
   SPECIAL_ROLE_OPTIONS
 } from '@/types/workflow';
+import { generateSingleItemBonusPDF } from '@/components/SingleItemBonusPDF';
 
 function MonthlyStatusContent() {
   const router = useRouter();
@@ -766,6 +767,7 @@ function StoreStatusDetail({
 
   const handleExportBonusPDF = async () => {
     try {
+      // 從 API 獲取獎金資料
       const response = await fetch('/api/export-single-item-bonus-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -776,22 +778,21 @@ function StoreStatusDetail({
       });
 
       if (!response.ok) {
-        throw new Error('匯出失敗');
+        throw new Error('取得資料失敗');
       }
 
-      // 下載 PDF
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `單品獎金_${store.store_code}_${yearMonth}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      const bonusData = await response.json();
+      
+      // 在客戶端生成 PDF
+      await generateSingleItemBonusPDF(
+        bonusData,
+        store.store_code,
+        yearMonth
+      );
+      
     } catch (error) {
       console.error('Export error:', error);
-      alert('❌ 匯出失敗');
+      alert('❌ 匯出失敗: ' + (error instanceof Error ? error.message : '未知錯誤'));
     }
   };
 
