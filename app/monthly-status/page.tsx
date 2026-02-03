@@ -24,7 +24,8 @@ import {
   Trash2,
   Upload,
   TrendingUp,
-  ChevronDown
+  ChevronDown,
+  FileText
 } from 'lucide-react';
 import type { Store, MonthlyStoreSummary, MonthlyStatusType, NewbieLevel, PartialMonthReason, ExtraTask } from '@/types/workflow';
 import { 
@@ -763,6 +764,37 @@ function StoreStatusDetail({
     }
   };
 
+  const handleExportBonusPDF = async () => {
+    try {
+      const response = await fetch('/api/export-single-item-bonus-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_id: store.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('匯出失敗');
+      }
+
+      // 下載 PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `單品獎金_${store.store_code}_${yearMonth}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('❌ 匯出失敗');
+    }
+  };
+
   const handleExport = async () => {
     try {
       const { exportMonthlyStatusForBonus } = await import('@/app/store/actions');
@@ -1204,6 +1236,17 @@ function StoreStatusDetail({
 
       {/* 底部操作按鈕 */}
       <div className="mt-6 flex justify-end gap-4">
+        {/* 匯出單品獎金 PDF 按鈕（店長以上可見） */}
+        {(userRole === 'store_manager' || userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager' || 
+          ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
+          <button
+            onClick={handleExportBonusPDF}
+            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold flex items-center gap-2"
+          >
+            <FileText size={18} />
+            匯出單品獎金 PDF
+          </button>
+        )}
         {storeStatus === 'in_progress' && (userRole === 'store_manager' || userRole === 'admin') && (
           <button
             onClick={handleSubmit}
