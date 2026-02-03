@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 /**
- * 匯出門市單品獎金 PDF
+ * 匯出門市單品獎金 PDF（包含一般員工和支援人員）
  */
 export async function POST(request: NextRequest) {
   try {
@@ -46,88 +47,116 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '找不到門市' }, { status: 404 });
     }
 
-    // 查詢該門市該月份有單品獎金的員工
-    const { data: staffData, error } = await supabase
+    // 1. 查詢該門市該月份有單品獎金的一般員工
+    const { data: staffData } = await supabase
       .from('monthly_staff_status')
       .select('employee_code, employee_name, last_month_single_item_bonus')
       .eq('year_month', year_month)
       .eq('store_id', store_id)
       .not('last_month_single_item_bonus', 'is', null)
+      .gt('last_month_single_item_bonus', 0)
       .order('employee_code');
 
-    if (error) {
-      console.error('Query error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
+    // 2. 查詢支援人員單品獎金
+    const { data: supportData } = await supabase
+      .from('support_staff_bonus')
+      .select('employee_code, employee_name, bonus_amount')
+      .eq('year_month', year_month)
+      .eq('store_id', store_id)
+      .gt('bonus_amount', 0)
+      .order('employee_code');
+
+    // 合併數據
+    const allStaff = [
+      ...(staffData || []).map(s => ({
+        employee_code: s.employee_code,
+        employee_name: s.employee_name,
+        bonus: s.last_month_single_item_bonus
+      })),
+      ...(supportData || []).map(s => ({
+        employee_code: s.employee_code,
+        employee_name: s.employee_name,
+        bonus: s.bonus_amount
+      }))
+    ];
+
+    // 按員工編號排序
+    allStaff.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
 
     // 創建 PDF
-    const doc = new jsPDF();
+    const doc = new jsPDF() as any;
     
     // 標題
-    doc.setFontSize(18);
-    doc.text('Single Item Bonus List', 105, 20, { align: 'center' });
-    doc.setFontSize(12);
-    doc.text(`Store: ${store.store_code} ${store.store_name}`, 105, 30, { align: 'center' });
-    doc.text(`Month: ${year_month}`, 105, 37, { align: 'center' });
-
-    // 表格標題
-    const startY = 50;
-    const lineHeight = 10;
-    let currentY = startY;
-
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Employee Code', 20, currentY);
-    doc.text('Name', 70, currentY);
-    doc.text('Bonus', 140, currentY, { align: 'right' });
+    doc.setFontSize(16);
+    doc.text('單品獎金清單', 105, 15, { align: 'center' });
     
-    // 表頭線
-    currentY += 2;
-    doc.line(20, currentY, 190, currentY);
-    currentY += 8;
+    doc.setFontSize(11);
+    doc.text(`門市：${store.store_code} - ${store.store_name}`, 105, 23, { align: 'center' });
+    doc.text(`月份：${year_month}`, 105, 30, { align: 'center' });
 
-    // 數據行
-    doc.setFont('helvetica', 'normal');
-    let totalBonus = 0;
+    // 準備表格數據
+    const tableData = allStaff.map((staff: any) => [
+      staff.employee_code || '-',
+      staff.employee_name || '-',
+      `$${(staff.bonus || 0).toLocaleString()}`
+    ]);
 
-    staffData.forEach((staff: any) => {
-      const bonus = staff.last_month_single_item_bonus || 0;
-      totalBonus += bonus;
+    // 計算總計
+    const totalBonus = allStaff.reduce((sum, staff) => sum + (staff.bonus || 0), 0);
 
-      // 檢查是否需要換頁
-      if (currentY > 270) {
-        doc.addPage();
-        currentY = 20;
+    // 使用 autoTable 繪製表格（支援中文）
+    autoTable(doc, {
+      startY: 35,
+      head: [['員工編號', '姓名', '單品獎金']],
+      body: tableData,
+      foot: [['總計', '', `$${totalBonus.toLocaleString()}`]],
+      theme: 'grid',
+      styles: {
+        font: 'helvetica',
+        fontSize: 10,
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [66, 139, 202],
+        textColor: 255,
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      footStyles: {
+        fillColor: [240, 240, 240],
+        textColor: 0,
+        fontStyle: 'bold',
+        halign: 'left'
+      },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: 50 },
+        1: { halign: 'left', cellWidth: 80 },
+        2: { halign: 'right', cellWidth: 'auto' }
+      },
+      didParseCell: function(data: any) {
+        // 確保中文正確顯示
+        if (data.cell.text && Array.isArray(data.cell.text)) {
+          data.cell.text = data.cell.text.map((text: string) => {
+            // 使用 escape 方法確保中文字符正確編碼
+            return text;
+          });
+        }
       }
-
-      doc.text(staff.employee_code || '-', 20, currentY);
-      doc.text(staff.employee_name || '-', 70, currentY);
-      doc.text(`$${bonus.toLocaleString()}`, 140, currentY, { align: 'right' });
-
-      currentY += lineHeight;
     });
-
-    // 總計
-    currentY += 5;
-    doc.line(20, currentY, 190, currentY);
-    currentY += 8;
-    
-    doc.setFont('helvetica', 'bold');
-    doc.text('Total', 20, currentY);
-    doc.text(`$${totalBonus.toLocaleString()}`, 140, currentY, { align: 'right' });
 
     // 生成 PDF buffer
     const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
 
     // 設定檔名
-    const filename = `${store.store_code}_${year_month}_single_item_bonus.pdf`;
+    const filename = `${store.store_code}_${year_month}_單品獎金.pdf`;
+    const encodedFilename = encodeURIComponent(filename);
 
     // 回傳 PDF
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodedFilename}`
       }
     });
 
