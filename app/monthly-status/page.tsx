@@ -358,6 +358,7 @@ function MonthlyStatusContent() {
             userRole={userRole}
             userDepartment={userDepartment}
             userJobTitle={userJobTitle}
+            managedStores={managedStores}
             onRefresh={loadStoreSummaries}
           />
         ) : (
@@ -404,6 +405,7 @@ function MonthlyStatusContent() {
                     userRole={userRole}
                     userDepartment={userDepartment}
                     userJobTitle={userJobTitle}
+                    managedStores={managedStores}
                     onRefresh={(moveToNext?: boolean) => loadStoreSummaries(moveToNext || false)}
                   />
                 </div>
@@ -485,6 +487,7 @@ function StoreStatusDetail({
   userRole,
   userDepartment,
   userJobTitle,
+  managedStores,
   onRefresh
 }: {
   store: Store;
@@ -492,6 +495,7 @@ function StoreStatusDetail({
   userRole: string;
   userDepartment: string;
   userJobTitle: string;
+  managedStores: Store[];
   onRefresh: (moveToNext?: boolean) => void;
 }) {
   const router = useRouter();
@@ -906,8 +910,9 @@ function StoreStatusDetail({
             </div>
           )}
 
-          {/* 門市支援時數 - 店長/代理店長/督導可以填寫 */}
-          {(userJobTitle === '店長' || userJobTitle === '代理店長' || userJobTitle === '督導' || userJobTitle === '督導(代理店長)') && !canViewStoreStats() && (
+          {/* 門市支援時數 - 該門市的店長/代理店長/督導或管理員可以填寫 */}
+          {((['admin', 'supervisor', 'area_manager'].includes(userRole)) ||
+            (managedStores.some(s => s.id === store.id) && ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle))) && (
             <div className="flex-1">
               <StoreSupportHoursForm
                 storeId={store.id}

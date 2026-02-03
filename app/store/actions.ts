@@ -1548,6 +1548,27 @@ export async function updateStoreMonthlySummary(
       return { success: false, error: '未登入' };
     }
 
+    // 檢查權限：需要是管理員或該門市的店長
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    const isAdmin = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '');
+    
+    // 檢查是否為該門市的店長
+    const { data: storeManager } = await supabase
+      .from('store_managers')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('store_id', storeId)
+      .maybeSingle();
+
+    if (!isAdmin && !storeManager) {
+      return { success: false, error: '您沒有權限修改此門市的資料' };
+    }
+
     // 檢查是否已存在
     const { data: existing } = await supabase
       .from('monthly_store_summary')
