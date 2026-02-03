@@ -2336,6 +2336,7 @@ function StoreSupportHoursForm({
 }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [existingData, setExistingData] = useState<any>(null);
   const [supportHours, setSupportHours] = useState({
     support_to_other_stores_hours: 0,
     support_from_other_stores_hours: 0
@@ -2352,6 +2353,7 @@ function StoreSupportHoursForm({
       const result = await getStoreMonthlySummary(yearMonth, storeId);
       
       if (result.success && result.data) {
+        setExistingData(result.data);
         setSupportHours({
           support_to_other_stores_hours: result.data.support_to_other_stores_hours || 0,
           support_from_other_stores_hours: result.data.support_from_other_stores_hours || 0
@@ -2368,7 +2370,23 @@ function StoreSupportHoursForm({
     setSaving(true);
     try {
       const { updateStoreMonthlySummary } = await import('@/app/store/actions');
-      const result = await updateStoreMonthlySummary(yearMonth, storeId, supportHours as any);
+      
+      // 合併現有資料和新的支援時數
+      const updateData = {
+        total_staff_count: existingData?.total_staff_count || 0,
+        admin_staff_count: existingData?.admin_staff_count || 0,
+        newbie_count: existingData?.newbie_count || 0,
+        business_days: existingData?.business_days || 0,
+        total_gross_profit: existingData?.total_gross_profit || 0,
+        total_customer_count: existingData?.total_customer_count || 0,
+        prescription_addon_only_count: existingData?.prescription_addon_only_count || 0,
+        regular_prescription_count: existingData?.regular_prescription_count || 0,
+        chronic_prescription_count: existingData?.chronic_prescription_count || 0,
+        support_to_other_stores_hours: supportHours.support_to_other_stores_hours,
+        support_from_other_stores_hours: supportHours.support_from_other_stores_hours
+      };
+      
+      const result = await updateStoreMonthlySummary(yearMonth, storeId, updateData);
       
       if (result.success) {
         alert('✅ 已儲存');

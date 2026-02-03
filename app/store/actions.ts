@@ -290,8 +290,8 @@ export async function getUserManagedStores() {
       isBusinessManager: profile.role === 'manager'
     });
 
-    // admin 可以看所有門市
-    if (profile.role === 'admin') {
+    // admin, supervisor, area_manager 可以看所有門市（不論 job_title）
+    if (['admin', 'supervisor', 'area_manager'].includes(profile.role)) {
       const { data, error } = await supabase
         .from('stores')
         .select('*')
@@ -304,7 +304,7 @@ export async function getUserManagedStores() {
       return { 
         success: true, 
         data: data || [], 
-        role: 'admin',
+        role: profile.role,
         department: profile.department,
         job_title: profile.job_title
       };
