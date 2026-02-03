@@ -1309,9 +1309,10 @@ function AddManualEmployeeModal({
   const [saving, setSaving] = useState(false);
   
   // 員工搜尋相關
-  const [employees, setEmployees] = useState<Array<{employee_code: string; employee_name: string; position: string}>>([]);
+  const [employees, setEmployees] = useState<Array<{employee_code: string; employee_name: string; position: string; start_date: string | null}>>([]);
   const [showEmployeeDropdown, setShowEmployeeDropdown] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+  const [startDate, setStartDate] = useState<string>('');
   
   // 基本資料
   const [employeeCode, setEmployeeCode] = useState('');
@@ -1436,10 +1437,11 @@ function AddManualEmployeeModal({
   };
 
   // 選擇員工時自動填入資料
-  const handleEmployeeSelect = (employee: {employee_code: string; employee_name: string; position: string}) => {
+  const handleEmployeeSelect = (employee: {employee_code: string; employee_name: string; position: string; start_date: string | null}) => {
     setEmployeeCode(employee.employee_code);
     setEmployeeName(employee.employee_name);
     setPosition(employee.position);
+    setStartDate(employee.start_date || '');
     setShowEmployeeDropdown(false);
     setIsSearching(false);
     validateEmployeeCode(employee.employee_code);
@@ -1618,6 +1620,18 @@ function AddManualEmployeeModal({
               />
             </div>
           </div>
+
+          {/* 到職日顯示（只讀） */}
+          {startDate && (
+            <div className="bg-blue-50 rounded-lg p-3">
+              <label className="block text-sm font-medium text-blue-700 mb-1">
+                到職日
+              </label>
+              <div className="text-sm text-blue-900">
+                {new Date(startDate).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

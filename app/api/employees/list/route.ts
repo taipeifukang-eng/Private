@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // 獲取所有在職員工
     const { data: employees, error } = await supabase
       .from('store_employees')
-      .select('employee_code, employee_name, position')
+      .select('employee_code, employee_name, position, start_date')
       .eq('is_active', true)
       .order('employee_code');
 
