@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
@@ -51,8 +51,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 使用 admin client 繞過 RLS 來查詢資料
+    const adminClient = createAdminClient();
+
     // 獲取門市資料（用於取得門市代號）
-    const { data: stores, error: storesError } = await supabase
+    const { data: stores, error: storesError } = await adminClient
       .from('stores')
       .select('id, store_code, store_name')
       .in('id', store_ids);
@@ -70,8 +73,8 @@ export async function POST(request: NextRequest) {
       stores?.map(s => [s.id, { code: s.store_code, name: s.store_name }]) || []
     );
 
-    // 獲取誤餐費記錄
-    const { data: records, error: recordsError } = await supabase
+    // 獲取誤餐費記錄（使用 admin client）
+    const { data: records, error: recordsError } = await adminClient
       .from('meal_allowance_records')
       .select('*')
       .eq('year_month', year_month)
