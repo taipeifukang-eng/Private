@@ -86,6 +86,15 @@ export async function POST(request: NextRequest) {
       excelData.push(...supportExcelData);
     }
 
+    // 按門市代號排序
+    excelData.sort((a: any, b: any) => {
+      if (a['門市代號'] !== b['門市代號']) {
+        return a['門市代號'].localeCompare(b['門市代號']);
+      }
+      // 門市相同則按員編排序
+      return (a['員編'] || '').localeCompare(b['員編'] || '');
+    });
+
     // 建立工作簿
     const worksheet = XLSX.utils.json_to_sheet(excelData);
     const workbook = XLSX.utils.book_new();

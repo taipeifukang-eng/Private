@@ -149,6 +149,19 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    // 按門市代號排序
+    excelData.sort((a: any, b: any) => {
+      if (a['門市代號'] !== b['門市代號']) {
+        return a['門市代號'].localeCompare(b['門市代號']);
+      }
+      // 門市相同則按日期排序
+      if (a['日期'] !== b['日期']) {
+        return (a['日期'] || '').localeCompare(b['日期'] || '');
+      }
+      // 日期相同則按員編排序
+      return (a['員編'] || '').localeCompare(b['員編'] || '');
+    });
+
     // 如果沒有資料
     if (excelData.length === 0) {
       excelData.push({

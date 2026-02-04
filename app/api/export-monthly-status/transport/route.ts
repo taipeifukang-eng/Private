@@ -71,6 +71,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '該月份沒有交通費用資料' }, { status: 404 });
     }
 
+    // 按門市代號排序
+    staffData.sort((a: any, b: any) => {
+      const codeA = a.store?.store_code || '';
+      const codeB = b.store?.store_code || '';
+      if (codeA !== codeB) return codeA.localeCompare(codeB);
+      // 門市相同則按員編排序
+      return (a.employee_code || '').localeCompare(b.employee_code || '');
+    });
+
     // 準備 Excel 資料
     const excelData = staffData.map((staff: any) => ({
       '門市代號': staff.store?.store_code || '',
