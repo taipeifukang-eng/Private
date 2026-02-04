@@ -124,6 +124,16 @@ export async function POST(request: NextRequest) {
     }
     console.log('✅ 誤餐費記錄:', records?.length, '筆');
 
+    // 誤餐時段對應的時間標註
+    const getMealPeriodWithTime = (period: string): string => {
+      const timeMap: Record<string, string> = {
+        '中餐': '中餐(11:00-13:30)',
+        '晚餐': '晚餐(16:30-19:00)',
+        '晚晚餐': '晚晚餐(21:00-21:30)'
+      };
+      return timeMap[period] || period;
+    };
+
     // 準備 Excel 資料
     const excelData = (records || []).map(record => {
       const store = storeMap.get(record.store_id);
@@ -134,7 +144,7 @@ export async function POST(request: NextRequest) {
         '員編': record.employee_code || '',
         '姓名': record.employee_name || '',
         '上班區間': record.work_hours || '',
-        '誤餐時段': record.meal_period || '',
+        '誤餐時段': getMealPeriodWithTime(record.meal_period || ''),
         '身分': record.employee_type || ''
       };
     });
