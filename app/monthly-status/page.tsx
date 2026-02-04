@@ -1304,14 +1304,19 @@ function StoreStatusDetail({
               </button>
             )}
             {(userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager') && (
-              <button
-                onClick={handleConfirm}
-                disabled={isConfirming}
-                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
-              >
-                <Check size={18} />
-                {isConfirming ? '確認中...' : '確認審核'}
-              </button>
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={handleConfirm}
+                  disabled={isConfirming}
+                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Check size={18} />
+                  {isConfirming ? '確認中...' : '確認審核'}
+                </button>
+                <p className="text-sm text-gray-600 text-center">
+                  ⚠️ 按完確認審核後，如需變更請聯繫營業部-李玹瑩
+                </p>
+              </div>
             )}
           </>
         )}
