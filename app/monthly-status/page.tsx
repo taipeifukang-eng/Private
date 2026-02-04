@@ -6,6 +6,8 @@ import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
 import MealAllowanceModal from '@/components/MealAllowanceModal';
 import SupportBonusModal from '@/components/SupportBonusModal';
+import TransportExpenseModal from '@/components/TransportExpenseModal';
+import TalentCultivationModal from '@/components/TalentCultivationModal';
 import { 
   CalendarCheck, 
   Building2, 
@@ -508,6 +510,8 @@ function StoreStatusDetail({
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMealAllowanceModal, setShowMealAllowanceModal] = useState(false);
   const [showSupportBonusModal, setShowSupportBonusModal] = useState(false);
+  const [showTransportExpenseModal, setShowTransportExpenseModal] = useState(false);
+  const [showTalentCultivationModal, setShowTalentCultivationModal] = useState(false);
 
   // 判斷是否可以查看門市統計資料
   const canViewStoreStats = () => {
@@ -961,16 +965,32 @@ function StoreStatusDetail({
                   <CalendarCheck size={16} />
                   誤餐費登記
                 </button>
-                {/* 店長以上可以新增上個月單品獎金 */}
+                {/* 店長以上可以新增上個月單品獎金、交通費用、育才獎金 */}
                 {(['admin', 'manager', 'supervisor', 'area_manager'].includes(userRole) || 
                   ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
-                  <button
-                    onClick={() => setShowSupportBonusModal(true)}
-                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                  >
-                    <Plus size={16} />
-                    上個月單品獎金
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowSupportBonusModal(true)}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={16} />
+                      上個月單品獎金
+                    </button>
+                    <button
+                      onClick={() => setShowTransportExpenseModal(true)}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={16} />
+                      交通費用
+                    </button>
+                    <button
+                      onClick={() => setShowTalentCultivationModal(true)}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={16} />
+                      育才獎金
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -1025,6 +1045,34 @@ function StoreStatusDetail({
           isOpen={showSupportBonusModal}
           onClose={() => {
             setShowSupportBonusModal(false);
+            loadStaffStatus(); // 關閉時重新載入資料
+          }}
+          yearMonth={yearMonth}
+          storeId={store.id}
+          currentStaffList={staffList}
+        />
+      )}
+
+      {/* 交通費用 Modal */}
+      {showTransportExpenseModal && (
+        <TransportExpenseModal
+          isOpen={showTransportExpenseModal}
+          onClose={() => {
+            setShowTransportExpenseModal(false);
+            loadStaffStatus(); // 關閉時重新載入資料
+          }}
+          yearMonth={yearMonth}
+          storeId={store.id}
+          currentStaffList={staffList}
+        />
+      )}
+
+      {/* 育才獎金 Modal */}
+      {showTalentCultivationModal && (
+        <TalentCultivationModal
+          isOpen={showTalentCultivationModal}
+          onClose={() => {
+            setShowTalentCultivationModal(false);
             loadStaffStatus(); // 關閉時重新載入資料
           }}
           yearMonth={yearMonth}
