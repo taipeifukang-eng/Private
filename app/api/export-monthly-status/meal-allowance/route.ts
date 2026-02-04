@@ -18,6 +18,28 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未授權' }, { status: 401 });
     }
 
+    // 檢查權限
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role, department, job_title')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: '找不到用戶資料' }, { status: 403 });
+    }
+
+    // 只有管理員、營業部主管或營業部助理可以匯出
+    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
+    const canExport = profile.role === 'admin' || 
+                     profile.role === 'supervisor' ||
+                     profile.role === 'area_manager' ||
+                     (profile.department?.startsWith('營業') && profile.role === 'manager' && !needsAssignment);
+
+    if (!canExport) {
+      return NextResponse.json({ error: '權限不足' }, { status: 403 });
+    }
+
     // 獲取請求參數
     const body = await request.json();
     const { year_month, store_ids } = body;
