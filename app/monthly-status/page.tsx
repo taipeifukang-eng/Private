@@ -961,7 +961,7 @@ function StoreStatusDetail({
                   <CalendarCheck size={16} />
                   誤餐費登記
                 </button>
-                {/* 店長以上可以新增支援人員獎金 */}
+                {/* 店長以上可以新增上個月單品獎金 */}
                 {(['admin', 'manager', 'supervisor', 'area_manager'].includes(userRole) || 
                   ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
                   <button
@@ -969,7 +969,7 @@ function StoreStatusDetail({
                     className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
                   >
                     <Plus size={16} />
-                    支援人員獎金
+                    上個月單品獎金
                   </button>
                 )}
               </>
@@ -1019,13 +1019,14 @@ function StoreStatusDetail({
         />
       )}
 
-      {/* 支援人員獎金 Modal */}
+      {/* 上個月單品獎金 Modal */}
       {showSupportBonusModal && (
         <SupportBonusModal
           isOpen={showSupportBonusModal}
           onClose={() => setShowSupportBonusModal(false)}
           yearMonth={yearMonth}
           storeId={store.id}
+          currentStaffList={staffList}
         />
       )}
 

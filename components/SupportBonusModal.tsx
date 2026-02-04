@@ -20,13 +20,15 @@ interface SupportBonusModalProps {
   onClose: () => void;
   yearMonth: string;
   storeId: string;
+  currentStaffList?: any[]; // 當前門市的人員列表
 }
 
 export default function SupportBonusModal({ 
   isOpen, 
   onClose, 
   yearMonth,
-  storeId
+  storeId,
+  currentStaffList = []
 }: SupportBonusModalProps) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,13 +65,27 @@ export default function SupportBonusModal({
       );
       const data = await response.json();
       
-      if (data.success && data.records) {
+      if (data.success && data.records && data.records.length > 0) {
+        // 如果有現有記錄，載入現有記錄
         setRecords(data.records.map((r: any) => ({
           id: r.id || Date.now().toString() + Math.random(),
           employee_code: r.employee_code,
           employee_name: r.employee_name,
           bonus_amount: r.bonus_amount || 0
         })));
+      } else {
+        // 如果沒有記錄，預填入當前門市的人員
+        if (currentStaffList && currentStaffList.length > 0) {
+          const prefilledRecords = currentStaffList
+            .filter((staff: any) => staff.employee_code && staff.employee_name)
+            .map((staff: any) => ({
+              id: Date.now().toString() + Math.random() + staff.employee_code,
+              employee_code: staff.employee_code,
+              employee_name: staff.employee_name,
+              bonus_amount: 0
+            }));
+          setRecords(prefilledRecords);
+        }
       }
     } catch (error) {
       console.error('Error loading records:', error);
@@ -155,7 +171,7 @@ export default function SupportBonusModal({
       const data = await response.json();
 
       if (data.success) {
-        alert(`✅ 成功儲存 ${data.count} 筆支援人員獎金`);
+        alert(`✅ 成功儲存 ${data.count} 筆上個月單品獎金`);
         onClose();
       } else {
         alert('❌ ' + (data.error || '儲存失敗'));
@@ -211,7 +227,7 @@ export default function SupportBonusModal({
         {/* Header */}
         <div className="px-6 py-3 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-500 to-purple-600 text-white flex-shrink-0">
           <div>
-            <h2 className="text-xl font-bold">支援人員單品獎金</h2>
+            <h2 className="text-xl font-bold">上個月單品獎金</h2>
             <p className="text-sm text-purple-100 mt-1">月份：{yearMonth}</p>
           </div>
           <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
