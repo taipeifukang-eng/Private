@@ -948,67 +948,72 @@ function StoreStatusDetail({
             return null;
           })()}
 
-          <div className="flex gap-2 flex-shrink-0">
-            {storeStatus !== 'confirmed' && (
-              <>
+          <div className="flex flex-col gap-2 flex-shrink-0">
+            {/* 第一行：基本操作按鈕 */}
+            <div className="flex gap-2 flex-wrap">
+              {storeStatus !== 'confirmed' && (
+                <>
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    手動新增員工
+                  </button>
+                  <button
+                    onClick={() => setShowMealAllowanceModal(true)}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+                  >
+                    <CalendarCheck size={16} />
+                    誤餐費登記
+                  </button>
+                </>
+              )}
+              <button
+                onClick={loadStaffStatus}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
+              >
+                <RefreshCw size={16} />
+                重新整理
+              </button>
+              {storeStatus === 'confirmed' && (
                 <button
-                  onClick={() => setShowAddModal(true)}
+                  onClick={handleExport}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                 >
+                  <Download size={16} />
+                  匯出 Excel
+                </button>
+              )}
+            </div>
+
+            {/* 第二行：獎金與費用按鈕（店長以上） */}
+            {storeStatus !== 'confirmed' && 
+              (['admin', 'manager', 'supervisor', 'area_manager'].includes(userRole) || 
+               ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => setShowSupportBonusModal(true)}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                >
                   <Plus size={16} />
-                  手動新增員工
+                  上個月單品獎金
                 </button>
                 <button
-                  onClick={() => setShowMealAllowanceModal(true)}
-                  className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
+                  onClick={() => setShowTransportExpenseModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
                 >
-                  <CalendarCheck size={16} />
-                  誤餐費登記
+                  <Plus size={16} />
+                  交通費用
                 </button>
-                {/* 店長以上可以新增上個月單品獎金、交通費用、育才獎金 */}
-                {(['admin', 'manager', 'supervisor', 'area_manager'].includes(userRole) || 
-                  ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
-                  <>
-                    <button
-                      onClick={() => setShowSupportBonusModal(true)}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      上個月單品獎金
-                    </button>
-                    <button
-                      onClick={() => setShowTransportExpenseModal(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      交通費用
-                    </button>
-                    <button
-                      onClick={() => setShowTalentCultivationModal(true)}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      育才獎金
-                    </button>
-                  </>
-                )}
-              </>
-            )}
-            <button
-              onClick={loadStaffStatus}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2"
-            >
-              <RefreshCw size={16} />
-              重新整理
-            </button>
-            {storeStatus === 'confirmed' && (
-              <button
-                onClick={handleExport}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-              >
-                <Download size={16} />
-                匯出 Excel
-              </button>
+                <button
+                  onClick={() => setShowTalentCultivationModal(true)}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  育才獎金
+                </button>
+              </div>
             )}
           </div>
         </div>
