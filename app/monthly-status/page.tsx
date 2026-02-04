@@ -1317,16 +1317,6 @@ function StoreStatusDetail({
         )}
         {storeStatus === 'confirmed' && (
           <>
-            {(userRole === 'admin' || userRole === 'area_manager' || userRole === 'store_manager' || userRole === 'supervisor') && (
-              <button
-                onClick={handleRevert}
-                disabled={isConfirming}
-                className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center gap-2 disabled:opacity-50"
-              >
-                <RefreshCw size={18} />
-                {isConfirming ? '處理中...' : '恢復至待填寫'}
-              </button>
-            )}
             {(userRole === 'admin' || userRole === 'area_manager' || (userDepartment === '營業部' && userJobTitle === '助理' && userRole === 'manager')) && (
               <button
                 onClick={handleUnconfirm}
