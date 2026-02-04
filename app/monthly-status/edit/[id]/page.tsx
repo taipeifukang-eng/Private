@@ -73,7 +73,6 @@ export default function EditStaffStatusPage() {
   const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
   
   // 獎金費用
-  const [lastMonthSingleItemBonus, setLastMonthSingleItemBonus] = useState<number>(0);
   const [talentCultivationBonus, setTalentCultivationBonus] = useState<number>(0);
   const [talentCultivationTarget, setTalentCultivationTarget] = useState('');
   
@@ -181,7 +180,6 @@ export default function EditStaffStatusPage() {
       setSupervisorName(data.supervisor_name || '');
       setSupervisorPosition(data.supervisor_position || '');
       setExtraTasks(data.extra_tasks || []);
-      setLastMonthSingleItemBonus(data.last_month_single_item_bonus || 0);
       setTalentCultivationBonus(data.talent_cultivation_bonus || 0);
       setTalentCultivationTarget(data.talent_cultivation_target || '');
       setMonthlyTransportExpense(data.monthly_transport_expense || 0);
@@ -335,7 +333,6 @@ export default function EditStaffStatusPage() {
         extra_tasks: extraTasks.length > 0 ? extraTasks : null,
         extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskPlannedHours || null) : null,
         extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskExternalHours || null) : null,
-        last_month_single_item_bonus: lastMonthSingleItemBonus || null,
         talent_cultivation_bonus: talentCultivationBonus || null,
         talent_cultivation_target: talentCultivationTarget || null,
         monthly_transport_expense: monthlyTransportExpense || null,
@@ -873,28 +870,6 @@ export default function EditStaffStatusPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* 上個月個人單品獎金 */}
-          <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-            <h3 className="text-base font-semibold text-purple-700 mb-4">上個月個人單品獎金</h3>
-            <div>
-              <label className="block text-sm font-medium text-purple-700 mb-2">
-                獎金金額
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={lastMonthSingleItemBonus}
-                  onChange={(e) => setLastMonthSingleItemBonus(parseInt(e.target.value) || 0)}
-                  className="w-32 px-4 py-2 border border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                  placeholder="0"
-                />
-                <span className="text-purple-600">元</span>
-              </div>
-            </div>
           </div>
 
           {/* 本月育才獎金 */}
