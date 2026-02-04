@@ -1332,6 +1332,13 @@ function StoreStatusDetail({
                 {isConfirming ? '處理中...' : '取消確認'}
               </button>
             )}
+            {userRole === 'supervisor' && (
+              <div className="px-6 py-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700 text-center">
+                  ℹ️ 此資料已確認審核，如需變更請聯繫營業部-李玹瑩
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>
