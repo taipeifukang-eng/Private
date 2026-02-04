@@ -560,7 +560,27 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
       return { success: false, error: error.message, data: [] };
     }
 
-    return { success: true, data: data || [] };
+    // 查詢上個月單品獎金資料
+    const { data: bonusData, error: bonusError } = await supabase
+      .from('support_staff_bonus')
+      .select('employee_code, bonus_amount')
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId);
+
+    if (bonusError) {
+      console.error('Error fetching bonus data:', bonusError);
+    }
+
+    // 將獎金資料合併到員工資料中
+    const staffWithBonus = (data || []).map(staff => {
+      const bonus = bonusData?.find(b => b.employee_code === staff.employee_code);
+      return {
+        ...staff,
+        last_month_single_item_bonus: bonus?.bonus_amount || null
+      };
+    });
+
+    return { success: true, data: staffWithBonus };
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message, data: [] };

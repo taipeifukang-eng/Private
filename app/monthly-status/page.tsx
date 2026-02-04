@@ -1023,7 +1023,10 @@ function StoreStatusDetail({
       {showSupportBonusModal && (
         <SupportBonusModal
           isOpen={showSupportBonusModal}
-          onClose={() => setShowSupportBonusModal(false)}
+          onClose={() => {
+            setShowSupportBonusModal(false);
+            loadStaffStatus(); // 關閉時重新載入資料
+          }}
           yearMonth={yearMonth}
           storeId={store.id}
           currentStaffList={staffList}
