@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    const supabase = createClient();
 
     // 權限檢查
     const { data: { user } } = await supabase.auth.getUser();
