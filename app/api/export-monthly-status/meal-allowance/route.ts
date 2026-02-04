@@ -180,12 +180,16 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Excel 生成成功，大小:', excelBuffer.length);
 
+    // 檔名編碼處理（中文檔名需要 URI 編碼）
+    const fileName = `誤餐費_${year_month}.xlsx`;
+    const encodedFileName = encodeURIComponent(fileName);
+
     // 返回檔案
     return new NextResponse(excelBuffer, {
       headers: {
         'Content-Type':
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="誤餐費_${year_month}.xlsx"`,
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodedFileName}`,
       },
     });
   } catch (error: any) {
