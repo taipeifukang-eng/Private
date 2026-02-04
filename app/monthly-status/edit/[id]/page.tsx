@@ -72,14 +72,6 @@ export default function EditStaffStatusPage() {
   // 額外任務
   const [extraTasks, setExtraTasks] = useState<ExtraTask[]>([]);
   
-  // 獎金費用
-  const [talentCultivationBonus, setTalentCultivationBonus] = useState<number>(0);
-  const [talentCultivationTarget, setTalentCultivationTarget] = useState('');
-  
-  // 本月交通費用
-  const [monthlyTransportExpense, setMonthlyTransportExpense] = useState<number>(0);
-  const [transportExpenseNotes, setTransportExpenseNotes] = useState('');
-  
   // 外務時數（長照外務/診所業務）
   const [extraTaskPlannedHours, setExtraTaskPlannedHours] = useState<number>(0);
   const [extraTaskExternalHours, setExtraTaskExternalHours] = useState<number>(0);
@@ -180,10 +172,6 @@ export default function EditStaffStatusPage() {
       setSupervisorName(data.supervisor_name || '');
       setSupervisorPosition(data.supervisor_position || '');
       setExtraTasks(data.extra_tasks || []);
-      setTalentCultivationBonus(data.talent_cultivation_bonus || 0);
-      setTalentCultivationTarget(data.talent_cultivation_target || '');
-      setMonthlyTransportExpense(data.monthly_transport_expense || 0);
-      setTransportExpenseNotes(data.transport_expense_notes || '');
       setExtraTaskPlannedHours(data.extra_task_planned_hours || 0);
       setExtraTaskExternalHours(data.extra_task_external_hours || 0);
     } catch (error) {
@@ -332,11 +320,7 @@ export default function EditStaffStatusPage() {
         supervisor_position: isSupervisorRotation ? (supervisorPosition || null) : null,
         extra_tasks: extraTasks.length > 0 ? extraTasks : null,
         extra_task_planned_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskPlannedHours || null) : null,
-        extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskExternalHours || null) : null,
-        talent_cultivation_bonus: talentCultivationBonus || null,
-        talent_cultivation_target: talentCultivationTarget || null,
-        monthly_transport_expense: monthlyTransportExpense || null,
-        transport_expense_notes: transportExpenseNotes || null
+        extra_task_external_hours: (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')) ? (extraTaskExternalHours || null) : null
       });
 
       if (result.success) {
@@ -870,78 +854,6 @@ export default function EditStaffStatusPage() {
                 </div>
               </div>
             )}
-          </div>
-
-          {/* 本月育才獎金 */}
-          <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-200">
-            <h3 className="text-base font-semibold text-indigo-700 mb-4">本月育才獎金</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-indigo-700 mb-2">
-                  獎金金額
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={talentCultivationBonus}
-                    onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
-                    className="w-32 px-4 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                    placeholder="0"
-                  />
-                  <span className="text-indigo-600">元</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-indigo-700 mb-2">
-                  育才對象
-                </label>
-                <input
-                  type="text"
-                  value={talentCultivationTarget}
-                  onChange={(e) => setTalentCultivationTarget(e.target.value)}
-                  className="w-full px-4 py-2 border border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  placeholder="請輸入育才對象姓名"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 本月交通費用 */}
-          <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-            <h3 className="text-base font-semibold text-orange-700 mb-4">本月交通費用</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-orange-700 mb-2">
-                  費用金額
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={monthlyTransportExpense}
-                    onChange={(e) => setMonthlyTransportExpense(parseInt(e.target.value) || 0)}
-                    className="w-32 px-4 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                    placeholder="0"
-                  />
-                  <span className="text-orange-600">元</span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-orange-700 mb-2">
-                  備註
-                </label>
-                <textarea
-                  value={transportExpenseNotes}
-                  onChange={(e) => setTransportExpenseNotes(e.target.value)}
-                  rows={2}
-                  className="w-full px-4 py-2 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  placeholder="如有特殊交通費用說明請在此填寫..."
-                />
-              </div>
-            </div>
           </div>
 
           {/* 備註 */}

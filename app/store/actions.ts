@@ -1271,6 +1271,11 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
       店長加成資格: item.has_manager_bonus ? '是' : '否',
       督導卡班: item.is_supervisor_rotation ? '是' : '否',
       計算區塊: item.calculated_block || 0,
+      上個月單品獎金: item.last_month_single_item_bonus || '',
+      本月育才獎金: item.talent_cultivation_bonus || '',
+      育才對象: item.talent_cultivation_target || '',
+      本月交通費用: item.monthly_transport_expense || '',
+      交通費用備註: item.transport_expense_notes || '',
       備註: item.notes || ''
     }));
 
