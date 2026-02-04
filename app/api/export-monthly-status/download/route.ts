@@ -154,10 +154,17 @@ export async function POST(request: NextRequest) {
         positionName += '-雙';
       }
 
-      // 天數顯示邏輯：只有未上滿整月的才顯示天數
+      // 天數顯示邏輯：
+      // 1. 店長-雙、代理店長-雙（區塊3）：顯示天數
+      // 2. 其他非整月狀態：顯示天數
       let workDays = '';
-      if (record.monthly_status !== 'full_month' && record.work_days) {
-        workDays = record.work_days.toString();
+      const isDualManager = record.is_dual_position && 
+                           (record.position?.includes('店長') || record.position?.includes('代理店長'));
+      
+      if (record.work_days) {
+        if (isDualManager || record.monthly_status !== 'full_month') {
+          workDays = record.work_days.toString();
+        }
       }
 
       // 計算階段

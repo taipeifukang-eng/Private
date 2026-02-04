@@ -890,13 +890,14 @@ export async function submitStoreStatus(yearMonth: string, storeId: string, skip
 
     const isAdmin = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '');
     
-    // 檢查是否為該門市的店長
-    const { data: storeManager } = await supabase
+    // 檢查是否為該門市的店長（可能有多筆記錄，例如 supervisor + store_manager）
+    const { data: storeManagerRecords } = await supabase
       .from('store_managers')
-      .select('id')
+      .select('id, role_type')
       .eq('user_id', user.id)
-      .eq('store_id', storeId)
-      .maybeSingle();
+      .eq('store_id', storeId);
+    
+    const storeManager = storeManagerRecords && storeManagerRecords.length > 0;
 
     if (!isAdmin && !storeManager) {
       return { success: false, error: '您沒有權限提交此門市的狀態' };
@@ -1417,16 +1418,15 @@ export async function deleteMonthlyStatusRecord(statusId: string) {
       return { success: false, error: '找不到該記錄' };
     }
 
-    // 檢查是否為管理員或該門市的店長
-    const { data: storeManager } = await supabase
+    // 檢查是否為管理員或該門市的店長（可能有多筆記錄）
+    const { data: storeManagerRecords } = await supabase
       .from('store_managers')
-      .select('id')
+      .select('id, role_type')
       .eq('user_id', user.id)
-      .eq('store_id', existing.store_id)
-      .maybeSingle();
+      .eq('store_id', existing.store_id);
 
     const isAdmin = profile?.role === 'admin';
-    const isStoreManager = !!storeManager;
+    const isStoreManager = storeManagerRecords && storeManagerRecords.length > 0;
 
     if (!isAdmin && !isStoreManager) {
       return { success: false, error: '您沒有權限刪除此記錄' };
@@ -1582,41 +1582,69 @@ export async function updateStoreMonthlySummary(
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
+    console.log('🔍 updateStoreMonthlySummary - 開始:', { yearMonth, storeId, userId: user?.id });
+    
     if (!user) {
+      console.error('❌ updateStoreMonthlySummary - 用戶未登入');
       return { success: false, error: '未登入' };
     }
 
     // 檢查權限：需要是管理員或該門市的店長
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, job_title')
       .eq('id', user.id)
       .single();
 
+    console.log('👤 updateStoreMonthlySummary - 用戶資料:', { role: profile?.role, job_title: profile?.job_title });
+
     const isAdmin = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '');
     
-    // 檢查是否為該門市的店長
-    const { data: storeManager } = await supabase
+    // 檢查是否為該門市的店長（可能有多筆記錄，例如 supervisor + store_manager）
+    const { data: storeManagerRecords, error: smError } = await supabase
       .from('store_managers')
-      .select('id')
+      .select('id, role_type')
       .eq('user_id', user.id)
-      .eq('store_id', storeId)
-      .maybeSingle();
+      .eq('store_id', storeId);
+    
+    const storeManager = storeManagerRecords && storeManagerRecords.length > 0;
+
+    const debugInfo = {
+      userId: user.id,
+      role: profile?.role,
+      job_title: profile?.job_title,
+      isAdmin,
+      hasStoreManagerRecord: storeManager,
+      storeManagerRecordsCount: storeManagerRecords?.length || 0,
+      storeManagerData: storeManagerRecords,
+      storeId,
+      yearMonth
+    };
+
+    console.log('🏪 updateStoreMonthlySummary - 店長檢查:', debugInfo);
 
     if (!isAdmin && !storeManager) {
-      return { success: false, error: '您沒有權限修改此門市的資料' };
+      console.error('❌ updateStoreMonthlySummary - 權限不足:', debugInfo);
+      return { 
+        success: false, 
+        error: '您沒有權限修改此門市的資料',
+        debug: debugInfo // 包含診斷資訊
+      };
     }
 
     // 檢查是否已存在
-    const { data: existing } = await supabase
+    const { data: existing, error: existError } = await supabase
       .from('monthly_store_summary')
       .select('id')
       .eq('year_month', yearMonth)
       .eq('store_id', storeId)
-      .single();
+      .maybeSingle();
+
+    console.log('📊 updateStoreMonthlySummary - 現有資料:', { existing, existError });
 
     if (existing) {
       // 更新
+      console.log('🔄 updateStoreMonthlySummary - 執行更新:', stats);
       const { error } = await supabase
         .from('monthly_store_summary')
         .update({
@@ -1626,11 +1654,13 @@ export async function updateStoreMonthlySummary(
         .eq('id', existing.id);
 
       if (error) {
-        console.error('Error updating store summary:', error);
+        console.error('❌ updateStoreMonthlySummary - 更新失敗:', error);
         return { success: false, error: error.message };
       }
+      console.log('✅ updateStoreMonthlySummary - 更新成功');
     } else {
       // 新增
+      console.log('➕ updateStoreMonthlySummary - 執行新增:', stats);
       const { error } = await supabase
         .from('monthly_store_summary')
         .insert({
@@ -1643,15 +1673,16 @@ export async function updateStoreMonthlySummary(
         });
 
       if (error) {
-        console.error('Error inserting store summary:', error);
+        console.error('❌ updateStoreMonthlySummary - 新增失敗:', error);
         return { success: false, error: error.message };
       }
+      console.log('✅ updateStoreMonthlySummary - 新增成功');
     }
 
     revalidatePath('/monthly-status');
     return { success: true };
   } catch (error: any) {
-    console.error('Unexpected error:', error);
+    console.error('❌ updateStoreMonthlySummary - 未預期錯誤:', error);
     return { success: false, error: error.message };
   }
 }

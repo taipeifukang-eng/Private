@@ -22,6 +22,7 @@ export default function ExportMonthlyStatusPage() {
   const [downloadingSingleItemBonus, setDownloadingSingleItemBonus] = useState(false);
   const [downloadingTalentBonus, setDownloadingTalentBonus] = useState(false);
   const [downloadingMealAllowance, setDownloadingMealAllowance] = useState(false);
+  const [downloadingSupportHours, setDownloadingSupportHours] = useState(false);
   
   // 年月選擇
   const now = new Date();
@@ -274,6 +275,36 @@ export default function ExportMonthlyStatusPage() {
     }
   };
 
+  const handleDownloadSupportHours = async () => {
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingSupportHours(true);
+
+    try {
+      const response = await fetch(`/api/export-monthly-status/support-hours?year_month=${yearMonth}`);
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      // 下載檔案
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `門市支援時數_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading support hours:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingSupportHours(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges = {
       pending: { label: '未提交', className: 'bg-gray-100 text-gray-700' },
@@ -442,6 +473,16 @@ export default function ExportMonthlyStatusPage() {
               >
                 <Download size={20} />
                 {downloadingMealAllowance ? '匯出中...' : `匯出誤餐費 (${selectedStoreIds.size} 間門市)`}
+              </button>
+
+              {/* 門市支援時數 */}
+              <button
+                onClick={handleDownloadSupportHours}
+                disabled={downloadingSupportHours}
+                className="w-full px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingSupportHours ? '匯出中...' : '匯出門市支援時數 (全部門市)'}
               </button>
             </div>
           </div>

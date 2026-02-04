@@ -2391,21 +2391,54 @@ function StoreSupportHoursForm({
         support_from_other_stores_hours: supportHours.support_from_other_stores_hours
       };
       
-      console.log('儲存支援時數:', { yearMonth, storeId, updateData });
+      console.log('📝 開始儲存支援時數:', { 
+        yearMonth, 
+        storeId,
+        updateData 
+      });
       
       const result = await updateStoreMonthlySummary(yearMonth, storeId, updateData);
       
+      console.log('📬 收到儲存結果:', result);
+      
       if (result.success) {
+        console.log('✅ 儲存成功！');
         alert('✅ 已儲存');
         // 重新載入以確認資料已儲存
         await loadSupportHours();
       } else {
-        console.error('儲存失敗:', result.error);
-        alert(`❌ 儲存失敗: ${result.error}`);
+        console.error('❌ 儲存失敗 - 錯誤詳情:', {
+          error: result.error,
+          debug: (result as any).debug,
+          result: result
+        });
+        
+        // 顯示詳細的診斷資訊
+        let errorMsg = `❌ 儲存失敗\n\n錯誤訊息: ${result.error}`;
+        
+        if ((result as any).debug) {
+          const debug = (result as any).debug;
+          errorMsg += `\n\n診斷資訊:`;
+          errorMsg += `\n• 用戶ID: ${debug.userId}`;
+          errorMsg += `\n• 角色: ${debug.role}`;
+          errorMsg += `\n• 職稱: ${debug.job_title}`;
+          errorMsg += `\n• 是否管理員: ${debug.isAdmin ? '是' : '否'}`;
+          errorMsg += `\n• 是否有店長記錄: ${debug.hasStoreManagerRecord ? '是' : '否'}`;
+          errorMsg += `\n• 門市ID: ${debug.storeId}`;
+          errorMsg += `\n• 年月: ${debug.yearMonth}`;
+          
+          if (debug.storeManagerData) {
+            errorMsg += `\n• 店長記錄: ${JSON.stringify(debug.storeManagerData)}`;
+          }
+        }
+        
+        errorMsg += `\n\n請聯繫系統管理員並提供以上資訊`;
+        
+        alert(errorMsg);
       }
     } catch (error) {
-      console.error('Error saving support hours:', error);
-      alert(`❌ 儲存失敗: ${error instanceof Error ? error.message : '未知錯誤'}`);
+      console.error('💥 發生例外錯誤:', error);
+      alert(`❌ 儲存失敗\n\n例外錯誤:\n${error instanceof Error ? error.message : '未知錯誤'}\n\n請按 F12 開啟開發者工具查看更多詳情`);
     } finally {
       setSaving(false);
     }
