@@ -12,15 +12,36 @@ RENAME TO employee_movement_history;
 ALTER TABLE employee_movement_history 
 ADD COLUMN IF NOT EXISTS movement_type VARCHAR(20) NOT NULL DEFAULT 'promotion';
 
--- 3. 重新命名相關欄位
-ALTER TABLE employee_movement_history 
-RENAME COLUMN promotion_date TO movement_date;
+-- 3. 重新命名相關欄位（檢查欄位是否存在）
+DO $$
+BEGIN
+  -- 重新命名 promotion_date 為 movement_date
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'employee_movement_history' 
+    AND column_name = 'promotion_date'
+  ) THEN
+    ALTER TABLE employee_movement_history RENAME COLUMN promotion_date TO movement_date;
+  END IF;
 
-ALTER TABLE employee_movement_history 
-RENAME COLUMN new_position TO new_value;
+  -- 重新命名 new_position 為 new_value
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'employee_movement_history' 
+    AND column_name = 'new_position'
+  ) THEN
+    ALTER TABLE employee_movement_history RENAME COLUMN new_position TO new_value;
+  END IF;
 
-ALTER TABLE employee_movement_history 
-RENAME COLUMN old_position TO old_value;
+  -- 重新命名 old_position 為 old_value
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'employee_movement_history' 
+    AND column_name = 'old_position'
+  ) THEN
+    ALTER TABLE employee_movement_history RENAME COLUMN old_position TO old_value;
+  END IF;
+END $$;
 
 -- 4. 移除預設值（因為異動類型需要明確指定）
 ALTER TABLE employee_movement_history 
