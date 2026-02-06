@@ -148,20 +148,20 @@ export async function updateTemplate(templateId: string, data: {
       .single();
 
     // 檢查是否為管理員或任務創建者
-    const { data: template } = await supabase
+    const { data: existingTemplate } = await supabase
       .from('templates')
       .select('created_by')
       .eq('id', templateId)
       .single();
 
-    if (!template) {
+    if (!existingTemplate) {
       return { success: false, error: '任務不存在' };
     }
 
     // 允許 admin、manager 或任務創建者編輯
     const isAdmin = profile?.role === 'admin';
     const isManager = profile?.role === 'manager';
-    const isCreator = template.created_by === user.id;
+    const isCreator = existingTemplate.created_by === user.id;
 
     if (!isAdmin && !isManager && !isCreator) {
       return { success: false, error: '權限不足' };
