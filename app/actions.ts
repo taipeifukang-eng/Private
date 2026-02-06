@@ -1207,19 +1207,25 @@ export async function deleteTemplate(templateId: string) {
       .eq('id', user.id)
       .single();
 
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
-      return { success: false, error: '權限不足，只有管理員和主管可以刪除流程模板' };
-    }
-
-    // Check if template exists
+    // Check if template exists and get creator info
     const { data: template } = await supabase
       .from('templates')
-      .select('id, title')
+      .select('id, title, created_by')
       .eq('id', templateId)
       .single();
 
     if (!template) {
       return { success: false, error: '流程模板不存在' };
+    }
+
+    // Allow deletion if user is:
+    // 1. Admin or manager
+    // 2. The creator of the template
+    const isCreator = template.created_by === user.id;
+    const isAdminOrManager = profile && (profile.role === 'admin' || profile.role === 'manager');
+
+    if (!isAdminOrManager && !isCreator) {
+      return { success: false, error: '權限不足，只有管理員、主管或模板創建者可以刪除流程模板' };
     }
 
     // Delete template (will cascade delete all assignments, logs, and collaborators)
