@@ -577,12 +577,7 @@ function MonthlyStatusContent() {
                           
                           {record.movement_type === 'promotion' && record.new_value && (
                             <div className="flex items-center gap-2 mb-2">
-                              {record.old_value && (
-                                <>
-                                  <span className="text-gray-600">{record.old_value}</span>
-                                  <span className="text-gray-400">→</span>
-                                </>
-                              )}
+                              <span className="text-sm text-gray-600">升至：</span>
                               <span className="font-semibold text-emerald-600">{record.new_value}</span>
                             </div>
                           )}
@@ -1703,12 +1698,7 @@ function StoreStatusDetail({
                           
                           {record.movement_type === 'promotion' && record.new_value && (
                             <div className="flex items-center gap-2 mb-2">
-                              {record.old_value && (
-                                <>
-                                  <span className="text-gray-600">{record.old_value}</span>
-                                  <span className="text-gray-400">→</span>
-                                </>
-                              )}
+                              <span className="text-sm text-gray-600">升至：</span>
                               <span className="font-semibold text-emerald-600">{record.new_value}</span>
                             </div>
                           )}

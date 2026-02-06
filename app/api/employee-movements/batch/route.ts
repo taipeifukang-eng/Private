@@ -65,6 +65,20 @@ export async function POST(request: NextRequest) {
     const movementRecords = [];
     
     for (const movement of movements) {
+      // 檢查是否已存在相同的異動記錄（同員工、同日期、同異動類型）
+      const { data: existingRecord } = await supabase
+        .from('employee_movement_history')
+        .select('id')
+        .eq('employee_code', movement.employee_code.toUpperCase())
+        .eq('movement_date', movement.effective_date)
+        .eq('movement_type', movement.movement_type)
+        .maybeSingle();
+
+      if (existingRecord) {
+        console.log(`跳過重複記錄: ${movement.employee_code} - ${movement.effective_date} - ${movement.movement_type}`);
+        continue; // 跳過重複記錄
+      }
+
       // 查詢員工的當前資料
       const { data: empData } = await supabase
         .from('store_employees')
@@ -104,6 +118,14 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // 如果所有記錄都是重複的
+    if (movementRecords.length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: '所有異動記錄均已存在，沒有新增任何記錄'
+      }, { status: 400 });
+    }
+
     // 批次插入異動記錄
     const { data, error } = await supabase
       .from('employee_movement_history')
@@ -120,10 +142,16 @@ export async function POST(request: NextRequest) {
 
     // 觸發器會自動處理相關更新
 
+    const skippedCount = movements.length - data.length;
+    const message = skippedCount > 0 
+      ? `成功建立 ${data.length} 筆異動記錄（跳過 ${skippedCount} 筆重複記錄），已自動更新員工狀態`
+      : `成功建立 ${data.length} 筆異動記錄，已自動更新員工狀態`;
+
     return NextResponse.json({
       success: true,
       created: data.length,
-      message: `成功建立 ${data.length} 筆異動記錄，已自動更新員工狀態`
+      skipped: skippedCount,
+      message
     });
 
   } catch (error: any) {
