@@ -172,7 +172,7 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
                           <label
                             key={user.id}
                             className={`flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer transition-colors border-b last:border-b-0 ${
-                              isSelected ? 'bg-blue-50' : ''
+                              isSelected ? 'bg-green-50 border-l-4 border-l-green-500' : ''
                             }`}
                           >
                             <input
