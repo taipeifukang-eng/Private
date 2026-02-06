@@ -198,14 +198,17 @@ function MonthlyStatusContent() {
         .select(`
           *,
           stores:store_id (
-            name
+            store_name
           )
         `)
         .eq('employee_code', employeeCode)
         .not('store_id', 'is', null)
         .order('movement_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading movement history:', error);
+        throw error;
+      }
       setMovementHistory(data || []);
     } catch (error) {
       console.error('Error loading movement history:', error);
@@ -771,14 +774,17 @@ function StoreStatusDetail({
         .select(`
           *,
           stores:store_id (
-            name
+            store_name
           )
         `)
         .eq('employee_code', employeeCode)
         .not('store_id', 'is', null)
         .order('movement_date', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error loading movement history:', error);
+        throw error;
+      }
       setMovementHistory(data || []);
     } catch (error) {
       console.error('Error loading movement history:', error);
