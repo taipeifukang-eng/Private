@@ -15,9 +15,10 @@ interface Employee {
 
 interface PromotionHistory {
   id: string;
-  promotion_date: string;
-  new_position: string;
-  old_position: string | null;
+  movement_type: string;
+  movement_date: string;
+  new_value: string;
+  old_value: string | null;
   notes: string | null;
 }
 

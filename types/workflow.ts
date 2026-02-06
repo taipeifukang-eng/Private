@@ -385,20 +385,24 @@ export const POSITION_OPTIONS = [
   '兼職助理'
 ];
 
-// 員工升遷歷程
-export interface EmployeePromotionHistory {
+// 員工異動歷程
+export interface EmployeeMovementHistory {
   id: string;
   employee_code: string;
   employee_name: string;
   store_id: string;
-  promotion_date: string; // YYYY-MM-DD
-  new_position: string;
-  old_position: string | null;
+  movement_type: 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
+  movement_date: string; // YYYY-MM-DD
+  new_value: string;
+  old_value: string | null;
   notes: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// 向後相容：升遷歷程別名
+export type PromotionHistory = EmployeeMovementHistory;
 
 // 批次升遷輸入
 export interface BatchPromotionInput {

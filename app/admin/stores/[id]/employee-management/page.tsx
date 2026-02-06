@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Edit2, Trash2, TrendingUp, Calendar, User, Briefcase } from 'lucide-react';
-import type { EmployeePromotionHistory } from '@/types/workflow';
+import type { EmployeeMovementHistory } from '@/types/workflow';
 
 interface StoreEmployee {
   id: string;
@@ -24,7 +24,7 @@ export default function EmployeeManagementPage() {
   const [storeName, setStoreName] = useState('');
   const [employees, setEmployees] = useState<StoreEmployee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<StoreEmployee | null>(null);
-  const [promotionHistory, setPromotionHistory] = useState<EmployeePromotionHistory[]>([]);
+  const [promotionHistory, setPromotionHistory] = useState<EmployeeMovementHistory[]>([]);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   useEffect(() => {
