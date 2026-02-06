@@ -263,17 +263,31 @@ export async function createAssignment(data: {
     // Get current user (creator/manager)
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      console.error('[createAssignment] ERROR: User not logged in');
       return { success: false, error: '未登入' };
     }
 
-    // Get creator's profile to get their department
-    const { data: creatorProfile } = await supabase
+    console.log('[createAssignment] ===== START =====');
+    console.log('[createAssignment] Current user ID:', user.id);
+    console.log('[createAssignment] Template ID:', data.template_id);
+
+    // Get creator's profile to get their department and role
+    const { data: creatorProfile, error: profileError } = await supabase
       .from('profiles')
-      .select('department')
+      .select('department, role, full_name, job_title')
       .eq('id', user.id)
       .single();
 
-    console.log('[createAssignment] Creator department:', creatorProfile?.department);
+    if (profileError) {
+      console.error('[createAssignment] ERROR fetching profile:', profileError);
+    } else {
+      console.log('[createAssignment] Creator profile:', {
+        department: creatorProfile?.department,
+        role: creatorProfile?.role,
+        full_name: creatorProfile?.full_name,
+        job_title: creatorProfile?.job_title
+      });
+    }
 
     // Convert to array for consistent handling and filter out empty strings
     let userIds: string[] = [];
@@ -287,11 +301,11 @@ export async function createAssignment(data: {
     const userIdSet = new Set([user.id, ...userIds]);
     const allUserIds = Array.from(userIdSet); // Use Array.from() to avoid downlevelIteration issues
     
-    console.log('[createAssignment] Creator:', user.id);
     console.log('[createAssignment] Original assigned users:', userIds);
     console.log('[createAssignment] All users (with creator):', allUserIds);
     
     // Create the assignment (assigned_to will be the first user for backward compatibility)
+    console.log('[createAssignment] Creating assignment...');
     const { data: assignment, error } = await supabase
       .from('assignments')
       .insert({
@@ -305,9 +319,11 @@ export async function createAssignment(data: {
       .single();
 
     if (error) {
-      console.error('Error creating assignment:', error);
+      console.error('[createAssignment] ERROR creating assignment:', error);
       return { success: false, error: error.message };
     }
+
+    console.log('[createAssignment] ✅ Assignment created successfully:', assignment.id);
 
     // Add all users (including creator) as collaborators
     const collaborators = allUserIds.map(userId => ({
@@ -315,7 +331,8 @@ export async function createAssignment(data: {
       user_id: userId,
     }));
 
-    console.log('[createAssignment] Inserting collaborators:', collaborators);
+    console.log('[createAssignment] Preparing to insert collaborators:', collaborators);
+    console.log('[createAssignment] Number of collaborators:', collaborators.length);
 
     const { data: insertedCollaborators, error: collaboratorError } = await supabase
       .from('assignment_collaborators')
@@ -323,17 +340,27 @@ export async function createAssignment(data: {
       .select();
 
     if (collaboratorError) {
-      console.error('Error adding collaborators:', collaboratorError);
+      console.error('[createAssignment] ❌ ERROR adding collaborators:', {
+        error: collaboratorError,
+        message: collaboratorError.message,
+        code: collaboratorError.code,
+        details: collaboratorError.details,
+        hint: collaboratorError.hint
+      });
+      console.log('[createAssignment] Assignment was created but collaborators failed');
+      console.log('[createAssignment] This is likely a permissions issue - check RLS policies on assignment_collaborators table');
       // Don't fail the whole operation, but log the error
     } else {
-      console.log('[createAssignment] Successfully inserted collaborators:', insertedCollaborators);
+      console.log('[createAssignment] ✅ Successfully inserted collaborators:', insertedCollaborators);
+      console.log('[createAssignment] Number of collaborators inserted:', insertedCollaborators?.length || 0);
     }
 
+    console.log('[createAssignment] ===== END =====');
     revalidatePath('/dashboard');
     revalidatePath('/my-tasks');
     return { success: true, data: assignment };
   } catch (error: any) {
-    console.error('Unexpected error:', error);
+    console.error('[createAssignment] ❌ UNEXPECTED ERROR:', error);
     return { success: false, error: error.message || '發生未知錯誤' };
   }
 }
