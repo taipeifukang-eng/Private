@@ -20,6 +20,7 @@ type MovementType = typeof MOVEMENT_TYPES[number]['value'];
 interface MovementInput {
   employee_code: string;
   employee_name: string;
+  store_id: string; // 升職時的任職門市
   movement_type: MovementType | '';
   position: string; // 僅升職時需要
   effective_date: string;
@@ -30,12 +31,18 @@ interface MovementHistory {
   id: string;
   employee_code: string;
   employee_name: string;
+  store_id: string;
   movement_type: MovementType;
   movement_date: string;
   new_value: string | null;
   old_value: string | null;
   notes: string | null;
   created_at: string;
+}
+
+interface Store {
+  id: string;
+  name: string;
 }
 
 interface Employee {
@@ -50,14 +57,18 @@ export default function EmployeeMovementManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'batch' | 'history'>('batch');
   const [movements, setMovements] = useState<MovementInput[]>([
-    { employee_code: '', employee_name: '', movement_type: '', position: '', effective_date: '', notes: '' }
+    { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }
   ]);
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [filteredHistory, setFilteredHistory] = useState<MovementHistory[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState<{[key: number]: string}>({});
   const [showDropdown, setShowDropdown] = useState<{[key: number]: boolean}>({});
+  const [historyYearMonth, setHistoryYearMonth] = useState<string>('');
+  const [historyMovementType, setHistoryMovementType] = useState<string>('all');
 
   useEffect(() => {
     checkPermissionAndLoadData();
@@ -91,7 +102,27 @@ export default function EmployeeMovementManagementPage() {
 
     loadMovementHistory();
     loadEmployees();
+    loadStores();
+    
+    // 設定當前月份為預設篩選
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setHistoryYearMonth(currentYearMonth);
+    
     setLoading(false);
+  };
+
+  const loadStores = async () => {
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    
+    const { data } = await supabase
+      .from('stores')
+      .select('id, name')
+      .order('name');
+
+    if (data) {
+      setStores(data);
+    }
   };
 
   const loadEmployees = async () => {
@@ -113,17 +144,44 @@ export default function EmployeeMovementManagementPage() {
     
     const { data } = await supabase
       .from('employee_movement_history')
-      .select('*')
+      .select(`
+        *,
+        stores (
+          name
+        )
+      `)
       .order('movement_date', { ascending: false })
-      .limit(100);
+      .limit(500);
 
     if (data) {
-      setMovementHistory(data);
+      const formattedData = data.map(item => ({
+        ...item,
+        store_name: item.stores?.name || '-'
+      }));
+      setMovementHistory(formattedData as any);
+      setFilteredHistory(formattedData as any);
     }
   };
 
+  // 篩選歷史記錄
+  useEffect(() => {
+    let filtered = [...movementHistory];
+    
+    // 按月份篩選
+    if (historyYearMonth) {
+      filtered = filtered.filter(m => m.movement_date.startsWith(historyYearMonth));
+    }
+    
+    // 按異動類型篩選
+    if (historyMovementType !== 'all') {
+      filtered = filtered.filter(m => m.movement_type === historyMovementType);
+    }
+    
+    setFilteredHistory(filtered);
+  }, [historyYearMonth, historyMovementType, movementHistory]);
+
   const addRow = () => {
-    setMovements([...movements, { employee_code: '', employee_name: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
+    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
   };
 
   const removeRow = (index: number) => {
@@ -152,6 +210,7 @@ export default function EmployeeMovementManagementPage() {
     const updated = [...movements];
     updated[index].employee_code = employee.employee_code;
     updated[index].employee_name = employee.employee_name;
+    updated[index].store_id = employee.store_id; // 自動帶入員工所屬門市
     setMovements(updated);
     setShowDropdown({ ...showDropdown, [index]: false });
     setSearchTerm({ ...searchTerm, [index]: '' });
@@ -173,15 +232,15 @@ export default function EmployeeMovementManagementPage() {
       if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date) {
         return true;
       }
-      // 如果是升職，必須填寫職位
-      if (m.movement_type === 'promotion' && !m.position) {
+      // 如果是升職，必須填寫職位和門市
+      if (m.movement_type === 'promotion' && (!m.position || !m.store_id)) {
         return true;
       }
       return false;
     });
 
     if (emptyFields.length > 0) {
-      alert('請填寫所有必填欄位（員編、姓名、異動類型、生效日期，升職時需填寫職位）');
+      alert('請填寫所有必填欄位（員編、姓名、異動類型、生效日期，升職時需填寫職位和任職門市）');
       return;
     }
 
@@ -251,10 +310,12 @@ export default function EmployeeMovementManagementPage() {
   const handleExcelExport = () => {
     const exportData = movements.map(m => {
       const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+      const storeName = stores.find(s => s.id === m.store_id)?.name || '';
       return {
         '員編': m.employee_code,
         '姓名': m.employee_name,
         '異動類型': movementTypeLabel,
+        '任職門市': storeName,
         '職位': m.position,
         '生效日期': m.effective_date,
         '備註': m.notes
@@ -290,70 +351,39 @@ export default function EmployeeMovementManagementPage() {
             </h1>
             <p className="text-gray-600">批次管理員工異動，自動更新員工狀態</p>
           </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-            >
-              <Calendar size={18} className="inline mr-2" />
-              {showHistory ? '隱藏歷史' : '查看歷史'}
-            </button>
+        </div>
+
+        {/* TAB 切換 */}
+        <div className="bg-white rounded-lg shadow-sm mb-6">
+          <div className="border-b border-gray-200">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('batch')}
+                className={`px-6 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'batch'
+                    ? 'border-b-2 border-emerald-600 text-emerald-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                批次輸入異動
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`px-6 py-3 text-sm font-medium transition-colors ${
+                  activeTab === 'history'
+                    ? 'border-b-2 border-emerald-600 text-emerald-600'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                查看歷史記錄
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* 異動歷史記錄 */}
-        {showHistory && (
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">近期異動記錄</h2>
-            {movementHistory.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">尚無異動記錄</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">員編</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">姓名</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">異動類型</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">舊值</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">新值</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">生效日期</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">備註</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {movementHistory.map((record) => {
-                      const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
-                      return (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.employee_code}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{record.employee_name}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              record.movement_type === 'promotion' ? 'bg-emerald-100 text-emerald-700' :
-                              record.movement_type === 'leave_without_pay' ? 'bg-amber-100 text-amber-700' :
-                              record.movement_type === 'return_to_work' ? 'bg-blue-100 text-blue-700' :
-                              record.movement_type === 'pass_probation' ? 'bg-purple-100 text-purple-700' :
-                              record.movement_type === 'resignation' ? 'bg-red-100 text-red-700' :
-                              'bg-gray-100 text-gray-700'
-                            }`}>
-                              {typeLabel}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600">{record.movement_date}</td>
-                          <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
+        {/* 批次輸入 TAB */}
+        {activeTab === 'batch' && (
+          <div>
         {/* 批次輸入區 */}
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex items-center justify-between mb-6">
@@ -399,6 +429,9 @@ export default function EmployeeMovementManagementPage() {
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
                     異動類型 <span className="text-red-500">*</span>
+                  </th>
+                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-44">
+                    任職門市
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
                     職位
@@ -491,6 +524,22 @@ export default function EmployeeMovementManagementPage() {
                     <td className="border border-gray-300 px-2 py-1">
                       {movement.movement_type === 'promotion' ? (
                         <select
+                          value={movement.store_id}
+                          onChange={(e) => updateRow(index, 'store_id', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                        >
+                          <option value="">請選擇門市</option>
+                          {stores.map(store => (
+                            <option key={store.id} value={store.id}>{store.name}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="text-gray-400 text-sm px-2 py-1">-</div>
+                      )}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1">
+                      {movement.movement_type === 'promotion' ? (
+                        <select
                           value={movement.position}
                           onChange={(e) => updateRow(index, 'position', e.target.value)}
                           className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
@@ -566,7 +615,7 @@ export default function EmployeeMovementManagementPage() {
         <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-emerald-900 mb-2">💡 使用說明</h3>
           <ul className="text-sm text-emerald-800 space-y-1">
-            <li>• <strong>升職：</strong>需填寫新職位，系統會自動更新該員工從生效日期起的所有月份職位</li>
+            <li>• <strong>升職：</strong>需填寫新職位和任職門市，系統會自動更新該員工從生效日期起的所有月份職位</li>
             <li>• <strong>留職停薪：</strong>將員工狀態設為留職停薪，不影響職位資料</li>
             <li>• <strong>復職：</strong>將留職停薪的員工狀態恢復為在職</li>
             <li>• <strong>過試用期：</strong>記錄員工通過試用期的日期</li>
@@ -575,6 +624,147 @@ export default function EmployeeMovementManagementPage() {
             <li>• 員編會自動轉換為大寫</li>
           </ul>
         </div>
+          </div>
+        )}
+
+        {/* 查看歷史 TAB */}
+        {activeTab === 'history' && (
+          <div>
+            {/* 篩選條件 */}
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">篩選條件</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    年月
+                  </label>
+                  <input
+                    type="month"
+                    value={historyYearMonth}
+                    onChange={(e) => setHistoryYearMonth(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    異動類型
+                  </label>
+                  <select
+                    value={historyMovementType}
+                    onChange={(e) => setHistoryMovementType(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                  >
+                    <option value="all">全部</option>
+                    {MOVEMENT_TYPES.map(type => (
+                      <option key={type.value} value={type.value}>{type.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => {
+                      setHistoryYearMonth('');
+                      setHistoryMovementType('all');
+                    }}
+                    className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    清除篩選
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 歷史記錄表格 */}
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  異動記錄
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    (共 {filteredHistory.length} 筆)
+                  </span>
+                </h2>
+                <button
+                  onClick={() => {
+                    const exportData = filteredHistory.map(m => {
+                      const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+                      return {
+                        '員編': m.employee_code,
+                        '姓名': m.employee_name,
+                        '任職門市': (m as any).store_name || '-',
+                        '異動類型': movementTypeLabel,
+                        '舊值': m.old_value || '-',
+                        '新值': m.new_value || '-',
+                        '生效日期': m.movement_date,
+                        '備註': m.notes || '-'
+                      };
+                    });
+                    const ws = XLSX.utils.json_to_sheet(exportData);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, '異動記錄');
+                    XLSX.writeFile(wb, `人員異動記錄_${historyYearMonth || '全部'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+                  }}
+                  className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
+                >
+                  <Download size={16} className="inline mr-1" />
+                  匯出 Excel
+                </button>
+              </div>
+
+              {filteredHistory.length === 0 ? (
+                <div className="text-center py-12">
+                  <Calendar className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                  <p className="text-gray-500">查無異動記錄</p>
+                  <p className="text-sm text-gray-400 mt-2">請調整篩選條件</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">員編</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">姓名</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">任職門市</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">異動類型</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">舊值</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">新值</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">生效日期</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">備註</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {filteredHistory.map((record) => {
+                        const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+                        return (
+                          <tr key={record.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.employee_code}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{record.employee_name}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{(record as any).store_name || '-'}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                record.movement_type === 'promotion' ? 'bg-emerald-100 text-emerald-700' :
+                                record.movement_type === 'leave_without_pay' ? 'bg-amber-100 text-amber-700' :
+                                record.movement_type === 'return_to_work' ? 'bg-blue-100 text-blue-700' :
+                                record.movement_type === 'pass_probation' ? 'bg-purple-100 text-purple-700' :
+                                record.movement_type === 'resignation' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {typeLabel}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{record.movement_date}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
