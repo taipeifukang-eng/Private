@@ -399,6 +399,7 @@ export interface EmployeeMovementHistory {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  stores?: { name: string } | null; // Join with stores table
 }
 
 // 向後相容：升遷歷程別名

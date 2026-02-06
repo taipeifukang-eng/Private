@@ -195,8 +195,14 @@ function MonthlyStatusContent() {
       
       const { data, error } = await supabase
         .from('employee_movement_history')
-        .select('*')
+        .select(`
+          *,
+          stores:store_id (
+            name
+          )
+        `)
         .eq('employee_code', employeeCode)
+        .not('store_id', 'is', null)
         .order('movement_date', { ascending: false });
 
       if (error) throw error;
@@ -548,7 +554,7 @@ function MonthlyStatusContent() {
                         {/* 內容 */}
                         <div className="flex-1 bg-gray-50 rounded-lg p-4">
                           <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Calendar className="w-4 h-4 text-gray-400" />
                               <span className="text-sm font-medium text-gray-900">
                                 {record.movement_date}
@@ -556,6 +562,11 @@ function MonthlyStatusContent() {
                               <span className={`px-2 py-1 text-xs rounded-full ${getMovementTypeColor(record.movement_type)}`}>
                                 {getMovementTypeLabel(record.movement_type)}
                               </span>
+                              {record.stores && (
+                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
+                                  {record.stores.name}
+                                </span>
+                              )}
                             </div>
                           </div>
                           
@@ -757,8 +768,14 @@ function StoreStatusDetail({
       
       const { data, error } = await supabase
         .from('employee_movement_history')
-        .select('*')
+        .select(`
+          *,
+          stores:store_id (
+            name
+          )
+        `)
         .eq('employee_code', employeeCode)
+        .not('store_id', 'is', null)
         .order('movement_date', { ascending: false });
 
       if (error) throw error;
@@ -1658,7 +1675,7 @@ function StoreStatusDetail({
                         {/* 內容 */}
                         <div className="flex-1 bg-gray-50 rounded-lg p-4">
                           <div className="flex items-start justify-between mb-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Calendar className="w-4 h-4 text-gray-400" />
                               <span className="text-sm font-medium text-gray-900">
                                 {record.movement_date}
@@ -1666,6 +1683,11 @@ function StoreStatusDetail({
                               <span className={`px-2 py-1 text-xs rounded-full ${getMovementTypeColor(record.movement_type)}`}>
                                 {getMovementTypeLabel(record.movement_type)}
                               </span>
+                              {record.stores && (
+                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
+                                  {record.stores.name}
+                                </span>
+                              )}
                             </div>
                           </div>
                           
