@@ -229,18 +229,18 @@ export default function EmployeeMovementManagementPage() {
   const handleSave = async () => {
     // 驗證資料
     const emptyFields = movements.filter(m => {
-      if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date) {
+      if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date || !m.store_id) {
         return true;
       }
-      // 如果是升職，必須填寫職位和門市
-      if (m.movement_type === 'promotion' && (!m.position || !m.store_id)) {
+      // 如果是升職，必須填寫職位
+      if (m.movement_type === 'promotion' && !m.position) {
         return true;
       }
       return false;
     });
 
     if (emptyFields.length > 0) {
-      alert('請填寫所有必填欄位（員編、姓名、異動類型、生效日期，升職時需填寫職位和任職門市）');
+      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期，升職時需填寫職位）');
       return;
     }
 
@@ -432,7 +432,7 @@ export default function EmployeeMovementManagementPage() {
                     異動類型 <span className="text-red-500">*</span>
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-44">
-                    任職門市
+                    任職門市 <span className="text-red-500">*</span>
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
                     職位
@@ -523,20 +523,16 @@ export default function EmployeeMovementManagementPage() {
                       </select>
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {movement.movement_type === 'promotion' ? (
-                        <select
-                          value={movement.store_id}
-                          onChange={(e) => updateRow(index, 'store_id', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
-                        >
-                          <option value="">請選擇門市</option>
-                          {stores.map(store => (
-                            <option key={store.id} value={store.id}>{store.name}</option>
-                          ))}
-                        </select>
-                      ) : (
-                        <div className="text-gray-400 text-sm px-2 py-1">-</div>
-                      )}
+                      <select
+                        value={movement.store_id}
+                        onChange={(e) => updateRow(index, 'store_id', e.target.value)}
+                        className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                      >
+                        <option value="">請選擇門市</option>
+                        {stores.map(store => (
+                          <option key={store.id} value={store.id}>{store.name}</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       {movement.movement_type === 'promotion' ? (
@@ -616,7 +612,8 @@ export default function EmployeeMovementManagementPage() {
         <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-emerald-900 mb-2">💡 使用說明</h3>
           <ul className="text-sm text-emerald-800 space-y-1">
-            <li>• <strong>升職：</strong>需填寫新職位和任職門市，系統會自動更新該員工從生效日期起的所有月份職位</li>
+            <li>• <strong>所有異動都需填寫任職門市</strong>，記錄員工在哪個門市發生異動</li>
+            <li>• <strong>升職：</strong>需填寫新職位，系統會自動更新該員工從生效日期起的所有月份職位</li>
             <li>• <strong>留職停薪：</strong>將員工狀態設為留職停薪，不影響職位資料</li>
             <li>• <strong>復職：</strong>將留職停薪的員工狀態恢復為在職</li>
             <li>• <strong>過試用期：</strong>記錄員工通過試用期的日期</li>
