@@ -90,6 +90,8 @@ COMMENT ON COLUMN store_employees.last_movement_type IS '最後異動類型';
 -- 9. 更新 RLS 政策名稱
 DROP POLICY IF EXISTS "Users can view promotion history" ON employee_movement_history;
 DROP POLICY IF EXISTS "Admins and managers can manage promotion history" ON employee_movement_history;
+DROP POLICY IF EXISTS "Users can view movement history" ON employee_movement_history;
+DROP POLICY IF EXISTS "Admins and managers can manage movement history" ON employee_movement_history;
 
 CREATE POLICY "Users can view movement history" ON employee_movement_history
   FOR SELECT USING (
