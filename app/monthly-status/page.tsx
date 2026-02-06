@@ -727,8 +727,13 @@ function StoreStatusDetail({
       const result = await getMonthlyStaffStatus(yearMonth, store.id);
       
       if (result.success) {
-        // 按職位排序
+        // 按代理店長和職位排序
         const sortedData = (result.data || []).sort((a: any, b: any) => {
+          // 優先：代理店長排最前面
+          if (a.is_acting_manager && !b.is_acting_manager) return -1;
+          if (!a.is_acting_manager && b.is_acting_manager) return 1;
+          
+          // 其次：按職位排序
           const orderA = getPositionOrder(a.position || '');
           const orderB = getPositionOrder(b.position || '');
           return orderA - orderB;
