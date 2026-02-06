@@ -251,7 +251,9 @@ export async function getTemplates() {
 }
 
 /**
- * Create an assignment (assign a template to one or multiple users for collaboration)
+ * Create or update assignment collaborators for a template
+ * If an assignment already exists for this template, update its collaborators
+ * Otherwise, create a new assignment
  */
 export async function createAssignment(data: {
   template_id: string;
@@ -299,31 +301,63 @@ export async function createAssignment(data: {
     
     // Automatically add creator to the assignment if not already included
     const userIdSet = new Set([user.id, ...userIds]);
-    const allUserIds = Array.from(userIdSet); // Use Array.from() to avoid downlevelIteration issues
+    const allUserIds = Array.from(userIdSet);
     
     console.log('[createAssignment] Original assigned users:', userIds);
     console.log('[createAssignment] All users (with creator):', allUserIds);
     
-    // Create the assignment (assigned_to will be the first user for backward compatibility)
-    console.log('[createAssignment] Creating assignment...');
-    const { data: assignment, error } = await supabase
+    // Check if an assignment already exists for this template
+    const { data: existingAssignments } = await supabase
       .from('assignments')
-      .insert({
-        template_id: data.template_id,
-        assigned_to: allUserIds[0],
-        status: 'pending',
-        department: creatorProfile?.department || null, // Set creator's department
-        created_by: user.id,
-      })
-      .select()
-      .single();
+      .select('id')
+      .eq('template_id', data.template_id)
+      .order('created_at', { ascending: false })
+      .limit(1);
 
-    if (error) {
-      console.error('[createAssignment] ERROR creating assignment:', error);
-      return { success: false, error: error.message };
+    let assignment;
+    let isNewAssignment = false;
+
+    if (existingAssignments && existingAssignments.length > 0) {
+      // Update existing assignment
+      assignment = existingAssignments[0];
+      console.log('[createAssignment] Found existing assignment:', assignment.id);
+      
+      // Delete all existing collaborators for this assignment
+      const { error: deleteError } = await supabase
+        .from('assignment_collaborators')
+        .delete()
+        .eq('assignment_id', assignment.id);
+
+      if (deleteError) {
+        console.error('[createAssignment] ERROR deleting old collaborators:', deleteError);
+      } else {
+        console.log('[createAssignment] ✅ Deleted old collaborators');
+      }
+    } else {
+      // Create new assignment
+      console.log('[createAssignment] Creating new assignment...');
+      isNewAssignment = true;
+      
+      const { data: newAssignment, error } = await supabase
+        .from('assignments')
+        .insert({
+          template_id: data.template_id,
+          assigned_to: allUserIds[0],
+          status: 'pending',
+          department: creatorProfile?.department || null,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('[createAssignment] ERROR creating assignment:', error);
+        return { success: false, error: error.message };
+      }
+
+      assignment = newAssignment;
+      console.log('[createAssignment] ✅ New assignment created:', assignment.id);
     }
-
-    console.log('[createAssignment] ✅ Assignment created successfully:', assignment.id);
 
     // Add all users (including creator) as collaborators
     const collaborators = allUserIds.map(userId => ({
@@ -349,7 +383,6 @@ export async function createAssignment(data: {
       });
       console.log('[createAssignment] Assignment was created but collaborators failed');
       console.log('[createAssignment] This is likely a permissions issue - check RLS policies on assignment_collaborators table');
-      // Don't fail the whole operation, but log the error
     } else {
       console.log('[createAssignment] ✅ Successfully inserted collaborators:', insertedCollaborators);
       console.log('[createAssignment] Number of collaborators inserted:', insertedCollaborators?.length || 0);
@@ -358,6 +391,7 @@ export async function createAssignment(data: {
     console.log('[createAssignment] ===== END =====');
     revalidatePath('/dashboard');
     revalidatePath('/my-tasks');
+    revalidatePath('/admin/templates');
     return { success: true, data: assignment };
   } catch (error: any) {
     console.error('[createAssignment] ❌ UNEXPECTED ERROR:', error);
