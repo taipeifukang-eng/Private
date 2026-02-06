@@ -120,7 +120,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
     { href: '/admin/stores', label: '門市管理', icon: Store, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
     { href: '/admin/employee-management', label: '員工管理', icon: UserCog, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
-    { href: '/admin/promotion-management', label: '升遷管理', icon: TrendingUp, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
+    { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'], allowBusinessSupervisor: true },
   ].filter(item => 
     item.roles.includes(role) || 

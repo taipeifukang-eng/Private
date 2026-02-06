@@ -6,33 +6,46 @@ import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS } from '@/types/workflow';
 
-interface PromotionInput {
+// 異動類型定義
+const MOVEMENT_TYPES = [
+  { value: 'promotion', label: '升職' },
+  { value: 'leave_without_pay', label: '留職停薪' },
+  { value: 'return_to_work', label: '復職' },
+  { value: 'pass_probation', label: '過試用期' },
+  { value: 'resignation', label: '離職' }
+] as const;
+
+type MovementType = typeof MOVEMENT_TYPES[number]['value'];
+
+interface MovementInput {
   employee_code: string;
   employee_name: string;
-  position: string;
+  movement_type: MovementType | '';
+  position: string; // 僅升職時需要
   effective_date: string;
   notes: string;
 }
 
-interface PromotionHistory {
+interface MovementHistory {
   id: string;
   employee_code: string;
   employee_name: string;
-  promotion_date: string;
-  new_position: string;
-  old_position: string | null;
+  movement_type: MovementType;
+  movement_date: string;
+  new_value: string | null;
+  old_value: string | null;
   notes: string | null;
   created_at: string;
 }
 
-export default function PromotionManagementPage() {
+export default function EmployeeMovementManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [promotions, setPromotions] = useState<PromotionInput[]>([
-    { employee_code: '', employee_name: '', position: '', effective_date: '', notes: '' }
+  const [movements, setMovements] = useState<MovementInput[]>([
+    { employee_code: '', employee_name: '', movement_type: '', position: '', effective_date: '', notes: '' }
   ]);
-  const [promotionHistory, setPromotionHistory] = useState<PromotionHistory[]>([]);
+  const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
@@ -65,38 +78,38 @@ export default function PromotionManagementPage() {
       return;
     }
 
-    loadPromotionHistory();
+    loadMovementHistory();
     setLoading(false);
   };
 
-  const loadPromotionHistory = async () => {
+  const loadMovementHistory = async () => {
     const supabase = (await import('@/lib/supabase/client')).createClient();
     
     const { data } = await supabase
-      .from('employee_promotion_history')
+      .from('employee_movement_history')
       .select('*')
-      .order('promotion_date', { ascending: false })
+      .order('movement_date', { ascending: false })
       .limit(100);
 
     if (data) {
-      setPromotionHistory(data);
+      setMovementHistory(data);
     }
   };
 
   const addRow = () => {
-    setPromotions([...promotions, { employee_code: '', employee_name: '', position: '', effective_date: '', notes: '' }]);
+    setMovements([...movements, { employee_code: '', employee_name: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
   };
 
   const removeRow = (index: number) => {
-    if (promotions.length === 1) {
+    if (movements.length === 1) {
       alert('至少需要保留一列');
       return;
     }
-    setPromotions(promotions.filter((_, i) => i !== index));
+    setMovements(movements.filter((_, i) => i !== index));
   };
 
-  const updateRow = (index: number, field: keyof PromotionInput, value: string) => {
-    const updated = [...promotions];
+  const updateRow = (index: number, field: keyof MovementInput, value: string) => {
+    const updated = [...movements];
     updated[index] = { ...updated[index], [field]: value };
     
     // 員編自動轉大寫
@@ -104,45 +117,52 @@ export default function PromotionManagementPage() {
       updated[index].employee_code = value.toUpperCase();
     }
     
-    setPromotions(updated);
+    setMovements(updated);
   };
 
   const handleSave = async () => {
     // 驗證資料
-    const emptyFields = promotions.filter(p => 
-      !p.employee_code.trim() || !p.employee_name.trim() || !p.position || !p.effective_date
-    );
+    const emptyFields = movements.filter(m => {
+      if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date) {
+        return true;
+      }
+      // 如果是升職，必須填寫職位
+      if (m.movement_type === 'promotion' && !m.position) {
+        return true;
+      }
+      return false;
+    });
 
     if (emptyFields.length > 0) {
-      alert('請填寫所有必填欄位（員編、姓名、職位、生效日期）');
+      alert('請填寫所有必填欄位（員編、姓名、異動類型、生效日期，升職時需填寫職位）');
       return;
     }
 
-    if (!confirm(`確定要建立 ${promotions.length} 筆升遷記錄嗎？\n\n升遷將自動更新該員工從生效日期起的所有月份職位。`)) {
+    if (!confirm(`確定要建立 ${movements.length} 筆異動記錄嗎？\n\n異動將自動更新員工狀態。`)) {
       return;
     }
 
     setSaving(true);
     try {
-      const response = await fetch('/api/promotions/batch-global', {
+      const response = await fetch('/api/employee-movements/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ promotions })
+        body: JSON.stringify({ movements })
       });
 
       const result = await response.json();
 
       if (result.success) {
-        alert(`✅ 成功建立 ${result.created} 筆升遷記錄！`);
+        alert(`✅ 成功建立 ${result.created} 筆異動記錄！`);
         // 重置表單
-        setPromotions([{ employee_code: '', employee_name: '', position: '', effective_date: '', notes: '' }]);
+        setMovements([{ employee_code: '', employee_name: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
         // 重新載入歷史記錄
-        loadPromotionHistory();
+        loadMovementHistory();
       } else {
         alert(`❌ 錯誤：${result.error}`);
       }
     } catch (error: any) {
-      console.error('Error saving promotions:', error);
+      console.error('Error saving movements:', error);
       alert(`❌ 儲存失敗：${error.message}`);
     } finally {
       setSaving(false);
@@ -164,12 +184,13 @@ export default function PromotionManagementPage() {
         const imported = jsonData.map((row: any) => ({
           employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
           employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
+          movement_type: (row['異動類型'] || row['movement_type'] || '') as MovementType | '',
           position: (row['職位'] || row['position'] || '').toString(),
           effective_date: row['生效日期'] || row['effective_date'] || '',
           notes: (row['備註'] || row['notes'] || '').toString()
         }));
 
-        setPromotions(imported);
+        setMovements(imported);
         alert(`✅ 成功匯入 ${imported.length} 筆資料`);
       } catch (error) {
         console.error('Error importing Excel:', error);
@@ -181,18 +202,22 @@ export default function PromotionManagementPage() {
   };
 
   const handleExcelExport = () => {
-    const exportData = promotions.map(p => ({
-      '員編': p.employee_code,
-      '姓名': p.employee_name,
-      '職位': p.position,
-      '生效日期': p.effective_date,
-      '備註': p.notes
-    }));
+    const exportData = movements.map(m => {
+      const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+      return {
+        '員編': m.employee_code,
+        '姓名': m.employee_name,
+        '異動類型': movementTypeLabel,
+        '職位': m.position,
+        '生效日期': m.effective_date,
+        '備註': m.notes
+      };
+    });
 
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, '升遷資料');
-    XLSX.writeFile(wb, `升遷管理_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, '人員異動資料');
+    XLSX.writeFile(wb, `人員異動管理_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   if (loading) {
@@ -214,9 +239,9 @@ export default function PromotionManagementPage() {
           <div>
             <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
               <TrendingUp className="text-emerald-600" size={40} />
-              升遷管理
+              人員異動管理
             </h1>
-            <p className="text-gray-600">批次管理員工升遷，自動更新每月人員狀態</p>
+            <p className="text-gray-600">批次管理員工異動，自動更新員工狀態</p>
           </div>
           <div className="flex items-center gap-3">
             <button
@@ -229,12 +254,12 @@ export default function PromotionManagementPage() {
           </div>
         </div>
 
-        {/* 升遷歷史記錄 */}
+        {/* 異動歷史記錄 */}
         {showHistory && (
           <div className="bg-white rounded-lg shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">近期升遷記錄</h2>
-            {promotionHistory.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">尚無升遷記錄</p>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">近期異動記錄</h2>
+            {movementHistory.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">尚無異動記錄</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -242,23 +267,39 @@ export default function PromotionManagementPage() {
                     <tr>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">員編</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">姓名</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">舊職位</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">新職位</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">異動類型</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">舊值</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">新值</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">生效日期</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold text-gray-700">備註</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {promotionHistory.map((record) => (
-                      <tr key={record.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.employee_code}</td>
-                        <td className="px-4 py-3 text-sm text-gray-900">{record.employee_name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{record.old_position || '-'}</td>
-                        <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_position}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">{record.promotion_date}</td>
-                        <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
-                      </tr>
-                    ))}
+                    {movementHistory.map((record) => {
+                      const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+                      return (
+                        <tr key={record.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.employee_code}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">{record.employee_name}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              record.movement_type === 'promotion' ? 'bg-emerald-100 text-emerald-700' :
+                              record.movement_type === 'leave_without_pay' ? 'bg-amber-100 text-amber-700' :
+                              record.movement_type === 'return_to_work' ? 'bg-blue-100 text-blue-700' :
+                              record.movement_type === 'pass_probation' ? 'bg-purple-100 text-purple-700' :
+                              record.movement_type === 'resignation' ? 'bg-red-100 text-red-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {typeLabel}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600">{record.movement_date}</td>
+                          <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -269,7 +310,7 @@ export default function PromotionManagementPage() {
         {/* 批次輸入區 */}
         <div className="bg-white rounded-lg shadow-lg p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">批次輸入升遷</h2>
+            <h2 className="text-xl font-semibold text-gray-900">批次輸入異動</h2>
             <div className="flex items-center gap-2">
               <label className="px-3 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors cursor-pointer text-sm font-medium">
                 <Upload size={16} className="inline mr-1" />
@@ -302,14 +343,17 @@ export default function PromotionManagementPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-32">
+                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-28">
                     員編 <span className="text-red-500">*</span>
                   </th>
-                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-32">
+                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-28">
                     姓名 <span className="text-red-500">*</span>
                   </th>
-                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-40">
-                    職位 <span className="text-red-500">*</span>
+                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
+                    異動類型 <span className="text-red-500">*</span>
+                  </th>
+                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
+                    職位
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
                     生效日期 <span className="text-red-500">*</span>
@@ -323,12 +367,12 @@ export default function PromotionManagementPage() {
                 </tr>
               </thead>
               <tbody>
-                {promotions.map((promo, index) => (
+                {movements.map((movement, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="border border-gray-300 px-2 py-1">
                       <input
                         type="text"
-                        value={promo.employee_code}
+                        value={movement.employee_code}
                         onChange={(e) => updateRow(index, 'employee_code', e.target.value)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         placeholder="FK1234"
@@ -337,7 +381,7 @@ export default function PromotionManagementPage() {
                     <td className="border border-gray-300 px-2 py-1">
                       <input
                         type="text"
-                        value={promo.employee_name}
+                        value={movement.employee_name}
                         onChange={(e) => updateRow(index, 'employee_name', e.target.value)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         placeholder="王小明"
@@ -345,20 +389,36 @@ export default function PromotionManagementPage() {
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       <select
-                        value={promo.position}
-                        onChange={(e) => updateRow(index, 'position', e.target.value)}
+                        value={movement.movement_type}
+                        onChange={(e) => updateRow(index, 'movement_type', e.target.value)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                       >
                         <option value="">請選擇</option>
-                        {POSITION_OPTIONS.map(pos => (
-                          <option key={pos} value={pos}>{pos}</option>
+                        {MOVEMENT_TYPES.map(type => (
+                          <option key={type.value} value={type.value}>{type.label}</option>
                         ))}
                       </select>
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
+                      {movement.movement_type === 'promotion' ? (
+                        <select
+                          value={movement.position}
+                          onChange={(e) => updateRow(index, 'position', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                        >
+                          <option value="">請選擇職位</option>
+                          {POSITION_OPTIONS.map(pos => (
+                            <option key={pos} value={pos}>{pos}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="text-gray-400 text-sm px-2 py-1">-</div>
+                      )}
+                    </td>
+                    <td className="border border-gray-300 px-2 py-1">
                       <input
                         type="date"
-                        value={promo.effective_date}
+                        value={movement.effective_date}
                         onChange={(e) => updateRow(index, 'effective_date', e.target.value)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                       />
@@ -366,7 +426,7 @@ export default function PromotionManagementPage() {
                     <td className="border border-gray-300 px-2 py-1">
                       <input
                         type="text"
-                        value={promo.notes}
+                        value={movement.notes}
                         onChange={(e) => updateRow(index, 'notes', e.target.value)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         placeholder="選填"
@@ -390,7 +450,7 @@ export default function PromotionManagementPage() {
           <div className="mt-6 flex items-center justify-between">
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <AlertCircle size={16} />
-              <span>共 {promotions.length} 筆升遷資料</span>
+              <span>共 {movements.length} 筆異動資料</span>
             </div>
             <button
               onClick={handleSave}
@@ -405,7 +465,7 @@ export default function PromotionManagementPage() {
               ) : (
                 <>
                   <Save size={18} />
-                  儲存升遷記錄
+                  儲存異動記錄
                 </>
               )}
             </button>
@@ -416,9 +476,11 @@ export default function PromotionManagementPage() {
         <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-lg p-4">
           <h3 className="text-sm font-semibold text-emerald-900 mb-2">💡 使用說明</h3>
           <ul className="text-sm text-emerald-800 space-y-1">
-            <li>• 輸入員編、姓名、新職位、生效日期即可建立升遷記錄</li>
-            <li>• 系統會自動查詢並記錄該員工的舊職位</li>
-            <li>• <strong>升遷記錄會自動更新該員工從生效日期起的所有月份職位</strong></li>
+            <li>• <strong>升職：</strong>需填寫新職位，系統會自動更新該員工從生效日期起的所有月份職位</li>
+            <li>• <strong>留職停薪：</strong>將員工狀態設為留職停薪，不影響職位資料</li>
+            <li>• <strong>復職：</strong>將留職停薪的員工狀態恢復為在職</li>
+            <li>• <strong>過試用期：</strong>記錄員工通過試用期的日期</li>
+            <li>• <strong>離職：</strong>將員工狀態設為已離職，並設定為不在職</li>
             <li>• 支援 Excel 匯入/匯出，方便批次處理</li>
             <li>• 員編會自動轉換為大寫</li>
           </ul>
