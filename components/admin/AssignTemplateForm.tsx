@@ -57,8 +57,9 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
     
     console.log('[AssignTemplateForm] ===== SUBMIT START =====');
     console.log('[AssignTemplateForm] Template ID:', templateId);
-    console.log('[AssignTemplateForm] Selected User IDs:', selectedUserIds);
+    console.log('[AssignTemplateForm] Selected User IDs (before call):', selectedUserIds);
     console.log('[AssignTemplateForm] Number of selected users:', selectedUserIds.length);
+    console.log('[AssignTemplateForm] Selected IDs array:', JSON.stringify(selectedUserIds));
     
     // If no users selected, assignment will be automatically assigned to creator
     // The createAssignment function will add the creator automatically
@@ -69,14 +70,16 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
       const { createAssignment } = await import('@/app/actions');
       
       console.log('[AssignTemplateForm] Calling createAssignment...');
+      console.log('[AssignTemplateForm] Passing assigned_to:', selectedUserIds);
       
       // If no users selected, pass empty array - creator will be added automatically
       const result = await createAssignment({
         template_id: templateId,
-        assigned_to: selectedUserIds.length > 0 ? selectedUserIds : [],
+        assigned_to: selectedUserIds,
       });
 
       console.log('[AssignTemplateForm] Result:', result);
+      console.log('[AssignTemplateForm] Result success:', result.success);
 
       if (result.success) {
         const userCount = selectedUserIds.length;
