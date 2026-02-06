@@ -261,7 +261,7 @@ export default function EmployeeMovementManagementPage() {
       if (result.success) {
         alert(`✅ 成功建立 ${result.created} 筆異動記錄！`);
         // 重置表單
-        setMovements([{ employee_code: '', employee_name: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
+        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
         // 重新載入歷史記錄
         loadMovementHistory();
       } else {
