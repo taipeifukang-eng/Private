@@ -386,11 +386,12 @@ export default function EmployeeMovementManagementPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-visible">
+            <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-gray-50">
-                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-28">
+                  <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-40">
                     員編 <span className="text-red-500">*</span>
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-28">
@@ -416,37 +417,55 @@ export default function EmployeeMovementManagementPage() {
               <tbody>
                 {movements.map((movement, index) => (
                   <tr key={index} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 px-2 py-1 relative">
+                    <td className="border border-gray-300 px-2 py-1 relative overflow-visible">
+                      <div className="relative">
                       <input
                         type="text"
                         value={movement.employee_code}
                         onChange={(e) => updateRow(index, 'employee_code', e.target.value)}
-                        onFocus={() => setShowDropdown({ ...showDropdown, [index]: true })}
+                        onFocus={(e) => {
+                          setShowDropdown({ ...showDropdown, [index]: true });
+                          const rect = e.target.getBoundingClientRect();
+                          (e.target as any).dropdownTop = rect.bottom + window.scrollY;
+                          (e.target as any).dropdownLeft = rect.left + window.scrollX;
+                        }}
                         onBlur={() => setTimeout(() => setShowDropdown({ ...showDropdown, [index]: false }), 200)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         placeholder="FK1234"
+                        id={`employee-code-${index}`}
                       />
-                      {showDropdown[index] && getFilteredEmployees(index).length > 0 && (
-                        <div className="absolute z-50 min-w-[320px] mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto left-0">
+                      {showDropdown[index] && getFilteredEmployees(index).length > 0 && (() => {
+                        const input = document.getElementById(`employee-code-${index}`);
+                        const rect = input?.getBoundingClientRect();
+                        return (
+                        <div 
+                          className="fixed z-[9999] min-w-[400px] bg-white border-2 border-blue-500 rounded-lg shadow-2xl max-h-72 overflow-y-auto"
+                          style={{
+                            top: rect ? `${rect.bottom + 4}px` : 'auto',
+                            left: rect ? `${rect.left}px` : 'auto',
+                          }}
+                        >
                           {getFilteredEmployees(index).map((emp) => (
                             <div
                               key={emp.employee_code}
                               onMouseDown={() => selectEmployee(index, emp)}
                               className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 transition-colors"
                             >
-                              <div className="flex items-center justify-between gap-3">
-                                <span className="font-semibold text-sm text-blue-600">{emp.employee_code}</span>
-                                <span className="text-sm text-gray-900 font-medium">{emp.employee_name}</span>
+                              <div className="flex items-center justify-between gap-4">
+                                <span className="font-bold text-base text-blue-600">{emp.employee_code}</span>
+                                <span className="text-base text-gray-900 font-semibold">{emp.employee_name}</span>
                               </div>
-                              <div className="text-xs text-gray-500 mt-1.5 flex items-center">
-                                <span className="bg-gray-100 px-2 py-0.5 rounded">
+                              <div className="text-sm text-gray-500 mt-1.5 flex items-center">
+                                <span className="bg-gray-100 px-2 py-1 rounded text-xs font-medium">
                                   {emp.current_position || emp.position}
                                 </span>
                               </div>
                             </div>
                           ))}
                         </div>
-                      )}
+                        );
+                      })()}
+                      </div>
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       <input
@@ -515,6 +534,7 @@ export default function EmployeeMovementManagementPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="mt-6 flex items-center justify-between">
