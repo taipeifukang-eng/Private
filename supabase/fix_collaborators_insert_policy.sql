@@ -1,8 +1,9 @@
 -- Fix: Allow task creators to add collaborators to their own assignments
 -- This allows members to create assignments and add collaborators
 
--- Drop existing insert policy
+-- Drop all existing insert policies
 DROP POLICY IF EXISTS "Admins can insert collaborations" ON assignment_collaborators;
+DROP POLICY IF EXISTS "Task creators and admins can insert collaborations" ON assignment_collaborators;
 
 -- Create new policy that allows:
 -- 1. Admins and managers to insert any collaborations
