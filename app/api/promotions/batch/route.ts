@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabase
-      .from('employee_promotion_history')
+      .from('employee_movement_history')
       .insert(promotionRecords)
       .select();
 

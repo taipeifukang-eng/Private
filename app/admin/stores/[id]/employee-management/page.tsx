@@ -104,11 +104,11 @@ export default function EmployeeManagementPage() {
       const supabase = (await import('@/lib/supabase/client')).createClient();
 
       const { data, error } = await supabase
-        .from('employee_promotion_history')
+        .from('employee_movement_history')
         .select('*')
         .eq('employee_code', employeeCode)
         .eq('store_id', storeId)
-        .order('promotion_date', { ascending: false });
+        .order('movement_date', { ascending: false });
 
       if (error) throw error;
 
@@ -293,19 +293,19 @@ export default function EmployeeManagementPage() {
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-gray-400" />
                               <span className="text-sm font-medium text-gray-900">
-                                {formatDate(record.promotion_date)}
+                                {formatDate(record.movement_date)}
                               </span>
                             </div>
                           </div>
                           
                           <div className="flex items-center gap-2 mb-2">
-                            {record.old_position && (
+                            {record.old_value && (
                               <>
-                                <span className="text-gray-600">{record.old_position}</span>
+                                <span className="text-gray-600">{record.old_value}</span>
                                 <span className="text-gray-400">→</span>
                               </>
                             )}
-                            <span className="font-semibold text-blue-600">{record.new_position}</span>
+                            <span className="font-semibold text-blue-600">{record.new_value}</span>
                           </div>
 
                           {record.notes && (
