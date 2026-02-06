@@ -117,11 +117,13 @@ export default function EmployeeMovementManagementPage() {
     
     const { data } = await supabase
       .from('stores')
-      .select('id, name')
-      .order('name');
+      .select('id, store_name')
+      .eq('is_active', true)
+      .order('store_name');
 
     if (data) {
-      setStores(data);
+      // 將 store_name 對應到 name 欄位以符合介面定義
+      setStores(data.map(store => ({ id: store.id, name: store.store_name })));
     }
   };
 
