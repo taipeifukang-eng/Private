@@ -144,21 +144,27 @@ export default function EmployeeMovementManagementPage() {
   const loadMovementHistory = async () => {
     const supabase = (await import('@/lib/supabase/client')).createClient();
     
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('employee_movement_history')
       .select(`
         *,
-        stores (
-          name
+        stores:store_id (
+          store_name
         )
       `)
+      .not('store_id', 'is', null)
       .order('movement_date', { ascending: false })
       .limit(500);
+
+    if (error) {
+      console.error('Error loading movement history:', error);
+      return;
+    }
 
     if (data) {
       const formattedData = data.map(item => ({
         ...item,
-        store_name: item.stores?.name || '-'
+        store_name: item.stores?.store_name || '-'
       }));
       setMovementHistory(formattedData as any);
       setFilteredHistory(formattedData as any);
