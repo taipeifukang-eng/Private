@@ -315,13 +315,18 @@ export async function createAssignment(data: {
       user_id: userId,
     }));
 
-    const { error: collaboratorError } = await supabase
+    console.log('[createAssignment] Inserting collaborators:', collaborators);
+
+    const { data: insertedCollaborators, error: collaboratorError } = await supabase
       .from('assignment_collaborators')
-      .insert(collaborators);
+      .insert(collaborators)
+      .select();
 
     if (collaboratorError) {
       console.error('Error adding collaborators:', collaboratorError);
       // Don't fail the whole operation, but log the error
+    } else {
+      console.log('[createAssignment] Successfully inserted collaborators:', insertedCollaborators);
     }
 
     revalidatePath('/dashboard');
@@ -465,6 +470,8 @@ export async function getAssignments() {
       return { success: false, error: '未登入', data: [] };
     }
 
+    console.log('[getAssignments] Fetching assignments for user:', user.id);
+
     // Get all assignment IDs where user is a collaborator (with section_id)
     const { data: collaborations, error: collabError } = await supabase
       .from('assignment_collaborators')
@@ -472,10 +479,13 @@ export async function getAssignments() {
       .eq('user_id', user.id);
 
     if (collabError) {
-      console.error('Error fetching collaborations:', collabError);
+      console.error('[getAssignments] Error fetching collaborations:', collabError);
+    } else {
+      console.log('[getAssignments] Found collaborations:', collaborations);
     }
 
     const assignmentIds = collaborations?.map(c => c.assignment_id) || [];
+    console.log('[getAssignments] Assignment IDs:', assignmentIds);
 
     // Create a map of user's section_id for each assignment
     const userSectionMap = new Map(
@@ -484,6 +494,7 @@ export async function getAssignments() {
 
     // If no assignments found, return empty array early
     if (assignmentIds.length === 0) {
+      console.log('[getAssignments] No assignment IDs found, returning empty array');
       return { success: true, data: [] };
     }
 
