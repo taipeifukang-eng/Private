@@ -366,6 +366,51 @@ export async function createAssignment(data: {
 }
 
 /**
+ * Get existing collaborators for a template
+ * Returns all users that have been assigned to assignments for this template
+ */
+export async function getExistingCollaborators(templateId: string) {
+  try {
+    const supabase = createClient();
+
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: '未登入', data: [] };
+    }
+
+    // Get the most recent assignment for this template
+    const { data: assignment } = await supabase
+      .from('assignments')
+      .select('id')
+      .eq('template_id', templateId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!assignment) {
+      return { success: true, data: [] };
+    }
+
+    // Get all collaborators for this assignment
+    const { data: collaborators, error } = await supabase
+      .from('assignment_collaborators')
+      .select('user_id')
+      .eq('assignment_id', assignment.id);
+
+    if (error) {
+      console.error('[getExistingCollaborators] Error:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+
+    return { success: true, data: collaborators || [] };
+  } catch (error: any) {
+    console.error('[getExistingCollaborators] Unexpected error:', error);
+    return { success: false, error: error.message || '發生未知錯誤', data: [] };
+  }
+}
+
+/**
  * Log a checklist action (checked/unchecked)
  */
 export async function logAction(

@@ -26,21 +26,34 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Load users on component mount
+  // Load users and existing collaborators on component mount
   useEffect(() => {
-    loadUsers();
-  }, []);
+    loadUsersAndCollaborators();
+  }, [templateId]);
 
-  const loadUsers = async () => {
+  const loadUsersAndCollaborators = async () => {
     try {
+      // Load all users
       const { getAllUsers } = await import('@/app/auth/actions');
       const result = await getAllUsers();
       
       if (result.success && result.data) {
         setUsers(result.data);
       }
+
+      // Load existing collaborators for this template
+      const { getExistingCollaborators } = await import('@/app/actions');
+      const collaborators = await getExistingCollaborators(templateId);
+      
+      if (collaborators.success && collaborators.data) {
+        const existingUserIds = collaborators.data
+          .map((c: any) => c.user_id)
+          .filter((id: string) => id);  // Remove null/undefined
+        setSelectedUserIds(existingUserIds);
+        console.log('[AssignTemplateForm] Loaded existing collaborators:', existingUserIds);
+      }
     } catch (error) {
-      console.error('Error loading users:', error);
+      console.error('Error loading users and collaborators:', error);
     } finally {
       setIsLoadingUsers(false);
     }
