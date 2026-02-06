@@ -209,7 +209,9 @@ function MonthlyStatusContent() {
         console.error('Error loading movement history:', error);
         throw error;
       }
-      setMovementHistory(data || []);
+      // 只保留有門市資料的記錄
+      const validData = (data || []).filter(record => record.stores && record.stores.store_name);
+      setMovementHistory(validData);
     } catch (error) {
       console.error('Error loading movement history:', error);
       setMovementHistory([]);
@@ -785,7 +787,9 @@ function StoreStatusDetail({
         console.error('Error loading movement history:', error);
         throw error;
       }
-      setMovementHistory(data || []);
+      // 只保留有門市資料的記錄
+      const validData = (data || []).filter(record => record.stores && record.stores.store_name);
+      setMovementHistory(validData);
     } catch (error) {
       console.error('Error loading movement history:', error);
       setMovementHistory([]);
