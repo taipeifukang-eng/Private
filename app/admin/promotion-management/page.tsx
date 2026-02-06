@@ -38,6 +38,14 @@ interface MovementHistory {
   created_at: string;
 }
 
+interface Employee {
+  employee_code: string;
+  employee_name: string;
+  position: string;
+  current_position: string | null;
+  store_id: string;
+}
+
 export default function EmployeeMovementManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -47,6 +55,9 @@ export default function EmployeeMovementManagementPage() {
   ]);
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [searchTerm, setSearchTerm] = useState<{[key: number]: string}>({});
+  const [showDropdown, setShowDropdown] = useState<{[key: number]: boolean}>({});
 
   useEffect(() => {
     checkPermissionAndLoadData();
@@ -79,7 +90,22 @@ export default function EmployeeMovementManagementPage() {
     }
 
     loadMovementHistory();
+    loadEmployees();
     setLoading(false);
+  };
+
+  const loadEmployees = async () => {
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+    
+    const { data } = await supabase
+      .from('store_employees')
+      .select('employee_code, employee_name, position, current_position, store_id')
+      .eq('is_active', true)
+      .order('employee_code');
+
+    if (data) {
+      setEmployees(data);
+    }
   };
 
   const loadMovementHistory = async () => {
@@ -115,9 +141,30 @@ export default function EmployeeMovementManagementPage() {
     // 員編自動轉大寫
     if (field === 'employee_code') {
       updated[index].employee_code = value.toUpperCase();
+      setSearchTerm({ ...searchTerm, [index]: value.toUpperCase() });
+      setShowDropdown({ ...showDropdown, [index]: true });
     }
     
     setMovements(updated);
+  };
+
+  const selectEmployee = (index: number, employee: Employee) => {
+    const updated = [...movements];
+    updated[index].employee_code = employee.employee_code;
+    updated[index].employee_name = employee.employee_name;
+    setMovements(updated);
+    setShowDropdown({ ...showDropdown, [index]: false });
+    setSearchTerm({ ...searchTerm, [index]: '' });
+  };
+
+  const getFilteredEmployees = (index: number) => {
+    const term = searchTerm[index] || movements[index].employee_code;
+    if (!term) return [];
+    
+    return employees.filter(emp => 
+      emp.employee_code.toUpperCase().includes(term.toUpperCase()) ||
+      emp.employee_name.includes(term)
+    ).slice(0, 10);
   };
 
   const handleSave = async () => {
@@ -369,14 +416,35 @@ export default function EmployeeMovementManagementPage() {
               <tbody>
                 {movements.map((movement, index) => (
                   <tr key={index} className="hover:bg-gray-50">
-                    <td className="border border-gray-300 px-2 py-1">
+                    <td className="border border-gray-300 px-2 py-1 relative">
                       <input
                         type="text"
                         value={movement.employee_code}
                         onChange={(e) => updateRow(index, 'employee_code', e.target.value)}
+                        onFocus={() => setShowDropdown({ ...showDropdown, [index]: true })}
+                        onBlur={() => setTimeout(() => setShowDropdown({ ...showDropdown, [index]: false }), 200)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         placeholder="FK1234"
                       />
+                      {showDropdown[index] && getFilteredEmployees(index).length > 0 && (
+                        <div className="absolute z-50 w-64 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {getFilteredEmployees(index).map((emp) => (
+                            <div
+                              key={emp.employee_code}
+                              onMouseDown={() => selectEmployee(index, emp)}
+                              className="px-3 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-medium text-sm text-gray-900">{emp.employee_code}</span>
+                                <span className="text-xs text-gray-500">{emp.employee_name}</span>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {emp.current_position || emp.position}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       <input
