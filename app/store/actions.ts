@@ -653,14 +653,15 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
           start_date: prev.start_date,
           // 從上個月複製狀態，但區塊3的非整月需重設為整月
           monthly_status: isBlock3 ? 'full_month' as MonthlyStatusType : prev.monthly_status,
-          // 正職：區塊3需重設天數為本月天數，其他維持上個月設定
-          work_days: prev.employment_type === 'full_time' ? (isBlock3 ? daysInMonth : prev.work_days) : null,
+          // 正職：天數都重設為本月天數（重要！）
+          work_days: prev.employment_type === 'full_time' ? daysInMonth : null,
           total_days_in_month: daysInMonth,
           // 兼職時數重設為0，區塊4時數也重設為0
           work_hours: (isPartTime || isBlock4) ? 0 : prev.work_hours,
           is_dual_position: prev.is_dual_position,
           has_manager_bonus: prev.has_manager_bonus,
           is_supervisor_rotation: prev.is_supervisor_rotation,
+          is_acting_manager: prev.is_acting_manager || false, // 複製代理店長設定
           // 新人等級維持
           newbie_level: prev.newbie_level,
           // 非整月原因（區塊3需清除）
