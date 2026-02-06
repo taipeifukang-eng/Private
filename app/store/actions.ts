@@ -767,6 +767,7 @@ export async function updateStaffStatus(
     has_manager_bonus: boolean;
     is_supervisor_rotation: boolean;
     is_pharmacist: boolean;
+    is_acting_manager: boolean;
     position: string;
     notes: string;
     start_date: string | null; // 到職日期

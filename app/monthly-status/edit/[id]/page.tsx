@@ -52,6 +52,7 @@ export default function EditStaffStatusPage() {
   const [hasManagerBonus, setHasManagerBonus] = useState(false);
   const [isSupervisorRotation, setIsSupervisorRotation] = useState(false);
   const [isPharmacist, setIsPharmacist] = useState(false);
+  const [isActingManager, setIsActingManager] = useState(false); // 是否擔任代理店長
   const [notes, setNotes] = useState('');
   const [startDate, setStartDate] = useState<string>(''); // 到職日期
 
@@ -160,6 +161,7 @@ export default function EditStaffStatusPage() {
       setHasManagerBonus(data.has_manager_bonus || false);
       setIsSupervisorRotation(data.is_supervisor_rotation || false);
       setIsPharmacist(data.is_pharmacist || false);
+      setIsActingManager(data.is_acting_manager || false);
       setNotes(data.notes || '');
       setStartDate(data.start_date || ''); // 設置到職日期
 
@@ -302,6 +304,7 @@ export default function EditStaffStatusPage() {
         has_manager_bonus: hasManagerBonus,
         is_supervisor_rotation: isSupervisorRotation,
         is_pharmacist: isPharmacist,
+        is_acting_manager: isActingManager,
         notes,
         start_date: startDate || null, // 儲存到職日期
         // 新增欄位
@@ -727,7 +730,20 @@ export default function EditStaffStatusPage() {
                   </div>
                 </div>
               </label>
-            </div>
+              <label className="flex items-start gap-3 p-3 bg-emerald-50 rounded-lg hover:bg-emerald-100 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isActingManager}
+                  onChange={(e) => setIsActingManager(e.target.checked)}
+                  className="mt-1 w-4 h-4 text-emerald-600 rounded"
+                />
+                <div>
+                  <div className="font-medium text-gray-900">是否擔任代理店長</div>
+                  <div className="text-sm text-gray-500">
+                    適用於主任、副店長、督導擔任代理店長職務時勾選
+                  </div>
+                </div>
+              </label>            </div>
           </div>
 
           {/* 督導卡班詳細資訊 */}

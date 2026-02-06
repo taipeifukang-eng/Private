@@ -148,8 +148,19 @@ export async function POST(request: NextRequest) {
         calculationBlock = record.calculated_block.toString();
       }
 
-      // 職位名稱處理：如果是雙職務，在職位後加上"-雙"
+      // 職位名稱處理
       let positionName = record.position || '';
+      
+      // 如果有勾選代理店長，根據職位調整名稱
+      if (record.is_acting_manager) {
+        if (positionName === '督導') {
+          positionName = '督導(代理店長)';
+        } else if (positionName === '主任' || positionName === '副店長') {
+          positionName = '代理店長';
+        }
+      }
+
+      // 如果是雙職位，加上 -雙
       if (record.is_dual_position) {
         positionName += '-雙';
       }
