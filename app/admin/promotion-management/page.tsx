@@ -290,6 +290,7 @@ export default function EmployeeMovementManagementPage() {
         const imported = jsonData.map((row: any) => ({
           employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
           employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
+          store_id: (row['任職門市ID'] || row['store_id'] || '').toString(),
           movement_type: (row['異動類型'] || row['movement_type'] || '') as MovementType | '',
           position: (row['職位'] || row['position'] || '').toString(),
           effective_date: row['生效日期'] || row['effective_date'] || '',
