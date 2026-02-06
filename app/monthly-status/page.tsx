@@ -1402,6 +1402,9 @@ function StoreStatusDetail({
                     {staff.is_supervisor_rotation && (
                       <span className="px-2 py-0.5 text-xs rounded bg-red-100 text-red-800">督導卡班</span>
                     )}
+                    {staff.is_acting_manager && (
+                      <span className="px-2 py-0.5 text-xs rounded bg-emerald-100 text-emerald-800">代理店長</span>
+                    )}
                     {staff.special_role && (
                       <span className="px-2 py-0.5 text-xs rounded bg-teal-100 text-teal-800">{staff.special_role}</span>
                     )}
