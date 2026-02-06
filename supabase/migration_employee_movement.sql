@@ -108,10 +108,10 @@ CREATE TRIGGER trigger_update_movement_updated_at
 CREATE OR REPLACE FUNCTION auto_handle_employee_movement()
 RETURNS TRIGGER AS $$
 DECLARE
-  year_month TEXT;
+  target_year_month TEXT;
 BEGIN
   -- 計算異動生效的年月 (YYYY-MM 格式)
-  year_month := TO_CHAR(NEW.movement_date, 'YYYY-MM');
+  target_year_month := TO_CHAR(NEW.movement_date, 'YYYY-MM');
   
   -- 根據異動類型執行不同操作
   CASE NEW.movement_type
@@ -123,7 +123,7 @@ BEGIN
         updated_at = TIMEZONE('utc', NOW())
       WHERE 
         employee_code = NEW.employee_code
-        AND year_month >= TO_CHAR(NEW.movement_date, 'YYYY-MM');
+        AND monthly_staff_status.year_month >= target_year_month;
       
       -- 更新 store_employees 的當前職位
       UPDATE store_employees
@@ -136,7 +136,7 @@ BEGIN
       WHERE 
         employee_code = NEW.employee_code;
       
-      RAISE NOTICE '已更新員工 % 從 % 起的職位為 %', NEW.employee_code, year_month, NEW.new_value;
+      RAISE NOTICE '已更新員工 % 從 % 起的職位為 %', NEW.employee_code, target_year_month, NEW.new_value;
     
     WHEN 'leave_without_pay' THEN
       -- 留職停薪：更新員工狀態
