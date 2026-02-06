@@ -55,6 +55,11 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('[AssignTemplateForm] ===== SUBMIT START =====');
+    console.log('[AssignTemplateForm] Template ID:', templateId);
+    console.log('[AssignTemplateForm] Selected User IDs:', selectedUserIds);
+    console.log('[AssignTemplateForm] Number of selected users:', selectedUserIds.length);
+    
     // If no users selected, assignment will be automatically assigned to creator
     // The createAssignment function will add the creator automatically
     
@@ -63,28 +68,37 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
     try {
       const { createAssignment } = await import('@/app/actions');
       
+      console.log('[AssignTemplateForm] Calling createAssignment...');
+      
       // If no users selected, pass empty array - creator will be added automatically
       const result = await createAssignment({
         template_id: templateId,
         assigned_to: selectedUserIds.length > 0 ? selectedUserIds : [],
       });
 
+      console.log('[AssignTemplateForm] Result:', result);
+
       if (result.success) {
         const userCount = selectedUserIds.length;
         if (userCount === 0) {
+          console.log('[AssignTemplateForm] ✅ Task assigned to creator only');
           alert(`✅ 任務建立成功！已指派給您自己`);
         } else {
+          console.log('[AssignTemplateForm] ✅ Task assigned to', userCount, 'users');
           alert(`✅ 任務指派成功！已指派給 ${userCount} 位使用者`);
         }
+        console.log('[AssignTemplateForm] Redirecting to dashboard...');
         router.push('/dashboard');
       } else {
+        console.error('[AssignTemplateForm] ❌ Assignment failed:', result.error);
         alert(`❌ 指派失敗：${result.error}`);
       }
     } catch (error) {
-      console.error('Error assigning template:', error);
+      console.error('[AssignTemplateForm] ❌ Exception occurred:', error);
       alert('❌ 發生錯誤，請稍後再試');
     } finally {
       setIsLoading(false);
+      console.log('[AssignTemplateForm] ===== SUBMIT END =====');
     }
   };
 
