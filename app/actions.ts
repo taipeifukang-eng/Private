@@ -275,8 +275,13 @@ export async function createAssignment(data: {
 
     console.log('[createAssignment] Creator department:', creatorProfile?.department);
 
-    // Convert to array for consistent handling
-    const userIds = Array.isArray(data.assigned_to) ? data.assigned_to : [data.assigned_to];
+    // Convert to array for consistent handling and filter out empty strings
+    let userIds: string[] = [];
+    if (Array.isArray(data.assigned_to)) {
+      userIds = data.assigned_to.filter(id => id && id.trim());
+    } else if (data.assigned_to && typeof data.assigned_to === 'string') {
+      userIds = [data.assigned_to];
+    }
     
     // Automatically add creator to the assignment if not already included
     const userIdSet = new Set([user.id, ...userIds]);
