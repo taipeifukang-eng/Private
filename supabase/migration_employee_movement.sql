@@ -120,6 +120,8 @@ CREATE POLICY "Admins and managers can manage movement history" ON employee_move
 -- 10. 更新觸發器函數名稱和邏輯
 DROP TRIGGER IF EXISTS trigger_update_promotion_updated_at ON employee_movement_history;
 DROP TRIGGER IF EXISTS trigger_auto_update_position ON employee_movement_history;
+DROP TRIGGER IF EXISTS trigger_update_movement_updated_at ON employee_movement_history;
+DROP TRIGGER IF EXISTS trigger_auto_handle_movement ON employee_movement_history;
 DROP FUNCTION IF EXISTS update_promotion_updated_at();
 DROP FUNCTION IF EXISTS auto_update_position_on_promotion();
 
