@@ -44,8 +44,18 @@ BEGIN
 END $$;
 
 -- 4. 移除預設值（因為異動類型需要明確指定）
-ALTER TABLE employee_movement_history 
-ALTER COLUMN movement_type DROP DEFAULT;
+DO $$
+BEGIN
+  -- 檢查是否有預設值再移除
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'employee_movement_history' 
+    AND column_name = 'movement_type'
+    AND column_default IS NOT NULL
+  ) THEN
+    ALTER TABLE employee_movement_history ALTER COLUMN movement_type DROP DEFAULT;
+  END IF;
+END $$;
 
 -- 5. 新增檢查約束，確保異動類型正確
 ALTER TABLE employee_movement_history
