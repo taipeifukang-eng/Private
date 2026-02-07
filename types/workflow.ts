@@ -371,8 +371,6 @@ export const SPECIAL_ROLE_OPTIONS = [
 export const POSITION_OPTIONS = [
   '督導',
   '店長',
-  '代理店長',
-  '督導(代理店長)',
   '副店長',
   '主任',
   '組長',
@@ -384,6 +382,80 @@ export const POSITION_OPTIONS = [
   '兼職藥師專員',
   '兼職助理'
 ];
+
+// =====================================================
+// 活動管理相關類型
+// =====================================================
+
+// 活動檔期
+export interface Campaign {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+// 門市活動設定（規則限制）
+export interface StoreActivitySettings {
+  id: string;
+  store_id: string;
+  allowed_days: number[] | null; // 1=週一, 7=週日，null表示使用預設規則
+  forbidden_days: number[] | null; // 禁止的星期幾
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  // 關聯資料
+  store?: Store;
+}
+
+// 特殊日期（國定假日/公司活動）
+export interface EventDate {
+  id: string;
+  event_date: string;
+  description: string | null;
+  event_type: 'holiday' | 'company_event' | 'other';
+  is_blocked: boolean; // 是否禁止排程
+  created_at: string;
+  updated_at: string;
+}
+
+// 活動排程
+export interface CampaignSchedule {
+  id: string;
+  campaign_id: string;
+  store_id: string;
+  activity_date: string;
+  created_at: string;
+  updated_at: string;
+  // 關聯資料
+  store?: Store;
+  campaign?: Campaign;
+}
+
+// 排程演算法結果
+export interface ScheduleSuggestion {
+  store_id: string;
+  date: string;
+  reason?: string; // 排程原因或警告訊息
+}
+
+// 日曆單元格資料
+export interface CalendarCell {
+  date: string;
+  day_of_week: number; // 1-7
+  is_weekend: boolean;
+  is_holiday: boolean;
+  event?: EventDate;
+  scheduled_stores: CampaignSchedule[];
+}
+
+// =====================================================
+// 員工異動歷程
+// =====================================================
 
 // 員工異動歷程
 export interface EmployeeMovementHistory {
