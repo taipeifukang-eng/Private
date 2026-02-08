@@ -105,7 +105,7 @@ export default function ScheduleEditPage() {
     const allowedDays = [3, 6, 7]; // 週三(3)、週六(6)、週日(7)
     const maxPerDay = 2;
     
-    // 按督導區分組門市（假設使用 supervisor_id，實際需要從 store_managers 查詢）
+    // 按督導區分組門市
     const supervisorGroups = new Map<string, string[]>();
     stores.forEach(store => {
       const supervisorId = store.supervisor_id || 'unassigned';
@@ -125,8 +125,14 @@ export default function ScheduleEditPage() {
       return !event?.is_blocked;
     });
 
+    if (availableDates.length === 0) {
+      alert('活動期間內沒有可用的排程日期（週三、週六、週日且未被阻擋）');
+      return;
+    }
+
     // 排程結果
     const newSchedules: { store_id: string; activity_date: string }[] = [];
+    const failedStores: { store: StoreWithManager; reason: string }[] = [];
     const supervisorLastDate = new Map<string, Date>();
     const dateCount = new Map<string, number>();
     const dateSupervisors = new Map<string, Set<string>>(); // 記錄每天已有哪些督導區
@@ -138,12 +144,13 @@ export default function ScheduleEditPage() {
       dateSupervisors.set(dateStr, new Set<string>());
     });
 
-    // 為每個門市安排日期
+    // 為每個門市安排日期（優先嚴格規則）
     for (const store of stores) {
       const storeSettings = settings.find(s => s.store_id === store.id);
       const supervisorId = store.supervisor_id || 'unassigned';
 
       let assigned = false;
+      let failReason = '';
 
       for (const date of availableDates) {
         const dateStr = date.toISOString().split('T')[0];
@@ -151,36 +158,41 @@ export default function ScheduleEditPage() {
 
         // 檢查門市特定限制
         if (storeSettings) {
-          if (storeSettings.forbidden_days?.includes(dayOfWeek)) continue;
-          if (storeSettings.allowed_days && !storeSettings.allowed_days.includes(dayOfWeek)) continue;
+          if (storeSettings.forbidden_days?.includes(dayOfWeek)) {
+            failReason = `${store.store_name} 不能在週${['', '一', '二', '三', '四', '五', '六', '日'][dayOfWeek]}辦活動`;
+            continue;
+          }
+          if (storeSettings.allowed_days && storeSettings.allowed_days.length > 0 && !storeSettings.allowed_days.includes(dayOfWeek)) {
+            failReason = `${store.store_name} 只能在指定日期辦活動`;
+            continue;
+          }
         }
 
         // 檢查該日是否已滿
-        if ((dateCount.get(dateStr) || 0) >= maxPerDay) continue;
-
-        // 檢查同一天是否已有同督導區的門市
-        if (dateSupervisors.get(dateStr)?.has(supervisorId)) continue;
-
-        // 檢查同督導區是否在連續兩天（前一天或後一天）
-        const lastDate = supervisorLastDate.get(supervisorId);
-        if (lastDate) {
-          const diffDays = Math.abs((date.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays < 2) continue; // 至少間隔一天
+        if ((dateCount.get(dateStr) || 0) >= maxPerDay) {
+          failReason = '所有可用日期都已排滿';
+          continue;
         }
 
-        // 檢查前後日期是否有同督導區的門市
-        let hasConflict = false;
-        for (let offset = -1; offset <= 1; offset++) {
-          if (offset === 0) continue;
+        // 檢查同一天是否已有同督導區的門市
+        if (dateSupervisors.get(dateStr)?.has(supervisorId)) {
+          failReason = '同督導區門市不能在同一天';
+          continue;
+        }
+
+        // 檢查前後一天是否有同督導區的門市
+        let hasAdjacentConflict = false;
+        for (let offset = -1; offset <= 1; offset += 2) { // 只檢查 -1 和 +1
           const checkDate = new Date(date);
           checkDate.setDate(checkDate.getDate() + offset);
           const checkDateStr = checkDate.toISOString().split('T')[0];
           if (dateSupervisors.get(checkDateStr)?.has(supervisorId)) {
-            hasConflict = true;
+            hasAdjacentConflict = true;
+            failReason = '同督導區門市不能連續兩天辦活動';
             break;
           }
         }
-        if (hasConflict) continue;
+        if (hasAdjacentConflict) continue;
 
         // 安排此日期
         newSchedules.push({
@@ -196,13 +208,74 @@ export default function ScheduleEditPage() {
       }
 
       if (!assigned) {
-        console.warn(`無法為門市 ${store.store_name} 安排日期`);
+        failedStores.push({ store, reason: failReason || '無可用日期' });
       }
     }
 
-    // 確認後套用
-    if (confirm(`系統已自動排程 ${newSchedules.length}/${stores.length} 間門市。\n確定要套用此排程嗎？`)) {
-      applySchedules(newSchedules);
+    // 第二輪：嘗試為失敗的門市放寬限制（允許連續，但不同天）
+    if (failedStores.length > 0) {
+      console.log('第二輪排程：放寬連續限制...');
+      const remainingFailed: typeof failedStores = [];
+      
+      for (const { store } of failedStores) {
+        const storeSettings = settings.find(s => s.store_id === store.id);
+        const supervisorId = store.supervisor_id || 'unassigned';
+        let assigned = false;
+
+        for (const date of availableDates) {
+          const dateStr = date.toISOString().split('T')[0];
+          const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
+
+          // 仍然檢查門市限制
+          if (storeSettings) {
+            if (storeSettings.forbidden_days?.includes(dayOfWeek)) continue;
+            if (storeSettings.allowed_days && storeSettings.allowed_days.length > 0 && !storeSettings.allowed_days.includes(dayOfWeek)) continue;
+          }
+
+          // 檢查該日是否已滿
+          if ((dateCount.get(dateStr) || 0) >= maxPerDay) continue;
+
+          // 只檢查同一天（放寬連續限制）
+          if (dateSupervisors.get(dateStr)?.has(supervisorId)) continue;
+
+          // 安排此日期
+          newSchedules.push({
+            store_id: store.id,
+            activity_date: dateStr
+          });
+
+          dateCount.set(dateStr, (dateCount.get(dateStr) || 0) + 1);
+          dateSupervisors.get(dateStr)!.add(supervisorId);
+          assigned = true;
+          break;
+        }
+
+        if (!assigned) {
+          remainingFailed.push({ store, reason: '即使放寬限制仍無法排程' });
+        }
+      }
+
+      // 顯示詳細結果
+      let message = `系統已自動排程 ${newSchedules.length}/${stores.length} 間門市。`;
+      
+      if (remainingFailed.length > 0) {
+        message += `\n\n⚠️ 以下門市無法排程：\n`;
+        remainingFailed.forEach(({ store, reason }) => {
+          message += `\n• ${store.store_name}：${reason}`;
+        });
+        message += '\n\n建議：\n1. 檢查門市活動設定是否過於嚴格\n2. 延長活動期間以增加可用日期\n3. 手動安排這些門市';
+      }
+      
+      message += '\n\n確定要套用此排程嗎？';
+      
+      if (confirm(message)) {
+        applySchedules(newSchedules);
+      }
+    } else {
+      // 全部成功
+      if (confirm(`系統已自動排程 ${newSchedules.length}/${stores.length} 間門市。\n確定要套用此排程嗎？`)) {
+        applySchedules(newSchedules);
+      }
     }
   };
 
