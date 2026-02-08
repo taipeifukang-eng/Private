@@ -31,6 +31,41 @@ export default function ScheduleEditPage() {
   // 日曆資料
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
 
+  // 督導顏色映射（根據督導 ID 分配固定顏色）
+  const supervisorColors: Record<string, { bg: string; border: string; text: string }> = {
+    'default': { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900' },
+  };
+
+  // 為督導分配顏色
+  const getSupervisorColor = (supervisorId?: string) => {
+    if (!supervisorId) return supervisorColors.default;
+    
+    // 如果已有顏色則返回
+    if (supervisorColors[supervisorId]) {
+      return supervisorColors[supervisorId];
+    }
+
+    // 預設顏色組合
+    const colors = [
+      { bg: 'bg-blue-100', border: 'border-blue-300', text: 'text-blue-900' },
+      { bg: 'bg-green-100', border: 'border-green-300', text: 'text-green-900' },
+      { bg: 'bg-purple-100', border: 'border-purple-300', text: 'text-purple-900' },
+      { bg: 'bg-orange-100', border: 'border-orange-300', text: 'text-orange-900' },
+      { bg: 'bg-pink-100', border: 'border-pink-300', text: 'text-pink-900' },
+      { bg: 'bg-indigo-100', border: 'border-indigo-300', text: 'text-indigo-900' },
+      { bg: 'bg-teal-100', border: 'border-teal-300', text: 'text-teal-900' },
+      { bg: 'bg-rose-100', border: 'border-rose-300', text: 'text-rose-900' },
+    ];
+
+    // 根據督導數量循環使用顏色
+    const existingSupervisors = Object.keys(supervisorColors).filter(k => k !== 'default');
+    const colorIndex = existingSupervisors.length % colors.length;
+    const color = colors[colorIndex];
+    
+    supervisorColors[supervisorId] = color;
+    return color;
+  };
+
   useEffect(() => {
     loadData();
   }, [campaignId]);
@@ -585,15 +620,16 @@ export default function ScheduleEditPage() {
                 {unscheduledStores.map(storeId => {
                   const store = stores.find(s => s.id === storeId);
                   if (!store) return null;
+                  const color = getSupervisorColor(store.supervisor_id);
                   return (
                     <div
                       key={storeId}
                       draggable
                       onDragStart={(e) => handleDragStart(e, storeId)}
-                      className="p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-move hover:bg-gray-100 transition-colors"
+                      className={`p-3 ${color.bg} rounded-lg border ${color.border} cursor-move hover:opacity-80 transition-opacity`}
                     >
-                      <div className="font-medium text-sm">{store.store_name}</div>
-                      <div className="text-xs text-gray-500">{store.store_code}</div>
+                      <div className={`font-medium text-sm ${color.text}`}>{store.store_name}</div>
+                      <div className="text-xs opacity-70">{store.store_code}</div>
                     </div>
                   );
                 })}
@@ -655,24 +691,28 @@ export default function ScheduleEditPage() {
                               </div>
 
                               <div className="space-y-1">
-                                {daySchedules.map(schedule => (
-                                  <div
-                                    key={schedule.id}
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, schedule.store_id)}
-                                    className="p-2 bg-white border border-blue-200 rounded text-xs cursor-move hover:shadow-md transition-shadow"
-                                  >
-                                    <div className="font-medium text-blue-900">
-                                      {schedule.store?.store_name}
-                                    </div>
-                                    <button
-                                      onClick={() => removeSchedule(schedule.id)}
-                                      className="text-red-500 hover:text-red-700 mt-1"
+                                {daySchedules.map(schedule => {
+                                  const store = stores.find(s => s.id === schedule.store_id);
+                                  const color = getSupervisorColor(store?.supervisor_id);
+                                  return (
+                                    <div
+                                      key={schedule.id}
+                                      draggable
+                                      onDragStart={(e) => handleDragStart(e, schedule.store_id)}
+                                      className={`p-2 ${color.bg} border ${color.border} rounded text-xs cursor-move hover:shadow-md transition-shadow`}
                                     >
-                                      移除
-                                    </button>
-                                  </div>
-                                ))}
+                                      <div className={`font-medium ${color.text}`}>
+                                        {schedule.store?.store_name}
+                                      </div>
+                                      <button
+                                        onClick={() => removeSchedule(schedule.id)}
+                                        className="text-red-500 hover:text-red-700 mt-1 text-xs"
+                                      >
+                                        ❌ 移除
+                                      </button>
+                                    </div>
+                                  );
+                                })}
 
                                 {daySchedules.length < 2 && !event?.is_blocked && (
                                   <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
@@ -692,23 +732,51 @@ export default function ScheduleEditPage() {
 
             {/* 圖例說明 */}
             <div className="mt-4 p-4 bg-white rounded-lg shadow-sm border border-gray-200">
-              <h4 className="font-semibold text-gray-900 mb-2">圖例</h4>
-              <div className="flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-50 border border-gray-300"></div>
-                  <span>優先日期（週三、週六、週日）</span>
+              <h4 className="font-semibold text-gray-900 mb-3">圖例</h4>
+              
+              {/* 督導顏色圖例 */}
+              <div className="mb-3">
+                <div className="text-sm font-medium text-gray-700 mb-2">督導區分</div>
+                <div className="flex flex-wrap gap-3 text-sm">
+                  {Array.from(new Set(stores.map(s => s.supervisor_id).filter(Boolean))).map(supervisorId => {
+                    const color = getSupervisorColor(supervisorId);
+                    const supervisorStores = stores.filter(s => s.supervisor_id === supervisorId);
+                    return (
+                      <div key={supervisorId} className="flex items-center gap-2">
+                        <div className={`w-6 h-6 ${color.bg} border ${color.border} rounded`}></div>
+                        <span>督導區 {supervisorStores[0]?.store_name?.slice(0, 2)} ({supervisorStores.length}家)</span>
+                      </div>
+                    );
+                  })}
+                  {stores.some(s => !s.supervisor_id) && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-gray-100 border border-gray-300 rounded"></div>
+                      <span>未分配督導</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-red-50 border border-gray-300"></div>
-                  <span>禁止排程日期</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>🎉</span>
-                  <span>國定假日</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span>📅</span>
-                  <span>公司活動</span>
+              </div>
+
+              {/* 日期類型圖例 */}
+              <div>
+                <div className="text-sm font-medium text-gray-700 mb-2">日期類型</div>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-blue-50 border border-gray-300"></div>
+                    <span>優先日期（週三、週六、週日）</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 bg-red-50 border border-gray-300"></div>
+                    <span>禁止排程日期</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>🎉</span>
+                    <span>國定假日</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span>📅</span>
+                    <span>公司活動</span>
+                  </div>
                 </div>
               </div>
             </div>
