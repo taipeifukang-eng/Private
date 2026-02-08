@@ -48,8 +48,8 @@ export default function ScheduleEditPage() {
       }
       setCampaign(currentCampaign);
 
-      // 載入門市列表
-      const storesRes = await fetch('/api/supervisors/stores');
+      // 載入門市列表（含督導資訊）
+      const storesRes = await fetch('/api/stores-with-supervisors');
       const storesData = await storesRes.json();
       setStores(storesData.stores || []);
 
@@ -129,10 +129,13 @@ export default function ScheduleEditPage() {
     const newSchedules: { store_id: string; activity_date: string }[] = [];
     const supervisorLastDate = new Map<string, Date>();
     const dateCount = new Map<string, number>();
+    const dateSupervisors = new Map<string, Set<string>>(); // 記錄每天已有哪些督導區
 
-    // 初始化日期計數
+    // 初始化日期計數和督導區追蹤
     availableDates.forEach(date => {
-      dateCount.set(date.toISOString().split('T')[0], 0);
+      const dateStr = date.toISOString().split('T')[0];
+      dateCount.set(dateStr, 0);
+      dateSupervisors.set(dateStr, new Set<string>());
     });
 
     // 為每個門市安排日期
@@ -152,15 +155,32 @@ export default function ScheduleEditPage() {
           if (storeSettings.allowed_days && !storeSettings.allowed_days.includes(dayOfWeek)) continue;
         }
 
-        // 檢查同督導區是否連續
+        // 檢查該日是否已滿
+        if ((dateCount.get(dateStr) || 0) >= maxPerDay) continue;
+
+        // 檢查同一天是否已有同督導區的門市
+        if (dateSupervisors.get(dateStr)?.has(supervisorId)) continue;
+
+        // 檢查同督導區是否在連續兩天（前一天或後一天）
         const lastDate = supervisorLastDate.get(supervisorId);
         if (lastDate) {
           const diffDays = Math.abs((date.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-          if (diffDays < 2) continue; // 不能連續兩天
+          if (diffDays < 2) continue; // 至少間隔一天
         }
 
-        // 檢查該日是否已滿
-        if ((dateCount.get(dateStr) || 0) >= maxPerDay) continue;
+        // 檢查前後日期是否有同督導區的門市
+        let hasConflict = false;
+        for (let offset = -1; offset <= 1; offset++) {
+          if (offset === 0) continue;
+          const checkDate = new Date(date);
+          checkDate.setDate(checkDate.getDate() + offset);
+          const checkDateStr = checkDate.toISOString().split('T')[0];
+          if (dateSupervisors.get(checkDateStr)?.has(supervisorId)) {
+            hasConflict = true;
+            break;
+          }
+        }
+        if (hasConflict) continue;
 
         // 安排此日期
         newSchedules.push({
@@ -170,6 +190,7 @@ export default function ScheduleEditPage() {
 
         supervisorLastDate.set(supervisorId, date);
         dateCount.set(dateStr, (dateCount.get(dateStr) || 0) + 1);
+        dateSupervisors.get(dateStr)!.add(supervisorId);
         assigned = true;
         break;
       }
