@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Save, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon } from 'lucide-react';
+import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 
@@ -17,11 +17,13 @@ export default function ScheduleEditPage() {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [stores, setStores] = useState<StoreWithManager[]>([]);
-  const [schedules, setSchedules] = useState<CampaignSchedule[]>([]);
+  const [schedules, setSchedules] = useState<CampaignSchedule[]>([]); // 本地狀態
+  const [originalSchedules, setOriginalSchedules] = useState<CampaignSchedule[]>([]); // 原始資料（用於比較）
   const [settings, setSettings] = useState<StoreActivitySettings[]>([]);
   const [events, setEvents] = useState<EventDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   
   // 暫存區（未安排的門市）
   const [unscheduledStores, setUnscheduledStores] = useState<string[]>([]);
@@ -32,6 +34,19 @@ export default function ScheduleEditPage() {
   useEffect(() => {
     loadData();
   }, [campaignId]);
+
+  // 離開頁面時的警告
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault();
+        e.returnValue = ''; // Chrome 需要這個
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges]);
 
   const loadData = async () => {
     try {
@@ -66,13 +81,16 @@ export default function ScheduleEditPage() {
       // 載入現有排程
       const schedulesRes = await fetch(`/api/campaign-schedules?campaign_id=${campaignId}`);
       const schedulesData = await schedulesRes.json();
-      setSchedules(schedulesData.schedules || []);
+      const loadedSchedules = schedulesData.schedules || [];
+      setSchedules(loadedSchedules);
+      setOriginalSchedules(JSON.parse(JSON.stringify(loadedSchedules))); // 深拷貝保存原始資料
+      setHasUnsavedChanges(false);
 
       // 建立日曆範圍
       generateCalendar(currentCampaign.start_date, currentCampaign.end_date);
 
       // 初始化未安排門市列表
-      const scheduledStoreIds = new Set((schedulesData.schedules || []).map((s: CampaignSchedule) => s.store_id));
+      const scheduledStoreIds = new Set(loadedSchedules.map((s: CampaignSchedule) => s.store_id));
       const unscheduled = (storesData.stores || [])
         .filter((store: Store) => !scheduledStoreIds.has(store.id))
         .map((store: Store) => store.id);
@@ -296,47 +314,107 @@ export default function ScheduleEditPage() {
       message += '\n\n⚠️ 執行後會覆蓋現有排程！\n確定要套用此排程嗎？';
       
       if (confirm(message)) {
-        applySchedules(newSchedules);
+        applyAutoSchedules(newSchedules);
       }
     } else {
       // 全部成功
       if (confirm(`系統已自動排程 ${newSchedules.length}/${stores.length} 間門市。\n\n⚠️ 執行後會覆蓋現有排程！\n確定要套用此排程嗎？`)) {
-        applySchedules(newSchedules);
+        applyAutoSchedules(newSchedules);
       }
     }
   };
 
-  const applySchedules = async (newSchedules: { store_id: string; activity_date: string }[]) => {
+  // 自動排程：直接套用到本地狀態
+  const applyAutoSchedules = (newSchedules: { store_id: string; activity_date: string }[]) => {
+    // 生成新的排程物件（加上臨時 ID）
+    const scheduleObjects: CampaignSchedule[] = newSchedules.map((s, index) => ({
+      id: `temp-${Date.now()}-${index}`, // 臨時 ID
+      campaign_id: campaignId,
+      store_id: s.store_id,
+      activity_date: s.activity_date,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      store: stores.find(store => store.id === s.store_id)
+    }));
+
+    setSchedules(scheduleObjects);
+    setHasUnsavedChanges(true);
+
+    // 更新未安排門市列表
+    const scheduledStoreIds = new Set(scheduleObjects.map(s => s.store_id));
+    const unscheduled = stores
+      .filter(store => !scheduledStoreIds.has(store.id))
+      .map(store => store.id);
+    setUnscheduledStores(unscheduled);
+  };
+
+  // 統一儲存所有變更
+  const saveAllChanges = async () => {
+    if (!hasUnsavedChanges) {
+      alert('沒有需要儲存的變更');
+      return;
+    }
+
+    if (!confirm('確定要儲存所有變更嗎？')) {
+      return;
+    }
+
     try {
       setSaving(true);
+
+      // 準備要儲存的資料
+      const schedulesToSave = schedules.map(s => ({
+        store_id: s.store_id,
+        activity_date: s.activity_date
+      }));
 
       const res = await fetch('/api/campaign-schedules', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           campaign_id: campaignId,
-          schedules: newSchedules
+          schedules: schedulesToSave
         })
       });
 
       const data = await res.json();
 
       if (data.success) {
-        alert('排程已更新');
-        loadData();
+        alert('儲存成功！');
+        // 重新載入資料以獲取真實 ID
+        await loadData();
       } else {
-        alert(data.error || '更新失敗');
+        alert(data.error || '儲存失敗');
       }
     } catch (error) {
-      console.error('Error applying schedules:', error);
-      alert('更新失敗');
+      console.error('Error saving changes:', error);
+      alert('儲存失敗');
     } finally {
       setSaving(false);
     }
   };
 
-  // 手動調整：將門市加到指定日期
-  const assignStoreToDate = async (storeId: string, date: Date) => {
+  // 取消變更
+  const cancelChanges = () => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
+    if (confirm('確定要放棄所有未儲存的變更嗎？')) {
+      setSchedules(JSON.parse(JSON.stringify(originalSchedules)));
+      setHasUnsavedChanges(false);
+      
+      // 更新未安排門市列表
+      const scheduledStoreIds = new Set(originalSchedules.map(s => s.store_id));
+      const unscheduled = stores
+        .filter(store => !scheduledStoreIds.has(store.id))
+        .map(store => store.id);
+      setUnscheduledStores(unscheduled);
+    }
+  };
+
+  // 手動調整：將門市加到指定日期（只更新本地狀態）
+  const assignStoreToDate = (storeId: string, date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
 
     // 檢查該日是否已有兩間門市
@@ -346,48 +424,50 @@ export default function ScheduleEditPage() {
       return;
     }
 
-    try {
-      const res = await fetch('/api/campaign-schedules', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaign_id: campaignId,
-          store_id: storeId,
-          activity_date: dateStr
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        loadData();
-      } else {
-        alert(data.error || '操作失敗');
-      }
-    } catch (error) {
-      console.error('Error assigning store:', error);
-      alert('操作失敗');
+    // 檢查該門市是否已有排程
+    const existingSchedule = schedules.find(s => s.store_id === storeId);
+    if (existingSchedule) {
+      // 更新現有排程
+      const updatedSchedules = schedules.map(s =>
+        s.store_id === storeId
+          ? { ...s, activity_date: dateStr, updated_at: new Date().toISOString() }
+          : s
+      );
+      setSchedules(updatedSchedules);
+    } else {
+      // 新增排程
+      const newSchedule: CampaignSchedule = {
+        id: `temp-${Date.now()}`,
+        campaign_id: campaignId,
+        store_id: storeId,
+        activity_date: dateStr,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        store: stores.find(s => s.id === storeId)
+      };
+      setSchedules([...schedules, newSchedule]);
+      
+      // 從未安排列表移除
+      setUnscheduledStores(unscheduledStores.filter(id => id !== storeId));
     }
+
+    setHasUnsavedChanges(true);
   };
 
-  // 移除排程
-  const removeSchedule = async (scheduleId: string) => {
-    try {
-      const res = await fetch(`/api/campaign-schedules?id=${scheduleId}`, {
-        method: 'DELETE'
-      });
+  // 移除排程（只更新本地狀態）
+  const removeSchedule = (scheduleId: string) => {
+    const schedule = schedules.find(s => s.id === scheduleId);
+    if (!schedule) return;
 
-      const data = await res.json();
+    const updatedSchedules = schedules.filter(s => s.id !== scheduleId);
+    setSchedules(updatedSchedules);
 
-      if (data.success) {
-        loadData();
-      } else {
-        alert(data.error || '刪除失敗');
-      }
-    } catch (error) {
-      console.error('Error removing schedule:', error);
-      alert('刪除失敗');
+    // 加回未安排列表
+    if (!unscheduledStores.includes(schedule.store_id)) {
+      setUnscheduledStores([...unscheduledStores, schedule.store_id]);
     }
+
+    setHasUnsavedChanges(true);
   };
 
   // 拖放處理
@@ -468,6 +548,28 @@ export default function ScheduleEditPage() {
               <Wand2 className="w-4 h-4" />
               自動排程
             </button>
+            
+            {hasUnsavedChanges && (
+              <>
+                <button
+                  onClick={saveAllChanges}
+                  disabled={saving}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {saving ? '儲存中...' : '儲存變更'}
+                </button>
+                
+                <button
+                  onClick={cancelChanges}
+                  disabled={saving}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  <X className="w-4 h-4" />
+                  取消
+                </button>
+              </>
+            )}
           </div>
         </div>
 
