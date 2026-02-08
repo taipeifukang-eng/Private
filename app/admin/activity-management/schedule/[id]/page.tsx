@@ -31,39 +31,46 @@ export default function ScheduleEditPage() {
   // 日曆資料
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
 
-  // 督導顏色映射（根據督導 ID 分配固定顏色）
-  const supervisorColors: Record<string, { bg: string; border: string; text: string }> = {
-    'default': { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900' },
+  // 督導顏色映射（使用 state 確保一致性）
+  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string }>>({});
+
+  // 預設顏色組合（使用對比度更強的顏色）
+  const AVAILABLE_COLORS = [
+    { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色' },
+    { bg: 'bg-emerald-200', border: 'border-emerald-400', text: 'text-emerald-900', name: '翠綠' },
+    { bg: 'bg-purple-200', border: 'border-purple-400', text: 'text-purple-900', name: '紫色' },
+    { bg: 'bg-amber-200', border: 'border-amber-400', text: 'text-amber-900', name: '琥珀' },
+    { bg: 'bg-pink-200', border: 'border-pink-400', text: 'text-pink-900', name: '粉紅' },
+    { bg: 'bg-cyan-200', border: 'border-cyan-400', text: 'text-cyan-900', name: '青色' },
+    { bg: 'bg-rose-200', border: 'border-rose-400', text: 'text-rose-900', name: '玫瑰' },
+    { bg: 'bg-lime-200', border: 'border-lime-400', text: 'text-lime-900', name: '萊姆' },
+    { bg: 'bg-indigo-200', border: 'border-indigo-400', text: 'text-indigo-900', name: '靛藍' },
+    { bg: 'bg-orange-200', border: 'border-orange-400', text: 'text-orange-900', name: '橙色' },
+    { bg: 'bg-teal-200', border: 'border-teal-400', text: 'text-teal-900', name: '藍綠' },
+    { bg: 'bg-fuchsia-200', border: 'border-fuchsia-400', text: 'text-fuchsia-900', name: '紫紅' },
+  ];
+
+  const DEFAULT_COLOR = { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900', name: '灰色' };
+
+  // 獲取督導顏色
+  const getSupervisorColor = (supervisorId?: string) => {
+    if (!supervisorId) return DEFAULT_COLOR;
+    return supervisorColorMap[supervisorId] || DEFAULT_COLOR;
   };
 
-  // 為督導分配顏色
-  const getSupervisorColor = (supervisorId?: string) => {
-    if (!supervisorId) return supervisorColors.default;
-    
-    // 如果已有顏色則返回
-    if (supervisorColors[supervisorId]) {
-      return supervisorColors[supervisorId];
-    }
+  // 建立督導顏色映射
+  const buildSupervisorColorMap = (storeList: StoreWithManager[]) => {
+    const uniqueSupervisors = Array.from(new Set(
+      storeList.map(s => s.supervisor_id).filter(Boolean)
+    )) as string[];
 
-    // 預設顏色組合
-    const colors = [
-      { bg: 'bg-blue-100', border: 'border-blue-300', text: 'text-blue-900' },
-      { bg: 'bg-green-100', border: 'border-green-300', text: 'text-green-900' },
-      { bg: 'bg-purple-100', border: 'border-purple-300', text: 'text-purple-900' },
-      { bg: 'bg-orange-100', border: 'border-orange-300', text: 'text-orange-900' },
-      { bg: 'bg-pink-100', border: 'border-pink-300', text: 'text-pink-900' },
-      { bg: 'bg-indigo-100', border: 'border-indigo-300', text: 'text-indigo-900' },
-      { bg: 'bg-teal-100', border: 'border-teal-300', text: 'text-teal-900' },
-      { bg: 'bg-rose-100', border: 'border-rose-300', text: 'text-rose-900' },
-    ];
-
-    // 根據督導數量循環使用顏色
-    const existingSupervisors = Object.keys(supervisorColors).filter(k => k !== 'default');
-    const colorIndex = existingSupervisors.length % colors.length;
-    const color = colors[colorIndex];
+    const colorMap: Record<string, { bg: string; border: string; text: string; name: string }> = {};
     
-    supervisorColors[supervisorId] = color;
-    return color;
+    uniqueSupervisors.forEach((supervisorId, index) => {
+      colorMap[supervisorId] = AVAILABLE_COLORS[index % AVAILABLE_COLORS.length];
+    });
+
+    setSupervisorColorMap(colorMap);
   };
 
   useEffect(() => {
@@ -101,7 +108,11 @@ export default function ScheduleEditPage() {
       // 載入門市列表（含督導資訊）
       const storesRes = await fetch('/api/stores-with-supervisors');
       const storesData = await storesRes.json();
-      setStores(storesData.stores || []);
+      const loadedStores = storesData.stores || [];
+      setStores(loadedStores);
+
+      // 建立督導顏色映射
+      buildSupervisorColorMap(loadedStores);
 
       // 載入門市設定
       const settingsRes = await fetch('/api/store-activity-settings');
@@ -736,22 +747,29 @@ export default function ScheduleEditPage() {
               
               {/* 督導顏色圖例 */}
               <div className="mb-3">
-                <div className="text-sm font-medium text-gray-700 mb-2">督導區分</div>
-                <div className="flex flex-wrap gap-3 text-sm">
+                <div className="text-sm font-medium text-gray-700 mb-2">督導區分（共 {Object.keys(supervisorColorMap).length} 個督導）</div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
                   {Array.from(new Set(stores.map(s => s.supervisor_id).filter(Boolean))).map(supervisorId => {
                     const color = getSupervisorColor(supervisorId);
                     const supervisorStores = stores.filter(s => s.supervisor_id === supervisorId);
+                    const firstStoreName = supervisorStores[0]?.store_name || '';
                     return (
-                      <div key={supervisorId} className="flex items-center gap-2">
-                        <div className={`w-6 h-6 ${color.bg} border ${color.border} rounded`}></div>
-                        <span>督導區 {supervisorStores[0]?.store_name?.slice(0, 2)} ({supervisorStores.length}家)</span>
+                      <div key={supervisorId} className="flex items-center gap-2 p-2 border border-gray-200 rounded">
+                        <div className={`w-8 h-8 ${color.bg} border-2 ${color.border} rounded flex-shrink-0`}></div>
+                        <div>
+                          <div className="font-medium">{color.name}</div>
+                          <div className="text-xs text-gray-600">{firstStoreName} 等 {supervisorStores.length} 家</div>
+                        </div>
                       </div>
                     );
                   })}
                   {stores.some(s => !s.supervisor_id) && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 bg-gray-100 border border-gray-300 rounded"></div>
-                      <span>未分配督導</span>
+                    <div className="flex items-center gap-2 p-2 border border-gray-200 rounded">
+                      <div className="w-8 h-8 bg-gray-100 border-2 border-gray-300 rounded flex-shrink-0"></div>
+                      <div>
+                        <div className="font-medium">未分配</div>
+                        <div className="text-xs text-gray-600">無督導門市</div>
+                      </div>
                     </div>
                   )}
                 </div>
