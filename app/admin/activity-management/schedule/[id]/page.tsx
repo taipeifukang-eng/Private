@@ -8,6 +8,8 @@ import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } f
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
+  supervisor_code?: string;
+  supervisor_name?: string;
 }
 
 export default function ScheduleEditPage() {
@@ -60,6 +62,15 @@ export default function ScheduleEditPage() {
 
   // 建立督導顏色映射（根據督導 ID 排序後分配顏色，確保一致性）
   const buildSupervisorColorMap = (storeList: StoreWithManager[]) => {
+    console.log('=== 建立督導顏色映射（管理頁面）===');
+    console.log('門市總數:', storeList.length);
+    console.log('前3家門市範例:', storeList.slice(0, 3).map(s => ({
+      name: s.store_name,
+      supervisor_id: s.supervisor_id,
+      supervisor_code: s.supervisor_code,
+      supervisor_name: s.supervisor_name
+    })));
+    
     const uniqueSupervisors = Array.from(new Set(
       storeList.map(s => s.supervisor_id).filter(Boolean)
     )) as string[];
@@ -67,7 +78,6 @@ export default function ScheduleEditPage() {
     // 排序督導 ID 以確保一致性
     uniqueSupervisors.sort();
 
-    console.log('=== 建立督導顏色映射 ===');
     console.log('督導總數:', uniqueSupervisors.length);
     console.log('督導 IDs:', uniqueSupervisors);
 
@@ -121,7 +131,10 @@ export default function ScheduleEditPage() {
       // 載入門市列表（含督導資訊）
       const storesRes = await fetch('/api/stores-with-supervisors');
       const storesData = await storesRes.json();
-      const loadedStores = storesData.stores || [];
+      console.log('Stores API response:', storesData);
+      const loadedStores = storesData.data || storesData.stores || [];
+      console.log('Loaded stores count:', loadedStores.length);
+      console.log('Sample stores:', loadedStores.slice(0, 3));
       setStores(loadedStores);
 
       // 建立督導顏色映射
@@ -150,9 +163,10 @@ export default function ScheduleEditPage() {
 
       // 初始化未安排門市列表
       const scheduledStoreIds = new Set(loadedSchedules.map((s: CampaignSchedule) => s.store_id));
-      const unscheduled = (storesData.stores || [])
+      const unscheduled = (storesData.data || storesData.stores || [])
         .filter((store: Store) => !scheduledStoreIds.has(store.id))
         .map((store: Store) => store.id);
+      console.log('Unscheduled stores:', unscheduled);
       setUnscheduledStores(unscheduled);
 
     } catch (error) {

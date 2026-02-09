@@ -406,9 +406,23 @@ export default function ActivityViewPage() {
                           <div className="space-y-1">
                             {schedForDate.map(schedule => {
                               const store = stores.find(s => s.id === schedule.store_id);
-                              if (!store) return null;
+                              if (!store) {
+                                console.warn('Store not found for schedule:', schedule.id);
+                                return null;
+                              }
 
                               const color = getSupervisorColor(store);
+                              // 詳細日誌（僅在開發環境）
+                              if (schedForDate.indexOf(schedule) === 0) {
+                                console.log('Store color info:', {
+                                  storeName: store.store_name,
+                                  supervisor_id: store.supervisor_id,
+                                  supervisor_code: store.supervisor_code,
+                                  supervisor_name: store.supervisor_name,
+                                  color: color,
+                                  colorMapKeys: Object.keys(supervisorColorMap)
+                                });
+                              }
 
                               return (
                                 <div
