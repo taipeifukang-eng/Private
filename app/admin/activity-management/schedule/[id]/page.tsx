@@ -753,9 +753,7 @@ export default function ScheduleEditPage() {
                                   onDragOver={handleDragOver}
                                   className={`p-2 align-top min-h-[120px] border-l-2 ${
                                     date.getDate() === 1 ? 'border-l-indigo-400' : ''
-                                  } ${isPreferred ? 'bg-blue-50' : 'bg-white'} ${
-                                    event?.is_blocked ? 'bg-red-50' : ''
-                                  }`}
+                                  } ${isPreferred ? 'bg-blue-50' : 'bg-white'}`}
                                 >
                                   <div className="text-xs text-gray-600 mb-2">
                                     <span className={date.getDate() === 1 ? 'font-bold text-indigo-700' : ''}>
@@ -795,7 +793,7 @@ export default function ScheduleEditPage() {
                                       );
                                     })}
 
-                                    {daySchedules.length < 2 && !event?.is_blocked && (
+                                    {daySchedules.length < 2 && (
                                       <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
                                         拖放門市到此
                                       </div>
