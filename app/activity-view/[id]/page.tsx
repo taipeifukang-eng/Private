@@ -8,6 +8,8 @@ import { Campaign, CampaignSchedule, Store, EventDate } from '@/types/workflow';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
+  supervisor_code?: string;
+  supervisor_name?: string;
 }
 
 export default function ActivityViewPage() {
@@ -21,7 +23,7 @@ export default function ActivityViewPage() {
   const [events, setEvents] = useState<EventDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
-  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string }>>({});
+  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string }>>({});
 
   // 預設顏色組合（使用對比度更強的顏色）
   const AVAILABLE_COLORS = [
@@ -41,28 +43,40 @@ export default function ActivityViewPage() {
 
   const DEFAULT_COLOR = { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900', name: '灰色' };
 
-  // 獲取督導顏色
-  const getSupervisorColor = (supervisorId?: string) => {
-    if (!supervisorId) return DEFAULT_COLOR;
-    return supervisorColorMap[supervisorId] || DEFAULT_COLOR;
+  // 獲取督導顏色（使用員工代碼或 ID）
+  const getSupervisorColor = (store?: StoreWithManager) => {
+    if (!store) return DEFAULT_COLOR;
+    const key = store.supervisor_code || store.supervisor_id;
+    if (!key) return DEFAULT_COLOR;
+    return supervisorColorMap[key] || DEFAULT_COLOR;
   };
 
-  // 建立督導顏色映射（根據督導 ID 排序後分配顏色，確保一致性）
+  // 建立督導顏色映射（根據督導代碼排序後分配顏色，確保一致性）
   const buildSupervisorColorMap = (storeList: StoreWithManager[]) => {
-    const uniqueSupervisors = Array.from(new Set(
-      storeList.map(s => s.supervisor_id).filter(Boolean)
-    )) as string[];
-
-    // 排序督導 ID 以確保一致性
-    uniqueSupervisors.sort();
-
-    const colorMap: Record<string, { bg: string; border: string; text: string; name: string }> = {};
-    
-    // 按排序後的順序分配顏色
-    uniqueSupervisors.forEach((supervisorId, index) => {
-      colorMap[supervisorId] = AVAILABLE_COLORS[index % AVAILABLE_COLORS.length];
+    // 建立唯一督導列表 {code/id, name}
+    const supervisorMap = new Map<string, string>();
+    storeList.forEach(store => {
+      const key = store.supervisor_code || store.supervisor_id;
+      if (key && !supervisorMap.has(key)) {
+        supervisorMap.set(key, store.supervisor_name || '未知督導');
+      }
     });
 
+    // 按代碼/ID 排序以確保一致性
+    const uniqueSupervisors = Array.from(supervisorMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+    const colorMap: Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string }> = {};
+    
+    // 按排序後的順序分配顏色
+    uniqueSupervisors.forEach(([key, name], index) => {
+      const color = AVAILABLE_COLORS[index % AVAILABLE_COLORS.length];
+      colorMap[key] = {
+        ...color,
+        supervisorName: name
+      };
+    });
+
+    console.log('Built supervisor color map:', colorMap);
     setSupervisorColorMap(colorMap);
   };
 
@@ -242,7 +256,26 @@ export default function ActivityViewPage() {
 
         {/* 日曆 */}
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-6">活動排程</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-900">活動排程</h2>
+            
+            {/* 督導顏色圖例 */}
+            {Object.keys(supervisorColorMap).length > 0 && (
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm text-gray-600 font-medium">督導：</span>
+                {Object.entries(supervisorColorMap).map(([key, color]) => (
+                  <div
+                    key={key}
+                    className={`flex items-center gap-1 px-2 py-1 rounded border-2 ${color.border} ${color.bg}`}
+                  >
+                    <div className={`text-xs font-medium ${color.text}`}>
+                      {color.supervisorName}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           
           {Object.entries(monthGroups).map(([monthKey, dates]) => {
             // 取得該月第一天
@@ -329,13 +362,13 @@ export default function ActivityViewPage() {
                               const store = stores.find(s => s.id === schedule.store_id);
                               if (!store) return null;
 
-                              const color = getSupervisorColor(store.supervisor_id);
+                              const color = getSupervisorColor(store);
 
                               return (
                                 <div
                                   key={schedule.id}
                                   className={`text-xs ${color.bg} ${color.text} px-2 py-1 rounded border-2 ${color.border}`}
-                                  title={`${store.store_code} - ${store.store_name}`}
+                                  title={`${store.store_code} - ${store.store_name}${store.supervisor_name ? ` (督導: ${store.supervisor_name})` : ''}`}
                                 >
                                   {store.store_name}
                                 </div>
@@ -370,16 +403,20 @@ export default function ActivityViewPage() {
                 .map(({ schedule, store }) => {
                   if (!store) return null;
 
-                  const color = getSupervisorColor(store.supervisor_id);
+                  const color = getSupervisorColor(store);
 
                   return (
                     <div
                       key={schedule.id}
                       className={`flex items-center justify-between p-3 border-2 ${color.border} ${color.bg} rounded-lg hover:opacity-90 transition-opacity`}
+                      title={store.supervisor_name ? `督導: ${store.supervisor_name}` : ''}
                     >
                       <div>
                         <div className={`font-medium ${color.text}`}>{store.store_name}</div>
-                        <div className="text-sm text-gray-500">{store.store_code}</div>
+                        <div className="text-sm text-gray-500">
+                          {store.store_code}
+                          {store.supervisor_name && <span className="ml-2 text-gray-600">({store.supervisor_name})</span>}
+                        </div>
                       </div>
                       <div className="text-sm text-purple-600 font-medium">
                         {new Date(schedule.activity_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}

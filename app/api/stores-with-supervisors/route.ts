@@ -27,7 +27,7 @@ export async function GET() {
     // 獲取所有門市管理者關聯（從經理/督導管理設定）
     const { data: storeManagers, error: managersError } = await supabase
       .from('store_managers')
-      .select('store_id, user_id, user:profiles!store_managers_user_id_fkey(full_name, employee_code)');
+      .select('store_id, user_id, role_type, user:profiles!store_managers_user_id_fkey(full_name, employee_code)');
 
     if (managersError) {
       return NextResponse.json({ success: false, error: managersError.message }, { status: 500 });
@@ -77,9 +77,12 @@ export async function GET() {
       const manager = storeManagers?.find(m => 
         m.store_id === store.id && actualSupervisors.has(m.user_id)
       );
+      const user = manager && Array.isArray(manager.user) ? manager.user[0] : manager?.user;
       return {
         ...store,
-        supervisor_id: manager?.user_id || null
+        supervisor_id: manager?.user_id || null,
+        supervisor_code: user?.employee_code || null,
+        supervisor_name: user?.full_name || null
       };
     });
 
