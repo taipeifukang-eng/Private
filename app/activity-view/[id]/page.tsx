@@ -116,7 +116,12 @@ export default function ActivityViewPage() {
       if (storesData.success && storesData.data) {
         const allStores = storesData.data || [];
         console.log('Loaded stores count:', allStores.length);
-        console.log('Sample store with supervisor:', allStores[0]);
+        console.log('Sample stores with supervisor info:', allStores.slice(0, 3));
+        
+        // 檢查有多少門市有督導資訊
+        const storesWithSupervisor = allStores.filter(s => s.supervisor_id || s.supervisor_code);
+        console.log(`Stores with supervisor info: ${storesWithSupervisor.length}/${allStores.length}`);
+        
         setStores(allStores);
         
         // 建立督導顏色映射
@@ -124,6 +129,7 @@ export default function ActivityViewPage() {
       } else {
         console.error('Failed to load stores:', storesData.error);
         // 如果 API 失敗，使用備用方案直接查詢，並加入督導資訊
+        console.log('Using fallback mechanism to load stores...');
         const supabase = (await import('@/lib/supabase/client')).createClient();
         const { data: allStores, error: storesError } = await supabase
           .from('stores')
@@ -132,22 +138,30 @@ export default function ActivityViewPage() {
           .order('store_code');
         
         if (!storesError && allStores) {
-          // 獲取督導資訊
+          // 獲取督導資訊（包含用戶資料）
           const { data: storeManagers } = await supabase
             .from('store_managers')
-            .select('store_id, user_id, role_type')
+            .select('store_id, user_id, role_type, user:profiles!store_managers_user_id_fkey(full_name, employee_code)')
             .eq('role_type', 'supervisor');
+
+          console.log('Fetched store managers from fallback:', storeManagers?.length);
 
           // 將督導資訊加入門市
           const storesWithSupervisors = allStores.map(store => {
             const supervisor = storeManagers?.find(m => m.store_id === store.id);
+            const user = supervisor && Array.isArray(supervisor.user) ? supervisor.user[0] : supervisor?.user;
             return {
               ...store,
-              supervisor_id: supervisor?.user_id
+              supervisor_id: supervisor?.user_id || null,
+              supervisor_code: user?.employee_code || null,
+              supervisor_name: user?.full_name || null
             };
           });
           
           console.log('Loaded stores from fallback with supervisors:', storesWithSupervisors.length);
+          const fallbackWithSupervisor = storesWithSupervisors.filter(s => s.supervisor_id);
+          console.log(`Fallback stores with supervisor: ${fallbackWithSupervisor.length}`);
+          
           setStores(storesWithSupervisors);
           buildSupervisorColorMap(storesWithSupervisors);
         }
