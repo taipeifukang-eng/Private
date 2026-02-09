@@ -58,18 +58,35 @@ export default function ScheduleEditPage() {
     return supervisorColorMap[supervisorId] || DEFAULT_COLOR;
   };
 
-  // 建立督導顏色映射
+  // 建立督導顏色映射（根據督導 ID hash 分配固定顏色）
   const buildSupervisorColorMap = (storeList: StoreWithManager[]) => {
     const uniqueSupervisors = Array.from(new Set(
       storeList.map(s => s.supervisor_id).filter(Boolean)
     )) as string[];
 
+    console.log('=== 建立督導顏色映射 ===');
+    console.log('督導總數:', uniqueSupervisors.length);
+    console.log('督導 IDs:', uniqueSupervisors);
+
     const colorMap: Record<string, { bg: string; border: string; text: string; name: string }> = {};
     
-    uniqueSupervisors.forEach((supervisorId, index) => {
-      colorMap[supervisorId] = AVAILABLE_COLORS[index % AVAILABLE_COLORS.length];
+    // 使用督導 ID 的 hash 來分配顏色，確保同一督導永遠得到同一顏色
+    uniqueSupervisors.forEach((supervisorId) => {
+      // 簡單的字串 hash 函數
+      let hash = 0;
+      for (let i = 0; i < supervisorId.length; i++) {
+        hash = ((hash << 5) - hash) + supervisorId.charCodeAt(i);
+        hash = hash & hash; // Convert to 32bit integer
+      }
+      const colorIndex = Math.abs(hash) % AVAILABLE_COLORS.length;
+      colorMap[supervisorId] = AVAILABLE_COLORS[colorIndex];
+      
+      // 找出這個督導管理的門市
+      const supervisorStores = storeList.filter(s => s.supervisor_id === supervisorId);
+      console.log(`督導 ${supervisorId}: ${colorMap[supervisorId].name} (${supervisorStores.length}家) - ${supervisorStores.map(s => s.store_name).join(', ')}`);
     });
 
+    console.log('顏色映射表:', colorMap);
     setSupervisorColorMap(colorMap);
   };
 
