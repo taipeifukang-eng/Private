@@ -52,20 +52,25 @@ export async function GET() {
     console.log('Unique managers/supervisors:', supervisorStoreCount.size);
     
     // 排除管理所有或接近所有門市的經理（如徐孝銘）
-    // 判斷標準：管理超過 90% 的門市就視為全選的經理
-    const threshold = totalStores * 0.9;
+    // 以及只管理1-2家門市的店長
+    // 真正的督導應該管理 3 家以上但少於 90% 的門市
+    const maxThreshold = totalStores * 0.9;
+    const minThreshold = 3; // 督導至少管理3家門市
     const actualSupervisors = new Set<string>();
     
     supervisorStoreCount.forEach((info, userId) => {
       console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores`);
-      if (info.count < threshold) {
+      if (info.count >= minThreshold && info.count < maxThreshold) {
         actualSupervisors.add(userId);
+        console.log(`    ✓ 認定為督導`);
+      } else if (info.count >= maxThreshold) {
+        console.log(`    ⚠️ 排除（區域經理，管理 ${info.count}/${totalStores} 門市）`);
       } else {
-        console.log(`  ⚠️  排除 ${info.name} (管理 ${info.count}/${totalStores} 門市，視為區域經理)`);
+        console.log(`    ⚠️ 排除（門市店長，僅管理 ${info.count} 家門市）`);
       }
     });
 
-    console.log('Actual supervisors (excluding area managers):', actualSupervisors.size);
+    console.log('Actual supervisors (區域督導):', actualSupervisors.size);
 
     // 將督導資訊加入門市資料（只保留真正的督導，排除區域經理）
     const storesWithSupervisors = (stores || []).map(store => {
