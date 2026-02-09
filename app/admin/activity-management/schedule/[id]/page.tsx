@@ -682,10 +682,20 @@ export default function ScheduleEditPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {weeks.map((week, weekIndex) => {
-                      // 檢查這週是否有月份變化
-                      const firstDate = week[0];
-                      const showMonthHeader = weekIndex === 0 || 
-                        (weekIndex > 0 && weeks[weekIndex - 1][weeks[weekIndex - 1].length - 1].getMonth() !== firstDate.getMonth());
+                      // 檢查這週是否有月份變化 - 找本週內第一個日期（按日期排序）
+                      const sortedWeek = [...week].sort((a, b) => a.getTime() - b.getTime());
+                      const firstDate = sortedWeek[0];
+                      
+                      // 判斷是否顯示月份標題：
+                      // 1. 第一週
+                      // 2. 或本週包含某個月的第1天
+                      const hasFirstDayOfMonth = week.some(date => date.getDate() === 1);
+                      const showMonthHeader = weekIndex === 0 || hasFirstDayOfMonth;
+                      
+                      // 如果顯示月份標題，找出要顯示的月份（可能本週有多個月份的第1天）
+                      const monthToShow = hasFirstDayOfMonth 
+                        ? week.find(date => date.getDate() === 1) || firstDate
+                        : firstDate;
                       
                       return (
                         <React.Fragment key={weekIndex}>
@@ -696,7 +706,7 @@ export default function ScheduleEditPage() {
                                 <div className="flex items-center justify-center gap-2">
                                   <CalendarIcon className="w-5 h-5 text-indigo-600" />
                                   <span className="text-lg font-bold text-indigo-900">
-                                    {firstDate.getFullYear()}年 {firstDate.getMonth() + 1}月
+                                    {monthToShow.getFullYear()}年 {monthToShow.getMonth() + 1}月
                                   </span>
                                 </div>
                               </td>
