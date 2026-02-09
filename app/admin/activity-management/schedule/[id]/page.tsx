@@ -559,23 +559,59 @@ export default function ScheduleEditPage() {
 
   if (!campaign) return null;
 
-  // 按週分組日期
-  const weeks: Date[][] = [];
-  let currentWeek: Date[] = [];
+  // 按月份分組日期，每個月份獨立成區塊
+  const monthGroups: { year: number; month: number; weeks: (Date | null)[][] }[] = [];
   
-  calendarDates.forEach((date, index) => {
-    const dayOfWeek = date.getDay();
+  // 按月份分組
+  const datesByMonth = new Map<string, Date[]>();
+  calendarDates.forEach(date => {
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    if (!datesByMonth.has(key)) {
+      datesByMonth.set(key, []);
+    }
+    datesByMonth.get(key)!.push(date);
+  });
+
+  // 為每個月份生成完整的週行（包含空白日期）
+  datesByMonth.forEach((dates, key) => {
+    const [year, month] = key.split('-').map(Number);
+    const firstDate = dates[0];
+    const lastDate = dates[dates.length - 1];
     
-    if (dayOfWeek === 1 && currentWeek.length > 0) {
-      weeks.push([...currentWeek]);
-      currentWeek = [];
+    // 找到該月第一天是星期幾（0=週日, 1=週一）
+    const firstDayOfWeek = firstDate.getDay();
+    const startDayOfWeek = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1; // 轉換為週一=0
+    
+    // 找到該月最後一天是星期幾
+    const lastDayOfWeek = lastDate.getDay();
+    const endDayOfWeek = lastDayOfWeek === 0 ? 6 : lastDayOfWeek - 1;
+    
+    const weeks: (Date | null)[][] = [];
+    let currentWeek: (Date | null)[] = [];
+    
+    // 補齊第一週前面的空白
+    for (let i = 0; i < startDayOfWeek; i++) {
+      currentWeek.push(null);
     }
     
-    currentWeek.push(date);
+    // 加入所有日期
+    dates.forEach(date => {
+      currentWeek.push(date);
+      if (currentWeek.length === 7) {
+        weeks.push([...currentWeek]);
+        currentWeek = [];
+      }
+    });
     
-    if (index === calendarDates.length - 1) {
+    // 補齊最後一週後面的空白
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) {
+        currentWeek.push(null);
+      }
       weeks.push([...currentWeek]);
     }
+    
+    monthGroups.push({ year, month, weeks });
   });
 
   return (
@@ -681,115 +717,97 @@ export default function ScheduleEditPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {weeks.map((week, weekIndex) => {
-                      // 檢查這週是否有月份變化 - 找本週內第一個日期（按日期排序）
-                      const sortedWeek = [...week].sort((a, b) => a.getTime() - b.getTime());
-                      const firstDate = sortedWeek[0];
-                      
-                      // 判斷是否顯示月份標題：
-                      // 1. 第一週
-                      // 2. 或本週包含某個月的第1天
-                      const hasFirstDayOfMonth = week.some(date => date.getDate() === 1);
-                      const showMonthHeader = weekIndex === 0 || hasFirstDayOfMonth;
-                      
-                      // 如果顯示月份標題，找出要顯示的月份（可能本週有多個月份的第1天）
-                      const monthToShow = hasFirstDayOfMonth 
-                        ? week.find(date => date.getDate() === 1) || firstDate
-                        : firstDate;
-                      
-                      return (
-                        <React.Fragment key={weekIndex}>
-                          {/* 月份標題行 */}
-                          {showMonthHeader && (
-                            <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-t-4 border-indigo-400">
-                              <td colSpan={7} className="px-4 py-3 text-center">
-                                <div className="flex items-center justify-center gap-2">
-                                  <CalendarIcon className="w-5 h-5 text-indigo-600" />
-                                  <span className="text-lg font-bold text-indigo-900">
-                                    {monthToShow.getFullYear()}年 {monthToShow.getMonth() + 1}月
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                          
-                          {/* 週行 */}
-                          <tr className="divide-x divide-gray-200">
-                            {[1, 2, 3, 4, 5, 6, 0].map(targetDay => {
-                          const date = week.find(d => d.getDay() === targetDay);
-                          
-                          if (!date) {
-                            return <td key={targetDay} className="p-2 bg-gray-50"></td>;
-                          }
+                    {monthGroups.map((monthGroup, monthIndex) => (
+                      <React.Fragment key={`${monthGroup.year}-${monthGroup.month}`}>
+                        {/* 月份標題行 */}
+                        <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-t-4 border-indigo-400">
+                          <td colSpan={7} className="px-4 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              <CalendarIcon className="w-5 h-5 text-indigo-600" />
+                              <span className="text-lg font-bold text-indigo-900">
+                                {monthGroup.year}年 {monthGroup.month + 1}月
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        
+                        {/* 該月份的所有週 */}
+                        {monthGroup.weeks.map((week, weekIndex) => (
+                          <tr key={weekIndex} className="divide-x divide-gray-200">
+                            {week.map((date, dayIndex) => {
+                              if (!date) {
+                                // 空白日期格子
+                                return <td key={dayIndex} className="p-2 bg-gray-100 min-h-[120px]"></td>;
+                              }
 
-                          const dateStr = date.toISOString().split('T')[0];
-                          const daySchedules = schedules.filter(s => s.activity_date.split('T')[0] === dateStr);
-                          const event = events.find(e => e.event_date.split('T')[0] === dateStr);
-                          const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
-                          const isPreferred = [3, 6, 7].includes(dayOfWeek);
+                              const dateStr = date.toISOString().split('T')[0];
+                              const daySchedules = schedules.filter(s => s.activity_date.split('T')[0] === dateStr);
+                              const event = events.find(e => e.event_date.split('T')[0] === dateStr);
+                              const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay();
+                              const isPreferred = [3, 6, 7].includes(dayOfWeek);
 
-                          return (
-                            <td
-                              key={targetDay}
-                              onDrop={(e) => handleDrop(e, date)}
-                              onDragOver={handleDragOver}
-                              className={`p-2 align-top min-h-[120px] border-l-2 ${
-                                date.getDate() === 1 ? 'border-l-indigo-400' : ''
-                              } ${isPreferred ? 'bg-blue-50' : 'bg-white'} ${
-                                event?.is_blocked ? 'bg-red-50' : ''
-                              }`}
-                            >
-                              <div className="text-xs text-gray-600 mb-2">
-                                <span className={date.getDate() === 1 ? 'font-bold text-indigo-700' : ''}>
-                                  {date.getDate()}
-                                  {date.getDate() === 1 && (
-                                    <span className="ml-1 text-indigo-600">({date.getMonth() + 1}月)</span>
-                                  )}
-                                </span>
-                                {event && (
-                                  <div className="text-xs text-purple-600 mt-1">
-                                    {event.event_type === 'holiday' ? '🎉' : '📅'} {event.description}
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="space-y-1">
-                                {daySchedules.map(schedule => {
-                                  const store = stores.find(s => s.id === schedule.store_id);
-                                  const color = getSupervisorColor(store?.supervisor_id);
-                                  return (
-                                    <div
-                                      key={schedule.id}
-                                      draggable
-                                      onDragStart={(e) => handleDragStart(e, schedule.store_id)}
-                                      className={`p-2 ${color.bg} border ${color.border} rounded text-xs cursor-move hover:shadow-md transition-shadow`}
-                                    >
-                                      <div className={`font-medium ${color.text}`}>
-                                        {schedule.store?.store_name}
+                              return (
+                                <td
+                                  key={dayIndex}
+                                  onDrop={(e) => handleDrop(e, date)}
+                                  onDragOver={handleDragOver}
+                                  className={`p-2 align-top min-h-[120px] border-l-2 ${
+                                    date.getDate() === 1 ? 'border-l-indigo-400' : ''
+                                  } ${isPreferred ? 'bg-blue-50' : 'bg-white'} ${
+                                    event?.is_blocked ? 'bg-red-50' : ''
+                                  }`}
+                                >
+                                  <div className="text-xs text-gray-600 mb-2">
+                                    <span className={date.getDate() === 1 ? 'font-bold text-indigo-700' : ''}>
+                                      {date.getDate()}
+                                      {date.getDate() === 1 && (
+                                        <span className="ml-1 text-indigo-600">({date.getMonth() + 1}月)</span>
+                                      )}
+                                    </span>
+                                    {event && (
+                                      <div className="text-xs text-purple-600 mt-1">
+                                        {event.event_type === 'holiday' ? '🎉' : '📅'} {event.description}
                                       </div>
-                                      <button
-                                        onClick={() => removeSchedule(schedule.id)}
-                                        className="text-red-500 hover:text-red-700 mt-1 text-xs"
-                                      >
-                                        ❌ 移除
-                                      </button>
-                                    </div>
-                                  );
-                                })}
-
-                                {daySchedules.length < 2 && !event?.is_blocked && (
-                                  <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
-                                    拖放門市到此
+                                    )}
                                   </div>
-                                )}
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    </React.Fragment>
-                    );
-                  })}
+
+                                  <div className="space-y-1">
+                                    {daySchedules.map(schedule => {
+                                      const store = stores.find(s => s.id === schedule.store_id);
+                                      const color = getSupervisorColor(store?.supervisor_id);
+                                      return (
+                                        <div
+                                          key={schedule.id}
+                                          draggable
+                                          onDragStart={(e) => handleDragStart(e, schedule.store_id)}
+                                          className={`p-2 ${color.bg} border ${color.border} rounded text-xs cursor-move hover:shadow-md transition-shadow`}
+                                        >
+                                          <div className={`font-medium ${color.text}`}>
+                                            {schedule.store?.store_name}
+                                          </div>
+                                          <button
+                                            onClick={() => removeSchedule(schedule.id)}
+                                            className="text-red-500 hover:text-red-700 mt-1 text-xs"
+                                          >
+                                            ❌ 移除
+                                          </button>
+                                        </div>
+                                      );
+                                    })}
+
+                                    {daySchedules.length < 2 && !event?.is_blocked && (
+                                      <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
+                                        拖放門市到此
+                                      </div>
+                                    )}
+                                  </div>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>
