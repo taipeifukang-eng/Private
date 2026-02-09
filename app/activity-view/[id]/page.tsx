@@ -149,7 +149,9 @@ export default function ActivityViewPage() {
           // 將督導資訊加入門市
           const storesWithSupervisors = allStores.map(store => {
             const supervisor = storeManagers?.find(m => m.store_id === store.id);
-            const user = supervisor && Array.isArray(supervisor.user) ? supervisor.user[0] : supervisor?.user;
+            const user = supervisor 
+              ? (Array.isArray(supervisor.user) ? supervisor.user[0] : supervisor.user)
+              : null;
             return {
               ...store,
               supervisor_id: supervisor?.user_id || null,

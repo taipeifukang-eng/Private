@@ -37,55 +37,62 @@ export async function GET() {
     console.log('Total stores:', totalStores);
     console.log('Total assignments:', storeManagers?.length || 0);
     
-    // 方案一：直接使用 role_type = 'supervisor' 的記錄
-    // 方案二：根據管理門市數量推斷（作為備用）
+    // 先統計每個人管理的門市數量
+    const managerStoreCount = new Map<string, { count: number; name: string; code: string | null; hasRoleType: boolean }>();
+    storeManagers?.forEach(m => {
+      const user = Array.isArray(m.user) ? m.user[0] : m.user;
+      const current = managerStoreCount.get(m.user_id);
+      managerStoreCount.set(m.user_id, {
+        count: (current?.count || 0) + 1,
+        name: user?.full_name || '未知',
+        code: user?.employee_code || null,
+        hasRoleType: current?.hasRoleType || m.role_type === 'supervisor'
+      });
+    });
+
+    console.log('Unique managers/supervisors:', managerStoreCount.size);
     
-    // 先嘗試使用 role_type
+    // 識別督導：結合 role_type 和門市數量
     let actualSupervisors = new Set<string>();
-    const supervisorsWithRoleType = storeManagers?.filter(m => m.role_type === 'supervisor') || [];
+    const maxThreshold = totalStores * 0.9; // 90% 以上視為區域經理
+    const minThreshold = 3; // 至少管理3家門市
     
-    console.log('Supervisors marked with role_type=supervisor:', supervisorsWithRoleType.length);
+    // 方案一：優先使用有 role_type = 'supervisor' 標記的
+    const supervisorsWithRoleType = Array.from(managerStoreCount.entries())
+      .filter(([_, info]) => info.hasRoleType);
+    
+    console.log('Managers with role_type=supervisor:', supervisorsWithRoleType.length);
     
     if (supervisorsWithRoleType.length > 0) {
-      // 如果有標記為 supervisor 的記錄，直接使用
-      supervisorsWithRoleType.forEach(m => {
-        actualSupervisors.add(m.user_id);
-        const user = Array.isArray(m.user) ? m.user[0] : m.user;
-        console.log(`  ✓ 督導: ${user?.full_name} (${user?.employee_code})`);
-      });
-    } else {
-      // 如果沒有 role_type 標記，使用門市數量推斷
-      console.log('No role_type markers found, using store count heuristic...');
-      
-      // 統計每個督導管理的門市數量
-      const supervisorStoreCount = new Map<string, { count: number; name: string; code: string | null }>();
-      storeManagers?.forEach(m => {
-        const user = Array.isArray(m.user) ? m.user[0] : m.user;
-        const count = supervisorStoreCount.get(m.user_id)?.count || 0;
-        supervisorStoreCount.set(m.user_id, {
-          count: count + 1,
-          name: user?.full_name || '未知',
-          code: user?.employee_code || null
-        });
-      });
-    
-      console.log('Unique managers/supervisors:', supervisorStoreCount.size);
-      
-      // 排除管理所有或接近所有門市的經理（如徐孝銘）
-      // 以及只管理1-2家門市的店長
-      // 真正的督導應該管理 3 家以上但少於 90% 的門市
-      const maxThreshold = totalStores * 0.9;
-      const minThreshold = 3; // 督導至少管理3家門市
-      
-      supervisorStoreCount.forEach((info, userId) => {
-        console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores`);
-        if (info.count >= minThreshold && info.count < maxThreshold) {
+      // 有 role_type 標記，但仍需排除區域經理（管理90%以上門市）
+      supervisorsWithRoleType.forEach(([userId, info]) => {
+        console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores [role_type=supervisor]`);
+        if (info.count >= maxThreshold) {
+          console.log(`    ⚠️ 排除（區域經理，管理 ${info.count}/${totalStores} 門市，雖有 supervisor 標記）`);
+        } else if (info.count >= minThreshold) {
           actualSupervisors.add(userId);
           console.log(`    ✓ 認定為督導`);
-        } else if (info.count >= maxThreshold) {
-          console.log(`    ⚠️ 排除（區域經理，管理 ${info.count}/${totalStores} 門市）`);
         } else {
-          console.log(`    ⚠️ 排除（門市店長，僅管理 ${info.count} 家門市）`);
+          console.log(`    ⚠️ 排除（僅管理 ${info.count} 家門市）`);
+        }
+      });
+    }
+    
+    // 方案二：如果沒有找到任何督導，或數量太少，使用門市數量推斷作為補充
+    if (actualSupervisors.size === 0) {
+      console.log('No valid supervisors found with role_type, using store count heuristic...');
+      
+      managerStoreCount.forEach((info, userId) => {
+        if (!info.hasRoleType) { // 只看沒有 role_type 標記的
+          console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores`);
+          if (info.count >= minThreshold && info.count < maxThreshold) {
+            actualSupervisors.add(userId);
+            console.log(`    ✓ 認定為督導（基於門市數量）`);
+          } else if (info.count >= maxThreshold) {
+            console.log(`    ⚠️ 排除（區域經理，管理 ${info.count}/${totalStores} 門市）`);
+          } else {
+            console.log(`    ⚠️ 排除（門市店長，僅管理 ${info.count} 家門市）`);
+          }
         }
       });
     }
