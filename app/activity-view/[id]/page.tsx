@@ -53,14 +53,19 @@ export default function ActivityViewPage() {
 
   // 建立督導顏色映射（根據督導代碼排序後分配顏色，確保一致性）
   const buildSupervisorColorMap = (storeList: StoreWithManager[]) => {
+    console.log('Building supervisor color map from stores:', storeList.length);
+    
     // 建立唯一督導列表 {code/id, name}
     const supervisorMap = new Map<string, string>();
     storeList.forEach(store => {
       const key = store.supervisor_code || store.supervisor_id;
       if (key && !supervisorMap.has(key)) {
         supervisorMap.set(key, store.supervisor_name || '未知督導');
+        console.log(`Found supervisor: ${key} - ${store.supervisor_name}`);
       }
     });
+
+    console.log(`Total unique supervisors found: ${supervisorMap.size}`);
 
     // 按代碼/ID 排序以確保一致性
     const uniqueSupervisors = Array.from(supervisorMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
@@ -74,6 +79,7 @@ export default function ActivityViewPage() {
         ...color,
         supervisorName: name
       };
+      console.log(`Assigned ${color.name} to supervisor: ${name} (${key})`);
     });
 
     console.log('Built supervisor color map:', colorMap);
