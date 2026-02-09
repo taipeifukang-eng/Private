@@ -119,7 +119,7 @@ export default function ActivityViewPage() {
         console.log('Sample stores with supervisor info:', allStores.slice(0, 3));
         
         // 檢查有多少門市有督導資訊
-        const storesWithSupervisor = allStores.filter(s => s.supervisor_id || s.supervisor_code);
+        const storesWithSupervisor = allStores.filter((s: StoreWithManager) => s.supervisor_id || s.supervisor_code);
         console.log(`Stores with supervisor info: ${storesWithSupervisor.length}/${allStores.length}`);
         
         setStores(allStores);
@@ -159,7 +159,7 @@ export default function ActivityViewPage() {
           });
           
           console.log('Loaded stores from fallback with supervisors:', storesWithSupervisors.length);
-          const fallbackWithSupervisor = storesWithSupervisors.filter(s => s.supervisor_id);
+          const fallbackWithSupervisor = storesWithSupervisors.filter((s: StoreWithManager) => s.supervisor_id);
           console.log(`Fallback stores with supervisor: ${fallbackWithSupervisor.length}`);
           
           setStores(storesWithSupervisors);
