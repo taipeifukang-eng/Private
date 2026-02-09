@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon } from 'lucide-react';
+import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 
@@ -472,6 +472,51 @@ export default function ScheduleEditPage() {
     }
   };
 
+  // 發布/取消發布
+  const handlePublish = async (publishType: 'supervisors' | 'store_managers') => {
+    if (!campaign) return;
+
+    const isCurrentlyPublished = publishType === 'supervisors' 
+      ? campaign.published_to_supervisors 
+      : campaign.published_to_store_managers;
+    
+    const action = isCurrentlyPublished ? '取消發布' : '發布';
+    const target = publishType === 'supervisors' ? '督導' : '店長';
+
+    if (!confirm(`確定要${action}給${target}嗎？`)) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const res = await fetch('/api/campaigns/publish', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaignId: campaign.id,
+          publishType,
+          status: !isCurrentlyPublished
+        })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        alert(`${action}成功！`);
+        // 更新本地 campaign 狀態
+        setCampaign(data.campaign);
+      } else {
+        alert(data.error || `${action}失敗`);
+      }
+    } catch (error) {
+      console.error('Error publishing:', error);
+      alert(`${action}失敗`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // 手動調整：將門市加到指定日期（只更新本地狀態）
   const assignStoreToDate = (storeId: string, date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
@@ -643,6 +688,53 @@ export default function ScheduleEditPage() {
               <Wand2 className="w-4 h-4" />
               自動排程
             </button>
+
+            {/* 發布按鈕 */}
+            <div className="flex gap-3 border-l border-gray-300 pl-3">
+              <button
+                onClick={() => handlePublish('supervisors')}
+                disabled={saving}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 ${
+                  campaign?.published_to_supervisors
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {campaign?.published_to_supervisors ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    已發布給督導
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    發布給督導
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => handlePublish('store_managers')}
+                disabled={saving}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 ${
+                  campaign?.published_to_store_managers
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {campaign?.published_to_store_managers ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    已發布給店長
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    發布給店長
+                  </>
+                )}
+              </button>
+            </div>
             
             {hasUnsavedChanges && (
               <>

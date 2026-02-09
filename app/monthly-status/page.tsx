@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
 import MealAllowanceModal from '@/components/MealAllowanceModal';
@@ -28,7 +29,8 @@ import {
   TrendingUp,
   ChevronDown,
   FileText,
-  Calendar
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import type { Store, MonthlyStoreSummary, MonthlyStatusType, NewbieLevel, PartialMonthReason, ExtraTask, EmployeeMovementHistory } from '@/types/workflow';
 import { 
@@ -59,6 +61,9 @@ function MonthlyStatusContent() {
   const [movementHistory, setMovementHistory] = useState<EmployeeMovementHistory[]>([]);
   const [loadingMovement, setLoadingMovement] = useState(false);
   const storeTabsRef = useRef<{ [key: string]: HTMLButtonElement | null }>({});
+
+  // 判斷是否為需要指派的職位（督導或店長）- 在 MonthlyStatusContent 組件層級
+  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
 
   // 初始化當前年月（使用當前月份或 URL 參數）
   useEffect(() => {
@@ -302,7 +307,17 @@ function MonthlyStatusContent() {
               </div>
             </div>
             
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* 活動管理按鈕 - 只有督導和店長能看到 */}
+              {needsAssignment && managedStores.length > 0 && (
+                <Link
+                  href="/activity-management"
+                  className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  活動管理
+                </Link>
+              )}
               {/* 年份選擇器 */}
               <div className="flex flex-col">
                 <label className="text-xs text-gray-600 mb-1">年份</label>
@@ -679,6 +694,9 @@ function StoreStatusDetail({
   const [movementHistory, setMovementHistory] = useState<any[]>([]);
   const [loadingMovement, setLoadingMovement] = useState(false);
 
+  // 判斷是否為需要指派的職位（督導或店長）
+  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
+
   // 判斷是否可以查看門市統計資料
   const canViewStoreStats = () => {
     // 1. admin, supervisor, area_manager 可以看
@@ -686,7 +704,6 @@ function StoreStatusDetail({
       return true;
     }
     // 2. 營業部人員（member 或 manager 角色），但不包括需要指派的職位
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
     if (userDepartment?.startsWith('營業') && (userRole === 'member' || userRole === 'manager') && !needsAssignment) {
       return true;
     }

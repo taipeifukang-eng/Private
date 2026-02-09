@@ -83,7 +83,7 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ success: true, stores: storesWithSupervisors });
+    return NextResponse.json({ success: true, data: storesWithSupervisors });
   } catch (error) {
     console.error('Error fetching stores with supervisors:', error);
     return NextResponse.json({ success: false, error: '伺服器錯誤' }, { status: 500 });

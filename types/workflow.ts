@@ -394,6 +394,9 @@ export interface Campaign {
   start_date: string;
   end_date: string;
   is_active: boolean;
+  published_to_supervisors?: boolean;
+  published_to_store_managers?: boolean;
+  published_at?: string | null;
   created_at: string;
   updated_at: string;
   created_by: string | null;
