@@ -62,8 +62,18 @@ function MonthlyStatusContent() {
   const [loadingMovement, setLoadingMovement] = useState(false);
   const storeTabsRef = useRef<{ [key: string]: HTMLButtonElement | null }>({});
 
-  // 判斷是否為需要指派的職位（督導或店長）- 在 MonthlyStatusContent 組件層級
-  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
+  // 判斷是否為需要指派的職位（督導、店長）或營業部管理層（經理、主管）
+  const needsAssignment = useMemo(() => {
+    // 督導或店長
+    if (['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle)) {
+      return true;
+    }
+    // 營業部的經理或主管
+    if (userDepartment?.startsWith('營業') && ['經理', '主管'].includes(userJobTitle)) {
+      return true;
+    }
+    return false;
+  }, [userJobTitle, userDepartment]);
 
   // 初始化當前年月（使用當前月份或 URL 參數）
   useEffect(() => {
@@ -308,7 +318,7 @@ function MonthlyStatusContent() {
             </div>
             
             <div className="flex items-center gap-3 flex-wrap">
-              {/* 活動管理按鈕 - 只有督導和店長能看到 */}
+              {/* 活動管理按鈕 - 督導、店長、營業部經理/主管可以看到 */}
               {needsAssignment && managedStores.length > 0 && (
                 <Link
                   href="/activity-management"

@@ -46,11 +46,39 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: true, campaign, schedules });
     }
 
-    // 檢查是否為督導或店長
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    // 檢查是否為督導、店長或營業部管理層
+    const isJobTitleAllowed = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    const isBusinessManager = profile?.department?.startsWith('營業') && ['經理', '主管'].includes(profile?.job_title || '');
+    const needsAssignment = isJobTitleAllowed || isBusinessManager;
     
     if (!needsAssignment) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
+    }
+
+    // 營業部經理/主管視為督導權限
+    if (isBusinessManager && !isJobTitleAllowed) {
+      // 檢查活動是否已發布給督導
+      if (!campaign.published_to_supervisors) {
+        return NextResponse.json({ success: false, error: '此活動尚未發布給督導' }, { status: 403 });
+      }
+
+      // 獲取所有排程
+      const { data: schedules, error: schedulesError } = await supabase
+        .from('campaign_schedules')
+        .select('*')
+        .eq('campaign_id', campaignId);
+
+      if (schedulesError) {
+        return NextResponse.json({ success: false, error: schedulesError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        campaign, 
+        schedules: schedules || [],
+        isSupervisor: true,
+        isStoreManager: false
+      });
     }
 
     // 獲取用戶管理的門市

@@ -36,12 +36,35 @@ export async function GET() {
       return NextResponse.json({ success: true, data: campaigns, role: 'admin' });
     }
 
-    // 判斷是否為督導或店長
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
+    // 判斷是否為督導、店長或營業部管理層
+    const isJobTitleAllowed = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
+    const isBusinessManager = profile.department?.startsWith('營業') && ['經理', '主管'].includes(profile.job_title || '');
+    const needsAssignment = isJobTitleAllowed || isBusinessManager;
     
     if (!needsAssignment) {
-      // 不是督導或店長，無權查看
+      // 不是督導、店長或營業部管理層，無權查看
       return NextResponse.json({ success: true, data: [], role: profile.role });
+    }
+
+    // 營業部經理/主管直接看發布給督導的活動
+    if (isBusinessManager && !isJobTitleAllowed) {
+      const { data: campaigns, error } = await supabase
+        .from('campaigns')
+        .select('*')
+        .eq('published_to_supervisors', true)
+        .order('start_date', { ascending: false });
+
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        data: campaigns,
+        role: 'business_manager',
+        isSupervisor: true,  // 視為督導權限
+        isStoreManager: false
+      });
     }
 
     // 獲取用戶管理的門市
