@@ -22,33 +22,56 @@ export async function GET() {
       return NextResponse.json({ success: false, error: storesError.message }, { status: 500 });
     }
 
-    // 獲取門市管理者關聯（只取督導 role_type = 'supervisor'）
+    const totalStores = stores?.length || 0;
+
+    // 獲取所有門市管理者關聯（從經理/督導管理設定）
     const { data: storeManagers, error: managersError } = await supabase
       .from('store_managers')
-      .select('store_id, user_id')
-      .eq('role_type', 'supervisor');
+      .select('store_id, user_id, user:profiles!store_managers_user_id_fkey(full_name, employee_code)');
 
     if (managersError) {
       return NextResponse.json({ success: false, error: managersError.message }, { status: 500 });
     }
 
-    console.log('=== Store Managers (Supervisors) ===');
-    console.log('Total supervisors:', storeManagers?.length || 0);
+    console.log('=== Store Managers Analysis ===');
+    console.log('Total stores:', totalStores);
+    console.log('Total assignments:', storeManagers?.length || 0);
     
     // 統計每個督導管理的門市數量
-    const supervisorStoreCount = new Map<string, number>();
+    const supervisorStoreCount = new Map<string, { count: number; name: string; code: string | null }>();
     storeManagers?.forEach(m => {
-      const count = supervisorStoreCount.get(m.user_id) || 0;
-      supervisorStoreCount.set(m.user_id, count + 1);
-    });
-    console.log('Unique supervisors:', supervisorStoreCount.size);
-    supervisorStoreCount.forEach((count, supervisorId) => {
-      console.log(`  Supervisor ${supervisorId}: ${count} stores`);
+      const user = Array.isArray(m.user) ? m.user[0] : m.user;
+      const count = supervisorStoreCount.get(m.user_id)?.count || 0;
+      supervisorStoreCount.set(m.user_id, {
+        count: count + 1,
+        name: user?.full_name || '未知',
+        code: user?.employee_code || null
+      });
     });
 
-    // 將督導資訊加入門市資料
+    console.log('Unique managers/supervisors:', supervisorStoreCount.size);
+    
+    // 排除管理所有或接近所有門市的經理（如徐孝銘）
+    // 判斷標準：管理超過 90% 的門市就視為全選的經理
+    const threshold = totalStores * 0.9;
+    const actualSupervisors = new Set<string>();
+    
+    supervisorStoreCount.forEach((info, userId) => {
+      console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores`);
+      if (info.count < threshold) {
+        actualSupervisors.add(userId);
+      } else {
+        console.log(`  ⚠️  排除 ${info.name} (管理 ${info.count}/${totalStores} 門市，視為區域經理)`);
+      }
+    });
+
+    console.log('Actual supervisors (excluding area managers):', actualSupervisors.size);
+
+    // 將督導資訊加入門市資料（只保留真正的督導，排除區域經理）
     const storesWithSupervisors = (stores || []).map(store => {
-      const manager = storeManagers?.find(m => m.store_id === store.id);
+      const manager = storeManagers?.find(m => 
+        m.store_id === store.id && actualSupervisors.has(m.user_id)
+      );
       return {
         ...store,
         supervisor_id: manager?.user_id || null
