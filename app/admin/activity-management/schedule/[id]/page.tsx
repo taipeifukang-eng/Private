@@ -769,25 +769,26 @@ export default function ScheduleEditPage() {
                 未安排門市 ({unscheduledStores.length})
               </h3>
               <div className="space-y-2 max-h-[600px] overflow-y-auto">
-                {unscheduledStores.map(storeId => {
-                  const store = stores.find(s => s.id === storeId);
-                  if (!store) return null;
-                  const color = getSupervisorColor(store.supervisor_id);
-                  return (
-                    <div
-                      key={storeId}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, storeId)}
-                      className={`p-3 ${color.bg} rounded-lg border ${color.border} cursor-move hover:opacity-80 transition-opacity`}
-                    >
-                      <div className={`font-medium text-sm ${color.text}`}>{store.store_name}</div>
-                      <div className="text-xs opacity-70">{store.store_code}</div>
-                    </div>
-                  );
-                })}
-                {unscheduledStores.length === 0 && (
+                {unscheduledStores
+                  .map(storeId => stores.find(s => s.id === storeId))
+                  .filter((store): store is StoreWithManager => store !== undefined)
+                  .map(store => {
+                    const color = getSupervisorColor(store.supervisor_id);
+                    return (
+                      <div
+                        key={store.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, store.id)}
+                        className={`p-3 ${color.bg} rounded-lg border ${color.border} cursor-move hover:opacity-80 transition-opacity`}
+                      >
+                        <div className={`font-medium text-sm ${color.text}`}>{store.store_name}</div>
+                        <div className="text-xs opacity-70">{store.store_code}</div>
+                      </div>
+                    );
+                  })}
+                {unscheduledStores.filter(id => stores.find(s => s.id === id)).length === 0 && (
                   <p className="text-gray-400 text-sm text-center py-4">
-                    所有門市已安排
+                    {unscheduledStores.length > 0 ? '未找到門市資料' : '所有門市已安排'}
                   </p>
                 )}
               </div>

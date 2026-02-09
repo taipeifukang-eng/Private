@@ -46,43 +46,67 @@ export default function ActivityViewPage() {
   // 獲取督導顏色（使用員工代碼或 ID）
   const getSupervisorColor = (store?: StoreWithManager) => {
     if (!store) return DEFAULT_COLOR;
-    const key = store.supervisor_code || store.supervisor_id;
-    if (!key) return DEFAULT_COLOR;
-    return supervisorColorMap[key] || DEFAULT_COLOR;
+    
+    // 嘗試使用 supervisor_code 作為主要 key
+    if (store.supervisor_code && supervisorColorMap[store.supervisor_code]) {
+      return supervisorColorMap[store.supervisor_code];
+    }
+    
+    // Fallback: 使用 supervisor_id
+    if (store.supervisor_id && supervisorColorMap[store.supervisor_id]) {
+      return supervisorColorMap[store.supervisor_id];
+    }
+    
+    // 沒有督導資訊
+    return DEFAULT_COLOR;
   };
 
   // 建立督導顏色映射（根據督導代碼排序後分配顏色，確保一致性）
   const buildSupervisorColorMap = (storeList: StoreWithManager[]) => {
-    console.log('Building supervisor color map from stores:', storeList.length);
+    console.log('=== Building supervisor color map ===');
+    console.log('Total stores:', storeList.length);
     
-    // 建立唯一督導列表 {code/id, name}
-    const supervisorMap = new Map<string, string>();
+    // 建立唯一督導列表，記錄 code 和 id 的對應關係
+    const supervisorInfo = new Map<string, { id: string; code: string | null; name: string }>();
     storeList.forEach(store => {
-      const key = store.supervisor_code || store.supervisor_id;
-      if (key && !supervisorMap.has(key)) {
-        supervisorMap.set(key, store.supervisor_name || '未知督導');
-        console.log(`Found supervisor: ${key} - ${store.supervisor_name}`);
+      if (store.supervisor_id) {
+        const key = store.supervisor_code || store.supervisor_id;
+        if (!supervisorInfo.has(key)) {
+          supervisorInfo.set(key, {
+            id: store.supervisor_id,
+            code: store.supervisor_code || null,
+            name: store.supervisor_name || '未知督導'
+          });
+          console.log(`Found supervisor: ${store.supervisor_name} (code: ${store.supervisor_code}, id: ${store.supervisor_id})`);
+        }
       }
     });
 
-    console.log(`Total unique supervisors found: ${supervisorMap.size}`);
+    console.log(`Total unique supervisors found: ${supervisorInfo.size}`);
 
     // 按代碼/ID 排序以確保一致性
-    const uniqueSupervisors = Array.from(supervisorMap.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+    const sortedSupervisors = Array.from(supervisorInfo.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
     const colorMap: Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string }> = {};
     
     // 按排序後的順序分配顏色
-    uniqueSupervisors.forEach(([key, name], index) => {
+    sortedSupervisors.forEach(([key, info], index) => {
       const color = AVAILABLE_COLORS[index % AVAILABLE_COLORS.length];
-      colorMap[key] = {
+      const colorInfo = {
         ...color,
-        supervisorName: name
+        supervisorName: info.name
       };
-      console.log(`Assigned ${color.name} to supervisor: ${name} (${key})`);
+      
+      // 同時使用 code 和 id 作為 key，確保兩種方式都能查到
+      if (info.code) {
+        colorMap[info.code] = colorInfo;
+      }
+      colorMap[info.id] = colorInfo;
+      
+      console.log(`Assigned ${color.name} to supervisor: ${info.name} (code: ${info.code}, id: ${info.id})`);
     });
 
-    console.log('Built supervisor color map:', colorMap);
+    console.log('Built supervisor color map with keys:', Object.keys(colorMap));
     setSupervisorColorMap(colorMap);
   };
 
