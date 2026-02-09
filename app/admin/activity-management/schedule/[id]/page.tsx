@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon } from 'lucide-react';
 import Link from 'next/link';
@@ -681,9 +681,31 @@ export default function ScheduleEditPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {weeks.map((week, weekIndex) => (
-                      <tr key={weekIndex} className="divide-x divide-gray-200">
-                        {[1, 2, 3, 4, 5, 6, 0].map(targetDay => {
+                    {weeks.map((week, weekIndex) => {
+                      // 檢查這週是否有月份變化
+                      const firstDate = week[0];
+                      const showMonthHeader = weekIndex === 0 || 
+                        (weekIndex > 0 && weeks[weekIndex - 1][weeks[weekIndex - 1].length - 1].getMonth() !== firstDate.getMonth());
+                      
+                      return (
+                        <React.Fragment key={weekIndex}>
+                          {/* 月份標題行 */}
+                          {showMonthHeader && (
+                            <tr className="bg-gradient-to-r from-indigo-50 to-purple-50 border-t-4 border-indigo-400">
+                              <td colSpan={7} className="px-4 py-3 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <CalendarIcon className="w-5 h-5 text-indigo-600" />
+                                  <span className="text-lg font-bold text-indigo-900">
+                                    {firstDate.getFullYear()}年 {firstDate.getMonth() + 1}月
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          
+                          {/* 週行 */}
+                          <tr className="divide-x divide-gray-200">
+                            {[1, 2, 3, 4, 5, 6, 0].map(targetDay => {
                           const date = week.find(d => d.getDay() === targetDay);
                           
                           if (!date) {
@@ -701,12 +723,19 @@ export default function ScheduleEditPage() {
                               key={targetDay}
                               onDrop={(e) => handleDrop(e, date)}
                               onDragOver={handleDragOver}
-                              className={`p-2 align-top min-h-[120px] ${
-                                isPreferred ? 'bg-blue-50' : 'bg-white'
-                              } ${event?.is_blocked ? 'bg-red-50' : ''}`}
+                              className={`p-2 align-top min-h-[120px] border-l-2 ${
+                                date.getDate() === 1 ? 'border-l-indigo-400' : ''
+                              } ${isPreferred ? 'bg-blue-50' : 'bg-white'} ${
+                                event?.is_blocked ? 'bg-red-50' : ''
+                              }`}
                             >
                               <div className="text-xs text-gray-600 mb-2">
-                                {date.getDate()}
+                                <span className={date.getDate() === 1 ? 'font-bold text-indigo-700' : ''}>
+                                  {date.getDate()}
+                                  {date.getDate() === 1 && (
+                                    <span className="ml-1 text-indigo-600">({date.getMonth() + 1}月)</span>
+                                  )}
+                                </span>
                                 {event && (
                                   <div className="text-xs text-purple-600 mt-1">
                                     {event.event_type === 'holiday' ? '🎉' : '📅'} {event.description}
@@ -748,7 +777,9 @@ export default function ScheduleEditPage() {
                           );
                         })}
                       </tr>
-                    ))}
+                    </React.Fragment>
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>
