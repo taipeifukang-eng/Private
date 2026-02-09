@@ -22,14 +22,29 @@ export async function GET() {
       return NextResponse.json({ success: false, error: storesError.message }, { status: 500 });
     }
 
-    // 獲取門市管理者關聯（督導）
+    // 獲取門市管理者關聯（只取督導 role_type = 'supervisor'）
     const { data: storeManagers, error: managersError } = await supabase
       .from('store_managers')
-      .select('store_id, user_id');
+      .select('store_id, user_id')
+      .eq('role_type', 'supervisor');
 
     if (managersError) {
       return NextResponse.json({ success: false, error: managersError.message }, { status: 500 });
     }
+
+    console.log('=== Store Managers (Supervisors) ===');
+    console.log('Total supervisors:', storeManagers?.length || 0);
+    
+    // 統計每個督導管理的門市數量
+    const supervisorStoreCount = new Map<string, number>();
+    storeManagers?.forEach(m => {
+      const count = supervisorStoreCount.get(m.user_id) || 0;
+      supervisorStoreCount.set(m.user_id, count + 1);
+    });
+    console.log('Unique supervisors:', supervisorStoreCount.size);
+    supervisorStoreCount.forEach((count, supervisorId) => {
+      console.log(`  Supervisor ${supervisorId}: ${count} stores`);
+    });
 
     // 將督導資訊加入門市資料
     const storesWithSupervisors = (stores || []).map(store => {
