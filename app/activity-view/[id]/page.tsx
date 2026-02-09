@@ -23,7 +23,7 @@ export default function ActivityViewPage() {
   const [events, setEvents] = useState<EventDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
-  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string }>>({});
+  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean }>>({});
 
   // 預設顏色組合（使用對比度更強的顏色）
   const AVAILABLE_COLORS = [
@@ -87,21 +87,25 @@ export default function ActivityViewPage() {
     // 按代碼/ID 排序以確保一致性
     const sortedSupervisors = Array.from(supervisorInfo.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
-    const colorMap: Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string }> = {};
+    const colorMap: Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean }> = {};
     
     // 按排序後的順序分配顏色
     sortedSupervisors.forEach(([key, info], index) => {
       const color = AVAILABLE_COLORS[index % AVAILABLE_COLORS.length];
       const colorInfo = {
         ...color,
-        supervisorName: info.name
+        supervisorName: info.name,
+        isDisplay: true // 標記這是主要 key，用於圖例顯示
       };
       
-      // 同時使用 code 和 id 作為 key，確保兩種方式都能查到
+      // 只標記一個 key 為 display（優先使用 code）
       if (info.code) {
         colorMap[info.code] = colorInfo;
+        // id 作為備用 key，但不用於顯示
+        colorMap[info.id] = { ...colorInfo, isDisplay: false };
+      } else {
+        colorMap[info.id] = colorInfo;
       }
-      colorMap[info.id] = colorInfo;
       
       console.log(`Assigned ${color.name} to supervisor: ${info.name} (code: ${info.code}, id: ${info.id})`);
     });
@@ -309,16 +313,18 @@ export default function ActivityViewPage() {
             {Object.keys(supervisorColorMap).length > 0 && (
               <div className="flex flex-wrap gap-2 items-center">
                 <span className="text-sm text-gray-600 font-medium">督導：</span>
-                {Object.entries(supervisorColorMap).map(([key, color]) => (
-                  <div
-                    key={key}
-                    className={`flex items-center gap-1 px-2 py-1 rounded border-2 ${color.border} ${color.bg}`}
-                  >
-                    <div className={`text-xs font-medium ${color.text}`}>
-                      {color.supervisorName}
+                {Object.entries(supervisorColorMap)
+                  .filter(([_, color]) => color.isDisplay !== false) // 只顯示標記為 display 的
+                  .map(([key, color]) => (
+                    <div
+                      key={key}
+                      className={`flex items-center gap-1 px-2 py-1 rounded border-2 ${color.border} ${color.bg}`}
+                    >
+                      <div className={`text-xs font-medium ${color.text}`}>
+                        {color.supervisorName}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>
