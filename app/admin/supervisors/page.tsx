@@ -259,23 +259,36 @@ export default function SupervisorsManagementPage() {
             督導管理列表
           </h2>
           
-          {Array.from(assignments.entries())
-            .filter(([_, storeSet]) => storeSet.size > 0)
-            .length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-              <p>尚未設定任何督導管理門市</p>
-              <p className="text-sm mt-1">請使用下方搜尋功能為督導指派門市</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {Array.from(assignments.entries())
-                .filter(([_, storeSet]) => storeSet.size > 0)
-                .map(([userId, storeSet]) => {
+          {(() => {
+            // 只顯示有督導角色(role_type = 'supervisor')的人員
+            const supervisorEntries = Array.from(assignments.entries())
+              .filter(([userId, storeSet]) => {
+                if (storeSet.size === 0) return false;
+                // 檢查該用戶是否有任何門市標記為 supervisor
+                const userTypes = assignmentTypes.get(userId);
+                if (!userTypes) return false;
+                // 只要有任何一個門市是 supervisor 角色就顯示
+                return Array.from(userTypes.values()).some(type => type === 'supervisor');
+              });
+            
+            return supervisorEntries.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p>尚未設定任何督導管理門市</p>
+                <p className="text-sm mt-1">請使用下方搜尋功能為督導指派門市</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {supervisorEntries.map(([userId, storeSet]) => {
                   const supervisor = supervisors.find(s => s.id === userId);
                   if (!supervisor) return null;
 
-                  const managedStores = stores.filter(store => storeSet.has(store.id));
+                  // 只顯示 role_type = 'supervisor' 的門市
+                  const userTypes = assignmentTypes.get(userId);
+                  const supervisorStoreIds = Array.from(storeSet).filter(storeId => 
+                    userTypes?.get(storeId) === 'supervisor'
+                  );
+                  const managedStores = stores.filter(store => supervisorStoreIds.includes(store.id));
                   
                   return (
                     <div key={userId} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 transition-all">
@@ -308,6 +321,7 @@ export default function SupervisorsManagementPage() {
                               setSelectedSupervisor(supervisor);
                               setSearchTerm(supervisor.full_name || supervisor.email);
                               setShowDropdown(false);
+                              setRoleType('supervisor'); // 設定為督導模式
                               // 滾動到門市分配區域
                               setTimeout(() => {
                                 const element = document.getElementById('store-assignment-section');
@@ -342,8 +356,118 @@ export default function SupervisorsManagementPage() {
                     </div>
                   );
                 })}
-            </div>
-          )}
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* 店長管理列表 */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Store className="w-6 h-6 text-green-600" />
+            店長管理列表
+          </h2>
+          
+          {(() => {
+            // 只顯示有店長角色(role_type = 'store_manager')的人員
+            const storeManagerEntries = Array.from(assignments.entries())
+              .filter(([userId, storeSet]) => {
+                if (storeSet.size === 0) return false;
+                // 檢查該用戶是否有任何門市標記為 store_manager
+                const userTypes = assignmentTypes.get(userId);
+                if (!userTypes) return false;
+                // 只要有任何一個門市是 store_manager 角色就顯示
+                return Array.from(userTypes.values()).some(type => type === 'store_manager');
+              });
+            
+            return storeManagerEntries.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Store className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                <p>尚未設定任何店長管理門市</p>
+                <p className="text-sm mt-1">請使用下方搜尋功能為店長指派門市</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {storeManagerEntries.map(([userId, storeSet]) => {
+                  const manager = supervisors.find(s => s.id === userId);
+                  if (!manager) return null;
+
+                  // 只顯示 role_type = 'store_manager' 的門市
+                  const userTypes = assignmentTypes.get(userId);
+                  const managerStoreIds = Array.from(storeSet).filter(storeId => 
+                    userTypes?.get(storeId) === 'store_manager'
+                  );
+                  const managedStores = stores.filter(store => managerStoreIds.includes(store.id));
+                  
+                  return (
+                    <div key={userId} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-green-300 transition-all">
+                      <div className="bg-gradient-to-r from-green-50 to-green-100 px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
+                            <span className="text-white font-bold">
+                              {manager.full_name?.[0]?.toUpperCase() || manager.email[0].toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {manager.full_name || manager.email}
+                              {manager.job_title && (
+                                <span className="ml-2 text-sm text-green-600">({manager.job_title})</span>
+                              )}
+                            </div>
+                            {manager.employee_code && (
+                              <div className="text-sm text-gray-600">員編: {manager.employee_code}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="text-sm text-gray-600">管理門市</div>
+                            <div className="text-2xl font-bold text-green-600">{managedStores.length}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedSupervisor(manager);
+                              setSearchTerm(manager.full_name || manager.email);
+                              setShowDropdown(false);
+                              setRoleType('store_manager'); // 設定為店長模式
+                              // 滾動到門市分配區域
+                              setTimeout(() => {
+                                const element = document.getElementById('store-assignment-section');
+                                element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 100);
+                            }}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                          >
+                            編輯
+                          </button>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white">
+                        <div className="flex flex-wrap gap-2">
+                          {managedStores.length === 0 ? (
+                            <span className="text-sm text-gray-500">尚未指派門市</span>
+                          ) : (
+                            managedStores
+                              .sort((a, b) => a.store_code.localeCompare(b.store_code))
+                              .map(store => (
+                                <span
+                                  key={store.id}
+                                  className="inline-flex items-center px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm"
+                                >
+                                  {store.store_name}
+                                  <span className="ml-1 text-green-500 text-xs">({store.store_code})</span>
+                                </span>
+                              ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Search Section */}
