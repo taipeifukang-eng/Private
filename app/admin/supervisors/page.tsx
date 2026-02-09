@@ -20,17 +20,25 @@ interface StoreData {
   is_active: boolean;
 }
 
+interface Assignment {
+  user_id: string;
+  store_id: number;
+  role_type: 'supervisor' | 'store_manager';
+}
+
 export default function SupervisorsManagementPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [supervisors, setSupervisors] = useState<Profile[]>([]);
   const [stores, setStores] = useState<StoreData[]>([]);
   const [assignments, setAssignments] = useState<Map<string, Set<number>>>(new Map());
+  const [assignmentTypes, setAssignmentTypes] = useState<Map<string, Map<number, 'supervisor' | 'store_manager'>>>(new Map());
   
   // 搜尋和選擇狀態
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSupervisor, setSelectedSupervisor] = useState<Profile | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [roleType, setRoleType] = useState<'supervisor' | 'store_manager'>('supervisor');
 
   useEffect(() => {
     loadData();
@@ -57,16 +65,30 @@ export default function SupervisorsManagementPage() {
       if (!assignmentsRes.ok) throw new Error('Failed to load assignments');
       const assignmentsData = await assignmentsRes.json();
 
-      // 建立 Map: user_id -> Set<store_id>
+      // 建立 Map: user_id -> Set<store_id> 和 user_id -> Map<store_id, role_type>
       const assignmentsMap = new Map<string, Set<number>>();
+      const typesMap = new Map<string, Map<number, 'supervisor' | 'store_manager'>>();
       const assignmentsList = assignmentsData.assignments || [];
-      assignmentsList.forEach((assignment: { user_id: string; store_id: number }) => {
+      
+      assignmentsList.forEach((assignment: { user_id: string; store_id: number; role_type: string }) => {
+        // 設定門市集合
         if (!assignmentsMap.has(assignment.user_id)) {
           assignmentsMap.set(assignment.user_id, new Set());
         }
         assignmentsMap.get(assignment.user_id)!.add(assignment.store_id);
+        
+        // 設定角色類型
+        if (!typesMap.has(assignment.user_id)) {
+          typesMap.set(assignment.user_id, new Map());
+        }
+        typesMap.get(assignment.user_id)!.set(
+          assignment.store_id, 
+          assignment.role_type === 'store_manager' ? 'store_manager' : 'supervisor'
+        );
       });
+      
       setAssignments(assignmentsMap);
+      setAssignmentTypes(typesMap);
     } catch (error) {
       console.error('Error loading data:', error);
       alert('載入資料失敗，請重新整理頁面');
@@ -103,7 +125,11 @@ export default function SupervisorsManagementPage() {
       const res = await fetch('/api/supervisors/assign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: selectedSupervisor.id, storeIds }),
+        body: JSON.stringify({ 
+          userId: selectedSupervisor.id, 
+          storeIds,
+          roleType // 傳送角色類型
+        }),
       });
 
       const data = await res.json();
@@ -113,6 +139,8 @@ export default function SupervisorsManagementPage() {
       }
 
       alert('儲存成功！');
+      // 重新載入資料
+      await loadData();
     } catch (error: any) {
       console.error('Error saving assignments:', error);
       alert(`儲存失敗: ${error.message}`);
@@ -224,6 +252,100 @@ export default function SupervisorsManagementPage() {
           </div>
         </div>
 
+        {/* 督導管理列表 */}
+        <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Users className="w-6 h-6 text-blue-600" />
+            督導管理列表
+          </h2>
+          
+          {Array.from(assignments.entries())
+            .filter(([_, storeSet]) => storeSet.size > 0)
+            .length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Shield className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p>尚未設定任何督導管理門市</p>
+              <p className="text-sm mt-1">請使用下方搜尋功能為督導指派門市</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Array.from(assignments.entries())
+                .filter(([_, storeSet]) => storeSet.size > 0)
+                .map(([userId, storeSet]) => {
+                  const supervisor = supervisors.find(s => s.id === userId);
+                  if (!supervisor) return null;
+
+                  const managedStores = stores.filter(store => storeSet.has(store.id));
+                  
+                  return (
+                    <div key={userId} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 transition-all">
+                      <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-4 py-3 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                            <span className="text-white font-bold">
+                              {supervisor.full_name?.[0]?.toUpperCase() || supervisor.email[0].toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="font-semibold text-gray-900">
+                              {supervisor.full_name || supervisor.email}
+                              {supervisor.job_title && (
+                                <span className="ml-2 text-sm text-blue-600">({supervisor.job_title})</span>
+                              )}
+                            </div>
+                            {supervisor.employee_code && (
+                              <div className="text-sm text-gray-600">員編: {supervisor.employee_code}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className="text-sm text-gray-600">管理門市</div>
+                            <div className="text-2xl font-bold text-blue-600">{managedStores.length}</div>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedSupervisor(supervisor);
+                              setSearchTerm(supervisor.full_name || supervisor.email);
+                              setShowDropdown(false);
+                              // 滾動到門市分配區域
+                              setTimeout(() => {
+                                const element = document.getElementById('store-assignment-section');
+                                element?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }, 100);
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                          >
+                            編輯
+                          </button>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-white">
+                        <div className="flex flex-wrap gap-2">
+                          {managedStores.length === 0 ? (
+                            <span className="text-sm text-gray-500">尚未指派門市</span>
+                          ) : (
+                            managedStores
+                              .sort((a, b) => a.store_code.localeCompare(b.store_code))
+                              .map(store => (
+                                <span
+                                  key={store.id}
+                                  className="inline-flex items-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
+                                >
+                                  {store.store_name}
+                                  <span className="ml-1 text-blue-500 text-xs">({store.store_code})</span>
+                                </span>
+                              ))
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+
         {/* Search Section */}
         <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">搜尋經理/督導</h2>
@@ -306,7 +428,7 @@ export default function SupervisorsManagementPage() {
 
         {/* Store Assignment Section */}
         {selectedSupervisor && (
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div id="store-assignment-section" className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
@@ -338,6 +460,36 @@ export default function SupervisorsManagementPage() {
             </div>
 
             <div className="p-6">
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  職位類型
+                </label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="roleType"
+                      value="supervisor"
+                      checked={roleType === 'supervisor'}
+                      onChange={(e) => setRoleType(e.target.value as 'supervisor')}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-gray-900">督導（管理多家門市）</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="roleType"
+                      value="store_manager"
+                      checked={roleType === 'store_manager'}
+                      onChange={(e) => setRoleType(e.target.value as 'store_manager')}
+                      className="w-4 h-4 text-blue-600"
+                    />
+                    <span className="text-gray-900">店長（管理單一門市）</span>
+                  </label>
+                </div>
+              </div>
+
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-4">
                   <h4 className="text-lg font-semibold text-gray-700">

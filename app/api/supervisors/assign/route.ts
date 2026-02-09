@@ -21,7 +21,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
     }
 
-    const { userId, storeIds } = await request.json();
+    const { userId, storeIds, roleType = 'supervisor' } = await request.json();
 
     if (!userId || !Array.isArray(storeIds)) {
       return NextResponse.json({ success: false, error: '參數錯誤' }, { status: 400 });
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       const assignments = toInsert.map(storeId => ({
         user_id: userId,
         store_id: storeId,
-        role_type: 'supervisor', // 預設為督導
+        role_type: roleType, // 使用傳入的角色類型
         is_primary: false
       }));
 
