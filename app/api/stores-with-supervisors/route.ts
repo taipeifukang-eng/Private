@@ -77,7 +77,13 @@ export async function GET() {
       const manager = storeManagers?.find(m => 
         m.store_id === store.id && actualSupervisors.has(m.user_id)
       );
-      const user = manager && Array.isArray(manager.user) ? manager.user[0] : manager?.user;
+      
+      // 處理 user 可能是陣列或物件的情況
+      let user: { full_name: any; employee_code: any; } | null = null;
+      if (manager?.user) {
+        user = Array.isArray(manager.user) ? manager.user[0] : manager.user;
+      }
+      
       return {
         ...store,
         supervisor_id: manager?.user_id || null,
