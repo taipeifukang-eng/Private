@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
 
 // 職位排序優先順序（與 POSITION_OPTIONS 一致）
