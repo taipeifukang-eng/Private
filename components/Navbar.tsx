@@ -157,6 +157,7 @@ export default function Navbar({ user }: NavbarProps) {
   const navItems = [
     { href: '/', label: '首頁', icon: Home, roles: ['admin', 'manager', 'member'] },
     { href: '/admin/users', label: '使用者管理', icon: Users, roles: ['admin'] },
+    { href: '/admin/roles', label: '角色權限管理', icon: Shield, roles: ['admin'] },
   ].filter(item => item.roles.includes(role));
 
   const handleSignOut = async () => {

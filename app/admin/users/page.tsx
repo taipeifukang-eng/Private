@@ -1,5 +1,5 @@
 import { getAllUsers } from '@/app/auth/actions';
-import { Users, UserPlus, Shield, User as UserIcon } from 'lucide-react';
+import { Users, UserPlus, Shield, User as UserIcon, KeyRound } from 'lucide-react';
 import Link from 'next/link';
 import UserManagementTable from '@/components/admin/UserManagementTable';
 
@@ -41,13 +41,22 @@ export default async function UsersManagementPage() {
             <h1 className="text-4xl font-bold text-gray-900 mb-2">使用者管理</h1>
             <p className="text-gray-600">管理系統所有使用者與權限</p>
           </div>
-          <Link
-            href="/register"
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-          >
-            <UserPlus size={20} />
-            新增使用者
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/admin/roles"
+              className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
+            >
+              <KeyRound size={20} />
+              角色權限管理
+            </Link>
+            <Link
+              href="/register"
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+            >
+              <UserPlus size={20} />
+              新增使用者
+            </Link>
+          </div>
         </div>
 
         {/* Statistics Cards */}
