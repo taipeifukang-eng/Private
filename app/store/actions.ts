@@ -1,5 +1,6 @@
 'use server';
 
+import { createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
 import type { 
