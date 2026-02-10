@@ -158,7 +158,8 @@ function MonthlyStatusContent() {
       const result = await getMonthlyStoreSummaries(selectedYearMonth);
       
       if (result.success) {
-        setStoreSummaries(result.data || []);
+        const summaries = (result.data as MonthlyStoreSummary[]) || [];
+        setStoreSummaries(summaries);
         
         // 如果 moveToNext 為 true，自動跳到下一間未確認的門市
         if (moveToNext && selectedStoreId) {
@@ -167,7 +168,7 @@ function MonthlyStatusContent() {
             // 尋找下一間未確認的門市
             const remainingStores = managedStores.slice(currentIndex + 1);
             const nextUnconfirmed = remainingStores.find(store => {
-              const summary = result.data?.find(s => s.store_id === store.id);
+              const summary = summaries.find((s: MonthlyStoreSummary) => s.store_id === store.id);
               return summary?.store_status !== 'confirmed';
             });
             
