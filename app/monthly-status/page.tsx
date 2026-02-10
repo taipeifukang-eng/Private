@@ -1075,7 +1075,7 @@ function StoreStatusDetail({
         const headers = Object.keys(result.data[0]);
         const csvContent = [
           headers.join(','),
-          ...result.data.map(row => headers.map(h => `"${(row as Record<string, any>)[h] || ''}"`).join(','))
+          ...result.data.map((row: Record<string, any>) => headers.map(h => `"${row[h] || ''}"`).join(','))
         ].join('\n');
         
         // 下載
