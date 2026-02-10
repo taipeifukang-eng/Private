@@ -18,6 +18,23 @@ interface PermissionGroup {
   permissions: PermissionWithGrant[];
 }
 
+interface UserWithRole {
+  id: string;
+  email: string;
+  name: string;
+  employee_code: string;
+  is_active: boolean;
+  assigned_at: string;
+  expires_at: string | null;
+}
+
+interface SearchUser {
+  id: string;
+  email: string;
+  name: string;
+  employee_code: string;
+}
+
 interface Props {
   roleId: string;
   canEdit: boolean;
@@ -36,6 +53,14 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   // 編輯狀態
   const [editMode, setEditMode] = useState(false);
   const [editedRole, setEditedRole] = useState({ name: '', description: '' });
+
+  // 使用者管理狀態
+  const [activeTab, setActiveTab] = useState<'permissions' | 'users'>('permissions');
+  const [users, setUsers] = useState<UserWithRole[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [employeeCodesInput, setEmployeeCodesInput] = useState('');
+  const [assigningUser, setAssigningUser] = useState(false);
 
   useEffect(() => {
     fetchRoleData();
@@ -180,6 +205,94 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
     }
   }
 
+  // ============================================
+  // 使用者管理功能
+  // ============================================
+
+  useEffect(() => {
+    if (activeTab === 'users') {
+      fetchUsers();
+    }
+  }, [activeTab]);
+
+  async function fetchUsers() {
+    setLoadingUsers(true);
+    try {
+      const response = await fetch(`/api/roles/${roleId}/users`);
+      const data = await response.json();
+
+      if (response.ok) {
+        setUsers(data.users || []);
+      } else {
+        console.error('取得使用者列表失敗:', data.error);
+      }
+    } catch (err) {
+      console.error('網路錯誤:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }
+
+  // 搜尋使用者（移除，改用批次輸入員工編號）
+  async function handleAssignUsers() {
+    const codes = employeeCodesInput
+      .split(/[,，\n\s]+/) // 支援逗號、換行、空格分隔
+      .map(code => code.trim())
+      .filter(code => code.length > 0);
+
+    if (codes.length === 0) {
+      alert('請輸入至少一個員工編號');
+      return;
+    }
+
+    setAssigningUser(true);
+    try {
+      const response = await fetch(`/api/roles/${roleId}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_codes: codes })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(data.details || data.message);
+        setShowAddUserModal(false);
+        setEmployeeCodesInput('');
+        fetchUsers(); // 重新載入使用者列表
+      } else {
+        alert(data.error || '指派失敗');
+      }
+    } catch (err) {
+      alert('網路錯誤');
+    } finally {
+      setAssigningUser(false);
+    }
+  }
+
+  async function handleRemoveUser(userId: string, userName: string) {
+    if (!confirm(`確定要移除使用者 ${userName} 的角色？`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/roles/${roleId}/users/${userId}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert('使用者角色已移除');
+        fetchUsers(); // 重新載入使用者列表
+      } else {
+        alert(data.error || '移除失敗');
+      }
+    } catch (err) {
+      alert('網路錯誤');
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -307,8 +420,37 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
         )}
       </div>
 
-      {/* 權限設定 */}
-      <div className="bg-white rounded-lg shadow p-6">
+      {/* 分頁選單 */}
+      <div className="bg-white rounded-lg shadow mb-6">
+        <div className="border-b border-gray-200">
+          <div className="flex">
+            <button
+              onClick={() => setActiveTab('permissions')}
+              className={`px-6 py-3 font-medium ${
+                activeTab === 'permissions'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              權限設定
+            </button>
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`px-6 py-3 font-medium ${
+                activeTab === 'users'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              使用者管理
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 權限設定分頁 */}
+      {activeTab === 'permissions' && (
+        <div className="bg-white rounded-lg shadow p-6">
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-xl font-semibold">權限設定</h2>
@@ -401,6 +543,148 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
           })}
         </div>
       </div>
+      )}
+
+      {/* 使用者管理分頁 */}
+      {activeTab === 'users' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold">使用者管理</h2>
+            <button
+              onClick={() => setShowAddUserModal(true)}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              + 新增使用者
+            </button>
+          </div>
+
+          {loadingUsers ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              <p>此角色尚未指派任何使用者</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">員工編號</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">指派日期</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {users.map(user => (
+                    <tr key={user.id}>
+                      <td className="px-4 py-3 text-sm">{user.email}</td>
+                      <td className="px-4 py-3 text-sm">{user.name || '-'}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <code className="bg-gray-100 px-2 py-1 rounded text-xs">
+                          {user.employee_code || '-'}
+                        </code>
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {user.is_active ? '啟用' : '停用'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">
+                        {new Date(user.assigned_at).toLocaleDateString('zh-TW')}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right">
+                        <button
+                          onClick={() => handleRemoveUser(user.id, user.name || user.email)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          移除
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 新增使用者 Modal */}
+      {showAddUserModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+            <div className="flex justify-between items-center px-6 py-4 border-b">
+              <h3 className="text-lg font-semibold">批次新增使用者</h3>
+              <button
+                onClick={() => {
+                  setShowAddUserModal(false);
+                  setEmployeeCodesInput('');
+                }}
+                className="text-gray-400 hover:text-gray-500"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* 員工編號輸入 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  員工編號（支援批次）
+                </label>
+                <textarea
+                  value={employeeCodesInput}
+                  onChange={(e) => setEmployeeCodesInput(e.target.value)}
+                  placeholder="請輸入員工編號，可使用逗號、換行或空格分隔&#10;範例：FK0278, FK0279&#10;或&#10;FK0278&#10;FK0279"
+                  rows={6}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  支援多種分隔方式：逗號、換行、空格
+                </p>
+              </div>
+
+              {/* 提示訊息 */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm text-blue-800">
+                  💡 <strong>批次新增說明：</strong>
+                </p>
+                <ul className="text-xs text-blue-700 mt-1 ml-4 list-disc space-y-1">
+                  <li>一次可新增多個員工編號</li>
+                  <li>系統會自動過濾已有此角色的使用者</li>
+                  <li>只有已綁定使用者帳號的員工才能指派</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowAddUserModal(false);
+                  setEmployeeCodesInput('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleAssignUsers}
+                disabled={!employeeCodesInput.trim() || assigningUser}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {assigningUser ? '指派中...' : '批次指派'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

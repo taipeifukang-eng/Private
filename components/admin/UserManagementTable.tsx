@@ -11,18 +11,26 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
 
-  // Filter users
-  const filteredUsers = users.filter(user => {
-    const term = searchTerm.toLowerCase();
-    const matchesSearch = 
-      user.full_name?.toLowerCase().includes(term) ||
-      user.email?.toLowerCase().includes(term) ||
-      (user.employee_code && user.employee_code.toLowerCase().includes(term));
-    
-    const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-    
-    return matchesSearch && matchesRole;
-  });
+  // Filter and sort users
+  const filteredUsers = users
+    .filter(user => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = 
+        user.full_name?.toLowerCase().includes(term) ||
+        user.email?.toLowerCase().includes(term) ||
+        (user.employee_code && user.employee_code.toLowerCase().includes(term));
+      
+      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
+      
+      return matchesSearch && matchesRole;
+    })
+    .sort((a, b) => {
+      // 按員工編號排序，沒有員編的排在最後
+      if (!a.employee_code && !b.employee_code) return 0;
+      if (!a.employee_code) return 1;
+      if (!b.employee_code) return -1;
+      return a.employee_code.localeCompare(b.employee_code);
+    });
 
   const handleEdit = (user: Profile) => {
     setEditingUser(user.id);

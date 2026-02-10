@@ -1,5 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
@@ -23,34 +24,12 @@ export async function POST(request: NextRequest) {
     }
     console.log('✅ 用戶已驗證:', user.id);
 
-    // 檢查權限
+    // 使用 RBAC 權限檢查
     console.log('🔐 檢查權限');
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError) {
-      console.error('❌ 查詢用戶資料失敗:', profileError);
-      return NextResponse.json({ error: `找不到用戶資料: ${profileError.message}` }, { status: 403 });
-    }
-
-    if (!profile) {
-      return NextResponse.json({ error: '找不到用戶資料' }, { status: 403 });
-    }
-    console.log('👤 用戶資料:', profile);
-
-    // 只有管理員、營業部主管或營業部助理可以匯出
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
-    const canExport = profile.role === 'admin' || 
-                     profile.role === 'supervisor' ||
-                     profile.role === 'area_manager' ||
-                     (profile.department?.startsWith('營業') && profile.role === 'manager' && !needsAssignment);
-
-    if (!canExport) {
-      console.error('❌ 權限不足:', { role: profile.role, department: profile.department, job_title: profile.job_title });
-      return NextResponse.json({ error: '權限不足' }, { status: 403 });
+    const permission = await requirePermission(user.id, 'monthly.export.download');
+    if (!permission.allowed) {
+      console.error('❌ 權限不足:', permission.message);
+      return NextResponse.json({ error: permission.message }, { status: 403 });
     }
     console.log('✅ 權限檢查通過');
 

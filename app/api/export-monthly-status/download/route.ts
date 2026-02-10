@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
 
-    // 權限檢查：admin 或營業部主管
+    // 權限檢查
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       return NextResponse.json(
@@ -77,18 +77,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    // 權限：admin 或營業部的 manager（但不包括需要指派的職位）
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessManager = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    if (!profile || (profile.role !== 'admin' && !isBusinessManager)) {
+    // 使用 RBAC 權限檢查
+    const permission = await requirePermission(user.id, 'monthly.export.download');
+    if (!permission.allowed) {
       return NextResponse.json(
-        { success: false, error: '權限不足' },
+        { success: false, error: permission.message },
         { status: 403 }
       );
     }

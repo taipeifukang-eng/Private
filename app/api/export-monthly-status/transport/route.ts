@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
 
 export const dynamic = 'force-dynamic';
@@ -16,24 +17,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    // 檢查權限
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile) {
-      return NextResponse.json({ success: false, error: '找不到用戶資料' }, { status: 403 });
-    }
-
-    // 只有管理員、營業部主管或營業部助理可以匯出
-    const canExport = profile.role === 'admin' || 
-                     (profile.department === '營業部' && profile.role === 'manager') ||
-                     (profile.department === '營業部' && profile.job_title === '助理' && profile.role === 'manager');
-
-    if (!canExport) {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
+    // 使用 RBAC 權限檢查
+    const permission = await requirePermission(user.id, 'monthly.export.download');
+    if (!permission.allowed) {
+      return NextResponse.json(
+        { success: false, error: permission.message },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

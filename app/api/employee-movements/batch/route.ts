@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/permissions/check';
 
 type MovementType = 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
 
@@ -22,18 +23,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-
-    if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
+    // 使用 RBAC 權限檢查
+    const permission = await requirePermission(user.id, 'employee.promotion.batch');
+    if (!permission.allowed) {
+      return NextResponse.json(
+        { success: false, error: permission.message },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

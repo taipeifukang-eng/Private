@@ -44,6 +44,7 @@ CREATE TABLE profiles (
   role TEXT DEFAULT 'member' CHECK (role IN ('admin', 'manager', 'member')),
   department TEXT, -- User's department
   job_title TEXT, -- User's job title/position
+  employee_code VARCHAR(20), -- Employee code (e.g., FK0171, FKPT0171)
   avatar_url TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

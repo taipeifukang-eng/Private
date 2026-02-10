@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { requirePermission, hasPermission } from '@/lib/permissions/check';
 
-// GET: 取得已發布的活動（根據用戶角色）
+// GET: 取得已發布的活動（根據用戶權限）
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -11,19 +12,21 @@ export async function GET() {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    // 獲取用戶資料和角色
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
+    // 使用 RBAC 權限檢查
+    const canViewAll = await hasPermission(user.id, 'activity.campaign.view_all');
+    const canView = await hasPermission(user.id, 'activity.campaign.view');
 
-    if (!profile) {
-      return NextResponse.json({ success: false, error: '找不到用戶資料' }, { status: 404 });
+    if (!canView && !canViewAll) {
+      return NextResponse.json(
+        { success: false, error: '權限不足：需要 activity.campaign.view 權限' },
+        { status: 403 }
+      );
     }
 
-    // admin 可以看所有活動
-    if (profile.role === 'admin') {
+    // 管理員或有 view_all 權限可以看所有活動
+    if (canViewAll) {
+    // 管理員或有 view_all 權限可以看所有活動
+    if (canViewAll) {
       const { data: campaigns, error } = await supabase
         .from('campaigns')
         .select('*')
@@ -36,23 +39,25 @@ export async function GET() {
       return NextResponse.json({ success: true, data: campaigns, role: 'admin' });
     }
 
-    // 判斷是否為督導、店長或營業部管理層
-    const isJobTitleAllowed = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
-    const isBusinessManager = profile.department?.startsWith('營業') && ['經理', '主管'].includes(profile.job_title || '');
-    const needsAssignment = isJobTitleAllowed || isBusinessManager;
-    
-    if (!needsAssignment) {
-      // 不是督導、店長或營業部管理層，無權查看
-      return NextResponse.json({ success: true, data: [], role: profile.role });
+    // 一般用戶查看已發布的活動
+    // 根據用戶的門市指派查看對應的活動
+    const { data: storeAssignments } = await supabase
+      .from('store_managers')
+      .select('store_id')
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (!storeAssignments || storeAssignments.length === 0) {
+      return NextResponse.json({ success: true, data: [], role: 'member' });
     }
 
-    // 營業部經理/主管直接看發布給督導的活動
-    if (isBusinessManager && !isJobTitleAllowed) {
-      const { data: campaigns, error } = await supabase
-        .from('campaigns')
-        .select('*')
-        .eq('published_to_supervisors', true)
-        .order('start_date', { ascending: false });
+    // 查詢發布給該使用者門市的活動
+    const storeIds = storeAssignments.map(a => a.store_id);
+    const { data: campaigns, error } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('published_to_supervisors', true)
+      .order('start_date', { ascending: false });
 
       if (error) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
