@@ -116,19 +116,20 @@ function MonthlyStatusContent() {
       const result = await getUserManagedStores();
       
       if (result.success) {
-        setManagedStores((result.data as Store[]) || []);
+        const stores = (result.data as Store[]) || [];
+        setManagedStores(stores);
         setUserRole(result.role || 'member');
         setUserDepartment(result.department || '');
         setUserJobTitle(result.job_title || '');
         
         // 檢查 URL 參數中是否有指定門市
         const urlStoreId = searchParams.get('store_id');
-        if (urlStoreId && result.data?.some(s => s.id === urlStoreId)) {
+        if (urlStoreId && stores.some(s => s.id === urlStoreId)) {
           // 如果 URL 中有指定門市且該門市在管理列表中，則選擇該門市
           setSelectedStoreId(urlStoreId);
-        } else if (result.data?.length === 1) {
+        } else if (stores.length === 1) {
           // 否則，如果只有一間門市，自動選擇
-          setSelectedStoreId(result.data[0].id);
+          setSelectedStoreId(stores[0].id);
         }
       }
     } catch (error) {
