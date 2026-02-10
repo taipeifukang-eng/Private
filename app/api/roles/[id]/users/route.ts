@@ -6,6 +6,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 
+// 定義員工資料型別
+interface Employee {
+  user_id: string;
+  employee_code: string;
+  employee_name: string;
+}
+
 // 取得角色的所有使用者
 export async function GET(
   request: NextRequest,
@@ -163,19 +170,19 @@ export async function POST(
     }
 
     // 檢查已指派的使用者
-    const userIds = employees.map(e => e.user_id);
+    const userIds = (employees as Employee[]).map((e: Employee) => e.user_id);
     const { data: existingRoles } = await supabase
       .from('user_roles')
       .select('user_id')
       .eq('role_id', roleId)
       .in('user_id', userIds);
 
-    const existingUserIds = new Set(existingRoles?.map(er => er.user_id) || []);
+    const existingUserIds = new Set(existingRoles?.map((er: any) => er.user_id) || []);
 
     // 過濾出需要新增的使用者
-    const toInsert = employees
-      .filter(emp => !existingUserIds.has(emp.user_id))
-      .map(emp => ({
+    const toInsert = (employees as Employee[])
+      .filter((emp: Employee) => !existingUserIds.has(emp.user_id))
+      .map((emp: Employee) => ({
         user_id: emp.user_id,
         role_id: roleId,
         assigned_by: user.id,
@@ -184,9 +191,9 @@ export async function POST(
       }));
 
     if (toInsert.length === 0) {
-      const skippedNames = employees
-        .filter(emp => existingUserIds.has(emp.user_id))
-        .map(emp => `${emp.employee_name}(${emp.employee_code})`)
+      const skippedNames = (employees as Employee[])
+        .filter((emp: Employee) => existingUserIds.has(emp.user_id))
+        .map((emp: Employee) => `${emp.employee_name}(${emp.employee_code})`)
         .join('、');
       
       return NextResponse.json(
@@ -213,14 +220,14 @@ export async function POST(
       );
     }
 
-    const addedNames = employees
-      .filter(emp => !existingUserIds.has(emp.user_id))
-      .map(emp => `${emp.employee_name}(${emp.employee_code})`)
+    const addedNames = (employees as Employee[])
+      .filter((emp: Employee) => !existingUserIds.has(emp.user_id))
+      .map((emp: Employee) => `${emp.employee_name}(${emp.employee_code})`)
       .join('、');
 
-    const skippedNames = employees
-      .filter(emp => existingUserIds.has(emp.user_id))
-      .map(emp => `${emp.employee_name}(${emp.employee_code})`)
+    const skippedNames = (employees as Employee[])
+      .filter((emp: Employee) => existingUserIds.has(emp.user_id))
+      .map((emp: Employee) => `${emp.employee_name}(${emp.employee_code})`)
       .join('、');
 
     let message = `成功指派 ${toInsert.length} 個使用者「${role.name}」角色`;
