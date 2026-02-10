@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { requirePermission, hasPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
 import type { 
   Store, 
@@ -270,28 +270,28 @@ export async function getUserManagedStores() {
       return { success: false, error: '未登入', data: [] };
     }
 
-    // 獲取用戶角色、部門和職位
+    // 使用 RBAC 權限檢查
+    const canViewAllStores = await hasPermission(user.id, 'monthly.status.view_all');
+    const canViewStores = await hasPermission(user.id, 'monthly.status.view');
+
+    if (!canViewStores && !canViewAllStores) {
+      return { success: false, error: '權限不足', data: [] };
+    }
+
+    console.log('🔍 getUserManagedStores - 權限檢查:', {
+      canViewAllStores,
+      canViewStores
+    });
+
+    // 獲取用戶基本資料（僅用於回傳，不用於權限判斷）
     const { data: profile } = await supabase
       .from('profiles')
       .select('role, department, job_title')
       .eq('id', user.id)
       .single();
 
-    if (!profile) {
-      return { success: false, error: '找不到用戶資料', data: [] };
-    }
-
-    console.log('🔍 getUserManagedStores - 用戶資料:', {
-      role: profile.role,
-      department: profile.department,
-      job_title: profile.job_title,
-      isBusinessDept: profile.department?.startsWith('營業'),
-      isBusinessMember: profile.role === 'member',
-      isBusinessManager: profile.role === 'manager'
-    });
-
-    // admin, supervisor, area_manager 可以看所有門市（不論 job_title）
-    if (['admin', 'supervisor', 'area_manager'].includes(profile.role)) {
+    // 有 view_all 權限可以看所有門市
+    if (canViewAllStores) {
       const { data, error } = await supabase
         .from('stores')
         .select('*')
@@ -310,50 +310,21 @@ export async function getUserManagedStores() {
       return { 
         success: true, 
         data: uniqueStores, 
-        role: profile.role,
-        department: profile.department,
-        job_title: profile.job_title
+        role: profile?.role || 'member',
+        department: profile?.department || '',
+        job_title: profile?.job_title || ''
       };
     }
 
-    // 需要指派才能看門市的職位：督導、店長、代理店長、督導(代理店長)
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile.job_title || '');
-    
-    // 營業部人員（但不是需要指派的職位）可以看所有門市
-    // 包括：助理、區經理等行政管理職位
-    if (profile.department?.startsWith('營業') && (profile.role === 'member' || profile.role === 'manager') && !needsAssignment) {
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('is_active', true)
-        .order('store_code');
-
-      if (error) {
-        return { success: false, error: error.message, data: [] };
-      }
-      
-      // 去重（根據 id）
-      const uniqueStores = data ? Array.from(
-        new Map(data.map(store => [store.id, store])).values()
-      ) : [];
-      
-      return { 
-        success: true, 
-        data: uniqueStores, 
-        role: profile.role,
-        department: profile.department,
-        job_title: profile.job_title
-      };
-    }
-
-    // 其他角色只能看自己管理的門市
+    // 只有 view 權限，查看自己管理的門市
     const { data: managedStores, error } = await supabase
       .from('store_managers')
       .select(`
         *,
         store:stores(*)
       `)
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('is_active', true);
 
     if (error) {
       console.error('Error fetching managed stores:', error);
@@ -375,8 +346,8 @@ export async function getUserManagedStores() {
       success: true, 
       data: uniqueStores, 
       role: roleType,
-      department: profile.department,
-      job_title: profile.job_title
+      department: profile?.department || '',
+      job_title: profile?.job_title || ''
     };
   } catch (error: any) {
     console.error('Unexpected error:', error);

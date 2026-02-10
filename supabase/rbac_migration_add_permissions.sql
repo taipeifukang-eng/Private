@@ -17,9 +17,20 @@ INSERT INTO permissions (module, feature, code, action, description) VALUES
   ('activity', 'campaign', 'activity.campaign.view_all', 'view_all', '查看所有活動（不受門市限制）')
 ON CONFLICT (code) DO NOTHING;
 
--- 3. 將權限授予對應角色
+-- 3. 新增每月人員狀態權限（如果尚未存在）
+INSERT INTO permissions (module, feature, code, action, description) VALUES
+  ('monthly', 'status', 'monthly.status.view', 'view', '查看每月人員狀態（僅自己管理的門市）')
+ON CONFLICT (code) DO NOTHING;
 
--- 3.1 admin 角色獲得所有新權限
+INSERT INTO permissions (module, feature, code, action, description) VALUES
+  ('monthly', 'status', 'monthly.status.view_all', 'view_all', '查看所有門市的每月人員狀態')
+ON CONFLICT (code) DO NOTHING;
+
+-- 4. 將權限授予對應角色
+
+-- 4. 將權限授予對應角色
+
+-- 4.1 admin 角色獲得所有新權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -28,10 +39,10 @@ SELECT
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'admin'
-  AND p.code IN ('monthly.export.download', 'activity.campaign.view_all')
+  AND p.code IN ('monthly.export.download', 'activity.campaign.view_all', 'monthly.status.view_all')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- 3.2 營業部主管獲得匯出權限
+-- 4.2 營業部主管獲得查看全部門市權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -40,10 +51,10 @@ SELECT
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'business_supervisor'
-  AND p.code IN ('monthly.export.download', 'activity.campaign.view_all')
+  AND p.code IN ('monthly.export.download', 'activity.campaign.view_all', 'monthly.status.view_all')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- 3.3 營業部助理獲得匯出權限
+-- 4.3 營業部助理獲得查看全部門市權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -52,10 +63,10 @@ SELECT
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'business_assistant'
-  AND p.code = 'monthly.export.download'
+  AND p.code IN ('monthly.export.download', 'monthly.status.view_all')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- 3.4 督導角色獲得活動查看權限
+-- 4.4 督導角色獲得查看權限（僅自己門市）
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -64,10 +75,10 @@ SELECT
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'supervisor_role'
-  AND p.code = 'activity.campaign.view'
+  AND p.code IN ('activity.campaign.view', 'monthly.status.view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
--- 3.5 店長角色獲得活動查看權限
+-- 4.5 店長角色獲得查看權限（僅自己門市）
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -76,7 +87,7 @@ SELECT
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'store_manager_role'
-  AND p.code = 'activity.campaign.view'
+  AND p.code IN ('activity.campaign.view', 'monthly.status.view')
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- 驗證：查看所有權限
@@ -89,6 +100,8 @@ LEFT JOIN role_permissions rp ON rp.permission_id = p.id AND rp.is_allowed = tru
 WHERE p.code IN (
   'employee.employee.create',
   'employee.employee.edit',
+  'monthly.status.view',
+  'monthly.status.view_all',
   'employee.promotion.batch',
   'monthly.export.download',
   'activity.campaign.view',
