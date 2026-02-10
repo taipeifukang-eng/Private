@@ -67,15 +67,9 @@ export async function createStore(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：admin 或營業部主管
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.job_title === '主管';
-    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
+    // 檢查權限：需要 store.store.create 權限
+    const permission = await requirePermission(user.id, 'store.store.create');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足' };
     }
 
@@ -131,16 +125,9 @@ export async function cloneStore(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：admin 或營業部主管（manager 角色，但不是需要指派的職位）
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
+    // 檢查權限：需要 store.store.clone 權限
+    const permission = await requirePermission(user.id, 'store.store.clone');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足' };
     }
 
@@ -373,16 +360,9 @@ export async function assignStoreManager(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：admin 或營業部主管（manager 角色，但不是需要指派的職位）
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    if (!profile || (profile.role !== 'admin' && !isBusinessSupervisor)) {
+    // 檢查權限：需要 store.manager.assign 權限
+    const permission = await requirePermission(user.id, 'store.manager.assign');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足' };
     }
 
@@ -960,14 +940,9 @@ export async function confirmStoreStatus(yearMonth: string, storeId: string) {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+    // 檢查權限：需要 monthly.status.confirm 權限
+    const permission = await requirePermission(user.id, 'monthly.status.confirm');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足，只有督導或經理可以確認' };
     }
 
@@ -1030,14 +1005,9 @@ export async function revertSubmitStatus(yearMonth: string, storeId: string) {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：只有 admin、manager 或 supervisor 可以恢復
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager' && profile.role !== 'supervisor')) {
+    // 檢查權限：需要 monthly.status.revert 權限
+    const permission = await requirePermission(user.id, 'monthly.status.revert');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足，只有經理、督導或管理員可以恢復提交狀態' };
     }
 
@@ -1091,20 +1061,9 @@ export async function unconfirmStoreStatus(yearMonth: string, storeId: string) {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：只有 admin、manager（經理）、或營業部助理主管可以取消確認
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    const canUnconfirm = profile && (
-      profile.role === 'admin' ||
-      profile.role === 'manager' ||
-      (profile.department === '營業部' && profile.job_title === '助理' && profile.role === 'manager')
-    );
-
-    if (!canUnconfirm) {
+    // 檢查權限：需要 monthly.status.unconfirm 權限
+    const permission = await requirePermission(user.id, 'monthly.status.unconfirm');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足，只有經理或營業部助理主管可以取消確認' };
     }
 
