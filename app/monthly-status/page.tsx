@@ -116,7 +116,7 @@ function MonthlyStatusContent() {
       const result = await getUserManagedStores();
       
       if (result.success) {
-        setManagedStores(result.data || []);
+        setManagedStores((result.data as Store[]) || []);
         setUserRole(result.role || 'member');
         setUserDepartment(result.department || '');
         setUserJobTitle(result.job_title || '');
