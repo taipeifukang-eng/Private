@@ -311,8 +311,7 @@ export async function getUserManagedStores() {
         *,
         store:stores(*)
       `)
-      .eq('user_id', user.id)
-      .eq('is_active', true);
+      .eq('user_id', user.id);
 
     if (error) {
       console.error('Error fetching managed stores:', error);
