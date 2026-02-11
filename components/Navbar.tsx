@@ -26,9 +26,11 @@ import {
   Package
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
+import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission } from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
   user: {
+    id: string;
     email: string;
     profile: {
       full_name: string | null;
@@ -49,14 +51,8 @@ export default function Navbar({ user }: NavbarProps) {
   const storeMenuRef = useRef<HTMLDivElement>(null);
   const monthlyStatusMenuRef = useRef<HTMLDivElement>(null);
 
-  // 判斷是否為需要指派的職位（督導、店長、代理店長等）
-  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(user?.profile?.job_title || '');
-
-  // 判斷是否為營業部助理（部門=營業X部，角色=member，但不是需要指派的職位）
-  const isBusinessAssistant = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'member' && !needsAssignment;
-  
-  // 判斷是否為營業部主管（部門=營業X部，角色=manager，但不是需要指派的職位）
-  const isBusinessSupervisor = user?.profile?.department?.startsWith('營業') && user?.profile?.role === 'manager' && !needsAssignment;
+  // 🔐 使用 RBAC 權限系統
+  const permissions = useNavbarPermissions(user?.id || '');
 
   // 點擊外部關閉下拉選單
   useEffect(() => {
@@ -104,42 +100,31 @@ export default function Navbar({ user }: NavbarProps) {
     return isHighPosition ? `親愛的${title}大人` : `親愛的${title}`;
   };
 
-  // 派發任務相關的子選單項目
+  // 派發任務相關的子選單項目（使用 RBAC 權限）
   const taskSubItems = [
-    { href: '/my-tasks', label: '我的任務', icon: ClipboardList, roles: ['admin', 'manager', 'member'] },
-    { href: '/dashboard', label: '儀表板', icon: LayoutDashboard, roles: ['admin', 'manager'], allowBusinessAssistant: true },
-    { href: '/admin/templates', label: '任務管理', icon: FileText, roles: ['admin', 'manager'], allowBusinessAssistant: true },
-    { href: '/admin/archived', label: '已封存任務', icon: Archive, roles: ['admin', 'manager'], allowBusinessAssistant: true },
-  ].filter(item => 
-    item.roles.includes(role) || 
-    (item.allowBusinessAssistant && isBusinessAssistant)
-  );
+    { href: '/my-tasks', label: '我的任務', icon: ClipboardList, show: permissions.canViewOwnTasks },
+    { href: '/dashboard', label: '儀表板', icon: LayoutDashboard, show: permissions.canViewDashboard },
+    { href: '/admin/templates', label: '任務管理', icon: FileText, show: permissions.canManageTasks },
+    { href: '/admin/archived', label: '已封存任務', icon: Archive, show: permissions.canViewArchivedTasks },
+  ].filter(item => item.show);
 
-  // 門市管理相關的子選單項目
+  // 門市管理相關的子選單項目（使用 RBAC 權限）
   const storeSubItems = [
-    { href: '/admin/store-managers', label: '店長指派', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
-    { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, roles: ['admin'], allowBusinessSupervisor: true },
-    { href: '/admin/stores', label: '門市管理', icon: Store, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
-    { href: '/admin/employee-management', label: '員工管理', icon: UserCog, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
-    { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
-    { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'], allowBusinessSupervisor: true },
-    { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, roles: ['admin'], allowBusinessSupervisor: true },
-    { href: '/inventory', label: '盤點管理', icon: Package, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true, allowStoreManager: true },
-  ].filter(item => 
-    item.roles.includes(role) || 
-    (item.allowBusinessAssistant && isBusinessAssistant) ||
-    (item.allowBusinessSupervisor && isBusinessSupervisor) ||
-    (item.allowStoreManager && needsAssignment)
-  );
+    { href: '/admin/store-managers', label: '店長指派', icon: Users, show: permissions.canAssignStoreManager },
+    { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, show: permissions.canAssignSupervisor },
+    { href: '/admin/stores', label: '門市管理', icon: Store, show: permissions.canManageStores },
+    { href: '/admin/employee-management', label: '員工管理', icon: UserCog, show: permissions.canManageEmployees },
+    { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, show: permissions.canManageMovements },
+    { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, show: permissions.canImportEmployees },
+    { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities },
+    { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
+  ].filter(item => item.show);
 
-  // 每月人員狀態相關的子選單項目
+  // 每月人員狀態相關的子選單項目（使用 RBAC 權限）
   const monthlyStatusSubItems = [
-    { href: '/monthly-status', label: '每月人員狀態', icon: CalendarCheck, roles: ['admin', 'manager', 'member'] },
-    { href: '/admin/export-monthly-status', label: '資料匯出', icon: Send, roles: ['admin'], allowBusinessSupervisor: true },
-  ].filter(item => 
-    item.roles.includes(role) ||
-    (item.allowBusinessSupervisor && isBusinessSupervisor)
-  );
+    { href: '/monthly-status', label: '每月人員狀態', icon: CalendarCheck, show: permissions.canViewMonthlyStatus },
+    { href: '/admin/export-monthly-status', label: '資料匯出', icon: Send, show: permissions.canExportMonthlyStatus },
+  ].filter(item => item.show);
 
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
@@ -238,8 +223,8 @@ export default function Navbar({ user }: NavbarProps) {
                 )}
               </div>
 
-              {/* 門市管理下拉選單 - admin、營業部主管和營業部助理可見 */}
-              {(role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
+              {/* 門市管理下拉選單 - 使用 RBAC 權限 */}
+              {hasAnyStorePermission(permissions) && (
                 <div className="relative" ref={storeMenuRef}>
                   <button
                     onClick={() => setIsStoreMenuOpen(!isStoreMenuOpen)}
@@ -448,8 +433,8 @@ export default function Navbar({ user }: NavbarProps) {
               </div>
             </div>
 
-            {/* 門市管理區塊 - admin、營業部主管和營業部助理可見 */}
-            {(role === 'admin' || isBusinessAssistant || isBusinessSupervisor) && (
+            {/* 門市管理區塊 - 使用 RBAC 權限 */}
+            {hasAnyStorePermission(permissions) && (
               <div className="mt-2">
                 <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                   <Store size={14} />

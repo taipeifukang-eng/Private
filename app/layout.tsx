@@ -18,7 +18,11 @@ export default async function RootLayout({
   return (
     <html lang="zh-TW">
       <body>
-        {user && <Navbar user={user as any} />}
+        {user && <Navbar user={{
+          id: user.id,
+          email: user.email,
+          profile: user.profile,
+        } as any} />}
         {children}
       </body>
     </html>
