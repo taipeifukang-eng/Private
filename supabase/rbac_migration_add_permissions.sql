@@ -52,11 +52,14 @@ INSERT INTO permissions (module, feature, code, action, description) VALUES
   ('monthly', 'status', 'monthly.status.unconfirm', 'unconfirm', '取消確認門市狀態')
 ON CONFLICT (code) DO NOTHING;
 
--- 6. 將權限授予對應角色
+-- 6. 新增人員異動刪除權限（如果尚未存在）
+INSERT INTO permissions (module, feature, code, action, description) VALUES
+  ('employee', 'promotion', 'employee.promotion.delete', 'delete', '刪除人員異動歷史記錄')
+ON CONFLICT (code) DO NOTHING;
 
--- 4. 將權限授予對應角色
+-- 7. 將權限授予對應角色
 
--- 6.1 admin 角色獲得所有新權限
+-- 7.1 admin 角色獲得所有新權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -68,7 +71,18 @@ WHERE r.code = 'admin'
   AND p.code IN (
     'monthly.export.download', 
     'activity.campaign.view_all', 
-   6.2 營業部主管獲得查看全部門市權限及門市管理權限
+    'monthly.status.view_all',
+    'store.store.create',
+    'store.store.clone',
+    'store.manager.assign',
+    'monthly.status.confirm',
+    'monthly.status.revert',
+    'monthly.status.unconfirm',
+    'employee.promotion.delete'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- 7.2 營業部主管獲得查看全部門市權限及門市管理權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -86,11 +100,11 @@ WHERE r.code = 'business_supervisor'
     'store.manager.assign',
     'monthly.status.confirm',
     'monthly.status.revert',
-    'monthly.status.unconfirm'
-  
--- 4.2 營業部主管獲得查看全部門市權限
-INSERT INTO role_permissions (role_id, permission_id, is_allowed)
-SEL6.3 營業部助理獲得查看全部門市權限及取消確認權限
+    'employee.promotion.delete'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- 7.3 營業部助理獲得查看全部門市權限及取消確認權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -103,16 +117,10 @@ WHERE r.code = 'business_assistant'
     'monthly.export.download', 
     'monthly.status.view_all',
     'monthly.status.unconfirm'
-  
--- 4.3 營業部助理獲得查看全部門市權限
-INSERT INTO role_permissions (role_id, permission_id, is_allowed)
-SELECT 
-  r.id,
-  p.id,
-  true
-FROM roles r
-CROSS JOIN permissions p
-WHE6.4 督導角色獲得查看權限和確認/恢復權限（僅自己門市）
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- 7.4 督導角色獲得查看權限和確認/恢復權限（僅自己門市）
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -124,7 +132,12 @@ WHERE r.code = 'supervisor_role'
   AND p.code IN (
     'activity.campaign.view', 
     'monthly.status.view',
-   6.5 店長角色獲得查看權限和確認/恢復權限（僅自己門市）
+    'monthly.status.confirm',
+    'monthly.status.revert'
+  )
+ON CONFLICT (role_id, permission_id) DO NOTHING;
+
+-- 7.5 店長角色獲得查看權限和確認/恢復權限（僅自己門市）
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
 SELECT 
   r.id,
@@ -138,16 +151,7 @@ WHERE r.code = 'store_manager_role'
     'monthly.status.view',
     'monthly.status.confirm',
     'monthly.status.revert'
-  
-INSERT INTO role_permissions (role_id, permission_id, is_allowed)
-SELECT 
-  r.id,
-  p.id,
-  true
-FROM roles r
-CROSS JOIN permissions p
-WHERE r.code = 'store_manager_role'
-  AND p.code IN ('activity.campaign.view', 'monthly.status.view')
+  )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- 驗證：查看所有權限
@@ -155,13 +159,7 @@ SELECT
   p.code as 權限代碼,
   p.description as 權限說明,
   COUNT(rp.id) as 已授予角色數
-FROM permissions p,
-  'store.store.create',
-  'store.store.clone',
-  'store.manager.assign',
-  'monthly.status.confirm',
-  'monthly.status.revert',
-  'monthly.status.unconfirm'
+FROM permissions p
 LEFT JOIN role_permissions rp ON rp.permission_id = p.id AND rp.is_allowed = true
 WHERE p.code IN (
   'employee.employee.create',
@@ -171,7 +169,14 @@ WHERE p.code IN (
   'employee.promotion.batch',
   'monthly.export.download',
   'activity.campaign.view',
-  'activity.campaign.view_all'
+  'activity.campaign.view_all',
+  'store.store.create',
+  'store.store.clone',
+  'store.manager.assign',
+  'monthly.status.confirm',
+  'monthly.status.revert',
+  'monthly.status.unconfirm',
+  'employee.promotion.delete'
 )
 GROUP BY p.id, p.code, p.description
 ORDER BY p.code;

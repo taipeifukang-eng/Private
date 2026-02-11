@@ -69,6 +69,7 @@ export default function EmployeeMovementManagementPage() {
   const [showDropdown, setShowDropdown] = useState<{[key: number]: boolean}>({});
   const [historyYearMonth, setHistoryYearMonth] = useState<string>('');
   const [historyMovementType, setHistoryMovementType] = useState<string>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     checkPermissionAndLoadData();
@@ -187,6 +188,43 @@ export default function EmployeeMovementManagementPage() {
     
     setFilteredHistory(filtered);
   }, [historyYearMonth, historyMovementType, movementHistory]);
+
+  const handleDeleteMovement = async (record: MovementHistory) => {
+    const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+    const confirmMessage = `確定要刪除此異動記錄嗎？\n\n` +
+      `員工：${record.employee_name} (${record.employee_code})\n` +
+      `類型：${typeLabel}\n` +
+      `日期：${record.movement_date}\n\n` +
+      `⚠️ 此操作無法復原！\n` +
+      `⚠️ 刪除後不會自動回復員工狀態，請手動調整。`;
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setDeletingId(record.id);
+    try {
+      const response = await fetch(`/api/employee-movements/${record.id}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`✅ ${result.message}`);
+        // 從列表中移除已刪除的記錄
+        setMovementHistory(movementHistory.filter(m => m.id !== record.id));
+        setFilteredHistory(filteredHistory.filter(m => m.id !== record.id));
+      } else {
+        alert(`❌ 刪除失敗: ${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Error deleting movement:', error);
+      alert(`❌ 刪除失敗: ${error.message || '未知錯誤'}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const addRow = () => {
     setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
@@ -735,6 +773,7 @@ export default function EmployeeMovementManagementPage() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">新值</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">生效日期</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">備註</th>
+                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-700 w-20">操作</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -760,6 +799,20 @@ export default function EmployeeMovementManagementPage() {
                             <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
                             <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{record.movement_date}</td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => handleDeleteMovement(record)}
+                                disabled={deletingId === record.id}
+                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="刪除此異動記錄"
+                              >
+                                {deletingId === record.id ? (
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent" />
+                                ) : (
+                                  <Trash2 size={16} />
+                                )}
+                              </button>
+                            </td>
                             <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
                           </tr>
                         );

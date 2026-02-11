@@ -22,7 +22,8 @@ import {
   Send,
   Upload,
   UserCog,
-  TrendingUp
+  TrendingUp,
+  Package
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 
@@ -123,6 +124,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'], allowBusinessSupervisor: true },
     { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, roles: ['admin'], allowBusinessSupervisor: true },
+    { href: '/inventory', label: '盤點管理', icon: Package, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
   ].filter(item => 
     item.roles.includes(role) || 
     (item.allowBusinessAssistant && isBusinessAssistant) ||
@@ -144,7 +146,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在門市管理相關頁面
-  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management'].some(
+  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
