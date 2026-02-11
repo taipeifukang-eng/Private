@@ -4,25 +4,25 @@
 -- 目的：將 Navbar.tsx 從舊權限系統遷移到 RBAC 系統
 
 -- 【步驟 1】新增導航欄需要的權限碼
-INSERT INTO permissions (code, description, category, module) VALUES
+INSERT INTO permissions (code, description, module, feature, action) VALUES
   -- 任務管理相關
-  ('task.view_own', '查看自己的任務', 'read', '任務管理'),
-  ('task.manage', '管理任務模板', 'write', '任務管理'),
-  ('task.view_archived', '查看已封存任務', 'read', '任務管理'),
-  ('dashboard.view', '查看儀表板', 'read', '系統'),
+  ('task.view_own', '查看自己的任務', '任務管理', 'task', 'view'),
+  ('task.manage', '管理任務模板', '任務管理', 'task', 'manage'),
+  ('task.view_archived', '查看已封存任務', '任務管理', 'task', 'view'),
+  ('dashboard.view', '查看儀表板', '系統', 'dashboard', 'view'),
   
   -- 門市管理相關
-  ('store.supervisor.assign', '指派督導/區經理', 'write', '門市管理'),
+  ('store.supervisor.assign', '指派督導/區經理', '門市管理', 'store', 'manage'),
   
   -- 人事管理相關
-  ('employee.movement.manage', '管理人員異動', 'write', '人事管理'),
-  ('employee.import', '批次匯入員工', 'write', '人事管理'),
+  ('employee.movement.manage', '管理人員異動', '人事管理', 'employee', 'manage'),
+  ('employee.import', '批次匯入員工', '人事管理', 'employee', 'import'),
   
   -- 活動管理相關
-  ('activity.manage', '管理活動', 'write', '活動管理'),
+  ('activity.manage', '管理活動', '活動管理', 'activity', 'manage'),
   
   -- 每月人員狀態相關
-  ('monthly.status.export', '匯出每月人員狀態', 'read', '每月人員狀態')
+  ('monthly.status.export', '匯出每月人員狀態', '每月人員狀態', 'monthly.status', 'export')
 ON CONFLICT (code) DO NOTHING;
 
 -- 【步驟 2】為 admin_role 角色分配所有權限
