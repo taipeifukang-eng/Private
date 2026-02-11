@@ -50,6 +50,9 @@ function MonthlyStatusContent() {
   const [userRole, setUserRole] = useState<string>('member');
   const [userDepartment, setUserDepartment] = useState<string>('');
   const [userJobTitle, setUserJobTitle] = useState<string>('');
+  const [canViewStats, setCanViewStats] = useState(false);
+  const [canViewSupportHours, setCanViewSupportHours] = useState(false);
+  const [canEditSupportHours, setCanEditSupportHours] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>('');
   const [storeSummaries, setStoreSummaries] = useState<MonthlyStoreSummary[]>([]);
@@ -112,15 +115,25 @@ function MonthlyStatusContent() {
 
   const loadManagedStores = async () => {
     try {
-      const { getUserManagedStores } = await import('@/app/store/actions');
-      const result = await getUserManagedStores();
+      const { getUserManagedStores, checkMonthlyStatusPermissions } = await import('@/app/store/actions');
+      const [storesResult, permissionsResult] = await Promise.all([
+        getUserManagedStores(),
+        checkMonthlyStatusPermissions()
+      ]);
       
-      if (result.success) {
-        const stores = (result.data as Store[]) || [];
+      if (storesResult.success) {
+        const stores = (storesResult.data as Store[]) || [];
         setManagedStores(stores);
-        setUserRole(result.role || 'member');
-        setUserDepartment(result.department || '');
-        setUserJobTitle(result.job_title || '');
+        setUserRole(storesResult.role || 'member');
+        setUserDepartment(storesResult.department || '');
+        setUserJobTitle(storesResult.job_title || '');
+        
+        // 設定權限
+        if (permissionsResult.success) {
+          setCanViewStats(permissionsResult.canViewStats || false);
+          setCanViewSupportHours(permissionsResult.canViewSupportHours || false);
+          setCanEditSupportHours(permissionsResult.canEditSupportHours || false);
+        }
         
         // 檢查 URL 參數中是否有指定門市
         const urlStoreId = searchParams.get('store_id');
@@ -139,17 +152,9 @@ function MonthlyStatusContent() {
     }
   };
 
-  // 判斷是否可以查看門市統計資料
+  // 判斷是否可以查看門市統計資料（使用權限系統）
   const canViewStoreStats = () => {
-    // 1. admin, supervisor, area_manager 可以看
-    if (['admin', 'supervisor', 'area_manager'].includes(userRole)) {
-      return true;
-    }
-    // 2. 營業部（營業1部、營業2部等）的助理可以看
-    if (userDepartment?.startsWith('營業') && userJobTitle === '助理') {
-      return true;
-    }
-    return false;
+    return canViewStats;
   };
 
   const loadStoreSummaries = async (moveToNext: boolean = false) => {
@@ -709,18 +714,6 @@ function StoreStatusDetail({
   // 判斷是否為需要指派的職位（督導或店長）
   const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
 
-  // 判斷是否可以查看門市統計資料
-  const canViewStoreStats = () => {
-    // 1. admin, supervisor, area_manager 可以看
-    if (['admin', 'supervisor', 'area_manager'].includes(userRole)) {
-      return true;
-    }
-    // 2. 營業部人員（member 或 manager 角色），但不包括需要指派的職位
-    if (userDepartment?.startsWith('營業') && (userRole === 'member' || userRole === 'manager') && !needsAssignment) {
-      return true;
-    }
-    return false;
-  };
   const [expandedStaffIds, setExpandedStaffIds] = useState<Set<string>>(new Set());
   const [staffDetails, setStaffDetails] = useState<{ [key: string]: any[] }>({});
 
@@ -1167,10 +1160,11 @@ function StoreStatusDetail({
           {(() => {
             const isStoreManager = managedStores.some(s => s.id === store.id) && 
               ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
-            const canEditSupportHours = ['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager;
+            const hasEditSupportPermission = canEditSupportHours || (['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager);
             const shouldViewStats = canViewStoreStats();
+            const shouldViewSupportHours = canViewSupportHours || hasEditSupportPermission;
             
-            // 如果可以查看統計資料，顯示統計資料表單（如果同時有編輯權限，則隱藏其中的支援時數區塊）
+            // 如果可以查看統計資料，顯示統計資料表單
             if (shouldViewStats) {
               return (
                 <div className="flex-1 flex flex-col gap-4">
@@ -1178,10 +1172,10 @@ function StoreStatusDetail({
                     storeId={store.id}
                     yearMonth={yearMonth}
                     isReadOnly={false}
-                    hideSupportHours={canEditSupportHours}
+                    hideSupportHours={!shouldViewSupportHours}
                   />
                   {/* 如果有編輯支援時數的權限，額外顯示支援時數表單 */}
-                  {canEditSupportHours && (
+                  {hasEditSupportPermission && (
                     <StoreSupportHoursForm
                       storeId={store.id}
                       yearMonth={yearMonth}
@@ -1193,7 +1187,7 @@ function StoreStatusDetail({
             }
             
             // 否則如果只有編輯支援時數的權限（不能查看統計資料），只顯示支援時數表單
-            if (canEditSupportHours) {
+            if (hasEditSupportPermission) {
               return (
                 <div className="flex-1">
                   <StoreSupportHoursForm

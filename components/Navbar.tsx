@@ -124,11 +124,12 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, roles: ['admin'], allowBusinessSupervisor: true },
     { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, roles: ['admin'], allowBusinessSupervisor: true },
-    { href: '/inventory', label: '盤點管理', icon: Package, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true },
+    { href: '/inventory', label: '盤點管理', icon: Package, roles: ['admin'], allowBusinessAssistant: true, allowBusinessSupervisor: true, allowStoreManager: true },
   ].filter(item => 
     item.roles.includes(role) || 
     (item.allowBusinessAssistant && isBusinessAssistant) ||
-    (item.allowBusinessSupervisor && isBusinessSupervisor)
+    (item.allowBusinessSupervisor && isBusinessSupervisor) ||
+    (item.allowStoreManager && needsAssignment)
   );
 
   // 每月人員狀態相關的子選單項目

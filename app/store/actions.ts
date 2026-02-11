@@ -260,15 +260,15 @@ export async function getUserManagedStores() {
 
     // 使用 RBAC 權限檢查
     const canViewAllStores = await hasPermission(user.id, 'monthly.status.view_all');
-    const canViewStores = await hasPermission(user.id, 'monthly.status.view');
+    const canViewOwnStores = await hasPermission(user.id, 'monthly.status.view_own');
 
-    if (!canViewStores && !canViewAllStores) {
+    if (!canViewOwnStores && !canViewAllStores) {
       return { success: false, error: '權限不足', data: [] };
     }
 
     console.log('🔍 getUserManagedStores - 權限檢查:', {
       canViewAllStores,
-      canViewStores
+      canViewOwnStores
     });
 
     // 獲取用戶基本資料（僅用於回傳，不用於權限判斷）
@@ -1642,5 +1642,47 @@ export async function updateStoreMonthlySummary(
   } catch (error: any) {
     console.error('❌ updateStoreMonthlySummary - 未預期錯誤:', error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 檢查用戶對每月狀態的權限
+ */
+export async function checkMonthlyStatusPermissions() {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { 
+        success: false, 
+        error: '未登入',
+        canViewStats: false,
+        canViewSupportHours: false,
+        canEditSupportHours: false
+      };
+    }
+
+    const [canViewStats, canViewSupportHours, canEditSupportHours] = await Promise.all([
+      hasPermission(user.id, 'monthly.status.view_stats'),
+      hasPermission(user.id, 'monthly.allowance.view_support_hours'),
+      hasPermission(user.id, 'monthly.allowance.edit_support_hours')
+    ]);
+
+    return {
+      success: true,
+      canViewStats,
+      canViewSupportHours,
+      canEditSupportHours
+    };
+  } catch (error: any) {
+    console.error('檢查每月狀態權限錯誤:', error);
+    return {
+      success: false,
+      error: error.message,
+      canViewStats: false,
+      canViewSupportHours: false,
+      canEditSupportHours: false
+    };
   }
 }
