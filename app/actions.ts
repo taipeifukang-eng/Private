@@ -891,13 +891,10 @@ export async function archiveAssignment(assignmentId: string) {
       return { success: false, error: '未登入' };
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+    // 需要 task.template.delete 或 task.archived.restore 權限（封存相當於將已完成任務移動到封存區）
+    const { requirePermission } = await import('@/lib/permissions/check');
+    const permission = await requirePermission(user.id, 'task.template.delete');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足' };
     }
 
@@ -1141,13 +1138,10 @@ export async function deleteAssignment(assignmentId: string) {
       return { success: false, error: '未登入' };
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+    // 需要 task.template.delete 權限
+    const { requirePermission } = await import('@/lib/permissions/check');
+    const permission = await requirePermission(user.id, 'task.template.delete');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足' };
     }
 
@@ -1201,12 +1195,6 @@ export async function deleteTemplate(templateId: string) {
       return { success: false, error: '未登入' };
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
     // Check if template exists and get creator info
     const { data: template } = await supabase
       .from('templates')
@@ -1219,12 +1207,13 @@ export async function deleteTemplate(templateId: string) {
     }
 
     // Allow deletion if user is:
-    // 1. Admin or manager
+    // 1. Has task.template.delete permission
     // 2. The creator of the template
+    const { requirePermission } = await import('@/lib/permissions/check');
+    const permission = await requirePermission(user.id, 'task.template.delete');
     const isCreator = template.created_by === user.id;
-    const isAdminOrManager = profile && (profile.role === 'admin' || profile.role === 'manager');
 
-    if (!isAdminOrManager && !isCreator) {
+    if (!permission.allowed && !isCreator) {
       return { success: false, error: '權限不足，只有管理員、主管或模板創建者可以刪除流程模板' };
     }
 
@@ -1391,13 +1380,10 @@ export async function updateTemplateV2(templateId: string, data: {
       return { success: false, error: '未登入' };
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'manager')) {
+    // 需要 task.template.edit 權限
+    const { requirePermission } = await import('@/lib/permissions/check');
+    const permission = await requirePermission(user.id, 'task.template.edit');
+    if (!permission.allowed) {
       return { success: false, error: '權限不足' };
     }
 
