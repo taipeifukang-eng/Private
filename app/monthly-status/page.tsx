@@ -152,11 +152,6 @@ function MonthlyStatusContent() {
     }
   };
 
-  // 判斷是否可以查看門市統計資料（使用權限系統）
-  const canViewStoreStats = () => {
-    return canViewStats;
-  };
-
   const loadStoreSummaries = async (moveToNext: boolean = false) => {
     try {
       const { getMonthlyStoreSummaries } = await import('@/app/store/actions');
@@ -380,7 +375,7 @@ function MonthlyStatusContent() {
               </div>
 
               {/* 匯入按鈕 */}
-              {canViewStoreStats() && (
+              {canViewStats && (
                 <div className="flex gap-2">
                   <div className="flex flex-col">
                     <label className="text-xs text-transparent mb-1">操作</label>
@@ -409,7 +404,7 @@ function MonthlyStatusContent() {
         </div>
 
         {/* 統計卡片 - 只有督導/經理/營業部助理看得到 */}
-        {canViewStoreStats() && (
+        {canViewStats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <StatCard
               title="總門市數"
@@ -458,6 +453,9 @@ function MonthlyStatusContent() {
             userDepartment={userDepartment}
             userJobTitle={userJobTitle}
             managedStores={managedStores}
+            canViewStats={canViewStats}
+            canViewSupportHours={canViewSupportHours}
+            canEditSupportHours={canEditSupportHours}
             onRefresh={loadStoreSummaries}
           />
         ) : (
@@ -505,6 +503,9 @@ function MonthlyStatusContent() {
                     userDepartment={userDepartment}
                     userJobTitle={userJobTitle}
                     managedStores={managedStores}
+                    canViewStats={canViewStats}
+                    canViewSupportHours={canViewSupportHours}
+                    canEditSupportHours={canEditSupportHours}
                     onRefresh={(moveToNext?: boolean) => loadStoreSummaries(moveToNext || false)}
                   />
                 </div>
@@ -684,6 +685,9 @@ function StoreStatusDetail({
   userDepartment,
   userJobTitle,
   managedStores,
+  canViewStats,
+  canViewSupportHours,
+  canEditSupportHours,
   onRefresh
 }: {
   store: Store;
@@ -692,6 +696,9 @@ function StoreStatusDetail({
   userDepartment: string;
   userJobTitle: string;
   managedStores: Store[];
+  canViewStats: boolean;
+  canViewSupportHours: boolean;
+  canEditSupportHours: boolean;
   onRefresh: (moveToNext?: boolean) => void;
 }) {
   const router = useRouter();
@@ -1161,7 +1168,7 @@ function StoreStatusDetail({
             const isStoreManager = managedStores.some(s => s.id === store.id) && 
               ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
             const hasEditSupportPermission = canEditSupportHours || (['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager);
-            const shouldViewStats = canViewStoreStats();
+            const shouldViewStats = canViewStats;
             const shouldViewSupportHours = canViewSupportHours || hasEditSupportPermission;
             
             // 如果可以查看統計資料，顯示統計資料表單
