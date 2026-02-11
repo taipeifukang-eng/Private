@@ -12,14 +12,20 @@ INSERT INTO permissions (code, description, module, feature, action) VALUES
   ('dashboard.view', '查看儀表板', '系統', 'dashboard', 'view'),
   
   -- 門市管理相關
+  ('store.manager.assign', '指派店長', '門市管理', 'store_manager', 'assign'),
   ('store.supervisor.assign', '指派督導/區經理', '門市管理', 'store_supervisor', 'assign'),
+  ('store.manage', '管理門市資料', '門市管理', 'store', 'manage'),
   
   -- 人事管理相關
+  ('employee.manage', '管理員工資料', '人事管理', 'employee', 'manage'),
   ('employee.movement.manage', '管理人員異動', '人事管理', 'employee_movement', 'manage'),
   ('employee.import', '批次匯入員工', '人事管理', 'employee_batch', 'import'),
   
   -- 活動管理相關
   ('activity.manage', '管理活動', '活動管理', 'activity', 'manage'),
+  
+  -- 盤點管理相關
+  ('inventory.manage', '管理盤點', '盤點管理', 'inventory', 'manage'),
   
   -- 每月人員狀態相關
   ('monthly.status.export', '匯出每月人員狀態', '每月人員狀態', 'monthly_status', 'export')
@@ -36,8 +42,9 @@ CROSS JOIN permissions p
 WHERE r.code = 'admin_role'
   AND p.code IN (
     'task.view_own', 'task.manage', 'task.view_archived', 'dashboard.view',
-    'store.supervisor.assign', 'employee.movement.manage', 'employee.import',
-    'activity.manage', 'monthly.status.export'
+    'store.manager.assign', 'store.supervisor.assign', 'store.manage',
+    'employee.manage', 'employee.movement.manage', 'employee.import',
+    'activity.manage', 'inventory.manage', 'monthly.status.export'
   )
 ON CONFLICT (role_id, permission_id) DO UPDATE SET is_allowed = true;
 
@@ -81,8 +88,9 @@ FROM permissions p
 LEFT JOIN role_permissions rp ON rp.permission_id = p.id AND rp.is_allowed = true
 WHERE p.code IN (
   'task.view_own', 'task.manage', 'task.view_archived', 'dashboard.view',
-  'store.supervisor.assign', 'employee.movement.manage', 'employee.import',
-  'activity.manage', 'monthly.status.export'
+  'store.manager.assign', 'store.supervisor.assign', 'store.manage',
+  'employee.manage', 'employee.movement.manage', 'employee.import',
+  'activity.manage', 'inventory.manage', 'monthly.status.export'
 )
 GROUP BY p.id, p.code, p.description, p.module
 ORDER BY p.code;
