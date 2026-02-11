@@ -6,23 +6,23 @@
 -- 【步驟 1】新增導航欄需要的權限碼
 INSERT INTO permissions (code, description, module, feature, action) VALUES
   -- 任務管理相關
-  ('task.view_own', '查看自己的任務', '任務管理', 'task', 'view'),
-  ('task.manage', '管理任務模板', '任務管理', 'task', 'manage'),
-  ('task.view_archived', '查看已封存任務', '任務管理', 'task', 'view'),
+  ('task.view_own', '查看自己的任務', '任務管理', 'task_own', 'view'),
+  ('task.manage', '管理任務模板', '任務管理', 'task_template', 'manage'),
+  ('task.view_archived', '查看已封存任務', '任務管理', 'task_archived', 'view'),
   ('dashboard.view', '查看儀表板', '系統', 'dashboard', 'view'),
   
   -- 門市管理相關
-  ('store.supervisor.assign', '指派督導/區經理', '門市管理', 'store', 'manage'),
+  ('store.supervisor.assign', '指派督導/區經理', '門市管理', 'store_supervisor', 'assign'),
   
   -- 人事管理相關
-  ('employee.movement.manage', '管理人員異動', '人事管理', 'employee', 'manage'),
-  ('employee.import', '批次匯入員工', '人事管理', 'employee', 'import'),
+  ('employee.movement.manage', '管理人員異動', '人事管理', 'employee_movement', 'manage'),
+  ('employee.import', '批次匯入員工', '人事管理', 'employee_batch', 'import'),
   
   -- 活動管理相關
   ('activity.manage', '管理活動', '活動管理', 'activity', 'manage'),
   
   -- 每月人員狀態相關
-  ('monthly.status.export', '匯出每月人員狀態', '每月人員狀態', 'monthly.status', 'export')
+  ('monthly.status.export', '匯出每月人員狀態', '每月人員狀態', 'monthly_status', 'export')
 ON CONFLICT (code) DO NOTHING;
 
 -- 【步驟 2】為 admin_role 角色分配所有權限
