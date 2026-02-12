@@ -5,36 +5,52 @@
 
 -- 【步驟 1】新增導航欄需要的權限碼
 INSERT INTO permissions (code, description, module, feature, action) VALUES
-  -- 任務管理相關
-  ('task.view_own', '查看自己的任務', '任務管理', 'task_own', 'view'),
-  ('task.manage', '管理任務模板', '任務管理', 'task_template', 'manage'),
-  ('task.view_archived', '查看已封存任務', '任務管理', 'task_archived', 'view'),
-  ('dashboard.view', '查看儀表板', '系統', 'dashboard', 'view'),
+  -- ========================================
+  -- 任務管理模組
+  -- ========================================
+  ('task.view_own', '查看自己的任務 - 允許查看指派給自己的所有任務', '任務管理', 'task_own', 'view'),
+  ('task.manage', '管理任務模板 - 允許新增、編輯、刪除任務範本和指派任務給他人', '任務管理', 'task_template', 'manage'),
+  ('task.view_archived', '查看已封存任務 - 允許查看歷史已完成或已封存的任務記錄', '任務管理', 'task_archived', 'view'),
   
-  -- 門市管理相關
-  ('store.manager.assign', '指派店長', '門市管理', 'store_manager', 'assign'),
-  ('store.supervisor.assign', '指派督導/區經理', '門市管理', 'store_supervisor', 'assign'),
-  ('store.manage', '管理門市資料', '門市管理', 'store', 'manage'),
+  -- ========================================
+  -- 系統管理模組
+  -- ========================================
+  ('dashboard.view', '查看儀表板 - 允許訪問系統主儀表板，查看統計數據和概覽', '系統', 'dashboard', 'view'),
   
-  -- 人事管理相關
-  ('employee.manage', '管理員工資料', '人事管理', 'employee', 'manage'),
-  ('employee.movement.manage', '管理人員異動', '人事管理', 'employee_movement', 'manage'),
-  ('employee.import', '批次匯入員工', '人事管理', 'employee_batch', 'import'),
+  -- ========================================
+  -- 門市管理模組
+  -- ========================================
+  ('store.manage', '管理門市資料 - 允許新增、編輯門市基本資料（名稱、地址、聯絡方式）', '門市管理', 'store', 'manage'),
+  ('store.manager.assign', '指派店長 - 允許為門市指派或更換店長', '門市管理', 'store_manager', 'assign'),
+  ('store.supervisor.assign', '指派督導/區經理 - 允許為門市指派督導或區經理進行管理', '門市管理', 'store_supervisor', 'assign'),
   
-  -- 活動管理相關
-  ('activity.manage', '管理活動', '活動管理', 'activity', 'manage'),
+  -- ========================================
+  -- 員工與人事管理模組
+  -- ========================================
+  ('employee.manage', '管理員工資料 - 允許新增、編輯、查看員工基本資料（姓名、員工編號、聯絡方式等）', '人事管理', 'employee', 'manage'),
+  ('employee.import', '批次匯入員工 - 允許透過 Excel 檔案批次匯入多筆員工資料', '人事管理', 'employee_batch', 'import'),
+  ('employee.movement.manage', '管理人員異動 - 允許記錄和管理員工的調動、升遷、離職等異動紀錄', '人事管理', 'employee_movement', 'manage'),
   
-  -- 盤點管理相關
-  ('inventory.manage', '管理盤點', '盤點管理', 'inventory', 'manage'),
+  -- ========================================
+  -- 活動管理模組
+  -- ========================================
+  ('activity.manage', '管理活動 - 允許新增、編輯、刪除公司活動或促銷活動', '活動管理', 'activity', 'manage'),
   
-  -- 每月人員狀態相關（完整權限）
-  ('monthly.status.view_own', '查看自己管理門市狀態', '每月人員狀態', 'monthly_status', 'view'),
-  ('monthly.status.view_all', '查看所有門市狀態', '每月人員狀態', 'monthly_status_all', 'view'),
-  ('monthly.status.view_stats', '查看門市統計資料', '每月人員狀態', 'monthly_status_stats', 'view'),
-  ('monthly.status.edit', '編輯門市狀態', '每月人員狀態', 'monthly_status', 'edit'),
-  ('monthly.status.submit', '提交門市狀態', '每月人員狀態', 'monthly_status', 'submit'),
-  ('monthly.status.confirm', '確認/核簽門市狀態', '每月人員狀態', 'monthly_status', 'confirm'),
-  ('monthly.export.stores', '匯出門市資料', '每月人員狀態', 'monthly_export_stores', 'export')
+  -- ========================================
+  -- 盤點管理模組
+  -- ========================================
+  ('inventory.manage', '管理盤點 - 允許建立、執行、查看門市盤點作業和盤點結果', '盤點管理', 'inventory', 'manage'),
+  
+  -- ========================================
+  -- 每月人員狀態管理模組
+  -- ========================================
+  ('monthly.status.view_own', '查看自己管理門市狀態 - 店長可查看自己負責門市的每月人員狀態', '每月人員狀態', 'monthly_status', 'view'),
+  ('monthly.status.view_all', '查看所有門市狀態 - 督導/管理員可查看所有門市的每月人員狀態', '每月人員狀態', 'monthly_status_all', 'view'),
+  ('monthly.status.view_stats', '查看門市統計資料 - 允許查看門市人員統計、支援時數、獎金等統計數據', '每月人員狀態', 'monthly_status_stats', 'view'),
+  ('monthly.status.edit', '編輯門市狀態 - 允許編輯每月人員狀態資料（出勤、請假、獎金等）', '每月人員狀態', 'monthly_status', 'edit'),
+  ('monthly.status.submit', '提交門市狀態 - 允許將編輯完成的每月狀態提交審核', '每月人員狀態', 'monthly_status', 'submit'),
+  ('monthly.status.confirm', '確認/核簽門市狀態 - 督導/主管可審核並確認店長提交的每月狀態', '每月人員狀態', 'monthly_status', 'confirm'),
+  ('monthly.export.stores', '匯出門市資料 - 允許將每月人員狀態匯出成 Excel 報表', '每月人員狀態', 'monthly_export_stores', 'export')
 ON CONFLICT (code) DO NOTHING;
 
 -- 【步驟 2】為 admin_role 角色分配所有權限
