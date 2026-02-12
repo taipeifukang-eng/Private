@@ -51,7 +51,9 @@ INSERT INTO permissions (code, description, module, feature, action) VALUES
   ('monthly.status.submit', '提交門市狀態 - 允許將編輯完成的每月狀態提交審核', '每月人員狀態', 'monthly_status', 'submit'),
   ('monthly.status.confirm', '確認/核簽門市狀態 - 督導/主管可審核並確認店長提交的每月狀態', '每月人員狀態', 'monthly_status', 'confirm'),
   ('monthly.export.stores', '匯出門市資料 - 允許將每月人員狀態匯出成 Excel 報表', '每月人員狀態', 'monthly_export_stores', 'export')
-ON CONFLICT (code) DO NOTHING;
+ON CONFLICT (code) DO UPDATE SET 
+  description = EXCLUDED.description,
+  module = EXCLUDED.module;
 
 -- 【步驟 2】為 admin_role 角色分配所有權限
 INSERT INTO role_permissions (role_id, permission_id, is_allowed)
