@@ -30,6 +30,7 @@ INSERT INTO permissions (code, description, module, feature, action) VALUES
   -- 每月人員狀態相關（完整權限）
   ('monthly.status.view_own', '查看自己管理門市狀態', '每月人員狀態', 'monthly_status', 'view'),
   ('monthly.status.view_all', '查看所有門市狀態', '每月人員狀態', 'monthly_status_all', 'view'),
+  ('monthly.status.view_stats', '查看門市統計資料', '每月人員狀態', 'monthly_status_stats', 'view'),
   ('monthly.status.edit', '編輯門市狀態', '每月人員狀態', 'monthly_status', 'edit'),
   ('monthly.status.submit', '提交門市狀態', '每月人員狀態', 'monthly_status', 'submit'),
   ('monthly.status.confirm', '確認/核簽門市狀態', '每月人員狀態', 'monthly_status', 'confirm'),
@@ -50,8 +51,8 @@ WHERE r.code = 'admin_role'
     'store.manager.assign', 'store.supervisor.assign', 'store.manage',
     'employee.manage', 'employee.movement.manage', 'employee.import',
     'activity.manage', 'inventory.manage',
-    'monthly.status.view_own', 'monthly.status.view_all', 'monthly.status.edit',
-    'monthly.status.submit', 'monthly.status.confirm', 'monthly.export.stores'
+    'monthly.status.view_own', 'monthly.status.view_all', 'monthly.status.view_stats',
+    'monthly.status.edit', 'monthly.status.submit', 'monthly.status.confirm', 'monthly.export.stores'
   )
 ON CONFLICT (role_id, permission_id) DO UPDATE SET is_allowed = true;
 
