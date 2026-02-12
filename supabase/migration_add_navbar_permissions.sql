@@ -65,11 +65,11 @@ FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'store_manager_role'
   AND p.code IN (
-    'task.view_own',,
+    'task.view_own',
+    'inventory.manage',
+    'monthly.status.view_own',
     'monthly.status.edit',
     'monthly.status.submit'
-    'inventory.manage',
-    'monthly.status.view_own'
   )
 ON CONFLICT (role_id, permission_id) DO UPDATE SET is_allowed = true;
 
@@ -96,12 +96,12 @@ SELECT
 FROM permissions p
 LEFT JOIN role_permissions rp ON rp.permission_id = p.id AND rp.is_allowed = true
 WHERE p.code IN (
-  'monthly.status.view_own', 'monthly.status.view_all', 'monthly.status.edit',
-  'monthly.status.submit', 'monthly.status.confirm', 'monthly.export.stores
   'task.view_own', 'task.manage', 'task.view_archived', 'dashboard.view',
   'store.manager.assign', 'store.supervisor.assign', 'store.manage',
   'employee.manage', 'employee.movement.manage', 'employee.import',
-  'activity.manage', 'inventory.manage', 'monthly.status.export'
+  'activity.manage', 'inventory.manage',
+  'monthly.status.view_own', 'monthly.status.view_all', 'monthly.status.edit',
+  'monthly.status.submit', 'monthly.status.confirm', 'monthly.export.stores'
 )
 GROUP BY p.id, p.code, p.description, p.module
 ORDER BY p.code;
