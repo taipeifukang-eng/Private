@@ -1,84 +1,122 @@
 -- ============================================
--- 更新權限描述為白話說明
+-- 更新權限描述為白話說明（同時統一模組分組）
 -- ============================================
--- 目的：為現有權限添加詳細的白話說明
+-- 目的：為現有權限添加詳細的白話說明，並確保相關權限在同一模組下
 
 -- ========================================
 -- 任務管理模組
 -- ========================================
-UPDATE permissions SET description = '查看自己的任務 - 允許查看指派給自己的所有任務'
+UPDATE permissions SET 
+  description = '查看自己的任務 - 允許查看指派給自己的所有任務',
+  module = '任務管理'
 WHERE code = 'task.view_own';
 
-UPDATE permissions SET description = '管理任務模板 - 允許新增、編輯、刪除任務範本和指派任務給他人'
+UPDATE permissions SET 
+  description = '管理任務模板 - 允許新增、編輯、刪除任務範本和指派任務給他人',
+  module = '任務管理'
 WHERE code = 'task.manage';
 
-UPDATE permissions SET description = '查看已封存任務 - 允許查看歷史已完成或已封存的任務記錄'
+UPDATE permissions SET 
+  description = '查看已封存任務 - 允許查看歷史已完成或已封存的任務記錄',
+  module = '任務管理'
 WHERE code = 'task.view_archived';
 
 -- ========================================
 -- 系統管理模組
 -- ========================================
-UPDATE permissions SET description = '查看儀表板 - 允許訪問系統主儀表板，查看統計數據和概覽'
+UPDATE permissions SET 
+  description = '查看儀表板 - 允許訪問系統主儀表板，查看統計數據和概覽',
+  module = '系統'
 WHERE code = 'dashboard.view';
 
 -- ========================================
 -- 門市管理模組
 -- ========================================
-UPDATE permissions SET description = '管理門市資料 - 允許新增、編輯門市基本資料（名稱、地址、聯絡方式）'
+UPDATE permissions SET 
+  description = '管理門市資料 - 允許新增、編輯門市基本資料（名稱、地址、聯絡方式）',
+  module = '門市管理'
 WHERE code = 'store.manage';
 
-UPDATE permissions SET description = '指派店長 - 允許為門市指派或更換店長'
+UPDATE permissions SET 
+  description = '指派店長 - 允許為門市指派或更換店長',
+  module = '門市管理'
 WHERE code = 'store.manager.assign';
 
-UPDATE permissions SET description = '指派督導/區經理 - 允許為門市指派督導或區經理進行管理'
+UPDATE permissions SET 
+  description = '指派督導/區經理 - 允許為門市指派督導或區經理進行管理',
+  module = '門市管理'
 WHERE code = 'store.supervisor.assign';
 
 -- ========================================
--- 員工與人事管理模組
+-- 人事管理模組（統一所有員工相關權限）
 -- ========================================
-UPDATE permissions SET description = '管理員工資料 - 允許新增、編輯、查看員工基本資料（姓名、員工編號、聯絡方式等）'
+UPDATE permissions SET 
+  description = '管理員工資料 - 允許新增、編輯、查看員工基本資料（姓名、員工編號、聯絡方式等）',
+  module = '人事管理'
 WHERE code = 'employee.manage';
 
-UPDATE permissions SET description = '批次匯入員工 - 允許透過 Excel 檔案批次匯入多筆員工資料'
+UPDATE permissions SET 
+  description = '批次匯入員工 - 允許透過 Excel 檔案批次匯入多筆員工資料',
+  module = '人事管理'
 WHERE code = 'employee.import';
 
-UPDATE permissions SET description = '管理人員異動 - 允許記錄和管理員工的調動、升遷、離職等異動紀錄'
+UPDATE permissions SET 
+  description = '管理人員異動 - 允許記錄和管理員工的調動、升遷、離職等異動紀錄',
+  module = '人事管理'
 WHERE code = 'employee.movement.manage';
 
 -- ========================================
 -- 活動管理模組
 -- ========================================
-UPDATE permissions SET description = '管理活動 - 允許新增、編輯、刪除公司活動或促銷活動'
+UPDATE permissions SET 
+  description = '管理活動 - 允許新增、編輯、刪除公司活動或促銷活動',
+  module = '活動管理'
 WHERE code = 'activity.manage';
 
 -- ========================================
 -- 盤點管理模組
 -- ========================================
-UPDATE permissions SET description = '管理盤點 - 允許建立、執行、查看門市盤點作業和盤點結果'
+UPDATE permissions SET 
+  description = '管理盤點 - 允許建立、執行、查看門市盤點作業和盤點結果',
+  module = '盤點管理'
 WHERE code = 'inventory.manage';
 
 -- ========================================
 -- 每月人員狀態管理模組
 -- ========================================
-UPDATE permissions SET description = '查看自己管理門市狀態 - 店長可查看自己負責門市的每月人員狀態'
+UPDATE permissions SET 
+  description = '查看自己管理門市狀態 - 店長可查看自己負責門市的每月人員狀態',
+  module = '每月人員狀態'
 WHERE code = 'monthly.status.view_own';
 
-UPDATE permissions SET description = '查看所有門市狀態 - 督導/管理員可查看所有門市的每月人員狀態'
+UPDATE permissions SET 
+  description = '查看所有門市狀態 - 督導/管理員可查看所有門市的每月人員狀態',
+  module = '每月人員狀態'
 WHERE code = 'monthly.status.view_all';
 
-UPDATE permissions SET description = '查看門市統計資料 - 允許查看門市人員統計、支援時數、獎金等統計數據'
+UPDATE permissions SET 
+  description = '查看門市統計資料 - 允許查看門市人員統計、支援時數、獎金等統計數據',
+  module = '每月人員狀態'
 WHERE code = 'monthly.status.view_stats';
 
-UPDATE permissions SET description = '編輯門市狀態 - 允許編輯每月人員狀態資料（出勤、請假、獎金等）'
+UPDATE permissions SET 
+  description = '編輯門市狀態 - 允許編輯每月人員狀態資料（出勤、請假、獎金等）',
+  module = '每月人員狀態'
 WHERE code = 'monthly.status.edit';
 
-UPDATE permissions SET description = '提交門市狀態 - 允許將編輯完成的每月狀態提交審核'
+UPDATE permissions SET 
+  description = '提交門市狀態 - 允許將編輯完成的每月狀態提交審核',
+  module = '每月人員狀態'
 WHERE code = 'monthly.status.submit';
 
-UPDATE permissions SET description = '確認/核簽門市狀態 - 督導/主管可審核並確認店長提交的每月狀態'
+UPDATE permissions SET 
+  description = '確認/核簽門市狀態 - 督導/主管可審核並確認店長提交的每月狀態',
+  module = '每月人員狀態'
 WHERE code = 'monthly.status.confirm';
 
-UPDATE permissions SET description = '匯出門市資料 - 允許將每月人員狀態匯出成 Excel 報表'
+UPDATE permissions SET 
+  description = '匯出門市資料 - 允許將每月人員狀態匯出成 Excel 報表',
+  module = '每月人員狀態'
 WHERE code = 'monthly.export.stores';
 
 -- ============================================
