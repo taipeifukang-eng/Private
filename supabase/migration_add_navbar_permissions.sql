@@ -69,6 +69,7 @@ WHERE r.code = 'store_manager_role'
     'task.view_own',
     'inventory.manage',
     'monthly.status.view_own',
+    'monthly.status.view_stats',
     'monthly.status.edit',
     'monthly.status.submit'
   )
@@ -101,8 +102,8 @@ WHERE p.code IN (
   'store.manager.assign', 'store.supervisor.assign', 'store.manage',
   'employee.manage', 'employee.movement.manage', 'employee.import',
   'activity.manage', 'inventory.manage',
-  'monthly.status.view_own', 'monthly.status.view_all', 'monthly.status.edit',
-  'monthly.status.submit', 'monthly.status.confirm', 'monthly.export.stores'
+  'monthly.status.view_own', 'monthly.status.view_all', 'monthly.status.view_stats',
+  'monthly.status.edit', 'monthly.status.submit', 'monthly.status.confirm', 'monthly.export.stores'
 )
 GROUP BY p.id, p.code, p.description, p.module
 ORDER BY p.code;
