@@ -375,30 +375,32 @@ export default function NewInspectionPage() {
         <div className="mb-4 sm:mb-6">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-3 sm:mb-4 active:text-gray-700 p-1 -ml-1"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-3 sm:mb-4 active:text-gray-700 p-1 -ml-1 touch-manipulation"
           >
-            <ArrowLeft size={22} className="sm:w-5 sm:h-5" />
+            <ArrowLeft size={22} className="sm:w-5 sm:h-5 flex-shrink-0" />
             <span className="text-base sm:text-base">返回</span>
           </button>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">新增巡店記錄</h1>
-          <p className="mt-2 text-sm text-gray-600">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words">
+            新增巡店記錄
+          </h1>
+          <p className="mt-2 text-sm sm:text-sm text-gray-600 leading-relaxed break-words">
             填寫門市巡店檢查項目，系統將自動計算分數與評級
           </p>
         </div>
 
         {/* 基本資訊 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">基本資訊</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">基本資訊</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Store className="inline w-4 h-4 mr-1" />
-                選擇門市 *
+                <Store className="inline w-4 h-4 mr-1 flex-shrink-0" />
+                <span className="break-words">選擇門市 *</span>
               </label>
               <select
                 value={selectedStoreId}
                 onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base appearance-none bg-white"
                 required
               >
                 <option value="">請選擇門市</option>
@@ -411,14 +413,14 @@ export default function NewInspectionPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="inline w-4 h-4 mr-1" />
-                巡店日期 *
+                <Calendar className="inline w-4 h-4 mr-1 flex-shrink-0" />
+                <span className="break-words">巡店日期 *</span>
               </label>
               <input
                 type="date"
                 value={inspectionDate}
                 onChange={(e) => setInspectionDate(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
                 required
               />
             </div>
@@ -467,15 +469,15 @@ export default function NewInspectionPage() {
               >
                 <button
                   onClick={() => toggleSection(sectionKey)}
-                  className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation"
                 >
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <CheckSquare className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                    <div className="text-left">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+                  <div className="flex items-start gap-2 sm:gap-3 flex-1 min-w-0">
+                    <CheckSquare className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div className="text-left flex-1 min-w-0">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words">
                         {section.section_name}
                       </h3>
-                      <p className="text-xs sm:text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-gray-600 break-words leading-relaxed">
                         {section.items.length} 項檢查 · 共 {sectionTotal} 分 · 實得{' '}
                         {sectionEarned} 分
                       </p>
@@ -502,20 +504,20 @@ export default function NewInspectionPage() {
                               ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
                           }`}
                         >
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1 pr-2">
-                              <h4 className="font-semibold text-gray-900 text-base sm:text-base">
+                          <div className="flex items-start justify-between mb-3 gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-semibold text-gray-900 text-base sm:text-base break-words">
                                 {item.item_name}
-                                <span className="ml-2 text-sm font-normal text-gray-600">
+                                <span className="ml-2 text-sm font-normal text-gray-600 whitespace-nowrap">
                                   （{item.max_score} 分）
                                 </span>
                               </h4>
-                              <p className="text-sm text-gray-600 mt-1">
+                              <p className="text-sm text-gray-600 mt-1 break-words leading-relaxed">
                                 {item.item_description}
                               </p>
                             </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="text-xs sm:text-sm text-gray-600">實得</p>
+                            <div className="text-right flex-shrink-0 ml-2">
+                              <p className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">實得</p>
                               <p
                                 className={`text-xl sm:text-2xl font-bold ${
                                   hasIssues ? 'text-red-600' : 'text-green-600'
@@ -530,7 +532,7 @@ export default function NewInspectionPage() {
                             {item.checklist_items.map((checkItem, idx) => (
                               <label
                                 key={idx}
-                                className="flex items-center gap-3 p-3 sm:p-2 rounded hover:bg-white active:bg-white cursor-pointer transition-colors"
+                                className="flex items-start gap-3 p-3 sm:p-2 rounded hover:bg-white active:bg-white cursor-pointer transition-colors"
                               >
                                 <input
                                   type="checkbox"
@@ -543,12 +545,12 @@ export default function NewInspectionPage() {
                                       item.max_score
                                     )
                                   }
-                                  className="w-5 h-5 sm:w-4 sm:h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 flex-shrink-0"
+                                  className="w-5 h-5 sm:w-4 sm:h-4 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 flex-shrink-0"
                                 />
-                                <span className="flex-1 text-sm sm:text-sm text-gray-700">
+                                <span className="flex-1 text-sm sm:text-sm text-gray-700 break-words leading-relaxed min-w-0">
                                   {checkItem.label}
                                 </span>
-                                <span className="text-sm font-medium text-red-600">
+                                <span className="text-sm font-medium text-red-600 whitespace-nowrap flex-shrink-0">
                                   -{checkItem.deduction} 分
                                 </span>
                               </label>
@@ -558,8 +560,8 @@ export default function NewInspectionPage() {
                           {hasIssues && (
                             <div className="mt-3 space-y-3">
                               <label className="block text-sm font-medium text-gray-700 mb-1">
-                                <AlertCircle className="inline w-4 h-4 mr-1" />
-                                改善建議
+                                <AlertCircle className="inline w-4 h-4 mr-1 flex-shrink-0" />
+                                <span className="break-words">改善建議</span>
                               </label>
                               <textarea
                                 value={score?.improvement_notes || ''}
@@ -567,8 +569,8 @@ export default function NewInspectionPage() {
                                   handleNotesChange(item.id, e.target.value)
                                 }
                                 placeholder="請填寫需改善的具體事項..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-                                rows={2}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm sm:text-base"
+                                rows={3}
                               />
                               
                               {/* 照片上傳區域 */}
