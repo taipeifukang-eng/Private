@@ -127,9 +127,6 @@ TO authenticated
 USING (
   inspector_id = auth.uid()
   AND status IN ('draft', 'in_progress')
-)
-WITH CHECK (
-  inspector_id = auth.uid()
 );
 
 -- 策略 2.4：督導可以刪除自己的草稿記錄
