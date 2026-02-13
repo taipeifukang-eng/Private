@@ -96,6 +96,10 @@ export default async function InspectionListPage() {
   const sixMonthsAgo = new Date();
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
   
+  console.log('🔍 開始查詢巡店記錄...');
+  console.log('📅 日期範圍:', sixMonthsAgo.toISOString(), '到現在');
+  console.log('👤 當前用戶:', user.id);
+  
   const { data: inspections, error } = await supabase
     .from('inspection_masters')
     .select(`
@@ -109,7 +113,7 @@ export default async function InspectionListPage() {
       grade,
       score_percentage,
       created_at,
-      store:stores!inner (
+      store:stores (
         id,
         store_name,
         store_code
@@ -121,6 +125,12 @@ export default async function InspectionListPage() {
     `)
     .gte('inspection_date', sixMonthsAgo.toISOString())
     .order('inspection_date', { ascending: false });
+
+  console.log('📊 查詢結果:', {
+    recordCount: inspections?.length || 0,
+    hasError: !!error,
+    error: error,
+  });
 
   if (error) {
     console.error('❌ 獲取巡店記錄失敗:', error);
