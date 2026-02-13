@@ -125,12 +125,12 @@ ON inspection_masters
 FOR UPDATE
 TO authenticated
 USING (
-  inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-  AND status IN (auth.uid()
+  inspector_id = auth.uid()
   AND status IN ('draft', 'in_progress')
 )
 WITH CHECK (
-  inspector_id = auth.uid(
+  inspector_id = auth.uid()
+);
 
 -- 策略 2.4：督導可以刪除自己的草稿記錄
 DROP POLICY IF EXISTS "督導可以刪除草稿巡店記錄" ON inspection_masters;
@@ -139,8 +139,8 @@ ON inspection_masters
 FOR DELETE
 TO authenticated
 USING (
-  inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-  AND status = 'dauth.uid(
+  inspector_id = auth.uid()
+  AND status = 'draft'
 );
 
 -- =====================================================
@@ -160,8 +160,7 @@ USING (
     WHERE im.id = inspection_results.inspection_id
     AND (
       -- 督導本人
-      im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-      -- 或店長（自己門市）auth.uid()
+      im.inspector_id = auth.uid()
       -- 或店長（自己門市）
       OR EXISTS (
         SELECT 1 FROM store_managers sm
@@ -172,7 +171,8 @@ USING (
       -- 或管理員/督導/區經理
       OR EXISTS (
         SELECT 1 FROM profiles 
-        WHERE  ('admin', 'supervisor', 'area_manager')
+        WHERE id = auth.uid() 
+        AND role IN ('admin', 'supervisor', 'area_manager')
       )
     )
   )
@@ -188,9 +188,7 @@ USING (
   EXISTS (
     SELECT 1 FROM inspection_masters im
     WHERE im.id = inspection_results.inspection_id
-    AND im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-    AND im.status IN ('draft', 'in_progress')
-  )auth.uid()
+    AND im.inspector_id = auth.uid()
     AND im.status IN ('draft', 'in_progress')
   )
 )
@@ -198,7 +196,10 @@ WITH CHECK (
   EXISTS (
     SELECT 1 FROM inspection_masters im
     WHERE im.id = inspection_results.inspection_id
-    AND im.inspector_id = auth.uid(
+    AND im.inspector_id = auth.uid()
+    AND im.status IN ('draft', 'in_progress')
+  )
+);
 );
 
 -- =====================================================
