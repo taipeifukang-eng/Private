@@ -139,7 +139,7 @@ export default async function InspectionDetailPage({
       is_improvement,
       notes,
       photo_urls,
-      template:inspection_templates (
+      template:inspection_templates!inspection_results_template_id_fkey (
         id,
         section,
         section_name,
@@ -152,9 +152,7 @@ export default async function InspectionDetailPage({
       )
     `
     )
-    .eq('inspection_id', params.id)
-    .order('template(section_order)', { ascending: true })
-    .order('template(item_order)', { ascending: true });
+    .eq('inspection_id', params.id);
 
   if (resultsError) {
     console.error('❌ 獲取檢查結果失敗:', resultsError);
