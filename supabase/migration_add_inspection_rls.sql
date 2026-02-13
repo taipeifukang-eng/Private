@@ -107,8 +107,7 @@ USING (
   OR EXISTS (
     SELECT 1 FROM store_managers sm
     WHERE sm.store_id = inspection_masters.store_id
-    AND sm.employee_id = auth.uid()
-    AND sm.is_active = true
+    AND sm.user_id = auth.uid()
   )
   -- 或管理員
   OR EXISTS (
@@ -162,8 +161,7 @@ USING (
       OR EXISTS (
         SELECT 1 FROM store_managers sm
         WHERE sm.store_id = im.store_id
-        AND sm.employee_id = auth.uid()
-        AND sm.is_active = true
+        AND sm.user_id = auth.uid()
       )
       -- 或管理員/督導/區經理
       OR EXISTS (
