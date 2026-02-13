@@ -113,8 +113,7 @@ DO UPDATE SET
   module = EXCLUDED.module,
   feature = EXCLUDED.feature,
   action = EXCLUDED.action,
-  is_active = EXCLUDED.is_active,
-  updated_at = NOW();
+  is_active = EXCLUDED.is_active;
 
 -- =====================================================
 -- 2. 分配權限給督導角色（Supervisor）
