@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { resetPassword } from '@/app/auth/actions';
 import { createClient } from '@/lib/supabase/client';
 import { Lock, CheckCircle, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [passwords, setPasswords] = useState({
@@ -419,5 +419,32 @@ export default function ResetPasswordPage() {
       )}
       </div>
     </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+          <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md">
+            <div className="flex items-center justify-center mb-6">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                <Lock className="w-8 h-8 text-blue-600" />
+              </div>
+            </div>
+            <h1 className="text-3xl font-bold text-center text-gray-900 mb-2">
+              設定新密碼
+            </h1>
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+              <p className="text-gray-600">載入中...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
