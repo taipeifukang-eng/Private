@@ -200,7 +200,6 @@ WITH CHECK (
     AND im.status IN ('draft', 'in_progress')
   )
 );
-);
 
 -- =====================================================
 -- 4. Supabase Storage 的 RLS 策略
