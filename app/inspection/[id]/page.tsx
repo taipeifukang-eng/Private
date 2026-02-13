@@ -101,7 +101,7 @@ export default async function InspectionDetailPage({
         store_code,
         address
       ),
-      inspector:profiles!inspection_masters_inspector_id_fkey (
+      inspector:profiles (
         id,
         full_name
       )
@@ -119,6 +119,9 @@ export default async function InspectionDetailPage({
   const store = Array.isArray(inspection.store) ? inspection.store[0] : inspection.store;
   const inspector = Array.isArray(inspection.inspector) ? inspection.inspector[0] : inspection.inspector;
 
+  // 確保 inspector 存在，否則使用預設值
+  const safeInspector = inspector || { id: inspection.inspector_id, full_name: '(資料載入中)' };
+
   // 3. 獲取檢查結果明細
   const { data: results, error: resultsError } = await supabase
     .from('inspection_results')
@@ -132,7 +135,7 @@ export default async function InspectionDetailPage({
       is_improvement,
       notes,
       photo_urls,
-      template:inspection_templates!inner (
+      template:inspection_templates (
         id,
         section,
         section_name,
@@ -264,7 +267,7 @@ export default async function InspectionDetailPage({
               <div>
                 <p className="text-sm text-gray-600">督導人員</p>
                 <p className="text-lg font-semibold text-gray-900 mt-0.5">
-                  {inspector.full_name}
+                  {safeInspector.full_name}
                 </p>
               </div>
             </div>
@@ -532,7 +535,7 @@ export default async function InspectionDetailPage({
           <PrintInspectionReport
             inspection={inspection}
             store={store}
-            inspector={inspector}
+            inspector={safeInspector}
             groupedResults={sortedSections}
             improvementItems={improvementItems}
           />
