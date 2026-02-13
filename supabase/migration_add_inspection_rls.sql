@@ -1,12 +1,49 @@
 -- =====================================================
 -- 督導巡店系統 - RLS（Row Level Security）策略
 -- =====================================================
--- 版本: v1.0
+-- 版本: v1.1
 -- 日期: 2026-02-13
 -- 說明: 設定督導巡店系統的資料安全存取策略
--- 依賴: 需先執行 migration_add_inspection_system.sql 和
---      migration_add_inspection_permissions.sql
+--      使用簡化的權限檢查邏輯，不依賴複雜的 RBAC user_roles
+-- 依賴: 需先執行 migration_add_inspection_system.sql
 -- =====================================================
+
+-- =====================================================
+-- 輔助函數：檢查用戶是否有指定權限（簡化版）
+-- =====================================================
+CREATE OR REPLACE FUNCTION has_inspection_permission(
+  p_user_id UUID,
+  p_permission_code TEXT
+) RETURNS BOOLEAN AS $$
+BEGIN
+  -- 方式 1：檢查 profiles.role（如果使用舊系統）
+  IF EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = p_user_id 
+    AND role IN ('admin', 'supervisor', 'area_manager')
+  ) THEN
+    RETURN TRUE;
+  END IF;
+  
+  -- 方式 2：檢查 user_roles（如果使用新 RBAC 系統）
+  IF EXISTS (
+    SELECT 1 FROM user_roles ur
+    JOIN role_permissions rp ON ur.role_id = rp.role_id
+    JOIN permissions p ON rp.permission_id = p.id
+    WHERE ur.user_id = p_user_id
+    AND ur.is_active = true
+    AND p.code = p_permission_code
+  ) THEN
+    RETURN TRUE;
+  END IF;
+  
+  RETURN FALSE;
+EXCEPTION
+  WHEN OTHERS THEN
+    -- 如果資料表不存在，返回 FALSE
+    RETURN FALSE;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
 -- =====================================================
 -- 1. inspection_templates（檢查範本表）的 RLS
@@ -21,58 +58,24 @@ FOR SELECT
 TO authenticated
 USING (is_active = true);
 
--- 策略 1.2：只有管理員可以管理範本
-DROP POLICY IF EXISTS "只有管理員可以新增檢查範本" ON inspection_templates;
-CREATE POLICY "只有管理員可以新增檢查範本"
+-- 策略 1.2：管理員可以管理範本（簡化版）
+DROP POLICY IF EXISTS "管理員可以管理檢查範本" ON inspection_templates;
+CREATE POLICY "管理員可以管理檢查範本"
 ON inspection_templates
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code IN ('inspection.template.manage', 'admin.full_access')
-  )
-);
-
-DROP POLICY IF EXISTS "只有管理員可以更新檢查範本" ON inspection_templates;
-CREATE POLICY "只有管理員可以更新檢查範本"
-ON inspection_templates
-FOR UPDATE
+FOR ALL
 TO authenticated
 USING (
   EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code IN ('inspection.template.manage', 'admin.full_access')
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() 
+    AND role = 'admin'
   )
 )
 WITH CHECK (
   EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code IN ('inspection.template.manage', 'admin.full_access')
-  )
-);
-
-DROP POLICY IF EXISTS "只有管理員可以刪除檢查範本" ON inspection_templates;
-CREATE POLICY "只有管理員可以刪除檢查範本"
-ON inspection_templates
-FOR DELETE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code IN ('inspection.template.manage', 'admin.full_access')
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() 
+    AND role = 'admin'
   )
 );
 
@@ -81,80 +84,41 @@ USING (
 -- =====================================================
 ALTER TABLE inspection_masters ENABLE ROW LEVEL SECURITY;
 
--- 策略 2.1：督導可以建立巡店記錄
+-- 策略 2.1：督導可以建立巡店記錄（自己）
 DROP POLICY IF EXISTS "督導可以建立巡店記錄" ON inspection_masters;
 CREATE POLICY "督導可以建立巡店記錄"
 ON inspection_masters
 FOR INSERT
 TO authenticated
 WITH CHECK (
-  -- 必須是督導本人
-  inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-  AND EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code = 'inspection.create'
-  )
+  inspector_id = auth.uid()
 );
 
--- 策略 2.2：督導可以查看自己建立的記錄
-DROP POLICY IF EXISTS "督導可以查看自己的巡店記錄" ON inspection_masters;
-CREATE POLICY "督導可以查看自己的巡店記錄"
+-- 策略 2.2：用戶可以查看相關的巡店記錄
+DROP POLICY IF EXISTS "用戶可以查看相關的巡店記錄" ON inspection_masters;
+CREATE POLICY "用戶可以查看相關的巡店記錄"
 ON inspection_masters
 FOR SELECT
 TO authenticated
 USING (
-  inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-  AND EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code = 'inspection.view_own'
-  )
-);
-
--- 策略 2.3：店長可以查看自己門市的記錄
-DROP POLICY IF EXISTS "店長可以查看自己門市的巡店記錄" ON inspection_masters;
-CREATE POLICY "店長可以查看自己門市的巡店記錄"
-ON inspection_masters
-FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
+  -- 督導本人
+  inspector_id = auth.uid()
+  -- 或店長（自己管理的門市）
+  OR EXISTS (
     SELECT 1 FROM store_managers sm
     WHERE sm.store_id = inspection_masters.store_id
-    AND sm.employee_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+    AND sm.employee_id = auth.uid()
     AND sm.is_active = true
   )
-  AND EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code = 'inspection.view_store'
+  -- 或管理員
+  OR EXISTS (
+    SELECT 1 FROM profiles 
+    WHERE id = auth.uid() 
+    AND role IN ('admin', 'supervisor', 'area_manager')
   )
 );
 
--- 策略 2.4：管理員可以查看所有記錄
-DROP POLICY IF EXISTS "管理員可以查看所有巡店記錄" ON inspection_masters;
-CREATE POLICY "管理員可以查看所有巡店記錄"
-ON inspection_masters
-FOR SELECT
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code IN ('inspection.view_all', 'admin.full_access')
-  )
-);
-
--- 策略 2.5：督導可以更新自己建立的進行中記錄
+-- 策略 2.3：督導可以更新自己建立的進行中記錄
 DROP POLICY IF EXISTS "督導可以更新自己的巡店記錄" ON inspection_masters;
 CREATE POLICY "督導可以更新自己的巡店記錄"
 ON inspection_masters
@@ -162,20 +126,13 @@ FOR UPDATE
 TO authenticated
 USING (
   inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+  AND status IN (auth.uid()
   AND status IN ('draft', 'in_progress')
 )
 WITH CHECK (
-  inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-  AND EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code = 'inspection.edit'
-  )
-);
+  inspector_id = auth.uid(
 
--- 策略 2.6：督導可以刪除自己的草稿記錄
+-- 策略 2.4：督導可以刪除自己的草稿記錄
 DROP POLICY IF EXISTS "督導可以刪除草稿巡店記錄" ON inspection_masters;
 CREATE POLICY "督導可以刪除草稿巡店記錄"
 ON inspection_masters
@@ -183,14 +140,7 @@ FOR DELETE
 TO authenticated
 USING (
   inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-  AND status = 'draft'
-  AND EXISTS (
-    SELECT 1 FROM user_roles ur
-    JOIN role_permissions rp ON ur.role_id = rp.role_id
-    JOIN permissions p ON rp.permission_id = p.id
-    WHERE ur.user_id = auth.uid()
-    AND p.code = 'inspection.delete'
-  )
+  AND status = 'dauth.uid(
 );
 
 -- =====================================================
@@ -211,51 +161,36 @@ USING (
     AND (
       -- 督導本人
       im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+      -- 或店長（自己門市）auth.uid()
       -- 或店長（自己門市）
       OR EXISTS (
         SELECT 1 FROM store_managers sm
         WHERE sm.store_id = im.store_id
-        AND sm.employee_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+        AND sm.employee_id = auth.uid()
         AND sm.is_active = true
       )
-      -- 或管理員
+      -- 或管理員/督導/區經理
       OR EXISTS (
-        SELECT 1 FROM user_roles ur
-        JOIN role_permissions rp ON ur.role_id = rp.role_id
-        JOIN permissions p ON rp.permission_id = p.id
-        WHERE ur.user_id = auth.uid()
-        AND p.code IN ('inspection.view_all', 'admin.full_access')
+        SELECT 1 FROM profiles 
+        WHERE  ('admin', 'supervisor', 'area_manager')
       )
     )
   )
 );
 
--- 策略 3.2：督導可以新增自己巡店記錄的結果明細
-DROP POLICY IF EXISTS "督導可以新增自己巡店記錄的結果明細" ON inspection_results;
-CREATE POLICY "督導可以新增自己巡店記錄的結果明細"
+-- 策略 3.2：督導可以管理自己巡店記錄的結果明細
+DROP POLICY IF EXISTS "督導可以管理自己巡店記錄的結果明細" ON inspection_results;
+CREATE POLICY "督導可以管理自己巡店記錄的結果明細"
 ON inspection_results
-FOR INSERT
-TO authenticated
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM inspection_masters im
-    WHERE im.id = inspection_results.inspection_id
-    AND im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-    AND im.status IN ('draft', 'in_progress')
-  )
-);
-
--- 策略 3.3：督導可以更新自己巡店記錄的結果明細
-DROP POLICY IF EXISTS "督導可以更新自己巡店記錄的結果明細" ON inspection_results;
-CREATE POLICY "督導可以更新自己巡店記錄的結果明細"
-ON inspection_results
-FOR UPDATE
+FOR ALL
 TO authenticated
 USING (
   EXISTS (
     SELECT 1 FROM inspection_masters im
     WHERE im.id = inspection_results.inspection_id
     AND im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
+    AND im.status IN ('draft', 'in_progress')
+  )auth.uid()
     AND im.status IN ('draft', 'in_progress')
   )
 )
@@ -263,24 +198,7 @@ WITH CHECK (
   EXISTS (
     SELECT 1 FROM inspection_masters im
     WHERE im.id = inspection_results.inspection_id
-    AND im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-    AND im.status IN ('draft', 'in_progress')
-  )
-);
-
--- 策略 3.4：督導可以刪除自己巡店記錄的結果明細
-DROP POLICY IF EXISTS "督導可以刪除自己巡店記錄的結果明細" ON inspection_results;
-CREATE POLICY "督導可以刪除自己巡店記錄的結果明細"
-ON inspection_results
-FOR DELETE
-TO authenticated
-USING (
-  EXISTS (
-    SELECT 1 FROM inspection_masters im
-    WHERE im.id = inspection_results.inspection_id
-    AND im.inspector_id = (SELECT id FROM profiles WHERE user_id = auth.uid())
-    AND im.status IN ('draft', 'in_progress')
-  )
+    AND im.inspector_id = auth.uid(
 );
 
 -- =====================================================
