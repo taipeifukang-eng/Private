@@ -14,10 +14,46 @@
 2. 輸入註冊的電子郵件
 3. 系統發送密碼重置郵件
 4. 使用者點擊郵件中的連結
-5. 系統通過 `/auth/callback` 處理認證
-6. 自動跳轉到重置密碼頁面
-7. 設定新密碼
-8. 自動跳轉回登入頁
+5. **系統自動檢測 URL 中的 code 參數並跳轉到認證處理**
+6. 通過 `/auth/callback` 處理認證並建立 session
+7. 自動跳轉到重置密碼頁面
+8. 設定新密碼
+9. 自動跳轉回登入頁
+
+## 🔄 工作原理
+
+### 認證流程說明
+
+```
+用戶點擊郵件連結
+  ↓
+跳轉到 /?code=xxx (Supabase 預設行為)
+  ↓
+AuthCodeHandler 檢測到 code 參數
+  ↓
+自動跳轉到 /auth/callback?code=xxx&next=/reset-password
+  ↓
+Callback 處理 exchangeCodeForSession
+  ↓
+建立用戶 session
+  ↓
+跳轉到 /reset-password
+  ↓
+用戶設定新密碼
+  ↓
+完成！跳轉到登入頁
+```
+
+### 為什麼會跳到首頁？
+
+Supabase 預設的郵件模板使用 `{{ .SiteURL }}` 作為基礎 URL，所以點擊連結會先跳到首頁 `/?code=xxx`。我們的系統會自動檢測這個 code 參數並跳轉到正確的處理路由。
+
+### 自動跳轉機制
+
+我們在 `app/layout.tsx` 中添加了 `AuthCodeHandler` 組件：
+- 檢測 URL 中是否有 `code` 參數
+- 如果有，自動跳轉到 `/auth/callback`
+- 這確保無論 Supabase 郵件如何配置，都能正確處理重置密碼流程
 
 ## ⚙️ Supabase 配置（重要！必須完成）
 
