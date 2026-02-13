@@ -102,10 +102,10 @@ export default async function InspectionListPage() {
       inspector_id,
       inspection_date,
       status,
-      initial_score,
-      final_score,
+      total_score,
+      max_possible_score,
       grade,
-      needs_improvement_count,
+      score_percentage,
       created_at,
       store:stores!inner (
         id,
@@ -303,7 +303,7 @@ export default async function InspectionListPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm">
                           <span className="font-bold text-lg text-gray-900">
-                            {inspection.final_score}
+                            {inspection.total_score}
                           </span>
                           <span className="text-gray-500"> / 220</span>
                         </div>
@@ -327,13 +327,7 @@ export default async function InspectionListPage() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        {inspection.needs_improvement_count > 0 ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                            {inspection.needs_improvement_count} 項
-                          </span>
-                        ) : (
-                          <span className="text-sm text-gray-400">無</span>
-                        )}
+                        <span className="text-sm text-gray-400">無數據</span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <Link

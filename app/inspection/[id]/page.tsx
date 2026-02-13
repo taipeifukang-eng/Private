@@ -82,12 +82,11 @@ export default async function InspectionDetailPage({
       inspector_id,
       inspection_date,
       status,
-      initial_score,
-      total_deduction,
-      final_score,
+      total_score,
+      max_possible_score,
       grade,
-      needs_improvement_count,
-      remarks,
+      score_percentage,
+      supervisor_notes,
       created_at,
       updated_at,
       store:stores!inner (
@@ -117,10 +116,11 @@ export default async function InspectionDetailPage({
       `
       id,
       template_id,
-      deduction,
-      earned_score,
-      needs_improvement,
-      improvement_notes,
+      max_score,
+      given_score,
+      deduction_amount,
+      is_improvement,
+      notes,
       template:inspection_templates!inner (
         id,
         section,
@@ -155,8 +155,8 @@ export default async function InspectionDetailPage({
       };
     }
     acc[section].items.push(result);
-    acc[section].total_max += result.template.max_score;
-    acc[section].total_earned += result.earned_score;
+    acc[section].total_max += result.max_score;
+    acc[section].total_earned += result.given_score;
     return acc;
   }, {} as Record<string, any>);
 
@@ -165,7 +165,7 @@ export default async function InspectionDetailPage({
   );
 
   // 需改善項目
-  const improvementItems = (results || []).filter((r: any) => r.needs_improvement);
+  const improvementItems = (results || []).filter((r: any) => r.is_improvement);
 
   // 檢查是否可編輯
   const canEdit =
@@ -275,17 +275,19 @@ export default async function InspectionDetailPage({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div>
               <p className="text-sm opacity-90">初始分數</p>
-              <p className="text-3xl font-bold mt-1">{inspection.initial_score}</p>
+              <p className="text-3xl font-bold mt-1">{inspection.max_possible_score}</p>
             </div>
             <div>
               <p className="text-sm opacity-90">總扣分</p>
-              <p className="text-3xl font-bold mt-1 text-red-200">
-                -{inspection.total_deduction}
-              </p>
+              <div className="mt-1">
+                <span className="text-2xl font-bold text-red-200">
+                  -{inspection.max_possible_score - inspection.total_score}
+                </span>
+              </div>
             </div>
             <div>
               <p className="text-sm opacity-90">最終得分</p>
-              <p className="text-3xl font-bold mt-1">{inspection.final_score}</p>
+              <p className="text-3xl font-bold mt-1">{inspection.total_score}</p>
             </div>
             <div>
               <p className="text-sm opacity-90">評級</p>
@@ -327,17 +329,17 @@ export default async function InspectionDetailPage({
                       <h3 className="font-semibold text-gray-900">
                         {item.template.item_name}
                         <span className="ml-2 text-sm font-normal text-red-600">
-                          扣 {item.deduction} 分
+                          扣 {item.deduction_amount} 分
                         </span>
                       </h3>
                       <p className="text-sm text-gray-600 mt-1">
                         {item.template.item_description}
                       </p>
-                      {item.improvement_notes && (
+                      {item.notes && (
                         <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                           <p className="text-sm text-gray-700">
                             <strong>改善建議：</strong>
-                            {item.improvement_notes}
+                            {item.notes}
                           </p>
                         </div>
                       )}
@@ -382,7 +384,7 @@ export default async function InspectionDetailPage({
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          {result.needs_improvement ? (
+                          {result.is_improvement ? (
                             <AlertCircle className="w-5 h-5 text-red-500" />
                           ) : (
                             <CheckCircle className="w-5 h-5 text-green-500" />
@@ -399,18 +401,18 @@ export default async function InspectionDetailPage({
                         <p className="text-sm text-gray-600">得分</p>
                         <p
                           className={`text-xl font-bold ${
-                            result.needs_improvement
+                            result.is_improvement
                               ? 'text-red-600'
                               : 'text-green-600'
                           }`}
                         >
-                          {result.earned_score}
+                          {result.given_score}
                           <span className="text-sm text-gray-500">
-                            /{result.template.max_score}
+                            /{result.max_score}
                           </span>
                         </p>
-                        {result.deduction > 0 && (
-                          <p className="text-xs text-red-600">扣 {result.deduction} 分</p>
+                        {result.deduction_amount > 0 && (
+                          <p className="text-xs text-red-600">扣 {result.deduction_amount} 分</p>
                         )}
                       </div>
                     </div>
@@ -422,10 +424,10 @@ export default async function InspectionDetailPage({
         </div>
 
         {/* 備註 */}
-        {inspection.remarks && (
+        {inspection.supervisor_notes && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">備註說明</h2>
-            <p className="text-gray-700 whitespace-pre-wrap">{inspection.remarks}</p>
+            <p className="text-gray-700 whitespace-pre-wrap">{inspection.supervisor_notes}</p>
           </div>
         )}
       </div>

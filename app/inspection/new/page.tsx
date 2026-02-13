@@ -212,9 +212,8 @@ export default function NewInspectionPage() {
           inspector_id: user.id,
           inspection_date: inspectionDate,
           status: isDraft ? 'draft' : 'completed',
-          initial_score: totals.initialScore,
-          total_deduction: totals.totalDeduction,
-          final_score: totals.finalScore,
+          max_possible_score: totals.initialScore,
+          total_score: totals.finalScore,
           grade: totals.grade,
         })
         .select()
@@ -223,14 +222,19 @@ export default function NewInspectionPage() {
       if (masterError) throw masterError;
 
       // 2. 建立明細記錄
-      const resultsToInsert = Array.from(itemScores.values()).map((score) => ({
-        inspection_id: masterData.id,
-        template_id: score.template_id,
-        deduction: score.deduction,
-        earned_score: score.earned_score,
-        needs_improvement: score.deduction > 0,
-        improvement_notes: score.improvement_notes || null,
-      }));
+      const resultsToInsert = Array.from(itemScores.values()).map((score) => {
+        const template = templates.find((t) => t.id === score.template_id);
+        return {
+          inspection_id: masterData.id,
+          template_id: score.template_id,
+          max_score: template?.max_score || 0,
+          given_score: score.earned_score,
+          deduction_amount: score.deduction,
+          is_improvement: score.deduction > 0,
+          notes: score.improvement_notes || null,
+          selected_items: JSON.stringify(score.checked_items),
+        };
+      });
 
       const { error: resultsError } = await supabase
         .from('inspection_results')
