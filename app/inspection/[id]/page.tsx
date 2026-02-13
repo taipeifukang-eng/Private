@@ -12,6 +12,9 @@ import {
   Edit,
   Printer,
   FileCheck,
+  Camera,
+  Image as ImageIcon,
+  PenTool,
 } from 'lucide-react';
 
 // 評級顏色配置
@@ -87,6 +90,7 @@ export default async function InspectionDetailPage({
       grade,
       score_percentage,
       supervisor_notes,
+      signature_photo_url,
       created_at,
       updated_at,
       store:stores!inner (
@@ -121,6 +125,7 @@ export default async function InspectionDetailPage({
       deduction_amount,
       is_improvement,
       notes,
+      photo_urls,
       template:inspection_templates!inner (
         id,
         section,
@@ -343,6 +348,36 @@ export default async function InspectionDetailPage({
                           </p>
                         </div>
                       )}
+                      
+                      {/* 問題照片 */}
+                      {item.photo_urls && item.photo_urls.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
+                            <Camera className="w-4 h-4" />
+                            問題照片 ({item.photo_urls.length})
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {item.photo_urls.map((photoUrl: string, idx: number) => (
+                              <a
+                                key={idx}
+                                href={photoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group relative block"
+                              >
+                                <img
+                                  src={photoUrl}
+                                  alt={`問題照片 ${idx + 1}`}
+                                  className="w-24 h-24 object-cover rounded-lg border-2 border-gray-300 hover:border-blue-500 transition-colors cursor-pointer"
+                                />
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-opacity flex items-center justify-center">
+                                  <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -422,6 +457,23 @@ export default async function InspectionDetailPage({
             </div>
           ))}
         </div>
+
+        {/* 督導簽名 */}
+        {inspection.signature_photo_url && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <PenTool className="w-5 h-5" />
+              督導簽名
+            </h2>
+            <div className="border border-gray-300 rounded-lg p-4 inline-block bg-gray-50">
+              <img
+                src={inspection.signature_photo_url}
+                alt="督導簽名"
+                className="max-h-32"
+              />
+            </div>
+          </div>
+        )}
 
         {/* 備註 */}
         {inspection.supervisor_notes && (

@@ -13,6 +13,10 @@ import {
   Calendar,
   CheckSquare,
   AlertCircle,
+  Camera,
+  Image as ImageIcon,
+  X,
+  PenTool,
 } from 'lucide-react';
 
 interface Store {
@@ -45,6 +49,7 @@ interface ItemScore {
   deduction: number;
   earned_score: number;
   improvement_notes: string;
+  photos: string[]; // 問題照片 base64 URLs
 }
 
 export default function NewInspectionPage() {
@@ -59,6 +64,7 @@ export default function NewInspectionPage() {
   );
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [itemScores, setItemScores] = useState<Map<string, ItemScore>>(new Map());
+  const [signaturePhoto, setSignaturePhoto] = useState<string>('');
 
   useEffect(() => {
     loadData();
@@ -97,6 +103,7 @@ export default function NewInspectionPage() {
           deduction: 0,
           earned_score: template.max_score,
           improvement_notes: '',
+          photos: [],
         });
       });
       setItemScores(initialScores);
@@ -161,6 +168,83 @@ export default function NewInspectionPage() {
     setItemScores(newScores);
   };
 
+  // 處理照片上傳（壓縮並轉 base64）
+  const handlePhotoUpload = async (templateId: string, file: File) => {
+    const currentScore = itemScores.get(templateId);
+    if (!currentScore || currentScore.photos.length >= 5) return;
+
+    try {
+      // 壓縮照片並轉 base64
+      const base64 = await compressImage(file, 800, 0.7);
+      
+      const newScores = new Map(itemScores);
+      newScores.set(templateId, {
+        ...currentScore,
+        photos: [...currentScore.photos, base64],
+      });
+      setItemScores(newScores);
+    } catch (error) {
+      console.error('照片上傳失敗:', error);
+      alert('照片上傳失敗，請重試');
+    }
+  };
+
+  // 刪除照片
+  const removePhoto = (templateId: string, photoIndex: number) => {
+    const currentScore = itemScores.get(templateId);
+    if (!currentScore) return;
+
+    const newScores = new Map(itemScores);
+    newScores.set(templateId, {
+      ...currentScore,
+      photos: currentScore.photos.filter((_, idx) => idx !== photoIndex),
+    });
+    setItemScores(newScores);
+  };
+
+  // 處理簽名上傳
+  const handleSignatureUpload = async (file: File) => {
+    try {
+      const base64 = await compressImage(file, 400, 0.8);
+      setSignaturePhoto(base64);
+    } catch (error) {
+      console.error('簽名上傳失敗:', error);
+      alert('簽名上傳失敗，請重試');
+    }
+  };
+
+  // 壓縮圖片並轉 base64
+  const compressImage = (file: File, maxWidth: number, quality: number): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          const base64 = canvas.toDataURL('image/jpeg', quality);
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   // 計算總分和評級
   const calculateTotals = () => {
     let totalDeduction = 0;
@@ -215,6 +299,7 @@ export default function NewInspectionPage() {
           max_possible_score: totals.initialScore,
           total_score: totals.finalScore,
           grade: totals.grade,
+          signature_photo_url: signaturePhoto || null,
         })
         .select()
         .single();
@@ -233,6 +318,7 @@ export default function NewInspectionPage() {
           is_improvement: score.deduction > 0,
           notes: score.improvement_notes || null,
           selected_items: JSON.stringify(score.checked_items),
+          photo_urls: score.photos.length > 0 ? score.photos : null,
         };
       });
 
@@ -470,7 +556,7 @@ export default function NewInspectionPage() {
                           </div>
 
                           {hasIssues && (
-                            <div className="mt-3">
+                            <div className="mt-3 space-y-3">
                               <label className="block text-sm font-medium text-gray-700 mb-1">
                                 <AlertCircle className="inline w-4 h-4 mr-1" />
                                 改善建議
@@ -484,6 +570,56 @@ export default function NewInspectionPage() {
                                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
                                 rows={2}
                               />
+                              
+                              {/* 照片上傳區域 */}
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  <Camera className="inline w-4 h-4 mr-1" />
+                                  問題照片（最多 5 張）
+                                </label>
+                                <div className="flex flex-wrap gap-2">
+                                  {/* 已上傳的照片縮圖 */}
+                                  {score?.photos?.map((photo, idx) => (
+                                    <div key={idx} className="relative group">
+                                      <img
+                                        src={photo}
+                                        alt={`照片 ${idx + 1}`}
+                                        className="w-20 h-20 object-cover rounded-lg border-2 border-gray-300"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removePhoto(item.id, idx)}
+                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                  
+                                  {/* 上傳按鈕 */}
+                                  {(!score?.photos || score.photos.length < 5) && (
+                                    <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-colors">
+                                      <Camera className="w-6 h-6 text-gray-400" />
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            handlePhotoUpload(item.id, file);
+                                            e.target.value = ''; // 重置 input
+                                          }
+                                        }}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                                {score?.photos && score.photos.length >= 5 && (
+                                  <p className="text-xs text-gray-500 mt-1">已達上傳上限</p>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
@@ -494,6 +630,53 @@ export default function NewInspectionPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* 督導簽名確認 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
+            <PenTool className="inline w-4 h-4 mr-1" />
+            督導簽名確認
+          </label>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden">
+            {signaturePhoto ? (
+              <div className="relative group">
+                <img
+                  src={signaturePhoto}
+                  alt="督導簽名"
+                  className="max-h-40 mx-auto"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSignaturePhoto('')}
+                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            ) : (
+              <label className="block p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
+                <PenTool className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                <p className="text-sm text-gray-600">點擊上傳簽名或拍照</p>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="user"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleSignatureUpload(file);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            ✓ 點擊可上傳簽名照片或使用相機拍攝
+          </p>
         </div>
 
         {/* 操作按鈕 */}
