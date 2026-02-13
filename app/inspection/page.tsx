@@ -4,6 +4,10 @@ import Link from 'next/link';
 import { Plus, Search, Filter, TrendingUp, Calendar, Store, User } from 'lucide-react';
 import InspectionCalendar from '@/components/InspectionCalendar';
 
+// 強制動態渲染，禁用快取
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // 評級顏色配置 (0-10 分數系統)
 const getGradeBadgeStyle = (grade: string) => {
   const score = parseInt(grade);
