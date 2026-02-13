@@ -369,27 +369,27 @@ export default function NewInspectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="min-h-screen bg-gray-50 pb-safe">
+      <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-8">
         {/* 頁面標題 */}
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-3 sm:mb-4 active:text-gray-700 p-1 -ml-1"
           >
-            <ArrowLeft size={20} />
-            返回
+            <ArrowLeft size={22} className="sm:w-5 sm:h-5" />
+            <span className="text-base sm:text-base">返回</span>
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">新增巡店記錄</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">新增巡店記錄</h1>
           <p className="mt-2 text-sm text-gray-600">
             填寫門市巡店檢查項目，系統將自動計算分數與評級
           </p>
         </div>
 
         {/* 基本資訊 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">基本資訊</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 <Store className="inline w-4 h-4 mr-1" />
@@ -425,30 +425,30 @@ export default function NewInspectionPage() {
           </div>
         </div>
 
-        {/* 分數總覽 */}
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 mb-6 text-white">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+        {/* 分數總覽 - 手機優化 */}
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6 text-white">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-center">
             <div>
-              <p className="text-sm opacity-90">初始分數</p>
-              <p className="text-3xl font-bold mt-1">{totals.initialScore}</p>
+              <p className="text-xs sm:text-sm opacity-90">初始分數</p>
+              <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.initialScore}</p>
             </div>
             <div>
-              <p className="text-sm opacity-90">總扣分</p>
-              <p className="text-3xl font-bold mt-1 text-red-200">-{totals.totalDeduction}</p>
+              <p className="text-xs sm:text-sm opacity-90">總扣分</p>
+              <p className="text-2xl sm:text-3xl font-bold mt-1 text-red-200">-{totals.totalDeduction}</p>
             </div>
             <div>
-              <p className="text-sm opacity-90">最終得分</p>
-              <p className="text-3xl font-bold mt-1">{totals.finalScore}</p>
+              <p className="text-xs sm:text-sm opacity-90">最終得分</p>
+              <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.finalScore}</p>
             </div>
             <div>
-              <p className="text-sm opacity-90">評級</p>
-              <p className="text-3xl font-bold mt-1">{totals.grade}</p>
+              <p className="text-xs sm:text-sm opacity-90">評級</p>
+              <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.grade}</p>
             </div>
           </div>
         </div>
 
         {/* 檢查項目 */}
-        <div className="space-y-4 mb-6">
+        <div className="space-y-3 sm:space-y-4 mb-6">
           {sortedSections.map(([sectionKey, section]) => {
             const isExpanded = expandedSections.has(sectionKey);
             const sectionTotal = section.items.reduce(
@@ -467,15 +467,15 @@ export default function NewInspectionPage() {
               >
                 <button
                   onClick={() => toggleSection(sectionKey)}
-                  className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <CheckSquare className="w-5 h-5 text-blue-600" />
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <CheckSquare className="w-5 h-5 text-blue-600 flex-shrink-0" />
                     <div className="text-left">
-                      <h3 className="text-lg font-semibold text-gray-900">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900">
                         {section.section_name}
                       </h3>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-gray-600">
                         {section.items.length} 項檢查 · 共 {sectionTotal} 分 · 實得{' '}
                         {sectionEarned} 分
                       </p>
@@ -489,7 +489,7 @@ export default function NewInspectionPage() {
                 </button>
 
                 {isExpanded && (
-                  <div className="px-6 py-4 border-t border-gray-200 space-y-6">
+                  <div className="px-4 sm:px-6 py-4 border-t border-gray-200 space-y-6">
                     {section.items.map((item) => {
                       const score = itemScores.get(item.id);
                       const hasIssues = score && score.checked_items.length > 0;
@@ -497,14 +497,14 @@ export default function NewInspectionPage() {
                       return (
                         <div
                           key={item.id}
-                          className={`p-4 rounded-lg border-2 ${
+                          className={`p-4 sm:p-4 rounded-lg border-2 ${
                             hasIssues
                               ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
                           }`}
                         >
                           <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-gray-900">
+                            <div className="flex-1 pr-2">
+                              <h4 className="font-semibold text-gray-900 text-base sm:text-base">
                                 {item.item_name}
                                 <span className="ml-2 text-sm font-normal text-gray-600">
                                   （{item.max_score} 分）
@@ -514,10 +514,10 @@ export default function NewInspectionPage() {
                                 {item.item_description}
                               </p>
                             </div>
-                            <div className="text-right ml-4">
-                              <p className="text-sm text-gray-600">實得分數</p>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-xs sm:text-sm text-gray-600">實得</p>
                               <p
-                                className={`text-2xl font-bold ${
+                                className={`text-xl sm:text-2xl font-bold ${
                                   hasIssues ? 'text-red-600' : 'text-green-600'
                                 }`}
                               >
@@ -530,7 +530,7 @@ export default function NewInspectionPage() {
                             {item.checklist_items.map((checkItem, idx) => (
                               <label
                                 key={idx}
-                                className="flex items-center gap-3 p-2 rounded hover:bg-white cursor-pointer"
+                                className="flex items-center gap-3 p-3 sm:p-2 rounded hover:bg-white active:bg-white cursor-pointer transition-colors"
                               >
                                 <input
                                   type="checkbox"
@@ -543,9 +543,9 @@ export default function NewInspectionPage() {
                                       item.max_score
                                     )
                                   }
-                                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                  className="w-5 h-5 sm:w-4 sm:h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 flex-shrink-0"
                                 />
-                                <span className="flex-1 text-sm text-gray-700">
+                                <span className="flex-1 text-sm sm:text-sm text-gray-700">
                                   {checkItem.label}
                                 </span>
                                 <span className="text-sm font-medium text-red-600">
@@ -577,29 +577,31 @@ export default function NewInspectionPage() {
                                   <Camera className="inline w-4 h-4 mr-1" />
                                   問題照片（最多 5 張）
                                 </label>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-3">
                                   {/* 已上傳的照片縮圖 */}
                                   {score?.photos?.map((photo, idx) => (
                                     <div key={idx} className="relative group">
                                       <img
                                         src={photo}
                                         alt={`照片 ${idx + 1}`}
-                                        className="w-20 h-20 object-cover rounded-lg border-2 border-gray-300"
+                                        className="w-24 h-24 sm:w-20 sm:h-20 object-cover rounded-lg border-2 border-gray-300 shadow-sm"
                                       />
                                       <button
                                         type="button"
                                         onClick={() => removePhoto(item.id, idx)}
-                                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        className="absolute -top-2 -right-2 w-7 h-7 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity active:scale-95"
+                                        aria-label="刪除照片"
                                       >
                                         <X className="w-4 h-4" />
                                       </button>
                                     </div>
                                   ))}
                                   
-                                  {/* 上傳按鈕 */}
+                                  {/* 上傳按鈕 - 手機優化 */}
                                   {(!score?.photos || score.photos.length < 5) && (
-                                    <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:bg-gray-50 hover:border-blue-400 transition-colors">
-                                      <Camera className="w-6 h-6 text-gray-400" />
+                                    <label className="w-24 h-24 sm:w-20 sm:h-20 border-2 border-dashed border-blue-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 hover:border-blue-500 active:bg-blue-100 transition-all shadow-sm">
+                                      <Camera className="w-8 h-8 text-blue-500 mb-1" />
+                                      <span className="text-xs text-blue-600 font-medium">拍照</span>
                                       <input
                                         type="file"
                                         accept="image/*"
@@ -617,7 +619,10 @@ export default function NewInspectionPage() {
                                   )}
                                 </div>
                                 {score?.photos && score.photos.length >= 5 && (
-                                  <p className="text-xs text-gray-500 mt-1">已達上傳上限</p>
+                                  <p className="text-xs text-amber-600 mt-2 font-medium">✓ 已達上傳上限（5張）</p>
+                                )}
+                                {(!score?.photos || score.photos.length === 0) && (
+                                  <p className="text-xs text-gray-500 mt-2">📱 點擊拍照按鈕直接開啟相機</p>
                                 )}
                               </div>
                             </div>
@@ -633,31 +638,33 @@ export default function NewInspectionPage() {
         </div>
 
         {/* 督導簽名確認 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
           <label className="block text-sm font-medium text-gray-700 mb-3">
             <PenTool className="inline w-4 h-4 mr-1" />
             督導簽名確認
           </label>
-          <div className="border-2 border-dashed border-gray-300 rounded-lg overflow-hidden">
+          <div className="border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
             {signaturePhoto ? (
-              <div className="relative group">
+              <div className="relative group bg-gray-50">
                 <img
                   src={signaturePhoto}
                   alt="督導簽名"
-                  className="max-h-40 mx-auto"
+                  className="max-h-40 mx-auto p-4"
                 />
                 <button
                   type="button"
                   onClick={() => setSignaturePhoto('')}
-                  className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-3 right-3 w-9 h-9 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity active:scale-95"
+                  aria-label="清除簽名"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             ) : (
-              <label className="block p-8 text-center cursor-pointer hover:bg-gray-50 transition-colors">
-                <PenTool className="w-12 h-12 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm text-gray-600">點擊上傳簽名或拍照</p>
+              <label className="block p-10 sm:p-8 text-center cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors">
+                <PenTool className="w-14 h-14 sm:w-12 sm:h-12 text-blue-500 mx-auto mb-3" />
+                <p className="text-base sm:text-sm text-blue-600 font-medium mb-1">點擊拍攝簽名</p>
+                <p className="text-xs text-gray-500">📱 使用前置相機拍攝</p>
                 <input
                   type="file"
                   accept="image/*"
@@ -675,27 +682,27 @@ export default function NewInspectionPage() {
             )}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            ✓ 點擊可上傳簽名照片或使用相機拍攝
+            ✓ 簽名確認後才能送出記錄
           </p>
         </div>
 
-        {/* 操作按鈕 */}
-        <div className="flex flex-col sm:flex-row gap-4 sticky bottom-4">
+        {/* 操作按鈕 - 手機優化 */}
+        <div className="flex flex-col sm:flex-row gap-3 sticky bottom-0 bg-white pt-4 pb-safe">
           <button
             onClick={() => handleSubmit(true)}
             disabled={submitting || !selectedStoreId}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-4 sm:py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base sm:text-base shadow-sm"
           >
-            <Save size={20} />
+            <Save size={22} className="sm:w-5 sm:h-5" />
             儲存草稿
           </button>
           <button
             onClick={() => handleSubmit(false)}
-            disabled={submitting || !selectedStoreId}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+            disabled={submitting || !selectedStoreId || !signaturePhoto}
+            className="flex-1 flex items-center justify-center gap-2 px-6 py-4 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-base sm:text-base"
           >
-            <Send size={20} />
-            送出記錄
+            <Send size={22} className="sm:w-5 sm:h-5" />
+            {!signaturePhoto ? '請先簽名' : '送出記錄'}
           </button>
         </div>
       </div>
