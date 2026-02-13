@@ -514,8 +514,16 @@ export default function NewInspectionPage() {
 
       console.log('✅ 明細記錄建立成功');
 
-      alert(isDraft ? '草稿已儲存！' : '巡店記錄已送出！');
-      router.push(`/inspection/${masterData.id}`);
+      console.log('🎯 送出完成，記錄 ID:', masterData.id);
+      console.log('🎯 跳轉路徑:', `/inspection/${masterData.id}`);
+
+      alert(isDraft ? '草稿已儲存！' : '巡店記錄已送出！\n記錄 ID: ' + masterData.id);
+      
+      // 暫時跳轉到列表頁，避免 404 問題
+      router.push('/inspection');
+      
+      // 原本的跳轉（暫時註解）
+      // router.push(`/inspection/${masterData.id}`);
     } catch (error: any) {
       console.error('❌ 儲存失敗:', error);
       

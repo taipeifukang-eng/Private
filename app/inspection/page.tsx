@@ -114,7 +114,7 @@ export default async function InspectionListPage() {
         store_name,
         store_code
       ),
-      inspector:profiles!inspection_masters_inspector_id_fkey (
+      inspector:profiles (
         id,
         full_name
       )
@@ -130,7 +130,7 @@ export default async function InspectionListPage() {
   const normalizedInspections = (inspections || []).map((ins: any) => ({
     ...ins,
     store: Array.isArray(ins.store) ? ins.store[0] : ins.store,
-    inspector: Array.isArray(ins.inspector) ? ins.inspector[0] : ins.inspector,
+    inspector: Array.isArray(ins.inspector) ? ins.inspector[0] : ins.inspector || { id: ins.inspector_id, full_name: '(資料載入中)' },
   }));
 
   return (
