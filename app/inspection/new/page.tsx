@@ -452,6 +452,14 @@ export default function NewInspectionPage() {
 
       const totals = calculateTotals();
 
+      console.log('📊 準備送出巡店記錄:', {
+        selectedStoreId,
+        inspectionDate,
+        totals,
+        itemScoresCount: itemScores.size,
+        hasGPS: !!gpsLocation,
+      });
+
       // 1. 建立主記錄
       const { data: masterData, error: masterError } = await supabase
         .from('inspection_masters')
@@ -470,7 +478,12 @@ export default function NewInspectionPage() {
         .select()
         .single();
 
-      if (masterError) throw masterError;
+      if (masterError) {
+        console.error('❌ 主記錄建立失敗:', masterError);
+        throw masterError;
+      }
+
+      console.log('✅ 主記錄建立成功:', masterData.id);
 
       // 2. 建立明細記錄
       const resultsToInsert = Array.from(itemScores.values()).map((score) => {
@@ -488,17 +501,37 @@ export default function NewInspectionPage() {
         };
       });
 
+      console.log('📝 準備插入明細記錄:', resultsToInsert.length, '筆');
+
       const { error: resultsError } = await supabase
         .from('inspection_results')
         .insert(resultsToInsert);
 
-      if (resultsError) throw resultsError;
+      if (resultsError) {
+        console.error('❌ 明細記錄建立失敗:', resultsError);
+        throw resultsError;
+      }
+
+      console.log('✅ 明細記錄建立成功');
 
       alert(isDraft ? '草稿已儲存！' : '巡店記錄已送出！');
       router.push(`/inspection/${masterData.id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 儲存失敗:', error);
-      alert('儲存失敗，請稍後再試');
+      
+      // 顯示更詳細的錯誤訊息
+      let errorMessage = '儲存失敗';
+      if (error?.message) {
+        errorMessage += `：${error.message}`;
+      }
+      if (error?.details) {
+        errorMessage += `\n詳情：${error.details}`;
+      }
+      if (error?.hint) {
+        errorMessage += `\n提示：${error.hint}`;
+      }
+      
+      alert(errorMessage);
     } finally {
       setSubmitting(false);
     }
