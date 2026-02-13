@@ -34,53 +34,31 @@ function ResetPasswordForm() {
       try {
         const supabase = createClient();
         
-        // 檢查是否有 token 或 code 參數
-        const token = searchParams.get('token');
-        const code = searchParams.get('code');
-        const type = searchParams.get('type');
-
-        console.log('Token verification:', { token, code, type });
-
-        // 如果有 code，交換為 session
-        if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (error) {
-            console.error('Exchange code error:', error);
-            setStatus({
-              type: 'error',
-              message: '重置連結無效或已過期，請重新申請',
-            });
-            setIsValidToken(false);
-          } else {
-            setIsValidToken(true);
-          }
-        } 
-        // 如果是 recovery type，檢查 session
-        else if (type === 'recovery') {
-          const { data: { session }, error } = await supabase.auth.getSession();
-          if (error || !session) {
-            console.error('Session error:', error);
-            setStatus({
-              type: 'error',
-              message: '重置連結無效或已過期，請重新申請',
-            });
-            setIsValidToken(false);
-          } else {
-            setIsValidToken(true);
-          }
+        // 檢查是否有錯誤參數（從 callback 傳來）
+        const error = searchParams.get('error');
+        if (error) {
+          setStatus({
+            type: 'error',
+            message: decodeURIComponent(error),
+          });
+          setIsValidToken(false);
+          setIsVerifying(false);
+          return;
         }
-        // 沒有參數，檢查是否已登入
-        else {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session) {
-            setIsValidToken(true);
-          } else {
-            setStatus({
-              type: 'error',
-              message: '請先從郵件中點擊重置連結',
-            });
-            setIsValidToken(false);
-          }
+
+        // 檢查是否有有效的 session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session) {
+          console.error('Session error:', sessionError);
+          setStatus({
+            type: 'error',
+            message: '請先從郵件中點擊重置連結',
+          });
+          setIsValidToken(false);
+        } else {
+          console.log('Valid session found:', session.user.email);
+          setIsValidToken(true);
         }
       } catch (error) {
         console.error('Token verification error:', error);

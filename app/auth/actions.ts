@@ -220,7 +220,7 @@ export async function requestPasswordReset(email: string) {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
     
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${siteUrl}/reset-password`,
+      redirectTo: `${siteUrl}/auth/callback?next=/reset-password`,
     });
 
     if (error) {

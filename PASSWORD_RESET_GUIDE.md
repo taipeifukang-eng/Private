@@ -4,8 +4,9 @@
 
 已完成密碼重置功能的開發，包含：
 1. 忘記密碼頁面 (`/forgot-password`)
-2. 重置密碼頁面 (`/reset-password`)
-3. 登入頁面添加忘記密碼連結
+2. 認證回調路由 (`/auth/callback`)
+3. 重置密碼頁面 (`/reset-password`)
+4. 登入頁面添加忘記密碼連結
 
 ## 使用流程
 
@@ -13,8 +14,66 @@
 2. 輸入註冊的電子郵件
 3. 系統發送密碼重置郵件
 4. 使用者點擊郵件中的連結
-5. 設定新密碼
-6. 自動跳轉回登入頁
+5. 系統通過 `/auth/callback` 處理認證
+6. 自動跳轉到重置密碼頁面
+7. 設定新密碼
+8. 自動跳轉回登入頁
+
+## ⚙️ Supabase 配置（重要！必須完成）
+
+### 步驟 1：設定 Redirect URLs 白名單
+
+**這是最關鍵的步驟！** 否則點擊郵件連結會跳轉回登入頁。
+
+1. **登入 Supabase Dashboard**
+   - 訪問：https://supabase.com/dashboard
+   - 選擇您的專案
+
+2. **進入 Authentication 設定**
+   - 左側選單：**Authentication** → **URL Configuration**
+
+3. **添加 Redirect URLs**
+   在 **Redirect URLs** 欄位中添加以下 URL（每行一個）：
+   
+   **生產環境：**
+   ```
+   https://private-knos.vercel.app/auth/callback
+   ```
+   
+   **本地開發環境：**
+   ```
+   http://localhost:3000/auth/callback
+   ```
+   
+   **完整範例：**
+   ```
+   https://private-knos.vercel.app/auth/callback
+   http://localhost:3000/auth/callback
+   ```
+
+4. **點擊 Save** 儲存設定
+
+### 步驟 2：設定 Site URL
+
+在同一個頁面（URL Configuration）：
+
+1. **Site URL** 設定為：
+   ```
+   https://private-knos.vercel.app
+   ```
+   
+2. 本地開發時可以設為：
+   ```
+   http://localhost:3000
+   ```
+
+### 步驟 3：驗證環境變數
+
+確保 `.env.local` 和 Vercel 環境變數中有：
+
+```env
+NEXT_PUBLIC_SITE_URL=https://private-knos.vercel.app
+```
 
 ## 🔧 Supabase Email 配置（必須）
 
