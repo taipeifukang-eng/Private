@@ -93,6 +93,14 @@ export default function LoginPage() {
                 disabled={isLoading}
               />
             </div>
+            <div className="mt-2 text-right">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+              >
+                忘記密碼？
+              </Link>
+            </div>
           </div>
 
           <button

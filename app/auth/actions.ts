@@ -208,3 +208,60 @@ export async function deleteUser(userId: string) {
     return { success: false, error: error.message || '刪除失敗' };
   }
 }
+
+/**
+ * Request password reset - sends a password reset email
+ */
+export async function requestPasswordReset(email: string) {
+  try {
+    const supabase = createClient();
+
+    // Get the site URL for redirect
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${siteUrl}/reset-password`,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { 
+      success: true, 
+      message: '密碼重置郵件已發送，請檢查您的信箱' 
+    };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || '發送重置郵件失敗' 
+    };
+  }
+}
+
+/**
+ * Reset password with new password
+ */
+export async function resetPassword(newPassword: string) {
+  try {
+    const supabase = createClient();
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { 
+      success: true, 
+      message: '密碼已成功重置' 
+    };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || '重置密碼失敗' 
+    };
+  }
+}
