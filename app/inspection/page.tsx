@@ -112,7 +112,7 @@ export default async function InspectionListPage() {
         store_name,
         store_code
       ),
-      inspector:profiles!inner (
+      inspector:profiles!inspection_masters_inspector_id_fkey (
         id,
         full_name
       )
