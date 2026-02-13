@@ -518,8 +518,11 @@ export default function NewInspectionPage() {
 
       alert(isDraft ? '草稿已儲存！' : '巡店記錄已送出！');
       
-      // 跳轉到詳情頁
-      router.push(`/inspection/${masterData.id}`);
+      // 先跳轉到列表頁，避免詳情頁查詢時機問題
+      router.push('/inspection');
+      
+      // 如果要跳轉到詳情頁，可以改用：
+      // router.push(`/inspection/${masterData.id}`);
     } catch (error: any) {
       console.error('❌ 儲存失敗:', error);
       
