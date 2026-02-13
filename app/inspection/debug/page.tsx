@@ -92,7 +92,7 @@ export default function InspectionListDebugPage() {
             store_name,
             store_code
           ),
-          inspector:profiles (
+          inspector:profiles!inspection_masters_inspector_id_fkey (
             id,
             full_name
           )

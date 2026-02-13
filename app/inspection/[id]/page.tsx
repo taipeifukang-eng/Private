@@ -105,7 +105,7 @@ export default async function InspectionDetailPage({
         store_code,
         address
       ),
-      inspector:profiles (
+      inspector:profiles!inspection_masters_inspector_id_fkey (
         id,
         full_name
       )
