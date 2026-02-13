@@ -27,6 +27,11 @@ interface NavbarPermissions {
   // 每月人員狀態
   canViewMonthlyStatus: boolean;
   canExportMonthlyStatus: boolean;
+  
+  // 督導巡店
+  canViewInspections: boolean;
+  canCreateInspection: boolean;
+  canManageInspectionTemplates: boolean;
 }
 
 /**
@@ -62,6 +67,9 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canManageInventory: false,
     canViewMonthlyStatus: false,
     canExportMonthlyStatus: false,
+    canViewInspections: false,
+    canCreateInspection: false,
+    canManageInspectionTemplates: false,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -134,6 +142,14 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('monthly.status.view_own') || 
             permissionSet.has('monthly.status.view_all'),
           canExportMonthlyStatus: permissionSet.has('monthly.status.export'),
+          
+          // 督導巡店
+          canViewInspections:
+            permissionSet.has('inspection.view_own') ||
+            permissionSet.has('inspection.view_store') ||
+            permissionSet.has('inspection.view_all'),
+          canCreateInspection: permissionSet.has('inspection.create'),
+          canManageInspectionTemplates: permissionSet.has('inspection.template.manage'),
         });
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);
@@ -178,4 +194,13 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
  */
 export function hasAnyMonthlyStatusPermission(permissions: NavbarPermissions): boolean {
   return permissions.canViewMonthlyStatus || permissions.canExportMonthlyStatus;
+}
+
+/**
+ * 檢查用戶是否有任何督導巡店權限
+ */
+export function hasAnyInspectionPermission(permissions: NavbarPermissions): boolean {
+  return permissions.canViewInspections ||
+         permissions.canCreateInspection ||
+         permissions.canManageInspectionTemplates;
 }

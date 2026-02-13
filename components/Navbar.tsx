@@ -23,10 +23,13 @@ import {
   Upload,
   UserCog,
   TrendingUp,
-  Package
+  Package,
+  CheckSquare,
+  Plus,
+  FileCheck
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
-import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission } from '@/hooks/useNavbarPermissions';
+import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission } from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
   user: {
@@ -47,9 +50,11 @@ export default function Navbar({ user }: NavbarProps) {
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isMonthlyStatusMenuOpen, setIsMonthlyStatusMenuOpen] = useState(false);
+  const [isInspectionMenuOpen, setIsInspectionMenuOpen] = useState(false);
   const taskMenuRef = useRef<HTMLDivElement>(null);
   const storeMenuRef = useRef<HTMLDivElement>(null);
   const monthlyStatusMenuRef = useRef<HTMLDivElement>(null);
+  const inspectionMenuRef = useRef<HTMLDivElement>(null);
 
   // 🔐 使用 RBAC 權限系統
   const permissions = useNavbarPermissions(user?.id || '');
@@ -65,6 +70,9 @@ export default function Navbar({ user }: NavbarProps) {
       }
       if (monthlyStatusMenuRef.current && !monthlyStatusMenuRef.current.contains(event.target as Node)) {
         setIsMonthlyStatusMenuOpen(false);
+      }
+      if (inspectionMenuRef.current && !inspectionMenuRef.current.contains(event.target as Node)) {
+        setIsInspectionMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -126,6 +134,13 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/export-monthly-status', label: '資料匯出', icon: Send, show: permissions.canExportMonthlyStatus },
   ].filter(item => item.show);
 
+  // 督導巡店相關的子選單項目（使用 RBAC 權限）
+  const inspectionSubItems = [
+    { href: '/inspection', label: '巡店列表', icon: ClipboardList, show: permissions.canViewInspections },
+    { href: '/inspection/new', label: '新增巡店', icon: Plus, show: permissions.canCreateInspection },
+    { href: '/admin/inspection-templates', label: '模板管理', icon: FileCheck, show: permissions.canManageInspectionTemplates },
+  ].filter(item => item.show);
+
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
     path => pathname.startsWith(path) || pathname === path
@@ -138,6 +153,11 @@ export default function Navbar({ user }: NavbarProps) {
 
   // 判斷是否在每月人員狀態相關頁面
   const isInMonthlyStatusSection = ['/monthly-status', '/admin/export-monthly-status'].some(
+    path => pathname.startsWith(path) || pathname === path
+  );
+
+  // 判斷是否在督導巡店相關頁面
+  const isInInspectionSection = ['/inspection', '/admin/inspection-templates'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
@@ -293,6 +313,49 @@ export default function Navbar({ user }: NavbarProps) {
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsMonthlyStatusMenuOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
+                          >
+                            <Icon size={18} />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 督導巡店下拉選單 */}
+              {hasAnyInspectionPermission(permissions) && (
+                <div className="relative" ref={inspectionMenuRef}>
+                  <button
+                    onClick={() => setIsInspectionMenuOpen(!isInspectionMenuOpen)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isInInspectionSection
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <CheckSquare size={18} />
+                    督導巡店
+                    <ChevronDown size={16} className={`transition-transform ${isInspectionMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {/* 下拉選單內容 */}
+                  {isInspectionMenuOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                      {inspectionSubItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsInspectionMenuOpen(false)}
                             className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-blue-50 text-blue-700'
@@ -473,6 +536,37 @@ export default function Navbar({ user }: NavbarProps) {
                 </div>
                 <div className="ml-4 space-y-1">
                   {monthlyStatusSubItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+                          isActive
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                        <Icon size={20} />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* 督導巡店區塊 */}
+            {hasAnyInspectionPermission(permissions) && (
+              <div className="mt-2">
+                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                  <CheckSquare size={14} />
+                  督導巡店
+                </div>
+                <div className="ml-4 space-y-1">
+                  {inspectionSubItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
