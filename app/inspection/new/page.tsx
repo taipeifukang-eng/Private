@@ -483,7 +483,7 @@ export default function NewInspectionPage() {
           deduction_amount: score.deduction,
           is_improvement: score.deduction > 0,
           notes: score.improvement_notes || null,
-          selected_items: JSON.stringify(score.checked_items),
+          selected_items: score.checked_items, // JSONB 欄位，直接傳入陣列（Supabase 會自動序列化）
           photo_urls: score.photos.length > 0 ? score.photos : null,
         };
       });
