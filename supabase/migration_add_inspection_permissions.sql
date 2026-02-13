@@ -116,15 +116,43 @@ DO UPDATE SET
   is_active = EXCLUDED.is_active;
 
 -- =====================================================
--- 2. 分配權限給督導角色（Supervisor）
+-- 1.5. 診斷：查看系統中存在的角色
+-- =====================================================
+SELECT 
+  id, 
+  code, 
+  name, 
+  description
+FROM roles
+ORDER BY code;
+
+-- =====================================================
+-- 2. 創建 supervisor_role（如果不存在）
+-- =====================================================
+INSERT INTO roles (code, name, description, is_active)
+VALUES (
+  'supervisor_role',
+  '督導',
+  '督導人員，負責巡店檢查與門市輔導',
+  true
+)
+ON CONFLICT (code) DO NOTHING;
+
+-- =====================================================
+-- 3. 分配權限給督導角色（Supervisor）
+-- =====================================================
+-- =====================================================
+-- 3. 分配權限給督導角色（Supervisor）
 -- =====================================================
 -- 督導擁有完整的巡店權限（除了管理範本）
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 
-  (SELECT id FROM roles WHERE code = 'supervisor_role'),
-  id
-FROM permissions
-WHERE code IN (
+  r.id,
+  p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'supervisor_role'
+AND p.code IN (
   'inspection.create',        -- 可新增巡店記錄
   'inspection.view_own',      -- 可查看自己的記錄
   'inspection.view_all',      -- 可查看所有門市的記錄
@@ -138,34 +166,38 @@ WHERE code IN (
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- =====================================================
--- 3. 分配權限給店長角色（Store Manager）
+-- 4. 分配權限給店長角色（Store Manager）
 -- =====================================================
 -- 店長只能查看自己門市的記錄和匯出報表
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 
-  (SELECT id FROM roles WHERE code = 'store_manager_role'),
-  id
-FROM permissions
-WHERE code IN (
+  r.id,
+  p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'store_manager_role'
+AND p.code IN (
   'inspection.view_store',    -- 只能查看自己門市的記錄
   'inspection.export'         -- 可匯出報表
 )
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- =====================================================
--- 4. 分配權限給管理員角色（Admin）
+-- 5. 分配權限給管理員角色（Admin）
 -- =====================================================
 -- 管理員擁有所有督導巡店權限
 INSERT INTO role_permissions (role_id, permission_id)
 SELECT 
-  (SELECT id FROM roles WHERE code = 'admin_role'),
-  id
-FROM permissions
-WHERE code LIKE 'inspection.%'
+  r.id,
+  p.id
+FROM roles r
+CROSS JOIN permissions p
+WHERE r.code = 'admin_role'
+AND p.code LIKE 'inspection.%'
 ON CONFLICT (role_id, permission_id) DO NOTHING;
 
 -- =====================================================
--- 5. 驗證權限設定
+-- 6. 驗證權限設定
 -- =====================================================
 -- 查詢督導巡店的權限列表
 SELECT 
