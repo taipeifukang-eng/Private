@@ -803,6 +803,7 @@ export default function NewInspectionPage() {
                                         parseInt(e.target.value) || 1,
                                         item.max_score
                                       )}
+                                      onFocus={(e) => e.target.select()} // 獲得焦點時自動選中文字，方便修改
                                       onClick={(e) => e.stopPropagation()} // 防止觸發 label 的點擊
                                       className="w-14 px-2 py-0.5 text-xs sm:text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
                                     />
