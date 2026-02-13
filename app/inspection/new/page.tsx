@@ -28,6 +28,8 @@ interface Store {
 interface ChecklistItem {
   label: string;
   deduction: number;
+  requires_quantity?: boolean; // 是否需要輸入數量
+  unit?: string; // 數量單位（如「個商品」、「張」、「個品項」）
 }
 
 interface InspectionTemplate {
@@ -46,6 +48,7 @@ interface InspectionTemplate {
 interface ItemScore {
   template_id: string;
   checked_items: string[]; // 勾選的缺失項目標籤
+  quantities: Record<string, number>; // 每個項目的數量（只用於 quantity 類型）
   deduction: number;
   earned_score: number;
   improvement_notes: string;
@@ -100,6 +103,7 @@ export default function NewInspectionPage() {
         initialScores.set(template.id, {
           template_id: template.id,
           checked_items: [],
+          quantities: {}, // 初始化空物件（用於 quantity 類型）
           deduction: 0,
           earned_score: template.max_score,
           improvement_notes: '',
@@ -131,15 +135,32 @@ export default function NewInspectionPage() {
     const currentScore = itemScores.get(templateId);
     if (!currentScore) return;
 
-    const newCheckedItems = currentScore.checked_items.includes(itemLabel)
+    const template = templates.find((t) => t.id === templateId);
+    const checkItem = template?.checklist_items.find((ci) => ci.label === itemLabel);
+
+    // 切換勾選狀態
+    const isCurrentlyChecked = currentScore.checked_items.includes(itemLabel);
+    const newCheckedItems = isCurrentlyChecked
       ? currentScore.checked_items.filter((label) => label !== itemLabel)
       : [...currentScore.checked_items, itemLabel];
 
-    // 計算新的扣分
-    const template = templates.find((t) => t.id === templateId);
+    // 更新 quantities（如果需要計數）
+    const newQuantities = { ...currentScore.quantities };
+    if (!isCurrentlyChecked && checkItem?.requires_quantity) {
+      // 勾選時，初始化數量為 1
+      newQuantities[itemLabel] = 1;
+    } else if (isCurrentlyChecked) {
+      // 取消勾選時，移除數量
+      delete newQuantities[itemLabel];
+    }
+
+    // 計算新的扣分（考慮數量）
     const newDeduction = newCheckedItems.reduce((sum, label) => {
       const item = template?.checklist_items.find((ci) => ci.label === label);
-      return sum + (item?.deduction || 0);
+      if (!item) return sum;
+      
+      const quantity = newQuantities[label] || 1; // 預設數量為 1
+      return sum + (item.deduction * quantity);
     }, 0);
 
     // 計算實得分數（不能低於0）
@@ -149,6 +170,39 @@ export default function NewInspectionPage() {
     newScores.set(templateId, {
       ...currentScore,
       checked_items: newCheckedItems,
+      quantities: newQuantities,
+      deduction: newDeduction,
+      earned_score: newEarnedScore,
+    });
+    setItemScores(newScores);
+  };
+
+  // 處理數量變更
+  const handleQuantityChange = (templateId: string, itemLabel: string, quantity: number, maxScore: number) => {
+    const currentScore = itemScores.get(templateId);
+    if (!currentScore) return;
+
+    const template = templates.find((t) => t.id === templateId);
+    
+    // 更新數量
+    const newQuantities = { ...currentScore.quantities, [itemLabel]: Math.max(1, quantity) };
+
+    // 重新計算扣分
+    const newDeduction = currentScore.checked_items.reduce((sum, label) => {
+      const item = template?.checklist_items.find((ci) => ci.label === label);
+      if (!item) return sum;
+      
+      const qty = newQuantities[label] || 1;
+      return sum + (item.deduction * qty);
+    }, 0);
+
+    // 計算實得分數（不能低於0）
+    const newEarnedScore = Math.max(0, maxScore - newDeduction);
+
+    const newScores = new Map(itemScores);
+    newScores.set(templateId, {
+      ...currentScore,
+      quantities: newQuantities,
       deduction: newDeduction,
       earned_score: newEarnedScore,
     });
@@ -550,8 +604,29 @@ export default function NewInspectionPage() {
                                 <span className="flex-1 text-xs sm:text-sm text-gray-700 break-words leading-relaxed min-w-0">
                                   {checkItem.label}
                                 </span>
-                                <span className="text-sm font-medium text-red-600 whitespace-nowrap flex-shrink-0">
-                                  -{checkItem.deduction} 分
+                                
+                                {/* 數量輸入框（只在勾選且需要計數時顯示）*/}
+                                {checkItem.requires_quantity && score?.checked_items.includes(checkItem.label) && (
+                                  <div className="flex items-center gap-1 flex-shrink-0">
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={score?.quantities[checkItem.label] || 1}
+                                      onChange={(e) => handleQuantityChange(
+                                        item.id,
+                                        checkItem.label,
+                                        parseInt(e.target.value) || 1,
+                                        item.max_score
+                                      )}
+                                      onClick={(e) => e.stopPropagation()} // 防止觸發 label 的點擊
+                                      className="w-14 px-2 py-0.5 text-xs sm:text-sm border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-center"
+                                    />
+                                    <span className="text-xs text-gray-600 whitespace-nowrap">{checkItem.unit}</span>
+                                  </div>
+                                )}
+                                
+                                <span className="text-xs sm:text-sm font-medium text-red-600 whitespace-nowrap flex-shrink-0">
+                                  -{checkItem.deduction}{checkItem.requires_quantity && score?.checked_items.includes(checkItem.label) ? ` × ${score?.quantities[checkItem.label] || 1}` : ''} 分
                                 </span>
                               </label>
                             ))}

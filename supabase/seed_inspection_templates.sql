@@ -152,7 +152,7 @@ INSERT INTO inspection_templates (
   '[
     {"label": "漏價卡", "deduction": 2},
     {"label": "價格與系統不符", "deduction": 5},
-    {"label": "擺放位置錯誤（1個商品-2，請計數）", "deduction": 2}
+    {"label": "擺放位置錯誤", "deduction": 2, "requires_quantity": true, "unit": "個商品"}
   ]'::jsonb,
   true
 );
@@ -507,7 +507,7 @@ INSERT INTO inspection_templates (
   4,
   10.0, 'checklist',
   '[
-    {"label": "未驗收單據（1張-5，請計數）", "deduction": 5}
+    {"label": "未驗收單據", "deduction": 5, "requires_quantity": true, "unit": "張"}
   ]'::jsonb,
   true
 );
@@ -523,7 +523,7 @@ INSERT INTO inspection_templates (
   5,
   10.0, 'checklist',
   '[
-    {"label": "存在三天以上無法說明原因的負庫存品項（1個-2，請計數）", "deduction": 2}
+    {"label": "存在3天以上無法說明原因的負庫存品項", "deduction": 2, "requires_quantity": true, "unit": "個品項"}
   ]'::jsonb,
   true
 );
