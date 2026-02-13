@@ -370,37 +370,37 @@ export default function NewInspectionPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-safe">
-      <div className="max-w-5xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-8">
+      <div className="max-w-5xl mx-auto px-2 sm:px-4 lg:px-8 py-3 sm:py-8">
         {/* 頁面標題 */}
-        <div className="mb-4 sm:mb-6">
+        <div className="mb-3 sm:mb-6">
           <button
             onClick={() => router.back()}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-3 sm:mb-4 active:text-gray-700 p-1 -ml-1 touch-manipulation"
+            className="flex items-center gap-1.5 text-gray-600 hover:text-gray-900 mb-2 sm:mb-4 active:text-gray-700 p-1 -ml-1 touch-manipulation"
           >
-            <ArrowLeft size={22} className="sm:w-5 sm:h-5 flex-shrink-0" />
-            <span className="text-base sm:text-base">返回</span>
+            <ArrowLeft className="w-5 h-5 sm:w-5 sm:h-5 flex-shrink-0" />
+            <span className="text-sm sm:text-base">返回</span>
           </button>
-          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words">
+          <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words leading-tight">
             新增巡店記錄
           </h1>
-          <p className="mt-2 text-sm sm:text-sm text-gray-600 leading-relaxed break-words">
+          <p className="mt-1.5 text-xs sm:text-sm text-gray-600 leading-relaxed break-words">
             填寫門市巡店檢查項目，系統將自動計算分數與評級
           </p>
         </div>
 
         {/* 基本資訊 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-6">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">基本資訊</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
+          <h2 className="text-sm sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">基本資訊</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Store className="inline w-4 h-4 mr-1 flex-shrink-0" />
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                <Store className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
                 <span className="break-words">選擇門市 *</span>
               </label>
               <select
                 value={selectedStoreId}
                 onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base appearance-none bg-white"
+                className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base appearance-none bg-white"
                 required
               >
                 <option value="">請選擇門市</option>
@@ -412,15 +412,15 @@ export default function NewInspectionPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Calendar className="inline w-4 h-4 mr-1 flex-shrink-0" />
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                <Calendar className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
                 <span className="break-words">巡店日期 *</span>
               </label>
               <input
                 type="date"
                 value={inspectionDate}
                 onChange={(e) => setInspectionDate(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm sm:text-base"
+                className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base"
                 required
               />
             </div>
@@ -428,29 +428,29 @@ export default function NewInspectionPage() {
         </div>
 
         {/* 分數總覽 - 手機優化 */}
-        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-4 sm:p-6 mb-4 sm:mb-6 text-white">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-center">
+        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-3 sm:p-6 mb-3 sm:mb-6 text-white">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 text-center">
             <div>
-              <p className="text-xs sm:text-sm opacity-90">初始分數</p>
-              <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.initialScore}</p>
+              <p className="text-[10px] sm:text-sm opacity-90 leading-tight">初始分數</p>
+              <p className="text-xl sm:text-3xl font-bold mt-0.5 sm:mt-1">{totals.initialScore}</p>
             </div>
             <div>
-              <p className="text-xs sm:text-sm opacity-90">總扣分</p>
-              <p className="text-2xl sm:text-3xl font-bold mt-1 text-red-200">-{totals.totalDeduction}</p>
+              <p className="text-[10px] sm:text-sm opacity-90 leading-tight">總扣分</p>
+              <p className="text-xl sm:text-3xl font-bold mt-0.5 sm:mt-1 text-red-200">-{totals.totalDeduction}</p>
             </div>
             <div>
-              <p className="text-xs sm:text-sm opacity-90">最終得分</p>
-              <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.finalScore}</p>
+              <p className="text-[10px] sm:text-sm opacity-90 leading-tight">最終得分</p>
+              <p className="text-xl sm:text-3xl font-bold mt-0.5 sm:mt-1">{totals.finalScore}</p>
             </div>
             <div>
-              <p className="text-xs sm:text-sm opacity-90">評級</p>
-              <p className="text-2xl sm:text-3xl font-bold mt-1">{totals.grade}</p>
+              <p className="text-[10px] sm:text-sm opacity-90 leading-tight">評級</p>
+              <p className="text-xl sm:text-3xl font-bold mt-0.5 sm:mt-1">{totals.grade}</p>
             </div>
           </div>
         </div>
 
         {/* 檢查項目 */}
-        <div className="space-y-3 sm:space-y-4 mb-6">
+        <div className="space-y-2 sm:space-y-4 mb-6">
           {sortedSections.map(([sectionKey, section]) => {
             const isExpanded = expandedSections.has(sectionKey);
             const sectionTotal = section.items.reduce(
@@ -491,7 +491,7 @@ export default function NewInspectionPage() {
                 </button>
 
                 {isExpanded && (
-                  <div className="px-4 sm:px-6 py-4 border-t border-gray-200 space-y-6">
+                  <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-gray-200 space-y-4 sm:space-y-6">
                     {section.items.map((item) => {
                       const score = itemScores.get(item.id);
                       const hasIssues = score && score.checked_items.length > 0;
@@ -499,27 +499,27 @@ export default function NewInspectionPage() {
                       return (
                         <div
                           key={item.id}
-                          className={`p-4 sm:p-4 rounded-lg border-2 ${
+                          className={`p-3 sm:p-4 rounded-lg border-2 ${
                             hasIssues
                               ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'
                           }`}
                         >
-                          <div className="flex items-start justify-between mb-3 gap-3">
+                          <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2 sm:gap-3">
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-gray-900 text-base sm:text-base break-words">
+                              <h4 className="font-semibold text-gray-900 text-sm sm:text-base break-words leading-tight">
                                 {item.item_name}
-                                <span className="ml-2 text-sm font-normal text-gray-600 whitespace-nowrap">
-                                  （{item.max_score} 分）
+                                <span className="ml-1 sm:ml-2 text-xs sm:text-sm font-normal text-gray-600 whitespace-nowrap">
+                                  （{item.max_score}分）
                                 </span>
                               </h4>
-                              <p className="text-sm text-gray-600 mt-1 break-words leading-relaxed">
+                              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 break-words leading-relaxed">
                                 {item.item_description}
                               </p>
                             </div>
-                            <div className="text-right flex-shrink-0 ml-2">
-                              <p className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">實得</p>
+                            <div className="text-right flex-shrink-0 ml-1 sm:ml-2">
+                              <p className="text-[10px] sm:text-sm text-gray-600 whitespace-nowrap">實得</p>
                               <p
-                                className={`text-xl sm:text-2xl font-bold ${
+                                className={`text-lg sm:text-2xl font-bold ${
                                   hasIssues ? 'text-red-600' : 'text-green-600'
                                 }`}
                               >
@@ -528,11 +528,11 @@ export default function NewInspectionPage() {
                             </div>
                           </div>
 
-                          <div className="space-y-2">
+                          <div className="space-y-1.5 sm:space-y-2">
                             {item.checklist_items.map((checkItem, idx) => (
                               <label
                                 key={idx}
-                                className="flex items-start gap-3 p-3 sm:p-2 rounded hover:bg-white active:bg-white cursor-pointer transition-colors"
+                                className="flex items-start gap-2 sm:gap-3 p-2 sm:p-2 rounded hover:bg-white active:bg-white cursor-pointer transition-colors"
                               >
                                 <input
                                   type="checkbox"
@@ -545,9 +545,9 @@ export default function NewInspectionPage() {
                                       item.max_score
                                     )
                                   }
-                                  className="w-5 h-5 sm:w-4 sm:h-4 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 flex-shrink-0"
+                                  className="w-4 h-4 sm:w-4 sm:h-4 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 flex-shrink-0"
                                 />
-                                <span className="flex-1 text-sm sm:text-sm text-gray-700 break-words leading-relaxed min-w-0">
+                                <span className="flex-1 text-xs sm:text-sm text-gray-700 break-words leading-relaxed min-w-0">
                                   {checkItem.label}
                                 </span>
                                 <span className="text-sm font-medium text-red-600 whitespace-nowrap flex-shrink-0">
@@ -558,9 +558,9 @@ export default function NewInspectionPage() {
                           </div>
 
                           {hasIssues && (
-                            <div className="mt-3 space-y-3">
-                              <label className="block text-sm font-medium text-gray-700 mb-1">
-                                <AlertCircle className="inline w-4 h-4 mr-1 flex-shrink-0" />
+                            <div className="mt-2 sm:mt-3 space-y-2 sm:space-y-3">
+                              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                                <AlertCircle className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
                                 <span className="break-words">改善建議</span>
                               </label>
                               <textarea
@@ -569,14 +569,14 @@ export default function NewInspectionPage() {
                                   handleNotesChange(item.id, e.target.value)
                                 }
                                 placeholder="請填寫需改善的具體事項..."
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm sm:text-base"
+                                className="w-full px-2.5 sm:px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-xs sm:text-base"
                                 rows={3}
                               />
                               
                               {/* 照片上傳區域 */}
                               <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                  <Camera className="inline w-4 h-4 mr-1" />
+                                <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                                  <Camera className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
                                   問題照片（最多 5 張）
                                 </label>
                                 <div className="flex flex-wrap gap-3">
@@ -640,9 +640,9 @@ export default function NewInspectionPage() {
         </div>
 
         {/* 督導簽名確認 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
-          <label className="block text-sm font-medium text-gray-700 mb-3">
-            <PenTool className="inline w-4 h-4 mr-1" />
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-6">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+            <PenTool className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
             督導簽名確認
           </label>
           <div className="border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
@@ -689,21 +689,21 @@ export default function NewInspectionPage() {
         </div>
 
         {/* 操作按鈕 - 手機優化 */}
-        <div className="flex flex-col sm:flex-row gap-3 sticky bottom-0 bg-white pt-4 pb-safe">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sticky bottom-0 bg-white pt-3 sm:pt-4 pb-safe">
           <button
             onClick={() => handleSubmit(true)}
             disabled={submitting || !selectedStoreId}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-4 sm:py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base sm:text-base shadow-sm"
+            className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base shadow-sm"
           >
-            <Save size={22} className="sm:w-5 sm:h-5" />
+            <Save className="w-4 h-4 sm:w-5 sm:h-5" />
             儲存草稿
           </button>
           <button
             onClick={() => handleSubmit(false)}
             disabled={submitting || !selectedStoreId || !signaturePhoto}
-            className="flex-1 flex items-center justify-center gap-2 px-6 py-4 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-base sm:text-base"
+            className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
           >
-            <Send size={22} className="sm:w-5 sm:h-5" />
+            <Send className="w-4 h-4 sm:w-5 sm:h-5" />
             {!signaturePhoto ? '請先簽名' : '送出記錄'}
           </button>
         </div>
