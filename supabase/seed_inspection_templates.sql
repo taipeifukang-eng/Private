@@ -455,9 +455,9 @@ INSERT INTO inspection_templates (
   1,
   10.0, 'checklist',
   '[
-    {"label": "流程章未蓋", "deduction": 2},
-    {"label": "管三處方箋客人未簽名", "deduction": 2},
-    {"label": "藥師章未蓋", "deduction": 2}
+    {"label": "添程章未蓋章", "deduction": 2, "requires_quantity": true, "unit": "份"},
+    {"label": "每三處方箋客人未簽名", "deduction": 2, "requires_quantity": true, "unit": "份"},
+    {"label": "藥師章未蓋", "deduction": 2, "requires_quantity": true, "unit": "份"}
   ]'::jsonb,
   true
 );
@@ -507,7 +507,7 @@ INSERT INTO inspection_templates (
   4,
   10.0, 'checklist',
   '[
-    {"label": "未驗收單據", "deduction": 5, "requires_quantity": true, "unit": "張"}
+    {"label": "未驗收單據（1張-5，請計數）", "deduction": 5, "requires_quantity": true, "unit": "張"}
   ]'::jsonb,
   true
 );
@@ -523,7 +523,7 @@ INSERT INTO inspection_templates (
   5,
   10.0, 'checklist',
   '[
-    {"label": "存在3天以上無法說明原因的負庫存品項", "deduction": 2, "requires_quantity": true, "unit": "個品項"}
+    {"label": "存在三天以上無法說明原因的負庫存品項（1個-2，請計數）", "deduction": 2, "requires_quantity": true, "unit": "個品項"}
   ]'::jsonb,
   true
 );

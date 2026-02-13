@@ -17,6 +17,8 @@ import {
   Image as ImageIcon,
   X,
   PenTool,
+  MapPin,
+  Loader2,
 } from 'lucide-react';
 
 interface Store {
@@ -68,9 +70,15 @@ export default function NewInspectionPage() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [itemScores, setItemScores] = useState<Map<string, ItemScore>>(new Map());
   const [signaturePhoto, setSignaturePhoto] = useState<string>('');
+  
+  // GPS 定位狀態
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [gpsError, setGpsError] = useState<string>('');
 
   useEffect(() => {
     loadData();
+    requestGPSLocation();
   }, []);
 
   const loadData = async () => {
@@ -116,6 +124,99 @@ export default function NewInspectionPage() {
     } catch (error) {
       console.error('❌ 載入資料失敗:', error);
       alert('載入資料失敗，請重新整理頁面');
+    }
+  };
+
+  // 獲取 GPS 定位（先嘗試高精度，失敗則使用一般定位）
+  const requestGPSLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsStatus('error');
+      setGpsError('當前瀏覽器不支援定位功能');
+      return;
+    }
+
+    setGpsStatus('loading');
+    setGpsError('');
+    
+    // 先嘗試高精度 GPS 定位（適合手機）
+    const highAccuracyTimeout = setTimeout(() => {
+      console.log('⚠️ 高精度定位逾時，嘗試一般定位（WiFi/IP）...');
+      tryLowAccuracyLocation();
+    }, 8000); // 8秒內沒有高精度結果就fallback
+    
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        clearTimeout(highAccuracyTimeout);
+        const accuracy = position.coords.accuracy;
+        console.log('✅ 高精度定位成功:', {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: accuracy,
+        });
+        
+        setGpsLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: accuracy,
+        });
+        setGpsStatus('success');
+        setGpsError('');
+      },
+      (error) => {
+        clearTimeout(highAccuracyTimeout);
+        console.log('⚠️ 高精度定位失敗，嘗試一般定位...', error.message);
+        tryLowAccuracyLocation();
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 7000,
+        maximumAge: 0,
+      }
+    );
+    
+    // Fallback: 使用一般定位（WiFi/IP，適合桌機或室內）
+    function tryLowAccuracyLocation() {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const accuracy = position.coords.accuracy;
+          console.log('✅ 一般定位成功 (WiFi/IP):', {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: accuracy,
+          });
+          
+          setGpsLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: accuracy,
+          });
+          setGpsStatus('success');
+          setGpsError('');
+        },
+        (error) => {
+          setGpsStatus('error');
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              setGpsError('定位權限被拒絕（請檢查Windows定位設定）');
+              break;
+            case error.POSITION_UNAVAILABLE:
+              setGpsError('無法取得位置（請開啟Windows定位服務）');
+              break;
+            case error.TIMEOUT:
+              setGpsError('定位逾時，請重試');
+              break;
+            default:
+              setGpsError('定位失敗（請確認系統定位功能已開啟）');
+          }
+          console.error('❌ 一般定位也失敗:', error);
+          console.error('💡 可能原因: Windows系統定位未開啟，請至 設定 → 隱私權 → 位置');
+        },
+        {
+          enableHighAccuracy: false,
+          timeout: 10000,
+          maximumAge: 300000, // 接受5分鐘內的快取位置
+        }
+      );
     }
   };
 
@@ -310,10 +411,19 @@ export default function NewInspectionPage() {
     });
 
     const finalScore = 220 - totalDeduction;
-    let grade = 'F';
-    if (finalScore >= 200) grade = 'S';
-    else if (finalScore >= 180) grade = 'A';
-    else if (finalScore >= 150) grade = 'B';
+    
+    // 評分系統: 0-10 分
+    let grade = '0';
+    if (finalScore >= 220) grade = '10';
+    else if (finalScore >= 215) grade = '9';
+    else if (finalScore >= 191) grade = '8';
+    else if (finalScore >= 181) grade = '7';
+    else if (finalScore >= 171) grade = '6';
+    else if (finalScore >= 161) grade = '5';
+    else if (finalScore >= 151) grade = '4';
+    else if (finalScore >= 141) grade = '3';
+    else if (finalScore >= 131) grade = '2';
+    else if (finalScore >= 121) grade = '1';
 
     return {
       initialScore: 220,
@@ -354,6 +464,8 @@ export default function NewInspectionPage() {
           total_score: totals.finalScore,
           grade: totals.grade,
           signature_photo_url: signaturePhoto || null,
+          gps_latitude: gpsLocation?.latitude || null,
+          gps_longitude: gpsLocation?.longitude || null,
         })
         .select()
         .single();
@@ -479,6 +591,79 @@ export default function NewInspectionPage() {
               />
             </div>
           </div>
+          
+          {/* GPS 定位狀態 */}
+          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${
+                  gpsStatus === 'success' ? 'text-green-600' : 
+                  gpsStatus === 'error' ? 'text-red-600' : 
+                  'text-gray-400'
+                }`} />
+                <span className="text-xs sm:text-sm font-medium text-gray-700">GPS 定位</span>
+                <span className="text-[10px] text-gray-400">(選填)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {gpsStatus === 'loading' && (
+                  <>
+                    <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                    <span className="text-xs sm:text-sm text-blue-600">定位中...</span>
+                  </>
+                )}
+                {gpsStatus === 'success' && gpsLocation && (
+                  <div className="flex flex-col items-end gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm text-green-600 font-medium">✓ 已定位</span>
+                      <a
+                        href={`https://www.google.com/maps?q=${gpsLocation.latitude},${gpsLocation.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] sm:text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        title="在 Google 地圖中查看"
+                      >
+                        ({gpsLocation.latitude.toFixed(6)}, {gpsLocation.longitude.toFixed(6)})
+                      </a>
+                    </div>
+                    {gpsLocation.accuracy && (
+                      <span className={`text-[10px] ${gpsLocation.accuracy > 500 ? 'text-orange-500' : 'text-gray-400'}`}>
+                        精度: ±{gpsLocation.accuracy.toFixed(0)}m
+                        {gpsLocation.accuracy > 500 && ' (建議使用手機)'}
+                      </span>
+                    )}
+                  </div>
+                )}
+                {gpsStatus === 'error' && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-sm text-red-600">✗ {gpsError}</span>
+                    <button
+                      onClick={requestGPSLocation}
+                      className="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    >
+                      重新定位
+                    </button>
+                    <button
+                      onClick={() => setGpsStatus('idle')}
+                      className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 transition-colors"
+                    >
+                      跳過
+                    </button>
+                  </div>
+                )}
+                {gpsStatus === 'idle' && (
+                  <button
+                    onClick={requestGPSLocation}
+                    className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                  >
+                    獲取位置
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-500 mt-1">
+              💡 桌機定位通常使用WiFi/IP，精度較差。實際巡店時建議使用手機開啟此頁面以獲得精確GPS座標。
+            </p>
+          </div>
         </div>
 
         {/* 分數總覽 - 手機優化 */}
@@ -497,7 +682,7 @@ export default function NewInspectionPage() {
               <p className="text-xl sm:text-3xl font-bold mt-0.5 sm:mt-1">{totals.finalScore}</p>
             </div>
             <div>
-              <p className="text-[10px] sm:text-sm opacity-90 leading-tight">評級</p>
+              <p className="text-[10px] sm:text-sm opacity-90 leading-tight">得分數(滿分10分)</p>
               <p className="text-xl sm:text-3xl font-bold mt-0.5 sm:mt-1">{totals.grade}</p>
             </div>
           </div>

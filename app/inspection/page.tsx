@@ -2,20 +2,19 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Filter, TrendingUp, Calendar, Store, User } from 'lucide-react';
+import InspectionCalendar from '@/components/InspectionCalendar';
 
-// 評級顏色配置
+// 評級顏色配置 (0-10 分數系統)
 const getGradeBadgeStyle = (grade: string) => {
-  switch (grade) {
-    case 'S':
-      return 'bg-purple-100 text-purple-800 border-purple-300';
-    case 'A':
-      return 'bg-green-100 text-green-800 border-green-300';
-    case 'B':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-    case 'F':
-      return 'bg-red-100 text-red-800 border-red-300';
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-300';
+  const score = parseInt(grade);
+  if (score >= 8) {
+    return 'bg-purple-100 text-purple-800 border-purple-300'; // 8-10: 優秀
+  } else if (score >= 6) {
+    return 'bg-green-100 text-green-800 border-green-300'; // 6-7: 良好
+  } else if (score >= 4) {
+    return 'bg-yellow-100 text-yellow-800 border-yellow-300'; // 4-5: 尚可
+  } else {
+    return 'bg-red-100 text-red-800 border-red-300'; // 0-3: 需改善
   }
 };
 
@@ -93,7 +92,10 @@ export default async function InspectionListPage() {
 
   const canCreateInspection = permissionSet.has('inspection.create');
 
-  // 4. 獲取巡店記錄（RLS 會自動過濾可見範圍）
+  // 4. 獲取巡店記錄（發取近 6 個月的數據供日曆顯示）
+  const sixMonthsAgo = new Date();
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  
   const { data: inspections, error } = await supabase
     .from('inspection_masters')
     .select(`
@@ -117,8 +119,8 @@ export default async function InspectionListPage() {
         full_name
       )
     `)
-    .order('inspection_date', { ascending: false })
-    .limit(50);
+    .gte('inspection_date', sixMonthsAgo.toISOString())
+    .order('inspection_date', { ascending: false });
 
   if (error) {
     console.error('❌ 獲取巡店記錄失敗:', error);
@@ -173,13 +175,13 @@ export default async function InspectionListPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">S 級評等</p>
+                <p className="text-sm text-gray-600">優秀 (8-10分)</p>
                 <p className="text-2xl font-bold text-purple-600 mt-1">
-                  {inspections?.filter((i) => i.grade === 'S').length || 0}
+                  {inspections?.filter((i) => parseInt(i.grade) >= 8).length || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <span className="text-2xl font-bold text-purple-600">S</span>
+                <TrendingUp className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </div>
@@ -187,13 +189,16 @@ export default async function InspectionListPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">A 級評等</p>
+                <p className="text-sm text-gray-600">良好 (6-7分)</p>
                 <p className="text-2xl font-bold text-green-600 mt-1">
-                  {inspections?.filter((i) => i.grade === 'A').length || 0}
+                  {inspections?.filter((i) => {
+                    const score = parseInt(i.grade);
+                    return score >= 6 && score < 8;
+                  }).length || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <span className="text-2xl font-bold text-green-600">A</span>
+                <span className="text-xl font-bold text-green-600">✓</span>
               </div>
             </div>
           </div>
@@ -201,16 +206,21 @@ export default async function InspectionListPage() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">需改善</p>
+                <p className="text-sm text-gray-600">需改善 (0-5分)</p>
                 <p className="text-2xl font-bold text-red-600 mt-1">
-                  {inspections?.filter((i) => i.grade === 'F').length || 0}
+                  {inspections?.filter((i) => parseInt(i.grade) < 6).length || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
-                <span className="text-2xl font-bold text-red-600">F</span>
+                <span className="text-xl font-bold text-red-600">!</span>
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 日曆視圖 */}
+        <div className="mb-8">
+          <InspectionCalendar inspections={inspections || []} />
         </div>
 
         {/* 巡店記錄列表 */}
@@ -256,7 +266,7 @@ export default async function InspectionListPage() {
                       分數
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      評級
+                      得分數(滿分10分)
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       狀態
@@ -270,7 +280,7 @@ export default async function InspectionListPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {inspections.map((inspection) => (
+                  {inspections.slice(0, 30).map((inspection) => (
                     <tr
                       key={inspection.id}
                       className="hover:bg-gray-50 transition-colors"
@@ -341,6 +351,12 @@ export default async function InspectionListPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+          
+          {inspections && inspections.length > 30 && (
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
+              顯示最近 30 筆記錄，共 {inspections.length} 筆。使用上方日曆查看更多記錄。
             </div>
           )}
         </div>

@@ -174,21 +174,21 @@ export default function Navbar({ user }: NavbarProps) {
 
   return (
     <nav className="bg-white shadow-lg border-b border-gray-200 sticky top-0 z-50">
-      <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+      <div className="w-full px-3 sm:px-4 md:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-14 lg:h-16">
           {/* Logo and Desktop Navigation */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                <ClipboardList className="w-6 h-6 text-white" />
+            <Link href="/" className="flex items-center space-x-2 min-w-0 shrink-0">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+                <ClipboardList className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
               </div>
-              <span className="text-xl font-bold text-gray-900 hidden sm:block">
+              <span className="text-base lg:text-xl font-bold text-gray-900 hidden lg:block whitespace-nowrap">
                 富康內部業務管理系統
               </span>
             </Link>
 
             {/* Desktop Menu */}
-            <div className="hidden md:flex md:ml-10 md:space-x-2">
+            <div className="hidden lg:flex lg:ml-10 lg:space-x-2">
               {/* 首頁 */}
               <Link
                 href="/"
@@ -395,10 +395,10 @@ export default function Navbar({ user }: NavbarProps) {
           </div>
 
           {/* User Info and Sign Out */}
-          <div className="flex items-center space-x-4">
-            <div className="hidden sm:flex items-center space-x-3">
+          <div className="flex items-center space-x-2 lg:space-x-4 shrink-0">
+            <div className="hidden lg:flex items-center space-x-3">
               <div className="text-right">
-                <div className="text-sm font-medium text-gray-900">
+                <div className="text-sm font-medium text-gray-900 truncate max-w-[120px] lg:max-w-none">
                   {user.profile?.full_name || user.email}
                 </div>
                 <div className={`text-xs px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${getRoleBgColor()}`}>
@@ -406,14 +406,14 @@ export default function Navbar({ user }: NavbarProps) {
                   {formatJobTitle(user.profile?.job_title)}
                 </div>
               </div>
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold shrink-0">
                 {user.profile?.full_name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
               </div>
             </div>
 
             <button
               onClick={handleSignOut}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="hidden lg:flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
             >
               <LogOut size={18} />
               登出
@@ -422,7 +422,7 @@ export default function Navbar({ user }: NavbarProps) {
             {/* Mobile menu button */}
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+              className="lg:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100"
             >
               {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -432,12 +432,12 @@ export default function Navbar({ user }: NavbarProps) {
 
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden border-t border-gray-200">
+        <div className="lg:hidden border-t border-gray-200 max-h-[calc(100vh-3.5rem)] overflow-y-auto">
           <div className="px-2 pt-2 pb-3 space-y-1">
             {/* User Info */}
             <div className="px-3 py-2 mb-2 bg-gray-50 rounded-lg">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-sm font-semibold shrink-0">
                   {user.profile?.full_name?.[0]?.toUpperCase() || user.email[0].toUpperCase()}
                 </div>
                 <div>
@@ -457,23 +457,23 @@ export default function Navbar({ user }: NavbarProps) {
             <Link
               href="/"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
                 pathname === '/'
                   ? 'bg-blue-50 text-blue-700'
                   : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
               }`}
             >
-              <Home size={20} />
+              <Home size={18} />
               首頁
             </Link>
 
             {/* 派發任務區塊 */}
-            <div className="mt-2">
-              <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+            <div className="mt-1">
+              <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                 <Send size={14} />
                 派發任務
               </div>
-              <div className="ml-4 space-y-1">
+              <div className="ml-4 space-y-0.5">
                 {taskSubItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -482,13 +482,13 @@ export default function Navbar({ user }: NavbarProps) {
                       key={item.href}
                       href={item.href}
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+                      className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
                         isActive
                           ? 'bg-blue-50 text-blue-700'
                           : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     >
-                      <Icon size={20} />
+                      <Icon size={18} />
                       {item.label}
                     </Link>
                   );
@@ -498,12 +498,12 @@ export default function Navbar({ user }: NavbarProps) {
 
             {/* 門市管理區塊 - 使用 RBAC 權限 */}
             {hasAnyStorePermission(permissions) && (
-              <div className="mt-2">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+              <div className="mt-1">
+                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                   <Store size={14} />
                   門市管理
                 </div>
-                <div className="ml-4 space-y-1">
+                <div className="ml-4 space-y-0.5">
                   {storeSubItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -512,13 +512,13 @@ export default function Navbar({ user }: NavbarProps) {
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
                           isActive
                             ? 'bg-blue-50 text-blue-700'
                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                         }`}
                       >
-                        <Icon size={20} />
+                        <Icon size={18} />
                         {item.label}
                       </Link>
                     );
@@ -529,12 +529,12 @@ export default function Navbar({ user }: NavbarProps) {
 
             {/* 每月人員狀態區塊 */}
             {monthlyStatusSubItems.length > 0 && (
-              <div className="mt-2">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+              <div className="mt-1">
+                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                   <CalendarCheck size={14} />
                   每月人員狀態
                 </div>
-                <div className="ml-4 space-y-1">
+                <div className="ml-4 space-y-0.5">
                   {monthlyStatusSubItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -543,13 +543,13 @@ export default function Navbar({ user }: NavbarProps) {
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
                           isActive
                             ? 'bg-blue-50 text-blue-700'
                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                         }`}
                       >
-                        <Icon size={20} />
+                        <Icon size={18} />
                         {item.label}
                       </Link>
                     );
@@ -560,12 +560,12 @@ export default function Navbar({ user }: NavbarProps) {
 
             {/* 督導巡店區塊 */}
             {hasAnyInspectionPermission(permissions) && (
-              <div className="mt-2">
-                <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+              <div className="mt-1">
+                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                   <CheckSquare size={14} />
                   督導巡店
                 </div>
-                <div className="ml-4 space-y-1">
+                <div className="ml-4 space-y-0.5">
                   {inspectionSubItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -574,13 +574,13 @@ export default function Navbar({ user }: NavbarProps) {
                         key={item.href}
                         href={item.href}
                         onClick={() => setIsMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
                           isActive
                             ? 'bg-blue-50 text-blue-700'
                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                         }`}
                       >
-                        <Icon size={20} />
+                        <Icon size={18} />
                         {item.label}
                       </Link>
                     );
@@ -590,7 +590,7 @@ export default function Navbar({ user }: NavbarProps) {
             )}
 
             {/* 其他導航項目 */}
-            <div className="mt-2 pt-2 border-t border-gray-200">
+            <div className="mt-1 pt-2 border-t border-gray-200">
               {navItems.filter(item => item.href !== '/').map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -599,13 +599,13 @@ export default function Navbar({ user }: NavbarProps) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-base font-medium ${
+                    className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
                       isActive
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <Icon size={20} />
+                    <Icon size={18} />
                     {item.label}
                   </Link>
                 );
@@ -615,9 +615,9 @@ export default function Navbar({ user }: NavbarProps) {
             {/* Sign Out */}
             <button
               onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-3 py-2 text-base font-medium text-red-600 hover:bg-red-50 rounded-lg"
+              className="w-full flex items-center gap-2 px-3 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg"
             >
-              <LogOut size={20} />
+              <LogOut size={18} />
               登出
             </button>
           </div>

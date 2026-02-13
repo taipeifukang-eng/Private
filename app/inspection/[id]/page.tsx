@@ -15,21 +15,20 @@ import {
   Camera,
   Image as ImageIcon,
   PenTool,
+  MapPin,
 } from 'lucide-react';
 
-// 評級顏色配置
+// 評級顏色配置 (0-10 分數系統)
 const getGradeBadgeStyle = (grade: string) => {
-  switch (grade) {
-    case 'S':
-      return 'bg-purple-100 text-purple-800 border-purple-300';
-    case 'A':
-      return 'bg-green-100 text-green-800 border-green-300';
-    case 'B':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-    case 'F':
-      return 'bg-red-100 text-red-800 border-red-300';
-    default:
-      return 'bg-gray-100 text-gray-800 border-gray-300';
+  const score = parseInt(grade);
+  if (score >= 8) {
+    return 'bg-purple-100 text-purple-800 border-purple-300'; // 8-10: 優秀
+  } else if (score >= 6) {
+    return 'bg-green-100 text-green-800 border-green-300'; // 6-7: 良好
+  } else if (score >= 4) {
+    return 'bg-yellow-100 text-yellow-800 border-yellow-300'; // 4-5: 尚可
+  } else {
+    return 'bg-red-100 text-red-800 border-red-300'; // 0-3: 需改善
   }
 };
 
@@ -91,6 +90,8 @@ export default async function InspectionDetailPage({
       score_percentage,
       supervisor_notes,
       signature_photo_url,
+      gps_latitude,
+      gps_longitude,
       created_at,
       updated_at,
       store:stores!inner (
@@ -219,7 +220,7 @@ export default async function InspectionDetailPage({
 
         {/* 基本資訊卡片 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Store className="w-5 h-5 text-blue-600" />
@@ -272,6 +273,29 @@ export default async function InspectionDetailPage({
                 </span>
               </div>
             </div>
+
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <MapPin className="w-5 h-5 text-teal-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">GPS定位</p>
+                {inspection.gps_latitude && inspection.gps_longitude ? (
+                  <div className="mt-0.5">
+                    <a
+                      href={`https://www.google.com/maps?q=${inspection.gps_latitude},${inspection.gps_longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-teal-600 hover:text-teal-700 hover:underline"
+                    >
+                      {Number(inspection.gps_latitude).toFixed(6)}, {Number(inspection.gps_longitude).toFixed(6)}
+                    </a>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 mt-0.5">未記錄</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -295,7 +319,7 @@ export default async function InspectionDetailPage({
               <p className="text-3xl font-bold mt-1">{inspection.total_score}</p>
             </div>
             <div>
-              <p className="text-sm opacity-90">評級</p>
+              <p className="text-sm opacity-90">得分數(滿分10分)</p>
               <div className="mt-1">
                 <span
                   className={`inline-flex items-center px-4 py-2 rounded-full text-2xl font-bold border-2 ${getGradeBadgeStyle(
