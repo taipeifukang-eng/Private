@@ -126,6 +126,13 @@ export default async function InspectionListPage() {
     console.error('❌ 獲取巡店記錄失敗:', error);
   }
 
+  // 規範化資料：確保 store 和 inspector 是單個對象（Supabase 關聯查詢的類型修正）
+  const normalizedInspections = (inspections || []).map((ins: any) => ({
+    ...ins,
+    store: Array.isArray(ins.store) ? ins.store[0] : ins.store,
+    inspector: Array.isArray(ins.inspector) ? ins.inspector[0] : ins.inspector,
+  }));
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -163,7 +170,7 @@ export default async function InspectionListPage() {
               <div>
                 <p className="text-sm text-gray-600">總巡店次數</p>
                 <p className="text-2xl font-bold text-gray-900 mt-1">
-                  {inspections?.length || 0}
+                  {normalizedInspections?.length || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -177,7 +184,7 @@ export default async function InspectionListPage() {
               <div>
                 <p className="text-sm text-gray-600">優秀 (8-10分)</p>
                 <p className="text-2xl font-bold text-purple-600 mt-1">
-                  {inspections?.filter((i) => parseInt(i.grade) >= 8).length || 0}
+                  {normalizedInspections?.filter((i) => parseInt(i.grade) >= 8).length || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -191,7 +198,7 @@ export default async function InspectionListPage() {
               <div>
                 <p className="text-sm text-gray-600">良好 (6-7分)</p>
                 <p className="text-2xl font-bold text-green-600 mt-1">
-                  {inspections?.filter((i) => {
+                  {normalizedInspections?.filter((i) => {
                     const score = parseInt(i.grade);
                     return score >= 6 && score < 8;
                   }).length || 0}
@@ -208,7 +215,7 @@ export default async function InspectionListPage() {
               <div>
                 <p className="text-sm text-gray-600">需改善 (0-5分)</p>
                 <p className="text-2xl font-bold text-red-600 mt-1">
-                  {inspections?.filter((i) => parseInt(i.grade) < 6).length || 0}
+                  {normalizedInspections?.filter((i) => parseInt(i.grade) < 6).length || 0}
                 </p>
               </div>
               <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
@@ -220,7 +227,7 @@ export default async function InspectionListPage() {
 
         {/* 日曆視圖 */}
         <div className="mb-8">
-          <InspectionCalendar inspections={inspections || []} />
+          <InspectionCalendar inspections={normalizedInspections || []} />
         </div>
 
         {/* 巡店記錄列表 */}
@@ -229,7 +236,7 @@ export default async function InspectionListPage() {
             <h2 className="text-lg font-semibold text-gray-900">巡店記錄</h2>
           </div>
 
-          {!inspections || inspections.length === 0 ? (
+          {!normalizedInspections || normalizedInspections.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Store className="w-8 h-8 text-gray-400" />
@@ -280,7 +287,7 @@ export default async function InspectionListPage() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {inspections.slice(0, 30).map((inspection) => (
+                  {normalizedInspections.slice(0, 30).map((inspection) => (
                     <tr
                       key={inspection.id}
                       className="hover:bg-gray-50 transition-colors"
@@ -354,9 +361,9 @@ export default async function InspectionListPage() {
             </div>
           )}
           
-          {inspections && inspections.length > 30 && (
+          {normalizedInspections && normalizedInspections.length > 30 && (
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
-              顯示最近 30 筆記錄，共 {inspections.length} 筆。使用上方日曆查看更多記錄。
+              顯示最近 30 筆記錄，共 {normalizedInspections.length} 筆。使用上方日曆查看更多記錄。
             </div>
           )}
         </div>

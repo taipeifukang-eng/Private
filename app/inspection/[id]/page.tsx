@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
+import PrintInspectionReport from '@/components/PrintInspectionReport';
 import {
   ArrowLeft,
   Calendar,
@@ -114,6 +115,10 @@ export default async function InspectionDetailPage({
     notFound();
   }
 
+  // 類型安全：確保 store 是單個對象
+  const store = Array.isArray(inspection.store) ? inspection.store[0] : inspection.store;
+  const inspector = Array.isArray(inspection.inspector) ? inspection.inspector[0] : inspection.inspector;
+
   // 3. 獲取檢查結果明細
   const { data: results, error: resultsError } = await supabase
     .from('inspection_results')
@@ -148,8 +153,14 @@ export default async function InspectionDetailPage({
     console.error('❌ 獲取檢查結果失敗:', resultsError);
   }
 
+  // 類型安全：規範化 template 數據（處理 Supabase JOIN 返回的數組）
+  const normalizedResults = (results || []).map((result: any) => ({
+    ...result,
+    template: Array.isArray(result.template) ? result.template[0] : result.template,
+  }));
+
   // 按區塊分組結果
-  const groupedResults = (results || []).reduce((acc, result: any) => {
+  const groupedResults = normalizedResults.reduce((acc, result: any) => {
     const section = result.template.section;
     if (!acc[section]) {
       acc[section] = {
@@ -167,11 +178,11 @@ export default async function InspectionDetailPage({
   }, {} as Record<string, any>);
 
   const sortedSections = Object.entries(groupedResults).sort(
-    ([, a], [, b]) => a.section_order - b.section_order
+    ([, a], [, b]) => (a as any).section_order - (b as any).section_order
   );
 
   // 需改善項目
-  const improvementItems = (results || []).filter((r: any) => r.is_improvement);
+  const improvementItems = normalizedResults.filter((r: any) => r.is_improvement);
 
   // 檢查是否可編輯
   const canEdit =
@@ -228,9 +239,9 @@ export default async function InspectionDetailPage({
               <div>
                 <p className="text-sm text-gray-600">巡店門市</p>
                 <p className="text-lg font-semibold text-gray-900 mt-0.5">
-                  {inspection.store.store_name}
+                  {store.store_name}
                 </p>
-                <p className="text-xs text-gray-500">{inspection.store.store_code}</p>
+                <p className="text-xs text-gray-500">{store.store_code}</p>
               </div>
             </div>
 
@@ -253,7 +264,7 @@ export default async function InspectionDetailPage({
               <div>
                 <p className="text-sm text-gray-600">督導人員</p>
                 <p className="text-lg font-semibold text-gray-900 mt-0.5">
-                  {inspection.inspector.full_name}
+                  {inspector.full_name}
                 </p>
               </div>
             </div>
@@ -413,7 +424,9 @@ export default async function InspectionDetailPage({
         {/* 檢查項目詳情 */}
         <div className="space-y-4 mb-6">
           <h2 className="text-xl font-bold text-gray-900">檢查項目詳情</h2>
-          {sortedSections.map(([sectionKey, section]) => (
+          {sortedSections.map(([sectionKey, section]) => {
+            const sectionData = section as any;
+            return (
             <div
               key={sectionKey}
               className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
@@ -421,19 +434,19 @@ export default async function InspectionDetailPage({
               <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">
-                    {section.section_name}
+                    {sectionData.section_name}
                   </h3>
                   <div className="text-right">
                     <span className="text-2xl font-bold text-gray-900">
-                      {section.total_earned}
+                      {sectionData.total_earned}
                     </span>
-                    <span className="text-gray-500"> / {section.total_max}</span>
+                    <span className="text-gray-500"> / {sectionData.total_max}</span>
                   </div>
                 </div>
               </div>
 
               <div className="divide-y divide-gray-200">
-                {section.items.map((result: any) => (
+                {sectionData.items.map((result: any) => (
                   <div
                     key={result.id}
                     className={`px-6 py-4 ${
@@ -479,7 +492,8 @@ export default async function InspectionDetailPage({
                 ))}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* 督導簽名 */}
@@ -506,6 +520,23 @@ export default async function InspectionDetailPage({
             <p className="text-gray-700 whitespace-pre-wrap">{inspection.supervisor_notes}</p>
           </div>
         )}
+
+        {/* 列印報表按鈕與組件 */}
+        <div className="mt-6 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">列印報表</h2>
+              <p className="text-sm text-gray-600 mt-1">產生完整的 A4 格式巡店報告，包含待改善項目彙整與簽名欄位</p>
+            </div>
+          </div>
+          <PrintInspectionReport
+            inspection={inspection}
+            store={store}
+            inspector={inspector}
+            groupedResults={sortedSections}
+            improvementItems={improvementItems}
+          />
+        </div>
       </div>
     </div>
   );
