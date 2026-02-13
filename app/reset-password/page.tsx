@@ -1,13 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { resetPassword } from '@/app/auth/actions';
-import { Lock, CheckCircle, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Lock, CheckCircle, AlertCircle, Eye, EyeOff, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [passwords, setPasswords] = useState({
     newPassword: '',
     confirmPassword: '',
@@ -15,6 +17,8 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(true);
+  const [isValidToken, setIsValidToken] = useState(false);
   const [status, setStatus] = useState<{
     type: 'success' | 'error' | null;
     message: string;
@@ -23,6 +27,75 @@ export default function ResetPasswordPage() {
     score: 0,
     feedback: '',
   });
+
+  // 驗證重置 token
+  useEffect(() => {
+    const verifyToken = async () => {
+      try {
+        const supabase = createClient();
+        
+        // 檢查是否有 token 或 code 參數
+        const token = searchParams.get('token');
+        const code = searchParams.get('code');
+        const type = searchParams.get('type');
+
+        console.log('Token verification:', { token, code, type });
+
+        // 如果有 code，交換為 session
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.error('Exchange code error:', error);
+            setStatus({
+              type: 'error',
+              message: '重置連結無效或已過期，請重新申請',
+            });
+            setIsValidToken(false);
+          } else {
+            setIsValidToken(true);
+          }
+        } 
+        // 如果是 recovery type，檢查 session
+        else if (type === 'recovery') {
+          const { data: { session }, error } = await supabase.auth.getSession();
+          if (error || !session) {
+            console.error('Session error:', error);
+            setStatus({
+              type: 'error',
+              message: '重置連結無效或已過期，請重新申請',
+            });
+            setIsValidToken(false);
+          } else {
+            setIsValidToken(true);
+          }
+        }
+        // 沒有參數，檢查是否已登入
+        else {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session) {
+            setIsValidToken(true);
+          } else {
+            setStatus({
+              type: 'error',
+              message: '請先從郵件中點擊重置連結',
+            });
+            setIsValidToken(false);
+          }
+        }
+      } catch (error) {
+        console.error('Token verification error:', error);
+        setStatus({
+          type: 'error',
+          message: '驗證失敗，請重新申請重置連結',
+        });
+        setIsValidToken(false);
+      } finally {
+        setIsVerifying(false);
+      }
+    };
+
+    verifyToken();
+  }, [searchParams]);
 
   // 檢查密碼強度
   useEffect(() => {
@@ -144,36 +217,81 @@ export default function ResetPasswordPage() {
           請輸入您的新密碼
         </p>
 
-        {status.type === 'success' && (
-          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-green-800 font-medium mb-1">
-                  密碼重置成功！
-                </p>
-                <p className="text-green-700 text-sm">
-                  {status.message}
-                </p>
-                <p className="text-green-600 text-xs mt-2">
-                  即將跳轉至登入頁面...
-                </p>
-              </div>
+        {/* 驗證中狀態 */}
+        {isVerifying && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+              <p className="text-blue-800">正在驗證重置連結...</p>
             </div>
           </div>
         )}
 
-        {status.type === 'error' && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-red-800 font-medium mb-1">重置失敗</p>
-                <p className="text-red-700 text-sm">{status.message}</p>
+        {/* 驗證失敗 */}
+        {!isVerifying && !isValidToken && (
+          <div className="space-y-4">
+            <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-red-800 font-medium mb-1">連結無效或已過期</p>
+                  <p className="text-red-700 text-sm">{status.message}</p>
+                  <p className="text-red-600 text-xs mt-2">
+                    請返回忘記密碼頁面重新申請重置連結
+                  </p>
+                </div>
               </div>
+            </div>
+            <div className="flex gap-3">
+              <Link
+                href="/forgot-password"
+                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-center font-medium"
+              >
+                重新申請
+              </Link>
+              <Link
+                href="/login"
+                className="flex-1 bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors text-center font-medium"
+              >
+                返回登入
+              </Link>
             </div>
           </div>
         )}
+
+        {/* 驗證成功，顯示表單 */}
+        {!isVerifying && isValidToken && (
+          <>
+            {status.type === 'success' && (
+              <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-green-800 font-medium mb-1">
+                      密碼重置成功！
+                    </p>
+                    <p className="text-green-700 text-sm">
+                      {status.message}
+                    </p>
+                    <p className="text-green-600 text-xs mt-2">
+                      即將跳轉至登入頁面...
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {status.type === 'error' && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-red-800 font-medium mb-1">重置失敗</p>
+                    <p className="text-red-700 text-sm">{status.message}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -297,6 +415,8 @@ export default function ResetPasswordPage() {
             返回登入頁面
           </Link>
         </div>
+        </>
+      )}
       </div>
     </div>
   );
