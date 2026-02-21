@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import PrintInspectionReport from '@/components/PrintInspectionReport';
@@ -132,8 +132,10 @@ export default async function InspectionDetailPage({
       full_name: '(資料載入中)' 
     };
 
-    // 5. 獲取檢查結果明細（不使用關聯）
-    const { data: rawResults, error: resultsError } = await supabase
+    // 5. 獲取檢查結果明細（使用 Admin Client 繞過 RLS）
+    const adminClient = createAdminClient();
+    
+    const { data: rawResults, error: resultsError } = await adminClient
       .from('inspection_results')
       .select(`
         id,
@@ -147,26 +149,15 @@ export default async function InspectionDetailPage({
       `)
       .eq('inspection_id', params.id);
 
-    // 診斷：記錄查詢結果
-    const debugInfo = {
-      rawResultsCount: rawResults?.length ?? 0,
-      resultsError: resultsError?.message || null,
-      templateIdsCount: 0,
-      templatesCount: 0,
-      finalResultsCount: 0,
-      sectionsCount: 0,
-    };
-
     if (resultsError) {
       console.error('❌ 獲取檢查結果失敗:', resultsError);
     }
 
-    // 6. 獲取所有相關的檢查範本
+    // 6. 獲取所有相關的檢查範本（使用 Admin Client 繞過 RLS）
     const templateIds = Array.from(new Set(rawResults?.map(r => r.template_id).filter(Boolean) || []));
-    debugInfo.templateIdsCount = templateIds.length;
     let templates: any[] = [];
     if (templateIds.length > 0) {
-      const { data: templateData, error: templateError } = await supabase
+      const { data: templateData, error: templateError } = await adminClient
         .from('inspection_templates')
         .select(`
           id,
@@ -186,18 +177,12 @@ export default async function InspectionDetailPage({
       }
     }
 
-    console.log('✅ 檢查範本載入成功:', templates?.length || 0, '筆');
-    debugInfo.templatesCount = templates.length;
-
     // 7. 組合資料
     const templateMap = new Map(templates.map(t => [t.id, t]));
     const results = (rawResults || []).map((result: any) => ({
       ...result,
       template: templateMap.get(result.template_id) || null,
     })).filter(r => r.template); // 只保留有模板的結果
-
-    debugInfo.finalResultsCount = results.length;
-    console.log('✅ 資料組合完成');
 
     // 8. 按區塊分組結果
     const groupedResults = results.reduce((acc, result: any) => {
@@ -222,8 +207,6 @@ export default async function InspectionDetailPage({
     const sortedSections = Object.entries(groupedResults).sort(
       ([, a], [, b]) => (a as any).section_order - (b as any).section_order
     );
-
-    debugInfo.sectionsCount = sortedSections.length;
 
     // 9. 需改善項目
     const improvementItems = results.filter((r: any) => r.is_improvement);
@@ -463,21 +446,11 @@ export default async function InspectionDetailPage({
         {/* 檢查項目詳情 */}
         <div className="space-y-4 mb-6">
           <h2 className="text-xl font-bold text-gray-900">檢查項目詳情</h2>
-          
-          {/* 診斷資訊（上線穩定後可移除） */}
           {sortedSections.length === 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm">
-              <p className="font-bold text-yellow-800 mb-2">⚠ 資料診斷</p>
-              <ul className="text-yellow-700 space-y-1">
-                <li>inspection_results 查詢結果: {debugInfo.rawResultsCount} 筆 {debugInfo.resultsError ? `(錯誤: ${debugInfo.resultsError})` : ''}</li>
-                <li>template IDs 數量: {debugInfo.templateIdsCount}</li>
-                <li>inspection_templates 查詢結果: {debugInfo.templatesCount} 筆</li>
-                <li>配對成功: {debugInfo.finalResultsCount} 筆</li>
-                <li>分組區塊: {debugInfo.sectionsCount} 個</li>
-              </ul>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <p className="text-gray-500">此次巡店無檢查明細資料</p>
             </div>
           )}
-          
           {sortedSections.map(([sectionKey, section]) => {
             const sectionData = section as any;
             return (
