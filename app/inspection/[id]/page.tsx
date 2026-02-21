@@ -70,85 +70,104 @@ export default async function InspectionDetailPage({
 }) {
   const supabase = await createClient();
 
-  // 1. 驗證登入
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    // 1. 驗證登入
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
-  }
+    if (!user) {
+      redirect('/login');
+    }
 
-  // 2. 獲取巡店記錄（RLS 會自動過濾權限）
-  const { data: inspection, error } = await supabase
-    .from('inspection_masters')
-    .select(
-      `
-      id,
-      store_id,
-      inspector_id,
-      inspection_date,
-      status,
-      total_score,
-      max_possible_score,
-      grade,
-      score_percentage,
-      supervisor_notes,
-      signature_photo_url,
-      gps_latitude,
-      gps_longitude,
-      created_at,
-      updated_at,
-      store:stores (
+    console.log('🔍 開始載入巡店詳情...');
+    console.log('📄 ID:', params.id);
+    console.log('👤 用戶:', user.id);
+
+    // 2. 獲取巡店記錄（不使用關聯）
+    const { data: inspection, error: inspectionError } = await supabase
+      .from('inspection_masters')
+      .select(`
         id,
-        store_name,
-        store_code,
-        short_name,
-        address
-      ),
-      inspector:profiles!inspection_masters_inspector_id_fkey (
+        store_id,
+        inspector_id,
+        inspection_date,
+        status,
+        total_score,
+        max_possible_score,
+        grade,
+        score_percentage,
+        supervisor_notes,
+        signature_photo_url,
+        gps_latitude,
+        gps_longitude,
+        created_at,
+        updated_at
+      `)
+      .eq('id', params.id)
+      .single();
+
+    if (inspectionError || !inspection) {
+      console.error('❌ 獲取巡店記錄失敗:', inspectionError);
+      notFound();
+    }
+
+    console.log('✅ 巡店記錄載入成功');
+
+    // 3. 獲取門市資料
+    const { data: store, error: storeError } = await supabase
+      .from('stores')
+      .select('id, store_name, store_code, short_name, address')
+      .eq('id', inspection.store_id)
+      .single();
+
+    if (storeError || !store) {
+      console.error('❌ 無法載入門市資料:', storeError);
+      notFound();
+    }
+
+    console.log('✅ 門市資料載入成功');
+
+    // 4. 獲取督導資料
+    const { data: inspector } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .eq('id', inspection.inspector_id)
+      .single();
+
+    const safeInspector = inspector || { 
+      id: inspection.inspector_id, 
+      full_name: '(資料載入中)' 
+    };
+
+    console.log('✅ 督導資料載入成功');
+
+    // 5. 獲取檢查結果明細（不使用關聯）
+    const { data: rawResults, error: resultsError } = await supabase
+      .from('inspection_results')
+      .select(`
         id,
-        full_name
-      )
-    `
-    )
-    .eq('id', params.id)
-    .single();
+        template_id,
+        max_score,
+        given_score,
+        deduction_amount,
+        is_improvement,
+        notes,
+        photo_urls
+      `)
+      .eq('inspection_id', params.id);
 
-  if (error || !inspection) {
-    console.error('❌ 獲取巡店記錄失敗:', error);
-    console.error('❌ 請求的 ID:', params.id);
-    console.error('❌ 當前使用者:', user.id);
-    notFound();
-  }
+    if (resultsError) {
+      console.error('❌ 獲取檢查結果失敗:', resultsError);
+    }
 
-  // 類型安全：確保 store 是單個對象
-  const store = Array.isArray(inspection.store) ? inspection.store[0] : inspection.store;
-  const inspector = Array.isArray(inspection.inspector) ? inspection.inspector[0] : inspection.inspector;
+    console.log('✅ 檢查結果載入成功:', rawResults?.length || 0, '筆');
 
-  // 確保 store 和 inspector 存在
-  if (!store) {
-    console.error('❌ 無法載入門市資料');
-    notFound();
-  }
-
-  // 確保 inspector 存在，否則使用預設值
-  const safeInspector = inspector || { id: inspection.inspector_id, full_name: '(資料載入中)' };
-
-  // 3. 獲取檢查結果明細
-  const { data: results, error: resultsError } = await supabase
-    .from('inspection_results')
-    .select(
-      `
-      id,
-      template_id,
-      max_score,
-      given_score,
-      deduction_amount,
-      is_improvement,
-      notes,
-      photo_urls,
-      template:inspection_templates!inspection_results_template_id_fkey (
+    // 6. 獲取所有相關的檢查範本
+    const templateIds = Array.from(new Set(rawResults?.map(r => r.template_id) || []));
+    const { data: templates } = await supabase
+      .from('inspection_templates')
+      .select(`
         id,
         section,
         section_name,
@@ -158,52 +177,55 @@ export default async function InspectionDetailPage({
         item_order,
         max_score,
         scoring_type
-      )
-    `
-    )
-    .eq('inspection_id', params.id);
+      `)
+      .in('id', templateIds);
 
-  if (resultsError) {
-    console.error('❌ 獲取檢查結果失敗:', resultsError);
-  }
+    console.log('✅ 檢查範本載入成功:', templates?.length || 0, '筆');
 
-  // 類型安全：規範化 template 數據（處理 Supabase JOIN 返回的數組）
-  const normalizedResults = (results || []).map((result: any) => ({
-    ...result,
-    template: Array.isArray(result.template) ? result.template[0] : result.template,
-  }));
+    // 7. 組合資料
+    const templateMap = new Map(templates?.map(t => [t.id, t]) || []);
+    const results = (rawResults || []).map((result: any) => ({
+      ...result,
+      template: templateMap.get(result.template_id) || null,
+    })).filter(r => r.template); // 只保留有模板的結果
 
-  // 按區塊分組結果
-  const groupedResults = normalizedResults.reduce((acc, result: any) => {
-    const section = result.template.section;
-    if (!acc[section]) {
-      acc[section] = {
-        section_name: result.template.section_name,
-        section_order: result.template.section_order,
-        items: [],
-        total_max: 0,
-        total_earned: 0,
-      };
-    }
-    acc[section].items.push(result);
-    acc[section].total_max += result.max_score;
-    acc[section].total_earned += result.given_score;
-    return acc;
-  }, {} as Record<string, any>);
+    console.log('✅ 資料組合完成');
 
-  const sortedSections = Object.entries(groupedResults).sort(
-    ([, a], [, b]) => (a as any).section_order - (b as any).section_order
-  );
+    // 8. 按區塊分組結果
+    const groupedResults = results.reduce((acc, result: any) => {
+      if (!result.template) return acc;
+      
+      const section = result.template.section;
+      if (!acc[section]) {
+        acc[section] = {
+          section_name: result.template.section_name,
+          section_order: result.template.section_order,
+          items: [],
+          total_max: 0,
+          total_earned: 0,
+        };
+      }
+      acc[section].items.push(result);
+      acc[section].total_max += result.max_score;
+      acc[section].total_earned += result.given_score;
+      return acc;
+    }, {} as Record<string, any>);
 
-  // 需改善項目
-  const improvementItems = normalizedResults.filter((r: any) => r.is_improvement);
+    const sortedSections = Object.entries(groupedResults).sort(
+      ([, a], [, b]) => (a as any).section_order - (b as any).section_order
+    );
 
-  // 檢查是否可編輯
-  const canEdit =
-    inspection.inspector_id === user.id &&
-    (inspection.status === 'draft' || inspection.status === 'in_progress');
+    // 9. 需改善項目
+    const improvementItems = results.filter((r: any) => r.is_improvement);
 
-  return (
+    // 10. 檢查是否可編輯
+    const canEdit =
+      inspection.inspector_id === user.id &&
+      (inspection.status === 'draft' || inspection.status === 'in_progress');
+
+    console.log('✅ 所有資料載入完成，開始渲染頁面');
+
+    return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 頁面標題 */}
@@ -554,4 +576,37 @@ export default async function InspectionDetailPage({
       </div>
     </div>
   );
+  } catch (error) {
+    console.error('❌ 巡店詳情頁發生錯誤:', error);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">❌</span>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">載入巡店詳情時發生錯誤</h1>
+            <p className="text-gray-600 mb-6">請稍後再試或聯繫系統管理員</p>
+            <pre className="bg-gray-100 p-4 rounded text-sm text-left overflow-auto max-h-96">
+              {JSON.stringify(error, null, 2)}
+            </pre>
+            <div className="mt-6 flex gap-4 justify-center">
+              <Link
+                href="/inspection"
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                返回列表
+              </Link>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                重新載入
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
