@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, Trash2, Shield, User as UserIcon, CheckCircle, Search, Crown } from 'lucide-react';
+import { Edit2, Trash2, Shield, User as UserIcon, CheckCircle, Search, Crown, Key } from 'lucide-react';
 import { updateUserProfile, deleteUser } from '@/app/auth/actions';
 import type { Profile } from '@/types/workflow';
 
@@ -10,6 +10,9 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
   const [editForm, setEditForm] = useState({ full_name: '', role: 'member' as Profile['role'], department: '', job_title: '', employee_code: '' });
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [resettingPasswordFor, setResettingPasswordFor] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [isResetting, setIsResetting] = useState(false);
 
   // Filter and sort users
   const filteredUsers = users
@@ -91,6 +94,71 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
     }
   };
 
+  const handleResetPassword = async (userId: string, userName: string) => {
+    setResettingPasswordFor(userId);
+    
+    // 生成隨機密碼
+    const length = 10;
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%';
+    let randomPassword = '';
+    for (let i = 0; i < length; i++) {
+      randomPassword += charset.charAt(Math.floor(Math.random() * charset.length));
+    }
+    
+    setNewPassword(randomPassword);
+  };
+
+  const confirmResetPassword = async () => {
+    if (!resettingPasswordFor || !newPassword) return;
+    
+    if (newPassword.length < 6) {
+      alert('密碼長度至少需要 6 個字元');
+      return;
+    }
+
+    setIsResetting(true);
+
+    try {
+      const response = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId: resettingPasswordFor,
+          newPassword: newPassword,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert('✅ 密碼已成功重置！請將新密碼告知使用者。');
+        // 不關閉對話框，讓管理員可以複製密碼
+      } else {
+        alert(`❌ 重置失敗：${result.error}`);
+        setResettingPasswordFor(null);
+        setNewPassword('');
+      }
+    } catch (error) {
+      alert('❌ 重置失敗，請稍後再試');
+      setResettingPasswordFor(null);
+      setNewPassword('');
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
+  const cancelResetPassword = () => {
+    setResettingPasswordFor(null);
+    setNewPassword('');
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('✅ 已複製到剪貼簿');
+  };
+
   const getRoleBadge = (role: string) => {
     const config = {
       admin: { label: '管理員', classes: 'bg-purple-100 text-purple-800', icon: Shield },
@@ -118,7 +186,78 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+    <>
+      {/* 重置密碼對話框 */}
+      {resettingPasswordFor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <Key className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">重置使用者密碼</h3>
+                <p className="text-sm text-gray-600">
+                  {users.find(u => u.id === resettingPasswordFor)?.full_name || 
+                   users.find(u => u.id === resettingPasswordFor)?.email}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  新密碼
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none font-mono"
+                    placeholder="輸入新密碼（至少 6 個字元）"
+                  />
+                  <button
+                    onClick={() => copyToClipboard(newPassword)}
+                    className="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                    title="複製密碼"
+                  >
+                    複製
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  建議密碼長度至少 8 個字元，包含字母、數字和特殊符號
+                </p>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ 請務必將新密碼告知使用者，並建議使用者登入後立即修改密碼。
+                </p>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={confirmResetPassword}
+                  disabled={isResetting || newPassword.length < 6}
+                  className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                >
+                  {isResetting ? '重置中...' : '確認重置'}
+                </button>
+                <button
+                  onClick={cancelResetPassword}
+                  disabled={isResetting}
+                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       {/* Header with Search and Filters */}
       <div className="px-6 py-4 border-b border-gray-200">
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
@@ -355,6 +494,13 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                         <Edit2 size={18} />
                       </button>
                       <button
+                        onClick={() => handleResetPassword(user.id, user.full_name || user.email || '')}
+                        className="p-2 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                        title="重置密碼"
+                      >
+                        <Key size={18} />
+                      </button>
+                      <button
                         onClick={() => handleDelete(user.id, user.full_name || user.email || '未知')}
                         className="p-2 text-red-600 hover:bg-red-50 rounded transition-colors"
                         title="刪除"
@@ -377,5 +523,6 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
         )}
       </div>
     </div>
+    </>
   );
 }
