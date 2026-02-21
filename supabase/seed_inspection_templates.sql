@@ -455,8 +455,8 @@ INSERT INTO inspection_templates (
   1,
   10.0, 'checklist',
   '[
-    {"label": "添程章未蓋章", "deduction": 2, "requires_quantity": true, "unit": "份"},
-    {"label": "每三處方箋客人未簽名", "deduction": 2, "requires_quantity": true, "unit": "份"},
+    {"label": "流程章未蓋章", "deduction": 2, "requires_quantity": true, "unit": "份"},
+    {"label": "管三處方簽客人未簽名", "deduction": 2, "requires_quantity": true, "unit": "份"}
     {"label": "藥師章未蓋", "deduction": 2, "requires_quantity": true, "unit": "份"}
   ]'::jsonb,
   true

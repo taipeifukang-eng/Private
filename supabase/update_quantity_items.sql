@@ -12,8 +12,8 @@ WHERE item_name = '價格牌';
 -- 2. 處方章與相關印章 - 所有項目都可計次扣分
 UPDATE inspection_templates 
 SET checklist_items = '[
-  {"label": "添程章未蓋章", "deduction": 2, "requires_quantity": true, "unit": "份"},
-  {"label": "每三處方箋客人未簽名", "deduction": 2, "requires_quantity": true, "unit": "份"},
+  {"label": "流程章未蓋章", "deduction": 2, "requires_quantity": true, "unit": "份"},
+  {"label": "管三處方簽客人未簽名", "deduction": 2, "requires_quantity": true, "unit": "份"}
   {"label": "藥師章未蓋", "deduction": 2, "requires_quantity": true, "unit": "份"}
 ]'::jsonb
 WHERE item_name = '處方章與相關印章';
