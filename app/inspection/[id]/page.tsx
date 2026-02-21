@@ -70,20 +70,16 @@ export default async function InspectionDetailPage({
 }) {
   const supabase = await createClient();
 
+  // 驗證登入（必須在 try/catch 外部，redirect 會拋出特殊錯誤）
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
   try {
-    // 1. 驗證登入
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      redirect('/login');
-    }
-
-    console.log('🔍 開始載入巡店詳情...');
-    console.log('📄 ID:', params.id);
-    console.log('👤 用戶:', user.id);
-
     // 2. 獲取巡店記錄（不使用關聯）
     const { data: inspection, error: inspectionError } = await supabase
       .from('inspection_masters')
@@ -112,8 +108,6 @@ export default async function InspectionDetailPage({
       notFound();
     }
 
-    console.log('✅ 巡店記錄載入成功');
-
     // 3. 獲取門市資料
     const { data: store, error: storeError } = await supabase
       .from('stores')
@@ -126,8 +120,6 @@ export default async function InspectionDetailPage({
       notFound();
     }
 
-    console.log('✅ 門市資料載入成功');
-
     // 4. 獲取督導資料
     const { data: inspector } = await supabase
       .from('profiles')
@@ -139,8 +131,6 @@ export default async function InspectionDetailPage({
       id: inspection.inspector_id, 
       full_name: '(資料載入中)' 
     };
-
-    console.log('✅ 督導資料載入成功');
 
     // 5. 獲取檢查結果明細（不使用關聯）
     const { data: rawResults, error: resultsError } = await supabase
@@ -160,8 +150,6 @@ export default async function InspectionDetailPage({
     if (resultsError) {
       console.error('❌ 獲取檢查結果失敗:', resultsError);
     }
-
-    console.log('✅ 檢查結果載入成功:', rawResults?.length || 0, '筆');
 
     // 6. 獲取所有相關的檢查範本
     const templateIds = Array.from(new Set(rawResults?.map(r => r.template_id).filter(Boolean) || []));
@@ -580,9 +568,11 @@ export default async function InspectionDetailPage({
       </div>
     </div>
   );
-  } catch (error) {
+  } catch (error: any) {
+    // 重要：必須重新拋出 redirect、notFound 等特殊錯誤
+    if (error?.digest) throw error;
+    
     console.error('❌ 巡店詳情頁發生錯誤:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
@@ -591,10 +581,7 @@ export default async function InspectionDetailPage({
               <span className="text-3xl">❌</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">載入巡店詳情時發生錯誤</h1>
-            <p className="text-gray-600 mb-6">請稍後再試或聯繫系統管理員</p>
-            <pre className="bg-gray-100 p-4 rounded text-sm text-left overflow-auto max-h-96">
-              {errorMessage}
-            </pre>
+            <p className="text-gray-600 mb-6">{error?.message || '未知錯誤'}</p>
             <div className="mt-6 flex gap-4 justify-center">
               <Link
                 href="/inspection"
