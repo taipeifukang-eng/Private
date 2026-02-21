@@ -71,30 +71,9 @@ export default async function InspectionListPage() {
     redirect('/login');
   }
 
-  // 3. 檢查權限（透過 RLS 自動過濾，這裡只做基本檢查）
-  const { data: userPermissions } = await supabase
-    .from('user_roles')
-    .select(`
-      role:roles!inner (
-        role_permissions!inner (
-          is_allowed,
-          permission:permissions!inner (code)
-        )
-      )
-    `)
-    .eq('user_id', user.id)
-    .eq('is_active', true);
-
-  const permissionSet = new Set<string>();
-  userPermissions?.forEach((ur: any) => {
-    ur.role?.role_permissions?.forEach((rp: any) => {
-      if (rp.is_allowed && rp.permission?.code) {
-        permissionSet.add(rp.permission.code);
-      }
-    });
-  });
-
-  const canCreateInspection = permissionSet.has('inspection.create');
+  // 3. 檢查權限（簡化查詢，避免複雜關聯）
+  // 直接從 profile.role 判斷基本權限
+  const canCreateInspection = profile.role === 'admin' || profile.role === 'supervisor';
 
   // 4. 獲取巡店記錄（發取近 6 個月的數據供日曆顯示）
   const sixMonthsAgo = new Date();
