@@ -2,6 +2,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import PrintInspectionReport from '@/components/PrintInspectionReport';
+import DeleteInspectionButton from '@/components/DeleteInspectionButton';
 import {
   ArrowLeft,
   Calendar,
@@ -217,6 +218,14 @@ export default async function InspectionDetailPage({
       inspection.inspector_id === user.id &&
       (inspection.status === 'draft' || inspection.status === 'in_progress');
 
+    // 11. 檢查是否為管理員（可刪除）
+    const { data: userProfile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    const isAdmin = userProfile?.role === 'admin';
+
     console.log('✅ 所有資料載入完成，開始渲染頁面');
 
     return (
@@ -247,6 +256,9 @@ export default async function InspectionDetailPage({
                   <Edit size={18} />
                   編輯
                 </Link>
+              )}
+              {isAdmin && (
+                <DeleteInspectionButton inspectionId={params.id} />
               )}
             </div>
           </div>
