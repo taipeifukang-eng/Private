@@ -164,26 +164,30 @@ export default async function InspectionDetailPage({
     console.log('✅ 檢查結果載入成功:', rawResults?.length || 0, '筆');
 
     // 6. 獲取所有相關的檢查範本
-    const templateIds = Array.from(new Set(rawResults?.map(r => r.template_id) || []));
-    const { data: templates } = await supabase
-      .from('inspection_templates')
-      .select(`
-        id,
-        section,
-        section_name,
-        section_order,
-        item_name,
-        item_description,
-        item_order,
-        max_score,
-        scoring_type
-      `)
-      .in('id', templateIds);
+    const templateIds = Array.from(new Set(rawResults?.map(r => r.template_id).filter(Boolean) || []));
+    let templates: any[] = [];
+    if (templateIds.length > 0) {
+      const { data: templateData } = await supabase
+        .from('inspection_templates')
+        .select(`
+          id,
+          section,
+          section_name,
+          section_order,
+          item_name,
+          item_description,
+          item_order,
+          max_score,
+          scoring_type
+        `)
+        .in('id', templateIds);
+      templates = templateData || [];
+    }
 
     console.log('✅ 檢查範本載入成功:', templates?.length || 0, '筆');
 
     // 7. 組合資料
-    const templateMap = new Map(templates?.map(t => [t.id, t]) || []);
+    const templateMap = new Map(templates.map(t => [t.id, t]));
     const results = (rawResults || []).map((result: any) => ({
       ...result,
       template: templateMap.get(result.template_id) || null,
@@ -578,6 +582,7 @@ export default async function InspectionDetailPage({
   );
   } catch (error) {
     console.error('❌ 巡店詳情頁發生錯誤:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
@@ -588,7 +593,7 @@ export default async function InspectionDetailPage({
             <h1 className="text-2xl font-bold text-gray-900 mb-2">載入巡店詳情時發生錯誤</h1>
             <p className="text-gray-600 mb-6">請稍後再試或聯繫系統管理員</p>
             <pre className="bg-gray-100 p-4 rounded text-sm text-left overflow-auto max-h-96">
-              {JSON.stringify(error, null, 2)}
+              {errorMessage}
             </pre>
             <div className="mt-6 flex gap-4 justify-center">
               <Link
@@ -597,12 +602,12 @@ export default async function InspectionDetailPage({
               >
                 返回列表
               </Link>
-              <button
-                onClick={() => window.location.reload()}
+              <a
+                href={`/inspection/${params.id}`}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 重新載入
-              </button>
+              </a>
             </div>
           </div>
         </div>

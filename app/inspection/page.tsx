@@ -103,22 +103,31 @@ export default async function InspectionListPage() {
     console.log('✅ 成功獲取', rawInspections?.length || 0, '筆巡店記錄');
 
     // 第二步：批量獲取所有相關的 store 和 inspector 資料
-    const storeIds = Array.from(new Set(rawInspections?.map(i => i.store_id) || []));
-    const inspectorIds = Array.from(new Set(rawInspections?.map(i => i.inspector_id) || []));
+    const storeIds = Array.from(new Set(rawInspections?.map(i => i.store_id).filter(Boolean) || []));
+    const inspectorIds = Array.from(new Set(rawInspections?.map(i => i.inspector_id).filter(Boolean) || []));
 
-    const { data: stores } = await supabase
-      .from('stores')
-      .select('id, store_name, store_code, short_name')
-      .in('id', storeIds);
+    let stores: any[] = [];
+    let inspectors: any[] = [];
 
-    const { data: inspectors } = await supabase
-      .from('profiles')
-      .select('id, full_name')
-      .in('id', inspectorIds);
+    if (storeIds.length > 0) {
+      const { data: storeData } = await supabase
+        .from('stores')
+        .select('id, store_name, store_code, short_name')
+        .in('id', storeIds);
+      stores = storeData || [];
+    }
+
+    if (inspectorIds.length > 0) {
+      const { data: inspectorData } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', inspectorIds);
+      inspectors = inspectorData || [];
+    }
 
     // 第三步：組合資料
-    const storeMap = new Map(stores?.map(s => [s.id, s]) || []);
-    const inspectorMap = new Map(inspectors?.map(i => [i.id, i]) || []);
+    const storeMap = new Map(stores.map(s => [s.id, s]));
+    const inspectorMap = new Map(inspectors.map(i => [i.id, i]));
 
     const normalizedInspections = (rawInspections || []).map((ins: any) => ({
       ...ins,
@@ -367,6 +376,7 @@ export default async function InspectionListPage() {
   );
   } catch (error) {
     console.error('❌ 巡店列表頁發生錯誤:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
@@ -377,7 +387,7 @@ export default async function InspectionListPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">載入巡店記錄時發生錯誤</h1>
             <p className="text-gray-600 mb-6">請稍後再試或聯繫系統管理員</p>
             <pre className="bg-gray-100 p-4 rounded text-sm text-left overflow-auto max-h-96">
-              {JSON.stringify(error, null, 2)}
+              {errorMessage}
             </pre>
             <div className="mt-6 flex gap-4 justify-center">
               <Link
@@ -386,12 +396,12 @@ export default async function InspectionListPage() {
               >
                 返回首頁
               </Link>
-              <button
-                onClick={() => window.location.reload()}
+              <a
+                href="/inspection"
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 重新載入
-              </button>
+              </a>
             </div>
           </div>
         </div>
