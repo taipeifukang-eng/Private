@@ -149,7 +149,7 @@ export default function PrintInspectionReport({
             </div>
             <div className="border border-gray-300 p-3 rounded">
               <p className="text-xs text-gray-600 mb-1">得分率</p>
-              <p className="text-2xl font-bold text-green-600">{(inspection.score_percentage ?? 0).toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-green-600">{inspection.max_possible_score > 0 ? ((inspection.total_score / inspection.max_possible_score) * 100).toFixed(1) : '0.0'}%</p>
             </div>
             <div className="border border-gray-300 p-3 rounded">
               <p className="text-xs text-gray-600 mb-1">評級</p>
