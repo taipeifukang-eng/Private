@@ -129,7 +129,7 @@ export default function PrintInspectionReport({
             <div className="mt-3 pt-3 border-t border-gray-200">
               <p className="text-xs text-gray-600 flex items-center gap-1">
                 <MapPin size={12} />
-                GPS 定位：{inspection.gps_latitude.toFixed(6)}, {inspection.gps_longitude.toFixed(6)}
+                GPS 定位：{Number(inspection.gps_latitude || 0).toFixed(6)}, {Number(inspection.gps_longitude || 0).toFixed(6)}
               </p>
             </div>
           )}
@@ -149,7 +149,7 @@ export default function PrintInspectionReport({
             </div>
             <div className="border border-gray-300 p-3 rounded">
               <p className="text-xs text-gray-600 mb-1">得分率</p>
-              <p className="text-2xl font-bold text-green-600">{inspection.score_percentage.toFixed(1)}%</p>
+              <p className="text-2xl font-bold text-green-600">{(inspection.score_percentage ?? 0).toFixed(1)}%</p>
             </div>
             <div className="border border-gray-300 p-3 rounded">
               <p className="text-xs text-gray-600 mb-1">評級</p>
