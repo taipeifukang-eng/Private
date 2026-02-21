@@ -138,7 +138,8 @@ export default function Navbar({ user }: NavbarProps) {
   const inspectionSubItems = [
     { href: '/inspection', label: '巡店列表', icon: ClipboardList, show: permissions.canViewInspections },
     { href: '/inspection/new', label: '新增巡店', icon: Plus, show: permissions.canCreateInspection },
-    { href: '/admin/inspection-templates', label: '模板管理', icon: FileCheck, show: permissions.canManageInspectionTemplates },
+    // TODO: 建立 /admin/inspection-templates 路由後再啟用
+    // { href: '/admin/inspection-templates', label: '模板管理', icon: FileCheck, show: permissions.canManageInspectionTemplates },
   ].filter(item => item.show);
 
   // 判斷是否在派發任務相關頁面
@@ -157,7 +158,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在督導巡店相關頁面
-  const isInInspectionSection = ['/inspection', '/admin/inspection-templates'].some(
+  const isInInspectionSection = ['/inspection'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 

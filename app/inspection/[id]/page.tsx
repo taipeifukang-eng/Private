@@ -68,7 +68,7 @@ export default async function InspectionDetailPage({
 }: {
   params: { id: string };
 }) {
-  const supabase = await createClient();
+  const supabase = createClient();
 
   // 驗證登入（必須在 try/catch 外部，redirect 會拋出特殊錯誤）
   const {
@@ -246,13 +246,6 @@ export default async function InspectionDetailPage({
                   編輯
                 </Link>
               )}
-              <button
-                onClick={() => window.print()}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                <Printer size={18} />
-                列印
-              </button>
             </div>
           </div>
         </div>

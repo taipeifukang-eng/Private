@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, TrendingUp, Calendar, Store, User } from 'lucide-react';
+import InspectionCalendar from '@/components/InspectionCalendar';
 
 // 強制動態渲染，禁用快取
 export const dynamic = 'force-dynamic';
@@ -225,6 +226,11 @@ export default async function InspectionListPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* 日曆視圖 */}
+          <div className="mb-8">
+            <InspectionCalendar inspections={normalizedInspections} />
           </div>
 
           {/* 巡店記錄列表 */}
