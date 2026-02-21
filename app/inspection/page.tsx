@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, TrendingUp, Calendar, Store, User, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, TrendingUp, Calendar, Store, User } from 'lucide-react';
 import InspectionCalendar from '@/components/InspectionCalendar';
+import InspectionStoreStatus from '@/components/InspectionStoreStatus';
 
 // 強制動態渲染，禁用快取
 export const dynamic = 'force-dynamic';
@@ -276,63 +277,10 @@ export default async function InspectionListPage() {
 
           {/* 門市巡店狀態 */}
           {assignedStores.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              {/* 已巡店門市 */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 bg-green-50">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <h3 className="text-lg font-semibold text-green-800">
-                      本月已巡店（{inspectedStores.length}）
-                    </h3>
-                  </div>
-                </div>
-                <div className="p-4">
-                  {inspectedStores.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">本月尚無已巡店門市</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {inspectedStores.map((store: any) => (
-                        <span
-                          key={store.id}
-                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-green-100 text-green-800 border border-green-200"
-                        >
-                          {store.short_name || store.store_name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 尚未巡店門市 */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 bg-red-50">
-                  <div className="flex items-center gap-2">
-                    <XCircle className="w-5 h-5 text-red-600" />
-                    <h3 className="text-lg font-semibold text-red-800">
-                      本月尚未巡店（{notInspectedStores.length}）
-                    </h3>
-                  </div>
-                </div>
-                <div className="p-4">
-                  {notInspectedStores.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">本月所有門市皆已巡店 &#127881;</p>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {notInspectedStores.map((store: any) => (
-                        <span
-                          key={store.id}
-                          className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200"
-                        >
-                          {store.short_name || store.store_name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <InspectionStoreStatus
+              inspectedStores={inspectedStores}
+              notInspectedStores={notInspectedStores}
+            />
           )}
 
           {/* 日曆視圖 */}
