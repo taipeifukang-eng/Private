@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import PrintInspectionReport from '@/components/PrintInspectionReport';
 import DeleteInspectionButton from '@/components/DeleteInspectionButton';
+import { hasPermission } from '@/lib/permissions/check';
 import {
   ArrowLeft,
   Calendar,
@@ -218,13 +219,8 @@ export default async function InspectionDetailPage({
       inspection.inspector_id === user.id &&
       (inspection.status === 'draft' || inspection.status === 'in_progress');
 
-    // 11. 檢查是否為管理員（可刪除）
-    const { data: userProfile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    const isAdmin = userProfile?.role === 'admin';
+    // 11. 檢查是否有刪除巡店記錄的權限（使用 RBAC）
+    const canDelete = await hasPermission(user.id, 'inspection.delete');
 
     console.log('✅ 所有資料載入完成，開始渲染頁面');
 
@@ -257,7 +253,7 @@ export default async function InspectionDetailPage({
                   編輯
                 </Link>
               )}
-              {isAdmin && (
+              {canDelete && (
                 <DeleteInspectionButton inspectionId={params.id} />
               )}
             </div>

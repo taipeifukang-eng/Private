@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/permissions/check';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,14 +13,9 @@ export async function GET() {
       return NextResponse.json({ error: '未授權' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: '無權限' }, { status: 403 });
+    const permission = await requirePermission(user.id, 'inspection.template.manage');
+    if (!permission.allowed) {
+      return NextResponse.json({ error: permission.message || '無權限' }, { status: 403 });
     }
 
     const { data: templates, error } = await supabase
@@ -46,14 +42,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: '未授權' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: '無權限' }, { status: 403 });
+    const permission = await requirePermission(user.id, 'inspection.template.manage');
+    if (!permission.allowed) {
+      return NextResponse.json({ error: permission.message || '無權限' }, { status: 403 });
     }
 
     const body = await request.json();

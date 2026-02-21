@@ -1,5 +1,6 @@
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { requirePermission } from '@/lib/permissions/check';
 
 export async function DELETE(
   request: NextRequest,
@@ -13,15 +14,10 @@ export async function DELETE(
       return NextResponse.json({ error: '未登入' }, { status: 401 });
     }
 
-    // 檢查用戶是否為管理員
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile || profile.role !== 'admin') {
-      return NextResponse.json({ error: '權限不足，僅管理員可刪除巡店記錄' }, { status: 403 });
+    // 檢查使用者是否有刪除巡店記錄的權限
+    const permission = await requirePermission(user.id, 'inspection.delete');
+    if (!permission.allowed) {
+      return NextResponse.json({ error: permission.message || '權限不足' }, { status: 403 });
     }
 
     // 使用 Admin Client 執行刪除（繞過 RLS）

@@ -77,13 +77,14 @@ export default function InspectionTemplatesPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { router.push('/login'); return; }
 
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (profile?.role !== 'admin') {
+      // 使用 RBAC 權限檢查
+      const res = await fetch('/api/permissions/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissionCode: 'inspection.template.manage' }),
+      });
+      const permResult = await res.json();
+      if (!permResult.allowed) {
         router.push('/dashboard');
         return;
       }
