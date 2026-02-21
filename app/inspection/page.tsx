@@ -51,81 +51,82 @@ const getStatusLabel = (status: string) => {
 export default async function InspectionListPage() {
   const supabase = await createClient();
 
-  // 1. 驗證登入
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    // 1. 驗證登入
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user) {
-    redirect('/login');
-  }
+    if (!user) {
+      redirect('/login');
+    }
 
-  // 2. 獲取使用者資料
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('id, full_name, role')
-    .eq('id', user.id)
-    .single();
+    // 2. 獲取使用者資料
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('id', user.id)
+      .single();
 
-  if (!profile) {
-    redirect('/login');
-  }
+    if (profileError) {
+      console.error('❌ 獲取用戶資料失敗:', profileError);
+      throw profileError;
+    }
 
-  // 3. 檢查權限（簡化查詢，避免複雜關聯）
-  // 直接從 profile.role 判斷基本權限
-  const canCreateInspection = profile.role === 'admin' || profile.role === 'supervisor';
+    if (!profile) {
+      redirect('/login');
+    }
 
-  // 4. 獲取巡店記錄（發取近 6 個月的數據供日曆顯示）
-  const sixMonthsAgo = new Date();
-  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-  
-  console.log('🔍 開始查詢巡店記錄...');
-  console.log('📅 日期範圍:', sixMonthsAgo.toISOString(), '到現在');
-  console.log('👤 當前用戶:', user.id);
-  
-  const { data: inspections, error } = await supabase
-    .from('inspection_masters')
-    .select(`
-      id,
-      store_id,
-      inspector_id,
-      inspection_date,
-      status,
-      total_score,
-      max_possible_score,
-      grade,
-      score_percentage,
-      created_at,
-      store:stores (
-        id,
-        store_name,
-        store_code,
-        short_name
-      ),
-      inspector:profiles!inspection_masters_inspector_id_fkey (
-        id,
-        full_name
-      )
-    `)
-    .gte('inspection_date', sixMonthsAgo.toISOString())
-    .order('inspection_date', { ascending: false });
+    // 3. 檢查權限（直接從 role 判斷）
+    const canCreateInspection = profile.role === 'admin' || profile.role === 'supervisor';
 
-  console.log('📊 查詢結果:', {
-    recordCount: inspections?.length || 0,
-    hasError: !!error,
-    error: error,
-  });
+    // 4. 獲取巡店記錄（簡化查詢，先不使用關聯）
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    
+    console.log('🔍 開始查詢巡店記錄...');
+    console.log('📅 日期範圍:', sixMonthsAgo.toISOString(), '到現在');
+    console.log('👤 當前用戶:', user.id, 'Role:', profile.role);
+    
+    // 第一步：獲取基本巡店記錄
+    const { data: rawInspections, error: inspectionError } = await supabase
+      .from('inspection_masters')
+      .select('id, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at')
+      .gte('inspection_date', sixMonthsAgo.toISOString())
+      .order('inspection_date', { ascending: false });
 
-  if (error) {
-    console.error('❌ 獲取巡店記錄失敗:', error);
-  }
+    if (inspectionError) {
+      console.error('❌ 獲取巡店記錄失敗:', inspectionError);
+      throw inspectionError;
+    }
 
-  // 規範化資料：確保 store 和 inspector 是單個對象（Supabase 關聯查詢的類型修正）
-  const normalizedInspections = (inspections || []).map((ins: any) => ({
-    ...ins,
-    store: Array.isArray(ins.store) ? ins.store[0] : ins.store,
-    inspector: Array.isArray(ins.inspector) ? ins.inspector[0] : ins.inspector || { id: ins.inspector_id, full_name: '(資料載入中)' },
-  }));
+    console.log('✅ 成功獲取', rawInspections?.length || 0, '筆巡店記錄');
+
+    // 第二步：批量獲取所有相關的 store 和 inspector 資料
+    const storeIds = Array.from(new Set(rawInspections?.map(i => i.store_id) || []));
+    const inspectorIds = Array.from(new Set(rawInspections?.map(i => i.inspector_id) || []));
+
+    const { data: stores } = await supabase
+      .from('stores')
+      .select('id, store_name, store_code, short_name')
+      .in('id', storeIds);
+
+    const { data: inspectors } = await supabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', inspectorIds);
+
+    // 第三步：組合資料
+    const storeMap = new Map(stores?.map(s => [s.id, s]) || []);
+    const inspectorMap = new Map(inspectors?.map(i => [i.id, i]) || []);
+
+    const normalizedInspections = (rawInspections || []).map((ins: any) => ({
+      ...ins,
+      store: storeMap.get(ins.store_id) || { id: ins.store_id, store_name: '載入中...', store_code: '', short_name: null },
+      inspector: inspectorMap.get(ins.inspector_id) || { id: ins.inspector_id, full_name: '載入中...' },
+    }));
+
+    console.log('✅ 資料組合完成');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -364,4 +365,37 @@ export default async function InspectionListPage() {
       </div>
     </div>
   );
+  } catch (error) {
+    console.error('❌ 巡店列表頁發生錯誤:', error);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-lg p-8 max-w-2xl w-full">
+          <div className="text-center">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">❌</span>
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">載入巡店記錄時發生錯誤</h1>
+            <p className="text-gray-600 mb-6">請稍後再試或聯繫系統管理員</p>
+            <pre className="bg-gray-100 p-4 rounded text-sm text-left overflow-auto max-h-96">
+              {JSON.stringify(error, null, 2)}
+            </pre>
+            <div className="mt-6 flex gap-4 justify-center">
+              <Link
+                href="/dashboard"
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                返回首頁
+              </Link>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                重新載入
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 }
