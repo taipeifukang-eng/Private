@@ -158,52 +158,6 @@ export default function PrintInspectionReport({
           </div>
         </div>
 
-        {/* 各區塊檢核詳情 */}
-        <div className="mb-6">
-          <h2 className="text-lg font-bold mb-3 border-b border-gray-300 pb-2">扣分項目詳情</h2>
-          {groupedResults.filter(([, data]) => data.items.some((item: any) => item.deduction_amount > 0)).length === 0 && (
-            <p className="text-sm text-gray-500 text-center py-4">此次巡店無扣分項目，表現優秀！</p>
-          )}
-          {groupedResults.map(([section, data]) => {
-            const deductedItems = data.items.filter((item: any) => item.deduction_amount > 0);
-            if (deductedItems.length === 0) return null;
-            return (
-            <div key={section} className="mb-4 avoid-break">
-              <div className="bg-gray-100 px-3 py-2 font-semibold text-sm mb-2 flex justify-between">
-                <span>{data.section_name}</span>
-                <span>扣分小計: -{deductedItems.reduce((sum: number, i: any) => sum + i.deduction_amount, 0)} 分</span>
-              </div>
-              <table className="w-full text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-gray-300">
-                    <th className="text-left py-1 px-2 w-1/3">檢核項目</th>
-                    <th className="text-center py-1 px-2 w-1/6">配分</th>
-                    <th className="text-center py-1 px-2 w-1/6">得分</th>
-                    <th className="text-center py-1 px-2 w-1/6">扣分</th>
-                    <th className="text-left py-1 px-2 w-1/4">備註</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {deductedItems.map((item: any) => (
-                    <tr key={item.id} className="border-b border-gray-200">
-                      <td className="py-1 px-2">{item.template.item_name}</td>
-                      <td className="text-center py-1 px-2">{item.max_score}</td>
-                      <td className="text-center py-1 px-2 font-semibold">{item.given_score}</td>
-                      <td className="text-center py-1 px-2 text-red-600">
-                        -{item.deduction_amount}
-                      </td>
-                      <td className="py-1 px-2 text-xs text-gray-600">
-                        {item.notes || '-'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            );
-          })}
-        </div>
-
         {/* 督導總評 */}
         {inspection.supervisor_notes && (
           <div className="mb-6 avoid-break">
