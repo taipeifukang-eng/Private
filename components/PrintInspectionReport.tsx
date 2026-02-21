@@ -160,12 +160,18 @@ export default function PrintInspectionReport({
 
         {/* 各區塊檢核詳情 */}
         <div className="mb-6">
-          <h2 className="text-lg font-bold mb-3 border-b border-gray-300 pb-2">檢核項目詳情</h2>
-          {groupedResults.map(([section, data]) => (
+          <h2 className="text-lg font-bold mb-3 border-b border-gray-300 pb-2">扣分項目詳情</h2>
+          {groupedResults.filter(([, data]) => data.items.some((item: any) => item.deduction_amount > 0)).length === 0 && (
+            <p className="text-sm text-gray-500 text-center py-4">此次巡店無扣分項目，表現優秀！</p>
+          )}
+          {groupedResults.map(([section, data]) => {
+            const deductedItems = data.items.filter((item: any) => item.deduction_amount > 0);
+            if (deductedItems.length === 0) return null;
+            return (
             <div key={section} className="mb-4 avoid-break">
               <div className="bg-gray-100 px-3 py-2 font-semibold text-sm mb-2 flex justify-between">
                 <span>{data.section_name}</span>
-                <span>{data.total_earned} / {data.total_max} 分</span>
+                <span>扣分小計: -{deductedItems.reduce((sum: number, i: any) => sum + i.deduction_amount, 0)} 分</span>
               </div>
               <table className="w-full text-xs border-collapse">
                 <thead>
@@ -178,13 +184,13 @@ export default function PrintInspectionReport({
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((item: any) => (
+                  {deductedItems.map((item: any) => (
                     <tr key={item.id} className="border-b border-gray-200">
                       <td className="py-1 px-2">{item.template.item_name}</td>
                       <td className="text-center py-1 px-2">{item.max_score}</td>
                       <td className="text-center py-1 px-2 font-semibold">{item.given_score}</td>
                       <td className="text-center py-1 px-2 text-red-600">
-                        {item.deduction_amount > 0 ? `-${item.deduction_amount}` : '-'}
+                        -{item.deduction_amount}
                       </td>
                       <td className="py-1 px-2 text-xs text-gray-600">
                         {item.notes || '-'}
@@ -194,7 +200,8 @@ export default function PrintInspectionReport({
                 </tbody>
               </table>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* 督導總評 */}

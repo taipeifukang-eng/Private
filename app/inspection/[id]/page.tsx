@@ -184,8 +184,9 @@ export default async function InspectionDetailPage({
       template: templateMap.get(result.template_id) || null,
     })).filter(r => r.template); // 只保留有模板的結果
 
-    // 8. 按區塊分組結果
-    const groupedResults = results.reduce((acc, result: any) => {
+    // 8. 按區塊分組結果（只保留有扣分的項目）
+    const deductedResults = results.filter((r: any) => r.deduction_amount > 0);
+    const groupedResults = deductedResults.reduce((acc, result: any) => {
       if (!result.template) return acc;
       
       const section = result.template.section;
@@ -445,10 +446,10 @@ export default async function InspectionDetailPage({
 
         {/* 檢查項目詳情 */}
         <div className="space-y-4 mb-6">
-          <h2 className="text-xl font-bold text-gray-900">檢查項目詳情</h2>
+          <h2 className="text-xl font-bold text-gray-900">扣分項目詳情</h2>
           {sortedSections.length === 0 && (
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-              <p className="text-gray-500">此次巡店無檢查明細資料</p>
+              <p className="text-gray-500">此次巡店無扣分項目，表現優秀！🎉</p>
             </div>
           )}
           {sortedSections.map(([sectionKey, section]) => {
