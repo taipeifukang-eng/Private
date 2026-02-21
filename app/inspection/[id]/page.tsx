@@ -99,10 +99,11 @@ export default async function InspectionDetailPage({
       gps_longitude,
       created_at,
       updated_at,
-      store:stores!inner (
+      store:stores (
         id,
         store_name,
         store_code,
+        short_name,
         address
       ),
       inspector:profiles!inspection_masters_inspector_id_fkey (
@@ -116,12 +117,20 @@ export default async function InspectionDetailPage({
 
   if (error || !inspection) {
     console.error('❌ 獲取巡店記錄失敗:', error);
+    console.error('❌ 請求的 ID:', params.id);
+    console.error('❌ 當前使用者:', user.id);
     notFound();
   }
 
   // 類型安全：確保 store 是單個對象
   const store = Array.isArray(inspection.store) ? inspection.store[0] : inspection.store;
   const inspector = Array.isArray(inspection.inspector) ? inspection.inspector[0] : inspection.inspector;
+
+  // 確保 store 和 inspector 存在
+  if (!store) {
+    console.error('❌ 無法載入門市資料');
+    notFound();
+  }
 
   // 確保 inspector 存在，否則使用預設值
   const safeInspector = inspector || { id: inspection.inspector_id, full_name: '(資料載入中)' };
@@ -244,7 +253,7 @@ export default async function InspectionDetailPage({
               <div>
                 <p className="text-sm text-gray-600">巡店門市</p>
                 <p className="text-lg font-semibold text-gray-900 mt-0.5">
-                  {store.store_name}
+                  {store.short_name || store.store_name}
                 </p>
                 <p className="text-xs text-gray-500">{store.store_code}</p>
               </div>

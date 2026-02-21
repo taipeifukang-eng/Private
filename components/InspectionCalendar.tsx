@@ -10,6 +10,7 @@ type InspectionRecord = {
   store: {
     store_name: string;
     store_code: string;
+    short_name?: string | null;
   };
   grade: string;
 };
@@ -170,9 +171,9 @@ export default function InspectionCalendar({ inspections }: InspectionCalendarPr
                         transition-all hover:scale-105
                         ${getGradeColor(inspection.grade)}
                       `}
-                      title={`${inspection.store.store_name} - 得分: ${inspection.grade}/10`}
+                      title={`${inspection.store.short_name || inspection.store.store_name} - 得分: ${inspection.grade}/10`}
                     >
-                      <div className="truncate">{inspection.store.store_code || inspection.store.store_name}</div>
+                      <div className="truncate">{inspection.store.short_name || inspection.store.store_code}</div>
                       <div className="text-[10px] opacity-75">得分 {inspection.grade}</div>
                     </Link>
                   ))}
