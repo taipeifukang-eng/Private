@@ -23,6 +23,7 @@ export default function ExportMonthlyStatusPage() {
   const [downloadingTalentBonus, setDownloadingTalentBonus] = useState(false);
   const [downloadingMealAllowance, setDownloadingMealAllowance] = useState(false);
   const [downloadingSupportHours, setDownloadingSupportHours] = useState(false);
+  const [downloadingSpringFestival, setDownloadingSpringFestival] = useState(false);
   
   // 年月選擇
   const now = new Date();
@@ -275,6 +276,43 @@ export default function ExportMonthlyStatusPage() {
     }
   };
 
+  const handleDownloadSpringFestival = async () => {
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingSpringFestival(true);
+
+    try {
+      const response = await fetch('/api/export-monthly-status/spring-festival-bonus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      // 下載檔案
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `春節出勤獎金_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading spring festival bonus:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingSpringFestival(false);
+    }
+  };
+
   const handleDownloadSupportHours = async () => {
     const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
     setDownloadingSupportHours(true);
@@ -473,6 +511,16 @@ export default function ExportMonthlyStatusPage() {
               >
                 <Download size={20} />
                 {downloadingMealAllowance ? '匯出中...' : `匯出誤餐費 (${selectedStoreIds.size} 間門市)`}
+              </button>
+
+              {/* 春節出勤獎金 */}
+              <button
+                onClick={handleDownloadSpringFestival}
+                disabled={downloadingSpringFestival || selectedStoreIds.size === 0}
+                className="w-full px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingSpringFestival ? '匯出中...' : `匯出春節出勤獎金 (${selectedStoreIds.size} 間門市)`}
               </button>
 
               {/* 門市支援時數 */}
