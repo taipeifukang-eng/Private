@@ -9,6 +9,7 @@ import MealAllowanceModal from '@/components/MealAllowanceModal';
 import SupportBonusModal from '@/components/SupportBonusModal';
 import TransportExpenseModal from '@/components/TransportExpenseModal';
 import TalentCultivationModal from '@/components/TalentCultivationModal';
+import SpringFestivalBonusModal from '@/components/SpringFestivalBonusModal';
 import { 
   CalendarCheck, 
   Building2, 
@@ -713,6 +714,7 @@ function StoreStatusDetail({
   const [showSupportBonusModal, setShowSupportBonusModal] = useState(false);
   const [showTransportExpenseModal, setShowTransportExpenseModal] = useState(false);
   const [showTalentCultivationModal, setShowTalentCultivationModal] = useState(false);
+  const [showSpringFestivalBonusModal, setShowSpringFestivalBonusModal] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<{code: string; name: string} | null>(null);
   const [movementHistory, setMovementHistory] = useState<any[]>([]);
@@ -1274,6 +1276,13 @@ function StoreStatusDetail({
                   <Plus size={16} />
                   育才獎金
                 </button>
+                <button
+                  onClick={() => setShowSpringFestivalBonusModal(true)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  春節出勤獎金
+                </button>
               </div>
             )}
           </div>
@@ -1340,6 +1349,20 @@ function StoreStatusDetail({
           onClose={() => {
             setShowTalentCultivationModal(false);
             loadStaffStatus(); // 關閉時重新載入資料
+          }}
+          yearMonth={yearMonth}
+          storeId={store.id}
+          currentStaffList={staffList}
+        />
+      )}
+
+      {/* 春節出勤獎金 Modal */}
+      {showSpringFestivalBonusModal && (
+        <SpringFestivalBonusModal
+          isOpen={showSpringFestivalBonusModal}
+          onClose={() => {
+            setShowSpringFestivalBonusModal(false);
+            loadStaffStatus();
           }}
           yearMonth={yearMonth}
           storeId={store.id}
