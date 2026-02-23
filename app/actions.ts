@@ -1593,6 +1593,69 @@ export async function duplicateTemplate(templateId: string, newTitle?: string) {
       return { success: false, error: `複製失敗: ${createError.message}` };
     }
 
+    // 複製 assignment，讓新模板能顯示在任務管理頁面
+    const { data: originalAssignment } = await supabase
+      .from('assignments')
+      .select('*')
+      .eq('template_id', templateId)
+      .eq('archived', false)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (originalAssignment) {
+      // 建立新的 assignment
+      const { data: newAssignment, error: assignmentError } = await supabase
+        .from('assignments')
+        .insert({
+          template_id: newTemplate.id,
+          assigned_to: user.id,
+          status: 'pending',
+          department: originalAssignment.department || null,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (assignmentError) {
+        console.error('Error creating assignment for duplicated template:', assignmentError);
+      } else if (newAssignment) {
+        // 複製原 assignment 的協作者
+        const { data: originalCollaborators } = await supabase
+          .from('assignment_collaborators')
+          .select('user_id, role')
+          .eq('assignment_id', originalAssignment.id);
+
+        if (originalCollaborators && originalCollaborators.length > 0) {
+          const newCollaborators = originalCollaborators.map(c => ({
+            assignment_id: newAssignment.id,
+            user_id: c.user_id,
+            role: c.role,
+          }));
+
+          const { error: collabError } = await supabase
+            .from('assignment_collaborators')
+            .insert(newCollaborators);
+
+          if (collabError) {
+            console.error('Error copying collaborators:', collabError);
+          }
+        }
+
+        // 確保建立者也是協作者
+        const creatorExists = originalCollaborators?.some(c => c.user_id === user.id);
+        if (!creatorExists) {
+          await supabase
+            .from('assignment_collaborators')
+            .insert({
+              assignment_id: newAssignment.id,
+              user_id: user.id,
+              role: 'manager',
+            });
+        }
+      }
+    }
+
     revalidatePath('/admin/templates');
     return { success: true, data: newTemplate };
   } catch (error: any) {
