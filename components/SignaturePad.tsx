@@ -1,7 +1,7 @@
-'use client';
+﻿'use client';
 
-import { useRef, useState, useEffect, useCallback } from 'react';
-import { RotateCcw } from 'lucide-react';
+import { useRef, useState, useEffect } from 'react';
+import { RotateCcw, Check, X, PenTool } from 'lucide-react';
 
 interface SignaturePadProps {
   onSignatureChange: (dataUrl: string) => void;
@@ -13,114 +13,160 @@ interface SignaturePadProps {
   className?: string;
 }
 
+/**
+ * 全螢幕橫式簽名元件
+ * 點擊觸發區開啟全螢幕簽名彈窗，簽完按確認回傳 dataUrl
+ */
 export default function SignaturePad({
   onSignatureChange,
   initialSignature = '',
-  width = 500,
-  height = 200,
-  penColor = '#1a1a2e',
-  penWidth = 2.5,
   className = '',
 }: SignaturePadProps) {
+  const [showModal, setShowModal] = useState(false);
+
+  return (
+    <div className={className}>
+      {/* 觸發區：顯示已簽名圖或提示 */}
+      <div
+        className="border-2 border-dashed border-blue-300 rounded-lg overflow-hidden cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors"
+        onClick={() => setShowModal(true)}
+      >
+        {initialSignature ? (
+          <div className="relative group bg-white">
+            <img
+              src={initialSignature}
+              alt="督導簽名"
+              className="w-full h-auto max-h-32 object-contain p-2"
+            />
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">
+              <span className="text-sm text-gray-600 opacity-0 group-hover:opacity-100 bg-white px-3 py-1 rounded-full shadow">
+                點擊重新簽名
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center">
+            <PenTool className="w-10 h-10 text-blue-500 mx-auto mb-2" />
+            <p className="text-sm text-blue-600 font-medium">點擊開啟簽名板</p>
+          </div>
+        )}
+      </div>
+
+      {/* 全螢幕簽名彈窗 */}
+      {showModal && (
+        <SignatureModal
+          initialSignature={initialSignature}
+          onConfirm={(dataUrl) => {
+            onSignatureChange(dataUrl);
+            setShowModal(false);
+          }}
+          onCancel={() => setShowModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// 全螢幕橫式簽名 Modal
+// ============================================================
+function SignatureModal({
+  initialSignature,
+  onConfirm,
+  onCancel,
+}: {
+  initialSignature?: string;
+  onConfirm: (dataUrl: string) => void;
+  onCancel: () => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
-  const hasContentRef = useRef(!!initialSignature);
-  const [hasSignature, setHasSignature] = useState(!!initialSignature);
-  const [canvasSize, setCanvasSize] = useState({ width, height });
-  const savedImageRef = useRef<string>('');
+  const [hasContent, setHasContent] = useState(!!initialSignature);
+  const [canvasReady, setCanvasReady] = useState(false);
 
-  // Responsive canvas sizing — only measure once on mount
-  // Measure container and resize canvas — also on orientation change
+  // Lock body scroll when modal is open
   useEffect(() => {
-    const measure = () => {
-      if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth;
-        const newWidth = Math.min(containerWidth - 4, width);
-        const newHeight = Math.round((newWidth / width) * height);
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+    const scrollY = window.scrollY;
 
-        // Save current drawing before resize
-        const canvas = canvasRef.current;
-        if (canvas && hasContentRef.current) {
-          savedImageRef.current = canvas.toDataURL('image/png');
-        }
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
 
-        setCanvasSize({ width: newWidth, height: newHeight });
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  // Initialize canvas
+  useEffect(() => {
+    const initCanvas = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.scale(dpr, dpr);
+
+      // White background
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      // Drawing style
+      ctx.strokeStyle = '#1a1a2e';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      // Load existing signature if any
+      if (initialSignature) {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(rect.width / img.width, rect.height / img.height) * 0.9;
+          const x = (rect.width - img.width * scale) / 2;
+          const y = (rect.height - img.height * scale) / 2;
+          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          ctx.strokeStyle = '#1a1a2e';
+          ctx.lineWidth = 3;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          setCanvasReady(true);
+        };
+        img.src = initialSignature;
+      } else {
+        setCanvasReady(true);
       }
     };
 
-    measure();
+    // Delay to ensure layout is settled
+    const timer = setTimeout(initCanvas, 100);
+    return () => clearTimeout(timer);
+  }, [initialSignature]);
 
-    // Listen for orientation change (mobile rotate) and resize
-    const handleChange = () => {
-      // Small delay to let the browser finish layout
-      setTimeout(measure, 150);
-    };
-
-    window.addEventListener('orientationchange', handleChange);
-    window.addEventListener('resize', handleChange);
-
-    return () => {
-      window.removeEventListener('orientationchange', handleChange);
-      window.removeEventListener('resize', handleChange);
-    };
-  }, [width, height]);
-
-  // Initialize canvas (only when canvasSize settles)
+  // Touch / mouse event handlers
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = canvasSize.width * dpr;
-    canvas.height = canvasSize.height * dpr;
-    canvas.style.width = `${canvasSize.width}px`;
-    canvas.style.height = `${canvasSize.height}px`;
-    ctx.scale(dpr, dpr);
-
-    // Fill white background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvasSize.width, canvasSize.height);
-
-    // Restore saved content if any
-    if (savedImageRef.current) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvasSize.width, canvasSize.height);
-        // Re-apply drawing style after drawImage
-        ctx.strokeStyle = penColor;
-        ctx.lineWidth = penWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-      };
-      img.src = savedImageRef.current;
-    } else if (initialSignature) {
-      const img = new Image();
-      img.onload = () => {
-        ctx.drawImage(img, 0, 0, canvasSize.width, canvasSize.height);
-        ctx.strokeStyle = penColor;
-        ctx.lineWidth = penWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-      };
-      img.src = initialSignature;
-    }
-
-    // Set drawing style
-    ctx.strokeStyle = penColor;
-    ctx.lineWidth = penWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-  }, [canvasSize, penColor, penWidth, initialSignature]);
-
-  // Use native event listeners to prevent ALL default touch behavior
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !canvasReady) return;
 
     const getPoint = (e: TouchEvent | MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -132,143 +178,152 @@ export default function SignaturePad({
       return { x: (e as MouseEvent).clientX - rect.left, y: (e as MouseEvent).clientY - rect.top };
     };
 
-    const startDrawing = (e: TouchEvent | MouseEvent) => {
+    const startDraw = (e: TouchEvent | MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const point = getPoint(e);
-      if (!point) return;
-
+      const pt = getPoint(e);
+      if (!pt) return;
       isDrawingRef.current = true;
-      lastPointRef.current = point;
-
+      lastPointRef.current = pt;
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.beginPath();
-        ctx.moveTo(point.x, point.y);
-        ctx.lineTo(point.x + 0.1, point.y + 0.1);
+        ctx.moveTo(pt.x, pt.y);
+        ctx.lineTo(pt.x + 0.1, pt.y + 0.1);
         ctx.stroke();
       }
     };
 
-    const draw = (e: TouchEvent | MouseEvent) => {
+    const drawing = (e: TouchEvent | MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (!isDrawingRef.current) return;
-
-      const point = getPoint(e);
-      if (!point || !lastPointRef.current) return;
-
+      const pt = getPoint(e);
+      if (!pt || !lastPointRef.current) return;
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-
       ctx.beginPath();
       ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-      ctx.lineTo(point.x, point.y);
+      ctx.lineTo(pt.x, pt.y);
       ctx.stroke();
-
-      lastPointRef.current = point;
+      lastPointRef.current = pt;
     };
 
-    const stopDrawing = (e: TouchEvent | MouseEvent) => {
+    const stopDraw = (e: TouchEvent | MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (isDrawingRef.current) {
         isDrawingRef.current = false;
         lastPointRef.current = null;
-        hasContentRef.current = true;
-        setHasSignature(true);
-
-        // Save current canvas content
-        const dataUrl = canvas.toDataURL('image/png');
-        savedImageRef.current = dataUrl;
-        onSignatureChange(dataUrl);
+        setHasContent(true);
       }
     };
 
-    // Use passive: false to ensure preventDefault works on touch events
-    canvas.addEventListener('touchstart', startDrawing, { passive: false });
-    canvas.addEventListener('touchmove', draw, { passive: false });
-    canvas.addEventListener('touchend', stopDrawing, { passive: false });
-    canvas.addEventListener('touchcancel', stopDrawing, { passive: false });
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseleave', stopDrawing);
+    canvas.addEventListener('touchstart', startDraw, { passive: false });
+    canvas.addEventListener('touchmove', drawing, { passive: false });
+    canvas.addEventListener('touchend', stopDraw, { passive: false });
+    canvas.addEventListener('touchcancel', stopDraw, { passive: false });
+    canvas.addEventListener('mousedown', startDraw);
+    canvas.addEventListener('mousemove', drawing);
+    canvas.addEventListener('mouseup', stopDraw);
+    canvas.addEventListener('mouseleave', stopDraw);
 
     return () => {
-      canvas.removeEventListener('touchstart', startDrawing);
-      canvas.removeEventListener('touchmove', draw);
-      canvas.removeEventListener('touchend', stopDrawing);
-      canvas.removeEventListener('touchcancel', stopDrawing);
-      canvas.removeEventListener('mousedown', startDrawing);
-      canvas.removeEventListener('mousemove', draw);
-      canvas.removeEventListener('mouseup', stopDrawing);
-      canvas.removeEventListener('mouseleave', stopDrawing);
+      canvas.removeEventListener('touchstart', startDraw);
+      canvas.removeEventListener('touchmove', drawing);
+      canvas.removeEventListener('touchend', stopDraw);
+      canvas.removeEventListener('touchcancel', stopDraw);
+      canvas.removeEventListener('mousedown', startDraw);
+      canvas.removeEventListener('mousemove', drawing);
+      canvas.removeEventListener('mouseup', stopDraw);
+      canvas.removeEventListener('mouseleave', stopDraw);
     };
-  }, [canvasSize, onSignatureChange, penColor, penWidth]);
+  }, [canvasReady]);
 
-  const clearSignature = useCallback(() => {
+  const handleClear = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
     const dpr = window.devicePixelRatio || 1;
-    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width / dpr, canvas.height / dpr);
-
-    ctx.strokeStyle = penColor;
-    ctx.lineWidth = penWidth;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#1a1a2e';
+    ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    setHasContent(false);
+  };
 
-    hasContentRef.current = false;
-    savedImageRef.current = '';
-    setHasSignature(false);
-    onSignatureChange('');
-  }, [penColor, penWidth, onSignatureChange]);
+  const handleConfirm = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !hasContent) return;
+    onConfirm(canvas.toDataURL('image/png'));
+  };
 
   return (
     <div
-      ref={containerRef}
-      className={`relative select-none ${className}`}
-      style={{ touchAction: 'none', WebkitUserSelect: 'none', userSelect: 'none' }}
+      className="fixed inset-0 z-[9999] bg-black"
+      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
     >
-      <canvas
-        ref={canvasRef}
-        className="border-2 border-dashed border-blue-300 rounded-lg cursor-crosshair bg-white block"
-        style={{
-          width: canvasSize.width,
-          height: canvasSize.height,
-          touchAction: 'none',
-          WebkitTouchCallout: 'none',
-          WebkitUserSelect: 'none',
-          userSelect: 'none',
-          msTouchAction: 'none',
-        } as React.CSSProperties}
-      />
-
-      {/* Placeholder text when empty */}
-      {!hasSignature && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none">
-          <p className="text-gray-400 text-sm select-none">請在此處簽名</p>
-        </div>
-      )}
-
-      {/* Clear button */}
-      {hasSignature && (
+      {/* Toolbar */}
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-3 py-2 bg-gray-900 bg-opacity-80 backdrop-blur-sm safe-area-top">
         <button
           type="button"
-          onClick={clearSignature}
-          className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 bg-red-500 text-white text-xs rounded-md shadow hover:bg-red-600 active:scale-95 transition-all"
-          title="清除簽名"
+          onClick={onCancel}
+          className="flex items-center gap-1 px-3 py-2 text-white text-sm rounded-lg hover:bg-white/20 active:bg-white/30 transition-colors"
         >
-          <RotateCcw className="w-3 h-3" />
-          清除
+          <X className="w-4 h-4" />
+          取消
         </button>
-      )}
+
+        <span className="text-white text-sm font-medium">請在此簽名</span>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleClear}
+            className="flex items-center gap-1 px-3 py-2 text-white text-sm rounded-lg hover:bg-white/20 active:bg-white/30 transition-colors"
+          >
+            <RotateCcw className="w-4 h-4" />
+            清除
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!hasContent}
+            className={`flex items-center gap-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              hasContent
+                ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
+                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+            }`}
+          >
+            <Check className="w-4 h-4" />
+            確認
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas area */}
+      <div
+        ref={containerRef}
+        className="absolute left-0 right-0 bottom-0 bg-white"
+        style={{ top: '48px' }}
+      >
+        <canvas
+          ref={canvasRef}
+          className="block w-full h-full cursor-crosshair"
+          style={{
+            touchAction: 'none',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none',
+          } as React.CSSProperties}
+        />
+      </div>
     </div>
   );
 }
