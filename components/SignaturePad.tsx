@@ -1,7 +1,7 @@
 ﻿'use client';
 
-import { useRef, useState, useEffect } from 'react';
-import { RotateCcw, Check, X, PenTool } from 'lucide-react';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import { RotateCcw, Check, X, PenTool, Smartphone } from 'lucide-react';
 
 interface SignaturePadProps {
   onSignatureChange: (dataUrl: string) => void;
@@ -14,8 +14,8 @@ interface SignaturePadProps {
 }
 
 /**
- * 全螢幕橫式簽名元件
- * 點擊觸發區開啟全螢幕簽名彈窗，簽完按確認回傳 dataUrl
+ * Fullscreen landscape signature pad
+ * Tap to open -> fullscreen modal -> sign -> confirm -> returns dataUrl
  */
 export default function SignaturePad({
   onSignatureChange,
@@ -24,12 +24,56 @@ export default function SignaturePad({
 }: SignaturePadProps) {
   const [showModal, setShowModal] = useState(false);
 
+  const handleOpenSignature = () => {
+    setShowModal(true);
+    // Progressive enhancement: try fullscreen + landscape lock
+    try {
+      const el = document.documentElement;
+      const requestFS =
+        el.requestFullscreen || (el as any).webkitRequestFullscreen;
+      if (requestFS) {
+        requestFS
+          .call(el)
+          .then(() => {
+            try {
+              (screen.orientation as any)?.lock?.('landscape');
+            } catch {}
+          })
+          .catch(() => {});
+      }
+    } catch {}
+  };
+
+  const handleCloseModal = useCallback(
+    (dataUrl?: string) => {
+      if (dataUrl !== undefined) {
+        onSignatureChange(dataUrl);
+      }
+      setShowModal(false);
+      // Unlock orientation + exit fullscreen
+      try {
+        screen.orientation?.unlock?.();
+      } catch {}
+      try {
+        const fse =
+          document.fullscreenElement ||
+          (document as any).webkitFullscreenElement;
+        if (fse) {
+          if (document.exitFullscreen) document.exitFullscreen();
+          else if ((document as any).webkitExitFullscreen)
+            (document as any).webkitExitFullscreen();
+        }
+      } catch {}
+    },
+    [onSignatureChange],
+  );
+
   return (
     <div className={className}>
-      {/* 觸發區：顯示已簽名圖或提示 */}
+      {/* Tap trigger area */}
       <div
         className="border-2 border-dashed border-blue-300 rounded-lg overflow-hidden cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors"
-        onClick={() => setShowModal(true)}
+        onClick={handleOpenSignature}
       >
         {initialSignature ? (
           <div className="relative group bg-white">
@@ -47,20 +91,18 @@ export default function SignaturePad({
         ) : (
           <div className="p-8 text-center">
             <PenTool className="w-10 h-10 text-blue-500 mx-auto mb-2" />
-            <p className="text-sm text-blue-600 font-medium">點擊開啟簽名板</p>
+            <p className="text-sm text-blue-600 font-medium">
+              點擊開啟簽名板
+            </p>
           </div>
         )}
       </div>
 
-      {/* 全螢幕簽名彈窗 */}
       {showModal && (
         <SignatureModal
           initialSignature={initialSignature}
-          onConfirm={(dataUrl) => {
-            onSignatureChange(dataUrl);
-            setShowModal(false);
-          }}
-          onCancel={() => setShowModal(false)}
+          onConfirm={(dataUrl) => handleCloseModal(dataUrl)}
+          onCancel={() => handleCloseModal()}
         />
       )}
     </div>
@@ -68,7 +110,7 @@ export default function SignaturePad({
 }
 
 // ============================================================
-// 全螢幕橫式簽名 Modal
+// Fullscreen Signature Modal
 // ============================================================
 function SignatureModal({
   initialSignature,
@@ -84,40 +126,85 @@ function SignatureModal({
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
   const [hasContent, setHasContent] = useState(!!initialSignature);
-  const [canvasReady, setCanvasReady] = useState(false);
+  const savedDataRef = useRef<string>(initialSignature || '');
+  const canvasReadyRef = useRef(false);
+  const [sizeVersion, setSizeVersion] = useState(0);
+  const [showRotateHint, setShowRotateHint] = useState(false);
 
-  // Lock body scroll when modal is open
+  // Lock body scroll
   useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    const originalPosition = document.body.style.position;
-    const originalTop = document.body.style.top;
-    const originalWidth = document.body.style.width;
     const scrollY = window.scrollY;
-
+    const orig = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+    };
     document.body.style.overflow = 'hidden';
     document.body.style.position = 'fixed';
     document.body.style.top = `-${scrollY}px`;
     document.body.style.width = '100%';
 
     return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.position = originalPosition;
-      document.body.style.top = originalTop;
-      document.body.style.width = originalWidth;
+      document.body.style.overflow = orig.overflow;
+      document.body.style.position = orig.position;
+      document.body.style.top = orig.top;
+      document.body.style.width = orig.width;
       window.scrollTo(0, scrollY);
     };
   }, []);
 
-  // Initialize canvas
+  // Show rotate hint if portrait
   useEffect(() => {
-    const initCanvas = () => {
+    const isPortrait = window.innerHeight > window.innerWidth * 1.2;
+    if (isPortrait) {
+      setShowRotateHint(true);
+      const timer = setTimeout(() => setShowRotateHint(false), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Resize / orientation change -> save drawing, trigger canvas re-init
+  useEffect(() => {
+    let debounce: ReturnType<typeof setTimeout>;
+
+    const handleResize = () => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => {
+        // Save current canvas content
+        const canvas = canvasRef.current;
+        if (canvas && canvasReadyRef.current) {
+          try {
+            savedDataRef.current = canvas.toDataURL('image/png');
+          } catch {}
+        }
+        canvasReadyRef.current = false;
+        setShowRotateHint(false);
+        setSizeVersion((v) => v + 1);
+      }, 250);
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+
+    return () => {
+      clearTimeout(debounce);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
+
+  // Initialize canvas (mount + after each resize)
+  useEffect(() => {
+    const timer = setTimeout(() => {
       const canvas = canvasRef.current;
       const container = containerRef.current;
       if (!canvas || !container) return;
 
       const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      if (rect.width < 10 || rect.height < 10) return;
 
+      const dpr = window.devicePixelRatio || 1;
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
       canvas.style.width = `${rect.width}px`;
@@ -125,7 +212,6 @@ function SignatureModal({
 
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-
       ctx.scale(dpr, dpr);
 
       // White background
@@ -138,53 +224,64 @@ function SignatureModal({
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
-      // Load existing signature if any
-      if (initialSignature) {
+      // Restore saved content
+      if (savedDataRef.current) {
         const img = new Image();
         img.onload = () => {
-          const scale = Math.min(rect.width / img.width, rect.height / img.height) * 0.9;
-          const x = (rect.width - img.width * scale) / 2;
-          const y = (rect.height - img.height * scale) / 2;
-          ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+          const scale =
+            Math.min(rect.width / img.width, rect.height / img.height) * 0.95;
+          const dx = (rect.width - img.width * scale) / 2;
+          const dy = (rect.height - img.height * scale) / 2;
+          ctx.drawImage(img, dx, dy, img.width * scale, img.height * scale);
           ctx.strokeStyle = '#1a1a2e';
           ctx.lineWidth = 3;
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
-          setCanvasReady(true);
+          canvasReadyRef.current = true;
         };
-        img.src = initialSignature;
+        img.onerror = () => {
+          canvasReadyRef.current = true;
+        };
+        img.src = savedDataRef.current;
       } else {
-        setCanvasReady(true);
+        canvasReadyRef.current = true;
       }
-    };
+    }, 150);
 
-    // Delay to ensure layout is settled
-    const timer = setTimeout(initCanvas, 100);
     return () => clearTimeout(timer);
-  }, [initialSignature]);
+  }, [sizeVersion]);
 
   // Touch / mouse event handlers
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !canvasReady) return;
+    if (!canvas) return;
 
     const getPoint = (e: TouchEvent | MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
       if ('touches' in e) {
         const touch = e.touches[0] || e.changedTouches[0];
         if (!touch) return null;
-        return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+        return {
+          x: touch.clientX - rect.left,
+          y: touch.clientY - rect.top,
+        };
       }
-      return { x: (e as MouseEvent).clientX - rect.left, y: (e as MouseEvent).clientY - rect.top };
+      return {
+        x: (e as MouseEvent).clientX - rect.left,
+        y: (e as MouseEvent).clientY - rect.top,
+      };
     };
 
     const startDraw = (e: TouchEvent | MouseEvent) => {
       e.preventDefault();
       e.stopPropagation();
+      if (!canvasReadyRef.current) return;
       const pt = getPoint(e);
       if (!pt) return;
       isDrawingRef.current = true;
       lastPointRef.current = pt;
+      // Hide rotate hint on first draw
+      setShowRotateHint(false);
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.beginPath();
@@ -238,7 +335,7 @@ function SignatureModal({
       canvas.removeEventListener('mouseup', stopDraw);
       canvas.removeEventListener('mouseleave', stopDraw);
     };
-  }, [canvasReady]);
+  }, [sizeVersion]);
 
   const handleClear = () => {
     const canvas = canvasRef.current;
@@ -256,6 +353,7 @@ function SignatureModal({
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     setHasContent(false);
+    savedDataRef.current = '';
   };
 
   const handleConfirm = () => {
@@ -267,10 +365,35 @@ function SignatureModal({
   return (
     <div
       className="fixed inset-0 z-[9999] bg-black"
-      style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' } as React.CSSProperties}
+      style={{
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+      } as React.CSSProperties}
     >
+      {/* Rotate hint overlay */}
+      {showRotateHint && (
+        <div
+          className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowRotateHint(false)}
+        >
+          <div className="animate-bounce mb-4">
+            <Smartphone
+              className="w-16 h-16 text-white"
+              style={{ transform: 'rotate(90deg)' }}
+            />
+          </div>
+          <p className="text-white text-lg font-medium text-center px-6">
+            請將手機橫放以獲得最佳簽名體驗
+          </p>
+          <p className="text-gray-400 text-sm mt-2">
+            或點擊此處直接簽名
+          </p>
+        </div>
+      )}
+
       {/* Toolbar */}
-      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-3 py-2 bg-gray-900 bg-opacity-80 backdrop-blur-sm safe-area-top">
+      <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-3 py-2 bg-gray-900 bg-opacity-80 backdrop-blur-sm">
         <button
           type="button"
           onClick={onCancel}
@@ -280,7 +403,9 @@ function SignatureModal({
           取消
         </button>
 
-        <span className="text-white text-sm font-medium">請在此簽名</span>
+        <span className="text-white text-sm font-medium">
+          請在此簽名
+        </span>
 
         <div className="flex items-center gap-2">
           <button
@@ -307,7 +432,7 @@ function SignatureModal({
         </div>
       </div>
 
-      {/* Canvas area */}
+      {/* Canvas area - fills everything below toolbar */}
       <div
         ref={containerRef}
         className="absolute left-0 right-0 bottom-0 bg-white"
@@ -315,7 +440,7 @@ function SignatureModal({
       >
         <canvas
           ref={canvasRef}
-          className="block w-full h-full cursor-crosshair"
+          className="block cursor-crosshair"
           style={{
             touchAction: 'none',
             WebkitTouchCallout: 'none',
