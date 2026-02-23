@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 
-type MovementType = 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
+type MovementType = 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
 
 interface MovementInput {
   employee_code: string;
@@ -11,6 +11,8 @@ interface MovementInput {
   position?: string; // 僅升職時需要
   effective_date: string;
   notes?: string;
+  from_store_id?: string; // 調店：原任職門市
+  to_store_id?: string;   // 調店：新任職門市
 }
 
 export async function POST(request: NextRequest) {
@@ -55,6 +57,22 @@ export async function POST(request: NextRequest) {
           error: `員工 ${movement.employee_code} 升職需要指定職位` 
         }, { status: 400 });
       }
+
+      // 如果是調店，必須提供原任職門市和新任職門市
+      if (movement.movement_type === 'store_transfer') {
+        if (!movement.from_store_id || !movement.to_store_id) {
+          return NextResponse.json({ 
+            success: false, 
+            error: `員工 ${movement.employee_code} 調店需要指定原任職門市和新任職門市` 
+          }, { status: 400 });
+        }
+        if (movement.from_store_id === movement.to_store_id) {
+          return NextResponse.json({ 
+            success: false, 
+            error: `員工 ${movement.employee_code} 調店的原任職門市和新任職門市不能相同` 
+          }, { status: 400 });
+        }
+      }
     }
 
     // 為每筆記錄準備資料
@@ -90,6 +108,20 @@ export async function POST(request: NextRequest) {
       if (movement.movement_type === 'promotion') {
         oldValue = empData?.current_position || empData?.position || null;
         newValue = movement.position;
+      } else if (movement.movement_type === 'store_transfer') {
+        // 調店：查詢原門市名稱和新門市名稱
+        const { data: fromStore } = await supabase
+          .from('stores')
+          .select('store_name')
+          .eq('id', movement.from_store_id)
+          .single();
+        const { data: toStore } = await supabase
+          .from('stores')
+          .select('store_name')
+          .eq('id', movement.to_store_id)
+          .single();
+        oldValue = fromStore?.store_name || movement.from_store_id || null;
+        newValue = toStore?.store_name || movement.to_store_id || null;
       } else if (movement.movement_type === 'leave_without_pay') {
         oldValue = empData?.employment_status || 'active';
         newValue = 'leave_without_pay';
@@ -104,7 +136,9 @@ export async function POST(request: NextRequest) {
       movementRecords.push({
         employee_code: movement.employee_code.toUpperCase(),
         employee_name: movement.employee_name,
-        store_id: empData?.store_id || null,
+        store_id: movement.movement_type === 'store_transfer' 
+          ? (movement.to_store_id || empData?.store_id || null)  // 調店時 store_id 設為新門市
+          : (empData?.store_id || null),
         movement_type: movement.movement_type,
         movement_date: movement.effective_date,
         new_value: newValue,

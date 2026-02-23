@@ -9,6 +9,7 @@ import { POSITION_OPTIONS } from '@/types/workflow';
 // 異動類型定義
 const MOVEMENT_TYPES = [
   { value: 'promotion', label: '升職' },
+  { value: 'store_transfer', label: '調店' },
   { value: 'leave_without_pay', label: '留職停薪' },
   { value: 'return_to_work', label: '復職' },
   { value: 'pass_probation', label: '過試用期' },
@@ -20,11 +21,13 @@ type MovementType = typeof MOVEMENT_TYPES[number]['value'];
 interface MovementInput {
   employee_code: string;
   employee_name: string;
-  store_id: string; // 升職時的任職門市
+  store_id: string; // 任職門市
   movement_type: MovementType | '';
   position: string; // 僅升職時需要
   effective_date: string;
   notes: string;
+  from_store_id: string; // 調店：原任職門市
+  to_store_id: string;   // 調店：新任職門市
 }
 
 interface MovementHistory {
@@ -59,7 +62,7 @@ export default function EmployeeMovementManagementPage() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'batch' | 'history'>('batch');
   const [movements, setMovements] = useState<MovementInput[]>([
-    { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }
+    { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
   ]);
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<MovementHistory[]>([]);
@@ -227,7 +230,7 @@ export default function EmployeeMovementManagementPage() {
   };
 
   const addRow = () => {
-    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
+    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
   };
 
   const removeRow = (index: number) => {
@@ -248,6 +251,18 @@ export default function EmployeeMovementManagementPage() {
       setSearchTerm({ ...searchTerm, [index]: value.toUpperCase() });
       setShowDropdown({ ...showDropdown, [index]: true });
     }
+
+    // 選擇調店類型時，自動將當前任職門市帶入原任職門市
+    if (field === 'movement_type' && value === 'store_transfer') {
+      if (updated[index].store_id) {
+        updated[index].from_store_id = updated[index].store_id;
+      }
+    }
+    // 切換離開調店類型時，清空調店欄位
+    if (field === 'movement_type' && value !== 'store_transfer') {
+      updated[index].from_store_id = '';
+      updated[index].to_store_id = '';
+    }
     
     setMovements(updated);
   };
@@ -257,6 +272,10 @@ export default function EmployeeMovementManagementPage() {
     updated[index].employee_code = employee.employee_code;
     updated[index].employee_name = employee.employee_name;
     updated[index].store_id = employee.store_id; // 自動帶入員工所屬門市
+    // 調店時自動帶入原任職門市
+    if (updated[index].movement_type === 'store_transfer') {
+      updated[index].from_store_id = employee.store_id;
+    }
     setMovements(updated);
     setShowDropdown({ ...showDropdown, [index]: false });
     setSearchTerm({ ...searchTerm, [index]: '' });
@@ -282,11 +301,15 @@ export default function EmployeeMovementManagementPage() {
       if (m.movement_type === 'promotion' && !m.position) {
         return true;
       }
+      // 如果是調店，必須填寫原任職門市和新任職門市
+      if (m.movement_type === 'store_transfer' && (!m.from_store_id || !m.to_store_id)) {
+        return true;
+      }
       return false;
     });
 
     if (emptyFields.length > 0) {
-      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期，升職時需填寫職位）');
+      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期，升職需填職位，調店需填原任職/新任職門市）');
       return;
     }
 
@@ -307,7 +330,7 @@ export default function EmployeeMovementManagementPage() {
       if (result.success) {
         alert(`✅ 成功建立 ${result.created} 筆異動記錄！`);
         // 重置表單
-        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '' }]);
+        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
         // 重新載入歷史記錄
         loadMovementHistory();
       } else {
@@ -340,7 +363,9 @@ export default function EmployeeMovementManagementPage() {
           movement_type: (row['異動類型'] || row['movement_type'] || '') as MovementType | '',
           position: (row['職位'] || row['position'] || '').toString(),
           effective_date: row['生效日期'] || row['effective_date'] || '',
-          notes: (row['備註'] || row['notes'] || '').toString()
+          notes: (row['備註'] || row['notes'] || '').toString(),
+          from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
+          to_store_id: (row['新任職門市ID'] || row['to_store_id'] || '').toString()
         }));
 
         setMovements(imported);
@@ -358,12 +383,16 @@ export default function EmployeeMovementManagementPage() {
     const exportData = movements.map(m => {
       const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
       const storeName = stores.find(s => s.id === m.store_id)?.name || '';
+      const fromStoreName = stores.find(s => s.id === m.from_store_id)?.name || '';
+      const toStoreName = stores.find(s => s.id === m.to_store_id)?.name || '';
       return {
         '員編': m.employee_code,
         '姓名': m.employee_name,
         '異動類型': movementTypeLabel,
         '任職門市': storeName,
         '職位': m.position,
+        '原任職門市': m.movement_type === 'store_transfer' ? fromStoreName : '',
+        '新任職門市': m.movement_type === 'store_transfer' ? toStoreName : '',
         '生效日期': m.effective_date,
         '備註': m.notes
       };
@@ -481,7 +510,7 @@ export default function EmployeeMovementManagementPage() {
                     任職門市 <span className="text-red-500">*</span>
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
-                    職位
+                    職位 / 調店資訊
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
                     生效日期 <span className="text-red-500">*</span>
@@ -592,6 +621,35 @@ export default function EmployeeMovementManagementPage() {
                             <option key={pos} value={pos}>{pos}</option>
                           ))}
                         </select>
+                      ) : movement.movement_type === 'store_transfer' ? (
+                        <div className="space-y-1">
+                          <div>
+                            <label className="text-xs text-gray-500">原任職門市 *</label>
+                            <select
+                              value={movement.from_store_id}
+                              onChange={(e) => updateRow(index, 'from_store_id', e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-500 rounded bg-orange-50"
+                            >
+                              <option value="">請選擇</option>
+                              {stores.map(store => (
+                                <option key={store.id} value={store.id}>{store.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-500">新任職門市 *</label>
+                            <select
+                              value={movement.to_store_id}
+                              onChange={(e) => updateRow(index, 'to_store_id', e.target.value)}
+                              className="w-full px-2 py-1 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-500 rounded bg-green-50"
+                            >
+                              <option value="">請選擇</option>
+                              {stores.map(store => (
+                                <option key={store.id} value={store.id}>{store.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
                       ) : (
                         <div className="text-gray-400 text-sm px-2 py-1">-</div>
                       )}
@@ -660,6 +718,7 @@ export default function EmployeeMovementManagementPage() {
           <ul className="text-sm text-emerald-800 space-y-1">
             <li>• <strong>所有異動都需填寫任職門市</strong>，記錄員工在哪個門市發生異動</li>
             <li>• <strong>升職：</strong>需填寫新職位，系統會自動更新該員工從生效日期起的所有月份職位</li>
+            <li>• <strong>調店：</strong>需選擇原任職門市和新任職門市，生效日期為新門市調入的第一天。系統會自動將員工從原門市移至新門市</li>
             <li>• <strong>留職停薪：</strong>將員工狀態設為留職停薪，不影響職位資料</li>
             <li>• <strong>復職：</strong>將留職停薪的員工狀態恢復為在職</li>
             <li>• <strong>過試用期：</strong>記錄員工通過試用期的日期</li>
@@ -787,6 +846,7 @@ export default function EmployeeMovementManagementPage() {
                             <td className="px-4 py-3 text-sm">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 record.movement_type === 'promotion' ? 'bg-emerald-100 text-emerald-700' :
+                                record.movement_type === 'store_transfer' ? 'bg-cyan-100 text-cyan-700' :
                                 record.movement_type === 'leave_without_pay' ? 'bg-amber-100 text-amber-700' :
                                 record.movement_type === 'return_to_work' ? 'bg-blue-100 text-blue-700' :
                                 record.movement_type === 'pass_probation' ? 'bg-purple-100 text-purple-700' :
