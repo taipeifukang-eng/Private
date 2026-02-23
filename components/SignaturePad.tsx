@@ -32,14 +32,39 @@ export default function SignaturePad({
   const savedImageRef = useRef<string>('');
 
   // Responsive canvas sizing — only measure once on mount
+  // Measure container and resize canvas — also on orientation change
   useEffect(() => {
-    if (containerRef.current) {
-      const containerWidth = containerRef.current.clientWidth;
-      const newWidth = Math.min(containerWidth - 4, width);
-      const newHeight = Math.round((newWidth / width) * height);
-      setCanvasSize({ width: newWidth, height: newHeight });
-    }
-    // Do NOT listen to resize to avoid clearing the canvas mid-signature
+    const measure = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        const newWidth = Math.min(containerWidth - 4, width);
+        const newHeight = Math.round((newWidth / width) * height);
+
+        // Save current drawing before resize
+        const canvas = canvasRef.current;
+        if (canvas && hasContentRef.current) {
+          savedImageRef.current = canvas.toDataURL('image/png');
+        }
+
+        setCanvasSize({ width: newWidth, height: newHeight });
+      }
+    };
+
+    measure();
+
+    // Listen for orientation change (mobile rotate) and resize
+    const handleChange = () => {
+      // Small delay to let the browser finish layout
+      setTimeout(measure, 150);
+    };
+
+    window.addEventListener('orientationchange', handleChange);
+    window.addEventListener('resize', handleChange);
+
+    return () => {
+      window.removeEventListener('orientationchange', handleChange);
+      window.removeEventListener('resize', handleChange);
+    };
   }, [width, height]);
 
   // Initialize canvas (only when canvasSize settles)
