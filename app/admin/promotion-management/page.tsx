@@ -253,16 +253,21 @@ export default function EmployeeMovementManagementPage() {
       setShowDropdown({ ...showDropdown, [index]: true });
     }
 
-    // 選擇調店類型時，自動將當前任職門市帶入原任職門市
+    // 選擇調店類型時，自動將當前任職門市帶入原任職門市，並清空任職門市
     if (field === 'movement_type' && value === 'store_transfer') {
       if (updated[index].store_id) {
         updated[index].from_store_id = updated[index].store_id;
       }
+      updated[index].store_id = ''; // 調店不需要填任職門市
     }
     // 切換離開調店類型時，清空調店欄位
     if (field === 'movement_type' && value !== 'store_transfer') {
       updated[index].from_store_id = '';
       updated[index].to_store_id = '';
+    }
+    // 調店選擇新任職門市時，自動帶入 store_id
+    if (field === 'to_store_id' && updated[index].movement_type === 'store_transfer') {
+      updated[index].store_id = value;
     }
     
     setMovements(updated);
@@ -295,7 +300,11 @@ export default function EmployeeMovementManagementPage() {
   const handleSave = async () => {
     // 驗證資料
     const emptyFields = movements.filter(m => {
-      if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date || !m.store_id) {
+      if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date) {
+        return true;
+      }
+      // 調店不需要填任職門市（由原/新任職門市帶入），其他類型必填
+      if (m.movement_type !== 'store_transfer' && !m.store_id) {
         return true;
       }
       // 如果是升職，必須填寫職位
@@ -599,16 +608,20 @@ export default function EmployeeMovementManagementPage() {
                       </select>
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      <select
-                        value={movement.store_id}
-                        onChange={(e) => updateRow(index, 'store_id', e.target.value)}
-                        className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
-                      >
-                        <option value="">請選擇門市</option>
-                        {stores.map(store => (
-                          <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
-                        ))}
-                      </select>
+                      {movement.movement_type === 'store_transfer' ? (
+                        <div className="text-gray-400 text-sm px-2 py-1 italic">由調店資訊帶入</div>
+                      ) : (
+                        <select
+                          value={movement.store_id}
+                          onChange={(e) => updateRow(index, 'store_id', e.target.value)}
+                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                        >
+                          <option value="">請選擇門市</option>
+                          {stores.map(store => (
+                            <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       {movement.movement_type === 'promotion' ? (
