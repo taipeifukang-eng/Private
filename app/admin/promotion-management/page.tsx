@@ -46,6 +46,7 @@ interface MovementHistory {
 interface Store {
   id: string;
   name: string;
+  store_code: string;
 }
 
 interface Employee {
@@ -121,13 +122,13 @@ export default function EmployeeMovementManagementPage() {
     
     const { data } = await supabase
       .from('stores')
-      .select('id, store_name')
+      .select('id, store_name, store_code')
       .eq('is_active', true)
-      .order('store_name');
+      .order('store_code');
 
     if (data) {
       // 將 store_name 對應到 name 欄位以符合介面定義
-      setStores(data.map(store => ({ id: store.id, name: store.store_name })));
+      setStores(data.map(store => ({ id: store.id, name: store.store_name, store_code: store.store_code || '' })));
     }
   };
 
@@ -605,7 +606,7 @@ export default function EmployeeMovementManagementPage() {
                       >
                         <option value="">請選擇門市</option>
                         {stores.map(store => (
-                          <option key={store.id} value={store.id}>{store.name}</option>
+                          <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
                         ))}
                       </select>
                     </td>
@@ -632,7 +633,7 @@ export default function EmployeeMovementManagementPage() {
                             >
                               <option value="">請選擇</option>
                               {stores.map(store => (
-                                <option key={store.id} value={store.id}>{store.name}</option>
+                                <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
                               ))}
                             </select>
                           </div>
@@ -645,7 +646,7 @@ export default function EmployeeMovementManagementPage() {
                             >
                               <option value="">請選擇</option>
                               {stores.map(store => (
-                                <option key={store.id} value={store.id}>{store.name}</option>
+                                <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
                               ))}
                             </select>
                           </div>
