@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import SignaturePad from '@/components/SignaturePad';
 import {
   ChevronDown,
   ChevronUp,
@@ -14,7 +15,6 @@ import {
   CheckSquare,
   AlertCircle,
   Camera,
-  Image as ImageIcon,
   X,
   PenTool,
   MapPin,
@@ -355,17 +355,6 @@ export default function NewInspectionPage() {
       photos: currentScore.photos.filter((_, idx) => idx !== photoIndex),
     });
     setItemScores(newScores);
-  };
-
-  // 處理簽名上傳
-  const handleSignatureUpload = async (file: File) => {
-    try {
-      const base64 = await compressImage(file, 400, 0.8);
-      setSignaturePhoto(base64);
-    } catch (error) {
-      console.error('簽名上傳失敗:', error);
-      alert('簽名上傳失敗，請重試');
-    }
   };
 
   // 壓縮圖片並轉 base64
@@ -946,44 +935,12 @@ export default function NewInspectionPage() {
             <PenTool className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
             督導簽名確認
           </label>
-          <div className="border-2 border-dashed border-blue-300 rounded-lg overflow-hidden">
-            {signaturePhoto ? (
-              <div className="relative group bg-gray-50">
-                <img
-                  src={signaturePhoto}
-                  alt="督導簽名"
-                  className="max-h-40 mx-auto p-4"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSignaturePhoto('')}
-                  className="absolute top-3 right-3 w-9 h-9 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity active:scale-95"
-                  aria-label="清除簽名"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            ) : (
-              <label className="block p-10 sm:p-8 text-center cursor-pointer hover:bg-blue-50 active:bg-blue-100 transition-colors">
-                <PenTool className="w-14 h-14 sm:w-12 sm:h-12 text-blue-500 mx-auto mb-3" />
-                <p className="text-base sm:text-sm text-blue-600 font-medium mb-1">點擊拍攝簽名</p>
-                <p className="text-xs text-gray-500">📱 使用前置相機拍攝</p>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleSignatureUpload(file);
-                      e.target.value = '';
-                    }
-                  }}
-                  className="hidden"
-                />
-              </label>
-            )}
-          </div>
+          <SignaturePad
+            onSignatureChange={(dataUrl) => setSignaturePhoto(dataUrl)}
+            initialSignature={signaturePhoto}
+            width={500}
+            height={180}
+          />
           <p className="text-xs text-gray-500 mt-2">
             ✓ 簽名確認後才能送出記錄
           </p>

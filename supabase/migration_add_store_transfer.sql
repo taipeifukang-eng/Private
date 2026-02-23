@@ -85,12 +85,12 @@ BEGIN
         -- 複製原門市的員工資料到新門市
         INSERT INTO store_employees (
           employee_code, employee_name, store_id, position, current_position,
-          is_pharmacist, is_active, employment_status,
+          is_pharmacist, is_active, employment_status, employment_type,
           last_movement_date, last_movement_type
         )
         SELECT 
           employee_code, employee_name, NEW.store_id, position, current_position,
-          is_pharmacist, true, 'active',
+          is_pharmacist, true, 'active', COALESCE(employment_type, 'full_time'),
           NEW.movement_date, 'store_transfer'
         FROM store_employees
         WHERE employee_code = NEW.employee_code
