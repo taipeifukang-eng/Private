@@ -364,7 +364,7 @@ export default async function InspectionDetailPage({
           </div>
         )}
 
-        {/* 當班人員 */}}
+        {/* 當班人員 */}
         {onDutyStaff && onDutyStaff.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
