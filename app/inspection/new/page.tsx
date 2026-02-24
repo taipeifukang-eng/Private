@@ -75,6 +75,7 @@ export default function NewInspectionPage() {
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
+  const [supervisorNotes, setSupervisorNotes] = useState('');
 
   useEffect(() => {
     loadData();
@@ -462,6 +463,7 @@ export default function NewInspectionPage() {
           total_score: totals.finalScore,
           grade: totals.grade,
           signature_photo_url: signaturePhoto || null,
+          supervisor_notes: supervisorNotes.trim() || null,
           gps_latitude: gpsLocation?.latitude || null,
           gps_longitude: gpsLocation?.longitude || null,
         })
@@ -928,6 +930,22 @@ export default function NewInspectionPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* 其他建議 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-6">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+            <AlertCircle className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
+            其他建議
+          </label>
+          <textarea
+            value={supervisorNotes}
+            onChange={(e) => setSupervisorNotes(e.target.value)}
+            placeholder="請輸入其他建議或備註事項..."
+            rows={4}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-y"
+          />
+          <p className="text-xs text-gray-500 mt-1">可填寫額外的建議、備註或需要特別注意的事項</p>
         </div>
 
         {/* 督導簽名確認 */}

@@ -277,9 +277,9 @@ export default function PrintInspectionReport({
 
             {/* 備註說明 */}
             <div className="mt-6 border border-gray-300 rounded p-4 bg-gray-50">
-              <p className="font-semibold text-xs mb-2">備註說明：</p>
-              <div className="min-h-[80px] text-xs text-gray-600">
-                {/* 預留手寫空間 */}
+              <p className="font-semibold text-xs mb-2">其他建議：</p>
+              <div className="min-h-[80px] text-xs text-gray-600 whitespace-pre-wrap">
+                {inspection.supervisor_notes || '（無）'}
               </div>
             </div>
           </div>
