@@ -725,7 +725,7 @@ export default function NewInspectionPage() {
         {/* 基本資訊 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
           <h2 className="text-sm sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">基本資訊</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 <Store className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
@@ -757,26 +757,6 @@ export default function NewInspectionPage() {
                 className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base"
                 required
               />
-            </div>
-            <div>
-              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
-                <Thermometer className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
-                <span className="break-words">室內溫度 *</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  max="50"
-                  value={indoorTemperature}
-                  onChange={(e) => setIndoorTemperature(e.target.value)}
-                  placeholder="請輸入溫度"
-                  className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base pr-8"
-                  required
-                />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs sm:text-sm">°C</span>
-              </div>
             </div>
           </div>
           
@@ -1035,10 +1015,38 @@ export default function NewInspectionPage() {
             );
 
             return (
-              <div
-                key={sectionKey}
-                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
-              >
+              <div key={sectionKey}>
+                {/* 室內溫度 - 插在櫃檯區與倉庫之前 (section_order = 3) */}
+                {section.section_order === 3 && (
+                  <div className="bg-white rounded-xl shadow-sm border border-orange-200 p-3 sm:p-6 mb-2 sm:mb-4">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+                      <Thermometer className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 text-orange-500" />
+                      室內溫度 * <span className="text-[10px] text-gray-400 font-normal">（請查看店內溫度計後填入）</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex-1 max-w-[200px]">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          max="50"
+                          value={indoorTemperature}
+                          onChange={(e) => setIndoorTemperature(e.target.value)}
+                          placeholder="請輸入溫度"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 text-sm sm:text-base pr-10"
+                          required
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">°C</span>
+                      </div>
+                      {indoorTemperature && (
+                        <span className="text-sm text-green-600 font-medium">✓ 已填寫</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                <div
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+                >
                 <button
                   onClick={() => toggleSection(sectionKey)}
                   className="w-full px-4 sm:px-6 py-4 flex items-center justify-between hover:bg-gray-50 active:bg-gray-100 transition-colors touch-manipulation"
@@ -1228,6 +1236,7 @@ export default function NewInspectionPage() {
                     })}
                   </div>
                 )}
+              </div>
               </div>
             );
           })}

@@ -56,6 +56,14 @@ export default function InspectionCalendar({ inspections }: InspectionCalendarPr
     inspectionsByDate.get(dateKey)!.push(inspection);
   });
 
+  // 格式化日期為本地時間字串（避免 toISOString 的 UTC 偏移）
+  const formatDateKey = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   // 切換月份
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(year, month - 1, 1));
@@ -133,7 +141,7 @@ export default function InspectionCalendar({ inspections }: InspectionCalendarPr
         {/* 日期格子 */}
         <div className="grid grid-cols-7 gap-2">
           {calendarDays.map((date) => {
-            const dateKey = date.toISOString().split('T')[0];
+            const dateKey = formatDateKey(date);
             const dayInspections = inspectionsByDate.get(dateKey) || [];
             const isCurrentMonth = date.getMonth() === month;
             const isToday = 
