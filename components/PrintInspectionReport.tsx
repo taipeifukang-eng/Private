@@ -243,8 +243,8 @@ export default function PrintInspectionReport({
                 <li>店長/店主管收到報告後，應於 <span className="font-bold">3 個工作日內</span>確認所有待改善項目</li>
                 <li>針對每項缺失擬定具體改善計畫與完成時間</li>
                 <li>拍照記錄改善前後對比照片，上傳至系統</li>
-                <li>督導將於 <span className="font-bold">7 個工作日後</span>進行複查，確認改善成效</li>
-                <li>若未能於期限內改善，將列入月度績效考核</li>
+                <li>督導將於<span className="font-bold">下次巡店時</span>進行複查，確認改善成效</li>
+                <li>每月督導巡店紀錄分數，將列入月度績效考核</li>
               </ol>
             </div>
 
