@@ -41,68 +41,72 @@ ADD CONSTRAINT monthly_store_summary_confirmed_by_fkey
 FOREIGN KEY (confirmed_by) REFERENCES profiles(id) ON DELETE SET NULL;
 
 -- =====================================================
--- 3. inspection_masters 表
+-- 3. inspection_masters 表（如果存在）
 -- =====================================================
-ALTER TABLE inspection_masters 
-DROP CONSTRAINT IF EXISTS inspection_masters_inspector_id_fkey;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'inspection_masters') THEN
+    ALTER TABLE inspection_masters DROP CONSTRAINT IF EXISTS inspection_masters_inspector_id_fkey;
+    ALTER TABLE inspection_masters ADD CONSTRAINT inspection_masters_inspector_id_fkey 
+      FOREIGN KEY (inspector_id) REFERENCES profiles(id) ON DELETE SET NULL;
 
-ALTER TABLE inspection_masters 
-ADD CONSTRAINT inspection_masters_inspector_id_fkey 
-FOREIGN KEY (inspector_id) REFERENCES profiles(id) ON DELETE SET NULL;
+    ALTER TABLE inspection_masters DROP CONSTRAINT IF EXISTS inspection_masters_closed_by_fkey;
+    ALTER TABLE inspection_masters ADD CONSTRAINT inspection_masters_closed_by_fkey 
+      FOREIGN KEY (closed_by) REFERENCES profiles(id) ON DELETE SET NULL;
 
-ALTER TABLE inspection_masters 
-DROP CONSTRAINT IF EXISTS inspection_masters_closed_by_fkey;
-
-ALTER TABLE inspection_masters 
-ADD CONSTRAINT inspection_masters_closed_by_fkey 
-FOREIGN KEY (closed_by) REFERENCES profiles(id) ON DELETE SET NULL;
-
-ALTER TABLE inspection_masters 
-DROP CONSTRAINT IF EXISTS inspection_masters_created_by_fkey;
-
-ALTER TABLE inspection_masters 
-ADD CONSTRAINT inspection_masters_created_by_fkey 
-FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+    ALTER TABLE inspection_masters DROP CONSTRAINT IF EXISTS inspection_masters_created_by_fkey;
+    ALTER TABLE inspection_masters ADD CONSTRAINT inspection_masters_created_by_fkey 
+      FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- =====================================================
--- 4. inspection_categories 表
+-- 4. inspection_templates 表（如果存在）
 -- =====================================================
-ALTER TABLE inspection_categories 
-DROP CONSTRAINT IF EXISTS inspection_categories_created_by_fkey;
-
-ALTER TABLE inspection_categories 
-ADD CONSTRAINT inspection_categories_created_by_fkey 
-FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
-
--- =====================================================
--- 5. inspection_grade_mapping 表
--- =====================================================
-ALTER TABLE inspection_grade_mapping 
-DROP CONSTRAINT IF EXISTS inspection_grade_mapping_updated_by_fkey;
-
-ALTER TABLE inspection_grade_mapping 
-ADD CONSTRAINT inspection_grade_mapping_updated_by_fkey 
-FOREIGN KEY (updated_by) REFERENCES profiles(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'inspection_templates') THEN
+    ALTER TABLE inspection_templates DROP CONSTRAINT IF EXISTS inspection_templates_created_by_fkey;
+    ALTER TABLE inspection_templates ADD CONSTRAINT inspection_templates_created_by_fkey 
+      FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- =====================================================
--- 6. employee_promotions 表
+-- 5. inspection_grade_mapping 表（如果存在）
 -- =====================================================
-ALTER TABLE employee_promotions 
-DROP CONSTRAINT IF EXISTS employee_promotions_created_by_fkey;
-
-ALTER TABLE employee_promotions 
-ADD CONSTRAINT employee_promotions_created_by_fkey 
-FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'inspection_grade_mapping') THEN
+    ALTER TABLE inspection_grade_mapping DROP CONSTRAINT IF EXISTS inspection_grade_mapping_updated_by_fkey;
+    ALTER TABLE inspection_grade_mapping ADD CONSTRAINT inspection_grade_mapping_updated_by_fkey 
+      FOREIGN KEY (updated_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- =====================================================
--- 7. support_staff_bonus 表
+-- 6. employee_promotions 表（如果存在）
 -- =====================================================
-ALTER TABLE support_staff_bonus 
-DROP CONSTRAINT IF EXISTS support_staff_bonus_created_by_fkey;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'employee_promotions') THEN
+    ALTER TABLE employee_promotions DROP CONSTRAINT IF EXISTS employee_promotions_created_by_fkey;
+    ALTER TABLE employee_promotions ADD CONSTRAINT employee_promotions_created_by_fkey 
+      FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
-ALTER TABLE support_staff_bonus 
-ADD CONSTRAINT support_staff_bonus_created_by_fkey 
-FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+-- =====================================================
+-- 7. support_staff_bonus 表（如果存在）
+-- =====================================================
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'support_staff_bonus') THEN
+    ALTER TABLE support_staff_bonus DROP CONSTRAINT IF EXISTS support_staff_bonus_created_by_fkey;
+    ALTER TABLE support_staff_bonus ADD CONSTRAINT support_staff_bonus_created_by_fkey 
+      FOREIGN KEY (created_by) REFERENCES profiles(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- =====================================================
 -- 驗證：確認所有約束已更新
