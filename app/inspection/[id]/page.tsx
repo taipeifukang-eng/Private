@@ -19,6 +19,8 @@ import {
   Image as ImageIcon,
   PenTool,
   MapPin,
+  Users,
+  Shield,
 } from 'lucide-react';
 
 // 強制動態渲染，禁用快取
@@ -214,6 +216,13 @@ export default async function InspectionDetailPage({
     // 9. 需改善項目
     const improvementItems = results.filter((r: any) => r.is_improvement);
 
+    // 9.5 當班人員
+    const { data: onDutyStaff } = await adminClient
+      .from('inspection_on_duty_staff')
+      .select('employee_code, employee_name, position, is_duty_supervisor, is_manually_added')
+      .eq('inspection_id', params.id)
+      .order('is_duty_supervisor', { ascending: false });
+
     // 10. 檢查是否可編輯
     const canEdit =
       inspection.inspector_id === user.id &&
@@ -340,6 +349,50 @@ export default async function InspectionDetailPage({
             </div>
           </div>
         </div>
+
+        {/* 當班人員 */}
+        {onDutyStaff && onDutyStaff.length > 0 && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+              <Users className="w-5 h-5" />
+              當班人員 ({onDutyStaff.length} 人)
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600">
+                    <th className="text-left px-3 py-2 font-medium">員編</th>
+                    <th className="text-left px-3 py-2 font-medium">姓名</th>
+                    <th className="text-left px-3 py-2 font-medium">職位</th>
+                    <th className="text-center px-3 py-2 font-medium">當班主管</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {onDutyStaff.map((staff: any, idx: number) => (
+                    <tr key={idx} className={staff.is_duty_supervisor ? 'bg-orange-50/50' : ''}>
+                      <td className="px-3 py-2 text-gray-600 font-mono text-xs">{staff.employee_code || '-'}</td>
+                      <td className="px-3 py-2 font-medium text-gray-900">
+                        {staff.employee_name}
+                        {staff.is_manually_added && (
+                          <span className="ml-1 text-[10px] text-blue-600 bg-blue-100 px-1 rounded">手動</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-gray-600">{staff.position || '-'}</td>
+                      <td className="px-3 py-2 text-center">
+                        {staff.is_duty_supervisor && (
+                          <span className="inline-flex items-center gap-1 text-xs text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">
+                            <Shield className="w-3 h-3" />
+                            主管
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* 分數總覽 */}
         <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-6 mb-6 text-white">
@@ -491,6 +544,7 @@ export default async function InspectionDetailPage({
             inspector={safeInspector}
             groupedResults={sortedSections}
             improvementItems={improvementItems}
+            onDutyStaff={onDutyStaff || []}
           />
         </div>
       </div>

@@ -19,6 +19,11 @@ import {
   PenTool,
   MapPin,
   Loader2,
+  Users,
+  UserPlus,
+  Trash2,
+  Plus,
+  Shield,
 } from 'lucide-react';
 
 interface Store {
@@ -57,6 +62,14 @@ interface ItemScore {
   photos: string[]; // 問題照片 base64 URLs
 }
 
+interface OnDutyStaff {
+  employee_code: string;
+  employee_name: string;
+  position: string;
+  is_duty_supervisor: boolean;
+  is_manually_added: boolean;
+}
+
 export default function NewInspectionPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -77,10 +90,104 @@ export default function NewInspectionPage() {
   const [gpsError, setGpsError] = useState<string>('');
   const [supervisorNotes, setSupervisorNotes] = useState('');
 
+  // 當班人員狀態
+  const [onDutyStaff, setOnDutyStaff] = useState<OnDutyStaff[]>([]);
+  const [staffLoading, setStaffLoading] = useState(false);
+  const [showAddStaffForm, setShowAddStaffForm] = useState(false);
+  const [newStaffCode, setNewStaffCode] = useState('');
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffPosition, setNewStaffPosition] = useState('');
+
   useEffect(() => {
     loadData();
     requestGPSLocation();
   }, []);
+
+  // 門市變更時自動載入當班人員
+  useEffect(() => {
+    if (selectedStoreId) {
+      fetchStaffForStore(selectedStoreId);
+    } else {
+      setOnDutyStaff([]);
+    }
+  }, [selectedStoreId]);
+
+  // 從上個月的月報表抓取人員
+  const fetchStaffForStore = async (storeId: string) => {
+    setStaffLoading(true);
+    try {
+      const supabase = createClient();
+      
+      // 計算上個月的 year_month
+      const now = new Date();
+      const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const yearMonth = `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+
+      const { data, error } = await supabase
+        .from('monthly_staff_status')
+        .select('employee_code, employee_name, position')
+        .eq('store_id', storeId)
+        .eq('year_month', yearMonth)
+        .not('monthly_status', 'in', '(resigned,leave_of_absence,transferred_out)')
+        .order('position');
+
+      if (error) {
+        console.error('❌ 載入人員失敗:', error);
+        setOnDutyStaff([]);
+        return;
+      }
+
+      if (data && data.length > 0) {
+        const staffList: OnDutyStaff[] = data.map((s) => ({
+          employee_code: s.employee_code || '',
+          employee_name: s.employee_name || '',
+          position: s.position || '',
+          is_duty_supervisor: false,
+          is_manually_added: false,
+        }));
+        setOnDutyStaff(staffList);
+      } else {
+        setOnDutyStaff([]);
+      }
+    } catch (err) {
+      console.error('❌ 載入人員異常:', err);
+      setOnDutyStaff([]);
+    } finally {
+      setStaffLoading(false);
+    }
+  };
+
+  // 手動新增人員
+  const handleAddManualStaff = () => {
+    if (!newStaffName.trim()) {
+      alert('請輸入姓名');
+      return;
+    }
+    const newStaff: OnDutyStaff = {
+      employee_code: newStaffCode.trim(),
+      employee_name: newStaffName.trim(),
+      position: newStaffPosition.trim(),
+      is_duty_supervisor: false,
+      is_manually_added: true,
+    };
+    setOnDutyStaff((prev) => [...prev, newStaff]);
+    setNewStaffCode('');
+    setNewStaffName('');
+    setNewStaffPosition('');
+    setShowAddStaffForm(false);
+  };
+
+  // 移除人員
+  const handleRemoveStaff = (index: number) => {
+    setOnDutyStaff((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // 切換當班主管
+  const toggleDutySupervisor = (index: number) => {
+    setOnDutyStaff((prev) =>
+      prev.map((s, i) => (i === index ? { ...s, is_duty_supervisor: !s.is_duty_supervisor } : s))
+    );
+  };
 
   const loadData = async () => {
     try {
@@ -506,6 +613,28 @@ export default function NewInspectionPage() {
 
       console.log('✅ 明細記錄建立成功');
 
+      // 3. 建立當班人員記錄
+      if (onDutyStaff.length > 0) {
+        const staffToInsert = onDutyStaff.map((s) => ({
+          inspection_id: masterData.id,
+          employee_code: s.employee_code || null,
+          employee_name: s.employee_name,
+          position: s.position || null,
+          is_duty_supervisor: s.is_duty_supervisor,
+          is_manually_added: s.is_manually_added,
+        }));
+
+        const { error: staffError } = await supabase
+          .from('inspection_on_duty_staff')
+          .insert(staffToInsert);
+
+        if (staffError) {
+          console.error('⚠️ 當班人員記錄建立失敗（不影響主記錄）:', staffError);
+        } else {
+          console.log('✅ 當班人員記錄建立成功:', staffToInsert.length, '人');
+        }
+      }
+
       console.log('🎯 送出完成，記錄 ID:', masterData.id);
 
       alert(isDraft ? '草稿已儲存！' : '巡店記錄已送出！');
@@ -697,6 +826,151 @@ export default function NewInspectionPage() {
             </p>
           </div>
         </div>
+
+        {/* 當班人員 */}
+        {selectedStoreId && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="text-sm sm:text-lg font-semibold text-gray-900 flex items-center gap-1.5">
+                <Users className="w-4 h-4 sm:w-5 sm:h-5" />
+                當班人員
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowAddStaffForm(!showAddStaffForm)}
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs sm:text-sm bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                手動新增
+              </button>
+            </div>
+
+            {/* 手動新增表單 */}
+            {showAddStaffForm && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs font-medium text-blue-800 mb-2">手動新增人員</p>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={newStaffCode}
+                    onChange={(e) => setNewStaffCode(e.target.value)}
+                    placeholder="員編"
+                    className="px-2 py-1.5 border border-gray-300 rounded text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={newStaffName}
+                    onChange={(e) => setNewStaffName(e.target.value)}
+                    placeholder="姓名 *"
+                    className="px-2 py-1.5 border border-gray-300 rounded text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={newStaffPosition}
+                    onChange={(e) => setNewStaffPosition(e.target.value)}
+                    placeholder="職位"
+                    className="px-2 py-1.5 border border-gray-300 rounded text-xs sm:text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={handleAddManualStaff}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    確認新增
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAddStaffForm(false); setNewStaffCode(''); setNewStaffName(''); setNewStaffPosition(''); }}
+                    className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 transition-colors"
+                  >
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {staffLoading ? (
+              <div className="flex items-center gap-2 py-4 justify-center text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">載入人員中...</span>
+              </div>
+            ) : onDutyStaff.length === 0 ? (
+              <div className="text-center py-4 text-gray-400 text-xs sm:text-sm">
+                上個月無人員紀錄，請手動新增當班人員
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs sm:text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-gray-600">
+                      <th className="text-left px-2 py-2 font-medium">員編</th>
+                      <th className="text-left px-2 py-2 font-medium">姓名</th>
+                      <th className="text-left px-2 py-2 font-medium">職位</th>
+                      <th className="text-center px-2 py-2 font-medium">
+                        <span className="flex items-center justify-center gap-1">
+                          <Shield className="w-3 h-3" />
+                          當班主管
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-medium w-12">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {onDutyStaff.map((staff, idx) => (
+                      <tr key={idx} className={`hover:bg-gray-50 ${staff.is_manually_added ? 'bg-blue-50/30' : ''}`}>
+                        <td className="px-2 py-2 text-gray-600 font-mono">{staff.employee_code || '-'}</td>
+                        <td className="px-2 py-2 font-medium text-gray-900">
+                          {staff.employee_name}
+                          {staff.is_manually_added && (
+                            <span className="ml-1 text-[10px] text-blue-600 bg-blue-100 px-1 rounded">手動</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-2 text-gray-600">{staff.position || '-'}</td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => toggleDutySupervisor(idx)}
+                            className={`w-5 h-5 rounded border-2 inline-flex items-center justify-center transition-colors ${
+                              staff.is_duty_supervisor
+                                ? 'bg-orange-500 border-orange-500 text-white'
+                                : 'border-gray-300 hover:border-orange-400'
+                            }`}
+                          >
+                            {staff.is_duty_supervisor && (
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-2 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveStaff(idx)}
+                            className="text-red-400 hover:text-red-600 transition-colors p-1"
+                            title="移除"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="text-[10px] text-gray-400 mt-2">
+                  共 {onDutyStaff.length} 人
+                  {onDutyStaff.filter(s => s.is_duty_supervisor).length > 0 && (
+                    <span>，當班主管 {onDutyStaff.filter(s => s.is_duty_supervisor).length} 人</span>
+                  )}
+                  {' '}| 人員來源：上月人事月報表
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 分數總覽 - 手機優化 */}
         <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-3 sm:p-6 mb-3 sm:mb-6 text-white">

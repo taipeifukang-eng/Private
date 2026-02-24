@@ -9,6 +9,7 @@ interface PrintInspectionReportProps {
   inspector: any;
   groupedResults: any[];
   improvementItems: any[];
+  onDutyStaff?: any[];
 }
 
 export default function PrintInspectionReport({
@@ -17,6 +18,7 @@ export default function PrintInspectionReport({
   inspector,
   groupedResults,
   improvementItems,
+  onDutyStaff = [],
 }: PrintInspectionReportProps) {
   const handlePrint = () => {
     window.print();
@@ -131,6 +133,33 @@ export default function PrintInspectionReport({
                 <MapPin size={12} />
                 GPS 定位：{Number(inspection.gps_latitude || 0).toFixed(6)}, {Number(inspection.gps_longitude || 0).toFixed(6)}
               </p>
+            </div>
+          )}
+
+          {/* 當班人員 */}
+          {onDutyStaff.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <p className="font-semibold text-xs mb-2">當班人員（{onDutyStaff.length} 人）：</p>
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-300 px-2 py-1 text-left">員編</th>
+                    <th className="border border-gray-300 px-2 py-1 text-left">姓名</th>
+                    <th className="border border-gray-300 px-2 py-1 text-left">職位</th>
+                    <th className="border border-gray-300 px-2 py-1 text-center">當班主管</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {onDutyStaff.map((staff: any, idx: number) => (
+                    <tr key={idx} className={staff.is_duty_supervisor ? 'bg-orange-50' : ''}>
+                      <td className="border border-gray-300 px-2 py-1">{staff.employee_code || '-'}</td>
+                      <td className="border border-gray-300 px-2 py-1 font-medium">{staff.employee_name}</td>
+                      <td className="border border-gray-300 px-2 py-1">{staff.position || '-'}</td>
+                      <td className="border border-gray-300 px-2 py-1 text-center">{staff.is_duty_supervisor ? '✓' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
