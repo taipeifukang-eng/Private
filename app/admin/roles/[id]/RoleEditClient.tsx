@@ -105,13 +105,28 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   }
 
   function groupPermissions() {
+    // 中文 module 值 → 英文 module 值 的映射
+    // （navbar migration 遺留問題：部分權限的 module 欄位是中文）
+    const MODULE_NORMALIZE: Record<string, string> = {
+      '任務管理': 'task',
+      '門市管理': 'store',
+      '人事管理': 'employee',
+      '活動管理': 'activity',
+      '盤點管理': 'inventory',
+      '每月狀態': 'monthly',
+      '系統': 'user',
+      '督導巡店': 'inspection',
+    };
+
     const groups = new Map<string, PermissionWithGrant[]>();
 
     permissions.forEach(perm => {
-      if (!groups.has(perm.module)) {
-        groups.set(perm.module, []);
+      // 統一為英文 module key
+      const normalizedModule = MODULE_NORMALIZE[perm.module] || perm.module;
+      if (!groups.has(normalizedModule)) {
+        groups.set(normalizedModule, []);
       }
-      groups.get(perm.module)!.push(perm);
+      groups.get(normalizedModule)!.push(perm);
     });
 
     const result: PermissionGroup[] = Array.from(groups.entries())
@@ -136,9 +151,21 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   }
 
   function toggleModule(module: string, grant: boolean) {
+    // module 是 normalized 英文 key，需要同時匹配英文和中文 module 值
+    const MODULE_REVERSE: Record<string, string[]> = {
+      task: ['task', '任務管理'],
+      store: ['store', '門市管理'],
+      employee: ['employee', '人事管理'],
+      activity: ['activity', '活動管理'],
+      inventory: ['inventory', '盤點管理'],
+      monthly: ['monthly', '每月狀態'],
+      user: ['user', '系統'],
+      inspection: ['inspection', '督導巡店'],
+    };
+    const matchModules = MODULE_REVERSE[module] || [module];
     setPermissions(prev =>
       prev.map(p =>
-        p.module === module ? { ...p, granted: grant } : p
+        matchModules.includes(p.module) ? { ...p, granted: grant } : p
       )
     );
   }

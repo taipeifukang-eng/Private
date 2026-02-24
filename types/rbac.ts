@@ -91,7 +91,18 @@ export const MODULE_NAMES: Record<string, string> = {
   activity: '活動管理',
   user: '使用者管理',
   supervisor: '督導管理',
-  role: '角色權限'
+  role: '角色權限',
+  inventory: '盤點管理',
+  inspection: '督導巡店',
+  // 相容 navbar migration 遺留的中文 module 值
+  '任務管理': '任務管理',
+  '門市管理': '門市管理',
+  '人事管理': '員工管理',
+  '活動管理': '活動管理',
+  '盤點管理': '盤點管理',
+  '每月狀態': '每月狀態',
+  '系統': '系統管理',
+  '督導巡店': '督導巡店',
 };
 
 // 操作類型對照
@@ -108,5 +119,7 @@ export const ACTION_NAMES: Record<string, string> = {
   assign: '指派',
   confirm: '確認',
   submit: '提交',
-  restore: '還原'
+  restore: '還原',
+  manage: '管理',
+  access: '存取',
 };

@@ -3,6 +3,17 @@
 -- 控制每月人員狀態頁面的「活動管理」按鈕顯示
 -- ============================================
 
+-- 0. 先統一修正 navbar migration 遺留的中文 module 值
+--    確保所有 activity 相關權限的 module 欄位一致為 'activity'
+UPDATE permissions SET module = 'activity' WHERE module = '活動管理';
+UPDATE permissions SET module = 'task' WHERE module = '任務管理';
+UPDATE permissions SET module = 'store' WHERE module = '門市管理';
+UPDATE permissions SET module = 'employee' WHERE module = '人事管理';
+UPDATE permissions SET module = 'monthly' WHERE module = '每月狀態';
+UPDATE permissions SET module = 'user' WHERE module = '系統';
+UPDATE permissions SET module = 'inventory' WHERE module = '盤點管理';
+UPDATE permissions SET module = 'inspection' WHERE module = '督導巡店';
+
 -- 1. 新增權限定義
 INSERT INTO permissions (module, feature, code, action, description)
 VALUES ('activity', 'management', 'activity.management.access', 'access', '存取活動管理功能（每月狀態頁面的活動管理按鈕）')
