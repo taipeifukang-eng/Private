@@ -114,6 +114,7 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
       '活動管理': 'activity',
       '盤點管理': 'inventory',
       '每月狀態': 'monthly',
+      '每月人員狀態': 'monthly',
       '系統': 'user',
       '督導巡店': 'inspection',
     };
@@ -158,7 +159,7 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
       employee: ['employee', '人事管理'],
       activity: ['activity', '活動管理'],
       inventory: ['inventory', '盤點管理'],
-      monthly: ['monthly', '每月狀態'],
+      monthly: ['monthly', '每月狀態', '每月人員狀態'],
       user: ['user', '系統'],
       inspection: ['inspection', '督導巡店'],
     };

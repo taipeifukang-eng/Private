@@ -4,6 +4,9 @@
 -- 上月單品獎金、計算區塊、交易次數、銷售金額、毛利、毛利率
 -- ============================================
 
+-- 0. 統一修正 module 值（navbar migration 用了 '每月人員狀態'，需統一為 'monthly'）
+UPDATE permissions SET module = 'monthly' WHERE module IN ('每月狀態', '每月人員狀態');
+
 -- 1. 新增權限定義（放在 monthly 模組下）
 INSERT INTO permissions (module, feature, code, action, description)
 VALUES ('monthly', 'status', 'monthly.status.view_performance', 'view', '檢視業績資訊（單品獎金、交易次數、銷售金額、毛利、毛利率）')

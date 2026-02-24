@@ -87,7 +87,7 @@ export const MODULE_NAMES: Record<string, string> = {
   task: '任務管理',
   store: '門市管理',
   employee: '員工管理',
-  monthly: '每月狀態',
+  monthly: '每月人員狀態',
   activity: '活動管理',
   user: '使用者管理',
   supervisor: '督導管理',
@@ -100,7 +100,8 @@ export const MODULE_NAMES: Record<string, string> = {
   '人事管理': '員工管理',
   '活動管理': '活動管理',
   '盤點管理': '盤點管理',
-  '每月狀態': '每月狀態',
+  '每月狀態': '每月人員狀態',
+  '每月人員狀態': '每月人員狀態',
   '系統': '系統管理',
   '督導巡店': '督導巡店',
 };
