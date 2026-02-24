@@ -178,7 +178,7 @@ export async function updateUserProfile(userId: string, updates: {
 }
 
 /**
- * Delete user (Admin only - soft delete by updating profile)
+ * Delete user (Admin only - hard delete profile, FK constraints use SET NULL to preserve history)
  */
 export async function deleteUser(userId: string) {
   try {
@@ -190,10 +190,18 @@ export async function deleteUser(userId: string) {
       return { success: false, error: '權限不足' };
     }
 
-    // Note: Cannot delete auth.users directly from client
-    // This would typically be done via Supabase Admin API
-    // For now, we'll just mark the profile as inactive or delete the profile
-    const { error } = await supabase
+    // 使用 admin client 繞過 RLS 限制
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const adminSupabase = createAdminClient();
+
+    // 先清理相關的 store_managers、store_employees、user_roles 記錄
+    await adminSupabase.from('store_managers').delete().eq('user_id', userId);
+    await adminSupabase.from('store_employees').delete().eq('user_id', userId);
+    await adminSupabase.from('user_roles').delete().eq('user_id', userId);
+    await adminSupabase.from('collaborators').delete().eq('user_id', userId);
+
+    // 刪除 profile（submitted_by/confirmed_by/created_by 等欄位透過 ON DELETE SET NULL 自動處理）
+    const { error } = await adminSupabase
       .from('profiles')
       .delete()
       .eq('id', userId);
