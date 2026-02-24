@@ -190,10 +190,10 @@ export default function PrintInspectionReport({
           </div>
         </div>
 
-        {/* 督導總評 */}
+        {/* 此次巡店督導其他建議 */}
         {inspection.supervisor_notes && (
           <div className="mb-6 avoid-break">
-            <h2 className="text-lg font-bold mb-3 border-b border-gray-300 pb-2">督導總評</h2>
+            <h2 className="text-lg font-bold mb-3 border-b border-gray-300 pb-2">此次巡店督導其他建議</h2>
             <div className="border border-gray-300 rounded p-3 bg-gray-50">
               <p className="text-sm whitespace-pre-wrap">{inspection.supervisor_notes}</p>
             </div>
@@ -304,14 +304,6 @@ export default function PrintInspectionReport({
                 <p className="text-xs text-gray-600">
                   簽名日期：{new Date(inspection.inspection_date).toLocaleDateString('zh-TW')}
                 </p>
-              </div>
-            </div>
-
-            {/* 備註說明 */}
-            <div className="mt-6 border border-gray-300 rounded p-4 bg-gray-50">
-              <p className="font-semibold text-xs mb-2">其他建議：</p>
-              <div className="min-h-[80px] text-xs text-gray-600 whitespace-pre-wrap">
-                {inspection.supervisor_notes || '（無）'}
               </div>
             </div>
           </div>
