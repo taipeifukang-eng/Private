@@ -123,6 +123,9 @@ export default function PrintInspectionReport({
               <p className="mb-1"><span className="font-semibold">檢核日期：</span>{new Date(inspection.inspection_date).toLocaleDateString('zh-TW')}</p>
               <p className="mb-1"><span className="font-semibold">督導人員：</span>{inspector?.full_name || '未知'}</p>
               <p className="mb-1"><span className="font-semibold">報告編號：</span>{inspection.id.slice(0, 8).toUpperCase()}</p>
+              {inspection.indoor_temperature !== null && inspection.indoor_temperature !== undefined && (
+                <p className="mb-1"><span className="font-semibold">室內溫度：</span>{inspection.indoor_temperature}°C</p>
+              )}
             </div>
           </div>
           

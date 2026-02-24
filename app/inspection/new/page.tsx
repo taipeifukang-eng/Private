@@ -24,6 +24,7 @@ import {
   Trash2,
   Plus,
   Shield,
+  Thermometer,
 } from 'lucide-react';
 
 interface Store {
@@ -89,6 +90,7 @@ export default function NewInspectionPage() {
   const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
   const [supervisorNotes, setSupervisorNotes] = useState('');
+  const [indoorTemperature, setIndoorTemperature] = useState('');
 
   // 當班人員狀態
   const [onDutyStaff, setOnDutyStaff] = useState<OnDutyStaff[]>([]);
@@ -536,6 +538,10 @@ export default function NewInspectionPage() {
       alert('請選擇門市');
       return;
     }
+    if (!indoorTemperature) {
+      alert('請輸入室內溫度');
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -571,6 +577,7 @@ export default function NewInspectionPage() {
           grade: totals.grade,
           signature_photo_url: signaturePhoto || null,
           supervisor_notes: supervisorNotes.trim() || null,
+          indoor_temperature: indoorTemperature ? parseFloat(indoorTemperature) : null,
           gps_latitude: gpsLocation?.latitude || null,
           gps_longitude: gpsLocation?.longitude || null,
         })
@@ -718,7 +725,7 @@ export default function NewInspectionPage() {
         {/* 基本資訊 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
           <h2 className="text-sm sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">基本資訊</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6">
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
                 <Store className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
@@ -750,6 +757,26 @@ export default function NewInspectionPage() {
                 className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base"
                 required
               />
+            </div>
+            <div>
+              <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
+                <Thermometer className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 flex-shrink-0" />
+                <span className="break-words">室內溫度 *</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="50"
+                  value={indoorTemperature}
+                  onChange={(e) => setIndoorTemperature(e.target.value)}
+                  placeholder="請輸入溫度"
+                  className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base pr-8"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs sm:text-sm">°C</span>
+              </div>
             </div>
           </div>
           
@@ -1243,7 +1270,7 @@ export default function NewInspectionPage() {
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sticky bottom-0 bg-white pt-3 sm:pt-4 pb-safe">
           <button
             onClick={() => handleSubmit(true)}
-            disabled={submitting || !selectedStoreId}
+            disabled={submitting || !selectedStoreId || !indoorTemperature}
             className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base shadow-sm"
           >
             <Save className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1251,7 +1278,7 @@ export default function NewInspectionPage() {
           </button>
           <button
             onClick={() => handleSubmit(false)}
-            disabled={submitting || !selectedStoreId || !signaturePhoto}
+            disabled={submitting || !selectedStoreId || !signaturePhoto || !indoorTemperature}
             className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
           >
             <Send className="w-4 h-4 sm:w-5 sm:h-5" />

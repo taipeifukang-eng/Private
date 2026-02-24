@@ -98,6 +98,7 @@ export default async function InspectionDetailPage({
         grade,
         score_percentage,
         supervisor_notes,
+        indoor_temperature,
         signature_photo_url,
         gps_latitude,
         gps_longitude,
@@ -350,7 +351,20 @@ export default async function InspectionDetailPage({
           </div>
         </div>
 
-        {/* 當班人員 */}
+        {/* 室內溫度 */}
+        {inspection.indoor_temperature !== null && inspection.indoor_temperature !== undefined && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6 inline-flex items-center gap-3">
+            <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">🌡️</span>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">室內溫度</p>
+              <p className="text-xl font-bold text-gray-900">{inspection.indoor_temperature}°C</p>
+            </div>
+          </div>
+        )}
+
+        {/* 當班人員 */}}
         {onDutyStaff && onDutyStaff.length > 0 && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
