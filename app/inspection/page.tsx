@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Plus, TrendingUp, Calendar, Store, User } from 'lucide-react';
 import InspectionCalendar from '@/components/InspectionCalendar';
 import InspectionStoreStatus from '@/components/InspectionStoreStatus';
+import { hasPermission } from '@/lib/permissions/check';
 
 // 強制動態渲染，禁用快取
 export const dynamic = 'force-dynamic';
@@ -88,7 +89,7 @@ export default async function InspectionListPage() {
   }
 
   try {
-    const canCreateInspection = profile.role === 'admin' || profile.role === 'supervisor';
+    const canCreateInspection = await hasPermission(user.id, 'inspection.create');
 
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
@@ -207,7 +208,7 @@ export default async function InspectionListPage() {
                   className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
                 >
                   <Plus size={20} />
-                  新增巡店
+                  新增督導巡店
                 </Link>
               )}
             </div>
@@ -309,7 +310,7 @@ export default async function InspectionListPage() {
                     className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
                   >
                     <Plus size={20} />
-                    新增巡店
+                    新增督導巡店
                   </Link>
                 )}
               </div>

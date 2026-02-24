@@ -137,7 +137,6 @@ export default function Navbar({ user }: NavbarProps) {
   // 督導巡店相關的子選單項目（使用 RBAC 權限）
   const inspectionSubItems = [
     { href: '/inspection', label: '巡店列表', icon: ClipboardList, show: permissions.canViewInspections },
-    { href: '/inspection/new', label: '新增巡店', icon: Plus, show: permissions.canCreateInspection },
     { href: '/admin/inspection-templates', label: '模板管理', icon: FileCheck, show: permissions.canManageInspectionTemplates },
   ].filter(item => item.show);
 
