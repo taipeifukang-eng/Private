@@ -1659,15 +1659,17 @@ export async function checkMonthlyStatusPermissions() {
         canViewStats: false,
         canViewSupportHours: false,
         canEditSupportHours: false,
-        canAccessActivityManagement: false
+        canAccessActivityManagement: false,
+        canViewPerformance: false
       };
     }
 
-    const [canViewStats, canViewSupportHours, canEditSupportHours, canAccessActivityManagement] = await Promise.all([
+    const [canViewStats, canViewSupportHours, canEditSupportHours, canAccessActivityManagement, canViewPerformance] = await Promise.all([
       hasPermission(user.id, 'monthly.status.view_stats'),
       hasPermission(user.id, 'monthly.allowance.view_support_hours'),
       hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
-      hasPermission(user.id, 'activity.management.access')
+      hasPermission(user.id, 'activity.management.access'),
+      hasPermission(user.id, 'monthly.status.view_performance')
     ]);
 
     return {
@@ -1675,7 +1677,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewStats,
       canViewSupportHours,
       canEditSupportHours,
-      canAccessActivityManagement
+      canAccessActivityManagement,
+      canViewPerformance
     };
   } catch (error: any) {
     console.error('檢查每月狀態權限錯誤:', error);
@@ -1685,7 +1688,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewStats: false,
       canViewSupportHours: false,
       canEditSupportHours: false,
-      canAccessActivityManagement: false
+      canAccessActivityManagement: false,
+      canViewPerformance: false
     };
   }
 }

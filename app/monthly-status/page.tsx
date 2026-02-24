@@ -55,6 +55,7 @@ function MonthlyStatusContent() {
   const [canViewSupportHours, setCanViewSupportHours] = useState(false);
   const [canEditSupportHours, setCanEditSupportHours] = useState(false);
   const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
+  const [canViewPerformance, setCanViewPerformance] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>('');
   const [storeSummaries, setStoreSummaries] = useState<MonthlyStoreSummary[]>([]);
@@ -136,6 +137,7 @@ function MonthlyStatusContent() {
           setCanViewSupportHours(permissionsResult.canViewSupportHours || false);
           setCanEditSupportHours(permissionsResult.canEditSupportHours || false);
           setCanAccessActivityManagement(permissionsResult.canAccessActivityManagement || false);
+          setCanViewPerformance(permissionsResult.canViewPerformance || false);
         }
         
         // 檢查 URL 參數中是否有指定門市
@@ -461,6 +463,7 @@ function MonthlyStatusContent() {
             canViewStats={canViewStats}
             canViewSupportHours={canViewSupportHours}
             canEditSupportHours={canEditSupportHours}
+            canViewPerformance={canViewPerformance}
             onRefresh={loadStoreSummaries}
           />
         ) : (
@@ -511,6 +514,7 @@ function MonthlyStatusContent() {
                     canViewStats={canViewStats}
                     canViewSupportHours={canViewSupportHours}
                     canEditSupportHours={canEditSupportHours}
+                    canViewPerformance={canViewPerformance}
                     onRefresh={(moveToNext?: boolean) => loadStoreSummaries(moveToNext || false)}
                   />
                 </div>
@@ -702,6 +706,7 @@ function StoreStatusDetail({
   canViewStats,
   canViewSupportHours,
   canEditSupportHours,
+  canViewPerformance,
   onRefresh
 }: {
   store: Store;
@@ -713,6 +718,7 @@ function StoreStatusDetail({
   canViewStats: boolean;
   canViewSupportHours: boolean;
   canEditSupportHours: boolean;
+  canViewPerformance: boolean;
   onRefresh: (moveToNext?: boolean) => void;
 }) {
   const router = useRouter();
@@ -1397,12 +1403,16 @@ function StoreStatusDetail({
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">本月狀態</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">天數/時數</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">特殊標記</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">上月單品獎金</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">計算區塊</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">交易次數</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">銷售金額</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">毛利</th>
-              <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">毛利率</th>
+              {canViewPerformance && (
+                <>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">上月單品獎金</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">計算區塊</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">交易次數</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">銷售金額</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">毛利</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold text-gray-600 uppercase">毛利率</th>
+                </>
+              )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">操作</th>
             </tr>
           </thead>
@@ -1492,63 +1502,67 @@ function StoreStatusDetail({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right text-sm">
-                  {staff.last_month_single_item_bonus ? (
-                    <span className="font-medium text-purple-600">${staff.last_month_single_item_bonus.toLocaleString()}</span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 text-xs font-semibold rounded ${getBlockColor(staff.calculated_block)}`}>
-                    區塊 {staff.calculated_block || '?'}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right text-sm">
-                  {staff.transaction_count ? (
-                    <span className="font-medium text-gray-900">{staff.transaction_count.toLocaleString()}</span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right text-sm">
-                  {staff.sales_amount ? (
-                    <span className="font-medium text-gray-900">${staff.sales_amount.toLocaleString()}</span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right text-sm">
-                  {staff.gross_profit ? (
-                    <span className={`font-medium ${staff.gross_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${Math.round(staff.gross_profit).toLocaleString()}
-                    </span>
-                  ) : (
-                    <span className="text-gray-400">-</span>
-                  )}
-                </td>
-                <td className="px-4 py-3 text-right text-sm">
-                  <div className="flex items-center justify-end gap-2">
-                    {staff.gross_profit_rate ? (
-                      <span className="font-medium text-blue-600">{staff.gross_profit_rate}%</span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                    {/* 如果有業績數據，顯示展開按鈕 */}
-                    {staff.transaction_count && staff.transaction_count > 0 && (
-                      <button
-                        onClick={() => toggleStaffDetails(staff.id)}
-                        className="text-gray-500 hover:text-blue-600 transition-colors"
-                        title={expandedStaffIds.has(staff.id) ? "收合明細" : "展開明細"}
-                      >
-                        <ChevronDown 
-                          size={18} 
-                          className={`transform transition-transform ${expandedStaffIds.has(staff.id) ? 'rotate-180' : ''}`}
-                        />
-                      </button>
-                    )}
-                  </div>
-                </td>
+                {canViewPerformance && (
+                  <>
+                    <td className="px-4 py-3 text-right text-sm">
+                      {staff.last_month_single_item_bonus ? (
+                        <span className="font-medium text-purple-600">${staff.last_month_single_item_bonus.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${getBlockColor(staff.calculated_block)}`}>
+                        區塊 {staff.calculated_block || '?'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      {staff.transaction_count ? (
+                        <span className="font-medium text-gray-900">{staff.transaction_count.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      {staff.sales_amount ? (
+                        <span className="font-medium text-gray-900">${staff.sales_amount.toLocaleString()}</span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      {staff.gross_profit ? (
+                        <span className={`font-medium ${staff.gross_profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          ${Math.round(staff.gross_profit).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      <div className="flex items-center justify-end gap-2">
+                        {staff.gross_profit_rate ? (
+                          <span className="font-medium text-blue-600">{staff.gross_profit_rate}%</span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                        {/* 如果有業績數據，顯示展開按鈕 */}
+                        {staff.transaction_count && staff.transaction_count > 0 && (
+                          <button
+                            onClick={() => toggleStaffDetails(staff.id)}
+                            className="text-gray-500 hover:text-blue-600 transition-colors"
+                            title={expandedStaffIds.has(staff.id) ? "收合明細" : "展開明細"}
+                          >
+                            <ChevronDown 
+                              size={18} 
+                              className={`transform transition-transform ${expandedStaffIds.has(staff.id) ? 'rotate-180' : ''}`}
+                            />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </>
+                )}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     {storeStatus !== 'confirmed' && (
@@ -1573,9 +1587,9 @@ function StoreStatusDetail({
               </tr>
               
               {/* 展開的業績明細行 */}
-              {expandedStaffIds.has(staff.id) && staffDetails[staff.id] && staffDetails[staff.id].length > 0 && (
+              {canViewPerformance && expandedStaffIds.has(staff.id) && staffDetails[staff.id] && staffDetails[staff.id].length > 0 && (
                 <tr key={`${staff.id}-details`} className="bg-blue-50">
-                  <td colSpan={13} className="px-4 py-3">
+                  <td colSpan={canViewPerformance ? 14 : 8} className="px-4 py-3">
                     <div className="ml-8">
                       <div className="text-xs font-semibold text-gray-600 mb-2">各門市業績明細</div>
                       <div className="bg-white rounded border border-blue-200 overflow-hidden">
