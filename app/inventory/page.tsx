@@ -1087,7 +1087,7 @@ export default function InventoryManagement() {
               <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-indigo-400 transition-colors">
                 <div className="flex items-center gap-2 mb-3">
                   <FileSpreadsheet className="text-indigo-600" size={24} />
-                  <h3 className="font-semibold text-gray-800">外盤公司盤點檔</h3>
+                  <h3 className="font-semibold text-gray-800">外盤公司盤點Stock明細檔</h3>
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
                   欄位：貨號、數量、貨架、棚板、序號（支援一品號多行）

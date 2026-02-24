@@ -54,6 +54,7 @@ function MonthlyStatusContent() {
   const [canViewStats, setCanViewStats] = useState(false);
   const [canViewSupportHours, setCanViewSupportHours] = useState(false);
   const [canEditSupportHours, setCanEditSupportHours] = useState(false);
+  const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>('');
   const [storeSummaries, setStoreSummaries] = useState<MonthlyStoreSummary[]>([]);
@@ -134,6 +135,7 @@ function MonthlyStatusContent() {
           setCanViewStats(permissionsResult.canViewStats || false);
           setCanViewSupportHours(permissionsResult.canViewSupportHours || false);
           setCanEditSupportHours(permissionsResult.canEditSupportHours || false);
+          setCanAccessActivityManagement(permissionsResult.canAccessActivityManagement || false);
         }
         
         // 檢查 URL 參數中是否有指定門市
@@ -323,8 +325,8 @@ function MonthlyStatusContent() {
             </div>
             
             <div className="flex items-center gap-3 flex-wrap">
-              {/* 活動管理按鈕 - 督導、店長、營業部經理/主管可以看到 */}
-              {needsAssignment && managedStores.length > 0 && (
+              {/* 活動管理按鈕 - 透過權限系統控制 */}
+              {canAccessActivityManagement && managedStores.length > 0 && (
                 <Link
                   href="/activity-management"
                   className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg"

@@ -1658,21 +1658,24 @@ export async function checkMonthlyStatusPermissions() {
         error: '未登入',
         canViewStats: false,
         canViewSupportHours: false,
-        canEditSupportHours: false
+        canEditSupportHours: false,
+        canAccessActivityManagement: false
       };
     }
 
-    const [canViewStats, canViewSupportHours, canEditSupportHours] = await Promise.all([
+    const [canViewStats, canViewSupportHours, canEditSupportHours, canAccessActivityManagement] = await Promise.all([
       hasPermission(user.id, 'monthly.status.view_stats'),
       hasPermission(user.id, 'monthly.allowance.view_support_hours'),
-      hasPermission(user.id, 'monthly.allowance.edit_support_hours')
+      hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
+      hasPermission(user.id, 'activity.management.access')
     ]);
 
     return {
       success: true,
       canViewStats,
       canViewSupportHours,
-      canEditSupportHours
+      canEditSupportHours,
+      canAccessActivityManagement
     };
   } catch (error: any) {
     console.error('檢查每月狀態權限錯誤:', error);
@@ -1681,7 +1684,8 @@ export async function checkMonthlyStatusPermissions() {
       error: error.message,
       canViewStats: false,
       canViewSupportHours: false,
-      canEditSupportHours: false
+      canEditSupportHours: false,
+      canAccessActivityManagement: false
     };
   }
 }
