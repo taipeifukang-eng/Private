@@ -139,6 +139,9 @@ export default function ActivityManagementPage() {
                     {campaign.published_to_store_managers && (
                       <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">店長</span>
                     )}
+                    {campaign.published_to_inventory_team && (
+                      <span className="px-2 py-1 text-xs rounded bg-orange-100 text-orange-800">盤點組</span>
+                    )}
                     {campaign.published_at && (
                       <span className="text-gray-500 text-xs">
                         發布時間：{formatDate(campaign.published_at)}

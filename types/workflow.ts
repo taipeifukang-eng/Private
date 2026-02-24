@@ -396,6 +396,7 @@ export interface Campaign {
   is_active: boolean;
   published_to_supervisors?: boolean;
   published_to_store_managers?: boolean;
+  published_to_inventory_team?: boolean;
   published_at?: string | null;
   created_at: string;
   updated_at: string;

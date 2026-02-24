@@ -19,13 +19,16 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Validate publishType
-    if (!['supervisors', 'store_managers'].includes(publishType)) {
+    if (!['supervisors', 'store_managers', 'inventory_team'].includes(publishType)) {
       return NextResponse.json({ success: false, error: '無效的發布類型' }, { status: 400 });
     }
 
-    const columnName = publishType === 'supervisors' 
-      ? 'published_to_supervisors' 
-      : 'published_to_store_managers';
+    const columnMap: Record<string, string> = {
+      supervisors: 'published_to_supervisors',
+      store_managers: 'published_to_store_managers',
+      inventory_team: 'published_to_inventory_team'
+    };
+    const columnName = columnMap[publishType];
 
     const updateData: any = {
       [columnName]: status,

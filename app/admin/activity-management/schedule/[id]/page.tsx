@@ -487,15 +487,18 @@ export default function ScheduleEditPage() {
   };
 
   // 發布/取消發布
-  const handlePublish = async (publishType: 'supervisors' | 'store_managers') => {
+  const handlePublish = async (publishType: 'supervisors' | 'store_managers' | 'inventory_team') => {
     if (!campaign) return;
 
-    const isCurrentlyPublished = publishType === 'supervisors' 
-      ? campaign.published_to_supervisors 
-      : campaign.published_to_store_managers;
+    const publishMap: Record<string, { field: keyof typeof campaign; label: string }> = {
+      supervisors: { field: 'published_to_supervisors', label: '督導' },
+      store_managers: { field: 'published_to_store_managers', label: '店長' },
+      inventory_team: { field: 'published_to_inventory_team', label: '盤點組人員' },
+    };
+    const { field, label: target } = publishMap[publishType];
+    const isCurrentlyPublished = campaign[field];
     
     const action = isCurrentlyPublished ? '取消發布' : '發布';
-    const target = publishType === 'supervisors' ? '督導' : '店長';
 
     if (!confirm(`確定要${action}給${target}嗎？`)) {
       return;
@@ -745,6 +748,28 @@ export default function ScheduleEditPage() {
                   <>
                     <Send className="w-4 h-4" />
                     發布給店長
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={() => handlePublish('inventory_team')}
+                disabled={saving}
+                className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 disabled:opacity-50 ${
+                  campaign?.published_to_inventory_team
+                    ? 'bg-green-600 text-white hover:bg-green-700'
+                    : 'bg-orange-600 text-white hover:bg-orange-700'
+                }`}
+              >
+                {campaign?.published_to_inventory_team ? (
+                  <>
+                    <CheckCircle className="w-4 h-4" />
+                    已發布給盤點組
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    發布給盤點組
                   </>
                 )}
               </button>

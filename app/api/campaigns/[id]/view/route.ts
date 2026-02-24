@@ -46,13 +46,37 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ success: true, campaign, schedules });
     }
 
-    // 檢查是否為督導、店長或營業部管理層
+    // 檢查是否為督導、店長、營業部管理層或盤點組人員
     const isJobTitleAllowed = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
     const isBusinessManager = profile?.department?.startsWith('營業') && ['經理', '主管'].includes(profile?.job_title || '');
-    const needsAssignment = isJobTitleAllowed || isBusinessManager;
+    const isInventoryTeam = profile?.department === '營業部-盤點組';
+    const needsAssignment = isJobTitleAllowed || isBusinessManager || isInventoryTeam;
     
     if (!needsAssignment) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
+    }
+
+    // 盤點組人員檢查是否已發布給盤點組
+    if (isInventoryTeam && !isJobTitleAllowed && !isBusinessManager) {
+      if (!campaign.published_to_inventory_team) {
+        return NextResponse.json({ success: false, error: '此活動尚未發布給盤點組' }, { status: 403 });
+      }
+
+      const { data: schedules, error: schedulesError } = await supabase
+        .from('campaign_schedules')
+        .select('*')
+        .eq('campaign_id', campaignId);
+
+      if (schedulesError) {
+        return NextResponse.json({ success: false, error: schedulesError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        campaign, 
+        schedules: schedules || [],
+        isInventoryTeam: true
+      });
     }
 
     // 營業部經理/主管視為督導權限
