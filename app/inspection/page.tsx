@@ -94,11 +94,12 @@ export default async function InspectionListPage() {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
-    // 第一步：獲取基本巡店記錄
+    // 第一步：獲取基本巡店記錄（僅督導巡店類型）
     const { data: rawInspections, error: inspectionError } = await supabase
       .from('inspection_masters')
-      .select('id, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at')
+      .select('id, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type')
       .gte('inspection_date', sixMonthsAgo.toISOString())
+      .or('inspection_type.eq.supervisor,inspection_type.is.null')
       .order('inspection_date', { ascending: false });
 
     if (inspectionError) {

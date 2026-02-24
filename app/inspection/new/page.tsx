@@ -456,6 +456,7 @@ export default function NewInspectionPage() {
           store_id: selectedStoreId,
           inspector_id: user.id,
           inspection_date: inspectionDate,
+          inspection_type: 'supervisor',
           status: isDraft ? 'draft' : 'completed',
           max_possible_score: totals.initialScore,
           total_score: totals.finalScore,
