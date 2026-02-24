@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
 // GET: 取得所有門市及其督導關聯
@@ -24,8 +24,11 @@ export async function GET() {
 
     const totalStores = stores?.length || 0;
 
+    // 使用 admin client 繞過 RLS，確保所有用戶（包含盤點組）都能看到完整的督導-門市對應關係
+    const adminSupabase = createAdminClient();
+
     // 獲取所有門市管理者關聯（從經理/督導管理設定）
-    const { data: storeManagers, error: managersError } = await supabase
+    const { data: storeManagers, error: managersError } = await adminSupabase
       .from('store_managers')
       .select('store_id, user_id, role_type, user:profiles!store_managers_user_id_fkey(full_name, employee_code)');
 
