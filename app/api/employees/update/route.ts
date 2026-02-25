@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 
 export async function POST(request: NextRequest) {
@@ -28,8 +28,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少必填欄位' }, { status: 400 });
     }
 
+    // 使用 admin client 繞過 RLS，確保更新能成功寫入
+    const adminSupabase = createAdminClient();
+
     // 更新 store_employees 的基本資料
-    const { error: storeEmpError } = await supabase
+    const { error: storeEmpError } = await adminSupabase
       .from('store_employees')
       .update({
         employee_name: employee_name.trim(),
@@ -42,11 +45,15 @@ export async function POST(request: NextRequest) {
 
     if (storeEmpError) {
       console.error('Error updating store_employees:', storeEmpError);
+      return NextResponse.json(
+        { success: false, error: `資料庫寫入失敗：${storeEmpError.message}` },
+        { status: 500 }
+      );
     }
 
     // 如果有更新職位，則更新所有 monthly_staff_status 的職位
     if (current_position) {
-      const { error: monthlyError } = await supabase
+      const { error: monthlyError } = await adminSupabase
         .from('monthly_staff_status')
         .update({
           position: current_position,
@@ -56,10 +63,11 @@ export async function POST(request: NextRequest) {
 
       if (monthlyError) {
         console.error('Error updating monthly_staff_status:', monthlyError);
+        // 月報更新失敗不阻斷主流程，但回報警告
       }
     } else {
       // 如果只更新姓名
-      const { error: monthlyError } = await supabase
+      const { error: monthlyError } = await adminSupabase
         .from('monthly_staff_status')
         .update({
           name: employee_name.trim()
