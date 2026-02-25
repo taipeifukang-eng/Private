@@ -28,20 +28,39 @@ export async function POST(request: NextRequest) {
     let errorCount = 0;
     const errors: string[] = [];
 
+    // 將各種日期格式統一轉為 YYYY-MM-DD
+    const normalizeDate = (raw: string): string | null => {
+      const s = raw.trim();
+      // 已是 YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      // YYYY/M/D 或 YYYY/MM/DD（含斜線、月日不補零）
+      const slashMatch = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+      if (slashMatch) {
+        const [, y, m, d] = slashMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      // YYYY-M-D（橫線但不補零）
+      const dashMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+      if (dashMatch) {
+        const [, y, m, d] = dashMatch;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+      return null;
+    };
+
     for (const item of updates) {
       if (!item.employee_code || !item.birthday) continue;
 
-      // 驗證日期格式 YYYY-MM-DD
-      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-      if (!dateRegex.test(item.birthday)) {
-        errors.push(`${item.employee_code}: 日期格式錯誤 (${item.birthday})`);
+      const normalized = normalizeDate(item.birthday);
+      if (!normalized) {
+        errors.push(`${item.employee_code}: 日期格式無法辨識 (${item.birthday})，請使用 YYYY/M/D 或 YYYY-MM-DD`);
         errorCount++;
         continue;
       }
 
       const { error } = await supabase
         .from('store_employees')
-        .update({ birthday: item.birthday })
+        .update({ birthday: normalized })
         .eq('employee_code', item.employee_code.toUpperCase());
 
       if (error) {

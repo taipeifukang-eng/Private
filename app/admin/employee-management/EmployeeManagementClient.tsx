@@ -241,7 +241,9 @@ export default function EmployeeManagementClient({
       const lines = cleaned.split(/\r?\n/).filter(l => l.trim());
       const dataLines = lines.slice(1);
       const parsed = dataLines.map(line => {
-        const [employee_code, employee_name, birthday] = line.split(',');
+        // 處理 CSV 欄位（移除雙引號包覆）
+        const cols = line.split(',').map(c => c.replace(/^"|"$/g, '').trim());
+        const [employee_code, employee_name, birthday] = cols;
         return {
           employee_code: (employee_code || '').trim(),
           employee_name: (employee_name || '').trim(),
