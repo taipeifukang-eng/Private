@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { employee_code, employee_name, current_position, start_date } = body;
+    const { employee_code, employee_name, current_position, start_date, birthday } = body;
 
     if (!employee_code || !employee_name) {
       return NextResponse.json({ success: false, error: '缺少必填欄位' }, { status: 400 });
@@ -34,6 +34,7 @@ export async function POST(request: NextRequest) {
       .update({
         employee_name: employee_name.trim(),
         start_date: start_date || null,
+        birthday: birthday || null,
         position: current_position || null,
         current_position: current_position || null
       })

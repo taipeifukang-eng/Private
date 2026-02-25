@@ -10,6 +10,7 @@ interface Employee {
   employee_name: string;
   current_position: string | null;
   start_date: string | null;
+  birthday: string | null;
   is_active: boolean;
 }
 
@@ -51,7 +52,8 @@ export default function EmployeeManagementClient({
     employee_code: '',
     employee_name: '',
     current_position: '',
-    start_date: ''
+    start_date: '',
+    birthday: ''
   });
 
   // 編輯員工表單
@@ -59,7 +61,8 @@ export default function EmployeeManagementClient({
     employee_code: '',
     employee_name: '',
     current_position: '',
-    start_date: ''
+    start_date: '',
+    birthday: ''
   });
 
   // 搜尋過濾
@@ -113,7 +116,8 @@ export default function EmployeeManagementClient({
           employee_code: code,
           employee_name: newEmployee.employee_name.trim(),
           current_position: newEmployee.current_position || null,
-          start_date: newEmployee.start_date || null
+          start_date: newEmployee.start_date || null,
+          birthday: newEmployee.birthday || null
         })
       });
 
@@ -163,7 +167,8 @@ export default function EmployeeManagementClient({
       employee_code: employee.employee_code,
       employee_name: employee.employee_name,
       current_position: employee.current_position || '',
-      start_date: employee.start_date || ''
+      start_date: employee.start_date || '',
+      birthday: employee.birthday || ''
     });
     setSelectedEmployee(employee);
     setShowEditModal(true);
@@ -184,7 +189,8 @@ export default function EmployeeManagementClient({
           employee_code: editEmployee.employee_code,
           employee_name: editEmployee.employee_name.trim(),
           current_position: editEmployee.current_position || null,
-          start_date: editEmployee.start_date || null
+          start_date: editEmployee.start_date || null,
+          birthday: editEmployee.birthday || null
         })
       });
 
@@ -290,6 +296,7 @@ export default function EmployeeManagementClient({
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">姓名</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">當前職位</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">到職日</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">生日</th>
                     <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">操作</th>
                   </tr>
                 </thead>
@@ -307,6 +314,9 @@ export default function EmployeeManagementClient({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {emp.start_date || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                        {emp.birthday || '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -350,7 +360,7 @@ export default function EmployeeManagementClient({
           <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 使用說明</h3>
           <ul className="text-sm text-blue-800 space-y-1">
             <li>• 此頁面顯示所有員工資料庫（已自動去重）</li>
-            <li>• 可手動新增員工，欄位包含：員編、姓名、當前職位、到職日</li>
+            <li>• 可手動新增員工，欄位包含：員編、姓名、當前職位、到職日、生日</li>
             <li>• 點擊「升遷歷程」可查看該員工的升遷記錄</li>
             <li>• 員工的升遷請使用「升遷管理」功能統一處理</li>
           </ul>
@@ -423,6 +433,18 @@ export default function EmployeeManagementClient({
                   type="date"
                   value={newEmployee.start_date}
                   onChange={(e) => setNewEmployee({...newEmployee, start_date: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  生日
+                </label>
+                <input
+                  type="date"
+                  value={newEmployee.birthday}
+                  onChange={(e) => setNewEmployee({...newEmployee, birthday: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
@@ -522,6 +544,18 @@ export default function EmployeeManagementClient({
                   type="date"
                   value={editEmployee.start_date}
                   onChange={(e) => setEditEmployee({...editEmployee, start_date: e.target.value})}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  生日
+                </label>
+                <input
+                  type="date"
+                  value={editEmployee.birthday}
+                  onChange={(e) => setEditEmployee({...editEmployee, birthday: e.target.value})}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
