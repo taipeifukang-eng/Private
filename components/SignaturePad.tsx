@@ -79,7 +79,7 @@ export default function SignaturePad({
           <div className="relative group bg-white">
             <img
               src={initialSignature}
-              alt="督導簽名"
+              alt="確認簽名"
               className="w-full h-auto max-h-32 object-contain p-2"
             />
             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-all flex items-center justify-center">

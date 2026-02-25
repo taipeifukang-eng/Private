@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Building2, ArrowLeft, Eye } from 'lucide-react';
+import { Calendar, Building2, ArrowLeft, Eye, Filter } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign } from '@/types/workflow';
 
@@ -13,6 +13,7 @@ export default function ActivityManagementPage() {
   const [userRole, setUserRole] = useState<string>('');
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isStoreManager, setIsStoreManager] = useState(false);
+  const [selectedYear, setSelectedYear] = useState<string>(String(new Date().getFullYear()));
 
   useEffect(() => {
     loadPublishedCampaigns();
@@ -59,6 +60,27 @@ export default function ActivityManagementPage() {
     }
   };
 
+  // 從活動資料中提取所有年份
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    campaigns.forEach(c => {
+      if (c.start_date) years.add(c.start_date.substring(0, 4));
+      if (c.end_date) years.add(c.end_date.substring(0, 4));
+    });
+    return Array.from(years).sort();
+  }, [campaigns]);
+
+  // 篩選出該年度相關的活動（活動期間涵蓋到該年度的都算）
+  const filteredCampaigns = useMemo(() => {
+    if (selectedYear === 'all') return campaigns;
+    return campaigns.filter(c => {
+      const startYear = c.start_date?.substring(0, 4);
+      const endYear = c.end_date?.substring(0, 4);
+      return startYear === selectedYear || endYear === selectedYear ||
+        (startYear && endYear && startYear <= selectedYear && endYear >= selectedYear);
+    });
+  }, [campaigns, selectedYear]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -96,16 +118,47 @@ export default function ActivityManagementPage() {
           </div>
         </div>
 
+        {/* 年度篩選器 */}
+        <div className="mb-6 flex items-center gap-3">
+          <Filter className="w-4 h-4 text-gray-500" />
+          <span className="text-sm text-gray-600 font-medium">年度篩選：</span>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedYear('all')}
+              className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                selectedYear === 'all'
+                  ? 'bg-purple-600 text-white'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              全部
+            </button>
+            {availableYears.map(year => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  selectedYear === year
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                {year} 年
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* 活動列表 */}
-        {campaigns.length === 0 ? (
+        {filteredCampaigns.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
             <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">目前沒有已發布的活動</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">{selectedYear === 'all' ? '目前沒有已發布的活動' : `${selectedYear} 年沒有已發布的活動`}</h3>
             <p className="text-gray-600">當管理員發布活動後，您將可以在此查看活動資訊</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-6">
-            {campaigns.map((campaign) => (
+            {filteredCampaigns.map((campaign) => (
               <div
                 key={campaign.id}
                 className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
@@ -140,7 +193,7 @@ export default function ActivityManagementPage() {
                       <span className="px-2 py-1 text-xs rounded bg-green-100 text-green-800">店長</span>
                     )}
                     {campaign.published_to_inventory_team && (
-                      <span className="px-2 py-1 text-xs rounded bg-orange-100 text-orange-800">盤點組</span>
+                      <span className="px-2 py-1 text-xs rounded bg-orange-100 text-orange-800">盤點組/行銷部/營業部助理</span>
                     )}
                     {campaign.published_at && (
                       <span className="text-gray-500 text-xs">

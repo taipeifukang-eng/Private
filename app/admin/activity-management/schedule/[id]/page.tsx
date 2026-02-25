@@ -764,12 +764,12 @@ export default function ScheduleEditPage() {
                 {campaign?.published_to_inventory_team ? (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    已發布給盤點組
+                    已發布給盤點組/行銷部/營業部助理
                   </>
                 ) : (
                   <>
                     <Send className="w-4 h-4" />
-                    發布給盤點組
+                    發布給盤點組/行銷部/營業部助理
                   </>
                 )}
               </button>

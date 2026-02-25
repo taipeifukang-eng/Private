@@ -46,7 +46,17 @@ interface GradeMapping {
   min_score: number;
 }
 
-type TabType = 'templates' | 'grading';
+type TabType = 'templates' | 'grading' | 'bonus';
+
+interface BonusConfig {
+  id: string;
+  day_from: number;
+  day_to: number;
+  bonus_score: number;
+  description: string | null;
+  sort_order: number;
+  is_active: boolean;
+}
 
 export default function InspectionTemplatesPage() {
   const router = useRouter();
@@ -63,6 +73,12 @@ export default function InspectionTemplatesPage() {
   // 評分對照
   const [gradeMappings, setGradeMappings] = useState<GradeMapping[]>([]);
   const [gradeMappingDirty, setGradeMappingDirty] = useState(false);
+
+  // 加分規則
+  const [bonusConfigs, setBonusConfigs] = useState<BonusConfig[]>([]);
+  const [editingBonus, setEditingBonus] = useState<BonusConfig | null>(null);
+  const [isCreatingBonus, setIsCreatingBonus] = useState(false);
+  const [bonusForm, setBonusForm] = useState({ day_from: 0, day_to: 3, bonus_score: 5, description: '' });
 
   // 權限檢查
   const [authorized, setAuthorized] = useState(false);
@@ -92,10 +108,83 @@ export default function InspectionTemplatesPage() {
       setAuthorized(true);
       await loadTemplates();
       await loadGradeMappings();
+      await loadBonusConfigs();
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadBonusConfigs = async () => {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from('inspection_bonus_config')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order');
+    if (!error && data) setBonusConfigs(data);
+  };
+
+  const handleSaveBonus = async () => {
+    try {
+      setSaving(true);
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (editingBonus) {
+        // 更新
+        const { error } = await supabase
+          .from('inspection_bonus_config')
+          .update({
+            day_from: bonusForm.day_from,
+            day_to: bonusForm.day_to,
+            bonus_score: bonusForm.bonus_score,
+            description: bonusForm.description || null,
+            updated_at: new Date().toISOString(),
+            updated_by: user?.id,
+          })
+          .eq('id', editingBonus.id);
+        if (error) throw error;
+      } else {
+        // 新增
+        const nextOrder = bonusConfigs.length > 0 ? Math.max(...bonusConfigs.map(c => c.sort_order)) + 1 : 1;
+        const { error } = await supabase
+          .from('inspection_bonus_config')
+          .insert({
+            day_from: bonusForm.day_from,
+            day_to: bonusForm.day_to,
+            bonus_score: bonusForm.bonus_score,
+            description: bonusForm.description || null,
+            sort_order: nextOrder,
+            updated_by: user?.id,
+          });
+        if (error) throw error;
+      }
+
+      await loadBonusConfigs();
+      setEditingBonus(null);
+      setIsCreatingBonus(false);
+      setBonusForm({ day_from: 0, day_to: 3, bonus_score: 5, description: '' });
+    } catch (e: any) {
+      alert('儲存失敗：' + (e?.message || '未知錯誤'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteBonus = async (configId: string) => {
+    if (!confirm('確定要刪除此加分規則？')) return;
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from('inspection_bonus_config')
+        .update({ is_active: false })
+        .eq('id', configId);
+      if (error) throw error;
+      await loadBonusConfigs();
+    } catch (e: any) {
+      alert('刪除失敗：' + (e?.message || '未知錯誤'));
     }
   };
 
@@ -315,6 +404,17 @@ export default function InspectionTemplatesPage() {
             <Settings className="w-4 h-4 inline mr-2" />
             評分對照表
           </button>
+          <button
+            onClick={() => setActiveTab('bonus')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'bonus'
+                ? 'border-indigo-600 text-indigo-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Settings className="w-4 h-4 inline mr-2" />
+            改善加分規則
+          </button>
         </div>
 
         {/* 檢查項目管理 */}
@@ -506,6 +606,200 @@ export default function InspectionTemplatesPage() {
                       <li>每個門檻分數應大於下一級的門檻分數</li>
                       <li>修改評分對照表後，僅影響之後新建的巡店記錄</li>
                       <li>修改後需同步更新新增巡店頁面的前端計算邏輯（需重新部署）</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 改善加分規則 */}
+        {activeTab === 'bonus' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">改善加分規則</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    設定店長在幾天內上傳改善內容可以獲得的加分。越早改善加分越多。
+                  </p>
+                </div>
+                {!isCreatingBonus && !editingBonus && (
+                  <button
+                    onClick={() => {
+                      setIsCreatingBonus(true);
+                      setEditingBonus(null);
+                      const maxDay = bonusConfigs.length > 0 ? Math.max(...bonusConfigs.map(c => c.day_to)) + 1 : 0;
+                      setBonusForm({ day_from: maxDay, day_to: maxDay + 2, bonus_score: 1, description: '' });
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    新增規則
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6">
+              {/* 規則列表 */}
+              {bonusConfigs.length === 0 && !isCreatingBonus && (
+                <div className="text-center py-8 text-gray-500">
+                  <Settings className="w-10 h-10 mx-auto mb-3 text-gray-300" />
+                  <p>尚未設定加分規則</p>
+                  <p className="text-sm mt-1">點擊「新增規則」開始設定</p>
+                </div>
+              )}
+
+              {bonusConfigs.length > 0 && (
+                <div className="max-w-2xl mx-auto">
+                  <div className="grid grid-cols-12 gap-3 mb-3 text-sm font-medium text-gray-500 px-4">
+                    <div className="col-span-4">改善天數</div>
+                    <div className="col-span-2 text-center">加分</div>
+                    <div className="col-span-4">說明</div>
+                    <div className="col-span-2 text-right">操作</div>
+                  </div>
+                  {bonusConfigs.map((config) => (
+                    <div
+                      key={config.id}
+                      className={`grid grid-cols-12 gap-3 items-center px-4 py-3 rounded-lg mb-2 ${
+                        editingBonus?.id === config.id ? 'bg-green-50 border border-green-300' : 'bg-gray-50 hover:bg-gray-100'
+                      } transition-colors`}
+                    >
+                      <div className="col-span-4">
+                        <span className="text-sm text-gray-800">
+                          {config.day_from === 0 ? '當天' : `第 ${config.day_from} 天`} ~ 第 {config.day_to} 天
+                        </span>
+                      </div>
+                      <div className="col-span-2 text-center">
+                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-sm font-bold">
+                          +{config.bonus_score}分
+                        </span>
+                      </div>
+                      <div className="col-span-4">
+                        <span className="text-sm text-gray-500">{config.description || '-'}</span>
+                      </div>
+                      <div className="col-span-2 flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingBonus(config);
+                            setIsCreatingBonus(false);
+                            setBonusForm({
+                              day_from: config.day_from,
+                              day_to: config.day_to,
+                              bonus_score: config.bonus_score,
+                              description: config.description || '',
+                            });
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBonus(config.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* 新增/編輯表單 */}
+              {(isCreatingBonus || editingBonus) && (
+                <div className="max-w-2xl mx-auto mt-4 bg-green-50 border border-green-200 rounded-xl p-5">
+                  <h4 className="text-sm font-semibold text-green-800 mb-4">
+                    {editingBonus ? '編輯加分規則' : '新增加分規則'}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        起始天數（含）
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={bonusForm.day_from}
+                        onChange={(e) => setBonusForm({ ...bonusForm, day_from: Number(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        結束天數（含）
+                      </label>
+                      <input
+                        type="number"
+                        min={bonusForm.day_from}
+                        value={bonusForm.day_to}
+                        onChange={(e) => setBonusForm({ ...bonusForm, day_to: Number(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        加分分數
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.5}
+                        value={bonusForm.bonus_score}
+                        onChange={(e) => setBonusForm({ ...bonusForm, bonus_score: Number(e.target.value) })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">
+                        說明（選填）
+                      </label>
+                      <input
+                        type="text"
+                        value={bonusForm.description}
+                        onChange={(e) => setBonusForm({ ...bonusForm, description: e.target.value })}
+                        placeholder="例如：3天內改善 +5分"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingBonus(null);
+                        setIsCreatingBonus(false);
+                        setBonusForm({ day_from: 0, day_to: 3, bonus_score: 5, description: '' });
+                      }}
+                      className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={handleSaveBonus}
+                      disabled={saving || bonusForm.day_to < bonusForm.day_from || bonusForm.bonus_score < 0}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                    >
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      {editingBonus ? '保存' : '新增'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* 說明 */}
+              <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                  <div className="text-sm text-green-800">
+                    <p className="font-medium mb-1">加分機制說明</p>
+                    <ul className="list-disc list-inside space-y-1 text-green-700">
+                      <li>督導巡店完成後，系統會自動為扣分項目建立「待改善事項」</li>
+                      <li>店長登入後可看到待改善清單，並上傳改善說明與照片</li>
+                      <li>系統根據改善天數（提交日 - 巡店日）自動計算加分</li>
+                      <li>加分會加到該次巡店的總分上（改善加分欄位）</li>
+                      <li>改善期限 = 巡店日 + 最大天數設定（取所有規則最大的結束天數）</li>
                     </ul>
                   </div>
                 </div>

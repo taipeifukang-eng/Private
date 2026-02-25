@@ -1,6 +1,6 @@
 import { getTemplates, getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
-import WorkflowBuilder from '@/components/admin/WorkflowBuilder';
+import WorkflowBuilderV2 from '@/components/admin/WorkflowBuilderV2';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,27 +24,12 @@ export default async function EditTemplatePage({ params }: { params: { id: strin
   );
   const hasCompletedAssignments = templateAssignments.some(a => a.status === 'completed');
 
-  // Collect all step IDs that have been checked in any assignment
-  const checkedStepIds = new Set<number>();
-  if (hasActiveAssignments) {
-    templateAssignments.forEach((assignment: any) => {
-      if (assignment.status === 'in_progress' || assignment.status === 'completed') {
-        assignment.logs?.forEach((log: any) => {
-          if (log.step_id !== null && log.step_id !== undefined && log.action === 'checked') {
-            checkedStepIds.add(log.step_id);
-          }
-        });
-      }
-    });
-  }
-
   return (
-    <WorkflowBuilder 
+    <WorkflowBuilderV2 
       template={template}
       isEditing={true}
       hasActiveAssignments={hasActiveAssignments}
       hasCompletedAssignments={hasCompletedAssignments}
-      checkedStepIds={Array.from(checkedStepIds)}
     />
   );
 }

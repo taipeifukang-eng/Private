@@ -8,6 +8,7 @@ import { POSITION_OPTIONS } from '@/types/workflow';
 
 // 異動類型定義
 const MOVEMENT_TYPES = [
+  { value: 'onboarding', label: '入職' },
   { value: 'promotion', label: '升職' },
   { value: 'store_transfer', label: '調店' },
   { value: 'leave_without_pay', label: '留職停薪' },
@@ -158,7 +159,7 @@ export default function EmployeeMovementManagementPage() {
         )
       `)
       .not('store_id', 'is', null)
-      .order('movement_date', { ascending: false })
+      .order('movement_date', { ascending: true })
       .limit(500);
 
     if (error) {
@@ -189,6 +190,9 @@ export default function EmployeeMovementManagementPage() {
     if (historyMovementType !== 'all') {
       filtered = filtered.filter(m => m.movement_type === historyMovementType);
     }
+    
+    // 依生效日期排序（舊→新，由遠到近）
+    filtered.sort((a, b) => a.movement_date.localeCompare(b.movement_date));
     
     setFilteredHistory(filtered);
   }, [historyYearMonth, historyMovementType, movementHistory]);

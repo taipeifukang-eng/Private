@@ -7,6 +7,7 @@ import { Upload, Download, FileSpreadsheet, AlertCircle } from 'lucide-react';
 type ProductData = {
   品號: string;
   品名: string;
+  UN: string;
   條碼: string;
   庫存: number;
   主要儲位: string;
@@ -263,9 +264,16 @@ export default function InventoryManagement() {
             return;
           }
           
+          // 尋找 UN（單位）欄位
+          const UN欄位 = json.length > 0 ? Object.keys(json[0]).find(key => 
+            key === 'UN' || key === 'un' || key.includes('單位')
+          ) : null;
+          console.log('✅ UN欄位：', UN欄位 || '未找到');
+
           const parsed = json.map((row: any) => ({
             品號: formatProductCode(row['品號']),
             品名: String(row['品名'] || ''),
+            UN: UN欄位 ? String(row[UN欄位] || '') : '',
             條碼: String(row['條碼'] || ''),
             庫存: Number(row[庫存欄位] || 0),
             主要儲位: String(row[主要儲位欄位] || '')
@@ -632,6 +640,7 @@ export default function InventoryManagement() {
         該儲位盤點數量: record.該儲位盤點數量,
         品號: record.品號,
         品名: base?.品名 || '',
+        UN: base?.UN || '',
         條碼: base?.條碼 || '',
         庫存量,
         各式盤點數量加總,
@@ -706,6 +715,7 @@ export default function InventoryManagement() {
       .map(item => ({
         品號: item.品號,
         品名: item.品名,
+        UN: item.UN || '',
         條碼: item.條碼,
         庫存量: item.庫存,
         主要儲位: item.主要儲位,

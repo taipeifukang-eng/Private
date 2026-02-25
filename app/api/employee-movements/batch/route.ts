@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 
-type MovementType = 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
+type MovementType = 'onboarding' | 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
 
 interface MovementInput {
   employee_code: string;
   employee_name: string;
   movement_type: MovementType;
+  store_id?: string; // 任職門市（入職時必填）
   position?: string; // 僅升職時需要
   effective_date: string;
   notes?: string;
@@ -122,6 +123,9 @@ export async function POST(request: NextRequest) {
           .single();
         oldValue = fromStore?.store_name || movement.from_store_id || null;
         newValue = toStore?.store_name || movement.to_store_id || null;
+      } else if (movement.movement_type === 'onboarding') {
+        oldValue = null;
+        newValue = 'active';
       } else if (movement.movement_type === 'leave_without_pay') {
         oldValue = empData?.employment_status || 'active';
         newValue = 'leave_without_pay';
@@ -131,14 +135,22 @@ export async function POST(request: NextRequest) {
       } else if (movement.movement_type === 'resignation') {
         oldValue = empData?.employment_status || 'active';
         newValue = 'resigned';
+      } else if (movement.movement_type === 'pass_probation') {
+        oldValue = empData?.current_position || empData?.position || null;
+        newValue = empData?.current_position || empData?.position || '過試用期';
       }
+
+      // 入職時使用前端傳入的 store_id，因為新員工尚未存在於 store_employees
+      const recordStoreId = movement.movement_type === 'onboarding'
+        ? (movement.store_id || null)
+        : movement.movement_type === 'store_transfer'
+          ? (movement.to_store_id || empData?.store_id || null)
+          : (empData?.store_id || movement.store_id || null);
 
       movementRecords.push({
         employee_code: movement.employee_code.toUpperCase(),
         employee_name: movement.employee_name,
-        store_id: movement.movement_type === 'store_transfer' 
-          ? (movement.to_store_id || empData?.store_id || null)  // 調店時 store_id 設為新門市
-          : (empData?.store_id || null),
+        store_id: recordStoreId,
         movement_type: movement.movement_type,
         movement_date: movement.effective_date,
         new_value: newValue,

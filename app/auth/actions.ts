@@ -62,14 +62,10 @@ export async function signIn(formData: { email: string; password: string }) {
  * Sign out the current user
  */
 export async function signOut() {
-  try {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    revalidatePath('/', 'layout');
-    redirect('/login');
-  } catch (error) {
-    console.error('Sign out error:', error);
-  }
+  const supabase = createClient();
+  await supabase.auth.signOut();
+  revalidatePath('/', 'layout');
+  redirect('/login');
 }
 
 /**

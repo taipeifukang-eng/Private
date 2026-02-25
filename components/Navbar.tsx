@@ -26,7 +26,8 @@ import {
   Package,
   CheckSquare,
   Plus,
-  FileCheck
+  FileCheck,
+  AlertTriangle
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission } from '@/hooks/useNavbarPermissions';
@@ -137,6 +138,7 @@ export default function Navbar({ user }: NavbarProps) {
   // 督導巡店相關的子選單項目（使用 RBAC 權限）
   const inspectionSubItems = [
     { href: '/inspection', label: '巡店列表', icon: ClipboardList, show: permissions.canViewInspections },
+    { href: '/inspection/improvements', label: '待改善追蹤', icon: AlertTriangle, show: permissions.canViewImprovements },
     { href: '/admin/inspection-templates', label: '模板管理', icon: FileCheck, show: permissions.canManageInspectionTemplates },
   ].filter(item => item.show);
 
@@ -177,13 +179,22 @@ export default function Navbar({ user }: NavbarProps) {
         <div className="flex justify-between items-center h-14 lg:h-16">
           {/* Logo and Desktop Navigation */}
           <div className="flex items-center">
-            <Link href="/" className="flex items-center space-x-2 min-w-0 shrink-0">
-              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shrink-0">
-                <ClipboardList className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
+            <Link href="/" className="flex items-center space-x-2 min-w-0 shrink-0 group">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 bg-gradient-to-br from-slate-800 to-slate-900 rounded-lg flex items-center justify-center shrink-0 self-center border border-amber-500/30">
+                <ClipboardList className="w-5 h-5 lg:w-6 lg:h-6 text-amber-400" />
               </div>
-              <span className="text-base lg:text-xl font-bold text-gray-900 hidden lg:block whitespace-nowrap">
-                富康內部業務管理系統
-              </span>
+              {/* Desktop: 全名 */}
+              <div className="hidden lg:flex items-center border-l-4 border-amber-500 pl-3 py-1">
+                <span className="text-xl font-black text-slate-900 tracking-wide">
+                  FK菁英業務管理
+                </span>
+              </div>
+              {/* Mobile: 縮寫 */}
+              <div className="flex lg:hidden items-center border-l-4 border-amber-500 pl-2 py-1">
+                <span className="text-base font-black text-slate-900 tracking-widest">
+                  富康菁英
+                </span>
+              </div>
             </Link>
 
             {/* Desktop Menu */}

@@ -28,7 +28,7 @@ export async function GET() {
       const { data: campaigns, error } = await supabase
         .from('campaigns')
         .select('*')
-        .order('start_date', { ascending: false });
+        .order('start_date', { ascending: true });
 
       if (error) {
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -37,14 +37,22 @@ export async function GET() {
       return NextResponse.json({ success: true, data: campaigns, role: 'admin' });
     }
 
-    // 檢查是否為盤點組人員
+    // 檢查是否為盤點組或行銷部人員
     const { data: profile } = await supabase
       .from('profiles')
-      .select('department')
+      .select('department, job_title')
       .eq('id', user.id)
       .single();
 
     const isInventoryTeam = profile?.department === '營業部-盤點組';
+    
+    // 檢查是否為行銷部且有活動管理權限
+    const isMarketingDept = profile?.department === '行銷部';
+    const hasActivityAccess = await hasPermission(user.id, 'activity.management.access');
+    const isMarketingWithAccess = isMarketingDept && hasActivityAccess;
+    
+    // 檢查是否為營業部助理
+    const isBusinessAssistant = profile?.department === '營業部' && profile?.job_title === '助理';
 
     // 一般用戶查看已發布的活動
     // 根據用戶的門市指派查看對應的活動
@@ -58,8 +66,8 @@ export async function GET() {
     const isSupervisor = managedStores?.some(m => m.role_type === 'supervisor') || false;
     const isStoreManager = managedStores?.some(m => m.role_type === 'store_manager') || false;
 
-    // 如果不是任何角色且不是盤點組，返回空
-    if (!isSupervisor && !isStoreManager && !isInventoryTeam) {
+    // 如果不是任何角色且不是盤點組/行銷部，返回空
+    if (!isSupervisor && !isStoreManager && !isInventoryTeam && !isMarketingWithAccess && !isBusinessAssistant) {
       return NextResponse.json({ success: true, data: [], role: 'member' });
     }
 
@@ -67,13 +75,13 @@ export async function GET() {
     let query = supabase
       .from('campaigns')
       .select('*')
-      .order('start_date', { ascending: false });
+      .order('start_date', { ascending: true });
 
     // 組裝 OR 條件
     const orConditions: string[] = [];
     if (isSupervisor) orConditions.push('published_to_supervisors.eq.true');
     if (isStoreManager) orConditions.push('published_to_store_managers.eq.true');
-    if (isInventoryTeam) orConditions.push('published_to_inventory_team.eq.true');
+    if (isInventoryTeam || isMarketingWithAccess || isBusinessAssistant) orConditions.push('published_to_inventory_team.eq.true');
 
     if (orConditions.length === 1) {
       // 單一條件用 eq
@@ -92,10 +100,10 @@ export async function GET() {
     return NextResponse.json({ 
       success: true, 
       data: campaigns,
-      role: isSupervisor ? 'supervisor' : isStoreManager ? 'store_manager' : 'inventory_team',
+      role: isSupervisor ? 'supervisor' : isStoreManager ? 'store_manager' : (isInventoryTeam || isMarketingWithAccess || isBusinessAssistant) ? 'inventory_team' : 'member',
       isSupervisor,
       isStoreManager,
-      isInventoryTeam
+      isInventoryTeam: isInventoryTeam || isMarketingWithAccess || isBusinessAssistant
     });
   } catch (error: any) {
     console.error('Unexpected error:', error);

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/SignaturePad';
 import {
@@ -71,8 +71,26 @@ interface OnDutyStaff {
   is_manually_added: boolean;
 }
 
-export default function NewInspectionPage() {
+export default function NewInspectionPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">載入中...</p>
+        </div>
+      </div>
+    }>
+      <NewInspectionPage />
+    </Suspense>
+  );
+}
+
+function NewInspectionPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inspectionType = searchParams.get('type') === 'manager' ? 'manager' : 'supervisor';
+  const isManagerType = inspectionType === 'manager';
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
@@ -84,6 +102,7 @@ export default function NewInspectionPage() {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [itemScores, setItemScores] = useState<Map<string, ItemScore>>(new Map());
   const [signaturePhoto, setSignaturePhoto] = useState<string>('');
+  const [supervisorSignature, setSupervisorSignature] = useState<string>('');
   
   // GPS 定位狀態
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -570,12 +589,13 @@ export default function NewInspectionPage() {
           store_id: selectedStoreId,
           inspector_id: user.id,
           inspection_date: inspectionDate,
-          inspection_type: 'supervisor',
+          inspection_type: inspectionType,
           status: isDraft ? 'draft' : 'completed',
           max_possible_score: totals.initialScore,
           total_score: totals.finalScore,
           grade: totals.grade,
           signature_photo_url: signaturePhoto || null,
+          supervisor_signature_url: supervisorSignature || null,
           supervisor_notes: supervisorNotes.trim() || null,
           indoor_temperature: indoorTemperature ? parseFloat(indoorTemperature) : null,
           gps_latitude: gpsLocation?.latitude || null,
@@ -644,15 +664,16 @@ export default function NewInspectionPage() {
 
       console.log('🎯 送出完成，記錄 ID:', masterData.id);
 
-      alert(isDraft ? '草稿已儲存！' : '巡店記錄已送出！');
-      
-      // 先跳轉到列表頁，避免詳情頁查詢時機問題
-      router.push('/inspection');
-      
-      // 如果要跳轉到詳情頁，可以改用：
-      // router.push(`/inspection/${masterData.id}`);
+      if (isDraft) {
+        alert('草稿已儲存！即將跳轉到編輯頁面，您可以預覽報表並讓店長簽名確認。');
+        router.push(`/inspection/${masterData.id}/edit`);
+      } else {
+        alert('巡店記錄已送出！');
+        router.push(`/inspection/${masterData.id}`);
+      }
     } catch (error: any) {
       console.error('❌ 儲存失敗:', error);
+      console.error('❌ 錯誤詳情:', JSON.stringify(error, null, 2));
       
       // 顯示更詳細的錯誤訊息
       let errorMessage = '儲存失敗';
@@ -664,6 +685,16 @@ export default function NewInspectionPage() {
       }
       if (error?.hint) {
         errorMessage += `\n提示：${error.hint}`;
+      }
+      if (error?.code) {
+        errorMessage += `\n錯誤碼：${error.code}`;
+      }
+      // 常見問題提示
+      if (error?.message?.includes('column') || error?.code === '42703') {
+        errorMessage += '\n\n⚠️ 可能原因：資料庫缺少必要欄位，請執行最新的 migration SQL';
+      }
+      if (error?.code === '42501' || error?.message?.includes('policy')) {
+        errorMessage += '\n\n⚠️ 可能原因：RLS 策略阻擋，請確認已執行 RLS 修正 SQL';
       }
       
       alert(errorMessage);
@@ -715,10 +746,10 @@ export default function NewInspectionPage() {
             <span className="text-sm sm:text-base">返回</span>
           </button>
           <h1 className="text-lg sm:text-2xl lg:text-3xl font-bold text-gray-900 break-words leading-tight">
-            新增巡店記錄
+            {isManagerType ? '新增經理巡店記錄' : '新增巡店記錄'}
           </h1>
           <p className="mt-1.5 text-xs sm:text-sm text-gray-600 leading-relaxed break-words">
-            填寫門市巡店檢查項目，系統將自動計算分數與評級
+            {isManagerType ? '經理巡店檢查，填寫方式與督導巡店相同' : '填寫門市巡店檢查項目，系統將自動計算分數與評級'}
           </p>
         </div>
 
@@ -1258,11 +1289,11 @@ export default function NewInspectionPage() {
           <p className="text-xs text-gray-500 mt-1">可填寫額外的建議、備註或需要特別注意的事項</p>
         </div>
 
-        {/* 督導簽名確認 */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-6">
+        {/* 店長/當班主管確認簽名 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
           <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
             <PenTool className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
-            督導簽名確認
+            店長/當班主管確認簽名
           </label>
           <SignaturePad
             onSignatureChange={(dataUrl) => setSignaturePhoto(dataUrl)}
@@ -1271,9 +1302,37 @@ export default function NewInspectionPage() {
             height={180}
           />
           <p className="text-xs text-gray-500 mt-2">
-            ✓ 簽名確認後才能送出記錄
+            ✓ 店長或當班主管簽名確認後才能送出記錄
           </p>
         </div>
+
+        {/* 督導簽名 */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-6">
+          <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-2 sm:mb-3">
+            <PenTool className="inline w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1" />
+            督導簽名
+          </label>
+          <SignaturePad
+            onSignatureChange={(dataUrl) => setSupervisorSignature(dataUrl)}
+            initialSignature={supervisorSignature}
+            width={500}
+            height={180}
+          />
+          <p className="text-xs text-gray-500 mt-2">
+            ✓ 督導簽名確認
+          </p>
+        </div>
+
+        {/* 驗證提示 */}
+        {(!selectedStoreId || !indoorTemperature) && (
+          <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-2.5 flex items-start gap-2">
+            <span className="text-amber-500 mt-0.5">⚠</span>
+            <div className="text-sm text-amber-700">
+              {!selectedStoreId && <p>請選擇門市</p>}
+              {!indoorTemperature && <p>請填寫室內溫度</p>}
+            </div>
+          </div>
+        )}
 
         {/* 操作按鈕 - 手機優化 */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 sticky bottom-0 bg-white pt-3 sm:pt-4 pb-safe">
@@ -1287,11 +1346,11 @@ export default function NewInspectionPage() {
           </button>
           <button
             onClick={() => handleSubmit(false)}
-            disabled={submitting || !selectedStoreId || !signaturePhoto || !indoorTemperature}
+            disabled={submitting || !selectedStoreId || !signaturePhoto || !supervisorSignature || !indoorTemperature}
             className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
           >
             <Send className="w-4 h-4 sm:w-5 sm:h-5" />
-            {!signaturePhoto ? '請先簽名' : '送出記錄'}
+            {!signaturePhoto || !supervisorSignature ? '請完成兩個簽名' : '送出記錄'}
           </button>
         </div>
       </div>

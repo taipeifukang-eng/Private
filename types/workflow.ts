@@ -155,7 +155,7 @@ export type StaffStatusReviewStatus = 'draft' | 'submitted' | 'confirmed';
 export type NewbieLevel = '未過階新人' | '一階新人' | '二階新人' | '未過階行政' | '過階行政';
 
 // 未上滿整月原因
-export type PartialMonthReason = '復職' | '調入店' | '調出店' | '離職' | '留職停薪' | '店長-雙' | '代理店長-雙';
+export type PartialMonthReason = '入職' | '復職' | '調入店' | '調出店' | '離職' | '留職停薪' | '店長-雙' | '代理店長-雙';
 
 // 額外任務
 export type ExtraTask = '長照外務' | '診所業務';
@@ -344,6 +344,7 @@ export const ADMIN_LEVEL_OPTIONS: { value: NewbieLevel; label: string }[] = [
 
 // 未上滿整月原因選項
 export const PARTIAL_MONTH_REASON_OPTIONS: { value: PartialMonthReason; label: string }[] = [
+  { value: '入職', label: '入職' },
   { value: '復職', label: '復職' },
   { value: '調入店', label: '調入店' },
   { value: '調出店', label: '調出店' },

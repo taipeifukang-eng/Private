@@ -38,6 +38,7 @@ import {
   MONTHLY_STATUS_OPTIONS, 
   POSITION_OPTIONS,
   NEWBIE_LEVEL_OPTIONS,
+  ADMIN_LEVEL_OPTIONS,
   PARTIAL_MONTH_REASON_OPTIONS,
   EXTRA_TASK_OPTIONS,
   SPECIAL_ROLE_OPTIONS
@@ -245,6 +246,7 @@ function MonthlyStatusContent() {
   // 獲取異動類型顯示文字
   const getMovementTypeLabel = (type: string) => {
     switch (type) {
+      case 'onboarding': return '入職';
       case 'promotion': return '升職';
       case 'store_transfer': return '調店';
       case 'leave_without_pay': return '留職停薪';
@@ -258,6 +260,7 @@ function MonthlyStatusContent() {
   // 獲取異動類型顏色
   const getMovementTypeColor = (type: string) => {
     switch (type) {
+      case 'onboarding': return 'bg-teal-100 text-teal-700';
       case 'promotion': return 'bg-emerald-100 text-emerald-700';
       case 'store_transfer': return 'bg-cyan-100 text-cyan-700';
       case 'leave_without_pay': return 'bg-yellow-100 text-yellow-700';
@@ -851,6 +854,7 @@ function StoreStatusDetail({
   // 獲取異動類型顯示文字
   const getMovementTypeLabel = (type: string) => {
     switch (type) {
+      case 'onboarding': return '入職';
       case 'promotion': return '升職';
       case 'store_transfer': return '調店';
       case 'leave_without_pay': return '留職停薪';
@@ -864,6 +868,7 @@ function StoreStatusDetail({
   // 獲取異動類型顏色
   const getMovementTypeColor = (type: string) => {
     switch (type) {
+      case 'onboarding': return 'bg-teal-100 text-teal-700';
       case 'promotion': return 'bg-emerald-100 text-emerald-700';
       case 'store_transfer': return 'bg-cyan-100 text-cyan-700';
       case 'leave_without_pay': return 'bg-yellow-100 text-yellow-700';
@@ -2103,6 +2108,7 @@ function AddManualEmployeeModal({
   };
 
   const showNewbieLevel = position === '新人' || monthlyStatus === 'new_hire';
+  const showAdminLevel = position === '行政';
   const isPartialMonth = monthlyStatus !== 'full_month';
 
   return (
@@ -2226,6 +2232,36 @@ function AddManualEmployeeModal({
                       newbieLevel === opt.value 
                         ? 'bg-blue-600 text-white' 
                         : 'bg-white text-gray-700 hover:bg-blue-100'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      value={opt.value}
+                      checked={newbieLevel === opt.value}
+                      onChange={(e) => setNewbieLevel(e.target.value as NewbieLevel)}
+                      className="hidden"
+                    />
+                    {opt.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 行政階級 */}
+          {showAdminLevel && (
+            <div className="bg-green-50 rounded-lg p-4">
+              <label className="block text-sm font-medium text-green-700 mb-2">
+                行政階級
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {ADMIN_LEVEL_OPTIONS.map(opt => (
+                  <label
+                    key={opt.value}
+                    className={`px-3 py-1 rounded-lg cursor-pointer text-sm ${
+                      newbieLevel === opt.value 
+                        ? 'bg-green-600 text-white' 
+                        : 'bg-white text-gray-700 hover:bg-green-100'
                     }`}
                   >
                     <input

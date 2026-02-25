@@ -675,6 +675,265 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       });
     }
 
+    // ====== 檢查該月份是否有入職異動，自動帶入新人記錄 ======
+    const { data: onboardingMovements } = await supabase
+      .from('employee_movement_history')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('movement_type', 'onboarding')
+      .gte('movement_date', `${yearMonth}-01`)
+      .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
+
+    if (onboardingMovements && onboardingMovements.length > 0) {
+      for (const movement of onboardingMovements) {
+        // 檢查是否已經在 statusRecords 中（避免重複）
+        const alreadyExists = statusRecords.some(
+          (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
+        );
+        if (alreadyExists) continue;
+
+        // 計算從入職日到月底的工作天數
+        const movementDate = new Date(movement.movement_date);
+        const startDay = movementDate.getDate();
+        const workDays = daysInMonth - startDay + 1; // 含入職當天
+
+        // 格式化入職說明，例如 "03/02到職"
+        const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(startDay).padStart(2, '0')}`;
+
+        statusRecords.push({
+          year_month: yearMonth,
+          store_id: storeId,
+          user_id: null,
+          employee_code: movement.employee_code,
+          employee_name: movement.employee_name,
+          position: '新人',
+          employment_type: 'full_time',
+          is_pharmacist: false,
+          start_date: movement.movement_date,
+          monthly_status: 'new_hire' as MonthlyStatusType,
+          work_days: workDays,
+          total_days_in_month: daysInMonth,
+          work_hours: null,
+          is_dual_position: false,
+          has_manager_bonus: false,
+          is_supervisor_rotation: false,
+          is_acting_manager: false,
+          newbie_level: '未過階新人',
+          partial_month_reason: null,
+          partial_month_days: null,
+          partial_month_notes: `${mmdd}到職`,
+          extra_tasks: null,
+          is_manually_added: false,
+          status: 'draft' as const
+        });
+      }
+    }
+
+    // ====== 檢查該月份是否有離職異動，自動更新或新增離職人員狀態 ======
+    const { data: resignationMovements } = await supabase
+      .from('employee_movement_history')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('movement_type', 'resignation')
+      .gte('movement_date', `${yearMonth}-01`)
+      .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
+
+    if (resignationMovements && resignationMovements.length > 0) {
+      for (const movement of resignationMovements) {
+        const movementDate = new Date(movement.movement_date);
+        const resignDay = movementDate.getDate();
+        // 離職當天仍有上班，工作天數 = 離職日
+        const workDays = resignDay;
+        const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(resignDay).padStart(2, '0')}`;
+
+        // 檢查是否已在 statusRecords 中
+        const existingIndex = statusRecords.findIndex(
+          (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
+        );
+
+        if (existingIndex >= 0) {
+          // 已存在：更新為離職狀態
+          statusRecords[existingIndex].monthly_status = 'resigned' as MonthlyStatusType;
+          statusRecords[existingIndex].work_days = workDays;
+          statusRecords[existingIndex].partial_month_reason = '離職';
+          statusRecords[existingIndex].partial_month_notes = `${mmdd}離職`;
+        } else {
+          // 不存在（離職觸發器已將 is_active 設為 false，初始化時查不到）
+          // 查詢該員工在 store_employees 的資料（含已離職的）
+          const { data: empData } = await supabase
+            .from('store_employees')
+            .select('*')
+            .eq('employee_code', movement.employee_code.toUpperCase())
+            .eq('store_id', storeId)
+            .order('last_movement_date', { ascending: false })
+            .limit(1)
+            .single();
+
+          statusRecords.push({
+            year_month: yearMonth,
+            store_id: storeId,
+            user_id: empData?.user_id || null,
+            employee_code: movement.employee_code,
+            employee_name: movement.employee_name || empData?.employee_name || '',
+            position: empData?.current_position || empData?.position || '新人',
+            employment_type: empData?.employment_type || 'full_time',
+            is_pharmacist: empData?.is_pharmacist || false,
+            start_date: empData?.start_date || null,
+            monthly_status: 'resigned' as MonthlyStatusType,
+            work_days: workDays,
+            total_days_in_month: daysInMonth,
+            work_hours: null,
+            is_dual_position: false,
+            has_manager_bonus: false,
+            is_supervisor_rotation: false,
+            is_acting_manager: false,
+            newbie_level: empData?.current_position === '新人' ? '未過階新人' : null,
+            partial_month_reason: '離職',
+            partial_month_days: null,
+            partial_month_notes: `${mmdd}離職`,
+            extra_tasks: null,
+            is_manually_added: false,
+            status: 'draft' as const
+          });
+        }
+      }
+    }
+
+    // ====== 檢查該月份是否有留職停薪異動 ======
+    const { data: leaveMovements } = await supabase
+      .from('employee_movement_history')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('movement_type', 'leave_without_pay')
+      .gte('movement_date', `${yearMonth}-01`)
+      .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
+
+    if (leaveMovements && leaveMovements.length > 0) {
+      for (const movement of leaveMovements) {
+        const movementDate = new Date(movement.movement_date);
+        const leaveDay = movementDate.getDate();
+        // 留停前一天為最後工作日
+        const workDays = leaveDay - 1;
+        const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(leaveDay).padStart(2, '0')}`;
+
+        const existingIndex = statusRecords.findIndex(
+          (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
+        );
+
+        if (existingIndex >= 0) {
+          statusRecords[existingIndex].monthly_status = 'leave_of_absence' as MonthlyStatusType;
+          statusRecords[existingIndex].work_days = workDays;
+          statusRecords[existingIndex].partial_month_reason = '留職停薪';
+          statusRecords[existingIndex].partial_month_notes = `${mmdd}留職停薪`;
+        }
+      }
+    }
+
+    // ====== 檢查該月份是否有復職異動 ======
+    const { data: returnMovements } = await supabase
+      .from('employee_movement_history')
+      .select('*')
+      .eq('store_id', storeId)
+      .eq('movement_type', 'return_to_work')
+      .gte('movement_date', `${yearMonth}-01`)
+      .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
+
+    if (returnMovements && returnMovements.length > 0) {
+      for (const movement of returnMovements) {
+        const movementDate = new Date(movement.movement_date);
+        const returnDay = movementDate.getDate();
+        const workDays = daysInMonth - returnDay + 1; // 含復職當天
+        const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(returnDay).padStart(2, '0')}`;
+
+        const existingIndex = statusRecords.findIndex(
+          (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
+        );
+
+        if (existingIndex >= 0) {
+          statusRecords[existingIndex].monthly_status = 'full_month' as MonthlyStatusType;
+          statusRecords[existingIndex].work_days = workDays;
+          statusRecords[existingIndex].partial_month_reason = '復職';
+          statusRecords[existingIndex].partial_month_notes = `${mmdd}復職`;
+        }
+      }
+    }
+
+    // ====== 檢查該月份是否有調店異動 ======
+    const { data: transferMovements } = await supabase
+      .from('employee_movement_history')
+      .select('*')
+      .eq('movement_type', 'store_transfer')
+      .gte('movement_date', `${yearMonth}-01`)
+      .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
+
+    if (transferMovements && transferMovements.length > 0) {
+      for (const movement of transferMovements) {
+        const movementDate = new Date(movement.movement_date);
+        const transferDay = movementDate.getDate();
+        const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(transferDay).padStart(2, '0')}`;
+
+        // 調出：原門市的員工
+        if (movement.old_value) {
+          const existingIndex = statusRecords.findIndex(
+            (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
+          );
+          if (existingIndex >= 0) {
+            // 此門市是原門市（員工調出去）
+            statusRecords[existingIndex].monthly_status = 'transferred_out' as MonthlyStatusType;
+            statusRecords[existingIndex].work_days = transferDay - 1; // 調店前一天為最後工作日
+            statusRecords[existingIndex].partial_month_reason = '調出店';
+            statusRecords[existingIndex].partial_month_notes = `${mmdd}調出至${movement.new_value || ''}`;
+          }
+        }
+
+        // 調入：新門市（store_id 就是新門市）
+        if (movement.store_id === storeId) {
+          const alreadyExists = statusRecords.some(
+            (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
+          );
+          if (!alreadyExists) {
+            // 查詢該員工在新門市的資料
+            const { data: empData } = await supabase
+              .from('store_employees')
+              .select('*')
+              .eq('employee_code', movement.employee_code.toUpperCase())
+              .eq('store_id', storeId)
+              .limit(1)
+              .single();
+
+            const workDays = daysInMonth - transferDay + 1; // 含調入當天
+
+            statusRecords.push({
+              year_month: yearMonth,
+              store_id: storeId,
+              user_id: empData?.user_id || null,
+              employee_code: movement.employee_code,
+              employee_name: movement.employee_name || empData?.employee_name || '',
+              position: empData?.current_position || empData?.position || '',
+              employment_type: empData?.employment_type || 'full_time',
+              is_pharmacist: empData?.is_pharmacist || false,
+              start_date: empData?.start_date || null,
+              monthly_status: 'transferred_in' as MonthlyStatusType,
+              work_days: workDays,
+              total_days_in_month: daysInMonth,
+              work_hours: null,
+              is_dual_position: false,
+              has_manager_bonus: false,
+              is_supervisor_rotation: false,
+              is_acting_manager: false,
+              newbie_level: null,
+              partial_month_reason: '調入店',
+              partial_month_days: null,
+              partial_month_notes: `${mmdd}自${movement.old_value || ''}調入`,
+              extra_tasks: null,
+              is_manually_added: false,
+              status: 'draft' as const
+            });
+          }
+        }
+      }
+    }
+
     const { error: insertError } = await supabase
       .from('monthly_staff_status')
       .insert(statusRecords);

@@ -10,6 +10,7 @@ interface PrintInspectionReportProps {
   groupedResults: any[];
   improvementItems: any[];
   onDutyStaff?: any[];
+  previewMode?: boolean;
 }
 
 export default function PrintInspectionReport({
@@ -19,6 +20,7 @@ export default function PrintInspectionReport({
   groupedResults,
   improvementItems,
   onDutyStaff = [],
+  previewMode = false,
 }: PrintInspectionReportProps) {
   const handlePrint = () => {
     window.print();
@@ -26,90 +28,87 @@ export default function PrintInspectionReport({
 
   return (
     <>
-      {/* 列印按鈕（螢幕顯示，列印時隱藏） */}
-      <button
-        onClick={handlePrint}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors print:hidden"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      {/* 列印按鈕（僅非預覽模式顯示） */}
+      {!previewMode && (
+        <button
+          onClick={handlePrint}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors print:hidden"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-          />
-        </svg>
-        列印報表
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+            />
+          </svg>
+          列印報表
+        </button>
+      )}
 
-      {/* 列印專用樣式 */}
-      <style jsx global>{`
-        @media print {
-          /* 隱藏頁面其他元素 */
-          body * {
-            visibility: hidden;
-          }
-          
-          #print-content,
-          #print-content * {
-            visibility: visible;
-          }
-          
-          #print-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+      {/* 列印專用樣式（僅非預覽模式注入） */}
+      {!previewMode && (
+        <style jsx global>{`
+          @media print {
+            body * {
+              visibility: hidden;
+            }
+            
+            #print-content,
+            #print-content * {
+              visibility: visible;
+            }
+            
+            #print-content {
+              position: absolute;
+              left: 0;
+              top: 0;
+              width: 100%;
+            }
+
+            @page {
+              size: A4;
+              margin: 15mm;
+            }
+
+            .page-break {
+              page-break-before: always;
+            }
+
+            .avoid-break {
+              page-break-inside: avoid;
+            }
+
+            .print\\:hidden {
+              display: none !important;
+            }
+
+            .print\\:block {
+              display: block !important;
+            }
+
+            * {
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
           }
 
-          /* A4 頁面設置 */
-          @page {
-            size: A4;
-            margin: 15mm;
+          @media screen {
+            #print-content {
+              display: none;
+            }
           }
+        `}</style>
+      )}
 
-          /* 分頁設置 */
-          .page-break {
-            page-break-before: always;
-          }
-
-          .avoid-break {
-            page-break-inside: avoid;
-          }
-
-          /* 隱藏不需要列印的元素 */
-          .print\\:hidden {
-            display: none !important;
-          }
-
-          /* 列印時顯示的元素 */
-          .print\\:block {
-            display: block !important;
-          }
-
-          /* 背景顏色設置（某些瀏覽器需要） */
-          * {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-        }
-
-        /* 螢幕顯示時隱藏列印內容 */
-        @media screen {
-          #print-content {
-            display: none;
-          }
-        }
-      `}</style>
-
-      {/* 列印內容區域 */}
-      <div id="print-content" className="bg-white p-8">
+      {/* 報表內容區域 */}
+      <div id={previewMode ? undefined : 'print-content'} className="bg-white p-8">
         {/* 頁首 */}
         <div className="border-b-2 border-gray-800 pb-4 mb-6">
           <h1 className="text-2xl font-bold text-center mb-4">門市巡店檢核報告</h1>
@@ -283,26 +282,38 @@ export default function PrintInspectionReport({
             {/* 簽名欄位 */}
             <div className="grid grid-cols-2 gap-6">
               <div className="border border-gray-400 rounded p-4">
-                <p className="font-semibold mb-3 text-sm">店長/店主管簽名：</p>
-                <div className="border-b border-gray-400 mb-3 h-16">
-                  {/* 預留簽名空間 */}
-                </div>
-                <p className="text-xs text-gray-600">簽名日期：_____________</p>
-              </div>
-              
-              <div className="border border-gray-400 rounded p-4">
-                <p className="font-semibold mb-3 text-sm">督導人員簽名：</p>
+                <p className="font-semibold mb-3 text-sm">店長/當班主管確認簽名：</p>
                 <div className="border-b border-gray-400 mb-3 h-16">
                   {inspection.signature_photo_url ? (
                     <img
                       src={inspection.signature_photo_url}
-                      alt="督導簽名"
+                      alt="店長/當班主管確認簽名"
                       className="h-full object-contain"
                     />
                   ) : null}
                 </div>
                 <p className="text-xs text-gray-600">
-                  簽名日期：{new Date(inspection.inspection_date).toLocaleDateString('zh-TW')}
+                  {inspection.signature_photo_url
+                    ? `簽名日期：${new Date(inspection.inspection_date).toLocaleDateString('zh-TW')}`
+                    : '簽名日期：_____________'}
+                </p>
+              </div>
+              
+              <div className="border border-gray-400 rounded p-4">
+                <p className="font-semibold mb-3 text-sm">督導人員：</p>
+                <div className="border-b border-gray-400 mb-3 h-16 flex items-end">
+                  {inspection.supervisor_signature_url ? (
+                    <img
+                      src={inspection.supervisor_signature_url}
+                      alt="督導簽名"
+                      className="h-full object-contain"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-700 pb-1">{inspector?.full_name || ''}</p>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600">
+                  巡店日期：{new Date(inspection.inspection_date).toLocaleDateString('zh-TW')}
                 </p>
               </div>
             </div>

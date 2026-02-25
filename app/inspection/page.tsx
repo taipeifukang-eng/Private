@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, TrendingUp, Calendar, Store, User } from 'lucide-react';
+import { Plus, TrendingUp, Calendar, Store, User, GitCompare } from 'lucide-react';
 import InspectionCalendar from '@/components/InspectionCalendar';
 import InspectionStoreStatus from '@/components/InspectionStoreStatus';
 import { hasPermission } from '@/lib/permissions/check';
@@ -49,7 +49,13 @@ const getStatusLabel = (status: string) => {
   return labels[status] || status;
 };
 
-export default async function InspectionListPage() {
+export default async function InspectionListPage({
+  searchParams,
+}: {
+  searchParams: { tab?: string };
+}) {
+  const activeTab = searchParams.tab === 'manager' ? 'manager' : 'supervisor';
+  const isManagerTab = activeTab === 'manager';
   // 把整個函數包在 try/catch 中，確保捕獲所有錯誤
   let supabase: any;
   let user: any;
@@ -89,17 +95,31 @@ export default async function InspectionListPage() {
   }
 
   try {
-    const canCreateInspection = await hasPermission(user.id, 'inspection.create');
+    const [canCreateInspection, canViewManagerTab, canCompare, canViewStoreStatus, canViewAll] = await Promise.all([
+      hasPermission(user.id, 'inspection.create'),
+      hasPermission(user.id, 'inspection.manager_tab'),
+      hasPermission(user.id, 'inspection.compare'),
+      hasPermission(user.id, 'inspection.view_store_status'),
+      hasPermission(user.id, 'inspection.view_all'),
+    ]);
+
+    // 如果沒有經理巡店分頁權限但試圖存取 manager tab，導回督導巡店
+    if (isManagerTab && !canViewManagerTab) {
+      redirect('/inspection?tab=supervisor');
+    }
 
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     
-    // 第一步：獲取基本巡店記錄（僅督導巡店類型）
+    // 第一步：獲取基本巡店記錄（根據分頁篩選類型）
     const { data: rawInspections, error: inspectionError } = await supabase
       .from('inspection_masters')
-      .select('id, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type')
+      .select('id, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type, improvement_bonus')
       .gte('inspection_date', sixMonthsAgo.toISOString())
-      .or('inspection_type.eq.supervisor,inspection_type.is.null')
+      .or(isManagerTab
+        ? 'inspection_type.eq.manager'
+        : 'inspection_type.eq.supervisor,inspection_type.is.null'
+      )
       .order('inspection_date', { ascending: false });
 
     if (inspectionError) {
@@ -143,32 +163,33 @@ export default async function InspectionListPage() {
     const now = new Date();
     let assignedStores: any[] = [];
 
-    if (profile.role === 'admin') {
-      // 管理員看所有活躍門市
-      const { data: allStores } = await supabase
-        .from('stores')
-        .select('id, store_name, store_code, short_name')
-        .eq('is_active', true)
-        .order('store_code');
-      assignedStores = allStores || [];
-    } else if (profile.role === 'supervisor') {
-      // 督導只看自己管理的門市
-      const { data: assignments } = await supabase
-        .from('store_managers')
-        .select('store_id')
-        .eq('user_id', profile.id)
-        .eq('role_type', 'supervisor');
-
-      const supervisorStoreIds = (assignments || []).map((a: any) => a.store_id);
-
-      if (supervisorStoreIds.length > 0) {
-        const { data: supervisorStores } = await supabase
+    if (canViewStoreStatus) {
+      if (profile.role === 'admin') {
+        // 管理員看所有活躍門市
+        const { data: allStores } = await supabase
           .from('stores')
           .select('id, store_name, store_code, short_name')
-          .in('id', supervisorStoreIds)
           .eq('is_active', true)
           .order('store_code');
-        assignedStores = supervisorStores || [];
+        assignedStores = allStores || [];
+      } else {
+        // 督導等用戶看自己管理的門市
+        const { data: assignments } = await supabase
+          .from('store_managers')
+          .select('store_id')
+          .eq('user_id', profile.id);
+
+        const myStoreIds = (assignments || []).map((a: any) => a.store_id);
+
+        if (myStoreIds.length > 0) {
+          const { data: myStores } = await supabase
+            .from('stores')
+            .select('id, store_name, store_code, short_name')
+            .in('id', myStoreIds)
+            .eq('is_active', true)
+            .order('store_code');
+          assignedStores = myStores || [];
+        }
       }
     }
 
@@ -196,20 +217,57 @@ export default async function InspectionListPage() {
                   <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                     <TrendingUp className="w-6 h-6 text-white" />
                   </div>
-                  督導巡店記錄
+                  {isManagerTab ? '經理巡店記錄' : '督導巡店記錄'}
                 </h1>
                 <p className="mt-2 text-sm text-gray-600">
-                  檢視所有門市巡店紀錄，追蹤改善進度
+                  {isManagerTab ? '檢視經理巡店紀錄，可與督導巡店進行對比分析' : '檢視所有門市巡店紀錄，追蹤改善進度'}
                 </p>
               </div>
 
-              {canCreateInspection && (
+              <div className="flex items-center gap-3">
+                {canCreateInspection && !isManagerTab && (
+                  <Link
+                    href="/inspection/new"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl text-sm"
+                  >
+                    <Plus size={18} />
+                    新增督導巡店
+                  </Link>
+                )}
+                {canCreateInspection && isManagerTab && (
+                  <Link
+                    href="/inspection/new?type=manager"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-medium rounded-lg hover:from-emerald-600 hover:to-teal-700 transition-all shadow-lg hover:shadow-xl text-sm"
+                  >
+                    <Plus size={18} />
+                    新增經理巡店
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            {/* 分頁切換 */}
+            <div className="mt-6 flex border-b border-gray-200">
+              <Link
+                href="/inspection?tab=supervisor"
+                className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  !isManagerTab
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                督導巡店
+              </Link>
+              {canViewManagerTab && (
                 <Link
-                  href="/inspection/new"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
+                  href="/inspection?tab=manager"
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    isManagerTab
+                      ? 'border-emerald-600 text-emerald-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
                 >
-                  <Plus size={20} />
-                  新增督導巡店
+                  經理巡店
                 </Link>
               )}
             </div>
@@ -292,8 +350,19 @@ export default async function InspectionListPage() {
 
           {/* 巡店記錄列表 */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">巡店記錄</h2>
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {isManagerTab ? '經理巡店記錄' : '巡店記錄'}
+              </h2>
+              {isManagerTab && canCompare && normalizedInspections.length > 0 && (
+                <Link
+                  href="/inspection/compare"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors text-sm font-medium"
+                >
+                  <GitCompare size={16} />
+                  督導 vs 經理 對比分析
+                </Link>
+              )}
             </div>
 
             {normalizedInspections.length === 0 ? (
@@ -301,17 +370,21 @@ export default async function InspectionListPage() {
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Store className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">尚無巡店記錄</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  {isManagerTab ? '尚無經理巡店記錄' : '尚無巡店記錄'}
+                </h3>
                 <p className="text-gray-600 mb-6">
-                  開始第一次巡店紀錄，建立門市品質管理軌跡
+                  {isManagerTab
+                    ? '開始經理巡店紀錄，與督導巡店結果進行對比分析'
+                    : '開始第一次巡店紀錄，建立門市品質管理軌跡'}
                 </p>
                 {canCreateInspection && (
                   <Link
-                    href="/inspection/new"
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    href={isManagerTab ? '/inspection/new?type=manager' : '/inspection/new'}
+                    className={`inline-flex items-center gap-2 px-6 py-3 ${isManagerTab ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-blue-600 hover:bg-blue-700'} text-white font-medium rounded-lg transition-colors`}
                   >
                     <Plus size={20} />
-                    新增督導巡店
+                    {isManagerTab ? '新增經理巡店' : '新增督導巡店'}
                   </Link>
                 )}
               </div>
@@ -322,7 +395,7 @@ export default async function InspectionListPage() {
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">門市</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">巡店日期</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">督導</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{isManagerTab ? '巡店人員' : '督導'}</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分數</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">得分數(滿分10分)</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">狀態</th>
@@ -363,6 +436,11 @@ export default async function InspectionListPage() {
                               {inspection.total_score || 0}
                             </span>
                             <span className="text-gray-500"> / 220</span>
+                            {inspection.improvement_bonus > 0 && (
+                              <span className="ml-1 text-xs text-green-600 font-medium">
+                                (含改善+{inspection.improvement_bonus})
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -376,12 +454,22 @@ export default async function InspectionListPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <Link
-                            href={`/inspection/${inspection.id}`}
-                            className="text-blue-600 hover:text-blue-900 font-medium"
-                          >
-                            查看詳情
-                          </Link>
+                          <div className="flex items-center justify-end gap-3">
+                            {isManagerTab && canCompare && inspection.status === 'completed' && (
+                              <Link
+                                href={`/inspection/compare?store_id=${inspection.store_id}&manager_id=${inspection.id}`}
+                                className="text-amber-600 hover:text-amber-800 font-medium"
+                              >
+                                對比
+                              </Link>
+                            )}
+                            <Link
+                              href={`/inspection/${inspection.id}`}
+                              className="text-blue-600 hover:text-blue-900 font-medium"
+                            >
+                              查看詳情
+                            </Link>
+                          </div>
                         </td>
                       </tr>
                     ))}

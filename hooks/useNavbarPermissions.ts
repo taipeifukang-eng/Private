@@ -32,6 +32,7 @@ interface NavbarPermissions {
   canViewInspections: boolean;
   canCreateInspection: boolean;
   canManageInspectionTemplates: boolean;
+  canViewImprovements: boolean;
 }
 
 /**
@@ -70,6 +71,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canViewInspections: false,
     canCreateInspection: false,
     canManageInspectionTemplates: false,
+    canViewImprovements: false,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -150,6 +152,9 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('inspection.view_all'),
           canCreateInspection: permissionSet.has('inspection.create'),
           canManageInspectionTemplates: permissionSet.has('inspection.template.manage'),
+          canViewImprovements:
+            permissionSet.has('inspection.improvement.view_all') ||
+            permissionSet.has('inspection.improvement.view_own_store'),
         });
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);
@@ -202,5 +207,6 @@ export function hasAnyMonthlyStatusPermission(permissions: NavbarPermissions): b
 export function hasAnyInspectionPermission(permissions: NavbarPermissions): boolean {
   return permissions.canViewInspections ||
          permissions.canCreateInspection ||
-         permissions.canManageInspectionTemplates;
+         permissions.canManageInspectionTemplates ||
+         permissions.canViewImprovements;
 }

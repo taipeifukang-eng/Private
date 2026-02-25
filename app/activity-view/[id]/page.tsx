@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, EventDate } from '@/types/workflow';
 
@@ -23,25 +23,27 @@ export default function ActivityViewPage() {
   const [events, setEvents] = useState<EventDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
-  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean }>>({});
+  const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean; hexBg?: string; hexBorder?: string; hexText?: string }>>({});
+  const [exporting, setExporting] = useState(false);
+  const calendarRef = useRef<HTMLDivElement>(null);
 
-  // 預設顏色組合（使用對比度更強的顏色）
+  // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
   const AVAILABLE_COLORS = [
-    { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色' },
-    { bg: 'bg-emerald-200', border: 'border-emerald-400', text: 'text-emerald-900', name: '翠綠' },
-    { bg: 'bg-purple-200', border: 'border-purple-400', text: 'text-purple-900', name: '紫色' },
-    { bg: 'bg-amber-200', border: 'border-amber-400', text: 'text-amber-900', name: '琥珀' },
-    { bg: 'bg-pink-200', border: 'border-pink-400', text: 'text-pink-900', name: '粉紅' },
-    { bg: 'bg-cyan-200', border: 'border-cyan-400', text: 'text-cyan-900', name: '青色' },
-    { bg: 'bg-rose-200', border: 'border-rose-400', text: 'text-rose-900', name: '玫瑰' },
-    { bg: 'bg-lime-200', border: 'border-lime-400', text: 'text-lime-900', name: '萊姆' },
-    { bg: 'bg-indigo-200', border: 'border-indigo-400', text: 'text-indigo-900', name: '靛藍' },
-    { bg: 'bg-orange-200', border: 'border-orange-400', text: 'text-orange-900', name: '橙色' },
-    { bg: 'bg-teal-200', border: 'border-teal-400', text: 'text-teal-900', name: '藍綠' },
-    { bg: 'bg-fuchsia-200', border: 'border-fuchsia-400', text: 'text-fuchsia-900', name: '紫紅' },
+    { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色', hexBg: '#BFDBFE', hexBorder: '#60A5FA', hexText: '#1E3A5F' },
+    { bg: 'bg-emerald-200', border: 'border-emerald-400', text: 'text-emerald-900', name: '翠綠', hexBg: '#A7F3D0', hexBorder: '#34D399', hexText: '#064E3B' },
+    { bg: 'bg-purple-200', border: 'border-purple-400', text: 'text-purple-900', name: '紫色', hexBg: '#DDD6FE', hexBorder: '#A78BFA', hexText: '#4C1D95' },
+    { bg: 'bg-amber-200', border: 'border-amber-400', text: 'text-amber-900', name: '琥珀', hexBg: '#FDE68A', hexBorder: '#FBBF24', hexText: '#78350F' },
+    { bg: 'bg-pink-200', border: 'border-pink-400', text: 'text-pink-900', name: '粉紅', hexBg: '#FBCFE8', hexBorder: '#F472B6', hexText: '#831843' },
+    { bg: 'bg-cyan-200', border: 'border-cyan-400', text: 'text-cyan-900', name: '青色', hexBg: '#A5F3FC', hexBorder: '#22D3EE', hexText: '#164E63' },
+    { bg: 'bg-rose-200', border: 'border-rose-400', text: 'text-rose-900', name: '玫瑰', hexBg: '#FECDD3', hexBorder: '#FB7185', hexText: '#881337' },
+    { bg: 'bg-lime-200', border: 'border-lime-400', text: 'text-lime-900', name: '萊姆', hexBg: '#D9F99D', hexBorder: '#A3E635', hexText: '#365314' },
+    { bg: 'bg-indigo-200', border: 'border-indigo-400', text: 'text-indigo-900', name: '靛藍', hexBg: '#C7D2FE', hexBorder: '#818CF8', hexText: '#312E81' },
+    { bg: 'bg-orange-200', border: 'border-orange-400', text: 'text-orange-900', name: '橙色', hexBg: '#FED7AA', hexBorder: '#FB923C', hexText: '#7C2D12' },
+    { bg: 'bg-teal-200', border: 'border-teal-400', text: 'text-teal-900', name: '藍綠', hexBg: '#99F6E4', hexBorder: '#2DD4BF', hexText: '#134E4A' },
+    { bg: 'bg-fuchsia-200', border: 'border-fuchsia-400', text: 'text-fuchsia-900', name: '紫紅', hexBg: '#F5D0FE', hexBorder: '#E879F9', hexText: '#701A75' },
   ];
 
-  const DEFAULT_COLOR = { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900', name: '灰色' };
+  const DEFAULT_COLOR = { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900', name: '灰色', hexBg: '#F3F4F6', hexBorder: '#D1D5DB', hexText: '#111827' };
 
   // 獲取督導顏色（使用員工代碼或 ID）
   const getSupervisorColor = (store?: StoreWithManager) => {
@@ -87,7 +89,7 @@ export default function ActivityViewPage() {
     // 按代碼/ID 排序以確保一致性
     const sortedSupervisors = Array.from(supervisorInfo.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
-    const colorMap: Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean }> = {};
+    const colorMap: Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean; hexBg?: string; hexBorder?: string; hexText?: string }> = {};
     
     // 按排序後的順序分配顏色
     sortedSupervisors.forEach(([key, info], index) => {
@@ -95,7 +97,10 @@ export default function ActivityViewPage() {
       const colorInfo = {
         ...color,
         supervisorName: info.name,
-        isDisplay: true // 標記這是主要 key，用於圖例顯示
+        isDisplay: true, // 標記這是主要 key，用於圖例顯示
+        hexBg: color.hexBg,
+        hexBorder: color.hexBorder,
+        hexText: color.hexText,
       };
       
       // 只標記一個 key 為 display（優先使用 code）
@@ -253,6 +258,165 @@ export default function ActivityViewPage() {
 
   const monthGroups = groupDatesByMonth();
 
+  // PDF 匯出功能 - 使用 off-screen HTML 渲染，確保中文不亂碼
+  const handleExportPDF = async () => {
+    if (!campaign) return;
+    setExporting(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const monthKeys = Object.keys(monthGroups).sort();
+      
+      // 建立督導圖例 HTML
+      const legendEntries = Object.entries(supervisorColorMap)
+        .filter(([_, c]) => c.isDisplay !== false)
+        .map(([_, c]) => `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:6px;border:2px solid ${c.hexBorder};background:${c.hexBg};font-size:13px;font-weight:600;color:${c.hexText};">${c.supervisorName}</span>`)
+        .join('');
+
+      for (let i = 0; i < monthKeys.length; i++) {
+        const monthKey = monthKeys[i];
+        const dates = monthGroups[monthKey];
+        const firstDate = dates[0];
+        const monthYear = `${firstDate.getFullYear()}年 ${firstDate.getMonth() + 1}月`;
+
+        // 計算日曆格子
+        const firstDayOfWeek = firstDate.getDay();
+        const blanksBeforeCount = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+        const calendarRows: (Date | null)[][] = [];
+        let currentRow: (Date | null)[] = new Array(blanksBeforeCount).fill(null);
+        dates.forEach(date => {
+          if (currentRow.length === 7) {
+            calendarRows.push(currentRow);
+            currentRow = [];
+          }
+          currentRow.push(date);
+        });
+        while (currentRow.length < 7) currentRow.push(null);
+        if (currentRow.length > 0) calendarRows.push(currentRow);
+
+        // 建立 off-screen HTML 容器（不設固定高度，讓內容自適應）
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.left = '-9999px';
+        container.style.width = '1400px';
+        container.style.backgroundColor = 'white';
+        container.style.padding = '0';
+        container.style.overflow = 'visible';
+        document.body.appendChild(container);
+
+        // 日期格子 HTML
+        const dayHeaders = ['一', '二', '三', '四', '五', '六', '日'].map(d =>
+          `<div style="text-align:center;font-weight:700;font-size:15px;color:#374151;padding:8px 0;">${d}</div>`
+        ).join('');
+
+        let rowsHtml = '';
+        calendarRows.forEach(week => {
+          let cellsHtml = '';
+          week.forEach(date => {
+            if (!date) {
+              cellsHtml += `<div style="background:#F9FAFB;border-radius:8px;border:1px solid #E5E7EB;min-height:96px;"></div>`;
+              return;
+            }
+            const dateStr = date.toISOString().split('T')[0];
+            const schedForDate = schedules.filter(s => s.activity_date.split('T')[0] === dateStr);
+            const isToday = new Date().toDateString() === date.toDateString();
+            const borderColor = isToday ? '#A855F7' : '#E5E7EB';
+            const bgColor = isToday ? '#FAF5FF' : '#FFFFFF';
+
+            let storesHtml = '';
+            schedForDate.forEach(schedule => {
+              const store = stores.find(s => s.id === schedule.store_id);
+              if (!store) return;
+              const color = getSupervisorColor(store);
+              const hexBg = color.hexBg || '#F3F4F6';
+              const hexBorder = color.hexBorder || '#D1D5DB';
+              const hexText = color.hexText || '#111827';
+              storesHtml += `<div style="font-size:12px;background:${hexBg};color:${hexText};padding:3px 8px;border-radius:4px;border:2px solid ${hexBorder};margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${store.store_name}</div>`;
+            });
+
+            cellsHtml += `<div style="border:2px solid ${borderColor};border-radius:8px;padding:6px 8px;background:${bgColor};min-height:96px;">
+              <div style="font-size:14px;font-weight:700;color:#111827;margin-bottom:4px;">${date.getDate()}</div>
+              ${storesHtml}
+            </div>`;
+          });
+          rowsHtml += `<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;">${cellsHtml}</div>`;
+        });
+
+        container.innerHTML = `
+          <div style="font-family:'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif;padding:20px 30px;box-sizing:border-box;">
+            <!-- 標題 -->
+            <div style="text-align:center;margin-bottom:12px;">
+              <div style="font-size:26px;font-weight:800;color:#1F2937;">${campaign.name}</div>
+              <div style="font-size:13px;color:#6B7280;margin-top:4px;">
+                活動期間：${new Date(campaign.start_date).toLocaleDateString('zh-TW')} ~ ${new Date(campaign.end_date).toLocaleDateString('zh-TW')}
+                &nbsp;&nbsp;|&nbsp;&nbsp;總門市數：${stores.length} 間&nbsp;&nbsp;|&nbsp;&nbsp;已排程：${schedules.length} 間
+              </div>
+            </div>
+            <!-- 督導圖例 -->
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+              <span style="font-size:13px;color:#6B7280;font-weight:600;">督導：</span>
+              ${legendEntries}
+            </div>
+            <!-- 月份標題 -->
+            <div style="background:linear-gradient(to right,#A855F7,#EC4899);color:white;padding:8px 16px;border-radius:8px 8px 0 0;margin-bottom:8px;">
+              <span style="font-size:18px;font-weight:700;">${monthYear}</span>
+            </div>
+            <!-- 星期標題 -->
+            <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:6px;">
+              ${dayHeaders}
+            </div>
+            <!-- 日期格子 -->
+            ${rowsHtml}
+          </div>
+        `;
+
+        // 等待渲染
+        await new Promise(resolve => setTimeout(resolve, 150));
+
+        const canvas = await html2canvas(container, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+        });
+
+        document.body.removeChild(container);
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdfWidth = 297;
+        const pdfHeight = 210;
+        const margin = 5;
+        const contentWidth = pdfWidth - margin * 2;
+        const contentHeight = (canvas.height / canvas.width) * contentWidth;
+
+        if (i > 0) pdf.addPage();
+
+        // 如果內容高度超出頁面，等比縮放
+        if (contentHeight > pdfHeight - margin * 2) {
+          const scaledWidth = ((pdfHeight - margin * 2) / contentHeight) * contentWidth;
+          const xOffset = margin + (contentWidth - scaledWidth) / 2;
+          pdf.addImage(imgData, 'PNG', xOffset, margin, scaledWidth, pdfHeight - margin * 2);
+        } else {
+          pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, contentHeight);
+        }
+      }
+
+      pdf.save(`${campaign.name}_活動排程.pdf`);
+    } catch (error) {
+      console.error('PDF 匯出失敗:', error);
+      alert('PDF 匯出失敗，請稍後再試');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
@@ -305,28 +469,40 @@ export default function ActivityViewPage() {
         </div>
 
         {/* 日曆 */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div ref={calendarRef} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">活動排程</h2>
+
+            <div className="flex items-center gap-4">
+              {/* 匯出 PDF 按鈕 */}
+              <button
+                onClick={handleExportPDF}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 text-sm font-medium"
+              >
+                <FileDown className="w-4 h-4" />
+                {exporting ? '匯出中...' : '匯出PDF'}
+              </button>
             
-            {/* 督導顏色圖例 */}
-            {Object.keys(supervisorColorMap).length > 0 && (
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-sm text-gray-600 font-medium">督導：</span>
-                {Object.entries(supervisorColorMap)
-                  .filter(([_, color]) => color.isDisplay !== false) // 只顯示標記為 display 的
-                  .map(([key, color]) => (
-                    <div
-                      key={key}
-                      className={`flex items-center gap-1 px-2 py-1 rounded border-2 ${color.border} ${color.bg}`}
-                    >
-                      <div className={`text-xs font-medium ${color.text}`}>
-                        {color.supervisorName}
+              {/* 督導顏色圖例 */}
+              {Object.keys(supervisorColorMap).length > 0 && (
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-sm text-gray-600 font-medium">督導：</span>
+                  {Object.entries(supervisorColorMap)
+                    .filter(([_, color]) => color.isDisplay !== false) // 只顯示標記為 display 的
+                    .map(([key, color]) => (
+                      <div
+                        key={key}
+                        className={`flex items-center gap-1 px-2 py-1 rounded border-2 ${color.border} ${color.bg}`}
+                      >
+                        <div className={`text-xs font-medium ${color.text}`}>
+                          {color.supervisorName}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-              </div>
-            )}
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
           
           {Object.entries(monthGroups).map(([monthKey, dates]) => {

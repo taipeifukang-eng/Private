@@ -100,6 +100,7 @@ export default async function InspectionDetailPage({
         supervisor_notes,
         indoor_temperature,
         signature_photo_url,
+        supervisor_signature_url,
         gps_latitude,
         gps_longitude,
         created_at,
@@ -519,19 +520,40 @@ export default async function InspectionDetailPage({
           </div>
         )}
 
-        {/* 督導簽名 */}
-        {inspection.signature_photo_url && (
+        {/* 簽名確認 */}
+        {(inspection.signature_photo_url || (inspection as any).supervisor_signature_url) && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
               <PenTool className="w-5 h-5" />
-              督導簽名
+              簽名確認
             </h2>
-            <div className="border border-gray-300 rounded-lg p-4 inline-block bg-gray-50">
-              <img
-                src={inspection.signature_photo_url}
-                alt="督導簽名"
-                className="max-h-32"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* 店長/當班主管簽名 */}
+              {inspection.signature_photo_url && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600 mb-2">店長/當班主管確認簽名</p>
+                  <div className="border border-gray-300 rounded-lg p-4 inline-block bg-gray-50">
+                    <img
+                      src={inspection.signature_photo_url}
+                      alt="店長/當班主管確認簽名"
+                      className="max-h-32"
+                    />
+                  </div>
+                </div>
+              )}
+              {/* 督導簽名 */}
+              {(inspection as any).supervisor_signature_url && (
+                <div>
+                  <p className="text-sm font-medium text-gray-600 mb-2">督導簽名</p>
+                  <div className="border border-gray-300 rounded-lg p-4 inline-block bg-gray-50">
+                    <img
+                      src={(inspection as any).supervisor_signature_url}
+                      alt="督導簽名"
+                      className="max-h-32"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
