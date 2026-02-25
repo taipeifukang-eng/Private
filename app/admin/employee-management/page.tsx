@@ -32,7 +32,7 @@ export default async function EmployeeManagementPage() {
   // 獲取所有在職員工的基本資料
   const { data: storeEmployees } = await supabase
     .from('store_employees')
-    .select('employee_code, employee_name, start_date, birthday')
+    .select('employee_code, employee_name, start_date, birthday, current_position')
     .eq('is_active', true);
 
   if (!storeEmployees || storeEmployees.length === 0) {
@@ -58,7 +58,7 @@ export default async function EmployeeManagementPage() {
         id: emp.employee_code, // 使用 employee_code 作為 id
         employee_code: emp.employee_code,
         employee_name: emp.employee_name,
-        current_position: latestStatus?.position || null,
+        current_position: latestStatus?.position || emp.current_position || null,
         start_date: emp.start_date,
         birthday: emp.birthday || null,
         is_active: true
