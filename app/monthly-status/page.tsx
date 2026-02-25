@@ -1206,7 +1206,7 @@ function StoreStatusDetail({
                   <StoreMonthlyStatsForm
                     storeId={store.id}
                     yearMonth={yearMonth}
-                    isReadOnly={false}
+                    isReadOnly={true}
                     hideSupportHours={!shouldViewSupportHours}
                   />
                   {/* 如果有編輯支援時數的權限，額外顯示支援時數表單 */}
