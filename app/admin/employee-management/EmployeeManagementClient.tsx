@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2 } from 'lucide-react';
+import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2, Upload, Download } from 'lucide-react';
 import { POSITION_OPTIONS } from '@/types/workflow';
 
 interface Employee {
@@ -43,9 +43,13 @@ export default function EmployeeManagementClient({
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
+  const [showBirthdayImportModal, setShowBirthdayImportModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [promotionHistory, setPromotionHistory] = useState<PromotionHistory[]>([]);
   const [loading, setLoading] = useState(false);
+  const [importResult, setImportResult] = useState<{ successCount: number; errorCount: number; errors: string[] } | null>(null);
+  const [importData, setImportData] = useState<{ employee_code: string; employee_name: string; birthday: string }[]>([]);
+  const [importLoading, setImportLoading] = useState(false);
 
   // 新增員工表單
   const [newEmployee, setNewEmployee] = useState({
@@ -209,6 +213,75 @@ export default function EmployeeManagementClient({
     }
   };
 
+  // 匯出 CSV 範本
+  const handleExportCSV = () => {
+    const header = '員編,姓名,生日(YYYY-MM-DD)';
+    const rows = employees.map(emp =>
+      `${emp.employee_code},${emp.employee_name},${emp.birthday || ''}`
+    );
+    const csvContent = [header, ...rows].join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `員工生日範本_${new Date().toISOString().slice(0,10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 解析 CSV 檔案
+  const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const cleaned = text.replace(/^\uFEFF/, '');
+      const lines = cleaned.split(/\r?\n/).filter(l => l.trim());
+      const dataLines = lines.slice(1);
+      const parsed = dataLines.map(line => {
+        const [employee_code, employee_name, birthday] = line.split(',');
+        return {
+          employee_code: (employee_code || '').trim(),
+          employee_name: (employee_name || '').trim(),
+          birthday: (birthday || '').trim()
+        };
+      }).filter(row => row.employee_code && row.birthday);
+      setImportData(parsed);
+      setImportResult(null);
+    };
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
+
+  // 執行批量更新
+  const handleBulkImport = async () => {
+    if (importData.length === 0) {
+      alert('請先上傳 CSV 檔案');
+      return;
+    }
+    setImportLoading(true);
+    try {
+      const response = await fetch('/api/employees/bulk-update-birthday', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updates: importData })
+      });
+      const result = await response.json();
+      if (result.success) {
+        setImportResult(result);
+        setImportData([]);
+      } else {
+        alert(`處理失敗：${result.error}`);
+      }
+    } catch (error: any) {
+      alert(`處理失敗：${error.message}`);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
       <div className="w-full">
@@ -221,13 +294,29 @@ export default function EmployeeManagementClient({
             </h1>
             <p className="text-gray-600">管理所有員工資料庫，提供每月人員狀態使用</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-          >
-            <Plus size={20} />
-            新增員工
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold"
+            >
+              <Download size={18} />
+              匯出 CSV 範本
+            </button>
+            <button
+              onClick={() => { setShowBirthdayImportModal(true); setImportData([]); setImportResult(null); }}
+              className="flex items-center gap-2 px-4 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-semibold"
+            >
+              <Upload size={18} />
+              批量匯入生日
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+            >
+              <Plus size={20} />
+              新增員工
+            </button>
+          </div>
         </div>
 
         {/* 統計卡片 */}
@@ -366,6 +455,110 @@ export default function EmployeeManagementClient({
           </ul>
         </div>
       </div>
+
+      {/* 批量匯入生日 Modal */}
+      {showBirthdayImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900">批量匯入生日</h3>
+              <button onClick={() => setShowBirthdayImportModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* 步驟 1 */}
+              <div className="bg-blue-50 rounded-lg p-4">
+                <p className="text-sm font-semibold text-blue-900 mb-1">① 先下載 CSV 範本</p>
+                <p className="text-xs text-blue-700 mb-3">範本已預充全部 285 位員工的員編和姓名，只需填寫第三欄「生日」即可。</p>
+                <button
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                >
+                  <Download size={16} />
+                  下載 CSV 範本
+                </button>
+              </div>
+
+              {/* 步驟 2 */}
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm font-semibold text-gray-900 mb-1">② 期等填寫完成後，上傳填好的 CSV</p>
+                <p className="text-xs text-gray-600 mb-3">日期格式請用 <span className="font-mono font-semibold">YYYY-MM-DD</span>，例如 1990-05-20。未填寫生日的列會被跳過。</p>
+                <label className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium cursor-pointer w-fit">
+                  <Upload size={16} />
+                  選擇 CSV 檔案
+                  <input type="file" accept=".csv" className="hidden" onChange={handleCSVFile} />
+                </label>
+              </div>
+
+              {/* 預覽與確認 */}
+              {importData.length > 0 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                  <p className="text-sm font-semibold text-emerald-900 mb-2">③ 確認並執行匯入</p>
+                  <p className="text-sm text-emerald-800 mb-3">正準備更新 <span className="font-bold">{importData.length}</span> 位員工的生日</p>
+                  <div className="max-h-40 overflow-y-auto mb-3">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-gray-600">
+                          <th className="text-left py-1">員編</th>
+                          <th className="text-left py-1">姓名</th>
+                          <th className="text-left py-1">生日</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importData.slice(0, 10).map((row, i) => (
+                          <tr key={i} className="border-t border-emerald-100">
+                            <td className="py-1">{row.employee_code}</td>
+                            <td className="py-1">{row.employee_name}</td>
+                            <td className="py-1">{row.birthday}</td>
+                          </tr>
+                        ))}
+                        {importData.length > 10 && (
+                          <tr><td colSpan={3} className="py-1 text-gray-500">…還有 {importData.length - 10} 筆</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <button
+                    onClick={handleBulkImport}
+                    disabled={importLoading}
+                    className="flex items-center gap-2 px-5 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium disabled:opacity-50"
+                  >
+                    {importLoading ? (
+                      <><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />匯入中...</>
+                    ) : (
+                      <><Save size={16} />確認匯入</>
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* 結果 */}
+              {importResult && (
+                <div className={`rounded-lg p-4 ${importResult.errorCount === 0 ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'}`}>
+                  <p className="text-sm font-semibold mb-2">匯入完成</p>
+                  <p className="text-sm">✅ 成功更新：<span className="font-bold">{importResult.successCount}</span> 位</p>
+                  {importResult.errorCount > 0 && (
+                    <>
+                      <p className="text-sm">❌ 失敗：<span className="font-bold">{importResult.errorCount}</span> 位</p>
+                      <ul className="text-xs text-red-700 mt-1 space-y-0.5">
+                        {importResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                      </ul>
+                    </>
+                  )}
+                  <button
+                    onClick={() => { setShowBirthdayImportModal(false); window.location.reload(); }}
+                    className="mt-3 px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-medium hover:bg-gray-700"
+                  >
+                    關閉並重新輍入
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 新增員工 Modal */}
       {showAddModal && (
