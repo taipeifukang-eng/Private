@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,12 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+    // RBAC 權限檢查：需要 activity.store_detail.edit
+    const canEdit = await hasPermission(user.id, 'activity.store_detail.edit');
+    if (!canEdit) {
+      return NextResponse.json({ success: false, error: '權限不足：需要 activity.store_detail.edit 權限' }, { status: 403 });
+    }
 
     const body = await request.json();
     const { campaign_id, store_id, ...fields } = body;

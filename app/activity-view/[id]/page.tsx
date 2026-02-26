@@ -148,10 +148,14 @@ export default function ActivityViewPage() {
       setCampaign(campaignData.campaign);
       setSchedules(campaignData.schedules || []);
 
-      // 根據 API 回傳的角色判斷可編輯權限（督導 / admin 可編輯）
-      const isSupervisorRole = campaignData.isSupervisor || false;
-      const isAdminRole = campaignData.role === 'admin';
-      setCanEdit(isSupervisorRole || isAdminRole);
+      // 用 RBAC 權限的判斷可編輯（activity.store_detail.edit）
+      const permRes = await fetch('/api/permissions/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissionCode: 'activity.store_detail.edit' })
+      });
+      const permData = await permRes.json();
+      setCanEdit(permData.allowed === true);
 
       // 載入所有門市（使用與管理者介面相同的 API，確保督導資訊一致）
       const storesRes = await fetch('/api/stores-with-supervisors');
@@ -587,7 +591,7 @@ export default function ActivityViewPage() {
                         return (
                           <div
                             key={`empty-${weekIdx}-${dayIdx}`}
-                            className="aspect-square bg-gray-100 rounded-lg border border-gray-200"
+                            className="min-h-[80px] bg-gray-100 rounded-lg border border-gray-200"
                           />
                         );
                       }
@@ -599,7 +603,7 @@ export default function ActivityViewPage() {
                       return (
                         <div
                           key={date.toISOString()}
-                          className={`aspect-square border-2 rounded-lg p-2 ${
+                          className={`min-h-[80px] border-2 rounded-lg p-2 ${
                             isToday ? 'border-purple-500 bg-purple-50' : 'border-gray-200 bg-white'
                           }`}
                         >
@@ -680,8 +684,9 @@ export default function ActivityViewPage() {
                   return (
                     <div
                       key={schedule.id}
-                      className={`flex items-center justify-between p-3 border-2 ${color.border} ${color.bg} rounded-lg hover:opacity-90 transition-opacity`}
-                      title={store.supervisor_name ? `督導: ${store.supervisor_name}` : ''}
+                      onClick={() => handleOpenDetail(store, schedule)}
+                      className={`flex items-center justify-between p-3 border-2 ${color.border} ${color.bg} rounded-lg hover:opacity-90 hover:shadow-md transition-all cursor-pointer`}
+                      title={store.supervisor_name ? `督導: ${store.supervisor_name} — 點擊查看細節` : '點擊查看細節'}
                     >
                       <div>
                         <div className={`font-medium ${color.text}`}>{store.store_name}</div>
@@ -690,8 +695,11 @@ export default function ActivityViewPage() {
                           {store.supervisor_name && <span className="ml-2 text-gray-600">({store.supervisor_name})</span>}
                         </div>
                       </div>
-                      <div className="text-sm text-purple-600 font-medium">
-                        {new Date(schedule.activity_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm text-purple-600 font-medium">
+                          {new Date(schedule.activity_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
+                        </div>
+                        <ClipboardList size={16} className="text-gray-400" />
                       </div>
                     </div>
                   );
