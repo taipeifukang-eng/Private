@@ -229,6 +229,15 @@ export default function ActivityViewPage() {
         
         setCalendarDates(dates);
       }
+
+      // 載入車次資料（僅限促銷活動類型）
+      if (campaignData.campaign?.campaign_type === 'promotion') {
+        try {
+          const tripsRes = await fetch(`/api/campaign-equipment-trips?campaign_id=${campaignId}`);
+          const tripsData = await tripsRes.json();
+          if (tripsData.success) setEquipmentTrips(tripsData.data || []);
+        } catch { /* 忽略車次載入錯誤，不影響主畫面 */ }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
       alert('載入失敗');
