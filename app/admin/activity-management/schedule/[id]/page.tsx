@@ -209,27 +209,27 @@ export default function ScheduleEditPage() {
         const supabase = createClient();
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const [{ data: userRoles }, { data: profData }] = await Promise.all([
-            supabase.from('user_roles').select(`
-              role:roles!inner (
-                code,
-                role_permissions!inner (
-                  is_allowed,
-                  permission:permissions!inner (code)
-                )
+          const { data: userRoles } = await supabase.from('user_roles').select(`
+            role:roles!inner (
+              code,
+              role_permissions!inner (
+                is_allowed,
+                permission:permissions!inner (code)
               )
-            `).eq('user_id', user.id).eq('is_active', true),
-            supabase.from('profiles').select('role').eq('id', user.id).single(),
-          ]);
+            )
+          `).eq('user_id', user.id).eq('is_active', true);
+
           const permSet = new Set<string>();
+          let isRbacAdmin = false;
           (userRoles ?? []).forEach((ur: any) => {
+            if (ur.role?.code === 'admin') isRbacAdmin = true;
             ur.role?.role_permissions?.forEach((rp: any) => {
               if (rp.is_allowed && rp.permission?.code) permSet.add(rp.permission.code);
             });
           });
-          const isAdminOrManager = ['admin', 'manager'].includes((profData as any)?.role ?? '');
-          setCanEditCalendar(isAdminOrManager || permSet.has('activity.campaign.edit'));
-          setCanEditStoreDetail(isAdminOrManager || permSet.has('activity.store_detail.edit'));
+          // 僅 RBAC admin 角色才跳過權限檢查（不再依賴舊 profiles.role）
+          setCanEditCalendar(isRbacAdmin || permSet.has('activity.campaign.edit'));
+          setCanEditStoreDetail(isRbacAdmin || permSet.has('activity.store_detail.edit'));
         }
       } catch (permErr) {
         console.warn('權限檢查失敗，使用預設禁用編輯：', permErr);

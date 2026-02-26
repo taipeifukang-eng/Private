@@ -12,29 +12,28 @@ async function fetchSchedulePermissions() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { canEditCalendar: false, canEditStoreDetail: false };
 
-  const [{ data: userRoles }, { data: profile }] = await Promise.all([
-    supabase.from('user_roles').select(`
-      role:roles!inner (
-        code,
-        role_permissions!inner (
-          is_allowed,
-          permission:permissions!inner (code)
-        )
+  const { data: userRoles } = await supabase.from('user_roles').select(`
+    role:roles!inner (
+      code,
+      role_permissions!inner (
+        is_allowed,
+        permission:permissions!inner (code)
       )
-    `).eq('user_id', user.id).eq('is_active', true),
-    supabase.from('profiles').select('role').eq('id', user.id).single(),
-  ]);
+    )
+  `).eq('user_id', user.id).eq('is_active', true);
 
   const permSet = new Set<string>();
+  let isRbacAdmin = false;
   (userRoles ?? []).forEach((ur: any) => {
+    if (ur.role?.code === 'admin') isRbacAdmin = true;
     ur.role?.role_permissions?.forEach((rp: any) => {
       if (rp.is_allowed && rp.permission?.code) permSet.add(rp.permission.code);
     });
   });
-  const isAdminOrManager = ['admin', 'manager'].includes((profile as any)?.role ?? '');
+  // 僅 RBAC admin 角色才跳過權限檢查（不再依賴舊 profiles.role）
   return {
-    canEditCalendar: isAdminOrManager || permSet.has('activity.campaign.edit'),
-    canEditStoreDetail: isAdminOrManager || permSet.has('activity.store_detail.edit'),
+    canEditCalendar:    isRbacAdmin || permSet.has('activity.campaign.edit'),
+    canEditStoreDetail: isRbacAdmin || permSet.has('activity.store_detail.edit'),
   };
 }
 
