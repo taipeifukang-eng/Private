@@ -550,6 +550,36 @@ export const EQUIPMENT_SET_COLORS: Record<number, { bg: string; border: string; 
 // 固定地點
 export const FIXED_LOCATIONS = ['林森街倉庫', '車上'] as const;
 
+// ─────────────────────────────────────────────
+// 活動前置 Checklist
+// ─────────────────────────────────────────────
+/** 活動前置準備事項（如母親節/周年慶的前置檢查清單） */
+export interface CampaignChecklistItem {
+  id: string;
+  campaign_id: string;
+  item_order: number;                    // 排序
+  task_name: string;                     // 事項名稱
+  notes: string | null;                  // 備註
+  assigned_person: string | null;        // 安排人員（如：ALL、空白等）
+  deadline: string | null;               // 期限（如：前兩週、前一天、前一週等）
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
+/** 各門市對 checklist 項目的完成狀態 */
+export interface CampaignChecklistCompletion {
+  id: string;
+  checklist_item_id: string;             // FK to CampaignChecklistItem
+  store_id: string;                      // FK to Store
+  is_completed: boolean;
+  completed_by: string | null;           // FK to Profile
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // 向後相容：升遷歷程別名
 export type PromotionHistory = EmployeeMovementHistory;
 

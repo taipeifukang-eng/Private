@@ -8,6 +8,7 @@ import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } f
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 import CampaignDetailPreviewTable from '@/components/CampaignDetailPreviewTable';
 import EquipmentTripEditor from '@/components/EquipmentTripEditor';
+import ChecklistTemplateEditor from '@/components/ChecklistTemplateEditor';
 import { createClient } from '@/lib/supabase/client';
 
 interface StoreWithManager extends Store {
@@ -35,7 +36,7 @@ export default function ScheduleEditPage() {
   const [unscheduledStores, setUnscheduledStores] = useState<string[]>([]);
   
   // === Tab 狀態 ===
-  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview' | 'equipment_trips'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview' | 'equipment_trips' | 'checklist'>('schedule');
 
   // 預覽表：全部已載入的細節資料
   const [allDetails, setAllDetails] = useState<import('@/types/workflow').CampaignStoreDetail[]>([]);
@@ -58,6 +59,7 @@ export default function ScheduleEditPage() {
   const [canEditCalendar,    setCanEditCalendar]    = useState(false); // activity.campaign.edit
   const [canEditStoreDetail, setCanEditStoreDetail] = useState(false); // activity.store_detail.edit
   const [canEditEquipmentTrip, setCanEditEquipmentTrip] = useState(false); // activity.equipment_trip.edit
+  const [canEditChecklist, setCanEditChecklist] = useState(false); // activity.checklist.edit
 
   // 督導顏色映射（使用 state 確保一致性）
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string }>>({});
@@ -238,6 +240,7 @@ export default function ScheduleEditPage() {
           setCanEditCalendar(isRbacAdmin || permSet.has('activity.campaign.edit'));
           setCanEditStoreDetail(isRbacAdmin || permSet.has('activity.store_detail.edit'));
           setCanEditEquipmentTrip(isRbacAdmin || permSet.has('activity.equipment_trip.edit'));
+          setCanEditChecklist(isRbacAdmin || permSet.has('activity.checklist.edit'));
         }
       } catch (permErr) {
         console.warn('權限檢查失敗，使用預設禁用編輯：', permErr);
@@ -927,6 +930,19 @@ export default function ScheduleEditPage() {
               車次管理
             </button>
           )}
+          {campaign?.campaign_type === 'promotion' && (
+            <button
+              onClick={() => setActiveTab('checklist')}
+              className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+                activeTab === 'checklist'
+                  ? 'border-green-600 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              前置 Check List
+            </button>
+          )}
         </div>
 
         {/* Tab 1: 排程管理 */}
@@ -1264,6 +1280,20 @@ export default function ScheduleEditPage() {
               campaignEndDate={campaign.end_date}
               stores={stores.map(s => ({ id: s.id, store_name: s.store_name, store_code: s.store_code || '', short_name: s.short_name }))}
               canEdit={canEditEquipmentTrip}
+            />
+          </div>
+        )}
+
+        {/* Tab 5: 前置 Check List */}
+        {activeTab === 'checklist' && campaign && campaign.campaign_type === 'promotion' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <CheckCircle size={20} className="text-green-600" />
+              <h2 className="text-xl font-bold text-gray-900">活動前置 Check List</h2>
+            </div>
+            <ChecklistTemplateEditor
+              campaignId={campaignId}
+              canEdit={canEditChecklist}
             />
           </div>
         )}
