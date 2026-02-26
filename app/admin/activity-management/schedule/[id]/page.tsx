@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send } from 'lucide-react';
+import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2 } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
+import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
@@ -29,6 +30,20 @@ export default function ScheduleEditPage() {
   
   // 暫存區（未安排的門市）
   const [unscheduledStores, setUnscheduledStores] = useState<string[]>([]);
+  
+  // === Tab 狀態 ===
+  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details'>('schedule');
+
+  // 門市細節 Modal
+  const [detailModal, setDetailModal] = useState<{
+    open: boolean;
+    storeId: string;
+    storeName: string;
+    activityDate?: string;
+  }>({ open: false, storeId: '', storeName: '' });
+
+  // 已經填寫細節的門市記錄（用於 Tab 2 顯示狀態）
+  const [filledStoreIds, setFilledStoreIds] = useState<Set<string>>(new Set());
   
   // 日曆資料
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
@@ -99,6 +114,21 @@ export default function ScheduleEditPage() {
   useEffect(() => {
     loadData();
   }, [campaignId]);
+
+  // 切換到門市細節 Tab 時自動載入已填寫狀態
+  useEffect(() => {
+    if (activeTab === 'store_details' && campaignId) {
+      fetch(`/api/campaign-store-details?campaign_id=${campaignId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.data)) {
+            const ids = new Set<string>(data.data.map((d: { store_id: string }) => d.store_id));
+            setFilledStoreIds(ids);
+          }
+        })
+        .catch(err => console.error('Error loading store details:', err));
+    }
+  }, [activeTab, campaignId]);
 
   // 離開頁面時的警告
   useEffect(() => {
@@ -799,6 +829,39 @@ export default function ScheduleEditPage() {
           </div>
         </div>
 
+        {/* === Tab 切換按鈕 === */}
+        <div className="flex gap-1 mb-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('schedule')}
+            className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+              activeTab === 'schedule'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <CalendarIcon className="w-4 h-4" />
+            排程管理
+          </button>
+          <button
+            onClick={() => setActiveTab('store_details')}
+            className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+              activeTab === 'store_details'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ClipboardList className="w-4 h-4" />
+            門市細節
+            {schedules.length > 0 && (
+              <span className="ml-1 px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs">
+                {schedules.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Tab 1: 排程管理 */}
+        {activeTab === 'schedule' && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* 暫存區 */}
           <div className="lg:col-span-1">
@@ -1002,6 +1065,118 @@ export default function ScheduleEditPage() {
             </div>
           </div>
         </div>
+        )} {/* end Tab 1: 排程管理 */}
+
+        {/* Tab 2: 門市細節 */}
+        {activeTab === 'store_details' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <ClipboardList className="w-6 h-6 text-purple-600" />
+                門市細節設定
+              </h2>
+              <p className="text-sm text-gray-500">點擊「編輯」為每間門市填寫人員安排細節</p>
+            </div>
+
+            {schedules.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                <p>尚無已排程門市，請先在「排程管理」Tab 中安排門市</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">門市</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">督導</th>
+                      <th className="text-left px-4 py-3 font-semibold text-gray-700">活動日期</th>
+                      <th className="text-center px-4 py-3 font-semibold text-gray-700">細節狀態</th>
+                      <th className="text-center px-4 py-3 font-semibold text-gray-700">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {schedules
+                      .map(schedule => ({
+                        schedule,
+                        store: stores.find(s => s.id === schedule.store_id)
+                      }))
+                      .filter(item => item.store !== undefined)
+                      .sort((a, b) => (a.store?.store_code || '').localeCompare(b.store?.store_code || ''))
+                      .map(({ schedule, store }) => {
+                        if (!store) return null;
+                        const color = getSupervisorColor(store.supervisor_id);
+                        const isFilled = filledStoreIds.has(store.id);
+                        return (
+                          <tr key={schedule.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-3 h-3 rounded-full ${color.bg} border-2 ${color.border}`} />
+                                <div>
+                                  <div className="font-medium text-gray-900">{store.store_name}</div>
+                                  <div className="text-xs text-gray-500">{store.store_code}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">{store.supervisor_name || '—'}</td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {new Date(schedule.activity_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit', weekday: 'short' })}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {isFilled ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+                                  <CheckCircle className="w-3 h-3" />
+                                  已設定
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-medium">
+                                  待填寫
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => setDetailModal({
+                                  open: true,
+                                  storeId: store.id,
+                                  storeName: store.store_name,
+                                  activityDate: schedule.activity_date,
+                                })}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-xs font-medium"
+                              >
+                                <Edit2 className="w-3 h-3" />
+                                編輯細節
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 門市細節 Modal（在 Tab 2 批次編輯用）*/}
+        {campaign && detailModal.open && (
+          <CampaignStoreDetailModal
+            isOpen={detailModal.open}
+            onClose={() => {
+              setDetailModal(prev => ({ ...prev, open: false }));
+              // 關閉後標記為已填寫
+              if (detailModal.storeId) {
+                setFilledStoreIds(prev => new Set(Array.from(prev).concat(detailModal.storeId)));
+              }
+            }}
+            campaignId={campaignId}
+            storeId={detailModal.storeId}
+            storeName={detailModal.storeName}
+            activityName={campaign.name}
+            activityDate={detailModal.activityDate}
+            canEdit={true}
+          />
+        )}
       </div>
     </div>
   );

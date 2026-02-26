@@ -27,14 +27,13 @@ export default function ActivityViewPage() {
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean; hexBg?: string; hexBorder?: string; hexText?: string }>>({});
   const [exporting, setExporting] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
-  // 門市細節 Modal 狀態
+  // 門市細節 Modal 狀態（純檢視，不可編輯）
   const [detailModal, setDetailModal] = useState<{
     open: boolean;
     storeId: string;
     storeName: string;
     activityDate?: string;
   }>({ open: false, storeId: '', storeName: '' });
-  const [canEdit, setCanEdit] = useState(false);  // superviosr/admin 可編輯
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
   const AVAILABLE_COLORS = [
     { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色', hexBg: '#BFDBFE', hexBorder: '#60A5FA', hexText: '#1E3A5F' },
@@ -147,15 +146,6 @@ export default function ActivityViewPage() {
 
       setCampaign(campaignData.campaign);
       setSchedules(campaignData.schedules || []);
-
-      // 用 RBAC 權限的判斷可編輯（activity.store_detail.edit）
-      const permRes = await fetch('/api/permissions/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissionCode: 'activity.store_detail.edit' })
-      });
-      const permData = await permRes.json();
-      setCanEdit(permData.allowed === true);
 
       // 載入所有門市（使用與管理者介面相同的 API，確保督導資訊一致）
       const storesRes = await fetch('/api/stores-with-supervisors');
@@ -720,7 +710,7 @@ export default function ActivityViewPage() {
         storeName={detailModal.storeName}
         activityName={campaign.name}
         activityDate={detailModal.activityDate}
-        canEdit={canEdit}
+        canEdit={false}
       />
     )}
     </>
