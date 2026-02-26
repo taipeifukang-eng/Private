@@ -45,7 +45,7 @@ type FilterStatus = 'all' | 'pending' | 'improved' | 'overdue';
 function ImprovementsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialFilter = (searchParams.get('status') as FilterStatus) || 'all';
+  const initialFilter = (searchParams.get('status') as FilterStatus) || 'pending';
 
   const [loading, setLoading] = useState(true);
   const [improvements, setImprovements] = useState<Improvement[]>([]);
