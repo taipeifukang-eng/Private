@@ -521,6 +521,35 @@ export interface CampaignStoreDetail {
   updated_by: string | null;
 }
 
+// ─────────────────────────────────────────────
+// 活動用品車次
+// ─────────────────────────────────────────────
+/** 活動用品共 5 套，此為每筆車次搬運記錄 */
+export interface CampaignEquipmentTrip {
+  id: string;
+  campaign_id: string;
+  set_number: 1 | 2 | 3 | 4 | 5;       // 套次 1-5
+  trip_date: string;                     // YYYY-MM-DD
+  from_location: string;                 // 林森街倉庫 | 車上 | 門市名稱
+  to_location: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+// 套次顯示顏色（固定，讓各頁面一致）
+export const EQUIPMENT_SET_COLORS: Record<number, { bg: string; border: string; text: string; dot: string }> = {
+  1: { bg: 'bg-rose-100',   border: 'border-rose-400',   text: 'text-rose-800',   dot: '#FB7185' },
+  2: { bg: 'bg-amber-100',  border: 'border-amber-400',  text: 'text-amber-800',  dot: '#FBBF24' },
+  3: { bg: 'bg-lime-100',   border: 'border-lime-400',   text: 'text-lime-800',   dot: '#A3E635' },
+  4: { bg: 'bg-emerald-100',border: 'border-emerald-400',text: 'text-emerald-800',dot: '#34D399' },
+  5: { bg: 'bg-sky-100',    border: 'border-sky-400',    text: 'text-sky-800',    dot: '#38BDF8' },
+};
+
+// 固定地點
+export const FIXED_LOCATIONS = ['林森街倉庫', '車上'] as const;
+
 // 向後相容：升遷歷程別名
 export type PromotionHistory = EmployeeMovementHistory;
 

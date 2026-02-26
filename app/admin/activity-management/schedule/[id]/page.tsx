@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2 } from 'lucide-react';
+import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2, Truck } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 import CampaignDetailPreviewTable from '@/components/CampaignDetailPreviewTable';
+import EquipmentTripEditor from '@/components/EquipmentTripEditor';
 import { createClient } from '@/lib/supabase/client';
 
 interface StoreWithManager extends Store {
@@ -34,7 +35,7 @@ export default function ScheduleEditPage() {
   const [unscheduledStores, setUnscheduledStores] = useState<string[]>([]);
   
   // === Tab 狀態 ===
-  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview' | 'equipment_trips'>('schedule');
 
   // 預覽表：全部已載入的細節資料
   const [allDetails, setAllDetails] = useState<import('@/types/workflow').CampaignStoreDetail[]>([]);
@@ -126,7 +127,7 @@ export default function ScheduleEditPage() {
 
   // 切換到門市細節 Tab 時自動載入已填寫狀態
   useEffect(() => {
-    if ((activeTab === 'store_details' || activeTab === 'preview') && campaignId) {
+    if ((activeTab === 'store_details' || activeTab === 'preview' || activeTab === 'equipment_trips') && campaignId) {
       fetch(`/api/campaign-store-details?campaign_id=${campaignId}`)
         .then(res => res.json())
         .then(data => {
@@ -911,6 +912,19 @@ export default function ScheduleEditPage() {
             <span className="text-base leading-none">📄</span>
             預覽表
           </button>
+          {campaign?.campaign_type === 'promotion' && (
+            <button
+              onClick={() => setActiveTab('equipment_trips')}
+              className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+                activeTab === 'equipment_trips'
+                  ? 'border-teal-600 text-teal-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Truck className="w-4 h-4" />
+              車次管理
+            </button>
+          )}
         </div>
 
         {/* Tab 1: 排程管理 */}
@@ -1233,6 +1247,23 @@ export default function ScheduleEditPage() {
             activityDate={detailModal.activityDate}
             canEdit={canEditStoreDetail}
           />
+        )}
+
+        {/* Tab 4: 車次管理 */}
+        {activeTab === 'equipment_trips' && campaign && campaign.campaign_type === 'promotion' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-5">
+              <Truck size={20} className="text-teal-600" />
+              <h2 className="text-xl font-bold text-gray-900">活動用品車次管理</h2>
+            </div>
+            <EquipmentTripEditor
+              campaignId={campaignId}
+              campaignStartDate={campaign.start_date}
+              campaignEndDate={campaign.end_date}
+              stores={stores.map(s => ({ id: s.id, store_name: s.store_name, store_code: s.store_code || '' }))}
+              canEdit={canEditStoreDetail}
+            />
+          </div>
         )}
 
         {/* Tab 3: 預覽表 */}

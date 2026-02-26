@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
-import { Campaign, CampaignSchedule, Store, EventDate } from '@/types/workflow';
+import { Campaign, CampaignSchedule, Store, EventDate, CampaignEquipmentTrip, EQUIPMENT_SET_COLORS } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 
 interface StoreWithManager extends Store {
@@ -24,6 +24,7 @@ export default function ActivityViewPage() {
   const [events, setEvents] = useState<EventDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
+  const [equipmentTrips, setEquipmentTrips] = useState<CampaignEquipmentTrip[]>([]);
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean; hexBg?: string; hexBorder?: string; hexText?: string }>>({});
   const [exporting, setExporting] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
@@ -234,6 +235,12 @@ export default function ActivityViewPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 獲取指定日期的車次
+  const getTripsForDate = (date: Date) => {
+    const ds = date.toISOString().split('T')[0];
+    return equipmentTrips.filter(t => t.trip_date === ds).sort((a, b) => a.set_number - b.set_number);
   };
 
   // 獲取指定日期的排程門市
@@ -637,6 +644,20 @@ export default function ActivityViewPage() {
                                 >
                                   <span className="truncate">{store.store_name}</span>
                                   <ClipboardList size={10} className="flex-shrink-0 opacity-60" />
+                                </div>
+                              );
+                            })}
+                            {/* 車次 pills */}
+                            {getTripsForDate(date).map(trip => {
+                              const c = EQUIPMENT_SET_COLORS[trip.set_number];
+                              return (
+                                <div
+                                  key={trip.id}
+                                  className={`text-[10px] px-1.5 py-0.5 rounded border ${c.bg} ${c.border} ${c.text} flex items-center gap-1`}
+                                  title={`套${trip.set_number}: ${trip.from_location} → ${trip.to_location}${trip.notes ? ` (${trip.notes})` : ''}`}
+                                >
+                                  <span className="font-bold shrink-0">套{trip.set_number}</span>
+                                  <span className="truncate">{trip.from_location.replace('林森街倉庫', '林森')} → {trip.to_location.replace('林森街倉庫', '林森')}</span>
                                 </div>
                               );
                             })}
