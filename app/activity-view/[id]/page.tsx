@@ -28,6 +28,14 @@ export default function ActivityViewPage() {
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean; hexBg?: string; hexBorder?: string; hexText?: string }>>({});
   const [exporting, setExporting] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
+
+  // 門市簡稱顯示函數
+  const getStoreShortName = (storeName: string): string => {
+    if (storeName === '林森街倉庫') return '林森';
+    if (storeName === '車上') return '車上';
+    const store = stores.find(s => s.store_name === storeName);
+    return store?.short_name || storeName.replace(/富康|藥局|百福/g, '').slice(0, 6);
+  };
   // 門市細節 Modal 狀態（純檢視，不可編輯）
   const [detailModal, setDetailModal] = useState<{
     open: boolean;
@@ -666,7 +674,7 @@ export default function ActivityViewPage() {
                                   title={`套${trip.set_number}: ${trip.from_location} → ${trip.to_location}${trip.notes ? ` (${trip.notes})` : ''}`}
                                 >
                                   <span className="font-bold shrink-0">套{trip.set_number}</span>
-                                  <span className="truncate">{trip.from_location.replace('林森街倉庫', '林森')} → {trip.to_location.replace('林森街倉庫', '林森')}</span>
+                                  <span className="truncate">{getStoreShortName(trip.from_location)} → {getStoreShortName(trip.to_location)}</span>
                                 </div>
                               );
                             })}

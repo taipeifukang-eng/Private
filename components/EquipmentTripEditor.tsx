@@ -7,7 +7,7 @@ import { CampaignEquipmentTrip, EQUIPMENT_SET_COLORS, FIXED_LOCATIONS } from '@/
 // ─────────────────────────────────────────────
 // 型別
 // ─────────────────────────────────────────────
-interface StoreOption { id: string; store_name: string; store_code: string; }
+interface StoreOption { id: string; store_name: string; store_code: string; short_name: string | null; }
 
 interface EquipmentTripEditorProps {
   campaignId: string;
@@ -26,9 +26,11 @@ interface TripModalState {
 const SET_LABELS = [1, 2, 3, 4, 5] as const;
 const WEEKDAY_ZH = ['日', '一', '二', '三', '四', '五', '六'];
 
-function abbrev(loc: string) {
+function abbrev(loc: string, storeMap?: Map<string, string>) {
   if (loc === '林森街倉庫') return '林森';
   if (loc === '車上')       return '車上';
+  // 優先使用門市簡稱
+  if (storeMap && storeMap.has(loc)) return storeMap.get(loc)!;
   return loc.replace(/富康|藥局|百福/g, '').slice(0, 6);
 }
 
@@ -59,6 +61,12 @@ export default function EquipmentTripEditor({
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
   const [dragSet, setDragSet] = useState<number | null>(null);
+
+  // 建立門市名稱 → 簡稱的對應表
+  const storeNameMap = new Map<string, string>();
+  stores.forEach(s => {
+    if (s.short_name) storeNameMap.set(s.store_name, s.short_name);
+  });
 
   const [modal, setModal] = useState<TripModalState>({
     open: false, mode: 'add',
@@ -200,7 +208,7 @@ export default function EquipmentTripEditor({
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${c.bg} ${c.border} ${c.text} font-medium text-sm ${canEdit ? 'cursor-grab active:cursor-grabbing' : ''} select-none`}
               >
                 <span className="font-bold">套{num}</span>
-                <span className="text-xs opacity-80">📍{abbrev(loc)}</span>
+                <span className="text-xs opacity-80">📍{abbrev(loc, storeNameMap)}</span>
               </div>
             );
           })}
@@ -285,7 +293,7 @@ export default function EquipmentTripEditor({
                               title={`套${trip.set_number}: ${trip.from_location} → ${trip.to_location}${trip.notes ? ` (${trip.notes})` : ''}`}
                             >
                               <span className="font-bold shrink-0">套{trip.set_number}</span>
-                              <span className="truncate">{abbrev(trip.from_location)}→{abbrev(trip.to_location)}</span>
+                              <span className="truncate">{abbrev(trip.from_location, storeNameMap)}→{abbrev(trip.to_location, storeNameMap)}</span>
                             </div>
                           );
                         })}
@@ -320,7 +328,7 @@ export default function EquipmentTripEditor({
                     {setT.map(t => (
                       <span key={t.id} className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded border ${c.bg} ${c.border} ${c.text}`}>
                         {new Date(t.trip_date).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})}
-                        &nbsp;{abbrev(t.from_location)}→{abbrev(t.to_location)}
+                        &nbsp;{abbrev(t.from_location, storeNameMap)}→{abbrev(t.to_location, storeNameMap)}
                         {canEdit && (
                           <button onClick={() => handleDelete(t.id)} className="ml-1 opacity-50 hover:opacity-100 text-red-500">
                             <X size={10} />
@@ -402,7 +410,7 @@ export default function EquipmentTripEditor({
                       {FIXED_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                     </optgroup>
                     <optgroup label="門市">
-                      {stores.map(s => <option key={s.id} value={s.store_name}>{s.store_name}（{s.store_code}）</option>)}
+                      {stores.map(s => <option key={s.id} value={s.store_name}>{s.short_name || s.store_name}（{s.store_code}）</option>)}
                     </optgroup>
                   </select>
                 </div>
@@ -418,7 +426,7 @@ export default function EquipmentTripEditor({
                       {FIXED_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
                     </optgroup>
                     <optgroup label="門市">
-                      {stores.map(s => <option key={s.id} value={s.store_name}>{s.store_name}（{s.store_code}）</option>)}
+                      {stores.map(s => <option key={s.id} value={s.store_name}>{s.short_name || s.store_name}（{s.store_code}）</option>)}
                     </optgroup>
                   </select>
                 </div>

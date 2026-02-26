@@ -1262,7 +1262,7 @@ export default function ScheduleEditPage() {
               campaignId={campaignId}
               campaignStartDate={campaign.start_date}
               campaignEndDate={campaign.end_date}
-              stores={stores.map(s => ({ id: s.id, store_name: s.store_name, store_code: s.store_code || '' }))}
+              stores={stores.map(s => ({ id: s.id, store_name: s.store_name, store_code: s.store_code || '', short_name: s.short_name }))}
               canEdit={canEditEquipmentTrip}
             />
           </div>
