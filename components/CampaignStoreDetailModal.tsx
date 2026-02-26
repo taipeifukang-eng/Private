@@ -137,6 +137,7 @@ export default function CampaignStoreDetailModal({
   const [form,     setForm]     = useState<DetailForm>(EMPTY_FORM);
   const [saved,    setSaved]    = useState<DetailForm>(EMPTY_FORM);
   const [hasData,  setHasData]  = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);  // inline 錯誤訊息
 
   // ── 讀取 ──
   const loadDetail = useCallback(async () => {
@@ -188,6 +189,7 @@ export default function CampaignStoreDetailModal({
   useEffect(() => {
     if (isOpen) {
       setIsEditing(false);
+      setSaveError(null);
       loadDetail();
     }
   }, [isOpen, loadDetail]);
@@ -195,6 +197,7 @@ export default function CampaignStoreDetailModal({
   // ── 儲存 ──
   const handleSave = async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const res = await fetch('/api/campaign-store-details', {
         method: 'POST',
@@ -207,11 +210,11 @@ export default function CampaignStoreDetailModal({
         setHasData(true);
         setIsEditing(false);
       } else {
-        alert('❌ 儲存失敗：' + data.error);
+        setSaveError(data.error || '儲存失敗');
       }
     } catch (err) {
       console.error('Error saving:', err);
-      alert('❌ 儲存失敗');
+      setSaveError('網路錯誤，請檢查連線');
     } finally {
       setSaving(false);
     }
@@ -221,6 +224,7 @@ export default function CampaignStoreDetailModal({
   const handleCancel = () => {
     setForm({ ...saved });
     setIsEditing(false);
+    setSaveError(null);
   };
 
   if (!isOpen) return null;
@@ -361,22 +365,30 @@ export default function CampaignStoreDetailModal({
 
         {/* ── Footer ── */}
         {isEditing && (
-          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3 bg-gray-50 rounded-b-xl">
-            <button
-              onClick={handleCancel}
-              className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm"
-            >
-              <RotateCcw size={15} />
-              取消
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-1.5 px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm font-medium"
-            >
-              {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
-              {saving ? '儲存中...' : '儲存'}
-            </button>
+          <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl">
+            {saveError && (
+              <div className="mb-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <span className="mt-0.5 shrink-0">❌</span>
+                <span>儲存失敗：{saveError}</span>
+              </div>
+            )}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleCancel}
+                className="flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              >
+                <RotateCcw size={15} />
+                取消
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-1.5 px-5 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors text-sm font-medium"
+              >
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
+                {saving ? '儲存中...' : '儲存'}
+              </button>
+            </div>
           </div>
         )}
         {!isEditing && (

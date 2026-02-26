@@ -91,7 +91,25 @@ export async function POST(request: NextRequest) {
 
     const filteredFields: Record<string, any> = {};
     allowedFields.forEach(f => {
-      if (f in fields) filteredFields[f] = fields[f] || null;
+      if (!(f in fields)) return;
+      const val = fields[f];
+      // 有實際內容 → 儲存原値
+      if (val !== null && val !== undefined && val !== '') {
+        filteredFields[f] = val;
+      }
+      // 空字串/null → 僅對已知存在的基本欄位寫入 null（新增盤點欄位略過，避免 DB 欄位不存在就報錯）
+      else {
+        const baseFields = [
+          'outdoor_vendor', 'red_bean_cake', 'circulation', 'quantum', 'bone_density',
+          'supervisor', 'manager', 'tasting', 'activity_team',
+          'sales1', 'sales2', 'sales3', 'sales4', 'sales5', 'sales6',
+          'indoor_pt1', 'indoor_pt2', 'notes',
+        ];
+        if (baseFields.includes(f)) {
+          filteredFields[f] = null;
+        }
+        // inventory 欄位為空時不納入（對沒距執行新增欄位的舊 DB 相容）
+      }
     });
 
     const { data, error } = await supabase
@@ -110,6 +128,13 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Error upserting campaign store details:', error);
+      // 資料表或欄位不存在
+      if (error.code === '42P01') {
+        return NextResponse.json({ success: false, error: '資料表尚未建立，請先執行 Supabase SQL migration_campaign_store_details.sql' }, { status: 500 });
+      }
+      if (error.code === '42703') {
+        return NextResponse.json({ success: false, error: '資料庫欄位不存在，請執行 Supabase migration_add_campaign_type.sql 新增欄位' }, { status: 500 });
+      }
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
