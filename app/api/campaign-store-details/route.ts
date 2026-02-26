@@ -34,6 +34,10 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) {
       console.error('Error fetching campaign store details:', error);
+      // 表不存在時回傳空陣列，避免前端發生空白
+      if (error.code === '42P01') {
+        return NextResponse.json({ success: true, data: [] });
+      }
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
@@ -55,9 +59,18 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     // RBAC 權限檢查：需要 activity.store_detail.edit
+    // 若 RBAC 權限尚未設定，admin/manager 角色作為備援
     const canEdit = await hasPermission(user.id, 'activity.store_detail.edit');
     if (!canEdit) {
-      return NextResponse.json({ success: false, error: '權限不足：需要 activity.store_detail.edit 權限' }, { status: 403 });
+      // 備援：檢查 profiles.role 是否為 admin 或 manager
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+      if (!profile || !['admin', 'manager'].includes(profile.role)) {
+        return NextResponse.json({ success: false, error: '權限不足：需要 activity.store_detail.edit 權限' }, { status: 403 });
+      }
     }
 
     const body = await request.json();
@@ -71,7 +84,9 @@ export async function POST(request: NextRequest) {
       'outdoor_vendor', 'red_bean_cake', 'circulation', 'quantum', 'bone_density',
       'supervisor', 'manager', 'tasting', 'activity_team',
       'sales1', 'sales2', 'sales3', 'sales4', 'sales5', 'sales6',
-      'indoor_pt1', 'indoor_pt2', 'notes'
+      'indoor_pt1', 'indoor_pt2', 'notes',
+      // 盤點活動欄位
+      'has_external_inventory_company', 'planned_inventory_time', 'inventory_staff',
     ];
 
     const filteredFields: Record<string, any> = {};
