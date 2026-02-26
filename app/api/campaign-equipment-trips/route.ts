@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 // GET /api/campaign-equipment-trips?campaign_id=xxx
 export async function GET(request: NextRequest) {
@@ -36,6 +37,12 @@ export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+  // RBAC 權限檢查：需要 activity.equipment_trip.edit
+  const canEdit = await hasPermission(user.id, 'activity.equipment_trip.edit');
+  if (!canEdit) {
+    return NextResponse.json({ success: false, error: '權限不足：需要 activity.equipment_trip.edit 權限' }, { status: 403 });
+  }
 
   const body = await request.json();
   const { campaign_id, set_number, trip_date, from_location, to_location, notes } = body;
@@ -74,6 +81,12 @@ export async function PUT(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
+  // RBAC 權限檢查
+  const canEdit = await hasPermission(user.id, 'activity.equipment_trip.edit');
+  if (!canEdit) {
+    return NextResponse.json({ success: false, error: '權限不足：需要 activity.equipment_trip.edit 權限' }, { status: 403 });
+  }
+
   const body = await request.json();
   const { id, set_number, trip_date, from_location, to_location, notes } = body;
 
@@ -95,6 +108,12 @@ export async function DELETE(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+  // RBAC 權限檢查
+  const canEdit = await hasPermission(user.id, 'activity.equipment_trip.edit');
+  if (!canEdit) {
+    return NextResponse.json({ success: false, error: '權限不足：需要 activity.equipment_trip.edit 權限' }, { status: 403 });
+  }
 
   const { searchParams } = new URL(request.url);
   const id = searchParams.get('id');

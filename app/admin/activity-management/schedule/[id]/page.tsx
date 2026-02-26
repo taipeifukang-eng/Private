@@ -57,6 +57,7 @@ export default function ScheduleEditPage() {
   // 當前用戶權限
   const [canEditCalendar,    setCanEditCalendar]    = useState(false); // activity.campaign.edit
   const [canEditStoreDetail, setCanEditStoreDetail] = useState(false); // activity.store_detail.edit
+  const [canEditEquipmentTrip, setCanEditEquipmentTrip] = useState(false); // activity.equipment_trip.edit
 
   // 督導顏色映射（使用 state 確保一致性）
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string }>>({});
@@ -236,6 +237,7 @@ export default function ScheduleEditPage() {
           // 僅 RBAC admin 角色才跳過權限檢查（不再依賴舊 profiles.role）
           setCanEditCalendar(isRbacAdmin || permSet.has('activity.campaign.edit'));
           setCanEditStoreDetail(isRbacAdmin || permSet.has('activity.store_detail.edit'));
+          setCanEditEquipmentTrip(isRbacAdmin || permSet.has('activity.equipment_trip.edit'));
         }
       } catch (permErr) {
         console.warn('權限檢查失敗，使用預設禁用編輯：', permErr);
@@ -1261,7 +1263,7 @@ export default function ScheduleEditPage() {
               campaignStartDate={campaign.start_date}
               campaignEndDate={campaign.end_date}
               stores={stores.map(s => ({ id: s.id, store_name: s.store_name, store_code: s.store_code || '' }))}
-              canEdit={canEditStoreDetail}
+              canEdit={canEditEquipmentTrip}
             />
           </div>
         )}
