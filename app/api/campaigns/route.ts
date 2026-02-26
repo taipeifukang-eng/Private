@@ -49,7 +49,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, start_date, end_date } = body;
+    const { name, start_date, end_date, campaign_type } = body;
 
     if (!name || !start_date || !end_date) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
         name,
         start_date,
         end_date,
+        campaign_type: campaign_type || 'promotion',
         created_by: user.id,
         is_active: true
       }])
@@ -100,21 +101,24 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, name, start_date, end_date, is_active } = body;
+    const { id, name, start_date, end_date, is_active, campaign_type } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: '缺少活動 ID' }, { status: 400 });
     }
 
+    const updateData: Record<string, unknown> = {
+      name,
+      start_date,
+      end_date,
+      is_active,
+      updated_at: new Date().toISOString()
+    };
+    if (campaign_type) updateData.campaign_type = campaign_type;
+
     const { data: campaign, error } = await supabase
       .from('campaigns')
-      .update({
-        name,
-        start_date,
-        end_date,
-        is_active,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();

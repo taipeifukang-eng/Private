@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS campaign_store_details (
   indoor_pt2      TEXT,   -- 內場工讀2（時間09~13）
   notes           TEXT,   -- 備註
 
+  -- 盤點活動欄位（campaign_type = 'inventory'）
+  has_external_inventory_company TEXT,  -- 是否有外盤公司（是/否或公司名稱）
+  planned_inventory_time         TEXT,  -- 預計盤點時間
+  inventory_staff                TEXT,  -- 盤點組人員
+
   -- 稽核欄位
   created_by  UUID REFERENCES auth.users(id),
   updated_by  UUID REFERENCES auth.users(id),
@@ -44,6 +49,12 @@ CREATE INDEX IF NOT EXISTS idx_campaign_store_details_store_id ON campaign_store
 
 -- RLS
 ALTER TABLE campaign_store_details ENABLE ROW LEVEL SECURITY;
+
+-- 先移除舊 policy（若存在）
+DROP POLICY IF EXISTS "campaign_store_details_select" ON campaign_store_details;
+DROP POLICY IF EXISTS "campaign_store_details_insert" ON campaign_store_details;
+DROP POLICY IF EXISTS "campaign_store_details_update" ON campaign_store_details;
+DROP POLICY IF EXISTS "campaign_store_details_delete" ON campaign_store_details;
 
 -- 登入用戶皆可讀取
 CREATE POLICY "campaign_store_details_select"
@@ -75,6 +86,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_campaign_store_details_updated_at ON campaign_store_details;
 
 CREATE TRIGGER trg_campaign_store_details_updated_at
   BEFORE UPDATE ON campaign_store_details

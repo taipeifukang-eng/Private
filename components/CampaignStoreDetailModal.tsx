@@ -2,12 +2,12 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { X, Edit2, Save, RotateCcw, Loader2 } from 'lucide-react';
-import { CampaignStoreDetail } from '@/types/workflow';
+import { CampaignStoreDetail, CampaignType, CAMPAIGN_TYPE_LABELS } from '@/types/workflow';
 
 // ─────────────────────────────────────────────
-// 欄位定義
+// 母親節/周年慶活動 欄位清單
 // ─────────────────────────────────────────────
-const FIELD_GROUPS = [
+const PROMOTION_FIELD_GROUPS = [
   {
     title: '外場配置',
     color: 'bg-orange-50 border-orange-200',
@@ -56,6 +56,22 @@ const FIELD_GROUPS = [
 ];
 
 // ─────────────────────────────────────────────
+// 盤點活動 欄位清單
+// ─────────────────────────────────────────────
+const INVENTORY_FIELD_GROUPS = [
+  {
+    title: '盤點配置',
+    color: 'bg-teal-50 border-teal-200',
+    headerColor: 'bg-teal-100 text-teal-800',
+    fields: [
+      { key: 'has_external_inventory_company', label: '是否有外盤公司', placeholder: '是 / 否 / 公司名稱' },
+      { key: 'planned_inventory_time',         label: '預計盤點時間', placeholder: '例：18:00' },
+      { key: 'inventory_staff',                label: '盤點組人員',     placeholder: '人員名單...' },
+    ],
+  },
+];
+
+// ─────────────────────────────────────────────
 // Props
 // ─────────────────────────────────────────────
 interface CampaignStoreDetailModalProps {
@@ -65,6 +81,7 @@ interface CampaignStoreDetailModalProps {
   storeId:       string;
   storeName:     string;
   activityName:  string;
+  campaignType?: CampaignType;  // 活動類型，預計為 'promotion'
   activityDate?: string;  // 顯示用，格式 YYYY-MM-DD
   canEdit:       boolean; // 有編輯權限（督導/管理員）
 }
@@ -95,6 +112,9 @@ const EMPTY_FORM: DetailForm = {
   indoor_pt1:     '',
   indoor_pt2:     '',
   notes:          '',
+  has_external_inventory_company: '',
+  planned_inventory_time:         '',
+  inventory_staff:                '',
 };
 
 // ─────────────────────────────────────────────
@@ -107,6 +127,7 @@ export default function CampaignStoreDetailModal({
   storeId,
   storeName,
   activityName,
+  campaignType = 'promotion',
   activityDate,
   canEdit,
 }: CampaignStoreDetailModalProps) {
@@ -145,6 +166,9 @@ export default function CampaignStoreDetailModal({
           indoor_pt1:     d.indoor_pt1     || '',
           indoor_pt2:     d.indoor_pt2     || '',
           notes:          d.notes          || '',
+          has_external_inventory_company: d.has_external_inventory_company || '',
+          planned_inventory_time:         d.planned_inventory_time         || '',
+          inventory_staff:                d.inventory_staff                || '',
         };
         setForm(formData);
         setSaved(formData);
@@ -205,15 +229,29 @@ export default function CampaignStoreDetailModal({
     ? new Date(activityDate).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
     : '';
 
+  // 依活動類型選擇要顯示的欄位組
+  const activeFieldGroups = campaignType === 'inventory' ? INVENTORY_FIELD_GROUPS : PROMOTION_FIELD_GROUPS;
+  const typeLabel = campaignType ? CAMPAIGN_TYPE_LABELS[campaignType] : '';
+  const typeColor = campaignType === 'inventory'
+    ? 'from-teal-600 to-cyan-600'
+    : 'from-purple-600 to-pink-600';
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
 
         {/* ── Header ── */}
-        <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-t-xl">
+        <div className={`flex items-start justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r ${typeColor} text-white rounded-t-xl`}>
           <div>
-            <h2 className="text-xl font-bold">{storeName}</h2>
-            <p className="text-sm text-purple-200 mt-0.5">{activityName}{dateLabel && ` · ${dateLabel}`}</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold">{storeName}</h2>
+              {typeLabel && (
+                <span className="px-2 py-0.5 bg-white bg-opacity-20 rounded-full text-xs font-medium">
+                  {typeLabel}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-white text-opacity-70 mt-0.5">{activityName}{dateLabel && ` · ${dateLabel}`}</p>
           </div>
           <div className="flex items-center gap-2">
             {canEdit && !isEditing && (
@@ -254,25 +292,36 @@ export default function CampaignStoreDetailModal({
                 </div>
               )}
 
-              {(hasData || isEditing) && FIELD_GROUPS.map((group) => (
+              {(hasData || isEditing) && activeFieldGroups.map((group) => (
                 <div key={group.title} className={`rounded-lg border ${group.color} overflow-hidden`}>
                   <div className={`px-4 py-2 text-sm font-semibold ${group.headerColor}`}>
                     {group.title}
                   </div>
-                  <div className="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {group.fields.map(({ key, label }) => {
+                  <div className={`p-4 grid grid-cols-1 ${group.fields.length === 1 ? '' : 'sm:grid-cols-2 lg:grid-cols-3'} gap-3`}>
+                    {group.fields.map(({ key, label, placeholder }: { key: string; label: string; placeholder?: string }) => {
                       const value = (form as any)[key] as string;
+                      const isTextarea = key === 'inventory_staff';
                       return (
-                        <div key={key}>
+                        <div key={key} className={isTextarea ? 'sm:col-span-2 lg:col-span-3' : ''}>
                           <label className="block text-xs font-medium text-gray-500 mb-1">{label}</label>
                           {isEditing ? (
-                            <input
-                              type="text"
-                              value={value}
-                              onChange={(e) => setForm(prev => ({ ...prev, [key]: e.target.value }))}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                              placeholder={`輸入${label}`}
-                            />
+                            isTextarea ? (
+                              <textarea
+                                value={value}
+                                onChange={(e) => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                                rows={3}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                                placeholder={placeholder || `輸入${label}`}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                value={value}
+                                onChange={(e) => setForm(prev => ({ ...prev, [key]: e.target.value }))}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                placeholder={placeholder || `輸入${label}`}
+                              />
+                            )
                           ) : (
                             <div className={`px-3 py-2 rounded-lg text-sm ${value ? 'text-gray-900 bg-white border border-gray-200' : 'text-gray-400 italic'}`}>
                               {value || '—'}

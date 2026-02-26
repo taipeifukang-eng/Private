@@ -388,6 +388,14 @@ export const POSITION_OPTIONS = [
 // 活動管理相關類型
 // =====================================================
 
+// 活動類型
+export type CampaignType = 'promotion' | 'inventory';
+
+export const CAMPAIGN_TYPE_LABELS: Record<CampaignType, string> = {
+  promotion: '母親節/周年慶活動',
+  inventory: '盤點活動',
+};
+
 // 活動檔期
 export interface Campaign {
   id: string;
@@ -395,6 +403,7 @@ export interface Campaign {
   start_date: string;
   end_date: string;
   is_active: boolean;
+  campaign_type: CampaignType;  // 活動類型
   published_to_supervisors?: boolean;
   published_to_store_managers?: boolean;
   published_to_inventory_team?: boolean;
@@ -502,6 +511,10 @@ export interface CampaignStoreDetail {
   indoor_pt1: string | null;       // 內場工讀1（09~13）
   indoor_pt2: string | null;       // 內場工讀2（09~13）
   notes: string | null;            // 備註
+  // 盤點活動欄位
+  has_external_inventory_company: string | null;  // 是否有外盤公司
+  planned_inventory_time: string | null;          // 預計盤點時間
+  inventory_staff: string | null;                 // 盤點組人員
   created_at: string;
   updated_at: string;
   created_by: string | null;

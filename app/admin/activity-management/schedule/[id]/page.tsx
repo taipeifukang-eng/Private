@@ -1173,6 +1173,7 @@ export default function ScheduleEditPage() {
             storeId={detailModal.storeId}
             storeName={detailModal.storeName}
             activityName={campaign.name}
+            campaignType={campaign.campaign_type || 'promotion'}
             activityDate={detailModal.activityDate}
             canEdit={true}
           />

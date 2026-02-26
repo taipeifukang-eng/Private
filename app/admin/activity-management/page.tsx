@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Calendar, Plus, Edit2, Trash2, Settings, Clock } from 'lucide-react';
 import Link from 'next/link';
-import { Campaign } from '@/types/workflow';
+import { Campaign, CampaignType, CAMPAIGN_TYPE_LABELS } from '@/types/workflow';
 
 export default function ActivityManagementPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -15,7 +15,8 @@ export default function ActivityManagementPage() {
   const [formData, setFormData] = useState({
     name: '',
     start_date: '',
-    end_date: ''
+    end_date: '',
+    campaign_type: 'promotion' as CampaignType,
   });
 
   useEffect(() => {
@@ -65,7 +66,7 @@ export default function ActivityManagementPage() {
         alert(editingCampaign ? '更新成功' : '建立成功');
         setShowCreateModal(false);
         setEditingCampaign(null);
-        setFormData({ name: '', start_date: '', end_date: '' });
+        setFormData({ name: '', start_date: '', end_date: '', campaign_type: 'promotion' });
         loadCampaigns();
       } else {
         alert(data.error || '操作失敗');
@@ -81,7 +82,8 @@ export default function ActivityManagementPage() {
     setFormData({
       name: campaign.name,
       start_date: campaign.start_date.split('T')[0],
-      end_date: campaign.end_date.split('T')[0]
+      end_date: campaign.end_date.split('T')[0],
+      campaign_type: campaign.campaign_type || 'promotion',
     });
     setShowCreateModal(true);
   };
@@ -113,7 +115,7 @@ export default function ActivityManagementPage() {
   const closeModal = () => {
     setShowCreateModal(false);
     setEditingCampaign(null);
-    setFormData({ name: '', start_date: '', end_date: '' });
+    setFormData({ name: '', start_date: '', end_date: '', campaign_type: 'promotion' });
   };
 
   if (loading) {
@@ -188,6 +190,15 @@ export default function ActivityManagementPage() {
                         <h3 className="text-xl font-semibold text-gray-900">
                           {campaign.name}
                         </h3>
+                        {campaign.campaign_type === 'inventory' ? (
+                          <span className="px-2 py-1 bg-teal-100 text-teal-700 text-xs rounded-full font-medium">
+                            盤點活動
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                            母親節/周年慶
+                          </span>
+                        )}
                         {campaign.is_active && (
                           <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
                             進行中
@@ -244,6 +255,22 @@ export default function ActivityManagementPage() {
             </h2>
             
             <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  活動類型 *
+                </label>
+                <select
+                  value={formData.campaign_type}
+                  onChange={(e) => setFormData({ ...formData, campaign_type: e.target.value as CampaignType })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                >
+                  {(Object.entries(CAMPAIGN_TYPE_LABELS) as [CampaignType, string][]).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   活動名稱 *
