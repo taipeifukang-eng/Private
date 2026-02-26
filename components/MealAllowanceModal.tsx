@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { X, Plus, Trash2, AlertCircle } from 'lucide-react';
 
 interface MealAllowanceRecord {
@@ -14,9 +14,9 @@ interface MealAllowanceRecord {
 }
 
 interface EmployeeOption {
-  employee_code: string | null;
+  employee_code: string;
   employee_name: string;
-  is_pharmacist: boolean;
+  position: string;
 }
 
 interface MealAllowanceModalProps {
@@ -54,6 +54,9 @@ export default function MealAllowanceModal({
   const [saving, setSaving] = useState(false);
   const [records, setRecords] = useState<MealAllowanceRecord[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [activeSearchIndex, setActiveSearchIndex] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState('');
   
   // 批次新增的記錄列表
   const [batchRecords, setBatchRecords] = useState<BatchRecord[]>([
@@ -105,10 +108,8 @@ export default function MealAllowanceModal({
 
   const loadEmployees = async () => {
     try {
-      // 從 monthly_staff_status 查詢當月員工
-      const response = await fetch(
-        `/api/meal-allowance/employees?year_month=${yearMonth}&store_id=${storeId}`
-      );
+      // 載入所有在職員工（跨門市搜尋）
+      const response = await fetch('/api/employees/list');
       const data = await response.json();
       
       if (data.success) {
@@ -119,16 +120,41 @@ export default function MealAllowanceModal({
     }
   };
 
-  const handleEmployeeChange = (index: number, employeeCode: string) => {
-    const employee = employees.find(e => e.employee_code === employeeCode);
+  const isPharmacist = (position: string) => position.includes('藥師');
+
+  // 過濾員工清單
+  const filteredEmployees = useMemo(() => {
+    if (!searchText) return employees.slice(0, 50);
+    const search = searchText.toLowerCase();
+    const exactMatches: EmployeeOption[] = [];
+    const prefixMatches: EmployeeOption[] = [];
+    const containsMatches: EmployeeOption[] = [];
+    employees.forEach(emp => {
+      const code = emp.employee_code.toLowerCase();
+      const name = emp.employee_name.toLowerCase();
+      if (code === search || name === search) {
+        exactMatches.push(emp);
+      } else if (code.startsWith(search) || name.startsWith(search)) {
+        prefixMatches.push(emp);
+      } else if (code.includes(search) || name.includes(search)) {
+        containsMatches.push(emp);
+      }
+    });
+    return [...exactMatches, ...prefixMatches, ...containsMatches].slice(0, 50);
+  }, [employees, searchText]);
+
+  const handleEmployeeSelect = (index: number, employee: EmployeeOption) => {
     const updatedRecords = [...batchRecords];
     updatedRecords[index] = {
       ...updatedRecords[index],
-      employeeCode,
-      employeeName: employee?.employee_name || '',
-      employeeType: employee ? (employee.is_pharmacist ? '藥師' : '非藥師') : ''
+      employeeCode: employee.employee_code,
+      employeeName: employee.employee_name,
+      employeeType: isPharmacist(employee.position) ? '藥師' : '非藥師'
     };
     setBatchRecords(updatedRecords);
+    setShowDropdown(false);
+    setActiveSearchIndex(null);
+    setSearchText('');
   };
 
   const updateBatchRecord = (index: number, field: keyof BatchRecord, value: string) => {
@@ -333,21 +359,53 @@ export default function MealAllowanceModal({
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         員編 <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        value={record.employeeCode}
-                        onChange={(e) => handleEmployeeChange(index, e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                      >
-                        <option value="">請選擇員編</option>
-                        {employees.map((emp) => (
-                          <option key={emp.employee_code || emp.employee_name} value={emp.employee_code || ''}>
-                            {emp.employee_code ? `${emp.employee_code} - ${emp.employee_name}` : emp.employee_name}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={activeSearchIndex === index ? searchText : record.employeeCode}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setSearchText(value);
+                            setActiveSearchIndex(index);
+                            setShowDropdown(value.length > 0);
+                            // 同步更新 employeeCode 欄位
+                            const updatedRecords = [...batchRecords];
+                            updatedRecords[index] = { ...updatedRecords[index], employeeCode: value, employeeName: '', employeeType: '' };
+                            setBatchRecords(updatedRecords);
+                          }}
+                          onFocus={() => {
+                            setActiveSearchIndex(index);
+                            setSearchText(record.employeeCode);
+                            if (record.employeeCode) setShowDropdown(true);
+                          }}
+                          onBlur={() => {
+                            setTimeout(() => {
+                              setShowDropdown(false);
+                              setActiveSearchIndex(null);
+                              setSearchText('');
+                            }, 200);
+                          }}
+                          placeholder="輸入員編或姓名搜尋"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        />
+                        {showDropdown && activeSearchIndex === index && filteredEmployees.length > 0 && (
+                          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                            {filteredEmployees.map((emp) => (
+                              <button
+                                key={emp.employee_code}
+                                onClick={() => handleEmployeeSelect(index, emp)}
+                                className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 flex items-center justify-between border-b border-gray-100 last:border-b-0"
+                              >
+                                <span className="font-medium text-gray-900">{emp.employee_code}</span>
+                                <span className="text-gray-600">{emp.employee_name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* 姓名 (自動帶入) */}
+                    {/* 姓名 (自動帶入，可手動修改) */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         姓名
@@ -355,8 +413,13 @@ export default function MealAllowanceModal({
                       <input
                         type="text"
                         value={record.employeeName}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                        onChange={(e) => {
+                          const updatedRecords = [...batchRecords];
+                          updatedRecords[index] = { ...updatedRecords[index], employeeName: e.target.value };
+                          setBatchRecords(updatedRecords);
+                        }}
+                        placeholder="選擇員編後自動帶入"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
 
@@ -394,17 +457,24 @@ export default function MealAllowanceModal({
                       </select>
                     </div>
 
-                    {/* 身分 (自動帶入) */}
+                    {/* 身分 (自動帶入，可手動選擇) */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        身分
+                        身分 <span className="text-red-500">*</span>
                       </label>
-                      <input
-                        type="text"
+                      <select
                         value={record.employeeType}
-                        readOnly
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                      />
+                        onChange={(e) => {
+                          const updatedRecords = [...batchRecords];
+                          updatedRecords[index] = { ...updatedRecords[index], employeeType: e.target.value };
+                          setBatchRecords(updatedRecords);
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      >
+                        <option value="">請選擇身分</option>
+                        <option value="藥師">藥師</option>
+                        <option value="非藥師">非藥師</option>
+                      </select>
                     </div>
                   </div>
                 </div>
