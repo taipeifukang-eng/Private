@@ -330,14 +330,14 @@ function MonthlyStatusContent() {
             </div>
             
             <div className="flex items-center gap-3 flex-wrap">
-              {/* 活動管理按鈕 - 透過權限系統控制 */}
+              {/* 活動檢視按鈕 - 透過權限系統控制 */}
               {canAccessActivityManagement && managedStores.length > 0 && (
                 <Link
                   href="/activity-management"
                   className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
                 >
                   <Sparkles className="w-5 h-5" />
-                  活動管理
+                  活動檢視
                 </Link>
               )}
               {/* 年份選擇器 */}
