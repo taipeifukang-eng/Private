@@ -197,6 +197,7 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canManageMovements ||
          permissions.canImportEmployees ||
          permissions.canManageActivities ||
+         permissions.canAccessActivitySchedule ||
          permissions.canManageInventory;
 }
 
