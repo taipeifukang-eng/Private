@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, EventDate } from '@/types/workflow';
+import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
@@ -26,7 +27,14 @@ export default function ActivityViewPage() {
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string; supervisorName: string; isDisplay?: boolean; hexBg?: string; hexBorder?: string; hexText?: string }>>({});
   const [exporting, setExporting] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
-
+  // 門市細節 Modal 狀態
+  const [detailModal, setDetailModal] = useState<{
+    open: boolean;
+    storeId: string;
+    storeName: string;
+    activityDate?: string;
+  }>({ open: false, storeId: '', storeName: '' });
+  const [canEdit, setCanEdit] = useState(false);  // superviosr/admin 可編輯
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
   const AVAILABLE_COLORS = [
     { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色', hexBg: '#BFDBFE', hexBorder: '#60A5FA', hexText: '#1E3A5F' },
@@ -140,6 +148,11 @@ export default function ActivityViewPage() {
       setCampaign(campaignData.campaign);
       setSchedules(campaignData.schedules || []);
 
+      // 根據 API 回傳的角色判斷可編輯權限（督導 / admin 可編輯）
+      const isSupervisorRole = campaignData.isSupervisor || false;
+      const isAdminRole = campaignData.role === 'admin';
+      setCanEdit(isSupervisorRole || isAdminRole);
+
       // 載入所有門市（使用與管理者介面相同的 API，確保督導資訊一致）
       const storesRes = await fetch('/api/stores-with-supervisors');
       const storesData = await storesRes.json();
@@ -233,6 +246,20 @@ export default function ActivityViewPage() {
   const getSchedulesForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
     return schedules.filter(s => s.activity_date.split('T')[0] === dateStr);
+  };
+
+  // 開啟門市細節 Modal
+  const handleOpenDetail = (store: StoreWithManager, schedule?: CampaignSchedule) => {
+    setDetailModal({
+      open: true,
+      storeId: store.id,
+      storeName: store.store_name,
+      activityDate: schedule?.activity_date,
+    });
+  };
+
+  const handleCloseDetail = () => {
+    setDetailModal(prev => ({ ...prev, open: false }));
   };
 
   // 獲取特殊日期資訊
@@ -434,6 +461,7 @@ export default function ActivityViewPage() {
   }
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
       <div className="w-full max-w-7xl mx-auto">
         {/* Header */}
@@ -609,10 +637,12 @@ export default function ActivityViewPage() {
                               return (
                                 <div
                                   key={schedule.id}
-                                  className={`text-xs ${color.bg} ${color.text} px-2 py-1 rounded border-2 ${color.border}`}
-                                  title={`${store.store_code} - ${store.store_name}${store.supervisor_name ? ` (督導: ${store.supervisor_name})` : ''}`}
+                                  onClick={() => handleOpenDetail(store, schedule)}
+                                  className={`text-xs ${color.bg} ${color.text} px-2 py-1 rounded border-2 ${color.border} cursor-pointer hover:opacity-80 transition-opacity flex items-center justify-between gap-1`}
+                                  title={`${store.store_code} - ${store.store_name}${store.supervisor_name ? ` (督導: ${store.supervisor_name})` : ''} — 點擊查看細節`}
                                 >
-                                  {store.store_name}
+                                  <span className="truncate">{store.store_name}</span>
+                                  <ClipboardList size={10} className="flex-shrink-0 opacity-60" />
                                 </div>
                               );
                             })}
@@ -671,5 +701,20 @@ export default function ActivityViewPage() {
         )}
       </div>
     </div>
+
+    {/* 門市細節 Modal */}
+    {campaign && (
+      <CampaignStoreDetailModal
+        isOpen={detailModal.open}
+        onClose={handleCloseDetail}
+        campaignId={campaignId}
+        storeId={detailModal.storeId}
+        storeName={detailModal.storeName}
+        activityName={campaign.name}
+        activityDate={detailModal.activityDate}
+        canEdit={canEdit}
+      />
+    )}
+    </>
   );
 }

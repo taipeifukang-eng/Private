@@ -479,6 +479,35 @@ export interface EmployeeMovementHistory {
   stores?: { name: string } | null; // Join with stores table
 }
 
+// 活動門市細節（每間門市的活動人員安排）
+export interface CampaignStoreDetail {
+  id: string;
+  campaign_id: string;
+  store_id: string;
+  outdoor_vendor: string | null;   // 外場廠商
+  red_bean_cake: string | null;    // 紅豆餅/雞蛋糕
+  circulation: string | null;      // 循環
+  quantum: string | null;          // 量子
+  bone_density: string | null;     // 骨密
+  supervisor: string | null;       // 督導
+  manager: string | null;          // 經理
+  tasting: string | null;          // 試飲
+  activity_team: string | null;    // 活動組
+  sales1: string | null;           // 業務1
+  sales2: string | null;           // 業務2
+  sales3: string | null;           // 業務3
+  sales4: string | null;           // 業務4
+  sales5: string | null;           // 業務5
+  sales6: string | null;           // 業務6
+  indoor_pt1: string | null;       // 內場工讀1（09~13）
+  indoor_pt2: string | null;       // 內場工讀2（09~13）
+  notes: string | null;            // 備註
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+  updated_by: string | null;
+}
+
 // 向後相容：升遷歷程別名
 export type PromotionHistory = EmployeeMovementHistory;
 
