@@ -4,12 +4,49 @@ import { useEffect, useState } from 'react';
 import { Calendar, Plus, Edit2, Trash2, Settings, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignType, CAMPAIGN_TYPE_LABELS } from '@/types/workflow';
+import { createClient } from '@/lib/supabase/client';
+
+// 共用權限檢查工具
+async function fetchSchedulePermissions() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { canEditCalendar: false, canEditStoreDetail: false };
+
+  const [{ data: userRoles }, { data: profile }] = await Promise.all([
+    supabase.from('user_roles').select(`
+      role:roles!inner (
+        code,
+        role_permissions!inner (
+          is_allowed,
+          permission:permissions!inner (code)
+        )
+      )
+    `).eq('user_id', user.id).eq('is_active', true),
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+  ]);
+
+  const permSet = new Set<string>();
+  (userRoles ?? []).forEach((ur: any) => {
+    ur.role?.role_permissions?.forEach((rp: any) => {
+      if (rp.is_allowed && rp.permission?.code) permSet.add(rp.permission.code);
+    });
+  });
+  const isAdminOrManager = ['admin', 'manager'].includes((profile as any)?.role ?? '');
+  return {
+    canEditCalendar: isAdminOrManager || permSet.has('activity.campaign.edit'),
+    canEditStoreDetail: isAdminOrManager || permSet.has('activity.store_detail.edit'),
+  };
+}
 
 export default function ActivityManagementPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  // 當前用戶權限
+  const [canEditCalendar, setCanEditCalendar] = useState(false);
+  const [canEditStoreDetail, setCanEditStoreDetail] = useState(false);
+  const canAccessSchedule = canEditCalendar || canEditStoreDetail;
   
   // 表單欄位
   const [formData, setFormData] = useState({
@@ -21,6 +58,10 @@ export default function ActivityManagementPage() {
 
   useEffect(() => {
     loadCampaigns();
+    fetchSchedulePermissions().then(({ canEditCalendar, canEditStoreDetail }) => {
+      setCanEditCalendar(canEditCalendar);
+      setCanEditStoreDetail(canEditStoreDetail);
+    });
   }, []);
 
   const loadCampaigns = async () => {
@@ -217,12 +258,14 @@ export default function ActivityManagementPage() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Link
-                        href={`/admin/activity-management/schedule/${campaign.id}`}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        排程管理
-                      </Link>
+                      {canAccessSchedule && (
+                        <Link
+                          href={`/admin/activity-management/schedule/${campaign.id}`}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          排程管理
+                        </Link>
+                      )}
                       <button
                         onClick={() => handleEdit(campaign)}
                         className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"

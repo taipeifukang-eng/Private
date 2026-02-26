@@ -125,7 +125,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/employee-management', label: '員工管理', icon: UserCog, show: permissions.canManageEmployees },
     { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, show: permissions.canManageMovements },
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, show: permissions.canImportEmployees },
-    { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities },
+    { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities || permissions.canAccessActivitySchedule },
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
   ].filter(item => item.show);
 

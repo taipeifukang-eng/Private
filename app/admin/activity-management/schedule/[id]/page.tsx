@@ -6,6 +6,7 @@ import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Sto
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
+import { createClient } from '@/lib/supabase/client';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
@@ -47,6 +48,10 @@ export default function ScheduleEditPage() {
   
   // 日曆資料
   const [calendarDates, setCalendarDates] = useState<Date[]>([]);
+
+  // 當前用戶權限
+  const [canEditCalendar,    setCanEditCalendar]    = useState(false); // activity.campaign.edit
+  const [canEditStoreDetail, setCanEditStoreDetail] = useState(false); // activity.store_detail.edit
 
   // 督導顏色映射（使用 state 確保一致性）
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string }>>({});
@@ -198,6 +203,37 @@ export default function ScheduleEditPage() {
         .map((store: Store) => store.id);
       console.log('Unscheduled stores:', unscheduled);
       setUnscheduledStores(unscheduled);
+
+      // 檢查權限
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const [{ data: userRoles }, { data: profData }] = await Promise.all([
+            supabase.from('user_roles').select(`
+              role:roles!inner (
+                code,
+                role_permissions!inner (
+                  is_allowed,
+                  permission:permissions!inner (code)
+                )
+              )
+            `).eq('user_id', user.id).eq('is_active', true),
+            supabase.from('profiles').select('role').eq('id', user.id).single(),
+          ]);
+          const permSet = new Set<string>();
+          (userRoles ?? []).forEach((ur: any) => {
+            ur.role?.role_permissions?.forEach((rp: any) => {
+              if (rp.is_allowed && rp.permission?.code) permSet.add(rp.permission.code);
+            });
+          });
+          const isAdminOrManager = ['admin', 'manager'].includes((profData as any)?.role ?? '');
+          setCanEditCalendar(isAdminOrManager || permSet.has('activity.campaign.edit'));
+          setCanEditStoreDetail(isAdminOrManager || permSet.has('activity.store_detail.edit'));
+        }
+      } catch (permErr) {
+        console.warn('權限檢查失敗，使用預設禁用編輯：', permErr);
+      }
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -727,15 +763,16 @@ export default function ScheduleEditPage() {
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={autoSchedule}
-              disabled={saving}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              <Wand2 className="w-4 h-4" />
-              自動排程
-            </button>
-
+            {canEditCalendar && (
+              <button
+                onClick={autoSchedule}
+                disabled={saving}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+              >
+                <Wand2 className="w-4 h-4" />
+                自動排程
+              </button>
+            )}
             {/* 發布按鈕 */}
             <div className="flex gap-3 border-l border-gray-300 pl-3">
               <button
@@ -805,7 +842,7 @@ export default function ScheduleEditPage() {
               </button>
             </div>
             
-            {hasUnsavedChanges && (
+            {hasUnsavedChanges && canEditCalendar && (
               <>
                 <button
                   onClick={saveAllChanges}
@@ -879,9 +916,8 @@ export default function ScheduleEditPage() {
                     return (
                       <div
                         key={store.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, store.id)}
-                        className={`p-3 ${color.bg} rounded-lg border ${color.border} cursor-move hover:opacity-80 transition-opacity`}
+                        {...(canEditCalendar ? { draggable: true, onDragStart: (e: React.DragEvent) => handleDragStart(e, store.id) } : {})}
+                        className={`p-3 ${color.bg} rounded-lg border ${color.border} ${canEditCalendar ? 'cursor-move hover:opacity-80' : 'cursor-default'} transition-opacity`}
                       >
                         <div className={`font-medium text-sm ${color.text}`}>{store.store_name}</div>
                         <div className="text-xs opacity-70">{store.store_code}</div>
@@ -944,8 +980,7 @@ export default function ScheduleEditPage() {
                               return (
                                 <td
                                   key={dayIndex}
-                                  onDrop={(e) => handleDrop(e, date)}
-                                  onDragOver={handleDragOver}
+                                  {...(canEditCalendar ? { onDrop: (e: React.DragEvent) => handleDrop(e, date), onDragOver: handleDragOver } : {})}
                                   className={`p-2 align-top min-h-[120px] border-l-2 ${
                                     date.getDate() === 1 ? 'border-l-indigo-400' : ''
                                   } ${isPreferred ? 'bg-blue-50' : 'bg-white'}`}
@@ -971,24 +1006,25 @@ export default function ScheduleEditPage() {
                                       return (
                                         <div
                                           key={schedule.id}
-                                          draggable
-                                          onDragStart={(e) => handleDragStart(e, schedule.store_id)}
-                                          className={`p-2 ${color.bg} border ${color.border} rounded text-xs cursor-move hover:shadow-md transition-shadow`}
+                                          {...(canEditCalendar ? { draggable: true, onDragStart: (e: React.DragEvent) => handleDragStart(e, schedule.store_id) } : {})}
+                                          className={`p-2 ${color.bg} border ${color.border} rounded text-xs ${canEditCalendar ? 'cursor-move hover:shadow-md' : 'cursor-default'} transition-shadow`}
                                         >
                                           <div className={`font-medium ${color.text}`}>
                                             {schedule.store?.store_name}
                                           </div>
-                                          <button
-                                            onClick={() => removeSchedule(schedule.id)}
-                                            className="text-red-500 hover:text-red-700 mt-1 text-xs"
-                                          >
-                                            ❌ 移除
-                                          </button>
+                                          {canEditCalendar && (
+                                            <button
+                                              onClick={() => removeSchedule(schedule.id)}
+                                              className="text-red-500 hover:text-red-700 mt-1 text-xs"
+                                            >
+                                              ❌ 移除
+                                            </button>
+                                          )}
                                         </div>
                                       );
                                     })}
 
-                                    {daySchedules.length < 2 && (
+                                    {daySchedules.length < 2 && canEditCalendar && (
                                       <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
                                         拖放門市到此
                                       </div>
@@ -1175,7 +1211,7 @@ export default function ScheduleEditPage() {
             activityName={campaign.name}
             campaignType={campaign.campaign_type || 'promotion'}
             activityDate={detailModal.activityDate}
-            canEdit={true}
+            canEdit={canEditStoreDetail}
           />
         )}
       </div>
