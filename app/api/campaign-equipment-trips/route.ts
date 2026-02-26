@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
+  // 查詢所有車次
   const { data, error } = await supabase
     .from('campaign_equipment_trips')
     .select('*')
@@ -24,12 +25,43 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     if (error.code === '42P01') {
-      return NextResponse.json({ success: true, data: [] }); // 表尚未建立，回傳空陣列
+      return NextResponse.json({ success: true, data: [] });
     }
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, data: data ?? [] });
+  // 權限過濾：有編輯權限者看全部，否則只看與自己負責門市相關的車次
+  const canEdit = await hasPermission(user.id, 'activity.equipment_trip.edit');
+  
+  if (canEdit) {
+    // 管理者/活動組：顯示所有車次
+    return NextResponse.json({ success: true, data: data ?? [] });
+  }
+
+  // 店長/督導：查詢負責的門市
+  const { data: managedStores } = await supabase
+    .from('store_managers')
+    .select('store:stores!store_managers_store_id_fkey(store_name)')
+    .eq('user_id', user.id);
+
+  if (!managedStores || managedStores.length === 0) {
+    // 無負責門市，回傳空陣列
+    return NextResponse.json({ success: true, data: [] });
+  }
+
+  // 提取門市名稱清單
+  const managedStoreNames = new Set<string>();
+  managedStores.forEach(m => {
+    const storeName = (m as any).store?.store_name;
+    if (storeName) managedStoreNames.add(storeName);
+  });
+
+  // 過濾車次：from_location 或 to_location 有任一在用戶負責的門市內
+  const filteredTrips = (data ?? []).filter(trip => 
+    managedStoreNames.has(trip.from_location) || managedStoreNames.has(trip.to_location)
+  );
+
+  return NextResponse.json({ success: true, data: filteredTrips });
 }
 
 // POST /api/campaign-equipment-trips  → 新增
