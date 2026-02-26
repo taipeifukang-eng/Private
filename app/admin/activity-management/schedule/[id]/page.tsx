@@ -6,6 +6,7 @@ import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Sto
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
+import CampaignDetailPreviewTable from '@/components/CampaignDetailPreviewTable';
 import { createClient } from '@/lib/supabase/client';
 
 interface StoreWithManager extends Store {
@@ -33,7 +34,10 @@ export default function ScheduleEditPage() {
   const [unscheduledStores, setUnscheduledStores] = useState<string[]>([]);
   
   // === Tab 狀態 ===
-  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview'>('schedule');
+
+  // 預覽表：全部已載入的細節資料
+  const [allDetails, setAllDetails] = useState<import('@/types/workflow').CampaignStoreDetail[]>([]);
 
   // 門市細節 Modal
   const [detailModal, setDetailModal] = useState<{
@@ -122,13 +126,14 @@ export default function ScheduleEditPage() {
 
   // 切換到門市細節 Tab 時自動載入已填寫狀態
   useEffect(() => {
-    if (activeTab === 'store_details' && campaignId) {
+    if ((activeTab === 'store_details' || activeTab === 'preview') && campaignId) {
       fetch(`/api/campaign-store-details?campaign_id=${campaignId}`)
         .then(res => res.json())
         .then(data => {
           if (data.success && Array.isArray(data.data)) {
             const ids = new Set<string>(data.data.map((d: { store_id: string }) => d.store_id));
             setFilledStoreIds(ids);
+            setAllDetails(data.data);
           }
         })
         .catch(err => console.error('Error loading store details:', err));
@@ -895,6 +900,17 @@ export default function ScheduleEditPage() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setActiveTab('preview')}
+            className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+              activeTab === 'preview'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <span className="text-base leading-none">📄</span>
+            預覽表
+          </button>
         </div>
 
         {/* Tab 1: 排程管理 */}
@@ -1200,9 +1216,13 @@ export default function ScheduleEditPage() {
             isOpen={detailModal.open}
             onClose={() => {
               setDetailModal(prev => ({ ...prev, open: false }));
-              // 關閉後標記為已填寫
+              // 關閉後標記為已填寫，並同步更新預覽表資料
               if (detailModal.storeId) {
                 setFilledStoreIds(prev => new Set(Array.from(prev).concat(detailModal.storeId)));
+                fetch(`/api/campaign-store-details?campaign_id=${campaignId}`)
+                  .then(r => r.json())
+                  .then(d => { if (d.success) setAllDetails(d.data); })
+                  .catch(() => {});
               }
             }}
             campaignId={campaignId}
@@ -1213,6 +1233,31 @@ export default function ScheduleEditPage() {
             activityDate={detailModal.activityDate}
             canEdit={canEditStoreDetail}
           />
+        )}
+
+        {/* Tab 3: 預覽表 */}
+        {activeTab === 'preview' && campaign && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                <span className="text-xl">📄</span>
+                門市細節預覽表
+              </h2>
+            </div>
+            {schedules.length === 0 ? (
+              <div className="text-center py-12 text-gray-400">
+                <p>尚無已排程門市，請先在「排程管理」Tab 中安排門市</p>
+              </div>
+            ) : (
+              <CampaignDetailPreviewTable
+                campaignName={campaign.name}
+                campaignType={campaign.campaign_type || 'promotion'}
+                stores={stores}
+                schedules={schedules}
+                details={allDetails}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
