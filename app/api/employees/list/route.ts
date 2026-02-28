@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
 /**
- * 獲取所有在職員工列表（用於下拉選單）
+ * 獲取所有員工列表（包含離職員工，用於下拉選單及獎金模組）
  */
 export async function GET(request: NextRequest) {
   try {
@@ -13,11 +13,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '未登入' }, { status: 401 });
     }
 
-    // 獲取所有在職員工
+    // 獲取所有員工（包含離職員工，以便在獎金模組中可以查詢）
     const { data: employees, error } = await supabase
       .from('store_employees')
       .select('employee_code, employee_name, position, start_date')
-      .eq('is_active', true)
       .order('employee_code');
 
     if (error) {

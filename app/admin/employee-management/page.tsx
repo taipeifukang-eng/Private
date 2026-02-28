@@ -29,11 +29,10 @@ export default async function EmployeeManagementPage() {
     redirect('/dashboard');
   }
 
-  // 獲取所有在職員工的基本資料
+  // 獲取所有員工的基本資料（包含離職員工）
   const { data: storeEmployees } = await supabase
     .from('store_employees')
-    .select('employee_code, employee_name, start_date, birthday, current_position')
-    .eq('is_active', true);
+    .select('employee_code, employee_name, start_date, birthday, current_position');
 
   if (!storeEmployees || storeEmployees.length === 0) {
     return <EmployeeManagementClient 

@@ -1,0 +1,19 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Git Push to Vercel",
+			"type": "shell",
+			"command": "powershell -ExecutionPolicy Bypass -File push.ps1",
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Git Push v2",
+			"type": "shell",
+			"command": "powershell -ExecutionPolicy Bypass -File push.ps1",
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}

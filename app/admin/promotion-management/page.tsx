@@ -136,10 +136,10 @@ export default function EmployeeMovementManagementPage() {
   const loadEmployees = async () => {
     const supabase = (await import('@/lib/supabase/client')).createClient();
     
+    // 載入所有員工（包含離職員工）
     const { data } = await supabase
       .from('store_employees')
       .select('employee_code, employee_name, position, current_position, store_id')
-      .eq('is_active', true)
       .order('employee_code');
 
     if (data) {

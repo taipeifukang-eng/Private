@@ -80,12 +80,11 @@ export default function EmployeeManagementPage() {
         setStoreName(storeData.store_name);
       }
 
-      // 載入員工列表
+      // 載入員工列表（包含離職員工）
       const { data: employeeData } = await supabase
         .from('store_employees')
         .select('*')
         .eq('store_id', storeId)
-        .eq('is_active', true)
         .order('employee_code');
 
       if (employeeData) {
