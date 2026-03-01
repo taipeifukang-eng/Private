@@ -56,47 +56,41 @@ export async function POST(request: NextRequest) {
       .gt('last_month_single_item_bonus', 0)
       .order('employee_code');
 
-    // 2. 查詢支援人員單品獎金
+    // 2. 查詢支援人員單品獎金（含來源門市資訊）
     const { data: supportData } = await supabase
       .from('support_staff_bonus')
-      .select('employee_code, employee_name, bonus_amount')
+      .select('employee_code, employee_name, bonus_amount, store_id, stores(store_code, store_name)')
       .eq('year_month', year_month)
       .eq('store_id', store_id)
       .gt('bonus_amount', 0)
       .order('employee_code');
 
-    // 合併數據，相同員工編號的金額加總（避免同一員工在兩個來源重複出現）
-    const bonusMap = new Map<string, { employee_code: string; employee_name: string; bonus: number }>();
+    // 合併數據，保留各自獨立一筆；support_staff_bonus 的資料附上來源門市備註
+    const staffEntries = (staffData || []).map(s => ({
+      employee_code: s.employee_code,
+      employee_name: s.employee_name,
+      bonus: s.last_month_single_item_bonus || 0,
+      source_note: null as string | null
+    }));
 
-    for (const s of (staffData || [])) {
-      const key = s.employee_code || '';
-      const existing = bonusMap.get(key);
-      if (existing) {
-        existing.bonus += s.last_month_single_item_bonus || 0;
-      } else {
-        bonusMap.set(key, {
-          employee_code: s.employee_code,
-          employee_name: s.employee_name,
-          bonus: s.last_month_single_item_bonus || 0
-        });
-      }
-    }
+    // 找出在 monthly_staff_status 已出現的員工編號，support 重複者標記來源
+    const staffCodes = new Set(staffEntries.map(s => s.employee_code));
 
-    for (const s of (supportData || [])) {
-      const key = s.employee_code || '';
-      const existing = bonusMap.get(key);
-      if (existing) {
-        existing.bonus += s.bonus_amount || 0;
-      } else {
-        bonusMap.set(key, {
-          employee_code: s.employee_code,
-          employee_name: s.employee_name,
-          bonus: s.bonus_amount || 0
-        });
-      }
-    }
+    const supportEntries = (supportData || []).map(s => {
+      const storeInfo = (s.stores as any);
+      const sourceLabel = storeInfo
+        ? `${storeInfo.store_code} ${storeInfo.store_name} 單品獎金表`
+        : '單品獎金表';
+      return {
+        employee_code: s.employee_code,
+        employee_name: s.employee_name,
+        bonus: s.bonus_amount || 0,
+        // 若同一員工在 monthly_staff_status 也已出現，則標記來源；否則不需標記
+        source_note: staffCodes.has(s.employee_code) ? sourceLabel : null as string | null
+      };
+    });
 
-    const allStaff = Array.from(bonusMap.values()).filter(s => s.bonus > 0);
+    const allStaff = [...staffEntries, ...supportEntries].filter(s => s.bonus > 0);
 
     // 按員工編號排序
     allStaff.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
