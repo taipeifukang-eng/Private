@@ -55,16 +55,29 @@ export async function POST(request: NextRequest) {
       .gt('bonus_amount', 0)
       .order('employee_code');
 
-    // === 步驟 2：查詢本店員工名單（store_employees）===
-    // 用來判斷 support_staff_bonus 中每位員工是否屬於本店
-    const { data: storeEmps } = await supabase
-      .from('store_employees')
-      .select('employee_code')
-      .eq('store_id', store_id)
-      .eq('is_active', true)
-      .not('employee_code', 'is', null);
+    // === 步驟 2：查詢本店員工名單 ===
+    // 來源 1：store_employees（在職員工）
+    // 來源 2：monthly_staff_status 該月本店有紀錄的員工（含手動新增）
+    // 兩者聯集 → 判斷是否為「本店員工」
+    const [{ data: storeEmps }, { data: monthlyStaff }] = await Promise.all([
+      supabase
+        .from('store_employees')
+        .select('employee_code')
+        .eq('store_id', store_id)
+        .eq('is_active', true)
+        .not('employee_code', 'is', null),
+      supabase
+        .from('monthly_staff_status')
+        .select('employee_code')
+        .eq('store_id', store_id)
+        .eq('year_month', year_month)
+        .not('employee_code', 'is', null)
+    ]);
 
-    const homeCodeSet = new Set((storeEmps || []).map(e => e.employee_code).filter(Boolean));
+    const homeCodeSet = new Set([
+      ...(storeEmps || []).map(e => e.employee_code).filter(Boolean),
+      ...(monthlyStaff || []).map(e => e.employee_code).filter(Boolean)
+    ]);
 
     // 本店填寫的名單：本店員工無備註，外來支援標注「支援同仁」
     const localEntries = (localBonusData || []).map(s => ({
