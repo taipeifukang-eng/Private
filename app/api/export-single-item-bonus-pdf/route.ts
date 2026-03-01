@@ -97,18 +97,25 @@ export async function POST(request: NextRequest) {
     }));
 
     // 本店記錄中，所屬門市 ≠ 本店的員工（別間店來支援），附上所屬門市備註
+    // 同時，若 profiles 查不到門市資訊，也列入並標注來源為每月狀態表
     const crossEntries = (staffData || [])
       .filter(s => {
         const homeStore = empStoreMap.get(s.employee_code || '');
-        // 若查不到所屬門市資訊，也一併顯示（不過濾掉）
-        if (!homeStore || !homeStore.store_code) return true;
-        return homeStore.store_code !== store.store_code;
+        // 若查到所屬門市且與本店相同，則排除（本店員工已在 localEntries 顯示）
+        if (homeStore && homeStore.store_code && homeStore.store_code === store.store_code) {
+          return false;
+        }
+        return true;
       })
       .map(s => {
         const homeStore = empStoreMap.get(s.employee_code || '');
-        const source_note = homeStore && homeStore.store_code
-          ? `所屬門市：${homeStore.store_code} ${homeStore.store_name}`
-          : null;
+        let source_note: string;
+        if (homeStore && homeStore.store_code) {
+          source_note = `所屬門市：${homeStore.store_code} ${homeStore.store_name}`;
+        } else {
+          // profiles 查不到門市資訊時，標注此筆來自每月人員狀態表
+          source_note = `來源：${store.store_code} ${store.store_name} 每月人員狀態表`;
+        }
         return {
           employee_code: s.employee_code,
           employee_name: s.employee_name,
