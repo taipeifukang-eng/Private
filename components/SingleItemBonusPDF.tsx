@@ -49,7 +49,12 @@ export async function generateSingleItemBonusPDF(
               <td style="border: 1px solid #ddd; padding: 10px;">${item.employee_code}</td>
               <td style="border: 1px solid #ddd; padding: 10px;">
                 ${item.employee_name}
-                ${item.source_note ? `<div style="font-size: 11px; color: #6b7280; margin-top: 2px;">（來源：${item.source_note}）</div>` : ''}
+                ${item.source_note === '支援同仁'
+                  ? `<span style="display:inline-block;margin-left:6px;font-size:10px;color:#7c3aed;background:#ede9fe;border-radius:4px;padding:1px 6px;">支援同仁</span>`
+                  : item.source_note
+                    ? `<div style="font-size:11px;color:#6b7280;margin-top:2px;">（${item.source_note}）</div>`
+                    : ''
+                }
               </td>
               <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">$${item.bonus.toLocaleString()}</td>
             </tr>
