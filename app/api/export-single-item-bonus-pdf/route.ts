@@ -46,58 +46,63 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '找不到門市' }, { status: 404 });
     }
 
-    // 1. 本店填寫的員工單品獎金（透過「上個月單品獎金」modal 填入的 support_staff_bonus）
-    //    這些是本店自己員工的獎金，直接顯示、不需備註
-    const { data: localBonusData } = await supabase
-      .from('support_staff_bonus')
-      .select('employee_code, employee_name, bonus_amount')
+    // 查詢本店該月份 monthly_staff_status 中有單品獎金的員工
+    // support_staff_bonus（透過「上個月單品獎金」modal 填寫）不納入 PDF，
+    // 因為那是本店自己填的、不是員工所屬門市的官方記錄
+    const { data: staffData } = await supabase
+      .from('monthly_staff_status')
+      .select('employee_code, employee_name, last_month_single_item_bonus')
       .eq('year_month', year_month)
       .eq('store_id', store_id)
-      .gt('bonus_amount', 0)
+      .not('last_month_single_item_bonus', 'is', null)
+      .gt('last_month_single_item_bonus', 0)
       .order('employee_code');
 
-    const localEntries = (localBonusData || []).map(s => ({
-      employee_code: s.employee_code,
-      employee_name: s.employee_name,
-      bonus: s.bonus_amount || 0,
-      source_note: null as string | null
-    }));
+    if (!staffData || staffData.length === 0) {
+      return NextResponse.json({
+        store_code: store.store_code,
+        store_name: store.store_name,
+        staff: []
+      });
+    }
 
-    // 2. 針對本店填寫的員工，搜尋「其他門市」的 monthly_staff_status 是否也有她們的獎金記錄
-    //    若有，代表該員工的所屬門市也填了一筆，附上來源門市資訊
-    const localCodes = (localBonusData || []).map(s => s.employee_code).filter(Boolean);
+    // 查詢員工所屬門市，若非本店則附備註
+    const allCodes = staffData.map(s => s.employee_code).filter(Boolean);
+    const empStoreMap = new Map<string, { store_code: string; store_name: string }>();
 
-    const crossEntries: { employee_code: string; employee_name: string; bonus: number; source_note: string | null }[] = [];
+    if (allCodes.length > 0) {
+      const { data: empProfiles } = await supabase
+        .from('profiles')
+        .select('employee_code, store_id, stores(store_code, store_name)')
+        .in('employee_code', allCodes);
 
-    if (localCodes.length > 0) {
-      const { data: crossData } = await supabase
-        .from('monthly_staff_status')
-        .select('employee_code, employee_name, last_month_single_item_bonus, store_id, stores(store_code, store_name)')
-        .eq('year_month', year_month)
-        .in('employee_code', localCodes)
-        .neq('store_id', store_id)   // 排除本店，只找其他門市的記錄
-        .not('last_month_single_item_bonus', 'is', null)
-        .gt('last_month_single_item_bonus', 0);
-
-      for (const s of (crossData || [])) {
-        const storeInfo = (s.stores as any);
-        const source_note = storeInfo
-          ? `${storeInfo.store_code} ${storeInfo.store_name} 每月人員狀態表`
-          : `門市代號 ${s.store_id} 每月人員狀態表`;
-        crossEntries.push({
-          employee_code: s.employee_code,
-          employee_name: s.employee_name,
-          bonus: s.last_month_single_item_bonus || 0,
-          source_note
-        });
+      for (const p of (empProfiles || [])) {
+        if (p.employee_code && p.stores) {
+          const s = p.stores as any;
+          empStoreMap.set(p.employee_code, {
+            store_code: s.store_code || '',
+            store_name: s.store_name || ''
+          });
+        }
       }
     }
 
-    // 合併：本店員工在前，其他門市填寫的在後，各自按員工編號排序
-    localEntries.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
-    crossEntries.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
+    const allStaff = staffData.map(s => {
+      const homeStore = empStoreMap.get(s.employee_code || '');
+      let source_note: string | null = null;
+      // 若員工所屬門市不是本店，標注所屬門市
+      if (homeStore && homeStore.store_code && homeStore.store_code !== store.store_code) {
+        source_note = `所屬門市：${homeStore.store_code} ${homeStore.store_name}`;
+      }
+      return {
+        employee_code: s.employee_code,
+        employee_name: s.employee_name,
+        bonus: s.last_month_single_item_bonus || 0,
+        source_note
+      };
+    }).filter(s => s.bonus > 0);
 
-    const allStaff = [...localEntries, ...crossEntries].filter(s => s.bonus > 0);
+    allStaff.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
 
     // 返回 JSON 資料（包含門市資訊）
     return NextResponse.json({
