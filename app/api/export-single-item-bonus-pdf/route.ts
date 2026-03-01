@@ -65,19 +65,38 @@ export async function POST(request: NextRequest) {
       .gt('bonus_amount', 0)
       .order('employee_code');
 
-    // 合併數據
-    const allStaff = [
-      ...(staffData || []).map(s => ({
-        employee_code: s.employee_code,
-        employee_name: s.employee_name,
-        bonus: s.last_month_single_item_bonus
-      })),
-      ...(supportData || []).map(s => ({
-        employee_code: s.employee_code,
-        employee_name: s.employee_name,
-        bonus: s.bonus_amount
-      }))
-    ];
+    // 合併數據，相同員工編號的金額加總（避免同一員工在兩個來源重複出現）
+    const bonusMap = new Map<string, { employee_code: string; employee_name: string; bonus: number }>();
+
+    for (const s of (staffData || [])) {
+      const key = s.employee_code || '';
+      const existing = bonusMap.get(key);
+      if (existing) {
+        existing.bonus += s.last_month_single_item_bonus || 0;
+      } else {
+        bonusMap.set(key, {
+          employee_code: s.employee_code,
+          employee_name: s.employee_name,
+          bonus: s.last_month_single_item_bonus || 0
+        });
+      }
+    }
+
+    for (const s of (supportData || [])) {
+      const key = s.employee_code || '';
+      const existing = bonusMap.get(key);
+      if (existing) {
+        existing.bonus += s.bonus_amount || 0;
+      } else {
+        bonusMap.set(key, {
+          employee_code: s.employee_code,
+          employee_name: s.employee_name,
+          bonus: s.bonus_amount || 0
+        });
+      }
+    }
+
+    const allStaff = Array.from(bonusMap.values()).filter(s => s.bonus > 0);
 
     // 按員工編號排序
     allStaff.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
