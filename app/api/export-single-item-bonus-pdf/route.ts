@@ -55,60 +55,37 @@ export async function POST(request: NextRequest) {
       .gt('bonus_amount', 0)
       .order('employee_code');
 
-    const localCodes = (localBonusData || []).map(s => s.employee_code).filter(Boolean);
-
-    // === 步驟 2：查詢本店填寫名單中每位員工的所屬門市 ===
-    // 用來判斷他們是「本店員工」還是「外來支援」
-    const empHomeStoreMap = new Map<string, { store_id: string; store_code: string; store_name: string }>();
-
-    if (localCodes.length > 0) {
-      const { data: empProfiles } = await supabase
-        .from('profiles')
-        .select('employee_code, store_id, stores(store_code, store_name)')
-        .in('employee_code', localCodes);
-
-      for (const p of (empProfiles || [])) {
-        if (p.employee_code && p.store_id) {
-          const s = p.stores as any;
-          empHomeStoreMap.set(p.employee_code, {
-            store_id: p.store_id,
-            store_code: s?.store_code || '',
-            store_name: s?.store_name || ''
-          });
-        }
-      }
-    }
-
-    // 本店填寫的名單：本店員工無備註，外來支援標注「支援同仁」
-    const localEntries = (localBonusData || []).map(s => {
-      const homeStore = empHomeStoreMap.get(s.employee_code || '');
-      const isHomeEmployee = homeStore?.store_id === store_id;
-      return {
-        employee_code: s.employee_code,
-        employee_name: s.employee_name,
-        bonus: s.bonus_amount || 0,
-        source_note: isHomeEmployee ? null : '支援同仁' as string | null
-      };
-    });
-
-    // === 步驟 3：找出所屬本店的員工，查詢他們在「其他門市」的 support_staff_bonus ===
-    // 例：FK0557 屬於中興店，新欣店也填了 FK0557 $1000 → 在中興店 PDF 也顯示，標注來源
-    const { data: homeEmployees } = await supabase
-      .from('profiles')
+    // === 步驟 2：查詢本店員工名單（store_employees）===
+    // 用來判斷 support_staff_bonus 中每位員工是否屬於本店
+    const { data: storeEmps } = await supabase
+      .from('store_employees')
       .select('employee_code')
       .eq('store_id', store_id)
+      .eq('is_active', true)
       .not('employee_code', 'is', null);
 
-    const homeCodes = (homeEmployees || []).map(p => p.employee_code).filter(Boolean);
+    const homeCodeSet = new Set((storeEmps || []).map(e => e.employee_code).filter(Boolean));
+
+    // 本店填寫的名單：本店員工無備註，外來支援標注「支援同仁」
+    const localEntries = (localBonusData || []).map(s => ({
+      employee_code: s.employee_code,
+      employee_name: s.employee_name,
+      bonus: s.bonus_amount || 0,
+      source_note: homeCodeSet.has(s.employee_code || '') ? null : '支援同仁' as string | null
+    }));
+
+    // === 步驟 3：查詢本店員工在「其他門市」填寫的 support_staff_bonus ===
+    // 例：FK0557 屬中興店，新欣店也填了 FK0557 $1000 → 在中興店 PDF 也顯示，標注來源
     const crossEntries: { employee_code: string; employee_name: string; bonus: number; source_note: string | null }[] = [];
 
-    if (homeCodes.length > 0) {
+    if (homeCodeSet.size > 0) {
+      const homeCodes = Array.from(homeCodeSet);
       const { data: crossData } = await supabase
         .from('support_staff_bonus')
         .select('employee_code, employee_name, bonus_amount, store_id, stores(store_code, store_name)')
         .eq('year_month', year_month)
         .in('employee_code', homeCodes)
-        .neq('store_id', store_id)  // 其他門市填寫的
+        .neq('store_id', store_id)
         .gt('bonus_amount', 0);
 
       for (const s of (crossData || [])) {
@@ -128,7 +105,6 @@ export async function POST(request: NextRequest) {
     localEntries.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
     crossEntries.sort((a, b) => (a.employee_code || '').localeCompare(b.employee_code || ''));
 
-    // 本店填寫的在前，其他門市填寫本店員工的在後
     const allStaff = [...localEntries, ...crossEntries].filter(s => s.bonus > 0);
 
     // 返回 JSON 資料（包含門市資訊）
