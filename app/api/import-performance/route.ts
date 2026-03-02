@@ -223,86 +223,81 @@ export async function POST(request: NextRequest) {
     console.log('員工分組後數量:', employeeMap.size);
     console.log('員工代號列表:', Array.from(employeeMap.keys()));
 
-    // 更新資料庫
+    // 更新資料庫（批次操作，避免 timeout）
     let updatedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
 
+    const allEmployeeCodes = Array.from(employeeMap.keys());
+
+    // === 批次查詢 monthly_staff_status ===
+    const { data: allStaffRecords, error: fetchAllError } = await supabase
+      .from('monthly_staff_status')
+      .select('id, store_id, employee_code')
+      .eq('year_month', yearMonth)
+      .in('employee_code', allEmployeeCodes);
+
+    if (fetchAllError) {
+      return NextResponse.json({ success: false, error: `查詢員工記錄失敗: ${fetchAllError.message}` }, { status: 500 });
+    }
+
+    // 建立 employee_code → records 映射
+    const recordsByCode = new Map<string, Array<{ id: string; store_id: string }>>();
+    for (const r of (allStaffRecords || [])) {
+      if (!recordsByCode.has(r.employee_code)) recordsByCode.set(r.employee_code, []);
+      recordsByCode.get(r.employee_code)!.push({ id: r.id, store_id: r.store_id });
+    }
+
+    // 統計跳過人數
+    for (const code of allEmployeeCodes) {
+      if (!recordsByCode.has(code)) skippedCount++;
+    }
+
+    // 收集所有要更新的資料
+    const staffStatusUpdates: Array<{ id: string; data: Record<string, unknown> }> = [];
+    const allStaffStatusIds: string[] = [];
+    const allDetailsToInsert: Array<Record<string, unknown>> = [];
+
     for (const [employeeCode, empData] of Array.from(employeeMap.entries())) {
-      // 如果有檔案 2 的毛利資料，加上去（負值已轉正）
+      const staffRecords = recordsByCode.get(employeeCode);
+      if (!staffRecords || staffRecords.length === 0) continue;
+
       const additionalGrossProfit = grossProfitMap.get(employeeCode) || 0;
       const finalGrossProfit = empData.totalGrossProfit + additionalGrossProfit;
-      
-      // 計算總毛利率
-      const totalGrossProfitRate = empData.totalSalesAmount > 0 
-        ? (finalGrossProfit / empData.totalSalesAmount) * 100 
+      const totalGrossProfitRate = empData.totalSalesAmount > 0
+        ? (finalGrossProfit / empData.totalSalesAmount) * 100
         : 0;
 
-      console.log(`員工 ${employeeCode}: 檔案1毛利=${empData.totalGrossProfit}, 檔案2毛利=${additionalGrossProfit}, 最終毛利=${finalGrossProfit}`);
-
-      // 獲取該員工在該月的所有門市資料
-      const { data: staffRecords, error: fetchError } = await supabase
-        .from('monthly_staff_status')
-        .select('id, store_id')
-        .eq('year_month', yearMonth)
-        .eq('employee_code', employeeCode);
-
-      if (fetchError) {
-        errors.push(`員工 ${employeeCode} 查詢失敗: ${fetchError.message}`);
-        console.error(`員工 ${employeeCode} 查詢失敗:`, fetchError);
-        continue;
+      // 合併明細（檔案1 + 檔案2）
+      const allDetails = [...empData.storeDetails];
+      const file2Details = grossProfitDetailsMap.get(employeeCode) || [];
+      for (const detail of file2Details) {
+        allDetails.push({
+          storeCode: detail.storeCode,
+          storeName: detail.storeName,
+          transactionCount: 0,
+          salesAmount: 0,
+          grossProfit: detail.grossProfit,
+          grossProfitRate: 0,
+          isFromFile2: true
+        });
       }
 
-      if (!staffRecords || staffRecords.length === 0) {
-        console.log(`跳過員工 ${employeeCode} (${empData.employeeName}) - 在 ${yearMonth} 找不到記錄`);
-        skippedCount++;
-        continue;
-      }
-
-      // 更新每個門市的員工記錄（都顯示合併後的總業績）
       for (const record of staffRecords) {
-        const { error: updateError } = await supabase
-          .from('monthly_staff_status')
-          .update({
+        staffStatusUpdates.push({
+          id: record.id,
+          data: {
             transaction_count: empData.totalTransactionCount,
             sales_amount: empData.totalSalesAmount,
             gross_profit: finalGrossProfit,
             gross_profit_rate: Math.round(totalGrossProfitRate * 100) / 100,
             updated_at: new Date().toISOString()
-          })
-          .eq('id', record.id);
+          }
+        });
+        allStaffStatusIds.push(record.id);
 
-        if (updateError) {
-          errors.push(`員工 ${employeeCode} 更新失敗: ${updateError.message}`);
-          continue;
-        }
-
-        // 刪除舊的業績明細
-        await supabase
-          .from('monthly_performance_details')
-          .delete()
-          .eq('staff_status_id', record.id);
-
-        // 合併檔案1和檔案2的明細資料
-        const allDetails = [...empData.storeDetails];
-        
-        // 加入檔案2的明細（處方加購回補）
-        const file2Details = grossProfitDetailsMap.get(employeeCode) || [];
-        for (const detail of file2Details) {
-          allDetails.push({
-            storeCode: detail.storeCode,
-            storeName: detail.storeName,
-            transactionCount: 0,
-            salesAmount: 0,
-            grossProfit: detail.grossProfit,
-            grossProfitRate: 0,
-            isFromFile2: true // 標記來自檔案2
-          });
-        }
-
-        // 插入明細資料（檔案1的多門市資料 + 檔案2的處方加購回補）
-        if (allDetails.length > 0) {
-          const detailsToInsert = allDetails.map(detail => ({
+        for (const detail of allDetails) {
+          allDetailsToInsert.push({
             staff_status_id: record.id,
             store_code: detail.storeCode,
             store_name: detail.storeName,
@@ -311,20 +306,43 @@ export async function POST(request: NextRequest) {
             gross_profit: detail.grossProfit,
             gross_profit_rate: Math.round(detail.grossProfitRate * 100) / 100,
             is_from_file2: (detail as any).isFromFile2 || false
-          }));
-
-          const { error: insertError } = await supabase
-            .from('monthly_performance_details')
-            .insert(detailsToInsert);
-
-          if (insertError) {
-            errors.push(`員工 ${employeeCode} 明細插入失敗: ${insertError.message}`);
-          }
+          });
         }
       }
 
-      console.log(`成功更新員工 ${employeeCode} (${empData.employeeName}) - ${staffRecords.length} 筆記錄`);
       updatedCount += staffRecords.length;
+    }
+
+    // === 批次更新 monthly_staff_status（分批 50 筆避免 URL 過長）===
+    const BATCH = 50;
+    for (let i = 0; i < staffStatusUpdates.length; i += BATCH) {
+      const batch = staffStatusUpdates.slice(i, i + BATCH);
+      await Promise.all(batch.map(({ id, data }) =>
+        supabase.from('monthly_staff_status').update(data).eq('id', id)
+      ));
+    }
+
+    // === 批次刪除舊明細 ===
+    if (allStaffStatusIds.length > 0) {
+      for (let i = 0; i < allStaffStatusIds.length; i += BATCH) {
+        const batchIds = allStaffStatusIds.slice(i, i + BATCH);
+        const { error: delError } = await supabase
+          .from('monthly_performance_details')
+          .delete()
+          .in('staff_status_id', batchIds);
+        if (delError) errors.push(`刪除舊明細失敗: ${delError.message}`);
+      }
+    }
+
+    // === 批次插入新明細 ===
+    if (allDetailsToInsert.length > 0) {
+      for (let i = 0; i < allDetailsToInsert.length; i += BATCH) {
+        const batchDetails = allDetailsToInsert.slice(i, i + BATCH);
+        const { error: insertError } = await supabase
+          .from('monthly_performance_details')
+          .insert(batchDetails);
+        if (insertError) errors.push(`插入明細失敗: ${insertError.message}`);
+      }
     }
 
     console.log('匯入結果:', { updatedCount, skippedCount, errors: errors.length });
