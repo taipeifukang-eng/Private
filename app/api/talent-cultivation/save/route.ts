@@ -59,12 +59,11 @@ export async function POST(request: NextRequest) {
     // 逐筆更新員工的育才獎金
     for (const bonus of bonuses) {
       try {
-        // 找到對應的 monthly_staff_status 記錄
+        // 找到對應的 monthly_staff_status 記錄（不限 store_id，支援跨分店員工）
         const { data: existing, error: findError } = await supabase
           .from('monthly_staff_status')
           .select('id')
           .eq('year_month', year_month)
-          .eq('store_id', store_id)
           .eq('employee_code', bonus.employee_code.toUpperCase())
           .maybeSingle();
 
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
         }
 
         if (!existing) {
-          errors.push(`員工 ${bonus.employee_code} 在該月份沒有狀態記錄`);
+          errors.push(`員工 ${bonus.employee_code} 在該月份沒有狀態記錄（請確認員編正確且該員工已建立當月記錄）`);
           continue;
         }
 
