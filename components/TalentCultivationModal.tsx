@@ -178,12 +178,7 @@ export default function TalentCultivationModal({
 
       console.log('[TalentCultivation] API 回應:', data);
       if (data.success) {
-        if (data.errors && data.errors.length > 0) {
-          console.error('[TalentCultivation] 部分失敗:', data.errors);
-          alert(`✅ 成功儲存 ${data.count} 筆育才獎金\n⚠️ 以下 ${data.errors.length} 筆失敗：\n${data.errors.join('\n')}`);
-        } else {
-          alert(`✅ 成功儲存 ${data.count} 筆育才獎金`);
-        }
+        alert(`✅ 成功儲存 ${data.count} 筆育才獎金`);
         onClose();
       } else {
         console.error('[TalentCultivation] 儲存失敗:', data);

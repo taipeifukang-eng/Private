@@ -22,16 +22,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '缺少必要參數' }, { status: 400 });
     }
 
-    // 查詢所有員工的育才獎金資料
+    // 查詢獨立的育才獎金表
     const { data: staffData, error } = await supabase
-      .from('monthly_staff_status')
+      .from('talent_cultivation_bonus')
       .select(`
         id,
         store_id,
         employee_code,
         employee_name,
-        talent_cultivation_bonus,
-        talent_cultivation_target,
+        cultivation_bonus,
+        cultivation_target,
         stores!inner (
           store_code,
           store_name
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       `)
       .eq('year_month', year_month)
       .in('store_id', store_ids)
-      .not('talent_cultivation_bonus', 'is', null)
+      .gt('cultivation_bonus', 0)
       .order('store_id')
       .order('employee_code');
 
@@ -54,8 +54,8 @@ export async function POST(request: NextRequest) {
       '月份': year_month,
       '員編': record.employee_code || '',
       '姓名': record.employee_name || '',
-      '育才獎金金額': record.talent_cultivation_bonus || 0,
-      '育才對象': record.talent_cultivation_target || ''
+      '育才獎金金額': record.cultivation_bonus || 0,
+      '育才對象': record.cultivation_target || ''
     }));
 
     // 按門市代號排序

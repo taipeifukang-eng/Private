@@ -21,14 +21,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: '缺少必要參數' }, { status: 400 });
     }
 
-    // 查詢該月份該門市有育才獎金的員工
+    // 從独立表查詢育才獎金記錄
     const { data: records, error } = await supabase
-      .from('monthly_staff_status')
-      .select('id, employee_code, employee_name, talent_cultivation_bonus, talent_cultivation_target')
+      .from('talent_cultivation_bonus')
+      .select('id, employee_code, employee_name, cultivation_bonus, cultivation_target')
       .eq('year_month', year_month)
       .eq('store_id', store_id)
-      .not('talent_cultivation_bonus', 'is', null)
-      .gt('talent_cultivation_bonus', 0)
+      .gt('cultivation_bonus', 0)
       .order('employee_code');
 
     if (error) {
@@ -41,8 +40,8 @@ export async function GET(request: NextRequest) {
       id: r.id,
       employee_code: r.employee_code,
       employee_name: r.employee_name,
-      cultivation_bonus: r.talent_cultivation_bonus,
-      cultivation_target: r.talent_cultivation_target || ''
+      cultivation_bonus: r.cultivation_bonus,
+      cultivation_target: r.cultivation_target || ''
     }));
 
     return NextResponse.json({
