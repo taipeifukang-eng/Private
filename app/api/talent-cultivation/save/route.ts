@@ -59,38 +59,58 @@ export async function POST(request: NextRequest) {
     // 逐筆更新員工的育才獎金
     for (const bonus of bonuses) {
       try {
-        // 找到對應的 monthly_staff_status 記錄（不限 store_id，支援跨分店員工）
+        const empCode = bonus.employee_code.toUpperCase();
+
+        // 先找本店記錄
         const { data: existing, error: findError } = await supabase
           .from('monthly_staff_status')
           .select('id')
           .eq('year_month', year_month)
-          .eq('employee_code', bonus.employee_code.toUpperCase())
+          .eq('store_id', store_id)
+          .eq('employee_code', empCode)
           .maybeSingle();
 
         if (findError) {
-          errors.push(`員工 ${bonus.employee_code} 查詢失敗: ${findError.message}`);
+          errors.push(`員工 ${empCode} 查詢失敗: ${findError.message}`);
           continue;
         }
 
-        if (!existing) {
-          errors.push(`員工 ${bonus.employee_code} 在該月份沒有狀態記錄（請確認員編正確且該員工已建立當月記錄）`);
-          continue;
-        }
+        if (existing) {
+          // 有記錄：直接更新
+          const { error: updateError } = await supabase
+            .from('monthly_staff_status')
+            .update({
+              talent_cultivation_bonus: bonus.cultivation_bonus,
+              talent_cultivation_target: bonus.cultivation_target,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', existing.id);
 
-        // 更新育才獎金
-        const { error: updateError } = await supabase
-          .from('monthly_staff_status')
-          .update({
-            talent_cultivation_bonus: bonus.cultivation_bonus,
-            talent_cultivation_target: bonus.cultivation_target,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existing.id);
-
-        if (updateError) {
-          errors.push(`員工 ${bonus.employee_code} 更新失敗: ${updateError.message}`);
+          if (updateError) {
+            errors.push(`員工 ${empCode} 更新失敗: ${updateError.message}`);
+          } else {
+            successCount++;
+          }
         } else {
-          successCount++;
+          // 無記錄（跨分店員工）：在本店建立一筆新記錄
+          const { error: insertError } = await supabase
+            .from('monthly_staff_status')
+            .insert({
+              year_month,
+              store_id,
+              employee_code: empCode,
+              employee_name: bonus.employee_name,
+              talent_cultivation_bonus: bonus.cultivation_bonus,
+              talent_cultivation_target: bonus.cultivation_target,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+
+          if (insertError) {
+            errors.push(`員工 ${empCode} 新增失敗: ${insertError.message}`);
+          } else {
+            successCount++;
+          }
         }
       } catch (error: any) {
         errors.push(`員工 ${bonus.employee_code} 處理失敗: ${error.message}`);
