@@ -54,12 +54,16 @@ export async function POST(request: NextRequest) {
     }
 
     let successCount = 0;
-    const errors = [];
+    const errors: string[] = [];
+    const debugLog: any[] = [];
+
+    console.log(`[TalentCultivation] 開始儲存 year_month=${year_month} store_id=${store_id} 共 ${bonuses.length} 筆`);
 
     // 逐筆更新員工的育才獎金
     for (const bonus of bonuses) {
       try {
         const empCode = bonus.employee_code.toUpperCase();
+        console.log(`[TalentCultivation] 處理員工 ${empCode} bonus=${bonus.cultivation_bonus} target=${bonus.cultivation_target}`);
 
         // 先找本店記錄
         const { data: existing, error: findError } = await supabase
@@ -70,13 +74,19 @@ export async function POST(request: NextRequest) {
           .eq('employee_code', empCode)
           .maybeSingle();
 
+        console.log(`[TalentCultivation] 查詢結果 ${empCode}:`, { existing, findError });
+
         if (findError) {
-          errors.push(`員工 ${empCode} 查詢失敗: ${findError.message}`);
+          const msg = `員工 ${empCode} 查詢失敗: ${findError.message} (code: ${findError.code})`;
+          errors.push(msg);
+          debugLog.push({ empCode, action: 'find', status: 'error', detail: findError });
+          console.error(`[TalentCultivation] ${msg}`);
           continue;
         }
 
         if (existing) {
           // 有記錄：直接更新
+          console.log(`[TalentCultivation] 更新現有記錄 ${empCode} id=${existing.id}`);
           const { error: updateError } = await supabase
             .from('monthly_staff_status')
             .update({
@@ -87,35 +97,54 @@ export async function POST(request: NextRequest) {
             .eq('id', existing.id);
 
           if (updateError) {
-            errors.push(`員工 ${empCode} 更新失敗: ${updateError.message}`);
+            const msg = `員工 ${empCode} 更新失敗: ${updateError.message} (code: ${updateError.code})`;
+            errors.push(msg);
+            debugLog.push({ empCode, action: 'update', status: 'error', detail: updateError });
+            console.error(`[TalentCultivation] ${msg}`);
           } else {
             successCount++;
+            debugLog.push({ empCode, action: 'update', status: 'success' });
+            console.log(`[TalentCultivation] 更新成功 ${empCode}`);
           }
         } else {
           // 無記錄（跨分店員工）：在本店建立一筆新記錄
+          console.log(`[TalentCultivation] 新增記錄 ${empCode} 至 store_id=${store_id}`);
+          const insertPayload = {
+            year_month,
+            store_id,
+            employee_code: empCode,
+            employee_name: bonus.employee_name,
+            talent_cultivation_bonus: bonus.cultivation_bonus,
+            talent_cultivation_target: bonus.cultivation_target,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          console.log(`[TalentCultivation] 新增 payload:`, insertPayload);
+
           const { error: insertError } = await supabase
             .from('monthly_staff_status')
-            .insert({
-              year_month,
-              store_id,
-              employee_code: empCode,
-              employee_name: bonus.employee_name,
-              talent_cultivation_bonus: bonus.cultivation_bonus,
-              talent_cultivation_target: bonus.cultivation_target,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            });
+            .insert(insertPayload);
 
           if (insertError) {
-            errors.push(`員工 ${empCode} 新增失敗: ${insertError.message}`);
+            const msg = `員工 ${empCode} 新增失敗: ${insertError.message} (code: ${insertError.code})`;
+            errors.push(msg);
+            debugLog.push({ empCode, action: 'insert', status: 'error', detail: insertError });
+            console.error(`[TalentCultivation] ${msg}`);
           } else {
             successCount++;
+            debugLog.push({ empCode, action: 'insert', status: 'success' });
+            console.log(`[TalentCultivation] 新增成功 ${empCode}`);
           }
         }
       } catch (error: any) {
-        errors.push(`員工 ${bonus.employee_code} 處理失敗: ${error.message}`);
+        const msg = `員工 ${bonus.employee_code} 處理失敗: ${error.message}`;
+        errors.push(msg);
+        debugLog.push({ empCode: bonus.employee_code, action: 'unknown', status: 'exception', detail: error.message });
+        console.error(`[TalentCultivation] ${msg}`);
       }
     }
+
+    console.log(`[TalentCultivation] 完成：成功 ${successCount} 筆，失敗 ${errors.length} 筆`, errors);
 
     if (successCount === 0) {
       return NextResponse.json({ 
@@ -128,7 +157,8 @@ export async function POST(request: NextRequest) {
       success: true,
       count: successCount,
       message: `成功儲存 ${successCount} 筆育才獎金資料${errors.length > 0 ? `，${errors.length} 筆失敗` : ''}`,
-      errors: errors.length > 0 ? errors : undefined
+      errors: errors.length > 0 ? errors : undefined,
+      debug: debugLog
     });
 
   } catch (error: any) {
