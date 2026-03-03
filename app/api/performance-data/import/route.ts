@@ -12,18 +12,27 @@ function getVal(row: Record<string, unknown>, keys: string[]): number | null {
   return null;
 }
 
+function getStr(row: Record<string, unknown>, keys: string[]): string | null {
+  for (const k of keys) {
+    if (k in row && row[k] !== null && row[k] !== '') return String(row[k]).trim();
+  }
+  return null;
+}
+
 /**
  * POST /api/performance-data/import
  * 從 Excel 批次匯入業績資料
  *
  * Form data:
  *   file: .xlsx 檔案
- *   store_id: 門市 UUID
- *   year: 年份 (e.g. 2026)
+ *   store_id: 門市 UUID（當 Excel 列未含門市代號時作為後備）
+ *   year: 年份 (e.g. 2026)（當 Excel 列未含年份時作為後備）
  *
  * Excel 欄位 (第一列為標題):
- *   月份 | 營業天數 | 月毛利目標 | 月營業額目標 | 月來客數目標 | 上個月處方箋目標
- *   | 月毛利實際 | 月營業額實際 | 月來客數實際 | 上個月處方箋實際
+ *   門市代號 | 年份 | 月份 | 營業天數 | 月毛利目標 | 月營業額目標 | 月來客數目標
+ *   | 上個月處方箋目標 | 月毛利實際 | 月營業額實際 | 月來客數實際 | 上個月處方箋實際
+ *
+ *   ※ 門市代號與年份欄位可省略，省略時使用上方 Form 參數值
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,19 +42,11 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const storeId = formData.get('store_id') as string;
-    const year = formData.get('year') as string;
+    const fallbackStoreId = (formData.get('store_id') as string) || '';
+    const fallbackYear   = (formData.get('year')     as string) || '';
 
-    if (!file || !storeId || !year) {
-      return NextResponse.json(
-        { success: false, error: '缺少必要參數 (file, store_id, year)' },
-        { status: 400 }
-      );
-    }
-
-    const yearNum = parseInt(year);
-    if (isNaN(yearNum)) {
-      return NextResponse.json({ success: false, error: '年份格式錯誤' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ success: false, error: '缺少檔案' }, { status: 400 });
     }
 
     // 讀取 Excel
@@ -59,18 +60,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Excel 無資料' }, { status: 400 });
     }
 
+    // 預載所有門市代號 → UUID 對照表
+    const { data: storeList } = await supabase
+      .from('stores')
+      .select('id, store_code')
+      .eq('is_active', true);
+    const storeCodeMap: Record<string, string> = {};
+    (storeList || []).forEach(s => {
+      storeCodeMap[s.store_code.trim()] = s.id;
+    });
+
     // 欄位映射
     const COL = {
-      month: ['月份'],
-      business_days: ['營業天數'],
-      gp_target: ['月毛利目標', '毛利目標'],
-      rev_target: ['月營業額目標', '營業額目標'],
-      cc_target: ['月來客數目標', '來客數目標'],
-      rx_target: ['上個月處方箋目標', '處方箋目標'],
-      gp_actual: ['月毛利實際', '毛利實際'],
-      rev_actual: ['月營業額實際', '營業額實際'],
-      cc_actual: ['月來客數實際', '來客數實際'],
-      rx_actual: ['上個月處方箋實際', '處方箋實際'],
+      store_code:   ['門市代號', '分店代號', 'store_code'],
+      year:         ['年份', 'year'],
+      month:        ['月份'],
+      business_days:['營業天數'],
+      gp_target:    ['月毛利目標', '毛利目標'],
+      rev_target:   ['月營業額目標', '營業額目標'],
+      cc_target:    ['月來客數目標', '來客數目標'],
+      rx_target:    ['上個月處方箋目標', '處方箋目標'],
+      gp_actual:    ['月毛利實際', '毛利實際'],
+      rev_actual:   ['月營業額實際', '營業額實際'],
+      cc_actual:    ['月來客數實際', '來客數實際'],
+      rx_actual:    ['上個月處方箋實際', '處方箋實際'],
     };
 
     const records = [];
@@ -78,14 +91,38 @@ export async function POST(request: NextRequest) {
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const monthRaw = getVal(row, COL.month);
-      const business_days = getVal(row, COL.business_days);
 
+      // 決定門市
+      const rowStoreCode = getStr(row, COL.store_code);
+      let storeId = fallbackStoreId;
+      if (rowStoreCode) {
+        const found = storeCodeMap[rowStoreCode];
+        if (!found) {
+          errors.push(`第 ${i + 2} 列: 找不到門市代號「${rowStoreCode}」，跳過`);
+          continue;
+        }
+        storeId = found;
+      }
+      if (!storeId) {
+        errors.push(`第 ${i + 2} 列: 未指定門市，跳過（請在 Excel 加入「門市代號」欄或選擇門市）`);
+        continue;
+      }
+
+      // 決定年份
+      const rowYearRaw = getVal(row, COL.year);
+      const yearNum = rowYearRaw ? Math.round(rowYearRaw) : parseInt(fallbackYear);
+      if (isNaN(yearNum) || yearNum < 2000 || yearNum > 2100) {
+        errors.push(`第 ${i + 2} 列: 年份無效，跳過（請在 Excel 加入「年份」欄或選擇年份）`);
+        continue;
+      }
+
+      // 月份
+      const monthRaw   = getVal(row, COL.month);
+      const business_days = getVal(row, COL.business_days);
       if (!monthRaw || !business_days) {
         errors.push(`第 ${i + 2} 列: 月份或營業天數為空，跳過`);
         continue;
       }
-
       const month = Math.round(monthRaw);
       if (month < 1 || month > 12) {
         errors.push(`第 ${i + 2} 列: 月份 ${month} 超出範圍 (1-12)，跳過`);
@@ -97,14 +134,14 @@ export async function POST(request: NextRequest) {
         year: yearNum,
         month,
         business_days: Math.round(business_days),
-        monthly_gross_profit_target: getVal(row, COL.gp_target),
-        monthly_revenue_target: getVal(row, COL.rev_target),
-        monthly_customer_count_target: getVal(row, COL.cc_target),
-        last_month_rx_target: getVal(row, COL.rx_target),
-        monthly_gross_profit_actual: getVal(row, COL.gp_actual),
-        monthly_revenue_actual: getVal(row, COL.rev_actual),
-        monthly_customer_count_actual: getVal(row, COL.cc_actual),
-        last_month_rx_actual: getVal(row, COL.rx_actual),
+        monthly_gross_profit_target:    getVal(row, COL.gp_target),
+        monthly_revenue_target:         getVal(row, COL.rev_target),
+        monthly_customer_count_target:  getVal(row, COL.cc_target),
+        last_month_rx_target:           getVal(row, COL.rx_target),
+        monthly_gross_profit_actual:    getVal(row, COL.gp_actual),
+        monthly_revenue_actual:         getVal(row, COL.rev_actual),
+        monthly_customer_count_actual:  getVal(row, COL.cc_actual),
+        last_month_rx_actual:           getVal(row, COL.rx_actual),
         created_by: user.id,
         updated_at: new Date().toISOString(),
       });
