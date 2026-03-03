@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Activity, CheckCircle2, Clock, User, RefreshCw, Store, ArrowRight, Calendar } from 'lucide-react';
+import PerformanceDashboard from '@/components/PerformanceDashboard';
 import type { Assignment, Template, Log } from '@/types/workflow';
 
 // Extended types for joined data
@@ -256,6 +257,13 @@ export default function DashboardPage() {
                 </div>
                 <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
               </Link>
+            </div>
+
+            {/* 業绩儀表板小元件 */}
+            <div className="mt-6">
+              <PerformanceDashboard
+                storeIds={managedStores.map(s => String(s.id))}
+              />
             </div>
           </div>
         )}

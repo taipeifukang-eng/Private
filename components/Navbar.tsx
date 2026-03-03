@@ -127,6 +127,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, show: permissions.canImportEmployees },
     { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities || permissions.canAccessActivitySchedule },
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
+    { href: '/admin/performance', label: '業績管理', icon: TrendingUp, show: permissions.canManagePerformance },
   ].filter(item => item.show);
 
   // 每月人員狀態相關的子選單項目（使用 RBAC 權限）
@@ -148,7 +149,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在門市管理相關頁面
-  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory'].some(
+  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 

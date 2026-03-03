@@ -25,6 +25,7 @@ interface NavbarPermissions {
   // 活動排程頁入口：有 activity.campaign.edit 或 activity.store_detail.edit 任一
   canAccessActivitySchedule: boolean;
   canManageInventory: boolean;
+  canManagePerformance: boolean;
   
   // 每月人員狀態
   canViewMonthlyStatus: boolean;
@@ -69,6 +70,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canManageActivities: false,
     canAccessActivitySchedule: false,
     canManageInventory: false,
+    canManagePerformance: false,
     canViewMonthlyStatus: false,
     canExportMonthlyStatus: false,
     canViewInspections: false,
@@ -146,6 +148,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('activity.equipment_trip.edit') ||
             permissionSet.has('activity.checklist.edit'),
           canManageInventory: permissionSet.has('inventory.manage'),
+          canManagePerformance: permissionSet.has('performance.manage') || permissionSet.has('store.manage') || permissionSet.has('store.supervisor.assign'),
           
           // 每月人員狀態
           canViewMonthlyStatus: 
@@ -200,7 +203,8 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canImportEmployees ||
          permissions.canManageActivities ||
          permissions.canAccessActivitySchedule ||
-         permissions.canManageInventory;
+         permissions.canManageInventory ||
+         permissions.canManagePerformance;
 }
 
 /**
