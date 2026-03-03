@@ -57,8 +57,15 @@ export interface BonusResult {
   dailyGpActual: number;   // 日毛利實際
 }
 
-/** 月團體獎金檻定義 */
-export const MONTHLY_THRESHOLDS = [
+/** 獎金門檻定義型別 */
+export interface ThresholdDef {
+  multiplier: number;   // 達標倍率（如 1.0 = 100%）
+  baseAmount: number;   // 基本獎金金額（元/人）
+  label: string;        // 顯示標籤
+}
+
+/** 月團體獎金檻預設值 */
+export const MONTHLY_THRESHOLDS: ThresholdDef[] = [
   { multiplier: 1.0, baseAmount: 3000, label: '第一檻' },
   { multiplier: 1.1, baseAmount: 5000, label: '第二檻' },
   { multiplier: 1.2, baseAmount: 7000, label: '第三檻' },
@@ -66,8 +73,8 @@ export const MONTHLY_THRESHOLDS = [
   { multiplier: 1.4, baseAmount: 10000, label: '第五檻' },
 ];
 
-/** 季團體獎金檻定義 */
-export const QUARTERLY_THRESHOLDS = [
+/** 季團體獎金檻預設值 */
+export const QUARTERLY_THRESHOLDS: ThresholdDef[] = [
   { multiplier: 1.0, baseAmount: 9000,  label: '第一檻' },
   { multiplier: 1.1, baseAmount: 15000, label: '第二檻' },
   { multiplier: 1.2, baseAmount: 21000, label: '第三檻' },
@@ -85,33 +92,46 @@ export const WEIGHTS = {
 
 /**
  * 計算月毛利所達到的檻級別 (0=未達標, 1~5)
+ * @param customThresholds 門市自訂閾值，未傳入時使用預設值
  */
-export function calcGpThresholdLevel(actualGp: number, targetGp: number): number {
+export function calcGpThresholdLevel(
+  actualGp: number,
+  targetGp: number,
+  customThresholds: ThresholdDef[] = MONTHLY_THRESHOLDS,
+): number {
   if (!targetGp || targetGp <= 0) return 0;
   const rate = actualGp / targetGp;
-  // 從高往低找
-  for (let i = MONTHLY_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (rate >= MONTHLY_THRESHOLDS[i].multiplier) return i + 1;
+  for (let i = customThresholds.length - 1; i >= 0; i--) {
+    if (rate >= customThresholds[i].multiplier) return i + 1;
   }
   return 0;
 }
 
 /**
  * 計算季毛利所達到的檻級別 (0=未達標, 1~5)
+ * @param customThresholds 門市自訂閾值，未傳入時使用預設值
  */
-export function calcQuarterlyGpThresholdLevel(actualGp: number, targetGp: number): number {
+export function calcQuarterlyGpThresholdLevel(
+  actualGp: number,
+  targetGp: number,
+  customThresholds: ThresholdDef[] = QUARTERLY_THRESHOLDS,
+): number {
   if (!targetGp || targetGp <= 0) return 0;
   const rate = actualGp / targetGp;
-  for (let i = QUARTERLY_THRESHOLDS.length - 1; i >= 0; i--) {
-    if (rate >= QUARTERLY_THRESHOLDS[i].multiplier) return i + 1;
+  for (let i = customThresholds.length - 1; i >= 0; i--) {
+    if (rate >= customThresholds[i].multiplier) return i + 1;
   }
   return 0;
 }
 
 /**
  * 計算單月團體獎金
+ * @param customThresholds 門市自訂月閾值，未傳入時使用預設值
  */
-export function calcMonthlyBonus(perf: MonthlyPerformance): BonusResult {
+export function calcMonthlyBonus(
+  perf: MonthlyPerformance,
+  customThresholds: ThresholdDef[] = MONTHLY_THRESHOLDS,
+): BonusResult {
   const {
     businessDays,
     grossProfitTarget, grossProfitActual,
@@ -126,8 +146,8 @@ export function calcMonthlyBonus(perf: MonthlyPerformance): BonusResult {
   const dailyGpActual = businessDays > 0 ? safeGpActual / businessDays : 0;
 
   const gpAchievementRate = safeGpTarget > 0 ? (safeGpActual / safeGpTarget) * 100 : 0;
-  const gpThresholdLevel = calcGpThresholdLevel(safeGpActual, safeGpTarget);
-  const thresholdBaseAmount = gpThresholdLevel > 0 ? MONTHLY_THRESHOLDS[gpThresholdLevel - 1].baseAmount : 0;
+  const gpThresholdLevel = calcGpThresholdLevel(safeGpActual, safeGpTarget, customThresholds);
+  const thresholdBaseAmount = gpThresholdLevel > 0 ? customThresholds[gpThresholdLevel - 1].baseAmount : 0;
 
   const gpAchieved = gpThresholdLevel > 0;
   const revenueAchieved = !!(revenueTarget && revenueTarget > 0 && revenueActual !== null && revenueActual >= revenueTarget);
@@ -198,10 +218,12 @@ export interface QuarterlyBonusResult {
 
 /**
  * 計算季團體獎金
+ * @param customThresholds 門市自訂季閾值，未傳入時使用預設值
  */
 export function calcQuarterlyBonus(
   months: MonthlyPerformance[],
   monthlyBonuses: number[], // 三個月實際領取的月獎金
+  customThresholds: ThresholdDef[] = QUARTERLY_THRESHOLDS,
 ): QuarterlyBonusResult {
   // 加總各指標
   const quarterlyGpTarget = months.reduce((s, m) => s + (m.grossProfitTarget || 0), 0);
@@ -214,8 +236,8 @@ export function calcQuarterlyBonus(
   const quarterlyRxActual = months.reduce((s, m) => s + (m.rxActual || 0), 0);
 
   const gpAchievementRate = quarterlyGpTarget > 0 ? (quarterlyGpActual / quarterlyGpTarget) * 100 : 0;
-  const gpThresholdLevel = calcQuarterlyGpThresholdLevel(quarterlyGpActual, quarterlyGpTarget);
-  const thresholdBaseAmount = gpThresholdLevel > 0 ? QUARTERLY_THRESHOLDS[gpThresholdLevel - 1].baseAmount : 0;
+  const gpThresholdLevel = calcQuarterlyGpThresholdLevel(quarterlyGpActual, quarterlyGpTarget, customThresholds);
+  const thresholdBaseAmount = gpThresholdLevel > 0 ? customThresholds[gpThresholdLevel - 1].baseAmount : 0;
 
   const gpAchieved = gpThresholdLevel > 0;
   const revenueAchieved = quarterlyRevenueTarget > 0 && quarterlyRevenueActual >= quarterlyRevenueTarget;

@@ -9,6 +9,7 @@ import {
   QUARTERLY_THRESHOLDS,
   formatAmount,
   formatRate,
+  type ThresholdDef,
   type MonthlyPerformance,
   type BonusResult,
   type QuarterlyBonusResult,
@@ -74,6 +75,31 @@ export default function PerformancePage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedQuarter, setExpandedQuarter] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 門市自訂獎金閾值
+  const [monthlyThresholds, setMonthlyThresholds] = useState<ThresholdDef[]>(
+    MONTHLY_THRESHOLDS.map(t => ({ ...t }))
+  );
+  const [quarterlyThresholds, setQuarterlyThresholds] = useState<ThresholdDef[]>(
+    QUARTERLY_THRESHOLDS.map(t => ({ ...t }))
+  );
+  const [thresholdEditing, setThresholdEditing] = useState(false);
+  const [thresholdSaving, setThresholdSaving] = useState(false);
+  const [editMonthly, setEditMonthly] = useState<ThresholdDef[]>([]);
+  const [editQuarterly, setEditQuarterly] = useState<ThresholdDef[]>([]);
+
+  // ─── 載入門市自訂閾值 ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!selectedStoreId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/performance-thresholds?store_id=${selectedStoreId}`);
+        const json = await res.json();
+        if (json.monthly)   setMonthlyThresholds(json.monthly.map((t: any) => ({ multiplier: t.multiplier, baseAmount: t.baseAmount, label: t.label })));
+        if (json.quarterly) setQuarterlyThresholds(json.quarterly.map((t: any) => ({ multiplier: t.multiplier, baseAmount: t.baseAmount, label: t.label })));
+      } catch { /* 失敗則保留預設值 */ }
+    })();
+  }, [selectedStoreId]);
 
   // ─── Auth ────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -213,7 +239,7 @@ export default function PerformancePage() {
   const bonusResults: (BonusResult | null)[] = rows.map(r => {
     const perf = rowToPerf(r);
     if (!perf.grossProfitTarget || !perf.grossProfitActual) return null;
-    return calcMonthlyBonus(perf);
+    return calcMonthlyBonus(perf, monthlyThresholds);
   });
 
   const quarterlyResults: (QuarterlyBonusResult | null)[] = [0,1,2,3].map(qi => {
@@ -222,7 +248,7 @@ export default function PerformancePage() {
     const monthBonusAmounts = qMonths.map(m => bonusResults[m-1]?.finalBonus ?? 0);
     if (monthPerfs.every(p => !p.grossProfitTarget || !p.grossProfitActual)) return null;
     try {
-      return calcQuarterlyBonus(monthPerfs, monthBonusAmounts);
+      return calcQuarterlyBonus(monthPerfs, monthBonusAmounts, quarterlyThresholds);
     } catch { return null; }
   });
 
@@ -230,6 +256,45 @@ export default function PerformancePage() {
   function showMsg(type: 'success' | 'error', text: string) {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 4000);
+  }
+
+  // ─── Threshold helpers ───────────────────────────────────────────────────
+  function startEditThreshold() {
+    setEditMonthly(monthlyThresholds.map(t => ({ ...t })));
+    setEditQuarterly(quarterlyThresholds.map(t => ({ ...t })));
+    setThresholdEditing(true);
+  }
+
+  function cancelEditThreshold() {
+    setEditMonthly([]);
+    setEditQuarterly([]);
+    setThresholdEditing(false);
+  }
+
+  async function saveThresholds() {
+    if (!selectedStoreId) return;
+    setThresholdSaving(true);
+    try {
+      const res = await fetch('/api/performance-thresholds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          store_id: selectedStoreId,
+          monthly:   editMonthly.map((t, i)   => ({ level: i + 1, base_amount: t.baseAmount })),
+          quarterly: editQuarterly.map((t, i) => ({ level: i + 1, base_amount: t.baseAmount })),
+        }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      setMonthlyThresholds(editMonthly.map(t => ({ ...t })));
+      setQuarterlyThresholds(editQuarterly.map(t => ({ ...t })));
+      setThresholdEditing(false);
+      showMsg('success', '閾值設定已儲存');
+    } catch (e: any) {
+      showMsg('error', `儲存失敗：${e.message}`);
+    } finally {
+      setThresholdSaving(false);
+    }
   }
 
   function thresholdBadge(level: number) {
@@ -334,23 +399,92 @@ export default function PerformancePage() {
           </div>
         )}
 
-        {/* 閾值說明 */}
+        {/* 閾值設定 */}
         <div className="bg-white rounded-xl shadow-sm p-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-            <Target size={16} className="text-blue-500" />
-            月獎金門檻標準（每人）
-          </h2>
-          <div className="flex flex-wrap gap-3">
-            {MONTHLY_THRESHOLDS.map((t, i) => (
-              <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                {thresholdBadge(i + 1)}
-                <span className="text-gray-600">日毛利達 {Math.round(t.multiplier * 100)}%：</span>
-                <span className="font-bold text-gray-800">{formatAmount(t.baseAmount)}</span>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+              <Target size={16} className="text-blue-500" />
+              獎金閾值設定（每人）
+            </h2>
+            <div className="flex items-center gap-2">
+              {thresholdEditing ? (
+                <>
+                  <button
+                    onClick={saveThresholds}
+                    disabled={thresholdSaving}
+                    className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white rounded-lg text-xs hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {thresholdSaving ? <RefreshCw size={12} className="animate-spin" /> : <Check size={12} />}
+                    儲存
+                  </button>
+                  <button
+                    onClick={cancelEditThreshold}
+                    className="flex items-center gap-1 px-3 py-1 border rounded-lg text-xs text-gray-600 hover:bg-gray-50"
+                  >
+                    <X size={12} /> 取消
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={startEditThreshold}
+                  className="flex items-center gap-1 px-3 py-1 border rounded-lg text-xs text-gray-600 hover:bg-gray-50"
+                >
+                  <Edit2 size={12} /> 設定閾值
+                </button>
+              )}
+            </div>
           </div>
-          <p className="text-xs text-gray-400 mt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {/* 月閾值 */}
+            <div>
+              <div className="text-xs font-medium text-gray-500 mb-2">月獎金閾值</div>
+              <div className="space-y-1.5">
+                {(thresholdEditing ? editMonthly : monthlyThresholds).map((t, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    {thresholdBadge(i + 1)}
+                    <span className="text-gray-500 text-xs w-24 whitespace-nowrap">日毛利達 {Math.round(t.multiplier * 100)}%：</span>
+                    {thresholdEditing ? (
+                      <input
+                        type="number"
+                        value={t.baseAmount}
+                        onChange={e => setEditMonthly(prev => prev.map((x, j) => j === i ? { ...x, baseAmount: parseInt(e.target.value) || 0 } : x))}
+                        className="w-24 text-right border rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    ) : (
+                      <span className="font-bold text-gray-800">{formatAmount(t.baseAmount)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* 季閾值 */}
+            <div>
+              <div className="text-xs font-medium text-gray-500 mb-2">季獎金閾值</div>
+              <div className="space-y-1.5">
+                {(thresholdEditing ? editQuarterly : quarterlyThresholds).map((t, i) => (
+                  <div key={i} className="flex items-center gap-2 text-sm">
+                    {thresholdBadge(i + 1)}
+                    <span className="text-gray-500 text-xs w-24 whitespace-nowrap">季毛利達 {Math.round(t.multiplier * 100)}%：</span>
+                    {thresholdEditing ? (
+                      <input
+                        type="number"
+                        value={t.baseAmount}
+                        onChange={e => setEditQuarterly(prev => prev.map((x, j) => j === i ? { ...x, baseAmount: parseInt(e.target.value) || 0 } : x))}
+                        className="w-24 text-right border rounded px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                    ) : (
+                      <span className="font-bold text-gray-800">{formatAmount(t.baseAmount)}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-gray-400 mt-3">
             最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 處方箋10%)。毛利未達標則全部清零。
+            {monthlyThresholds.some((t, i) => t.baseAmount !== MONTHLY_THRESHOLDS[i].baseAmount) && (
+              <span className="ml-2 text-blue-500">• 此門市使用自訂閾值</span>
+            )}
           </p>
         </div>
 

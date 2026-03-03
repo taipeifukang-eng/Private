@@ -32,11 +32,13 @@ CREATE INDEX IF NOT EXISTS idx_talent_cultivation_bonus_employee
 ALTER TABLE talent_cultivation_bonus ENABLE ROW LEVEL SECURITY;
 
 -- 允許有登入的人查詢（可依需求收緊）
+DROP POLICY IF EXISTS "Allow authenticated select" ON talent_cultivation_bonus;
 CREATE POLICY "Allow authenticated select"
   ON talent_cultivation_bonus FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Allow managers to insert" ON talent_cultivation_bonus;
 CREATE POLICY "Allow managers to insert"
   ON talent_cultivation_bonus FOR INSERT
   TO authenticated
@@ -51,11 +53,13 @@ CREATE POLICY "Allow managers to insert"
     )
   );
 
+DROP POLICY IF EXISTS "Allow managers to update" ON talent_cultivation_bonus;
 CREATE POLICY "Allow managers to update"
   ON talent_cultivation_bonus FOR UPDATE
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "Allow managers to delete" ON talent_cultivation_bonus;
 CREATE POLICY "Allow managers to delete"
   ON talent_cultivation_bonus FOR DELETE
   TO authenticated
