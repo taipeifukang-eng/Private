@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 
+function getVal(row: Record<string, unknown>, keys: string[]): number | null {
+  for (const k of keys) {
+    if (k in row && row[k] !== null && row[k] !== '') {
+      const v = parseFloat(String(row[k]).replace(/,/g, ''));
+      return isNaN(v) ? null : v;
+    }
+  }
+  return null;
+}
+
 /**
  * POST /api/performance-data/import
  * 從 Excel 批次匯入業績資料
@@ -62,16 +72,6 @@ export async function POST(request: NextRequest) {
       cc_actual: ['月來客數實際', '來客數實際'],
       rx_actual: ['上個月處方箋實際', '處方箋實際'],
     };
-
-    function getVal(row: Record<string, any>, keys: string[]): number | null {
-      for (const k of keys) {
-        if (k in row && row[k] !== null && row[k] !== '') {
-          const v = parseFloat(String(row[k]).replace(/,/g, ''));
-          return isNaN(v) ? null : v;
-        }
-      }
-      return null;
-    }
 
     const records = [];
     const errors: string[] = [];
