@@ -148,7 +148,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('activity.equipment_trip.edit') ||
             permissionSet.has('activity.checklist.edit'),
           canManageInventory: permissionSet.has('inventory.manage'),
-          canManagePerformance: permissionSet.has('performance.manage') || permissionSet.has('store.manage') || permissionSet.has('store.supervisor.assign'),
+          canManagePerformance: permissionSet.has('performance.view') || permissionSet.has('performance.edit'),
           
           // 每月人員狀態
           canViewMonthlyStatus: 
