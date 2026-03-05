@@ -39,8 +39,13 @@ export async function POST(request: NextRequest) {
       expenses: ExpenseInput[] 
     };
 
-    if (!year_month || !store_id || !expenses || expenses.length === 0) {
+    if (!year_month || !store_id || !expenses) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
+    }
+
+    // 如果沒有新記錄，直接回傳成功
+    if (expenses.length === 0) {
+      return NextResponse.json({ success: true, count: 0, message: '已成功儲存 0 筆交通費用資料' });
     }
 
     // 驗證資料
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (successCount === 0) {
+    if (successCount === 0 && errors.length > 0) {
       return NextResponse.json({ 
         success: false, 
         error: `所有更新都失敗了。錯誤：${errors.join('; ')}` 

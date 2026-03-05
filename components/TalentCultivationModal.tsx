@@ -152,11 +152,6 @@ export default function TalentCultivationModal({
       r.cultivation_target.trim() !== ''
     );
 
-    if (validRecords.length === 0) {
-      alert('請至少新增一筆有效的育才獎金資料（需包含獎金金額和育才對象）');
-      return;
-    }
-
     setSaving(true);
     try {
       const response = await fetch('/api/talent-cultivation/save', {

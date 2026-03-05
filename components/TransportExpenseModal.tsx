@@ -152,11 +152,6 @@ export default function TransportExpenseModal({
       r.expense_notes.trim() !== ''
     );
 
-    if (validRecords.length === 0) {
-      alert('請至少新增一筆有效的交通費用資料（需包含金額和備註原因）');
-      return;
-    }
-
     setSaving(true);
     try {
       const response = await fetch('/api/transport-expense/save', {

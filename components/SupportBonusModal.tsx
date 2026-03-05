@@ -147,11 +147,6 @@ export default function SupportBonusModal({
       r.bonus_amount >= 0
     );
 
-    if (validRecords.length === 0) {
-      alert('請至少新增一筆有效的獎金資料');
-      return;
-    }
-
     setSaving(true);
     try {
       const response = await fetch('/api/support-bonus/save', {

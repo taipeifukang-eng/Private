@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       bonuses: CultivationBonusInput[] 
     };
 
-    if (!year_month || !store_id || !bonuses || bonuses.length === 0) {
+    if (!year_month || !store_id || !bonuses) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
     }
 
@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
     if (deleteError) {
       console.error('[TalentCultivation] 刪除舊資料失敗:', deleteError);
       return NextResponse.json({ success: false, error: `刪除舊資料失敗: ${deleteError.message}` }, { status: 500 });
+    }
+
+    // 如果沒有新記錄（全部清除），直接回傳成功
+    if (bonuses.length === 0) {
+      return NextResponse.json({ success: true, count: 0, message: '已清除所有育才獎金記錄' });
     }
 
     // 批次插入新記錄
