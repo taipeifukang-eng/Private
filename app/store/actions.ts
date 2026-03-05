@@ -1487,7 +1487,8 @@ function getMonthlyStatusLabel(status: MonthlyStatusType): string {
     'transferred_in': '調入',
     'transferred_out': '調出',
     'promoted': '升職',
-    'support_rotation': '支援卡班'
+    'support_rotation': '支援卡班',
+    'dual_store_manager': '擔任雙店長'
   };
   return labels[status] || status;
 }
