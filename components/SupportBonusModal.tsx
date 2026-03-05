@@ -144,7 +144,7 @@ export default function SupportBonusModal({
     const validRecords = records.filter(r => 
       r.employee_code && 
       r.employee_name && 
-      r.bonus_amount > 0
+      r.bonus_amount >= 0
     );
 
     if (validRecords.length === 0) {

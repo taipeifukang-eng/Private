@@ -148,7 +148,7 @@ export default function TalentCultivationModal({
     const validRecords = records.filter(r => 
       r.employee_code && 
       r.employee_name && 
-      r.cultivation_bonus > 0 &&
+      r.cultivation_bonus >= 0 &&
       r.cultivation_target.trim() !== ''
     );
 

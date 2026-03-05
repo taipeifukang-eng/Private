@@ -259,7 +259,7 @@ export default function SpringFestivalBonusModal({
       r.employee_name && 
       r.attendance_date &&
       r.category &&
-      r.bonus_amount > 0
+      r.bonus_amount >= 0
     );
 
     if (validRecords.length === 0 && records.length > 0) {

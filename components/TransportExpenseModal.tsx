@@ -148,7 +148,7 @@ export default function TransportExpenseModal({
     const validRecords = records.filter(r => 
       r.employee_code && 
       r.employee_name && 
-      r.transport_expense > 0 &&
+      r.transport_expense >= 0 &&
       r.expense_notes.trim() !== ''
     );
 
