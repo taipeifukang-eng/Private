@@ -368,7 +368,7 @@ export default function SupportBonusModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || records.length === 0}
+            disabled={saving}
             className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
           >
             {saving ? '儲存中...' : '儲存獎金資料'}

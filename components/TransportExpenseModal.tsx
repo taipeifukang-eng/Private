@@ -376,7 +376,7 @@ export default function TransportExpenseModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || records.length === 0}
+            disabled={saving}
             className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? '儲存中...' : '儲存'}
