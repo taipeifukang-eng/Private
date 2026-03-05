@@ -53,6 +53,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 如果沒有新記錄（全部清除），嘗試刪舊資料後回傳成功
+    if (bonuses.length === 0) {
+      await supabase
+        .from('talent_cultivation_bonus')
+        .delete()
+        .eq('year_month', year_month)
+        .eq('store_id', store_id);
+      return NextResponse.json({ success: true, count: 0, message: '已清除所有育才獎金記錄' });
+    }
+
     // 先刪除該門市該月所有舊記錄（整批替換）
     const { error: deleteError } = await supabase
       .from('talent_cultivation_bonus')
@@ -63,11 +73,6 @@ export async function POST(request: NextRequest) {
     if (deleteError) {
       console.error('[TalentCultivation] 刪除舊資料失敗:', deleteError);
       return NextResponse.json({ success: false, error: `刪除舊資料失敗: ${deleteError.message}` }, { status: 500 });
-    }
-
-    // 如果沒有新記錄（全部清除），直接回傳成功
-    if (bonuses.length === 0) {
-      return NextResponse.json({ success: true, count: 0, message: '已清除所有育才獎金記錄' });
     }
 
     // 批次插入新記錄

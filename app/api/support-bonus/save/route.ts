@@ -52,6 +52,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 如果沒有新記錄（全部清除），嘗試刪舊資料後回傳成功
+    if (bonuses.length === 0) {
+      await supabase
+        .from('support_staff_bonus')
+        .delete()
+        .eq('year_month', year_month)
+        .eq('store_id', store_id);
+      return NextResponse.json({ success: true, count: 0, message: '已清除所有支援人員獎金記錄' });
+    }
+
     // 先刪除該月份該門市的所有記錄
     const { error: deleteError } = await supabase
       .from('support_staff_bonus')
@@ -65,11 +75,6 @@ export async function POST(request: NextRequest) {
         success: false, 
         error: `刪除舊資料失敗: ${deleteError.message}` 
       }, { status: 500 });
-    }
-
-    // 如果沒有新記錄（全部清除），直接回傳成功
-    if (bonuses.length === 0) {
-      return NextResponse.json({ success: true, count: 0, message: '已清除所有支援人員獎金記錄' });
     }
 
     // 批次插入新資料
