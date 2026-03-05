@@ -144,9 +144,10 @@ export type MonthlyStatusType =
   | 'resigned'          // 離職
   | 'leave_of_absence'  // 留停
   | 'transferred_in'    // 調入
-  | 'transferred_out'   // 調出
-  | 'promoted'          // 升職
-  | 'support_rotation'; // 支援卡班
+  | 'transferred_out'      // 調出
+  | 'promoted'             // 升職
+  | 'support_rotation'     // 支援卡班
+  | 'dual_store_manager';  // 擔任雙店長
 
 // 審核狀態
 export type StaffStatusReviewStatus = 'draft' | 'submitted' | 'confirmed';
@@ -326,7 +327,8 @@ export const MONTHLY_STATUS_OPTIONS: { value: MonthlyStatusType; label: string }
   { value: 'transferred_in', label: '調入' },
   { value: 'transferred_out', label: '調出' },
   { value: 'promoted', label: '升職' },
-  { value: 'support_rotation', label: '支援卡班' }
+  { value: 'support_rotation', label: '支援卡班' },
+  { value: 'dual_store_manager', label: '擔任雙店長' }
 ];
 
 // 新人階級選項
