@@ -9,6 +9,8 @@ interface OwnStaff {
   employee_name: string;
   position: string;
   is_manually_added?: boolean;
+  from_store_name?: string;   // 來源門市（跳店調入時顯示）
+  source?: 'monthly_status' | 'movement_history'; // 資料來源
 }
 
 interface SupportRequest {
@@ -67,6 +69,7 @@ export default function StoreSupportEditModal({
   const [addSearch, setAddSearch] = useState('');
   const [addSearchResults, setAddSearchResults] = useState<OwnStaff[]>([]);
   const [addSearchLoading, setAddSearchLoading] = useState(false);
+  const [addSearchNotFound, setAddSearchNotFound] = useState(false); // 兩個來源都找不到
   const addSearchRef = useRef<HTMLDivElement>(null);
   const [showAddDropdown, setShowAddDropdown] = useState(false);
 
@@ -171,6 +174,7 @@ export default function StoreSupportEditModal({
       setOwnStaffEditing(false);
       setSupportEditing(false);
       setAddSearch('');
+      setAddSearchNotFound(false);
       setStoreSearch('');
       loadOwnStaff();
       loadSupportRequests();
@@ -195,23 +199,27 @@ export default function StoreSupportEditModal({
   useEffect(() => {
     if (!addSearch || addSearch.length < 1) {
       setAddSearchResults([]);
+      setAddSearchNotFound(false);
       setShowAddDropdown(false);
       return;
     }
     const timer = setTimeout(async () => {
       setAddSearchLoading(true);
+      setAddSearchNotFound(false);
       try {
-        const res = await fetch(`/api/monthly-staff-by-store/search?q=${encodeURIComponent(addSearch)}&store_id=${storeId}`);
+        // 不傳 store_id，搜尋所有門市（支援跨店調入場景）
+        const res = await fetch(`/api/monthly-staff-by-store/search?q=${encodeURIComponent(addSearch)}`);
         const data = await res.json();
         if (data.success) {
           setAddSearchResults(data.data || []);
+          setAddSearchNotFound(data.not_found === true);
           setShowAddDropdown(true);
         }
       } catch {}
       setAddSearchLoading(false);
     }, 300);
     return () => clearTimeout(timer);
-  }, [addSearch, storeId]);
+  }, [addSearch]);
 
   // ======== 本店人員操作 ========
   const handleAddEmployee = (emp: OwnStaff) => {
@@ -506,7 +514,7 @@ export default function StoreSupportEditModal({
                               type="text"
                               value={addSearch}
                               onChange={e => setAddSearch(e.target.value)}
-                              onFocus={() => addSearchResults.length > 0 && setShowAddDropdown(true)}
+                            onFocus={() => (addSearchResults.length > 0 || addSearchNotFound) && setShowAddDropdown(true)}
                               placeholder="輸入員編或姓名搜尋員工..."
                               className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             />
@@ -515,19 +523,37 @@ export default function StoreSupportEditModal({
                             )}
                           </div>
                         </div>
-                        {showAddDropdown && addSearchResults.length > 0 && (
-                          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
-                            {addSearchResults.map(emp => (
-                              <button
-                                key={emp.employee_code}
-                                onClick={() => handleAddEmployee(emp)}
-                                className="w-full text-left px-4 py-2.5 hover:bg-teal-50 transition-colors border-b border-gray-100 last:border-0"
-                              >
-                                <span className="font-medium text-gray-900">{emp.employee_name}</span>
-                                <span className="ml-2 text-xs text-gray-500 font-mono">{emp.employee_code}</span>
-                                {emp.position && <span className="ml-2 text-xs text-gray-500">{emp.position}</span>}
-                              </button>
-                            ))}
+                        {showAddDropdown && (addSearchResults.length > 0 || addSearchNotFound) && (
+                          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                            {addSearchNotFound ? (
+                              <div className="px-4 py-3 text-sm">
+                                <p className="text-gray-500 mb-1">找不到相關人員</p>
+                                <p className="text-amber-600 font-medium">• 若為未來入職，請洽營業部新增人員異動</p>
+                              </div>
+                            ) : (
+                              addSearchResults.map(emp => (
+                                <button
+                                  key={emp.employee_code}
+                                  onClick={() => handleAddEmployee(emp)}
+                                  className="w-full text-left px-4 py-2.5 hover:bg-teal-50 transition-colors border-b border-gray-100 last:border-0"
+                                >
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium text-gray-900">{emp.employee_name}</span>
+                                    <span className="text-xs text-gray-500 font-mono">{emp.employee_code}</span>
+                                    {emp.position && <span className="text-xs text-gray-400">{emp.position}</span>}
+                                    {emp.source === 'movement_history' && (
+                                      <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-xs">人員異動</span>
+                                    )}
+                                    {emp.from_store_name && emp.from_store_name !== storeName && (
+                                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-xs">{emp.from_store_name}</span>
+                                    )}
+                                    {ownStaff.some(s => s.employee_code === emp.employee_code) && (
+                                      <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">已加入</span>
+                                    )}
+                                  </div>
+                                </button>
+                              ))
+                            )}
                           </div>
                         )}
                       </div>
