@@ -515,7 +515,7 @@ export default function StoreSupportEditModal({
                               value={addSearch}
                               onChange={e => setAddSearch(e.target.value)}
                             onFocus={() => (addSearchResults.length > 0 || addSearchNotFound) && setShowAddDropdown(true)}
-                              placeholder="輸入員編或姓名搜尋員工..."
+                              placeholder="輸入員編或姓名搜尋員工來手動新增..."
                               className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                             />
                             {addSearchLoading && (
