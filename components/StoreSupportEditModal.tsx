@@ -103,14 +103,8 @@ export default function StoreSupportEditModal({
     if (!storeId) return;
     setOwnStaffLoading(true);
     try {
-      // 推算活動月份
-      const yearMonth = activityDate
-        ? activityDate.substring(0, 7)
-        : null;
-
-      const url = yearMonth
-        ? `/api/monthly-staff-by-store?store_id=${storeId}&year_month=${yearMonth}`
-        : `/api/monthly-staff-by-store?store_id=${storeId}`;
+      // 不傳 year_month，讓 API 自動找最近有資料的月份（活動通常處於策畫中，尚無未來月份資料）
+      const url = `/api/monthly-staff-by-store?store_id=${storeId}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -365,7 +359,7 @@ export default function StoreSupportEditModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl min-h-[60vh] max-h-[92vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-teal-600 to-emerald-600 text-white rounded-t-xl">
@@ -522,7 +516,7 @@ export default function StoreSupportEditModal({
                           </div>
                         </div>
                         {showAddDropdown && addSearchResults.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                          <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                             {addSearchResults.map(emp => (
                               <button
                                 key={emp.employee_code}
@@ -658,7 +652,7 @@ export default function StoreSupportEditModal({
                         />
                       </div>
                       {showStoreDropdown && (
-                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                           {filteredStores.length === 0 ? (
                             <div className="px-4 py-3 text-sm text-gray-400">找不到符合的門市</div>
                           ) : (
