@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
     // 查詢頭數設定
     let hcQuery = supabase
       .from('campaign_store_headcount')
-      .select('campaign_id, store_id, extra_support_count, notes, updated_at')
+      .select('campaign_id, store_id, extra_support_count, supervisor_count, notes, updated_at')
       .eq('campaign_id', campaignId);
     if (storeId) hcQuery = hcQuery.eq('store_id', storeId);
 
@@ -65,9 +65,10 @@ export async function GET(request: NextRequest) {
     const result = (hcData || []).map(row => ({
       store_id: row.store_id,
       extra_support_count: row.extra_support_count ?? 0,
+      supervisor_count: row.supervisor_count ?? 0,
       notes: row.notes || '',
       own_staff_count: ownCount[row.store_id] || 0,
-      total: (ownCount[row.store_id] || 0) + (row.extra_support_count ?? 0),
+      total: (ownCount[row.store_id] || 0) + (row.extra_support_count ?? 0) + (row.supervisor_count ?? 0),
       updated_at: row.updated_at,
     }));
 
@@ -84,7 +85,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     const body = await request.json();
-    const { campaign_id, store_id, extra_support_count, notes } = body;
+    const { campaign_id, store_id, extra_support_count, supervisor_count, notes } = body;
 
     if (!campaign_id || !store_id) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
@@ -96,6 +97,7 @@ export async function POST(request: NextRequest) {
         campaign_id,
         store_id,
         extra_support_count: extra_support_count ?? 0,
+        supervisor_count: supervisor_count ?? 0,
         notes: notes || null,
         updated_at: new Date().toISOString(),
         updated_by: user.id,
@@ -122,8 +124,9 @@ export async function POST(request: NextRequest) {
       data: {
         store_id,
         extra_support_count: extra_support_count ?? 0,
+        supervisor_count: supervisor_count ?? 0,
         own_staff_count,
-        total: own_staff_count + (extra_support_count ?? 0),
+        total: own_staff_count + (extra_support_count ?? 0) + (supervisor_count ?? 0),
       },
     });
   } catch (error: any) {

@@ -81,6 +81,7 @@ export default function StoreSupportEditModal({
 
   // ======== 人數預估 ========
   const [extraSupportCount, setExtraSupportCount] = useState(0);
+  const [supervisorCount, setSupervisorCount] = useState(0);
   const [headcountSaving, setHeadcountSaving] = useState(false);
 
   // 新增支援需求的門市搜尋
@@ -179,8 +180,10 @@ export default function StoreSupportEditModal({
       const data = await res.json();
       if (data.success && data.data.length > 0) {
         setExtraSupportCount(data.data[0].extra_support_count ?? 0);
+        setSupervisorCount(data.data[0].supervisor_count ?? 0);
       } else {
         setExtraSupportCount(0);
+        setSupervisorCount(0);
       }
     } catch (err) {
       console.error('Error loading headcount:', err);
@@ -390,6 +393,7 @@ export default function StoreSupportEditModal({
           campaign_id: campaignId,
           store_id: storeId,
           extra_support_count: extraSupportCount,
+          supervisor_count: supervisorCount,
         }),
       });
       const data = await res.json();
@@ -788,6 +792,33 @@ export default function StoreSupportEditModal({
                 </div>
               </div>
 
+              {/* 督導人數輸入 */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users size={18} className="text-purple-600" />
+                  <h3 className="font-semibold text-gray-800">督導</h3>
+                  <span className="text-xs text-gray-500">(含實習督導)</span>
+                </div>
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setSupervisorCount(v => Math.max(0, v - 1))}
+                    className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-purple-500 hover:text-purple-600 text-xl font-bold transition-colors"
+                  >−</button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    value={supervisorCount}
+                    onChange={e => setSupervisorCount(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-24 text-center text-3xl font-bold border-2 border-gray-200 rounded-xl py-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => setSupervisorCount(v => v + 1)}
+                    className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-purple-500 hover:text-purple-600 text-xl font-bold transition-colors"
+                  >+</button>
+                </div>
+              </div>
+
               {/* 額外支援人數輸入 */}
               <div className="bg-white border border-gray-200 rounded-xl p-5">
                 <div className="flex items-center gap-2 mb-4">
@@ -818,9 +849,9 @@ export default function StoreSupportEditModal({
               {/* 合計顯示 */}
               <div className="bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl p-5 text-white text-center">
                 <p className="text-sm text-white/80 mb-1">活動所需總人數預估</p>
-                <div className="text-5xl font-bold">{ownStaff.length + extraSupportCount}</div>
+                <div className="text-5xl font-bold">{ownStaff.length + supervisorCount + extraSupportCount}</div>
                 <p className="text-sm text-white/80 mt-1">
-                  本店 {ownStaff.length} 人 + 支援 {extraSupportCount} 人
+                  本店 {ownStaff.length} 人＋督導 {supervisorCount} 人＋支援 {extraSupportCount} 人
                 </p>
               </div>
             </div>
