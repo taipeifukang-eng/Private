@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, EventDate, CampaignEquipmentTrip, EQUIPMENT_SET_COLORS } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 import SupportRequestModal from '@/components/SupportRequestModal';
+import StaffOverviewModal from '@/components/StaffOverviewModal';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
@@ -47,6 +48,7 @@ export default function ActivityViewPage() {
 
   // 支援請求 Modal
   const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [staffOverviewOpen, setStaffOverviewOpen] = useState(false);
   const [managedStores, setManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
   const [canAssignSupport, setCanAssignSupport] = useState(false);
   // 人員配置總覽（督導專屬）
@@ -601,6 +603,16 @@ export default function ActivityViewPage() {
                 </button>
               )}
 
+              {canAssignSupport && managedStores.length > 0 && (
+                <button
+                  onClick={() => setStaffOverviewOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
+                >
+                  <Users className="w-4 h-4" />
+                  活動人力查看
+                </button>
+              )}
+
               {/* 匯出 PDF 按鈕 */}
               <button
                 onClick={handleExportPDF}
@@ -817,70 +829,7 @@ export default function ActivityViewPage() {
           </div>
         )}
 
-        {/* 人員配置總覽（督導可見） */}
-        {canAssignSupport && managedStores.length > 0 && (
-          <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
-              <Users className="w-6 h-6 text-teal-600" />
-              人員配置總覽
-              <span className="text-sm font-normal text-gray-500">（我管理的門市）</span>
-            </h2>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
-                <thead>
-                  <tr className="bg-teal-50 border-b-2 border-teal-200">
-                    <th className="text-left px-4 py-3 text-teal-800 font-semibold">門市</th>
-                    <th className="text-center px-4 py-3 text-teal-800 font-semibold">本店人員</th>
-                    <th className="text-center px-4 py-3 text-purple-800 font-semibold">督導</th>
-                    <th className="text-center px-4 py-3 text-indigo-800 font-semibold">額外支援</th>
-                    <th className="text-center px-4 py-3 text-teal-800 font-semibold w-28">合計人數</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {managedStores
-                    .sort((a, b) => a.store_code.localeCompare(b.store_code))
-                    .map(s => {
-                      const hc = headcountMap[s.id];
-                      const ownCount = hc?.own_staff_count ?? 0;
-                      const supCount = hc?.supervisor_count ?? 0;
-                      const extraCount = hc?.extra_support_count ?? 0;
-                      const total = ownCount + supCount + extraCount;
-                      const hasData = !!hc;
-                      return (
-                        <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900">{s.store_name}</div>
-                            <div className="text-xs text-gray-400 font-mono">{s.store_code}</div>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`text-lg font-semibold ${hasData ? 'text-gray-700' : 'text-gray-300'}`}>{ownCount}</span>
-                            <span className="text-xs text-gray-400 ml-1">人</span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`text-lg font-semibold ${supCount > 0 ? 'text-purple-600' : 'text-gray-300'}`}>{supCount}</span>
-                            <span className="text-xs text-gray-400 ml-1">人</span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`text-lg font-semibold ${extraCount > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>+{extraCount}</span>
-                            <span className="text-xs text-gray-400 ml-1">人</span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            {hasData ? (
-                              <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-100 text-teal-800 text-xl font-bold">
-                                {total}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400">尚未設定</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* 人員配置總覽（已移至「活動人力查看」 Modal） */}
       </div>
     </div>
 
@@ -896,6 +845,18 @@ export default function ActivityViewPage() {
         campaignType={campaign.campaign_type || 'promotion'}
         activityDate={detailModal.activityDate}
         canEdit={false}
+      />
+    )}
+
+    {/* 活動人力查看 Modal */}
+    {campaign && (
+      <StaffOverviewModal
+        isOpen={staffOverviewOpen}
+        onClose={() => setStaffOverviewOpen(false)}
+        campaignId={campaignId}
+        campaignName={campaign.name}
+        managedStores={managedStores}
+        headcountMap={headcountMap}
       />
     )}
 
