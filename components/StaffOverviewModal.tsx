@@ -44,11 +44,15 @@ function StoreOwnStaffPanel({
   campaignId,
   store,
   initialCount,
+  supervisorCount,
+  extraSupportCount,
   onCountChanged,
 }: {
   campaignId: string;
   store: ManagedStore;
   initialCount: number;
+  supervisorCount: number;
+  extraSupportCount: number;
   onCountChanged: (storeId: string, count: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -163,24 +167,40 @@ function StoreOwnStaffPanel({
 
   const displayCount = hasLoaded ? staff.length : initialCount;
 
+  const rowTotal = displayCount + supervisorCount + extraSupportCount;
+
   return (
     <div className="border-b border-gray-100 last:border-0">
       {/* 門市主列 */}
-      <div className="grid grid-cols-[1fr_auto] gap-3 px-6 py-3 hover:bg-gray-50 items-center">
-        <div>
+      <div className="flex items-center gap-3 px-6 py-3 hover:bg-gray-50">
+        {/* 門市名稱 */}
+        <div className="min-w-0 flex-1">
           <div className="font-medium text-gray-900 text-sm">{store.store_name}</div>
           <div className="text-xs text-gray-400 font-mono">{store.store_code}</div>
         </div>
-        <button
-          onClick={handleExpand}
-          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-semibold text-sm transition-colors"
-        >
-          {loading ? <Loader2 size={12} className="animate-spin" /> : (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
-          {displayCount} 人
-        </button>
+
+        {/* 分解數字：本店 + 督導 + 支援 */}
+        <div className="flex items-center gap-1 text-sm font-semibold shrink-0">
+          <button
+            onClick={handleExpand}
+            title="展開本店人員"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors"
+          >
+            {loading ? <Loader2 size={11} className="animate-spin" /> : (expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />)}
+            {displayCount}
+          </button>
+          <span className="text-gray-300">+</span>
+          <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700">{supervisorCount}</span>
+          <span className="text-gray-300">+</span>
+          <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700">{extraSupportCount}</span>
+          {/* 合計圓形 */}
+          <div className="ml-1 w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+            {rowTotal}
+          </div>
+        </div>
       </div>
 
-      {/* 展開：人員清單 + 編輯 */}
+      {/* 展開：人員清單 + 編輯 + 額外支援預留 */}
       {expanded && (
         <div className="bg-teal-50/40 border-t border-teal-100 px-6 py-4">
           {loading ? (
@@ -314,6 +334,19 @@ function StoreOwnStaffPanel({
               ) : (
                 <p className="text-sm text-gray-400 py-1">尚無本店人員資料</p>
               )}
+
+              {/* ── 額外支援區（預留，未來可在此新增/刪除支援人員）── */}
+              {extraSupportCount > 0 && (
+                <div className="mt-4 pt-3 border-t border-indigo-100">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
+                    <Users size={13} />
+                    額外支援（{extraSupportCount} 人）
+                  </div>
+                  <p className="text-xs text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2">
+                    已有 {extraSupportCount} 位額外支援人員，支援人員詳細管理功能即將推出。
+                  </p>
+                </div>
+              )}
             </>
           )}
         </div>
@@ -382,8 +415,12 @@ export default function StaffOverviewModal({
         </div>
 
         {/* 欄位說明 */}
-        <div className="px-6 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-400 shrink-0">
-          點擊門市的人數按鈕可展開人員名單，展開後可進行編輯
+        <div className="px-6 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-400 shrink-0 flex items-center gap-4">
+          <span>點擊</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold">青綠 = 本店</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">紫色 = 督導</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">靛色 = 支援</span>
+          <span className="ml-auto">點擊青綠數字可展開編輯本店人員</span>
         </div>
 
         {/* 門市列表 */}
@@ -394,6 +431,8 @@ export default function StaffOverviewModal({
               campaignId={campaignId}
               store={store}
               initialCount={localCounts[store.id] ?? headcountMap[store.id]?.own_staff_count ?? 0}
+              supervisorCount={headcountMap[store.id]?.supervisor_count ?? 0}
+              extraSupportCount={headcountMap[store.id]?.extra_support_count ?? 0}
               onCountChanged={handleCountChanged}
             />
           ))}
