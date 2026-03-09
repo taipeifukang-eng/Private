@@ -50,7 +50,7 @@ export default function ActivityViewPage() {
   const [managedStores, setManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
   const [canAssignSupport, setCanAssignSupport] = useState(false);
   // 人員配置總覽（督導專屬）
-  const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; extra_support_count: number; total: number }>>({});
+  const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }>>({});
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
   const AVAILABLE_COLORS = [
     { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色', hexBg: '#BFDBFE', hexBorder: '#60A5FA', hexText: '#1E3A5F' },
@@ -309,12 +309,13 @@ export default function ActivityViewPage() {
         const res = await fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}`);
         const data = await res.json();
         if (data.success) {
-          const map: Record<string, { own_staff_count: number; extra_support_count: number; total: number }> = {};
+          const map: Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }> = {};
           for (const row of data.data || []) {
             map[row.store_id] = {
               own_staff_count: row.own_staff_count ?? 0,
+              supervisor_count: row.supervisor_count ?? 0,
               extra_support_count: row.extra_support_count ?? 0,
-              total: row.total ?? 0,
+              total: (row.own_staff_count ?? 0) + (row.supervisor_count ?? 0) + (row.extra_support_count ?? 0),
             };
           }
           setHeadcountMap(map);
@@ -817,7 +818,7 @@ export default function ActivityViewPage() {
         )}
 
         {/* 人員配置總覽（督導可見） */}
-        {canAssignSupport && managedStores.length > 0 && Object.keys(headcountMap).length > 0 && (
+        {canAssignSupport && managedStores.length > 0 && (
           <div className="mt-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
               <Users className="w-6 h-6 text-teal-600" />
@@ -830,16 +831,21 @@ export default function ActivityViewPage() {
                   <tr className="bg-teal-50 border-b-2 border-teal-200">
                     <th className="text-left px-4 py-3 text-teal-800 font-semibold">門市</th>
                     <th className="text-center px-4 py-3 text-teal-800 font-semibold">本店人員</th>
-                    <th className="text-center px-4 py-3 text-teal-800 font-semibold">額外支援</th>
+                    <th className="text-center px-4 py-3 text-purple-800 font-semibold">督導</th>
+                    <th className="text-center px-4 py-3 text-indigo-800 font-semibold">額外支援</th>
                     <th className="text-center px-4 py-3 text-teal-800 font-semibold w-28">合計人數</th>
                   </tr>
                 </thead>
                 <tbody>
                   {managedStores
-                    .filter(s => headcountMap[s.id])
                     .sort((a, b) => a.store_code.localeCompare(b.store_code))
                     .map(s => {
                       const hc = headcountMap[s.id];
+                      const ownCount = hc?.own_staff_count ?? 0;
+                      const supCount = hc?.supervisor_count ?? 0;
+                      const extraCount = hc?.extra_support_count ?? 0;
+                      const total = ownCount + supCount + extraCount;
+                      const hasData = !!hc;
                       return (
                         <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="px-4 py-3">
@@ -847,19 +853,25 @@ export default function ActivityViewPage() {
                             <div className="text-xs text-gray-400 font-mono">{s.store_code}</div>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="text-lg font-semibold text-gray-700">{hc.own_staff_count}</span>
+                            <span className={`text-lg font-semibold ${hasData ? 'text-gray-700' : 'text-gray-300'}`}>{ownCount}</span>
                             <span className="text-xs text-gray-400 ml-1">人</span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className={`text-lg font-semibold ${hc.extra_support_count > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>
-                              +{hc.extra_support_count}
-                            </span>
+                            <span className={`text-lg font-semibold ${supCount > 0 ? 'text-purple-600' : 'text-gray-300'}`}>{supCount}</span>
                             <span className="text-xs text-gray-400 ml-1">人</span>
                           </td>
                           <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-100 text-teal-800 text-xl font-bold">
-                              {hc.total}
-                            </span>
+                            <span className={`text-lg font-semibold ${extraCount > 0 ? 'text-indigo-600' : 'text-gray-300'}`}>+{extraCount}</span>
+                            <span className="text-xs text-gray-400 ml-1">人</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            {hasData ? (
+                              <span className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-teal-100 text-teal-800 text-xl font-bold">
+                                {total}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">尚未設定</span>
+                            )}
                           </td>
                         </tr>
                       );
