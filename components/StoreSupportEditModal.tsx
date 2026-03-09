@@ -678,7 +678,7 @@ export default function StoreSupportEditModal({
                         />
                       </div>
                       {showStoreDropdown && (
-                        <div className="absolute bottom-full left-0 right-0 mb-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
                           {filteredStores.length === 0 ? (
                             <div className="px-4 py-3 text-sm text-gray-400">找不到符合的門市</div>
                           ) : (
