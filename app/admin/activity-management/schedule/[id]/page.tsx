@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2, Truck } from 'lucide-react';
+import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2, Truck, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 import CampaignDetailPreviewTable from '@/components/CampaignDetailPreviewTable';
 import EquipmentTripEditor from '@/components/EquipmentTripEditor';
 import ChecklistTemplateEditor from '@/components/ChecklistTemplateEditor';
+import StoreSupportEditModal from '@/components/StoreSupportEditModal';
 import { createClient } from '@/lib/supabase/client';
 
 interface StoreWithManager extends Store {
@@ -60,6 +61,15 @@ export default function ScheduleEditPage() {
   const [canEditStoreDetail, setCanEditStoreDetail] = useState(false); // activity.store_detail.edit
   const [canEditEquipmentTrip, setCanEditEquipmentTrip] = useState(false); // activity.equipment_trip.edit
   const [canEditChecklist, setCanEditChecklist] = useState(false); // activity.checklist.edit
+  const [canEditSupportRequest, setCanEditSupportRequest] = useState(false); // activity.support_request.edit
+
+  // 分店支援 Modal
+  const [supportModal, setSupportModal] = useState<{
+    open: boolean;
+    storeId: string;
+    storeName: string;
+    activityDate?: string;
+  }>({ open: false, storeId: '', storeName: '' });
 
   // 督導顏色映射（使用 state 確保一致性）
   const [supervisorColorMap, setSupervisorColorMap] = useState<Record<string, { bg: string; border: string; text: string; name: string }>>({});
@@ -241,6 +251,7 @@ export default function ScheduleEditPage() {
           setCanEditStoreDetail(isRbacAdmin || permSet.has('activity.store_detail.edit'));
           setCanEditEquipmentTrip(isRbacAdmin || permSet.has('activity.equipment_trip.edit'));
           setCanEditChecklist(isRbacAdmin || permSet.has('activity.checklist.edit'));
+          setCanEditSupportRequest(isRbacAdmin || permSet.has('activity.support_request.edit'));
         }
       } catch (permErr) {
         console.warn('權限檢查失敗，使用預設禁用編輯：', permErr);
@@ -754,6 +765,7 @@ export default function ScheduleEditPage() {
   });
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-[1600px] mx-auto">
         {/* 標題列 */}
@@ -1177,6 +1189,7 @@ export default function ScheduleEditPage() {
                       <th className="text-left px-4 py-3 font-semibold text-gray-700">活動日期</th>
                       <th className="text-center px-4 py-3 font-semibold text-gray-700">細節狀態</th>
                       <th className="text-center px-4 py-3 font-semibold text-gray-700">操作</th>
+                      <th className="text-center px-4 py-3 font-semibold text-gray-700">分店支援</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1231,6 +1244,22 @@ export default function ScheduleEditPage() {
                                 <Edit2 className="w-3 h-3" />
                                 編輯細節
                               </button>
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {(canEditStoreDetail || canEditSupportRequest) && (
+                                <button
+                                  onClick={() => setSupportModal({
+                                    open: true,
+                                    storeId: store.id,
+                                    storeName: store.store_name,
+                                    activityDate: schedule.activity_date,
+                                  })}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-xs font-medium"
+                                >
+                                  <Users className="w-3 h-3" />
+                                  分店支援
+                                </button>
+                              )}
                             </td>
                           </tr>
                         );
@@ -1324,5 +1353,22 @@ export default function ScheduleEditPage() {
         )}
       </div>
     </div>
+
+    {/* 分店支援 Modal */}
+    {campaign && supportModal.open && (
+      <StoreSupportEditModal
+        isOpen={supportModal.open}
+        onClose={() => setSupportModal(prev => ({ ...prev, open: false }))}
+        campaignId={campaignId}
+        storeId={supportModal.storeId}
+        storeName={supportModal.storeName}
+        activityName={campaign.name}
+        activityDate={supportModal.activityDate}
+        canEditOwnStaff={canEditStoreDetail}
+        canEditSupportRequest={canEditSupportRequest}
+        allStores={stores.map(s => ({ id: s.id, store_code: s.store_code || '', store_name: s.store_name }))}
+      />
+    )}
+    </>
   );
 }

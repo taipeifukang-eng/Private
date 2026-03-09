@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, EventDate, CampaignEquipmentTrip, EQUIPMENT_SET_COLORS } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
+import SupportRequestModal from '@/components/SupportRequestModal';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
@@ -43,6 +44,11 @@ export default function ActivityViewPage() {
     storeName: string;
     activityDate?: string;
   }>({ open: false, storeId: '', storeName: '' });
+
+  // 支援請求 Modal
+  const [supportModalOpen, setSupportModalOpen] = useState(false);
+  const [managedStores, setManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
+  const [canAssignSupport, setCanAssignSupport] = useState(false);
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
   const AVAILABLE_COLORS = [
     { bg: 'bg-blue-200', border: 'border-blue-400', text: 'text-blue-900', name: '藍色', hexBg: '#BFDBFE', hexBorder: '#60A5FA', hexText: '#1E3A5F' },
@@ -245,6 +251,45 @@ export default function ActivityViewPage() {
           const tripsData = await tripsRes.json();
           if (tripsData.success) setEquipmentTrips(tripsData.data || []);
         } catch { /* 忽略車次載入錯誤，不影響主畫面 */ }
+      }
+
+      // 載入當前使用者管理的門市（用於支援請求功能）
+      try {
+        const supabase = (await import('@/lib/supabase/client')).createClient();
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (currentUser) {
+          // 查詢使用者角色和管理門市
+          const { data: userRoles } = await supabase.from('user_roles').select(`
+            role:roles!inner(code, role_permissions!inner(is_allowed, permission:permissions!inner(code)))
+          `).eq('user_id', currentUser.id).eq('is_active', true);
+
+          const permSet = new Set<string>();
+          let isAdmin = false;
+          (userRoles ?? []).forEach((ur: any) => {
+            if (ur.role?.code === 'admin') isAdmin = true;
+            ur.role?.role_permissions?.forEach((rp: any) => {
+              if (rp.is_allowed && rp.permission?.code) permSet.add(rp.permission.code);
+            });
+          });
+
+          const hasAssignPerm = isAdmin || permSet.has('activity.support_assign.edit');
+          setCanAssignSupport(hasAssignPerm);
+
+          if (hasAssignPerm) {
+            if (isAdmin) {
+              // 管理員可查看所有門市（取活動排程內的門市）
+              const { data: allStores } = await supabase.from('stores').select('id, store_code, store_name').eq('is_active', true).order('store_code');
+              setManagedStores((allStores || []).map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name })));
+            } else {
+              // 一般督導/店長只顯示自己管理的門市
+              const { data: managed } = await supabase.from('store_managers').select('store:stores(id, store_code, store_name)').eq('user_id', currentUser.id);
+              const stores = (managed || []).map((m: any) => m.store).filter(Boolean);
+              setManagedStores(stores.map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name })));
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('支援請求權限載入失敗:', e);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -520,6 +565,17 @@ export default function ActivityViewPage() {
             <h2 className="text-xl font-bold text-gray-900">活動排程</h2>
 
             <div className="flex items-center gap-4">
+              {/* 支援請求按鈕（有支援指派權限才顯示） */}
+              {canAssignSupport && managedStores.length > 0 && (
+                <button
+                  onClick={() => setSupportModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                >
+                  <Users className="w-4 h-4" />
+                  支援請求
+                </button>
+              )}
+
               {/* 匯出 PDF 按鈕 */}
               <button
                 onClick={handleExportPDF}
@@ -750,6 +806,18 @@ export default function ActivityViewPage() {
         campaignType={campaign.campaign_type || 'promotion'}
         activityDate={detailModal.activityDate}
         canEdit={false}
+      />
+    )}
+
+    {/* 支援請求 Modal */}
+    {campaign && (
+      <SupportRequestModal
+        isOpen={supportModalOpen}
+        onClose={() => setSupportModalOpen(false)}
+        campaignId={campaignId}
+        campaignName={campaign.name}
+        managedStores={managedStores}
+        canAssign={canAssignSupport}
       />
     )}
     </>
