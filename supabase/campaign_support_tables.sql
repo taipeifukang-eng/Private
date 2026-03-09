@@ -85,3 +85,28 @@ CREATE INDEX IF NOT EXISTS idx_campaign_support_requests_requesting
 
 CREATE INDEX IF NOT EXISTS idx_campaign_support_staff_request
   ON campaign_support_staff(support_request_id);
+
+-- =====================================================
+-- 4. 門市人數預估表（各門市本店人員數 + 額外支援人數預估）
+-- =====================================================
+CREATE TABLE IF NOT EXISTS campaign_store_headcount (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  campaign_id UUID REFERENCES campaigns(id) ON DELETE CASCADE NOT NULL,
+  store_id UUID REFERENCES stores(id) ON DELETE CASCADE NOT NULL,
+  extra_support_count INT DEFAULT 0 CHECK (extra_support_count >= 0),
+  notes TEXT,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_by UUID REFERENCES auth.users(id),
+  UNIQUE(campaign_id, store_id)
+);
+
+ALTER TABLE campaign_store_headcount ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow read for authenticated users" ON campaign_store_headcount
+  FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow write for authenticated users" ON campaign_store_headcount
+  FOR ALL USING (auth.role() = 'authenticated');
+
+CREATE INDEX IF NOT EXISTS idx_campaign_store_headcount
+  ON campaign_store_headcount(campaign_id, store_id);

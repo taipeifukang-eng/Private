@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { X, Plus, Trash2, Loader2, Users, Store, Search, RotateCcw, Save, ChevronDown } from 'lucide-react';
+import { X, Plus, Trash2, Loader2, Users, Store, Search, RotateCcw, Save, ChevronDown, BarChart3 } from 'lucide-react';
 
 interface OwnStaff {
   id?: string;
@@ -56,7 +56,7 @@ export default function StoreSupportEditModal({
   allStores,
 }: StoreSupportEditModalProps) {
   // ======== Tab ========
-  const [activeTab, setActiveTab] = useState<'own_staff' | 'support_request'>('own_staff');
+  const [activeTab, setActiveTab] = useState<'own_staff' | 'support_request' | 'headcount'>('own_staff');
 
   // ======== 本店人員 ========
   const [ownStaff, setOwnStaff] = useState<OwnStaff[]>([]);
@@ -78,6 +78,10 @@ export default function StoreSupportEditModal({
   const [supportRequestsLoading, setSupportRequestsLoading] = useState(false);
   const [supportRequestsSaving, setSupportRequestsSaving] = useState(false);
   const [supportEditing, setSupportEditing] = useState(false);
+
+  // ======== 人數預估 ========
+  const [extraSupportCount, setExtraSupportCount] = useState(0);
+  const [headcountSaving, setHeadcountSaving] = useState(false);
 
   // 新增支援需求的門市搜尋
   const [storeSearch, setStoreSearch] = useState('');
@@ -168,6 +172,21 @@ export default function StoreSupportEditModal({
     }
   }, [campaignId, storeId]);
 
+  const loadHeadcount = useCallback(async () => {
+    if (!campaignId || !storeId) return;
+    try {
+      const res = await fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}&store_id=${storeId}`);
+      const data = await res.json();
+      if (data.success && data.data.length > 0) {
+        setExtraSupportCount(data.data[0].extra_support_count ?? 0);
+      } else {
+        setExtraSupportCount(0);
+      }
+    } catch (err) {
+      console.error('Error loading headcount:', err);
+    }
+  }, [campaignId, storeId]);
+
   useEffect(() => {
     if (isOpen) {
       setActiveTab('own_staff');
@@ -178,8 +197,10 @@ export default function StoreSupportEditModal({
       setStoreSearch('');
       loadOwnStaff();
       loadSupportRequests();
+      // 載入人數預估
+      loadHeadcount();
     }
-  }, [isOpen, loadOwnStaff, loadSupportRequests]);
+  }, [isOpen, loadOwnStaff, loadSupportRequests, loadHeadcount]);
 
   // 點擊外部關閉下拉
   useEffect(() => {
@@ -359,6 +380,27 @@ export default function StoreSupportEditModal({
 
   if (!isOpen) return null;
 
+  const handleHeadcountSave = async () => {
+    setHeadcountSaving(true);
+    try {
+      const res = await fetch('/api/campaign-store-headcount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          store_id: storeId,
+          extra_support_count: extraSupportCount,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) alert(`儲存失敗：${data.error}`);
+    } catch {
+      alert('網路錯誤，請重試');
+    } finally {
+      setHeadcountSaving(false);
+    }
+  };
+
   const dateLabel = activityDate
     ? new Date(activityDate).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
     : '';
@@ -418,6 +460,24 @@ export default function StoreSupportEditModal({
                 {supportRequests.length > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs">
                     {supportRequests.length}
+                  </span>
+                )}
+              </button>
+            )}
+            {canEditOwnStaff && (
+              <button
+                onClick={() => setActiveTab('headcount')}
+                className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+                  activeTab === 'headcount'
+                    ? 'border-teal-600 text-teal-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <BarChart3 size={15} />
+                人數預估
+                {(ownStaff.length + extraSupportCount) > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs">
+                    {ownStaff.length + extraSupportCount}
                   </span>
                 )}
               </button>
@@ -712,6 +772,59 @@ export default function StoreSupportEditModal({
               <p>您沒有查看此功能的權限</p>
             </div>
           )}
+
+          {/* ===== Tab 3: 人數預估 ===== */}
+          {activeTab === 'headcount' && canEditOwnStaff && (
+            <div className="space-y-6">
+              {/* 本店人員物計 */}
+              <div className="bg-teal-50 border border-teal-200 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Users size={18} className="text-teal-600" />
+                  <h3 className="font-semibold text-teal-800">本店人員</h3>
+                  <span className="text-xs text-teal-600">(從「本店人員」頁签確認的名單)</span>
+                </div>
+                <div className="text-4xl font-bold text-teal-700 text-center py-4">
+                  {ownStaff.length} <span className="text-lg font-normal text-teal-500">人</span>
+                </div>
+              </div>
+
+              {/* 額外支援人數輸入 */}
+              <div className="bg-white border border-gray-200 rounded-xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <BarChart3 size={18} className="text-indigo-600" />
+                  <h3 className="font-semibold text-gray-800">額外支援人數</h3>
+                  <span className="text-xs text-gray-500">(驀進活動預估需要的額外支援人數)</span>
+                </div>
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setExtraSupportCount(v => Math.max(0, v - 1))}
+                    className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-teal-500 hover:text-teal-600 text-xl font-bold transition-colors"
+                  >−</button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={99}
+                    value={extraSupportCount}
+                    onChange={e => setExtraSupportCount(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-24 text-center text-3xl font-bold border-2 border-gray-200 rounded-xl py-2 focus:ring-2 focus:ring-teal-500 focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => setExtraSupportCount(v => v + 1)}
+                    className="w-10 h-10 rounded-full border-2 border-gray-300 flex items-center justify-center text-gray-600 hover:border-teal-500 hover:text-teal-600 text-xl font-bold transition-colors"
+                  >+</button>
+                </div>
+              </div>
+
+              {/* 合計顯示 */}
+              <div className="bg-gradient-to-r from-teal-500 to-emerald-500 rounded-xl p-5 text-white text-center">
+                <p className="text-sm text-white/80 mb-1">活動所需總人數預估</p>
+                <div className="text-5xl font-bold">{ownStaff.length + extraSupportCount}</div>
+                <p className="text-sm text-white/80 mt-1">
+                  本店 {ownStaff.length} 人 + 支援 {extraSupportCount} 人
+                </p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -747,6 +860,18 @@ export default function StoreSupportEditModal({
                   </>
                 )}
               </>
+            )}
+
+            {/* 人數預估提交按鈕 */}
+            {activeTab === 'headcount' && canEditOwnStaff && (
+              <button
+                onClick={handleHeadcountSave}
+                disabled={headcountSaving}
+                className="flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 text-sm font-medium"
+              >
+                {headcountSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                {headcountSaving ? '儲存中...' : '儲存預估'}
+              </button>
             )}
 
             {/* 支援需求按鈕 */}
