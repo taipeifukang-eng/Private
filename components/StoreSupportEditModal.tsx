@@ -479,9 +479,9 @@ export default function StoreSupportEditModal({
               >
                 <BarChart3 size={15} />
                 人數預估
-                {(ownStaff.length + extraSupportCount) > 0 && (
+                {(ownStaff.length + supervisorCount + extraSupportCount) > 0 && (
                   <span className="ml-1 px-1.5 py-0.5 bg-teal-100 text-teal-700 rounded-full text-xs">
-                    {ownStaff.length + extraSupportCount}
+                    {ownStaff.length}+{supervisorCount}+{extraSupportCount}
                   </span>
                 )}
               </button>
