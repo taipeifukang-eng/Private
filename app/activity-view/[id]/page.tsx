@@ -51,6 +51,7 @@ export default function ActivityViewPage() {
   const [staffOverviewOpen, setStaffOverviewOpen] = useState(false);
   const [managedStores, setManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
   const [canAssignSupport, setCanAssignSupport] = useState(false);
+  const [canViewStaffOverview, setCanViewStaffOverview] = useState(false);
   // 人員配置總覽（督導專屬）
   const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }>>({});
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
@@ -276,16 +277,20 @@ export default function ActivityViewPage() {
             });
           });
 
+          // 支援請求：給店長填入支援人員資訊
           const hasAssignPerm = isAdmin || permSet.has('activity.support_assign.edit');
+          // 活動人力查看：給督導查看/編輯所有管理門市的人力概況
+          const hasOverviewPerm = isAdmin || permSet.has('activity.staff_overview.view');
           setCanAssignSupport(hasAssignPerm);
+          setCanViewStaffOverview(hasOverviewPerm);
 
-          if (hasAssignPerm) {
+          if (hasAssignPerm || hasOverviewPerm) {
             if (isAdmin) {
-              // 管理員可查看所有門市（取活動排程內的門市）
+              // 管理員可查看所有門市
               const { data: allStores } = await supabase.from('stores').select('id, store_code, store_name').eq('is_active', true).order('store_code');
               setManagedStores((allStores || []).map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name })));
             } else {
-              // 一般督導/店長只顯示自己管理的門市
+              // 只顯示自己管理的門市
               const { data: managed } = await supabase.from('store_managers').select('store:stores(id, store_code, store_name)').eq('user_id', currentUser.id);
               const stores = (managed || []).map((m: any) => m.store).filter(Boolean);
               setManagedStores(stores.map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name })));
@@ -603,7 +608,7 @@ export default function ActivityViewPage() {
                 </button>
               )}
 
-              {canAssignSupport && managedStores.length > 0 && (
+              {canViewStaffOverview && managedStores.length > 0 && (
                 <button
                   onClick={() => setStaffOverviewOpen(true)}
                   className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium"
