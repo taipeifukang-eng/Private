@@ -4,7 +4,7 @@
 -- ============================================================
 
 -- 1. 新增權限定義（若已存在則忽略）
-INSERT INTO permissions (module, resource, code, action, description)
+INSERT INTO permissions (module, feature, code, action, description)
 VALUES ('activity', 'support_assign', 'activity.support_assign.edit', 'edit', '活動人力查看與支援請求管理（查看/編輯管理門市的本店人員）')
 ON CONFLICT (code) DO NOTHING;
 
