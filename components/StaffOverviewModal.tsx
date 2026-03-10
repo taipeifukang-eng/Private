@@ -456,10 +456,12 @@ export default function StaffOverviewModal({
   const [localCounts, setLocalCounts] = useState<Record<string, number>>({});
   const [localExtraCounts, setLocalExtraCounts] = useState<Record<string, number>>({});
 
+  // Modal 開啟時重取最新資料，同時清空本地覆寫
   useEffect(() => {
     if (isOpen) {
       setLocalCounts({});
       setLocalExtraCounts({});
+      onHeadcountUpdated?.();
     }
   }, [isOpen]);
 

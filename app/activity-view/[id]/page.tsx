@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList, Users } from 'lucide-react';
 import Link from 'next/link';
@@ -308,28 +308,31 @@ export default function ActivityViewPage() {
     }
   };
 
+  // 重取人員配置頭數
+  const refreshHeadcountMap = useCallback(async () => {
+    if (!campaignId || managedStores.length === 0) return;
+    try {
+      const res = await fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}`);
+      const data = await res.json();
+      if (data.success) {
+        const map: Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }> = {};
+        for (const row of data.data || []) {
+          map[row.store_id] = {
+            own_staff_count: row.own_staff_count ?? 0,
+            supervisor_count: row.supervisor_count ?? 0,
+            extra_support_count: row.extra_support_count ?? 0,
+            total: (row.own_staff_count ?? 0) + (row.supervisor_count ?? 0) + (row.extra_support_count ?? 0),
+          };
+        }
+        setHeadcountMap(map);
+      }
+    } catch { /* 忽略錯誤 */ }
+  }, [campaignId, managedStores]);
+
   // 當管理門市載入後，自動抓取人員配置頭數
   useEffect(() => {
-    if (!campaignId || managedStores.length === 0) return;
-    (async () => {
-      try {
-        const res = await fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}`);
-        const data = await res.json();
-        if (data.success) {
-          const map: Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }> = {};
-          for (const row of data.data || []) {
-            map[row.store_id] = {
-              own_staff_count: row.own_staff_count ?? 0,
-              supervisor_count: row.supervisor_count ?? 0,
-              extra_support_count: row.extra_support_count ?? 0,
-              total: (row.own_staff_count ?? 0) + (row.supervisor_count ?? 0) + (row.extra_support_count ?? 0),
-            };
-          }
-          setHeadcountMap(map);
-        }
-      } catch { /* 忽略錯誤 */ }
-    })();
-  }, [campaignId, managedStores]);
+    refreshHeadcountMap();
+  }, [refreshHeadcountMap]);
 
   // 獲取指定日期的車次
   const getTripsForDate = (date: Date) => {
@@ -862,6 +865,7 @@ export default function ActivityViewPage() {
         campaignName={campaign.name}
         managedStores={managedStores}
         headcountMap={headcountMap}
+        onHeadcountUpdated={refreshHeadcountMap}
       />
     )}
 
