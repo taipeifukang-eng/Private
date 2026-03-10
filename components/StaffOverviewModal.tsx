@@ -64,6 +64,38 @@ function StoreOwnStaffPanel({
   const [saving, setSaving] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
 
+  // 掛載時抓取最新數字（不依賴父層 headcountMap）
+  const [freshOwnCount, setFreshOwnCount] = useState<number | null>(null);
+  const [freshExtraCount, setFreshExtraCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchCounts = async () => {
+      try {
+        const [ownRes, hcRes] = await Promise.all([
+          fetch(`/api/campaign-store-own-staff?campaign_id=${campaignId}&store_id=${store.id}`),
+          fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}&store_id=${store.id}`),
+        ]);
+        const [ownData, hcData] = await Promise.all([ownRes.json(), hcRes.json()]);
+        if (cancelled) return;
+        if (ownData.success) {
+          const count = (ownData.data || []).length;
+          setFreshOwnCount(count);
+          setHasLoaded(true);
+          setStaff(ownData.data || []);
+        }
+        if (hcData.success && hcData.data?.length > 0) {
+          setFreshExtraCount(hcData.data[0].extra_support_count ?? 0);
+        } else if (hcData.success) {
+          setFreshExtraCount(extraSupportCount);
+        }
+      } catch {}
+    };
+    fetchCounts();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, store.id]);
+
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<StaffMember[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -78,13 +110,13 @@ function StoreOwnStaffPanel({
   const [savingExtra, setSavingExtra] = useState(false);
   const extraInputRef = useRef<HTMLInputElement>(null);
 
-  // 同步 prop 變化
+  // freshExtraCount 一旦抓到就同步到 localExtraCount（若不在編輯中）
   useEffect(() => {
-    if (!editingExtra) {
-      setLocalExtraCount(extraSupportCount);
-      setExtraInput(String(extraSupportCount));
+    if (freshExtraCount !== null && !editingExtra) {
+      setLocalExtraCount(freshExtraCount);
+      setExtraInput(String(freshExtraCount));
     }
-  }, [extraSupportCount, editingExtra]);
+  }, [freshExtraCount, editingExtra]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -126,6 +158,7 @@ function StoreOwnStaffPanel({
       const data = await res.json();
       if (data.success) {
         setStaff(data.data || []);
+        setFreshOwnCount((data.data || []).length);
         setHasLoaded(true);
       }
     } catch {}
@@ -135,15 +168,14 @@ function StoreOwnStaffPanel({
   const handleExpand = () => {
     const next = !expanded;
     setExpanded(next);
-    if (next && !hasLoaded) fetchStaff();
+    // hasLoaded 已在 mount 時設好，無需重複 fetch
   };
 
   const handleCancelEdit = () => {
     setEditing(false);
     setSearch('');
     setShowDropdown(false);
-    setHasLoaded(false);
-    fetchStaff();
+    fetchStaff(); // 重新載入最新名單
   };
 
   const handleAddEmployee = (emp: StaffMember) => {
@@ -182,6 +214,7 @@ function StoreOwnStaffPanel({
       const data = await res.json();
       if (data.success) {
         setLocalExtraCount(newCount);
+        setFreshExtraCount(newCount);
         setEditingExtra(false);
         onExtraCountChanged(store.id, newCount);
       } else {
@@ -206,6 +239,7 @@ function StoreOwnStaffPanel({
       if (data.success) {
         setEditing(false);
         setSearch('');
+        setFreshOwnCount(staff.length);
         onCountChanged(store.id, staff.length);
       } else {
         alert(`儲存失敗：${data.error}`);
@@ -217,9 +251,12 @@ function StoreOwnStaffPanel({
     }
   };
 
-  const displayCount = hasLoaded ? staff.length : initialCount;
+  // freshOwnCount 優先；尚未抓到時用 initialCount（parent 的舊值）作 placeholder
+  const displayCount = freshOwnCount !== null ? freshOwnCount : initialCount;
+  // 若正在編輯中（staff 陣列已被本地修改），顯示即時 staff.length
+  const liveCount = editing ? staff.length : displayCount;
 
-  const rowTotal = displayCount + supervisorCount + localExtraCount;
+  const rowTotal = liveCount + supervisorCount + localExtraCount;
 
   return (
     <div className="border-b border-gray-100 last:border-0">
@@ -238,8 +275,8 @@ function StoreOwnStaffPanel({
             title="展開本店人員"
             className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 transition-colors"
           >
-            {loading ? <Loader2 size={11} className="animate-spin" /> : (expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />)}
-            {displayCount}
+            {(loading || freshOwnCount === null) ? <Loader2 size={11} className="animate-spin" /> : (expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />)}
+            {freshOwnCount !== null ? liveCount : <span className="w-4 inline-block" />}
           </button>
           <span className="text-gray-300">+</span>
           <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700">{supervisorCount}</span>
@@ -424,7 +461,7 @@ function StoreOwnStaffPanel({
               )}
 
               {/* ── 額外支援區（預留，未來可在此新增/刪除支援人員）── */}
-              {extraSupportCount > 0 && (
+              {localExtraCount > 0 && (
                 <div className="mt-4 pt-3 border-t border-indigo-100">
                   <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
                     <Users size={13} />
