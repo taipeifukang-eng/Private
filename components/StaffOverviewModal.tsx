@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Users, ChevronDown, ChevronRight, Loader2, UserCheck,
-  Pencil, Trash2, Search, Save, RotateCcw,
+  Pencil, Trash2, Search, Save, RotateCcw, Check,
 } from 'lucide-react';
 
 interface ManagedStore {
@@ -47,6 +47,7 @@ function StoreOwnStaffPanel({
   supervisorCount,
   extraSupportCount,
   onCountChanged,
+  onExtraCountChanged,
 }: {
   campaignId: string;
   store: ManagedStore;
@@ -54,6 +55,7 @@ function StoreOwnStaffPanel({
   supervisorCount: number;
   extraSupportCount: number;
   onCountChanged: (storeId: string, count: number) => void;
+  onExtraCountChanged: (storeId: string, count: number) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -68,6 +70,21 @@ function StoreOwnStaffPanel({
   const [searchNotFound, setSearchNotFound] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // 額外支援人數 inline 編輯
+  const [editingExtra, setEditingExtra] = useState(false);
+  const [localExtraCount, setLocalExtraCount] = useState(extraSupportCount);
+  const [extraInput, setExtraInput] = useState(String(extraSupportCount));
+  const [savingExtra, setSavingExtra] = useState(false);
+  const extraInputRef = useRef<HTMLInputElement>(null);
+
+  // 同步 prop 變化
+  useEffect(() => {
+    if (!editingExtra) {
+      setLocalExtraCount(extraSupportCount);
+      setExtraInput(String(extraSupportCount));
+    }
+  }, [extraSupportCount, editingExtra]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -142,6 +159,41 @@ function StoreOwnStaffPanel({
 
   const handleRemove = (code: string) => setStaff(prev => prev.filter(s => s.employee_code !== code));
 
+  const handleStartEditExtra = () => {
+    setExtraInput(String(localExtraCount));
+    setEditingExtra(true);
+    setTimeout(() => extraInputRef.current?.select(), 50);
+  };
+
+  const handleSaveExtra = async () => {
+    const newCount = Math.max(0, parseInt(extraInput, 10) || 0);
+    setSavingExtra(true);
+    try {
+      const res = await fetch('/api/campaign-store-headcount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          store_id: store.id,
+          extra_support_count: newCount,
+          supervisor_count: supervisorCount,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLocalExtraCount(newCount);
+        setEditingExtra(false);
+        onExtraCountChanged(store.id, newCount);
+      } else {
+        alert(`儲存失敗：${data.error}`);
+      }
+    } catch {
+      alert('網路錯誤，請重試');
+    } finally {
+      setSavingExtra(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -167,7 +219,7 @@ function StoreOwnStaffPanel({
 
   const displayCount = hasLoaded ? staff.length : initialCount;
 
-  const rowTotal = displayCount + supervisorCount + extraSupportCount;
+  const rowTotal = displayCount + supervisorCount + localExtraCount;
 
   return (
     <div className="border-b border-gray-100 last:border-0">
@@ -192,7 +244,43 @@ function StoreOwnStaffPanel({
           <span className="text-gray-300">+</span>
           <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700">{supervisorCount}</span>
           <span className="text-gray-300">+</span>
-          <span className="px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700">{extraSupportCount}</span>
+          {/* 額外支援：可點擊編輯 */}
+          {editingExtra ? (
+            <div className="flex items-center gap-1">
+              <input
+                ref={extraInputRef}
+                type="number"
+                min={0}
+                value={extraInput}
+                onChange={e => setExtraInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveExtra(); if (e.key === 'Escape') setEditingExtra(false); }}
+                className="w-14 px-1.5 py-0.5 text-sm font-semibold text-indigo-700 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center"
+              />
+              <button
+                onClick={handleSaveExtra}
+                disabled={savingExtra}
+                className="p-1 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-700 disabled:opacity-50"
+                title="確認"
+              >
+                {savingExtra ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+              </button>
+              <button
+                onClick={() => setEditingExtra(false)}
+                className="p-1 rounded hover:bg-gray-100 text-gray-400"
+                title="取消"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleStartEditExtra}
+              title="點擊編輯額外支援人數"
+              className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
+            >
+              {localExtraCount}
+            </button>
+          )}
           {/* 合計圓形 */}
           <div className="ml-1 w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
             {rowTotal}
@@ -340,10 +428,10 @@ function StoreOwnStaffPanel({
                 <div className="mt-4 pt-3 border-t border-indigo-100">
                   <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
                     <Users size={13} />
-                    額外支援（{extraSupportCount} 人）
+                    額外支援（{localExtraCount} 人）
                   </div>
                   <p className="text-xs text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2">
-                    已有 {extraSupportCount} 位額外支援人員，支援人員詳細管理功能即將推出。
+                    已有 {localExtraCount} 位額外支援人員，支援人員詳細管理功能即將推出。
                   </p>
                 </div>
               )}
@@ -366,13 +454,22 @@ export default function StaffOverviewModal({
   onHeadcountUpdated,
 }: StaffOverviewModalProps) {
   const [localCounts, setLocalCounts] = useState<Record<string, number>>({});
+  const [localExtraCounts, setLocalExtraCounts] = useState<Record<string, number>>({});
 
   useEffect(() => {
-    if (isOpen) setLocalCounts({});
+    if (isOpen) {
+      setLocalCounts({});
+      setLocalExtraCounts({});
+    }
   }, [isOpen]);
 
   const handleCountChanged = (storeId: string, count: number) => {
     setLocalCounts(prev => ({ ...prev, [storeId]: count }));
+    onHeadcountUpdated?.();
+  };
+
+  const handleExtraCountChanged = (storeId: string, count: number) => {
+    setLocalExtraCounts(prev => ({ ...prev, [storeId]: count }));
     onHeadcountUpdated?.();
   };
 
@@ -381,7 +478,7 @@ export default function StaffOverviewModal({
   const sortedStores = [...managedStores].sort((a, b) => a.store_code.localeCompare(b.store_code));
   const totalOwn = sortedStores.reduce((s, st) => s + (localCounts[st.id] ?? headcountMap[st.id]?.own_staff_count ?? 0), 0);
   const totalSup = sortedStores.reduce((s, st) => s + (headcountMap[st.id]?.supervisor_count ?? 0), 0);
-  const totalExtra = sortedStores.reduce((s, st) => s + (headcountMap[st.id]?.extra_support_count ?? 0), 0);
+  const totalExtra = sortedStores.reduce((s, st) => s + (localExtraCounts[st.id] ?? headcountMap[st.id]?.extra_support_count ?? 0), 0);
   const grandTotal = totalOwn + totalSup + totalExtra;
 
   return (
@@ -426,14 +523,15 @@ export default function StaffOverviewModal({
         {/* 門市列表 */}
         <div className="flex-1 overflow-y-auto relative">
           {sortedStores.map(store => (
-            <StoreOwnStaffPanel
+              <StoreOwnStaffPanel
               key={store.id}
               campaignId={campaignId}
               store={store}
               initialCount={localCounts[store.id] ?? headcountMap[store.id]?.own_staff_count ?? 0}
               supervisorCount={headcountMap[store.id]?.supervisor_count ?? 0}
-              extraSupportCount={headcountMap[store.id]?.extra_support_count ?? 0}
+              extraSupportCount={localExtraCounts[store.id] ?? headcountMap[store.id]?.extra_support_count ?? 0}
               onCountChanged={handleCountChanged}
+              onExtraCountChanged={handleExtraCountChanged}
             />
           ))}
           {sortedStores.length === 0 && (
