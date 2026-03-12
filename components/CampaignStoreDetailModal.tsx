@@ -147,7 +147,12 @@ export default function CampaignStoreDetailModal({
   // 活動人力 state
   const [ownStaff, setOwnStaff] = useState<{ employee_code: string; employee_name: string; position: string }[]>([]);
   const [supervisorName, setSupervisorName] = useState<string>('');
-  const [extraSupportCount, setExtraSupportCount] = useState<number | null>(null);
+  const [supportRequests, setSupportRequests] = useState<{
+    id: string;
+    supporting_store: { id: string; store_code: string; store_name: string } | null;
+    requested_count: number;
+    assignedStaff: { employee_code: string; employee_name: string; position: string }[];
+  }[]>([]);
   const [manpowerLoading, setManpowerLoading] = useState(false);
 
   // ── 讀取 ──
@@ -202,13 +207,14 @@ export default function CampaignStoreDetailModal({
     if (!campaignId || !storeId) return;
     setManpowerLoading(true);
     try {
-      const [staffRes, storesRes, headcountRes] = await Promise.all([
+      const [staffRes, storesRes, requestsRes, supportStaffRes] = await Promise.all([
         fetch(`/api/campaign-store-own-staff?campaign_id=${campaignId}&store_id=${storeId}`),
         fetch('/api/stores-with-supervisors'),
-        fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}&store_id=${storeId}`),
+        fetch(`/api/campaign-support-requests?campaign_id=${campaignId}&requesting_store_id=${storeId}`),
+        fetch(`/api/campaign-support-staff?campaign_id=${campaignId}`),
       ]);
-      const [staffData, storesData, headcountData] = await Promise.all([
-        staffRes.json(), storesRes.json(), headcountRes.json(),
+      const [staffData, storesData, requestsData, supportStaffData] = await Promise.all([
+        staffRes.json(), storesRes.json(), requestsRes.json(), supportStaffRes.json(),
       ]);
 
       // 本店人員
@@ -220,13 +226,22 @@ export default function CampaignStoreDetailModal({
         setSupervisorName(store?.supervisor_name || store?.supervisor_code || '');
       }
 
-      // 支援人力
-      if (headcountData.success && headcountData.data?.length > 0) {
-        const entry = headcountData.data.find((d: any) => d.store_id === storeId) || headcountData.data[0];
-        setExtraSupportCount(entry?.extra_support_count ?? null);
-      } else {
-        setExtraSupportCount(null);
-      }
+      // 支援需求 + 已指派人員
+      const allSupportStaff: any[] = supportStaffData.success ? (supportStaffData.data || []) : [];
+      const requests = requestsData.success ? (requestsData.data || []) : [];
+      const enriched = requests.map((req: any) => ({
+        id: req.id,
+        supporting_store: req.supporting_store ?? null,
+        requested_count: req.requested_count ?? 1,
+        assignedStaff: allSupportStaff
+          .filter((s: any) => s.support_request_id === req.id)
+          .map((s: any) => ({
+            employee_code: s.employee_code,
+            employee_name: s.employee_name,
+            position: s.position || '',
+          })),
+      }));
+      setSupportRequests(enriched);
     } catch (err) {
       console.error('Error loading manpower info:', err);
     } finally {
@@ -431,11 +446,38 @@ export default function CampaignStoreDetailModal({
                     {/* 支援人力 */}
                     <div>
                       <p className="text-xs font-semibold text-teal-700 mb-2">🔄 支援人力</p>
-                      {extraSupportCount === null || extraSupportCount === 0 ? (
-                        <p className="text-xs text-gray-400 italic">尚未指派</p>
+                      {supportRequests.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">無支援需求</p>
                       ) : (
-                        <div className="bg-white rounded px-2 py-1 text-xs border border-teal-100 inline-block font-medium text-gray-800">
-                          已指派 {extraSupportCount} 人
+                        <div className="space-y-2">
+                          {supportRequests.map((req) => {
+                            const storeName = req.supporting_store
+                              ? `${req.supporting_store.store_code} ${req.supporting_store.store_name}`
+                              : '未知門市';
+                            if (req.assignedStaff.length === 0) {
+                              return (
+                                <div key={req.id} className="bg-amber-50 border border-amber-200 rounded px-2 py-1.5 text-xs">
+                                  <p className="font-medium text-amber-800">{storeName} 應指派 {req.requested_count} 人</p>
+                                  <p className="text-amber-600 mt-0.5">尚未指派，可聯繫對方店長確認</p>
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={req.id} className="bg-white border border-teal-100 rounded px-2 py-1.5 text-xs">
+                                <p className="font-medium text-teal-700 mb-1">{storeName} 指派 {req.assignedStaff.length} 人</p>
+                                <div className="space-y-0.5">
+                                  {req.assignedStaff.map((s) => (
+                                    <div key={s.employee_code} className="flex items-center gap-1 text-gray-700">
+                                      <span className="font-mono text-gray-400">{s.employee_code}</span>
+                                      <span>|</span>
+                                      <span>{s.employee_name}</span>
+                                      {s.position && <><span>|</span><span className="text-gray-500">{s.position}</span></>}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
