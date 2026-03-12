@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       .from('employee_movement_history')
       .select('employee_code, employee_name, position, movement_type, movement_date, to_store_id, store_id')
       .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
-      .in('movement_type', ['onboarding', 'store_transfer', 'return_to_work'])
+      .in('movement_type', ['onboarding', 'store_transfer', 'return_to_work', 'pass_probation', 'promotion'])
       .order('movement_date', { ascending: false })
       .limit(30);
 
@@ -103,8 +103,45 @@ export async function GET(request: NextRequest) {
     }
 
     if (movSeen.size === 0) {
-      // 兩個來源都找不到 → not_found: true
-      return NextResponse.json({ success: true, data: [], not_found: true });
+      // ── 來源 3：store_employees（最終 fallback，含所有在職/新進人員）──
+      const { data: empData } = await supabase
+        .from('store_employees')
+        .select('employee_code, employee_name, current_position')
+        .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
+        .limit(20);
+
+      if (!empData || empData.length === 0) {
+        return NextResponse.json({ success: true, data: [], not_found: true });
+      }
+
+      // 嘗試從 movement_history 找最新門市（不限 movement_type，只取最新一筆有 store_id 的）
+      const empCodes = empData.map((e: any) => e.employee_code);
+      const { data: latestMov } = await supabase
+        .from('employee_movement_history')
+        .select('employee_code, store_id, to_store_id')
+        .in('employee_code', empCodes)
+        .not('store_id', 'is', null)
+        .order('movement_date', { ascending: false })
+        .limit(50);
+
+      const latestStoreMap: Record<string, string> = {};
+      for (const row of (latestMov || [])) {
+        const code = (row.employee_code || '').toUpperCase();
+        if (!latestStoreMap[code]) latestStoreMap[code] = row.to_store_id || row.store_id || '';
+      }
+
+      return NextResponse.json({
+        success: true,
+        not_found: false,
+        data: empData.map((e: any) => ({
+          employee_code: e.employee_code,
+          employee_name: e.employee_name,
+          position: e.current_position || '',
+          store_id: latestStoreMap[e.employee_code?.toUpperCase()] || '',
+          from_store_name: '',
+          source: 'movement_history',
+        })),
+      });
     }
 
     return NextResponse.json({
