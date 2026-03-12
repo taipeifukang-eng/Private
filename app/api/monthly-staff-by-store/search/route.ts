@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +22,9 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
+    // 使用 admin client 繞過 RLS，確保能搜尋到所有員工
+    const adminSupabase = createAdminClient();
+
     const { searchParams } = request.nextUrl;
     const q = searchParams.get('q') || '';
     const yearMonth = searchParams.get('year_month');
@@ -32,7 +35,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 來源 1：monthly_staff_status（所有門市，不強制過濾 store_id） ──
-    let query = supabase
+    let query = adminSupabase
       .from('monthly_staff_status')
       .select('employee_code, employee_name, position, store_id, year_month')
       .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
@@ -62,7 +65,7 @@ export async function GET(request: NextRequest) {
       const sids = Array.from(new Set(monthlyResults.map((r: any) => r.store_id).filter(Boolean))) as string[];
       let storeNames: Record<string, string> = {};
       if (sids.length > 0) {
-        const { data: storesData } = await supabase
+        const { data: storesData } = await adminSupabase
           .from('stores')
           .select('id, store_name')
           .in('id', sids);
@@ -83,7 +86,7 @@ export async function GET(request: NextRequest) {
     }
 
     // ── 來源 2：employee_movement_history（入職/調店），作為 fallback ──
-    const { data: movData, error: movError } = await supabase
+    const { data: movData, error: movError } = await adminSupabase
       .from('employee_movement_history')
       .select('employee_code, employee_name, position, movement_type, movement_date, to_store_id, store_id')
       .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
@@ -104,7 +107,7 @@ export async function GET(request: NextRequest) {
 
     if (movSeen.size === 0) {
       // ── 來源 3：store_employees（最終 fallback，含所有在職/新進人員）──
-      const { data: empData } = await supabase
+      const { data: empData } = await adminSupabase
         .from('store_employees')
         .select('employee_code, employee_name, current_position')
         .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
@@ -116,7 +119,7 @@ export async function GET(request: NextRequest) {
 
       // 嘗試從 movement_history 找最新門市（不限 movement_type，只取最新一筆有 store_id 的）
       const empCodes = empData.map((e: any) => e.employee_code);
-      const { data: latestMov } = await supabase
+      const { data: latestMov } = await adminSupabase
         .from('employee_movement_history')
         .select('employee_code, store_id, to_store_id')
         .in('employee_code', empCodes)
