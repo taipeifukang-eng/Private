@@ -14,6 +14,7 @@ interface SupportRequest {
   supporting_store_name: string;
   requested_count: number;
   notes: string;
+  activity_date: string;  // 需求門市的活動日期
 }
 
 interface StaffAssignment {
@@ -75,6 +76,15 @@ export default function SupportRequestModal({
     if (!campaignId || managedStores.length === 0) return;
     setLoading(true);
     try {
+      // 先抓活動日程取得各門市日期
+      const schRes = await fetch(`/api/campaign-schedules?campaign_id=${campaignId}`);
+      const schData = await schRes.json();
+      const schedules: any[] = schData.success ? (schData.data || schData.schedules || []) : [];
+      const dateByStore: Record<string, string> = {};
+      for (const s of schedules) {
+        if (s.store_id && s.activity_date) dateByStore[s.store_id] = s.activity_date;
+      }
+
       // 查找所有我管理門市被請求支援的需求（supporting_store_id 在 managedStores 中）
       const allRequests: SupportRequest[] = [];
       for (const store of managedStores) {
@@ -95,6 +105,7 @@ export default function SupportRequestModal({
               supporting_store_name: store.store_name,
               requested_count: req.requested_count,
               notes: req.notes || '',
+              activity_date: dateByStore[req.requesting_store_id] || '',
             }))
           );
         }
@@ -296,7 +307,12 @@ export default function SupportRequestModal({
                           <span className="mx-2 text-gray-300">→</span>
                           <span className="font-medium text-blue-700">{req.requesting_store_name}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {req.activity_date && (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                              📅 {new Date(req.activity_date).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
+                            </span>
+                          )}
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}>
                             {status.label}
                           </span>
