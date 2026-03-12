@@ -59,8 +59,7 @@ export async function GET() {
     const { data: managedStores } = await supabase
       .from('store_managers')
       .select('store_id, role_type')
-      .eq('user_id', user.id)
-      .eq('is_active', true);
+      .eq('user_id', user.id);
 
     // 根據門市管理類型判斷權限
     const isSupervisor = managedStores?.some(m => m.role_type === 'supervisor') || false;
