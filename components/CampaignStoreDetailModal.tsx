@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { X, Edit2, Save, RotateCcw, Loader2, CheckSquare, Square } from 'lucide-react';
+import { X, Edit2, Save, RotateCcw, Loader2, CheckSquare, Square, Users } from 'lucide-react';
 import { CampaignStoreDetail, CampaignType, CAMPAIGN_TYPE_LABELS, CampaignChecklistItem, CampaignChecklistCompletion } from '@/types/workflow';
 
 // ─────────────────────────────────────────────
@@ -144,6 +144,12 @@ export default function CampaignStoreDetailModal({
   const [checklistCompletions, setChecklistCompletions] = useState<Map<string, CampaignChecklistCompletion>>(new Map());
   const [checklistLoading, setChecklistLoading] = useState(false);
 
+  // 活動人力 state
+  const [ownStaff, setOwnStaff] = useState<{ employee_code: string; employee_name: string; position: string }[]>([]);
+  const [supervisorName, setSupervisorName] = useState<string>('');
+  const [extraSupportCount, setExtraSupportCount] = useState<number | null>(null);
+  const [manpowerLoading, setManpowerLoading] = useState(false);
+
   // ── 讀取 ──
   const loadDetail = useCallback(async () => {
     if (!campaignId || !storeId) return;
@@ -188,6 +194,43 @@ export default function CampaignStoreDetailModal({
       console.error('Error loading store detail:', err);
     } finally {
       setLoading(false);
+    }
+  }, [campaignId, storeId]);
+
+  // ── 載入活動人力資訊 ──
+  const loadManpowerInfo = useCallback(async () => {
+    if (!campaignId || !storeId) return;
+    setManpowerLoading(true);
+    try {
+      const [staffRes, storesRes, headcountRes] = await Promise.all([
+        fetch(`/api/campaign-store-own-staff?campaign_id=${campaignId}&store_id=${storeId}`),
+        fetch('/api/stores-with-supervisors'),
+        fetch(`/api/campaign-store-headcount?campaign_id=${campaignId}&store_id=${storeId}`),
+      ]);
+      const [staffData, storesData, headcountData] = await Promise.all([
+        staffRes.json(), storesRes.json(), headcountRes.json(),
+      ]);
+
+      // 本店人員
+      setOwnStaff(staffData.success ? (staffData.data || []) : []);
+
+      // 督導
+      if (storesData.success && storesData.data) {
+        const store = storesData.data.find((s: any) => s.id === storeId);
+        setSupervisorName(store?.supervisor_name || store?.supervisor_code || '');
+      }
+
+      // 支援人力
+      if (headcountData.success && headcountData.data?.length > 0) {
+        const entry = headcountData.data.find((d: any) => d.store_id === storeId) || headcountData.data[0];
+        setExtraSupportCount(entry?.extra_support_count ?? null);
+      } else {
+        setExtraSupportCount(null);
+      }
+    } catch (err) {
+      console.error('Error loading manpower info:', err);
+    } finally {
+      setManpowerLoading(false);
     }
   }, [campaignId, storeId]);
 
@@ -254,7 +297,8 @@ export default function CampaignStoreDetailModal({
       setIsEditing(false);
       setSaveError(null);
       loadDetail();
-      loadChecklist(); // 載入 checklist
+      loadChecklist();
+      loadManpowerInfo();
     }
   }, [isOpen, loadDetail]);
 
@@ -346,6 +390,59 @@ export default function CampaignStoreDetailModal({
             </div>
           ) : (
             <div className="space-y-5">
+              {/* ── 活動當日人力 ── */}
+              <div className="rounded-lg border border-indigo-200 bg-indigo-50 overflow-hidden">
+                <div className="px-4 py-2 text-sm font-semibold bg-indigo-100 text-indigo-800 flex items-center gap-2">
+                  <Users size={15} />
+                  活動當日人力
+                </div>
+                {manpowerLoading ? (
+                  <div className="p-4 text-center text-gray-400 text-sm">載入中...</div>
+                ) : (
+                  <div className="p-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* 本店人員 */}
+                    <div>
+                      <p className="text-xs font-semibold text-indigo-700 mb-2">🏪 本店人員（{ownStaff.length} 人）</p>
+                      {ownStaff.length === 0 ? (
+                        <p className="text-xs text-gray-400 italic">尚未設定</p>
+                      ) : (
+                        <div className="space-y-1">
+                          {ownStaff.map((s) => (
+                            <div key={s.employee_code} className="flex items-center gap-1.5 bg-white rounded px-2 py-1 text-xs border border-indigo-100">
+                              <span className="font-mono text-gray-400">{s.employee_code}</span>
+                              <span className="font-medium text-gray-800">{s.employee_name}</span>
+                              {s.position && <span className="text-gray-400">· {s.position}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* 督導 */}
+                    <div>
+                      <p className="text-xs font-semibold text-purple-700 mb-2">👤 督導</p>
+                      {supervisorName ? (
+                        <div className="bg-white rounded px-2 py-1 text-xs border border-purple-100 inline-block font-medium text-gray-800">
+                          {supervisorName}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-400 italic">尚未指派</p>
+                      )}
+                    </div>
+                    {/* 支援人力 */}
+                    <div>
+                      <p className="text-xs font-semibold text-teal-700 mb-2">🔄 支援人力</p>
+                      {extraSupportCount === null || extraSupportCount === 0 ? (
+                        <p className="text-xs text-gray-400 italic">尚未指派</p>
+                      ) : (
+                        <div className="bg-white rounded px-2 py-1 text-xs border border-teal-100 inline-block font-medium text-gray-800">
+                          已指派 {extraSupportCount} 人
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {!hasData && !isEditing && (
                 <div className="text-center py-8 text-gray-400 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
                   <p className="text-base">尚無活動細節資料</p>
