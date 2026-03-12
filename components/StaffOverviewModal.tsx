@@ -48,7 +48,6 @@ function StoreOwnStaffPanel({
   supervisorCount,
   extraSupportCount,
   onCountChanged,
-  onOpenSupportAssign,
 }: {
   campaignId: string;
   store: ManagedStore;
@@ -56,7 +55,6 @@ function StoreOwnStaffPanel({
   supervisorCount: number;
   extraSupportCount: number;
   onCountChanged: (storeId: string, count: number) => void;
-  onOpenSupportAssign: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -104,15 +102,65 @@ function StoreOwnStaffPanel({
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // 額外支援人數顯示（從 headcount 取，點擊開啟支援請求 Modal）
+  // 額外支援人數 inline 編輯
+  const [editingExtra, setEditingExtra] = useState(false);
   const [localExtraCount, setLocalExtraCount] = useState(extraSupportCount);
+  const [extraInput, setExtraInput] = useState(String(extraSupportCount));
+  const [savingExtra, setSavingExtra] = useState(false);
+  const extraInputRef = useRef<HTMLInputElement>(null);
 
-  // freshExtraCount 一旦抓到就同步到 localExtraCount
+  // freshExtraCount 一旦抓到就同步到 localExtraCount（若不在編輯中）
   useEffect(() => {
-    if (freshExtraCount !== null) {
+    if (freshExtraCount !== null && !editingExtra) {
       setLocalExtraCount(freshExtraCount);
+      setExtraInput(String(freshExtraCount));
     }
-  }, [freshExtraCount]);
+  }, [freshExtraCount, editingExtra]);
+
+  // 支援來源資訊（從哪間門市被指派過來的人員）
+  const [incomingSupport, setIncomingSupport] = useState<{
+    requestId: string;
+    supportingStoreName: string;
+    supportingStoreCode: string;
+    activityDate: string;
+    requestedCount: number;
+    assignedStaff: { employee_code: string; employee_name: string; position: string }[];
+  }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadSupport = async () => {
+      try {
+        const [reqRes, staffRes, schRes] = await Promise.all([
+          fetch(`/api/campaign-support-requests?campaign_id=${campaignId}&requesting_store_id=${store.id}`),
+          fetch(`/api/campaign-support-staff?campaign_id=${campaignId}`),
+          fetch(`/api/campaign-schedules?campaign_id=${campaignId}`),
+        ]);
+        const [reqData, staffData, schData] = await Promise.all([
+          reqRes.json(), staffRes.json(), schRes.json(),
+        ]);
+        if (cancelled) return;
+        const allStaff: any[] = staffData.success ? (staffData.data || []) : [];
+        const schedules: any[] = schData.success ? (schData.data || schData.schedules || []) : [];
+        const dateByStore: Record<string, string> = {};
+        for (const s of schedules) { if (s.store_id && s.activity_date) dateByStore[s.store_id] = s.activity_date; }
+        const requests: any[] = reqData.success ? (reqData.data || []) : [];
+        setIncomingSupport(requests.map((req: any) => ({
+          requestId: req.id,
+          supportingStoreName: req.supporting_store?.store_name || '未知',
+          supportingStoreCode: req.supporting_store?.store_code || '',
+          activityDate: dateByStore[store.id] || '',
+          requestedCount: req.requested_count ?? 1,
+          assignedStaff: allStaff
+            .filter((s: any) => s.support_request_id === req.id)
+            .map((s: any) => ({ employee_code: s.employee_code, employee_name: s.employee_name, position: s.position || '' })),
+        })));
+      } catch {}
+    };
+    loadSupport();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [campaignId, store.id]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -188,8 +236,38 @@ function StoreOwnStaffPanel({
   const handleRemove = (code: string) => setStaff(prev => prev.filter(s => s.employee_code !== code));
 
   const handleStartEditExtra = () => {
-    // 已移除 inline 數字編輯，改由父層開啟支援請求 Modal
-    onOpenSupportAssign();
+    setExtraInput(String(localExtraCount));
+    setEditingExtra(true);
+    setTimeout(() => extraInputRef.current?.select(), 50);
+  };
+
+  const handleSaveExtra = async () => {
+    const newCount = Math.max(0, parseInt(extraInput, 10) || 0);
+    setSavingExtra(true);
+    try {
+      const res = await fetch('/api/campaign-store-headcount', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          campaign_id: campaignId,
+          store_id: store.id,
+          extra_support_count: newCount,
+          supervisor_count: supervisorCount,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLocalExtraCount(newCount);
+        setFreshExtraCount(newCount);
+        setEditingExtra(false);
+      } else {
+        alert(`儲存失敗：${data.error}`);
+      }
+    } catch {
+      alert('網路錯誤，請重試');
+    } finally {
+      setSavingExtra(false);
+    }
   };
 
   const handleSave = async () => {
@@ -246,14 +324,34 @@ function StoreOwnStaffPanel({
           <span className="text-gray-300">+</span>
           <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700">{supervisorCount}</span>
           <span className="text-gray-300">+</span>
-          {/* 額外支援：點擊開啟支援請求 Modal */}
-          <button
-            onClick={handleStartEditExtra}
-            title="點擊管理支援人員指派"
-            className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
-          >
-            {localExtraCount}
-          </button>
+          {/* 額外支援：可 inline 編輯數字 */}
+          {editingExtra ? (
+            <div className="flex items-center gap-1">
+              <input
+                ref={extraInputRef}
+                type="number"
+                min={0}
+                value={extraInput}
+                onChange={e => setExtraInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveExtra(); if (e.key === 'Escape') setEditingExtra(false); }}
+                className="w-14 px-1.5 py-0.5 text-sm font-semibold text-indigo-700 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center"
+              />
+              <button onClick={handleSaveExtra} disabled={savingExtra} className="p-1 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-700 disabled:opacity-50" title="確認">
+                {savingExtra ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+              </button>
+              <button onClick={() => setEditingExtra(false)} className="p-1 rounded hover:bg-gray-100 text-gray-400" title="取消">
+                <X size={11} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleStartEditExtra}
+              title="點擊變更支援人數"
+              className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
+            >
+              {localExtraCount}
+            </button>
+          )}
           {/* 合計圓形 */}
           <div className="ml-1 w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
             {rowTotal}
@@ -396,16 +494,44 @@ function StoreOwnStaffPanel({
                 <p className="text-sm text-gray-400 py-1">尚無本店人員資料</p>
               )}
 
-              {/* ── 額外支援區（預留，未來可在此新增/刪除支援人員）── */}
-              {localExtraCount > 0 && (
+              {/* ── 支援來源清單 ── */}
+              {incomingSupport.length > 0 && (
                 <div className="mt-4 pt-3 border-t border-indigo-100">
                   <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700 uppercase tracking-wide mb-2">
                     <Users size={13} />
-                    額外支援（{localExtraCount} 人）
+                    支援來源（{incomingSupport.reduce((n, r) => n + r.assignedStaff.length, 0)} 人已指派）
                   </div>
-                  <p className="text-xs text-indigo-500 bg-indigo-50 rounded-lg px-3 py-2">
-                    已有 {localExtraCount} 位額外支援人員，支援人員詳細管理功能即將推出。
-                  </p>
+                  <div className="space-y-1.5">
+                    {incomingSupport.map(req => (
+                      <div key={req.requestId} className="rounded-lg bg-indigo-50 border border-indigo-100 px-2.5 py-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-medium text-indigo-800">{req.supportingStoreName}</span>
+                          <span className="text-xs text-indigo-400 font-mono">{req.supportingStoreCode}</span>
+                          {req.activityDate && (
+                            <span className="text-xs text-purple-700 bg-purple-50 border border-purple-100 px-1.5 py-0.5 rounded font-semibold">
+                              {new Date(req.activityDate).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })}
+                            </span>
+                          )}
+                          {req.assignedStaff.length === 0 ? (
+                            <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">應派 {req.requestedCount} 人，尚未指派</span>
+                          ) : (
+                            <span className="text-xs text-teal-700 bg-teal-50 px-1.5 py-0.5 rounded">✓ {req.assignedStaff.length} 人</span>
+                          )}
+                        </div>
+                        {req.assignedStaff.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {req.assignedStaff.map(s => (
+                              <div key={s.employee_code} className="flex items-center gap-1 bg-white border border-indigo-100 rounded px-1.5 py-0.5 text-xs">
+                                <span className="font-mono text-gray-400">{s.employee_code}</span>
+                                <span className="text-gray-800 font-medium">{s.employee_name}</span>
+                                {s.position && <span className="text-gray-400">· {s.position}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -420,9 +546,12 @@ function StoreOwnStaffPanel({
 // 視角：每間「支援門市」要去支援哪些地方
 function SupportAssignmentTab({
   campaignId,
-  managedStoreIds,  // 若為空陣列則顯示全部（管理員），否則只顯示屬於自己管轄的門市
-}: { campaignId: string; managedStoreIds: string[] }) {
+  campaignName,
+  managedStores,
+}: { campaignId: string; campaignName: string; managedStores: ManagedStore[] }) {
+  const managedStoreIds = managedStores.map(s => s.id);
   const [loading, setLoading] = useState(true);
+  const [assigningStore, setAssigningStore] = useState<ManagedStore | null>(null);
 
   // 以 supporting_store_id 分組的資料
   type SupportGroup = {
@@ -576,6 +705,16 @@ function SupportAssignmentTab({
                       ✓ 已指派 {a.assignedStaff.length} 人
                     </span>
                   )}
+                  {/* 指派人員按鈕 */}
+                  <button
+                    onClick={() => {
+                      const store = managedStores.find(s => s.id === group.supportingStoreId);
+                      if (store) setAssigningStore(store);
+                    }}
+                    className="shrink-0 text-xs px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium whitespace-nowrap"
+                  >
+                    指派人員
+                  </button>
                 </div>
                 {/* 已指派人員 */}
                 {a.assignedStaff.length > 0 && (
@@ -594,10 +733,19 @@ function SupportAssignmentTab({
           </div>
         </div>
       ))}
+      {assigningStore && (
+        <SupportRequestModal
+          isOpen={true}
+          onClose={() => setAssigningStore(null)}
+          campaignId={campaignId}
+          campaignName={campaignName}
+          managedStores={[managedStores.find(s => s.id === assigningStore.id)!]}
+          canAssign={true}
+        />
+      )}
     </div>
   );
 }
-
 // --- 主 Modal ---
 export default function StaffOverviewModal({
   isOpen,
@@ -610,7 +758,6 @@ export default function StaffOverviewModal({
 }: StaffOverviewModalProps) {
   const [localCounts, setLocalCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<'overview' | 'support'>('overview');
-  const [supportModalStore, setSupportModalStore] = useState<ManagedStore | null>(null);
 
   // Modal 開啟時重取最新資料
   useEffect(() => {
@@ -716,7 +863,6 @@ export default function StaffOverviewModal({
                   supervisorCount={headcountMap[store.id]?.supervisor_count ?? 0}
                   extraSupportCount={headcountMap[store.id]?.extra_support_count ?? 0}
                   onCountChanged={handleCountChanged}
-                  onOpenSupportAssign={() => setSupportModalStore(store)}
                 />
               ))}
               {sortedStores.length === 0 && (
@@ -724,7 +870,13 @@ export default function StaffOverviewModal({
               )}
             </>
           ) : (
-            <SupportAssignmentTab campaignId={campaignId} managedStoreIds={managedStores.map(s => s.id)} />
+            <>
+              <SupportAssignmentTab
+                campaignId={campaignId}
+                campaignName={campaignName}
+                managedStores={managedStores}
+              />
+            </>
           )}
         </div>
 
@@ -740,17 +892,6 @@ export default function StaffOverviewModal({
       </div>
     </div>
 
-    {/* 支援請求 Modal（點擊靴色數字開啟） */}
-    {supportModalStore && (
-      <SupportRequestModal
-        isOpen={true}
-        onClose={() => setSupportModalStore(null)}
-        campaignId={campaignId}
-        campaignName={campaignName}
-        managedStores={[supportModalStore]}
-        canAssign={true}
-      />
-    )}
   </>
   );
 }
