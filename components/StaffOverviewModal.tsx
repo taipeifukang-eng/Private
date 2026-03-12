@@ -5,6 +5,7 @@ import {
   X, Users, ChevronDown, ChevronRight, Loader2, UserCheck,
   Pencil, Trash2, Search, Save, RotateCcw, Check, ArrowRightLeft,
 } from 'lucide-react';
+import SupportRequestModal from '@/components/SupportRequestModal';
 
 interface ManagedStore {
   id: string;
@@ -47,7 +48,7 @@ function StoreOwnStaffPanel({
   supervisorCount,
   extraSupportCount,
   onCountChanged,
-  onExtraCountChanged,
+  onOpenSupportAssign,
 }: {
   campaignId: string;
   store: ManagedStore;
@@ -55,7 +56,7 @@ function StoreOwnStaffPanel({
   supervisorCount: number;
   extraSupportCount: number;
   onCountChanged: (storeId: string, count: number) => void;
-  onExtraCountChanged: (storeId: string, count: number) => void;
+  onOpenSupportAssign: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -103,20 +104,15 @@ function StoreOwnStaffPanel({
   const [showDropdown, setShowDropdown] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // 額外支援人數 inline 編輯
-  const [editingExtra, setEditingExtra] = useState(false);
+  // 額外支援人數顯示（從 headcount 取，點擊開啟支援請求 Modal）
   const [localExtraCount, setLocalExtraCount] = useState(extraSupportCount);
-  const [extraInput, setExtraInput] = useState(String(extraSupportCount));
-  const [savingExtra, setSavingExtra] = useState(false);
-  const extraInputRef = useRef<HTMLInputElement>(null);
 
-  // freshExtraCount 一旦抓到就同步到 localExtraCount（若不在編輯中）
+  // freshExtraCount 一旦抓到就同步到 localExtraCount
   useEffect(() => {
-    if (freshExtraCount !== null && !editingExtra) {
+    if (freshExtraCount !== null) {
       setLocalExtraCount(freshExtraCount);
-      setExtraInput(String(freshExtraCount));
     }
-  }, [freshExtraCount, editingExtra]);
+  }, [freshExtraCount]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -192,39 +188,8 @@ function StoreOwnStaffPanel({
   const handleRemove = (code: string) => setStaff(prev => prev.filter(s => s.employee_code !== code));
 
   const handleStartEditExtra = () => {
-    setExtraInput(String(localExtraCount));
-    setEditingExtra(true);
-    setTimeout(() => extraInputRef.current?.select(), 50);
-  };
-
-  const handleSaveExtra = async () => {
-    const newCount = Math.max(0, parseInt(extraInput, 10) || 0);
-    setSavingExtra(true);
-    try {
-      const res = await fetch('/api/campaign-store-headcount', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaign_id: campaignId,
-          store_id: store.id,
-          extra_support_count: newCount,
-          supervisor_count: supervisorCount,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setLocalExtraCount(newCount);
-        setFreshExtraCount(newCount);
-        setEditingExtra(false);
-        onExtraCountChanged(store.id, newCount);
-      } else {
-        alert(`儲存失敗：${data.error}`);
-      }
-    } catch {
-      alert('網路錯誤，請重試');
-    } finally {
-      setSavingExtra(false);
-    }
+    // 已移除 inline 數字編輯，改由父層開啟支援請求 Modal
+    onOpenSupportAssign();
   };
 
   const handleSave = async () => {
@@ -281,43 +246,14 @@ function StoreOwnStaffPanel({
           <span className="text-gray-300">+</span>
           <span className="px-2 py-1 rounded-lg bg-purple-50 text-purple-700">{supervisorCount}</span>
           <span className="text-gray-300">+</span>
-          {/* 額外支援：可點擊編輯 */}
-          {editingExtra ? (
-            <div className="flex items-center gap-1">
-              <input
-                ref={extraInputRef}
-                type="number"
-                min={0}
-                value={extraInput}
-                onChange={e => setExtraInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveExtra(); if (e.key === 'Escape') setEditingExtra(false); }}
-                className="w-14 px-1.5 py-0.5 text-sm font-semibold text-indigo-700 border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400 text-center"
-              />
-              <button
-                onClick={handleSaveExtra}
-                disabled={savingExtra}
-                className="p-1 rounded bg-indigo-100 hover:bg-indigo-200 text-indigo-700 disabled:opacity-50"
-                title="確認"
-              >
-                {savingExtra ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
-              </button>
-              <button
-                onClick={() => setEditingExtra(false)}
-                className="p-1 rounded hover:bg-gray-100 text-gray-400"
-                title="取消"
-              >
-                <X size={11} />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleStartEditExtra}
-              title="點擊編輯額外支援人數"
-              className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
-            >
-              {localExtraCount}
-            </button>
-          )}
+          {/* 額外支援：點擊開啟支援請求 Modal */}
+          <button
+            onClick={handleStartEditExtra}
+            title="點擊管理支援人員指派"
+            className="px-2 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors cursor-pointer"
+          >
+            {localExtraCount}
+          </button>
           {/* 合計圓形 */}
           <div className="ml-1 w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
             {rowTotal}
@@ -673,14 +609,13 @@ export default function StaffOverviewModal({
   onHeadcountUpdated,
 }: StaffOverviewModalProps) {
   const [localCounts, setLocalCounts] = useState<Record<string, number>>({});
-  const [localExtraCounts, setLocalExtraCounts] = useState<Record<string, number>>({});
   const [activeTab, setActiveTab] = useState<'overview' | 'support'>('overview');
+  const [supportModalStore, setSupportModalStore] = useState<ManagedStore | null>(null);
 
-  // Modal 開啟時重取最新資料，同時清空本地覆寫
+  // Modal 開啟時重取最新資料
   useEffect(() => {
     if (isOpen) {
       setLocalCounts({});
-      setLocalExtraCounts({});
       onHeadcountUpdated?.();
     }
   }, [isOpen]);
@@ -690,20 +625,16 @@ export default function StaffOverviewModal({
     onHeadcountUpdated?.();
   };
 
-  const handleExtraCountChanged = (storeId: string, count: number) => {
-    setLocalExtraCounts(prev => ({ ...prev, [storeId]: count }));
-    onHeadcountUpdated?.();
-  };
-
   if (!isOpen) return null;
 
   const sortedStores = [...managedStores].sort((a, b) => a.store_code.localeCompare(b.store_code));
   const totalOwn = sortedStores.reduce((s, st) => s + (localCounts[st.id] ?? headcountMap[st.id]?.own_staff_count ?? 0), 0);
   const totalSup = sortedStores.reduce((s, st) => s + (headcountMap[st.id]?.supervisor_count ?? 0), 0);
-  const totalExtra = sortedStores.reduce((s, st) => s + (localExtraCounts[st.id] ?? headcountMap[st.id]?.extra_support_count ?? 0), 0);
+  const totalExtra = sortedStores.reduce((s, st) => s + (headcountMap[st.id]?.extra_support_count ?? 0), 0);
   const grandTotal = totalOwn + totalSup + totalExtra;
 
   return (
+    <>
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col mx-4">
@@ -768,7 +699,7 @@ export default function StaffOverviewModal({
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold">青綠 = 本店</span>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">紫色 = 督導</span>
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">靛色 = 支援</span>
-            <span className="ml-auto">點擊青綠數字可展開編輯本店人員</span>
+            <span className="ml-auto">青綠展開本店人員 ・ 靛色管理支援指派</span>
           </div>
         )}
 
@@ -783,9 +714,9 @@ export default function StaffOverviewModal({
                   store={store}
                   initialCount={localCounts[store.id] ?? headcountMap[store.id]?.own_staff_count ?? 0}
                   supervisorCount={headcountMap[store.id]?.supervisor_count ?? 0}
-                  extraSupportCount={localExtraCounts[store.id] ?? headcountMap[store.id]?.extra_support_count ?? 0}
+                  extraSupportCount={headcountMap[store.id]?.extra_support_count ?? 0}
                   onCountChanged={handleCountChanged}
-                  onExtraCountChanged={handleExtraCountChanged}
+                  onOpenSupportAssign={() => setSupportModalStore(store)}
                 />
               ))}
               {sortedStores.length === 0 && (
@@ -808,5 +739,18 @@ export default function StaffOverviewModal({
         </div>
       </div>
     </div>
+
+    {/* 支援請求 Modal（點擊靴色數字開啟） */}
+    {supportModalStore && (
+      <SupportRequestModal
+        isOpen={true}
+        onClose={() => setSupportModalStore(null)}
+        campaignId={campaignId}
+        campaignName={campaignName}
+        managedStores={[supportModalStore]}
+        canAssign={true}
+      />
+    )}
+  </>
   );
 }
