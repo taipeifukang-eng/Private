@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
     // ── 來源 2：employee_movement_history（人員異動紀錄）──
     const { data: movData } = await admin
       .from('employee_movement_history')
-      .select('employee_code, employee_name, position, movement_date, to_store_id, store_id')
+      .select('employee_code, employee_name, store_id, movement_date, movement_type, new_value')
       .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
       .order('movement_date', { ascending: false })
       .limit(50);
@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     // 補齊門市名稱
     const movResults = Array.from(movSeen.values());
-    const movSids = Array.from(new Set(movResults.map((r) => r.to_store_id || r.store_id).filter(Boolean))) as string[];
+    const movSids = Array.from(new Set(movResults.map((r) => r.store_id).filter(Boolean))) as string[];
     let movStoreNames: Record<string, string> = {};
     if (movSids.length > 0) {
       const { data: storesData } = await admin.from('stores').select('id, store_name').in('id', movSids);
@@ -82,17 +82,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true, not_found: false,
-      data: movResults.map((r) => {
-        const sid = r.to_store_id || r.store_id || '';
-        return {
-          employee_code: r.employee_code,
-          employee_name: r.employee_name,
-          position: r.position || '',
-          store_id: sid,
-          from_store_name: movStoreNames[sid] || '',
-          source: 'movement_history',
-        };
-      }),
+      data: movResults.map((r) => ({
+        employee_code: r.employee_code,
+        employee_name: r.employee_name,
+        position: '',
+        store_id: r.store_id || '',
+        from_store_name: movStoreNames[r.store_id] || '',
+        source: 'movement_history',
+      })),
     });
 
   } catch (error: any) {
