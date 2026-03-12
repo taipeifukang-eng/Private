@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Users, ChevronDown, ChevronRight, Loader2, UserCheck,
-  Pencil, Trash2, Search, Save, RotateCcw, Check,
+  Pencil, Trash2, Search, Save, RotateCcw, Check, ArrowRightLeft,
 } from 'lucide-react';
 
 interface ManagedStore {
@@ -480,6 +480,156 @@ function StoreOwnStaffPanel({
   );
 }
 
+// --- 支援分配 Tab ---
+function SupportAssignmentTab({ campaignId }: { campaignId: string }) {
+  const [loading, setLoading] = useState(true);
+  const [rows, setRows] = useState<{
+    requestId: string;
+    requestingStore: { id: string; store_code: string; store_name: string } | null;
+    supportingStore: { id: string; store_code: string; store_name: string } | null;
+    requestedCount: number;
+    activityDate: string;
+    assignedStaff: { employee_code: string; employee_name: string; position: string }[];
+  }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [reqRes, staffRes, schRes] = await Promise.all([
+          fetch(`/api/campaign-support-requests?campaign_id=${campaignId}`),
+          fetch(`/api/campaign-support-staff?campaign_id=${campaignId}`),
+          fetch(`/api/campaign-schedules?campaign_id=${campaignId}`),
+        ]);
+        const [reqData, staffData, schData] = await Promise.all([
+          reqRes.json(), staffRes.json(), schRes.json(),
+        ]);
+        if (cancelled) return;
+        const allStaff: any[] = staffData.success ? (staffData.data || []) : [];
+        const schedules: any[] = schData.success ? (schData.data || schData.schedules || []) : [];
+        // schedule date keyed by store_id
+        const dateByStore: Record<string, string> = {};
+        for (const s of schedules) {
+          if (s.store_id && s.activity_date) dateByStore[s.store_id] = s.activity_date;
+        }
+        const requests: any[] = reqData.success ? (reqData.data || []) : [];
+        const enriched = requests.map((req: any) => ({
+          requestId: req.id,
+          requestingStore: req.requesting_store ?? null,
+          supportingStore: req.supporting_store ?? null,
+          requestedCount: req.requested_count ?? 1,
+          activityDate: req.requesting_store_id ? (dateByStore[req.requesting_store_id] || '') : '',
+          assignedStaff: allStaff
+            .filter((s: any) => s.support_request_id === req.id)
+            .map((s: any) => ({
+              employee_code: s.employee_code,
+              employee_name: s.employee_name,
+              position: s.position || '',
+            })),
+        }));
+        // 依名稱或日期排序
+        enriched.sort((a, b) => {
+          const dateA = a.activityDate || '';
+          const dateB = b.activityDate || '';
+          if (dateA !== dateB) return dateA.localeCompare(dateB);
+          const nameA = a.requestingStore?.store_code || '';
+          const nameB = b.requestingStore?.store_code || '';
+          return nameA.localeCompare(nameB);
+        });
+        setRows(enriched);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [campaignId]);
+
+  const formatDate = (d: string) => {
+    if (!d) return '未排期';
+    try { return new Date(d).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' }); } catch { return d; }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-gray-400 gap-2">
+        <Loader2 size={18} className="animate-spin" /> 載入支援分配資訊...
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+        <ArrowRightLeft size={32} className="text-gray-300" />
+        <p className="text-sm">本活動尚未設定任何跨店支援請求</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-gray-100">
+      {/* 欄位標題 */}
+      <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-3 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+        <span>需求門市</span>
+        <span>活動日</span>
+        <span>支援門市</span>
+        <span>分配狀況</span>
+      </div>
+      {rows.map((row) => {
+        const isAssigned = row.assignedStaff.length > 0;
+        return (
+          <div key={row.requestId} className="px-6 py-3 hover:bg-gray-50">
+            <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-3 items-start">
+              {/* 需求門市 */}
+              <div>
+                <div className="text-sm font-medium text-gray-900">{row.requestingStore?.store_name ?? '未知'}</div>
+                <div className="text-xs text-gray-400 font-mono">{row.requestingStore?.store_code}</div>
+              </div>
+              {/* 日期 */}
+              <div className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded whitespace-nowrap self-center">
+                {formatDate(row.activityDate)}
+              </div>
+              {/* 支援門市 */}
+              <div>
+                <div className="text-sm font-medium text-gray-900">{row.supportingStore?.store_name ?? '未知'}</div>
+                <div className="text-xs text-gray-400 font-mono">{row.supportingStore?.store_code}</div>
+              </div>
+              {/* 狀態 */}
+              <div className="self-center">
+                {isAssigned ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 text-xs font-semibold">
+                    ✓ 已指派 {row.assignedStaff.length}人
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
+                    應派 {row.requestedCount}人 ・ 尚未指派
+                  </span>
+                )}
+              </div>
+            </div>
+            {/* 已指派人員列表 */}
+            {isAssigned && (
+              <div className="mt-2 ml-0 flex flex-wrap gap-1.5">
+                {row.assignedStaff.map((s) => (
+                  <div key={s.employee_code} className="flex items-center gap-1 bg-teal-50 border border-teal-100 rounded px-2 py-0.5 text-xs">
+                    <span className="font-mono text-gray-400">{s.employee_code}</span>
+                    <span className="text-gray-700">{s.employee_name}</span>
+                    {s.position && <span className="text-gray-400">· {s.position}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // --- 主 Modal ---
 export default function StaffOverviewModal({
   isOpen,
@@ -492,6 +642,7 @@ export default function StaffOverviewModal({
 }: StaffOverviewModalProps) {
   const [localCounts, setLocalCounts] = useState<Record<string, number>>({});
   const [localExtraCounts, setLocalExtraCounts] = useState<Record<string, number>>({});
+  const [activeTab, setActiveTab] = useState<'overview' | 'support'>('overview');
 
   // Modal 開啟時重取最新資料，同時清空本地覆寫
   useEffect(() => {
@@ -539,42 +690,78 @@ export default function StaffOverviewModal({
           </button>
         </div>
 
-        {/* 合計列 */}
-        <div className="px-6 py-3 bg-teal-50 border-b border-teal-100 shrink-0">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-            <span className="text-teal-700 font-semibold">總計：</span>
-            <span className="text-gray-700">本店人員 <span className="font-bold text-gray-900">{totalOwn}</span> 人</span>
-            <span className="text-gray-700">督導 <span className="font-bold text-purple-700">{totalSup}</span> 人</span>
-            <span className="text-gray-700">額外支援 <span className="font-bold text-indigo-700">+{totalExtra}</span> 人</span>
-            <span className="ml-auto text-base font-bold text-teal-700">合計 {grandTotal} 人</span>
+        {/* Tab 列 */}
+        <div className="px-6 border-b border-gray-200 shrink-0 flex gap-0">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'overview'
+                ? 'border-teal-600 text-teal-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Users size={14} />
+            人力總覽
+          </button>
+          <button
+            onClick={() => setActiveTab('support')}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'support'
+                ? 'border-indigo-600 text-indigo-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <ArrowRightLeft size={14} />
+            支援分配
+          </button>
+        </div>
+
+        {/* 合計列（僅人力總覽 tab 顯示） */}
+        {activeTab === 'overview' && (
+          <div className="px-6 py-3 bg-teal-50 border-b border-teal-100 shrink-0">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+              <span className="text-teal-700 font-semibold">總計：</span>
+              <span className="text-gray-700">本店人員 <span className="font-bold text-gray-900">{totalOwn}</span> 人</span>
+              <span className="text-gray-700">督導 <span className="font-bold text-purple-700">{totalSup}</span> 人</span>
+              <span className="text-gray-700">額外支援 <span className="font-bold text-indigo-700">+{totalExtra}</span> 人</span>
+              <span className="ml-auto text-base font-bold text-teal-700">合計 {grandTotal} 人</span>
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* 欄位說明 */}
-        <div className="px-6 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-400 shrink-0 flex items-center gap-4">
-          <span>點擊</span>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold">青綠 = 本店</span>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">紫色 = 督導</span>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">靛色 = 支援</span>
-          <span className="ml-auto">點擊青綠數字可展開編輯本店人員</span>
-        </div>
+        {/* 欄位說明（僅人力總覽 tab 顯示） */}
+        {activeTab === 'overview' && (
+          <div className="px-6 py-2 bg-gray-50 border-b border-gray-200 text-xs text-gray-400 shrink-0 flex items-center gap-4">
+            <span>點擊</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold">青綠 = 本店</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-semibold">紫色 = 督導</span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">靛色 = 支援</span>
+            <span className="ml-auto">點擊青綠數字可展開編輯本店人員</span>
+          </div>
+        )}
 
-        {/* 門市列表 */}
+        {/* 內容區 */}
         <div className="flex-1 overflow-y-auto relative">
-          {sortedStores.map(store => (
-              <StoreOwnStaffPanel
-              key={store.id}
-              campaignId={campaignId}
-              store={store}
-              initialCount={localCounts[store.id] ?? headcountMap[store.id]?.own_staff_count ?? 0}
-              supervisorCount={headcountMap[store.id]?.supervisor_count ?? 0}
-              extraSupportCount={localExtraCounts[store.id] ?? headcountMap[store.id]?.extra_support_count ?? 0}
-              onCountChanged={handleCountChanged}
-              onExtraCountChanged={handleExtraCountChanged}
-            />
-          ))}
-          {sortedStores.length === 0 && (
-            <div className="px-6 py-12 text-center text-gray-400 text-sm">無管理門市資料</div>
+          {activeTab === 'overview' ? (
+            <>
+              {sortedStores.map(store => (
+                  <StoreOwnStaffPanel
+                  key={store.id}
+                  campaignId={campaignId}
+                  store={store}
+                  initialCount={localCounts[store.id] ?? headcountMap[store.id]?.own_staff_count ?? 0}
+                  supervisorCount={headcountMap[store.id]?.supervisor_count ?? 0}
+                  extraSupportCount={localExtraCounts[store.id] ?? headcountMap[store.id]?.extra_support_count ?? 0}
+                  onCountChanged={handleCountChanged}
+                  onExtraCountChanged={handleExtraCountChanged}
+                />
+              ))}
+              {sortedStores.length === 0 && (
+                <div className="px-6 py-12 text-center text-gray-400 text-sm">無管理門市資料</div>
+              )}
+            </>
+          ) : (
+            <SupportAssignmentTab campaignId={campaignId} />
           )}
         </div>
 
