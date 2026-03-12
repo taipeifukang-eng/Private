@@ -32,7 +32,8 @@ export async function POST(request: Request) {
       user_id: userId,
       store_id: storeId,
       role_type: 'store_manager',
-      is_primary: true
+      is_primary: true,
+      is_active: true
     }));
 
     const { error: insertError } = await supabase
