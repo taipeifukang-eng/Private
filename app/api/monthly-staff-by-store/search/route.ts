@@ -90,7 +90,6 @@ export async function GET(request: NextRequest) {
       .from('employee_movement_history')
       .select('employee_code, employee_name, position, movement_type, movement_date, to_store_id, store_id')
       .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
-      .in('movement_type', ['onboarding', 'store_transfer', 'return_to_work', 'pass_probation', 'promotion'])
       .order('movement_date', { ascending: false })
       .limit(30);
 
@@ -109,7 +108,7 @@ export async function GET(request: NextRequest) {
       // ── 來源 3：store_employees（最終 fallback，含所有在職/新進人員）──
       const { data: empData } = await adminSupabase
         .from('store_employees')
-        .select('employee_code, employee_name, current_position')
+        .select('employee_code, employee_name, current_position, store_id')
         .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
         .limit(20);
 
@@ -140,7 +139,7 @@ export async function GET(request: NextRequest) {
           employee_code: e.employee_code,
           employee_name: e.employee_name,
           position: e.current_position || '',
-          store_id: latestStoreMap[e.employee_code?.toUpperCase()] || '',
+          store_id: latestStoreMap[e.employee_code?.toUpperCase()] || e.store_id || '',
           from_store_name: '',
           source: 'movement_history',
         })),
