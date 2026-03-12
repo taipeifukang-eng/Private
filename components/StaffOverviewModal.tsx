@@ -481,16 +481,27 @@ function StoreOwnStaffPanel({
 }
 
 // --- 支援分配 Tab ---
-function SupportAssignmentTab({ campaignId }: { campaignId: string }) {
+// 視角：每間「支援門市」要去支援哪些地方
+function SupportAssignmentTab({
+  campaignId,
+  managedStoreIds,  // 若為空陣列則顯示全部（管理員），否則只顯示屬於自己管轄的門市
+}: { campaignId: string; managedStoreIds: string[] }) {
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<{
-    requestId: string;
-    requestingStore: { id: string; store_code: string; store_name: string } | null;
-    supportingStore: { id: string; store_code: string; store_name: string } | null;
-    requestedCount: number;
-    activityDate: string;
-    assignedStaff: { employee_code: string; employee_name: string; position: string }[];
-  }[]>([]);
+
+  // 以 supporting_store_id 分組的資料
+  type SupportGroup = {
+    supportingStoreId: string;
+    supportingStoreName: string;
+    supportingStoreCode: string;
+    assignments: {
+      requestId: string;
+      requestingStore: { id: string; store_code: string; store_name: string } | null;
+      requestedCount: number;
+      activityDate: string;
+      assignedStaff: { employee_code: string; employee_name: string; position: string }[];
+    }[];
+  };
+  const [groups, setGroups] = useState<SupportGroup[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -506,38 +517,61 @@ function SupportAssignmentTab({ campaignId }: { campaignId: string }) {
           reqRes.json(), staffRes.json(), schRes.json(),
         ]);
         if (cancelled) return;
+
         const allStaff: any[] = staffData.success ? (staffData.data || []) : [];
         const schedules: any[] = schData.success ? (schData.data || schData.schedules || []) : [];
-        // schedule date keyed by store_id
+        const requests: any[] = reqData.success ? (reqData.data || []) : [];
+
+        // 日期以需求門市 store_id 為鍵
         const dateByStore: Record<string, string> = {};
         for (const s of schedules) {
           if (s.store_id && s.activity_date) dateByStore[s.store_id] = s.activity_date;
         }
-        const requests: any[] = reqData.success ? (reqData.data || []) : [];
-        const enriched = requests.map((req: any) => ({
-          requestId: req.id,
-          requestingStore: req.requesting_store ?? null,
-          supportingStore: req.supporting_store ?? null,
-          requestedCount: req.requested_count ?? 1,
-          activityDate: req.requesting_store_id ? (dateByStore[req.requesting_store_id] || '') : '',
-          assignedStaff: allStaff
+
+        // 依 supporting_store_id 分組
+        const groupMap = new Map<string, SupportGroup>();
+        for (const req of requests) {
+          const supStore = req.supporting_store ?? null;
+          if (!supStore) continue;
+          const supId: string = supStore.id;
+
+          // 权限過濾：若 managedStoreIds 非空，只保留該管轄的支援門市
+          if (managedStoreIds.length > 0 && !managedStoreIds.includes(supId)) continue;
+
+          if (!groupMap.has(supId)) {
+            groupMap.set(supId, {
+              supportingStoreId: supId,
+              supportingStoreName: supStore.store_name,
+              supportingStoreCode: supStore.store_code,
+              assignments: [],
+            });
+          }
+
+          const assigned = allStaff
             .filter((s: any) => s.support_request_id === req.id)
             .map((s: any) => ({
               employee_code: s.employee_code,
               employee_name: s.employee_name,
               position: s.position || '',
-            })),
-        }));
-        // 依名稱或日期排序
-        enriched.sort((a, b) => {
-          const dateA = a.activityDate || '';
-          const dateB = b.activityDate || '';
-          if (dateA !== dateB) return dateA.localeCompare(dateB);
-          const nameA = a.requestingStore?.store_code || '';
-          const nameB = b.requestingStore?.store_code || '';
-          return nameA.localeCompare(nameB);
-        });
-        setRows(enriched);
+            }));
+
+          groupMap.get(supId)!.assignments.push({
+            requestId: req.id,
+            requestingStore: req.requesting_store ?? null,
+            requestedCount: req.requested_count ?? 1,
+            activityDate: req.requesting_store_id ? (dateByStore[req.requesting_store_id] || '') : '',
+            assignedStaff: assigned,
+          });
+        }
+
+        // 依門市代碼排序，內部依日期排序
+        const sorted = Array.from(groupMap.values()).sort((a, b) =>
+          a.supportingStoreCode.localeCompare(b.supportingStoreCode)
+        );
+        for (const g of sorted) {
+          g.assignments.sort((a, b) => (a.activityDate || '').localeCompare(b.activityDate || ''));
+        }
+        setGroups(sorted);
       } catch (e) {
         console.error(e);
       } finally {
@@ -546,7 +580,7 @@ function SupportAssignmentTab({ campaignId }: { campaignId: string }) {
     };
     load();
     return () => { cancelled = true; };
-  }, [campaignId]);
+  }, [campaignId, managedStoreIds.join(',')]);
 
   const formatDate = (d: string) => {
     if (!d) return '未排期';
@@ -561,71 +595,69 @@ function SupportAssignmentTab({ campaignId }: { campaignId: string }) {
     );
   }
 
-  if (rows.length === 0) {
+  if (groups.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
         <ArrowRightLeft size={32} className="text-gray-300" />
-        <p className="text-sm">本活動尚未設定任何跨店支援請求</p>
+        <p className="text-sm">{managedStoreIds.length > 0 ? '管轄門市無外出支援安排' : '本活動尚未設定任何跨店支援請求'}</p>
       </div>
     );
   }
 
   return (
-    <div className="divide-y divide-gray-100">
-      {/* 欄位標題 */}
-      <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-3 px-6 py-2 bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-        <span>需求門市</span>
-        <span>活動日</span>
-        <span>支援門市</span>
-        <span>分配狀況</span>
-      </div>
-      {rows.map((row) => {
-        const isAssigned = row.assignedStaff.length > 0;
-        return (
-          <div key={row.requestId} className="px-6 py-3 hover:bg-gray-50">
-            <div className="grid grid-cols-[1fr_auto_1fr_auto] gap-x-3 items-start">
-              {/* 需求門市 */}
-              <div>
-                <div className="text-sm font-medium text-gray-900">{row.requestingStore?.store_name ?? '未知'}</div>
-                <div className="text-xs text-gray-400 font-mono">{row.requestingStore?.store_code}</div>
-              </div>
-              {/* 日期 */}
-              <div className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded whitespace-nowrap self-center">
-                {formatDate(row.activityDate)}
-              </div>
-              {/* 支援門市 */}
-              <div>
-                <div className="text-sm font-medium text-gray-900">{row.supportingStore?.store_name ?? '未知'}</div>
-                <div className="text-xs text-gray-400 font-mono">{row.supportingStore?.store_code}</div>
-              </div>
-              {/* 狀態 */}
-              <div className="self-center">
-                {isAssigned ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 text-xs font-semibold">
-                    ✓ 已指派 {row.assignedStaff.length}人
+    <div className="divide-y divide-gray-200">
+      {groups.map((group) => (
+        <div key={group.supportingStoreId} className="px-6 py-4">
+          {/* 支援門市標題 */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-2 h-2 rounded-full bg-indigo-500" />
+            <span className="font-semibold text-gray-900">{group.supportingStoreName}</span>
+            <span className="text-xs text-gray-400 font-mono">{group.supportingStoreCode}</span>
+            <span className="ml-auto text-xs text-gray-400">共 {group.assignments.length} 項支援安排</span>
+          </div>
+
+          {/* 該門市要去支援的地方 */}
+          <div className="space-y-2 pl-4">
+            {group.assignments.map((a) => (
+              <div key={a.requestId} className="rounded-lg border border-gray-100 bg-gray-50 px-3 py-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  {/* 去支援哪間店 */}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-800">前往支援「{a.requestingStore?.store_name ?? '未知'}」</span>
+                    <span className="ml-1 text-xs text-gray-400 font-mono">{a.requestingStore?.store_code}</span>
+                  </div>
+                  {/* 日期 */}
+                  <span className="text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-100 px-2 py-0.5 rounded whitespace-nowrap">
+                    {formatDate(a.activityDate)}
                   </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-semibold">
-                    應派 {row.requestedCount}人 ・ 尚未指派
-                  </span>
+                  {/* 需要多少人 */}
+                  {a.assignedStaff.length === 0 ? (
+                    <span className="text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded whitespace-nowrap">
+                      應活派 {a.requestedCount} 人，尚未指派
+                    </span>
+                  ) : (
+                    <span className="text-xs font-semibold text-teal-700 bg-teal-50 border border-teal-100 px-2 py-0.5 rounded whitespace-nowrap">
+                      ✓ 已指派 {a.assignedStaff.length} 人
+                    </span>
+                  )}
+                </div>
+                {/* 已指派人員 */}
+                {a.assignedStaff.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {a.assignedStaff.map((s) => (
+                      <div key={s.employee_code} className="flex items-center gap-1 bg-white border border-teal-100 rounded px-2 py-0.5 text-xs">
+                        <span className="font-mono text-gray-400">{s.employee_code}</span>
+                        <span className="text-gray-800 font-medium">{s.employee_name}</span>
+                        {s.position && <span className="text-gray-400">· {s.position}</span>}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-            {/* 已指派人員列表 */}
-            {isAssigned && (
-              <div className="mt-2 ml-0 flex flex-wrap gap-1.5">
-                {row.assignedStaff.map((s) => (
-                  <div key={s.employee_code} className="flex items-center gap-1 bg-teal-50 border border-teal-100 rounded px-2 py-0.5 text-xs">
-                    <span className="font-mono text-gray-400">{s.employee_code}</span>
-                    <span className="text-gray-700">{s.employee_name}</span>
-                    {s.position && <span className="text-gray-400">· {s.position}</span>}
-                  </div>
-                ))}
-              </div>
-            )}
+            ))}
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
@@ -761,7 +793,7 @@ export default function StaffOverviewModal({
               )}
             </>
           ) : (
-            <SupportAssignmentTab campaignId={campaignId} />
+            <SupportAssignmentTab campaignId={campaignId} managedStoreIds={managedStores.map(s => s.id)} />
           )}
         </div>
 
