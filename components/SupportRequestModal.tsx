@@ -110,6 +110,7 @@ export default function SupportRequestModal({
           );
         }
       }
+      allRequests.sort((a, b) => (a.activity_date || '').localeCompare(b.activity_date || ''));
       setSupportRequests(allRequests);
 
       // 載入每個請求的已指派人員
