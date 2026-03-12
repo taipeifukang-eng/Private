@@ -64,7 +64,11 @@ export async function GET() {
 
     // 根據門市管理類型判斷權限
     const isSupervisor = managedStores?.some(m => m.role_type === 'supervisor') || false;
-    const isStoreManager = managedStores?.some(m => m.role_type === 'store_manager') || false;
+    const isStoreManagerByTable = managedStores?.some(m => m.role_type === 'store_manager') || false;
+
+    // 備援：從 profiles.job_title 判斷店長身份
+    const isStoreManagerByTitle = ['店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
+    const isStoreManager = isStoreManagerByTable || isStoreManagerByTitle;
 
     // 如果不是任何角色且不是盤點組/行銷部，返回空
     if (!isSupervisor && !isStoreManager && !isInventoryTeam && !isMarketingWithAccess && !isBusinessAssistant) {
