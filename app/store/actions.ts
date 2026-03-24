@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 import type { 
   Store, 
   StoreManager, 
@@ -242,6 +243,125 @@ export async function cloneStore(data: {
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 門市搬遷（就地更新基本資料，員工/管理關係不變）
+ * 同時寫入 store_relocation_history 歷史記錄
+ */
+export async function relocateStore(data: {
+  store_id: string;
+  new_store_code: string;
+  new_store_name: string;
+  new_short_name: string | null;
+  new_hr_store_code: string | null;
+  new_manager_name: string | null;
+  relocation_date?: string; // YYYY-MM-DD, 預設今日
+  note?: string;
+}) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: '未登入' };
+
+    const permission = await requirePermission(user.id, 'store.store.clone');
+    if (!permission.allowed) return { success: false, error: '權限不足' };
+
+    // 取得原門市資料
+    const { data: store, error: fetchError } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('id', data.store_id)
+      .single();
+
+    if (fetchError || !store) return { success: false, error: '找不到門市' };
+
+    // 確認沒有任何變更
+    const hasChanges =
+      data.new_store_code !== store.store_code ||
+      data.new_store_name !== store.store_name ||
+      data.new_short_name !== store.short_name ||
+      data.new_hr_store_code !== store.hr_store_code ||
+      data.new_manager_name !== store.manager_name;
+
+    if (!hasChanges) return { success: false, error: '資料沒有任何變更' };
+
+    // 若門市代碼有變更，確認新代碼未被使用
+    if (data.new_store_code !== store.store_code) {
+      const { data: existing } = await supabase
+        .from('stores')
+        .select('id')
+        .eq('store_code', data.new_store_code)
+        .maybeSingle();
+
+      if (existing) return { success: false, error: `門市代碼 ${data.new_store_code} 已存在` };
+    }
+
+    // 更新門市資料
+    const { error: updateError } = await supabase
+      .from('stores')
+      .update({
+        store_code: data.new_store_code,
+        store_name: data.new_store_name,
+        short_name: data.new_short_name,
+        hr_store_code: data.new_hr_store_code,
+        manager_name: data.new_manager_name,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', data.store_id);
+
+    if (updateError) return { success: false, error: updateError.message };
+
+    // 寫入搬遷歷史記錄
+    const today = new Date().toISOString().split('T')[0];
+    await supabase.from('store_relocation_history').insert({
+      store_id: data.store_id,
+      relocation_date: data.relocation_date || today,
+      old_store_code: store.store_code,
+      new_store_code: data.new_store_code,
+      old_store_name: store.store_name,
+      new_store_name: data.new_store_name,
+      old_short_name: store.short_name,
+      new_short_name: data.new_short_name,
+      old_hr_store_code: store.hr_store_code,
+      new_hr_store_code: data.new_hr_store_code,
+      old_manager_name: store.manager_name,
+      new_manager_name: data.new_manager_name,
+      note: data.note || null,
+      created_by: user.id,
+    });
+
+    revalidatePath('/admin/stores');
+    return { success: true };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 取得門市搬遷歷史記錄
+ */
+export async function getStoreRelocationHistory(storeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: '未登入', data: [] };
+
+    const { data, error } = await supabase
+      .from('store_relocation_history')
+      .select('*')
+      .eq('store_id', storeId)
+      .order('relocation_date', { ascending: false })
+      .order('created_at', { ascending: false });
+
+    if (error) return { success: false, error: error.message, data: [] };
+    return { success: true, data: data || [] };
+  } catch (error: any) {
+    return { success: false, error: error.message, data: [] };
   }
 }
 
@@ -1473,9 +1593,13 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
       return { success: false, error: error.message, data: [] };
     }
 
+    // 建立歷史門市代碼映射
+    const storeIds = [...new Set((data || []).map((item: any) => item.store_id).filter(Boolean))];
+    const codeMap = await buildHistoricalStoreCodeMap(supabase, storeIds, yearMonth);
+
     // 轉換為適合匯出的格式
-    const exportData = (data || []).map(item => ({
-      門市代碼: item.store?.store_code || '',
+    const exportData = (data || []).map((item: any) => ({
+      門市代碼: codeMap[item.store_id] || item.store?.store_code || '',
       門市名稱: item.store?.store_name || '',
       員工代號: item.employee_code || '',
       員工姓名: item.employee_name || '',

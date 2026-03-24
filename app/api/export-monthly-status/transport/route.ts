@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       .select(`
         id,
         year_month,
+        store_id,
         employee_code,
         employee_name,
         monthly_transport_expense,
@@ -61,10 +63,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '該月份沒有交通費用資料' }, { status: 404 });
     }
 
+    // 建立歷史門市代碼映射
+    const codeMap = await buildHistoricalStoreCodeMap(supabase, store_ids, year_month);
+
     // 按門市代號排序
     staffData.sort((a: any, b: any) => {
-      const codeA = a.store?.store_code || '';
-      const codeB = b.store?.store_code || '';
+      const codeA = codeMap[a.store_id] || a.store?.store_code || '';
+      const codeB = codeMap[b.store_id] || b.store?.store_code || '';
       if (codeA !== codeB) return codeA.localeCompare(codeB);
       // 門市相同則按員編排序
       return (a.employee_code || '').localeCompare(b.employee_code || '');
@@ -72,7 +77,7 @@ export async function POST(request: NextRequest) {
 
     // 準備 Excel 資料
     const excelData = staffData.map((staff: any) => ({
-      '門市代號': staff.store?.store_code || '',
+      '門市代號': codeMap[staff.store_id] || staff.store?.store_code || '',
       '月份': staff.year_month,
       '員編': staff.employee_code || '',
       '姓名': staff.employee_name || '',

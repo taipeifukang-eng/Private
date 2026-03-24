@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 // 職位排序優先順序（與 POSITION_OPTIONS 一致）
 const POSITION_ORDER: { [key: string]: number } = {
@@ -116,11 +117,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 建立歷史門市代碼映射
+    const codeMap = await buildHistoricalStoreCodeMap(supabase, store_ids, year_month);
+
     // 在程式中進行排序：先門市代號，再職位順序
     const sortedData = (staffData || []).sort((a: any, b: any) => {
       // 1. 先按門市代號排序
-      const storeCodeA = a.stores?.store_code || '';
-      const storeCodeB = b.stores?.store_code || '';
+      const storeCodeA = codeMap[a.store_id] || a.stores?.store_code || '';
+      const storeCodeB = codeMap[b.store_id] || b.stores?.store_code || '';
       if (storeCodeA !== storeCodeB) {
         return storeCodeA.localeCompare(storeCodeB);
       }
@@ -185,7 +189,7 @@ export async function POST(request: NextRequest) {
       const externalHours = record.extra_task_external_hours || '';
 
       return {
-        '門市代碼': record.stores?.store_code || '',
+        '門市代碼': codeMap[record.store_id] || record.stores?.store_code || '',
         '月份': year_month, // 完整年月格式 YYYY-MM
         '員工代號': record.employee_code || '',
         '員工姓名': record.employee_name || '',

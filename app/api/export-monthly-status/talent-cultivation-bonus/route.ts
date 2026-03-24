@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 /**
  * 匯出育才獎金 Excel
@@ -48,9 +49,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // 建立歷史門市代碼映射
+    const codeMap = await buildHistoricalStoreCodeMap(supabase, store_ids, year_month);
+
     // 準備 Excel 資料
     const excelData = staffData.map((record: any) => ({
-      '門市代號': record.stores.store_code || '',
+      '門市代號': codeMap[record.store_id] || record.stores.store_code || '',
       '月份': year_month,
       '員編': record.employee_code || '',
       '姓名': record.employee_name || '',

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,7 @@ export async function POST(request: NextRequest) {
       .select(`
         id,
         year_month,
+        store_id,
         employee_code,
         employee_name,
         category,
@@ -62,10 +64,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '該月份沒有春節出勤獎金資料' }, { status: 404 });
     }
 
+    // 建立歷史門市代碼映射
+    const codeMap = await buildHistoricalStoreCodeMap(supabase, store_ids, year_month);
+
     // 按門市代號 → 上班日期 → 員編排序
     bonusData.sort((a: any, b: any) => {
-      const codeA = a.store?.store_code || '';
-      const codeB = b.store?.store_code || '';
+      const codeA = codeMap[a.store_id] || a.store?.store_code || '';
+      const codeB = codeMap[b.store_id] || b.store?.store_code || '';
       if (codeA !== codeB) return codeA.localeCompare(codeB);
       const dateA = a.attendance_date || '';
       const dateB = b.attendance_date || '';
@@ -75,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     // 準備 Excel 資料
     const excelData = bonusData.map((row: any) => ({
-      '門市代號': row.store?.store_code || '',
+      '門市代號': codeMap[row.store_id] || row.store?.store_code || '',
       '月份': row.year_month,
       '員編': row.employee_code || '',
       '姓名': row.employee_name || '',

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,6 +63,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // 建立歷史門市代碼映射
+    const storeIds = (stores || []).map((s) => s.id);
+    const codeMap = await buildHistoricalStoreCodeMap(supabase, storeIds, yearMonth);
+
     // 獲取每個門市的支援時數資料
     const supportHoursData = await Promise.all(
       (stores || []).map(async (store) => {
@@ -73,7 +78,7 @@ export async function GET(request: NextRequest) {
           .maybeSingle();
 
         return {
-          門市代號: store.store_code,
+          門市代號: codeMap[store.id] || store.store_code,
           門市名稱: store.store_name,
           支援分店時數: summary?.support_to_other_stores_hours || 0,
           分店支援時數: summary?.support_from_other_stores_hours || 0

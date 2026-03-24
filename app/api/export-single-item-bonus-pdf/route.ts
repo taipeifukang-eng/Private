@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 /**
  * 匯出門市單品獎金資料（包含一般員工和支援人員）
@@ -45,6 +46,10 @@ export async function POST(request: NextRequest) {
     if (!store) {
       return NextResponse.json({ error: '找不到門市' }, { status: 404 });
     }
+
+    // 取得該門市在目標月份當時的歷史代碼
+    const mainCodeMap = await buildHistoricalStoreCodeMap(supabase, [store_id], year_month);
+    const historicalMainCode = mainCodeMap[store_id] || store.store_code;
 
     // === 步驟 1：本店填寫的 support_staff_bonus ===
     const { data: localBonusData } = await supabase
@@ -101,10 +106,17 @@ export async function POST(request: NextRequest) {
         .neq('store_id', store_id)
         .gt('bonus_amount', 0);
 
+      // 建立來源門市的歷史代碼映射
+      const crossStoreIds = [...new Set((crossData || []).map((s: any) => s.store_id).filter(Boolean))];
+      const crossCodeMap = crossStoreIds.length
+        ? await buildHistoricalStoreCodeMap(supabase, crossStoreIds, year_month)
+        : {};
+
       for (const s of (crossData || [])) {
         const storeInfo = s.stores as any;
+        const historicalCode = crossCodeMap[s.store_id] || storeInfo?.store_code || '';
         const source_note = storeInfo
-          ? `來源：${storeInfo.store_code} ${storeInfo.store_name}`
+          ? `來源：${historicalCode} ${storeInfo.store_name}`
           : '來源：其他門市';
         crossEntries.push({
           employee_code: s.employee_code,
@@ -122,7 +134,7 @@ export async function POST(request: NextRequest) {
 
     // 返回 JSON 資料（包含門市資訊）
     return NextResponse.json({
-      store_code: store.store_code,
+      store_code: historicalMainCode,
       store_name: store.store_name,
       staff: allStaff
     });

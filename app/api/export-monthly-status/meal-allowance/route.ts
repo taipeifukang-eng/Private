@@ -2,6 +2,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/permissions/check';
 import * as XLSX from 'xlsx';
+import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,9 +79,13 @@ export async function POST(request: NextRequest) {
     }
     console.log('✅ 門市資料:', stores?.length, '筆');
 
-    // 建立門市ID到門市代號的映射
+    // 建立門市ID到門市代號的映射（含歷史代碼）
+    const historicalCodeMap = await buildHistoricalStoreCodeMap(supabase, store_ids, year_month);
     const storeMap = new Map(
-      stores?.map(s => [s.id, { code: s.store_code, name: s.store_name }]) || []
+      stores?.map(s => [s.id, {
+        code: historicalCodeMap[s.id] || s.store_code,
+        name: s.store_name
+      }]) || []
     );
 
     // 獲取誤餐費記錄（使用 admin client）
