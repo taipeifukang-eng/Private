@@ -124,32 +124,55 @@ export default function EmployeeMovementManagementPage() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, department, job_title')
+      .select('role')
       .eq('id', user.id)
       .single();
 
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    const supervisorRole = ['督導', '督導(代理店長)'].includes(profile?.job_title || '');
     const adminRole = profile?.role === 'admin';
 
-    if (!profile || (adminRole === false && !isBusinessAssistant && !isBusinessSupervisor && !supervisorRole)) {
+    // 使用 RBAC 判斷調店相關權限
+    const [canCreateRes, canConfirmRes] = await Promise.all([
+      supabase.rpc('has_permission', { p_user_id: user.id, p_permission_code: 'employee.store_transfer.create' }),
+      supabase.rpc('has_permission', { p_user_id: user.id, p_permission_code: 'employee.store_transfer.confirm' }),
+    ]);
+    const canCreate = adminRole || canCreateRes.data === true;
+    const canConfirm = adminRole || canConfirmRes.data === true;
+    const supervisorRole = canConfirm && !canCreate; // 只有確認權、無新增權 = 督導
+
+    // 判斷是否有批次異動/歷史記錄的存取權（沿用原批次異動權限）
+    const [batchRes] = await Promise.all([
+      supabase.rpc('has_permission', { p_user_id: user.id, p_permission_code: 'employee.promotion.batch' }),
+    ]);
+    const canBatch = adminRole || batchRes.data === true;
+
+    if (!adminRole && !canCreate && !canConfirm) {
       alert('權限不足');
       router.push('/dashboard');
       return;
     }
 
-    setIsSupervisor(supervisorRole);
+    setIsSupervisor(canConfirm && !canCreate);
     setIsAdmin(adminRole);
-    setCanCreateTransfer(adminRole || isBusinessAssistant || isBusinessSupervisor);
+    setCanCreateTransfer(canCreate);
 
     // 督導只看調店登記確認 tab
     if (supervisorRole && !adminRole) {
       setActiveTab('transfer_requests');
     }
 
-    if (adminRole || isBusinessAssistant || isBusinessSupervisor) {
+    // 支援 URL ?tab= 參數（優先級低於督導強制邏輯）
+    if (!supervisorRole || adminRole) {
+      const urlTab = new URLSearchParams(window.location.search).get('tab') as 'batch' | 'history' | 'transfer_requests' | null;
+      if (urlTab === 'transfer_requests' && (adminRole || canConfirm)) {
+        setActiveTab('transfer_requests');
+      } else if (urlTab === 'batch' && (adminRole || canBatch)) {
+        setActiveTab('batch');
+      } else if (urlTab === 'history' && (adminRole || canBatch)) {
+        setActiveTab('history');
+      }
+    }
+
+    if (canBatch) {
       loadMovementHistory();
       loadEmployees();
     }

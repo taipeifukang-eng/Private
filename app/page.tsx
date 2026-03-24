@@ -2,8 +2,9 @@ import { getCurrentUser } from '@/app/auth/actions';
 import { getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, ArrowRight, Activity, Cake } from 'lucide-react';
+import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft } from 'lucide-react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 export default async function HomePage() {
   const { user } = await getCurrentUser();
@@ -115,6 +116,18 @@ export default async function HomePage() {
     }
   }
 
+  // ── 調店登記確認快捷（有確認權限者） ────────────────────
+  const canConfirmTransfer = role === 'admin' || await hasPermission(user.id, 'employee.store_transfer.confirm');
+  let pendingTransferCount = 0;
+  if (canConfirmTransfer) {
+    const { count } = await adminSupabase
+      .from('store_transfer_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    pendingTransferCount = count ?? 0;
+  }
+  // ─────────────────────────────────────────────────────────
+
   // 去重（同員編可能多筆） + 依月/日排序
   const uniqueBirthdays = Object.values(
     birthdayEmployees.reduce((acc, emp) => {
@@ -142,6 +155,41 @@ export default async function HomePage() {
             {user.profile?.role === 'member' && '查看並執行指派給您的任務'}
           </p>
         </div>
+
+        {/* 調店登記確認 快捷入口（督導 / 管理員） */}
+        {canConfirmTransfer && (
+          <div className="mb-4 sm:mb-5">
+            <Link
+              href="/admin/promotion-management?tab=transfer_requests"
+              className="group flex items-center justify-between p-4 sm:p-5 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl shadow-lg hover:from-orange-600 hover:to-amber-600 active:scale-[0.98] transition-all duration-150"
+            >
+              <div className="flex items-center gap-3 sm:gap-4">
+                {/* Icon */}
+                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white/25 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <ArrowRightLeft className="w-6 h-6 sm:w-7 sm:h-7 text-white" />
+                </div>
+                {/* Text */}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-base sm:text-lg font-bold text-white tracking-wide">調店登記確認</span>
+                    {pendingTransferCount > 0 && (
+                      <span className="bg-white text-orange-600 text-xs font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                        {pendingTransferCount} 待確認
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-orange-100 text-xs sm:text-sm mt-0.5">
+                    {pendingTransferCount > 0
+                      ? `有 ${pendingTransferCount} 筆調店申請待審核`
+                      : '查看員工調店申請'}
+                  </p>
+                </div>
+              </div>
+              {/* Arrow */}
+              <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 text-white/80 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+        )}
 
         {/* Cards Row */}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
