@@ -683,7 +683,6 @@ export default function ImprovementDetailPage() {
                       <input
                         type="file"
                         accept="image/*"
-                        capture="environment"
                         onChange={handlePhotoUpload}
                         className="hidden"
                         multiple
