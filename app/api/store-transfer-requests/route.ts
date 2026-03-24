@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 // GET - 取得調店申請列表
 export async function GET(request: NextRequest) {
@@ -10,17 +11,17 @@ export async function GET(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, department, job_title')
+      .select('role')
       .eq('id', user.id)
       .single();
 
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    const isSupervisor = ['督導', '督導(代理店長)'].includes(profile?.job_title || '');
     const isAdmin = profile?.role === 'admin';
+    const [canCreate, canConfirm] = await Promise.all([
+      hasPermission(user.id, 'employee.store_transfer.create'),
+      hasPermission(user.id, 'employee.store_transfer.confirm'),
+    ]);
 
-    if (!isAdmin && !isBusinessAssistant && !isBusinessSupervisor && !isSupervisor) {
+    if (!isAdmin && !canCreate && !canConfirm) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
     }
 
@@ -75,16 +76,14 @@ export async function POST(request: NextRequest) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, department, job_title')
+      .select('role')
       .eq('id', user.id)
       .single();
 
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
     const isAdmin = profile?.role === 'admin';
+    const canCreate = await hasPermission(user.id, 'employee.store_transfer.create');
 
-    if (!isAdmin && !isBusinessAssistant && !isBusinessSupervisor) {
+    if (!isAdmin && !canCreate) {
       return NextResponse.json({ success: false, error: '只有行政主管可以建立調店申請' }, { status: 403 });
     }
 

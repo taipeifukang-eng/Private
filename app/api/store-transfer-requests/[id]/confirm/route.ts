@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 // POST - 督導確認調店申請，填入生效日期並寫入異動歷程
 export async function POST(
@@ -13,14 +14,14 @@ export async function POST(
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, department, job_title')
+      .select('role')
       .eq('id', user.id)
       .single();
 
-    const isSupervisor = ['督導', '督導(代理店長)'].includes(profile?.job_title || '');
     const isAdmin = profile?.role === 'admin';
+    const canConfirm = await hasPermission(user.id, 'employee.store_transfer.confirm');
 
-    if (!isAdmin && !isSupervisor) {
+    if (!isAdmin && !canConfirm) {
       return NextResponse.json({ success: false, error: '只有督導可以確認調店申請' }, { status: 403 });
     }
 
