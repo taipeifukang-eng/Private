@@ -40,10 +40,10 @@ export async function GET(request: NextRequest) {
     }
 
     // 另外查詢 profiles 取得 creator/confirmer 姓名（created_by 是 auth.users FK，無法直接 embed）
-    const userIds = [...new Set([
+    const userIds = Array.from(new Set([
       ...(data || []).map((r: any) => r.created_by).filter(Boolean),
       ...(data || []).map((r: any) => r.confirmed_by).filter(Boolean),
-    ])];
+    ]));
 
     let profileMap: Record<string, string> = {};
     if (userIds.length > 0) {
