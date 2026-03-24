@@ -58,6 +58,8 @@ function MonthlyStatusContent() {
   const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
   const [canViewPerformance, setCanViewPerformance] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
+  const [allManagedStores, setAllManagedStores] = useState<Store[]>([]); // 含已停止門市
+  const [showInactiveStores, setShowInactiveStores] = useState(false);
   const [selectedYearMonth, setSelectedYearMonth] = useState<string>('');
   const [storeSummaries, setStoreSummaries] = useState<MonthlyStoreSummary[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
@@ -82,6 +84,12 @@ function MonthlyStatusContent() {
     return false;
   }, [userJobTitle, userDepartment]);
 
+  // 顯示門市列表：根據 toggle 決定是否含已停止
+  const visibleStores = useMemo(
+    () => showInactiveStores ? allManagedStores : managedStores,
+    [showInactiveStores, allManagedStores, managedStores]
+  );
+
   // 初始化當前年月（使用當前月份或 URL 參數）
   useEffect(() => {
     const urlYearMonth = searchParams.get('year_month');
@@ -101,10 +109,10 @@ function MonthlyStatusContent() {
 
   // 當年月或門市列表變更時，載入摘要
   useEffect(() => {
-    if (selectedYearMonth && managedStores.length > 0) {
+    if (selectedYearMonth && visibleStores.length > 0) {
       loadStoreSummaries();
     }
-  }, [selectedYearMonth, managedStores]);
+  }, [selectedYearMonth, visibleStores]);
 
   // 當選中的門市變更時，滾動到該門市的標籤
   useEffect(() => {
@@ -444,7 +452,7 @@ function MonthlyStatusContent() {
         )}
 
         {/* 門市列表 / 門市切換器 */}
-        {managedStores.length === 0 ? (
+        {managedStores.length === 0 && allManagedStores.length === 0 ? (
           <div className="bg-white rounded-lg shadow-lg p-12 text-center">
             <Building2 className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
@@ -454,53 +462,97 @@ function MonthlyStatusContent() {
               請聯繫管理員將您指派到門市
             </p>
           </div>
-        ) : managedStores.length === 1 ? (
+        ) : visibleStores.length === 1 && !showInactiveStores ? (
           // 店長視圖 - 直接顯示門市詳情
-          <StoreStatusDetail
-            store={managedStores[0]}
-            yearMonth={selectedYearMonth}
-            userRole={userRole}
-            userDepartment={userDepartment}
-            userJobTitle={userJobTitle}
-            managedStores={managedStores}
-            canViewStats={canViewStats}
-            canViewSupportHours={canViewSupportHours}
-            canEditSupportHours={canEditSupportHours}
-            canViewPerformance={canViewPerformance}
-            onRefresh={loadStoreSummaries}
-          />
+          <>
+            {/* 歷史門市切換按鈕（若有已停止門市） */}
+            {allManagedStores.length > managedStores.length && (
+              <div className="flex justify-end mb-3">
+                <button
+                  onClick={() => setShowInactiveStores(true)}
+                  className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-300 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  顯示已停止門市歷史（{allManagedStores.length - managedStores.length}間）
+                </button>
+              </div>
+            )}
+            <StoreStatusDetail
+              store={visibleStores[0]}
+              yearMonth={selectedYearMonth}
+              userRole={userRole}
+              userDepartment={userDepartment}
+              userJobTitle={userJobTitle}
+              managedStores={visibleStores}
+              canViewStats={canViewStats}
+              canViewSupportHours={canViewSupportHours}
+              canEditSupportHours={canEditSupportHours}
+              canViewPerformance={canViewPerformance}
+              onRefresh={loadStoreSummaries}
+            />
+          </>
         ) : (
-          // 督導/經理視圖 - 門市選擇器 + 詳情
+          // 督導/經理視圖（或含已停止門市的店長視圖） - 門市選擇器 + 詳情
           <div className="space-y-6">
             {/* 門市選擇標籤 */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
               <div className="border-b border-gray-200">
-                <div className="flex overflow-x-auto">
-                  {managedStores.map((store) => {
-                    const summary = storeSummaries.find(s => s.store_id === store.id);
-                    const isSelected = selectedStoreId === store.id;
-                    
-                    return (
+                <div className="flex items-center">
+                  <div className="flex overflow-x-auto flex-1">
+                    {visibleStores.map((store) => {
+                      const summary = storeSummaries.find(s => s.store_id === store.id);
+                      const isSelected = selectedStoreId === store.id;
+                      const isInactive = !store.is_active;
+
+                      return (
+                        <button
+                          key={store.id}
+                          ref={(el) => { storeTabsRef.current[store.id] = el; }}
+                          onClick={() => setSelectedStoreId(store.id)}
+                          className={`px-6 py-4 font-medium text-sm whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${
+                            isSelected
+                              ? 'border-blue-600 text-blue-600 bg-blue-50'
+                              : isInactive
+                              ? 'border-transparent text-gray-400 hover:text-gray-600 hover:border-gray-300'
+                              : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                          }`}
+                        >
+                          {isInactive
+                            ? <Building2 className="w-4 h-4 text-gray-400" />
+                            : getStatusIcon(summary?.store_status || 'pending')
+                          }
+                          <span>{store.store_name}</span>
+                          {isInactive ? (
+                            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
+                              已停止
+                            </span>
+                          ) : (
+                            <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
+                              getStatusColor(summary?.store_status || 'pending')
+                            }`}>
+                              {getStatusLabel(summary?.store_status || 'pending')}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {/* 已停止門市 toggle */}
+                  {allManagedStores.length > managedStores.length && (
+                    <div className="flex-shrink-0 px-4 border-l border-gray-200">
                       <button
-                        key={store.id}
-                        ref={(el) => { storeTabsRef.current[store.id] = el; }}
-                        onClick={() => setSelectedStoreId(store.id)}
-                        className={`px-6 py-4 font-medium text-sm whitespace-nowrap border-b-2 transition-colors flex items-center gap-2 ${
-                          isSelected
-                            ? 'border-blue-600 text-blue-600 bg-blue-50'
-                            : 'border-transparent text-gray-600 hover:text-gray-900 hover:border-gray-300'
+                        onClick={() => setShowInactiveStores(v => !v)}
+                        className={`flex items-center gap-1.5 text-xs rounded-lg px-3 py-1.5 transition-colors border ${
+                          showInactiveStores
+                            ? 'bg-gray-200 text-gray-700 border-gray-300'
+                            : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50'
                         }`}
                       >
-                        {getStatusIcon(summary?.store_status || 'pending')}
-                        <span>{store.store_name}</span>
-                        <span className={`ml-2 px-2 py-0.5 text-xs rounded-full ${
-                          getStatusColor(summary?.store_status || 'pending')
-                        }`}>
-                          {getStatusLabel(summary?.store_status || 'pending')}
-                        </span>
+                        <Building2 className="w-3.5 h-3.5" />
+                        {showInactiveStores ? '隱藏已停止' : `已停止（${allManagedStores.length - managedStores.length}）`}
                       </button>
-                    );
-                  })}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -508,12 +560,12 @@ function MonthlyStatusContent() {
               {selectedStoreId ? (
                 <div className="p-6">
                   <StoreStatusDetail
-                    store={managedStores.find(s => s.id === selectedStoreId)!}
+                    store={visibleStores.find(s => s.id === selectedStoreId)!}
                     yearMonth={selectedYearMonth}
                     userRole={userRole}
                     userDepartment={userDepartment}
                     userJobTitle={userJobTitle}
-                    managedStores={managedStores}
+                    managedStores={visibleStores}
                     canViewStats={canViewStats}
                     canViewSupportHours={canViewSupportHours}
                     canEditSupportHours={canEditSupportHours}

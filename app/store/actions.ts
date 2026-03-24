@@ -153,7 +153,9 @@ export async function cloneStore(data: {
         manager_name: data.new_manager_name || sourceStore.manager_name,
         address: data.new_address || sourceStore.address,
         phone: data.new_phone || sourceStore.phone,
-        is_active: true
+        is_active: true,
+        // 記錄搬遷來源門市，供月人員狀態初始化繼承歷史資料
+        source_store_id: data.deactivate_source ? data.source_store_id : null
       })
       .select()
       .single();
@@ -249,7 +251,7 @@ export async function cloneStore(data: {
  * - manager (督導/區經理): 被指派的門市
  * - store_manager (店長): 自己的門市
  */
-export async function getUserManagedStores() {
+export async function getUserManagedStores(options?: { include_inactive?: boolean }) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -278,13 +280,17 @@ export async function getUserManagedStores() {
       .eq('id', user.id)
       .single();
 
+    const includeInactive = options?.include_inactive ?? false;
+
     // 有 view_all 權限可以看所有門市
     if (canViewAllStores) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('stores')
         .select('*')
-        .eq('is_active', true)
         .order('store_code');
+      if (!includeInactive) query = query.eq('is_active', true);
+
+      const { data, error } = await query;
 
       if (error) {
         return { success: false, error: error.message, data: [] };
@@ -319,13 +325,16 @@ export async function getUserManagedStores() {
     }
 
     const stores = managedStores
-      ?.filter(m => m.store?.is_active)
+      ?.filter(m => includeInactive ? !!m.store : m.store?.is_active)
       .map(m => m.store) || [];
     
-    // 去重（根據 id）
+    // 去重（根據 id）+ 排序（有效門市優先，再按 store_code）
     const uniqueStores = Array.from(
       new Map(stores.map(store => [store.id, store])).values()
-    );
+    ).sort((a, b) => {
+      if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
+      return (a.store_code || '').localeCompare(b.store_code || '');
+    });
     
     const roleType = managedStores?.[0]?.role_type || 'member';
 
@@ -571,12 +580,31 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
     const prevDate = new Date(year, month - 2, 1); // month-2 因為 JS 月份從 0 開始
     const prevYearMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
 
-    // 嘗試獲取上個月的資料
-    const { data: prevMonthData } = await supabase
+    // 嘗試獲取上個月的資料（先查本門市，若無則回查搬遷來源門市）
+    let { data: prevMonthData } = await supabase
       .from('monthly_staff_status')
       .select('*')
       .eq('year_month', prevYearMonth)
       .eq('store_id', storeId);
+
+    // 若本月是新開的搬遷門市，且本身無上月紀錄，嘗試從來源門市取資料
+    if (!prevMonthData || prevMonthData.length === 0) {
+      const { data: storeInfo } = await supabase
+        .from('stores')
+        .select('source_store_id')
+        .eq('id', storeId)
+        .single();
+      if (storeInfo?.source_store_id) {
+        const { data: prevFromSource } = await supabase
+          .from('monthly_staff_status')
+          .select('*')
+          .eq('year_month', prevYearMonth)
+          .eq('store_id', storeInfo.source_store_id);
+        if (prevFromSource && prevFromSource.length > 0) {
+          prevMonthData = prevFromSource;
+        }
+      }
+    }
 
     let statusRecords: any[] = [];
 
