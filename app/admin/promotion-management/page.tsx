@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar } from 'lucide-react';
+import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar, ArrowRightLeft, CheckCircle, XCircle, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS } from '@/types/workflow';
 
@@ -58,11 +58,42 @@ interface Employee {
   store_id: string;
 }
 
+interface StoreTransferRequest {
+  id: string;
+  employee_code: string;
+  employee_name: string;
+  from_store_id: string;
+  to_store_id: string;
+  status: 'pending' | 'confirmed' | 'rejected';
+  notes: string | null;
+  created_at: string;
+  confirmed_at: string | null;
+  effective_date: string | null;
+  from_store: { store_name: string; store_code: string } | null;
+  to_store: { store_name: string; store_code: string } | null;
+  creator: { full_name: string } | null;
+  confirmer: { full_name: string } | null;
+}
+
 export default function EmployeeMovementManagementPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'batch' | 'history'>('batch');
+  const [activeTab, setActiveTab] = useState<'batch' | 'history' | 'transfer_requests'>('batch');
+  const [isSupervisor, setIsSupervisor] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [canCreateTransfer, setCanCreateTransfer] = useState(false);
+  // 調店申請
+  const [transferRequests, setTransferRequests] = useState<StoreTransferRequest[]>([]);
+  const [transferRequestsLoading, setTransferRequestsLoading] = useState(false);
+  const [showCreateTransferForm, setShowCreateTransferForm] = useState(false);
+  const [newTransfer, setNewTransfer] = useState({ employee_code: '', employee_name: '', from_store_id: '', to_store_id: '', notes: '' });
+  const [transferSearchTerm, setTransferSearchTerm] = useState('');
+  const [showTransferDropdown, setShowTransferDropdown] = useState(false);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [confirmEffectiveDate, setConfirmEffectiveDate] = useState<{[key: string]: string}>({});
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [transferStatusFilter, setTransferStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('pending');
   const [movements, setMovements] = useState<MovementInput[]>([
     { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
   ]);
@@ -99,16 +130,30 @@ export default function EmployeeMovementManagementPage() {
     const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
     const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
     const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    
-    if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
+    const supervisorRole = ['督導', '督導(代理店長)'].includes(profile?.job_title || '');
+    const adminRole = profile?.role === 'admin';
+
+    if (!profile || (adminRole === false && !isBusinessAssistant && !isBusinessSupervisor && !supervisorRole)) {
       alert('權限不足');
       router.push('/dashboard');
       return;
     }
 
-    loadMovementHistory();
-    loadEmployees();
+    setIsSupervisor(supervisorRole);
+    setIsAdmin(adminRole);
+    setCanCreateTransfer(adminRole || isBusinessAssistant || isBusinessSupervisor);
+
+    // 督導只看調店登記確認 tab
+    if (supervisorRole && !adminRole) {
+      setActiveTab('transfer_requests');
+    }
+
+    if (adminRole || isBusinessAssistant || isBusinessSupervisor) {
+      loadMovementHistory();
+      loadEmployees();
+    }
     loadStores();
+    loadTransferRequests();
     
     // 設定當前月份為預設篩選
     const now = new Date();
@@ -116,6 +161,102 @@ export default function EmployeeMovementManagementPage() {
     setHistoryYearMonth(currentYearMonth);
     
     setLoading(false);
+  };
+
+  const loadTransferRequests = async () => {
+    setTransferRequestsLoading(true);
+    try {
+      const res = await fetch('/api/store-transfer-requests');
+      const result = await res.json();
+      if (result.success) {
+        setTransferRequests(result.data);
+      }
+    } catch (err) {
+      console.error('Error loading transfer requests:', err);
+    } finally {
+      setTransferRequestsLoading(false);
+    }
+  };
+
+  const handleCreateTransferRequest = async () => {
+    if (!newTransfer.employee_code || !newTransfer.employee_name || !newTransfer.from_store_id || !newTransfer.to_store_id) {
+      alert('請填寫所有必填欄位');
+      return;
+    }
+    if (newTransfer.from_store_id === newTransfer.to_store_id) {
+      alert('原任職門市與新任職門市不能相同');
+      return;
+    }
+    try {
+      const res = await fetch('/api/store-transfer-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTransfer),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert('✅ 調店申請已送出，等待督導確認');
+        setShowCreateTransferForm(false);
+        setNewTransfer({ employee_code: '', employee_name: '', from_store_id: '', to_store_id: '', notes: '' });
+        setTransferSearchTerm('');
+        loadTransferRequests();
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (err: any) {
+      alert(`❌ 送出失敗：${err.message}`);
+    }
+  };
+
+  const handleConfirmTransfer = async (id: string) => {
+    const date = confirmEffectiveDate[id];
+    if (!date) {
+      alert('請填入生效日期');
+      return;
+    }
+    setConfirmingId(id);
+    try {
+      const res = await fetch(`/api/store-transfer-requests/${id}/confirm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effective_date: date }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        alert(result.message);
+        loadTransferRequests();
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (err: any) {
+      alert(`❌ 確認失敗：${err.message}`);
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
+  const handleRejectTransfer = async (id: string, employeeName: string) => {
+    if (!confirm(`確定要拒絕 ${employeeName} 的調店申請嗎？`)) return;
+    setRejectingId(id);
+    try {
+      const res = await fetch(`/api/store-transfer-requests/${id}/reject`, { method: 'POST' });
+      const result = await res.json();
+      if (result.success) {
+        alert('已拒絕此調店申請');
+        loadTransferRequests();
+      } else {
+        alert(`❌ ${result.error}`);
+      }
+    } catch (err: any) {
+      alert(`❌ 操作失敗：${err.message}`);
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
+  const getFilteredTransferRequests = () => {
+    if (transferStatusFilter === 'all') return transferRequests;
+    return transferRequests.filter(r => r.status === transferStatusFilter);
   };
 
   const loadStores = async () => {
@@ -447,25 +588,45 @@ export default function EmployeeMovementManagementPage() {
         <div className="bg-white rounded-lg shadow-sm mb-6">
           <div className="border-b border-gray-200">
             <div className="flex">
+              {(isAdmin || canCreateTransfer) && (
+                <button
+                  onClick={() => setActiveTab('batch')}
+                  className={`px-6 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'batch'
+                      ? 'border-b-2 border-emerald-600 text-emerald-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  批次輸入異動
+                </button>
+              )}
+              {(isAdmin || canCreateTransfer) && (
+                <button
+                  onClick={() => setActiveTab('history')}
+                  className={`px-6 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'history'
+                      ? 'border-b-2 border-emerald-600 text-emerald-600'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  查看歷史記錄
+                </button>
+              )}
               <button
-                onClick={() => setActiveTab('batch')}
-                className={`px-6 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'batch'
-                    ? 'border-b-2 border-emerald-600 text-emerald-600'
+                onClick={() => setActiveTab('transfer_requests')}
+                className={`px-6 py-3 text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                  activeTab === 'transfer_requests'
+                    ? 'border-b-2 border-cyan-600 text-cyan-600'
                     : 'text-gray-600 hover:text-gray-900'
                 }`}
               >
-                批次輸入異動
-              </button>
-              <button
-                onClick={() => setActiveTab('history')}
-                className={`px-6 py-3 text-sm font-medium transition-colors ${
-                  activeTab === 'history'
-                    ? 'border-b-2 border-emerald-600 text-emerald-600'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                查看歷史記錄
+                <ArrowRightLeft size={15} />
+                調店登記確認
+                {transferRequests.filter(r => r.status === 'pending').length > 0 && (
+                  <span className="ml-1 bg-red-500 text-white text-xs rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
+                    {transferRequests.filter(r => r.status === 'pending').length}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -897,6 +1058,317 @@ export default function EmployeeMovementManagementPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 調店登記確認 TAB */}
+        {activeTab === 'transfer_requests' && (
+          <div className="space-y-6">
+            {/* 行政主管：新增申請按鈕 */}
+            {canCreateTransfer && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                      <ArrowRightLeft className="text-cyan-600" size={22} />
+                      調店登記
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">登記員工調店申請，由督導確認生效日期後正式記錄</p>
+                  </div>
+                  <button
+                    onClick={() => setShowCreateTransferForm(!showCreateTransferForm)}
+                    className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors text-sm font-medium"
+                  >
+                    <Plus size={16} />
+                    新增調店申請
+                  </button>
+                </div>
+
+                {showCreateTransferForm && (
+                  <div className="border border-cyan-200 rounded-lg p-5 bg-cyan-50 space-y-4">
+                    <h3 className="font-medium text-cyan-800">填寫調店資訊</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* 員工搜尋 */}
+                      <div className="relative">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">員編 *</label>
+                        <input
+                          type="text"
+                          value={transferSearchTerm || newTransfer.employee_code}
+                          onChange={(e) => {
+                            const val = e.target.value.toUpperCase();
+                            setTransferSearchTerm(val);
+                            setNewTransfer(prev => ({ ...prev, employee_code: val, employee_name: '' }));
+                            setShowTransferDropdown(true);
+                          }}
+                          placeholder="輸入員編或姓名搜尋"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500"
+                        />
+                        {showTransferDropdown && transferSearchTerm && (
+                          <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto mt-1">
+                            {employees
+                              .filter(emp =>
+                                emp.employee_code.includes(transferSearchTerm) ||
+                                emp.employee_name.includes(transferSearchTerm)
+                              )
+                              .slice(0, 10)
+                              .map(emp => (
+                                <div
+                                  key={emp.employee_code}
+                                  onClick={() => {
+                                    setNewTransfer(prev => ({
+                                      ...prev,
+                                      employee_code: emp.employee_code,
+                                      employee_name: emp.employee_name,
+                                      from_store_id: emp.store_id || prev.from_store_id,
+                                    }));
+                                    setTransferSearchTerm('');
+                                    setShowTransferDropdown(false);
+                                  }}
+                                  className="px-3 py-2 hover:bg-cyan-50 cursor-pointer text-sm"
+                                >
+                                  <span className="font-medium text-cyan-700">{emp.employee_code}</span>
+                                  <span className="ml-2 text-gray-700">{emp.employee_name}</span>
+                                  <span className="ml-2 text-gray-400 text-xs">
+                                    {stores.find(s => s.id === emp.store_id)?.name || ''}
+                                  </span>
+                                </div>
+                              ))
+                            }
+                          </div>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">姓名 *</label>
+                        <input
+                          type="text"
+                          value={newTransfer.employee_name}
+                          onChange={(e) => setNewTransfer(prev => ({ ...prev, employee_name: e.target.value }))}
+                          placeholder="員工姓名"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">原任職門市 *</label>
+                        <select
+                          value={newTransfer.from_store_id}
+                          onChange={(e) => setNewTransfer(prev => ({ ...prev, from_store_id: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500"
+                        >
+                          <option value="">請選擇門市</option>
+                          {stores.map(s => (
+                            <option key={s.id} value={s.id}>{s.store_code} {s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">新任職門市 *</label>
+                        <select
+                          value={newTransfer.to_store_id}
+                          onChange={(e) => setNewTransfer(prev => ({ ...prev, to_store_id: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500"
+                        >
+                          <option value="">請選擇門市</option>
+                          {stores.map(s => (
+                            <option key={s.id} value={s.id}>{s.store_code} {s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
+                        <input
+                          type="text"
+                          value={newTransfer.notes}
+                          onChange={(e) => setNewTransfer(prev => ({ ...prev, notes: e.target.value }))}
+                          placeholder="選填"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 justify-end pt-2">
+                      <button
+                        onClick={() => {
+                          setShowCreateTransferForm(false);
+                          setNewTransfer({ employee_code: '', employee_name: '', from_store_id: '', to_store_id: '', notes: '' });
+                          setTransferSearchTerm('');
+                        }}
+                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+                      >
+                        取消
+                      </button>
+                      <button
+                        onClick={handleCreateTransferRequest}
+                        className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-medium"
+                      >
+                        送出申請
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 申請列表 */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {isSupervisor && !isAdmin ? '待確認的調店申請' : '調店申請記錄'}
+                </h2>
+                <div className="flex gap-2">
+                  {(['pending', 'confirmed', 'rejected', 'all'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setTransferStatusFilter(s)}
+                      className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                        transferStatusFilter === s
+                          ? s === 'pending' ? 'bg-amber-500 text-white'
+                          : s === 'confirmed' ? 'bg-emerald-500 text-white'
+                          : s === 'rejected' ? 'bg-red-500 text-white'
+                          : 'bg-gray-700 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {s === 'pending' ? '待確認' : s === 'confirmed' ? '已確認' : s === 'rejected' ? '已拒絕' : '全部'}
+                      {s === 'pending' && transferRequests.filter(r => r.status === 'pending').length > 0 && (
+                        <span className="ml-1">({transferRequests.filter(r => r.status === 'pending').length})</span>
+                      )}
+                    </button>
+                  ))}
+                  <button
+                    onClick={loadTransferRequests}
+                    className="px-3 py-1.5 text-sm bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200"
+                  >
+                    重新整理
+                  </button>
+                </div>
+              </div>
+
+              {transferRequestsLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">載入中...</p>
+                </div>
+              ) : getFilteredTransferRequests().length === 0 ? (
+                <div className="text-center py-12">
+                  <ArrowRightLeft className="w-14 h-14 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">目前無{transferStatusFilter === 'pending' ? '待確認' : ''}調店申請</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {getFilteredTransferRequests().map((req) => (
+                    <div
+                      key={req.id}
+                      className={`border rounded-lg p-4 ${
+                        req.status === 'pending' ? 'border-amber-200 bg-amber-50' :
+                        req.status === 'confirmed' ? 'border-emerald-200 bg-emerald-50' :
+                        'border-red-200 bg-red-50'
+                      }`}
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center gap-3">
+                        {/* 員工資訊 */}
+                        <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-3">
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">員工</p>
+                            <p className="font-semibold text-gray-900">{req.employee_name}</p>
+                            <p className="text-xs text-cyan-600">{req.employee_code}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">原任職門市</p>
+                            <p className="text-sm font-medium text-orange-700">
+                              {req.from_store?.store_code} {req.from_store?.store_name}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">新任職門市</p>
+                            <p className="text-sm font-medium text-emerald-700">
+                              {req.to_store?.store_code} {req.to_store?.store_name}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 mb-0.5">登記者</p>
+                            <p className="text-sm text-gray-700">{req.creator?.full_name || '-'}</p>
+                            <p className="text-xs text-gray-400">{req.created_at.slice(0, 10)}</p>
+                          </div>
+                        </div>
+
+                        {/* 狀態 & 操作 */}
+                        <div className="flex flex-col items-end gap-2 min-w-[180px]">
+                          {req.status === 'pending' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium">
+                              <Clock size={12} /> 待確認
+                            </span>
+                          )}
+                          {req.status === 'confirmed' && (
+                            <div className="text-right">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-medium">
+                                <CheckCircle size={12} /> 已確認
+                              </span>
+                              <p className="text-xs text-gray-500 mt-1">生效日期：{req.effective_date}</p>
+                              <p className="text-xs text-gray-400">確認者：{req.confirmer?.full_name}</p>
+                            </div>
+                          )}
+                          {req.status === 'rejected' && (
+                            <div className="text-right">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium">
+                                <XCircle size={12} /> 已拒絕
+                              </span>
+                              <p className="text-xs text-gray-400 mt-1">拒絕者：{req.confirmer?.full_name}</p>
+                            </div>
+                          )}
+
+                          {/* 督導確認操作 */}
+                          {req.status === 'pending' && (isSupervisor || isAdmin) && (
+                            <div className="flex flex-col gap-2 w-full">
+                              <div className="flex items-center gap-2">
+                                <label className="text-xs text-gray-600 whitespace-nowrap">生效日期 *</label>
+                                <input
+                                  type="date"
+                                  value={confirmEffectiveDate[req.id] || ''}
+                                  onChange={(e) => setConfirmEffectiveDate(prev => ({ ...prev, [req.id]: e.target.value }))}
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-emerald-500"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleConfirmTransfer(req.id)}
+                                  disabled={confirmingId === req.id || !confirmEffectiveDate[req.id]}
+                                  className="flex-1 flex items-center justify-center gap-1 px-3 py-1.5 bg-emerald-600 text-white rounded text-xs font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  {confirmingId === req.id ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                                  ) : (
+                                    <CheckCircle size={13} />
+                                  )}
+                                  確認調店
+                                </button>
+                                <button
+                                  onClick={() => handleRejectTransfer(req.id, req.employee_name)}
+                                  disabled={rejectingId === req.id}
+                                  className="px-3 py-1.5 border border-red-300 text-red-600 rounded text-xs hover:bg-red-50 disabled:opacity-50"
+                                >
+                                  {rejectingId === req.id ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-red-600 border-t-transparent" />
+                                  ) : (
+                                    <XCircle size={13} />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {req.notes && (
+                        <p className="text-xs text-gray-500 mt-2 pt-2 border-t border-gray-200">備註：{req.notes}</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
