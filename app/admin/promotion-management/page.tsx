@@ -83,6 +83,7 @@ export default function EmployeeMovementManagementPage() {
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canCreateTransfer, setCanCreateTransfer] = useState(false);
+  const [transferRequestsError, setTransferRequestsError] = useState<string | null>(null);
   // 調店申請
   const [transferRequests, setTransferRequests] = useState<StoreTransferRequest[]>([]);
   const [transferRequestsLoading, setTransferRequestsLoading] = useState(false);
@@ -165,13 +166,17 @@ export default function EmployeeMovementManagementPage() {
 
   const loadTransferRequests = async () => {
     setTransferRequestsLoading(true);
+    setTransferRequestsError(null);
     try {
       const res = await fetch('/api/store-transfer-requests');
       const result = await res.json();
       if (result.success) {
         setTransferRequests(result.data);
+      } else {
+        setTransferRequestsError(result.error || '載入失敗');
       }
-    } catch (err) {
+    } catch (err: any) {
+      setTransferRequestsError(err.message || '網路錯誤');
       console.error('Error loading transfer requests:', err);
     } finally {
       setTransferRequestsLoading(false);
@@ -1254,6 +1259,13 @@ export default function EmployeeMovementManagementPage() {
                 <div className="text-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-3" />
                   <p className="text-gray-500 text-sm">載入中...</p>
+                </div>
+              ) : transferRequestsError ? (
+                <div className="text-center py-12">
+                  <AlertCircle className="w-10 h-10 mx-auto text-red-400 mb-3" />
+                  <p className="text-red-500 text-sm font-medium">載入失敗：{transferRequestsError}</p>
+                  <p className="text-gray-400 text-xs mt-1">請至 Supabase Dashboard → Settings → API → Reload schema cache 後重試</p>
+                  <button onClick={loadTransferRequests} className="mt-3 px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">重新整理</button>
                 </div>
               ) : getFilteredTransferRequests().length === 0 ? (
                 <div className="text-center py-12">

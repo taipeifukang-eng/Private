@@ -29,9 +29,7 @@ export async function GET(request: NextRequest) {
       .select(`
         *,
         from_store:from_store_id ( store_name, store_code ),
-        to_store:to_store_id ( store_name, store_code ),
-        creator:created_by ( full_name ),
-        confirmer:confirmed_by ( full_name )
+        to_store:to_store_id ( store_name, store_code )
       `)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -41,7 +39,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data });
+    // 另外查詢 profiles 取得 creator/confirmer 姓名（created_by 是 auth.users FK，無法直接 embed）
+    const userIds = [...new Set([
+      ...(data || []).map((r: any) => r.created_by).filter(Boolean),
+      ...(data || []).map((r: any) => r.confirmed_by).filter(Boolean),
+    ])];
+
+    let profileMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+      profiles?.forEach((p: any) => { profileMap[p.id] = p.full_name; });
+    }
+
+    const result = (data || []).map((r: any) => ({
+      ...r,
+      creator: r.created_by ? { full_name: profileMap[r.created_by] || null } : null,
+      confirmer: r.confirmed_by ? { full_name: profileMap[r.confirmed_by] || null } : null,
+    }));
+
+    return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
