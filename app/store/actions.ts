@@ -1594,7 +1594,7 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
     }
 
     // 建立歷史門市代碼映射
-    const storeIds = [...new Set((data || []).map((item: any) => item.store_id).filter(Boolean))];
+    const storeIds = Array.from(new Set((data || []).map((item: any) => item.store_id).filter(Boolean)));
     const codeMap = await buildHistoricalStoreCodeMap(supabase, storeIds, yearMonth);
 
     // 轉換為適合匯出的格式
