@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
         .gt('bonus_amount', 0);
 
       // 建立來源門市的歷史代碼映射
-      const crossStoreIds = [...new Set((crossData || []).map((s: any) => s.store_id).filter(Boolean))];
+      const crossStoreIds = Array.from(new Set((crossData || []).map((s: any) => s.store_id).filter(Boolean)));
       const crossCodeMap = crossStoreIds.length
         ? await buildHistoricalStoreCodeMap(supabase, crossStoreIds, year_month)
         : {};
