@@ -45,6 +45,20 @@ export async function POST(
       return NextResponse.json({ success: false, error: '此申請已被處理，無法重複確認' }, { status: 400 });
     }
 
+    // 非 admin 的督導必須是原任職門市的管理者才能確認
+    if (!isAdmin) {
+      const { data: managed } = await supabase
+        .from('store_managers')
+        .select('store_id')
+        .eq('user_id', user.id)
+        .eq('store_id', req.from_store_id)
+        .maybeSingle();
+
+      if (!managed) {
+        return NextResponse.json({ success: false, error: '您不是此員工原任職門市的督導，無法確認此調店申請' }, { status: 403 });
+      }
+    }
+
     // 查詢門市名稱
     const [{ data: fromStore }, { data: toStore }] = await Promise.all([
       supabase.from('stores').select('store_name').eq('id', req.from_store_id).single(),

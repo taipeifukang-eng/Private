@@ -25,7 +25,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
     }
 
-    const { data, error } = await supabase
+    // 督導只能看到自己管理的「原任職門市」的申請
+    let supervisorFromStoreIds: string[] | null = null;
+    if (!isAdmin && canConfirm && !canCreate) {
+      const { data: managed } = await supabase
+        .from('store_managers')
+        .select('store_id')
+        .eq('user_id', user.id);
+      supervisorFromStoreIds = (managed || []).map((m: any) => m.store_id);
+    }
+
+    let query = supabase
       .from('store_transfer_requests')
       .select(`
         *,
@@ -34,6 +44,12 @@ export async function GET(request: NextRequest) {
       `)
       .order('created_at', { ascending: false })
       .limit(200);
+
+    if (supervisorFromStoreIds !== null) {
+      query = query.in('from_store_id', supervisorFromStoreIds.length > 0 ? supervisorFromStoreIds : ['__none__']);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching store transfer requests:', error);
