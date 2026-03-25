@@ -451,12 +451,15 @@ export default function InventoryManagement() {
           return;
         }
 
-        const parsed = data.map((row: any) => {
-          // 合成儲位："外" + 貨架 + "-" + 棚板 + "-" + 序號
+        // 先逐列解析並合成儲位
+        // 規則：貨架以"1"開頭 → 外${貨架}-${棚板}-${序號}；否則 → 外${貨架}-${棚板}（不含序號，同儲位數量加總）
+        const rawParsed = data.map((row: any) => {
           const 貨架 = String(row['貨架'] || '').trim();
           const 棚板 = String(row['棚板'] || '').trim();
           const 序號 = String(row['序號'] || '').trim();
-          const 盤點儲位 = `外${貨架}-${棚板}-${序號}`;
+          const 盤點儲位 = 貨架.startsWith('1')
+            ? `外${貨架}-${棚板}-${序號}`
+            : `外${貨架}-${棚板}`;
 
           return {
             品號: formatProductCode(row['貨號']),
@@ -467,8 +470,22 @@ export default function InventoryManagement() {
           };
         });
 
+        // 依（品號 + 盤點儲位）做數量加總（非1開頭貨架的多序號會合併，1開頭因序號不同不影響）
+        const mergeMap = new Map<string, typeof rawParsed[0]>();
+        rawParsed.forEach(item => {
+          const key = `${item.品號}__${item.盤點儲位}`;
+          const existing = mergeMap.get(key);
+          if (existing) {
+            existing.盤點數量 += item.盤點數量;
+          } else {
+            mergeMap.set(key, { ...item });
+          }
+        });
+
+        const parsed = Array.from(mergeMap.values());
+
         setExternalModified(parsed);
-        alert(`✅ 已匯入 ${parsed.length} 筆外盤公司盤點資料\n\n支援一品號多行格式（依儲位區分）`);
+        alert(`✅ 已匯入 ${data.length} 筆原始資料，合併後共 ${parsed.length} 筆外盤公司盤點資料\n\n支援一品號多行格式（依儲位區分）`);
       }
     } catch (error) {
       console.error('匯入失敗:', error);
