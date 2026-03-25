@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import PrintInspectionReport from '@/components/PrintInspectionReport';
 import DeleteInspectionButton from '@/components/DeleteInspectionButton';
+import InspectionPhotoViewer from '@/components/InspectionPhotoViewer';
 import { hasPermission } from '@/lib/permissions/check';
 import {
   ArrowLeft,
@@ -485,32 +486,7 @@ export default async function InspectionDetailPage({
                       
                       {/* 問題照片 */}
                       {item.photo_urls && item.photo_urls.length > 0 && (
-                        <div className="mt-3">
-                          <p className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-1">
-                            <Camera className="w-4 h-4" />
-                            問題照片 ({item.photo_urls.length})
-                          </p>
-                          <div className="flex flex-wrap gap-2">
-                            {item.photo_urls.map((photoUrl: string, idx: number) => (
-                              <a
-                                key={idx}
-                                href={photoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group relative block"
-                              >
-                                <img
-                                  src={photoUrl}
-                                  alt={`問題照片 ${idx + 1}`}
-                                  className="w-24 h-24 object-cover rounded-lg border-2 border-gray-300 hover:border-blue-500 transition-colors cursor-pointer"
-                                />
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 rounded-lg transition-opacity flex items-center justify-center">
-                                  <ImageIcon className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </div>
-                              </a>
-                            ))}
-                          </div>
-                        </div>
+                        <InspectionPhotoViewer photoUrls={item.photo_urls} />
                       )}
                     </div>
                   </div>
