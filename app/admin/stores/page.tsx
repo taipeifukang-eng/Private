@@ -63,16 +63,22 @@ export default async function StoresPage({
       user:profiles(id, email, full_name)
     `);
 
-  // 獲取門市員工數量
-  const { data: employeeCounts } = await supabase
-    .from('store_employees')
-    .select('store_id')
-    .eq('is_active', true);
+  // 獲取門市員工數量（從最新月份的 monthly_staff_status 計算）
+  const { data: allMonthlyStatus } = await supabase
+    .from('monthly_staff_status')
+    .select('store_id, year_month, monthly_status')
+    .order('year_month', { ascending: false });
 
-  // 計算每間門市的員工數
+  // 計算每間門市最新月份的在職員工數（排除離職）
   const storeEmployeeCount: Record<string, number> = {};
-  employeeCounts?.forEach(emp => {
-    storeEmployeeCount[emp.store_id] = (storeEmployeeCount[emp.store_id] || 0) + 1;
+  const storeLatestMonth: Record<string, string> = {};
+  (allMonthlyStatus || []).forEach((record: any) => {
+    if (!storeLatestMonth[record.store_id]) {
+      storeLatestMonth[record.store_id] = record.year_month;
+    }
+    if (record.year_month === storeLatestMonth[record.store_id] && record.monthly_status !== 'resigned') {
+      storeEmployeeCount[record.store_id] = (storeEmployeeCount[record.store_id] || 0) + 1;
+    }
   });
 
   // 組合門市管理者
