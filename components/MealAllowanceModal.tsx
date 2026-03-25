@@ -17,6 +17,7 @@ interface EmployeeOption {
   employee_code: string;
   employee_name: string;
   position: string;
+  is_pharmacist?: boolean;
 }
 
 interface MealRow {
@@ -128,7 +129,8 @@ export default function MealAllowanceModal({
     }
   };
 
-  const isPharmacist = (position: string) => position.includes('藥師');
+  const isPharmacist = (emp: EmployeeOption) =>
+    emp.is_pharmacist === true || emp.position.includes('藥師');
 
   const filteredEmployees = useMemo(() => {
     if (!searchText) return employees.slice(0, 50);
@@ -151,7 +153,7 @@ export default function MealAllowanceModal({
       ...p,
       employeeCode: employee.employee_code,
       employeeName: employee.employee_name,
-      employeeType: isPharmacist(employee.position) ? '藥師' : '非藥師',
+      employeeType: isPharmacist(employee) ? '藥師' : '非藥師',
     }));
     setShowDropdown(false);
     setActivePersonIndex(null);

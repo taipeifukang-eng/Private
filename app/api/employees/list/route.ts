@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     // 來源 1：正式員工（store_employees）
     const { data: storeEmployees, error: storeError } = await supabase
       .from('store_employees')
-      .select('employee_code, employee_name, position, start_date')
+      .select('employee_code, employee_name, position, start_date, is_pharmacist')
       .order('employee_code');
 
     if (storeError) {
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     // 抓取所有有員編的手動新增員工，依員編去重後和正式員工合併
     const { data: manualRows, error: manualError } = await supabase
       .from('monthly_staff_status')
-      .select('employee_code, employee_name, position')
+      .select('employee_code, employee_name, position, is_pharmacist')
       .eq('is_manually_added', true)
       .not('employee_code', 'is', null);
 
