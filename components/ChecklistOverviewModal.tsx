@@ -104,6 +104,7 @@ export default function ChecklistOverviewModal({
         completed_by: existing?.completed_by || null,
         completed_at: newVal ? new Date().toISOString() : null,
         manager_note: existing?.manager_note || null,
+        store_assigned_person: existing?.store_assigned_person || null,
         created_at: existing?.created_at || '',
         updated_at: new Date().toISOString(),
       });
@@ -156,6 +157,7 @@ export default function ChecklistOverviewModal({
         completed_by: existing?.completed_by || null,
         completed_at: existing?.completed_at || null,
         manager_note: note,
+        store_assigned_person: existing?.store_assigned_person || null,
         created_at: existing?.created_at || '',
         updated_at: new Date().toISOString(),
       });
@@ -163,23 +165,53 @@ export default function ChecklistOverviewModal({
       return updated;
     });
 
-    const key = `${storeId}__${itemId}`;
-    const prev = noteTimers.current.get(key);
-    if (prev) clearTimeout(prev);
-    noteTimers.current.set(
-      key,
-      setTimeout(async () => {
-        try {
-          await fetch('/api/campaign-checklist-completions', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ checklist_item_id: itemId, store_id: storeId, manager_note: note }),
-          });
-        } catch {
-          // 忽略
-        }
-      }, 800)
-    );
+    const key = `note-${storeId}-${itemId}`;
+    if (noteTimers.current.has(key)) clearTimeout(noteTimers.current.get(key)!);
+    noteTimers.current.set(key, setTimeout(async () => {
+      try {
+        await fetch('/api/campaign-checklist-completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checklist_item_id: itemId, store_id: storeId, manager_note: note }),
+        });
+      } catch { /* 忽略 */ }
+    }, 800));
+  };
+
+  // 實際指派人員更新（debounce 800ms）
+  const handleAssignedPersonChange = (storeId: string, itemId: string, person: string) => {
+    setCompletions((prev) => {
+      const updated = new Map(prev);
+      if (!updated.has(storeId)) updated.set(storeId, new Map());
+      const sm = new Map(updated.get(storeId)!);
+      const existing = sm.get(itemId);
+      sm.set(itemId, {
+        id: existing?.id || '',
+        checklist_item_id: itemId,
+        store_id: storeId,
+        is_completed: existing?.is_completed || false,
+        completed_by: existing?.completed_by || null,
+        completed_at: existing?.completed_at || null,
+        manager_note: existing?.manager_note || null,
+        store_assigned_person: person,
+        created_at: existing?.created_at || '',
+        updated_at: new Date().toISOString(),
+      });
+      updated.set(storeId, sm);
+      return updated;
+    });
+
+    const key = `assigned-${storeId}-${itemId}`;
+    if (noteTimers.current.has(key)) clearTimeout(noteTimers.current.get(key)!);
+    noteTimers.current.set(key, setTimeout(async () => {
+      try {
+        await fetch('/api/campaign-checklist-completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checklist_item_id: itemId, store_id: storeId, store_assigned_person: person }),
+        });
+      } catch { /* 忽略 */ }
+    }, 800));
   };
 
   const toggleExpand = (storeId: string) => {
@@ -293,6 +325,7 @@ export default function ChecklistOverviewModal({
                         const completion = completions.get(store.id)?.get(item.id);
                         const isDone = completion?.is_completed ?? false;
                         const note = completion?.manager_note ?? '';
+                        const assignedPerson = completion?.store_assigned_person ?? '';
 
                         return (
                           <div
@@ -358,8 +391,15 @@ export default function ChecklistOverviewModal({
                                   </p>
                                 )}
 
-                                {/* 店長備註 */}
-                                <div className="mt-2 ml-7">
+                                {/* 實際指派人員 + 店長備註 */}
+                                <div className="mt-2 ml-7 space-y-2">
+                                  <input
+                                    type="text"
+                                    value={assignedPerson}
+                                    onChange={(e) => handleAssignedPersonChange(store.id, item.id, e.target.value)}
+                                    placeholder="實際指派人員（選填）"
+                                    className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
+                                  />
                                   <textarea
                                     value={note}
                                     onChange={(e) => handleNoteChange(store.id, item.id, e.target.value)}

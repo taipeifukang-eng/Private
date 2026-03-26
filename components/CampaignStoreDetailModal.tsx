@@ -321,6 +321,7 @@ export default function CampaignStoreDetailModal({
       completed_by: existing?.completed_by || null,
       completed_at: existing?.completed_at || null,
       manager_note: note,
+      store_assigned_person: existing?.store_assigned_person || null,
       created_at: existing?.created_at || '',
       updated_at: existing?.updated_at || '',
     });
@@ -336,6 +337,38 @@ export default function CampaignStoreDetailModal({
         });
       } catch (error) {
         console.error('Error saving manager note:', error);
+      }
+    }, 800);
+  };
+
+  // ── 店長指派人員（帶 debounce）──
+  const handleUpdateStoreAssignedPerson = (itemId: string, person: string) => {
+    const newCompletions = new Map(checklistCompletions);
+    const existing = newCompletions.get(itemId);
+    newCompletions.set(itemId, {
+      id: existing?.id || '',
+      checklist_item_id: itemId,
+      store_id: storeId,
+      is_completed: existing?.is_completed || false,
+      completed_by: existing?.completed_by || null,
+      completed_at: existing?.completed_at || null,
+      manager_note: existing?.manager_note || null,
+      store_assigned_person: person,
+      created_at: existing?.created_at || '',
+      updated_at: existing?.updated_at || '',
+    });
+    setChecklistCompletions(newCompletions);
+
+    if (managerNoteTimers.current[`assign_${itemId}`]) clearTimeout(managerNoteTimers.current[`assign_${itemId}`]);
+    managerNoteTimers.current[`assign_${itemId}`] = setTimeout(async () => {
+      try {
+        await fetch('/api/campaign-checklist-completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checklist_item_id: itemId, store_id: storeId, store_assigned_person: person }),
+        });
+      } catch (error) {
+        console.error('Error saving assigned person:', error);
       }
     }, 800);
   };
@@ -669,6 +702,7 @@ export default function CampaignStoreDetailModal({
                       const completion = checklistCompletions.get(item.id);
                       const isCompleted = completion?.is_completed || false;
                       const managerNote = completion?.manager_note || '';
+                      const storeAssignedPerson = completion?.store_assigned_person || '';
 
                       return (
                         <div
@@ -726,7 +760,17 @@ export default function CampaignStoreDetailModal({
 
                               {/* 店長備註 */}
                               <div className="pt-2 border-t border-gray-100">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">📝 店長備註</label>
+                                <label className="block text-xs font-medium text-gray-500 mb-1">� 實際指派人員</label>
+                                <input
+                                  type="text"
+                                  value={storeAssignedPerson}
+                                  onChange={(e) => handleUpdateStoreAssignedPerson(item.id, e.target.value)}
+                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white placeholder-gray-300"
+                                  placeholder="填寫實際負責的人員..."
+                                />
+                              </div>
+                              <div className="pt-2 border-t border-gray-100">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">�📝 店長備註</label>
                                 <textarea
                                   value={managerNote}
                                   onChange={(e) => handleUpdateManagerNote(item.id, e.target.value)}

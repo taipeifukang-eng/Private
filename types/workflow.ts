@@ -581,6 +581,7 @@ export interface CampaignChecklistCompletion {
   completed_by: string | null;           // FK to Profile
   completed_at: string | null;
   manager_note: string | null;           // 店長備註（進度回報）
+  store_assigned_person: string | null;  // 店長實際指派的負責人員
   created_at: string;
   updated_at: string;
 }

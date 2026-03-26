@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { checklist_item_id, store_id, is_completed, manager_note } = body;
+    const { checklist_item_id, store_id, is_completed, manager_note, store_assigned_person } = body;
 
     if (!checklist_item_id || !store_id) {
       return NextResponse.json(
@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
       store_id,
       is_completed: is_completed !== undefined ? is_completed : (existing?.is_completed ?? false),
       manager_note: manager_note !== undefined ? manager_note : (existing?.manager_note ?? null),
+      store_assigned_person: store_assigned_person !== undefined ? store_assigned_person : (existing?.store_assigned_person ?? null),
     };
 
     // 若有切換完成狀態，更新完成人員與時間
