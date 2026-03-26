@@ -144,6 +144,7 @@ export default function CampaignStoreDetailModal({
   const [checklistItems, setChecklistItems] = useState<CampaignChecklistItem[]>([]);
   const [checklistCompletions, setChecklistCompletions] = useState<Map<string, CampaignChecklistCompletion>>(new Map());
   const [checklistLoading, setChecklistLoading] = useState(false);
+  const [hideCompleted, setHideCompleted] = useState(false);
   const [activeTab, setActiveTab] = useState<'detail' | 'checklist'>('detail');
   const managerNoteTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
@@ -682,10 +683,34 @@ export default function CampaignStoreDetailModal({
                   <div className="bg-white border border-purple-200 rounded-xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-semibold text-gray-700">完成進度</span>
-                      <span className="font-bold text-purple-700 text-lg">
+                      <div className="flex items-center gap-2">
+                        <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
+                          <button
+                            onClick={() => setHideCompleted(false)}
+                            className={`px-3 py-1 transition-colors ${
+                              !hideCompleted
+                                ? 'bg-purple-600 text-white font-medium'
+                                : 'bg-white text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            顯示全部
+                          </button>
+                          <button
+                            onClick={() => setHideCompleted(true)}
+                            className={`px-3 py-1 transition-colors border-l border-gray-200 ${
+                              hideCompleted
+                                ? 'bg-purple-600 text-white font-medium'
+                                : 'bg-white text-gray-500 hover:bg-gray-50'
+                            }`}
+                          >
+                            隱藏已完成
+                          </button>
+                        </div>
+                        <span className="font-bold text-purple-700 text-lg">
                         {Array.from(checklistCompletions.values()).filter(c => c.is_completed).length}
                         <span className="text-gray-400 font-normal text-sm"> / {checklistItems.length}</span>
-                      </span>
+                        </span>
+                      </div>
                     </div>
                     <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
                       <div
@@ -699,7 +724,13 @@ export default function CampaignStoreDetailModal({
 
                   {/* 項目列表 */}
                   <div className="space-y-3">
-                    {checklistItems.map((item, index) => {
+                    {hideCompleted && checklistItems.every(i => checklistCompletions.get(i.id)?.is_completed) && (
+                      <div className="text-center py-6 text-green-600 text-sm font-medium">
+                        🎉 所有項目已完成！
+                      </div>
+                    )}
+                    {checklistItems.filter(item => !hideCompleted || !checklistCompletions.get(item.id)?.is_completed).map((item) => {
+                      const index = checklistItems.indexOf(item);
                       const completion = checklistCompletions.get(item.id);
                       const isCompleted = completion?.is_completed || false;
                       const managerNote = completion?.manager_note || '';
