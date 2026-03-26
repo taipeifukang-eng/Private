@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Edit2, Save, RotateCcw, Loader2, CheckSquare, Square, Users } from 'lucide-react';
 import { CampaignStoreDetail, CampaignType, CAMPAIGN_TYPE_LABELS, CampaignChecklistItem, CampaignChecklistCompletion } from '@/types/workflow';
 
@@ -143,6 +143,8 @@ export default function CampaignStoreDetailModal({
   const [checklistItems, setChecklistItems] = useState<CampaignChecklistItem[]>([]);
   const [checklistCompletions, setChecklistCompletions] = useState<Map<string, CampaignChecklistCompletion>>(new Map());
   const [checklistLoading, setChecklistLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'detail' | 'checklist'>('detail');
+  const managerNoteTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // 活動人力 state
   const [ownStaff, setOwnStaff] = useState<{ employee_code: string; employee_name: string; position: string }[]>([]);
@@ -307,10 +309,42 @@ export default function CampaignStoreDetailModal({
     }
   };
 
+  // ── 店長備註（帶 debounce）──
+  const handleUpdateManagerNote = (itemId: string, note: string) => {
+    const newCompletions = new Map(checklistCompletions);
+    const existing = newCompletions.get(itemId);
+    newCompletions.set(itemId, {
+      id: existing?.id || '',
+      checklist_item_id: itemId,
+      store_id: storeId,
+      is_completed: existing?.is_completed || false,
+      completed_by: existing?.completed_by || null,
+      completed_at: existing?.completed_at || null,
+      manager_note: note,
+      created_at: existing?.created_at || '',
+      updated_at: existing?.updated_at || '',
+    });
+    setChecklistCompletions(newCompletions);
+
+    if (managerNoteTimers.current[itemId]) clearTimeout(managerNoteTimers.current[itemId]);
+    managerNoteTimers.current[itemId] = setTimeout(async () => {
+      try {
+        await fetch('/api/campaign-checklist-completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ checklist_item_id: itemId, store_id: storeId, manager_note: note }),
+        });
+      } catch (error) {
+        console.error('Error saving manager note:', error);
+      }
+    }, 800);
+  };
+
   useEffect(() => {
     if (isOpen) {
       setIsEditing(false);
       setSaveError(null);
+      setActiveTab('detail');
       loadDetail();
       loadChecklist();
       loadManpowerInfo();
@@ -381,7 +415,7 @@ export default function CampaignStoreDetailModal({
             <p className="text-sm text-white text-opacity-70 mt-0.5">{activityName}{dateLabel && ` · ${dateLabel}`}</p>
           </div>
           <div className="flex items-center gap-2">
-            {canEdit && !isEditing && (
+            {canEdit && !isEditing && activeTab === 'detail' && (
               <button
                 onClick={() => setIsEditing(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm transition-colors"
@@ -396,6 +430,37 @@ export default function CampaignStoreDetailModal({
           </div>
         </div>
 
+        {/* ── Tabs ── */}
+        <div className="flex border-b border-gray-200 bg-gray-50 px-6">
+          <button
+            onClick={() => setActiveTab('detail')}
+            className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'detail'
+                ? 'border-purple-600 text-purple-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            活動細節
+          </button>
+          <button
+            onClick={() => setActiveTab('checklist')}
+            className={`py-3 px-4 text-sm font-medium border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'checklist'
+                ? 'border-purple-600 text-purple-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            前置 Check List
+            {checklistItems.length > 0 && (
+              <span className={`inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold ${
+                activeTab === 'checklist' ? 'bg-purple-100 text-purple-700' : 'bg-gray-200 text-gray-600'
+              }`}>
+                {Array.from(checklistCompletions.values()).filter(c => c.is_completed).length}/{checklistItems.length}
+              </span>
+            )}
+          </button>
+        </div>
+
         {/* ── Content ── */}
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
@@ -403,7 +468,7 @@ export default function CampaignStoreDetailModal({
               <Loader2 size={32} className="animate-spin mr-2" />
               載入中...
             </div>
-          ) : (
+          ) : activeTab === 'detail' ? (
             <div className="space-y-5">
               {/* ── 活動當日人力 ── */}
               <div className="rounded-lg border border-indigo-200 bg-indigo-50 overflow-hidden">
@@ -563,122 +628,120 @@ export default function CampaignStoreDetailModal({
                 </div>
               )}
 
-              {/* ── 活動前置 Check List ── */}
-              {checklistItems.length > 0 && (
-                <div className="rounded-lg border bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200 overflow-hidden">
-                  <div className="px-4 py-2 text-sm font-semibold bg-purple-100 text-purple-800">
-                    ✓ 活動前置 Check List
+            </div>
+          ) : (
+            /* ── 前置 Check List Tab ── */
+            <div className="space-y-4">
+              {checklistItems.length === 0 ? (
+                <div className="text-center py-16 text-gray-400">
+                  <p>此活動尚無前置 Check List 項目</p>
+                  <p className="text-sm mt-1">請由活動排程管理頁面設定</p>
+                </div>
+              ) : checklistLoading ? (
+                <div className="flex items-center justify-center py-16 text-gray-500">
+                  <Loader2 size={24} className="animate-spin mr-2" />
+                  載入中...
+                </div>
+              ) : (
+                <>
+                  {/* 完成進度 */}
+                  <div className="bg-white border border-purple-200 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold text-gray-700">完成進度</span>
+                      <span className="font-bold text-purple-700 text-lg">
+                        {Array.from(checklistCompletions.values()).filter(c => c.is_completed).length}
+                        <span className="text-gray-400 font-normal text-sm"> / {checklistItems.length}</span>
+                      </span>
+                    </div>
+                    <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500"
+                        style={{
+                          width: `${(Array.from(checklistCompletions.values()).filter(c => c.is_completed).length / checklistItems.length) * 100}%`,
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div className="p-4">
-                    {checklistLoading ? (
-                      <div className="text-center py-4 text-gray-500">載入中...</div>
-                    ) : (
-                      <div className="space-y-2">
-                        {checklistItems.map((item, index) => {
-                          const completion = checklistCompletions.get(item.id);
-                          const isCompleted = completion?.is_completed || false;
 
-                          return (
-                            <div
-                              key={item.id}
-                              className="bg-white rounded-lg border border-purple-200 p-3 hover:shadow-sm transition-shadow"
+                  {/* 項目列表 */}
+                  <div className="space-y-3">
+                    {checklistItems.map((item, index) => {
+                      const completion = checklistCompletions.get(item.id);
+                      const isCompleted = completion?.is_completed || false;
+                      const managerNote = completion?.manager_note || '';
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`bg-white rounded-xl border-2 p-4 transition-all ${
+                            isCompleted ? 'border-green-200 bg-green-50' : 'border-gray-200 hover:border-purple-200'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* 打勾框 */}
+                            <button
+                              onClick={() => handleToggleChecklistItem(item.id, isCompleted)}
+                              className="flex-shrink-0 mt-0.5"
+                              title={isCompleted ? '點擊取消完成' : '點擊標記完成'}
                             >
-                              <div className="flex items-start gap-3">
-                                {/* 打勾框 */}
-                                <button
-                                  onClick={() => handleToggleChecklistItem(item.id, isCompleted)}
-                                  className="flex-shrink-0 mt-0.5"
-                                  title={isCompleted ? '點擊取消完成' : '點擊標記完成'}
-                                >
-                                  {isCompleted ? (
-                                    <CheckSquare className="w-6 h-6 text-green-600" />
-                                  ) : (
-                                    <Square className="w-6 h-6 text-gray-400 hover:text-purple-600" />
-                                  )}
-                                </button>
+                              {isCompleted ? (
+                                <CheckSquare className="w-6 h-6 text-green-600" />
+                              ) : (
+                                <Square className="w-6 h-6 text-gray-400 hover:text-purple-600" />
+                              )}
+                            </button>
 
-                                {/* 項目內容 */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start gap-2">
-                                    <span className="flex-shrink-0 w-6 h-6 bg-purple-100 text-purple-700 rounded-full flex items-center justify-center text-xs font-bold">
-                                      {index + 1}
-                                    </span>
-                                    <div className="flex-1">
-                                      <div
-                                        className={`font-medium ${
-                                          isCompleted
-                                            ? 'text-gray-500 line-through'
-                                            : 'text-gray-900'
-                                        }`}
-                                      >
-                                        {item.task_name}
-                                      </div>
-                                      {item.notes && (
-                                        <div className="text-xs text-gray-600 mt-1 whitespace-pre-wrap">
-                                          {item.notes}
-                                        </div>
-                                      )}
-                                      <div className="flex items-center gap-3 mt-2 text-xs">
-                                        {item.assigned_person && (
-                                          <span className="text-purple-600">
-                                            👤 {item.assigned_person}
-                                          </span>
-                                        )}
-                                        {item.deadline && (
-                                          <span className="text-orange-600">
-                                            ⏰ {item.deadline}
-                                          </span>
-                                        )}
-                                      </div>
-                                      {isCompleted && completion?.completed_at && (
-                                        <div className="text-xs text-green-600 mt-1">
-                                          ✓ 已完成於{' '}
-                                          {new Date(completion.completed_at).toLocaleString(
-                                            'zh-TW'
-                                          )}
-                                        </div>
-                                      )}
-                                    </div>
+                            {/* 項目內容 */}
+                            <div className="flex-1 min-w-0 space-y-3">
+                              <div className="flex items-start gap-2">
+                                <span className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                  isCompleted ? 'bg-green-100 text-green-700' : 'bg-purple-100 text-purple-700'
+                                }`}>
+                                  {index + 1}
+                                </span>
+                                <div className="flex-1">
+                                  <div className={`font-medium text-sm ${
+                                    isCompleted ? 'text-gray-400 line-through' : 'text-gray-900'
+                                  }`}>
+                                    {item.task_name}
                                   </div>
+                                  {item.notes && (
+                                    <div className="text-xs text-gray-500 mt-1 whitespace-pre-wrap">{item.notes}</div>
+                                  )}
+                                  <div className="flex items-center gap-3 mt-1 text-xs">
+                                    {item.assigned_person && (
+                                      <span className="text-purple-600">👤 {item.assigned_person}</span>
+                                    )}
+                                    {item.deadline && (
+                                      <span className="text-orange-600">⏰ {item.deadline}</span>
+                                    )}
+                                  </div>
+                                  {isCompleted && completion?.completed_at && (
+                                    <div className="text-xs text-green-600 mt-1">
+                                      ✓ 完成於 {new Date(completion.completed_at).toLocaleString('zh-TW')}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
+
+                              {/* 店長備註 */}
+                              <div className="pt-2 border-t border-gray-100">
+                                <label className="block text-xs font-medium text-gray-500 mb-1">📝 店長備註</label>
+                                <textarea
+                                  value={managerNote}
+                                  onChange={(e) => handleUpdateManagerNote(item.id, e.target.value)}
+                                  rows={2}
+                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none bg-white placeholder-gray-300"
+                                  placeholder="填寫準備進度、注意事項或回報..."
+                                />
+                              </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {/* 完成進度 */}
-                    {!checklistLoading && checklistItems.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-purple-200">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">完成進度</span>
-                          <span className="font-bold text-purple-700">
-                            {
-                              Array.from(checklistCompletions.values()).filter(
-                                (c) => c.is_completed
-                              ).length
-                            }{' '}
-                            / {checklistItems.length}
-                          </span>
+                          </div>
                         </div>
-                        <div className="mt-2 h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
-                            style={{
-                              width: `${
-                                (Array.from(checklistCompletions.values()).filter(
-                                  (c) => c.is_completed
-                                ).length /
-                                  checklistItems.length) *
-                                100
-                              }%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })}
                   </div>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -714,6 +777,16 @@ export default function CampaignStoreDetailModal({
         )}
         {!isEditing && (
           <div className="px-6 py-4 border-t border-gray-200 flex justify-end bg-gray-50 rounded-b-xl">
+            <button
+              onClick={onClose}
+              className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+            >
+              關閉
+            </button>
+          </div>
+        )}
+        {isEditing && activeTab === 'checklist' && (
+          <div className="px-6 py-3 border-t border-gray-200 flex justify-end bg-gray-50 rounded-b-xl">
             <button
               onClick={onClose}
               className="px-5 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors text-sm"

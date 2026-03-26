@@ -580,6 +580,7 @@ export interface CampaignChecklistCompletion {
   is_completed: boolean;
   completed_by: string | null;           // FK to Profile
   completed_at: string | null;
+  manager_note: string | null;           // 店長備註（進度回報）
   created_at: string;
   updated_at: string;
 }

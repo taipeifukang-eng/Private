@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { checklist_item_id, store_id, is_completed } = body;
+    const { checklist_item_id, store_id, is_completed, manager_note } = body;
 
     if (!checklist_item_id || !store_id) {
       return NextResponse.json(
@@ -100,22 +100,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 檢查用戶是否是該門市的店長/督導
-    // （這裡可以加入更嚴格的權限檢查，例如查詢 store_managers 表）
-    // 目前先允許所有登入用戶操作（由前端控制顯示）
+    // 先查詢現有記錄，以便合併欄位（避免 upsert 覆蓋未傳入的欄位）
+    const { data: existing } = await supabase
+      .from('campaign_checklist_completions')
+      .select('*')
+      .eq('checklist_item_id', checklist_item_id)
+      .eq('store_id', store_id)
+      .single();
 
     const completionData: any = {
       checklist_item_id,
       store_id,
-      is_completed: is_completed ?? true,
+      is_completed: is_completed !== undefined ? is_completed : (existing?.is_completed ?? false),
+      manager_note: manager_note !== undefined ? manager_note : (existing?.manager_note ?? null),
     };
 
-    if (is_completed) {
-      completionData.completed_by = user.id;
-      completionData.completed_at = new Date().toISOString();
-    } else {
-      completionData.completed_by = null;
-      completionData.completed_at = null;
+    // 若有切換完成狀態，更新完成人員與時間
+    if (is_completed !== undefined) {
+      if (is_completed) {
+        completionData.completed_by = user.id;
+        completionData.completed_at = new Date().toISOString();
+      } else {
+        completionData.completed_by = null;
+        completionData.completed_at = null;
+      }
+    } else if (existing) {
+      // 保留現有完成人員與時間
+      completionData.completed_by = existing.completed_by;
+      completionData.completed_at = existing.completed_at;
     }
 
     // 使用 UPSERT 邏輯
