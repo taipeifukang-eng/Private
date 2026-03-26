@@ -61,9 +61,16 @@ export default function ChecklistOverviewModal({
       }
       setCompletions(map);
 
-      // 預設全部展開（方便直接編輯）
+      // 未完成的門市展開，已全部完成的收合
       const stores = managedStores.filter((s) => scheduledStoreIds.includes(s.id));
-      setExpandedStores(new Set(stores.map((s) => s.id)));
+      const incompleteStoreIds = stores
+        .filter((s) => {
+          const sm = map.get(s.id);
+          const doneCount = sm ? (() => { let n = 0; sm.forEach((c) => { if (c.is_completed) n++; }); return n; })() : 0;
+          return doneCount < fetchedItems.length;
+        })
+        .map((s) => s.id);
+      setExpandedStores(new Set(incompleteStoreIds));
     } catch {
       // 忽略
     } finally {
@@ -100,6 +107,14 @@ export default function ChecklistOverviewModal({
         updated_at: new Date().toISOString(),
       });
       updated.set(storeId, sm);
+
+      // 若該門市已全部完成，自動收合
+      let doneCount = 0;
+      sm.forEach((c) => { if (c.is_completed) doneCount++; });
+      if (doneCount >= items.length && items.length > 0) {
+        setExpandedStores((prev) => { const next = new Set(prev); next.delete(storeId); return next; });
+      }
+
       return updated;
     });
 
