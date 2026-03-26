@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { X, CheckSquare, Square, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
 import { CampaignChecklistItem, CampaignChecklistCompletion } from '@/types/workflow';
 
@@ -39,50 +39,51 @@ export default function ChecklistOverviewModal({
     .filter((s) => scheduledStoreIds.includes(s.id))
     .sort((a, b) => a.store_code.localeCompare(b.store_code));
 
-  const loadData = useCallback(async () => {
-    if (!campaignId) return;
-    setLoading(true);
-    try {
-      const [itemsRes, completionsRes] = await Promise.all([
-        fetch(`/api/campaign-checklist-items?campaign_id=${campaignId}`),
-        fetch(`/api/campaign-checklist-completions?campaign_id=${campaignId}`),
-      ]);
-      const [itemsData, completionsData] = await Promise.all([itemsRes.json(), completionsRes.json()]);
-
-      const fetchedItems: CampaignChecklistItem[] = itemsData.success ? itemsData.data : [];
-      setItems(fetchedItems);
-
-      const allCompletions: CampaignChecklistCompletion[] = completionsData.success ? completionsData.data : [];
-      // 建立 Map<store_id, Map<item_id, completion>>
-      const map = new Map<string, Map<string, CampaignChecklistCompletion>>();
-      for (const c of allCompletions) {
-        if (!map.has(c.store_id)) map.set(c.store_id, new Map());
-        map.get(c.store_id)!.set(c.checklist_item_id, c);
-      }
-      setCompletions(map);
-
-      // 未完成的門市展開，已全部完成的收合
-      const stores = managedStores.filter((s) => scheduledStoreIds.includes(s.id));
-      const incompleteStoreIds = stores
-        .filter((s) => {
-          const sm = map.get(s.id);
-          const doneCount = sm ? (() => { let n = 0; sm.forEach((c) => { if (c.is_completed) n++; }); return n; })() : 0;
-          return doneCount < fetchedItems.length;
-        })
-        .map((s) => s.id);
-      setExpandedStores(new Set(incompleteStoreIds));
-    } catch {
-      // 忽略
-    } finally {
-      setLoading(false);
-    }
-  }, [campaignId, managedStores, scheduledStoreIds]);
-
   useEffect(() => {
-    if (isOpen && campaignId) {
-      loadData();
-    }
-  }, [isOpen, campaignId]);
+    if (!isOpen || !campaignId) return;
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        const [itemsRes, completionsRes] = await Promise.all([
+          fetch(`/api/campaign-checklist-items?campaign_id=${campaignId}`),
+          fetch(`/api/campaign-checklist-completions?campaign_id=${campaignId}`),
+        ]);
+        const [itemsData, completionsData] = await Promise.all([itemsRes.json(), completionsRes.json()]);
+        if (cancelled) return;
+
+        const fetchedItems: CampaignChecklistItem[] = itemsData.success ? itemsData.data : [];
+        const allCompletions: CampaignChecklistCompletion[] = completionsData.success ? completionsData.data : [];
+
+        const map = new Map<string, Map<string, CampaignChecklistCompletion>>();
+        for (const c of allCompletions) {
+          if (!map.has(c.store_id)) map.set(c.store_id, new Map());
+          map.get(c.store_id)!.set(c.checklist_item_id, c);
+        }
+
+        // 未完成的門市展開，已全部完成的收合
+        const stores = managedStores.filter((s) => scheduledStoreIds.includes(s.id));
+        const incompleteStoreIds = stores
+          .filter((s) => {
+            const sm = map.get(s.id);
+            let done = 0;
+            sm?.forEach((c) => { if (c.is_completed) done++; });
+            return done < fetchedItems.length;
+          })
+          .map((s) => s.id);
+
+        setItems(fetchedItems);
+        setCompletions(map);
+        setExpandedStores(new Set(incompleteStoreIds));
+      } catch {
+        // 忽略
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    run();
+    return () => { cancelled = true; };
+  }, [isOpen, campaignId, managedStores, scheduledStoreIds]);
 
   // 打勾 / 取消打勾
   const handleToggle = async (storeId: string, itemId: string) => {
