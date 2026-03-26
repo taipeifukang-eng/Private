@@ -73,20 +73,13 @@ export default function ChecklistOverviewModal({
           map.get(c.store_id)!.set(c.checklist_item_id, c);
         }
 
-        // 未完成的門市展開，已全部完成的收合
+        // 預設全部門市展開
         const stores = curManagedStores.filter((s) => curScheduledIds.includes(s.id));
-        const incompleteStoreIds = stores
-          .filter((s) => {
-            const sm = map.get(s.id);
-            let done = 0;
-            sm?.forEach((c) => { if (c.is_completed) done++; });
-            return done < fetchedItems.length;
-          })
-          .map((s) => s.id);
+        const allStoreIds = stores.map((s) => s.id);
 
         setItems(fetchedItems);
         setCompletions(map);
-        setExpandedStores(new Set(incompleteStoreIds));
+        setExpandedStores(new Set(allStoreIds));
       } catch {
         // 忽略
       } finally {
@@ -259,6 +252,20 @@ export default function ChecklistOverviewModal({
             <p className="text-sm text-gray-500 mt-0.5">{campaignName}</p>
           </div>
           <div className="flex items-center gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
+              <button
+                onClick={() => setExpandedStores(new Set(relevantStores.map(s => s.id)))}
+                className="px-3 py-1.5 bg-white text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                展開全部
+              </button>
+              <button
+                onClick={() => setExpandedStores(new Set())}
+                className="px-3 py-1.5 bg-white text-gray-500 hover:bg-gray-50 transition-colors border-l border-gray-200"
+              >
+                收合全部
+              </button>
+            </div>
             <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
               <button
                 onClick={() => setHideCompleted(false)}
