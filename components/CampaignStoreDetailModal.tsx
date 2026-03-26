@@ -797,6 +797,7 @@ export default function CampaignStoreDetailModal({
                                   </div>
                                 </>
                               )}
+                            </div>
                           </div>
                         </div>
                       );
