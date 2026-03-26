@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, Edit2, Save, RotateCcw, Loader2, CheckSquare, Square, Users } from 'lucide-react';
+import StaffPickerInput from './StaffPickerInput';
 import { CampaignStoreDetail, CampaignType, CAMPAIGN_TYPE_LABELS, CampaignChecklistItem, CampaignChecklistCompletion } from '@/types/workflow';
 
 // ─────────────────────────────────────────────
@@ -758,15 +759,14 @@ export default function CampaignStoreDetailModal({
                                 </div>
                               </div>
 
-                              {/* 店長備註 */}
+                              {/* 實際指派人員（點選彈出本店人員名單） */}
                               <div className="pt-2 border-t border-gray-100">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">� 實際指派人員</label>
-                                <input
-                                  type="text"
+                                <label className="block text-xs font-medium text-gray-500 mb-1">👤 實際指派人員</label>
+                                <StaffPickerInput
                                   value={storeAssignedPerson}
-                                  onChange={(e) => handleUpdateStoreAssignedPerson(item.id, e.target.value)}
-                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white placeholder-gray-300"
-                                  placeholder="填寫實際負責的人員..."
+                                  onChange={(v) => handleUpdateStoreAssignedPerson(item.id, v)}
+                                  storeId={storeId}
+                                  inputClassName="w-full px-3 py-2 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white placeholder-gray-300"
                                 />
                               </div>
                               <div className="pt-2 border-t border-gray-100">

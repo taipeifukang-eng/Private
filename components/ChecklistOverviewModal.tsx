@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { X, CheckSquare, Square, ChevronDown, ChevronRight, Loader2 } from 'lucide-react';
+import StaffPickerInput from './StaffPickerInput';
 import { CampaignChecklistItem, CampaignChecklistCompletion } from '@/types/workflow';
 
 interface ManagedStore {
@@ -410,12 +411,11 @@ export default function ChecklistOverviewModal({
                                 <div className="mt-2 ml-7 space-y-2">
                                   <div>
                                     <label className="block text-xs font-medium text-gray-500 mb-1">👤 安排人員</label>
-                                    <input
-                                      type="text"
+                                    <StaffPickerInput
                                       value={assignedPerson}
-                                      onChange={(e) => handleAssignedPersonChange(store.id, item.id, e.target.value)}
-                                      placeholder="填寫實際負責的人員..."
-                                      className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
+                                      onChange={(v) => handleAssignedPersonChange(store.id, item.id, v)}
+                                      storeId={store.id}
+                                      inputClassName="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 pr-7 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
                                     />
                                   </div>
                                   <div>
