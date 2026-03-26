@@ -281,7 +281,7 @@ export default function ChecklistOverviewModal({
             relevantStores.map((store) => {
               const completedCount = getStoreCompletedCount(store.id);
               const isExpanded = expandedStores.has(store.id);
-              const isAllDone = completedCount >= items.length;
+              const isAllDone = items.length > 0 && completedCount >= items.length;
 
               return (
                 <div
@@ -408,28 +408,45 @@ export default function ChecklistOverviewModal({
                                 )}
 
                                 {/* 實際指派人員 + 店長備註 */}
-                                <div className="mt-2 ml-7 space-y-2">
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">👤 安排人員</label>
-                                    <StaffPickerInput
-                                      value={assignedPerson}
-                                      onChange={(v) => handleAssignedPersonChange(store.id, item.id, v)}
-                                      storeId={store.id}
-                                      inputClassName="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 pr-7 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
-                                    />
+                                {isDone ? (
+                                  /* 完成後：唯讀摘要（有值才顯示） */
+                                  (assignedPerson || note) ? (
+                                    <div className="mt-1.5 ml-7 flex flex-wrap gap-2">
+                                      {assignedPerson && (
+                                        <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 rounded-full px-2 py-0.5">
+                                          👤 {assignedPerson}
+                                        </span>
+                                      )}
+                                      {note && (
+                                        <span className="text-xs text-gray-500 italic">{note}</span>
+                                      )}
+                                    </div>
+                                  ) : null
+                                ) : (
+                                  /* 未完成：可編輯欄位 */
+                                  <div className="mt-2 ml-7 space-y-2">
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">👤 安排人員</label>
+                                      <StaffPickerInput
+                                        value={assignedPerson}
+                                        onChange={(v) => handleAssignedPersonChange(store.id, item.id, v)}
+                                        storeId={store.id}
+                                        inputClassName="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 pr-7 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-500 mb-1">📝 店長備註</label>
+                                      <textarea
+                                        value={note}
+                                        onChange={(e) => handleNoteChange(store.id, item.id, e.target.value)}
+                                        placeholder="填寫準備進度、注意事項或回報..."
+                                        rows={1}
+                                        className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
+                                        style={{ minHeight: '2.5rem' }}
+                                      />
+                                    </div>
                                   </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-gray-500 mb-1">📝 店長備註</label>
-                                    <textarea
-                                      value={note}
-                                      onChange={(e) => handleNoteChange(store.id, item.id, e.target.value)}
-                                      placeholder="填寫準備進度、注意事項或回報..."
-                                      rows={1}
-                                      className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
-                                      style={{ minHeight: '2.5rem' }}
-                                    />
-                                  </div>
-                                </div>
+                                )}
                               </div>
                             </div>
                           </div>

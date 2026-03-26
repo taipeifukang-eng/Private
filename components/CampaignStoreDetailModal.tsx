@@ -759,27 +759,44 @@ export default function CampaignStoreDetailModal({
                                 </div>
                               </div>
 
-                              {/* 實際指派人員（點選彈出本店人員名單） */}
-                              <div className="pt-2 border-t border-gray-100">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">👤 實際指派人員</label>
-                                <StaffPickerInput
-                                  value={storeAssignedPerson}
-                                  onChange={(v) => handleUpdateStoreAssignedPerson(item.id, v)}
-                                  storeId={storeId}
-                                  inputClassName="w-full px-3 py-2 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white placeholder-gray-300"
-                                />
-                              </div>
-                              <div className="pt-2 border-t border-gray-100">
-                                <label className="block text-xs font-medium text-gray-500 mb-1">�📝 店長備註</label>
-                                <textarea
-                                  value={managerNote}
-                                  onChange={(e) => handleUpdateManagerNote(item.id, e.target.value)}
-                                  rows={2}
-                                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none bg-white placeholder-gray-300"
-                                  placeholder="填寫準備進度、注意事項或回報..."
-                                />
-                              </div>
-                            </div>
+                              {/* 實際指派人員 + 店長備註：完成後收合為唯讀，未完成才顯示編輯欄 */}
+                              {isCompleted ? (
+                                (storeAssignedPerson || managerNote) ? (
+                                  <div className="pt-2 border-t border-gray-100 flex flex-wrap gap-2">
+                                    {storeAssignedPerson && (
+                                      <span className="inline-flex items-center gap-1 text-xs text-green-700 bg-green-100 rounded-full px-2 py-0.5">
+                                        👤 {storeAssignedPerson}
+                                      </span>
+                                    )}
+                                    {managerNote && (
+                                      <span className="text-xs text-gray-500 italic">{managerNote}</span>
+                                    )}
+                                  </div>
+                                ) : null
+                              ) : (
+                                <>
+                                  {/* 實際指派人員（點選彈出本店人員名單） */}
+                                  <div className="pt-2 border-t border-gray-100">
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">👤 實際指派人員</label>
+                                    <StaffPickerInput
+                                      value={storeAssignedPerson}
+                                      onChange={(v) => handleUpdateStoreAssignedPerson(item.id, v)}
+                                      storeId={storeId}
+                                      inputClassName="w-full px-3 py-2 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 bg-white placeholder-gray-300"
+                                    />
+                                  </div>
+                                  <div className="pt-2 border-t border-gray-100">
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">📝 店長備註</label>
+                                    <textarea
+                                      value={managerNote}
+                                      onChange={(e) => handleUpdateManagerNote(item.id, e.target.value)}
+                                      rows={2}
+                                      className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none bg-white placeholder-gray-300"
+                                      placeholder="填寫準備進度、注意事項或回報..."
+                                    />
+                                  </div>
+                                </>
+                              )}
                           </div>
                         </div>
                       );
