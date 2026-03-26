@@ -348,15 +348,19 @@ export default function ActivityViewPage() {
       const [itemsData, completionsData] = await Promise.all([itemsRes.json(), completionsRes.json()]);
       const items: { id: string }[] = itemsData.success ? itemsData.data : [];
       if (items.length === 0) { setChecklistIncompleteCount(0); return; }
-      const completions: { store_id: string; is_completed: boolean }[] =
+      const completions: { store_id: string; checklist_item_id: string; is_completed: boolean }[] =
         completionsData.success ? completionsData.data : [];
       const scheduledSet = new Set(schedules.map((s: CampaignSchedule) => s.store_id));
       const relevantStores = managedStores.filter((s) => scheduledSet.has(s.id));
-      const incompleteCount = relevantStores.filter((store) => {
-        const done = completions.filter((c) => c.store_id === store.id && c.is_completed).length;
-        return done < items.length;
-      }).length;
-      setChecklistIncompleteCount(incompleteCount);
+      // 計算所有管轄門市中，未完成的 checklist 項目總數
+      let totalIncomplete = 0;
+      for (const store of relevantStores) {
+        for (const item of items) {
+          const done = completions.some((c) => c.store_id === store.id && c.checklist_item_id === item.id && c.is_completed);
+          if (!done) totalIncomplete++;
+        }
+      }
+      setChecklistIncompleteCount(totalIncomplete);
     } catch { /* 忽略錯誤 */ }
   }, [campaignId, managedStores, schedules]);
 
