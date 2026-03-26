@@ -33,6 +33,7 @@ export default function ChecklistOverviewModal({
   // completions: Map<store_id, Map<item_id, CampaignChecklistCompletion>>
   const [completions, setCompletions] = useState<Map<string, Map<string, CampaignChecklistCompletion>>>(new Map());
   const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
+  const [hideCompleted, setHideCompleted] = useState(true);
   const noteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   // 使用 ref 取最新值，避免 useEffect 因父元件重新 render 產生新陣列參考而重跑
@@ -257,9 +258,33 @@ export default function ChecklistOverviewModal({
             <h2 className="text-lg font-bold text-gray-900">前置 Check List 管理</h2>
             <p className="text-sm text-gray-500 mt-0.5">{campaignName}</p>
           </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs">
+              <button
+                onClick={() => setHideCompleted(false)}
+                className={`px-3 py-1.5 transition-colors ${
+                  !hideCompleted
+                    ? 'bg-purple-600 text-white font-medium'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                顯示全部
+              </button>
+              <button
+                onClick={() => setHideCompleted(true)}
+                className={`px-3 py-1.5 transition-colors border-l border-gray-200 ${
+                  hideCompleted
+                    ? 'bg-purple-600 text-white font-medium'
+                    : 'bg-white text-gray-500 hover:bg-gray-50'
+                }`}
+              >
+                隱藏已完成
+              </button>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -337,7 +362,8 @@ export default function ChecklistOverviewModal({
                         </div>
                       </div>
 
-                      {items.map((item, idx) => {
+                      {items.filter(item => !hideCompleted || !(completions.get(store.id)?.get(item.id)?.is_completed)).map((item) => {
+                        const idx = items.indexOf(item);
                         const completion = completions.get(store.id)?.get(item.id);
                         const isDone = completion?.is_completed ?? false;
                         const note = completion?.manager_note ?? '';

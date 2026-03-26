@@ -144,7 +144,7 @@ export default function CampaignStoreDetailModal({
   const [checklistItems, setChecklistItems] = useState<CampaignChecklistItem[]>([]);
   const [checklistCompletions, setChecklistCompletions] = useState<Map<string, CampaignChecklistCompletion>>(new Map());
   const [checklistLoading, setChecklistLoading] = useState(false);
-  const [hideCompleted, setHideCompleted] = useState(false);
+  const [hideCompleted, setHideCompleted] = useState(true);
   const [activeTab, setActiveTab] = useState<'detail' | 'checklist'>('detail');
   const managerNoteTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
