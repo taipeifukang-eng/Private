@@ -8,6 +8,7 @@ import { Campaign, CampaignSchedule, Store, EventDate, CampaignEquipmentTrip, EQ
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
 import SupportRequestModal from '@/components/SupportRequestModal';
 import StaffOverviewModal from '@/components/StaffOverviewModal';
+import ChecklistOverviewModal from '@/components/ChecklistOverviewModal';
 
 interface StoreWithManager extends Store {
   supervisor_id?: string;
@@ -52,6 +53,8 @@ export default function ActivityViewPage() {
   const [managedStores, setManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
   const [canAssignSupport, setCanAssignSupport] = useState(false);
   const [canViewStaffOverview, setCanViewStaffOverview] = useState(false);
+  const [checklistOverviewOpen, setChecklistOverviewOpen] = useState(false);
+  const [checklistIncompleteCount, setChecklistIncompleteCount] = useState(0);
   // 人員配置總覽（督導專屬）
   const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }>>({});
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
@@ -334,6 +337,33 @@ export default function ActivityViewPage() {
     refreshHeadcountMap();
   }, [refreshHeadcountMap]);
 
+  // 載入 Check List 未完成門市數量（用於按鈕 badge）
+  const loadChecklistBadgeCount = useCallback(async () => {
+    if (!campaignId || managedStores.length === 0 || schedules.length === 0) return;
+    try {
+      const [itemsRes, completionsRes] = await Promise.all([
+        fetch(`/api/campaign-checklist-items?campaign_id=${campaignId}`),
+        fetch(`/api/campaign-checklist-completions?campaign_id=${campaignId}`),
+      ]);
+      const [itemsData, completionsData] = await Promise.all([itemsRes.json(), completionsRes.json()]);
+      const items: { id: string }[] = itemsData.success ? itemsData.data : [];
+      if (items.length === 0) { setChecklistIncompleteCount(0); return; }
+      const completions: { store_id: string; is_completed: boolean }[] =
+        completionsData.success ? completionsData.data : [];
+      const scheduledSet = new Set(schedules.map((s: CampaignSchedule) => s.store_id));
+      const relevantStores = managedStores.filter((s) => scheduledSet.has(s.id));
+      const incompleteCount = relevantStores.filter((store) => {
+        const done = completions.filter((c) => c.store_id === store.id && c.is_completed).length;
+        return done < items.length;
+      }).length;
+      setChecklistIncompleteCount(incompleteCount);
+    } catch { /* 忽略錯誤 */ }
+  }, [campaignId, managedStores, schedules]);
+
+  useEffect(() => {
+    loadChecklistBadgeCount();
+  }, [loadChecklistBadgeCount]);
+
   // 獲取指定日期的車次
   const getTripsForDate = (date: Date) => {
     const ds = date.toISOString().split('T')[0];
@@ -611,6 +641,22 @@ export default function ActivityViewPage() {
                 </button>
               )}
 
+              {/* 前置 Check List 快捷按鈕（有管轄門市才顯示） */}
+              {managedStores.length > 0 && (
+                <button
+                  onClick={() => setChecklistOverviewOpen(true)}
+                  className="relative inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  前置 Check List
+                  {checklistIncompleteCount > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+                      {checklistIncompleteCount > 99 ? '99+' : checklistIncompleteCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
               {canViewStaffOverview && managedStores.length > 0 && (
                 <button
                   onClick={() => setStaffOverviewOpen(true)}
@@ -878,6 +924,21 @@ export default function ActivityViewPage() {
         campaignName={campaign.name}
         managedStores={managedStores}
         canAssign={canAssignSupport}
+      />
+    )}
+
+    {/* 前置 Check List 總覽 Modal */}
+    {campaign && (
+      <ChecklistOverviewModal
+        isOpen={checklistOverviewOpen}
+        onClose={() => {
+          setChecklistOverviewOpen(false);
+          loadChecklistBadgeCount();
+        }}
+        campaignId={campaignId}
+        campaignName={campaign.name}
+        managedStores={managedStores}
+        scheduledStoreIds={schedules.map((s) => s.store_id)}
       />
     )}
     </>

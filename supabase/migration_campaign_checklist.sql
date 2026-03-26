@@ -133,3 +133,4 @@ FROM information_schema.tables t
 WHERE table_schema = 'public'
   AND table_name IN ('campaign_checklist_items', 'campaign_checklist_completions')
 ORDER BY table_name;
+
