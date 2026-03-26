@@ -34,17 +34,27 @@ export default function ChecklistOverviewModal({
   const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
   const noteTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // 使用 ref 取最新值，避免 useEffect 因父元件重新 render 產生新陣列參考而重跑
+  const managedStoresRef = useRef(managedStores);
+  managedStoresRef.current = managedStores;
+  const scheduledStoreIdsRef = useRef(scheduledStoreIds);
+  scheduledStoreIdsRef.current = scheduledStoreIds;
+
   // 過濾出「管轄 + 已排程」的門市，按代碼排序
   const relevantStores = managedStores
     .filter((s) => scheduledStoreIds.includes(s.id))
     .sort((a, b) => a.store_code.localeCompare(b.store_code));
 
+  // 只在 isOpen 切換為 true 或 campaignId 改變時重新載入
   useEffect(() => {
     if (!isOpen || !campaignId) return;
     let cancelled = false;
     const run = async () => {
       setLoading(true);
       try {
+        const curManagedStores = managedStoresRef.current;
+        const curScheduledIds = scheduledStoreIdsRef.current;
+
         const [itemsRes, completionsRes] = await Promise.all([
           fetch(`/api/campaign-checklist-items?campaign_id=${campaignId}`),
           fetch(`/api/campaign-checklist-completions?campaign_id=${campaignId}`),
@@ -62,7 +72,7 @@ export default function ChecklistOverviewModal({
         }
 
         // 未完成的門市展開，已全部完成的收合
-        const stores = managedStores.filter((s) => scheduledStoreIds.includes(s.id));
+        const stores = curManagedStores.filter((s) => curScheduledIds.includes(s.id));
         const incompleteStoreIds = stores
           .filter((s) => {
             const sm = map.get(s.id);
@@ -83,7 +93,8 @@ export default function ChecklistOverviewModal({
     };
     run();
     return () => { cancelled = true; };
-  }, [isOpen, campaignId, managedStores, scheduledStoreIds]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, campaignId]); // managedStores/scheduledStoreIds 透過 ref 取最新值，不加入 deps
 
   // 打勾 / 取消打勾
   const handleToggle = async (storeId: string, itemId: string) => {
@@ -91,34 +102,38 @@ export default function ChecklistOverviewModal({
     const existing = storeMap?.get(itemId);
     const newVal = !(existing?.is_completed ?? false);
 
-    // 立即更新本地 state（樂觀更新）
+    // 先算好打勾後是否全部完成（純計算，不依賴 setState callback）
+    const tempMap = storeMap ? new Map(storeMap) : new Map<string, CampaignChecklistCompletion>();
+    tempMap.set(itemId, {
+      id: existing?.id || '',
+      checklist_item_id: itemId,
+      store_id: storeId,
+      is_completed: newVal,
+      completed_by: existing?.completed_by || null,
+      completed_at: newVal ? new Date().toISOString() : null,
+      manager_note: existing?.manager_note || null,
+      store_assigned_person: existing?.store_assigned_person || null,
+      created_at: existing?.created_at || '',
+      updated_at: new Date().toISOString(),
+    });
+    let projectedDone = 0;
+    tempMap.forEach((c) => { if (c.is_completed) projectedDone++; });
+    const willAllDone = newVal && items.length > 0 && projectedDone >= items.length;
+
+    // 樂觀更新 completions
     setCompletions((prev) => {
       const updated = new Map(prev);
       if (!updated.has(storeId)) updated.set(storeId, new Map());
       const sm = new Map(updated.get(storeId)!);
-      sm.set(itemId, {
-        id: existing?.id || '',
-        checklist_item_id: itemId,
-        store_id: storeId,
-        is_completed: newVal,
-        completed_by: existing?.completed_by || null,
-        completed_at: newVal ? new Date().toISOString() : null,
-        manager_note: existing?.manager_note || null,
-        store_assigned_person: existing?.store_assigned_person || null,
-        created_at: existing?.created_at || '',
-        updated_at: new Date().toISOString(),
-      });
+      sm.set(itemId, tempMap.get(itemId)!);
       updated.set(storeId, sm);
-
-      // 若該門市已全部完成，自動收合
-      let doneCount = 0;
-      sm.forEach((c) => { if (c.is_completed) doneCount++; });
-      if (doneCount >= items.length && items.length > 0) {
-        setExpandedStores((prev) => { const next = new Set(prev); next.delete(storeId); return next; });
-      }
-
       return updated;
     });
+
+    // 若該門市已全部完成，自動收合（在 setCompletions 外獨立呼叫）
+    if (willAllDone) {
+      setExpandedStores((prev) => { const next = new Set(prev); next.delete(storeId); return next; });
+    }
 
     try {
       const res = await fetch('/api/campaign-checklist-completions', {
@@ -393,21 +408,27 @@ export default function ChecklistOverviewModal({
 
                                 {/* 實際指派人員 + 店長備註 */}
                                 <div className="mt-2 ml-7 space-y-2">
-                                  <input
-                                    type="text"
-                                    value={assignedPerson}
-                                    onChange={(e) => handleAssignedPersonChange(store.id, item.id, e.target.value)}
-                                    placeholder="實際指派人員（選填）"
-                                    className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
-                                  />
-                                  <textarea
-                                    value={note}
-                                    onChange={(e) => handleNoteChange(store.id, item.id, e.target.value)}
-                                    placeholder="店長備註（選填）"
-                                    rows={1}
-                                    className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
-                                    style={{ minHeight: '2.5rem' }}
-                                  />
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">👤 安排人員</label>
+                                    <input
+                                      type="text"
+                                      value={assignedPerson}
+                                      onChange={(e) => handleAssignedPersonChange(store.id, item.id, e.target.value)}
+                                      placeholder="填寫實際負責的人員..."
+                                      className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-500 mb-1">📝 店長備註</label>
+                                    <textarea
+                                      value={note}
+                                      onChange={(e) => handleNoteChange(store.id, item.id, e.target.value)}
+                                      placeholder="填寫準備進度、注意事項或回報..."
+                                      rows={1}
+                                      className="w-full text-xs text-gray-700 border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-purple-400 focus:border-transparent placeholder-gray-300 bg-white"
+                                      style={{ minHeight: '2.5rem' }}
+                                    />
+                                  </div>
                                 </div>
                               </div>
                             </div>
