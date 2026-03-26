@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, GripVertical, Save, Loader2 } from 'lucide-react';
 import { CampaignChecklistItem } from '@/types/workflow';
 
@@ -14,6 +14,7 @@ export default function ChecklistTemplateEditor({ campaignId, canEdit }: Checkli
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
   // 載入 checklist 項目
   useEffect(() => {
@@ -71,26 +72,32 @@ export default function ChecklistTemplateEditor({ campaignId, canEdit }: Checkli
     }
   };
 
-  // 更新項目
-  const handleUpdateItem = async (id: string, updates: Partial<CampaignChecklistItem>) => {
+  // 更新項目（本地立即更新，debounce API 呼叫避免每字儲存的卡頓）
+  const handleUpdateItem = (id: string, updates: Partial<CampaignChecklistItem>) => {
     if (!canEdit) return;
 
-    try {
-      const res = await fetch('/api/campaign-checklist-items', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...updates }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setItems(items.map(item => (item.id === id ? data.data : item)));
-      } else {
-        alert(`更新失敗: ${data.error}`);
+    // 立即更新本地狀態，UI 即時反應
+    setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item));
+
+    // 每個欄位獨立計時，停止輸入 800ms 後才送 API
+    const key = `${id}-${Object.keys(updates)[0]}`;
+    if (debounceTimers.current[key]) clearTimeout(debounceTimers.current[key]);
+    debounceTimers.current[key] = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/campaign-checklist-items', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, ...updates }),
+        });
+        const data = await res.json();
+        if (!data.success) {
+          alert(`更新失敗: ${data.error}`);
+        }
+      } catch (error) {
+        console.error('Error updating item:', error);
+        alert('更新失敗');
       }
-    } catch (error) {
-      console.error('Error updating item:', error);
-      alert('更新失敗');
-    }
+    }, 800);
   };
 
   // 刪除項目
