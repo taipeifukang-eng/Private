@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { ChevronDown, User, Search, Loader2 } from 'lucide-react';
+import { X, User, Search, Loader2, Plus } from 'lucide-react';
 
 interface StaffItem {
   employee_code: string;
@@ -12,6 +12,7 @@ interface StaffItem {
 }
 
 interface StaffPickerInputProps {
+  /** 逗號分隔的人員姓名字串，例如 "張三,李四" */
   value: string;
   onChange: (value: string) => void;
   storeId: string;
@@ -23,25 +24,25 @@ export default function StaffPickerInput({
   value,
   onChange,
   storeId,
-  placeholder = '填寫實際負責的人員...',
+  placeholder = '新增人員...',
   inputClassName = '',
 }: StaffPickerInputProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [inputValue, setInputValue] = useState(value);
+  const [query, setQuery] = useState('');
   const [localStaff, setLocalStaff] = useState<StaffItem[]>([]);
   const [searchResults, setSearchResults] = useState<StaffItem[]>([]);
   const [loadingLocal, setLoadingLocal] = useState(false);
   const [searching, setSearching] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 快取：避免重複呼叫 API
   const loadedStoreId = useRef<string>('');
   const cachedStaff = useRef<StaffItem[]>([]);
 
-  // 同步外部 value 到 inputValue
-  useEffect(() => {
-    setInputValue(value);
-  }, [value]);
+  // 解析逗號分隔字串為陣列
+  const selected: string[] = value
+    ? value.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
 
   // 開啟下拉時載入本店人員（快取）
   useEffect(() => {
@@ -68,20 +69,20 @@ export default function StaffPickerInput({
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
+        setQuery('');
+        setSearchResults([]);
       }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const handleInputChange = (v: string) => {
-    setInputValue(v);
-    onChange(v);
-
+  const handleQueryChange = (v: string) => {
+    setQuery(v);
     if (searchTimer.current) clearTimeout(searchTimer.current);
     setSearchResults([]);
 
-    // 本月名單為空時，才做全公司搜尋
+    // 本月名單為空時做全公司搜尋
     if (localStaff.length === 0 && v.length >= 1) {
       searchTimer.current = setTimeout(async () => {
         setSearching(true);
@@ -95,17 +96,25 @@ export default function StaffPickerInput({
     }
   };
 
-  const selectStaff = (staff: StaffItem) => {
-    const display = staff.employee_name;
-    setInputValue(display);
-    onChange(display);
-    setIsOpen(false);
+  const addPerson = (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed || selected.includes(trimmed)) return;
+    const next = [...selected, trimmed];
+    onChange(next.join(','));
+    setQuery('');
     setSearchResults([]);
+    // 保持開啟繼續選
+    inputRef.current?.focus();
   };
 
-  // 過濾本月名單
+  const removePerson = (name: string) => {
+    onChange(selected.filter((s) => s !== name).join(','));
+  };
+
+  // 過濾本月名單（排除已選）
   const filteredLocal = localStaff.filter((s) => {
-    const q = inputValue.toLowerCase();
+    if (selected.includes(s.employee_name)) return false;
+    const q = query.toLowerCase();
     if (!q) return true;
     return (
       s.employee_name.toLowerCase().includes(q) ||
@@ -113,28 +122,60 @@ export default function StaffPickerInput({
     );
   });
 
-  const displayList = localStaff.length > 0 ? filteredLocal : searchResults;
+  // 全公司搜尋結果也排除已選
+  const filteredSearch = searchResults.filter((s) => !selected.includes(s.employee_name));
+
+  const displayList = localStaff.length > 0 ? filteredLocal : filteredSearch;
   const noLocalStaff = !loadingLocal && localStaff.length === 0;
 
   return (
     <div ref={containerRef} className="relative">
-      {/* 輸入框 */}
+      {/* 已選 Tags */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-1.5">
+          {selected.map((name) => (
+            <span
+              key={name}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
+            >
+              <User className="w-2.5 h-2.5" />
+              {name}
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); removePerson(name); }}
+                className="ml-0.5 hover:text-purple-600"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 搜尋輸入框 */}
       <div className="relative">
         <input
+          ref={inputRef}
           type="text"
-          value={inputValue}
-          onChange={(e) => handleInputChange(e.target.value)}
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
           onFocus={() => setIsOpen(true)}
-          placeholder={placeholder}
+          onKeyDown={(e) => {
+            // Enter 時若有輸入文字直接新增
+            if (e.key === 'Enter' && query.trim()) {
+              e.preventDefault();
+              addPerson(query);
+            }
+          }}
+          placeholder={selected.length > 0 ? '繼續新增...' : placeholder}
           className={inputClassName}
         />
-        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+        <Plus className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
       </div>
 
       {/* 下拉選單 */}
       {isOpen && (
         <div className="absolute z-[200] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
-          {/* 載入本月名單中 */}
           {loadingLocal && (
             <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-gray-400">
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -142,18 +183,16 @@ export default function StaffPickerInput({
             </div>
           )}
 
-          {/* 本月無名單 → 提示搜尋 */}
-          {noLocalStaff && inputValue.length === 0 && (
+          {noLocalStaff && query.length === 0 && (
             <div className="px-3 py-2.5 space-y-1">
               <p className="text-xs text-gray-400">此門市本月無人員資料</p>
               <p className="text-xs text-purple-500 flex items-center gap-1">
                 <Search className="w-3 h-3" />
-                輸入員編或姓名，搜尋全公司人員
+                輸入員編或姓名搜尋全公司人員，或直接 Enter 新增
               </p>
             </div>
           )}
 
-          {/* 搜尋全公司中 */}
           {searching && (
             <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-gray-400">
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -161,12 +200,11 @@ export default function StaffPickerInput({
             </div>
           )}
 
-          {/* 人員列表 */}
           {!loadingLocal && !searching && displayList.map((staff, i) => (
             <button
               key={i}
               type="button"
-              onMouseDown={(e) => { e.preventDefault(); selectStaff(staff); }}
+              onMouseDown={(e) => { e.preventDefault(); addPerson(staff.employee_name); }}
               className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-purple-50 transition-colors"
             >
               <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
@@ -186,9 +224,10 @@ export default function StaffPickerInput({
             </button>
           ))}
 
-          {/* 無搜尋結果 */}
-          {!loadingLocal && !searching && displayList.length === 0 && inputValue.length > 0 && (
-            <div className="px-3 py-2.5 text-xs text-gray-400">查無符合的人員</div>
+          {!loadingLocal && !searching && displayList.length === 0 && query.length > 0 && (
+            <div className="px-3 py-2.5 text-xs text-gray-400">
+              查無符合的人員，按 Enter 直接新增「{query}」
+            </div>
           )}
         </div>
       )}
