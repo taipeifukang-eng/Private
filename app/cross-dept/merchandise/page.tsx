@@ -76,8 +76,6 @@ function AddReportModal({
   const [nameFromMaster, setNameFromMaster] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const requiredQtyInputRef = useRef<HTMLInputElement>(null);
-  const alertedProductCodeRef = useRef<string>('');
-  const pendingAlertProductCodeRef = useRef<string>('');
   const searchSeqRef = useRef(0);
 
   // 點擊外部關閉下拉
@@ -101,8 +99,6 @@ function AddReportModal({
       setShowSuggestions(false);
       setExistingResponse(null);
       setShowResponseAlertModal(false);
-      alertedProductCodeRef.current = '';
-      pendingAlertProductCodeRef.current = '';
       return;
     }
     const t = setTimeout(async () => {
@@ -131,31 +127,13 @@ function AddReportModal({
     return () => clearTimeout(t);
   }, [form.product_code]);
 
-  useEffect(() => {
-    const code = form.product_code.trim();
-    const pendingCode = pendingAlertProductCodeRef.current;
-    if (!code || !pendingCode || pendingCode !== code) return;
+  const fetchResponseByCode = async (code: string) => {
+    const responseRes = await fetch(`/api/stockout-responses?product_codes=${encodeURIComponent(code)}`);
+    const responseData = await responseRes.json();
+    return (responseData.data ?? [])[0] ?? null;
+  };
 
-    // 已完成查詢但無回覆：不彈窗，結束本次待提醒狀態
-    if (!existingResponse) {
-      pendingAlertProductCodeRef.current = '';
-      return;
-    }
-
-    // 只在「選定後」且回覆資料與目前商品編號一致時才彈窗
-    if (existingResponse.product_code !== code) return;
-    if (alertedProductCodeRef.current === code) {
-      pendingAlertProductCodeRef.current = '';
-      return;
-    }
-
-    alertedProductCodeRef.current = code;
-    pendingAlertProductCodeRef.current = '';
-    setShowResponseAlertModal(true);
-  }, [existingResponse, form.product_code]);
-
-  const handleSelectSuggestion = (s: ProductSuggestion, shouldTriggerAlert = false) => {
-    pendingAlertProductCodeRef.current = shouldTriggerAlert ? s.product_code : '';
+  const handleSelectSuggestion = (s: ProductSuggestion) => {
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
     setSelectedUnit(s.unit);
     setNameFromMaster(true);
@@ -167,15 +145,24 @@ function AddReportModal({
     }, 0);
   };
 
-  const handleProductCodeEnter = () => {
+  const handleProductCodeEnter = async () => {
     const code = form.product_code.trim();
     if (!code || suggestions.length === 0) return;
 
     // 只接受「完整商品編號」匹配，避免誤選到相近但不同的商品
     const matchedSuggestion = suggestions.find(s => s.product_code === code);
     if (!matchedSuggestion) return;
-    // 只有 Enter 確認才觸發已回覆提醒彈窗
-    handleSelectSuggestion(matchedSuggestion, true);
+
+    handleSelectSuggestion(matchedSuggestion);
+
+    // Enter 確認後，立即以該商品編號查詢回覆並決定是否彈窗
+    try {
+      const foundResponse = await fetchResponseByCode(matchedSuggestion.product_code);
+      setExistingResponse(foundResponse);
+      setShowResponseAlertModal(!!foundResponse);
+    } catch {
+      setShowResponseAlertModal(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -244,7 +231,6 @@ function AddReportModal({
                 setSelectedUnit('');
                 setNameFromMaster(false);
                 setShowResponseAlertModal(false);
-                pendingAlertProductCodeRef.current = '';
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
@@ -262,7 +248,7 @@ function AddReportModal({
                 {suggestions.map(s => (
                   <li
                     key={s.product_code}
-                    onMouseDown={() => handleSelectSuggestion(s, false)}
+                    onMouseDown={() => handleSelectSuggestion(s)}
                     className="px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 flex items-center justify-between gap-2"
                   >
                     <span>
