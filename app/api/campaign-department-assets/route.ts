@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
 const STORAGE_BUCKET = 'campaign-department-assets';
@@ -9,6 +9,7 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminClient = createAdminClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
       const objectPath = `campaign/${campaignId}/${department}/${Date.now()}-${crypto.randomUUID()}.${ext}`;
       const fileBuffer = await file.arrayBuffer();
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await adminClient.storage
         .from(STORAGE_BUCKET)
         .upload(objectPath, fileBuffer, {
           contentType: file.type || 'image/webp',
@@ -77,7 +78,7 @@ export async function POST(request: NextRequest) {
       uploadedNames.push(file.name);
     }
 
-    const { data: signedUrlData, error: signedError } = await supabase.storage
+    const { data: signedUrlData, error: signedError } = await adminClient.storage
       .from(STORAGE_BUCKET)
       .createSignedUrls(uploadedPaths, 60 * 60 * 24 * 7);
 
