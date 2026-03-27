@@ -345,7 +345,8 @@ export default function MerchandisePage() {
       const managed = (storeManagerRows ?? [])
         .map((sm: any) => sm.stores)
         .filter(Boolean)
-        .map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name }));
+        .map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name }))
+        .sort((a: any, b: any) => a.store_code.localeCompare(b.store_code));
       setUserManagedStores(managed);
       if (managed.length > 0) setUserStoreId(managed[0].id);
 
