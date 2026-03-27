@@ -64,7 +64,6 @@ function AddReportModal({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
   const [nameFromMaster, setNameFromMaster] = useState(false);
-  const [codeReadOnly, setCodeReadOnly] = useState(true); // readOnly 欺騙法：防止 Chrome autocomplete
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // 點擊外部關閉下拉
@@ -166,21 +165,17 @@ function AddReportModal({
               商品編號 <span className="text-red-500">*</span>
             </label>
             <input
-              type="text"
+              type="search"
               value={form.product_code}
               onChange={e => {
                 setForm(f => ({ ...f, product_code: e.target.value }));
                 setSelectedUnit('');
                 setNameFromMaster(false);
               }}
-              readOnly={codeReadOnly}
-              onFocus={() => {
-                setCodeReadOnly(false);
-                if (suggestions.length > 0) setShowSuggestions(true);
-              }}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               placeholder="輸入編號可搜尋商品主檔"
               autoComplete="off"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 [&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden"
             />
             {showSuggestions && suggestions.length > 0 && (
               <ul className="absolute z-[200] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
