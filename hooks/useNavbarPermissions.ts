@@ -37,7 +37,8 @@ interface NavbarPermissions {
   canManageInspectionTemplates: boolean;
   canViewImprovements: boolean;
   // 跨部門管理
-  canAccessCrossDeptMerchandise: boolean;  // 商品部頁面入口}
+  canAccessCrossDeptMerchandise: boolean;  // 商品部頁面入口
+}
 
 /**
  * 導航欄權限 Hook
