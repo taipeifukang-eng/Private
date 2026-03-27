@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   ShoppingCart, Plus, MessageSquare, Trash2, ChevronDown, ChevronUp,
@@ -41,6 +41,12 @@ interface AggregatedProduct {
 }
 
 // ── 新增回報 Modal ──────────────────────────────────────────────
+interface ProductSuggestion {
+  product_code: string;
+  product_name: string;
+  unit: string;
+}
+
 function AddReportModal({
   stores,
   onClose,
@@ -54,6 +60,51 @@ function AddReportModal({
   const [selectedStoreId, setSelectedStoreId] = useState(stores[0]?.id ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedUnit, setSelectedUnit] = useState('');
+  const [nameFromMaster, setNameFromMaster] = useState(false);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
+
+  // 點擊外部關閉下拉
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Debounce 搜尋商品主檔
+  useEffect(() => {
+    const code = form.product_code.trim();
+    if (!code) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/products-master?q=${encodeURIComponent(code)}`);
+        const d = await res.json();
+        setSuggestions(d.data ?? []);
+        setShowSuggestions((d.data ?? []).length > 0);
+      } catch {
+        setSuggestions([]);
+      }
+    }, 200);
+    return () => clearTimeout(t);
+  }, [form.product_code]);
+
+  const handleSelectSuggestion = (s: ProductSuggestion) => {
+    setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
+    setSelectedUnit(s.unit);
+    setNameFromMaster(true);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const handleSubmit = async () => {
     if (!form.product_code.trim() || !form.product_name.trim()) {
@@ -108,30 +159,72 @@ function AddReportModal({
               </select>
             </div>
           )}
-          <div>
+          {/* 商品編號 + 搜尋下拉 */}
+          <div className="relative" ref={suggestionsRef}>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               商品編號 <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={form.product_code}
-              onChange={e => setForm(f => ({ ...f, product_code: e.target.value }))}
-              placeholder="例：A001"
+              onChange={e => {
+                setForm(f => ({ ...f, product_code: e.target.value }));
+                setSelectedUnit('');
+                setNameFromMaster(false);
+              }}
+              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              placeholder="輸入編號可搜尋商品主檔"
               autoComplete="off"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                {suggestions.map(s => (
+                  <li
+                    key={s.product_code}
+                    onMouseDown={() => handleSelectSuggestion(s)}
+                    className="px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 flex items-center justify-between gap-2"
+                  >
+                    <span>
+                      <span className="font-medium text-gray-900">{s.product_code}</span>
+                      <span className="text-gray-500 ml-2">{s.product_name}</span>
+                    </span>
+                    {s.unit && (
+                      <span className="text-xs text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded shrink-0">{s.unit}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
+          {/* 商品名稱 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               商品名稱 <span className="text-red-500">*</span>
             </label>
-            <input
-              type="text"
-              value={form.product_name}
-              onChange={e => setForm(f => ({ ...f, product_name: e.target.value }))}
-              placeholder="例：感冒糖漿"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={form.product_name}
+                onChange={e => {
+                  setForm(f => ({ ...f, product_name: e.target.value }));
+                  setNameFromMaster(false);
+                }}
+                placeholder="例：感冒糖漿"
+                readOnly={nameFromMaster}
+                className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 ${
+                  nameFromMaster ? 'bg-gray-50 border-gray-200 text-gray-700' : 'border-gray-300'
+                }`}
+              />
+              {selectedUnit && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-orange-600 bg-orange-50 border border-orange-200 px-1.5 py-0.5 rounded pointer-events-none">
+                  {selectedUnit}
+                </span>
+              )}
+            </div>
+            {nameFromMaster && (
+              <p className="mt-1 text-xs text-gray-400">名稱由主檔自動帶入，如需修改請直接編輯</p>
+            )}
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">

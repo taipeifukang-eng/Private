@@ -88,10 +88,10 @@ CREATE POLICY "stockout_responses_write" ON stockout_product_responses
 -- cross_dept.stockout.respond  : 商品部人員 - 回覆缺貨商品
 -- cross_dept.stockout.submit   : 店長 - 提交缺貨回報（目前由 admin 統一給予）
 
-INSERT INTO permissions (code, name, description, category) VALUES
-  ('cross_dept.stockout.view_all', '查看全部缺貨回報', '可查看所有門市的缺貨商品回報', '跨部門管理'),
-  ('cross_dept.stockout.respond',  '回覆缺貨商品',     '可針對商品編號統一回覆缺貨狀況', '跨部門管理'),
-  ('cross_dept.stockout.submit',   '提交缺貨回報',     '可提交本門市的缺貨商品回報',     '跨部門管理')
+INSERT INTO permissions (module, feature, code, action, description) VALUES
+  ('cross_dept', 'stockout', 'cross_dept.stockout.view_all', 'view_all', '可查看所有門市的缺貨商品回報'),
+  ('cross_dept', 'stockout', 'cross_dept.stockout.respond',  'respond',  '可針對商品編號統一回覆缺貨狀況'),
+  ('cross_dept', 'stockout', 'cross_dept.stockout.submit',   'submit',   '可提交本門市的缺貨商品回報')
 ON CONFLICT (code) DO NOTHING;
 
 -- 7. 將三項權限全部授予 system_admin 角色

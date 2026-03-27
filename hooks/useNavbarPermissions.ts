@@ -38,6 +38,7 @@ interface NavbarPermissions {
   canViewImprovements: boolean;
   // 跨部門管理
   canAccessCrossDeptMerchandise: boolean;  // 商品部頁面入口
+  canManageProductsMaster: boolean;        // 商品主檔管理
 }
 
 /**
@@ -80,6 +81,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canManageInspectionTemplates: false,
     canViewImprovements: false,
     canAccessCrossDeptMerchandise: false,
+    canManageProductsMaster: false,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -175,6 +177,8 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('cross_dept.stockout.view_all') ||
             permissionSet.has('cross_dept.stockout.respond') ||
             permissionSet.has('cross_dept.stockout.submit'),
+          canManageProductsMaster:
+            permissionSet.has('cross_dept.products_master.manage'),
         });
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);
