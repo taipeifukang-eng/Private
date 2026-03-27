@@ -211,20 +211,6 @@ export default function ActivityManagementPage() {
                       <Eye className="w-4 h-4" />
                       查看排程
                     </Link>
-                    <Link
-                      href={`/activity-view/${campaign.id}?focus=marketing`}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors"
-                    >
-                      <Eye className="w-4 h-4" />
-                      查看行銷部發布
-                    </Link>
-                    <Link
-                      href={`/activity-view/${campaign.id}?focus=merchandise`}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-                    >
-                      <Eye className="w-4 h-4" />
-                      查看商品部發布
-                    </Link>
                   </div>
                 </div>
               </div>

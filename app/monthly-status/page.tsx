@@ -348,20 +348,6 @@ function MonthlyStatusContent() {
                     <Sparkles className="w-5 h-5" />
                     活動檢視
                   </Link>
-                  <Link
-                    href="/activity-management?focus=marketing"
-                    className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    行銷部發布結果
-                  </Link>
-                  <Link
-                    href="/activity-management?focus=merchandise"
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all flex items-center gap-2 font-medium shadow-md hover:shadow-lg"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    商品部發布結果
-                  </Link>
                 </>
               )}
               {/* 年份選擇器 */}

@@ -70,7 +70,12 @@ export default function ActivityViewPage() {
   const [checklistIncompleteCount, setChecklistIncompleteCount] = useState(0);
   const [departmentPublish, setDepartmentPublish] = useState<CampaignDepartmentPublish | null>(null);
   const [departmentModal, setDepartmentModal] = useState<'marketing' | 'merchandise' | null>(null);
-  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
+  const [previewGallery, setPreviewGallery] = useState<{
+    images: string[];
+    titles: string[];
+    index: number;
+    clickToNext: boolean;
+  } | null>(null);
   // 人員配置總覽（督導專屬）
   const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }>>({});
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
@@ -90,6 +95,27 @@ export default function ActivityViewPage() {
   ];
 
   const DEFAULT_COLOR = { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900', name: '灰色', hexBg: '#F3F4F6', hexBorder: '#D1D5DB', hexText: '#111827' };
+
+  // 支援舊版單圖字串與新版 JSON 陣列字串
+  const parseSerializedStringArray = (value?: string | null): string[] => {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v): v is string => typeof v === 'string' && v.length > 0);
+      }
+      return [];
+    } catch {
+      return [value];
+    }
+  };
+
+  const marketingImageNames = parseSerializedStringArray(departmentPublish?.marketing_image_name);
+  const marketingImageDatas = parseSerializedStringArray(departmentPublish?.marketing_image_data);
+  const currentPreviewImageSrc = previewGallery ? previewGallery.images[previewGallery.index] : null;
+  const currentPreviewImageTitle = previewGallery
+    ? (previewGallery.titles[previewGallery.index] || `圖檔 ${previewGallery.index + 1}`)
+    : '';
 
   // 獲取督導顏色（使用員工代碼或 ID）
   const getSupervisorColor = (store?: StoreWithManager) => {
@@ -1036,21 +1062,23 @@ export default function ActivityViewPage() {
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_rules}</p>
                   </div>
                 )}
-                {departmentPublish?.marketing_image_data ? (
+                {marketingImageDatas.length > 0 ? (
                   <button
                     type="button"
-                    onClick={() => setPreviewImage({
-                      src: departmentPublish.marketing_image_data as string,
-                      title: departmentPublish.marketing_image_name || '行銷圖檔'
+                    onClick={() => setPreviewGallery({
+                      images: marketingImageDatas,
+                      titles: marketingImageNames,
+                      index: 0,
+                      clickToNext: true,
                     })}
                     className="inline-flex items-center gap-2 px-4 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-sm font-medium"
                   >
-                    預覽行銷圖檔
+                    預覽行銷圖檔（{marketingImageDatas.length}）
                   </button>
                 ) : (
                   <p className="text-sm text-gray-400">尚未上傳行銷圖檔</p>
                 )}
-                {!departmentPublish?.marketing_content && !departmentPublish?.marketing_rules && !departmentPublish?.marketing_image_data && (
+                {!departmentPublish?.marketing_content && !departmentPublish?.marketing_rules && marketingImageDatas.length === 0 && (
                   <p className="text-sm text-gray-400">尚未發布行銷部內容</p>
                 )}
               </>
@@ -1065,9 +1093,11 @@ export default function ActivityViewPage() {
                 {departmentPublish?.merchandise_gift_rules_data ? (
                   <button
                     type="button"
-                    onClick={() => setPreviewImage({
-                      src: departmentPublish.merchandise_gift_rules_data as string,
-                      title: departmentPublish.merchandise_gift_rules_name || '滿額贈規則圖表'
+                    onClick={() => setPreviewGallery({
+                      images: [departmentPublish.merchandise_gift_rules_data as string],
+                      titles: [departmentPublish.merchandise_gift_rules_name || '滿額贈規則圖表'],
+                      index: 0,
+                      clickToNext: false,
                     })}
                     className="inline-flex items-center gap-2 px-4 py-2 border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium"
                   >
@@ -1104,25 +1134,45 @@ export default function ActivityViewPage() {
     )}
 
     {/* 圖檔預覽 Modal */}
-    {previewImage && (
-      <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
+    {previewGallery && (
+      <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => setPreviewGallery(null)}>
         <div
           className="bg-white rounded-xl shadow-xl p-3 max-w-5xl max-h-[90vh] w-full"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between mb-3">
-            <h4 className="text-sm font-semibold text-gray-800 truncate">{previewImage.title}</h4>
+            <h4 className="text-sm font-semibold text-gray-800 truncate">{currentPreviewImageTitle}</h4>
             <button
               type="button"
-              onClick={() => setPreviewImage(null)}
+              onClick={() => setPreviewGallery(null)}
               className="text-gray-500 hover:text-gray-700 text-sm"
             >
               關閉
             </button>
           </div>
           <div className="overflow-auto max-h-[80vh]">
-            <img src={previewImage.src} alt={previewImage.title} className="w-full h-auto rounded border border-gray-200" />
+            <img
+              src={currentPreviewImageSrc || ''}
+              alt={currentPreviewImageTitle}
+              className={`w-full h-auto rounded border border-gray-200 ${previewGallery.clickToNext && previewGallery.images.length > 1 ? 'cursor-pointer' : ''}`}
+              title={previewGallery.clickToNext && previewGallery.images.length > 1 ? '點擊切換下一張' : ''}
+              onClick={() => {
+                if (!previewGallery.clickToNext || previewGallery.images.length <= 1) return;
+                setPreviewGallery(prev => {
+                  if (!prev) return prev;
+                  return {
+                    ...prev,
+                    index: (prev.index + 1) % prev.images.length,
+                  };
+                });
+              }}
+            />
           </div>
+          {previewGallery.clickToNext && previewGallery.images.length > 1 && (
+            <div className="mt-2 text-center text-xs text-gray-500">
+              第 {previewGallery.index + 1} / {previewGallery.images.length} 張，點擊圖片可切換下一張
+            </div>
+          )}
         </div>
       </div>
     )}

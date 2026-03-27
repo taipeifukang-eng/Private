@@ -83,8 +83,8 @@ export default function ScheduleEditPage() {
   const [marketingForm, setMarketingForm] = useState({
     marketing_content: '',
     marketing_rules: '',
-    marketing_image_name: '',
-    marketing_image_data: '',
+    marketing_image_names: [] as string[],
+    marketing_image_datas: [] as string[],
   });
   const [merchandiseForm, setMerchandiseForm] = useState({
     merchandise_gift_rules_name: '',
@@ -184,6 +184,20 @@ export default function ScheduleEditPage() {
     document.body.removeChild(a);
   };
 
+  // 支援舊版單圖字串與新版 JSON 陣列字串
+  const parseSerializedStringArray = (value?: string | null): string[] => {
+    if (!value) return [];
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((v): v is string => typeof v === 'string' && v.length > 0);
+      }
+      return [];
+    } catch {
+      return value ? [value] : [];
+    }
+  };
+
   const loadDepartmentPublish = async () => {
     try {
       const res = await fetch(`/api/campaign-department-publish?campaign_id=${campaignId}`);
@@ -195,8 +209,8 @@ export default function ScheduleEditPage() {
       setMarketingForm({
         marketing_content: d.marketing_content ?? '',
         marketing_rules: d.marketing_rules ?? '',
-        marketing_image_name: d.marketing_image_name ?? '',
-        marketing_image_data: d.marketing_image_data ?? '',
+        marketing_image_names: parseSerializedStringArray(d.marketing_image_name),
+        marketing_image_datas: parseSerializedStringArray(d.marketing_image_data),
       });
       setMerchandiseForm({
         merchandise_gift_rules_name: d.merchandise_gift_rules_name ?? '',
@@ -219,8 +233,8 @@ export default function ScheduleEditPage() {
             department,
             marketing_content: marketingForm.marketing_content,
             marketing_rules: marketingForm.marketing_rules,
-            marketing_image_name: marketingForm.marketing_image_name || null,
-            marketing_image_data: marketingForm.marketing_image_data || null,
+            marketing_image_name: marketingForm.marketing_image_names.length > 0 ? JSON.stringify(marketingForm.marketing_image_names) : null,
+            marketing_image_data: marketingForm.marketing_image_datas.length > 0 ? JSON.stringify(marketingForm.marketing_image_datas) : null,
           }
         : {
             campaign_id: campaignId,
@@ -1512,33 +1526,59 @@ export default function ScheduleEditPage() {
                 <input
                   type="file"
                   accept="image/*"
+                  multiple
                   onChange={async e => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const dataUrl = await fileToDataUrl(file);
+                    const files = Array.from(e.target.files || []);
+                    if (files.length === 0) return;
+                    const dataUrls = await Promise.all(files.map(file => fileToDataUrl(file)));
                     setMarketingForm(prev => ({
                       ...prev,
-                      marketing_image_name: file.name,
-                      marketing_image_data: dataUrl,
+                      marketing_image_names: [...prev.marketing_image_names, ...files.map(f => f.name)],
+                      marketing_image_datas: [...prev.marketing_image_datas, ...dataUrls],
                     }));
+                    e.currentTarget.value = '';
                   }}
                   className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"
                 />
               )}
 
-              {marketingForm.marketing_image_data && (
-                <div className="rounded-lg border border-gray-200 p-3 space-y-2">
-                  <img src={marketingForm.marketing_image_data} alt="行銷圖檔預覽" className="max-h-64 rounded border border-gray-200" />
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{marketingForm.marketing_image_name || '已上傳圖檔'}</span>
-                    <button
-                      type="button"
-                      onClick={() => downloadDataUrlFile(marketingForm.marketing_image_name || 'marketing-image.png', marketingForm.marketing_image_data)}
-                      className="inline-flex items-center gap-1.5 text-xs text-pink-700 hover:text-pink-800"
-                    >
-                      <FileDown className="w-3.5 h-3.5" />
-                      下載圖檔
-                    </button>
+              {marketingForm.marketing_image_datas.length > 0 && (
+                <div className="rounded-lg border border-gray-200 p-3 space-y-3">
+                  <div className="text-xs text-gray-500">已上傳 {marketingForm.marketing_image_datas.length} 張圖檔</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {marketingForm.marketing_image_datas.map((dataUrl, idx) => (
+                      <div key={`${marketingForm.marketing_image_names[idx] || 'img'}-${idx}`} className="rounded-lg border border-gray-200 p-2 space-y-2">
+                        <img src={dataUrl} alt={`行銷圖檔預覽-${idx + 1}`} className="max-h-48 w-full object-contain rounded border border-gray-100" />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs text-gray-500 truncate">{marketingForm.marketing_image_names[idx] || `行銷圖檔-${idx + 1}`}</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => downloadDataUrlFile(marketingForm.marketing_image_names[idx] || `marketing-image-${idx + 1}.png`, dataUrl)}
+                              className="inline-flex items-center gap-1 text-xs text-pink-700 hover:text-pink-800"
+                            >
+                              <FileDown className="w-3.5 h-3.5" />
+                              下載
+                            </button>
+                            {canEditMarketing && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMarketingForm(prev => ({
+                                    ...prev,
+                                    marketing_image_names: prev.marketing_image_names.filter((_, i) => i !== idx),
+                                    marketing_image_datas: prev.marketing_image_datas.filter((_, i) => i !== idx),
+                                  }));
+                                }}
+                                className="text-xs text-red-600 hover:text-red-700"
+                              >
+                                移除
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
