@@ -1655,12 +1655,13 @@ export default function ScheduleEditPage() {
                     multiple
                     disabled={uploadingMarketing}
                     onChange={async e => {
+                        const inputEl = e.currentTarget;
                       const files = Array.from(e.target.files || []);
                       if (files.length === 0) return;
                       const currentCount = marketingForm.marketing_image_paths.length;
                       if (currentCount + files.length > MAX_MARKETING_IMAGE_COUNT) {
                         alert(`最多可上傳 ${MAX_MARKETING_IMAGE_COUNT} 張行銷圖檔`);
-                        e.currentTarget.value = '';
+                          inputEl.value = '';
                         return;
                       }
 
@@ -1680,7 +1681,7 @@ export default function ScheduleEditPage() {
                         alert(error?.message || '上傳行銷圖檔失敗');
                       } finally {
                         setUploadingMarketing(false);
-                        e.currentTarget.value = '';
+                        inputEl.value = '';
                       }
                     }}
                     className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100 disabled:opacity-60"

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
 const STORAGE_BUCKET = 'campaign-department-assets';
@@ -22,6 +22,7 @@ function parseStringArray(value: unknown): string[] {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminClient = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
@@ -51,7 +52,7 @@ export async function GET(request: NextRequest) {
     const marketingImagePaths = parseStringArray((data as any).marketing_image_paths);
     let marketingImageUrls: string[] = [];
     if (marketingImagePaths.length > 0) {
-      const { data: signedData, error: signedError } = await supabase.storage
+      const { data: signedData, error: signedError } = await adminClient.storage
         .from(STORAGE_BUCKET)
         .createSignedUrls(marketingImagePaths, 60 * 60 * 24 * 7);
       if (!signedError) {
