@@ -69,8 +69,8 @@ export default function ActivityViewPage() {
   const [checklistOverviewOpen, setChecklistOverviewOpen] = useState(false);
   const [checklistIncompleteCount, setChecklistIncompleteCount] = useState(0);
   const [departmentPublish, setDepartmentPublish] = useState<CampaignDepartmentPublish | null>(null);
-  const marketingSectionRef = useRef<HTMLDivElement>(null);
-  const merchandiseSectionRef = useRef<HTMLDivElement>(null);
+  const [departmentModal, setDepartmentModal] = useState<'marketing' | 'merchandise' | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ src: string; title: string } | null>(null);
   // 人員配置總覽（督導專屬）
   const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }>>({});
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
@@ -171,13 +171,10 @@ export default function ActivityViewPage() {
 
   useEffect(() => {
     const focus = searchParams.get('focus');
-    if (focus === 'marketing' && marketingSectionRef.current) {
-      marketingSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (focus === 'marketing' || focus === 'merchandise') {
+      setDepartmentModal(focus);
     }
-    if (focus === 'merchandise' && merchandiseSectionRef.current) {
-      merchandiseSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [searchParams, departmentPublish]);
+  }, [searchParams]);
 
   const loadData = async () => {
     try {
@@ -706,6 +703,22 @@ export default function ActivityViewPage() {
                 </button>
               )}
 
+              <button
+                onClick={() => setDepartmentModal('marketing')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors text-sm font-medium"
+              >
+                <Megaphone className="w-4 h-4" />
+                行銷部
+              </button>
+
+              <button
+                onClick={() => setDepartmentModal('merchandise')}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium"
+              >
+                <Package className="w-4 h-4" />
+                商品部
+              </button>
+
               {/* 匯出 PDF 按鈕 */}
               <button
                 onClick={handleExportPDF}
@@ -903,113 +916,6 @@ export default function ActivityViewPage() {
                       title={store.supervisor_name ? `督導: ${store.supervisor_name} — 點擊查看細節` : '點擊查看細節'}
                     >
                       <div>
-
-                      {/* 部門發布內容 */}
-                      <div className="mt-6 space-y-4">
-                        <div ref={marketingSectionRef} className="bg-white rounded-lg shadow-sm border border-pink-200 p-6">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Megaphone className="w-5 h-5 text-pink-600" />
-                            <h3 className="text-lg font-bold text-gray-900">行銷部發布內容</h3>
-                          </div>
-                          {departmentPublish?.marketing_content || departmentPublish?.marketing_rules || departmentPublish?.marketing_image_data ? (
-                            <div className="space-y-3">
-                              {departmentPublish?.marketing_content && (
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-700 mb-1">行銷內容</p>
-                                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_content}</p>
-                                </div>
-                              )}
-                              {departmentPublish?.marketing_rules && (
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-700 mb-1">行銷規則</p>
-                                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_rules}</p>
-                                </div>
-                              )}
-                              {departmentPublish?.marketing_image_data && (
-                                <div className="space-y-2">
-                                  <img src={departmentPublish.marketing_image_data} alt="行銷圖檔" className="max-h-80 rounded border border-gray-200" />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const a = document.createElement('a');
-                                      a.href = departmentPublish.marketing_image_data as string;
-                                      a.download = departmentPublish.marketing_image_name || '行銷圖檔.png';
-                                      document.body.appendChild(a);
-                                      a.click();
-                                      document.body.removeChild(a);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100"
-                                  >
-                                    <FileDown className="w-4 h-4" />
-                                    下載行銷圖檔
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-400">尚未發布行銷部內容</p>
-                          )}
-                        </div>
-
-                        <div ref={merchandiseSectionRef} className="bg-white rounded-lg shadow-sm border border-orange-200 p-6">
-                          <div className="flex items-center gap-2 mb-3">
-                            <Package className="w-5 h-5 text-orange-600" />
-                            <h3 className="text-lg font-bold text-gray-900">商品部發布內容</h3>
-                          </div>
-                          {departmentPublish?.merchandise_gift_rules_data || departmentPublish?.merchandise_supply_content || departmentPublish?.merchandise_allocation_file_data ? (
-                            <div className="space-y-3">
-                              {departmentPublish?.merchandise_gift_rules_data && (
-                                <div className="space-y-2">
-                                  <p className="text-sm font-semibold text-gray-700">滿額贈規則（圖表）</p>
-                                  <img src={departmentPublish.merchandise_gift_rules_data} alt="滿額贈規則圖表" className="max-h-80 rounded border border-gray-200" />
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const a = document.createElement('a');
-                                      a.href = departmentPublish.merchandise_gift_rules_data as string;
-                                      a.download = departmentPublish.merchandise_gift_rules_name || '滿額贈規則.png';
-                                      document.body.appendChild(a);
-                                      a.click();
-                                      document.body.removeChild(a);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
-                                  >
-                                    <FileDown className="w-4 h-4" />
-                                    下載滿額贈規則圖
-                                  </button>
-                                </div>
-                              )}
-
-                              {departmentPublish?.merchandise_supply_content && (
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-700 mb-1">衛生紙、口罩配量與送達時間</p>
-                                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.merchandise_supply_content}</p>
-                                </div>
-                              )}
-
-                              {departmentPublish?.merchandise_allocation_file_data && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const a = document.createElement('a');
-                                    a.href = departmentPublish.merchandise_allocation_file_data as string;
-                                    a.download = departmentPublish.merchandise_allocation_file_name || '活動百貨配量.xlsx';
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    document.body.removeChild(a);
-                                  }}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
-                                >
-                                  <FileDown className="w-4 h-4" />
-                                  下載活動百貨配量檔案
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-400">尚未發布商品部內容</p>
-                          )}
-                        </div>
-                      </div>
                         <div className={`font-medium ${color.text}`}>{store.store_name}</div>
                         <div className="text-sm text-gray-500">
                           {store.store_code}
@@ -1086,6 +992,139 @@ export default function ActivityViewPage() {
         managedStores={managedStores}
         scheduledStoreIds={schedules.map((s) => s.store_id)}
       />
+    )}
+
+    {/* 部門發布內容 Modal */}
+    {departmentModal && (
+      <div className="fixed inset-0 bg-black/50 z-[90] flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+              {departmentModal === 'marketing' ? (
+                <>
+                  <Megaphone className="w-5 h-5 text-pink-600" />
+                  行銷部發布內容
+                </>
+              ) : (
+                <>
+                  <Package className="w-5 h-5 text-orange-600" />
+                  商品部發布內容
+                </>
+              )}
+            </h3>
+            <button
+              type="button"
+              onClick={() => setDepartmentModal(null)}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              關閉
+            </button>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            {departmentModal === 'marketing' ? (
+              <>
+                {departmentPublish?.marketing_content && (
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-1">行銷內容</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_content}</p>
+                  </div>
+                )}
+                {departmentPublish?.marketing_rules && (
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-1">行銷規則</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_rules}</p>
+                  </div>
+                )}
+                {departmentPublish?.marketing_image_data ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage({
+                      src: departmentPublish.marketing_image_data as string,
+                      title: departmentPublish.marketing_image_name || '行銷圖檔'
+                    })}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-sm font-medium"
+                  >
+                    預覽行銷圖檔
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-400">尚未上傳行銷圖檔</p>
+                )}
+                {!departmentPublish?.marketing_content && !departmentPublish?.marketing_rules && !departmentPublish?.marketing_image_data && (
+                  <p className="text-sm text-gray-400">尚未發布行銷部內容</p>
+                )}
+              </>
+            ) : (
+              <>
+                {departmentPublish?.merchandise_supply_content && (
+                  <div>
+                    <p className="text-sm font-semibold text-gray-700 mb-1">衛生紙、口罩配量與送達時間</p>
+                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.merchandise_supply_content}</p>
+                  </div>
+                )}
+                {departmentPublish?.merchandise_gift_rules_data ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewImage({
+                      src: departmentPublish.merchandise_gift_rules_data as string,
+                      title: departmentPublish.merchandise_gift_rules_name || '滿額贈規則圖表'
+                    })}
+                    className="inline-flex items-center gap-2 px-4 py-2 border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 text-sm font-medium"
+                  >
+                    預覽滿額贈規則圖
+                  </button>
+                ) : (
+                  <p className="text-sm text-gray-400">尚未上傳滿額贈規則圖</p>
+                )}
+                {departmentPublish?.merchandise_allocation_file_data && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = departmentPublish.merchandise_allocation_file_data as string;
+                      a.download = departmentPublish.merchandise_allocation_file_name || '活動百貨配量.xlsx';
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    下載活動百貨配量檔案
+                  </button>
+                )}
+                {!departmentPublish?.merchandise_supply_content && !departmentPublish?.merchandise_gift_rules_data && !departmentPublish?.merchandise_allocation_file_data && (
+                  <p className="text-sm text-gray-400">尚未發布商品部內容</p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* 圖檔預覽 Modal */}
+    {previewImage && (
+      <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4" onClick={() => setPreviewImage(null)}>
+        <div
+          className="bg-white rounded-xl shadow-xl p-3 max-w-5xl max-h-[90vh] w-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-semibold text-gray-800 truncate">{previewImage.title}</h4>
+            <button
+              type="button"
+              onClick={() => setPreviewImage(null)}
+              className="text-gray-500 hover:text-gray-700 text-sm"
+            >
+              關閉
+            </button>
+          </div>
+          <div className="overflow-auto max-h-[80vh]">
+            <img src={previewImage.src} alt={previewImage.title} className="w-full h-auto rounded border border-gray-200" />
+          </div>
+        </div>
+      </div>
     )}
     </>
   );
