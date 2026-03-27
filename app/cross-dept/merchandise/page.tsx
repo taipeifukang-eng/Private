@@ -135,14 +135,14 @@ function AddReportModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-visible">
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h3 className="text-lg font-bold text-gray-900">新增缺貨回報</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-visible">
           {stores.length > 1 && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,11 +174,11 @@ function AddReportModal({
               }}
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               placeholder="輸入編號可搜尋商品主檔"
-              autoComplete="off"
+              autoComplete="new-password"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             {showSuggestions && suggestions.length > 0 && (
-              <ul className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+              <ul className="absolute z-[200] left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                 {suggestions.map(s => (
                   <li
                     key={s.product_code}
