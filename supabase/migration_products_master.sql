@@ -32,7 +32,7 @@ CREATE POLICY "products_master_write" ON products_master
 
 -- 新增 RBAC 權限
 INSERT INTO permissions (module, feature, code, action, description) VALUES
-  ('cross_dept', 'products_master', 'cross_dept.products_master.manage', 'manage', '可匯入及管理商品資料主檔')
+  ('store', 'products_master', 'store.products_master.manage', 'manage', '可匯入及管理商品資料主檔')
 ON CONFLICT (code) DO NOTHING;
 
 -- 授予 system_admin
@@ -41,5 +41,5 @@ SELECT r.id, p.id, true
 FROM roles r
 CROSS JOIN permissions p
 WHERE r.code = 'system_admin'
-  AND p.code = 'cross_dept.products_master.manage'
+  AND p.code = 'store.products_master.manage'
 ON CONFLICT (role_id, permission_id) DO UPDATE SET is_allowed = true;

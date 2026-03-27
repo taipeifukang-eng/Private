@@ -178,7 +178,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('cross_dept.stockout.respond') ||
             permissionSet.has('cross_dept.stockout.submit'),
           canManageProductsMaster:
-            permissionSet.has('cross_dept.products_master.manage'),
+            permissionSet.has('store.products_master.manage'),
         });
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);

@@ -35,7 +35,7 @@ export default function ProductsMasterPage() {
       const res = await fetch('/api/permissions/check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissionCode: 'cross_dept.products_master.manage' }),
+        body: JSON.stringify({ permissionCode: 'store.products_master.manage' }),
       });
       const d = await res.json();
       setCanManage(d.allowed || false);

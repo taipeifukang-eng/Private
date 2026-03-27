@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     // 權限檢查
     const { data: permRow } = await supabase.rpc('check_user_permission', {
       p_user_id: user.id,
-      p_permission_code: 'cross_dept.products_master.manage',
+      p_permission_code: 'store.products_master.manage',
     }).maybeSingle();
     // 若無 RPC，改用直接查詢
     const { data: rolePerms } = await supabase
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       .eq('is_active', true);
     const isAllowed = (rolePerms ?? []).some((ur: any) =>
       ur.role?.role_permissions?.some((rp: any) =>
-        rp.is_allowed && rp.permission?.code === 'cross_dept.products_master.manage'
+        rp.is_allowed && rp.permission?.code === 'store.products_master.manage'
       )
     );
     if (!isAllowed) {
