@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList, Users } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { ArrowLeft, Calendar as CalendarIcon, Store as StoreIcon, FileDown, ClipboardList, Users, Megaphone, Package } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, EventDate, CampaignEquipmentTrip, EQUIPMENT_SET_COLORS } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
@@ -16,9 +16,22 @@ interface StoreWithManager extends Store {
   supervisor_name?: string;
 }
 
+interface CampaignDepartmentPublish {
+  marketing_content?: string;
+  marketing_rules?: string;
+  marketing_image_name?: string | null;
+  marketing_image_data?: string | null;
+  merchandise_gift_rules_name?: string | null;
+  merchandise_gift_rules_data?: string | null;
+  merchandise_supply_content?: string;
+  merchandise_allocation_file_name?: string | null;
+  merchandise_allocation_file_data?: string | null;
+}
+
 export default function ActivityViewPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const campaignId = params.id as string;
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
@@ -55,6 +68,9 @@ export default function ActivityViewPage() {
   const [canViewStaffOverview, setCanViewStaffOverview] = useState(false);
   const [checklistOverviewOpen, setChecklistOverviewOpen] = useState(false);
   const [checklistIncompleteCount, setChecklistIncompleteCount] = useState(0);
+  const [departmentPublish, setDepartmentPublish] = useState<CampaignDepartmentPublish | null>(null);
+  const marketingSectionRef = useRef<HTMLDivElement>(null);
+  const merchandiseSectionRef = useRef<HTMLDivElement>(null);
   // 人員配置總覽（督導專屬）
   const [headcountMap, setHeadcountMap] = useState<Record<string, { own_staff_count: number; supervisor_count: number; extra_support_count: number; total: number }>>({});
   // 預設顏色組合（使用對比度更強的顏色）- Tailwind class 和 inline style 版本
@@ -152,6 +168,16 @@ export default function ActivityViewPage() {
   useEffect(() => {
     loadData();
   }, [campaignId]);
+
+  useEffect(() => {
+    const focus = searchParams.get('focus');
+    if (focus === 'marketing' && marketingSectionRef.current) {
+      marketingSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (focus === 'merchandise' && merchandiseSectionRef.current) {
+      merchandiseSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [searchParams, departmentPublish]);
 
   const loadData = async () => {
     try {
@@ -299,6 +325,15 @@ export default function ActivityViewPage() {
               setManagedStores(stores.map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name })));
             }
           }
+        }
+
+        // 載入行銷部 / 商品部發布內容
+        try {
+          const deptRes = await fetch(`/api/campaign-department-publish?campaign_id=${campaignId}`);
+          const deptData = await deptRes.json();
+          if (deptData.success) setDepartmentPublish(deptData.data || null);
+        } catch {
+          // ignore
         }
         } catch (e) {
         console.warn('支援請求權限載入失敗:', e);
@@ -868,6 +903,113 @@ export default function ActivityViewPage() {
                       title={store.supervisor_name ? `督導: ${store.supervisor_name} — 點擊查看細節` : '點擊查看細節'}
                     >
                       <div>
+
+                      {/* 部門發布內容 */}
+                      <div className="mt-6 space-y-4">
+                        <div ref={marketingSectionRef} className="bg-white rounded-lg shadow-sm border border-pink-200 p-6">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Megaphone className="w-5 h-5 text-pink-600" />
+                            <h3 className="text-lg font-bold text-gray-900">行銷部發布內容</h3>
+                          </div>
+                          {departmentPublish?.marketing_content || departmentPublish?.marketing_rules || departmentPublish?.marketing_image_data ? (
+                            <div className="space-y-3">
+                              {departmentPublish?.marketing_content && (
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-700 mb-1">行銷內容</p>
+                                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_content}</p>
+                                </div>
+                              )}
+                              {departmentPublish?.marketing_rules && (
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-700 mb-1">行銷規則</p>
+                                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_rules}</p>
+                                </div>
+                              )}
+                              {departmentPublish?.marketing_image_data && (
+                                <div className="space-y-2">
+                                  <img src={departmentPublish.marketing_image_data} alt="行銷圖檔" className="max-h-80 rounded border border-gray-200" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const a = document.createElement('a');
+                                      a.href = departmentPublish.marketing_image_data as string;
+                                      a.download = departmentPublish.marketing_image_name || '行銷圖檔.png';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100"
+                                  >
+                                    <FileDown className="w-4 h-4" />
+                                    下載行銷圖檔
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400">尚未發布行銷部內容</p>
+                          )}
+                        </div>
+
+                        <div ref={merchandiseSectionRef} className="bg-white rounded-lg shadow-sm border border-orange-200 p-6">
+                          <div className="flex items-center gap-2 mb-3">
+                            <Package className="w-5 h-5 text-orange-600" />
+                            <h3 className="text-lg font-bold text-gray-900">商品部發布內容</h3>
+                          </div>
+                          {departmentPublish?.merchandise_gift_rules_data || departmentPublish?.merchandise_supply_content || departmentPublish?.merchandise_allocation_file_data ? (
+                            <div className="space-y-3">
+                              {departmentPublish?.merchandise_gift_rules_data && (
+                                <div className="space-y-2">
+                                  <p className="text-sm font-semibold text-gray-700">滿額贈規則（圖表）</p>
+                                  <img src={departmentPublish.merchandise_gift_rules_data} alt="滿額贈規則圖表" className="max-h-80 rounded border border-gray-200" />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const a = document.createElement('a');
+                                      a.href = departmentPublish.merchandise_gift_rules_data as string;
+                                      a.download = departmentPublish.merchandise_gift_rules_name || '滿額贈規則.png';
+                                      document.body.appendChild(a);
+                                      a.click();
+                                      document.body.removeChild(a);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
+                                  >
+                                    <FileDown className="w-4 h-4" />
+                                    下載滿額贈規則圖
+                                  </button>
+                                </div>
+                              )}
+
+                              {departmentPublish?.merchandise_supply_content && (
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-700 mb-1">衛生紙、口罩配量與送達時間</p>
+                                  <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.merchandise_supply_content}</p>
+                                </div>
+                              )}
+
+                              {departmentPublish?.merchandise_allocation_file_data && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const a = document.createElement('a');
+                                    a.href = departmentPublish.merchandise_allocation_file_data as string;
+                                    a.download = departmentPublish.merchandise_allocation_file_name || '活動百貨配量.xlsx';
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
+                                >
+                                  <FileDown className="w-4 h-4" />
+                                  下載活動百貨配量檔案
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400">尚未發布商品部內容</p>
+                          )}
+                        </div>
+                      </div>
                         <div className={`font-medium ${color.text}`}>{store.store_name}</div>
                         <div className="text-sm text-gray-500">
                           {store.store_code}
