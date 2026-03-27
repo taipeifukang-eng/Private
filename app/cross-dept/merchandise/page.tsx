@@ -64,6 +64,7 @@ function AddReportModal({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
   const [nameFromMaster, setNameFromMaster] = useState(false);
+  const [codeReadOnly, setCodeReadOnly] = useState(true); // readOnly 欺騙法：防止 Chrome autocomplete
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
   // 點擊外部關閉下拉
@@ -172,9 +173,13 @@ function AddReportModal({
                 setSelectedUnit('');
                 setNameFromMaster(false);
               }}
-              onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+              readOnly={codeReadOnly}
+              onFocus={() => {
+                setCodeReadOnly(false);
+                if (suggestions.length > 0) setShowSuggestions(true);
+              }}
               placeholder="輸入編號可搜尋商品主檔"
-              autoComplete="new-password"
+              autoComplete="off"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
             {showSuggestions && suggestions.length > 0 && (
