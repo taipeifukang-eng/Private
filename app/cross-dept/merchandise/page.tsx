@@ -117,6 +117,7 @@ function AddReportModal({
               value={form.product_code}
               onChange={e => setForm(f => ({ ...f, product_code: e.target.value }))}
               placeholder="例：A001"
+              autoComplete="off"
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
