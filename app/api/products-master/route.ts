@@ -16,22 +16,54 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get('q')?.trim() ?? '';
     const all = searchParams.get('all') === '1';
 
-    let query = supabase
-      .from('products_master')
-      .select('product_code, product_name, unit')
-      .eq('is_active', true)
-      .order('product_code');
-
-    if (q) {
-      query = query.or(`product_code.ilike.%${q}%,product_name.ilike.%${q}%`);
-    }
-    if (!all) {
-      query = query.limit(20);
+    // 無關鍵字：直接回傳全部（管理頁用）
+    if (!q && all) {
+      const { data, error } = await supabase
+        .from('products_master')
+        .select('product_code, product_name, unit')
+        .eq('is_active', true)
+        .order('product_code');
+      if (error) throw error;
+      return NextResponse.json({ success: true, data: data ?? [] });
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return NextResponse.json({ success: true, data: data ?? [] });
+    if (!q) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+
+    // 搜尋：1) 編號開頭符合  2) 編號/名稱包含  — 分兩批查詢後合併，開頭符合優先
+    const [prefixRes, containsRes] = await Promise.all([
+      supabase
+        .from('products_master')
+        .select('product_code, product_name, unit')
+        .eq('is_active', true)
+        .ilike('product_code', `${q}%`)
+        .order('product_code')
+        .limit(20),
+      supabase
+        .from('products_master')
+        .select('product_code, product_name, unit')
+        .eq('is_active', true)
+        .or(`product_code.ilike.%${q}%,product_name.ilike.%${q}%`)
+        .order('product_code')
+        .limit(20),
+    ]);
+
+    if (prefixRes.error) throw prefixRes.error;
+    if (containsRes.error) throw containsRes.error;
+
+    // 合併：開頭符合優先，去重，最多 20 筆
+    const seen = new Set<string>();
+    const merged: typeof prefixRes.data = [];
+    for (const row of [...(prefixRes.data ?? []), ...(containsRes.data ?? [])]) {
+      if (!seen.has(row.product_code)) {
+        seen.add(row.product_code);
+        merged.push(row);
+        if (!all && merged.length >= 20) break;
+      }
+    }
+
+    return NextResponse.json({ success: true, data: merged });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
