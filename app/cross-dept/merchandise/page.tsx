@@ -395,6 +395,7 @@ export default function MerchandisePage() {
   const [reports, setReports] = useState<StockoutReport[]>([]);
   const [responses, setResponses] = useState<Map<string, StockoutResponse>>(new Map());
   const [loading, setLoading] = useState(false);
+  const [loadTick, setLoadTick] = useState(0);
 
   const [activeTab, setActiveTab] = useState<'all' | 'my-store'>('all');
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
@@ -493,7 +494,7 @@ export default function MerchandisePage() {
     }
   }, [permLoading, activeTab, userManagedStores]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData, loadTick]);
 
   // 聚合：依商品編號 group by（先全部聚合，再依 responses 判斷狀態過濾）
   const aggregated: AggregatedProduct[] = (() => {
@@ -772,7 +773,7 @@ export default function MerchandisePage() {
         <AddReportModal
           stores={userManagedStores}
           onClose={() => setShowAddModal(false)}
-          onSaved={() => { setShowAddModal(false); loadData(); }}
+          onSaved={() => { setShowAddModal(false); setLoadTick(t => t + 1); }}
         />
       )}
       {showAddModal && userManagedStores.length === 0 && (
@@ -789,7 +790,7 @@ export default function MerchandisePage() {
           product={respondTarget}
           existingResponse={respondTarget.response}
           onClose={() => setRespondTarget(null)}
-          onSaved={() => { setRespondTarget(null); loadData(); }}
+          onSaved={() => { setRespondTarget(null); setLoadTick(t => t + 1); }}
         />
       )}
     </div>
