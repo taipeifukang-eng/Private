@@ -495,12 +495,10 @@ export default function MerchandisePage() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // 聚合：依商品編號 group by
+  // 聚合：依商品編號 group by（先全部聚合，再依 responses 判斷狀態過濾）
   const aggregated: AggregatedProduct[] = (() => {
     const map = new Map<string, AggregatedProduct>();
-    const filtered = filterStatus === 'all' ? reports
-      : reports.filter(r => r.status === filterStatus);
-    for (const r of filtered) {
+    for (const r of reports) {
       if (!map.has(r.product_code)) {
         map.set(r.product_code, {
           product_code: r.product_code,
@@ -511,12 +509,16 @@ export default function MerchandisePage() {
       }
       map.get(r.product_code)!.reports.push(r);
     }
-    return Array.from(map.values()).sort((a, b) => a.product_code.localeCompare(b.product_code));
+    const all = Array.from(map.values()).sort((a, b) => a.product_code.localeCompare(b.product_code));
+    if (filterStatus === 'all') return all;
+    if (filterStatus === 'responded') return all.filter(p => p.response !== null);
+    // pending：responses Map 中沒有此商品
+    return all.filter(p => p.response === null);
   })();
 
-  const pendingCount = reports.filter(r => r.status === 'pending').length;
-  // 待回覆的不重複商品數
-  const pendingProductCount = new Set(reports.filter(r => r.status === 'pending').map(r => r.product_code)).size;
+  // 待回覆品項數（依 responses 判斷）
+  const allProductCodes = Array.from(new Set(reports.map(r => r.product_code)));
+  const pendingProductCount = allProductCodes.filter(code => !responses.has(code)).length;
 
   if (permLoading) {
     return (
