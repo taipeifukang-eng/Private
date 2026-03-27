@@ -260,9 +260,14 @@ export default function SupervisorsManagementPage() {
           </h2>
           
           {(() => {
-            // 顯示所有有管轄門市的督導（不限 role_type，督導可能兼任店長）
+            // 只顯示有 role_type='supervisor' 記錄的人（排除純店長）
             const supervisorEntries = Array.from(assignments.entries())
-              .filter(([userId, storeSet]) => storeSet.size > 0);
+              .filter(([userId, storeSet]) => {
+                if (storeSet.size === 0) return false;
+                const userTypes = assignmentTypes.get(userId);
+                if (!userTypes) return false;
+                return Array.from(userTypes.values()).some(type => type === 'supervisor');
+              });
             
             return supervisorEntries.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
