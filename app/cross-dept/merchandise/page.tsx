@@ -329,6 +329,8 @@ function RespondModal({
         <div className="px-6 pt-4">
           <p className="text-xs font-medium text-gray-500 mb-2">
             共 {product.reports.length} 間門市回報，合計需求 {totalQty} 件
+            <span className="mx-1.5 text-gray-300">·</span>
+            最早 {new Date(Math.min(...product.reports.map(r => new Date(r.created_at).getTime()))).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })} 回報
           </p>
           <div className="bg-orange-50 border border-orange-100 rounded-lg p-3 max-h-36 overflow-y-auto space-y-1">
             {product.reports.map(r => (
@@ -674,6 +676,8 @@ export default function MerchandisePage() {
                       </div>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {prod.reports.length} 間門市回報 · 合計需求 {totalQty} 件
+                        <span className="mx-1.5 text-gray-300">·</span>
+                        最早 {new Date(Math.min(...prod.reports.map(r => new Date(r.created_at).getTime()))).toLocaleDateString('zh-TW', { month: '2-digit', day: '2-digit' })} 回報
                       </p>
                     </div>
 
