@@ -1783,7 +1783,7 @@ export default function ScheduleEditPage() {
             </div>
 
             <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-orange-800">
-              請發布：1) 滿額贈規則圖表 2) 衛生紙、口罩配量與送達時間 3) 活動百貨配量檔案（.xlsx）
+              請發布：1) 滿額贈規則圖表 2) 活動百貨配量檔案（.xlsx）
             </div>
 
             <div className="space-y-2">
@@ -1793,6 +1793,7 @@ export default function ScheduleEditPage() {
                   type="file"
                   accept="image/*"
                   onChange={async e => {
+                    const inputEl = e.currentTarget;
                     const file = e.target.files?.[0];
                     if (!file) return;
                     const dataUrl = await fileToDataUrl(file);
@@ -1801,6 +1802,7 @@ export default function ScheduleEditPage() {
                       merchandise_gift_rules_name: file.name,
                       merchandise_gift_rules_data: dataUrl,
                     }));
+                    inputEl.value = '';
                   }}
                   className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
                 />
@@ -1808,28 +1810,33 @@ export default function ScheduleEditPage() {
               {merchandiseForm.merchandise_gift_rules_data && (
                 <div className="rounded-lg border border-gray-200 p-3 space-y-2">
                   <img src={merchandiseForm.merchandise_gift_rules_data} alt="滿額贈規則圖表" className="max-h-64 rounded border border-gray-200" />
-                  <button
-                    type="button"
-                    onClick={() => downloadDataUrlFile(merchandiseForm.merchandise_gift_rules_name || 'gift-rules.png', merchandiseForm.merchandise_gift_rules_data)}
-                    className="inline-flex items-center gap-1.5 text-xs text-orange-700 hover:text-orange-800"
-                  >
-                    <FileDown className="w-3.5 h-3.5" />
-                    下載滿額贈圖表
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => downloadDataUrlFile(merchandiseForm.merchandise_gift_rules_name || 'gift-rules.png', merchandiseForm.merchandise_gift_rules_data)}
+                      className="inline-flex items-center gap-1.5 text-xs text-orange-700 hover:text-orange-800"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      下載滿額贈圖表
+                    </button>
+                    {canEditMerchandise && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMerchandiseForm(prev => ({
+                            ...prev,
+                            merchandise_gift_rules_name: '',
+                            merchandise_gift_rules_data: '',
+                          }));
+                        }}
+                        className="text-xs text-red-600 hover:text-red-700"
+                      >
+                        移除
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">衛生紙、口罩配量與送達時間</label>
-              <textarea
-                rows={5}
-                value={merchandiseForm.merchandise_supply_content}
-                onChange={e => setMerchandiseForm(prev => ({ ...prev, merchandise_supply_content: e.target.value }))}
-                disabled={!canEditMerchandise}
-                placeholder="例如：衛生紙每店 20 箱，口罩每店 5 箱；第一批 4/2 送達..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-50"
-              />
             </div>
 
             <div className="space-y-2">
@@ -1839,6 +1846,7 @@ export default function ScheduleEditPage() {
                   type="file"
                   accept=".xlsx,.xls"
                   onChange={async e => {
+                    const inputEl = e.currentTarget;
                     const file = e.target.files?.[0];
                     if (!file) return;
                     const dataUrl = await fileToDataUrl(file);
@@ -1847,20 +1855,38 @@ export default function ScheduleEditPage() {
                       merchandise_allocation_file_name: file.name,
                       merchandise_allocation_file_data: dataUrl,
                     }));
+                    inputEl.value = '';
                   }}
                   className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
                 />
               )}
 
               {merchandiseForm.merchandise_allocation_file_data && (
-                <button
-                  type="button"
-                  onClick={() => downloadDataUrlFile(merchandiseForm.merchandise_allocation_file_name || '活動百貨配量.xlsx', merchandiseForm.merchandise_allocation_file_data)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
-                >
-                  <FileDown className="w-4 h-4" />
-                  下載活動百貨配量檔案（{merchandiseForm.merchandise_allocation_file_name || 'xlsx'}）
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => downloadDataUrlFile(merchandiseForm.merchandise_allocation_file_name || '活動百貨配量.xlsx', merchandiseForm.merchandise_allocation_file_data)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
+                  >
+                    <FileDown className="w-4 h-4" />
+                    下載活動百貨配量檔案（{merchandiseForm.merchandise_allocation_file_name || 'xlsx'}）
+                  </button>
+                  {canEditMerchandise && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMerchandiseForm(prev => ({
+                          ...prev,
+                          merchandise_allocation_file_name: '',
+                          merchandise_allocation_file_data: '',
+                        }));
+                      }}
+                      className="text-xs text-red-600 hover:text-red-700"
+                    >
+                      移除
+                    </button>
+                  )}
+                </div>
               )}
             </div>
 

@@ -115,6 +115,7 @@ export const ACTION_NAMES: Record<string, string> = {
   view_inactive: '查看已停用',
   create: '建立',
   edit: '編輯',
+  publish: '發布',
   delete: '刪除',
   import: '匯入',
   export: '匯出',

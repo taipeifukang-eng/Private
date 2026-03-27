@@ -1096,12 +1096,6 @@ export default function ActivityViewPage() {
               </>
             ) : (
               <>
-                {departmentPublish?.merchandise_supply_content && (
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-1">衛生紙、口罩配量與送達時間</p>
-                    <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.merchandise_supply_content}</p>
-                  </div>
-                )}
                 {departmentPublish?.merchandise_gift_rules_data ? (
                   <button
                     type="button"
@@ -1135,7 +1129,7 @@ export default function ActivityViewPage() {
                     下載活動百貨配量檔案
                   </button>
                 )}
-                {!departmentPublish?.merchandise_supply_content && !departmentPublish?.merchandise_gift_rules_data && !departmentPublish?.merchandise_allocation_file_data && (
+                {!departmentPublish?.merchandise_gift_rules_data && !departmentPublish?.merchandise_allocation_file_data && (
                   <p className="text-sm text-gray-400">尚未發布商品部內容</p>
                 )}
               </>
