@@ -94,6 +94,7 @@ export const MODULE_NAMES: Record<string, string> = {
   role: '角色權限',
   inventory: '盤點管理',
   inspection: '督導巡店',
+  cross_dept: '跨部門管理',
   // 相容 navbar migration 遺留的中文 module 值
   '任務管理': '任務管理',
   '門市管理': '門市管理',

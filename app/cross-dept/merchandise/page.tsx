@@ -42,15 +42,16 @@ interface AggregatedProduct {
 
 // ── 新增回報 Modal ──────────────────────────────────────────────
 function AddReportModal({
-  storeId,
+  stores,
   onClose,
   onSaved,
 }: {
-  storeId: string;
+  stores: { id: string; store_code: string; store_name: string }[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [form, setForm] = useState({ product_code: '', product_name: '', required_qty: 1 });
+  const [selectedStoreId, setSelectedStoreId] = useState(stores[0]?.id ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,13 +60,17 @@ function AddReportModal({
       setError('商品編號與商品名稱為必填');
       return;
     }
+    if (!selectedStoreId) {
+      setError('請選擇門市');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const res = await fetch('/api/stockout-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ store_id: storeId, ...form }),
+        body: JSON.stringify({ store_id: selectedStoreId, ...form }),
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
@@ -87,6 +92,22 @@ function AddReportModal({
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
+          {stores.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                回報門市 <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={selectedStoreId}
+                onChange={e => setSelectedStoreId(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+              >
+                {stores.map(s => (
+                  <option key={s.id} value={s.id}>{s.store_code} {s.store_name}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               商品編號 <span className="text-red-500">*</span>
@@ -270,6 +291,7 @@ export default function MerchandisePage() {
 
   const [userId, setUserId] = useState<string | null>(null);
   const [userStoreId, setUserStoreId] = useState<string | null>(null);
+  const [userManagedStores, setUserManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
   const [canViewAll, setCanViewAll] = useState(false);
   const [canRespond, setCanRespond] = useState(false);
   const [permLoading, setPermLoading] = useState(true);
@@ -315,13 +337,17 @@ export default function MerchandisePage() {
       setCanViewAll(hasViewAll);
       setCanRespond(hasRespond);
 
-      // 取用戶門市
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('store_id')
-        .eq('id', user.id)
-        .maybeSingle();
-      if (profile?.store_id) setUserStoreId(profile.store_id);
+      // 取用戶所管轄門市（依 store_managers 表）
+      const { data: storeManagerRows } = await supabase
+        .from('store_managers')
+        .select('store_id, stores(id, store_code, store_name)')
+        .eq('user_id', user.id);
+      const managed = (storeManagerRows ?? [])
+        .map((sm: any) => sm.stores)
+        .filter(Boolean)
+        .map((s: any) => ({ id: s.id, store_code: s.store_code, store_name: s.store_name }));
+      setUserManagedStores(managed);
+      if (managed.length > 0) setUserStoreId(managed[0].id);
 
       // 預設 tab
       if (!hasViewAll && !hasRespond) setActiveTab('my-store');
@@ -335,15 +361,21 @@ export default function MerchandisePage() {
     if (permLoading) return;
     setLoading(true);
     try {
-      // 決定 endpoint
-      let url = '/api/stockout-reports';
-      if (activeTab === 'my-store' && userStoreId) {
-        url += `?store_id=${userStoreId}`;
+      // 決定 endpoint（my-store 時並行查詢所有管轄門市）
+      let fetchedReports: StockoutReport[] = [];
+      if (activeTab === 'my-store' && userManagedStores.length > 0) {
+        const results = await Promise.all(
+          userManagedStores.map(s =>
+            fetch(`/api/stockout-reports?store_id=${s.id}`).then(r => r.json())
+          )
+        );
+        fetchedReports = results.flatMap(d => d.data ?? []);
+      } else {
+        const res = await fetch('/api/stockout-reports');
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error);
+        fetchedReports = data.data ?? [];
       }
-      const res = await fetch(url);
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      const fetchedReports: StockoutReport[] = data.data ?? [];
       setReports(fetchedReports);
 
       // 批次取回覆
@@ -362,7 +394,7 @@ export default function MerchandisePage() {
     } finally {
       setLoading(false);
     }
-  }, [permLoading, activeTab, userStoreId]);
+  }, [permLoading, activeTab, userManagedStores]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -635,18 +667,18 @@ export default function MerchandisePage() {
       </div>
 
       {/* ── Modals ── */}
-      {showAddModal && userStoreId && (
+      {showAddModal && userManagedStores.length > 0 && (
         <AddReportModal
-          storeId={userStoreId}
+          stores={userManagedStores}
           onClose={() => setShowAddModal(false)}
           onSaved={() => { setShowAddModal(false); loadData(); }}
         />
       )}
-      {showAddModal && !userStoreId && (
+      {showAddModal && userManagedStores.length === 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-xl p-6 max-w-sm text-center space-y-3">
             <AlertCircle className="w-8 h-8 text-orange-400 mx-auto" />
-            <p className="text-sm text-gray-700">您的帳號未綁定門市，無法提交缺貨回報</p>
+            <p className="text-sm text-gray-700">您尚未被指派管理任何門市，無法提交缺貨回報</p>
             <button onClick={() => setShowAddModal(false)} className="px-4 py-2 text-sm bg-gray-100 rounded-lg hover:bg-gray-200">關閉</button>
           </div>
         </div>
