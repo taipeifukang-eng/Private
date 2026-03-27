@@ -69,12 +69,14 @@ function AddReportModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [existingResponse, setExistingResponse] = useState<StockoutResponse | null>(null);
+  const [showResponseAlertModal, setShowResponseAlertModal] = useState(false);
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
   const [nameFromMaster, setNameFromMaster] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const requiredQtyInputRef = useRef<HTMLInputElement>(null);
+  const alertedProductCodeRef = useRef<string>('');
 
   // 點擊外部關閉下拉
   useEffect(() => {
@@ -94,6 +96,8 @@ function AddReportModal({
       setSuggestions([]);
       setShowSuggestions(false);
       setExistingResponse(null);
+      setShowResponseAlertModal(false);
+      alertedProductCodeRef.current = '';
       return;
     }
     const t = setTimeout(async () => {
@@ -117,6 +121,15 @@ function AddReportModal({
     }, 80);
     return () => clearTimeout(t);
   }, [form.product_code]);
+
+  useEffect(() => {
+    const code = form.product_code.trim();
+    if (!code || !existingResponse) return;
+    if (alertedProductCodeRef.current === code) return;
+
+    alertedProductCodeRef.current = code;
+    setShowResponseAlertModal(true);
+  }, [existingResponse, form.product_code]);
 
   const handleSelectSuggestion = (s: ProductSuggestion) => {
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
@@ -313,6 +326,52 @@ function AddReportModal({
           </button>
         </div>
       </div>
+
+      {showResponseAlertModal && existingResponse && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200">
+            <div className="px-5 py-4 border-b flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-500" />
+                <h4 className="text-base font-semibold text-gray-900">商品部回覆提醒</h4>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResponseAlertModal(false)}
+                className="p-1.5 rounded-lg hover:bg-gray-100"
+                aria-label="關閉提醒"
+              >
+                <X className="w-4 h-4 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-2">
+              <p className="text-sm text-gray-800">
+                此商品已有商品部回覆
+                {existingResponse.eta_date ? `（預計到貨：${existingResponse.eta_date}）` : ''}
+              </p>
+              {!isResponseActive(existingResponse) && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
+                  此回覆預計到貨日已過，建議仍送出回報讓商品部更新進度。
+                </p>
+              )}
+              <p className="text-sm whitespace-pre-wrap text-gray-700 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
+                {existingResponse.response_content}
+              </p>
+            </div>
+
+            <div className="px-5 py-3 border-t flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowResponseAlertModal(false)}
+                className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600"
+              >
+                我知道了
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
