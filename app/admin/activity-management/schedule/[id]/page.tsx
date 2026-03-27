@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2, Truck, Users } from 'lucide-react';
+import { ArrowLeft, Wand2, Save, X, AlertTriangle, Calendar as CalendarIcon, Store as StoreIcon, CheckCircle, Send, ClipboardList, Edit2, Truck, Users, Megaphone, Package, Upload, FileDown } from 'lucide-react';
 import Link from 'next/link';
 import { Campaign, CampaignSchedule, Store, StoreActivitySettings, EventDate } from '@/types/workflow';
 import CampaignStoreDetailModal from '@/components/CampaignStoreDetailModal';
@@ -16,6 +16,20 @@ interface StoreWithManager extends Store {
   supervisor_id?: string;
   supervisor_code?: string;
   supervisor_name?: string;
+}
+
+interface CampaignDepartmentPublish {
+  id?: string;
+  campaign_id: string;
+  marketing_content?: string;
+  marketing_rules?: string;
+  marketing_image_name?: string | null;
+  marketing_image_data?: string | null;
+  merchandise_gift_rules_name?: string | null;
+  merchandise_gift_rules_data?: string | null;
+  merchandise_supply_content?: string;
+  merchandise_allocation_file_name?: string | null;
+  merchandise_allocation_file_data?: string | null;
 }
 
 export default function ScheduleEditPage() {
@@ -37,7 +51,7 @@ export default function ScheduleEditPage() {
   const [unscheduledStores, setUnscheduledStores] = useState<string[]>([]);
   
   // === Tab 狀態 ===
-  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview' | 'equipment_trips' | 'checklist'>('schedule');
+  const [activeTab, setActiveTab] = useState<'schedule' | 'store_details' | 'preview' | 'equipment_trips' | 'checklist' | 'marketing' | 'merchandise'>('schedule');
 
   // 預覽表：全部已載入的細節資料
   const [allDetails, setAllDetails] = useState<import('@/types/workflow').CampaignStoreDetail[]>([]);
@@ -62,6 +76,24 @@ export default function ScheduleEditPage() {
   const [canEditEquipmentTrip, setCanEditEquipmentTrip] = useState(false); // activity.equipment_trip.edit
   const [canEditChecklist, setCanEditChecklist] = useState(false); // activity.checklist.edit
   const [canEditSupportRequest, setCanEditSupportRequest] = useState(false); // activity.support_request.edit
+  const [canEditMarketing, setCanEditMarketing] = useState(false); // activity.marketing.publish
+  const [canEditMerchandise, setCanEditMerchandise] = useState(false); // activity.merchandise.publish
+
+  const [departmentPublish, setDepartmentPublish] = useState<CampaignDepartmentPublish | null>(null);
+  const [marketingForm, setMarketingForm] = useState({
+    marketing_content: '',
+    marketing_rules: '',
+    marketing_image_name: '',
+    marketing_image_data: '',
+  });
+  const [merchandiseForm, setMerchandiseForm] = useState({
+    merchandise_gift_rules_name: '',
+    merchandise_gift_rules_data: '',
+    merchandise_supply_content: '',
+    merchandise_allocation_file_name: '',
+    merchandise_allocation_file_data: '',
+  });
+  const [publishing, setPublishing] = useState(false);
 
   // 分店支援 Modal
   const [supportModal, setSupportModal] = useState<{
@@ -134,8 +166,95 @@ export default function ScheduleEditPage() {
     setSupervisorColorMap(colorMap);
   };
 
+  const fileToDataUrl = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const downloadDataUrlFile = (fileName: string, dataUrl: string) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const loadDepartmentPublish = async () => {
+    try {
+      const res = await fetch(`/api/campaign-department-publish?campaign_id=${campaignId}`);
+      const data = await res.json();
+      if (!data.success || !data.data) return;
+
+      const d = data.data as CampaignDepartmentPublish;
+      setDepartmentPublish(d);
+      setMarketingForm({
+        marketing_content: d.marketing_content ?? '',
+        marketing_rules: d.marketing_rules ?? '',
+        marketing_image_name: d.marketing_image_name ?? '',
+        marketing_image_data: d.marketing_image_data ?? '',
+      });
+      setMerchandiseForm({
+        merchandise_gift_rules_name: d.merchandise_gift_rules_name ?? '',
+        merchandise_gift_rules_data: d.merchandise_gift_rules_data ?? '',
+        merchandise_supply_content: d.merchandise_supply_content ?? '',
+        merchandise_allocation_file_name: d.merchandise_allocation_file_name ?? '',
+        merchandise_allocation_file_data: d.merchandise_allocation_file_data ?? '',
+      });
+    } catch (error) {
+      console.error('loadDepartmentPublish error:', error);
+    }
+  };
+
+  const saveDepartmentPublish = async (department: 'marketing' | 'merchandise') => {
+    try {
+      setPublishing(true);
+      const payload = department === 'marketing'
+        ? {
+            campaign_id: campaignId,
+            department,
+            marketing_content: marketingForm.marketing_content,
+            marketing_rules: marketingForm.marketing_rules,
+            marketing_image_name: marketingForm.marketing_image_name || null,
+            marketing_image_data: marketingForm.marketing_image_data || null,
+          }
+        : {
+            campaign_id: campaignId,
+            department,
+            merchandise_gift_rules_name: merchandiseForm.merchandise_gift_rules_name || null,
+            merchandise_gift_rules_data: merchandiseForm.merchandise_gift_rules_data || null,
+            merchandise_supply_content: merchandiseForm.merchandise_supply_content,
+            merchandise_allocation_file_name: merchandiseForm.merchandise_allocation_file_name || null,
+            merchandise_allocation_file_data: merchandiseForm.merchandise_allocation_file_data || null,
+          };
+
+      const res = await fetch('/api/campaign-department-publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || '儲存失敗');
+
+      setDepartmentPublish(data.data);
+      alert(department === 'marketing' ? '行銷部內容已發布' : '商品部內容已發布');
+    } catch (error: any) {
+      alert(error?.message || '發布失敗');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
+  }, [campaignId]);
+
+  useEffect(() => {
+    if (campaignId) loadDepartmentPublish();
   }, [campaignId]);
 
   // 切換到門市細節 Tab 時自動載入已填寫狀態
@@ -252,6 +371,8 @@ export default function ScheduleEditPage() {
           setCanEditEquipmentTrip(isRbacAdmin || permSet.has('activity.equipment_trip.edit'));
           setCanEditChecklist(isRbacAdmin || permSet.has('activity.checklist.edit'));
           setCanEditSupportRequest(isRbacAdmin || permSet.has('activity.support_request.edit'));
+          setCanEditMarketing(isRbacAdmin || permSet.has('activity.marketing.publish') || permSet.has('activity.checklist.edit'));
+          setCanEditMerchandise(isRbacAdmin || permSet.has('activity.merchandise.publish') || permSet.has('activity.checklist.edit'));
         }
       } catch (permErr) {
         console.warn('權限檢查失敗，使用預設禁用編輯：', permErr);
@@ -955,6 +1076,32 @@ export default function ScheduleEditPage() {
               前置 Check List
             </button>
           )}
+          {campaign?.campaign_type === 'promotion' && (
+            <button
+              onClick={() => setActiveTab('marketing')}
+              className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+                activeTab === 'marketing'
+                  ? 'border-pink-600 text-pink-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Megaphone className="w-4 h-4" />
+              行銷部
+            </button>
+          )}
+          {campaign?.campaign_type === 'promotion' && (
+            <button
+              onClick={() => setActiveTab('merchandise')}
+              className={`px-5 py-2.5 font-medium text-sm border-b-2 -mb-px transition-colors flex items-center gap-2 ${
+                activeTab === 'merchandise'
+                  ? 'border-orange-600 text-orange-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              商品部
+            </button>
+          )}
         </div>
 
         {/* Tab 1: 排程管理 */}
@@ -1324,6 +1471,192 @@ export default function ScheduleEditPage() {
               campaignId={campaignId}
               canEdit={canEditChecklist}
             />
+          </div>
+        )}
+
+        {/* Tab 6: 行銷部 */}
+        {activeTab === 'marketing' && campaign && campaign.campaign_type === 'promotion' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <Megaphone size={20} className="text-pink-600" />
+              <h2 className="text-xl font-bold text-gray-900">行銷部發布內容</h2>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">行銷內容</label>
+              <textarea
+                rows={4}
+                value={marketingForm.marketing_content}
+                onChange={e => setMarketingForm(prev => ({ ...prev, marketing_content: e.target.value }))}
+                disabled={!canEditMarketing}
+                placeholder="例如：母親節活動檔期主視覺、宣傳話術、社群貼文重點..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent disabled:bg-gray-50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">活動規則（行銷面）</label>
+              <textarea
+                rows={4}
+                value={marketingForm.marketing_rules}
+                onChange={e => setMarketingForm(prev => ({ ...prev, marketing_rules: e.target.value }))}
+                disabled={!canEditMarketing}
+                placeholder="例如：折扣條件、兌換限制、宣傳注意事項..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent disabled:bg-gray-50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">行銷圖檔（供門市檢視）</label>
+              {canEditMarketing && (
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const dataUrl = await fileToDataUrl(file);
+                    setMarketingForm(prev => ({
+                      ...prev,
+                      marketing_image_name: file.name,
+                      marketing_image_data: dataUrl,
+                    }));
+                  }}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"
+                />
+              )}
+
+              {marketingForm.marketing_image_data && (
+                <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+                  <img src={marketingForm.marketing_image_data} alt="行銷圖檔預覽" className="max-h-64 rounded border border-gray-200" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">{marketingForm.marketing_image_name || '已上傳圖檔'}</span>
+                    <button
+                      type="button"
+                      onClick={() => downloadDataUrlFile(marketingForm.marketing_image_name || 'marketing-image.png', marketingForm.marketing_image_data)}
+                      className="inline-flex items-center gap-1.5 text-xs text-pink-700 hover:text-pink-800"
+                    >
+                      <FileDown className="w-3.5 h-3.5" />
+                      下載圖檔
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => saveDepartmentPublish('marketing')}
+                disabled={!canEditMarketing || publishing}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50"
+              >
+                {publishing ? <Save className="w-4 h-4 animate-pulse" /> : <Send className="w-4 h-4" />}
+                發布行銷部內容
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Tab 7: 商品部 */}
+        {activeTab === 'merchandise' && campaign && campaign.campaign_type === 'promotion' && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <Package size={20} className="text-orange-600" />
+              <h2 className="text-xl font-bold text-gray-900">商品部發布內容</h2>
+            </div>
+
+            <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-orange-800">
+              請發布：1) 滿額贈規則圖表 2) 衛生紙、口罩配量與送達時間 3) 活動百貨配量檔案（.xlsx）
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">滿額贈規則（圖表）</label>
+              {canEditMerchandise && (
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const dataUrl = await fileToDataUrl(file);
+                    setMerchandiseForm(prev => ({
+                      ...prev,
+                      merchandise_gift_rules_name: file.name,
+                      merchandise_gift_rules_data: dataUrl,
+                    }));
+                  }}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                />
+              )}
+              {merchandiseForm.merchandise_gift_rules_data && (
+                <div className="rounded-lg border border-gray-200 p-3 space-y-2">
+                  <img src={merchandiseForm.merchandise_gift_rules_data} alt="滿額贈規則圖表" className="max-h-64 rounded border border-gray-200" />
+                  <button
+                    type="button"
+                    onClick={() => downloadDataUrlFile(merchandiseForm.merchandise_gift_rules_name || 'gift-rules.png', merchandiseForm.merchandise_gift_rules_data)}
+                    className="inline-flex items-center gap-1.5 text-xs text-orange-700 hover:text-orange-800"
+                  >
+                    <FileDown className="w-3.5 h-3.5" />
+                    下載滿額贈圖表
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">衛生紙、口罩配量與送達時間</label>
+              <textarea
+                rows={5}
+                value={merchandiseForm.merchandise_supply_content}
+                onChange={e => setMerchandiseForm(prev => ({ ...prev, merchandise_supply_content: e.target.value }))}
+                disabled={!canEditMerchandise}
+                placeholder="例如：衛生紙每店 20 箱，口罩每店 5 箱；第一批 4/2 送達..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent disabled:bg-gray-50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">活動百貨配量（.xlsx）</label>
+              {canEditMerchandise && (
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const dataUrl = await fileToDataUrl(file);
+                    setMerchandiseForm(prev => ({
+                      ...prev,
+                      merchandise_allocation_file_name: file.name,
+                      merchandise_allocation_file_data: dataUrl,
+                    }));
+                  }}
+                  className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                />
+              )}
+
+              {merchandiseForm.merchandise_allocation_file_data && (
+                <button
+                  type="button"
+                  onClick={() => downloadDataUrlFile(merchandiseForm.merchandise_allocation_file_name || '活動百貨配量.xlsx', merchandiseForm.merchandise_allocation_file_data)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-sm border border-orange-200 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100"
+                >
+                  <FileDown className="w-4 h-4" />
+                  下載活動百貨配量檔案（{merchandiseForm.merchandise_allocation_file_name || 'xlsx'}）
+                </button>
+              )}
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={() => saveDepartmentPublish('merchandise')}
+                disabled={!canEditMerchandise || publishing}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50"
+              >
+                {publishing ? <Upload className="w-4 h-4 animate-pulse" /> : <Send className="w-4 h-4" />}
+                發布商品部內容
+              </button>
+            </div>
           </div>
         )}
 

@@ -15,50 +15,122 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const storeId = searchParams.get('store_id');
+    const storeIds = (searchParams.get('store_ids') ?? '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean);
 
-    if (!storeId) {
-      // 需要 view_all 權限
-      const canViewAll = await hasAnyPermission(user.id, [
-        'cross_dept.stockout.view_all',
-        'cross_dept.stockout.respond',
-      ]);
-      if (!canViewAll) {
-        return NextResponse.json({ success: false, error: '沒有查看所有門市回報的權限' }, { status: 403 });
-      }
+    const page = Math.max(1, Number(searchParams.get('page') ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get('pageSize') ?? 30)));
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
 
-      const { data, error } = await supabase
-        .from('stockout_reports')
-        .select(`
-          *,
-          store:stores(id, store_code, store_name)
-        `)
-        .order('created_at', { ascending: false });
+    const q = searchParams.get('q')?.trim() ?? '';
+    const status = searchParams.get('status');
+    const month = searchParams.get('month'); // YYYY-MM
+    const dateRange = searchParams.get('date_range'); // recent_30
 
-      if (error) throw error;
-      return NextResponse.json({ success: true, data: data ?? [] });
-    }
-
-    // 取特定門市的回報（需 submit 或 view_all 其一）
-    const canAccess = await hasAnyPermission(user.id, [
+    const canViewAll = await hasAnyPermission(user.id, [
+      'cross_dept.stockout.view_all',
+      'cross_dept.stockout.respond',
+    ]);
+    const canAccessStoreScope = await hasAnyPermission(user.id, [
       'cross_dept.stockout.submit',
       'cross_dept.stockout.view_all',
       'cross_dept.stockout.respond',
     ]);
-    if (!canAccess) {
+
+    // 無門市條件等同查看全域，需要 view_all/respond
+    if (!storeId && storeIds.length === 0 && !canViewAll) {
+      return NextResponse.json({ success: false, error: '沒有查看所有門市回報的權限' }, { status: 403 });
+    }
+
+    // 指定門市或多門市則需要至少有 submit/view_all/respond
+    if ((storeId || storeIds.length > 0) && !canAccessStoreScope) {
       return NextResponse.json({ success: false, error: '沒有權限' }, { status: 403 });
     }
 
-    const { data, error } = await supabase
+    let query = supabase
       .from('stockout_reports')
       .select(`
         *,
         store:stores(id, store_code, store_name)
-      `)
-      .eq('store_id', storeId)
+      `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
+    if (storeId) {
+      query = query.eq('store_id', storeId);
+    } else if (storeIds.length > 0) {
+      query = query.in('store_id', storeIds);
+    }
+
+    if (q) {
+      query = query.or(`product_code.ilike.%${q}%,product_name.ilike.%${q}%`);
+    }
+
+    if (status === 'pending' || status === 'responded') {
+      query = query.eq('status', status);
+    }
+
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+      const start = `${month}-01`;
+      const [y, m] = month.split('-').map(Number);
+      const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      query = query.gte('created_at', `${start}T00:00:00+08:00`).lt('created_at', `${nextMonth}T00:00:00+08:00`);
+    }
+
+    if (dateRange === 'recent_30') {
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      query = query.gte('created_at', since.toISOString());
+    }
+
+    const { data, error, count } = await query.range(from, to);
+
     if (error) throw error;
-    return NextResponse.json({ success: true, data: data ?? [] });
+
+    // 月份彙總（供前端歷史月份折疊使用）
+    let bucketQuery = supabase
+      .from('stockout_reports')
+      .select('created_at')
+      .order('created_at', { ascending: false });
+
+    if (storeId) {
+      bucketQuery = bucketQuery.eq('store_id', storeId);
+    } else if (storeIds.length > 0) {
+      bucketQuery = bucketQuery.in('store_id', storeIds);
+    }
+
+    if (q) {
+      bucketQuery = bucketQuery.or(`product_code.ilike.%${q}%,product_name.ilike.%${q}%`);
+    }
+    if (status === 'pending' || status === 'responded') {
+      bucketQuery = bucketQuery.eq('status', status);
+    }
+
+    const { data: bucketRows, error: bucketErr } = await bucketQuery;
+    if (bucketErr) throw bucketErr;
+
+    const bucketMap = new Map<string, number>();
+    for (const row of (bucketRows ?? [])) {
+      const monthKey = String(row.created_at).slice(0, 7);
+      bucketMap.set(monthKey, (bucketMap.get(monthKey) ?? 0) + 1);
+    }
+    const monthBuckets = Array.from(bucketMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([monthKey, c]) => ({ month: monthKey, count: c }));
+
+    return NextResponse.json({
+      success: true,
+      data: data ?? [],
+      pagination: {
+        page,
+        pageSize,
+        total: count ?? 0,
+        totalPages: Math.max(1, Math.ceil((count ?? 0) / pageSize)),
+      },
+      monthBuckets,
+    });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }

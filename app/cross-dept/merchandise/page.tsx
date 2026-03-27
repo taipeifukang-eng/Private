@@ -33,6 +33,11 @@ interface StockoutResponse {
   responder?: { full_name: string | null } | null;
 }
 
+interface MonthBucket {
+  month: string;
+  count: number;
+}
+
 const getTodayInTaipei = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
 const isResponseActive = (response: StockoutResponse | null | undefined) => {
   if (!response) return false;
@@ -553,8 +558,15 @@ export default function MerchandisePage() {
   const [reports, setReports] = useState<StockoutReport[]>([]);
   const [activeResponses, setActiveResponses] = useState<Map<string, StockoutResponse>>(new Map());
   const [latestResponses, setLatestResponses] = useState<Map<string, StockoutResponse>>(new Map());
+  const [responseHistoryMap, setResponseHistoryMap] = useState<Map<string, StockoutResponse[]>>(new Map());
+  const [responseHistoryOpen, setResponseHistoryOpen] = useState<Set<string>>(new Set());
+  const [responseHistoryLoading, setResponseHistoryLoading] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [loadTick, setLoadTick] = useState(0);
+  const [monthBuckets, setMonthBuckets] = useState<MonthBucket[]>([]);
+
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [activeTab, setActiveTab] = useState<'all' | 'my-store'>('all');
   const [activeToolTab, setActiveToolTab] = useState<'stockout'>('stockout');
@@ -562,6 +574,15 @@ export default function MerchandisePage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [respondTarget, setRespondTarget] = useState<AggregatedProduct | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'responded'>('pending');
+  const [selectedStoreFilter, setSelectedStoreFilter] = useState<string>('all');
+  const [useRecent30Days, setUseRecent30Days] = useState(true);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [isMonthCollapseOpen, setIsMonthCollapseOpen] = useState(false);
+
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(30);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   // 載入使用者資訊 & 權限
   useEffect(() => {
@@ -614,37 +635,52 @@ export default function MerchandisePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
   // 載入回報資料
   const loadData = useCallback(async () => {
     if (permLoading) return;
     setLoading(true);
     try {
-      // 決定 endpoint（my-store 時並行查詢所有管轄門市）
-      let fetchedReports: StockoutReport[] = [];
-      if (activeTab === 'my-store' && userManagedStores.length > 0) {
-        const results = await Promise.all(
-          userManagedStores.map(s =>
-            fetch(`/api/stockout-reports?store_id=${s.id}`).then(r => r.json())
-          )
-        );
-        fetchedReports = results.flatMap(d => d.data ?? []);
-      } else {
-        // 先嘗試取全部（需要 view_all/respond 權限）
-        const res = await fetch('/api/stockout-reports');
-        const data = await res.json();
-        if (data.success) {
-          fetchedReports = data.data ?? [];
-        } else if (userManagedStores.length > 0) {
-          // 沒有 view_all 權限時，fallback 查詢自己的管轄門市
-          const results = await Promise.all(
-            userManagedStores.map(s =>
-              fetch(`/api/stockout-reports?store_id=${s.id}`).then(r => r.json())
-            )
-          );
-          fetchedReports = results.flatMap(d => d.data ?? []);
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      params.set('pageSize', String(pageSize));
+
+      if (searchQuery) params.set('q', searchQuery);
+      if (filterStatus !== 'all') params.set('status', filterStatus);
+
+      if (activeTab === 'my-store') {
+        const myStoreIds = userManagedStores.map(s => s.id);
+        if (selectedStoreFilter !== 'all') {
+          params.set('store_id', selectedStoreFilter);
+        } else if (myStoreIds.length > 0) {
+          params.set('store_ids', myStoreIds.join(','));
         }
+      } else if (selectedStoreFilter !== 'all') {
+        params.set('store_id', selectedStoreFilter);
       }
+
+      if (useRecent30Days) {
+        params.set('date_range', 'recent_30');
+      } else if (selectedMonth) {
+        params.set('month', selectedMonth);
+      }
+
+      const res = await fetch(`/api/stockout-reports?${params.toString()}`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || '載入失敗');
+
+      const fetchedReports: StockoutReport[] = data.data ?? [];
       setReports(fetchedReports);
+      setMonthBuckets(data.monthBuckets ?? []);
+      setTotal(data.pagination?.total ?? fetchedReports.length);
+      setTotalPages(data.pagination?.totalPages ?? 1);
 
       // 批次取回覆
       const codes = Array.from(new Set(fetchedReports.map(r => r.product_code)));
@@ -668,9 +704,59 @@ export default function MerchandisePage() {
     } finally {
       setLoading(false);
     }
-  }, [permLoading, activeTab, userManagedStores]);
+  }, [
+    permLoading,
+    activeTab,
+    userManagedStores,
+    searchQuery,
+    filterStatus,
+    selectedStoreFilter,
+    useRecent30Days,
+    selectedMonth,
+    page,
+    pageSize,
+  ]);
 
   useEffect(() => { loadData(); }, [loadData, loadTick]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [activeTab, filterStatus, selectedStoreFilter, useRecent30Days, selectedMonth]);
+
+  const toggleResponseHistory = useCallback(async (productCode: string) => {
+    setResponseHistoryOpen(prev => {
+      const next = new Set(prev);
+      if (next.has(productCode)) {
+        next.delete(productCode);
+      } else {
+        next.add(productCode);
+      }
+      return next;
+    });
+
+    if (responseHistoryMap.has(productCode)) return;
+
+    setResponseHistoryLoading(prev => new Set(prev).add(productCode));
+    try {
+      const res = await fetch(`/api/stockout-responses?history=1&product_code=${encodeURIComponent(productCode)}&page=1&pageSize=10`);
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || '載入回覆歷程失敗');
+
+      setResponseHistoryMap(prev => {
+        const next = new Map(prev);
+        next.set(productCode, data.data ?? []);
+        return next;
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setResponseHistoryLoading(prev => {
+        const next = new Set(prev);
+        next.delete(productCode);
+        return next;
+      });
+    }
+  }, [responseHistoryMap]);
 
   // 聚合：依商品編號 group by（先全部聚合，再依 responses 判斷狀態過濾）
   const aggregated: AggregatedProduct[] = (() => {
@@ -766,6 +852,88 @@ export default function MerchandisePage() {
 
         {activeToolTab === 'stockout' && (
           <>
+        {/* ── 查詢篩選 ── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              type="search"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="搜尋商品編號 / 品名"
+              className="md:col-span-2 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+
+            <select
+              value={filterStatus}
+              onChange={e => setFilterStatus(e.target.value as 'all' | 'pending' | 'responded')}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <option value="all">全部狀態</option>
+              <option value="pending">待回覆</option>
+              <option value="responded">已回覆</option>
+            </select>
+
+            <select
+              value={selectedStoreFilter}
+              onChange={e => setSelectedStoreFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+            >
+              <option value="all">全部門市</option>
+              {userManagedStores.map(s => (
+                <option key={s.id} value={s.id}>{s.store_code} {s.store_name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setUseRecent30Days(true);
+                setSelectedMonth('');
+              }}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                useRecent30Days ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              近 30 天（預設）
+            </button>
+
+            <button
+              onClick={() => setIsMonthCollapseOpen(v => !v)}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+            >
+              歷史月份 {isMonthCollapseOpen ? '收合' : '展開'}
+            </button>
+          </div>
+
+          {isMonthCollapseOpen && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              {monthBuckets.length === 0 ? (
+                <p className="text-xs text-gray-400">目前沒有可用的歷史月份資料</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {monthBuckets.map(bucket => (
+                    <button
+                      key={bucket.month}
+                      onClick={() => {
+                        setUseRecent30Days(false);
+                        setSelectedMonth(bucket.month);
+                      }}
+                      className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                        !useRecent30Days && selectedMonth === bucket.month
+                          ? 'bg-orange-500 text-white border-orange-500'
+                          : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-100'
+                      }`}
+                    >
+                      {bucket.month}（{bucket.count}）
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* ── 統計卡片 ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -953,6 +1121,49 @@ export default function MerchandisePage() {
                             <p className="text-sm text-gray-800 whitespace-pre-wrap ml-6">
                               {prod.response.response_content}
                             </p>
+
+                            <div className="ml-6 mt-3">
+                              <button
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  toggleResponseHistory(prod.product_code);
+                                }}
+                                className="text-xs text-emerald-700 hover:text-emerald-800 underline"
+                              >
+                                {responseHistoryOpen.has(prod.product_code) ? '收合回覆歷程' : '展開回覆歷程'}
+                              </button>
+
+                              {responseHistoryOpen.has(prod.product_code) && (
+                                <div className="mt-2 space-y-2">
+                                  {responseHistoryLoading.has(prod.product_code) ? (
+                                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      載入歷程中...
+                                    </div>
+                                  ) : (
+                                    (responseHistoryMap.get(prod.product_code) ?? [])
+                                      .filter(h => !(prod.response && h.responded_at === prod.response.responded_at && h.response_content === prod.response.response_content))
+                                      .slice(0, 10)
+                                      .map(h => (
+                                        <div key={h.id} className="rounded-lg border border-emerald-200 bg-white px-3 py-2">
+                                          <p className="text-[11px] text-gray-500 mb-1">
+                                            {new Date(h.responded_at).toLocaleString('zh-TW', {
+                                              month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                                            })}
+                                            {h.eta_date ? ` · ETA ${h.eta_date}` : ''}
+                                          </p>
+                                          <p className="text-xs text-gray-700 whitespace-pre-wrap">{h.response_content}</p>
+                                        </div>
+                                      ))
+                                  )}
+
+                                  {!responseHistoryLoading.has(prod.product_code) &&
+                                    ((responseHistoryMap.get(prod.product_code) ?? []).filter(h => !(prod.response && h.responded_at === prod.response.responded_at && h.response_content === prod.response.response_content)).length === 0) && (
+                                    <p className="text-xs text-gray-500">目前沒有更早的回覆歷程</p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
                       )}
@@ -998,6 +1209,29 @@ export default function MerchandisePage() {
             })}
           </div>
         )}
+
+        {/* ── 分頁 ── */}
+        <div className="mt-4 bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-between gap-3">
+          <p className="text-sm text-gray-500">
+            共 {total} 筆 · 第 {page} / {totalPages} 頁
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page <= 1 || loading}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              上一頁
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages || loading}
+              className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+            >
+              下一頁
+            </button>
+          </div>
+        </div>
           </>
         )}
       </div>
