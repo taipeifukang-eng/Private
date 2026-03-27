@@ -154,8 +154,8 @@ function AddReportModal({
     setShowResponseAlertModal(true);
   }, [existingResponse, form.product_code]);
 
-  const handleSelectSuggestion = (s: ProductSuggestion) => {
-    pendingAlertProductCodeRef.current = s.product_code;
+  const handleSelectSuggestion = (s: ProductSuggestion, shouldTriggerAlert = false) => {
+    pendingAlertProductCodeRef.current = shouldTriggerAlert ? s.product_code : '';
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
     setSelectedUnit(s.unit);
     setNameFromMaster(true);
@@ -174,7 +174,8 @@ function AddReportModal({
     // 只接受「完整商品編號」匹配，避免誤選到相近但不同的商品
     const matchedSuggestion = suggestions.find(s => s.product_code === code);
     if (!matchedSuggestion) return;
-    handleSelectSuggestion(matchedSuggestion);
+    // 只有 Enter 確認才觸發已回覆提醒彈窗
+    handleSelectSuggestion(matchedSuggestion, true);
   };
 
   const handleSubmit = async () => {
@@ -261,7 +262,7 @@ function AddReportModal({
                 {suggestions.map(s => (
                   <li
                     key={s.product_code}
-                    onMouseDown={() => handleSelectSuggestion(s)}
+                    onMouseDown={() => handleSelectSuggestion(s, false)}
                     className="px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 flex items-center justify-between gap-2"
                   >
                     <span>
