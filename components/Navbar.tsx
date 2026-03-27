@@ -135,6 +135,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities || permissions.canAccessActivitySchedule },
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
     { href: '/admin/performance', label: '業績管理', icon: TrendingUp, show: permissions.canManagePerformance },
+    { href: '/cross-dept/products-master', label: '商品主檔', icon: Package, show: permissions.canManageProductsMaster },
   ].filter(item => item.show);
 
   // 每月人員狀態相關的子選單項目（使用 RBAC 權限）
@@ -152,7 +153,6 @@ export default function Navbar({ user }: NavbarProps) {
   // 跨部門管理相關的子選單項目（使用 RBAC 權限）
   const crossDeptSubItems = [
     { href: '/cross-dept/merchandise', label: '商品部', icon: ShoppingCart, show: permissions.canAccessCrossDeptMerchandise },
-    { href: '/cross-dept/products-master', label: '商品主檔', icon: Package, show: permissions.canManageProductsMaster },
   ].filter(item => item.show);
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
