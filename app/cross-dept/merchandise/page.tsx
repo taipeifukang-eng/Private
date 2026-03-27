@@ -77,6 +77,7 @@ function AddReportModal({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const requiredQtyInputRef = useRef<HTMLInputElement>(null);
   const alertedProductCodeRef = useRef<string>('');
+  const pendingAlertProductCodeRef = useRef<string>('');
   const searchSeqRef = useRef(0);
 
   // 點擊外部關閉下拉
@@ -101,6 +102,7 @@ function AddReportModal({
       setExistingResponse(null);
       setShowResponseAlertModal(false);
       alertedProductCodeRef.current = '';
+      pendingAlertProductCodeRef.current = '';
       return;
     }
     const t = setTimeout(async () => {
@@ -131,14 +133,29 @@ function AddReportModal({
 
   useEffect(() => {
     const code = form.product_code.trim();
-    if (!code || !existingResponse) return;
-    if (alertedProductCodeRef.current === code) return;
+    const pendingCode = pendingAlertProductCodeRef.current;
+    if (!code || !pendingCode || pendingCode !== code) return;
+
+    // 已完成查詢但無回覆：不彈窗，結束本次待提醒狀態
+    if (!existingResponse) {
+      pendingAlertProductCodeRef.current = '';
+      return;
+    }
+
+    // 只在「選定後」且回覆資料與目前商品編號一致時才彈窗
+    if (existingResponse.product_code !== code) return;
+    if (alertedProductCodeRef.current === code) {
+      pendingAlertProductCodeRef.current = '';
+      return;
+    }
 
     alertedProductCodeRef.current = code;
+    pendingAlertProductCodeRef.current = '';
     setShowResponseAlertModal(true);
   }, [existingResponse, form.product_code]);
 
   const handleSelectSuggestion = (s: ProductSuggestion) => {
+    pendingAlertProductCodeRef.current = s.product_code;
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
     setSelectedUnit(s.unit);
     setNameFromMaster(true);
@@ -225,6 +242,8 @@ function AddReportModal({
                 setForm(f => ({ ...f, product_code: e.target.value }));
                 setSelectedUnit('');
                 setNameFromMaster(false);
+                setShowResponseAlertModal(false);
+                pendingAlertProductCodeRef.current = '';
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
