@@ -260,16 +260,9 @@ export default function SupervisorsManagementPage() {
           </h2>
           
           {(() => {
-            // 只顯示有督導角色(role_type = 'supervisor')的人員
+            // 顯示所有有管轄門市的督導（不限 role_type，督導可能兼任店長）
             const supervisorEntries = Array.from(assignments.entries())
-              .filter(([userId, storeSet]) => {
-                if (storeSet.size === 0) return false;
-                // 檢查該用戶是否有任何門市標記為 supervisor
-                const userTypes = assignmentTypes.get(userId);
-                if (!userTypes) return false;
-                // 只要有任何一個門市是 supervisor 角色就顯示
-                return Array.from(userTypes.values()).some(type => type === 'supervisor');
-              });
+              .filter(([userId, storeSet]) => storeSet.size > 0);
             
             return supervisorEntries.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
@@ -283,12 +276,8 @@ export default function SupervisorsManagementPage() {
                   const supervisor = supervisors.find(s => s.id === userId);
                   if (!supervisor) return null;
 
-                  // 只顯示 role_type = 'supervisor' 的門市
-                  const userTypes = assignmentTypes.get(userId);
-                  const supervisorStoreIds = Array.from(storeSet).filter(storeId => 
-                    userTypes?.get(storeId) === 'supervisor'
-                  );
-                  const managedStores = stores.filter(store => supervisorStoreIds.includes(store.id));
+                  // 顯示所有管轄門市（不限 role_type，兼任店長的門市也一併計入）
+                  const managedStores = stores.filter(store => storeSet.has(store.id));
                   
                   return (
                     <div key={userId} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-blue-300 transition-all">
