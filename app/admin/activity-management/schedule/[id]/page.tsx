@@ -99,6 +99,8 @@ export default function ScheduleEditPage() {
   });
   const [publishing, setPublishing] = useState(false);
   const [uploadingMarketing, setUploadingMarketing] = useState(false);
+  const [draggingMarketingIndex, setDraggingMarketingIndex] = useState<number | null>(null);
+  const [dragOverMarketingIndex, setDragOverMarketingIndex] = useState<number | null>(null);
 
   // 分店支援 Modal
   const [supportModal, setSupportModal] = useState<{
@@ -271,6 +273,30 @@ export default function ScheduleEditPage() {
       throw new Error(data?.error || '上傳行銷圖檔失敗');
     }
     return data.data as { names: string[]; paths: string[]; urls: string[] };
+  };
+
+  const reorderMarketingImages = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return;
+    setMarketingForm((prev) => {
+      const names = [...prev.marketing_image_names];
+      const paths = [...prev.marketing_image_paths];
+      const urls = [...prev.marketing_image_urls];
+
+      const [movedName] = names.splice(fromIndex, 1);
+      const [movedPath] = paths.splice(fromIndex, 1);
+      const [movedUrl] = urls.splice(fromIndex, 1);
+
+      names.splice(toIndex, 0, movedName);
+      paths.splice(toIndex, 0, movedPath);
+      urls.splice(toIndex, 0, movedUrl);
+
+      return {
+        ...prev,
+        marketing_image_names: names,
+        marketing_image_paths: paths,
+        marketing_image_urls: urls,
+      };
+    });
   };
 
   const loadDepartmentPublish = async () => {
@@ -1665,10 +1691,31 @@ export default function ScheduleEditPage() {
 
               {marketingForm.marketing_image_urls.length > 0 && (
                 <div className="rounded-lg border border-gray-200 p-3 space-y-3">
-                  <div className="text-xs text-gray-500">已上傳 {marketingForm.marketing_image_urls.length} 張圖檔</div>
+                  <div className="text-xs text-gray-500">已上傳 {marketingForm.marketing_image_urls.length} 張圖檔（可拖曳調整順序）</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {marketingForm.marketing_image_urls.map((imageUrl, idx) => (
-                      <div key={`${marketingForm.marketing_image_names[idx] || 'img'}-${idx}`} className="rounded-lg border border-gray-200 p-2 space-y-2">
+                      <div
+                        key={`${marketingForm.marketing_image_names[idx] || 'img'}-${idx}`}
+                        draggable={canEditMarketing}
+                        onDragStart={() => setDraggingMarketingIndex(idx)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setDragOverMarketingIndex(idx);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          if (draggingMarketingIndex !== null) {
+                            reorderMarketingImages(draggingMarketingIndex, idx);
+                          }
+                          setDraggingMarketingIndex(null);
+                          setDragOverMarketingIndex(null);
+                        }}
+                        onDragEnd={() => {
+                          setDraggingMarketingIndex(null);
+                          setDragOverMarketingIndex(null);
+                        }}
+                        className={`rounded-lg border p-2 space-y-2 transition ${dragOverMarketingIndex === idx ? 'border-pink-400 bg-pink-50/60' : 'border-gray-200'} ${canEditMarketing ? 'cursor-move' : ''}`}
+                      >
                         <img src={imageUrl} alt={`行銷圖檔預覽-${idx + 1}`} className="max-h-48 w-full object-contain rounded border border-gray-100" />
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-gray-500 truncate">{marketingForm.marketing_image_names[idx] || `行銷圖檔-${idx + 1}`}</span>
