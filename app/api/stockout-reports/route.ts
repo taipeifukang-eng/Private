@@ -30,8 +30,7 @@ export async function GET(request: NextRequest) {
         .from('stockout_reports')
         .select(`
           *,
-          store:stores(id, store_code, store_name),
-          reporter:profiles!stockout_reports_reported_by_fkey(full_name)
+          store:stores(id, store_code, store_name)
         `)
         .order('created_at', { ascending: false });
 

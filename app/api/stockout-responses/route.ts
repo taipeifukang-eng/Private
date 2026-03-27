@@ -25,10 +25,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('stockout_product_responses')
-      .select(`
-        *,
-        responder:profiles!stockout_product_responses_responded_by_fkey(full_name)
-      `)
+      .select('*')
       .order('responded_at', { ascending: false });
 
     if (codesParam) {
