@@ -530,6 +530,19 @@ export default function MerchandisePage() {
   // 待回覆品項數（依 responses 判斷）
   const allProductCodes = Array.from(new Set(reports.map(r => r.product_code)));
   const pendingProductCount = allProductCodes.filter(code => !responses.has(code)).length;
+  const isStoreView = !canViewAll && !canRespond;
+
+  // 店長視角：已回覆品項預設展開，方便快速閱讀商品部回覆
+  useEffect(() => {
+    if (!isStoreView) return;
+    const respondedCodes = allProductCodes.filter(code => responses.has(code));
+    if (respondedCodes.length === 0) return;
+    setExpandedProducts(prev => {
+      const next = new Set(prev);
+      respondedCodes.forEach(code => next.add(code));
+      return next;
+    });
+  }, [isStoreView, allProductCodes, responses]);
 
   if (permLoading) {
     return (
@@ -653,6 +666,7 @@ export default function MerchandisePage() {
             {aggregated.map(prod => {
               const isExpanded = expandedProducts.has(prod.product_code);
               const hasResp = prod.response !== null;
+              const hideStoreDetails = isStoreView && hasResp;
               const totalQty = prod.reports.reduce((s, r) => s + r.required_qty, 0);
 
               return (
@@ -720,55 +734,59 @@ export default function MerchandisePage() {
                     <div className="divide-y divide-gray-100">
                       {/* 商品部回覆 */}
                       {prod.response && (
-                        <div className="px-5 py-4 bg-green-50 border-b border-green-100">
-                          <div className="flex items-start gap-2 mb-1">
-                            <MessageSquare className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
-                            <p className="text-xs font-semibold text-green-700">商品部回覆</p>
-                            <span className="ml-auto text-xs text-gray-400">
-                              {prod.response.responder?.full_name ?? '－'} ·{' '}
-                              {new Date(prod.response.responded_at).toLocaleString('zh-TW', {
-                                month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
-                              })}
-                            </span>
+                        <div className="px-5 py-3 bg-white">
+                          <div className="ml-8 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+                            <div className="flex items-start gap-2 mb-1">
+                              <MessageSquare className="w-4 h-4 text-emerald-600 mt-0.5 shrink-0" />
+                              <p className="text-xs font-semibold text-emerald-700">商品部回覆</p>
+                              <span className="ml-auto text-xs text-gray-400">
+                                {prod.response.responder?.full_name ?? '－'} ·{' '}
+                                {new Date(prod.response.responded_at).toLocaleString('zh-TW', {
+                                  month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-800 whitespace-pre-wrap ml-6">
+                              {prod.response.response_content}
+                            </p>
                           </div>
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap ml-6">
-                            {prod.response.response_content}
-                          </p>
                         </div>
                       )}
 
                       {/* 各門市回報明細 */}
-                      <div className="px-5 py-3">
-                        <p className="text-xs font-medium text-gray-500 mb-2">門市回報明細</p>
-                        <div className="space-y-2">
-                          {prod.reports.map(r => (
-                            <div key={r.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-                              <Store className="w-4 h-4 text-gray-400 shrink-0" />
-                              <span className="text-gray-600 font-mono text-xs">{r.store?.store_code}</span>
-                              <span className="text-gray-800 font-medium flex-1">{r.store?.store_name}</span>
-                              <span className="text-orange-600 font-semibold shrink-0">×{r.required_qty}</span>
-                              <span className="text-xs text-gray-400 shrink-0">
-                                {new Date(r.created_at).toLocaleString('zh-TW', {
-                                  month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
-                                })}
-                              </span>
-                              {/* 本人可刪除自己的 */}
-                              {r.reported_by === userId && (
-                                <button
-                                  onClick={async () => {
-                                    if (!confirm('確定刪除這筆回報？')) return;
-                                    await fetch(`/api/stockout-reports?id=${r.id}`, { method: 'DELETE' });
-                                    loadData();
-                                  }}
-                                  className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors shrink-0"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          ))}
+                      {!hideStoreDetails && (
+                        <div className="px-5 py-3">
+                          <p className="text-xs font-medium text-gray-500 mb-2">門市回報明細</p>
+                          <div className="space-y-2">
+                            {prod.reports.map(r => (
+                              <div key={r.id} className="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+                                <Store className="w-4 h-4 text-gray-400 shrink-0" />
+                                <span className="text-gray-600 font-mono text-xs">{r.store?.store_code}</span>
+                                <span className="text-gray-800 font-medium flex-1">{r.store?.store_name}</span>
+                                <span className="text-orange-600 font-semibold shrink-0">×{r.required_qty}</span>
+                                <span className="text-xs text-gray-400 shrink-0">
+                                  {new Date(r.created_at).toLocaleString('zh-TW', {
+                                    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                                  })}
+                                </span>
+                                {/* 本人可刪除自己的 */}
+                                {r.reported_by === userId && (
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm('確定刪除這筆回報？')) return;
+                                      await fetch(`/api/stockout-reports?id=${r.id}`, { method: 'DELETE' });
+                                      loadData();
+                                    }}
+                                    className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors shrink-0"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   )}
                 </div>
