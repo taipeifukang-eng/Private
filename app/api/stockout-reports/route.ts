@@ -89,14 +89,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
     }
 
-    // 檢查此商品編號是否已有商品部回覆
+    // 檢查此商品編號是否已有「仍有效」的商品部回覆
     const { data: existingResp } = await supabase
       .from('stockout_product_responses')
-      .select('id')
+      .select('id, eta_date')
       .eq('product_code', product_code.trim())
       .maybeSingle();
 
-    const status = existingResp ? 'responded' : 'pending';
+    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+    const hasActiveResponse = !!existingResp && (!existingResp.eta_date || existingResp.eta_date >= today);
+    const status = hasActiveResponse ? 'responded' : 'pending';
 
     const { data, error } = await supabase
       .from('stockout_reports')

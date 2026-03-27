@@ -60,8 +60,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { product_code, product_name, response_content } = body;
-    if (!product_code || !product_name || !response_content?.trim()) {
+    const { product_code, product_name, response_content, eta_date } = body;
+    if (!product_code || !product_name || !response_content?.trim() || !eta_date) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
     }
 
@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
           product_code: product_code.trim(),
           product_name: product_name.trim(),
           response_content: response_content.trim(),
+          eta_date,
           responded_by: user.id,
           responded_at: new Date().toISOString(),
         },

@@ -29,8 +29,16 @@ interface StockoutResponse {
   response_content: string;
   responded_by: string;
   responded_at: string;
+  eta_date: string | null;
   responder?: { full_name: string | null } | null;
 }
+
+const getTodayInTaipei = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+const isResponseActive = (response: StockoutResponse | null | undefined) => {
+  if (!response) return false;
+  if (!response.eta_date) return true;
+  return response.eta_date >= getTodayInTaipei();
+};
 
 // 依商品編號聚合後的結構（商品部視角）
 interface AggregatedProduct {
@@ -60,6 +68,7 @@ function AddReportModal({
   const [selectedStoreId, setSelectedStoreId] = useState(stores[0]?.id ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [existingResponse, setExistingResponse] = useState<StockoutResponse | null>(null);
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
@@ -83,16 +92,26 @@ function AddReportModal({
     if (!code) {
       setSuggestions([]);
       setShowSuggestions(false);
+      setExistingResponse(null);
       return;
     }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/products-master?q=${encodeURIComponent(code)}`);
-        const d = await res.json();
-        setSuggestions(d.data ?? []);
-        setShowSuggestions((d.data ?? []).length > 0);
+        const [masterRes, responseRes] = await Promise.all([
+          fetch(`/api/products-master?q=${encodeURIComponent(code)}`),
+          fetch(`/api/stockout-responses?product_codes=${encodeURIComponent(code)}`),
+        ]);
+        const masterData = await masterRes.json();
+        const responseData = await responseRes.json();
+
+        setSuggestions(masterData.data ?? []);
+        setShowSuggestions((masterData.data ?? []).length > 0);
+
+        const foundResponse = (responseData.data ?? [])[0] ?? null;
+        setExistingResponse(foundResponse);
       } catch {
         setSuggestions([]);
+        setExistingResponse(null);
       }
     }, 200);
     return () => clearTimeout(t);
@@ -238,6 +257,21 @@ function AddReportModal({
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
+          {existingResponse && (
+            <div className={`rounded-lg border px-3 py-2 text-sm ${isResponseActive(existingResponse)
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              <p className="font-semibold mb-1">
+                此商品已有商品部回覆
+                {existingResponse.eta_date ? `（預計到貨：${existingResponse.eta_date}）` : ''}
+              </p>
+              {!isResponseActive(existingResponse) && (
+                <p className="text-xs mb-1">此回覆預計到貨日已過，建議仍送出回報讓商品部更新進度。</p>
+              )}
+              <p className="text-xs whitespace-pre-wrap">{existingResponse.response_content}</p>
+            </div>
+          )}
           {error && (
             <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -276,12 +310,17 @@ function RespondModal({
   onSaved: () => void;
 }) {
   const [content, setContent] = useState(existingResponse?.response_content ?? '');
+  const [etaDate, setEtaDate] = useState(existingResponse?.eta_date ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleSave = async () => {
     if (!content.trim()) {
       setError('回覆內容不得為空');
+      return;
+    }
+    if (!etaDate) {
+      setError('請填寫預計到貨日');
       return;
     }
     setSaving(true);
@@ -294,6 +333,7 @@ function RespondModal({
           product_code: product.product_code,
           product_name: product.product_name,
           response_content: content,
+          eta_date: etaDate,
         }),
       });
       const data = await res.json();
@@ -356,6 +396,17 @@ function RespondModal({
             placeholder="例：目前廠商缺貨，預計下週三可到貨，請各門市耐心等候..."
             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
           />
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              預計到貨日 <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="date"
+              value={etaDate}
+              onChange={e => setEtaDate(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+          </div>
           {error && (
             <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
@@ -393,7 +444,8 @@ export default function MerchandisePage() {
   const [permLoading, setPermLoading] = useState(true);
 
   const [reports, setReports] = useState<StockoutReport[]>([]);
-  const [responses, setResponses] = useState<Map<string, StockoutResponse>>(new Map());
+  const [activeResponses, setActiveResponses] = useState<Map<string, StockoutResponse>>(new Map());
+  const [latestResponses, setLatestResponses] = useState<Map<string, StockoutResponse>>(new Map());
   const [loading, setLoading] = useState(false);
   const [loadTick, setLoadTick] = useState(0);
 
@@ -491,11 +543,17 @@ export default function MerchandisePage() {
       if (codes.length > 0) {
         const rRes = await fetch(`/api/stockout-responses?product_codes=${codes.join(',')}`);
         const rData = await rRes.json();
-        const map = new Map<string, StockoutResponse>();
-        (rData.data ?? []).forEach((r: StockoutResponse) => map.set(r.product_code, r));
-        setResponses(map);
+        const latestMap = new Map<string, StockoutResponse>();
+        const activeMap = new Map<string, StockoutResponse>();
+        (rData.data ?? []).forEach((r: StockoutResponse) => {
+          latestMap.set(r.product_code, r);
+          if (isResponseActive(r)) activeMap.set(r.product_code, r);
+        });
+        setLatestResponses(latestMap);
+        setActiveResponses(activeMap);
       } else {
-        setResponses(new Map());
+        setLatestResponses(new Map());
+        setActiveResponses(new Map());
       }
     } catch (e) {
       console.error(e);
@@ -515,7 +573,7 @@ export default function MerchandisePage() {
           product_code: r.product_code,
           product_name: r.product_name,
           reports: [],
-          response: responses.get(r.product_code) ?? null,
+          response: activeResponses.get(r.product_code) ?? null,
         });
       }
       map.get(r.product_code)!.reports.push(r);
@@ -529,20 +587,20 @@ export default function MerchandisePage() {
 
   // 待回覆品項數（依 responses 判斷）
   const allProductCodes = Array.from(new Set(reports.map(r => r.product_code)));
-  const pendingProductCount = allProductCodes.filter(code => !responses.has(code)).length;
+  const pendingProductCount = allProductCodes.filter(code => !activeResponses.has(code)).length;
   const isStoreView = !canViewAll && !canRespond;
 
   // 店長視角：已回覆品項預設展開，方便快速閱讀商品部回覆
   useEffect(() => {
     if (!isStoreView) return;
-    const respondedCodes = allProductCodes.filter(code => responses.has(code));
+    const respondedCodes = allProductCodes.filter(code => activeResponses.has(code));
     if (respondedCodes.length === 0) return;
     setExpandedProducts(prev => {
       const next = new Set(prev);
       respondedCodes.forEach(code => next.add(code));
       return next;
     });
-  }, [isStoreView, allProductCodes, responses]);
+  }, [isStoreView, allProductCodes, activeResponses]);
 
   if (permLoading) {
     return (
@@ -591,7 +649,7 @@ export default function MerchandisePage() {
           </div>
           <div className="bg-white rounded-xl border border-green-200 p-4">
             <p className="text-xs text-green-600 mb-1">已回覆品項</p>
-            <p className="text-2xl font-bold text-green-600">{responses.size}</p>
+            <p className="text-2xl font-bold text-green-600">{activeResponses.size}</p>
           </div>
         </div>
 
@@ -666,6 +724,8 @@ export default function MerchandisePage() {
             {aggregated.map(prod => {
               const isExpanded = expandedProducts.has(prod.product_code);
               const hasResp = prod.response !== null;
+              const latestResp = latestResponses.get(prod.product_code) ?? null;
+              const hasExpiredResponse = !hasResp && !!latestResp && !isResponseActive(latestResp);
               const hideStoreDetails = isStoreView && hasResp;
               const totalQty = prod.reports.reduce((s, r) => s + r.required_qty, 0);
 
@@ -732,6 +792,18 @@ export default function MerchandisePage() {
                   {/* 展開內容 */}
                   {isExpanded && (
                     <div className="divide-y divide-gray-100">
+                      {hasExpiredResponse && latestResp && (
+                        <div className="px-5 py-3 bg-amber-50 border-b border-amber-100">
+                          <p className="text-xs font-semibold text-amber-700 mb-1">最近一次回覆（已過預計到貨日）</p>
+                          <p className="text-xs text-amber-700 mb-1">
+                            預計到貨：{latestResp.eta_date ?? '未填寫'} · 回覆時間：{new Date(latestResp.responded_at).toLocaleString('zh-TW', {
+                              month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+                            })}
+                          </p>
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{latestResp.response_content}</p>
+                        </div>
+                      )}
+
                       {/* 商品部回覆 */}
                       {prod.response && (
                         <div className="px-5 py-3 bg-white">
@@ -746,6 +818,9 @@ export default function MerchandisePage() {
                                 })}
                               </span>
                             </div>
+                            {prod.response.eta_date && (
+                              <p className="text-xs text-emerald-700 ml-6 mb-1">預計到貨日：{prod.response.eta_date}</p>
+                            )}
                             <p className="text-sm text-gray-800 whitespace-pre-wrap ml-6">
                               {prod.response.response_content}
                             </p>
