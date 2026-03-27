@@ -27,10 +27,12 @@ import {
   CheckSquare,
   Plus,
   FileCheck,
-  AlertTriangle
+  AlertTriangle,
+  Layers,
+  ShoppingCart
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
-import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission } from '@/hooks/useNavbarPermissions';
+import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission, hasAnyCrossDeptPermission } from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
   user: {
@@ -52,10 +54,12 @@ export default function Navbar({ user }: NavbarProps) {
   const [isStoreMenuOpen, setIsStoreMenuOpen] = useState(false);
   const [isMonthlyStatusMenuOpen, setIsMonthlyStatusMenuOpen] = useState(false);
   const [isInspectionMenuOpen, setIsInspectionMenuOpen] = useState(false);
+  const [isCrossDeptMenuOpen, setIsCrossDeptMenuOpen] = useState(false);
   const taskMenuRef = useRef<HTMLDivElement>(null);
   const storeMenuRef = useRef<HTMLDivElement>(null);
   const monthlyStatusMenuRef = useRef<HTMLDivElement>(null);
   const inspectionMenuRef = useRef<HTMLDivElement>(null);
+  const crossDeptMenuRef = useRef<HTMLDivElement>(null);
 
   // 🔐 使用 RBAC 權限系統
   const permissions = useNavbarPermissions(user?.id || '');
@@ -74,6 +78,9 @@ export default function Navbar({ user }: NavbarProps) {
       }
       if (inspectionMenuRef.current && !inspectionMenuRef.current.contains(event.target as Node)) {
         setIsInspectionMenuOpen(false);
+      }
+      if (crossDeptMenuRef.current && !crossDeptMenuRef.current.contains(event.target as Node)) {
+        setIsCrossDeptMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -142,7 +149,10 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/inspection/improvements', label: '待改善追蹤', icon: AlertTriangle, show: permissions.canViewImprovements },
     { href: '/admin/inspection-templates', label: '模板管理', icon: FileCheck, show: permissions.canManageInspectionTemplates },
   ].filter(item => item.show);
-
+  // 跨部門管理相關的子選單項目（使用 RBAC 權限）
+  const crossDeptSubItems = [
+    { href: '/cross-dept/merchandise', label: '商品部', icon: ShoppingCart, show: permissions.canAccessCrossDeptMerchandise },
+  ].filter(item => item.show);
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
     path => pathname.startsWith(path) || pathname === path
@@ -162,7 +172,8 @@ export default function Navbar({ user }: NavbarProps) {
   const isInInspectionSection = ['/inspection', '/admin/inspection-templates'].some(
     path => pathname.startsWith(path) || pathname === path
   );
-
+  // 判斷是否在跨部門管理相關頁面
+  const isInCrossDeptSection = pathname.startsWith('/cross-dept');
   // 其他獨立的導航項目
   const navItems = [
     { href: '/', label: '首頁', icon: Home, roles: ['admin', 'manager', 'member'] },
@@ -367,6 +378,48 @@ export default function Navbar({ user }: NavbarProps) {
                             key={item.href}
                             href={item.href}
                             onClick={() => setIsInspectionMenuOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-blue-50 text-blue-700'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
+                          >
+                            <Icon size={18} />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 跨部門管理下拉選單 */}
+              {hasAnyCrossDeptPermission(permissions) && (
+                <div className="relative" ref={crossDeptMenuRef}>
+                  <button
+                    onClick={() => setIsCrossDeptMenuOpen(!isCrossDeptMenuOpen)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isInCrossDeptSection
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Layers size={18} />
+                    跨部門管理
+                    <ChevronDown size={16} className={`transition-transform ${isCrossDeptMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {isCrossDeptMenuOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                      {crossDeptSubItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsCrossDeptMenuOpen(false)}
                             className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-blue-50 text-blue-700'

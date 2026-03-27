@@ -36,7 +36,8 @@ interface NavbarPermissions {
   canCreateInspection: boolean;
   canManageInspectionTemplates: boolean;
   canViewImprovements: boolean;
-}
+  // 跨部門管理
+  canAccessCrossDeptMerchandise: boolean;  // 商品部頁面入口}
 
 /**
  * 導航欄權限 Hook
@@ -77,6 +78,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canCreateInspection: false,
     canManageInspectionTemplates: false,
     canViewImprovements: false,
+    canAccessCrossDeptMerchandise: false,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -166,6 +168,12 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canViewImprovements:
             permissionSet.has('inspection.improvement.view_all') ||
             permissionSet.has('inspection.improvement.view_own_store'),
+
+          // 跨部門管理
+          canAccessCrossDeptMerchandise:
+            permissionSet.has('cross_dept.stockout.view_all') ||
+            permissionSet.has('cross_dept.stockout.respond') ||
+            permissionSet.has('cross_dept.stockout.submit'),
         });
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);
@@ -222,4 +230,11 @@ export function hasAnyInspectionPermission(permissions: NavbarPermissions): bool
          permissions.canCreateInspection ||
          permissions.canManageInspectionTemplates ||
          permissions.canViewImprovements;
+}
+
+/**
+ * 檢查用戶是否有任何跨部門管理權限
+ */
+export function hasAnyCrossDeptPermission(permissions: NavbarPermissions): boolean {
+  return permissions.canAccessCrossDeptMerchandise;
 }
