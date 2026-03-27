@@ -296,7 +296,7 @@ export default function MerchandisePage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          codes: ['cross_dept.stockout.view_all', 'cross_dept.stockout.respond', 'cross_dept.stockout.submit'],
+          permissionCodes: ['cross_dept.stockout.view_all', 'cross_dept.stockout.respond', 'cross_dept.stockout.submit'],
           mode: 'any',
         }),
       });
@@ -305,9 +305,9 @@ export default function MerchandisePage() {
       // 個別檢查
       const [viewAllRes, respondRes] = await Promise.all([
         fetch('/api/permissions/check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: 'cross_dept.stockout.view_all' }) }),
+          body: JSON.stringify({ permissionCode: 'cross_dept.stockout.view_all' }) }),
         fetch('/api/permissions/check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code: 'cross_dept.stockout.respond' }) }),
+          body: JSON.stringify({ permissionCode: 'cross_dept.stockout.respond' }) }),
       ]);
       const [vaD, rD] = await Promise.all([viewAllRes.json(), respondRes.json()]);
       const hasViewAll = vaD.allowed || false;
