@@ -17,16 +17,18 @@ CREATE INDEX IF NOT EXISTS idx_products_master_code ON products_master(product_c
 CREATE INDEX IF NOT EXISTS idx_products_master_name ON products_master(product_name);
 
 -- 自動更新 updated_at
-CREATE TRIGGER trg_products_master_updated_at
+CREATE OR REPLACE TRIGGER trg_products_master_updated_at
   BEFORE UPDATE ON products_master
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- RLS
 ALTER TABLE products_master ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "products_master_read" ON products_master;
 CREATE POLICY "products_master_read" ON products_master
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "products_master_write" ON products_master;
 CREATE POLICY "products_master_write" ON products_master
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 

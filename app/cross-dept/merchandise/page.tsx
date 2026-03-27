@@ -469,10 +469,20 @@ export default function MerchandisePage() {
         );
         fetchedReports = results.flatMap(d => d.data ?? []);
       } else {
+        // 先嘗試取全部（需要 view_all/respond 權限）
         const res = await fetch('/api/stockout-reports');
         const data = await res.json();
-        if (!data.success) throw new Error(data.error);
-        fetchedReports = data.data ?? [];
+        if (data.success) {
+          fetchedReports = data.data ?? [];
+        } else if (userManagedStores.length > 0) {
+          // 沒有 view_all 權限時，fallback 查詢自己的管轄門市
+          const results = await Promise.all(
+            userManagedStores.map(s =>
+              fetch(`/api/stockout-reports?store_id=${s.id}`).then(r => r.json())
+            )
+          );
+          fetchedReports = results.flatMap(d => d.data ?? []);
+        }
       }
       setReports(fetchedReports);
 
@@ -773,7 +783,13 @@ export default function MerchandisePage() {
         <AddReportModal
           stores={userManagedStores}
           onClose={() => setShowAddModal(false)}
-          onSaved={() => { setShowAddModal(false); setLoadTick(t => t + 1); }}
+          onSaved={() => {
+            setShowAddModal(false);
+            // 若有「我的門市」tab，切換過去確保能看到剛新增的回報
+            if (userStoreId) setActiveTab('my-store');
+            setFilterStatus('all');
+            setLoadTick(t => t + 1);
+          }}
         />
       )}
       {showAddModal && userManagedStores.length === 0 && (
@@ -790,7 +806,12 @@ export default function MerchandisePage() {
           product={respondTarget}
           existingResponse={respondTarget.response}
           onClose={() => setRespondTarget(null)}
-          onSaved={() => { setRespondTarget(null); setLoadTick(t => t + 1); }}
+          onSaved={() => {
+            setRespondTarget(null);
+            // 切換到「已回覆」篩選，讓使用者立即看到回覆結果
+            setFilterStatus('responded');
+            setLoadTick(t => t + 1);
+          }}
         />
       )}
     </div>
