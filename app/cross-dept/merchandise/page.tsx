@@ -133,6 +133,12 @@ function AddReportModal({
     return (responseData.data ?? [])[0] ?? null;
   };
 
+  const fetchProductSuggestionsByCode = async (code: string): Promise<ProductSuggestion[]> => {
+    const masterRes = await fetch(`/api/products-master?q=${encodeURIComponent(code)}`);
+    const masterData = await masterRes.json();
+    return masterData.data ?? [];
+  };
+
   const handleSelectSuggestion = (s: ProductSuggestion) => {
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
     setSelectedUnit(s.unit);
@@ -147,16 +153,23 @@ function AddReportModal({
 
   const handleProductCodeEnter = async () => {
     const code = form.product_code.trim();
-    if (!code || suggestions.length === 0) return;
-
-    // 只接受「完整商品編號」匹配，避免誤選到相近但不同的商品
-    const matchedSuggestion = suggestions.find(s => s.product_code === code);
-    if (!matchedSuggestion) return;
-
-    handleSelectSuggestion(matchedSuggestion);
-
-    // Enter 確認後，立即以該商品編號查詢回覆並決定是否彈窗
     try {
+      if (!code) return;
+
+      // 先用當前建議清單找完整匹配；若尚未載入完成，改用即時查詢補抓
+      let matchedSuggestion = suggestions.find(s => s.product_code === code);
+      if (!matchedSuggestion) {
+        const freshSuggestions = await fetchProductSuggestionsByCode(code);
+        setSuggestions(freshSuggestions);
+        matchedSuggestion = freshSuggestions.find(s => s.product_code === code);
+      }
+
+      // 無完整匹配就不帶入品名，也不彈窗
+      if (!matchedSuggestion) return;
+
+      handleSelectSuggestion(matchedSuggestion);
+
+      // Enter 確認後，立即以該商品編號查詢回覆並決定是否彈窗
       const foundResponse = await fetchResponseByCode(matchedSuggestion.product_code);
       setExistingResponse(foundResponse);
       setShowResponseAlertModal(!!foundResponse);
