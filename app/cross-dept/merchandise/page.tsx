@@ -87,7 +87,7 @@ function AddReportModal({
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // Debounce 搜尋商品主檔
+  // Debounce 搜尋商品主檔（降低延遲至 80ms，結合 API 優化可感知改善）
   useEffect(() => {
     const code = form.product_code.trim();
     if (!code) {
@@ -114,7 +114,7 @@ function AddReportModal({
         setSuggestions([]);
         setExistingResponse(null);
       }
-    }, 200);
+    }, 80);
     return () => clearTimeout(t);
   }, [form.product_code]);
 

@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, data: [] });
     }
 
-    // 搜尋：1) 編號開頭符合  2) 編號/名稱包含  — 分兩批查詢後合併，開頭符合優先
+    // 搜尋邏輯：優先用 product_code 開頭匹配（走索引更快）
+    // 若不足 20 筆，再查詢名稱包含的結果
     const [prefixRes, containsRes] = await Promise.all([
       supabase
         .from('products_master')
@@ -40,27 +41,25 @@ export async function GET(request: NextRequest) {
         .ilike('product_code', `${q}%`)
         .order('product_code')
         .limit(20),
+      // 只查詢「編號/名稱包含但不是開頭」的結果（避免重複）
       supabase
         .from('products_master')
         .select('product_code, product_name, unit')
         .eq('is_active', true)
         .or(`product_code.ilike.%${q}%,product_name.ilike.%${q}%`)
+        .not('product_code', 'ilike', `${q}%`) // 排除已在開頭匹配的
         .order('product_code')
-        .limit(20),
+        .limit(10),
     ]);
 
     if (prefixRes.error) throw prefixRes.error;
     if (containsRes.error) throw containsRes.error;
 
-    // 合併：開頭符合優先，去重，最多 20 筆
-    const seen = new Set<string>();
-    const merged: typeof prefixRes.data = [];
-    for (const row of [...(prefixRes.data ?? []), ...(containsRes.data ?? [])]) {
-      if (!seen.has(row.product_code)) {
-        seen.add(row.product_code);
-        merged.push(row);
-        if (!all && merged.length >= 20) break;
-      }
+    // 合併：開頭符合優先，最多 20 筆
+    const merged = [...(prefixRes.data ?? [])];
+    for (const row of (containsRes.data ?? [])) {
+      if (merged.length >= 20) break;
+      merged.push(row);
     }
 
     return NextResponse.json({ success: true, data: merged });
