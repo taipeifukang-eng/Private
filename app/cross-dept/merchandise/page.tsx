@@ -77,6 +77,7 @@ function AddReportModal({
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const requiredQtyInputRef = useRef<HTMLInputElement>(null);
   const alertedProductCodeRef = useRef<string>('');
+  const searchSeqRef = useRef(0);
 
   // 點擊外部關閉下拉
   useEffect(() => {
@@ -92,6 +93,8 @@ function AddReportModal({
   // Debounce 搜尋商品主檔（降低延遲至 80ms，結合 API 優化可感知改善）
   useEffect(() => {
     const code = form.product_code.trim();
+    const seq = ++searchSeqRef.current;
+
     if (!code) {
       setSuggestions([]);
       setShowSuggestions(false);
@@ -109,12 +112,16 @@ function AddReportModal({
         const masterData = await masterRes.json();
         const responseData = await responseRes.json();
 
+        // 僅處理最新一次搜尋結果，避免舊請求覆蓋新輸入造成 UI 閃爍或錯位
+        if (searchSeqRef.current !== seq) return;
+
         setSuggestions(masterData.data ?? []);
         setShowSuggestions((masterData.data ?? []).length > 0);
 
         const foundResponse = (responseData.data ?? [])[0] ?? null;
         setExistingResponse(foundResponse);
       } catch {
+        if (searchSeqRef.current !== seq) return;
         setSuggestions([]);
         setExistingResponse(null);
       }
@@ -147,7 +154,9 @@ function AddReportModal({
     const code = form.product_code.trim();
     if (!code || suggestions.length === 0) return;
 
-    const matchedSuggestion = suggestions.find(s => s.product_code === code) ?? suggestions[0];
+    // 只接受「完整商品編號」匹配，避免誤選到相近但不同的商品
+    const matchedSuggestion = suggestions.find(s => s.product_code === code);
+    if (!matchedSuggestion) return;
     handleSelectSuggestion(matchedSuggestion);
   };
 
