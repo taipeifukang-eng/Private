@@ -184,6 +184,9 @@ export default function ScheduleEditPage() {
     document.body.removeChild(a);
   };
 
+  const MAX_MARKETING_IMAGE_COUNT = 8;
+  const MAX_MARKETING_PAYLOAD_BYTES = 3 * 1024 * 1024; // 避免 Request Entity Too Large
+
   // 支援舊版單圖字串與新版 JSON 陣列字串
   const parseSerializedStringArray = (value?: string | null): string[] => {
     if (!value) return [];
@@ -246,13 +249,35 @@ export default function ScheduleEditPage() {
             merchandise_allocation_file_data: merchandiseForm.merchandise_allocation_file_data || null,
           };
 
+      if (department === 'marketing') {
+        const estimatedBytes = new Blob([JSON.stringify(payload)]).size;
+        if (estimatedBytes > MAX_MARKETING_PAYLOAD_BYTES) {
+          throw new Error('行銷圖檔內容過大，請減少張數或改用較小圖片後再發布');
+        }
+      }
+
       const res = await fetch('/api/campaign-department-publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || '儲存失敗');
+      const rawText = await res.text();
+      let data: any = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        if (res.status === 413 || /request\s+entity\s+too\s+large/i.test(rawText)) {
+          throw new Error('發布內容過大，請減少行銷圖檔大小或張數後再試');
+        }
+        throw new Error(`伺服器回應格式異常（${res.status}）`);
+      }
+
+      if (!res.ok || !data?.success) {
+        if (res.status === 413) {
+          throw new Error('發布內容過大，請減少行銷圖檔大小或張數後再試');
+        }
+        throw new Error(data?.error || `儲存失敗（${res.status}）`);
+      }
 
       setDepartmentPublish(data.data);
       alert(department === 'marketing' ? '行銷部內容已發布' : '商品部內容已發布');
@@ -1530,11 +1555,34 @@ export default function ScheduleEditPage() {
                   onChange={async e => {
                     const files = Array.from(e.target.files || []);
                     if (files.length === 0) return;
+                    const currentCount = marketingForm.marketing_image_datas.length;
+                    if (currentCount + files.length > MAX_MARKETING_IMAGE_COUNT) {
+                      alert(`最多可上傳 ${MAX_MARKETING_IMAGE_COUNT} 張行銷圖檔`);
+                      e.currentTarget.value = '';
+                      return;
+                    }
                     const dataUrls = await Promise.all(files.map(file => fileToDataUrl(file)));
+                    const nextNames = [...marketingForm.marketing_image_names, ...files.map(f => f.name)];
+                    const nextDatas = [...marketingForm.marketing_image_datas, ...dataUrls];
+                    const estimatedBytes = new Blob([
+                      JSON.stringify({
+                        campaign_id: campaignId,
+                        department: 'marketing',
+                        marketing_content: marketingForm.marketing_content,
+                        marketing_rules: marketingForm.marketing_rules,
+                        marketing_image_name: JSON.stringify(nextNames),
+                        marketing_image_data: JSON.stringify(nextDatas),
+                      }),
+                    ]).size;
+                    if (estimatedBytes > MAX_MARKETING_PAYLOAD_BYTES) {
+                      alert('加入這批圖片後資料過大，請改上傳較小圖片或減少張數');
+                      e.currentTarget.value = '';
+                      return;
+                    }
                     setMarketingForm(prev => ({
                       ...prev,
-                      marketing_image_names: [...prev.marketing_image_names, ...files.map(f => f.name)],
-                      marketing_image_datas: [...prev.marketing_image_datas, ...dataUrls],
+                      marketing_image_names: nextNames,
+                      marketing_image_datas: nextDatas,
                     }));
                     e.currentTarget.value = '';
                   }}
