@@ -557,6 +557,7 @@ export default function MerchandisePage() {
   const [loadTick, setLoadTick] = useState(0);
 
   const [activeTab, setActiveTab] = useState<'all' | 'my-store'>('all');
+  const [activeToolTab, setActiveToolTab] = useState<'stockout'>('stockout');
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
   const [showAddModal, setShowAddModal] = useState(false);
   const [respondTarget, setRespondTarget] = useState<AggregatedProduct | null>(null);
@@ -738,12 +739,33 @@ export default function MerchandisePage() {
               <ShoppingCart className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">商品部 — 缺貨商品管理</h1>
-              <p className="text-sm text-gray-500">各門市缺貨回報彙整 · 商品部統一回覆</p>
+              <h1 className="text-2xl font-bold text-gray-900">商品部管理</h1>
+              <p className="text-sm text-gray-500">請先選擇工具分頁，再進行跨部門管理作業</p>
             </div>
           </div>
         </div>
 
+        {/* ── 商品部工具 Tab ── */}
+        <div className="bg-white rounded-xl border border-gray-200 p-2 mb-6">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <button
+              onClick={() => setActiveToolTab('stockout')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg whitespace-nowrap transition-colors ${
+                activeToolTab === 'stockout'
+                  ? 'bg-orange-500 text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              缺貨商品管理
+            </button>
+            <span className="px-3 py-2 text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg whitespace-nowrap">
+              其他商品部工具（未來可新增 Tab）
+            </span>
+          </div>
+        </div>
+
+        {activeToolTab === 'stockout' && (
+          <>
         {/* ── 統計卡片 ── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
           <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -975,6 +997,8 @@ export default function MerchandisePage() {
               );
             })}
           </div>
+        )}
+          </>
         )}
       </div>
 
