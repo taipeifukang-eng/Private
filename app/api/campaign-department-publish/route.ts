@@ -2,6 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
+const STORAGE_BUCKET = 'campaign-department-assets';
+
+function parseStringArray(value: unknown): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.filter((v): v is string => typeof v === 'string' && v.length > 0);
+      return value ? [value] : [];
+    } catch {
+      return value ? [value] : [];
+    }
+  }
+  return [];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -27,7 +44,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data: data ?? null });
+    if (!data) {
+      return NextResponse.json({ success: true, data: null });
+    }
+
+    const marketingImagePaths = parseStringArray((data as any).marketing_image_paths);
+    let marketingImageUrls: string[] = [];
+    if (marketingImagePaths.length > 0) {
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrls(marketingImagePaths, 60 * 60 * 24 * 7);
+      if (!signedError) {
+        marketingImageUrls = (signedData || []).map((item) => item.signedUrl || '').filter(Boolean);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...data,
+        marketing_image_urls: marketingImageUrls,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -47,6 +85,8 @@ export async function POST(request: NextRequest) {
       marketing_rules,
       marketing_image_name,
       marketing_image_data,
+      marketing_image_names,
+      marketing_image_paths,
       merchandise_gift_rules_name,
       merchandise_gift_rules_data,
       merchandise_supply_content,
@@ -80,6 +120,8 @@ export async function POST(request: NextRequest) {
       updateData.marketing_rules = marketing_rules ?? '';
       updateData.marketing_image_name = marketing_image_name ?? null;
       updateData.marketing_image_data = marketing_image_data ?? null;
+      updateData.marketing_image_names = parseStringArray(marketing_image_names);
+      updateData.marketing_image_paths = parseStringArray(marketing_image_paths);
     }
 
     if (department === 'merchandise') {

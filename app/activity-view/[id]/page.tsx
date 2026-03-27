@@ -21,6 +21,9 @@ interface CampaignDepartmentPublish {
   marketing_rules?: string;
   marketing_image_name?: string | null;
   marketing_image_data?: string | null;
+  marketing_image_names?: string[] | string | null;
+  marketing_image_paths?: string[] | string | null;
+  marketing_image_urls?: string[];
   merchandise_gift_rules_name?: string | null;
   merchandise_gift_rules_data?: string | null;
   merchandise_supply_content?: string;
@@ -97,21 +100,30 @@ export default function ActivityViewPage() {
   const DEFAULT_COLOR = { bg: 'bg-gray-100', border: 'border-gray-300', text: 'text-gray-900', name: '灰色', hexBg: '#F3F4F6', hexBorder: '#D1D5DB', hexText: '#111827' };
 
   // 支援舊版單圖字串與新版 JSON 陣列字串
-  const parseSerializedStringArray = (value?: string | null): string[] => {
+  const parseSerializedStringArray = (value: unknown): string[] => {
     if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
+    }
     try {
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(String(value));
       if (Array.isArray(parsed)) {
         return parsed.filter((v): v is string => typeof v === 'string' && v.length > 0);
       }
       return [];
     } catch {
-      return [value];
+      return typeof value === 'string' && value.length > 0 ? [value] : [];
     }
   };
 
-  const marketingImageNames = parseSerializedStringArray(departmentPublish?.marketing_image_name);
-  const marketingImageDatas = parseSerializedStringArray(departmentPublish?.marketing_image_data);
+  const marketingImageNames =
+    parseSerializedStringArray(departmentPublish?.marketing_image_names).length > 0
+      ? parseSerializedStringArray(departmentPublish?.marketing_image_names)
+      : parseSerializedStringArray(departmentPublish?.marketing_image_name);
+  const marketingImageUrls =
+    parseSerializedStringArray(departmentPublish?.marketing_image_urls).length > 0
+      ? parseSerializedStringArray(departmentPublish?.marketing_image_urls)
+      : parseSerializedStringArray(departmentPublish?.marketing_image_data);
   const currentPreviewImageSrc = previewGallery ? previewGallery.images[previewGallery.index] : null;
   const currentPreviewImageTitle = previewGallery
     ? (previewGallery.titles[previewGallery.index] || `圖檔 ${previewGallery.index + 1}`)
@@ -1062,23 +1074,23 @@ export default function ActivityViewPage() {
                     <p className="text-sm text-gray-800 whitespace-pre-wrap">{departmentPublish.marketing_rules}</p>
                   </div>
                 )}
-                {marketingImageDatas.length > 0 ? (
+                {marketingImageUrls.length > 0 ? (
                   <button
                     type="button"
                     onClick={() => setPreviewGallery({
-                      images: marketingImageDatas,
+                      images: marketingImageUrls,
                       titles: marketingImageNames,
                       index: 0,
                       clickToNext: true,
                     })}
                     className="inline-flex items-center gap-2 px-4 py-2 border border-pink-200 bg-pink-50 text-pink-700 rounded-lg hover:bg-pink-100 text-sm font-medium"
                   >
-                    預覽行銷圖檔（{marketingImageDatas.length}）
+                    預覽行銷圖檔（{marketingImageUrls.length}）
                   </button>
                 ) : (
                   <p className="text-sm text-gray-400">尚未上傳行銷圖檔</p>
                 )}
-                {!departmentPublish?.marketing_content && !departmentPublish?.marketing_rules && marketingImageDatas.length === 0 && (
+                {!departmentPublish?.marketing_content && !departmentPublish?.marketing_rules && marketingImageUrls.length === 0 && (
                   <p className="text-sm text-gray-400">尚未發布行銷部內容</p>
                 )}
               </>

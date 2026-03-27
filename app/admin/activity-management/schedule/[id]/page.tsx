@@ -25,6 +25,9 @@ interface CampaignDepartmentPublish {
   marketing_rules?: string;
   marketing_image_name?: string | null;
   marketing_image_data?: string | null;
+  marketing_image_names?: string[] | string | null;
+  marketing_image_paths?: string[] | string | null;
+  marketing_image_urls?: string[];
   merchandise_gift_rules_name?: string | null;
   merchandise_gift_rules_data?: string | null;
   merchandise_supply_content?: string;
@@ -84,7 +87,8 @@ export default function ScheduleEditPage() {
     marketing_content: '',
     marketing_rules: '',
     marketing_image_names: [] as string[],
-    marketing_image_datas: [] as string[],
+    marketing_image_paths: [] as string[],
+    marketing_image_urls: [] as string[],
   });
   const [merchandiseForm, setMerchandiseForm] = useState({
     merchandise_gift_rules_name: '',
@@ -94,6 +98,7 @@ export default function ScheduleEditPage() {
     merchandise_allocation_file_data: '',
   });
   const [publishing, setPublishing] = useState(false);
+  const [uploadingMarketing, setUploadingMarketing] = useState(false);
 
   // 分店支援 Modal
   const [supportModal, setSupportModal] = useState<{
@@ -185,20 +190,87 @@ export default function ScheduleEditPage() {
   };
 
   const MAX_MARKETING_IMAGE_COUNT = 8;
-  const MAX_MARKETING_PAYLOAD_BYTES = 3 * 1024 * 1024; // 避免 Request Entity Too Large
+  const MAX_MARKETING_DIMENSION = 1600;
+  const MAX_MARKETING_WEBP_QUALITY = 0.78;
 
   // 支援舊版單圖字串與新版 JSON 陣列字串
-  const parseSerializedStringArray = (value?: string | null): string[] => {
+  const parseSerializedStringArray = (value: unknown): string[] => {
     if (!value) return [];
+    if (Array.isArray(value)) {
+      return value.filter((v): v is string => typeof v === 'string' && v.length > 0);
+    }
     try {
-      const parsed = JSON.parse(value);
+      const parsed = JSON.parse(String(value));
       if (Array.isArray(parsed)) {
         return parsed.filter((v): v is string => typeof v === 'string' && v.length > 0);
       }
       return [];
     } catch {
-      return value ? [value] : [];
+      return typeof value === 'string' && value.length > 0 ? [value] : [];
     }
+  };
+
+  const compressImageToWebp = (file: File, maxDimension: number, quality: number): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = document.createElement('img');
+        img.onload = () => {
+          let width = img.width;
+          let height = img.height;
+          const longestSide = Math.max(width, height);
+          if (longestSide > maxDimension) {
+            const ratio = maxDimension / longestSide;
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('無法建立圖片壓縮畫布'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('圖片壓縮失敗'));
+                return;
+              }
+              const normalizedName = file.name.replace(/\.[^.]+$/, '');
+              const webpFile = new File([blob], `${normalizedName}.webp`, { type: 'image/webp' });
+              resolve(webpFile);
+            },
+            'image/webp',
+            quality
+          );
+        };
+        img.onerror = () => reject(new Error('圖片載入失敗'));
+        img.src = String(e.target?.result || '');
+      };
+      reader.onerror = () => reject(new Error('圖片讀取失敗'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const uploadMarketingImages = async (files: File[]) => {
+    const formData = new FormData();
+    formData.append('campaign_id', campaignId);
+    formData.append('department', 'marketing');
+    files.forEach((file) => formData.append('files', file));
+
+    const res = await fetch('/api/campaign-department-assets', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok || !data?.success) {
+      throw new Error(data?.error || '上傳行銷圖檔失敗');
+    }
+    return data.data as { names: string[]; paths: string[]; urls: string[] };
   };
 
   const loadDepartmentPublish = async () => {
@@ -212,8 +284,15 @@ export default function ScheduleEditPage() {
       setMarketingForm({
         marketing_content: d.marketing_content ?? '',
         marketing_rules: d.marketing_rules ?? '',
-        marketing_image_names: parseSerializedStringArray(d.marketing_image_name),
-        marketing_image_datas: parseSerializedStringArray(d.marketing_image_data),
+        marketing_image_names:
+          parseSerializedStringArray(d.marketing_image_names).length > 0
+            ? parseSerializedStringArray(d.marketing_image_names)
+            : parseSerializedStringArray(d.marketing_image_name),
+        marketing_image_paths: parseSerializedStringArray(d.marketing_image_paths),
+        marketing_image_urls:
+          parseSerializedStringArray(d.marketing_image_urls).length > 0
+            ? parseSerializedStringArray(d.marketing_image_urls)
+            : parseSerializedStringArray(d.marketing_image_data),
       });
       setMerchandiseForm({
         merchandise_gift_rules_name: d.merchandise_gift_rules_name ?? '',
@@ -236,8 +315,10 @@ export default function ScheduleEditPage() {
             department,
             marketing_content: marketingForm.marketing_content,
             marketing_rules: marketingForm.marketing_rules,
-            marketing_image_name: marketingForm.marketing_image_names.length > 0 ? JSON.stringify(marketingForm.marketing_image_names) : null,
-            marketing_image_data: marketingForm.marketing_image_datas.length > 0 ? JSON.stringify(marketingForm.marketing_image_datas) : null,
+            marketing_image_names: marketingForm.marketing_image_names,
+            marketing_image_paths: marketingForm.marketing_image_paths,
+            marketing_image_name: null,
+            marketing_image_data: null,
           }
         : {
             campaign_id: campaignId,
@@ -248,13 +329,6 @@ export default function ScheduleEditPage() {
             merchandise_allocation_file_name: merchandiseForm.merchandise_allocation_file_name || null,
             merchandise_allocation_file_data: merchandiseForm.merchandise_allocation_file_data || null,
           };
-
-      if (department === 'marketing') {
-        const estimatedBytes = new Blob([JSON.stringify(payload)]).size;
-        if (estimatedBytes > MAX_MARKETING_PAYLOAD_BYTES) {
-          throw new Error('行銷圖檔內容過大，請減少張數或改用較小圖片後再發布');
-        }
-      }
 
       const res = await fetch('/api/campaign-department-publish', {
         method: 'POST',
@@ -1548,61 +1622,67 @@ export default function ScheduleEditPage() {
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">行銷圖檔（供門市檢視）</label>
               {canEditMarketing && (
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={async e => {
-                    const files = Array.from(e.target.files || []);
-                    if (files.length === 0) return;
-                    const currentCount = marketingForm.marketing_image_datas.length;
-                    if (currentCount + files.length > MAX_MARKETING_IMAGE_COUNT) {
-                      alert(`最多可上傳 ${MAX_MARKETING_IMAGE_COUNT} 張行銷圖檔`);
-                      e.currentTarget.value = '';
-                      return;
-                    }
-                    const dataUrls = await Promise.all(files.map(file => fileToDataUrl(file)));
-                    const nextNames = [...marketingForm.marketing_image_names, ...files.map(f => f.name)];
-                    const nextDatas = [...marketingForm.marketing_image_datas, ...dataUrls];
-                    const estimatedBytes = new Blob([
-                      JSON.stringify({
-                        campaign_id: campaignId,
-                        department: 'marketing',
-                        marketing_content: marketingForm.marketing_content,
-                        marketing_rules: marketingForm.marketing_rules,
-                        marketing_image_name: JSON.stringify(nextNames),
-                        marketing_image_data: JSON.stringify(nextDatas),
-                      }),
-                    ]).size;
-                    if (estimatedBytes > MAX_MARKETING_PAYLOAD_BYTES) {
-                      alert('加入這批圖片後資料過大，請改上傳較小圖片或減少張數');
-                      e.currentTarget.value = '';
-                      return;
-                    }
-                    setMarketingForm(prev => ({
-                      ...prev,
-                      marketing_image_names: nextNames,
-                      marketing_image_datas: nextDatas,
-                    }));
-                    e.currentTarget.value = '';
-                  }}
-                  className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100"
-                />
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    disabled={uploadingMarketing}
+                    onChange={async e => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length === 0) return;
+                      const currentCount = marketingForm.marketing_image_paths.length;
+                      if (currentCount + files.length > MAX_MARKETING_IMAGE_COUNT) {
+                        alert(`最多可上傳 ${MAX_MARKETING_IMAGE_COUNT} 張行銷圖檔`);
+                        e.currentTarget.value = '';
+                        return;
+                      }
+
+                      try {
+                        setUploadingMarketing(true);
+                        const compressedFiles = await Promise.all(
+                          files.map((file) => compressImageToWebp(file, MAX_MARKETING_DIMENSION, MAX_MARKETING_WEBP_QUALITY))
+                        );
+                        const uploaded = await uploadMarketingImages(compressedFiles);
+                        setMarketingForm((prev) => ({
+                          ...prev,
+                          marketing_image_names: [...prev.marketing_image_names, ...uploaded.names],
+                          marketing_image_paths: [...prev.marketing_image_paths, ...uploaded.paths],
+                          marketing_image_urls: [...prev.marketing_image_urls, ...uploaded.urls],
+                        }));
+                      } catch (error: any) {
+                        alert(error?.message || '上傳行銷圖檔失敗');
+                      } finally {
+                        setUploadingMarketing(false);
+                        e.currentTarget.value = '';
+                      }
+                    }}
+                    className="block w-full text-sm text-gray-600 file:mr-3 file:px-3 file:py-1.5 file:rounded-lg file:border-0 file:bg-pink-50 file:text-pink-700 hover:file:bg-pink-100 disabled:opacity-60"
+                  />
+                  {uploadingMarketing && <p className="text-xs text-pink-600">圖片壓縮與上傳中，請稍候...</p>}
+                </div>
               )}
 
-              {marketingForm.marketing_image_datas.length > 0 && (
+              {marketingForm.marketing_image_urls.length > 0 && (
                 <div className="rounded-lg border border-gray-200 p-3 space-y-3">
-                  <div className="text-xs text-gray-500">已上傳 {marketingForm.marketing_image_datas.length} 張圖檔</div>
+                  <div className="text-xs text-gray-500">已上傳 {marketingForm.marketing_image_urls.length} 張圖檔</div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {marketingForm.marketing_image_datas.map((dataUrl, idx) => (
+                    {marketingForm.marketing_image_urls.map((imageUrl, idx) => (
                       <div key={`${marketingForm.marketing_image_names[idx] || 'img'}-${idx}`} className="rounded-lg border border-gray-200 p-2 space-y-2">
-                        <img src={dataUrl} alt={`行銷圖檔預覽-${idx + 1}`} className="max-h-48 w-full object-contain rounded border border-gray-100" />
+                        <img src={imageUrl} alt={`行銷圖檔預覽-${idx + 1}`} className="max-h-48 w-full object-contain rounded border border-gray-100" />
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs text-gray-500 truncate">{marketingForm.marketing_image_names[idx] || `行銷圖檔-${idx + 1}`}</span>
                           <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => downloadDataUrlFile(marketingForm.marketing_image_names[idx] || `marketing-image-${idx + 1}.png`, dataUrl)}
+                              onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = imageUrl;
+                                a.download = marketingForm.marketing_image_names[idx] || `marketing-image-${idx + 1}.webp`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                              }}
                               className="inline-flex items-center gap-1 text-xs text-pink-700 hover:text-pink-800"
                             >
                               <FileDown className="w-3.5 h-3.5" />
@@ -1615,7 +1695,8 @@ export default function ScheduleEditPage() {
                                   setMarketingForm(prev => ({
                                     ...prev,
                                     marketing_image_names: prev.marketing_image_names.filter((_, i) => i !== idx),
-                                    marketing_image_datas: prev.marketing_image_datas.filter((_, i) => i !== idx),
+                                    marketing_image_paths: prev.marketing_image_paths.filter((_, i) => i !== idx),
+                                    marketing_image_urls: prev.marketing_image_urls.filter((_, i) => i !== idx),
                                   }));
                                 }}
                                 className="text-xs text-red-600 hover:text-red-700"
