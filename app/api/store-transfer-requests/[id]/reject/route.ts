@@ -27,7 +27,7 @@ export async function POST(
 
     const { data: req, error: fetchError } = await supabase
       .from('store_transfer_requests')
-      .select('status')
+      .select('status, from_store_id, to_store_id')
       .eq('id', params.id)
       .single();
 
@@ -37,6 +37,19 @@ export async function POST(
 
     if (req.status !== 'pending') {
       return NextResponse.json({ success: false, error: '此申請已被處理' }, { status: 400 });
+    }
+
+    // 非 admin 的督導必須管轄原任職門市或新任職門市其中一個才能拒絕
+    if (!isAdmin) {
+      const { data: managedList } = await supabase
+        .from('store_managers')
+        .select('store_id')
+        .eq('user_id', user.id)
+        .in('store_id', [req.from_store_id, req.to_store_id]);
+
+      if (!managedList || managedList.length === 0) {
+        return NextResponse.json({ success: false, error: '您不是此調店相關門市的督導，無法拒絕此調店申請' }, { status: 403 });
+      }
     }
 
     const { error: updateError } = await supabase
