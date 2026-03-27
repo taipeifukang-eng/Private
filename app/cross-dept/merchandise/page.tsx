@@ -74,6 +74,7 @@ function AddReportModal({
   const [selectedUnit, setSelectedUnit] = useState('');
   const [nameFromMaster, setNameFromMaster] = useState(false);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const requiredQtyInputRef = useRef<HTMLInputElement>(null);
 
   // 點擊外部關閉下拉
   useEffect(() => {
@@ -123,6 +124,18 @@ function AddReportModal({
     setNameFromMaster(true);
     setSuggestions([]);
     setShowSuggestions(false);
+    setTimeout(() => {
+      requiredQtyInputRef.current?.focus();
+      requiredQtyInputRef.current?.select();
+    }, 0);
+  };
+
+  const handleProductCodeEnter = () => {
+    const code = form.product_code.trim();
+    if (!code || suggestions.length === 0) return;
+
+    const matchedSuggestion = suggestions.find(s => s.product_code === code) ?? suggestions[0];
+    handleSelectSuggestion(matchedSuggestion);
   };
 
   const handleSubmit = async () => {
@@ -191,6 +204,12 @@ function AddReportModal({
                 setSelectedUnit('');
                 setNameFromMaster(false);
               }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleProductCodeEnter();
+                }
+              }}
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               placeholder="輸入編號可搜尋商品主檔"
               autoComplete="off"
@@ -252,6 +271,7 @@ function AddReportModal({
             <input
               type="number"
               min={1}
+              ref={requiredQtyInputRef}
               value={form.required_qty}
               onChange={e => setForm(f => ({ ...f, required_qty: Math.max(1, Number(e.target.value)) }))}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400"
