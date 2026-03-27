@@ -1783,7 +1783,7 @@ export default function ScheduleEditPage() {
             </div>
 
             <div className="rounded-lg border border-orange-100 bg-orange-50 p-3 text-sm text-orange-800">
-              請發布：1) 滿額贈規則圖表 2) 活動百貨配量檔案（.xlsx）
+              請發布：1) 滿額贈規則圖表 2) 活動百貨配量（.xlsx）&衛生紙口罩配量
             </div>
 
             <div className="space-y-2">
@@ -1840,7 +1840,7 @@ export default function ScheduleEditPage() {
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">活動百貨配量（.xlsx）</label>
+              <label className="block text-sm font-medium text-gray-700">活動百貨配量（.xlsx）&衛生紙口罩配量</label>
               {canEditMerchandise && (
                 <input
                   type="file"

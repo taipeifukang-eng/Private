@@ -703,7 +703,8 @@ export default function ActivityViewPage() {
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">活動排程</h2>
 
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col items-end gap-3">
+              <div className="flex items-center gap-3 flex-wrap justify-end">
               {/* 支援請求按鈕（有支援指派權限才顯示） */}
               {canAssignSupport && managedStores.length > 0 && (
                 <button
@@ -766,10 +767,11 @@ export default function ActivityViewPage() {
                 <FileDown className="w-4 h-4" />
                 {exporting ? '匯出中...' : '匯出PDF'}
               </button>
-            
+              </div>
+
               {/* 督導顏色圖例 */}
               {Object.keys(supervisorColorMap).length > 0 && (
-                <div className="flex flex-wrap gap-2 items-center">
+                <div className="flex flex-wrap gap-2 items-center justify-end">
                   <span className="text-sm text-gray-600 font-medium">督導：</span>
                   {Object.entries(supervisorColorMap)
                     .filter(([_, color]) => color.isDisplay !== false) // 只顯示標記為 display 的
