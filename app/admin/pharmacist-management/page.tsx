@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
-import PharmacistManagementTable from './PharmacistManagementTable';
+import PharmacistSupervisorCards from './PharmacistSupervisorCards';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +16,15 @@ type PharmacistRow = {
   position: string;
   supervisor_zone: string;
   change_type: string;
+  change_note: string;
   prev_store_name: string;
   prev_position: string;
+};
+
+type ScopedStore = {
+  id: string;
+  store_code: string;
+  store_name: string;
 };
 
 function formatYearMonth(date: Date): string {
@@ -89,6 +96,11 @@ export default async function PharmacistManagementPage({
       </div>
     );
   }
+
+  const { data: scopedStores } = await supabase
+    .from('stores')
+    .select('id, store_code, store_name')
+    .in('id', storeIds);
 
   console.log('[DEBUG pharmacist] userId:', user.id);
   console.log('[DEBUG pharmacist] selectedYearMonth:', selectedYearMonth, '| previousYearMonth:', previousYearMonth);
@@ -234,14 +246,22 @@ export default async function PharmacistManagementPage({
     const prevStoreInfo = prev?.stores as any;
 
     let changeType = '無變更';
+    let changeNote = '';
     if (!prev) {
       changeType = '新增任職';
     } else {
       const storeChanged = prev.store_id !== row.store_id;
       const positionChanged = (prev.position || '') !== (row.position || '');
-      if (storeChanged && positionChanged) changeType = '門市/職級異動';
-      else if (storeChanged) changeType = '門市異動';
-      else if (positionChanged) changeType = '職級異動';
+      if (storeChanged && positionChanged) {
+        changeType = '門市/職級異動';
+        changeNote = `上月門市：${prevStoreInfo?.store_name || '-'}；上月職級：${prev?.position || '-'}`;
+      } else if (storeChanged) {
+        changeType = '門市異動';
+        changeNote = `上月門市：${prevStoreInfo?.store_name || '-'}`;
+      } else if (positionChanged) {
+        changeType = '職級異動';
+        changeNote = `上月職級：${prev?.position || '-'}`;
+      }
     }
 
     return {
@@ -254,6 +274,7 @@ export default async function PharmacistManagementPage({
       position: row.position || '-',
       supervisor_zone: zoneByStore.get(row.store_id) || '未指派督導區',
       change_type: changeType,
+      change_note: changeNote,
       prev_store_name: prevStoreInfo?.store_name || '-',
       prev_position: prev?.position || '-',
     };
@@ -305,29 +326,76 @@ export default async function PharmacistManagementPage({
     primarySupervisorRowsSample: primarySupervisorRows.slice(0, 10),
   };
 
-  const zoneOptions = Array.from(new Set(mappedRows.map((r) => r.supervisor_zone))).sort((a, b) =>
-    a.localeCompare(b, 'zh-Hant')
-  );
-
-  const rows =
-    selectedZone === 'all'
-      ? mappedRows
-      : mappedRows.filter((r) => r.supervisor_zone === selectedZone);
-
-  rows.sort((a, b) => {
-    if (a.store_code !== b.store_code) {
-      return a.store_code.localeCompare(b.store_code);
-    }
-    if (a.supervisor_zone !== b.supervisor_zone) {
-      return a.supervisor_zone.localeCompare(b.supervisor_zone, 'zh-Hant');
-    }
+  mappedRows.sort((a, b) => {
+    if (a.store_code !== b.store_code) return a.store_code.localeCompare(b.store_code);
     return a.employee_code.localeCompare(b.employee_code);
   });
 
+  const scopedStoreList: ScopedStore[] = ((scopedStores || []) as any[]).map((s: any) => ({
+    id: s.id,
+    store_code: s.store_code || '',
+    store_name: s.store_name || '',
+  }));
+  const storeById = new Map<string, ScopedStore>();
+  scopedStoreList.forEach((s) => storeById.set(s.id, s));
+
+  const pharmacistsByStore = new Map<string, PharmacistRow[]>();
+  mappedRows.forEach((row) => {
+    const list = pharmacistsByStore.get(row.store_id) || [];
+    list.push(row);
+    pharmacistsByStore.set(row.store_id, list);
+  });
+  pharmacistsByStore.forEach((list) => {
+    list.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+  });
+
+  const supervisorCardMap = new Map<string, {
+    supervisorZone: string;
+    stores: Array<{
+      storeId: string;
+      storeCode: string;
+      storeName: string;
+      pharmacistCount: number;
+      pharmacists: PharmacistRow[];
+    }>;
+  }>();
+
+  storeIds.forEach((storeId) => {
+    const storeMeta = storeById.get(storeId);
+    const supervisorZone = zoneByStore.get(storeId) || '未指派督導區';
+    if (!supervisorCardMap.has(supervisorZone)) {
+      supervisorCardMap.set(supervisorZone, { supervisorZone, stores: [] });
+    }
+    const pharmacists = pharmacistsByStore.get(storeId) || [];
+    supervisorCardMap.get(supervisorZone)!.stores.push({
+      storeId,
+      storeCode: storeMeta?.store_code || '',
+      storeName: storeMeta?.store_name || '',
+      pharmacistCount: pharmacists.length,
+      pharmacists,
+    });
+  });
+
+  const allSupervisorCards = Array.from(supervisorCardMap.values())
+    .map((card) => ({
+      ...card,
+      stores: card.stores.sort((a, b) => a.storeCode.localeCompare(b.storeCode)),
+    }))
+    .sort((a, b) => a.supervisorZone.localeCompare(b.supervisorZone, 'zh-Hant'));
+
+  const zoneOptions = allSupervisorCards.map((c) => c.supervisorZone);
+
+  const filteredSupervisorCards =
+    selectedZone === 'all'
+      ? allSupervisorCards
+      : allSupervisorCards.filter((c) => c.supervisorZone === selectedZone);
+
+  const filteredRows = filteredSupervisorCards.flatMap((c) => c.stores.flatMap((s) => s.pharmacists));
+
   const summary = {
-    total: rows.length,
-    newJoin: rows.filter((r) => r.change_type === '新增任職').length,
-    changed: rows.filter((r) => r.change_type !== '無變更' && r.change_type !== '新增任職').length,
+    total: filteredRows.length,
+    newJoin: filteredRows.filter((r) => r.change_type === '新增任職').length,
+    changed: filteredRows.filter((r) => r.change_type !== '無變更' && r.change_type !== '新增任職').length,
   };
 
   return (
@@ -411,12 +479,10 @@ export default async function PharmacistManagementPage({
           </div>
         )}
 
-        <PharmacistManagementTable
-          initialRows={rows}
-        />
+        <PharmacistSupervisorCards cards={filteredSupervisorCards} />
 
         <p className="mt-3 text-xs text-gray-500">
-          比對邏輯：以同員編對照上月資料，判斷新增任職、門市異動、職級異動或無變更。
+          點選門市可查看藥師明細。明細中的變化備註會顯示上月職級或上月門市，無變化則留白。
         </p>
       </div>
     </div>
