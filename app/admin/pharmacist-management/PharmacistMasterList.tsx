@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useTransition, useMemo } from 'react';
+import PharmacistAnnualFeeModal from './PharmacistAnnualFeeModal';
 
 const SCHOOL_OPTIONS = [
   '國立臺灣大學',
@@ -65,6 +66,7 @@ export default function PharmacistMasterList({
   const [saveError, setSaveError] = useState('');
   const [searchText, setSearchText] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('active');
+  const [feeModalRow, setFeeModalRow] = useState<{ code: string; name: string } | null>(null);
 
   const filtered = useMemo(() => {
     return data.filter((row) => {
@@ -183,13 +185,14 @@ export default function PharmacistMasterList({
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">學歷</th>
               <th className="px-3 py-3 text-center font-semibold whitespace-nowrap">負責藥師</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">執照更新日</th>
+              <th className="px-3 py-3 text-center font-semibold whitespace-nowrap">常年會費</th>
               {canEdit && <th className="px-3 py-3 text-center font-semibold">操作</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 9 : 8} className="px-3 py-10 text-center text-gray-500">
+                <td colSpan={canEdit ? 10 : 9} className="px-3 py-10 text-center text-gray-500">
                   查無資料
                 </td>
               </tr>
@@ -287,6 +290,17 @@ export default function PharmacistMasterList({
                       )}
                     </td>
 
+                    {/* 常年會費 */}
+                    <td className="px-3 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setFeeModalRow({ code: row.employee_code, name: row.employee_name || '' })}
+                        className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                      >
+                        記錄
+                      </button>
+                    </td>
+
                     {/* 操作 */}
                     {canEdit && (
                       <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -335,7 +349,17 @@ export default function PharmacistMasterList({
 
       <p className="text-xs text-gray-500">
         執照更新日顯示紅色代表已逾期。畢業學校、學歷、負責藥師、執照更新日可點「編輯」修改後儲存。
+        點「記錄」可查看或新增該藥師的常年會費申請記錄。
       </p>
+
+      {feeModalRow && (
+        <PharmacistAnnualFeeModal
+          employeeCode={feeModalRow.code}
+          employeeName={feeModalRow.name}
+          canEdit={canEdit}
+          onClose={() => setFeeModalRow(null)}
+        />
+      )}
     </div>
   );
 }
