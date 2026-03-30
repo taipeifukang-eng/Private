@@ -601,6 +601,25 @@ export default async function PharmacistManagementPage({
       }
     });
 
+    // 從 monthly_staff_status 補齊到職日（store_employees 可能為空）
+    const { data: startDateSupplementRaw } = masterEmpCodes.length > 0
+      ? await adminSupabase
+          .from('monthly_staff_status')
+          .select('employee_code, start_date, year_month')
+          .in('employee_code', masterEmpCodes)
+          .not('start_date', 'is', null)
+          .order('year_month', { ascending: false })
+          .limit(masterEmpCodes.length * 12)
+      : { data: [] as any[] };
+
+    const startDateByCode = new Map<string, string>();
+    (startDateSupplementRaw || []).forEach((r: any) => {
+      const code = (r.employee_code || '').toUpperCase();
+      if (code && r.start_date && !startDateByCode.has(code)) {
+        startDateByCode.set(code, r.start_date);
+      }
+    });
+
     // 抓取 pharmacist_profiles 主檔
   const { data: pharmProfilesRaw } = masterEmpCodes.length > 0
     ? await adminSupabase
@@ -623,7 +642,7 @@ export default async function PharmacistManagementPage({
         employee_code: code,
         employee_name: masterNameByCode.get(code) || '',
         current_position: e.current_position || e.position || '-',
-        start_date: e.start_date || null,
+        start_date: e.start_date || startDateByCode.get(code) || null,
         is_active: e.is_active,
         school: pharmProfile.school || '',
         is_responsible_pharmacist: pharmProfile.is_responsible_pharmacist ?? false,
