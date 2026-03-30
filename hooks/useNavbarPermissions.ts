@@ -26,6 +26,8 @@ interface NavbarPermissions {
   canAccessActivitySchedule: boolean;
   canManageInventory: boolean;
   canManagePerformance: boolean;
+  canViewPharmacistManagement: boolean;
+  canEditPharmacistManagement: boolean;
   
   // 每月人員狀態
   canViewMonthlyStatus: boolean;
@@ -74,6 +76,8 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canAccessActivitySchedule: false,
     canManageInventory: false,
     canManagePerformance: false,
+    canViewPharmacistManagement: false,
+    canEditPharmacistManagement: false,
     canViewMonthlyStatus: false,
     canExportMonthlyStatus: false,
     canViewInspections: false,
@@ -154,6 +158,8 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('activity.checklist.edit'),
           canManageInventory: permissionSet.has('inventory.manage'),
           canManagePerformance: permissionSet.has('performance.view') || permissionSet.has('performance.edit'),
+          canViewPharmacistManagement: permissionSet.has('pharmacist.management.view'),
+          canEditPharmacistManagement: permissionSet.has('pharmacist.management.edit'),
           
           // 每月人員狀態
           canViewMonthlyStatus: 
@@ -217,7 +223,8 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canManageActivities ||
          permissions.canAccessActivitySchedule ||
          permissions.canManageInventory ||
-         permissions.canManagePerformance;
+         permissions.canManagePerformance ||
+         permissions.canViewPharmacistManagement;
 }
 
 /**

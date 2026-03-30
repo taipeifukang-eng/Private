@@ -135,6 +135,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities || permissions.canAccessActivitySchedule },
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
     { href: '/admin/performance', label: '業績管理', icon: TrendingUp, show: permissions.canManagePerformance },
+    { href: '/admin/pharmacist-management', label: '藥師管理', icon: UserCog, show: permissions.canViewPharmacistManagement },
     { href: '/cross-dept/products-master', label: '商品主檔', icon: Package, show: permissions.canManageProductsMaster },
   ].filter(item => item.show);
 
@@ -160,7 +161,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在門市管理相關頁面
-  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance'].some(
+  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 

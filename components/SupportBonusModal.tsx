@@ -333,6 +333,11 @@ export default function SupportBonusModal({
                               type="number"
                               value={record.bonus_amount || ''}
                               onChange={(e) => updateRecord(record.id, 'bonus_amount', parseFloat(e.target.value) || 0)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                  e.preventDefault();
+                                }
+                              }}
                               placeholder="獎金金額"
                               min="0"
                               step="0.01"
