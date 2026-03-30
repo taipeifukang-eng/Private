@@ -3,14 +3,20 @@ import { NextResponse } from 'next/server';
 
 type SupervisorAssignmentRow = {
   id: number;
-  store_id: number;
+  store_id: string;
   is_primary: boolean;
   created_at: string | null;
   updated_at: string | null;
 };
 
-async function normalizePrimarySupervisors(supabase: any, storeIds: number[]) {
-  const uniqueStoreIds = Array.from(new Set(storeIds)).filter((id) => Number.isFinite(id));
+function normalizeStoreIds(ids: unknown[]): string[] {
+  return ids
+    .map((id) => String(id || '').trim())
+    .filter((id) => id.length > 0);
+}
+
+async function normalizePrimarySupervisors(supabase: any, storeIds: string[]) {
+  const uniqueStoreIds = Array.from(new Set(storeIds)).filter((id) => id.length > 0);
   if (uniqueStoreIds.length === 0) return;
 
   const { data: rows, error } = await supabase
@@ -23,7 +29,7 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: number[]) {
     throw new Error(`讀取督導主責資料失敗: ${error.message}`);
   }
 
-  const grouped = new Map<number, SupervisorAssignmentRow[]>();
+  const grouped = new Map<string, SupervisorAssignmentRow[]>();
   (rows || []).forEach((row: SupervisorAssignmentRow) => {
     const list = grouped.get(row.store_id) || [];
     list.push(row);
@@ -120,10 +126,9 @@ export async function POST(request: Request) {
 
     const toDeleteSupervisorStoreIds = toDelete
       .filter(a => a.role_type === 'supervisor')
-      .map(a => Number(a.store_id))
-      .filter(id => Number.isFinite(id));
+      .map(a => String(a.store_id));
 
-    let existingSupervisorStoreSet = new Set<number>();
+    let existingSupervisorStoreSet = new Set<string>();
     if (roleType === 'supervisor' && toInsert.length > 0) {
       const { data: existingSupervisors, error: existingSupervisorsError } = await supabase
         .from('store_managers')
@@ -139,7 +144,7 @@ export async function POST(request: Request) {
         }, { status: 500 });
       }
 
-      existingSupervisorStoreSet = new Set((existingSupervisors || []).map((r: any) => Number(r.store_id)));
+      existingSupervisorStoreSet = new Set((existingSupervisors || []).map((r: any) => String(r.store_id)));
     }
 
     // 執行刪除
@@ -165,7 +170,7 @@ export async function POST(request: Request) {
         user_id: userId,
         store_id: storeId,
         role_type: roleType, // 使用傳入的角色類型
-        is_primary: roleType === 'supervisor' ? !existingSupervisorStoreSet.has(Number(storeId)) : false
+        is_primary: roleType === 'supervisor' ? !existingSupervisorStoreSet.has(String(storeId)) : false
       }));
 
       const { error: insertError } = await supabase
@@ -181,9 +186,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const proxyStoreIdsParsed = (proxyStoreIds as any[])
-      .map((id) => Number(id))
-      .filter((id) => Number.isFinite(id));
+    const proxyStoreIdsParsed = normalizeStoreIds(proxyStoreIds as unknown[]);
   console.log('[DEBUG assign] proxyStoreIdsParsed:', proxyStoreIdsParsed);
 
     // 代理門市：不走 normalizePrimary，改用獨立邏輯
@@ -213,9 +216,9 @@ export async function POST(request: Request) {
         .in('store_id', proxyStoreIdsParsed);
 
       console.log('[DEBUG assign] otherRows (proxy 門市的其他督導):', JSON.stringify(otherRows));
-      const otherByStore = new Map<number, any[]>();
+      const otherByStore = new Map<string, any[]>();
       (otherRows || []).forEach((row: any) => {
-        const sid = Number(row.store_id);
+        const sid = String(row.store_id);
         const list = otherByStore.get(sid) || [];
         list.push(row);
         otherByStore.set(sid, list);
@@ -243,8 +246,8 @@ export async function POST(request: Request) {
       const nonProxyTouchedIds = [
         ...toDeleteSupervisorStoreIds,
         ...toInsert
-          .map((id) => Number(id))
-          .filter((id) => Number.isFinite(id) && !proxyStoreIdsParsed.includes(id)),
+          .map((id) => String(id))
+          .filter((id) => id.length > 0 && !proxyStoreIdsParsed.includes(id)),
       ];
       if (nonProxyTouchedIds.length > 0) {
         await normalizePrimarySupervisors(supabase, nonProxyTouchedIds);

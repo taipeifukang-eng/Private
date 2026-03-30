@@ -14,7 +14,7 @@ interface Profile {
 }
 
 interface StoreData {
-  id: number;
+  id: string;
   store_code: string;
   store_name: string;
   is_active: boolean;
@@ -22,7 +22,7 @@ interface StoreData {
 
 interface Assignment {
   user_id: string;
-  store_id: number;
+  store_id: string;
   role_type: 'supervisor' | 'store_manager';
 }
 
@@ -31,9 +31,9 @@ export default function SupervisorsManagementPage() {
   const [saving, setSaving] = useState(false);
   const [supervisors, setSupervisors] = useState<Profile[]>([]);
   const [stores, setStores] = useState<StoreData[]>([]);
-  const [assignments, setAssignments] = useState<Map<string, Set<number>>>(new Map());
-  const [assignmentTypes, setAssignmentTypes] = useState<Map<string, Map<number, 'supervisor' | 'store_manager'>>>(new Map());
-  const [proxyStores, setProxyStores] = useState<Map<string, Set<number>>>(new Map());
+  const [assignments, setAssignments] = useState<Map<string, Set<string>>>(new Map());
+  const [assignmentTypes, setAssignmentTypes] = useState<Map<string, Map<string, 'supervisor' | 'store_manager'>>>(new Map());
+  const [proxyStores, setProxyStores] = useState<Map<string, Set<string>>>(new Map());
   
   // 搜尋和選擇狀態
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,11 +67,11 @@ export default function SupervisorsManagementPage() {
       const assignmentsData = await assignmentsRes.json();
 
       // 建立 Map: user_id -> Set<store_id> 和 user_id -> Map<store_id, role_type>
-      const assignmentsMap = new Map<string, Set<number>>();
-      const typesMap = new Map<string, Map<number, 'supervisor' | 'store_manager'>>();
+      const assignmentsMap = new Map<string, Set<string>>();
+      const typesMap = new Map<string, Map<string, 'supervisor' | 'store_manager'>>();
       const assignmentsList = assignmentsData.assignments || [];
       
-      assignmentsList.forEach((assignment: { user_id: string; store_id: number; role_type: string }) => {
+      assignmentsList.forEach((assignment: { user_id: string; store_id: string; role_type: string }) => {
         // 設定門市集合
         if (!assignmentsMap.has(assignment.user_id)) {
           assignmentsMap.set(assignment.user_id, new Set());
@@ -89,14 +89,14 @@ export default function SupervisorsManagementPage() {
       });
       
       // 推算代理督導：role_type=supervisor & is_primary=false，且同門市有另一個 is_primary=true
-      const primaryByStore = new Map<number, string>();
-      assignmentsList.forEach((a: { user_id: string; store_id: number; role_type: string; is_primary: boolean }) => {
+      const primaryByStore = new Map<string, string>();
+      assignmentsList.forEach((a: { user_id: string; store_id: string; role_type: string; is_primary: boolean }) => {
         if (a.role_type === 'supervisor' && a.is_primary) {
           primaryByStore.set(a.store_id, a.user_id);
         }
       });
-      const proxyMap = new Map<string, Set<number>>();
-      assignmentsList.forEach((a: { user_id: string; store_id: number; role_type: string; is_primary: boolean }) => {
+      const proxyMap = new Map<string, Set<string>>();
+      assignmentsList.forEach((a: { user_id: string; store_id: string; role_type: string; is_primary: boolean }) => {
         if (a.role_type === 'supervisor' && !a.is_primary) {
           const primaryUserId = primaryByStore.get(a.store_id);
           console.log(`[DEBUG loadData] supervisor is_primary=false storeId=${a.store_id} userId=${a.user_id} | primaryOwner=${primaryUserId}`);
@@ -120,8 +120,8 @@ export default function SupervisorsManagementPage() {
     }
   };
 
-  const toggleStoreAssignment = (userId: string, storeId: number, storeName: string) => {
-    const userStores = assignments.get(userId) || new Set<number>();
+  const toggleStoreAssignment = (userId: string, storeId: string, storeName: string) => {
+    const userStores = assignments.get(userId) || new Set<string>();
 
     if (userStores.has(storeId)) {
       // 取消勾選：移除指派與代理標記
