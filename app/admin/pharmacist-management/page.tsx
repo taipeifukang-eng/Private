@@ -124,8 +124,79 @@ export default async function PharmacistManagementPage({
   ]);
 
   // 排除「督導卡班」造成的藥師假象
-  const currentRows = (currentRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
+  const currentRowsBase = (currentRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
   const previousRows = (previousRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
+
+  // 補抓「該月份已登記人事異動=離職」的藥師，避免月報尚未寫入而漏掉
+  const monthStart = `${selectedYearMonth}-01`;
+  const monthEndDate = new Date(Number(selectedYearMonth.slice(0, 4)), Number(selectedYearMonth.slice(5, 7)), 0);
+  const monthEnd = `${selectedYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
+
+  const { data: resignationMovements } = await adminSupabase
+    .from('employee_movement_history')
+    .select('employee_code, employee_name, store_id, movement_date, movement_type')
+    .eq('movement_type', 'resignation')
+    .in('store_id', storeIds)
+    .gte('movement_date', monthStart)
+    .lte('movement_date', monthEnd);
+
+  const resignationCodes = Array.from(
+    new Set((resignationMovements || []).map((m: any) => (m.employee_code || '').toUpperCase()).filter(Boolean))
+  );
+
+  const { data: resignedStoreEmployees } = resignationCodes.length > 0
+    ? await adminSupabase
+        .from('store_employees')
+        .select('employee_code, store_id, is_pharmacist, current_position, position')
+        .in('employee_code', resignationCodes)
+        .in('store_id', storeIds)
+    : { data: [] as any[] };
+
+  const resignedEmpMap = new Map<string, any>();
+  (resignedStoreEmployees || []).forEach((e: any) => {
+    const key = `${String(e.store_id)}::${String(e.employee_code || '').toUpperCase()}`;
+    resignedEmpMap.set(key, e);
+  });
+
+  const currentKeySet = new Set(
+    currentRowsBase.map((r: any) => `${String(r.store_id)}::${String(r.employee_code || '').toUpperCase()}`)
+  );
+
+  const scopedStoreMap = new Map<string, { store_code: string; store_name: string }>();
+  (scopedStores || []).forEach((s: any) => {
+    scopedStoreMap.set(String(s.id), { store_code: s.store_code || '', store_name: s.store_name || '' });
+  });
+
+  const supplementedResignedRows = (resignationMovements || []).flatMap((m: any) => {
+    const storeId = String(m.store_id || '');
+    const code = String(m.employee_code || '').toUpperCase();
+    if (!storeId || !code) return [];
+
+    const key = `${storeId}::${code}`;
+    if (currentKeySet.has(key)) return [];
+
+    const emp = resignedEmpMap.get(key);
+    const isPharmacist = Boolean(emp?.is_pharmacist);
+    if (!isPharmacist) return [];
+
+    const storeInfo = scopedStoreMap.get(storeId) || { store_code: '', store_name: '' };
+    return [{
+      id: `resign-${storeId}-${code}-${m.movement_date}`,
+      store_id: storeId,
+      employee_code: code,
+      employee_name: m.employee_name || '',
+      position: emp?.current_position || emp?.position || '離職',
+      is_supervisor_rotation: false,
+      movement_type: 'resignation',
+      movement_date: m.movement_date,
+      stores: {
+        store_code: storeInfo.store_code,
+        store_name: storeInfo.store_name,
+      },
+    }];
+  });
+
+  const currentRows = [...currentRowsBase, ...supplementedResignedRows];
 
   let managerAssignments: any[] = [];
   let managerProfiles: any[] = [];
@@ -247,7 +318,12 @@ export default async function PharmacistManagementPage({
 
     let changeType = '無變更';
     let changeNote = '';
-    if (!prev) {
+    if (row.movement_type === 'resignation') {
+      changeType = '離職';
+      const d = row.movement_date ? new Date(row.movement_date) : null;
+      const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
+      changeNote = mmdd ? `${mmdd} 離職` : '離職';
+    } else if (!prev) {
       changeType = '新增任職';
     } else {
       const storeChanged = prev.store_id !== row.store_id;
@@ -294,8 +370,9 @@ export default async function PharmacistManagementPage({
     storeIdsSample: storeIds.slice(0, 20),
     currentRowsCount: (currentRows || []).length,
     previousRowsCount: (previousRows || []).length,
-    currentRowsExcludedSupervisorRotationCount: (currentRowsRaw || []).length - (currentRows || []).length,
+    currentRowsExcludedSupervisorRotationCount: (currentRowsRaw || []).length - (currentRowsBase || []).length,
     previousRowsExcludedSupervisorRotationCount: (previousRowsRaw || []).length - (previousRows || []).length,
+    supplementedResignedRowsCount: supplementedResignedRows.length,
     managerAssignmentsSource,
     managerAssignmentsErrorMessage,
     managerProfilesErrorMessage,
