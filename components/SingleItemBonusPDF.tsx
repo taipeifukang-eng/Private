@@ -128,7 +128,7 @@ export async function generateSingleItemBonusPDF(
                 ${renderNameCell(item)}
               </td>
               ${visibleColumns.single_item_bonus ? renderCell(renderSingleItemBonusCell(item)) : ''}
-              ${visibleColumns.meal_allowance ? renderCell(item.meal_allowance_amount > 0 ? `${formatCurrency(item.meal_allowance_amount)}${renderMultiline(item.meal_allowance_details)}` : '') : ''}
+              ${visibleColumns.meal_allowance ? renderCell(item.meal_allowance_amount > 0 ? `${formatCurrency(item.meal_allowance_amount)}（${item.meal_allowance_details.length}筆）` : '') : ''}
               ${visibleColumns.transport_expense ? renderCell(item.transport_expense > 0 ? `${formatCurrency(item.transport_expense)}${renderMultiline(item.transport_notes)}` : '') : ''}
               ${visibleColumns.talent_cultivation_bonus ? renderCell(item.talent_cultivation_bonus > 0 ? `${formatCurrency(item.talent_cultivation_bonus)}${renderMultiline(item.talent_cultivation_targets)}` : '') : ''}
               ${visibleColumns.spring_festival_bonus ? renderCell(item.spring_festival_bonus > 0 ? `${formatCurrency(item.spring_festival_bonus)}${renderMultiline(item.spring_festival_details)}` : '') : ''}
