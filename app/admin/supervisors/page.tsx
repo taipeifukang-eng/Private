@@ -145,7 +145,10 @@ export default function SupervisorsManagementPage() {
             if (otherUserId === userId) return false;
             if (!stores.has(storeId)) return false;
             const typeMap = assignmentTypes.get(otherUserId);
-            return typeMap?.get(storeId) === 'supervisor';
+            if (typeMap?.get(storeId) !== 'supervisor') return false;
+            // 只有職稱含「督導」的使用者才算衝突，排除經理等全門市管理者
+            const person = supervisors.find((s) => s.id === otherUserId);
+            return person?.job_title?.includes('督導') ?? false;
           })
           .map(([otherUserId]) => {
             const person = supervisors.find((s) => s.id === otherUserId);
