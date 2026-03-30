@@ -96,7 +96,7 @@ export default async function PharmacistManagementPage({
 
   const adminSupabase = createAdminClient();
 
-  const [{ data: currentRows }, { data: previousRows }, { data: managerAssignments }] = await Promise.all([
+  const [{ data: currentRows }, { data: previousRows }] = await Promise.all([
     supabase
       .from('monthly_staff_status')
       .select('id, store_id, employee_code, employee_name, position, stores(store_code, store_name)')
@@ -109,22 +109,59 @@ export default async function PharmacistManagementPage({
       .eq('year_month', previousYearMonth)
       .in('store_id', storeIds)
       .eq('is_pharmacist', true),
-    adminSupabase
+  ]);
+
+  let managerAssignments: any[] = [];
+  let managerProfiles: any[] = [];
+  let managerAssignmentsSource = 'admin';
+  let managerAssignmentsErrorMessage = '';
+  let managerProfilesErrorMessage = '';
+
+  const { data: adminManagerAssignments, error: adminManagerAssignmentsError } = await adminSupabase
+    .from('store_managers')
+    .select('store_id, user_id, role_type, is_primary, updated_at, created_at')
+    .in('store_id', storeIds);
+
+  if (adminManagerAssignmentsError) {
+    managerAssignmentsSource = 'regular-fallback';
+    managerAssignmentsErrorMessage = adminManagerAssignmentsError.message;
+    const { data: regularManagerAssignments, error: regularManagerAssignmentsError } = await supabase
       .from('store_managers')
       .select('store_id, user_id, role_type, is_primary, updated_at, created_at')
-      .in('store_id', storeIds),
-  ]);
+      .in('store_id', storeIds);
+
+    if (regularManagerAssignmentsError) {
+      managerAssignmentsErrorMessage = `${managerAssignmentsErrorMessage} | fallback: ${regularManagerAssignmentsError.message}`;
+    }
+    managerAssignments = regularManagerAssignments || [];
+  } else {
+    managerAssignments = adminManagerAssignments || [];
+  }
 
   const managerUserIds = Array.from(
     new Set((managerAssignments || []).map((row: any) => row.user_id).filter(Boolean))
   );
 
-  const { data: managerProfiles } = managerUserIds.length
-    ? await adminSupabase
+  if (managerUserIds.length > 0) {
+    const { data: adminProfiles, error: adminProfilesError } = await adminSupabase
+      .from('profiles')
+      .select('id, full_name, employee_code, job_title')
+      .in('id', managerUserIds);
+
+    if (adminProfilesError) {
+      managerProfilesErrorMessage = adminProfilesError.message;
+      const { data: regularProfiles, error: regularProfilesError } = await supabase
         .from('profiles')
         .select('id, full_name, employee_code, job_title')
-        .in('id', managerUserIds)
-    : { data: [] as any[] };
+        .in('id', managerUserIds);
+      if (regularProfilesError) {
+        managerProfilesErrorMessage = `${managerProfilesErrorMessage} | fallback: ${regularProfilesError.message}`;
+      }
+      managerProfiles = regularProfiles || [];
+    } else {
+      managerProfiles = adminProfiles || [];
+    }
+  }
 
   const profileByUserId = new Map<string, any>();
   (managerProfiles || []).forEach((p: any) => {
@@ -158,8 +195,8 @@ export default async function PharmacistManagementPage({
       const bTime = Date.parse(b.updated_at || b.created_at || '1970-01-01T00:00:00Z');
       if (aTime !== bTime) return bTime - aTime;
 
-      const aCode = a?.user?.employee_code || '';
-      const bCode = b?.user?.employee_code || '';
+      const aCode = profileByUserId.get(a.user_id)?.employee_code || '';
+      const bCode = profileByUserId.get(b.user_id)?.employee_code || '';
       return aCode.localeCompare(bCode);
     })[0];
 
@@ -226,6 +263,12 @@ export default async function PharmacistManagementPage({
     storeIdsSample: storeIds.slice(0, 20),
     currentRowsCount: (currentRows || []).length,
     previousRowsCount: (previousRows || []).length,
+    managerAssignmentsSource,
+    managerAssignmentsErrorMessage,
+    managerProfilesErrorMessage,
+    managerAssignmentsCount: managerAssignments.length,
+    managerUserIdsCount: managerUserIds.length,
+    managerProfilesCount: managerProfiles.length,
     managerRowsCount: supervisorRows.length,
     groupedManagersCount: groupedManagers.size,
     zoneByStoreCount: zoneByStore.size,
