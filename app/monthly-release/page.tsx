@@ -86,14 +86,7 @@ export default function MonthlyReleasePage() {
           </Link>
         </div>
 
-        <article className="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-xl shadow-amber-100/40">
-          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 px-6 py-8 text-white sm:px-8 sm:py-10">
-            <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-medium backdrop-blur-sm">
-              <Sparkles className="h-4 w-4" />
-              2026年3月更新摘要
-            </div>
-            <h2 className="text-2xl font-bold leading-tight sm:text-3xl">2026年3月 系統版更公告</h2>
-          <section className="mb-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
+        <section className="mb-6 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 sm:text-xl">月份清單</h2>
@@ -125,9 +118,9 @@ export default function MonthlyReleasePage() {
                 </a>
               ))}
             </div>
-          </section>
+        </section>
 
-          {monthlyReleases.map((release, index) => {
+        {monthlyReleases.map((release) => {
             const isLatest = release.slug === latestRelease.slug;
 
             return (
@@ -207,3 +200,7 @@ export default function MonthlyReleasePage() {
               </details>
             );
           })}
+      </div>
+    </div>
+  );
+}
