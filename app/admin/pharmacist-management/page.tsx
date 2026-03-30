@@ -413,8 +413,6 @@ export default async function PharmacistManagementPage({
 
         <PharmacistManagementTable
           initialRows={rows}
-          yearMonth={selectedYearMonth}
-          canEdit={canEditModule}
         />
 
         <p className="mt-3 text-xs text-gray-500">
