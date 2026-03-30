@@ -198,7 +198,8 @@ export default function SupervisorsManagementPage() {
         body: JSON.stringify({ 
           userId: selectedSupervisor.id, 
           storeIds,
-          roleType // 傳送角色類型
+          roleType,
+          proxyStoreIds: Array.from(proxyStores.get(selectedSupervisor.id) || []),
         }),
       });
 

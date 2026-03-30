@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
     }
 
-    const { userId, storeIds, roleType = 'supervisor' } = await request.json();
+    const { userId, storeIds, roleType = 'supervisor', proxyStoreIds = [] } = await request.json();
 
     if (!userId || !Array.isArray(storeIds)) {
       return NextResponse.json({ success: false, error: '參數錯誤' }, { status: 400 });
@@ -185,6 +185,33 @@ export async function POST(request: Request) {
         ...toDeleteSupervisorStoreIds,
         ...toInsert.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
       ];
+
+      // 明確標記代理門市（包含原本就已指派但需改為代理的）
+      const proxyStoreIdsParsed = (proxyStoreIds as any[])
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id));
+
+      if (proxyStoreIdsParsed.length > 0) {
+        const { error: proxyUpdateError } = await supabase
+          .from('store_managers')
+          .update({ is_primary: false })
+          .eq('user_id', userId)
+          .eq('role_type', 'supervisor')
+          .in('store_id', proxyStoreIdsParsed);
+
+        if (proxyUpdateError) {
+          return NextResponse.json({
+            success: false,
+            error: `設定代理門市失敗: ${proxyUpdateError.message}`,
+          }, { status: 500 });
+        }
+
+        // 代理門市也要加入主責補正清單
+        proxyStoreIdsParsed.forEach((id) => {
+          if (!touchedStoreIds.includes(id)) touchedStoreIds.push(id);
+        });
+      }
+
       await normalizePrimarySupervisors(supabase, touchedStoreIds);
     }
 
