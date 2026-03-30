@@ -1,6 +1,79 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+type SupervisorAssignmentRow = {
+  id: number;
+  store_id: number;
+  is_primary: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+async function normalizePrimarySupervisors(supabase: any, storeIds: number[]) {
+  const uniqueStoreIds = Array.from(new Set(storeIds)).filter((id) => Number.isFinite(id));
+  if (uniqueStoreIds.length === 0) return;
+
+  const { data: rows, error } = await supabase
+    .from('store_managers')
+    .select('id, store_id, is_primary, created_at, updated_at')
+    .eq('role_type', 'supervisor')
+    .in('store_id', uniqueStoreIds);
+
+  if (error) {
+    throw new Error(`讀取督導主責資料失敗: ${error.message}`);
+  }
+
+  const grouped = new Map<number, SupervisorAssignmentRow[]>();
+  (rows || []).forEach((row: SupervisorAssignmentRow) => {
+    const list = grouped.get(row.store_id) || [];
+    list.push(row);
+    grouped.set(row.store_id, list);
+  });
+
+  for (const [storeId, list] of grouped.entries()) {
+    if (!list.length) continue;
+
+    const currentPrimary = list.filter((r) => r.is_primary);
+    let primaryId: number;
+
+    if (currentPrimary.length === 1) {
+      primaryId = currentPrimary[0].id;
+    } else {
+      const sorted = [...list].sort((a, b) => {
+        const aCreated = Date.parse(a.created_at || '1970-01-01T00:00:00Z');
+        const bCreated = Date.parse(b.created_at || '1970-01-01T00:00:00Z');
+        if (aCreated !== bCreated) return aCreated - bCreated;
+
+        const aUpdated = Date.parse(a.updated_at || '1970-01-01T00:00:00Z');
+        const bUpdated = Date.parse(b.updated_at || '1970-01-01T00:00:00Z');
+        if (aUpdated !== bUpdated) return aUpdated - bUpdated;
+
+        return a.id - b.id;
+      });
+      primaryId = sorted[0].id;
+    }
+
+    const { error: resetError } = await supabase
+      .from('store_managers')
+      .update({ is_primary: false })
+      .eq('store_id', storeId)
+      .eq('role_type', 'supervisor');
+
+    if (resetError) {
+      throw new Error(`重設主責督導失敗(門市 ${storeId}): ${resetError.message}`);
+    }
+
+    const { error: setPrimaryError } = await supabase
+      .from('store_managers')
+      .update({ is_primary: true })
+      .eq('id', primaryId);
+
+    if (setPrimaryError) {
+      throw new Error(`設定主責督導失敗(門市 ${storeId}): ${setPrimaryError.message}`);
+    }
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -30,7 +103,7 @@ export async function POST(request: Request) {
     // 先查詢現有的分配
     const { data: existingAssignments } = await supabase
       .from('store_managers')
-      .select('id, store_id')
+      .select('id, store_id, role_type, is_primary')
       .eq('user_id', userId);
 
     const existingStoreIds = new Set(existingAssignments?.map(a => a.store_id) || []);
@@ -41,6 +114,30 @@ export async function POST(request: Request) {
     
     // 找出需要新增的
     const toInsert = storeIds.filter(id => !existingStoreIds.has(id));
+
+    const toDeleteSupervisorStoreIds = toDelete
+      .filter(a => a.role_type === 'supervisor')
+      .map(a => Number(a.store_id))
+      .filter(id => Number.isFinite(id));
+
+    let existingSupervisorStoreSet = new Set<number>();
+    if (roleType === 'supervisor' && toInsert.length > 0) {
+      const { data: existingSupervisors, error: existingSupervisorsError } = await supabase
+        .from('store_managers')
+        .select('store_id')
+        .eq('role_type', 'supervisor')
+        .in('store_id', toInsert)
+        .neq('user_id', userId);
+
+      if (existingSupervisorsError) {
+        return NextResponse.json({
+          success: false,
+          error: `檢查既有督導資料失敗: ${existingSupervisorsError.message}`
+        }, { status: 500 });
+      }
+
+      existingSupervisorStoreSet = new Set((existingSupervisors || []).map((r: any) => Number(r.store_id)));
+    }
 
     // 執行刪除
     if (toDelete.length > 0) {
@@ -65,7 +162,7 @@ export async function POST(request: Request) {
         user_id: userId,
         store_id: storeId,
         role_type: roleType, // 使用傳入的角色類型
-        is_primary: false
+        is_primary: roleType === 'supervisor' ? !existingSupervisorStoreSet.has(Number(storeId)) : false
       }));
 
       const { error: insertError } = await supabase
@@ -79,6 +176,14 @@ export async function POST(request: Request) {
           error: `新增資料失敗: ${insertError.message}` 
         }, { status: 500 });
       }
+    }
+
+    if (roleType === 'supervisor' || toDeleteSupervisorStoreIds.length > 0) {
+      const touchedStoreIds = [
+        ...toDeleteSupervisorStoreIds,
+        ...toInsert.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
+      ];
+      await normalizePrimarySupervisors(supabase, touchedStoreIds);
     }
 
     return NextResponse.json({ success: true });

@@ -97,7 +97,7 @@ export default function SupervisorsManagementPage() {
     }
   };
 
-  const toggleStoreAssignment = (userId: string, storeId: number) => {
+  const toggleStoreAssignment = (userId: string, storeId: number, storeName: string) => {
     setAssignments((prev) => {
       const newMap = new Map(prev);
       const userStores = newMap.get(userId) || new Set<number>();
@@ -106,6 +106,34 @@ export default function SupervisorsManagementPage() {
       if (newUserStores.has(storeId)) {
         newUserStores.delete(storeId);
       } else {
+        // 只有督導模式才檢查是否已有其他督導在管轄同門市
+        if (roleType === 'supervisor') {
+          const existingSupervisors = Array.from(newMap.entries())
+            .filter(([otherUserId, stores]) => {
+              if (otherUserId === userId) return false;
+              if (!stores.has(storeId)) return false;
+
+              const typeMap = assignmentTypes.get(otherUserId);
+              return typeMap?.get(storeId) === 'supervisor';
+            })
+            .map(([otherUserId]) => {
+              const person = supervisors.find((s) => s.id === otherUserId);
+              if (!person) return null;
+              return `${person.full_name || person.email}${person.employee_code ? ` (${person.employee_code})` : ''}`;
+            })
+            .filter(Boolean) as string[];
+
+          if (existingSupervisors.length > 0) {
+            const confirmed = window.confirm(
+              `門市「${storeName}」目前已由督導管理：\n${existingSupervisors.join('、')}\n\n是否改為「代理管理」方式新增此督導？`
+            );
+
+            if (!confirmed) {
+              return prev;
+            }
+          }
+        }
+
         newUserStores.add(storeId);
       }
 
@@ -525,7 +553,7 @@ export default function SupervisorsManagementPage() {
                           <input
                             type="checkbox"
                             checked={isAssigned}
-                            onChange={() => toggleStoreAssignment(selectedSupervisor.id, store.id)}
+                            onChange={() => toggleStoreAssignment(selectedSupervisor.id, store.id, store.store_name)}
                             className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
                           />
                           <div className="flex-1">

@@ -104,9 +104,9 @@ export default async function PharmacistManagementPage({
       .eq('is_pharmacist', true),
     supabase
       .from('store_managers')
-      .select('store_id, role_type, is_primary, user:profiles!store_managers_user_id_fkey(full_name, employee_code)')
+      .select('store_id, role_type, is_primary, updated_at, created_at, user:profiles!store_managers_user_id_fkey(full_name, employee_code)')
       .in('store_id', storeIds)
-      .in('role_type', ['supervisor', 'area_manager']),
+      .eq('role_type', 'supervisor'),
   ]);
 
   const zoneByStore = new Map<string, string>();
@@ -122,8 +122,14 @@ export default async function PharmacistManagementPage({
       const aPrimary = a.is_primary ? 0 : 1;
       const bPrimary = b.is_primary ? 0 : 1;
       if (aPrimary !== bPrimary) return aPrimary - bPrimary;
-      if (a.role_type === b.role_type) return 0;
-      return a.role_type === 'supervisor' ? -1 : 1;
+
+      const aTime = Date.parse(a.updated_at || a.created_at || '1970-01-01T00:00:00Z');
+      const bTime = Date.parse(b.updated_at || b.created_at || '1970-01-01T00:00:00Z');
+      if (aTime !== bTime) return bTime - aTime;
+
+      const aCode = a?.user?.employee_code || '';
+      const bCode = b?.user?.employee_code || '';
+      return aCode.localeCompare(bCode);
     })[0];
 
     const userInfo = picked?.user as any;
@@ -202,7 +208,7 @@ export default async function PharmacistManagementPage({
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">藥師管理</h1>
           <p className="mt-2 text-sm text-gray-600">
-            依每月人員狀態資料檢視各督導區藥師任職門市與該月職級變化。
+            依經理/督導管理設定的督導門市，檢視各督導區藥師任職門市與該月職級變化。
           </p>
         </div>
 
