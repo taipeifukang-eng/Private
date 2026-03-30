@@ -138,8 +138,10 @@ export default async function PharmacistManagementPage({
     managerAssignments = adminManagerAssignments || [];
   }
 
+  const supervisorRows = (managerAssignments || []).filter((row: any) => row.role_type === 'supervisor');
+
   const managerUserIds = Array.from(
-    new Set((managerAssignments || []).map((row: any) => row.user_id).filter(Boolean))
+    new Set(supervisorRows.map((row: any) => row.user_id).filter(Boolean))
   );
 
   if (managerUserIds.length > 0) {
@@ -168,12 +170,6 @@ export default async function PharmacistManagementPage({
     profileByUserId.set(p.id, p);
   });
 
-  const supervisorRows = (managerAssignments || []).filter((row: any) => {
-    if (row.role_type === 'supervisor') return true;
-    const p = profileByUserId.get(row.user_id);
-    return p?.job_title?.includes('督導') ?? false;
-  });
-
   console.log('[DEBUG pharmacist] query result counts => currentRows:', (currentRows || []).length, 'previousRows:', (previousRows || []).length, 'managerAssignments:', (managerAssignments || []).length, 'supervisorRows:', supervisorRows.length);
   console.log('[DEBUG pharmacist] supervisorRows sample:', supervisorRows.slice(0, 10));
 
@@ -186,14 +182,12 @@ export default async function PharmacistManagementPage({
   });
 
   groupedManagers.forEach((list, storeId) => {
-    const picked = [...list].sort((a, b) => {
-      const aPrimary = a.is_primary ? 0 : 1;
-      const bPrimary = b.is_primary ? 0 : 1;
-      if (aPrimary !== bPrimary) return aPrimary - bPrimary;
-
+    const primaryCandidates = list.filter((r: any) => r.is_primary);
+    const candidates = primaryCandidates.length > 0 ? primaryCandidates : list;
+    const picked = [...candidates].sort((a, b) => {
       const aTime = Date.parse(a.created_at || '1970-01-01T00:00:00Z');
       const bTime = Date.parse(b.created_at || '1970-01-01T00:00:00Z');
-      if (aTime !== bTime) return bTime - aTime;
+      if (aTime !== bTime) return aTime - bTime;
 
       const aCode = profileByUserId.get(a.user_id)?.employee_code || '';
       const bCode = profileByUserId.get(b.user_id)?.employee_code || '';
