@@ -198,6 +198,13 @@ export default async function PharmacistManagementPage({
 
   const currentRows = [...currentRowsBase, ...supplementedResignedRows];
 
+  // 建立「當月離職員工」快查 map（employee_code → movement record），用於補標 monthly_staff_status 中已存在但已離職的藥師
+  const resignationByEmpCode = new Map<string, any>();
+  (resignationMovements || []).forEach((m: any) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    if (code) resignationByEmpCode.set(code, m);
+  });
+
   let managerAssignments: any[] = [];
   let managerProfiles: any[] = [];
   let managerAssignmentsSource = 'admin';
@@ -318,9 +325,17 @@ export default async function PharmacistManagementPage({
 
     let changeType = '無變更';
     let changeNote = '';
+    const _empCodeUpper = String(row.employee_code || '').toUpperCase();
+    const resignRecord = row.movement_type !== 'resignation' ? resignationByEmpCode.get(_empCodeUpper) : null;
     if (row.movement_type === 'resignation') {
       changeType = '離職';
       const d = row.movement_date ? new Date(row.movement_date) : null;
+      const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
+      changeNote = mmdd ? `${mmdd} 離職` : '離職';
+    } else if (resignRecord) {
+      // 在 monthly_staff_status 中但當月已有離職紀錄 → 補標離職
+      changeType = '離職';
+      const d = resignRecord.movement_date ? new Date(resignRecord.movement_date) : null;
       const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
       changeNote = mmdd ? `${mmdd} 離職` : '離職';
     } else if (!prev) {
