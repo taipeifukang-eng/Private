@@ -493,10 +493,18 @@ export default async function PharmacistManagementPage({
   };
 
   // ── Tab2: 藥師主檔資料 ──
-  // 抓取所有範圍內門市的藥師 store_employees
+  // 來源1：抓取所有範圍內門市的藥師 store_employees
   const { data: masterEmployeesRaw } = await adminSupabase
     .from('store_employees')
     .select('employee_code, store_id, is_pharmacist, current_position, position, start_date, is_active')
+    .in('store_id', storeIds)
+    .eq('is_pharmacist', true);
+
+  // 來源2：抓取當月 monthly_staff_status 的藥師（支援每月狀態新增後自動反映到主檔）
+  const { data: monthlyPharmacistsRaw } = await adminSupabase
+    .from('monthly_staff_status')
+    .select('employee_code, employee_name, position, start_date, store_id')
+    .eq('year_month', selectedYearMonth)
     .in('store_id', storeIds)
     .eq('is_pharmacist', true);
 
@@ -508,6 +516,14 @@ export default async function PharmacistManagementPage({
     position: string | null;
     start_date: string | null;
     is_active: boolean;
+  }>;
+
+  const monthlyPharmacists = (monthlyPharmacistsRaw || []) as Array<{
+    employee_code: string;
+    employee_name: string | null;
+    position: string | null;
+    start_date: string | null;
+    store_id: string;
   }>;
 
   // 以員編唯一化，避免同一藥師在多門市或歷史資料造成重複
@@ -549,6 +565,37 @@ export default async function PharmacistManagementPage({
     }
   });
 
+  // monthly_staff_status 的藥師也納入主檔來源，避免僅出現在月狀態而未建 store_employees 時漏資料
+  monthlyPharmacists.forEach((m) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    if (!code) return;
+
+    const existing = masterEmployeeByCode.get(code);
+    if (!existing) {
+      masterEmployeeByCode.set(code, {
+        employee_code: code,
+        store_id: String(m.store_id || ''),
+        is_pharmacist: true,
+        current_position: m.position || null,
+        position: m.position || null,
+        start_date: m.start_date || null,
+        is_active: true,
+      });
+      return;
+    }
+
+    // 已存在時，用 monthly 資料補齊缺值
+    if (!existing.current_position && m.position) {
+      existing.current_position = m.position;
+      existing.position = m.position;
+    }
+    if (!existing.start_date && m.start_date) {
+      existing.start_date = m.start_date;
+    }
+    existing.is_pharmacist = true;
+    masterEmployeeByCode.set(code, existing);
+  });
+
   const masterEmployeesUnique = Array.from(masterEmployeeByCode.values());
 
   // 抓取姓名（profiles）
@@ -563,6 +610,14 @@ export default async function PharmacistManagementPage({
   const masterNameByCode = new Map<string, string>();
   (masterProfilesRaw || []).forEach((p: any) => {
     if (p.employee_code) masterNameByCode.set(p.employee_code.toUpperCase(), p.full_name || '');
+  });
+
+  // 先用當月月狀態補姓名（最貼近使用者剛新增的資料）
+  monthlyPharmacists.forEach((m) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    if (code && m.employee_name && !masterNameByCode.has(code)) {
+      masterNameByCode.set(code, m.employee_name);
+    }
   });
 
     // 從 monthly_staff_status 補充姓名（profiles 只有有帳號的人，大多數藥師沒有帳號）
