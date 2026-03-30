@@ -4,6 +4,9 @@ import { hasPermission } from '@/lib/permissions/check';
 
 function mapDbError(error: any): string {
   const code = error?.code;
+  if (code === 'PGRST205') {
+    return 'pharmacist_profiles 資料表不存在，請先執行 supabase/migration_pharmacist_profiles.sql';
+  }
   if (code === '42P01') {
     return 'pharmacist_profiles 資料表不存在，請先執行 supabase/migration_pharmacist_profiles.sql';
   }
