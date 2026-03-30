@@ -374,6 +374,9 @@ export const SPECIAL_ROLE_OPTIONS = [
 
 // 職位選項
 export const POSITION_OPTIONS = [
+  '總經理',
+  '副總經理',
+  '經理',
   '督導',
   '店長',
   '副店長',

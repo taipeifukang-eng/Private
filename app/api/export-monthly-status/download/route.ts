@@ -6,26 +6,29 @@ import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 // 職位排序優先順序（與 POSITION_OPTIONS 一致）
 const POSITION_ORDER: { [key: string]: number } = {
-  '督導': 1,
-  '店長': 2,
-  '代理店長': 3,
-  '督導(代理店長)': 4,
-  '副店長': 5,
-  '主任': 6,
-  '組長': 7,
-  '專員': 8,
-  '新人': 9,
-  '行政': 10,
-  '兼職專員': 11,
-  '兼職藥師': 12,
-  '兼職藥師專員': 13,
-  '兼職助理': 14
+  '總經理': 1,
+  '副總經理': 2,
+  '經理': 3,
+  '督導': 4,
+  '店長': 5,
+  '代理店長': 6,
+  '督導(代理店長)': 7,
+  '副店長': 8,
+  '主任': 9,
+  '組長': 10,
+  '專員': 11,
+  '新人': 12,
+  '行政': 13,
+  '兼職專員': 14,
+  '兼職藥師': 15,
+  '兼職藥師專員': 16,
+  '兼職助理': 17
 };
 
 // 計算人員階段
 function calculateStage(position: string, newbieLevel: string | null): string {
   // 1. 專員以上都是三階
-  const seniorPositions = ['督導', '店長', '代理店長', '督導(代理店長)', '副店長', '主任', '組長', '專員'];
+  const seniorPositions = ['總經理', '副總經理', '經理', '督導', '店長', '代理店長', '督導(代理店長)', '副店長', '主任', '組長', '專員'];
   if (seniorPositions.includes(position)) {
     return '三階';
   }
