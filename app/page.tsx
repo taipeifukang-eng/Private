@@ -2,9 +2,45 @@ import { getCurrentUser } from '@/app/auth/actions';
 import { getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft, FileText } from 'lucide-react';
+import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft, FileText, BellRing } from 'lucide-react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
+
+type MonthlyPharmacistRow = {
+  employee_code: string;
+  employee_name: string;
+  store_name: string | null;
+  store_id: string;
+};
+
+type MovementRow = {
+  employee_code: string;
+  movement_type: string;
+  movement_date: string;
+};
+
+type AnnualFeeRow = {
+  employee_code: string;
+  association_city: string | null;
+  fee_year: number | null;
+  fee_period_end: string | null;
+  created_at: string;
+};
+
+function parseDateTs(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const t = new Date(`${dateStr}T00:00:00`).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+function getReminderStartTsForKeelung(latestPeriodEnd: string | null): number | null {
+  const endTs = parseDateTs(latestPeriodEnd);
+  if (!endTs) return null;
+  const d = new Date(endTs);
+  d.setDate(1);
+  d.setMonth(d.getMonth() + 4);
+  return d.getTime();
+}
 
 export default async function HomePage() {
   const { user } = await getCurrentUser();
@@ -69,11 +105,18 @@ export default async function HomePage() {
   // ── 本月壽星 ──────────────────────────────────────────────
   const adminSupabase = createAdminClient();
   const currentMonth = new Date().getMonth() + 1; // 1-12
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentYearMonth = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+  const currentMonthEnd = new Date(currentYear, currentMonth, 0);
+  const currentMonthEndTs = currentMonthEnd.getTime();
   const jobTitle = user.profile?.job_title || '';
   const role = user.profile?.role || '';
   const isSupervisor = jobTitle.includes('督導');
   const isStoreManager = ['店長', '代理店長'].includes(jobTitle) && !isSupervisor;
   const isManagerOrAdmin = role === 'admin' || (role === 'manager' && !isSupervisor && !isStoreManager);
+  const isBusinessAdminAssistantSupervisor = jobTitle.includes('營業部行政助理主管');
+  const canViewAnnualFeeReminder = role === 'admin' || isSupervisor || isStoreManager || isBusinessAdminAssistantSupervisor;
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
@@ -115,6 +158,153 @@ export default async function HomePage() {
       });
     }
   }
+
+  // ── 常年會費未繳提醒 ───────────────────────────────────────
+  // 規則：
+  // 1) 一般縣市：每年 4 月起，若當年度無繳費記錄則提醒
+  // 2) 基隆市：依上一期 fee_period_end 後第 4 個月開始提醒
+  // 3) 若該員工於當月月底前已離職，則不提醒
+  let annualFeeReminders: Array<{
+    employee_code: string;
+    employee_name: string;
+    store_name: string | null;
+    association_city: string;
+    reason: string;
+  }> = [];
+
+  if (canViewAnnualFeeReminder) {
+    let reminderStoreIds: string[] | null = null;
+    if (isSupervisor || isStoreManager) {
+      const { data: managedStores } = await adminSupabase
+        .from('store_managers')
+        .select('store_id')
+        .eq('user_id', user.id);
+      reminderStoreIds = (managedStores || []).map((s) => s.store_id);
+    }
+
+    let monthlyPharmacists: MonthlyPharmacistRow[] = [];
+    if (reminderStoreIds === null || reminderStoreIds.length > 0) {
+      let q = adminSupabase
+        .from('monthly_staff_status')
+        .select('employee_code, employee_name, store_name, store_id')
+        .eq('year_month', currentYearMonth)
+        .eq('is_pharmacist', true);
+
+      if (reminderStoreIds) {
+        q = q.in('store_id', reminderStoreIds);
+      }
+
+      const { data: monthlyPharmacistsRaw } = await q;
+      monthlyPharmacists = ((monthlyPharmacistsRaw || []) as MonthlyPharmacistRow[])
+        .map((r) => ({
+          ...r,
+          employee_code: String(r.employee_code || '').toUpperCase(),
+          employee_name: String(r.employee_name || ''),
+        }))
+        .filter((r) => r.employee_code);
+    }
+
+    const candidateByCode = new Map<string, MonthlyPharmacistRow>();
+    monthlyPharmacists.forEach((r) => {
+      if (!candidateByCode.has(r.employee_code)) candidateByCode.set(r.employee_code, r);
+    });
+    const candidateCodes = Array.from(candidateByCode.keys());
+
+    if (candidateCodes.length > 0) {
+      const [{ data: movementRaw }, { data: annualFeeRaw }] = await Promise.all([
+        adminSupabase
+          .from('employee_movement_history')
+          .select('employee_code, movement_type, movement_date')
+          .in('employee_code', candidateCodes)
+          .in('movement_type', ['resignation', 'onboarding', 'return_to_work'])
+          .order('movement_date', { ascending: false }),
+        adminSupabase
+          .from('pharmacist_annual_fees')
+          .select('employee_code, association_city, fee_year, fee_period_end, created_at')
+          .in('employee_code', candidateCodes)
+          .order('created_at', { ascending: false }),
+      ]);
+
+      const movements = (movementRaw || []) as MovementRow[];
+      const annualFees = (annualFeeRaw || []) as AnnualFeeRow[];
+
+      const latestResignTsByCode = new Map<string, number>();
+      const latestReactivateTsByCode = new Map<string, number>();
+
+      movements.forEach((m) => {
+        const code = String(m.employee_code || '').toUpperCase();
+        if (!code) return;
+        const ts = parseDateTs(m.movement_date);
+        if (!ts || ts > currentMonthEndTs) return;
+
+        if (m.movement_type === 'resignation') {
+          const prev = latestResignTsByCode.get(code);
+          if (!prev || ts > prev) latestResignTsByCode.set(code, ts);
+          return;
+        }
+        if (m.movement_type === 'onboarding' || m.movement_type === 'return_to_work') {
+          const prev = latestReactivateTsByCode.get(code);
+          if (!prev || ts > prev) latestReactivateTsByCode.set(code, ts);
+        }
+      });
+
+      const annualFeesByCode = new Map<string, AnnualFeeRow[]>();
+      annualFees.forEach((row) => {
+        const code = String(row.employee_code || '').toUpperCase();
+        if (!code) return;
+        if (!annualFeesByCode.has(code)) annualFeesByCode.set(code, []);
+        annualFeesByCode.get(code)!.push(row);
+      });
+
+      annualFeeReminders = candidateCodes
+        .filter((code) => {
+          const resignTs = latestResignTsByCode.get(code);
+          const reactivateTs = latestReactivateTsByCode.get(code);
+          const isResignedByCurrentMonth = Boolean(
+            resignTs && (!reactivateTs || resignTs >= reactivateTs)
+          );
+          return !isResignedByCurrentMonth;
+        })
+        .map((code) => {
+          const emp = candidateByCode.get(code)!;
+          const records = annualFeesByCode.get(code) || [];
+          const latestRecord = records[0] || null;
+          const city = latestRecord?.association_city || '未設定';
+
+          if (city === '基隆市') {
+            const latestEnd = records.find((r) => r.fee_period_end)?.fee_period_end || null;
+            const reminderStartTs = getReminderStartTsForKeelung(latestEnd);
+            const shouldRemind = reminderStartTs ? now.getTime() >= reminderStartTs : currentMonth >= 4;
+            if (!shouldRemind) return null;
+
+            const reason = latestEnd
+              ? `基隆規則：上一期結束後第4個月起提醒（上一期至 ${latestEnd.slice(0, 10)}）`
+              : '基隆規則：尚無上一期結束日，暫以 4 月起提醒';
+
+            return {
+              employee_code: code,
+              employee_name: emp.employee_name,
+              store_name: emp.store_name,
+              association_city: city,
+              reason,
+            };
+          }
+
+          const hasCurrentYearRecord = records.some((r) => r.fee_year === currentYear);
+          if (currentMonth < 4 || hasCurrentYearRecord) return null;
+
+          return {
+            employee_code: code,
+            employee_name: emp.employee_name,
+            store_name: emp.store_name,
+            association_city: city,
+            reason: `${currentYear} 年尚無常年會費申請記錄`,
+          };
+        })
+        .filter((r): r is NonNullable<typeof r> => Boolean(r));
+    }
+  }
+  // ─────────────────────────────────────────────────────────
 
   // ── 調店登記確認快捷（有確認權限者） ────────────────────
   const canConfirmTransfer = role === 'admin' || await hasPermission(user.id, 'employee.store_transfer.confirm');
@@ -210,10 +400,10 @@ export default async function HomePage() {
         </div>
 
         {/* Cards Row */}
-        <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 items-start">
 
           {/* My Tasks Section */}
-          <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full lg:max-w-xl">
+          <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full">
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">我的任務</h2>
               <Link
@@ -256,7 +446,7 @@ export default async function HomePage() {
 
           {/* 本月壽星 Section */}
           {(isManagerOrAdmin || isSupervisor || isStoreManager) && (
-            <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full lg:max-w-xl">
+            <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full">
               <div className="flex items-center gap-2 mb-3 sm:mb-4">
                 <Cake className="w-5 h-5 text-pink-500 flex-shrink-0" />
                 <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">
@@ -294,6 +484,44 @@ export default async function HomePage() {
                   <p className="text-right text-xs text-gray-400 mt-2">共 {uniqueBirthdays.length} 人</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 常年會費未繳提醒 Card */}
+          {canViewAnnualFeeReminder && annualFeeReminders.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full border border-amber-200">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <BellRing className="w-5 h-5 text-amber-500 flex-shrink-0" />
+                <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">
+                  常年會費未繳提醒
+                  <span className="ml-2 text-sm font-normal text-gray-400">({annualFeeReminders.length} 人)</span>
+                </h2>
+              </div>
+
+              <div className="overflow-hidden">
+                <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-amber-50 rounded-t-lg border border-amber-200 text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                  <span>員編</span>
+                  <span>姓名</span>
+                  <span>公會</span>
+                  <span>門市</span>
+                </div>
+                <div className="border border-t-0 border-amber-200 rounded-b-lg divide-y divide-amber-100 max-h-72 overflow-y-auto">
+                  {annualFeeReminders.map((emp) => (
+                    <div
+                      key={emp.employee_code}
+                      className="px-3 py-2 hover:bg-amber-50/60 transition-colors"
+                    >
+                      <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
+                        <span className="text-gray-600 font-mono">{emp.employee_code}</span>
+                        <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
+                        <span className="text-amber-700 font-medium">{emp.association_city}</span>
+                        <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-amber-700">{emp.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
