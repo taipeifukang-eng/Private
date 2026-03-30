@@ -30,7 +30,9 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: number[]) {
     grouped.set(row.store_id, list);
   });
 
-  for (const [storeId, list] of grouped.entries()) {
+  const groupedEntries = Array.from(grouped.entries());
+  for (let i = 0; i < groupedEntries.length; i += 1) {
+    const [storeId, list] = groupedEntries[i];
     if (!list.length) continue;
 
     const currentPrimary = list.filter((r) => r.is_primary);
