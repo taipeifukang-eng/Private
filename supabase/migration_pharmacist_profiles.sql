@@ -14,6 +14,15 @@ CREATE TABLE IF NOT EXISTS pharmacist_profiles (
   updated_at           TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 既有環境補欄位（可重複執行）
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS school TEXT;
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS education_level TEXT;
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS is_responsible_pharmacist BOOLEAN DEFAULT false;
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS license_renewal_date DATE;
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE pharmacist_profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
 -- 自動更新 updated_at
 CREATE OR REPLACE FUNCTION update_pharmacist_profiles_updated_at()
 RETURNS TRIGGER AS $$
@@ -34,11 +43,13 @@ ALTER TABLE pharmacist_profiles ENABLE ROW LEVEL SECURITY;
 -- 有 pharmacist.management.view 或 edit 權限的人才能讀取
 -- (透過 API server-side 用 service role 操作，RLS 以 service role bypass 為主)
 -- 開放 authenticated 讀取，寫入由 API 控管
+DROP POLICY IF EXISTS "authenticated_read_pharmacist_profiles" ON pharmacist_profiles;
 CREATE POLICY "authenticated_read_pharmacist_profiles"
   ON pharmacist_profiles FOR SELECT
   TO authenticated
   USING (true);
 
+DROP POLICY IF EXISTS "service_role_all_pharmacist_profiles" ON pharmacist_profiles;
 CREATE POLICY "service_role_all_pharmacist_profiles"
   ON pharmacist_profiles FOR ALL
   TO service_role
