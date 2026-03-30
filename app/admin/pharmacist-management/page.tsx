@@ -710,7 +710,8 @@ export default async function PharmacistManagementPage({
       }
     });
 
-    // 以「最新異動」決定主檔在職/離職狀態與離職日期
+    // 以異動紀錄決定主檔在職/離職狀態與離職日期
+    // 規則：最新離職日 >= 最新復職/入職日 => 視為已離職，並顯示該離職日
     const { data: latestMovementsRaw } = masterEmpCodes.length > 0
       ? await adminSupabase
           .from('employee_movement_history')
@@ -719,14 +720,21 @@ export default async function PharmacistManagementPage({
           .order('movement_date', { ascending: false })
       : { data: [] as any[] };
 
-    const latestMovementByCode = new Map<string, { movement_type: string; movement_date: string }>();
+    const latestResignationByCode = new Map<string, string>();
+    const latestReactivationByCode = new Map<string, string>();
     (latestMovementsRaw || []).forEach((m: any) => {
       const code = String(m.employee_code || '').toUpperCase();
-      if (!code || latestMovementByCode.has(code)) return;
-      latestMovementByCode.set(code, {
-        movement_type: String(m.movement_type || ''),
-        movement_date: String(m.movement_date || ''),
-      });
+      const type = String(m.movement_type || '');
+      const date = String(m.movement_date || '');
+      if (!code || !date) return;
+
+      if (type === 'resignation' && !latestResignationByCode.has(code)) {
+        latestResignationByCode.set(code, date);
+      }
+
+      if ((type === 'onboarding' || type === 'return_to_work') && !latestReactivationByCode.has(code)) {
+        latestReactivationByCode.set(code, date);
+      }
     });
 
     // 從 monthly_staff_status 補齊到職日（store_employees 可能為空）
@@ -766,15 +774,20 @@ export default async function PharmacistManagementPage({
     .map((e) => {
       const code = (e.employee_code || '').toUpperCase();
       const pharmProfile = pharmProfileByCode.get(code) || {};
-      const latestMovement = latestMovementByCode.get(code);
-      const resignationDate = latestMovement?.movement_type === 'resignation' ? latestMovement.movement_date : null;
+
+      const resignationDate = latestResignationByCode.get(code) || null;
+      const reactivationDate = latestReactivationByCode.get(code) || null;
+      const isResignedByMovement = Boolean(
+        resignationDate && (!reactivationDate || resignationDate >= reactivationDate)
+      );
+
       return {
         employee_code: code,
         employee_name: masterNameByCode.get(code) || '',
         current_position: e.current_position || e.position || '-',
         start_date: e.start_date || startDateByCode.get(code) || null,
-        resignation_date: resignationDate,
-        is_active: resignationDate ? false : e.is_active,
+        resignation_date: isResignedByMovement ? resignationDate : null,
+        is_active: isResignedByMovement ? false : e.is_active,
         school: pharmProfile.school || '',
         education_level: pharmProfile.education_level || '',
         is_responsible_pharmacist: pharmProfile.is_responsible_pharmacist ?? false,
