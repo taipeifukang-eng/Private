@@ -9,6 +9,7 @@ interface MovementInput {
   employee_name: string;
   movement_type: MovementType;
   store_id?: string; // 任職門市（入職時必填）
+  onboarding_is_pharmacist?: boolean; // 入職時是否為藥師
   position?: string; // 僅升職時需要
   effective_date: string;
   notes?: string;
@@ -152,6 +153,7 @@ export async function POST(request: NextRequest) {
         employee_name: movement.employee_name,
         store_id: recordStoreId,
         movement_type: movement.movement_type,
+        onboarding_is_pharmacist: movement.movement_type === 'onboarding' ? Boolean(movement.onboarding_is_pharmacist) : null,
         movement_date: movement.effective_date,
         new_value: newValue,
         old_value: oldValue,

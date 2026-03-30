@@ -24,6 +24,7 @@ interface MovementInput {
   employee_name: string;
   store_id: string; // 任職門市
   movement_type: MovementType | '';
+  onboarding_is_pharmacist: boolean; // 入職是否為藥師
   position: string; // 僅升職時需要
   effective_date: string;
   notes: string;
@@ -56,6 +57,7 @@ interface Employee {
   position: string;
   current_position: string | null;
   store_id: string;
+  is_pharmacist?: boolean;
 }
 
 interface StoreTransferRequest {
@@ -96,7 +98,7 @@ export default function EmployeeMovementManagementPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [transferStatusFilter, setTransferStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('pending');
   const [movements, setMovements] = useState<MovementInput[]>([
-    { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
+    { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
   ]);
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<MovementHistory[]>([]);
@@ -308,7 +310,7 @@ export default function EmployeeMovementManagementPage() {
     // 載入所有員工（包含離職員工）
     const { data } = await supabase
       .from('store_employees')
-      .select('employee_code, employee_name, position, current_position, store_id')
+      .select('employee_code, employee_name, position, current_position, store_id, is_pharmacist')
       .order('employee_code');
 
     if (data) {
@@ -404,7 +406,7 @@ export default function EmployeeMovementManagementPage() {
   };
 
   const addRow = () => {
-    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
+    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
   };
 
   const removeRow = (index: number) => {
@@ -415,7 +417,7 @@ export default function EmployeeMovementManagementPage() {
     setMovements(movements.filter((_, i) => i !== index));
   };
 
-  const updateRow = (index: number, field: keyof MovementInput, value: string) => {
+  const updateRow = (index: number, field: keyof MovementInput, value: string | boolean) => {
     const updated = [...movements];
     updated[index] = { ...updated[index], [field]: value };
     
@@ -432,6 +434,10 @@ export default function EmployeeMovementManagementPage() {
         updated[index].from_store_id = updated[index].store_id;
       }
       updated[index].store_id = ''; // 調店不需要填任職門市
+    }
+    // 只有入職需要「是否為藥師」，切到其他異動型態時重設
+    if (field === 'movement_type' && value !== 'onboarding') {
+      updated[index].onboarding_is_pharmacist = false;
     }
     // 切換離開調店類型時，清空調店欄位
     if (field === 'movement_type' && value !== 'store_transfer') {
@@ -451,6 +457,7 @@ export default function EmployeeMovementManagementPage() {
     updated[index].employee_code = employee.employee_code;
     updated[index].employee_name = employee.employee_name;
     updated[index].store_id = employee.store_id; // 自動帶入員工所屬門市
+    updated[index].onboarding_is_pharmacist = Boolean(employee.is_pharmacist);
     // 調店時自動帶入原任職門市
     if (updated[index].movement_type === 'store_transfer') {
       updated[index].from_store_id = employee.store_id;
@@ -513,7 +520,7 @@ export default function EmployeeMovementManagementPage() {
       if (result.success) {
         alert(`✅ 成功建立 ${result.created} 筆異動記錄！`);
         // 重置表單
-        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
+        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
         // 重新載入歷史記錄
         loadMovementHistory();
       } else {
@@ -544,6 +551,7 @@ export default function EmployeeMovementManagementPage() {
           employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
           store_id: (row['任職門市ID'] || row['store_id'] || '').toString(),
           movement_type: (row['異動類型'] || row['movement_type'] || '') as MovementType | '',
+          onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
           position: (row['職位'] || row['position'] || '').toString(),
           effective_date: row['生效日期'] || row['effective_date'] || '',
           notes: (row['備註'] || row['notes'] || '').toString(),
@@ -573,6 +581,7 @@ export default function EmployeeMovementManagementPage() {
         '姓名': m.employee_name,
         '異動類型': movementTypeLabel,
         '任職門市': storeName,
+        '是否為藥師': m.movement_type === 'onboarding' ? (m.onboarding_is_pharmacist ? '是' : '否') : '',
         '職位': m.position,
         '原任職門市': m.movement_type === 'store_transfer' ? fromStoreName : '',
         '新任職門市': m.movement_type === 'store_transfer' ? toStoreName : '',
@@ -857,6 +866,18 @@ export default function EmployeeMovementManagementPage() {
                             </select>
                           </div>
                         </div>
+                      ) : movement.movement_type === 'onboarding' ? (
+                        <div className="space-y-1">
+                          <label className="text-xs text-gray-500">是否為藥師</label>
+                          <select
+                            value={movement.onboarding_is_pharmacist ? 'true' : 'false'}
+                            onChange={(e) => updateRow(index, 'onboarding_is_pharmacist', e.target.value === 'true')}
+                            className="w-full px-2 py-1 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-500 rounded bg-emerald-50"
+                          >
+                            <option value="false">否</option>
+                            <option value="true">是</option>
+                          </select>
+                        </div>
                       ) : (
                         <div className="text-gray-400 text-sm px-2 py-1">-</div>
                       )}
@@ -924,6 +945,7 @@ export default function EmployeeMovementManagementPage() {
           <h3 className="text-sm font-semibold text-emerald-900 mb-2">💡 使用說明</h3>
           <ul className="text-sm text-emerald-800 space-y-1">
             <li>• <strong>所有異動都需填寫任職門市</strong>，記錄員工在哪個門市發生異動</li>
+            <li>• <strong>入職：</strong>可設定是否為藥師，系統會在每月人員狀態初始化時自動帶入</li>
             <li>• <strong>升職：</strong>需填寫新職位，系統會自動更新該員工從生效日期起的所有月份職位</li>
             <li>• <strong>調店：</strong>需選擇原任職門市和新任職門市，生效日期為新門市調入的第一天。系統會自動將員工從原門市移至新門市</li>
             <li>• <strong>留職停薪：</strong>將員工狀態設為留職停薪，不影響職位資料</li>

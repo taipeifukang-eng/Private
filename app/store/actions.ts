@@ -856,7 +856,7 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
           employee_name: movement.employee_name,
           position: '新人',
           employment_type: 'full_time',
-          is_pharmacist: false,
+          is_pharmacist: Boolean(movement.onboarding_is_pharmacist),
           start_date: movement.movement_date,
           monthly_status: 'new_hire' as MonthlyStatusType,
           work_days: workDays,
