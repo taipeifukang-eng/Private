@@ -61,3 +61,4 @@ JOIN permissions p ON p.id = rp.permission_id
 WHERE p.code IN ('pharmacist.management.view', 'pharmacist.management.edit')
   AND r.code IN ('business_manager', 'supervisor_role', 'admin_role')
 ORDER BY r.code, p.code;
+k

@@ -180,39 +180,71 @@ export async function POST(request: Request) {
       }
     }
 
-    if (roleType === 'supervisor' || toDeleteSupervisorStoreIds.length > 0) {
-      const touchedStoreIds = [
-        ...toDeleteSupervisorStoreIds,
-        ...toInsert.map((id) => Number(id)).filter((id) => Number.isFinite(id)),
-      ];
+    const proxyStoreIdsParsed = (proxyStoreIds as any[])
+      .map((id) => Number(id))
+      .filter((id) => Number.isFinite(id));
 
-      // 明確標記代理門市（包含原本就已指派但需改為代理的）
-      const proxyStoreIdsParsed = (proxyStoreIds as any[])
-        .map((id) => Number(id))
-        .filter((id) => Number.isFinite(id));
+    // 代理門市：不走 normalizePrimary，改用獨立邏輯
+    // 讓自己 is_primary=false，再確保「其他督導」中有一位是主責
+    if (proxyStoreIdsParsed.length > 0) {
+      const { error: proxyUpdateError } = await supabase
+        .from('store_managers')
+        .update({ is_primary: false })
+        .eq('user_id', userId)
+        .eq('role_type', 'supervisor')
+        .in('store_id', proxyStoreIdsParsed);
 
-      if (proxyStoreIdsParsed.length > 0) {
-        const { error: proxyUpdateError } = await supabase
-          .from('store_managers')
-          .update({ is_primary: false })
-          .eq('user_id', userId)
-          .eq('role_type', 'supervisor')
-          .in('store_id', proxyStoreIdsParsed);
-
-        if (proxyUpdateError) {
-          return NextResponse.json({
-            success: false,
-            error: `設定代理門市失敗: ${proxyUpdateError.message}`,
-          }, { status: 500 });
-        }
-
-        // 代理門市也要加入主責補正清單
-        proxyStoreIdsParsed.forEach((id) => {
-          if (!touchedStoreIds.includes(id)) touchedStoreIds.push(id);
-        });
+      if (proxyUpdateError) {
+        return NextResponse.json({
+          success: false,
+          error: `設定代理門市失敗: ${proxyUpdateError.message}`,
+        }, { status: 500 });
       }
 
-      await normalizePrimarySupervisors(supabase, touchedStoreIds);
+      // 對每個代理門市：若其他督導都沒有主責，選最舊的補為主責
+      const { data: otherRows } = await supabase
+        .from('store_managers')
+        .select('id, store_id, is_primary, created_at')
+        .eq('role_type', 'supervisor')
+        .neq('user_id', userId)
+        .in('store_id', proxyStoreIdsParsed);
+
+      const otherByStore = new Map<number, any[]>();
+      (otherRows || []).forEach((row: any) => {
+        const sid = Number(row.store_id);
+        const list = otherByStore.get(sid) || [];
+        list.push(row);
+        otherByStore.set(sid, list);
+      });
+
+      const otherEntries = Array.from(otherByStore.entries());
+      for (let j = 0; j < otherEntries.length; j++) {
+        const [, list] = otherEntries[j];
+        const alreadyHasPrimary = list.some((r: any) => r.is_primary);
+        if (!alreadyHasPrimary && list.length > 0) {
+          const sorted = [...list].sort((a: any, b: any) =>
+            Date.parse(a.created_at || '1970-01-01T00:00:00Z') -
+            Date.parse(b.created_at || '1970-01-01T00:00:00Z')
+          );
+          await supabase
+            .from('store_managers')
+            .update({ is_primary: true })
+            .eq('id', sorted[0].id);
+        }
+      }
+    }
+
+    // 非代理門市的主責補正（新增/刪除後補正，不包含代理門市）
+    if (roleType === 'supervisor' || toDeleteSupervisorStoreIds.length > 0) {
+      const nonProxyTouchedIds = [
+        ...toDeleteSupervisorStoreIds,
+        ...toInsert
+          .map((id) => Number(id))
+          .filter((id) => Number.isFinite(id) && !proxyStoreIdsParsed.includes(id)),
+      ];
+      if (nonProxyTouchedIds.length > 0) {
+        await normalizePrimarySupervisors(supabase, nonProxyTouchedIds);
+      }
     }
 
     return NextResponse.json({ success: true });
