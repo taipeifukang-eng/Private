@@ -5,9 +5,6 @@ import { useState, useTransition, useMemo } from 'react';
 export type PharmacistMasterRow = {
   employee_code: string;
   employee_name: string;
-  store_id: string;
-  store_code: string;
-  store_name: string;
   current_position: string;
   start_date: string | null;
   is_active: boolean;
@@ -56,9 +53,7 @@ export default function PharmacistMasterList({
         const q = searchText.toLowerCase();
         return (
           row.employee_code.toLowerCase().includes(q) ||
-          row.employee_name.toLowerCase().includes(q) ||
-          row.store_code.toLowerCase().includes(q) ||
-          row.store_name.toLowerCase().includes(q)
+          row.employee_name.toLowerCase().includes(q)
         );
       }
       return true;
@@ -125,7 +120,7 @@ export default function PharmacistMasterList({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
         <input
           type="text"
-          placeholder="搜尋員編 / 姓名 / 門市"
+          placeholder="搜尋員編 / 姓名"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
           className="w-56 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
@@ -157,7 +152,6 @@ export default function PharmacistMasterList({
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">員編</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">姓名</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">現職職級</th>
-              <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">任職門市</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">到職日 / 年資</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">畢業學校</th>
               <th className="px-3 py-3 text-center font-semibold whitespace-nowrap">負責藥師</th>
@@ -168,7 +162,7 @@ export default function PharmacistMasterList({
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 9 : 8} className="px-3 py-10 text-center text-gray-500">
+                <td colSpan={canEdit ? 8 : 7} className="px-3 py-10 text-center text-gray-500">
                   查無資料
                 </td>
               </tr>
@@ -183,9 +177,6 @@ export default function PharmacistMasterList({
                     <td className="px-3 py-2 font-mono text-gray-800">{row.employee_code}</td>
                     <td className="px-3 py-2 font-medium">{row.employee_name || '-'}</td>
                     <td className="px-3 py-2 text-gray-700">{row.current_position}</td>
-                    <td className="px-3 py-2 text-gray-700 whitespace-nowrap">
-                      {row.store_code} {row.store_name}
-                    </td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="text-gray-800">{formatDate(row.start_date)}</div>
                       <div className="text-xs text-gray-500">{calcSeniority(row.start_date)}</div>

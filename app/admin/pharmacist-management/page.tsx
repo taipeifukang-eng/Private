@@ -510,8 +510,49 @@ export default async function PharmacistManagementPage({
     is_active: boolean;
   }>;
 
+  // 以員編唯一化，避免同一藥師在多門市或歷史資料造成重複
+  const masterEmployeeByCode = new Map<string, {
+    employee_code: string;
+    store_id: string;
+    is_pharmacist: boolean;
+    current_position: string | null;
+    position: string | null;
+    start_date: string | null;
+    is_active: boolean;
+  }>();
+
+  masterEmployees.forEach((e) => {
+    const code = String(e.employee_code || '').toUpperCase();
+    if (!code) return;
+
+    const normalized = {
+      ...e,
+      employee_code: code,
+    };
+
+    const existing = masterEmployeeByCode.get(code);
+    if (!existing) {
+      masterEmployeeByCode.set(code, normalized);
+      return;
+    }
+
+    // 優先保留在職資料；同狀態下，優先保留 start_date 較新的資料
+    if (existing.is_active !== normalized.is_active) {
+      if (normalized.is_active) masterEmployeeByCode.set(code, normalized);
+      return;
+    }
+
+    const existingDate = existing.start_date ? Date.parse(existing.start_date) : 0;
+    const nextDate = normalized.start_date ? Date.parse(normalized.start_date) : 0;
+    if (nextDate > existingDate) {
+      masterEmployeeByCode.set(code, normalized);
+    }
+  });
+
+  const masterEmployeesUnique = Array.from(masterEmployeeByCode.values());
+
   // 抓取姓名（profiles）
-  const masterEmpCodes = masterEmployees.map((e) => e.employee_code).filter(Boolean);
+  const masterEmpCodes = Array.from(new Set(masterEmployeesUnique.map((e) => e.employee_code).filter(Boolean)));
   const { data: masterProfilesRaw } = masterEmpCodes.length > 0
     ? await adminSupabase
         .from('profiles')
@@ -524,7 +565,43 @@ export default async function PharmacistManagementPage({
     if (p.employee_code) masterNameByCode.set(p.employee_code.toUpperCase(), p.full_name || '');
   });
 
-  // 抓取 pharmacist_profiles 主檔
+    // 從 monthly_staff_status 補充姓名（profiles 只有有帳號的人，大多數藥師沒有帳號）
+    const { data: nameSupplementRaw } = masterEmpCodes.length > 0
+      ? await adminSupabase
+          .from('monthly_staff_status')
+          .select('employee_code, employee_name')
+          .in('employee_code', masterEmpCodes)
+          .not('employee_name', 'is', null)
+          .order('year_month', { ascending: false })
+          .limit(masterEmpCodes.length * 5)
+      : { data: [] as any[] };
+
+    (nameSupplementRaw || []).forEach((r: any) => {
+      const code = (r.employee_code || '').toUpperCase();
+      if (code && r.employee_name && !masterNameByCode.has(code)) {
+        masterNameByCode.set(code, r.employee_name);
+      }
+    });
+
+    // 也從 employee_movement_history 補充（離職者可能不在 monthly_staff_status 最新月份）
+    const { data: nameFromMovementRaw } = masterEmpCodes.length > 0
+      ? await adminSupabase
+          .from('employee_movement_history')
+          .select('employee_code, employee_name')
+          .in('employee_code', masterEmpCodes)
+          .not('employee_name', 'is', null)
+          .order('movement_date', { ascending: false })
+          .limit(masterEmpCodes.length * 3)
+      : { data: [] as any[] };
+
+    (nameFromMovementRaw || []).forEach((r: any) => {
+      const code = (r.employee_code || '').toUpperCase();
+      if (code && r.employee_name && !masterNameByCode.has(code)) {
+        masterNameByCode.set(code, r.employee_name);
+      }
+    });
+
+    // 抓取 pharmacist_profiles 主檔
   const { data: pharmProfilesRaw } = masterEmpCodes.length > 0
     ? await adminSupabase
         .from('pharmacist_profiles')
@@ -538,17 +615,13 @@ export default async function PharmacistManagementPage({
   });
 
   // 建立門市 map for store_code / store_name lookup
-  const masterRows = masterEmployees
+  const masterRows = masterEmployeesUnique
     .map((e) => {
       const code = (e.employee_code || '').toUpperCase();
-      const store = scopedStoreMap.get(e.store_id) || { store_code: '', store_name: '' };
       const pharmProfile = pharmProfileByCode.get(code) || {};
       return {
         employee_code: code,
         employee_name: masterNameByCode.get(code) || '',
-        store_id: e.store_id,
-        store_code: store.store_code,
-        store_name: store.store_name,
         current_position: e.current_position || e.position || '-',
         start_date: e.start_date || null,
         is_active: e.is_active,
@@ -557,10 +630,7 @@ export default async function PharmacistManagementPage({
         license_renewal_date: pharmProfile.license_renewal_date || null,
       };
     })
-    .sort((a, b) => {
-      if (a.store_code !== b.store_code) return a.store_code.localeCompare(b.store_code);
-      return a.employee_code.localeCompare(b.employee_code);
-    });
+    .sort((a, b) => a.employee_code.localeCompare(b.employee_code));
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
