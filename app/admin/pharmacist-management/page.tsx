@@ -96,7 +96,7 @@ export default async function PharmacistManagementPage({
 
   const adminSupabase = createAdminClient();
 
-  const [{ data: currentRows }, { data: previousRows }, { data: managerRows }] = await Promise.all([
+  const [{ data: currentRows }, { data: previousRows }, { data: managerAssignments }] = await Promise.all([
     supabase
       .from('monthly_staff_status')
       .select('id, store_id, employee_code, employee_name, position, stores(store_code, store_name)')
@@ -111,17 +111,38 @@ export default async function PharmacistManagementPage({
       .eq('is_pharmacist', true),
     adminSupabase
       .from('store_managers')
-      .select('store_id, role_type, is_primary, updated_at, created_at, user:profiles!store_managers_user_id_fkey(full_name, employee_code)')
-      .in('store_id', storeIds)
-      .eq('role_type', 'supervisor'),
+      .select('store_id, user_id, role_type, is_primary, updated_at, created_at')
+      .in('store_id', storeIds),
   ]);
 
-  console.log('[DEBUG pharmacist] query result counts => currentRows:', (currentRows || []).length, 'previousRows:', (previousRows || []).length, 'managerRows:', (managerRows || []).length);
-  console.log('[DEBUG pharmacist] managerRows sample:', (managerRows || []).slice(0, 10));
+  const managerUserIds = Array.from(
+    new Set((managerAssignments || []).map((row: any) => row.user_id).filter(Boolean))
+  );
+
+  const { data: managerProfiles } = managerUserIds.length
+    ? await adminSupabase
+        .from('profiles')
+        .select('id, full_name, employee_code, job_title')
+        .in('id', managerUserIds)
+    : { data: [] as any[] };
+
+  const profileByUserId = new Map<string, any>();
+  (managerProfiles || []).forEach((p: any) => {
+    profileByUserId.set(p.id, p);
+  });
+
+  const supervisorRows = (managerAssignments || []).filter((row: any) => {
+    if (row.role_type === 'supervisor') return true;
+    const p = profileByUserId.get(row.user_id);
+    return p?.job_title?.includes('督導') ?? false;
+  });
+
+  console.log('[DEBUG pharmacist] query result counts => currentRows:', (currentRows || []).length, 'previousRows:', (previousRows || []).length, 'managerAssignments:', (managerAssignments || []).length, 'supervisorRows:', supervisorRows.length);
+  console.log('[DEBUG pharmacist] supervisorRows sample:', supervisorRows.slice(0, 10));
 
   const zoneByStore = new Map<string, string>();
   const groupedManagers = new Map<string, any[]>();
-  (managerRows || []).forEach((row: any) => {
+  supervisorRows.forEach((row: any) => {
     const list = groupedManagers.get(row.store_id) || [];
     list.push(row);
     groupedManagers.set(row.store_id, list);
@@ -142,7 +163,7 @@ export default async function PharmacistManagementPage({
       return aCode.localeCompare(bCode);
     })[0];
 
-    const userInfo = picked?.user as any;
+    const userInfo = profileByUserId.get(picked?.user_id) as any;
     const zoneLabel = userInfo?.full_name
       ? `${userInfo.full_name}${userInfo.employee_code ? ` (${userInfo.employee_code})` : ''}`
       : '未指派督導區';
@@ -205,14 +226,14 @@ export default async function PharmacistManagementPage({
     storeIdsSample: storeIds.slice(0, 20),
     currentRowsCount: (currentRows || []).length,
     previousRowsCount: (previousRows || []).length,
-    managerRowsCount: (managerRows || []).length,
+    managerRowsCount: supervisorRows.length,
     groupedManagersCount: groupedManagers.size,
     zoneByStoreCount: zoneByStore.size,
     zoneByStoreSample: Array.from(zoneByStore.entries()).slice(0, 20),
     mappedRowsCount: mappedRows.length,
     missingZoneRowsCount: missingZoneRows.length,
     missingZoneStoreIdsSample: missingZoneStoreIds.slice(0, 20),
-    managerRowsSample: (managerRows || []).slice(0, 10),
+    managerRowsSample: supervisorRows.slice(0, 10),
   };
 
   const zoneOptions = Array.from(new Set(mappedRows.map((r) => r.supervisor_zone))).sort((a, b) =>
