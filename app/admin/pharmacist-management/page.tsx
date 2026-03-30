@@ -170,14 +170,24 @@ export default async function PharmacistManagementPage({
     profileByUserId.set(p.id, p);
   });
 
+  const directSupervisorRows = supervisorRows.filter((row: any) => {
+    const p = profileByUserId.get(row.user_id);
+    return p?.job_title?.includes('督導') ?? false;
+  });
+
+  const nonDirectSupervisorRoleRows = supervisorRows.filter((row: any) => {
+    const p = profileByUserId.get(row.user_id);
+    return !(p?.job_title?.includes('督導') ?? false);
+  });
+
   console.log('[DEBUG pharmacist] query result counts => currentRows:', (currentRows || []).length, 'previousRows:', (previousRows || []).length, 'managerAssignments:', (managerAssignments || []).length, 'supervisorRows:', supervisorRows.length);
   console.log('[DEBUG pharmacist] supervisorRows sample:', supervisorRows.slice(0, 10));
 
-  const primarySupervisorRows = supervisorRows.filter((row: any) => row.is_primary === true);
+  const primarySupervisorRows = directSupervisorRows.filter((row: any) => row.is_primary === true);
 
   const zoneByStore = new Map<string, string>();
   const groupedManagers = new Map<string, any[]>();
-  supervisorRows.forEach((row: any) => {
+  directSupervisorRows.forEach((row: any) => {
     const list = groupedManagers.get(row.store_id) || [];
     list.push(row);
     groupedManagers.set(row.store_id, list);
@@ -266,6 +276,8 @@ export default async function PharmacistManagementPage({
     managerUserIdsCount: managerUserIds.length,
     managerProfilesCount: managerProfiles.length,
     managerRowsCount: supervisorRows.length,
+    directSupervisorRowsCount: directSupervisorRows.length,
+    nonDirectSupervisorRoleRowsCount: nonDirectSupervisorRoleRows.length,
     primarySupervisorRowsCount: primarySupervisorRows.length,
     groupedManagersCount: groupedManagers.size,
     zoneByStoreCount: zoneByStore.size,
@@ -274,6 +286,16 @@ export default async function PharmacistManagementPage({
     missingZoneRowsCount: missingZoneRows.length,
     missingZoneStoreIdsSample: missingZoneStoreIds.slice(0, 20),
     managerRowsSample: supervisorRows.slice(0, 10),
+    directSupervisorRowsSample: directSupervisorRows.slice(0, 10),
+    nonDirectSupervisorRoleRowsSample: nonDirectSupervisorRoleRows.slice(0, 10).map((r: any) => ({
+      store_id: r.store_id,
+      user_id: r.user_id,
+      role_type: r.role_type,
+      is_primary: r.is_primary,
+      name: profileByUserId.get(r.user_id)?.full_name || null,
+      employee_code: profileByUserId.get(r.user_id)?.employee_code || null,
+      job_title: profileByUserId.get(r.user_id)?.job_title || null,
+    })),
     primarySupervisorRowsSample: primarySupervisorRows.slice(0, 10),
   };
 
