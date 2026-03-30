@@ -7,6 +7,7 @@ interface PdfReportRow {
   employee_name: string;
   source_notes: string[];
   single_item_bonus: number;
+  single_item_bonus_details: string[];
   meal_allowance_amount: number;
   meal_allowance_details: string[];
   transport_expense: number;
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
           employee_name: safeEmployeeName,
           source_notes: [],
           single_item_bonus: 0,
+          single_item_bonus_details: [],
           meal_allowance_amount: 0,
           meal_allowance_details: [],
           transport_expense: 0,
@@ -139,6 +141,7 @@ export async function POST(request: NextRequest) {
     for (const item of (localBonusData || [])) {
       const row = getRow(item.employee_code, item.employee_name);
       row.single_item_bonus += item.bonus_amount || 0;
+      pushUnique(row.single_item_bonus_details, `本店：NT$${(item.bonus_amount || 0).toLocaleString()}`);
       if (!homeCodeSet.has(item.employee_code || '')) {
         pushUnique(row.source_notes, '支援同仁');
       }
@@ -170,6 +173,12 @@ export async function POST(request: NextRequest) {
           : '來源：其他門市';
         const row = getRow(item.employee_code, item.employee_name);
         row.single_item_bonus += item.bonus_amount || 0;
+        pushUnique(
+          row.single_item_bonus_details,
+          storeInfo
+            ? `${historicalCode} ${storeInfo.store_name}：NT$${(item.bonus_amount || 0).toLocaleString()}`
+            : `其他門市：NT$${(item.bonus_amount || 0).toLocaleString()}`
+        );
         pushUnique(row.source_notes, sourceNote);
       }
     }

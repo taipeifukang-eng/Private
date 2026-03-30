@@ -8,6 +8,7 @@ interface BonusData {
   employee_name: string;
   source_notes: string[];
   single_item_bonus: number;
+  single_item_bonus_details: string[];
   meal_allowance_amount: number;
   meal_allowance_details: string[];
   transport_expense: number;
@@ -84,8 +85,18 @@ export async function generateSingleItemBonusPDF(
     `;
   };
 
-  const renderCell = (content: string, align: 'left' | 'right' = 'right') => `
-    <td style="border: 1px solid #ddd; padding: 10px; text-align: ${align}; vertical-align: top;">
+  const renderSingleItemBonusCell = (item: BonusData) => {
+    if (item.single_item_bonus <= 0) {
+      return '';
+    }
+
+    const hasCrossStoreSource = item.source_notes.some(note => note.startsWith('來源：'));
+    const details = hasCrossStoreSource ? renderMultiline(item.single_item_bonus_details) : '';
+    return `${formatCurrency(item.single_item_bonus)}${details}`;
+  };
+
+  const renderCell = (content: string) => `
+    <td style="border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top;">
       ${content || '-'}
     </td>
   `;
@@ -112,11 +123,11 @@ export async function generateSingleItemBonusPDF(
         <tbody>
           ${bonusData.map(item => `
             <tr>
-              <td style="border: 1px solid #ddd; padding: 10px; vertical-align: top;">${escapeHtml(item.employee_code)}</td>
-              <td style="border: 1px solid #ddd; padding: 10px;">
+              <td style="border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top;">${escapeHtml(item.employee_code)}</td>
+              <td style="border: 1px solid #ddd; padding: 10px; text-align: left; vertical-align: top;">
                 ${renderNameCell(item)}
               </td>
-              ${visibleColumns.single_item_bonus ? renderCell(item.single_item_bonus > 0 ? formatCurrency(item.single_item_bonus) : '') : ''}
+              ${visibleColumns.single_item_bonus ? renderCell(renderSingleItemBonusCell(item)) : ''}
               ${visibleColumns.meal_allowance ? renderCell(item.meal_allowance_amount > 0 ? `${formatCurrency(item.meal_allowance_amount)}${renderMultiline(item.meal_allowance_details)}` : '') : ''}
               ${visibleColumns.transport_expense ? renderCell(item.transport_expense > 0 ? `${formatCurrency(item.transport_expense)}${renderMultiline(item.transport_notes)}` : '') : ''}
               ${visibleColumns.talent_cultivation_bonus ? renderCell(item.talent_cultivation_bonus > 0 ? `${formatCurrency(item.talent_cultivation_bonus)}${renderMultiline(item.talent_cultivation_targets)}` : '') : ''}
@@ -124,12 +135,12 @@ export async function generateSingleItemBonusPDF(
             </tr>
           `).join('')}
           <tr style="background-color: #f9fafb; font-weight: bold;">
-            <td colspan="2" style="border: 1px solid #ddd; padding: 12px; text-align: right;">總計</td>
-            ${visibleColumns.single_item_bonus ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${formatCurrency(totals.singleItem)}</td>` : ''}
-            ${visibleColumns.meal_allowance ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${formatCurrency(totals.mealAllowance)}</td>` : ''}
-            ${visibleColumns.transport_expense ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${formatCurrency(totals.transport)}</td>` : ''}
-            ${visibleColumns.talent_cultivation_bonus ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${formatCurrency(totals.talent)}</td>` : ''}
-            ${visibleColumns.spring_festival_bonus ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: right;">${formatCurrency(totals.springFestival)}</td>` : ''}
+            <td colspan="2" style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top;">總計</td>
+            ${visibleColumns.single_item_bonus ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top;">${formatCurrency(totals.singleItem)}</td>` : ''}
+            ${visibleColumns.meal_allowance ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top;">${formatCurrency(totals.mealAllowance)}</td>` : ''}
+            ${visibleColumns.transport_expense ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top;">${formatCurrency(totals.transport)}</td>` : ''}
+            ${visibleColumns.talent_cultivation_bonus ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top;">${formatCurrency(totals.talent)}</td>` : ''}
+            ${visibleColumns.spring_festival_bonus ? `<td style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top;">${formatCurrency(totals.springFestival)}</td>` : ''}
           </tr>
         </tbody>
       </table>
