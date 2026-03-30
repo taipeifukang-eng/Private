@@ -423,8 +423,9 @@ export default function EmployeeMovementManagementPage() {
     
     // 員編自動轉大寫
     if (field === 'employee_code') {
-      updated[index].employee_code = value.toUpperCase();
-      setSearchTerm({ ...searchTerm, [index]: value.toUpperCase() });
+      const code = typeof value === 'string' ? value.toUpperCase() : '';
+      updated[index].employee_code = code;
+      setSearchTerm({ ...searchTerm, [index]: code });
       setShowDropdown({ ...showDropdown, [index]: true });
     }
 
@@ -446,7 +447,7 @@ export default function EmployeeMovementManagementPage() {
     }
     // 調店選擇新任職門市時，自動帶入 store_id
     if (field === 'to_store_id' && updated[index].movement_type === 'store_transfer') {
-      updated[index].store_id = value;
+      updated[index].store_id = typeof value === 'string' ? value : '';
     }
     
     setMovements(updated);
