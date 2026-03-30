@@ -315,11 +315,11 @@ export default async function PharmacistManagementPage({
       : mappedRows.filter((r) => r.supervisor_zone === selectedZone);
 
   rows.sort((a, b) => {
-    if (a.supervisor_zone !== b.supervisor_zone) {
-      return a.supervisor_zone.localeCompare(b.supervisor_zone, 'zh-Hant');
-    }
     if (a.store_code !== b.store_code) {
       return a.store_code.localeCompare(b.store_code);
+    }
+    if (a.supervisor_zone !== b.supervisor_zone) {
+      return a.supervisor_zone.localeCompare(b.supervisor_zone, 'zh-Hant');
     }
     return a.employee_code.localeCompare(b.employee_code);
   });
