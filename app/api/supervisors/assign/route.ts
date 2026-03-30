@@ -6,7 +6,6 @@ type SupervisorAssignmentRow = {
   store_id: string;
   is_primary: boolean;
   created_at: string | null;
-  updated_at: string | null;
 };
 
 function normalizeStoreIds(ids: unknown[]): string[] {
@@ -21,7 +20,7 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: string[]) {
 
   const { data: rows, error } = await supabase
     .from('store_managers')
-    .select('id, store_id, is_primary, created_at, updated_at')
+    .select('id, store_id, is_primary, created_at')
     .eq('role_type', 'supervisor')
     .in('store_id', uniqueStoreIds);
 
@@ -51,10 +50,6 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: string[]) {
         const aCreated = Date.parse(a.created_at || '1970-01-01T00:00:00Z');
         const bCreated = Date.parse(b.created_at || '1970-01-01T00:00:00Z');
         if (aCreated !== bCreated) return aCreated - bCreated;
-
-        const aUpdated = Date.parse(a.updated_at || '1970-01-01T00:00:00Z');
-        const bUpdated = Date.parse(b.updated_at || '1970-01-01T00:00:00Z');
-        if (aUpdated !== bUpdated) return aUpdated - bUpdated;
 
         return a.id - b.id;
       });

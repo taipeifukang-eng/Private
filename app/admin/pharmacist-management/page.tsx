@@ -119,7 +119,7 @@ export default async function PharmacistManagementPage({
 
   const { data: adminManagerAssignments, error: adminManagerAssignmentsError } = await adminSupabase
     .from('store_managers')
-    .select('store_id, user_id, role_type, is_primary, updated_at, created_at')
+    .select('store_id, user_id, role_type, is_primary, created_at')
     .in('store_id', storeIds);
 
   if (adminManagerAssignmentsError) {
@@ -127,7 +127,7 @@ export default async function PharmacistManagementPage({
     managerAssignmentsErrorMessage = adminManagerAssignmentsError.message;
     const { data: regularManagerAssignments, error: regularManagerAssignmentsError } = await supabase
       .from('store_managers')
-      .select('store_id, user_id, role_type, is_primary, updated_at, created_at')
+      .select('store_id, user_id, role_type, is_primary, created_at')
       .in('store_id', storeIds);
 
     if (regularManagerAssignmentsError) {
@@ -191,8 +191,8 @@ export default async function PharmacistManagementPage({
       const bPrimary = b.is_primary ? 0 : 1;
       if (aPrimary !== bPrimary) return aPrimary - bPrimary;
 
-      const aTime = Date.parse(a.updated_at || a.created_at || '1970-01-01T00:00:00Z');
-      const bTime = Date.parse(b.updated_at || b.created_at || '1970-01-01T00:00:00Z');
+      const aTime = Date.parse(a.created_at || '1970-01-01T00:00:00Z');
+      const bTime = Date.parse(b.created_at || '1970-01-01T00:00:00Z');
       if (aTime !== bTime) return bTime - aTime;
 
       const aCode = profileByUserId.get(a.user_id)?.employee_code || '';
