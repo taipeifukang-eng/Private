@@ -97,6 +97,7 @@ export async function POST(request: Request) {
     }
 
     const { userId, storeIds, roleType = 'supervisor', proxyStoreIds = [] } = await request.json();
+  console.log('[DEBUG assign] 收到參數 userId:', userId, '| roleType:', roleType, '| storeIds:', storeIds, '| proxyStoreIds:', proxyStoreIds);
 
     if (!userId || !Array.isArray(storeIds)) {
       return NextResponse.json({ success: false, error: '參數錯誤' }, { status: 400 });
@@ -183,6 +184,7 @@ export async function POST(request: Request) {
     const proxyStoreIdsParsed = (proxyStoreIds as any[])
       .map((id) => Number(id))
       .filter((id) => Number.isFinite(id));
+  console.log('[DEBUG assign] proxyStoreIdsParsed:', proxyStoreIdsParsed);
 
     // 代理門市：不走 normalizePrimary，改用獨立邏輯
     // 讓自己 is_primary=false，再確保「其他督導」中有一位是主責
@@ -202,6 +204,7 @@ export async function POST(request: Request) {
       }
 
       // 對每個代理門市：若其他督導都沒有主責，選最舊的補為主責
+      console.log('[DEBUG assign] 代理 is_primary=false update 完成，正在查詢其他督導行...');
       const { data: otherRows } = await supabase
         .from('store_managers')
         .select('id, store_id, is_primary, created_at')
@@ -209,6 +212,7 @@ export async function POST(request: Request) {
         .neq('user_id', userId)
         .in('store_id', proxyStoreIdsParsed);
 
+      console.log('[DEBUG assign] otherRows (proxy 門市的其他督導):', JSON.stringify(otherRows));
       const otherByStore = new Map<number, any[]>();
       (otherRows || []).forEach((row: any) => {
         const sid = Number(row.store_id);

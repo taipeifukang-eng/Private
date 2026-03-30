@@ -99,12 +99,15 @@ export default function SupervisorsManagementPage() {
       assignmentsList.forEach((a: { user_id: string; store_id: number; role_type: string; is_primary: boolean }) => {
         if (a.role_type === 'supervisor' && !a.is_primary) {
           const primaryUserId = primaryByStore.get(a.store_id);
+          console.log(`[DEBUG loadData] supervisor is_primary=false storeId=${a.store_id} userId=${a.user_id} | primaryOwner=${primaryUserId}`);
           if (primaryUserId && primaryUserId !== a.user_id) {
             if (!proxyMap.has(a.user_id)) proxyMap.set(a.user_id, new Set());
             proxyMap.get(a.user_id)!.add(a.store_id);
           }
         }
       });
+      console.log('[DEBUG loadData] primaryByStore:', JSON.stringify(Array.from(primaryByStore.entries())));
+      console.log('[DEBUG loadData] proxyMap:', JSON.stringify(Array.from(proxyMap.entries()).map(([uid, s]) => [uid, Array.from(s)])));
 
       setAssignments(assignmentsMap);
       setAssignmentTypes(typesMap);
@@ -202,6 +205,8 @@ export default function SupervisorsManagementPage() {
           proxyStoreIds: Array.from(proxyStores.get(selectedSupervisor.id) || []),
         }),
       });
+      const _proxyDebug = Array.from(proxyStores.get(selectedSupervisor.id) || []);
+      console.log('[DEBUG save] 送出 proxyStoreIds:', _proxyDebug, '| storeIds:', storeIds, '| selectedUserId:', selectedSupervisor.id);
 
       const data = await res.json();
 
@@ -211,7 +216,9 @@ export default function SupervisorsManagementPage() {
 
       alert('儲存成功！');
       // 重新載入資料
+      console.log('[DEBUG save] 儲存後重新 loadData，目前 proxyStores:', JSON.stringify(Array.from((proxyStores.get(selectedSupervisor.id) || new Set()))));
       await loadData();
+      console.log('[DEBUG save] loadData 完成，重讀後 proxyStores:', JSON.stringify(Array.from((proxyStores.get(selectedSupervisor.id) || new Set()))));
     } catch (error: any) {
       console.error('Error saving assignments:', error);
       alert(`儲存失敗: ${error.message}`);
