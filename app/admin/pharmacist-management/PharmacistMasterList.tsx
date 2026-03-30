@@ -22,6 +22,7 @@ export type PharmacistMasterRow = {
   employee_name: string;
   current_position: string;
   start_date: string | null;
+  resignation_date: string | null;
   is_active: boolean;
   school: string;
   education_level: string;
@@ -29,13 +30,17 @@ export type PharmacistMasterRow = {
   license_renewal_date: string | null;
 };
 
-function calcSeniority(startDate: string | null): string {
+function calcSeniority(startDate: string | null, endDate?: string | null): string {
   if (!startDate) return '-';
   const start = new Date(startDate);
-  const now = new Date();
-  let years = now.getFullYear() - start.getFullYear();
-  let months = now.getMonth() - start.getMonth();
+  const end = endDate ? new Date(endDate) : new Date();
+  let years = end.getFullYear() - start.getFullYear();
+  let months = end.getMonth() - start.getMonth();
+  if (end.getDate() < start.getDate()) {
+    months -= 1;
+  }
   if (months < 0) { years -= 1; months += 12; }
+  if (years < 0) return '-';
   if (years === 0) return `${months} 個月`;
   if (months === 0) return `${years} 年`;
   return `${years} 年 ${months} 個月`;
@@ -201,7 +206,13 @@ export default function PharmacistMasterList({
                     <td className="px-3 py-2 text-gray-700">{row.current_position}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="text-gray-800">{formatDate(row.start_date)}</div>
-                      <div className="text-xs text-gray-500">{calcSeniority(row.start_date)}</div>
+                      {row.resignation_date ? (
+                        <div className="text-xs text-rose-700">
+                          離職：{formatDate(row.resignation_date)}（年資 {calcSeniority(row.start_date, row.resignation_date)}）
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500">{calcSeniority(row.start_date)}</div>
+                      )}
                     </td>
 
                     {/* 畢業學校 */}

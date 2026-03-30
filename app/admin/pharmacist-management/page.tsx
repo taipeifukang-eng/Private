@@ -596,6 +596,60 @@ export default async function PharmacistManagementPage({
     masterEmployeeByCode.set(code, existing);
   });
 
+  // 補入「已離職」藥師：若在異動紀錄有離職，但已不在 store_employees / 當月月報，仍要出現在主檔的已離職清單
+  const { data: resignationMovementsAll } = await adminSupabase
+    .from('employee_movement_history')
+    .select('employee_code, employee_name, store_id, movement_date, movement_type')
+    .in('store_id', storeIds)
+    .eq('movement_type', 'resignation')
+    .order('movement_date', { ascending: false });
+
+  const resignationCodesAll = Array.from(
+    new Set((resignationMovementsAll || []).map((r: any) => String(r.employee_code || '').toUpperCase()).filter(Boolean))
+  );
+
+  const { data: resignationMonthlyRaw } = resignationCodesAll.length > 0
+    ? await adminSupabase
+        .from('monthly_staff_status')
+        .select('employee_code, employee_name, position, start_date, is_pharmacist, store_id, year_month')
+        .in('employee_code', resignationCodesAll)
+        .in('store_id', storeIds)
+        .order('year_month', { ascending: false })
+    : { data: [] as any[] };
+
+  const resignationRowsByCode = new Map<string, any[]>();
+  (resignationMonthlyRaw || []).forEach((r: any) => {
+    const code = String(r.employee_code || '').toUpperCase();
+    if (!code) return;
+    const list = resignationRowsByCode.get(code) || [];
+    list.push(r);
+    resignationRowsByCode.set(code, list);
+  });
+
+  resignationCodesAll.forEach((code) => {
+    const rows = resignationRowsByCode.get(code) || [];
+    const hasPharmacistHistory = rows.some((r: any) => r.is_pharmacist === true);
+    if (!hasPharmacistHistory) return;
+
+    if (masterEmployeeByCode.has(code)) return;
+
+    const latestRow = rows[0];
+    const earliestStart = rows
+      .map((r: any) => r.start_date)
+      .filter((d: any) => !!d)
+      .sort()[0] || null;
+
+    masterEmployeeByCode.set(code, {
+      employee_code: code,
+      store_id: String(latestRow?.store_id || ''),
+      is_pharmacist: true,
+      current_position: latestRow?.position || '離職',
+      position: latestRow?.position || '離職',
+      start_date: earliestStart,
+      is_active: false,
+    });
+  });
+
   const masterEmployeesUnique = Array.from(masterEmployeeByCode.values());
 
   // 抓取姓名（profiles）
@@ -656,6 +710,25 @@ export default async function PharmacistManagementPage({
       }
     });
 
+    // 以「最新異動」決定主檔在職/離職狀態與離職日期
+    const { data: latestMovementsRaw } = masterEmpCodes.length > 0
+      ? await adminSupabase
+          .from('employee_movement_history')
+          .select('employee_code, movement_type, movement_date')
+          .in('employee_code', masterEmpCodes)
+          .order('movement_date', { ascending: false })
+      : { data: [] as any[] };
+
+    const latestMovementByCode = new Map<string, { movement_type: string; movement_date: string }>();
+    (latestMovementsRaw || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (!code || latestMovementByCode.has(code)) return;
+      latestMovementByCode.set(code, {
+        movement_type: String(m.movement_type || ''),
+        movement_date: String(m.movement_date || ''),
+      });
+    });
+
     // 從 monthly_staff_status 補齊到職日（store_employees 可能為空）
     const { data: startDateSupplementRaw } = masterEmpCodes.length > 0
       ? await adminSupabase
@@ -693,12 +766,15 @@ export default async function PharmacistManagementPage({
     .map((e) => {
       const code = (e.employee_code || '').toUpperCase();
       const pharmProfile = pharmProfileByCode.get(code) || {};
+      const latestMovement = latestMovementByCode.get(code);
+      const resignationDate = latestMovement?.movement_type === 'resignation' ? latestMovement.movement_date : null;
       return {
         employee_code: code,
         employee_name: masterNameByCode.get(code) || '',
         current_position: e.current_position || e.position || '-',
         start_date: e.start_date || startDateByCode.get(code) || null,
-        is_active: e.is_active,
+        resignation_date: resignationDate,
+        is_active: resignationDate ? false : e.is_active,
         school: pharmProfile.school || '',
         education_level: pharmProfile.education_level || '',
         is_responsible_pharmacist: pharmProfile.is_responsible_pharmacist ?? false,
