@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 import PharmacistSupervisorCards from './PharmacistSupervisorCards';
+import PharmacistMasterList from './PharmacistMasterList';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,7 +42,7 @@ function getPreviousYearMonth(yearMonth: string): string {
 export default async function PharmacistManagementPage({
   searchParams,
 }: {
-  searchParams?: { year_month?: string; zone?: string; debug?: string };
+  searchParams?: { year_month?: string; zone?: string; debug?: string; tab?: string };
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -68,6 +69,7 @@ export default async function PharmacistManagementPage({
   const previousYearMonth = getPreviousYearMonth(selectedYearMonth);
   const selectedZone = (searchParams?.zone || 'all').trim();
   const isDebug = searchParams?.debug === '1';
+  const activeTab = (searchParams?.tab === 'master') ? 'master' : 'overview';
 
   let storeIds: string[] = [];
 
@@ -490,17 +492,116 @@ export default async function PharmacistManagementPage({
     changed: filteredRows.filter((r) => r.change_type !== '無變更' && r.change_type !== '新增任職').length,
   };
 
+  // ── Tab2: 藥師主檔資料 ──
+  // 抓取所有範圍內門市的藥師 store_employees
+  const { data: masterEmployeesRaw } = await adminSupabase
+    .from('store_employees')
+    .select('employee_code, store_id, is_pharmacist, current_position, position, start_date, is_active')
+    .in('store_id', storeIds)
+    .eq('is_pharmacist', true);
+
+  const masterEmployees = (masterEmployeesRaw || []) as Array<{
+    employee_code: string;
+    store_id: string;
+    is_pharmacist: boolean;
+    current_position: string | null;
+    position: string | null;
+    start_date: string | null;
+    is_active: boolean;
+  }>;
+
+  // 抓取姓名（profiles）
+  const masterEmpCodes = masterEmployees.map((e) => e.employee_code).filter(Boolean);
+  const { data: masterProfilesRaw } = masterEmpCodes.length > 0
+    ? await adminSupabase
+        .from('profiles')
+        .select('employee_code, full_name')
+        .in('employee_code', masterEmpCodes)
+    : { data: [] as any[] };
+
+  const masterNameByCode = new Map<string, string>();
+  (masterProfilesRaw || []).forEach((p: any) => {
+    if (p.employee_code) masterNameByCode.set(p.employee_code.toUpperCase(), p.full_name || '');
+  });
+
+  // 抓取 pharmacist_profiles 主檔
+  const { data: pharmProfilesRaw } = masterEmpCodes.length > 0
+    ? await adminSupabase
+        .from('pharmacist_profiles')
+        .select('employee_code, school, is_responsible_pharmacist, license_renewal_date')
+        .in('employee_code', masterEmpCodes)
+    : { data: [] as any[] };
+
+  const pharmProfileByCode = new Map<string, any>();
+  (pharmProfilesRaw || []).forEach((p: any) => {
+    if (p.employee_code) pharmProfileByCode.set(p.employee_code.toUpperCase(), p);
+  });
+
+  // 建立門市 map for store_code / store_name lookup
+  const masterRows = masterEmployees
+    .map((e) => {
+      const code = (e.employee_code || '').toUpperCase();
+      const store = scopedStoreMap.get(e.store_id) || { store_code: '', store_name: '' };
+      const pharmProfile = pharmProfileByCode.get(code) || {};
+      return {
+        employee_code: code,
+        employee_name: masterNameByCode.get(code) || '',
+        store_id: e.store_id,
+        store_code: store.store_code,
+        store_name: store.store_name,
+        current_position: e.current_position || e.position || '-',
+        start_date: e.start_date || null,
+        is_active: e.is_active,
+        school: pharmProfile.school || '',
+        is_responsible_pharmacist: pharmProfile.is_responsible_pharmacist ?? false,
+        license_renewal_date: pharmProfile.license_renewal_date || null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.store_code !== b.store_code) return a.store_code.localeCompare(b.store_code);
+      return a.employee_code.localeCompare(b.employee_code);
+    });
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto w-full max-w-7xl">
-        <div className="mb-6">
+        <div className="mb-4">
           <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">藥師管理</h1>
-          <p className="mt-2 text-sm text-gray-600">
-            依經理/督導管理設定的督導門市，檢視各督導區藥師任職門市與該月職級變化。
-          </p>
         </div>
 
+        {/* Tab 切換 */}
+        <div className="mb-5 flex gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm w-fit">
+          <Link
+            href={`/admin/pharmacist-management?tab=overview&year_month=${selectedYearMonth}&zone=${selectedZone}`}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'overview'
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            督導區總覽
+          </Link>
+          <Link
+            href={`/admin/pharmacist-management?tab=master&year_month=${selectedYearMonth}`}
+            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+              activeTab === 'master'
+                ? 'bg-blue-600 text-white shadow'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            藥師主檔
+          </Link>
+        </div>
+
+        {activeTab === 'master' ? (
+          <PharmacistMasterList
+            rows={masterRows}
+            canEdit={canEditModule}
+          />
+        ) : (<>
+
         <form className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm" method="GET">
+          <input type="hidden" name="tab" value="overview" />
           <div className="grid gap-3 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">月份</label>
@@ -576,6 +677,7 @@ export default async function PharmacistManagementPage({
         <p className="mt-3 text-xs text-gray-500">
           點選門市可查看藥師明細。明細中的變化備註會顯示上月職級或上月門市，無變化則留白。
         </p>
+        </>)}
       </div>
     </div>
   );
