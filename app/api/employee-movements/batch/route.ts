@@ -148,16 +148,24 @@ export async function POST(request: NextRequest) {
           ? (movement.to_store_id || empData?.store_id || null)
           : (empData?.store_id || movement.store_id || null);
 
+      const onboardingIsPharmacist = movement.movement_type === 'onboarding'
+        ? Boolean(movement.onboarding_is_pharmacist)
+        : null;
+
+      const normalizedNotes = movement.movement_type === 'onboarding'
+        ? `${movement.notes || ''}${movement.notes ? '；' : ''}是否藥師:${onboardingIsPharmacist ? '是' : '否'}`
+        : (movement.notes || null);
+
       movementRecords.push({
         employee_code: movement.employee_code.toUpperCase(),
         employee_name: movement.employee_name,
         store_id: recordStoreId,
         movement_type: movement.movement_type,
-        onboarding_is_pharmacist: movement.movement_type === 'onboarding' ? Boolean(movement.onboarding_is_pharmacist) : null,
+        onboarding_is_pharmacist: onboardingIsPharmacist,
         movement_date: movement.effective_date,
         new_value: newValue,
         old_value: oldValue,
-        notes: movement.notes || null,
+        notes: normalizedNotes,
         created_by: user.id
       });
     }

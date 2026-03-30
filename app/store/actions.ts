@@ -835,10 +835,18 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
     if (onboardingMovements && onboardingMovements.length > 0) {
       for (const movement of onboardingMovements) {
         // 檢查是否已經在 statusRecords 中（避免重複）
-        const alreadyExists = statusRecords.some(
+        const existingIndex = statusRecords.findIndex(
           (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
         );
-        if (alreadyExists) continue;
+        if (existingIndex >= 0) {
+          // 已存在時仍要帶入是否藥師，避免 onboarding 設定被忽略
+          statusRecords[existingIndex].is_pharmacist = Boolean(movement.onboarding_is_pharmacist);
+          // 若尚未有到職日，補上入職日
+          if (!statusRecords[existingIndex].start_date) {
+            statusRecords[existingIndex].start_date = movement.movement_date;
+          }
+          continue;
+        }
 
         // 計算從入職日到月底的工作天數
         const movementDate = new Date(movement.movement_date);

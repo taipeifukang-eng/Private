@@ -38,6 +38,7 @@ interface MovementHistory {
   employee_name: string;
   store_id: string;
   movement_type: MovementType;
+  onboarding_is_pharmacist?: boolean | null;
   movement_date: string;
   new_value: string | null;
   old_value: string | null;
@@ -1020,11 +1021,15 @@ export default function EmployeeMovementManagementPage() {
                   onClick={() => {
                     const exportData = filteredHistory.map(m => {
                       const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+                      const onboardingPharmacistText = m.movement_type === 'onboarding'
+                        ? (m.onboarding_is_pharmacist ? '是' : '否')
+                        : '-';
                       return {
                         '員編': m.employee_code,
                         '姓名': m.employee_name,
                         '任職門市': (m as any).store_name || '-',
                         '異動類型': movementTypeLabel,
+                        '是否藥師(入職)': onboardingPharmacistText,
                         '舊值': m.old_value || '-',
                         '新值': m.new_value || '-',
                         '生效日期': m.movement_date,
@@ -1058,6 +1063,7 @@ export default function EmployeeMovementManagementPage() {
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">姓名</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">任職門市</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">異動類型</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">是否藥師(入職)</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">舊值</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">新值</th>
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700">生效日期</th>
@@ -1085,6 +1091,11 @@ export default function EmployeeMovementManagementPage() {
                               }`}>
                                 {typeLabel}
                               </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">
+                              {record.movement_type === 'onboarding'
+                                ? (record.onboarding_is_pharmacist ? '是' : '否')
+                                : '-'}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
                             <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
