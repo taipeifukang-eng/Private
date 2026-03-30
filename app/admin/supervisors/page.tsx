@@ -33,6 +33,7 @@ export default function SupervisorsManagementPage() {
   const [stores, setStores] = useState<StoreData[]>([]);
   const [assignments, setAssignments] = useState<Map<string, Set<number>>>(new Map());
   const [assignmentTypes, setAssignmentTypes] = useState<Map<string, Map<number, 'supervisor' | 'store_manager'>>>(new Map());
+  const [proxyStores, setProxyStores] = useState<Map<string, Set<number>>>(new Map());
   
   // 搜尋和選擇狀態
   const [searchTerm, setSearchTerm] = useState('');
@@ -87,8 +88,27 @@ export default function SupervisorsManagementPage() {
         );
       });
       
+      // 推算代理督導：role_type=supervisor & is_primary=false，且同門市有另一個 is_primary=true
+      const primaryByStore = new Map<number, string>();
+      assignmentsList.forEach((a: { user_id: string; store_id: number; role_type: string; is_primary: boolean }) => {
+        if (a.role_type === 'supervisor' && a.is_primary) {
+          primaryByStore.set(a.store_id, a.user_id);
+        }
+      });
+      const proxyMap = new Map<string, Set<number>>();
+      assignmentsList.forEach((a: { user_id: string; store_id: number; role_type: string; is_primary: boolean }) => {
+        if (a.role_type === 'supervisor' && !a.is_primary) {
+          const primaryUserId = primaryByStore.get(a.store_id);
+          if (primaryUserId && primaryUserId !== a.user_id) {
+            if (!proxyMap.has(a.user_id)) proxyMap.set(a.user_id, new Set());
+            proxyMap.get(a.user_id)!.add(a.store_id);
+          }
+        }
+      });
+
       setAssignments(assignmentsMap);
       setAssignmentTypes(typesMap);
+      setProxyStores(proxyMap);
     } catch (error) {
       console.error('Error loading data:', error);
       alert('載入資料失敗，請重新整理頁面');
@@ -98,48 +118,67 @@ export default function SupervisorsManagementPage() {
   };
 
   const toggleStoreAssignment = (userId: string, storeId: number, storeName: string) => {
-    setAssignments((prev) => {
-      const newMap = new Map(prev);
-      const userStores = newMap.get(userId) || new Set<number>();
+    const userStores = assignments.get(userId) || new Set<number>();
+
+    if (userStores.has(storeId)) {
+      // 取消勾選：移除指派與代理標記
       const newUserStores = new Set(userStores);
+      newUserStores.delete(storeId);
+      const newMap = new Map(assignments);
+      newMap.set(userId, newUserStores);
+      setAssignments(newMap);
 
-      if (newUserStores.has(storeId)) {
-        newUserStores.delete(storeId);
-      } else {
-        // 只有督導模式才檢查是否已有其他督導在管轄同門市
-        if (roleType === 'supervisor') {
-          const existingSupervisors = Array.from(newMap.entries())
-            .filter(([otherUserId, stores]) => {
-              if (otherUserId === userId) return false;
-              if (!stores.has(storeId)) return false;
+      setProxyStores((prev) => {
+        const newProxy = new Map(prev);
+        const userProxies = new Set(newProxy.get(userId) || []);
+        userProxies.delete(storeId);
+        newProxy.set(userId, userProxies);
+        return newProxy;
+      });
+    } else {
+      // 新增勾選
+      let isProxy = false;
 
-              const typeMap = assignmentTypes.get(otherUserId);
-              return typeMap?.get(storeId) === 'supervisor';
-            })
-            .map(([otherUserId]) => {
-              const person = supervisors.find((s) => s.id === otherUserId);
-              if (!person) return null;
-              return `${person.full_name || person.email}${person.employee_code ? ` (${person.employee_code})` : ''}`;
-            })
-            .filter(Boolean) as string[];
+      if (roleType === 'supervisor') {
+        const existingSupervisors = Array.from(assignments.entries())
+          .filter(([otherUserId, stores]) => {
+            if (otherUserId === userId) return false;
+            if (!stores.has(storeId)) return false;
+            const typeMap = assignmentTypes.get(otherUserId);
+            return typeMap?.get(storeId) === 'supervisor';
+          })
+          .map(([otherUserId]) => {
+            const person = supervisors.find((s) => s.id === otherUserId);
+            if (!person) return null;
+            return `${person.full_name || person.email}${person.employee_code ? ` (${person.employee_code})` : ''}`;
+          })
+          .filter(Boolean) as string[];
 
-          if (existingSupervisors.length > 0) {
-            const confirmed = window.confirm(
-              `門市「${storeName}」目前已由督導管理：\n${existingSupervisors.join('、')}\n\n是否改為「代理管理」方式新增此督導？`
-            );
-
-            if (!confirmed) {
-              return prev;
-            }
-          }
+        if (existingSupervisors.length > 0) {
+          const confirmed = window.confirm(
+            `門市「${storeName}」目前已由督導管理：\n${existingSupervisors.join('、')}\n\n是否改為「代理管理」方式新增此督導？`
+          );
+          if (!confirmed) return;
+          isProxy = true;
         }
-
-        newUserStores.add(storeId);
       }
 
+      const newUserStores = new Set(userStores);
+      newUserStores.add(storeId);
+      const newMap = new Map(assignments);
       newMap.set(userId, newUserStores);
-      return newMap;
-    });
+      setAssignments(newMap);
+
+      if (isProxy) {
+        setProxyStores((prev) => {
+          const newProxy = new Map(prev);
+          const userProxies = new Set(newProxy.get(userId) || []);
+          userProxies.add(storeId);
+          newProxy.set(userId, userProxies);
+          return newProxy;
+        });
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -540,13 +579,16 @@ export default function SupervisorsManagementPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {stores.map((store) => {
                       const isAssigned = userStores.has(store.id);
+                      const isProxy = isAssigned && (proxyStores.get(selectedSupervisor.id)?.has(store.id) ?? false);
 
                       return (
                         <label
                           key={store.id}
                           className={`flex items-center gap-3 p-4 rounded-lg border-2 cursor-pointer transition-all ${
                             isAssigned
-                              ? 'border-blue-500 bg-blue-50'
+                              ? isProxy
+                                ? 'border-amber-400 bg-amber-50'
+                                : 'border-blue-500 bg-blue-50'
                               : 'border-gray-200 hover:border-gray-300 bg-white'
                           }`}
                         >
@@ -561,11 +603,17 @@ export default function SupervisorsManagementPage() {
                             <div className="text-sm text-gray-500">{store.store_code}</div>
                           </div>
                           {isAssigned && (
-                            <div className="text-blue-600">
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                            </div>
+                            isProxy ? (
+                              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-white">
+                                代
+                              </span>
+                            ) : (
+                              <div className="text-blue-600">
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )
                           )}
                         </label>
                       );

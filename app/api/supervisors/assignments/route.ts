@@ -24,7 +24,7 @@ export async function GET() {
     // 獲取所有門市管理者分配
     const { data: assignments, error } = await supabase
       .from('store_managers')
-      .select('user_id, store_id, role_type');
+      .select('user_id, store_id, role_type, is_primary');
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
