@@ -34,7 +34,7 @@ function getPreviousYearMonth(yearMonth: string): string {
 export default async function PharmacistManagementPage({
   searchParams,
 }: {
-  searchParams?: { year_month?: string; zone?: string };
+  searchParams?: { year_month?: string; zone?: string; debug?: string };
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -60,6 +60,7 @@ export default async function PharmacistManagementPage({
       : formatYearMonth(new Date());
   const previousYearMonth = getPreviousYearMonth(selectedYearMonth);
   const selectedZone = (searchParams?.zone || 'all').trim();
+  const isDebug = searchParams?.debug === '1';
 
   let storeIds: string[] = [];
 
@@ -195,6 +196,25 @@ export default async function PharmacistManagementPage({
   console.log('[DEBUG pharmacist] mappedRows count:', mappedRows.length, '| missingZoneRows:', missingZoneRows.length, '| missingZoneStores:', missingZoneStoreIds.length);
   console.log('[DEBUG pharmacist] missingZone store ids sample:', missingZoneStoreIds.slice(0, 20));
 
+  const debugPayload = {
+    userId: user.id,
+    selectedYearMonth,
+    previousYearMonth,
+    selectedZone,
+    storeIdsCount: storeIds.length,
+    storeIdsSample: storeIds.slice(0, 20),
+    currentRowsCount: (currentRows || []).length,
+    previousRowsCount: (previousRows || []).length,
+    managerRowsCount: (managerRows || []).length,
+    groupedManagersCount: groupedManagers.size,
+    zoneByStoreCount: zoneByStore.size,
+    zoneByStoreSample: Array.from(zoneByStore.entries()).slice(0, 20),
+    mappedRowsCount: mappedRows.length,
+    missingZoneRowsCount: missingZoneRows.length,
+    missingZoneStoreIdsSample: missingZoneStoreIds.slice(0, 20),
+    managerRowsSample: (managerRows || []).slice(0, 10),
+  };
+
   const zoneOptions = Array.from(new Set(mappedRows.map((r) => r.supervisor_zone))).sort((a, b) =>
     a.localeCompare(b, 'zh-Hant')
   );
@@ -289,6 +309,15 @@ export default async function PharmacistManagementPage({
         {!canEditModule && (
           <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
             目前為檢視模式（僅可查看，無法編輯）。
+          </div>
+        )}
+
+        {isDebug && (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3">
+            <div className="mb-2 text-sm font-semibold text-red-700">Debug 資訊（server-side）</div>
+            <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-all rounded bg-white p-3 text-xs text-gray-800">
+              {JSON.stringify(debugPayload, null, 2)}
+            </pre>
           </div>
         )}
 
