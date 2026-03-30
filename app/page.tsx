@@ -2,7 +2,7 @@ import { getCurrentUser } from '@/app/auth/actions';
 import { getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft } from 'lucide-react';
+import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft, FileText } from 'lucide-react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
@@ -190,6 +190,24 @@ export default async function HomePage() {
             </Link>
           </div>
         )}
+
+        <div className="mb-4 sm:mb-5">
+          <Link
+            href="/monthly-release"
+            className="group flex items-center justify-between rounded-2xl border border-amber-200 bg-white p-4 shadow-sm transition-all duration-150 hover:border-amber-300 hover:bg-amber-50/60 hover:shadow-md active:scale-[0.98] sm:p-5"
+          >
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-700 sm:h-14 sm:w-14">
+                <FileText className="h-6 w-6 sm:h-7 sm:w-7" />
+              </div>
+              <div>
+                <div className="text-base font-bold tracking-wide text-gray-900 sm:text-lg">每月版更內容</div>
+                <p className="mt-0.5 text-xs text-gray-600 sm:text-sm">查看本月系統調整內容與實際使用影響</p>
+              </div>
+            </div>
+            <ArrowRight className="h-5 w-5 flex-shrink-0 text-amber-600 transition-transform group-hover:translate-x-1 sm:h-6 sm:w-6" />
+          </Link>
+        </div>
 
         {/* Cards Row */}
         <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
