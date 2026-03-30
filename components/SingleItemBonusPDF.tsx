@@ -111,13 +111,13 @@ export async function generateSingleItemBonusPDF(
       <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
         <thead>
           <tr style="background-color: #f3f4f6;">
-            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">員工編號</th>
-            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold;">姓名</th>
-            ${visibleColumns.single_item_bonus ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">單品獎金</th>' : ''}
-            ${visibleColumns.meal_allowance ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">誤餐費</th>' : ''}
-            ${visibleColumns.transport_expense ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">交通費用</th>' : ''}
-            ${visibleColumns.talent_cultivation_bonus ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">育才津貼</th>' : ''}
-            ${visibleColumns.spring_festival_bonus ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold;">春節出勤獎金</th>' : ''}
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">員工編號</th>
+            <th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">姓名</th>
+            ${visibleColumns.single_item_bonus ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">單品獎金</th>' : ''}
+            ${visibleColumns.meal_allowance ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">誤餐費</th>' : ''}
+            ${visibleColumns.transport_expense ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">交通費用</th>' : ''}
+            ${visibleColumns.talent_cultivation_bonus ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">育才津貼</th>' : ''}
+            ${visibleColumns.spring_festival_bonus ? '<th style="border: 1px solid #ddd; padding: 12px; text-align: left; vertical-align: top; font-weight: bold;">春節出勤獎金</th>' : ''}
           </tr>
         </thead>
         <tbody>
