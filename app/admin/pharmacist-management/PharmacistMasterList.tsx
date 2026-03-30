@@ -91,7 +91,9 @@ export default function PharmacistMasterList({
         });
         if (!res.ok) {
           const err = await res.json();
-          setSaveError(err.error || '儲存失敗');
+          const msg = err.error || '儲存失敗';
+          setSaveError(msg);
+          window.alert(msg);
           return;
         }
         setData((prev) =>

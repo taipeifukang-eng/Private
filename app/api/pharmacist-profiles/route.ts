@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
+function mapDbError(error: any): string {
+  const code = error?.code;
+  if (code === '42P01') {
+    return 'pharmacist_profiles 資料表不存在，請先執行 supabase/migration_pharmacist_profiles.sql';
+  }
+  if (code === '42703') {
+    return 'pharmacist_profiles 欄位不完整，請重新執行 supabase/migration_pharmacist_profiles.sql';
+  }
+  return error?.message || '資料庫錯誤';
+}
+
 // GET /api/pharmacist-profiles?employee_codes=FK0001,FK0002,...
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -23,7 +34,7 @@ export async function GET(req: NextRequest) {
     .select('employee_code, school, is_responsible_pharmacist, license_renewal_date, notes, updated_at')
     .in('employee_code', codes);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: mapDbError(error), dbCode: error.code || null }, { status: 500 });
   return NextResponse.json({ data: data || [] });
 }
 
@@ -54,6 +65,6 @@ export async function PATCH(req: NextRequest) {
     .from('pharmacist_profiles')
     .upsert({ employee_code: code, ...updates }, { onConflict: 'employee_code' });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: mapDbError(error), dbCode: error.code || null }, { status: 500 });
   return NextResponse.json({ success: true });
 }
