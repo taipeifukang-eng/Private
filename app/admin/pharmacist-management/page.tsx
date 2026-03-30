@@ -174,21 +174,19 @@ export default async function PharmacistManagementPage({
   console.log('[DEBUG pharmacist] supervisorRows sample:', supervisorRows.slice(0, 10));
 
   const primarySupervisorRows = supervisorRows.filter((row: any) => row.is_primary === true);
-  const primaryDirectSupervisorRows = primarySupervisorRows.filter((row: any) => {
-    const p = profileByUserId.get(row.user_id);
-    return p?.job_title?.includes('督導') ?? false;
-  });
 
   const zoneByStore = new Map<string, string>();
   const groupedManagers = new Map<string, any[]>();
-  primaryDirectSupervisorRows.forEach((row: any) => {
+  supervisorRows.forEach((row: any) => {
     const list = groupedManagers.get(row.store_id) || [];
     list.push(row);
     groupedManagers.set(row.store_id, list);
   });
 
   groupedManagers.forEach((list, storeId) => {
-    const picked = [...list].sort((a, b) => {
+    const primaryCandidates = list.filter((r: any) => r.is_primary === true);
+    const candidates = primaryCandidates.length > 0 ? primaryCandidates : list;
+    const picked = [...candidates].sort((a, b) => {
       const aTime = Date.parse(a.created_at || '1970-01-01T00:00:00Z');
       const bTime = Date.parse(b.created_at || '1970-01-01T00:00:00Z');
       if (aTime !== bTime) return aTime - bTime;
@@ -269,7 +267,6 @@ export default async function PharmacistManagementPage({
     managerProfilesCount: managerProfiles.length,
     managerRowsCount: supervisorRows.length,
     primarySupervisorRowsCount: primarySupervisorRows.length,
-    primaryDirectSupervisorRowsCount: primaryDirectSupervisorRows.length,
     groupedManagersCount: groupedManagers.size,
     zoneByStoreCount: zoneByStore.size,
     zoneByStoreSample: Array.from(zoneByStore.entries()).slice(0, 20),
@@ -278,7 +275,6 @@ export default async function PharmacistManagementPage({
     missingZoneStoreIdsSample: missingZoneStoreIds.slice(0, 20),
     managerRowsSample: supervisorRows.slice(0, 10),
     primarySupervisorRowsSample: primarySupervisorRows.slice(0, 10),
-    primaryDirectSupervisorRowsSample: primaryDirectSupervisorRows.slice(0, 10),
   };
 
   const zoneOptions = Array.from(new Set(mappedRows.map((r) => r.supervisor_zone))).sort((a, b) =>
