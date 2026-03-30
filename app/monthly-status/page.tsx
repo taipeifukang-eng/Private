@@ -1138,7 +1138,8 @@ function StoreStatusDetail({
         result.staff,
         result.store_code,
         result.store_name,
-        yearMonth
+        yearMonth,
+        result.visible_columns
       );
       
     } catch (error) {
@@ -1707,7 +1708,7 @@ function StoreStatusDetail({
 
       {/* 底部操作按鈕 */}
       <div className="mt-6 flex justify-end gap-4">
-        {/* 匯出單品獎金 PDF 按鈕（店長以上可見） */}
+        {/* 匯出當月獎金／津貼 PDF 按鈕（店長以上可見） */}
         {(userRole === 'store_manager' || userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager' || 
           ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
           <button
@@ -1715,7 +1716,7 @@ function StoreStatusDetail({
             className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold flex items-center gap-2"
           >
             <FileText size={18} />
-            匯出單品獎金 PDF
+            匯出當月獎金／津貼 PDF
           </button>
         )}
         {storeStatus === 'in_progress' && ((['admin', 'supervisor', 'area_manager'].includes(userRole)) || managedStores.some(s => s.id === store.id)) && (
