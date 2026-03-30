@@ -89,6 +89,10 @@ export default async function PharmacistManagementPage({
     );
   }
 
+  console.log('[DEBUG pharmacist] userId:', user.id);
+  console.log('[DEBUG pharmacist] selectedYearMonth:', selectedYearMonth, '| previousYearMonth:', previousYearMonth);
+  console.log('[DEBUG pharmacist] storeIds count:', storeIds.length, '| sample:', storeIds.slice(0, 10));
+
   const adminSupabase = createAdminClient();
 
   const [{ data: currentRows }, { data: previousRows }, { data: managerRows }] = await Promise.all([
@@ -110,6 +114,9 @@ export default async function PharmacistManagementPage({
       .in('store_id', storeIds)
       .eq('role_type', 'supervisor'),
   ]);
+
+  console.log('[DEBUG pharmacist] query result counts => currentRows:', (currentRows || []).length, 'previousRows:', (previousRows || []).length, 'managerRows:', (managerRows || []).length);
+  console.log('[DEBUG pharmacist] managerRows sample:', (managerRows || []).slice(0, 10));
 
   const zoneByStore = new Map<string, string>();
   const groupedManagers = new Map<string, any[]>();
@@ -140,6 +147,10 @@ export default async function PharmacistManagementPage({
       : '未指派督導區';
     zoneByStore.set(storeId, zoneLabel);
   });
+
+  console.log('[DEBUG pharmacist] groupedManagers store count:', groupedManagers.size);
+  console.log('[DEBUG pharmacist] zoneByStore count:', zoneByStore.size);
+  console.log('[DEBUG pharmacist] zoneByStore sample:', Array.from(zoneByStore.entries()).slice(0, 10));
 
   const prevByEmployee = new Map<string, any>();
   (previousRows || []).forEach((row: any) => {
@@ -178,6 +189,11 @@ export default async function PharmacistManagementPage({
       prev_position: prev?.position || '-',
     };
   });
+
+  const missingZoneRows = mappedRows.filter((r) => r.supervisor_zone === '未指派督導區');
+  const missingZoneStoreIds = Array.from(new Set(missingZoneRows.map((r) => r.store_id)));
+  console.log('[DEBUG pharmacist] mappedRows count:', mappedRows.length, '| missingZoneRows:', missingZoneRows.length, '| missingZoneStores:', missingZoneStoreIds.length);
+  console.log('[DEBUG pharmacist] missingZone store ids sample:', missingZoneStoreIds.slice(0, 20));
 
   const zoneOptions = Array.from(new Set(mappedRows.map((r) => r.supervisor_zone))).sort((a, b) =>
     a.localeCompare(b, 'zh-Hant')
