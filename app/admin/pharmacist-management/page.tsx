@@ -96,20 +96,24 @@ export default async function PharmacistManagementPage({
 
   const adminSupabase = createAdminClient();
 
-  const [{ data: currentRows }, { data: previousRows }] = await Promise.all([
+  const [{ data: currentRowsRaw }, { data: previousRowsRaw }] = await Promise.all([
     supabase
       .from('monthly_staff_status')
-      .select('id, store_id, employee_code, employee_name, position, stores(store_code, store_name)')
+      .select('id, store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
       .eq('year_month', selectedYearMonth)
       .in('store_id', storeIds)
       .eq('is_pharmacist', true),
     supabase
       .from('monthly_staff_status')
-      .select('store_id, employee_code, employee_name, position, stores(store_code, store_name)')
+      .select('store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
       .eq('year_month', previousYearMonth)
       .in('store_id', storeIds)
       .eq('is_pharmacist', true),
   ]);
+
+  // 排除「督導卡班」造成的藥師假象
+  const currentRows = (currentRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
+  const previousRows = (previousRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
 
   let managerAssignments: any[] = [];
   let managerProfiles: any[] = [];
@@ -269,6 +273,8 @@ export default async function PharmacistManagementPage({
     storeIdsSample: storeIds.slice(0, 20),
     currentRowsCount: (currentRows || []).length,
     previousRowsCount: (previousRows || []).length,
+    currentRowsExcludedSupervisorRotationCount: (currentRowsRaw || []).length - (currentRows || []).length,
+    previousRowsExcludedSupervisorRotationCount: (previousRowsRaw || []).length - (previousRows || []).length,
     managerAssignmentsSource,
     managerAssignmentsErrorMessage,
     managerProfilesErrorMessage,
