@@ -7,7 +7,10 @@ type PharmacistDetail = {
   employee_code: string;
   employee_name: string;
   position: string;
+  change_type: string;
   change_note: string;
+  store_code: string;
+  store_name: string;
 };
 
 type SupervisorStoreCard = {
@@ -32,15 +35,42 @@ export default function PharmacistSupervisorCards({
     storeName: string;
     pharmacists: PharmacistDetail[];
   } | null>(null);
+  const [showResignedModal, setShowResignedModal] = useState(false);
+
+  const allResigned = useMemo(
+    () =>
+      cards
+        .flatMap((card) =>
+          card.stores.flatMap((store) =>
+            store.pharmacists.filter((p) => p.change_type === '離職')
+          )
+        )
+        .sort((a, b) => a.store_code.localeCompare(b.store_code)),
+    [cards]
+  );
 
   const hasData = cards.length > 0;
-  const emptyText = useMemo(() => '查無資料', []);
 
   return (
     <>
+      {allResigned.length > 0 && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => setShowResignedModal(true)}
+            className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 hover:bg-rose-100"
+          >
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-rose-200 text-xs font-bold text-rose-800">
+              {allResigned.length}
+            </span>
+            只看離職
+          </button>
+        </div>
+      )}
+
       {!hasData ? (
         <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-500 shadow-sm">
-          {emptyText}
+          查無資料
         </div>
       ) : (
         <div className="space-y-4">
@@ -79,6 +109,7 @@ export default function PharmacistSupervisorCards({
         </div>
       )}
 
+      {/* 門市藥師明細跳窗 */}
       {activeStore && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
@@ -125,6 +156,54 @@ export default function PharmacistSupervisorCards({
                   </tbody>
                 </table>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 只看離職跳窗 */}
+      {showResignedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-3xl rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+              <h4 className="text-lg font-semibold text-rose-700">
+                本月離職藥師（共 {allResigned.length} 人）
+              </h4>
+              <button
+                type="button"
+                onClick={() => setShowResignedModal(false)}
+                className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                關閉
+              </button>
+            </div>
+
+            <div className="max-h-[65vh] overflow-auto p-4">
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 bg-rose-50 text-rose-800">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-semibold">員編</th>
+                    <th className="px-3 py-2 text-left font-semibold">姓名</th>
+                    <th className="px-3 py-2 text-left font-semibold">職級</th>
+                    <th className="px-3 py-2 text-left font-semibold">任職門市</th>
+                    <th className="px-3 py-2 text-left font-semibold">離職日期</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allResigned.map((p) => {
+                    const resignDate = p.change_note.replace('離職', '').trim() || '-';
+                    return (
+                      <tr key={p.id} className="border-t border-gray-100 hover:bg-rose-50/40">
+                        <td className="px-3 py-2 font-mono">{p.employee_code}</td>
+                        <td className="px-3 py-2">{p.employee_name}</td>
+                        <td className="px-3 py-2">{p.position}</td>
+                        <td className="px-3 py-2">{p.store_code} {p.store_name}</td>
+                        <td className="px-3 py-2 text-rose-700 font-medium">{resignDate}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
