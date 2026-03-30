@@ -679,7 +679,7 @@ export default async function PharmacistManagementPage({
   const { data: pharmProfilesRaw } = masterEmpCodes.length > 0
     ? await adminSupabase
         .from('pharmacist_profiles')
-        .select('employee_code, school, is_responsible_pharmacist, license_renewal_date')
+        .select('employee_code, school, education_level, is_responsible_pharmacist, license_renewal_date')
         .in('employee_code', masterEmpCodes)
     : { data: [] as any[] };
 
@@ -700,6 +700,7 @@ export default async function PharmacistManagementPage({
         start_date: e.start_date || startDateByCode.get(code) || null,
         is_active: e.is_active,
         school: pharmProfile.school || '',
+        education_level: pharmProfile.education_level || '',
         is_responsible_pharmacist: pharmProfile.is_responsible_pharmacist ?? false,
         license_renewal_date: pharmProfile.license_renewal_date || null,
       };

@@ -6,6 +6,7 @@
 CREATE TABLE IF NOT EXISTS pharmacist_profiles (
   employee_code        VARCHAR(20) PRIMARY KEY,          -- 員工編號 (FK with store_employees)
   school               TEXT,                              -- 畢業學校
+  education_level      TEXT,                              -- 學歷 (博士/碩士/學士)
   is_responsible_pharmacist BOOLEAN DEFAULT false,        -- 是否為負責藥師
   license_renewal_date DATE,                              -- 執業執照更新日期
   notes                TEXT,                              -- 備註

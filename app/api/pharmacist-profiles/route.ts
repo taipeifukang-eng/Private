@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
+const ALLOWED_SCHOOLS = [
+  '國立臺灣大學',
+  '臺北醫學大學',
+  '國防醫學院',
+  '中國醫藥大學',
+  '國立成功大學',
+  '高雄醫學大學',
+  '嘉南藥理大學',
+  '大仁科技大學',
+  '國立陽明交通大學',
+  '慈濟大學',
+] as const;
+
+const ALLOWED_EDUCATION_LEVELS = ['博士', '碩士', '學士'] as const;
+
 function mapDbError(error: any): string {
   const code = error?.code;
   if (code === 'PGRST205') {
@@ -34,7 +49,7 @@ export async function GET(req: NextRequest) {
   const adminSupabase = createAdminClient();
   const { data, error } = await adminSupabase
     .from('pharmacist_profiles')
-    .select('employee_code, school, is_responsible_pharmacist, license_renewal_date, notes, updated_at')
+    .select('employee_code, school, education_level, is_responsible_pharmacist, license_renewal_date, notes, updated_at')
     .in('employee_code', codes);
 
   if (error) return NextResponse.json({ error: mapDbError(error), dbCode: error.code || null }, { status: 500 });
@@ -51,14 +66,25 @@ export async function PATCH(req: NextRequest) {
   if (!canEdit) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const body = await req.json();
-  const { employee_code, school, is_responsible_pharmacist, license_renewal_date, notes } = body || {};
+  const { employee_code, school, education_level, is_responsible_pharmacist, license_renewal_date, notes } = body || {};
   if (!employee_code || typeof employee_code !== 'string') {
     return NextResponse.json({ error: 'employee_code is required' }, { status: 400 });
   }
 
   const code = employee_code.trim().toUpperCase();
   const updates: Record<string, unknown> = {};
-  if (school !== undefined) updates.school = school;
+  if (school !== undefined) {
+    if (school !== '' && !ALLOWED_SCHOOLS.includes(school)) {
+      return NextResponse.json({ error: '畢業學校不在允許清單內' }, { status: 400 });
+    }
+    updates.school = school || null;
+  }
+  if (education_level !== undefined) {
+    if (education_level !== '' && !ALLOWED_EDUCATION_LEVELS.includes(education_level)) {
+      return NextResponse.json({ error: '學歷不在允許清單內' }, { status: 400 });
+    }
+    updates.education_level = education_level || null;
+  }
   if (is_responsible_pharmacist !== undefined) updates.is_responsible_pharmacist = Boolean(is_responsible_pharmacist);
   if (license_renewal_date !== undefined) updates.license_renewal_date = license_renewal_date || null;
   if (notes !== undefined) updates.notes = notes;
