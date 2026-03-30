@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 import PharmacistManagementTable from './PharmacistManagementTable';
 
@@ -89,6 +89,8 @@ export default async function PharmacistManagementPage({
     );
   }
 
+  const adminSupabase = createAdminClient();
+
   const [{ data: currentRows }, { data: previousRows }, { data: managerRows }] = await Promise.all([
     supabase
       .from('monthly_staff_status')
@@ -102,7 +104,7 @@ export default async function PharmacistManagementPage({
       .eq('year_month', previousYearMonth)
       .in('store_id', storeIds)
       .eq('is_pharmacist', true),
-    supabase
+    adminSupabase
       .from('store_managers')
       .select('store_id, role_type, is_primary, updated_at, created_at, user:profiles!store_managers_user_id_fkey(full_name, employee_code)')
       .in('store_id', storeIds)
