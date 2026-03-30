@@ -2540,58 +2540,6 @@ function AddManualEmployeeModal({
             </div>
           )}
 
-          {/* 上個月個人單品獎金 */}
-          <div className="bg-purple-50 rounded-lg p-4">
-            <label className="block text-sm font-medium text-purple-700 mb-2">
-              上個月個人單品獎金
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={lastMonthSingleItemBonus}
-                onChange={(e) => setLastMonthSingleItemBonus(parseInt(e.target.value) || 0)}
-                className="w-32 px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500"
-                placeholder="0"
-              />
-              <span className="text-purple-600 text-sm">元</span>
-            </div>
-          </div>
-
-          {/* 本月育才獎金 */}
-          <div className="bg-indigo-50 rounded-lg p-4">
-            <label className="block text-sm font-medium text-indigo-700 mb-2">
-              本月育才獎金
-            </label>
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={talentCultivationBonus}
-                  onChange={(e) => setTalentCultivationBonus(parseInt(e.target.value) || 0)}
-                  className="w-32 px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                  placeholder="0"
-                />
-                <span className="text-indigo-600 text-sm">元</span>
-              </div>
-              <div>
-                <label className="block text-xs text-indigo-600 mb-1">
-                  育才對象
-                </label>
-                <input
-                  type="text"
-                  value={talentCultivationTarget}
-                  onChange={(e) => setTalentCultivationTarget(e.target.value)}
-                  className="w-full px-3 py-2 border border-indigo-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
-                  placeholder="請輸入育才對象姓名"
-                />
-              </div>
-            </div>
-          </div>
-
           {/* 備註 */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">備註</label>
