@@ -174,6 +174,7 @@ export default async function HomePage() {
 
   if (canViewAnnualFeeReminder) {
     let reminderStoreIds: string[] | null = null;
+    let usedFallbackMonthlySnapshot = false;
     if (isSupervisor || isStoreManager) {
       const { data: managedStores } = await adminSupabase
         .from('store_managers')
@@ -202,6 +203,45 @@ export default async function HomePage() {
           employee_name: String(r.employee_name || ''),
         }))
         .filter((r) => r.employee_code);
+
+      // 當月尚未初始化月狀態時，回退到最新有資料月份，避免提醒名單整包為空
+      if (monthlyPharmacists.length === 0) {
+        let latestMonthQ = adminSupabase
+          .from('monthly_staff_status')
+          .select('year_month')
+          .eq('is_pharmacist', true)
+          .order('year_month', { ascending: false })
+          .limit(1);
+
+        if (reminderStoreIds) {
+          latestMonthQ = latestMonthQ.in('store_id', reminderStoreIds);
+        }
+
+        const { data: latestMonthRows } = await latestMonthQ;
+        const fallbackYearMonth = latestMonthRows?.[0]?.year_month;
+
+        if (fallbackYearMonth) {
+          usedFallbackMonthlySnapshot = true;
+          let fallbackQ = adminSupabase
+            .from('monthly_staff_status')
+            .select('employee_code, employee_name, store_name, store_id')
+            .eq('year_month', fallbackYearMonth)
+            .eq('is_pharmacist', true);
+
+          if (reminderStoreIds) {
+            fallbackQ = fallbackQ.in('store_id', reminderStoreIds);
+          }
+
+          const { data: fallbackRows } = await fallbackQ;
+          monthlyPharmacists = ((fallbackRows || []) as MonthlyPharmacistRow[])
+            .map((r) => ({
+              ...r,
+              employee_code: String(r.employee_code || '').toUpperCase(),
+              employee_name: String(r.employee_name || ''),
+            }))
+            .filter((r) => r.employee_code);
+        }
+      }
     }
 
     const candidateByCode = new Map<string, MonthlyPharmacistRow>();
@@ -258,6 +298,9 @@ export default async function HomePage() {
 
       annualFeeReminders = candidateCodes
         .filter((code) => {
+          // 有當月月狀態資料時，視為在職快照，不再用異動歷史二次排除
+          if (!usedFallbackMonthlySnapshot) return true;
+
           const resignTs = latestResignTsByCode.get(code);
           const reactivateTs = latestReactivateTsByCode.get(code);
           const isResignedByCurrentMonth = Boolean(
