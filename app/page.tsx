@@ -42,8 +42,13 @@ function getReminderStartTsForKeelung(latestPeriodEnd: string | null): number | 
   return d.getTime();
 }
 
-export default async function HomePage() {
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: { debug?: string };
+}) {
   const { user } = await getCurrentUser();
+  const isDebug = searchParams?.debug === '1';
 
   // If not logged in, show landing page
   if (!user) {
@@ -171,6 +176,23 @@ export default async function HomePage() {
     association_city: string;
     reason: string;
   }> = [];
+  const annualFeeDebug = {
+    currentYearMonth,
+    currentMonth,
+    reminderStoreScope: 'all' as 'all' | 'scoped',
+    reminderStoreCount: 0,
+    monthlyCurrentCount: 0,
+    fallbackYearMonth: '' as string | null,
+    monthlyFallbackCount: 0,
+    monthlyFinalCount: 0,
+    candidateCodesCount: 0,
+    movementCount: 0,
+    annualFeeRecordCount: 0,
+    eligibleAfterResignFilterCount: 0,
+    skippedByCurrentYearRecordCount: 0,
+    skippedByMonthGateCount: 0,
+    remindersCount: 0,
+  };
 
   if (canViewAnnualFeeReminder) {
     let reminderStoreIds: string[] | null = null;
@@ -181,6 +203,8 @@ export default async function HomePage() {
         .select('store_id')
         .eq('user_id', user.id);
       reminderStoreIds = (managedStores || []).map((s) => s.store_id);
+      annualFeeDebug.reminderStoreScope = 'scoped';
+      annualFeeDebug.reminderStoreCount = reminderStoreIds.length;
     }
 
     let monthlyPharmacists: MonthlyPharmacistRow[] = [];
@@ -196,6 +220,7 @@ export default async function HomePage() {
       }
 
       const { data: monthlyPharmacistsRaw } = await q;
+      annualFeeDebug.monthlyCurrentCount = (monthlyPharmacistsRaw || []).length;
       monthlyPharmacists = ((monthlyPharmacistsRaw || []) as MonthlyPharmacistRow[])
         .map((r) => ({
           ...r,
@@ -219,6 +244,7 @@ export default async function HomePage() {
 
         const { data: latestMonthRows } = await latestMonthQ;
         const fallbackYearMonth = latestMonthRows?.[0]?.year_month;
+        annualFeeDebug.fallbackYearMonth = fallbackYearMonth || null;
 
         if (fallbackYearMonth) {
           usedFallbackMonthlySnapshot = true;
@@ -233,6 +259,7 @@ export default async function HomePage() {
           }
 
           const { data: fallbackRows } = await fallbackQ;
+          annualFeeDebug.monthlyFallbackCount = (fallbackRows || []).length;
           monthlyPharmacists = ((fallbackRows || []) as MonthlyPharmacistRow[])
             .map((r) => ({
               ...r,
@@ -249,6 +276,8 @@ export default async function HomePage() {
       if (!candidateByCode.has(r.employee_code)) candidateByCode.set(r.employee_code, r);
     });
     const candidateCodes = Array.from(candidateByCode.keys());
+    annualFeeDebug.monthlyFinalCount = monthlyPharmacists.length;
+    annualFeeDebug.candidateCodesCount = candidateCodes.length;
 
     if (candidateCodes.length > 0) {
       const [{ data: movementRaw }, { data: annualFeeRaw }] = await Promise.all([
@@ -267,6 +296,8 @@ export default async function HomePage() {
 
       const movements = (movementRaw || []) as MovementRow[];
       const annualFees = (annualFeeRaw || []) as AnnualFeeRow[];
+      annualFeeDebug.movementCount = movements.length;
+      annualFeeDebug.annualFeeRecordCount = annualFees.length;
 
       const latestResignTsByCode = new Map<string, number>();
       const latestReactivateTsByCode = new Map<string, number>();
@@ -296,7 +327,7 @@ export default async function HomePage() {
         annualFeesByCode.get(code)!.push(row);
       });
 
-      annualFeeReminders = candidateCodes
+      const eligibleCodes = candidateCodes
         .filter((code) => {
           // 有當月月狀態資料時，視為在職快照，不再用異動歷史二次排除
           if (!usedFallbackMonthlySnapshot) return true;
@@ -307,7 +338,11 @@ export default async function HomePage() {
             resignTs && (!reactivateTs || resignTs >= reactivateTs)
           );
           return !isResignedByCurrentMonth;
-        })
+        });
+
+      annualFeeDebug.eligibleAfterResignFilterCount = eligibleCodes.length;
+
+      annualFeeReminders = eligibleCodes
         .map((code) => {
           const emp = candidateByCode.get(code)!;
           const records = annualFeesByCode.get(code) || [];
@@ -334,7 +369,14 @@ export default async function HomePage() {
           }
 
           const hasCurrentYearRecord = records.some((r) => r.fee_year === currentYear);
-          if (currentMonth < 3 || hasCurrentYearRecord) return null;
+          if (hasCurrentYearRecord) {
+            annualFeeDebug.skippedByCurrentYearRecordCount += 1;
+            return null;
+          }
+          if (currentMonth < 3) {
+            annualFeeDebug.skippedByMonthGateCount += 1;
+            return null;
+          }
 
           return {
             employee_code: code,
@@ -345,6 +387,8 @@ export default async function HomePage() {
           };
         })
         .filter((r): r is NonNullable<typeof r> => Boolean(r));
+
+      annualFeeDebug.remindersCount = annualFeeReminders.length;
     }
   }
   // ─────────────────────────────────────────────────────────
@@ -564,6 +608,30 @@ export default async function HomePage() {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {canViewAnnualFeeReminder && isDebug && (
+            <div className="bg-slate-900 text-slate-100 rounded-lg shadow-lg p-3 sm:p-4 lg:p-5 w-full border border-slate-700">
+              <h2 className="text-sm sm:text-base font-bold tracking-wide">常年會費提醒 Debug</h2>
+              <p className="mt-1 text-xs text-slate-300">啟用方式：首頁加上 ?debug=1</p>
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-sm">
+                <span>currentYearMonth</span><span className="font-mono">{annualFeeDebug.currentYearMonth}</span>
+                <span>currentMonth</span><span>{annualFeeDebug.currentMonth}</span>
+                <span>storeScope</span><span>{annualFeeDebug.reminderStoreScope}</span>
+                <span>storeCount</span><span>{annualFeeDebug.reminderStoreCount}</span>
+                <span>monthlyCurrentCount</span><span>{annualFeeDebug.monthlyCurrentCount}</span>
+                <span>fallbackYearMonth</span><span className="font-mono">{annualFeeDebug.fallbackYearMonth || '-'}</span>
+                <span>monthlyFallbackCount</span><span>{annualFeeDebug.monthlyFallbackCount}</span>
+                <span>monthlyFinalCount</span><span>{annualFeeDebug.monthlyFinalCount}</span>
+                <span>candidateCodesCount</span><span>{annualFeeDebug.candidateCodesCount}</span>
+                <span>movementCount</span><span>{annualFeeDebug.movementCount}</span>
+                <span>annualFeeRecordCount</span><span>{annualFeeDebug.annualFeeRecordCount}</span>
+                <span>eligibleAfterResignFilterCount</span><span>{annualFeeDebug.eligibleAfterResignFilterCount}</span>
+                <span>skippedByCurrentYearRecordCount</span><span>{annualFeeDebug.skippedByCurrentYearRecordCount}</span>
+                <span>skippedByMonthGateCount</span><span>{annualFeeDebug.skippedByMonthGateCount}</span>
+                <span>remindersCount</span><span className="font-bold text-amber-300">{annualFeeDebug.remindersCount}</span>
               </div>
             </div>
           )}
