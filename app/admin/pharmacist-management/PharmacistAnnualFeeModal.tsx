@@ -556,10 +556,10 @@ export default function PharmacistAnnualFeeModal({
       {/* PDF 預覽 Modal */}
       {pdfViewUrl && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-2 sm:p-4"
           onClick={(e) => { if (e.target === e.currentTarget) setPdfViewUrl(null); }}
         >
-          <div className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+          <div className="relative w-[min(96vw,1400px)] h-[94vh] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
               <h3 className="text-lg font-bold text-gray-900">繳費證明</h3>
               <button
@@ -569,10 +569,10 @@ export default function PharmacistAnnualFeeModal({
                 ×
               </button>
             </div>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-auto">
               <iframe
                 src={pdfViewUrl}
-                className="w-full h-full border-none"
+                className="w-full h-full min-h-[420px] border-none"
                 title="PDF 預覽"
               />
             </div>
