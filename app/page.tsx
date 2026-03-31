@@ -127,7 +127,13 @@ export default async function HomePage() {
   const isStoreManager = ['店長', '代理店長'].includes(jobTitle) && !isSupervisor;
   const isManagerOrAdmin = role === 'admin' || (role === 'manager' && !isSupervisor && !isStoreManager);
   const isBusinessAdminAssistantSupervisor = jobTitle.includes('營業部行政助理主管');
-  const canViewAnnualFeeReminder = role === 'admin' || isSupervisor || isStoreManager || isBusinessAdminAssistantSupervisor;
+  const canViewMonthlyStatusAll = await hasPermission(user.id, 'monthly.status.view_all');
+  const canViewAnnualFeeReminder =
+    role === 'admin' ||
+    isSupervisor ||
+    isStoreManager ||
+    isBusinessAdminAssistantSupervisor ||
+    canViewMonthlyStatusAll;
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
