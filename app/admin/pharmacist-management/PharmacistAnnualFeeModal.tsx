@@ -87,6 +87,7 @@ type FeeRecord = {
   payment_proof_path: string | null;
   notes: string | null;
   created_by: string | null;
+  created_by_name?: string | null;
   created_at: string;
 };
 
@@ -269,13 +270,8 @@ export default function PharmacistAnnualFeeModal({
       if (!res.ok) throw new Error();
       const { url } = await res.json();
 
-      // 判斷檔案類型：PDF 用 modal 預覽，其他用新分頁
-      const isPdf = path.toLowerCase().endsWith('.pdf');
-      if (isPdf) {
-        setPdfViewUrl(url);
-      } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
-      }
+      // 不分檔案類型，統一在 modal 預覽（PDF / 圖片）
+      setPdfViewUrl(url);
     } catch {
       alert('無法取得繳費證明，請稍後再試');
     } finally {
@@ -373,7 +369,7 @@ export default function PharmacistAnnualFeeModal({
                         <span title={r.notes || ''} className="line-clamp-2">{r.notes || '—'}</span>
                       </td>
                       <td className="px-3 py-2 text-xs text-gray-400">
-                        {r.created_by ? r.created_by.split('@')[0] : '—'}
+                        {r.created_by_name || (r.created_by ? r.created_by.split('@')[0] : '—')}
                       </td>
                       {canEdit && (
                         <td className="px-3 py-2 text-center">

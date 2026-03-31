@@ -20,6 +20,10 @@ function mapDbError(error: unknown): string {
   return err.message || '資料庫錯誤';
 }
 
+function isUuidLike(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 // GET /api/pharmacist-annual-fees?employee_code=FK0001
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -43,7 +47,50 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: mapDbError(error) }, { status: 500 });
-  return NextResponse.json({ data: data || [] });
+
+  const rows = data || [];
+  const creatorValues = Array.from(new Set(rows.map((r) => String(r.created_by || '').trim()).filter(Boolean)));
+  const creatorIds = creatorValues.filter((v) => isUuidLike(v));
+  const creatorEmails = creatorValues.filter((v) => v.includes('@')).map((v) => v.toLowerCase());
+
+  const creatorNameById = new Map<string, string>();
+  const creatorNameByEmail = new Map<string, string>();
+
+  if (creatorIds.length > 0) {
+    const { data: idProfiles } = await adminSupabase
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', creatorIds);
+
+    (idProfiles || []).forEach((p: { id: string; full_name: string | null }) => {
+      if (p.id && p.full_name) creatorNameById.set(p.id, p.full_name);
+    });
+  }
+
+  if (creatorEmails.length > 0) {
+    const { data: emailProfiles } = await adminSupabase
+      .from('profiles')
+      .select('email, full_name')
+      .in('email', creatorEmails);
+
+    (emailProfiles || []).forEach((p: { email: string | null; full_name: string | null }) => {
+      if (p.email && p.full_name) creatorNameByEmail.set(p.email.toLowerCase(), p.full_name);
+    });
+  }
+
+  const dataWithCreatorName = rows.map((r) => {
+    const rawCreator = String(r.created_by || '').trim();
+    const creatorName = isUuidLike(rawCreator)
+      ? creatorNameById.get(rawCreator) || null
+      : creatorNameByEmail.get(rawCreator.toLowerCase()) || null;
+
+    return {
+      ...r,
+      created_by_name: creatorName,
+    };
+  });
+
+  return NextResponse.json({ data: dataWithCreatorName });
 }
 
 // POST /api/pharmacist-annual-fees
@@ -88,7 +135,7 @@ export async function POST(req: NextRequest) {
       fee_period_end: fee_period_end || null,
       payment_proof_path: payment_proof_path || null,
       notes: notes || null,
-      created_by: user.email || null,
+      created_by: user.id,
     })
     .select()
     .single();
