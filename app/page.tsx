@@ -708,6 +708,9 @@ export default async function HomePage({
                 <span>isBusinessAdminAssistantSupervisor</span><span>{annualFeeDebug.isBusinessAdminAssistantSupervisor ? 'true' : 'false'}</span>
                 <span>storeScope</span><span>{annualFeeDebug.reminderStoreScope}</span>
                 <span>storeCount</span><span>{annualFeeDebug.reminderStoreCount}</span>
+                <span>masterPharmacistCount</span><span>{annualFeeDebug.masterPharmacistCount}</span>
+                <span>activePharmacistCount</span><span>{annualFeeDebug.activePharmacistCount}</span>
+                <span>assignedStoreCount</span><span>{annualFeeDebug.assignedStoreCount}</span>
                 <span>monthlyCurrentCount</span><span>{annualFeeDebug.monthlyCurrentCount}</span>
                 <span>fallbackYearMonth</span><span className="font-mono">{annualFeeDebug.fallbackYearMonth || '-'}</span>
                 <span>monthlyFallbackCount</span><span>{annualFeeDebug.monthlyFallbackCount}</span>
