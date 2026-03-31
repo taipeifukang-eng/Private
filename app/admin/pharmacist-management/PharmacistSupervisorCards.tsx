@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 type PharmacistDetail = {
   id: string;
@@ -36,6 +36,24 @@ export default function PharmacistSupervisorCards({
     pharmacists: PharmacistDetail[];
   } | null>(null);
   const [showResignedModal, setShowResignedModal] = useState(false);
+
+  useEffect(() => {
+    if (!activeStore && !showResignedModal) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (activeStore) {
+        setActiveStore(null);
+        return;
+      }
+      if (showResignedModal) {
+        setShowResignedModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeStore, showResignedModal]);
 
   const allResigned = useMemo(
     () =>
