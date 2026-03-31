@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import PharmacistAnnualFeeModal from './PharmacistAnnualFeeModal';
 
 const SCHOOL_OPTIONS = [
@@ -29,6 +28,18 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   resigned: 'bg-gray-100 text-gray-600',
   suspended: 'bg-amber-100 text-amber-700',
+};
+
+const SOURCE_LABELS: Record<string, string> = {
+  manual: '手動',
+};
+
+type ManualAddFormState = {
+  employee_code: string;
+  employee_name: string;
+  join_date: string;
+  current_position: string;
+  notes: string;
 };
 
 export type PharmacistMasterRow = {
@@ -87,8 +98,6 @@ export default function PharmacistMasterList({
   canEdit: boolean;
   initialYear?: number;
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
   const currentYear = new Date().getFullYear();
   
   // 年度選擇（預設當前年度）
@@ -109,6 +118,16 @@ export default function PharmacistMasterList({
   const [searchText, setSearchText] = useState('');
   const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'suspended'>('active');
   const [feeModalRow, setFeeModalRow] = useState<{ code: string; name: string } | null>(null);
+  const [manualForm, setManualForm] = useState<ManualAddFormState>({
+    employee_code: '',
+    employee_name: '',
+    join_date: '',
+    current_position: '藥師',
+    notes: '',
+  });
+  const [manualAddError, setManualAddError] = useState('');
+  const [manualAddSuccess, setManualAddSuccess] = useState('');
+  const [isManualAdding, setIsManualAdding] = useState(false);
 
   // 載入年度主檔資料
   const loadYearData = useCallback(async (year: number) => {
@@ -265,6 +284,53 @@ export default function PharmacistMasterList({
     });
   }
 
+  async function handleManualAdd() {
+    if (!manualForm.employee_code.trim() || !manualForm.employee_name.trim() || !manualForm.join_date.trim()) {
+      setManualAddError('員編、姓名、到職日為必填');
+      setManualAddSuccess('');
+      return;
+    }
+
+    setIsManualAdding(true);
+    setManualAddError('');
+    setManualAddSuccess('');
+
+    try {
+      const res = await fetch('/api/pharmacist-annual-master/manual-add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: selectedYear,
+          employee_code: manualForm.employee_code.trim().toUpperCase(),
+          employee_name: manualForm.employee_name.trim(),
+          join_date: manualForm.join_date,
+          current_position: manualForm.current_position.trim() || '藥師',
+          notes: manualForm.notes.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        setManualAddError(json.error || '新增失敗');
+        return;
+      }
+
+      setManualForm({
+        employee_code: '',
+        employee_name: '',
+        join_date: '',
+        current_position: '藥師',
+        notes: '',
+      });
+      setManualAddSuccess(`已加入 ${json.data?.employee_code || ''}`.trim());
+      await loadYearData(selectedYear);
+    } catch {
+      setManualAddError('網路錯誤，請稍後再試');
+    } finally {
+      setIsManualAdding(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* 年度選擇 + 關帳控制 */}
@@ -336,6 +402,69 @@ export default function PharmacistMasterList({
         </div>
       )}
 
+      {canEdit && !isLocked && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-semibold text-blue-900">手動加入藥師主檔</h3>
+              <p className="text-xs text-blue-700">適用於年度主檔未自動帶入的人員，新增後會標示為「手動」。</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+            <input
+              type="text"
+              placeholder="員編，例如 FK1103"
+              value={manualForm.employee_code}
+              onChange={(e) => setManualForm((prev) => ({ ...prev, employee_code: e.target.value.toUpperCase() }))}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <input
+              type="text"
+              placeholder="姓名"
+              value={manualForm.employee_name}
+              onChange={(e) => setManualForm((prev) => ({ ...prev, employee_name: e.target.value }))}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <input
+              type="date"
+              value={manualForm.join_date}
+              onChange={(e) => setManualForm((prev) => ({ ...prev, join_date: e.target.value }))}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <input
+              type="text"
+              placeholder="現職職級，預設藥師"
+              value={manualForm.current_position}
+              onChange={(e) => setManualForm((prev) => ({ ...prev, current_position: e.target.value }))}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={handleManualAdd}
+              disabled={isManualAdding}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isManualAdding ? '新增中…' : `加入 ${selectedYear} 主檔`}
+            </button>
+          </div>
+          <div className="mt-3">
+            <input
+              type="text"
+              placeholder="備註，可留空"
+              value={manualForm.notes}
+              onChange={(e) => setManualForm((prev) => ({ ...prev, notes: e.target.value }))}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+          {manualAddError && (
+            <p className="mt-2 text-sm text-rose-600">{manualAddError}</p>
+          )}
+          {manualAddSuccess && (
+            <p className="mt-2 text-sm text-green-700">{manualAddSuccess}</p>
+          )}
+        </div>
+      )}
+
       {/* 搜尋 + 篩選列 */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
         <input
@@ -401,7 +530,16 @@ export default function PharmacistMasterList({
                     className={`border-t border-gray-100 ${status !== 'active' ? 'opacity-60' : ''} ${isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
                     <td className="px-3 py-2 font-mono text-gray-800">{row.employee_code}</td>
-                    <td className="px-3 py-2 font-medium">{row.employee_name || '-'}</td>
+                    <td className="px-3 py-2">
+                      <div className="font-medium text-gray-900">{row.employee_name || '-'}</div>
+                      {row.source && SOURCE_LABELS[row.source] && (
+                        <div className="mt-1">
+                          <span className="inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-700">
+                            {SOURCE_LABELS[row.source]}
+                          </span>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-3 py-2 text-center">
                       <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColor}`}>
                         {statusLabel}
@@ -554,7 +692,7 @@ export default function PharmacistMasterList({
 
       <p className="text-xs text-gray-500">
         執照更新日顯示紅色代表已逾期。畢業學校、學歷、負責藥師、執照更新日可點「編輯」修改後儲存。
-        點「記錄」可查看或新增該藥師的常年會費申請記錄。常年會費按鈕藍底代表目前規則判定為已具備有效紀錄，白底代表尚未具備。
+        點「記錄」可查看或新增該藥師的常年會費申請記錄。常年會費按鈕藍底代表目前規則判定為已具備有效紀錄，白底代表尚未具備。手動新增的人員會在姓名下方顯示「手動」標籤。
       </p>
 
       {feeModalRow && (
