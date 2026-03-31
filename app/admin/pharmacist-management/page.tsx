@@ -122,29 +122,6 @@ export default async function PharmacistManagementPage({
 
   async function ensureSnapshotForMonth(targetYearMonth: string) {
     if (!canUseSnapshot) return;
-    const { data: rotationRows } = await adminSupabase
-      .from('monthly_staff_status')
-      .select('store_id, employee_code')
-      .eq('year_month', targetYearMonth)
-      .in('store_id', storeIds)
-      .eq('is_pharmacist', true)
-      .eq('is_supervisor_rotation', true);
-
-    // 清掉既有快照中由 seed 產生且屬於「督導卡班」的資料
-    if ((rotationRows || []).length > 0) {
-      await Promise.all(
-        (rotationRows || []).map((r: any) =>
-          adminSupabase
-            .from('pharmacist_monthly_snapshot')
-            .delete()
-            .eq('year_month', targetYearMonth)
-            .eq('source', 'seed')
-            .eq('store_id', String(r.store_id || ''))
-            .eq('employee_code', String(r.employee_code || '').toUpperCase())
-        )
-      );
-    }
-
     const { count } = await adminSupabase
       .from('pharmacist_monthly_snapshot')
       .select('id', { count: 'exact', head: true })
@@ -153,28 +130,113 @@ export default async function PharmacistManagementPage({
 
     if ((count || 0) > 0) return;
 
-    const { data: seedRows } = await adminSupabase
-      .from('monthly_staff_status')
-      .select('store_id, employee_code, employee_name, position, is_supervisor_rotation')
-      .eq('year_month', targetYearMonth)
-      .in('store_id', storeIds)
-      .eq('is_pharmacist', true);
+    const baseYearMonth = getPreviousYearMonth(targetYearMonth);
+    const monthStart = `${targetYearMonth}-01`;
+    const monthEndDate = new Date(Number(targetYearMonth.slice(0, 4)), Number(targetYearMonth.slice(5, 7)), 0);
+    const monthEnd = `${targetYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
 
-    if (!seedRows || seedRows.length === 0) return;
+    const { data: baseRows } = await adminSupabase
+      .from('pharmacist_monthly_snapshot')
+      .select('store_id, employee_code, employee_name, position, is_active')
+      .eq('year_month', baseYearMonth)
+      .in('store_id', storeIds);
 
-    const payload = seedRows
-      .filter((r: any) => r.store_id && r.employee_code && !r.is_supervisor_rotation)
-      .map((r: any) => ({
+    if (!baseRows || baseRows.length === 0) return;
+
+    const nextByCode = new Map<string, {
+      year_month: string;
+      store_id: string;
+      employee_code: string;
+      employee_name: string;
+      position: string | null;
+      is_active: boolean;
+      source: 'movement';
+      notes: string;
+    }>();
+
+    (baseRows || []).forEach((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      if (!code || !r.store_id) return;
+      nextByCode.set(code, {
         year_month: targetYearMonth,
         store_id: String(r.store_id),
-        employee_code: String(r.employee_code || '').toUpperCase(),
+        employee_code: code,
         employee_name: String(r.employee_name || ''),
         position: r.position || null,
-        is_active: true,
-        source: 'seed' as const,
-        notes: 'initialized from monthly_staff_status',
-      }));
+        is_active: r.is_active !== false,
+        source: 'movement',
+        notes: `generated from ${baseYearMonth}`,
+      });
+    });
 
+    const { data: monthlyMovements } = await adminSupabase
+      .from('employee_movement_history')
+      .select('employee_code, employee_name, store_id, movement_type, movement_date, new_value')
+      .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion'])
+      .gte('movement_date', monthStart)
+      .lte('movement_date', monthEnd)
+      .order('movement_date', { ascending: true });
+
+    (monthlyMovements || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (!code) return;
+      const type = String(m.movement_type || '');
+      const d = m.movement_date ? new Date(m.movement_date) : null;
+      const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
+
+      if (type === 'resignation') {
+        const row = nextByCode.get(code);
+        if (!row) return;
+        row.is_active = false;
+        row.notes = `${row.notes}; ${mmdd || ''} resignation`.trim();
+        nextByCode.set(code, row);
+        return;
+      }
+
+      if (type === 'onboarding' || type === 'return_to_work') {
+        const storeId = m.store_id ? String(m.store_id) : '';
+        if (!storeId) return;
+        const row = nextByCode.get(code);
+        if (row) {
+          row.is_active = true;
+          row.employee_name = row.employee_name || String(m.employee_name || '');
+          row.notes = `${row.notes}; ${mmdd || ''} ${type}`.trim();
+          nextByCode.set(code, row);
+        } else {
+          nextByCode.set(code, {
+            year_month: targetYearMonth,
+            store_id: storeId,
+            employee_code: code,
+            employee_name: String(m.employee_name || ''),
+            position: null,
+            is_active: true,
+            source: 'movement',
+            notes: `generated from movement; ${mmdd || ''} ${type}`.trim(),
+          });
+        }
+        return;
+      }
+
+      if (type === 'store_transfer') {
+        // 規則：非切整月調店，當月維持原店，次月才生效
+        const row = nextByCode.get(code);
+        if (!row) return;
+        row.notes = `${row.notes}; ${mmdd || ''} transfer (effective next month)`.trim();
+        nextByCode.set(code, row);
+        return;
+      }
+
+      if (type === 'promotion') {
+        const row = nextByCode.get(code);
+        if (!row) return;
+        row.notes = `${row.notes}; ${mmdd || ''} promotion (effective next month)`.trim();
+        const nextPosition = String(m.new_value || '').trim();
+        if (nextPosition) row.position = nextPosition;
+        nextByCode.set(code, row);
+      }
+    });
+
+    const payload = Array.from(nextByCode.values());
     if (payload.length === 0) return;
 
     await adminSupabase
@@ -186,10 +248,9 @@ export default async function PharmacistManagementPage({
   let previousRowsRaw: any[] = [];
 
   if (canUseSnapshot) {
-    await Promise.all([
-      ensureSnapshotForMonth(selectedYearMonth),
-      ensureSnapshotForMonth(previousYearMonth),
-    ]);
+    // 先確保前一月存在，才能用「前一月 + 異動」生成本月
+    await ensureSnapshotForMonth(previousYearMonth);
+    await ensureSnapshotForMonth(selectedYearMonth);
 
     const [currentQ, previousQ] = await Promise.all([
       adminSupabase
@@ -206,24 +267,6 @@ export default async function PharmacistManagementPage({
 
     currentRowsRaw = currentQ.data || [];
     previousRowsRaw = previousQ.data || [];
-  } else {
-    const [currentQ, previousQ] = await Promise.all([
-      supabase
-        .from('monthly_staff_status')
-        .select('id, store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
-        .eq('year_month', selectedYearMonth)
-        .in('store_id', storeIds)
-        .eq('is_pharmacist', true),
-      supabase
-        .from('monthly_staff_status')
-        .select('store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
-        .eq('year_month', previousYearMonth)
-        .in('store_id', storeIds)
-        .eq('is_pharmacist', true),
-    ]);
-
-    currentRowsRaw = (currentQ.data || []).filter((row: any) => !row.is_supervisor_rotation);
-    previousRowsRaw = (previousQ.data || []).filter((row: any) => !row.is_supervisor_rotation);
   }
 
   const currentRowsBase = currentRowsRaw || [];
