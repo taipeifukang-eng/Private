@@ -5,6 +5,7 @@ import { hasPermission } from '@/lib/permissions/check';
 import PharmacistSupervisorCards from './PharmacistSupervisorCards';
 import PharmacistMasterList from './PharmacistMasterList';
 import OverviewFilterForm from './OverviewFilterForm';
+import SummaryCards from './SummaryCards';
 
 export const dynamic = 'force-dynamic';
 
@@ -1305,20 +1306,7 @@ export default async function PharmacistManagementPage({
           canEdit={canEditModule}
         />
 
-        <div className="mb-4 grid gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
-            <div className="text-sm text-blue-700">當月藥師總數</div>
-            <div className="mt-1 text-2xl font-bold text-blue-900">{summary.total}</div>
-          </div>
-          <div className="rounded-xl border border-green-100 bg-green-50 p-4">
-            <div className="text-sm text-green-700">新增任職</div>
-            <div className="mt-1 text-2xl font-bold text-green-900">{summary.newJoin}</div>
-          </div>
-          <div className="rounded-xl border border-amber-100 bg-amber-50 p-4">
-            <div className="text-sm text-amber-700">門市/職級異動</div>
-            <div className="mt-1 text-2xl font-bold text-amber-900">{summary.changed}</div>
-          </div>
-        </div>
+        <SummaryCards summary={summary} filteredRows={filteredRows} />
 
         {!canEditModule && (
           <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
