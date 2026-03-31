@@ -244,7 +244,7 @@ export default async function HomePage({
         .eq('is_pharmacist', true),
       adminSupabase
         .from('monthly_staff_status')
-        .select('employee_code, employee_name, store_id, store_name, year_month, position, start_date, is_pharmacist')
+        .select('employee_code, employee_name, store_id, year_month, position, start_date, is_pharmacist')
         .eq('is_pharmacist', true)
         .order('year_month', { ascending: false }),
     ]);
@@ -273,7 +273,7 @@ export default async function HomePage({
       monthlyPharmacistByCode.set(code, {
         employee_name: String(r.employee_name || ''),
         store_id: String(r.store_id || ''),
-        store_name: r.store_name || null,
+        store_name: null,
         year_month: String(r.year_month || ''),
       });
     });
@@ -299,12 +299,45 @@ export default async function HomePage({
     monthlySupplementByCode.forEach((_m, code) => {
       activeCodes.push(code);
     });
-    annualFeeDebug.masterPharmacistCount = activeCodes.length;
-    annualFeeDebug.activePharmacistCount = activeCodes.length;
+
+    // 與藥師主檔一致：以異動紀錄覆蓋在職判斷（離職 >= 復職/到職）
+    const { data: latestMovementsRaw } = activeCodes.length > 0
+      ? await adminSupabase
+          .from('employee_movement_history')
+          .select('employee_code, movement_type, movement_date')
+          .in('employee_code', activeCodes)
+          .in('movement_type', ['resignation', 'onboarding', 'return_to_work'])
+          .order('movement_date', { ascending: false })
+      : { data: [] as any[] };
+
+    const latestResignationByCode = new Map<string, string>();
+    const latestReactivationByCode = new Map<string, string>();
+    (latestMovementsRaw || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      const type = String(m.movement_type || '');
+      const date = String(m.movement_date || '');
+      if (!code || !date) return;
+
+      if (type === 'resignation' && !latestResignationByCode.has(code)) {
+        latestResignationByCode.set(code, date);
+      }
+      if ((type === 'onboarding' || type === 'return_to_work') && !latestReactivationByCode.has(code)) {
+        latestReactivationByCode.set(code, date);
+      }
+    });
+
+    const finalActiveCodes = activeCodes.filter((code) => {
+      const resignationDate = latestResignationByCode.get(code) || null;
+      const reactivationDate = latestReactivationByCode.get(code) || null;
+      return !(resignationDate && (!reactivationDate || resignationDate >= reactivationDate));
+    });
+
+    annualFeeDebug.masterPharmacistCount = finalActiveCodes.length;
+    annualFeeDebug.activePharmacistCount = finalActiveCodes.length;
 
     // 2) 門市歸屬：使用月報最近一期所在門市（可視範圍判斷依據）
     const assignedStoreByCode = new Map<string, { store_id: string | null; store_name: string | null; employee_name: string }>();
-    activeCodes.forEach((code) => {
+    finalActiveCodes.forEach((code) => {
       const monthly = monthlyPharmacistByCode.get(code);
       const master = masterEmployeeByCode.get(code);
       const supplement = monthlySupplementByCode.get(code);
@@ -317,12 +350,16 @@ export default async function HomePage({
     });
     annualFeeDebug.assignedStoreCount = assignedStoreByCode.size;
 
-    const filteredCodes = activeCodes.filter((code) => {
+    const filteredCodes = finalActiveCodes.filter((code) => {
       if (!reminderStoreIds) return true;
       const assigned = assignedStoreByCode.get(code);
       return Boolean(assigned?.store_id && reminderStoreIds.includes(assigned.store_id));
     });
     annualFeeDebug.afterStoreFilterCount = filteredCodes.length;
+
+    annualFeeDebug.monthlyCurrentCount = monthlyPharmacistByCode.size;
+    annualFeeDebug.fallbackYearMonth = (monthlyRaw || [])[0]?.year_month || null;
+    annualFeeDebug.monthlyFallbackCount = 0;
 
     // 補查缺少 store_name 的門市名稱
     const missingStoreNameIds = Array.from(new Set(
