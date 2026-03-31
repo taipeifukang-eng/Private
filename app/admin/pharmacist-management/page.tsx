@@ -361,11 +361,13 @@ export default async function PharmacistManagementPage({
         .from('pharmacist_monthly_snapshot')
         .select('id, store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
         .eq('year_month', selectedYearMonth)
+        .eq('is_active', true)
         .in('store_id', storeIds),
       adminSupabase
         .from('pharmacist_monthly_snapshot')
         .select('store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
         .eq('year_month', previousYearMonth)
+        .eq('is_active', true)
         .in('store_id', storeIds),
     ]);
 
