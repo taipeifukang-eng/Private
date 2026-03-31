@@ -199,6 +199,8 @@ export default async function HomePage({
     isBusinessAdminAssistantSupervisor,
     reminderStoreScope: 'all' as 'all' | 'scoped',
     reminderStoreCount: 0,
+    storeEmpRawCount: 0,
+    monthlyRawCount: 0,
     masterPharmacistCount: 0,
     activePharmacistCount: 0,
     assignedStoreCount: 0,
@@ -207,7 +209,7 @@ export default async function HomePage({
     monthlyFallbackCount: 0,
     monthlyFinalCount: 0,
     candidateCodesCount: 0,
-    movementCount: 0,
+
     annualFeeRecordCount: 0,
     eligibleAfterResignFilterCount: 0,
     skippedByCurrentYearRecordCount: 0,
@@ -244,6 +246,10 @@ export default async function HomePage({
         .order('year_month', { ascending: false }),
     ]);
 
+    // Record raw counts
+    annualFeeDebug.storeEmpRawCount = (masterRowsRaw || []).length;
+    annualFeeDebug.monthlyRawCount = (monthlyAllRaw || []).length;
+
     // store_employees map（含 is_active 欄位）
     const storeEmpByCode = new Map<string, { employee_name: string; store_id: string | null; is_active: boolean }>();
     (masterRowsRaw || []).forEach((r: any) => {
@@ -274,13 +280,6 @@ export default async function HomePage({
 
     annualFeeDebug.monthlyCurrentCount = monthlyLatestByCode.size;
     annualFeeDebug.fallbackYearMonth = (monthlyAllRaw || [])[0]?.year_month || null;
-    
-    // Debug: 原始查詢結果
-    console.log('🔍 Annual Fee Debug:');
-    console.log('  store_employees raw:', masterRowsRaw?.length || 0);
-    console.log('  monthly_staff_status raw:', monthlyAllRaw?.length || 0);
-    console.log('  storeEmpByCode size:', storeEmpByCode.size);
-    console.log('  storeEmpByCode active:', Array.from(storeEmpByCode.values()).filter(e => e.is_active).length);
 
     // 在職藥師清單（與藥師管理頁「在職」邏輯一致）：
     //   - store_employees 中 is_active=true 的藥師
@@ -656,6 +655,8 @@ export default async function HomePage({
                 <span>isBusinessAdminAssistantSupervisor</span><span>{annualFeeDebug.isBusinessAdminAssistantSupervisor ? 'true' : 'false'}</span>
                 <span>storeScope</span><span>{annualFeeDebug.reminderStoreScope}</span>
                 <span>storeCount</span><span>{annualFeeDebug.reminderStoreCount}</span>
+                <span>storeEmpRawCount</span><span className="font-bold text-blue-300">{annualFeeDebug.storeEmpRawCount}</span>
+                <span>monthlyRawCount</span><span className="font-bold text-blue-300">{annualFeeDebug.monthlyRawCount}</span>
                 <span>masterPharmacistCount</span><span>{annualFeeDebug.masterPharmacistCount}</span>
                 <span>activePharmacistCount</span><span>{annualFeeDebug.activePharmacistCount}</span>
                 <span>assignedStoreCount</span><span>{annualFeeDebug.assignedStoreCount}</span>
@@ -664,7 +665,6 @@ export default async function HomePage({
                 <span>monthlyFallbackCount</span><span>{annualFeeDebug.monthlyFallbackCount}</span>
                 <span>monthlyFinalCount</span><span>{annualFeeDebug.monthlyFinalCount}</span>
                 <span>candidateCodesCount</span><span>{annualFeeDebug.candidateCodesCount}</span>
-                <span>movementCount</span><span>{annualFeeDebug.movementCount}</span>
                 <span>annualFeeRecordCount</span><span>{annualFeeDebug.annualFeeRecordCount}</span>
                 <span>eligibleAfterResignFilterCount</span><span>{annualFeeDebug.eligibleAfterResignFilterCount}</span>
                 <span>skippedByCurrentYearRecordCount</span><span>{annualFeeDebug.skippedByCurrentYearRecordCount}</span>
