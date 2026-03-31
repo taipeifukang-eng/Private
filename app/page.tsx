@@ -161,7 +161,7 @@ export default async function HomePage() {
 
   // ── 常年會費未繳提醒 ───────────────────────────────────────
   // 規則：
-  // 1) 一般縣市：每年 4 月起，若當年度無繳費記錄則提醒
+  // 1) 一般縣市：每年 3 月起，若當年度無繳費記錄則提醒
   // 2) 基隆市：依上一期 fee_period_end 後第 4 個月開始提醒
   // 3) 若該員工於當月月底前已離職，則不提醒
   let annualFeeReminders: Array<{
@@ -291,7 +291,7 @@ export default async function HomePage() {
           }
 
           const hasCurrentYearRecord = records.some((r) => r.fee_year === currentYear);
-          if (currentMonth < 4 || hasCurrentYearRecord) return null;
+          if (currentMonth < 3 || hasCurrentYearRecord) return null;
 
           return {
             employee_code: code,
