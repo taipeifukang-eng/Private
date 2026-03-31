@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type PharmacistDetail = {
   id: string;
@@ -26,16 +27,27 @@ type SupervisorStoreCard = {
 
 export default function PharmacistSupervisorCards({
   cards,
+  selectedYearMonth,
+  canEdit,
 }: {
   cards: SupervisorStoreCard[];
+  selectedYearMonth: string;
+  canEdit: boolean;
 }) {
+  const router = useRouter();
   const [activeStore, setActiveStore] = useState<{
     supervisorZone: string;
+    storeId: string;
     storeCode: string;
     storeName: string;
     pharmacists: PharmacistDetail[];
   } | null>(null);
   const [showResignedModal, setShowResignedModal] = useState(false);
+  const [newEmployeeCode, setNewEmployeeCode] = useState('');
+  const [newEmployeeName, setNewEmployeeName] = useState('');
+  const [newPosition, setNewPosition] = useState('藥師');
+  const [isAdding, setIsAdding] = useState(false);
+  const [addError, setAddError] = useState('');
 
   useEffect(() => {
     if (!activeStore && !showResignedModal) return;
@@ -54,6 +66,15 @@ export default function PharmacistSupervisorCards({
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeStore, showResignedModal]);
+
+  useEffect(() => {
+    if (!activeStore) {
+      setNewEmployeeCode('');
+      setNewEmployeeName('');
+      setNewPosition('藥師');
+      setAddError('');
+    }
+  }, [activeStore]);
 
   const allResigned = useMemo(
     () =>
@@ -110,6 +131,7 @@ export default function PharmacistSupervisorCards({
                     onClick={() =>
                       setActiveStore({
                         supervisorZone: card.supervisorZone,
+                        storeId: store.storeId,
                         storeCode: store.storeCode,
                         storeName: store.storeName,
                         pharmacists: store.pharmacists,
@@ -148,6 +170,79 @@ export default function PharmacistSupervisorCards({
             </div>
 
             <div className="max-h-[65vh] overflow-auto p-4">
+              {canEdit && (
+                <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
+                  <div className="mb-2 text-sm font-semibold text-blue-800">手動新增該月藥師</div>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                    <input
+                      type="text"
+                      placeholder="員編 (例 FK0171)"
+                      value={newEmployeeCode}
+                      onChange={(e) => setNewEmployeeCode(e.target.value.toUpperCase())}
+                      className="rounded border border-gray-300 px-2 py-1 text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="姓名"
+                      value={newEmployeeName}
+                      onChange={(e) => setNewEmployeeName(e.target.value)}
+                      className="rounded border border-gray-300 px-2 py-1 text-sm"
+                    />
+                    <input
+                      type="text"
+                      placeholder="職級"
+                      value={newPosition}
+                      onChange={(e) => setNewPosition(e.target.value)}
+                      className="rounded border border-gray-300 px-2 py-1 text-sm"
+                    />
+                    <button
+                      type="button"
+                      disabled={isAdding}
+                      onClick={async () => {
+                        if (!activeStore) return;
+                        if (!newEmployeeCode.trim() || !newEmployeeName.trim()) {
+                          setAddError('員編與姓名為必填');
+                          return;
+                        }
+                        setAddError('');
+                        setIsAdding(true);
+                        try {
+                          const res = await fetch('/api/pharmacist-monthly-snapshot/manual-add', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              year_month: selectedYearMonth,
+                              store_id: activeStore.storeId,
+                              employee_code: newEmployeeCode.trim().toUpperCase(),
+                              employee_name: newEmployeeName.trim(),
+                              position: newPosition.trim() || '藥師',
+                            }),
+                          });
+                          const json = await res.json();
+                          if (!res.ok) {
+                            setAddError(json?.error || '新增失敗');
+                            return;
+                          }
+                          setNewEmployeeCode('');
+                          setNewEmployeeName('');
+                          setNewPosition('藥師');
+                          router.refresh();
+                        } catch {
+                          setAddError('新增失敗，請稍後再試');
+                        } finally {
+                          setIsAdding(false);
+                        }
+                      }}
+                      className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {isAdding ? '新增中…' : '新增'}
+                    </button>
+                  </div>
+                  {addError && <div className="mt-2 text-xs text-rose-600">{addError}</div>}
+                  <div className="mt-2 text-xs text-blue-700">此功能會新增到固定月藥師快照，避免每月人員狀態遺漏。</div>
+                </div>
+              )}
+
               {activeStore.pharmacists.length === 0 ? (
                 <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-gray-500">
                   本門市當月無藥師資料

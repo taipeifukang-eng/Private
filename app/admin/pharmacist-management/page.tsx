@@ -111,24 +111,100 @@ export default async function PharmacistManagementPage({
 
   const adminSupabase = createAdminClient();
 
-  const [{ data: currentRowsRaw }, { data: previousRowsRaw }] = await Promise.all([
-    supabase
-      .from('monthly_staff_status')
-      .select('id, store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
-      .eq('year_month', selectedYearMonth)
-      .in('store_id', storeIds)
-      .eq('is_pharmacist', true),
-    supabase
-      .from('monthly_staff_status')
-      .select('store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
-      .eq('year_month', previousYearMonth)
-      .in('store_id', storeIds)
-      .eq('is_pharmacist', true),
-  ]);
+  let canUseSnapshot = true;
+  const { error: snapshotCheckError } = await adminSupabase
+    .from('pharmacist_monthly_snapshot')
+    .select('id', { head: true, count: 'exact' })
+    .limit(1);
+  if (snapshotCheckError) {
+    canUseSnapshot = false;
+  }
 
-  // 排除「督導卡班」造成的藥師假象
-  const currentRowsBase = (currentRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
-  const previousRows = (previousRowsRaw || []).filter((row: any) => !row.is_supervisor_rotation);
+  async function ensureSnapshotForMonth(targetYearMonth: string) {
+    if (!canUseSnapshot) return;
+    const { count } = await adminSupabase
+      .from('pharmacist_monthly_snapshot')
+      .select('id', { count: 'exact', head: true })
+      .eq('year_month', targetYearMonth)
+      .in('store_id', storeIds);
+
+    if ((count || 0) > 0) return;
+
+    const { data: seedRows } = await adminSupabase
+      .from('monthly_staff_status')
+      .select('store_id, employee_code, employee_name, position')
+      .eq('year_month', targetYearMonth)
+      .in('store_id', storeIds)
+      .eq('is_pharmacist', true);
+
+    if (!seedRows || seedRows.length === 0) return;
+
+    const payload = seedRows
+      .filter((r: any) => r.store_id && r.employee_code)
+      .map((r: any) => ({
+        year_month: targetYearMonth,
+        store_id: String(r.store_id),
+        employee_code: String(r.employee_code || '').toUpperCase(),
+        employee_name: String(r.employee_name || ''),
+        position: r.position || null,
+        is_active: true,
+        source: 'seed' as const,
+        notes: 'initialized from monthly_staff_status',
+      }));
+
+    if (payload.length === 0) return;
+
+    await adminSupabase
+      .from('pharmacist_monthly_snapshot')
+      .upsert(payload, { onConflict: 'year_month,store_id,employee_code' });
+  }
+
+  let currentRowsRaw: any[] = [];
+  let previousRowsRaw: any[] = [];
+
+  if (canUseSnapshot) {
+    await Promise.all([
+      ensureSnapshotForMonth(selectedYearMonth),
+      ensureSnapshotForMonth(previousYearMonth),
+    ]);
+
+    const [currentQ, previousQ] = await Promise.all([
+      adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .select('id, store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
+        .eq('year_month', selectedYearMonth)
+        .in('store_id', storeIds),
+      adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .select('store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
+        .eq('year_month', previousYearMonth)
+        .in('store_id', storeIds),
+    ]);
+
+    currentRowsRaw = currentQ.data || [];
+    previousRowsRaw = previousQ.data || [];
+  } else {
+    const [currentQ, previousQ] = await Promise.all([
+      supabase
+        .from('monthly_staff_status')
+        .select('id, store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
+        .eq('year_month', selectedYearMonth)
+        .in('store_id', storeIds)
+        .eq('is_pharmacist', true),
+      supabase
+        .from('monthly_staff_status')
+        .select('store_id, employee_code, employee_name, position, is_supervisor_rotation, stores(store_code, store_name)')
+        .eq('year_month', previousYearMonth)
+        .in('store_id', storeIds)
+        .eq('is_pharmacist', true),
+    ]);
+
+    currentRowsRaw = (currentQ.data || []).filter((row: any) => !row.is_supervisor_rotation);
+    previousRowsRaw = (previousQ.data || []).filter((row: any) => !row.is_supervisor_rotation);
+  }
+
+  const currentRowsBase = currentRowsRaw || [];
+  const previousRows = previousRowsRaw || [];
 
   // 補抓「該月份已登記人事異動=離職」的藥師，避免月報尚未寫入而漏掉
   const monthStart = `${selectedYearMonth}-01`;
@@ -206,6 +282,25 @@ export default async function PharmacistManagementPage({
   (resignationMovements || []).forEach((m: any) => {
     const code = String(m.employee_code || '').toUpperCase();
     if (code) resignationByEmpCode.set(code, m);
+  });
+
+  const { data: monthlyMovementNotesRaw } = await adminSupabase
+    .from('employee_movement_history')
+    .select('employee_code, movement_type, movement_date')
+    .in('store_id', storeIds)
+    .in('movement_type', ['store_transfer', 'promotion'])
+    .gte('movement_date', monthStart)
+    .lte('movement_date', monthEnd)
+    .order('movement_date', { ascending: false });
+
+  const monthlyMovementByEmpCode = new Map<string, { movement_type: string; movement_date: string }>();
+  (monthlyMovementNotesRaw || []).forEach((m: any) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    if (!code || monthlyMovementByEmpCode.has(code)) return;
+    monthlyMovementByEmpCode.set(code, {
+      movement_type: String(m.movement_type || ''),
+      movement_date: String(m.movement_date || ''),
+    });
   });
 
   let managerAssignments: any[] = [];
@@ -355,6 +450,21 @@ export default async function PharmacistManagementPage({
       } else if (positionChanged) {
         changeType = '職級異動';
         changeNote = `上月職級：${prev?.position || '-'}`;
+      }
+    }
+
+    if (changeType === '無變更') {
+      const movement = monthlyMovementByEmpCode.get(_empCodeUpper);
+      if (movement?.movement_type === 'store_transfer') {
+        changeType = '門市異動';
+        const d = movement.movement_date ? new Date(movement.movement_date) : null;
+        const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
+        changeNote = mmdd ? `${mmdd} 調店（次月生效）` : '調店（次月生效）';
+      } else if (movement?.movement_type === 'promotion') {
+        changeType = '職級異動';
+        const d = movement.movement_date ? new Date(movement.movement_date) : null;
+        const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
+        changeNote = mmdd ? `${mmdd} 升遷（次月生效）` : '升遷（次月生效）';
       }
     }
 
@@ -947,7 +1057,11 @@ export default async function PharmacistManagementPage({
           </div>
         )}
 
-        <PharmacistSupervisorCards cards={filteredSupervisorCards} />
+        <PharmacistSupervisorCards
+          cards={filteredSupervisorCards}
+          selectedYearMonth={selectedYearMonth}
+          canEdit={canEditModule || canViewAllMonthly}
+        />
 
         <p className="mt-3 text-xs text-gray-500">
           點選門市可查看藥師明細。明細中的變化備註會顯示上月職級或上月門市，無變化則留白。
