@@ -212,13 +212,13 @@ export default async function PharmacistManagementPage({
           employee_code: code,
           employee_name: String(r.employee_name || ''),
           position: r.position || null,
-          is_active: r.is_active !== false,
+          is_active: r.is_active === true,
           source: 'movement',
           notes: `generated from ${baseYearMonth}`,
         });
       });
 
-      // 檢查前月異動中是否有本月生效的未反映狀態
+      // 檢查前月異動中是否有本月生效的未反映狀態(如同月離職卻鎖定的情況)
       const prevMonthStart = `${baseYearMonth}-01`;
       const prevMonthEndDate = new Date(Number(baseYearMonth.slice(0, 4)), Number(baseYearMonth.slice(5, 7)), 0);
       const prevMonthEnd = `${baseYearMonth}-${String(prevMonthEndDate.getDate()).padStart(2, '0')}`;
@@ -236,9 +236,9 @@ export default async function PharmacistManagementPage({
         if (code) prevMonthResignCodeSet.add(code);
       });
 
-      // 應用前月離職狀態於本月沿用者
+      // 應用前月離職狀態於本月沿用者 (確保 is_active 一定設為 false，即使已是 false)
       Array.from(nextByCode.entries()).forEach(([code, row]) => {
-        if (prevMonthResignCodeSet.has(code) && row.is_active) {
+        if (prevMonthResignCodeSet.has(code)) {
           row.is_active = false;
           row.notes = `${row.notes}; marked inactive due to prev-month resignation`.trim();
         }
