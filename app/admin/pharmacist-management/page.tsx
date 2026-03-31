@@ -459,8 +459,8 @@ export default async function PharmacistManagementPage({
     }];
   });
 
-  // 補充快照中 is_active=false 的員工到離職列表（他們也應該被視為「本月離職」）
-  // 先蒐集所有 is_activ=false 的員編
+  // 補充快照中 is_active=false 的員工到離職列表（僅本月離職者）
+  // 先蒐集所有 is_active=false 的員編
   const inactiveCodes = currentRowsBase.filter((r: any) => r.is_active === false).map((r: any) => String(r.employee_code || '').toUpperCase());
   
   const allInactiveResignations = inactiveCodes.length > 0
@@ -469,6 +469,8 @@ export default async function PharmacistManagementPage({
         .select('employee_code, movement_date')
         .eq('movement_type', 'resignation')
         .in('employee_code', inactiveCodes)
+        .gte('movement_date', monthStart)
+        .lte('movement_date', monthEnd)
         .order('movement_date', { ascending: false })
     : { data: [] as any[] };
 
@@ -480,16 +482,23 @@ export default async function PharmacistManagementPage({
     }
   });
 
-  const inactiveSnapshotRows = currentRowsBase.filter((r: any) => r.is_active === false).map((r: any) => {
-    const code = String(r.employee_code || '').toUpperCase();
-    const resignDate = latestResignationByCode.get(code) || '';
-    return {
-      ...r,
-      change_type: '離職',
-      movement_type: 'resignation',
-      movement_date: resignDate,
-    };
-  });
+  // 只包括本月內離職的員工
+  const inactiveSnapshotRows = currentRowsBase
+    .filter((r: any) => r.is_active === false)
+    .filter((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      return latestResignationByCode.has(code);
+    })
+    .map((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      const resignDate = latestResignationByCode.get(code) || '';
+      return {
+        ...r,
+        change_type: '離職',
+        movement_type: 'resignation',
+        movement_date: resignDate,
+      };
+    });
 
   // 分開活動和離職的行
   const activeRows = currentRowsBase.filter((r: any) => r.is_active === true);
