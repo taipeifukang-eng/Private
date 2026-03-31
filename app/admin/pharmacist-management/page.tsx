@@ -420,13 +420,41 @@ export default async function PharmacistManagementPage({
   const monthEndDate = new Date(Number(selectedYearMonth.slice(0, 4)), Number(selectedYearMonth.slice(5, 7)), 0);
   const monthEnd = `${selectedYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
 
-  const { data: resignationMovements } = await adminSupabase
-    .from('employee_movement_history')
-    .select('employee_code, employee_name, store_id, movement_date, movement_type')
-    .eq('movement_type', 'resignation')
-    .in('store_id', storeIds)
-    .gte('movement_date', monthStart)
-    .lte('movement_date', monthEnd);
+  // 並行查詢本月異動與督導關聯，降低切月等待時間
+  const [
+    { data: resignationMovements },
+    { data: monthlyMovementNotesRaw },
+    { data: onboardingMovementsRaw },
+    { data: adminManagerAssignments, error: adminManagerAssignmentsError },
+  ] = await Promise.all([
+    adminSupabase
+      .from('employee_movement_history')
+      .select('employee_code, employee_name, store_id, movement_date, movement_type')
+      .eq('movement_type', 'resignation')
+      .in('store_id', storeIds)
+      .gte('movement_date', monthStart)
+      .lte('movement_date', monthEnd),
+    adminSupabase
+      .from('employee_movement_history')
+      .select('employee_code, movement_type, movement_date')
+      .in('store_id', storeIds)
+      .in('movement_type', ['store_transfer', 'promotion'])
+      .gte('movement_date', monthStart)
+      .lte('movement_date', monthEnd)
+      .order('movement_date', { ascending: false }),
+    adminSupabase
+      .from('employee_movement_history')
+      .select('employee_code, movement_type, movement_date')
+      .in('store_id', storeIds)
+      .in('movement_type', ['onboarding', 'return_to_work'])
+      .gte('movement_date', monthStart)
+      .lte('movement_date', monthEnd)
+      .order('movement_date', { ascending: false }),
+    adminSupabase
+      .from('store_managers')
+      .select('store_id, user_id, role_type, is_primary, created_at')
+      .in('store_id', storeIds),
+  ]);
 
   const resignationCodes = Array.from(
     new Set((resignationMovements || []).map((m: any) => (m.employee_code || '').toUpperCase()).filter(Boolean))
@@ -538,15 +566,6 @@ export default async function PharmacistManagementPage({
     if (code) resignationByEmpCode.set(code, m);
   });
 
-  const { data: monthlyMovementNotesRaw } = await adminSupabase
-    .from('employee_movement_history')
-    .select('employee_code, movement_type, movement_date')
-    .in('store_id', storeIds)
-    .in('movement_type', ['store_transfer', 'promotion'])
-    .gte('movement_date', monthStart)
-    .lte('movement_date', monthEnd)
-    .order('movement_date', { ascending: false });
-
   const monthlyMovementByEmpCode = new Map<string, { movement_type: string; movement_date: string }>();
   (monthlyMovementNotesRaw || []).forEach((m: any) => {
     const code = String(m.employee_code || '').toUpperCase();
@@ -556,15 +575,6 @@ export default async function PharmacistManagementPage({
       movement_date: String(m.movement_date || ''),
     });
   });
-
-  const { data: onboardingMovementsRaw } = await adminSupabase
-    .from('employee_movement_history')
-    .select('employee_code, movement_type, movement_date')
-    .in('store_id', storeIds)
-    .in('movement_type', ['onboarding', 'return_to_work'])
-    .gte('movement_date', monthStart)
-    .lte('movement_date', monthEnd)
-    .order('movement_date', { ascending: false });
 
   const onboardingByEmpCode = new Map<string, string>();
   (onboardingMovementsRaw || []).forEach((m: any) => {
@@ -579,11 +589,6 @@ export default async function PharmacistManagementPage({
   let managerAssignmentsSource = 'admin';
   let managerAssignmentsErrorMessage = '';
   let managerProfilesErrorMessage = '';
-
-  const { data: adminManagerAssignments, error: adminManagerAssignmentsError } = await adminSupabase
-    .from('store_managers')
-    .select('store_id, user_id, role_type, is_primary, created_at')
-    .in('store_id', storeIds);
 
   if (adminManagerAssignmentsError) {
     managerAssignmentsSource = 'regular-fallback';
