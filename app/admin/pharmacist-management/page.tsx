@@ -605,6 +605,8 @@ export default async function PharmacistManagementPage({
 
   // ── Tab2: 藥師主檔資料 ──
   // 主檔不受「督導區總覽月份」影響，固定以全資料庫藥師為來源
+  let masterRows: any[] = [];
+  if (activeTab === 'master') {
   const [{ data: masterEmployeesRaw }, { data: monthlyPharmacistsRaw }] = await Promise.all([
     adminSupabase
       .from('store_employees')
@@ -956,7 +958,7 @@ export default async function PharmacistManagementPage({
   });
 
   // 建立門市 map for store_code / store_name lookup
-  const masterRows = masterEmployeesUnique
+  masterRows = masterEmployeesUnique
     .map((e) => {
       const code = (e.employee_code || '').toUpperCase();
       const pharmProfile = pharmProfileByCode.get(code) || {};
@@ -982,6 +984,7 @@ export default async function PharmacistManagementPage({
       };
     })
     .sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
