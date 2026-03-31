@@ -201,6 +201,9 @@ export default async function HomePage({
     reminderStoreCount: 0,
     storeEmpRawCount: 0,
     monthlyRawCount: 0,
+    storeEmpActiveCount: 0,
+    monthlySupplementCount: 0,
+    afterStoreFilterCount: 0,
     masterPharmacistCount: 0,
     activePharmacistCount: 0,
     assignedStoreCount: 0,
@@ -289,13 +292,24 @@ export default async function HomePage({
     //   - store_employees 中 is_active=true 的藥師
     //   - 僅出現在月報、未建 store_employees 的藥師（視為在職）
     const activeCodes: string[] = [];
+    const activeFromMaster: string[] = [];
+    const activeFromMonthly: string[] = [];
+    
     storeEmpByCode.forEach((emp, code) => {
-      if (emp.is_active) activeCodes.push(code);
+      if (emp.is_active) {
+        activeCodes.push(code);
+        activeFromMaster.push(code);
+      }
     });
     monthlyLatestByCode.forEach((_m, code) => {
-      if (!storeEmpByCode.has(code)) activeCodes.push(code); // 月報補集，視為在職
+      if (!storeEmpByCode.has(code)) {
+        activeCodes.push(code);
+        activeFromMonthly.push(code);
+      }
     });
-
+    
+    annualFeeDebug.storeEmpActiveCount = activeFromMaster.length;
+    annualFeeDebug.monthlySupplementCount = activeFromMonthly.length;
     annualFeeDebug.masterPharmacistCount = activeCodes.length;
     annualFeeDebug.activePharmacistCount = activeCodes.length;
 
@@ -317,6 +331,7 @@ export default async function HomePage({
       const assigned = assignedStoreByCode.get(code);
       return Boolean(assigned?.store_id && reminderStoreIds.includes(assigned.store_id));
     });
+    annualFeeDebug.afterStoreFilterCount = filteredCodes.length;
 
     // 補查缺少 store_name 的門市名稱
     const missingStoreNameIds = Array.from(new Set(
@@ -661,7 +676,10 @@ export default async function HomePage({
                 <span>storeCount</span><span>{annualFeeDebug.reminderStoreCount}</span>
                 <span>storeEmpRawCount</span><span className="font-bold text-blue-300">{annualFeeDebug.storeEmpRawCount}</span>
                 <span>monthlyRawCount</span><span className="font-bold text-blue-300">{annualFeeDebug.monthlyRawCount}</span>
-                <span>masterPharmacistCount</span><span>{annualFeeDebug.masterPharmacistCount}</span>
+                <span>storeEmpActiveCount</span><span className="font-bold text-green-300">{annualFeeDebug.storeEmpActiveCount}</span>
+                <span>monthlySupplementCount</span><span className="font-bold text-green-300">{annualFeeDebug.monthlySupplementCount}</span>
+                <span>masterPharmacistCount</span><span className="font-bold text-yellow-300">{annualFeeDebug.masterPharmacistCount}</span>
+                <span>afterStoreFilterCount</span><span className="font-bold text-orange-300">{annualFeeDebug.afterStoreFilterCount}</span>
                 <span>activePharmacistCount</span><span>{annualFeeDebug.activePharmacistCount}</span>
                 <span>assignedStoreCount</span><span>{annualFeeDebug.assignedStoreCount}</span>
                 <span>monthlyCurrentCount</span><span>{annualFeeDebug.monthlyCurrentCount}</span>
