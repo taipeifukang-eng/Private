@@ -141,13 +141,26 @@ export default async function PharmacistManagementPage({
       pharmacistCodeSet.add(code);
     });
 
-    // 清理本月已存在快照中的非藥師 movement 汙染資料
+    // 清理本月已存在快照中的真正污染資料：onboarding/return_to_work for employees who don't exist in store_employees
+    // (不再依賴 pharmacistCodeSet，改為檢查員工是否真實存在)
     const { data: existingMovementRows } = await adminSupabase
       .from('pharmacist_monthly_snapshot')
-      .select('id, employee_code, notes')
+      .select('id, employee_code, notes, store_id')
       .eq('year_month', targetYearMonth)
       .eq('source', 'movement')
       .in('store_id', storeIds);
+
+    // Get all valid store employees for these stores
+    const { data: allStoreEmployees } = await adminSupabase
+      .from('store_employees')
+      .select('employee_code')
+      .in('store_id', storeIds);
+
+    const validEmployeeCodes = new Set<string>();
+    (allStoreEmployees || []).forEach((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      if (code) validEmployeeCodes.add(code);
+    });
 
     const invalidMovementIds = (existingMovementRows || [])
       .filter((r: any) => {
@@ -156,7 +169,8 @@ export default async function PharmacistManagementPage({
         const isOnboardingGenerated =
           note.includes('generated from movement')
           && (note.includes('onboarding') || note.includes('return_to_work'));
-        return !pharmacistCodeSet.has(code) && isOnboardingGenerated;
+        // 只刪除: 確實是由 onboarding/return_to_work 生成，但員工根本不存在於 store_employees
+        return isOnboardingGenerated && !validEmployeeCodes.has(code);
       })
       .map((r: any) => String(r.id))
       .filter(Boolean);
