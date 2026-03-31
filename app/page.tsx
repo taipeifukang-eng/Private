@@ -241,8 +241,7 @@ export default async function HomePage({
         .eq('is_pharmacist', true),
       adminSupabase
         .from('monthly_staff_status')
-        .select('employee_code, employee_name, store_id, store_name, year_month, is_pharmacist')
-        .eq('is_pharmacist', true)
+        .select('employee_code, employee_name, store_id, store_name, year_month, is_pharmacist, position')
         .order('year_month', { ascending: false }),
     ]);
 
@@ -262,18 +261,23 @@ export default async function HomePage({
       });
     });
 
-    // 月報：每人只保留最新一期（已按 year_month desc 排序）
+    // 月報：每人只保留最新一期（已按 year_month desc 排序），且必須是藥師
     const monthlyLatestByCode = new Map<string, MonthlyPharmacistRow>();
     (monthlyAllRaw || []).forEach((r: any) => {
       const code = String(r.employee_code || '').toUpperCase();
       if (!code || monthlyLatestByCode.has(code)) return;
+      
+      // 只保留藥師：is_pharmacist=true 或 position 包含「藥師」
+      const isPharmacist = Boolean(r.is_pharmacist) || (r.position && String(r.position || '').includes('藥師'));
+      if (!isPharmacist) return;
+      
       monthlyLatestByCode.set(code, {
         employee_code: code,
         employee_name: String(r.employee_name || ''),
         store_name: r.store_name || null,
         store_id: String(r.store_id || ''),
         year_month: String(r.year_month || ''),
-        position: null,
+        position: r.position || null,
         is_pharmacist: r.is_pharmacist ?? null,
       });
     });
