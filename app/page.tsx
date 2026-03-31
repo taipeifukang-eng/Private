@@ -11,12 +11,17 @@ type MonthlyPharmacistRow = {
   employee_name: string;
   store_name: string | null;
   store_id: string;
+  year_month?: string;
+  position?: string | null;
+  is_pharmacist?: boolean | null;
 };
 
 type MovementRow = {
   employee_code: string;
   movement_type: string;
   movement_date: string;
+  store_id?: string | null;
+  employee_name?: string | null;
 };
 
 type AnnualFeeRow = {
@@ -40,6 +45,12 @@ function getReminderStartTsForKeelung(latestPeriodEnd: string | null): number | 
   d.setDate(1);
   d.setMonth(d.getMonth() + 4);
   return d.getTime();
+}
+
+function parseYearMonthStartTs(yearMonth: string | null | undefined): number | null {
+  if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) return null;
+  const t = new Date(`${yearMonth}-01T00:00:00`).getTime();
+  return Number.isNaN(t) ? null : t;
 }
 
 export default async function HomePage({
@@ -188,6 +199,9 @@ export default async function HomePage({
     isBusinessAdminAssistantSupervisor,
     reminderStoreScope: 'all' as 'all' | 'scoped',
     reminderStoreCount: 0,
+    masterPharmacistCount: 0,
+    activePharmacistCount: 0,
+    assignedStoreCount: 0,
     monthlyCurrentCount: 0,
     fallbackYearMonth: '' as string | null,
     monthlyFallbackCount: 0,
@@ -203,7 +217,7 @@ export default async function HomePage({
 
   if (canViewAnnualFeeReminder) {
     let reminderStoreIds: string[] | null = null;
-    let usedFallbackMonthlySnapshot = false;
+
     if (isSupervisor || isStoreManager) {
       const { data: managedStores } = await adminSupabase
         .from('store_managers')
@@ -214,117 +228,189 @@ export default async function HomePage({
       annualFeeDebug.reminderStoreCount = reminderStoreIds.length;
     }
 
-    let monthlyPharmacists: MonthlyPharmacistRow[] = [];
-    if (reminderStoreIds === null || reminderStoreIds.length > 0) {
-      let q = adminSupabase
+    // 1) 藥師母體來源：以藥師主檔邏輯為主（store_employees + monthly_staff_status 補集）
+    const [{ data: masterRowsRaw }, { data: monthlyCurrentRaw }, { data: monthlyAllRaw }] = await Promise.all([
+      adminSupabase
+        .from('store_employees')
+        .select('employee_code, employee_name, store_id, is_pharmacist, current_position, position, is_active')
+        .eq('is_active', true)
+        .or('is_pharmacist.eq.true,current_position.ilike.%藥師%,position.ilike.%藥師%'),
+      adminSupabase
         .from('monthly_staff_status')
-        .select('employee_code, employee_name, store_name, store_id')
+        .select('employee_code, employee_name, store_id, store_name, year_month, position, is_pharmacist')
         .eq('year_month', currentYearMonth)
-        .eq('is_pharmacist', true);
+        .or('is_pharmacist.eq.true,position.ilike.%藥師%'),
+      adminSupabase
+        .from('monthly_staff_status')
+        .select('employee_code, employee_name, store_id, store_name, year_month, position, is_pharmacist')
+        .or('is_pharmacist.eq.true,position.ilike.%藥師%')
+        .order('year_month', { ascending: false }),
+    ]);
 
-      if (reminderStoreIds) {
-        q = q.in('store_id', reminderStoreIds);
-      }
+    annualFeeDebug.monthlyCurrentCount = (monthlyCurrentRaw || []).length;
 
-      const { data: monthlyPharmacistsRaw } = await q;
-      annualFeeDebug.monthlyCurrentCount = (monthlyPharmacistsRaw || []).length;
-      monthlyPharmacists = ((monthlyPharmacistsRaw || []) as MonthlyPharmacistRow[])
-        .map((r) => ({
-          ...r,
-          employee_code: String(r.employee_code || '').toUpperCase(),
+    const masterByCode = new Map<string, { employee_name: string; store_id: string | null }>();
+    (masterRowsRaw || []).forEach((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      if (!code) return;
+      masterByCode.set(code, {
+        employee_name: String(r.employee_name || ''),
+        store_id: r.store_id ? String(r.store_id) : null,
+      });
+    });
+
+    const monthlyByCode = new Map<string, MonthlyPharmacistRow>();
+    (monthlyAllRaw || []).forEach((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      if (!code || !r.year_month) return;
+      if (!monthlyByCode.has(code)) {
+        monthlyByCode.set(code, {
+          employee_code: code,
           employee_name: String(r.employee_name || ''),
-        }))
-        .filter((r) => r.employee_code);
-
-      // 當月尚未初始化月狀態時，回退到最新有資料月份，避免提醒名單整包為空
-      if (monthlyPharmacists.length === 0) {
-        let latestMonthQ = adminSupabase
-          .from('monthly_staff_status')
-          .select('year_month')
-          .eq('is_pharmacist', true)
-          .order('year_month', { ascending: false })
-          .limit(1);
-
-        if (reminderStoreIds) {
-          latestMonthQ = latestMonthQ.in('store_id', reminderStoreIds);
-        }
-
-        const { data: latestMonthRows } = await latestMonthQ;
-        const fallbackYearMonth = latestMonthRows?.[0]?.year_month;
-        annualFeeDebug.fallbackYearMonth = fallbackYearMonth || null;
-
-        if (fallbackYearMonth) {
-          usedFallbackMonthlySnapshot = true;
-          let fallbackQ = adminSupabase
-            .from('monthly_staff_status')
-            .select('employee_code, employee_name, store_name, store_id')
-            .eq('year_month', fallbackYearMonth)
-            .eq('is_pharmacist', true);
-
-          if (reminderStoreIds) {
-            fallbackQ = fallbackQ.in('store_id', reminderStoreIds);
-          }
-
-          const { data: fallbackRows } = await fallbackQ;
-          annualFeeDebug.monthlyFallbackCount = (fallbackRows || []).length;
-          monthlyPharmacists = ((fallbackRows || []) as MonthlyPharmacistRow[])
-            .map((r) => ({
-              ...r,
-              employee_code: String(r.employee_code || '').toUpperCase(),
-              employee_name: String(r.employee_name || ''),
-            }))
-            .filter((r) => r.employee_code);
-        }
+          store_name: r.store_name || null,
+          store_id: String(r.store_id || ''),
+          year_month: String(r.year_month || ''),
+          position: r.position || null,
+          is_pharmacist: r.is_pharmacist ?? null,
+        });
       }
+    });
+
+    // 沒有當月資料時，debug 呈現 fallback 的最近月份
+    if ((monthlyCurrentRaw || []).length === 0) {
+      annualFeeDebug.fallbackYearMonth = (monthlyAllRaw || [])[0]?.year_month || null;
+      annualFeeDebug.monthlyFallbackCount = (monthlyAllRaw || []).length;
     }
 
-    const candidateByCode = new Map<string, MonthlyPharmacistRow>();
-    monthlyPharmacists.forEach((r) => {
-      if (!candidateByCode.has(r.employee_code)) candidateByCode.set(r.employee_code, r);
+    const candidateCodeSet = new Set<string>();
+    Array.from(masterByCode.keys()).forEach((c) => candidateCodeSet.add(c));
+    Array.from(monthlyByCode.keys()).forEach((c) => candidateCodeSet.add(c));
+    const allCandidateCodes = Array.from(candidateCodeSet);
+    annualFeeDebug.masterPharmacistCount = allCandidateCodes.length;
+
+    // 2) 在職判斷：最新離職日 >= 最新復職/入職日 視為離職
+    const { data: allMovementRaw } = allCandidateCodes.length > 0
+      ? await adminSupabase
+          .from('employee_movement_history')
+          .select('employee_code, movement_type, movement_date, store_id, employee_name')
+          .in('employee_code', allCandidateCodes)
+          .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer'])
+          .order('movement_date', { ascending: false })
+      : { data: [] as any[] };
+
+    const movements = (allMovementRaw || []) as MovementRow[];
+    annualFeeDebug.movementCount = movements.length;
+
+    const latestResignTsByCode = new Map<string, number>();
+    const latestReactivateTsByCode = new Map<string, number>();
+    const latestTransferByCode = new Map<string, MovementRow>();
+
+    movements.forEach((m) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (!code) return;
+      const ts = parseDateTs(m.movement_date);
+      if (!ts || ts > currentMonthEndTs) return;
+
+      if (m.movement_type === 'resignation') {
+        const prev = latestResignTsByCode.get(code);
+        if (!prev || ts > prev) latestResignTsByCode.set(code, ts);
+        return;
+      }
+      if (m.movement_type === 'onboarding' || m.movement_type === 'return_to_work') {
+        const prev = latestReactivateTsByCode.get(code);
+        if (!prev || ts > prev) latestReactivateTsByCode.set(code, ts);
+        return;
+      }
+      if (m.movement_type === 'store_transfer') {
+        const prev = latestTransferByCode.get(code);
+        const prevTs = parseDateTs(prev?.movement_date);
+        if (!prevTs || ts > prevTs) {
+          latestTransferByCode.set(code, m);
+        }
+      }
     });
+
+    const activeCodes = allCandidateCodes.filter((code) => {
+      const resignTs = latestResignTsByCode.get(code);
+      const reactivateTs = latestReactivateTsByCode.get(code);
+      return !(resignTs && (!reactivateTs || resignTs >= reactivateTs));
+    });
+    annualFeeDebug.activePharmacistCount = activeCodes.length;
+
+    // 3) 門市歸屬判斷：優先最近月報，若有較新的調店異動則覆蓋，最後 fallback store_employees
+    const assignedStoreByCode = new Map<string, { store_id: string | null; store_name: string | null; employee_name: string }>();
+    activeCodes.forEach((code) => {
+      const monthly = monthlyByCode.get(code);
+      const monthlyTs = parseYearMonthStartTs(monthly?.year_month);
+      const transfer = latestTransferByCode.get(code);
+      const transferTs = parseDateTs(transfer?.movement_date);
+
+      let storeId: string | null = monthly?.store_id || masterByCode.get(code)?.store_id || null;
+      if (transfer?.store_id && transferTs && (!monthlyTs || transferTs >= monthlyTs)) {
+        storeId = String(transfer.store_id);
+      }
+
+      assignedStoreByCode.set(code, {
+        store_id: storeId,
+        store_name: monthly?.store_name || null,
+        employee_name:
+          monthly?.employee_name ||
+          masterByCode.get(code)?.employee_name ||
+          String(transfer?.employee_name || ''),
+      });
+    });
+    annualFeeDebug.assignedStoreCount = assignedStoreByCode.size;
+
+    const filteredCodes = activeCodes.filter((code) => {
+      if (!reminderStoreIds) return true;
+      const assigned = assignedStoreByCode.get(code);
+      return Boolean(assigned?.store_id && reminderStoreIds.includes(assigned.store_id));
+    });
+
+    // 補門市名稱（若來源是調店覆蓋 store_id）
+    const missingStoreNameIds = Array.from(new Set(
+      filteredCodes
+        .map((code) => assignedStoreByCode.get(code))
+        .filter((a) => a?.store_id && !a.store_name)
+        .map((a) => String(a!.store_id))
+    ));
+
+    const { data: missingStoresRaw } = missingStoreNameIds.length > 0
+      ? await adminSupabase
+          .from('stores')
+          .select('id, store_name')
+          .in('id', missingStoreNameIds)
+      : { data: [] as any[] };
+
+    const missingStoreNameById = new Map<string, string>();
+    (missingStoresRaw || []).forEach((s: any) => {
+      if (s.id) missingStoreNameById.set(String(s.id), String(s.store_name || ''));
+    });
+
+    const candidateByCode = new Map<string, MonthlyPharmacistRow>();
+    filteredCodes.forEach((code) => {
+      const assigned = assignedStoreByCode.get(code);
+      candidateByCode.set(code, {
+        employee_code: code,
+        employee_name: assigned?.employee_name || '',
+        store_id: assigned?.store_id || '',
+        store_name: assigned?.store_name || (assigned?.store_id ? missingStoreNameById.get(assigned.store_id) || null : null),
+      });
+    });
+
     const candidateCodes = Array.from(candidateByCode.keys());
-    annualFeeDebug.monthlyFinalCount = monthlyPharmacists.length;
+    annualFeeDebug.monthlyFinalCount = candidateByCode.size;
     annualFeeDebug.candidateCodesCount = candidateCodes.length;
 
     if (candidateCodes.length > 0) {
-      const [{ data: movementRaw }, { data: annualFeeRaw }] = await Promise.all([
-        adminSupabase
-          .from('employee_movement_history')
-          .select('employee_code, movement_type, movement_date')
-          .in('employee_code', candidateCodes)
-          .in('movement_type', ['resignation', 'onboarding', 'return_to_work'])
-          .order('movement_date', { ascending: false }),
-        adminSupabase
+      const { data: annualFeeRaw } = await adminSupabase
           .from('pharmacist_annual_fees')
           .select('employee_code, association_city, fee_year, fee_period_end, created_at')
           .in('employee_code', candidateCodes)
-          .order('created_at', { ascending: false }),
-      ]);
+          .order('created_at', { ascending: false });
 
-      const movements = (movementRaw || []) as MovementRow[];
       const annualFees = (annualFeeRaw || []) as AnnualFeeRow[];
-      annualFeeDebug.movementCount = movements.length;
       annualFeeDebug.annualFeeRecordCount = annualFees.length;
-
-      const latestResignTsByCode = new Map<string, number>();
-      const latestReactivateTsByCode = new Map<string, number>();
-
-      movements.forEach((m) => {
-        const code = String(m.employee_code || '').toUpperCase();
-        if (!code) return;
-        const ts = parseDateTs(m.movement_date);
-        if (!ts || ts > currentMonthEndTs) return;
-
-        if (m.movement_type === 'resignation') {
-          const prev = latestResignTsByCode.get(code);
-          if (!prev || ts > prev) latestResignTsByCode.set(code, ts);
-          return;
-        }
-        if (m.movement_type === 'onboarding' || m.movement_type === 'return_to_work') {
-          const prev = latestReactivateTsByCode.get(code);
-          if (!prev || ts > prev) latestReactivateTsByCode.set(code, ts);
-        }
-      });
 
       const annualFeesByCode = new Map<string, AnnualFeeRow[]>();
       annualFees.forEach((row) => {
@@ -334,22 +420,9 @@ export default async function HomePage({
         annualFeesByCode.get(code)!.push(row);
       });
 
-      const eligibleCodes = candidateCodes
-        .filter((code) => {
-          // 有當月月狀態資料時，視為在職快照，不再用異動歷史二次排除
-          if (!usedFallbackMonthlySnapshot) return true;
+      annualFeeDebug.eligibleAfterResignFilterCount = candidateCodes.length;
 
-          const resignTs = latestResignTsByCode.get(code);
-          const reactivateTs = latestReactivateTsByCode.get(code);
-          const isResignedByCurrentMonth = Boolean(
-            resignTs && (!reactivateTs || resignTs >= reactivateTs)
-          );
-          return !isResignedByCurrentMonth;
-        });
-
-      annualFeeDebug.eligibleAfterResignFilterCount = eligibleCodes.length;
-
-      annualFeeReminders = eligibleCodes
+      annualFeeReminders = candidateCodes
         .map((code) => {
           const emp = candidateByCode.get(code)!;
           const records = annualFeesByCode.get(code) || [];
