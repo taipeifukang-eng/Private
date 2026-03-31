@@ -53,13 +53,8 @@ function parseYearMonthStartTs(yearMonth: string | null | undefined): number | n
   return Number.isNaN(t) ? null : t;
 }
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams?: { debug?: string };
-}) {
+export default async function HomePage() {
   const { user } = await getCurrentUser();
-  const isDebugByQuery = searchParams?.debug === '1';
 
   // If not logged in, show landing page
   if (!user) {
@@ -133,7 +128,6 @@ export default async function HomePage({
   const isManagerOrAdmin = role === 'admin' || (role === 'manager' && !isSupervisor && !isStoreManager);
   const isBusinessAdminAssistantSupervisor = jobTitle.includes('營業部行政助理主管');
   const canViewAnnualFeeReminder = role === 'admin' || isSupervisor || isStoreManager || isBusinessAdminAssistantSupervisor;
-  const isDebug = isDebugByQuery || role === 'admin';
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
@@ -683,43 +677,6 @@ export default async function HomePage({
                     </div>
                   ))}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {isDebug && (
-            <div className="bg-slate-900 text-slate-100 rounded-lg shadow-lg p-3 sm:p-4 lg:p-5 w-full border border-slate-700">
-              <h2 className="text-sm sm:text-base font-bold tracking-wide">常年會費提醒 Debug</h2>
-              <p className="mt-1 text-xs text-slate-300">啟用方式：首頁加上 ?debug=1</p>
-              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-sm">
-                <span>currentYearMonth</span><span className="font-mono">{annualFeeDebug.currentYearMonth}</span>
-                <span>currentMonth</span><span>{annualFeeDebug.currentMonth}</span>
-                <span>role</span><span>{annualFeeDebug.role || '-'}</span>
-                <span>jobTitle</span><span>{annualFeeDebug.jobTitle || '-'}</span>
-                <span>canViewAnnualFeeReminder</span><span>{annualFeeDebug.canViewAnnualFeeReminder ? 'true' : 'false'}</span>
-                <span>isSupervisor</span><span>{annualFeeDebug.isSupervisor ? 'true' : 'false'}</span>
-                <span>isStoreManager</span><span>{annualFeeDebug.isStoreManager ? 'true' : 'false'}</span>
-                <span>isBusinessAdminAssistantSupervisor</span><span>{annualFeeDebug.isBusinessAdminAssistantSupervisor ? 'true' : 'false'}</span>
-                <span>storeScope</span><span>{annualFeeDebug.reminderStoreScope}</span>
-                <span>storeCount</span><span>{annualFeeDebug.reminderStoreCount}</span>
-                <span>storeEmpRawCount</span><span className="font-bold text-blue-300">{annualFeeDebug.storeEmpRawCount}</span>
-                <span>monthlyRawCount</span><span className="font-bold text-blue-300">{annualFeeDebug.monthlyRawCount}</span>
-                <span>storeEmpActiveCount</span><span className="font-bold text-green-300">{annualFeeDebug.storeEmpActiveCount}</span>
-                <span>monthlySupplementCount</span><span className="font-bold text-green-300">{annualFeeDebug.monthlySupplementCount}</span>
-                <span>masterPharmacistCount</span><span className="font-bold text-yellow-300">{annualFeeDebug.masterPharmacistCount}</span>
-                <span>afterStoreFilterCount</span><span className="font-bold text-orange-300">{annualFeeDebug.afterStoreFilterCount}</span>
-                <span>activePharmacistCount</span><span>{annualFeeDebug.activePharmacistCount}</span>
-                <span>assignedStoreCount</span><span>{annualFeeDebug.assignedStoreCount}</span>
-                <span>monthlyCurrentCount</span><span>{annualFeeDebug.monthlyCurrentCount}</span>
-                <span>fallbackYearMonth</span><span className="font-mono">{annualFeeDebug.fallbackYearMonth || '-'}</span>
-                <span>monthlyFallbackCount</span><span>{annualFeeDebug.monthlyFallbackCount}</span>
-                <span>monthlyFinalCount</span><span>{annualFeeDebug.monthlyFinalCount}</span>
-                <span>candidateCodesCount</span><span>{annualFeeDebug.candidateCodesCount}</span>
-                <span>annualFeeRecordCount</span><span>{annualFeeDebug.annualFeeRecordCount}</span>
-                <span>eligibleAfterResignFilterCount</span><span>{annualFeeDebug.eligibleAfterResignFilterCount}</span>
-                <span>skippedByCurrentYearRecordCount</span><span>{annualFeeDebug.skippedByCurrentYearRecordCount}</span>
-                <span>skippedByMonthGateCount</span><span>{annualFeeDebug.skippedByMonthGateCount}</span>
-                <span>remindersCount</span><span className="font-bold text-amber-300">{annualFeeDebug.remindersCount}</span>
               </div>
             </div>
           )}
