@@ -174,22 +174,16 @@ export default async function PharmacistManagementPage({
       .eq('year_month', targetYearMonth)
       .in('store_id', storeIds);
 
-    if ((count || 0) > 0) return;
+    // 如果快照已存在，跳過初始生成但仍需處理當月異動
+    const skipInitialGeneration = (count || 0) > 0;
 
     const baseYearMonth = getPreviousYearMonth(targetYearMonth);
     const monthStart = `${targetYearMonth}-01`;
     const monthEndDate = new Date(Number(targetYearMonth.slice(0, 4)), Number(targetYearMonth.slice(5, 7)), 0);
     const monthEnd = `${targetYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
 
-    const { data: baseRows } = await adminSupabase
-      .from('pharmacist_monthly_snapshot')
-      .select('store_id, employee_code, employee_name, position, is_active')
-      .eq('year_month', baseYearMonth)
-      .in('store_id', storeIds);
-
-    if (!baseRows || baseRows.length === 0) return;
-
-    const nextByCode = new Map<string, {
+    // === 階段 1：初始快照生成（僅在快照不存在時）===
+    let nextByCode = new Map<string, {
       year_month: string;
       store_id: string;
       employee_code: string;
@@ -200,47 +194,80 @@ export default async function PharmacistManagementPage({
       notes: string;
     }>();
 
-    (baseRows || []).forEach((r: any) => {
-      const code = String(r.employee_code || '').toUpperCase();
-      if (!code || !r.store_id) return;
-      nextByCode.set(code, {
-        year_month: targetYearMonth,
-        store_id: String(r.store_id),
-        employee_code: code,
-        employee_name: String(r.employee_name || ''),
-        position: r.position || null,
-        is_active: r.is_active !== false,
-        source: 'movement',
-        notes: `generated from ${baseYearMonth}`,
+    if (!skipInitialGeneration) {
+      const { data: baseRows } = await adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .select('store_id, employee_code, employee_name, position, is_active')
+        .eq('year_month', baseYearMonth)
+        .in('store_id', storeIds);
+
+      if (!baseRows || baseRows.length === 0) return;
+
+      (baseRows || []).forEach((r: any) => {
+        const code = String(r.employee_code || '').toUpperCase();
+        if (!code || !r.store_id) return;
+        nextByCode.set(code, {
+          year_month: targetYearMonth,
+          store_id: String(r.store_id),
+          employee_code: code,
+          employee_name: String(r.employee_name || ''),
+          position: r.position || null,
+          is_active: r.is_active !== false,
+          source: 'movement',
+          notes: `generated from ${baseYearMonth}`,
+        });
       });
-    });
 
-    // 檢查前月異動中是否有本月生效的未反映狀態(如同月離職卻鎖定的情況)
-    const prevMonthStart = `${baseYearMonth}-01`;
-    const prevMonthEndDate = new Date(Number(baseYearMonth.slice(0, 4)), Number(baseYearMonth.slice(5, 7)), 0);
-    const prevMonthEnd = `${baseYearMonth}-${String(prevMonthEndDate.getDate()).padStart(2, '0')}`;
+      // 檢查前月異動中是否有本月生效的未反映狀態
+      const prevMonthStart = `${baseYearMonth}-01`;
+      const prevMonthEndDate = new Date(Number(baseYearMonth.slice(0, 4)), Number(baseYearMonth.slice(5, 7)), 0);
+      const prevMonthEnd = `${baseYearMonth}-${String(prevMonthEndDate.getDate()).padStart(2, '0')}`;
 
-    const { data: prevMonthResignations } = await adminSupabase
-      .from('employee_movement_history')
-      .select('employee_code')
-      .eq('movement_type', 'resignation')
-      .gte('movement_date', prevMonthStart)
-      .lte('movement_date', prevMonthEnd);
+      const { data: prevMonthResignations } = await adminSupabase
+        .from('employee_movement_history')
+        .select('employee_code')
+        .eq('movement_type', 'resignation')
+        .gte('movement_date', prevMonthStart)
+        .lte('movement_date', prevMonthEnd);
 
-    const prevMonthResignCodeSet = new Set<string>();
-    (prevMonthResignations || []).forEach((m: any) => {
-      const code = String(m.employee_code || '').toUpperCase();
-      if (code) prevMonthResignCodeSet.add(code);
-    });
+      const prevMonthResignCodeSet = new Set<string>();
+      (prevMonthResignations || []).forEach((m: any) => {
+        const code = String(m.employee_code || '').toUpperCase();
+        if (code) prevMonthResignCodeSet.add(code);
+      });
 
-    // 應用前月離職狀態於本月沿用者
-    Array.from(nextByCode.entries()).forEach(([code, row]) => {
-      if (prevMonthResignCodeSet.has(code) && row.is_active) {
-        row.is_active = false;
-        row.notes = `${row.notes}; marked inactive due to prev-month resignation`.trim();
-      }
-    });
+      // 應用前月離職狀態於本月沿用者
+      Array.from(nextByCode.entries()).forEach(([code, row]) => {
+        if (prevMonthResignCodeSet.has(code) && row.is_active) {
+          row.is_active = false;
+          row.notes = `${row.notes}; marked inactive due to prev-month resignation`.trim();
+        }
+      });
+    } else {
+      // 快照已存在時，從 DB 載入現有資料以便應用當月異動
+      const { data: existing } = await adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .select('store_id, employee_code, employee_name, position, is_active, notes')
+        .eq('year_month', targetYearMonth)
+        .in('store_id', storeIds);
 
+      (existing || []).forEach((r: any) => {
+        const code = String(r.employee_code || '').toUpperCase();
+        if (!code || !r.store_id) return;
+        nextByCode.set(code, {
+          year_month: targetYearMonth,
+          store_id: String(r.store_id),
+          employee_code: code,
+          employee_name: String(r.employee_name || ''),
+          position: r.position || null,
+          is_active: r.is_active !== false,
+          source: 'movement',
+          notes: String(r.notes || ''),
+        });
+      });
+    }
+
+    // === 階段 2：應用當月異動（無條件執行，無論快照是否已存在）===
     const { data: monthlyMovements } = await adminSupabase
       .from('employee_movement_history')
       .select('employee_code, employee_name, store_id, movement_type, movement_date, new_value')
@@ -257,6 +284,7 @@ export default async function PharmacistManagementPage({
       const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
 
       if (type === 'resignation') {
+        // resignation 應該應用到任何在快照中的人，不限藥師身分
         const row = nextByCode.get(code);
         if (!row) return;
         row.is_active = false;
@@ -312,9 +340,12 @@ export default async function PharmacistManagementPage({
     const payload = Array.from(nextByCode.values());
     if (payload.length === 0) return;
 
-    await adminSupabase
-      .from('pharmacist_monthly_snapshot')
-      .upsert(payload, { onConflict: 'year_month,store_id,employee_code' });
+    // 只有初始生成或有實際異動變更時才 upsert
+    if (!skipInitialGeneration || Array.from(monthlyMovements || []).length > 0) {
+      await adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .upsert(payload, { onConflict: 'year_month,store_id,employee_code' });
+    }
   }
 
   let currentRowsRaw: any[] = [];
