@@ -29,6 +29,7 @@ export type PharmacistMasterRow = {
   education_level: string;
   is_responsible_pharmacist: boolean;
   license_renewal_date: string | null;
+  annual_fee_is_blue: boolean;
 };
 
 function calcSeniority(startDate: string | null, endDate?: string | null): string {
@@ -295,7 +296,11 @@ export default function PharmacistMasterList({
                       <button
                         type="button"
                         onClick={() => setFeeModalRow({ code: row.employee_code, name: row.employee_name || '' })}
-                        className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                        className={`rounded border px-2 py-1 text-xs transition-colors ${
+                          row.annual_fee_is_blue
+                            ? 'border-blue-300 bg-blue-100 text-blue-700 hover:bg-blue-200'
+                            : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                        }`}
                       >
                         記錄
                       </button>
@@ -349,7 +354,7 @@ export default function PharmacistMasterList({
 
       <p className="text-xs text-gray-500">
         執照更新日顯示紅色代表已逾期。畢業學校、學歷、負責藥師、執照更新日可點「編輯」修改後儲存。
-        點「記錄」可查看或新增該藥師的常年會費申請記錄。
+        點「記錄」可查看或新增該藥師的常年會費申請記錄。常年會費按鈕藍底代表目前規則判定為已具備有效紀錄，白底代表尚未具備。
       </p>
 
       {feeModalRow && (

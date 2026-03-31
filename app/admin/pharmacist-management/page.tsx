@@ -671,6 +671,64 @@ export default async function PharmacistManagementPage({
 
   // 抓取姓名（profiles）
   const masterEmpCodes = Array.from(new Set(masterEmployeesUnique.map((e) => e.employee_code).filter(Boolean)));
+
+  // 常年會費顯示狀態（白底/藍底）
+  // - 一般縣市：當年度有紀錄 => 藍底，否則白底
+  // - 基隆市：最新一期尚未到期 => 藍底；已到期且無下期紀錄(即最新已到期) => 白底
+  const now = new Date();
+  const currentFeeYear = now.getFullYear();
+  const { data: annualFeeRowsRaw } = masterEmpCodes.length > 0
+    ? await adminSupabase
+        .from('pharmacist_annual_fees')
+        .select('employee_code, association_city, fee_year, fee_period_end, created_at')
+        .in('employee_code', masterEmpCodes)
+        .order('created_at', { ascending: false })
+    : { data: [] as any[] };
+
+  const annualFeeRowsByCode = new Map<string, Array<{
+    association_city: string | null;
+    fee_year: number | null;
+    fee_period_end: string | null;
+    created_at: string;
+  }>>();
+  (annualFeeRowsRaw || []).forEach((r: any) => {
+    const code = String(r.employee_code || '').toUpperCase();
+    if (!code) return;
+    const list = annualFeeRowsByCode.get(code) || [];
+    list.push({
+      association_city: r.association_city || null,
+      fee_year: typeof r.fee_year === 'number' ? r.fee_year : null,
+      fee_period_end: r.fee_period_end || null,
+      created_at: String(r.created_at || ''),
+    });
+    annualFeeRowsByCode.set(code, list);
+  });
+
+  const annualFeeBlueByCode = new Map<string, boolean>();
+  masterEmpCodes.forEach((code) => {
+    const records = annualFeeRowsByCode.get(code) || [];
+    if (records.length === 0) {
+      annualFeeBlueByCode.set(code, false);
+      return;
+    }
+
+    const latest = records[0];
+    const city = latest?.association_city || '';
+
+    if (city === '基隆市') {
+      const latestEnd = records.find((r) => r.fee_period_end)?.fee_period_end || null;
+      if (!latestEnd) {
+        annualFeeBlueByCode.set(code, false);
+        return;
+      }
+      const endTs = new Date(`${latestEnd.slice(0, 10)}T23:59:59`).getTime();
+      annualFeeBlueByCode.set(code, now.getTime() <= endTs);
+      return;
+    }
+
+    const hasCurrentYearRecord = records.some((r) => r.fee_year === currentFeeYear);
+    annualFeeBlueByCode.set(code, hasCurrentYearRecord);
+  });
   const { data: masterProfilesRaw } = masterEmpCodes.length > 0
     ? await adminSupabase
         .from('profiles')
@@ -809,6 +867,7 @@ export default async function PharmacistManagementPage({
         education_level: pharmProfile.education_level || '',
         is_responsible_pharmacist: pharmProfile.is_responsible_pharmacist ?? false,
         license_renewal_date: pharmProfile.license_renewal_date || null,
+        annual_fee_is_blue: annualFeeBlueByCode.get(code) ?? false,
       };
     })
     .sort((a, b) => a.employee_code.localeCompare(b.employee_code));
