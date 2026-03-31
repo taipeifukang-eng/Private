@@ -150,16 +150,16 @@ export default async function PharmacistManagementPage({
       .eq('source', 'movement')
       .in('store_id', storeIds);
 
-    // Get all valid store employees for these stores
+    // Get all valid pharmacist employees for these stores (is_pharmacist=true OR in pharmacistCodeSet)
     const { data: allStoreEmployees } = await adminSupabase
       .from('store_employees')
-      .select('employee_code')
+      .select('employee_code, is_pharmacist')
       .in('store_id', storeIds);
 
-    const validEmployeeCodes = new Set<string>();
+    const validPharmacistCodes = new Set<string>();
     (allStoreEmployees || []).forEach((r: any) => {
       const code = String(r.employee_code || '').toUpperCase();
-      if (code) validEmployeeCodes.add(code);
+      if (code && (r.is_pharmacist || pharmacistCodeSet.has(code))) validPharmacistCodes.add(code);
     });
 
     const invalidMovementIds = (existingMovementRows || [])
@@ -169,8 +169,8 @@ export default async function PharmacistManagementPage({
         const isOnboardingGenerated =
           note.includes('generated from movement')
           && (note.includes('onboarding') || note.includes('return_to_work'));
-        // 只刪除: 確實是由 onboarding/return_to_work 生成，但員工根本不存在於 store_employees
-        return isOnboardingGenerated && !validEmployeeCodes.has(code);
+        // 刪除: 由 onboarding/return_to_work 生成，但員工不是藥師身分
+        return isOnboardingGenerated && !validPharmacistCodes.has(code);
       })
       .map((r: any) => String(r.id))
       .filter(Boolean);
@@ -284,7 +284,7 @@ export default async function PharmacistManagementPage({
     // === 階段 2：應用當月異動（無條件執行，無論快照是否已存在）===
     const { data: monthlyMovements } = await adminSupabase
       .from('employee_movement_history')
-      .select('employee_code, employee_name, store_id, movement_type, movement_date, new_value')
+      .select('employee_code, employee_name, store_id, movement_type, movement_date, new_value, onboarding_is_pharmacist')
       .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion'])
       .gte('movement_date', monthStart)
       .lte('movement_date', monthEnd)
@@ -310,7 +310,9 @@ export default async function PharmacistManagementPage({
       if (type === 'onboarding' || type === 'return_to_work') {
         const storeId = m.store_id ? String(m.store_id) : '';
         if (!storeId) return;
-        // 允許 onboarding/return_to_work 任何員工，不限 pharmacistCodeSet
+        // onboarding 需 onboarding_is_pharmacist=true；return_to_work 需在藥師主檔
+        if (type === 'onboarding' && !m.onboarding_is_pharmacist) return;
+        if (type === 'return_to_work' && !pharmacistCodeSet.has(code)) return;
         const row = nextByCode.get(code);
         if (row) {
           row.is_active = true;
