@@ -706,7 +706,15 @@ export default async function PharmacistManagementPage({
     let changeNote = '';
     const _empCodeUpper = String(row.employee_code || '').toUpperCase();
     const resignRecord = row.movement_type !== 'resignation' ? resignationByEmpCode.get(_empCodeUpper) : null;
-    if (row.movement_type === 'resignation') {
+    const noteText = String((row as any).notes || '');
+    const noteLower = noteText.toLowerCase();
+    const selectedMonthMm = selectedYearMonth.slice(5, 7);
+    const lockedMonthResignMatch = noteText.match(new RegExp(`(${selectedMonthMm}\\/\\d{2})\\s+resignation`, 'i'));
+
+    if (isSelectedMonthLocked && row.is_active === false && lockedMonthResignMatch) {
+      changeType = '離職';
+      changeNote = `${lockedMonthResignMatch[1]} 離職`;
+    } else if (row.movement_type === 'resignation') {
       changeType = '離職';
       const d = row.movement_date ? new Date(row.movement_date) : null;
       const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
@@ -720,7 +728,6 @@ export default async function PharmacistManagementPage({
     } else if (!prev) {
       // 關帳月份若缺少前月快照，不應把全員誤判為新增任職
       if (isSelectedMonthLocked) {
-        const noteLower = String((row as any).notes || '').toLowerCase();
         if (row.is_active === false && noteLower.includes('resignation')) {
           changeType = '離職';
           changeNote = '離職';
