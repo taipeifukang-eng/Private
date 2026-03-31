@@ -361,13 +361,11 @@ export default async function PharmacistManagementPage({
         .from('pharmacist_monthly_snapshot')
         .select('id, store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
         .eq('year_month', selectedYearMonth)
-        .eq('is_active', true)
         .in('store_id', storeIds),
       adminSupabase
         .from('pharmacist_monthly_snapshot')
         .select('store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
         .eq('year_month', previousYearMonth)
-        .eq('is_active', true)
         .in('store_id', storeIds),
     ]);
 
@@ -447,7 +445,43 @@ export default async function PharmacistManagementPage({
     }];
   });
 
-  const currentRows = [...currentRowsBase, ...supplementedResignedRows];
+  // 補充快照中 is_active=false 的員工到離職列表（他們也應該被視為「本月離職」）
+  // 先蒐集所有 is_activ=false 的員編
+  const inactiveCodes = currentRowsBase.filter((r: any) => r.is_active === false).map((r: any) => String(r.employee_code || '').toUpperCase());
+  
+  const allInactiveResignations = inactiveCodes.length > 0
+    ? await adminSupabase
+        .from('employee_movement_history')
+        .select('employee_code, movement_date')
+        .eq('movement_type', 'resignation')
+        .in('employee_code', inactiveCodes)
+        .order('movement_date', { ascending: false })
+    : { data: [] as any[] };
+
+  const latestResignationByCode = new Map<string, string>();
+  (allInactiveResignations.data || []).forEach((m: any) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    if (code && !latestResignationByCode.has(code)) {
+      latestResignationByCode.set(code, m.movement_date);
+    }
+  });
+
+  const inactiveSnapshotRows = currentRowsBase.filter((r: any) => r.is_active === false).map((r: any) => {
+    const code = String(r.employee_code || '').toUpperCase();
+    const resignDate = latestResignationByCode.get(code) || '';
+    return {
+      ...r,
+      change_type: '離職',
+      movement_type: 'resignation',
+      movement_date: resignDate,
+    };
+  });
+
+  // 分開活動和離職的行
+  const activeRows = currentRowsBase.filter((r: any) => r.is_active === true);
+  const resignedRows = [...inactiveSnapshotRows, ...supplementedResignedRows];
+
+  const currentRows = [...activeRows, ...resignedRows];
 
   // 建立「當月離職員工」快查 map（employee_code → movement record），用於補標 monthly_staff_status 中已存在但已離職的藥師
   const resignationByEmpCode = new Map<string, any>();
