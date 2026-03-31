@@ -40,6 +40,13 @@ function getPreviousYearMonth(yearMonth: string): string {
   return formatYearMonth(d);
 }
 
+function formatMovementDateYMD(value: string | null | undefined): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 export default async function PharmacistManagementPage({
   searchParams,
 }: {
@@ -122,6 +129,38 @@ export default async function PharmacistManagementPage({
 
   async function ensureSnapshotForMonth(targetYearMonth: string) {
     if (!canUseSnapshot) return;
+    const { data: pharmacistCandidatesRaw } = await adminSupabase
+      .from('store_employees')
+      .select('employee_code, is_pharmacist, current_position, position')
+      .or('is_pharmacist.eq.true,current_position.ilike.%藥師%,position.ilike.%藥師%');
+
+    const pharmacistCodeSet = new Set<string>();
+    (pharmacistCandidatesRaw || []).forEach((r: any) => {
+      const code = String(r.employee_code || '').toUpperCase();
+      if (!code) return;
+      pharmacistCodeSet.add(code);
+    });
+
+    // 清理本月已存在快照中的非藥師 movement 汙染資料
+    const { data: existingMovementRows } = await adminSupabase
+      .from('pharmacist_monthly_snapshot')
+      .select('id, employee_code')
+      .eq('year_month', targetYearMonth)
+      .eq('source', 'movement')
+      .in('store_id', storeIds);
+
+    const invalidMovementIds = (existingMovementRows || [])
+      .filter((r: any) => !pharmacistCodeSet.has(String(r.employee_code || '').toUpperCase()))
+      .map((r: any) => String(r.id))
+      .filter(Boolean);
+
+    if (invalidMovementIds.length > 0) {
+      await adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .delete()
+        .in('id', invalidMovementIds);
+    }
+
     const { count } = await adminSupabase
       .from('pharmacist_monthly_snapshot')
       .select('id', { count: 'exact', head: true })
@@ -196,6 +235,7 @@ export default async function PharmacistManagementPage({
       if (type === 'onboarding' || type === 'return_to_work') {
         const storeId = m.store_id ? String(m.store_id) : '';
         if (!storeId) return;
+        if (!pharmacistCodeSet.has(code)) return;
         const row = nextByCode.get(code);
         if (row) {
           row.is_active = true;
@@ -369,6 +409,23 @@ export default async function PharmacistManagementPage({
     });
   });
 
+  const { data: onboardingMovementsRaw } = await adminSupabase
+    .from('employee_movement_history')
+    .select('employee_code, movement_type, movement_date')
+    .in('store_id', storeIds)
+    .in('movement_type', ['onboarding', 'return_to_work'])
+    .gte('movement_date', monthStart)
+    .lte('movement_date', monthEnd)
+    .order('movement_date', { ascending: false });
+
+  const onboardingByEmpCode = new Map<string, string>();
+  (onboardingMovementsRaw || []).forEach((m: any) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    const date = String(m.movement_date || '');
+    if (!code || !date || onboardingByEmpCode.has(code)) return;
+    onboardingByEmpCode.set(code, date);
+  });
+
   let managerAssignments: any[] = [];
   let managerProfiles: any[] = [];
   let managerAssignmentsSource = 'admin';
@@ -504,6 +561,9 @@ export default async function PharmacistManagementPage({
       changeNote = mmdd ? `${mmdd} 離職` : '離職';
     } else if (!prev) {
       changeType = '新增任職';
+      const onboardingDate = onboardingByEmpCode.get(_empCodeUpper);
+      const ymd = formatMovementDateYMD(onboardingDate);
+      changeNote = ymd ? `${ymd}入職` : '入職';
     } else {
       const storeChanged = prev.store_id !== row.store_id;
       const positionChanged = (prev.position || '') !== (row.position || '');
