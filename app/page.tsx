@@ -235,7 +235,7 @@ export default async function HomePage({
     const [{ data: masterRowsRaw }, { data: monthlyAllRaw }] = await Promise.all([
       adminSupabase
         .from('store_employees')
-        .select('employee_code, employee_name, store_id, is_active')
+        .select('employee_code, employee_name, store_id, is_active, is_pharmacist')
         .eq('is_pharmacist', true),
       adminSupabase
         .from('monthly_staff_status')
@@ -274,6 +274,13 @@ export default async function HomePage({
 
     annualFeeDebug.monthlyCurrentCount = monthlyLatestByCode.size;
     annualFeeDebug.fallbackYearMonth = (monthlyAllRaw || [])[0]?.year_month || null;
+    
+    // Debug: 原始查詢結果
+    console.log('🔍 Annual Fee Debug:');
+    console.log('  store_employees raw:', masterRowsRaw?.length || 0);
+    console.log('  monthly_staff_status raw:', monthlyAllRaw?.length || 0);
+    console.log('  storeEmpByCode size:', storeEmpByCode.size);
+    console.log('  storeEmpByCode active:', Array.from(storeEmpByCode.values()).filter(e => e.is_active).length);
 
     // 在職藥師清單（與藥師管理頁「在職」邏輯一致）：
     //   - store_employees 中 is_active=true 的藥師
