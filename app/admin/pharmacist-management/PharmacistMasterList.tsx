@@ -343,6 +343,34 @@ export default function PharmacistMasterList({
     }
   }
 
+  async function handleManualDelete(row: PharmacistMasterRow) {
+    if (row.source !== 'manual') return;
+    if (!confirm(`確定刪除 ${row.employee_name || row.employee_code} 的手動主檔資料？`)) {
+      return;
+    }
+
+    setSaveError('');
+    try {
+      const res = await fetch('/api/pharmacist-annual-master/manual-add', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year: selectedYear,
+          employee_code: row.employee_code,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setSaveError(json.error || '刪除失敗');
+        return;
+      }
+
+      await loadYearData(selectedYear);
+    } catch {
+      setSaveError('網路錯誤，刪除失敗');
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* 年度選擇 + 關帳控制 */}
@@ -678,13 +706,24 @@ export default function PharmacistMasterList({
                             </button>
                           </div>
                         ) : (
-                          <button
-                            type="button"
-                            onClick={() => startEdit(row)}
-                            className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
-                          >
-                            編輯
-                          </button>
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => startEdit(row)}
+                              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50"
+                            >
+                              編輯
+                            </button>
+                            {row.source === 'manual' && (
+                              <button
+                                type="button"
+                                onClick={() => handleManualDelete(row)}
+                                className="rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                              >
+                                刪除
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                     )}

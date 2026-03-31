@@ -111,3 +111,71 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ data }, { status: 201 });
 }
+
+export async function DELETE(req: NextRequest) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const canEdit = await hasPermission(user.id, 'pharmacist.management.edit');
+  if (!canEdit) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: '無效的 JSON' }, { status: 400 });
+  }
+
+  const year = typeof body.year === 'number' ? body.year : parseInt(String(body.year || ''), 10);
+  const employeeCode = String(body.employee_code || '').trim().toUpperCase();
+
+  if (!isValidYear(year)) {
+    return NextResponse.json({ error: '無效的年度' }, { status: 400 });
+  }
+  if (!employeeCode) {
+    return NextResponse.json({ error: '員編為必填' }, { status: 400 });
+  }
+
+  const adminSupabase = createAdminClient();
+
+  const { data: lockData } = await adminSupabase
+    .from('pharmacist_annual_master_locks')
+    .select('year')
+    .eq('year', year)
+    .single();
+
+  if (lockData) {
+    return NextResponse.json({ error: `${year} 年度已關帳，無法刪除` }, { status: 400 });
+  }
+
+  const { data: row } = await adminSupabase
+    .from('pharmacist_annual_master')
+    .select('id, source')
+    .eq('year', year)
+    .eq('employee_code', employeeCode)
+    .maybeSingle();
+
+  if (!row) {
+    return NextResponse.json({ error: '找不到要刪除的資料' }, { status: 404 });
+  }
+
+  if (row.source !== 'manual') {
+    return NextResponse.json({ error: '僅允許刪除手動新增資料' }, { status: 400 });
+  }
+
+  const { error } = await adminSupabase
+    .from('pharmacist_annual_master')
+    .delete()
+    .eq('id', row.id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message || '刪除失敗' }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
