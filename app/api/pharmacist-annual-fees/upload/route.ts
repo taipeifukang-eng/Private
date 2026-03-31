@@ -55,7 +55,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '檔案大小超過 10 MB 限制' }, { status: 400 });
   }
 
-  const safeName = file.name.replace(/[^a-zA-Z0-9\u4e00-\u9fff._-]/g, '_');
+  // Storage key 不允許中文，須轉成 ASCII 或底線
+  const baseName = file.name.replace(/\.[^.]*$/, '');
+  const extension = ext || 'bin';
+  const safeName = `${baseName.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_+/g, '_')}.${extension}`;
   const path = `${employeeCode}/${Date.now()}_${safeName}`;
 
   const buffer = await file.arrayBuffer();
