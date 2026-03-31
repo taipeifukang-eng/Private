@@ -144,13 +144,20 @@ export default async function PharmacistManagementPage({
     // 清理本月已存在快照中的非藥師 movement 汙染資料
     const { data: existingMovementRows } = await adminSupabase
       .from('pharmacist_monthly_snapshot')
-      .select('id, employee_code')
+      .select('id, employee_code, notes')
       .eq('year_month', targetYearMonth)
       .eq('source', 'movement')
       .in('store_id', storeIds);
 
     const invalidMovementIds = (existingMovementRows || [])
-      .filter((r: any) => !pharmacistCodeSet.has(String(r.employee_code || '').toUpperCase()))
+      .filter((r: any) => {
+        const code = String(r.employee_code || '').toUpperCase();
+        const note = String(r.notes || '').toLowerCase();
+        const isOnboardingGenerated =
+          note.includes('generated from movement')
+          && (note.includes('onboarding') || note.includes('return_to_work'));
+        return !pharmacistCodeSet.has(code) && isOnboardingGenerated;
+      })
       .map((r: any) => String(r.id))
       .filter(Boolean);
 
@@ -206,6 +213,32 @@ export default async function PharmacistManagementPage({
         source: 'movement',
         notes: `generated from ${baseYearMonth}`,
       });
+    });
+
+    // 檢查前月異動中是否有本月生效的未反映狀態(如同月離職卻鎖定的情況)
+    const prevMonthStart = `${baseYearMonth}-01`;
+    const prevMonthEndDate = new Date(Number(baseYearMonth.slice(0, 4)), Number(baseYearMonth.slice(5, 7)), 0);
+    const prevMonthEnd = `${baseYearMonth}-${String(prevMonthEndDate.getDate()).padStart(2, '0')}`;
+
+    const { data: prevMonthResignations } = await adminSupabase
+      .from('employee_movement_history')
+      .select('employee_code')
+      .eq('movement_type', 'resignation')
+      .gte('movement_date', prevMonthStart)
+      .lte('movement_date', prevMonthEnd);
+
+    const prevMonthResignCodeSet = new Set<string>();
+    (prevMonthResignations || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (code) prevMonthResignCodeSet.add(code);
+    });
+
+    // 應用前月離職狀態於本月沿用者
+    Array.from(nextByCode.entries()).forEach(([code, row]) => {
+      if (prevMonthResignCodeSet.has(code) && row.is_active) {
+        row.is_active = false;
+        row.notes = `${row.notes}; marked inactive due to prev-month resignation`.trim();
+      }
     });
 
     const { data: monthlyMovements } = await adminSupabase
