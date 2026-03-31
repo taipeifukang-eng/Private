@@ -182,7 +182,9 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * 同步年度主檔：從人事異動更新狀態（只更新有異動的人，不覆蓋已有資料）
+ * 同步年度主檔：
+ * 1. 新入職的藥師 => INSERT
+ * 2. 已存在的人有狀態異動 => 只 UPDATE 狀態欄位（不動姓名、到職日）
  */
 async function syncAnnualMaster(adminSupabase: any, year: number) {
   const yearStart = `${year}-01-01`;
@@ -202,9 +204,9 @@ async function syncAnnualMaster(adminSupabase: any, year: number) {
     return;
   }
 
-  // 2. 收集有異動且需要處理的藥師員編
-  const pharmacistCodesToProcess = new Set<string>();
+  // 2. 整理異動資料
   const movementsByCode = new Map<string, any[]>();
+  const newPharmacistCodes = new Set<string>(); // 新入職的藥師
 
   (movements || []).forEach((m: any) => {
     const code = (m.employee_code || '').toUpperCase();
@@ -214,117 +216,114 @@ async function syncAnnualMaster(adminSupabase: any, year: number) {
     list.push(m);
     movementsByCode.set(code, list);
 
-    // 入職且為藥師 => 需要處理（可能是新增）
+    // 入職且為藥師 => 可能是新藥師
     if (m.movement_type === 'onboarding' && m.onboarding_is_pharmacist) {
-      pharmacistCodesToProcess.add(code);
+      newPharmacistCodes.add(code);
     }
   });
 
-  // 3. 取得現有年度主檔資料（需要完整資料來保留欄位）
+  // 3. 取得現有年度主檔資料
   const { data: existingMaster } = await adminSupabase
     .from('pharmacist_annual_master')
-    .select('*')
+    .select('employee_code, status, status_date, resignation_date')
     .eq('year', year);
 
-  const existingByCode = new Map<string, any>();
+  const existingCodes = new Set<string>();
   (existingMaster || []).forEach((r: any) => {
     if (r.employee_code) {
-      existingByCode.set(r.employee_code.toUpperCase(), r);
-      // 現有主檔中的人，如果有異動也需要處理
-      if (movementsByCode.has(r.employee_code.toUpperCase())) {
-        pharmacistCodesToProcess.add(r.employee_code.toUpperCase());
-      }
+      existingCodes.add(r.employee_code.toUpperCase());
     }
   });
 
-  if (pharmacistCodesToProcess.size === 0) {
-    return;
+  // 4. 處理新入職的藥師（INSERT）
+  const insertPayload: any[] = [];
+  for (const code of newPharmacistCodes) {
+    if (existingCodes.has(code)) continue; // 已存在，跳過
+
+    const codeMovements = movementsByCode.get(code) || [];
+    const onboarding = codeMovements.find(
+      (m: any) => m.movement_type === 'onboarding' && m.onboarding_is_pharmacist
+    );
+    if (!onboarding) continue;
+
+    insertPayload.push({
+      year,
+      employee_code: code,
+      employee_name: onboarding.employee_name || null,
+      status: 'active',
+      join_date: onboarding.movement_date || null,
+      current_store_id: onboarding.store_id || null,
+      current_position: '藥師',
+      source: 'onboarding',
+      notes: `新增於 ${today}`,
+    });
   }
 
-  // 4. 只處理有異動的藥師
-  const upsertPayload: any[] = [];
-  const pharmacistCodesArray = Array.from(pharmacistCodesToProcess);
+  if (insertPayload.length > 0) {
+    await adminSupabase
+      .from('pharmacist_annual_master')
+      .insert(insertPayload);
+  }
 
-  for (const code of pharmacistCodesArray) {
-    const codeMovements = movementsByCode.get(code) || [];
-    const existing = existingByCode.get(code);
-    
-    // 按日期排序取得最新狀態
-    const sorted = [...codeMovements].sort((a, b) => 
-      (a.movement_date || '').localeCompare(b.movement_date || '')
-    );
+  // 5. 處理現有人員的狀態異動（只 UPDATE 狀態欄位）
+  for (const code of existingCodes) {
+    const codeMovements = movementsByCode.get(code);
+    if (!codeMovements || codeMovements.length === 0) continue; // 沒有異動，跳過
 
-    // 找最新的各類異動
-    let latestOnboarding: any = null;
+    // 找狀態相關的異動
     let latestResignation: any = null;
     let latestSuspension: any = null;
     let latestReturn: any = null;
 
-    for (const m of sorted) {
-      if (m.movement_type === 'onboarding' && m.onboarding_is_pharmacist) {
-        latestOnboarding = m;
-      } else if (m.movement_type === 'resignation') {
-        latestResignation = m;
+    for (const m of codeMovements) {
+      if (m.movement_type === 'resignation') {
+        if (!latestResignation || m.movement_date > latestResignation.movement_date) {
+          latestResignation = m;
+        }
       } else if (m.movement_type === 'leave_without_pay') {
-        latestSuspension = m;
+        if (!latestSuspension || m.movement_date > latestSuspension.movement_date) {
+          latestSuspension = m;
+        }
       } else if (m.movement_type === 'return_to_work') {
-        latestReturn = m;
+        if (!latestReturn || m.movement_date > latestReturn.movement_date) {
+          latestReturn = m;
+        }
       }
     }
 
-    // 決定狀態
-    let status = existing?.status || 'active';
-    let statusDate: string | null = existing?.status_date || null;
-    let resignationDate: string | null = existing?.resignation_date || null;
+    // 沒有狀態異動，跳過
+    if (!latestResignation && !latestSuspension && !latestReturn) continue;
 
+    // 決定新狀態
     const resignDate = latestResignation?.movement_date || '';
     const suspendDate = latestSuspension?.movement_date || '';
     const returnDate = latestReturn?.movement_date || '';
 
-    // 只有實際有異動時才更新狀態
-    if (returnDate || suspendDate || resignDate) {
-      if (returnDate && returnDate >= resignDate && returnDate >= suspendDate) {
-        status = 'active';
-        statusDate = returnDate;
-      } else if (suspendDate && suspendDate >= resignDate) {
-        status = 'suspended';
-        statusDate = suspendDate;
-      } else if (resignDate) {
-        status = 'resigned';
-        statusDate = resignDate;
-        resignationDate = resignDate;
-      }
+    let newStatus = 'active';
+    let statusDate: string | null = null;
+    let resignationDate: string | null = null;
+
+    if (returnDate && returnDate >= resignDate && returnDate >= suspendDate) {
+      newStatus = 'active';
+      statusDate = returnDate;
+    } else if (suspendDate && suspendDate >= resignDate) {
+      newStatus = 'suspended';
+      statusDate = suspendDate;
+    } else if (resignDate) {
+      newStatus = 'resigned';
+      statusDate = resignDate;
+      resignationDate = resignDate;
     }
 
-    // 取得姓名和門市（優先使用異動資料，其次使用現有資料）
-    const latestMovement = sorted[sorted.length - 1];
-    const employeeName = latestOnboarding?.employee_name || latestMovement?.employee_name || existing?.employee_name || null;
-    const storeId = latestMovement?.store_id || latestOnboarding?.store_id || existing?.current_store_id || null;
-    const joinDate = latestOnboarding?.movement_date || existing?.join_date || null;
-
-    upsertPayload.push({
-      year,
-      employee_code: code,
-      // 不用 null 覆蓋已有資料
-      employee_name: employeeName || existing?.employee_name || null,
-      status,
-      status_date: statusDate || existing?.status_date || null,
-      join_date: joinDate || existing?.join_date || null,
-      resignation_date: resignationDate,
-      current_store_id: storeId || existing?.current_store_id || null,
-      current_position: existing?.current_position || '藥師',
-      source: latestOnboarding ? 'onboarding' : (existing?.source || 'movement'),
-      notes: existing ? `同步更新於 ${today}` : `新增於 ${today}`,
-    });
-  }
-
-  // 5. 批次 upsert（只更新有異動的人）
-  if (upsertPayload.length > 0) {
+    // 只更新狀態欄位
     await adminSupabase
       .from('pharmacist_annual_master')
-      .upsert(upsertPayload, { 
-        onConflict: 'year,employee_code',
-        ignoreDuplicates: false 
-      });
+      .update({
+        status: newStatus,
+        status_date: statusDate,
+        resignation_date: resignationDate,
+      })
+      .eq('year', year)
+      .eq('employee_code', code);
   }
 }
