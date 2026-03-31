@@ -25,6 +25,14 @@ type SupervisorStoreCard = {
   }>;
 };
 
+type SearchCandidate = {
+  employee_code: string;
+  employee_name: string;
+  position?: string;
+  from_store_name?: string;
+  source?: string;
+};
+
 export default function PharmacistSupervisorCards({
   cards,
   selectedYearMonth,
@@ -48,6 +56,10 @@ export default function PharmacistSupervisorCards({
   const [newPosition, setNewPosition] = useState('藥師');
   const [isAdding, setIsAdding] = useState(false);
   const [addError, setAddError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<SearchCandidate[]>([]);
+  const [searchError, setSearchError] = useState('');
 
   useEffect(() => {
     if (!activeStore && !showResignedModal) return;
@@ -73,8 +85,51 @@ export default function PharmacistSupervisorCards({
       setNewEmployeeName('');
       setNewPosition('藥師');
       setAddError('');
+      setSearchTerm('');
+      setSearchResults([]);
+      setSearchError('');
     }
   }, [activeStore]);
+
+  useEffect(() => {
+    if (!activeStore) return;
+    const q = searchTerm.trim();
+    if (q.length < 2) {
+      setSearchResults([]);
+      setSearchError('');
+      return;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError('');
+      try {
+        const res = await fetch(`/api/monthly-staff-by-store/search?q=${encodeURIComponent(q)}`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (!res.ok || !json?.success) {
+          setSearchResults([]);
+          setSearchError(json?.error || '查詢失敗');
+          return;
+        }
+        const list = Array.isArray(json.data) ? json.data : [];
+        setSearchResults(list.slice(0, 10));
+      } catch {
+        if (!cancelled) {
+          setSearchResults([]);
+          setSearchError('查詢失敗，請稍後再試');
+        }
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchTerm, activeStore]);
 
   const allResigned = useMemo(
     () =>
@@ -173,6 +228,39 @@ export default function PharmacistSupervisorCards({
               {canEdit && (
                 <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 p-3">
                   <div className="mb-2 text-sm font-semibold text-blue-800">手動新增該月藥師</div>
+                  <div className="mb-2">
+                    <input
+                      type="text"
+                      placeholder="先搜尋員編 / 姓名（至少 2 個字）"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full rounded border border-gray-300 px-2 py-1 text-sm"
+                    />
+                    {isSearching && <div className="mt-1 text-xs text-blue-700">查詢中…</div>}
+                    {searchError && <div className="mt-1 text-xs text-rose-600">{searchError}</div>}
+                    {!isSearching && searchResults.length > 0 && (
+                      <div className="mt-2 max-h-40 overflow-auto rounded border border-blue-200 bg-white">
+                        {searchResults.map((r) => (
+                          <button
+                            key={`${r.employee_code}-${r.employee_name}`}
+                            type="button"
+                            onClick={() => {
+                              setNewEmployeeCode((r.employee_code || '').toUpperCase());
+                              setNewEmployeeName(r.employee_name || '');
+                              setNewPosition((r.position || '').trim() || '藥師');
+                              setSearchTerm(`${r.employee_code} ${r.employee_name}`.trim());
+                              setSearchResults([]);
+                            }}
+                            className="block w-full border-b border-gray-100 px-2 py-1.5 text-left text-xs hover:bg-blue-50 last:border-b-0"
+                          >
+                            <div className="font-medium text-gray-800">{r.employee_code} {r.employee_name}</div>
+                            <div className="text-gray-500">{r.position || '-'} {r.from_store_name ? `｜${r.from_store_name}` : ''}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                     <input
                       type="text"
