@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -69,12 +68,6 @@ export default function OverviewFilterForm({ selectedYearMonth, selectedZone, zo
           >
             已自動查詢
           </button>
-          <Link
-            href="/admin/pharmacist-management"
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            重設
-          </Link>
         </div>
       </div>
     </div>
