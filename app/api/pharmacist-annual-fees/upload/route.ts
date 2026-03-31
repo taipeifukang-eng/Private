@@ -3,7 +3,16 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
 const BUCKET = 'pharmacist-fee-proofs';
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'application/pdf'];
+const ALLOWED_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+];
+const ALLOWED_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'pdf'];
 const MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 // POST - 上傳繳費證明
@@ -31,9 +40,14 @@ export async function POST(req: NextRequest) {
 
   const employeeCode = rawCode.trim().toUpperCase();
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  const rawType = String(file.type || '').toLowerCase();
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const isAllowedByType = rawType ? ALLOWED_TYPES.includes(rawType) : false;
+  const isAllowedByExtension = ALLOWED_EXTENSIONS.includes(ext);
+
+  if (!isAllowedByType && !isAllowedByExtension) {
     return NextResponse.json(
-      { error: '不支援的檔案格式（僅接受 JPG / PNG / WEBP / HEIC / PDF）' },
+      { error: '不支援的檔案格式（僅接受 JPG / PNG / WEBP / HEIC / HEIF / PDF）' },
       { status: 400 }
     );
   }
@@ -41,7 +55,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '檔案大小超過 10 MB 限制' }, { status: 400 });
   }
 
-  const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
   const safeName = file.name.replace(/[^a-zA-Z0-9\u4e00-\u9fff._-]/g, '_');
   const path = `${employeeCode}/${Date.now()}_${safeName}`;
 
@@ -50,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const { error } = await adminSupabase.storage
     .from(BUCKET)
-    .upload(path, buffer, { contentType: file.type, upsert: false });
+    .upload(path, buffer, { contentType: rawType || 'application/octet-stream', upsert: false });
 
   if (error) {
     if (error.message?.includes('Bucket not found') || error.message?.includes('bucket')) {
@@ -61,9 +74,6 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  // suppress unused variable warning
-  void ext;
 
   return NextResponse.json({ path });
 }

@@ -2,6 +2,73 @@
 
 import { useState, useEffect } from 'react';
 
+const MOBILE_SAFE_MAX_UPLOAD_BYTES = 3.5 * 1024 * 1024;
+
+async function readResponseError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    if (typeof body?.error === 'string' && body.error) return body.error;
+  } catch {
+    // ignore json parse errors and fallback to status text
+  }
+  return `${fallback}（${res.status}）`;
+}
+
+async function compressImageForMobile(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  if (file.size <= MOBILE_SAFE_MAX_UPLOAD_BYTES) return file;
+
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('無法讀取圖片'));
+      el.src = objectUrl;
+    });
+
+    let targetW = img.naturalWidth;
+    let targetH = img.naturalHeight;
+    const longest = Math.max(targetW, targetH);
+    if (longest > 1920) {
+      const ratio = 1920 / longest;
+      targetW = Math.max(1, Math.round(targetW * ratio));
+      targetH = Math.max(1, Math.round(targetH * ratio));
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+
+    canvas.width = targetW;
+    canvas.height = targetH;
+    ctx.drawImage(img, 0, 0, targetW, targetH);
+
+    let bestBlob: Blob | null = null;
+    const qualitySteps = [0.86, 0.78, 0.7, 0.62, 0.54];
+
+    for (const quality of qualitySteps) {
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', quality);
+      });
+      if (!blob) continue;
+      bestBlob = blob;
+      if (blob.size <= MOBILE_SAFE_MAX_UPLOAD_BYTES) break;
+    }
+
+    if (!bestBlob) return file;
+    if (bestBlob.size >= file.size) return file;
+
+    const baseName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+    return new File([bestBlob], `${baseName}.jpg`, { type: 'image/jpeg' });
+  } catch {
+    return file;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 const TAIWAN_CITIES = [
   '台北市',
   '新北市',
@@ -138,16 +205,24 @@ export default function PharmacistAnnualFeeModal({
 
       // 1. 上傳照片（若有選擇）
       if (selectedFile) {
+        const uploadFile = await compressImageForMobile(selectedFile);
+
+        if (uploadFile.size > MOBILE_SAFE_MAX_UPLOAD_BYTES) {
+          setFormError('照片過大，請改用較低解析度或先裁切後再上傳（建議 3.5 MB 以內）');
+          setSubmitting(false);
+          return;
+        }
+
         const fd = new FormData();
-        fd.append('file', selectedFile);
+        fd.append('file', uploadFile);
         fd.append('employee_code', employeeCode);
         const upRes = await fetch('/api/pharmacist-annual-fees/upload', {
           method: 'POST',
           body: fd,
         });
         if (!upRes.ok) {
-          const err = await upRes.json();
-          setFormError(err.error || '上傳失敗');
+          const msg = await readResponseError(upRes, '上傳失敗');
+          setFormError(msg);
           setSubmitting(false);
           return;
         }
@@ -170,8 +245,8 @@ export default function PharmacistAnnualFeeModal({
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        setFormError(err.error || '儲存失敗');
+        const msg = await readResponseError(res, '儲存失敗');
+        setFormError(msg);
         setSubmitting(false);
         return;
       }
@@ -179,8 +254,8 @@ export default function PharmacistAnnualFeeModal({
       resetForm();
       setShowForm(false);
       await fetchRecords();
-    } catch {
-      setFormError('網路錯誤，請稍後再試');
+    } catch (error) {
+      setFormError(`網路或上傳異常，請稍後再試（${error instanceof Error ? error.message : 'unknown'}）`);
     } finally {
       setSubmitting(false);
     }
@@ -412,7 +487,7 @@ export default function PharmacistAnnualFeeModal({
                   </label>
                   <input
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,image/heic,.pdf"
+                    accept="image/*,application/pdf,.heic,.heif,.pdf"
                     onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                     className="w-full text-sm text-gray-600
                       file:mr-3 file:cursor-pointer file:rounded-md file:border-0
