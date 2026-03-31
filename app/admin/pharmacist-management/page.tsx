@@ -147,6 +147,7 @@ export default async function PharmacistManagementPage({
   } catch {
     // 表尚未建立時靜默略過
   }
+  const isSelectedMonthLocked = lockedMonthSet.has(selectedYearMonth);
 
   async function ensureSnapshotForMonth(targetYearMonth: string) {
     if (!canUseSnapshot) return;
@@ -391,9 +392,12 @@ export default async function PharmacistManagementPage({
   let previousRowsRaw: any[] = [];
 
   if (canUseSnapshot) {
-    // 先確保前一月存在，才能用「前一月 + 異動」生成本月
-    await ensureSnapshotForMonth(previousYearMonth);
-    await ensureSnapshotForMonth(selectedYearMonth);
+    // 已關帳月份走唯讀快路徑：不再重算或補寫快照
+    if (!isSelectedMonthLocked) {
+      // 先確保前一月存在，才能用「前一月 + 異動」生成本月
+      await ensureSnapshotForMonth(previousYearMonth);
+      await ensureSnapshotForMonth(selectedYearMonth);
+    }
 
     const [currentQ, previousQ] = await Promise.all([
       adminSupabase
@@ -414,175 +418,176 @@ export default async function PharmacistManagementPage({
 
   const currentRowsBase = currentRowsRaw || [];
   const previousRows = previousRowsRaw || [];
+  let currentRows = currentRowsBase;
 
-  // 補抓「該月份已登記人事異動=離職」的藥師，避免月報尚未寫入而漏掉
-  const monthStart = `${selectedYearMonth}-01`;
-  const monthEndDate = new Date(Number(selectedYearMonth.slice(0, 4)), Number(selectedYearMonth.slice(5, 7)), 0);
-  const monthEnd = `${selectedYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
+  // 已關帳月份：不做異動補丁、不做離職補抓，完全以快照為準
+  const resignationByEmpCode = new Map<string, any>();
+  const monthlyMovementByEmpCode = new Map<string, { movement_type: string; movement_date: string }>();
+  const onboardingByEmpCode = new Map<string, string>();
+  let supplementedResignedRows: any[] = [];
 
-  // 並行查詢本月異動與督導關聯，降低切月等待時間
-  const [
-    { data: resignationMovements },
-    { data: monthlyMovementNotesRaw },
-    { data: onboardingMovementsRaw },
-    { data: adminManagerAssignments, error: adminManagerAssignmentsError },
-  ] = await Promise.all([
-    adminSupabase
-      .from('employee_movement_history')
-      .select('employee_code, employee_name, store_id, movement_date, movement_type')
-      .eq('movement_type', 'resignation')
-      .in('store_id', storeIds)
-      .gte('movement_date', monthStart)
-      .lte('movement_date', monthEnd),
-    adminSupabase
-      .from('employee_movement_history')
-      .select('employee_code, movement_type, movement_date')
-      .in('store_id', storeIds)
-      .in('movement_type', ['store_transfer', 'promotion'])
-      .gte('movement_date', monthStart)
-      .lte('movement_date', monthEnd)
-      .order('movement_date', { ascending: false }),
-    adminSupabase
-      .from('employee_movement_history')
-      .select('employee_code, movement_type, movement_date')
-      .in('store_id', storeIds)
-      .in('movement_type', ['onboarding', 'return_to_work'])
-      .gte('movement_date', monthStart)
-      .lte('movement_date', monthEnd)
-      .order('movement_date', { ascending: false }),
-    adminSupabase
-      .from('store_managers')
-      .select('store_id, user_id, role_type, is_primary, created_at')
-      .in('store_id', storeIds),
-  ]);
+  if (!isSelectedMonthLocked) {
+    // 補抓「該月份已登記人事異動=離職」的藥師，避免月報尚未寫入而漏掉
+    const monthStart = `${selectedYearMonth}-01`;
+    const monthEndDate = new Date(Number(selectedYearMonth.slice(0, 4)), Number(selectedYearMonth.slice(5, 7)), 0);
+    const monthEnd = `${selectedYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
 
-  const resignationCodes = Array.from(
-    new Set((resignationMovements || []).map((m: any) => (m.employee_code || '').toUpperCase()).filter(Boolean))
-  );
-
-  const { data: resignedStoreEmployees } = resignationCodes.length > 0
-    ? await adminSupabase
-        .from('store_employees')
-        .select('employee_code, store_id, is_pharmacist, current_position, position')
-        .in('employee_code', resignationCodes)
-        .in('store_id', storeIds)
-    : { data: [] as any[] };
-
-  const resignedEmpMap = new Map<string, any>();
-  (resignedStoreEmployees || []).forEach((e: any) => {
-    const key = `${String(e.store_id)}::${String(e.employee_code || '').toUpperCase()}`;
-    resignedEmpMap.set(key, e);
-  });
-
-  const currentKeySet = new Set(
-    currentRowsBase.map((r: any) => `${String(r.store_id)}::${String(r.employee_code || '').toUpperCase()}`)
-  );
-
-  const scopedStoreMap = new Map<string, { store_code: string; store_name: string }>();
-  (scopedStores || []).forEach((s: any) => {
-    scopedStoreMap.set(String(s.id), { store_code: s.store_code || '', store_name: s.store_name || '' });
-  });
-
-  const supplementedResignedRows = (resignationMovements || []).flatMap((m: any) => {
-    const storeId = String(m.store_id || '');
-    const code = String(m.employee_code || '').toUpperCase();
-    if (!storeId || !code) return [];
-
-    const key = `${storeId}::${code}`;
-    if (currentKeySet.has(key)) return [];
-
-    const emp = resignedEmpMap.get(key);
-    const isPharmacist = Boolean(emp?.is_pharmacist);
-    if (!isPharmacist) return [];
-
-    const storeInfo = scopedStoreMap.get(storeId) || { store_code: '', store_name: '' };
-    return [{
-      id: `resign-${storeId}-${code}-${m.movement_date}`,
-      store_id: storeId,
-      employee_code: code,
-      employee_name: m.employee_name || '',
-      position: emp?.current_position || emp?.position || '離職',
-      is_supervisor_rotation: false,
-      movement_type: 'resignation',
-      movement_date: m.movement_date,
-      stores: {
-        store_code: storeInfo.store_code,
-        store_name: storeInfo.store_name,
-      },
-    }];
-  });
-
-  // 補充快照中 is_active=false 的員工到離職列表（僅本月離職者）
-  // 先蒐集所有 is_active=false 的員編
-  const inactiveCodes = currentRowsBase.filter((r: any) => r.is_active === false).map((r: any) => String(r.employee_code || '').toUpperCase());
-  
-  const allInactiveResignations = inactiveCodes.length > 0
-    ? await adminSupabase
+    const [
+      { data: resignationMovements },
+      { data: monthlyMovementNotesRaw },
+      { data: onboardingMovementsRaw },
+    ] = await Promise.all([
+      adminSupabase
         .from('employee_movement_history')
-        .select('employee_code, movement_date')
+        .select('employee_code, employee_name, store_id, movement_date, movement_type')
         .eq('movement_type', 'resignation')
-        .in('employee_code', inactiveCodes)
+        .in('store_id', storeIds)
+        .gte('movement_date', monthStart)
+        .lte('movement_date', monthEnd),
+      adminSupabase
+        .from('employee_movement_history')
+        .select('employee_code, movement_type, movement_date')
+        .in('store_id', storeIds)
+        .in('movement_type', ['store_transfer', 'promotion'])
         .gte('movement_date', monthStart)
         .lte('movement_date', monthEnd)
-        .order('movement_date', { ascending: false })
-    : { data: [] as any[] };
+        .order('movement_date', { ascending: false }),
+      adminSupabase
+        .from('employee_movement_history')
+        .select('employee_code, movement_type, movement_date')
+        .in('store_id', storeIds)
+        .in('movement_type', ['onboarding', 'return_to_work'])
+        .gte('movement_date', monthStart)
+        .lte('movement_date', monthEnd)
+        .order('movement_date', { ascending: false }),
+    ]);
 
-  const latestResignationByCode = new Map<string, string>();
-  (allInactiveResignations.data || []).forEach((m: any) => {
-    const code = String(m.employee_code || '').toUpperCase();
-    if (code && !latestResignationByCode.has(code)) {
-      latestResignationByCode.set(code, m.movement_date);
-    }
-  });
+    const resignationCodes = Array.from(
+      new Set((resignationMovements || []).map((m: any) => (m.employee_code || '').toUpperCase()).filter(Boolean))
+    );
 
-  // 只包括本月內離職的員工
-  const inactiveSnapshotRows = currentRowsBase
-    .filter((r: any) => r.is_active === false)
-    .filter((r: any) => {
-      const code = String(r.employee_code || '').toUpperCase();
-      return latestResignationByCode.has(code);
-    })
-    .map((r: any) => {
-      const code = String(r.employee_code || '').toUpperCase();
-      const resignDate = latestResignationByCode.get(code) || '';
-      return {
-        ...r,
-        change_type: '離職',
+    const { data: resignedStoreEmployees } = resignationCodes.length > 0
+      ? await adminSupabase
+          .from('store_employees')
+          .select('employee_code, store_id, is_pharmacist, current_position, position')
+          .in('employee_code', resignationCodes)
+          .in('store_id', storeIds)
+      : { data: [] as any[] };
+
+    const resignedEmpMap = new Map<string, any>();
+    (resignedStoreEmployees || []).forEach((e: any) => {
+      const key = `${String(e.store_id)}::${String(e.employee_code || '').toUpperCase()}`;
+      resignedEmpMap.set(key, e);
+    });
+
+    const currentKeySet = new Set(
+      currentRowsBase.map((r: any) => `${String(r.store_id)}::${String(r.employee_code || '').toUpperCase()}`)
+    );
+
+    const scopedStoreMap = new Map<string, { store_code: string; store_name: string }>();
+    (scopedStores || []).forEach((s: any) => {
+      scopedStoreMap.set(String(s.id), { store_code: s.store_code || '', store_name: s.store_name || '' });
+    });
+
+    supplementedResignedRows = (resignationMovements || []).flatMap((m: any) => {
+      const storeId = String(m.store_id || '');
+      const code = String(m.employee_code || '').toUpperCase();
+      if (!storeId || !code) return [];
+
+      const key = `${storeId}::${code}`;
+      if (currentKeySet.has(key)) return [];
+
+      const emp = resignedEmpMap.get(key);
+      const isPharmacist = Boolean(emp?.is_pharmacist);
+      if (!isPharmacist) return [];
+
+      const storeInfo = scopedStoreMap.get(storeId) || { store_code: '', store_name: '' };
+      return [{
+        id: `resign-${storeId}-${code}-${m.movement_date}`,
+        store_id: storeId,
+        employee_code: code,
+        employee_name: m.employee_name || '',
+        position: emp?.current_position || emp?.position || '離職',
+        is_supervisor_rotation: false,
         movement_type: 'resignation',
-        movement_date: resignDate,
-      };
+        movement_date: m.movement_date,
+        stores: {
+          store_code: storeInfo.store_code,
+          store_name: storeInfo.store_name,
+        },
+      }];
     });
 
-  // 分開活動和離職的行
-  const activeRows = currentRowsBase.filter((r: any) => r.is_active === true);
-  const resignedRows = [...inactiveSnapshotRows, ...supplementedResignedRows];
+    const inactiveCodes = currentRowsBase
+      .filter((r: any) => r.is_active === false)
+      .map((r: any) => String(r.employee_code || '').toUpperCase());
 
-  const currentRows = [...activeRows, ...resignedRows];
+    const allInactiveResignations = inactiveCodes.length > 0
+      ? await adminSupabase
+          .from('employee_movement_history')
+          .select('employee_code, movement_date')
+          .eq('movement_type', 'resignation')
+          .in('employee_code', inactiveCodes)
+          .gte('movement_date', monthStart)
+          .lte('movement_date', monthEnd)
+          .order('movement_date', { ascending: false })
+      : { data: [] as any[] };
 
-  // 建立「當月離職員工」快查 map（employee_code → movement record），用於補標 monthly_staff_status 中已存在但已離職的藥師
-  const resignationByEmpCode = new Map<string, any>();
-  (resignationMovements || []).forEach((m: any) => {
-    const code = String(m.employee_code || '').toUpperCase();
-    if (code) resignationByEmpCode.set(code, m);
-  });
-
-  const monthlyMovementByEmpCode = new Map<string, { movement_type: string; movement_date: string }>();
-  (monthlyMovementNotesRaw || []).forEach((m: any) => {
-    const code = String(m.employee_code || '').toUpperCase();
-    if (!code || monthlyMovementByEmpCode.has(code)) return;
-    monthlyMovementByEmpCode.set(code, {
-      movement_type: String(m.movement_type || ''),
-      movement_date: String(m.movement_date || ''),
+    const latestResignationByCode = new Map<string, string>();
+    (allInactiveResignations.data || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (code && !latestResignationByCode.has(code)) {
+        latestResignationByCode.set(code, m.movement_date);
+      }
     });
-  });
 
-  const onboardingByEmpCode = new Map<string, string>();
-  (onboardingMovementsRaw || []).forEach((m: any) => {
-    const code = String(m.employee_code || '').toUpperCase();
-    const date = String(m.movement_date || '');
-    if (!code || !date || onboardingByEmpCode.has(code)) return;
-    onboardingByEmpCode.set(code, date);
-  });
+    const inactiveSnapshotRows = currentRowsBase
+      .filter((r: any) => r.is_active === false)
+      .filter((r: any) => {
+        const code = String(r.employee_code || '').toUpperCase();
+        return latestResignationByCode.has(code);
+      })
+      .map((r: any) => {
+        const code = String(r.employee_code || '').toUpperCase();
+        const resignDate = latestResignationByCode.get(code) || '';
+        return {
+          ...r,
+          change_type: '離職',
+          movement_type: 'resignation',
+          movement_date: resignDate,
+        };
+      });
+
+    const activeRows = currentRowsBase.filter((r: any) => r.is_active === true);
+    const resignedRows = [...inactiveSnapshotRows, ...supplementedResignedRows];
+    currentRows = [...activeRows, ...resignedRows];
+
+    (resignationMovements || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (code) resignationByEmpCode.set(code, m);
+    });
+
+    (monthlyMovementNotesRaw || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      if (!code || monthlyMovementByEmpCode.has(code)) return;
+      monthlyMovementByEmpCode.set(code, {
+        movement_type: String(m.movement_type || ''),
+        movement_date: String(m.movement_date || ''),
+      });
+    });
+
+    (onboardingMovementsRaw || []).forEach((m: any) => {
+      const code = String(m.employee_code || '').toUpperCase();
+      const date = String(m.movement_date || '');
+      if (!code || !date || onboardingByEmpCode.has(code)) return;
+      onboardingByEmpCode.set(code, date);
+    });
+  }
+
+  const { data: adminManagerAssignments, error: adminManagerAssignmentsError } = await adminSupabase
+    .from('store_managers')
+    .select('store_id, user_id, role_type, is_primary, created_at')
+    .in('store_id', storeIds);
 
   let managerAssignments: any[] = [];
   let managerProfiles: any[] = [];
