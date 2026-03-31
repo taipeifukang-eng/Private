@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import PharmacistAnnualFeeModal from './PharmacistAnnualFeeModal';
 
 const SCHOOL_OPTIONS = [
@@ -18,6 +19,18 @@ const SCHOOL_OPTIONS = [
 
 const EDUCATION_LEVEL_OPTIONS = ['博士', '碩士', '學士'] as const;
 
+const STATUS_LABELS: Record<string, string> = {
+  active: '在職',
+  resigned: '離職',
+  suspended: '留停',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  active: 'bg-green-100 text-green-700',
+  resigned: 'bg-gray-100 text-gray-600',
+  suspended: 'bg-amber-100 text-amber-700',
+};
+
 export type PharmacistMasterRow = {
   employee_code: string;
   employee_name: string;
@@ -25,11 +38,17 @@ export type PharmacistMasterRow = {
   start_date: string | null;
   resignation_date: string | null;
   is_active: boolean;
+  status?: string;
+  status_date?: string | null;
   school: string;
   education_level: string;
   is_responsible_pharmacist: boolean;
   license_renewal_date: string | null;
   annual_fee_is_blue: boolean;
+  store_code?: string;
+  store_name?: string;
+  source?: string;
+  notes?: string;
 };
 
 function calcSeniority(startDate: string | null, endDate?: string | null): string {
@@ -53,26 +72,129 @@ function formatDate(d: string | null): string {
   return d.slice(0, 10);
 }
 
+type LockInfo = {
+  year: number;
+  locked_at: string;
+  locked_by: string;
+} | null;
+
 export default function PharmacistMasterList({
-  rows,
+  rows: initialRows,
   canEdit,
+  initialYear,
 }: {
   rows: PharmacistMasterRow[];
   canEdit: boolean;
+  initialYear?: number;
 }) {
-  const [data, setData] = useState<PharmacistMasterRow[]>(rows);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentYear = new Date().getFullYear();
+  
+  // 年度選擇（預設當前年度）
+  const [selectedYear, setSelectedYear] = useState(initialYear || currentYear);
+  const [data, setData] = useState<PharmacistMasterRow[]>(initialRows);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockInfo, setLockInfo] = useState<LockInfo>(null);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [lockLoading, setLockLoading] = useState(false);
+  const [lockError, setLockError] = useState<string | null>(null);
+
   const [editingCode, setEditingCode] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<PharmacistMasterRow>>({});
   const [isPending, startTransition] = useTransition();
   const [saveError, setSaveError] = useState('');
   const [searchText, setSearchText] = useState('');
-  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive'>('active');
+  const [filterActive, setFilterActive] = useState<'all' | 'active' | 'inactive' | 'suspended'>('active');
   const [feeModalRow, setFeeModalRow] = useState<{ code: string; name: string } | null>(null);
+
+  // 載入年度主檔資料
+  const loadYearData = useCallback(async (year: number) => {
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch(`/api/pharmacist-annual-master/sync?year=${year}`);
+      const json = await res.json();
+      if (!res.ok) {
+        setLoadError(json.error || '載入失敗');
+        return;
+      }
+      setData(json.data || []);
+      setIsLocked(json.isLocked || false);
+      setLockInfo(json.lockInfo || null);
+      setSyncedAt(json.syncedAt || null);
+    } catch {
+      setLoadError('網路錯誤，請重試');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // 初始載入與切換年度時載入資料
+  useEffect(() => {
+    loadYearData(selectedYear);
+  }, [selectedYear, loadYearData]);
+
+  // 關帳
+  const handleLock = async () => {
+    if (!confirm(`確定要關帳 ${selectedYear} 年度藥師主檔嗎？\n關帳後將不再自動同步人事異動。`)) {
+      return;
+    }
+    setLockLoading(true);
+    setLockError(null);
+    try {
+      const res = await fetch('/api/pharmacist-annual-master/lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: selectedYear }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setLockError(json.error || '關帳失敗');
+      } else {
+        await loadYearData(selectedYear);
+      }
+    } catch {
+      setLockError('網路錯誤，請重試');
+    } finally {
+      setLockLoading(false);
+    }
+  };
+
+  // 解除關帳
+  const handleUnlock = async () => {
+    if (!confirm(`確定要解除 ${selectedYear} 年度藥師主檔的關帳嗎？`)) {
+      return;
+    }
+    setLockLoading(true);
+    setLockError(null);
+    try {
+      const res = await fetch('/api/pharmacist-annual-master/lock', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ year: selectedYear }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setLockError(json.error || '解除關帳失敗');
+      } else {
+        await loadYearData(selectedYear);
+      }
+    } catch {
+      setLockError('網路錯誤，請重試');
+    } finally {
+      setLockLoading(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     return data.filter((row) => {
-      if (filterActive === 'active' && !row.is_active) return false;
-      if (filterActive === 'inactive' && row.is_active) return false;
+      const status = row.status || (row.is_active ? 'active' : 'resigned');
+      if (filterActive === 'active' && status !== 'active') return false;
+      if (filterActive === 'inactive' && status !== 'resigned') return false;
+      if (filterActive === 'suspended' && status !== 'suspended') return false;
       if (searchText) {
         const q = searchText.toLowerCase();
         return (
@@ -145,6 +267,75 @@ export default function PharmacistMasterList({
 
   return (
     <div className="space-y-4">
+      {/* 年度選擇 + 關帳控制 */}
+      <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">年度</label>
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+              disabled={isLoading}
+              className="w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none disabled:opacity-50"
+            >
+              {Array.from({ length: 5 }, (_, i) => currentYear - 2 + i).map((y) => (
+                <option key={y} value={y}>{y} 年</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            {canEdit && (
+              isLocked ? (
+                <button
+                  type="button"
+                  onClick={handleUnlock}
+                  disabled={lockLoading}
+                  className="flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+                >
+                  <span>🔒</span>
+                  <span>{lockLoading ? '處理中…' : '已關帳（點擊解除）'}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLock}
+                  disabled={lockLoading || selectedYear > currentYear}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  <span>🔓</span>
+                  <span>{lockLoading ? '處理中…' : '關帳'}</span>
+                </button>
+              )
+            )}
+            {isLocked && lockInfo && (
+              <p className="text-xs text-gray-500">
+                由 {lockInfo.locked_by} 關帳於 {lockInfo.locked_at.slice(0, 10)}
+              </p>
+            )}
+            {lockError && (
+              <p className="text-xs text-red-600">{lockError}</p>
+            )}
+          </div>
+
+          {syncedAt && !isLocked && (
+            <p className="text-xs text-green-600">
+              已自動同步人事異動（{syncedAt.slice(0, 10)}）
+            </p>
+          )}
+
+          {isLoading && (
+            <span className="text-sm text-gray-500">載入中...</span>
+          )}
+        </div>
+      </div>
+
+      {loadError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {loadError}
+        </div>
+      )}
+
       {/* 搜尋 + 篩選列 */}
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
         <input
@@ -155,7 +346,7 @@ export default function PharmacistMasterList({
           className="w-56 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
         />
         <div className="flex gap-1">
-          {(['active', 'inactive', 'all'] as const).map((v) => (
+          {(['active', 'suspended', 'inactive', 'all'] as const).map((v) => (
             <button
               key={v}
               type="button"
@@ -166,7 +357,7 @@ export default function PharmacistMasterList({
                   : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
               }`}
             >
-              {v === 'active' ? '在職' : v === 'inactive' ? '已離職' : '全部'}
+              {v === 'active' ? '在職' : v === 'inactive' ? '已離職' : v === 'suspended' ? '留停' : '全部'}
             </button>
           ))}
         </div>
@@ -180,6 +371,7 @@ export default function PharmacistMasterList({
             <tr>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">員編</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">姓名</th>
+              <th className="px-3 py-3 text-center font-semibold whitespace-nowrap">狀態</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">現職職級</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">到職日 / 年資</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">畢業學校</th>
@@ -187,26 +379,34 @@ export default function PharmacistMasterList({
               <th className="px-3 py-3 text-center font-semibold whitespace-nowrap">負責藥師</th>
               <th className="px-3 py-3 text-left font-semibold whitespace-nowrap">執照更新日</th>
               <th className="px-3 py-3 text-center font-semibold whitespace-nowrap">常年會費</th>
-              {canEdit && <th className="px-3 py-3 text-center font-semibold">操作</th>}
+              {canEdit && !isLocked && <th className="px-3 py-3 text-center font-semibold">操作</th>}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={canEdit ? 10 : 9} className="px-3 py-10 text-center text-gray-500">
-                  查無資料
+                <td colSpan={canEdit && !isLocked ? 11 : 10} className="px-3 py-10 text-center text-gray-500">
+                  {isLoading ? '載入中...' : '查無資料'}
                 </td>
               </tr>
             ) : (
               filtered.map((row) => {
                 const isEditing = editingCode === row.employee_code;
+                const status = row.status || (row.is_active ? 'active' : 'resigned');
+                const statusLabel = STATUS_LABELS[status] || status;
+                const statusColor = STATUS_COLORS[status] || 'bg-gray-100 text-gray-600';
                 return (
                   <tr
                     key={row.employee_code}
-                    className={`border-t border-gray-100 ${!row.is_active ? 'opacity-50' : ''} ${isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
+                    className={`border-t border-gray-100 ${status !== 'active' ? 'opacity-60' : ''} ${isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
                     <td className="px-3 py-2 font-mono text-gray-800">{row.employee_code}</td>
                     <td className="px-3 py-2 font-medium">{row.employee_name || '-'}</td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusColor}`}>
+                        {statusLabel}
+                      </span>
+                    </td>
                     <td className="px-3 py-2 text-gray-700">{row.current_position}</td>
                     <td className="px-3 py-2 whitespace-nowrap">
                       <div className="text-gray-800">{formatDate(row.start_date)}</div>
@@ -307,7 +507,7 @@ export default function PharmacistMasterList({
                     </td>
 
                     {/* 操作 */}
-                    {canEdit && (
+                    {canEdit && !isLocked && (
                       <td className="px-3 py-2 text-center whitespace-nowrap">
                         {isEditing ? (
                           <div className="flex items-center justify-center gap-1">
