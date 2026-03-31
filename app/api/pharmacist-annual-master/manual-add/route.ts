@@ -10,6 +10,12 @@ function isValidDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+function buildManualEmployeeCode(year: number): string {
+  const timePart = Date.now().toString().slice(-8);
+  const randomPart = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+  return `MANUAL${String(year).slice(-2)}${timePart}${randomPart}`.slice(0, 20);
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -30,17 +36,15 @@ export async function POST(req: NextRequest) {
   }
 
   const year = typeof body.year === 'number' ? body.year : parseInt(String(body.year || ''), 10);
-  const employeeCode = String(body.employee_code || '').trim().toUpperCase();
+  const employeeCodeInput = String(body.employee_code || '').trim().toUpperCase();
   const employeeName = String(body.employee_name || '').trim();
   const joinDateRaw = String(body.join_date || '').trim();
   const currentPosition = String(body.current_position || '').trim() || '藥師';
   const notesRaw = String(body.notes || '').trim();
+  const employeeCode = employeeCodeInput || buildManualEmployeeCode(year);
 
   if (!isValidYear(year)) {
     return NextResponse.json({ error: '無效的年度' }, { status: 400 });
-  }
-  if (!employeeCode) {
-    return NextResponse.json({ error: '員編為必填' }, { status: 400 });
   }
   if (!employeeName) {
     return NextResponse.json({ error: '姓名為必填' }, { status: 400 });
@@ -72,7 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `${employeeCode} 已存在於 ${year} 年度主檔` }, { status: 409 });
   }
 
-  const createdNote = notesRaw || `手動新增於 ${new Date().toISOString().slice(0, 10)}`;
+  const createdNote = notesRaw || `手動新增於 ${new Date().toISOString().slice(0, 10)}${employeeCodeInput ? '' : '（員編自動產生）'}`;
   const { data, error } = await adminSupabase
     .from('pharmacist_annual_master')
     .insert({

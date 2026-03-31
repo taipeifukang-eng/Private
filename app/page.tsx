@@ -126,14 +126,12 @@ export default async function HomePage() {
   const isSupervisor = jobTitle.includes('督導');
   const isStoreManager = ['店長', '代理店長'].includes(jobTitle) && !isSupervisor;
   const isManagerOrAdmin = role === 'admin' || (role === 'manager' && !isSupervisor && !isStoreManager);
-  const isBusinessAdminAssistantSupervisor = jobTitle.includes('營業部行政助理主管');
+  const isBusinessAdminSupervisor = jobTitle.includes('營業部行政主管') || jobTitle.includes('營業部行政助理主管');
+  const isReminderManager = role === 'manager' && !isSupervisor && !isStoreManager;
   const canViewMonthlyStatusAll = await hasPermission(user.id, 'monthly.status.view_all');
   const canViewAnnualFeeReminder =
-    role === 'admin' ||
-    isSupervisor ||
-    isStoreManager ||
-    isBusinessAdminAssistantSupervisor ||
-    canViewMonthlyStatusAll;
+    isReminderManager ||
+    isBusinessAdminSupervisor;
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
@@ -196,7 +194,8 @@ export default async function HomePage() {
     canViewAnnualFeeReminder,
     isSupervisor,
     isStoreManager,
-    isBusinessAdminAssistantSupervisor,
+    isBusinessAdminSupervisor,
+    isReminderManager,
     reminderStoreScope: 'all' as 'all' | 'scoped',
     reminderStoreCount: 0,
     storeEmpRawCount: 0,
@@ -223,7 +222,7 @@ export default async function HomePage() {
   if (canViewAnnualFeeReminder) {
     let reminderStoreIds: string[] | null = null;
 
-    if (isSupervisor || isStoreManager) {
+    if (!isReminderManager && !isBusinessAdminSupervisor) {
       const { data: managedStores } = await adminSupabase
         .from('store_managers')
         .select('store_id')

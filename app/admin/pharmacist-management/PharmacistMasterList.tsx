@@ -83,6 +83,10 @@ function formatDate(d: string | null): string {
   return d.slice(0, 10);
 }
 
+function isGeneratedManualCode(code: string, source?: string): boolean {
+  return source === 'manual' && code.startsWith('MANUAL');
+}
+
 type LockInfo = {
   year: number;
   locked_at: string;
@@ -209,7 +213,7 @@ export default function PharmacistMasterList({
   };
 
   const filtered = useMemo(() => {
-    return data.filter((row) => {
+    const rows = data.filter((row) => {
       const status = row.status || (row.is_active ? 'active' : 'resigned');
       if (filterActive === 'active' && status !== 'active') return false;
       if (filterActive === 'inactive' && status !== 'resigned') return false;
@@ -223,6 +227,14 @@ export default function PharmacistMasterList({
       }
       return true;
     });
+
+    rows.sort((a, b) => {
+      const manualDiff = Number(b.source === 'manual') - Number(a.source === 'manual');
+      if (manualDiff !== 0) return manualDiff;
+      return a.employee_code.localeCompare(b.employee_code);
+    });
+
+    return rows;
   }, [data, searchText, filterActive]);
 
   function startEdit(row: PharmacistMasterRow) {
@@ -285,8 +297,8 @@ export default function PharmacistMasterList({
   }
 
   async function handleManualAdd() {
-    if (!manualForm.employee_code.trim() || !manualForm.employee_name.trim() || !manualForm.join_date.trim()) {
-      setManualAddError('員編、姓名、到職日為必填');
+    if (!manualForm.employee_name.trim() || !manualForm.join_date.trim()) {
+      setManualAddError('姓名、到職日為必填');
       setManualAddSuccess('');
       return;
     }
@@ -413,7 +425,7 @@ export default function PharmacistMasterList({
           <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
             <input
               type="text"
-              placeholder="員編，例如 FK1103"
+              placeholder="員編，可留空"
               value={manualForm.employee_code}
               onChange={(e) => setManualForm((prev) => ({ ...prev, employee_code: e.target.value.toUpperCase() }))}
               className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
@@ -529,7 +541,7 @@ export default function PharmacistMasterList({
                     key={row.employee_code}
                     className={`border-t border-gray-100 ${status !== 'active' ? 'opacity-60' : ''} ${isEditing ? 'bg-blue-50' : 'hover:bg-gray-50'}`}
                   >
-                    <td className="px-3 py-2 font-mono text-gray-800">{row.employee_code}</td>
+                    <td className="px-3 py-2 font-mono text-gray-800">{isGeneratedManualCode(row.employee_code, row.source) ? '-' : row.employee_code}</td>
                     <td className="px-3 py-2">
                       <div className="font-medium text-gray-900">{row.employee_name || '-'}</div>
                       {row.source && SOURCE_LABELS[row.source] && (
