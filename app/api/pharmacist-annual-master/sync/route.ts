@@ -237,7 +237,7 @@ async function syncAnnualMaster(adminSupabase: any, year: number) {
 
   // 4. 處理新入職的藥師（INSERT）
   const insertPayload: any[] = [];
-  for (const code of newPharmacistCodes) {
+  for (const code of Array.from(newPharmacistCodes)) {
     if (existingCodes.has(code)) continue; // 已存在，跳過
 
     const codeMovements = movementsByCode.get(code) || [];
@@ -266,7 +266,7 @@ async function syncAnnualMaster(adminSupabase: any, year: number) {
   }
 
   // 5. 處理現有人員的狀態異動（只 UPDATE 狀態欄位）
-  for (const code of existingCodes) {
+  for (const code of Array.from(existingCodes)) {
     const codeMovements = movementsByCode.get(code);
     if (!codeMovements || codeMovements.length === 0) continue; // 沒有異動，跳過
 
