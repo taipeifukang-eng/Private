@@ -296,7 +296,7 @@ export default async function PharmacistManagementPage({
       if (type === 'onboarding' || type === 'return_to_work') {
         const storeId = m.store_id ? String(m.store_id) : '';
         if (!storeId) return;
-        if (!pharmacistCodeSet.has(code)) return;
+        // 允許 onboarding/return_to_work 任何員工，不限 pharmacistCodeSet
         const row = nextByCode.get(code);
         if (row) {
           row.is_active = true;
