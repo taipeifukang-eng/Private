@@ -466,7 +466,8 @@ export default async function HomePage({
             reason: `${currentYear} 年尚無常年會費申請記錄`,
           };
         })
-        .filter((r): r is NonNullable<typeof r> => Boolean(r));
+        .filter((r): r is NonNullable<typeof r> => Boolean(r))
+        .sort((a, b) => a.employee_code.localeCompare(b.employee_code));
 
       annualFeeDebug.remindersCount = annualFeeReminders.length;
     }
