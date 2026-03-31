@@ -185,6 +185,7 @@ export async function GET(req: NextRequest) {
  * 同步年度主檔：
  * 1. 新入職的藥師 => INSERT
  * 2. 已存在的人有狀態異動 => 只 UPDATE 狀態欄位（不動姓名、到職日）
+ * 3. 檢查年度開始前已離職的人 => 更新狀態為離職
  */
 async function syncAnnualMaster(adminSupabase: any, year: number) {
   const yearStart = `${year}-01-01`;
@@ -200,11 +201,26 @@ async function syncAnnualMaster(adminSupabase: any, year: number) {
     .lte('movement_date', effectiveEnd)
     .order('movement_date', { ascending: true });
 
-  if (!movements || movements.length === 0) {
-    return;
-  }
+  // 2. 取得年度開始前的最近離職/復職記錄（處理跨年離職）
+  const { data: priorMovements } = await adminSupabase
+    .from('employee_movement_history')
+    .select('employee_code, movement_type, movement_date')
+    .lt('movement_date', yearStart)
+    .in('movement_type', ['resignation', 'return_to_work', 'onboarding'])
+    .order('movement_date', { ascending: false });
 
-  // 2. 整理異動資料
+  // 整理年度前的最新狀態（按員編）
+  const priorStatusByCode = new Map<string, { type: string; date: string }>();
+  (priorMovements || []).forEach((m: any) => {
+    const code = (m.employee_code || '').toUpperCase();
+    if (!code) return;
+    // 只保留第一筆（最新的）
+    if (!priorStatusByCode.has(code)) {
+      priorStatusByCode.set(code, { type: m.movement_type, date: m.movement_date });
+    }
+  });
+
+  // 3. 整理本年度異動資料
   const movementsByCode = new Map<string, any[]>();
   const newPharmacistCodes = new Set<string>(); // 新入職的藥師
 
@@ -325,5 +341,28 @@ async function syncAnnualMaster(adminSupabase: any, year: number) {
       })
       .eq('year', year)
       .eq('employee_code', code);
+  }
+
+  // 6. 處理年度開始前就已離職的人（沒有本年度異動的情況）
+  for (const code of Array.from(existingCodes)) {
+    // 如果本年度有異動，已經在上面處理過了
+    if (movementsByCode.has(code)) continue;
+
+    // 檢查年度前的最新狀態
+    const priorStatus = priorStatusByCode.get(code);
+    if (!priorStatus) continue;
+
+    // 如果年度前最新狀態是離職，更新為離職
+    if (priorStatus.type === 'resignation') {
+      await adminSupabase
+        .from('pharmacist_annual_master')
+        .update({
+          status: 'resigned',
+          status_date: priorStatus.date,
+          resignation_date: priorStatus.date,
+        })
+        .eq('year', year)
+        .eq('employee_code', code);
+    }
   }
 }
