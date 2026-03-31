@@ -130,6 +130,7 @@ export default function PharmacistAnnualFeeModal({
 
   // 查看證明
   const [viewingProof, setViewingProof] = useState<string | null>(null);
+  const [pdfViewUrl, setPdfViewUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchRecords();
@@ -267,7 +268,14 @@ export default function PharmacistAnnualFeeModal({
       const res = await fetch(`/api/pharmacist-annual-fees/upload?path=${encodeURIComponent(path)}`);
       if (!res.ok) throw new Error();
       const { url } = await res.json();
-      window.open(url, '_blank', 'noopener,noreferrer');
+
+      // 判斷檔案類型：PDF 用 modal 預覽，其他用新分頁
+      const isPdf = path.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
+        setPdfViewUrl(url);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     } catch {
       alert('無法取得繳費證明，請稍後再試');
     } finally {
@@ -544,6 +552,48 @@ export default function PharmacistAnnualFeeModal({
           )}
         </div>
       </div>
+
+      {/* PDF 預覽 Modal */}
+      {pdfViewUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setPdfViewUrl(null); }}
+        >
+          <div className="relative w-full max-w-4xl max-h-[90vh] rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+              <h3 className="text-lg font-bold text-gray-900">繳費證明</h3>
+              <button
+                onClick={() => setPdfViewUrl(null)}
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto">
+              <iframe
+                src={pdfViewUrl}
+                className="w-full h-full border-none"
+                title="PDF 預覽"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-gray-200 px-6 py-3 bg-gray-50">
+              <a
+                href={pdfViewUrl}
+                download
+                className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                下載
+              </a>
+              <button
+                onClick={() => setPdfViewUrl(null)}
+                className="rounded-lg border border-gray-300 px-4 py-1.5 text-sm text-gray-600 hover:bg-gray-100"
+              >
+                關閉
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
