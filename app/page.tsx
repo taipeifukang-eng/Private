@@ -228,135 +228,76 @@ export default async function HomePage({
       annualFeeDebug.reminderStoreCount = reminderStoreIds.length;
     }
 
-    // 1) 藥師母體來源：以藥師主檔邏輯為主（store_employees + monthly_staff_status 補集）
-    const [{ data: masterRowsRaw }, { data: monthlyCurrentRaw }, { data: monthlyAllRaw }] = await Promise.all([
+    // 1) 藥師母體：以藥師主檔邏輯為準，與藥師管理頁一致
+    //    - store_employees.is_pharmacist=true (不篩 is_active，由 is_active 欄位本身決定在職)
+    //    - monthly_staff_status 補集：僅出現在月報的藥師也納入，視為在職
+    //    - 月報資料只用來查最近一期所在門市（可視範圍判斷）
+    const [{ data: masterRowsRaw }, { data: monthlyAllRaw }] = await Promise.all([
       adminSupabase
         .from('store_employees')
-        .select('employee_code, employee_name, store_id, is_pharmacist, current_position, position, is_active')
-        .eq('is_active', true)
-        .or('is_pharmacist.eq.true,current_position.ilike.%藥師%,position.ilike.%藥師%'),
+        .select('employee_code, employee_name, store_id, is_active')
+        .eq('is_pharmacist', true),
       adminSupabase
         .from('monthly_staff_status')
-        .select('employee_code, employee_name, store_id, store_name, year_month, position, is_pharmacist')
-        .eq('year_month', currentYearMonth)
-        .or('is_pharmacist.eq.true,position.ilike.%藥師%'),
-      adminSupabase
-        .from('monthly_staff_status')
-        .select('employee_code, employee_name, store_id, store_name, year_month, position, is_pharmacist')
+        .select('employee_code, employee_name, store_id, store_name, year_month, is_pharmacist, position')
         .or('is_pharmacist.eq.true,position.ilike.%藥師%')
         .order('year_month', { ascending: false }),
     ]);
 
-    annualFeeDebug.monthlyCurrentCount = (monthlyCurrentRaw || []).length;
-
-    const masterByCode = new Map<string, { employee_name: string; store_id: string | null }>();
+    // store_employees map（含 is_active 欄位）
+    const storeEmpByCode = new Map<string, { employee_name: string; store_id: string | null; is_active: boolean }>();
     (masterRowsRaw || []).forEach((r: any) => {
       const code = String(r.employee_code || '').toUpperCase();
       if (!code) return;
-      masterByCode.set(code, {
+      storeEmpByCode.set(code, {
         employee_name: String(r.employee_name || ''),
         store_id: r.store_id ? String(r.store_id) : null,
+        is_active: Boolean(r.is_active),
       });
     });
 
-    const monthlyByCode = new Map<string, MonthlyPharmacistRow>();
+    // 月報：每人只保留最新一期（已按 year_month desc 排序）
+    const monthlyLatestByCode = new Map<string, MonthlyPharmacistRow>();
     (monthlyAllRaw || []).forEach((r: any) => {
       const code = String(r.employee_code || '').toUpperCase();
-      if (!code || !r.year_month) return;
-      if (!monthlyByCode.has(code)) {
-        monthlyByCode.set(code, {
-          employee_code: code,
-          employee_name: String(r.employee_name || ''),
-          store_name: r.store_name || null,
-          store_id: String(r.store_id || ''),
-          year_month: String(r.year_month || ''),
-          position: r.position || null,
-          is_pharmacist: r.is_pharmacist ?? null,
-        });
-      }
+      if (!code || monthlyLatestByCode.has(code)) return;
+      monthlyLatestByCode.set(code, {
+        employee_code: code,
+        employee_name: String(r.employee_name || ''),
+        store_name: r.store_name || null,
+        store_id: String(r.store_id || ''),
+        year_month: String(r.year_month || ''),
+        position: r.position || null,
+        is_pharmacist: r.is_pharmacist ?? null,
+      });
     });
 
-    // 沒有當月資料時，debug 呈現 fallback 的最近月份
-    if ((monthlyCurrentRaw || []).length === 0) {
-      annualFeeDebug.fallbackYearMonth = (monthlyAllRaw || [])[0]?.year_month || null;
-      annualFeeDebug.monthlyFallbackCount = (monthlyAllRaw || []).length;
-    }
+    annualFeeDebug.monthlyCurrentCount = monthlyLatestByCode.size;
+    annualFeeDebug.fallbackYearMonth = (monthlyAllRaw || [])[0]?.year_month || null;
 
-    const candidateCodeSet = new Set<string>();
-    Array.from(masterByCode.keys()).forEach((c) => candidateCodeSet.add(c));
-    Array.from(monthlyByCode.keys()).forEach((c) => candidateCodeSet.add(c));
-    const allCandidateCodes = Array.from(candidateCodeSet);
-    annualFeeDebug.masterPharmacistCount = allCandidateCodes.length;
-
-    // 2) 在職判斷：最新離職日 >= 最新復職/入職日 視為離職
-    const { data: allMovementRaw } = allCandidateCodes.length > 0
-      ? await adminSupabase
-          .from('employee_movement_history')
-          .select('employee_code, movement_type, movement_date, store_id, employee_name')
-          .in('employee_code', allCandidateCodes)
-          .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer'])
-          .order('movement_date', { ascending: false })
-      : { data: [] as any[] };
-
-    const movements = (allMovementRaw || []) as MovementRow[];
-    annualFeeDebug.movementCount = movements.length;
-
-    const latestResignTsByCode = new Map<string, number>();
-    const latestReactivateTsByCode = new Map<string, number>();
-    const latestTransferByCode = new Map<string, MovementRow>();
-
-    movements.forEach((m) => {
-      const code = String(m.employee_code || '').toUpperCase();
-      if (!code) return;
-      const ts = parseDateTs(m.movement_date);
-      if (!ts || ts > currentMonthEndTs) return;
-
-      if (m.movement_type === 'resignation') {
-        const prev = latestResignTsByCode.get(code);
-        if (!prev || ts > prev) latestResignTsByCode.set(code, ts);
-        return;
-      }
-      if (m.movement_type === 'onboarding' || m.movement_type === 'return_to_work') {
-        const prev = latestReactivateTsByCode.get(code);
-        if (!prev || ts > prev) latestReactivateTsByCode.set(code, ts);
-        return;
-      }
-      if (m.movement_type === 'store_transfer') {
-        const prev = latestTransferByCode.get(code);
-        const prevTs = parseDateTs(prev?.movement_date);
-        if (!prevTs || ts > prevTs) {
-          latestTransferByCode.set(code, m);
-        }
-      }
+    // 在職藥師清單（與藥師管理頁「在職」邏輯一致）：
+    //   - store_employees 中 is_active=true 的藥師
+    //   - 僅出現在月報、未建 store_employees 的藥師（視為在職）
+    const activeCodes: string[] = [];
+    storeEmpByCode.forEach((emp, code) => {
+      if (emp.is_active) activeCodes.push(code);
+    });
+    monthlyLatestByCode.forEach((_m, code) => {
+      if (!storeEmpByCode.has(code)) activeCodes.push(code); // 月報補集，視為在職
     });
 
-    const activeCodes = allCandidateCodes.filter((code) => {
-      const resignTs = latestResignTsByCode.get(code);
-      const reactivateTs = latestReactivateTsByCode.get(code);
-      return !(resignTs && (!reactivateTs || resignTs >= reactivateTs));
-    });
+    annualFeeDebug.masterPharmacistCount = activeCodes.length;
     annualFeeDebug.activePharmacistCount = activeCodes.length;
 
-    // 3) 門市歸屬判斷：優先最近月報，若有較新的調店異動則覆蓋，最後 fallback store_employees
+    // 2) 門市歸屬：使用月報最近一期所在門市（可視範圍判斷依據）
     const assignedStoreByCode = new Map<string, { store_id: string | null; store_name: string | null; employee_name: string }>();
     activeCodes.forEach((code) => {
-      const monthly = monthlyByCode.get(code);
-      const monthlyTs = parseYearMonthStartTs(monthly?.year_month);
-      const transfer = latestTransferByCode.get(code);
-      const transferTs = parseDateTs(transfer?.movement_date);
-
-      let storeId: string | null = monthly?.store_id || masterByCode.get(code)?.store_id || null;
-      if (transfer?.store_id && transferTs && (!monthlyTs || transferTs >= monthlyTs)) {
-        storeId = String(transfer.store_id);
-      }
-
+      const monthly = monthlyLatestByCode.get(code);
+      const master = storeEmpByCode.get(code);
       assignedStoreByCode.set(code, {
-        store_id: storeId,
+        store_id: monthly?.store_id || master?.store_id || null,
         store_name: monthly?.store_name || null,
-        employee_name:
-          monthly?.employee_name ||
-          masterByCode.get(code)?.employee_name ||
-          String(transfer?.employee_name || ''),
+        employee_name: monthly?.employee_name || master?.employee_name || '',
       });
     });
     annualFeeDebug.assignedStoreCount = assignedStoreByCode.size;
@@ -367,7 +308,7 @@ export default async function HomePage({
       return Boolean(assigned?.store_id && reminderStoreIds.includes(assigned.store_id));
     });
 
-    // 補門市名稱（若來源是調店覆蓋 store_id）
+    // 補查缺少 store_name 的門市名稱
     const missingStoreNameIds = Array.from(new Set(
       filteredCodes
         .map((code) => assignedStoreByCode.get(code))
