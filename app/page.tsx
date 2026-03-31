@@ -179,6 +179,12 @@ export default async function HomePage({
   const annualFeeDebug = {
     currentYearMonth,
     currentMonth,
+    role,
+    jobTitle,
+    canViewAnnualFeeReminder,
+    isSupervisor,
+    isStoreManager,
+    isBusinessAdminAssistantSupervisor,
     reminderStoreScope: 'all' as 'all' | 'scoped',
     reminderStoreCount: 0,
     monthlyCurrentCount: 0,
@@ -612,13 +618,19 @@ export default async function HomePage({
             </div>
           )}
 
-          {canViewAnnualFeeReminder && isDebug && (
+          {isDebug && (
             <div className="bg-slate-900 text-slate-100 rounded-lg shadow-lg p-3 sm:p-4 lg:p-5 w-full border border-slate-700">
               <h2 className="text-sm sm:text-base font-bold tracking-wide">常年會費提醒 Debug</h2>
               <p className="mt-1 text-xs text-slate-300">啟用方式：首頁加上 ?debug=1</p>
               <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:text-sm">
                 <span>currentYearMonth</span><span className="font-mono">{annualFeeDebug.currentYearMonth}</span>
                 <span>currentMonth</span><span>{annualFeeDebug.currentMonth}</span>
+                <span>role</span><span>{annualFeeDebug.role || '-'}</span>
+                <span>jobTitle</span><span>{annualFeeDebug.jobTitle || '-'}</span>
+                <span>canViewAnnualFeeReminder</span><span>{annualFeeDebug.canViewAnnualFeeReminder ? 'true' : 'false'}</span>
+                <span>isSupervisor</span><span>{annualFeeDebug.isSupervisor ? 'true' : 'false'}</span>
+                <span>isStoreManager</span><span>{annualFeeDebug.isStoreManager ? 'true' : 'false'}</span>
+                <span>isBusinessAdminAssistantSupervisor</span><span>{annualFeeDebug.isBusinessAdminAssistantSupervisor ? 'true' : 'false'}</span>
                 <span>storeScope</span><span>{annualFeeDebug.reminderStoreScope}</span>
                 <span>storeCount</span><span>{annualFeeDebug.reminderStoreCount}</span>
                 <span>monthlyCurrentCount</span><span>{annualFeeDebug.monthlyCurrentCount}</span>
