@@ -122,6 +122,29 @@ export default async function PharmacistManagementPage({
 
   async function ensureSnapshotForMonth(targetYearMonth: string) {
     if (!canUseSnapshot) return;
+    const { data: rotationRows } = await adminSupabase
+      .from('monthly_staff_status')
+      .select('store_id, employee_code')
+      .eq('year_month', targetYearMonth)
+      .in('store_id', storeIds)
+      .eq('is_pharmacist', true)
+      .eq('is_supervisor_rotation', true);
+
+    // 清掉既有快照中由 seed 產生且屬於「督導卡班」的資料
+    if ((rotationRows || []).length > 0) {
+      await Promise.all(
+        (rotationRows || []).map((r: any) =>
+          adminSupabase
+            .from('pharmacist_monthly_snapshot')
+            .delete()
+            .eq('year_month', targetYearMonth)
+            .eq('source', 'seed')
+            .eq('store_id', String(r.store_id || ''))
+            .eq('employee_code', String(r.employee_code || '').toUpperCase())
+        )
+      );
+    }
+
     const { count } = await adminSupabase
       .from('pharmacist_monthly_snapshot')
       .select('id', { count: 'exact', head: true })
@@ -132,7 +155,7 @@ export default async function PharmacistManagementPage({
 
     const { data: seedRows } = await adminSupabase
       .from('monthly_staff_status')
-      .select('store_id, employee_code, employee_name, position')
+      .select('store_id, employee_code, employee_name, position, is_supervisor_rotation')
       .eq('year_month', targetYearMonth)
       .in('store_id', storeIds)
       .eq('is_pharmacist', true);
@@ -140,7 +163,7 @@ export default async function PharmacistManagementPage({
     if (!seedRows || seedRows.length === 0) return;
 
     const payload = seedRows
-      .filter((r: any) => r.store_id && r.employee_code)
+      .filter((r: any) => r.store_id && r.employee_code && !r.is_supervisor_rotation)
       .map((r: any) => ({
         year_month: targetYearMonth,
         store_id: String(r.store_id),
