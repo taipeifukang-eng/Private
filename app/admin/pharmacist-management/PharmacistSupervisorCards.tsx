@@ -311,6 +311,38 @@ export default function PharmacistSupervisorCards({
                             setAddError(json?.error || '新增失敗');
                             return;
                           }
+
+                          const addedCode = newEmployeeCode.trim().toUpperCase();
+                          const addedName = newEmployeeName.trim();
+                          const addedPosition = newPosition.trim() || '藥師';
+                          const addedId = json?.data?.id || `manual-${activeStore.storeId}-${addedCode}`;
+
+                          // 新增成功後立即更新當前彈窗列表，避免需要關閉再重開
+                          setActiveStore((prev) => {
+                            if (!prev) return prev;
+                            const existingIdx = prev.pharmacists.findIndex((p) => p.employee_code === addedCode);
+                            const next = [...prev.pharmacists];
+                            const addedRow: PharmacistDetail = {
+                              id: String(addedId),
+                              employee_code: addedCode,
+                              employee_name: addedName,
+                              position: addedPosition,
+                              change_type: '新增任職',
+                              change_note: '手動新增',
+                              store_code: prev.storeCode,
+                              store_name: prev.storeName,
+                            };
+
+                            if (existingIdx >= 0) {
+                              next[existingIdx] = { ...next[existingIdx], ...addedRow };
+                            } else {
+                              next.push(addedRow);
+                            }
+
+                            next.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+                            return { ...prev, pharmacists: next };
+                          });
+
                           setNewEmployeeCode('');
                           setNewEmployeeName('');
                           setNewPosition('藥師');
