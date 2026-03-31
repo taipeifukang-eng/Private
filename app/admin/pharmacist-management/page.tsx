@@ -127,8 +127,30 @@ export default async function PharmacistManagementPage({
     canUseSnapshot = false;
   }
 
+  // 查詢關帳月份
+  const lockedMonthSet = new Set<string>();
+  let lockedMonths: Array<{ year_month: string; locked_at: string; locked_by: string }> = [];
+  try {
+    const { data: locksRaw } = await adminSupabase
+      .from('pharmacist_snapshot_locks')
+      .select('year_month, locked_at, locked_by')
+      .order('year_month', { ascending: true });
+    (locksRaw || []).forEach((r: any) => {
+      if (r.year_month) lockedMonthSet.add(String(r.year_month));
+    });
+    lockedMonths = (locksRaw || []).map((r: any) => ({
+      year_month: String(r.year_month || ''),
+      locked_at: String(r.locked_at || ''),
+      locked_by: String(r.locked_by || ''),
+    }));
+  } catch {
+    // 表尚未建立時靜默略過
+  }
+
   async function ensureSnapshotForMonth(targetYearMonth: string) {
     if (!canUseSnapshot) return;
+    // 關帳保護：已關帳的月份不再自動異動
+    if (lockedMonthSet.has(targetYearMonth)) return;
     const { data: pharmacistCandidatesRaw } = await adminSupabase
       .from('store_employees')
       .select('employee_code, is_pharmacist, current_position, position')
@@ -1279,6 +1301,8 @@ export default async function PharmacistManagementPage({
           selectedYearMonth={selectedYearMonth}
           selectedZone={selectedZone}
           zoneOptions={zoneOptions}
+          lockedMonths={lockedMonths}
+          canEdit={canEditModule}
         />
 
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
