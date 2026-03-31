@@ -4,6 +4,7 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 import PharmacistSupervisorCards from './PharmacistSupervisorCards';
 import PharmacistMasterList from './PharmacistMasterList';
+import OverviewFilterForm from './OverviewFilterForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -910,47 +911,11 @@ export default async function PharmacistManagementPage({
           />
         ) : (<>
 
-        <form className="mb-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm" method="GET">
-          <input type="hidden" name="tab" value="overview" />
-          <div className="grid gap-3 md:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">月份</label>
-              <input
-                type="month"
-                name="year_month"
-                defaultValue={selectedYearMonth}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">督導區</label>
-              <select
-                name="zone"
-                defaultValue={selectedZone}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
-              >
-                <option value="all">全部督導區</option>
-                {zoneOptions.map((zone) => (
-                  <option key={zone} value={zone}>{zone}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end gap-2">
-              <button
-                type="submit"
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-              >
-                查詢
-              </button>
-              <Link
-                href="/admin/pharmacist-management"
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                重設
-              </Link>
-            </div>
-          </div>
-        </form>
+        <OverviewFilterForm
+          selectedYearMonth={selectedYearMonth}
+          selectedZone={selectedZone}
+          zoneOptions={zoneOptions}
+        />
 
         <div className="mb-4 grid gap-3 sm:grid-cols-3">
           <div className="rounded-xl border border-blue-100 bg-blue-50 p-4">
