@@ -87,7 +87,7 @@ export default async function PharmacistManagementPage({
     storeIds = Array.from(new Set((managed || []).map((m: any) => m.store_id).filter(Boolean)));
   }
 
-  if (storeIds.length === 0) {
+  if (storeIds.length === 0 && activeTab === 'overview') {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="mx-auto max-w-6xl rounded-xl border border-gray-200 bg-white p-6">
@@ -493,20 +493,18 @@ export default async function PharmacistManagementPage({
   };
 
   // ── Tab2: 藥師主檔資料 ──
-  // 來源1：抓取所有範圍內門市的藥師 store_employees
-  const { data: masterEmployeesRaw } = await adminSupabase
-    .from('store_employees')
-    .select('employee_code, store_id, is_pharmacist, current_position, position, start_date, is_active')
-    .in('store_id', storeIds)
-    .eq('is_pharmacist', true);
-
-  // 來源2：抓取當月 monthly_staff_status 的藥師（支援每月狀態新增後自動反映到主檔）
-  const { data: monthlyPharmacistsRaw } = await adminSupabase
-    .from('monthly_staff_status')
-    .select('employee_code, employee_name, position, start_date, store_id')
-    .eq('year_month', selectedYearMonth)
-    .in('store_id', storeIds)
-    .eq('is_pharmacist', true);
+  // 主檔不受「督導區總覽月份」影響，固定以全資料庫藥師為來源
+  const [{ data: masterEmployeesRaw }, { data: monthlyPharmacistsRaw }] = await Promise.all([
+    adminSupabase
+      .from('store_employees')
+      .select('employee_code, store_id, is_pharmacist, current_position, position, start_date, is_active')
+      .eq('is_pharmacist', true),
+    adminSupabase
+      .from('monthly_staff_status')
+      .select('employee_code, employee_name, position, start_date, store_id, year_month')
+      .eq('is_pharmacist', true)
+      .order('year_month', { ascending: false }),
+  ]);
 
   const masterEmployees = (masterEmployeesRaw || []) as Array<{
     employee_code: string;
@@ -524,6 +522,7 @@ export default async function PharmacistManagementPage({
     position: string | null;
     start_date: string | null;
     store_id: string;
+    year_month: string;
   }>;
 
   // 以員編唯一化，避免同一藥師在多門市或歷史資料造成重複
@@ -566,7 +565,27 @@ export default async function PharmacistManagementPage({
   });
 
   // monthly_staff_status 的藥師也納入主檔來源，避免僅出現在月狀態而未建 store_employees 時漏資料
+  // 同員編只採用最新月份資料
+  const monthlyByCode = new Map<string, {
+    employee_code: string;
+    employee_name: string | null;
+    position: string | null;
+    start_date: string | null;
+    store_id: string;
+    year_month: string;
+  }>();
+
   monthlyPharmacists.forEach((m) => {
+    const code = String(m.employee_code || '').toUpperCase();
+    if (!code) return;
+
+    const existingMonthly = monthlyByCode.get(code);
+    if (!existingMonthly || String(m.year_month || '') > String(existingMonthly.year_month || '')) {
+      monthlyByCode.set(code, m);
+    }
+  });
+
+  Array.from(monthlyByCode.values()).forEach((m) => {
     const code = String(m.employee_code || '').toUpperCase();
     if (!code) return;
 
@@ -600,7 +619,6 @@ export default async function PharmacistManagementPage({
   const { data: resignationMovementsAll } = await adminSupabase
     .from('employee_movement_history')
     .select('employee_code, employee_name, store_id, movement_date, movement_type')
-    .in('store_id', storeIds)
     .eq('movement_type', 'resignation')
     .order('movement_date', { ascending: false });
 
@@ -613,7 +631,6 @@ export default async function PharmacistManagementPage({
         .from('monthly_staff_status')
         .select('employee_code, employee_name, position, start_date, is_pharmacist, store_id, year_month')
         .in('employee_code', resignationCodesAll)
-        .in('store_id', storeIds)
         .order('year_month', { ascending: false })
     : { data: [] as any[] };
 
@@ -816,7 +833,7 @@ export default async function PharmacistManagementPage({
             督導區總覽
           </Link>
           <Link
-            href={`/admin/pharmacist-management?tab=master&year_month=${selectedYearMonth}`}
+            href="/admin/pharmacist-management?tab=master"
             className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
               activeTab === 'master'
                 ? 'bg-blue-600 text-white shadow'
