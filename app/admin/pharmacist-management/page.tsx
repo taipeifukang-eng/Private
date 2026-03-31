@@ -402,12 +402,12 @@ export default async function PharmacistManagementPage({
     const [currentQ, previousQ] = await Promise.all([
       adminSupabase
         .from('pharmacist_monthly_snapshot')
-        .select('id, store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
+        .select('id, store_id, employee_code, employee_name, position, is_active, source, notes, stores(store_code, store_name)')
         .eq('year_month', selectedYearMonth)
         .in('store_id', storeIds),
       adminSupabase
         .from('pharmacist_monthly_snapshot')
-        .select('store_id, employee_code, employee_name, position, is_active, source, stores(store_code, store_name)')
+        .select('store_id, employee_code, employee_name, position, is_active, source, notes, stores(store_code, store_name)')
         .eq('year_month', previousYearMonth)
         .in('store_id', storeIds),
     ]);
@@ -718,10 +718,22 @@ export default async function PharmacistManagementPage({
       const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
       changeNote = mmdd ? `${mmdd} 離職` : '離職';
     } else if (!prev) {
-      changeType = '新增任職';
-      const onboardingDate = onboardingByEmpCode.get(_empCodeUpper);
-      const ymd = formatMovementDateYMD(onboardingDate);
-      changeNote = ymd ? `${ymd}入職` : '入職';
+      // 關帳月份若缺少前月快照，不應把全員誤判為新增任職
+      if (isSelectedMonthLocked) {
+        const noteLower = String((row as any).notes || '').toLowerCase();
+        if (row.is_active === false && noteLower.includes('resignation')) {
+          changeType = '離職';
+          changeNote = '離職';
+        } else {
+          changeType = '無變更';
+          changeNote = '';
+        }
+      } else {
+        changeType = '新增任職';
+        const onboardingDate = onboardingByEmpCode.get(_empCodeUpper);
+        const ymd = formatMovementDateYMD(onboardingDate);
+        changeNote = ymd ? `${ymd}入職` : '入職';
+      }
     } else {
       const storeChanged = prev.store_id !== row.store_id;
       const positionChanged = (prev.position || '') !== (row.position || '');
