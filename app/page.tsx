@@ -239,8 +239,8 @@ export default async function HomePage({
         .eq('is_pharmacist', true),
       adminSupabase
         .from('monthly_staff_status')
-        .select('employee_code, employee_name, store_id, store_name, year_month, is_pharmacist, position')
-        .or('is_pharmacist.eq.true,position.ilike.%藥師%')
+        .select('employee_code, employee_name, store_id, store_name, year_month, is_pharmacist')
+        .eq('is_pharmacist', true)
         .order('year_month', { ascending: false }),
     ]);
 
@@ -267,7 +267,7 @@ export default async function HomePage({
         store_name: r.store_name || null,
         store_id: String(r.store_id || ''),
         year_month: String(r.year_month || ''),
-        position: r.position || null,
+        position: null,
         is_pharmacist: r.is_pharmacist ?? null,
       });
     });
