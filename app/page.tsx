@@ -48,7 +48,7 @@ export default async function HomePage({
   searchParams?: { debug?: string };
 }) {
   const { user } = await getCurrentUser();
-  const isDebug = searchParams?.debug === '1';
+  const isDebugByQuery = searchParams?.debug === '1';
 
   // If not logged in, show landing page
   if (!user) {
@@ -122,6 +122,7 @@ export default async function HomePage({
   const isManagerOrAdmin = role === 'admin' || (role === 'manager' && !isSupervisor && !isStoreManager);
   const isBusinessAdminAssistantSupervisor = jobTitle.includes('營業部行政助理主管');
   const canViewAnnualFeeReminder = role === 'admin' || isSupervisor || isStoreManager || isBusinessAdminAssistantSupervisor;
+  const isDebug = isDebugByQuery || role === 'admin';
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
