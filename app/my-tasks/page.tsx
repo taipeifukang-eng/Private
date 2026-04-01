@@ -96,7 +96,10 @@ export default function MyTasksPage() {
     if (totalSteps === 0) return 0;
 
     const checkedStepIds = new Set();
-    assignment.logs.forEach((log: any) => {
+    const sortedLogs = [...(assignment.logs || [])].sort(
+      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    sortedLogs.forEach((log: any) => {
       if (log.step_id !== null && log.step_id !== undefined) {
         const stepIdStr = log.step_id.toString();
         if (log.action === 'complete') {

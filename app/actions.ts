@@ -498,6 +498,8 @@ export async function logAction(
 
     revalidatePath(`/assignment/${assignmentId}`);
     revalidatePath('/dashboard');
+    revalidatePath('/my-tasks');
+    revalidatePath('/admin/templates');
     
     return { success: true, data: log };
   } catch (error: any) {

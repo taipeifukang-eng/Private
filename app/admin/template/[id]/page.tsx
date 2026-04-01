@@ -166,15 +166,20 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
             <div className="space-y-4">
               {templateAssignments.map((assignment: any) => {
                 // Calculate progress
-                const totalSteps = template.steps_schema?.length || 0;
+                const totalSteps = (template.steps_schema || []).reduce((count: number, step: any) => {
+                  return count + 1 + (step.subSteps?.length || 0);
+                }, 0);
                 const checkedStepIds = new Set<string>();
-                
-                assignment.logs?.forEach((log: any) => {
+                const sortedLogs = [...(assignment.logs || [])].sort(
+                  (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+                );
+
+                sortedLogs.forEach((log: any) => {
                   if (log.step_id !== null && log.step_id !== undefined) {
                     const stepIdStr = log.step_id.toString();
-                    if (log.action === 'checked') {
+                    if (log.action === 'complete') {
                       checkedStepIds.add(stepIdStr);
-                    } else if (log.action === 'unchecked') {
+                    } else if (log.action === 'uncomplete') {
                       checkedStepIds.delete(stepIdStr);
                     }
                   }

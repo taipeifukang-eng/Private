@@ -60,7 +60,10 @@ export default async function AssignmentPage({
 
   // Calculate initially checked steps from logs
   const checkedStepIds = new Set<string>();
-  assignment.logs.forEach((log: Log) => {
+  const sortedLogs = [...assignment.logs].sort(
+    (a: Log, b: Log) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
+  sortedLogs.forEach((log: Log) => {
     if (log.step_id !== null && log.step_id !== undefined) {
       if (log.action === 'complete') {
         checkedStepIds.add(log.step_id.toString());

@@ -27,33 +27,37 @@ export default function TemplateCardWithStats({
   const completedAssignments = assignments.filter(a => a.status === 'completed').length;
   const inProgressAssignments = assignments.filter(a => a.status === 'in_progress').length;
   const pendingAssignments = assignments.filter(a => a.status === 'pending').length;
+
+  const getAssignmentProgress = (assignment: any) => {
+    const steps = template.steps_schema || [];
+    const totalSteps = steps.reduce((count, step) => count + 1 + (step.subSteps?.length || 0), 0);
+    if (totalSteps === 0) return 0;
+
+    const sortedLogs = [...(assignment.logs || [])].sort(
+      (a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+    );
+    const checkedSteps = new Set<string>();
+
+    sortedLogs.forEach((log: any) => {
+      if (log.step_id !== null && log.step_id !== undefined) {
+        const stepIdStr = log.step_id.toString();
+        if (log.action === 'complete') {
+          checkedSteps.add(stepIdStr);
+        } else if (log.action === 'uncomplete') {
+          checkedSteps.delete(stepIdStr);
+        }
+      }
+    });
+
+    return Math.round((checkedSteps.size / totalSteps) * 100);
+  };
   
   // Calculate average step completion progress across all assignments
   const calculateProgress = () => {
     if (totalAssignments === 0) return 0;
     
     const totalProgress = assignments.reduce((sum, assignment) => {
-      const steps = template.steps_schema || [];
-      const totalSteps = steps.reduce((count, step) => count + 1 + (step.subSteps?.length || 0), 0);
-      
-      if (totalSteps === 0) return sum;
-      
-      const logs = assignment.logs || [];
-      const checkedSteps = new Set<string>();
-      
-      logs.forEach((log: any) => {
-        if (log.step_id !== null && log.step_id !== undefined) {
-          const stepIdStr = log.step_id.toString();
-          if (log.action === 'complete') {
-            checkedSteps.add(stepIdStr);
-          } else if (log.action === 'uncomplete') {
-            checkedSteps.delete(stepIdStr);
-          }
-        }
-      });
-      
-      const progress = (checkedSteps.size / totalSteps) * 100;
-      return sum + progress;
+      return sum + getAssignmentProgress(assignment);
     }, 0);
     
     return Math.round(totalProgress / totalAssignments);
@@ -84,15 +88,15 @@ export default function TemplateCardWithStats({
     console.log('[TemplateCardWithStats] Starting delete process...');
 
     try {
-      const { getAssignments, deleteAssignment } = await import('@/app/actions');
+      const { getAllAssignments, deleteAssignment } = await import('@/app/actions');
       console.log('[TemplateCardWithStats] Actions imported successfully');
       
-      const result = await getAssignments();
-      console.log('[TemplateCardWithStats] getAssignments result:', result);
+      const result = await getAllAssignments();
+      console.log('[TemplateCardWithStats] getAllAssignments result:', result);
       
       if (result.success) {
         const assignments = result.data.filter(
-          (a: any) => a.template_id === template.id && a.status === 'completed'
+          (a: any) => a.template_id === template.id && getAssignmentProgress(a) === 100
         );
         console.log('[TemplateCardWithStats] Found completed assignments:', assignments.length);
 
@@ -212,15 +216,15 @@ export default function TemplateCardWithStats({
     console.log('[TemplateCardWithStats] Starting archive process...');
 
     try {
-      const { getAssignments, archiveAssignment, deleteTemplate } = await import('@/app/actions');
+      const { getAllAssignments, archiveAssignment } = await import('@/app/actions');
       console.log('[TemplateCardWithStats] Actions imported successfully');
       
-      const result = await getAssignments();
-      console.log('[TemplateCardWithStats] getAssignments result:', result);
+      const result = await getAllAssignments();
+      console.log('[TemplateCardWithStats] getAllAssignments result:', result);
       
       if (result.success) {
         const assignments = result.data.filter(
-          (a: any) => a.template_id === template.id && a.status === 'completed' && !a.archived
+          (a: any) => a.template_id === template.id && getAssignmentProgress(a) === 100 && !a.archived
         );
         console.log('[TemplateCardWithStats] Found completed assignments to archive:', assignments.length);
 
