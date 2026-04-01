@@ -74,9 +74,9 @@ DO NOTHING;
 -- 2) 既有映射若為 false，強制改為 true（避免被明確拒絕）
 UPDATE role_permissions rp
 SET is_allowed = true
-FROM roles r
-JOIN permissions p ON p.id = rp.permission_id
+FROM roles r, permissions p
 WHERE rp.role_id = r.id
+  AND rp.permission_id = p.id
   AND r.code IN ('admin', 'system_admin', 'admin_role')
   AND p.is_active = true
   AND rp.is_allowed = false;
