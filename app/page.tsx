@@ -143,7 +143,7 @@ export default async function HomePage() {
     isManagerOrAdmin ||
     isBusinessAdminSupervisor;
   const canViewLicenseRenewalReminder =
-    isReminderManager ||
+    isManagerOrAdmin ||
     isSupervisor ||
     isBusinessAdminSupervisor;
 
