@@ -131,7 +131,7 @@ export default async function HomePage() {
   const isReminderManager = role === 'manager' && !isSupervisor && !isStoreManager;
   const canViewMonthlyStatusAll = await hasPermission(user.id, 'monthly.status.view_all');
   const canViewAnnualFeeReminder =
-    isReminderManager ||
+    isManagerOrAdmin ||
     isBusinessAdminSupervisor;
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
@@ -223,7 +223,7 @@ export default async function HomePage() {
   if (canViewAnnualFeeReminder) {
     let reminderStoreIds: string[] | null = null;
 
-    if (!isReminderManager && !isBusinessAdminSupervisor) {
+    if (!isManagerOrAdmin && !isBusinessAdminSupervisor) {
       const { data: managedStores } = await adminSupabase
         .from('store_managers')
         .select('store_id')
