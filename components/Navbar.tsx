@@ -109,9 +109,10 @@ export default function Navbar({ user }: NavbarProps) {
     return 'bg-gray-100 text-gray-800';
   };
 
-  // 格式化職稱顯示
+  // 格式化身分顯示（職稱優先，無職稱時回退角色）
   const formatJobTitle = (jobTitle: string | null | undefined) => {
-    const title = jobTitle || '使用者';
+    const fallbackRoleTitle = role === 'admin' ? '系統管理員' : role === 'manager' ? '主管' : '使用者';
+    const title = (jobTitle || '').trim() || fallbackRoleTitle;
     const isHighPosition = title.includes('經理') || title.includes('督導') || title.includes('店長');
     return isHighPosition ? `親愛的${title}大人` : `親愛的${title}`;
   };
