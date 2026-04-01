@@ -801,77 +801,82 @@ export default async function HomePage() {
           {/* 執照更新日提醒 Card */}
           {canViewLicenseRenewalReminder && licenseRenewalReminders.length > 0 && (
             <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full border border-sky-200">
-              <div className="flex items-center gap-2 mb-3 sm:mb-4">
-                <BellRing className="w-5 h-5 text-sky-500 flex-shrink-0" />
-                <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">
-                  執照更新日提醒
-                  <span className="ml-2 text-sm font-normal text-gray-400">({licenseRenewalReminders.length} 人)</span>
-                </h2>
-              </div>
+              <details className="group" open={false}>
+                <summary className="flex items-center justify-between gap-2 mb-3 sm:mb-4 cursor-pointer list-none">
+                  <div className="flex items-center gap-2">
+                    <BellRing className="w-5 h-5 text-sky-500 flex-shrink-0" />
+                    <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">
+                      執照更新日提醒
+                      <span className="ml-2 text-sm font-normal text-gray-400">({licenseRenewalReminders.length} 人)</span>
+                    </h2>
+                  </div>
+                  <span className="text-sky-600 text-sm font-medium transition-transform group-open:rotate-180">▼</span>
+                </summary>
 
-              {licenseReminderGroupByZone ? (
-                // 分督導區顯示（管理員/經理/營業部行政主管）
-                <div className="space-y-4">
-                  {(() => {
-                    const zoneMap = new Map<string, typeof licenseRenewalReminders>();
-                    licenseRenewalReminders.forEach((emp) => {
-                      const zone = emp.supervisor_zone;
-                      const list = zoneMap.get(zone) || [];
-                      list.push(emp);
-                      zoneMap.set(zone, list);
-                    });
-                    return Array.from(zoneMap.entries()).map(([zone, emps]) => (
-                      <div key={zone} className="overflow-hidden">
-                        <div className="px-3 py-2 bg-sky-100 text-xs font-semibold text-sky-800 rounded-t-lg border border-sky-200">
-                          {zone} <span className="font-normal text-sky-600">（{emps.length} 人）</span>
-                        </div>
-                        <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 border-x border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
-                          <span>員編</span>
-                          <span>姓名</span>
-                          <span>到期日</span>
-                          <span>門市</span>
-                        </div>
-                        <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-60 overflow-y-auto">
-                          {emps.map((emp) => (
-                            <div key={emp.employee_code} className="px-3 py-2 hover:bg-sky-50/60 transition-colors">
-                              <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
-                                <span className="text-gray-600 font-mono">{emp.employee_code}</span>
-                                <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
-                                <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
-                                <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                {licenseReminderGroupByZone ? (
+                  // 分督導區顯示（管理員/經理/營業部行政主管）
+                  <div className="space-y-4">
+                    {(() => {
+                      const zoneMap = new Map<string, typeof licenseRenewalReminders>();
+                      licenseRenewalReminders.forEach((emp) => {
+                        const zone = emp.supervisor_zone;
+                        const list = zoneMap.get(zone) || [];
+                        list.push(emp);
+                        zoneMap.set(zone, list);
+                      });
+                      return Array.from(zoneMap.entries()).map(([zone, emps]) => (
+                        <div key={zone} className="overflow-hidden">
+                          <div className="px-3 py-2 bg-sky-100 text-xs font-semibold text-sky-800 rounded-t-lg border border-sky-200">
+                            {zone} <span className="font-normal text-sky-600">（{emps.length} 人）</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 border-x border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
+                            <span>員編</span>
+                            <span>姓名</span>
+                            <span>到期日</span>
+                            <span>門市</span>
+                          </div>
+                          <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-60 overflow-y-auto">
+                            {emps.map((emp) => (
+                              <div key={emp.employee_code} className="px-3 py-2 hover:bg-sky-50/60 transition-colors">
+                                <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
+                                  <span className="text-gray-600 font-mono">{emp.employee_code}</span>
+                                  <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
+                                  <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
+                                  <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                                </div>
+                                <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
                               </div>
-                              <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              ) : (
-                // 督導：平列顯示
-                <div className="overflow-hidden">
-                  <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 rounded-t-lg border border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
-                    <span>員編</span>
-                    <span>姓名</span>
-                    <span>到期日</span>
-                    <span>門市</span>
+                      ));
+                    })()}
                   </div>
-                  <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-72 overflow-y-auto">
-                    {licenseRenewalReminders.map((emp) => (
-                      <div key={emp.employee_code} className="px-3 py-2 hover:bg-sky-50/60 transition-colors">
-                        <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
-                          <span className="text-gray-600 font-mono">{emp.employee_code}</span>
-                          <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
-                          <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
-                          <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                ) : (
+                  // 督導：平列顯示
+                  <div className="overflow-hidden">
+                    <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 rounded-t-lg border border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
+                      <span>員編</span>
+                      <span>姓名</span>
+                      <span>到期日</span>
+                      <span>門市</span>
+                    </div>
+                    <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-72 overflow-y-auto">
+                      {licenseRenewalReminders.map((emp) => (
+                        <div key={emp.employee_code} className="px-3 py-2 hover:bg-sky-50/60 transition-colors">
+                          <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
+                            <span className="text-gray-600 font-mono">{emp.employee_code}</span>
+                            <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
+                            <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
+                            <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
                         </div>
-                        <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+              </details>
             </div>
           )}
 
