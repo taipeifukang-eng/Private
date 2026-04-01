@@ -205,8 +205,11 @@ export default async function HomePage() {
     employee_name: string;
     store_name: string | null;
     license_renewal_date: string;
+    supervisor_zone: string;
     reason: string;
   }> = [];
+  // 管理員/經理/營業部行政主管看分督導區；督導看平列
+  const licenseReminderGroupByZone = isManagerOrAdmin || isBusinessAdminSupervisor;
   const annualFeeDebug = {
     currentYearMonth,
     currentMonth,
@@ -478,6 +481,59 @@ export default async function HomePage() {
       }
 
       if (canViewLicenseRenewalReminder) {
+        // 需要分組時，先建立 storeId → 督導區名稱 map
+        const zoneByStoreId = new Map<string, string>();
+        if (licenseReminderGroupByZone) {
+          const { data: supervisorAssignments } = await adminSupabase
+            .from('store_managers')
+            .select('store_id, user_id, is_primary, role_type, created_at')
+            .eq('role_type', 'supervisor');
+
+          const supervisorUserIds = Array.from(
+            new Set((supervisorAssignments || []).map((r: any) => String(r.user_id || '')).filter(Boolean))
+          );
+          const { data: supervisorProfilesRaw } = supervisorUserIds.length > 0
+            ? await adminSupabase
+                .from('profiles')
+                .select('id, full_name, employee_code, job_title')
+                .in('id', supervisorUserIds)
+            : { data: [] as any[] };
+
+          const profileByUserId = new Map<string, any>();
+          (supervisorProfilesRaw || []).forEach((p: any) => {
+            if (p.id) profileByUserId.set(String(p.id), p);
+          });
+
+          const storeToSupervisors = new Map<string, any[]>();
+          (supervisorAssignments || []).forEach((row: any) => {
+            const profile = profileByUserId.get(String(row.user_id || ''));
+            if (!profile?.job_title?.includes('督導')) return;
+            const sid = String(row.store_id || '');
+            if (!sid) return;
+            const list = storeToSupervisors.get(sid) || [];
+            list.push(row);
+            storeToSupervisors.set(sid, list);
+          });
+
+          storeToSupervisors.forEach((list, storeId) => {
+            const primaryCandidates = list.filter((r: any) => r.is_primary === true);
+            const candidates = primaryCandidates.length > 0 ? primaryCandidates : list;
+            const picked = [...candidates].sort((a: any, b: any) => {
+              const aTime = Date.parse(a.created_at || '1970-01-01T00:00:00Z');
+              const bTime = Date.parse(b.created_at || '1970-01-01T00:00:00Z');
+              if (aTime !== bTime) return aTime - bTime;
+              const aCode = profileByUserId.get(String(a.user_id || ''))?.employee_code || '';
+              const bCode = profileByUserId.get(String(b.user_id || ''))?.employee_code || '';
+              return aCode.localeCompare(bCode);
+            })[0];
+            const userInfo = profileByUserId.get(String(picked?.user_id || ''));
+            const zoneLabel = userInfo?.full_name
+              ? `${userInfo.full_name}${userInfo.employee_code ? ` (${userInfo.employee_code})` : ''}`
+              : '未指派督導區';
+            zoneByStoreId.set(storeId, zoneLabel);
+          });
+        }
+
         const { data: licenseProfilesRaw } = await adminSupabase
           .from('pharmacist_profiles')
           .select('employee_code, license_renewal_date')
@@ -503,11 +559,16 @@ export default async function HomePage() {
               employee_name: emp.employee_name,
               store_name: emp.store_name,
               license_renewal_date: renewalDate,
+              supervisor_zone: zoneByStoreId.get(String(emp.store_id || '')) || '未指派督導區',
               reason: `執照更新日 ${renewalDate.replace(/-/g, '/')}，已進入到期前 2 年提醒區間`,
             };
           })
           .filter((r): r is NonNullable<typeof r> => Boolean(r))
           .sort((a, b) => {
+            if (licenseReminderGroupByZone) {
+              if (a.supervisor_zone !== b.supervisor_zone)
+                return a.supervisor_zone.localeCompare(b.supervisor_zone, 'zh-TW');
+            }
             if (a.license_renewal_date !== b.license_renewal_date) {
               return a.license_renewal_date.localeCompare(b.license_renewal_date);
             }
@@ -748,30 +809,69 @@ export default async function HomePage() {
                 </h2>
               </div>
 
-              <div className="overflow-hidden">
-                <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 rounded-t-lg border border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
-                  <span>員編</span>
-                  <span>姓名</span>
-                  <span>到期日</span>
-                  <span>門市</span>
-                </div>
-                <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-72 overflow-y-auto">
-                  {licenseRenewalReminders.map((emp) => (
-                    <div
-                      key={emp.employee_code}
-                      className="px-3 py-2 hover:bg-sky-50/60 transition-colors"
-                    >
-                      <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
-                        <span className="text-gray-600 font-mono">{emp.employee_code}</span>
-                        <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
-                        <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
-                        <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+              {licenseReminderGroupByZone ? (
+                // 分督導區顯示（管理員/經理/營業部行政主管）
+                <div className="space-y-4">
+                  {(() => {
+                    const zoneMap = new Map<string, typeof licenseRenewalReminders>();
+                    licenseRenewalReminders.forEach((emp) => {
+                      const zone = emp.supervisor_zone;
+                      const list = zoneMap.get(zone) || [];
+                      list.push(emp);
+                      zoneMap.set(zone, list);
+                    });
+                    return Array.from(zoneMap.entries()).map(([zone, emps]) => (
+                      <div key={zone} className="overflow-hidden">
+                        <div className="px-3 py-2 bg-sky-100 text-xs font-semibold text-sky-800 rounded-t-lg border border-sky-200">
+                          {zone} <span className="font-normal text-sky-600">（{emps.length} 人）</span>
+                        </div>
+                        <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 border-x border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
+                          <span>員編</span>
+                          <span>姓名</span>
+                          <span>到期日</span>
+                          <span>門市</span>
+                        </div>
+                        <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-60 overflow-y-auto">
+                          {emps.map((emp) => (
+                            <div key={emp.employee_code} className="px-3 py-2 hover:bg-sky-50/60 transition-colors">
+                              <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
+                                <span className="text-gray-600 font-mono">{emp.employee_code}</span>
+                                <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
+                                <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
+                                <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                              </div>
+                              <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
-                    </div>
-                  ))}
+                    ));
+                  })()}
                 </div>
-              </div>
+              ) : (
+                // 督導：平列顯示
+                <div className="overflow-hidden">
+                  <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 rounded-t-lg border border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
+                    <span>員編</span>
+                    <span>姓名</span>
+                    <span>到期日</span>
+                    <span>門市</span>
+                  </div>
+                  <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-72 overflow-y-auto">
+                    {licenseRenewalReminders.map((emp) => (
+                      <div key={emp.employee_code} className="px-3 py-2 hover:bg-sky-50/60 transition-colors">
+                        <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
+                          <span className="text-gray-600 font-mono">{emp.employee_code}</span>
+                          <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
+                          <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
+                          <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
