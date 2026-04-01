@@ -239,9 +239,17 @@ export default async function PharmacistManagementPage({
         .eq('year_month', baseYearMonth)
         .in('store_id', storeIds);
 
-      if (!baseRows || baseRows.length === 0) return;
+      const hasBaseRows = Boolean(baseRows && baseRows.length > 0);
+      const seedRows = hasBaseRows
+        ? (baseRows || [])
+        : ((await adminSupabase
+            .from('store_employees')
+            .select('store_id, employee_code, employee_name, current_position, position, is_active, is_pharmacist')
+            .in('store_id', storeIds)
+            .eq('is_active', true)
+            .or('is_pharmacist.eq.true,current_position.ilike.%藥師%,position.ilike.%藥師%')).data || []);
 
-      (baseRows || []).forEach((r: any) => {
+      (seedRows || []).forEach((r: any) => {
         const code = String(r.employee_code || '').toUpperCase();
         if (!code || !r.store_id) return;
         nextByCode.set(code, {
@@ -249,10 +257,12 @@ export default async function PharmacistManagementPage({
           store_id: String(r.store_id),
           employee_code: code,
           employee_name: String(r.employee_name || ''),
-          position: r.position || null,
-          is_active: r.is_active === true,
+          position: r.position || r.current_position || null,
+          is_active: r.is_active !== false,
           source: 'movement',
-          notes: `generated from ${baseYearMonth}`,
+          notes: hasBaseRows
+            ? `generated from ${baseYearMonth}`
+            : `generated from store_employees fallback for ${targetYearMonth}`,
         });
       });
 
@@ -309,7 +319,8 @@ export default async function PharmacistManagementPage({
     const { data: monthlyMovements } = await adminSupabase
       .from('employee_movement_history')
       .select('employee_code, employee_name, store_id, movement_type, movement_date, new_value, onboarding_is_pharmacist')
-      .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion'])
+      .in('store_id', storeIds)
+      .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion', 'leave_without_pay', 'leave_of_absence'])
       .gte('movement_date', monthStart)
       .lte('movement_date', monthEnd)
       .order('movement_date', { ascending: true });
@@ -339,6 +350,7 @@ export default async function PharmacistManagementPage({
         if (type === 'return_to_work' && !pharmacistCodeSet.has(code)) return;
         const row = nextByCode.get(code);
         if (row) {
+          row.store_id = storeId || row.store_id;
           row.is_active = true;
           row.employee_name = row.employee_name || String(m.employee_name || '');
           row.notes = `${row.notes}; ${mmdd || ''} ${type}`.trim();
@@ -355,6 +367,15 @@ export default async function PharmacistManagementPage({
             notes: `generated from movement; ${mmdd || ''} ${type}`.trim(),
           });
         }
+        return;
+      }
+
+      if (type === 'leave_without_pay' || type === 'leave_of_absence') {
+        const row = nextByCode.get(code);
+        if (!row) return;
+        row.is_active = false;
+        row.notes = `${row.notes}; ${mmdd || ''} leave_of_absence`.trim();
+        nextByCode.set(code, row);
         return;
       }
 
@@ -448,7 +469,7 @@ export default async function PharmacistManagementPage({
         .from('employee_movement_history')
         .select('employee_code, movement_type, movement_date')
         .in('store_id', storeIds)
-        .in('movement_type', ['store_transfer', 'promotion'])
+        .in('movement_type', ['store_transfer', 'promotion', 'leave_without_pay', 'leave_of_absence'])
         .gte('movement_date', monthStart)
         .lte('movement_date', monthEnd)
         .order('movement_date', { ascending: false }),
@@ -720,7 +741,7 @@ export default async function PharmacistManagementPage({
       const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
       changeNote = mmdd ? `${mmdd} 離職` : '離職';
     } else if (resignRecord) {
-      // 在 monthly_staff_status 中但當月已有離職紀錄 → 補標離職
+      // 快照中仍在職，但當月已有離職異動紀錄 → 補標離職
       changeType = '離職';
       const d = resignRecord.movement_date ? new Date(resignRecord.movement_date) : null;
       const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
@@ -768,6 +789,11 @@ export default async function PharmacistManagementPage({
         const d = movement.movement_date ? new Date(movement.movement_date) : null;
         const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
         changeNote = mmdd ? `${mmdd} 升遷（次月生效）` : '升遷（次月生效）';
+      } else if (movement?.movement_type === 'leave_without_pay' || movement?.movement_type === 'leave_of_absence') {
+        changeType = '留職停薪';
+        const d = movement.movement_date ? new Date(movement.movement_date) : null;
+        const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
+        changeNote = mmdd ? `${mmdd} 留職停薪` : '留職停薪';
       }
     }
 

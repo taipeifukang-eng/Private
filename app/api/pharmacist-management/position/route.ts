@@ -26,14 +26,14 @@ export async function POST(request: NextRequest) {
     }
 
     const { error } = await supabase
-      .from('monthly_staff_status')
+      .from('pharmacist_monthly_snapshot')
       .update({
         position,
         updated_at: new Date().toISOString(),
       })
       .eq('id', id)
       .eq('year_month', yearMonth)
-      .eq('is_pharmacist', true);
+      .eq('source', 'movement');
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -15,17 +15,17 @@ export async function GET(request: NextRequest) {
 
     if (!q) return NextResponse.json({ success: true, data: [], not_found: false });
 
-    // ── 來源 1：monthly_staff_status ──
-    const { data: monthlyData } = await admin
-      .from('monthly_staff_status')
-      .select('employee_code, employee_name, position, store_id, year_month')
+    // ── 來源 1：store_employees（不依賴 monthly_staff_status）──
+    const { data: employeeData } = await admin
+      .from('store_employees')
+      .select('employee_code, employee_name, position, current_position, store_id, is_active, is_pharmacist')
       .or(`employee_code.ilike.%${q}%,employee_name.ilike.%${q}%`)
-      .not('status', 'eq', 'resigned')
-      .order('year_month', { ascending: false })
+      .eq('is_active', true)
+      .order('employee_code', { ascending: true })
       .limit(50);
 
     const seen = new Map<string, any>();
-    for (const row of (monthlyData || [])) {
+    for (const row of (employeeData || [])) {
       if (!row.employee_code) continue;
       const key = row.employee_code.toUpperCase();
       if (!seen.has(key)) seen.set(key, row);
@@ -44,10 +44,10 @@ export async function GET(request: NextRequest) {
         data: results.map((r) => ({
           employee_code: r.employee_code,
           employee_name: r.employee_name,
-          position: r.position || '',
+          position: r.current_position || r.position || '',
           store_id: r.store_id,
           from_store_name: storeNames[r.store_id] || '',
-          source: 'monthly_status',
+          source: 'store_employees',
         })),
       });
     }
