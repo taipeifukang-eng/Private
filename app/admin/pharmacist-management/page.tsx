@@ -153,6 +153,41 @@ export default async function PharmacistManagementPage({
     if (!canUseSnapshot) return;
     // 關帳保護：已關帳的月份不再自動異動
     if (lockedMonthSet.has(targetYearMonth)) return;
+    const baseYearMonth = getPreviousYearMonth(targetYearMonth);
+    const monthStart = `${targetYearMonth}-01`;
+    const monthEndDate = new Date(Number(targetYearMonth.slice(0, 4)), Number(targetYearMonth.slice(5, 7)), 0);
+    const monthEnd = `${targetYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
+
+    // === 增量判斷：快照存在且無新異動時直接跳過 ===
+    const [{ count: snapshotCount }, { data: syncLog }] = await Promise.all([
+      adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .select('id', { count: 'exact', head: true })
+        .eq('year_month', targetYearMonth)
+        .in('store_id', storeIds),
+      adminSupabase
+        .from('pharmacist_monthly_snapshot_sync_log')
+        .select('last_synced_at')
+        .eq('year_month', targetYearMonth)
+        .maybeSingle(),
+    ]);
+
+    const skipInitialGeneration = (snapshotCount || 0) > 0;
+    const lastSyncedAt: string | null = (syncLog as any)?.last_synced_at ?? null;
+
+    if (skipInitialGeneration && lastSyncedAt) {
+      const { count: newMovementCount } = await adminSupabase
+        .from('employee_movement_history')
+        .select('id', { count: 'exact', head: true })
+        .in('store_id', storeIds)
+        .gt('created_at', lastSyncedAt)
+        .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion', 'leave_without_pay', 'leave_of_absence'])
+        .gte('movement_date', monthStart)
+        .lte('movement_date', monthEnd);
+
+      if ((newMovementCount ?? 0) === 0) return;
+    }
+
     const { data: pharmacistCandidatesRaw } = await adminSupabase
       .from('store_employees')
       .select('employee_code, is_pharmacist, current_position, position')
@@ -205,20 +240,6 @@ export default async function PharmacistManagementPage({
         .delete()
         .in('id', invalidMovementIds);
     }
-
-    const { count } = await adminSupabase
-      .from('pharmacist_monthly_snapshot')
-      .select('id', { count: 'exact', head: true })
-      .eq('year_month', targetYearMonth)
-      .in('store_id', storeIds);
-
-    // 如果快照已存在，跳過初始生成但仍需處理當月異動
-    const skipInitialGeneration = (count || 0) > 0;
-
-    const baseYearMonth = getPreviousYearMonth(targetYearMonth);
-    const monthStart = `${targetYearMonth}-01`;
-    const monthEndDate = new Date(Number(targetYearMonth.slice(0, 4)), Number(targetYearMonth.slice(5, 7)), 0);
-    const monthEnd = `${targetYearMonth}-${String(monthEndDate.getDate()).padStart(2, '0')}`;
 
     // === 階段 1：初始快照生成（僅在快照不存在時）===
     let nextByCode = new Map<string, {
@@ -430,6 +451,10 @@ export default async function PharmacistManagementPage({
       await adminSupabase
         .from('pharmacist_monthly_snapshot')
         .upsert(payload, { onConflict: 'year_month,store_id,employee_code' });
+          // 同步完成後更新 sync log（供下次增量判斷使用）
+          await adminSupabase
+            .from('pharmacist_monthly_snapshot_sync_log')
+            .upsert({ year_month: targetYearMonth, last_synced_at: new Date().toISOString() }, { onConflict: 'year_month' });
     }
   }
 
