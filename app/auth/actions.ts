@@ -84,17 +84,36 @@ export async function getCurrentUser() {
     }
 
     // Get profile data
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
 
+    // Fallback: if RLS/policy causes profile query failure, use admin client to read own profile.
+    let resolvedProfile = profile;
+    if (!resolvedProfile || profileError) {
+      try {
+        const { createAdminClient } = await import('@/lib/supabase/server');
+        const adminSupabase = createAdminClient();
+        const { data: adminProfile } = await adminSupabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        if (adminProfile) {
+          resolvedProfile = adminProfile;
+        }
+      } catch (_) {
+        // Keep original behavior if fallback is unavailable.
+      }
+    }
+
     return {
       success: true,
       user: {
         ...user,
-        profile,
+        profile: resolvedProfile,
       },
     };
   } catch (error: any) {
