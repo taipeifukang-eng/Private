@@ -51,9 +51,9 @@ function getLicenseReminderStartTs(licenseRenewalDate: string | null): number | 
   const renewalTs = parseDateTs(licenseRenewalDate);
   if (!renewalTs) return null;
   const d = new Date(renewalTs);
-  d.setDate(1);
-  d.setFullYear(d.getFullYear() - 2);
-  return d.getTime();
+  // 新規則：只看年份不看月份，於「到期年前兩年的 1/1」起提醒
+  const start = new Date(d.getFullYear() - 2, 0, 1);
+  return start.getTime();
 }
 
 function parseYearMonthStartTs(yearMonth: string | null | undefined): number | null {
