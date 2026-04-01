@@ -313,6 +313,30 @@ export default async function PharmacistManagementPage({
           notes: String(r.notes || ''),
         });
       });
+
+      // 回填保護：若本月已有部分快照，仍要補齊「前月存在但本月缺漏」的人員
+      const { data: carryRows } = await adminSupabase
+        .from('pharmacist_monthly_snapshot')
+        .select('store_id, employee_code, employee_name, position, is_active')
+        .eq('year_month', baseYearMonth)
+        .in('store_id', storeIds);
+
+      (carryRows || []).forEach((r: any) => {
+        const code = String(r.employee_code || '').toUpperCase();
+        if (!code || !r.store_id) return;
+        if (nextByCode.has(code)) return;
+
+        nextByCode.set(code, {
+          year_month: targetYearMonth,
+          store_id: String(r.store_id),
+          employee_code: code,
+          employee_name: String(r.employee_name || ''),
+          position: r.position || null,
+          is_active: r.is_active === true,
+          source: 'movement',
+          notes: `backfilled from ${baseYearMonth}`,
+        });
+      });
     }
 
     // === 階段 2：應用當月異動（無條件執行，無論快照是否已存在）===
