@@ -141,7 +141,9 @@ export default async function HomePage() {
   const canViewMonthlyStatusAll = await hasPermission(user.id, 'monthly.status.view_all');
   const canViewAnnualFeeReminder =
     isManagerOrAdmin ||
-    isBusinessAdminSupervisor;
+    isBusinessAdminSupervisor ||
+    isSupervisor ||
+    isStoreManager;
   const canViewLicenseRenewalReminder =
     isManagerOrAdmin ||
     isSupervisor ||
