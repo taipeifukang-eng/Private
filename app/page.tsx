@@ -47,6 +47,15 @@ function getReminderStartTsForKeelung(latestPeriodEnd: string | null): number | 
   return d.getTime();
 }
 
+function getLicenseReminderStartTs(licenseRenewalDate: string | null): number | null {
+  const renewalTs = parseDateTs(licenseRenewalDate);
+  if (!renewalTs) return null;
+  const d = new Date(renewalTs);
+  d.setDate(1);
+  d.setFullYear(d.getFullYear() - 2);
+  return d.getTime();
+}
+
 function parseYearMonthStartTs(yearMonth: string | null | undefined): number | null {
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) return null;
   const t = new Date(`${yearMonth}-01T00:00:00`).getTime();
@@ -133,6 +142,10 @@ export default async function HomePage() {
   const canViewAnnualFeeReminder =
     isManagerOrAdmin ||
     isBusinessAdminSupervisor;
+  const canViewLicenseRenewalReminder =
+    isReminderManager ||
+    isSupervisor ||
+    isBusinessAdminSupervisor;
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
@@ -187,6 +200,13 @@ export default async function HomePage() {
     association_city: string;
     reason: string;
   }> = [];
+  let licenseRenewalReminders: Array<{
+    employee_code: string;
+    employee_name: string;
+    store_name: string | null;
+    license_renewal_date: string;
+    reason: string;
+  }> = [];
   const annualFeeDebug = {
     currentYearMonth,
     currentMonth,
@@ -220,7 +240,7 @@ export default async function HomePage() {
     remindersCount: 0,
   };
 
-  if (canViewAnnualFeeReminder) {
+  if (canViewAnnualFeeReminder || canViewLicenseRenewalReminder) {
     let reminderStoreIds: string[] | null = null;
 
     if (!isManagerOrAdmin && !isBusinessAdminSupervisor) {
@@ -387,73 +407,113 @@ export default async function HomePage() {
     annualFeeDebug.candidateCodesCount = candidateCodes.length;
 
     if (candidateCodes.length > 0) {
-      const { data: annualFeeRaw } = await adminSupabase
-          .from('pharmacist_annual_fees')
-          .select('employee_code, association_city, fee_year, fee_period_end, created_at')
-          .in('employee_code', candidateCodes)
-          .order('created_at', { ascending: false });
+      if (canViewAnnualFeeReminder) {
+        const { data: annualFeeRaw } = await adminSupabase
+            .from('pharmacist_annual_fees')
+            .select('employee_code, association_city, fee_year, fee_period_end, created_at')
+            .in('employee_code', candidateCodes)
+            .order('created_at', { ascending: false });
 
-      const annualFees = (annualFeeRaw || []) as AnnualFeeRow[];
-      annualFeeDebug.annualFeeRecordCount = annualFees.length;
+        const annualFees = (annualFeeRaw || []) as AnnualFeeRow[];
+        annualFeeDebug.annualFeeRecordCount = annualFees.length;
 
-      const annualFeesByCode = new Map<string, AnnualFeeRow[]>();
-      annualFees.forEach((row) => {
-        const code = String(row.employee_code || '').toUpperCase();
-        if (!code) return;
-        if (!annualFeesByCode.has(code)) annualFeesByCode.set(code, []);
-        annualFeesByCode.get(code)!.push(row);
-      });
+        const annualFeesByCode = new Map<string, AnnualFeeRow[]>();
+        annualFees.forEach((row) => {
+          const code = String(row.employee_code || '').toUpperCase();
+          if (!code) return;
+          if (!annualFeesByCode.has(code)) annualFeesByCode.set(code, []);
+          annualFeesByCode.get(code)!.push(row);
+        });
 
-      annualFeeDebug.eligibleAfterResignFilterCount = candidateCodes.length;
+        annualFeeDebug.eligibleAfterResignFilterCount = candidateCodes.length;
 
-      annualFeeReminders = candidateCodes
-        .map((code) => {
-          const emp = candidateByCode.get(code)!;
-          const records = annualFeesByCode.get(code) || [];
-          const latestRecord = records[0] || null;
-          const city = latestRecord?.association_city || '未設定';
+        annualFeeReminders = candidateCodes
+          .map((code) => {
+            const emp = candidateByCode.get(code)!;
+            const records = annualFeesByCode.get(code) || [];
+            const latestRecord = records[0] || null;
+            const city = latestRecord?.association_city || '未設定';
 
-          if (city === '基隆市') {
-            const latestEnd = records.find((r) => r.fee_period_end)?.fee_period_end || null;
-            const reminderStartTs = getReminderStartTsForKeelung(latestEnd);
-            const shouldRemind = reminderStartTs ? now.getTime() >= reminderStartTs : currentMonth >= 4;
-            if (!shouldRemind) return null;
+            if (city === '基隆市') {
+              const latestEnd = records.find((r) => r.fee_period_end)?.fee_period_end || null;
+              const reminderStartTs = getReminderStartTsForKeelung(latestEnd);
+              const shouldRemind = reminderStartTs ? now.getTime() >= reminderStartTs : currentMonth >= 4;
+              if (!shouldRemind) return null;
 
-            const reason = latestEnd
-              ? `基隆規則：上一期結束後第4個月起提醒（上一期至 ${latestEnd.slice(0, 10)}）`
-              : '基隆規則：尚無上一期結束日，暫以 4 月起提醒';
+              const reason = latestEnd
+                ? `基隆規則：上一期結束後第4個月起提醒（上一期至 ${latestEnd.slice(0, 10)}）`
+                : '基隆規則：尚無上一期結束日，暫以 4 月起提醒';
+
+              return {
+                employee_code: code,
+                employee_name: emp.employee_name,
+                store_name: emp.store_name,
+                association_city: city,
+                reason,
+              };
+            }
+
+            const hasCurrentYearRecord = records.some((r) => r.fee_year === currentYear || r.fee_year === currentRocYear);
+            if (hasCurrentYearRecord) {
+              annualFeeDebug.skippedByCurrentYearRecordCount += 1;
+              return null;
+            }
+            if (currentMonth < 4) {
+              annualFeeDebug.skippedByMonthGateCount += 1;
+              return null;
+            }
 
             return {
               employee_code: code,
               employee_name: emp.employee_name,
               store_name: emp.store_name,
               association_city: city,
-              reason,
+              reason: `${currentRocYear} 年（民國）尚無常年會費申請記錄`,
             };
-          }
+          })
+          .filter((r): r is NonNullable<typeof r> => Boolean(r))
+          .sort((a, b) => a.employee_code.localeCompare(b.employee_code));
 
-          const hasCurrentYearRecord = records.some((r) => r.fee_year === currentYear || r.fee_year === currentRocYear);
-          if (hasCurrentYearRecord) {
-            annualFeeDebug.skippedByCurrentYearRecordCount += 1;
-            return null;
-          }
-          if (currentMonth < 4) {
-            annualFeeDebug.skippedByMonthGateCount += 1;
-            return null;
-          }
+        annualFeeDebug.remindersCount = annualFeeReminders.length;
+      }
 
-          return {
-            employee_code: code,
-            employee_name: emp.employee_name,
-            store_name: emp.store_name,
-            association_city: city,
-            reason: `${currentRocYear} 年（民國）尚無常年會費申請記錄`,
-          };
-        })
-        .filter((r): r is NonNullable<typeof r> => Boolean(r))
-        .sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+      if (canViewLicenseRenewalReminder) {
+        const { data: licenseProfilesRaw } = await adminSupabase
+          .from('pharmacist_profiles')
+          .select('employee_code, license_renewal_date')
+          .in('employee_code', candidateCodes)
+          .not('license_renewal_date', 'is', null);
 
-      annualFeeDebug.remindersCount = annualFeeReminders.length;
+        licenseRenewalReminders = (licenseProfilesRaw || [])
+          .map((p: any) => {
+            const code = String(p.employee_code || '').toUpperCase();
+            if (!code) return null;
+
+            const reminderStartTs = getLicenseReminderStartTs(p.license_renewal_date || null);
+            if (!reminderStartTs || now.getTime() < reminderStartTs) return null;
+
+            const emp = candidateByCode.get(code);
+            if (!emp) return null;
+
+            const renewalDate = String(p.license_renewal_date || '').slice(0, 10);
+            if (!renewalDate) return null;
+
+            return {
+              employee_code: code,
+              employee_name: emp.employee_name,
+              store_name: emp.store_name,
+              license_renewal_date: renewalDate,
+              reason: `執照更新日 ${renewalDate.replace(/-/g, '/')}，已進入到期前 2 年提醒區間`,
+            };
+          })
+          .filter((r): r is NonNullable<typeof r> => Boolean(r))
+          .sort((a, b) => {
+            if (a.license_renewal_date !== b.license_renewal_date) {
+              return a.license_renewal_date.localeCompare(b.license_renewal_date);
+            }
+            return a.employee_code.localeCompare(b.employee_code);
+          });
+      }
     }
   }
   // ─────────────────────────────────────────────────────────
@@ -670,6 +730,44 @@ export default async function HomePage() {
                         <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
                       </div>
                       <p className="mt-1 text-[11px] text-amber-700">{emp.reason}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 執照更新日提醒 Card */}
+          {canViewLicenseRenewalReminder && licenseRenewalReminders.length > 0 && (
+            <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full border border-sky-200">
+              <div className="flex items-center gap-2 mb-3 sm:mb-4">
+                <BellRing className="w-5 h-5 text-sky-500 flex-shrink-0" />
+                <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">
+                  執照更新日提醒
+                  <span className="ml-2 text-sm font-normal text-gray-400">({licenseRenewalReminders.length} 人)</span>
+                </h2>
+              </div>
+
+              <div className="overflow-hidden">
+                <div className="grid grid-cols-4 gap-2 px-3 py-2 bg-sky-50 rounded-t-lg border border-sky-200 text-xs font-semibold text-sky-700 uppercase tracking-wider">
+                  <span>員編</span>
+                  <span>姓名</span>
+                  <span>到期日</span>
+                  <span>門市</span>
+                </div>
+                <div className="border border-t-0 border-sky-200 rounded-b-lg divide-y divide-sky-100 max-h-72 overflow-y-auto">
+                  {licenseRenewalReminders.map((emp) => (
+                    <div
+                      key={emp.employee_code}
+                      className="px-3 py-2 hover:bg-sky-50/60 transition-colors"
+                    >
+                      <div className="grid grid-cols-4 gap-2 text-xs sm:text-sm">
+                        <span className="text-gray-600 font-mono">{emp.employee_code}</span>
+                        <span className="text-gray-900 font-medium truncate">{emp.employee_name}</span>
+                        <span className="text-sky-700 font-medium">{emp.license_renewal_date.replace(/-/g, '/')}</span>
+                        <span className="text-gray-500 truncate">{emp.store_name || '-'}</span>
+                      </div>
+                      <p className="mt-1 text-[11px] text-sky-700">{emp.reason}</p>
                     </div>
                   ))}
                 </div>
