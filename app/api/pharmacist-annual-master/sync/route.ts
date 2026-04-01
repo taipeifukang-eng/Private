@@ -36,9 +36,43 @@ export async function GET(req: NextRequest) {
 
   const isLocked = !!lockData;
 
-  // 2. 如果未關帳，執行同步
+  // 2. 如果未關帳，判斷是否有新增人事異動再決定是否重跑同步
   if (!isLocked) {
-    await syncAnnualMaster(adminSupabase, year);
+    const yearStart = `${year}-01-01`;
+    const yearEnd = `${year}-12-31`;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const effectiveEnd = todayStr < yearEnd ? todayStr : yearEnd;
+
+    // 查詢上次同步時間
+    const { data: syncLog } = await adminSupabase
+      .from('pharmacist_annual_master_sync_log')
+      .select('last_synced_at')
+      .eq('year', year)
+      .single();
+
+    const lastSyncedAt: string | null = syncLog?.last_synced_at ?? null;
+    let needsSync = true;
+
+    if (lastSyncedAt) {
+      // 有同步記錄：只在 last_synced_at 後有新增人事異動時才重跑
+      const { count } = await adminSupabase
+        .from('employee_movement_history')
+        .select('id', { count: 'exact', head: true })
+        .gt('created_at', lastSyncedAt)
+        .in('movement_type', ['resignation', 'leave_without_pay', 'leave_of_absence', 'return_to_work', 'onboarding'])
+        .gte('movement_date', yearStart)
+        .lte('movement_date', effectiveEnd);
+
+      needsSync = (count ?? 0) > 0;
+    }
+
+    if (needsSync) {
+      await syncAnnualMaster(adminSupabase, year);
+      // 更新（或初次寫入）同步時間
+      await adminSupabase
+        .from('pharmacist_annual_master_sync_log')
+        .upsert({ year, last_synced_at: new Date().toISOString() }, { onConflict: 'year' });
+    }
   }
 
   // 3. 查詢年度主檔資料
