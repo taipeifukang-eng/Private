@@ -724,7 +724,35 @@ export async function getAssignments() {
       };
     }) || [];
 
-    return { success: true, data: enrichedAssignments };
+    // 去重：同一模板/部門/區段只保留最新一筆 assignment，避免我的任務出現重複卡片
+    const dedupedAssignmentMap = new Map<string, any>();
+    (enrichedAssignments || []).forEach((assignment: any) => {
+      const dedupeKey = [
+        assignment.template_id || assignment.template?.id || '',
+        assignment.department || '',
+        assignment.userSectionId || '',
+      ].join('::');
+
+      const existing = dedupedAssignmentMap.get(dedupeKey);
+      if (!existing) {
+        dedupedAssignmentMap.set(dedupeKey, assignment);
+        return;
+      }
+
+      const existingTs = Date.parse(existing.updated_at || existing.created_at || '1970-01-01T00:00:00Z');
+      const currentTs = Date.parse(assignment.updated_at || assignment.created_at || '1970-01-01T00:00:00Z');
+      if (currentTs >= existingTs) {
+        dedupedAssignmentMap.set(dedupeKey, assignment);
+      }
+    });
+
+    const dedupedAssignments = Array.from(dedupedAssignmentMap.values()).sort((a: any, b: any) => {
+      const aTs = Date.parse(a.updated_at || a.created_at || '1970-01-01T00:00:00Z');
+      const bTs = Date.parse(b.updated_at || b.created_at || '1970-01-01T00:00:00Z');
+      return bTs - aTs;
+    });
+
+    return { success: true, data: dedupedAssignments };
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message || '發生未知錯誤', data: [] };
