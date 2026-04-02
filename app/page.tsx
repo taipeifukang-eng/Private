@@ -622,7 +622,7 @@ export default async function HomePage() {
         </div>
 
         {/* 調店登記確認 快捷入口（督導 / 管理員） */}
-        {canConfirmTransfer && (
+        {canConfirmTransfer && pendingTransferCount > 0 && (
           <div className="mb-4 sm:mb-5">
             <Link
               href="/admin/promotion-management?tab=transfer_requests"
@@ -637,16 +637,12 @@ export default async function HomePage() {
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-base sm:text-lg font-bold text-white tracking-wide">調店登記確認</span>
-                    {pendingTransferCount > 0 && (
-                      <span className="bg-white text-orange-600 text-xs font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
-                        {pendingTransferCount} 待確認
-                      </span>
-                    )}
+                    <span className="bg-white text-orange-600 text-xs font-extrabold px-2 py-0.5 rounded-full shadow-sm animate-pulse">
+                      {pendingTransferCount} 待確認
+                    </span>
                   </div>
                   <p className="text-orange-100 text-xs sm:text-sm mt-0.5">
-                    {pendingTransferCount > 0
-                      ? `有 ${pendingTransferCount} 筆調店申請待審核`
-                      : '查看員工調店申請'}
+                    {`有 ${pendingTransferCount} 筆調店申請待審核`}
                   </p>
                 </div>
               </div>
