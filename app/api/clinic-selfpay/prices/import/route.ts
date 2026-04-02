@@ -1,0 +1,98 @@
+import { NextRequest, NextResponse } from 'next/server';
+import * as XLSX from 'xlsx';
+import { createAdminClient } from '@/lib/supabase/server';
+import { getAuthorizedStores, getCurrentUserId, parseNumber } from '../../_lib';
+
+export const runtime = 'nodejs';
+
+function getCell(row: Record<string, any>, keys: string[]) {
+  for (const key of keys) {
+    if (row[key] !== undefined && row[key] !== null && String(row[key]).trim() !== '') {
+      return String(row[key]).trim();
+    }
+  }
+  return '';
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    const form = await request.formData();
+    const storeId = String(form.get('store_id') || '');
+    const yearMonth = String(form.get('year_month') || '');
+    const file = form.get('file') as File | null;
+
+    if (!storeId || !yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
+      return NextResponse.json({ success: false, error: '請提供正確的門市與年月' }, { status: 400 });
+    }
+    if (!file) {
+      return NextResponse.json({ success: false, error: '缺少匯入檔案' }, { status: 400 });
+    }
+
+    const stores = await getAuthorizedStores(userId);
+    if (!stores.some((s) => s.id === storeId)) {
+      return NextResponse.json({ success: false, error: '無此門市操作權限' }, { status: 403 });
+    }
+
+    const bytes = await file.arrayBuffer();
+    const workbook = XLSX.read(Buffer.from(bytes), { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: null }) as Record<string, any>[];
+
+    if (!rows.length) {
+      return NextResponse.json({ success: false, error: 'Excel 無資料' }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+
+    const records = rows
+      .map((row) => {
+        const healthCode = getCell(row, ['健保代號', '健保碼', 'HIS代碼', 'health_insurance_code']);
+        const productCode = getCell(row, ['品號', '商品編號', '料號', 'product_code']);
+        const productName = getCell(row, ['品名', '商品名稱', '藥品名稱', 'product_name']);
+        const memberPrice = parseNumber(getCell(row, ['會員價', '會員售價', 'member_price']));
+        const costPrice = parseNumber(getCell(row, ['成本', '成本價', '進價', 'cost_price']));
+
+        if (!healthCode || !productCode) return null;
+
+        return {
+          store_id: storeId,
+          year_month: yearMonth,
+          health_insurance_code: healthCode,
+          product_code: productCode,
+          product_name: productName || null,
+          member_price: memberPrice,
+          cost_price: costPrice,
+          source_file_name: file.name,
+          created_by: userId,
+        };
+      })
+      .filter(Boolean) as any[];
+
+    if (!records.length) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: '找不到有效資料，請確認欄位至少包含：健保代號、品號、會員價、成本',
+        },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await admin
+      .from('clinic_selfpay_price_entries')
+      .upsert(records, { onConflict: 'store_id,year_month,health_insurance_code' });
+
+    if (error) {
+      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, imported: records.length });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

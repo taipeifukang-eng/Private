@@ -28,6 +28,7 @@ interface NavbarPermissions {
   canManagePerformance: boolean;
   canViewPharmacistManagement: boolean;
   canEditPharmacistManagement: boolean;
+  canUseClinicSelfpayMargin: boolean;
   
   // 每月人員狀態
   canViewMonthlyStatus: boolean;
@@ -78,6 +79,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canManagePerformance: false,
     canViewPharmacistManagement: false,
     canEditPharmacistManagement: false,
+    canUseClinicSelfpayMargin: false,
     canViewMonthlyStatus: false,
     canExportMonthlyStatus: false,
     canViewInspections: false,
@@ -160,6 +162,11 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canManagePerformance: permissionSet.has('performance.view') || permissionSet.has('performance.edit'),
           canViewPharmacistManagement: permissionSet.has('pharmacist.management.view'),
           canEditPharmacistManagement: permissionSet.has('pharmacist.management.edit'),
+          canUseClinicSelfpayMargin:
+            permissionSet.has('monthly.status.view_own') ||
+            permissionSet.has('monthly.status.view_all') ||
+            permissionSet.has('employee.movement.manage') ||
+            permissionSet.has('store.manage'),
           
           // 每月人員狀態
           canViewMonthlyStatus: 
@@ -224,7 +231,8 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canAccessActivitySchedule ||
          permissions.canManageInventory ||
          permissions.canManagePerformance ||
-         permissions.canViewPharmacistManagement;
+         permissions.canViewPharmacistManagement ||
+         permissions.canUseClinicSelfpayMargin;
 }
 
 /**

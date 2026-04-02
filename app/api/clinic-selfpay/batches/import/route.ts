@@ -1,0 +1,257 @@
+import { NextRequest, NextResponse } from 'next/server';
+import * as XLSX from 'xlsx';
+import { createAdminClient } from '@/lib/supabase/server';
+import {
+  getAuthorizedStores,
+  getCurrentUserId,
+  parseNumber,
+  parseRocDateToIso,
+  toYearMonth,
+} from '../../_lib';
+
+export const runtime = 'nodejs';
+
+type ParsedClaimItem = {
+  lineNo: number;
+  healthInsuranceCode: string;
+  drugName: string;
+  qty: number;
+};
+
+function parseClinicInfo(text: string): { code: string; name: string } | null {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  const m = cleaned.match(/診所別[:：]\s*([^\s]+)\s+(.+)/);
+  if (!m) return null;
+  return { code: m[1].trim(), name: m[2].trim() };
+}
+
+function parsePeriod(text: string): { start: string | null; end: string | null } {
+  const m = text.match(/(\d{7})\s*[~～-]\s*(\d{7})/);
+  if (!m) return { start: null, end: null };
+  return {
+    start: parseRocDateToIso(m[1]),
+    end: parseRocDateToIso(m[2]),
+  };
+}
+
+function extractItems(rows: any[][]): {
+  clinicCode: string | null;
+  clinicName: string | null;
+  sourceB2Text: string;
+  sourceB4Text: string;
+  periodStart: string | null;
+  periodEnd: string | null;
+  items: ParsedClaimItem[];
+} {
+  const sourceB2Text = String(rows[1]?.[1] || '').trim();
+  const sourceB4Text = String(rows[3]?.[1] || '').trim();
+
+  let clinicCode: string | null = null;
+  let clinicName: string | null = null;
+
+  const clinicFromB14 = parseClinicInfo(String(rows[13]?.[1] || ''));
+  if (clinicFromB14) {
+    clinicCode = clinicFromB14.code;
+    clinicName = clinicFromB14.name;
+  }
+
+  const period = parsePeriod(sourceB4Text);
+  const items: ParsedClaimItem[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i] || [];
+    const colA = String(row[0] || '').trim();
+    const colB = String(row[1] || '').trim();
+    const qty = parseNumber(row[10]);
+
+    const clinicLine = parseClinicInfo(colB);
+    if (clinicLine) {
+      clinicCode = clinicLine.code;
+      clinicName = clinicLine.name;
+      continue;
+    }
+
+    if (!colA || !colB) continue;
+    if (/^健保代號/.test(colA) || /^count\s*[:：]/i.test(colA)) continue;
+    if (qty <= 0) continue;
+
+    const looksLikeCode = /^[A-Za-z0-9]{4,}$/.test(colA);
+    if (!looksLikeCode) continue;
+
+    items.push({
+      lineNo: i + 1,
+      healthInsuranceCode: colA,
+      drugName: colB,
+      qty,
+    });
+  }
+
+  return {
+    clinicCode,
+    clinicName,
+    sourceB2Text,
+    sourceB4Text,
+    periodStart: period.start,
+    periodEnd: period.end,
+    items,
+  };
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    const form = await request.formData();
+    const storeId = String(form.get('store_id') || '');
+    const yearMonth = String(form.get('year_month') || '');
+    const file = form.get('file') as File | null;
+    const screenshot = form.get('screenshot') as File | null;
+
+    if (!storeId || !yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
+      return NextResponse.json({ success: false, error: '請提供正確的門市與年月' }, { status: 400 });
+    }
+    if (!file) {
+      return NextResponse.json({ success: false, error: '缺少診所自費藥檔案' }, { status: 400 });
+    }
+
+    const stores = await getAuthorizedStores(userId);
+    if (!stores.some((s) => s.id === storeId)) {
+      return NextResponse.json({ success: false, error: '無此門市操作權限' }, { status: 403 });
+    }
+
+    const bytes = await file.arrayBuffer();
+    const workbook = XLSX.read(Buffer.from(bytes), { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' }) as any[][];
+
+    const parsed = extractItems(rows);
+    if (!parsed.items.length) {
+      return NextResponse.json({ success: false, error: '未解析出藥品明細，請確認檔案格式' }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+
+    let screenshotPath: string | null = null;
+    if (screenshot && screenshot.size > 0) {
+      const ext = (screenshot.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${storeId}/${yearMonth}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const screenshotBytes = await screenshot.arrayBuffer();
+      const { error: uploadError } = await admin.storage
+        .from('clinic-selfpay-screenshots')
+        .upload(path, Buffer.from(screenshotBytes), {
+          contentType: screenshot.type || 'image/jpeg',
+          upsert: false,
+        });
+      if (uploadError) {
+        return NextResponse.json({ success: false, error: `截圖上傳失敗: ${uploadError.message}` }, { status: 500 });
+      }
+      screenshotPath = path;
+    }
+
+    const periodStart = parsed.periodStart;
+    const periodEnd = parsed.periodEnd;
+    const inferredYearMonth = toYearMonth(periodStart);
+
+    const { data: batch, error: batchError } = await admin
+      .from('clinic_selfpay_claim_batches')
+      .insert({
+        store_id: storeId,
+        year_month: yearMonth,
+        clinic_code: parsed.clinicCode,
+        clinic_name: parsed.clinicName,
+        period_start: periodStart,
+        period_end: periodEnd,
+        screenshot_path: screenshotPath,
+        source_file_name: file.name,
+        source_b2_text: parsed.sourceB2Text,
+        source_b4_text: parsed.sourceB4Text,
+        imported_by: userId,
+      })
+      .select('id, clinic_code, clinic_name, year_month')
+      .single();
+
+    if (batchError || !batch) {
+      return NextResponse.json({ success: false, error: batchError?.message || '建立批次失敗' }, { status: 500 });
+    }
+
+    const { data: priceRows, error: priceError } = await admin
+      .from('clinic_selfpay_price_entries')
+      .select('id, health_insurance_code, product_code, member_price, cost_price')
+      .eq('store_id', storeId)
+      .eq('year_month', yearMonth);
+
+    if (priceError) {
+      return NextResponse.json({ success: false, error: priceError.message }, { status: 500 });
+    }
+
+    const priceMap = new Map<string, any>();
+    (priceRows || []).forEach((row) => {
+      priceMap.set(String(row.health_insurance_code || '').toUpperCase(), row);
+    });
+
+    const claimItems = parsed.items.map((item) => {
+      const matched = priceMap.get(item.healthInsuranceCode.toUpperCase());
+      const memberPrice = matched ? Number(matched.member_price || 0) : 0;
+      const costPrice = matched ? Number(matched.cost_price || 0) : 0;
+      const billingAmount = Number((memberPrice * item.qty).toFixed(2));
+      const grossProfitAmount = Number(((memberPrice - costPrice) * item.qty).toFixed(2));
+
+      return {
+        batch_id: batch.id,
+        line_no: item.lineNo,
+        health_insurance_code: item.healthInsuranceCode,
+        drug_name: item.drugName,
+        qty: item.qty,
+        matched_price_entry_id: matched?.id || null,
+        matched_product_code: matched?.product_code || null,
+        matched_member_price: matched ? memberPrice : null,
+        matched_cost_price: matched ? costPrice : null,
+        billing_amount: billingAmount,
+        gross_profit_amount: grossProfitAmount,
+        match_status: matched ? 'matched' : 'unmatched',
+      };
+    });
+
+    const { error: itemError } = await admin
+      .from('clinic_selfpay_claim_items')
+      .insert(claimItems);
+
+    if (itemError) {
+      return NextResponse.json({ success: false, error: itemError.message }, { status: 500 });
+    }
+
+    const summary = claimItems.reduce(
+      (acc, row) => {
+        acc.itemCount += 1;
+        acc.totalQty += Number(row.qty || 0);
+        acc.totalBilling += Number(row.billing_amount || 0);
+        acc.totalGrossProfit += Number(row.gross_profit_amount || 0);
+        if (row.match_status === 'matched') acc.matchedCount += 1;
+        else acc.unmatchedCount += 1;
+        return acc;
+      },
+      {
+        itemCount: 0,
+        matchedCount: 0,
+        unmatchedCount: 0,
+        totalQty: 0,
+        totalBilling: 0,
+        totalGrossProfit: 0,
+      }
+    );
+
+    return NextResponse.json({
+      success: true,
+      batchId: batch.id,
+      clinicCode: batch.clinic_code,
+      clinicName: batch.clinic_name,
+      sourceYearMonth: inferredYearMonth,
+      summary,
+    });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}

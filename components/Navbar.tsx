@@ -29,7 +29,8 @@ import {
   FileCheck,
   AlertTriangle,
   Layers,
-  ShoppingCart
+  ShoppingCart,
+  Calculator
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission, hasAnyCrossDeptPermission } from '@/hooks/useNavbarPermissions';
@@ -137,6 +138,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
     { href: '/admin/performance', label: '業績管理', icon: TrendingUp, show: permissions.canManagePerformance },
     { href: '/admin/pharmacist-management', label: '藥師管理', icon: UserCog, show: permissions.canViewPharmacistManagement },
+    { href: '/store/clinic-selfpay-margin', label: '診所自費藥毛利計算', icon: Calculator, show: permissions.canUseClinicSelfpayMargin },
     { href: '/cross-dept/products-master', label: '商品主檔', icon: Package, show: permissions.canManageProductsMaster },
   ].filter(item => item.show);
 
@@ -162,7 +164,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在門市管理相關頁面
-  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management'].some(
+  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/store/clinic-selfpay-margin'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
