@@ -552,7 +552,7 @@ export default function ClinicSelfpayMarginPage() {
         {activeTab === 'mapping' && (
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-bold text-gray-900">該門市診所自費藥對應 DPOS 商品主檔</h3>
+              <h3 className="text-base font-bold text-gray-900">診所自費藥與 DPOS 商品對應主檔</h3>
               {loadingMappings && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
             </div>
 
@@ -590,7 +590,7 @@ export default function ClinicSelfpayMarginPage() {
               )}
             </div>
 
-            <p className="mb-3 text-xs text-gray-600">欄位：DPOS 品號、DPOS 品名、藥品健保碼、藥品名稱。點擊列可看歷史會員價/成本。</p>
+            <p className="mb-3 text-xs text-gray-600">欄位：DPOS 品號、DPOS 品名、診所藥品健保碼、診所開立藥品名稱。點擊列可看歷史會員價/成本。</p>
 
             {mappingMessage && (
               <p className="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">{mappingMessage}</p>
@@ -607,8 +607,8 @@ export default function ClinicSelfpayMarginPage() {
                     <tr>
                       <th className="px-2 py-2 text-left">DPOS品號</th>
                       <th className="px-2 py-2 text-left">DPOS品名</th>
-                      <th className="px-2 py-2 text-left">藥品健保碼</th>
-                      <th className="px-2 py-2 text-left">藥品名稱</th>
+                      <th className="px-2 py-2 text-left">診所藥品健保碼</th>
+                      <th className="px-2 py-2 text-left">診所開立藥品名稱</th>
                       <th className="px-2 py-2 text-left">最新月份</th>
                     </tr>
                   </thead>
@@ -640,7 +640,7 @@ export default function ClinicSelfpayMarginPage() {
                 <div>
                   <h4 className="text-base font-bold text-gray-900">歷史會員價與成本</h4>
                   <p className="text-xs text-gray-600">
-                    健保碼：{historyTarget.health_insurance_code}｜藥品名稱：{historyTarget.drug_name || '-'}
+                    診所藥品健保碼：{historyTarget.health_insurance_code}｜診所開立藥品名稱：{historyTarget.drug_name || '-'}
                   </p>
                 </div>
                 <button
