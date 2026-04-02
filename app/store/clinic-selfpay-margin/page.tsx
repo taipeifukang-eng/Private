@@ -98,6 +98,10 @@ function money(v: number) {
   return Number(v || 0).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
 
+function money1(v: number) {
+  return Number(v || 0).toLocaleString('zh-TW', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
 export default function ClinicSelfpayMarginPage() {
   const [activeTab, setActiveTab] = useState<'calculator' | 'mapping'>('calculator');
   const [loadingStores, setLoadingStores] = useState(true);
@@ -136,6 +140,7 @@ export default function ClinicSelfpayMarginPage() {
 
   const [claimFile, setClaimFile] = useState<File | null>(null);
   const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
+  const [screenshotPreviewUrls, setScreenshotPreviewUrls] = useState<string[]>([]);
 
   const selectedStore = useMemo(
     () => stores.find((s) => s.id === selectedStoreId) || null,
@@ -182,6 +187,12 @@ export default function ClinicSelfpayMarginPage() {
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
   }, []);
+
+  useEffect(() => {
+    const urls = screenshotFiles.map((file) => URL.createObjectURL(file));
+    setScreenshotPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [screenshotFiles]);
 
   async function loadStores() {
     setLoadingStores(true);
@@ -706,10 +717,37 @@ export default function ClinicSelfpayMarginPage() {
               </button>
               <p className="text-xs text-gray-500">可一次選多張，或先用螢幕截圖後直接按 Ctrl+V 貼上。</p>
               {screenshotFiles.length > 0 && (
-                <div className="max-h-24 overflow-auto rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
-                  {screenshotFiles.map((f, idx) => (
-                    <div key={`${f.name}_${idx}`} className="truncate">{idx + 1}. {f.name}</div>
-                  ))}
+                <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-2 text-xs text-gray-700">
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                    {screenshotFiles.map((f, idx) => (
+                      <div key={`${f.name}_${idx}`} className="relative overflow-hidden rounded border border-gray-200 bg-white">
+                        {screenshotPreviewUrls[idx] && (
+                          <img src={screenshotPreviewUrls[idx]} alt={`截圖預覽 ${idx + 1}`} className="h-16 w-full object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setScreenshotFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute right-1 top-1 rounded-full bg-black/65 p-0.5 text-white hover:bg-black/80"
+                          title="刪除此截圖"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                        <div className="truncate px-1 py-1 text-[10px]" title={f.name}>{idx + 1}. {f.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScreenshotFiles([]);
+                        if (screenshotInputRef.current) screenshotInputRef.current.value = '';
+                      }}
+                      className="rounded border border-gray-300 bg-white px-2 py-1 text-xs hover:bg-gray-100"
+                    >
+                      清空截圖
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -756,8 +794,8 @@ export default function ClinicSelfpayMarginPage() {
                       >
                         <td className="px-2 py-1.5 font-mono">{batch.clinic_code || '-'}</td>
                         <td className="px-2 py-1.5">{batch.year_month}</td>
-                        <td className="px-2 py-1.5 text-right">{money(batch.total_billing_amount || 0)}</td>
-                        <td className="px-2 py-1.5 text-right">{money(batch.total_gross_profit_amount || 0)}</td>
+                        <td className="px-2 py-1.5 text-right">{money1(batch.total_billing_amount || 0)}</td>
+                        <td className="px-2 py-1.5 text-right">{money1(batch.total_gross_profit_amount || 0)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -818,14 +856,14 @@ export default function ClinicSelfpayMarginPage() {
                   </div>
                   <div className="rounded-lg bg-amber-50 p-3">
                     <div className="text-xs text-amber-700">總毛利</div>
-                    <div className="text-lg font-bold text-amber-900">{money(report.summary.totalGrossProfit)}</div>
+                    <div className="text-lg font-bold text-amber-900">{money1(report.summary.totalGrossProfit)}</div>
                   </div>
                 </div>
 
                 <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
                   <div>診所：{report.batch?.clinic_name || '-'}（{report.batch?.clinic_code || '-'}）</div>
                   <div>期間：{report.batch?.period_start || '-'} ~ {report.batch?.period_end || '-'}</div>
-                  <div>會員價總額：{money(report.summary.totalBilling)}　/　總數量：{money(report.summary.totalQty)}</div>
+                  <div>會員價總額：{money1(report.summary.totalBilling)}　/　總數量：{money(report.summary.totalQty)}</div>
                 </div>
 
                 <div className="max-h-[520px] overflow-auto rounded-lg border border-gray-200">

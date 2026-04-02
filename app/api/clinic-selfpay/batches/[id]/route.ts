@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getAuthorizedStores, getCurrentUserId } from '../../_lib';
 
+function roundTo1(value: number) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 10) / 10;
+}
+
 function parseScreenshotPaths(raw: unknown): string[] {
   const value = String(raw || '').trim();
   if (!value) return [];
@@ -80,6 +84,9 @@ export async function GET(
         totalGrossProfit: 0,
       }
     );
+
+    summary.totalBilling = roundTo1(summary.totalBilling);
+    summary.totalGrossProfit = roundTo1(summary.totalGrossProfit);
 
     return NextResponse.json({ success: true, batch, items: items || [], summary, screenshotUrls });
   } catch (error: any) {

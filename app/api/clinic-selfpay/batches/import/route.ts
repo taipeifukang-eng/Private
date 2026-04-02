@@ -11,6 +11,10 @@ import {
 
 export const runtime = 'nodejs';
 
+function roundTo1(value: number) {
+  return Math.round((Number(value || 0) + Number.EPSILON) * 10) / 10;
+}
+
 type ParsedClaimItem = {
   lineNo: number;
   healthInsuranceCode: string;
@@ -472,13 +476,16 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    const roundedTotalBilling = roundTo1(summary.totalBilling);
+    const roundedTotalGrossProfit = roundTo1(summary.totalGrossProfit);
+
     const { error: updateBatchError } = await admin
       .from('clinic_selfpay_claim_batches')
       .update({
         item_count: summary.itemCount,
         total_qty: summary.totalQty,
-        total_billing_amount: summary.totalBilling,
-        total_gross_profit_amount: summary.totalGrossProfit,
+        total_billing_amount: roundedTotalBilling,
+        total_gross_profit_amount: roundedTotalGrossProfit,
       })
       .eq('id', batch.id);
 
@@ -492,7 +499,11 @@ export async function POST(request: NextRequest) {
       clinicCode: batch.clinic_code,
       clinicName: batch.clinic_name,
       sourceYearMonth: inferredYearMonth,
-      summary,
+      summary: {
+        ...summary,
+        totalBilling: roundedTotalBilling,
+        totalGrossProfit: roundedTotalGrossProfit,
+      },
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
