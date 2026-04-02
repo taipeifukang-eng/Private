@@ -73,11 +73,25 @@ function parseClaimQty(row: any[]) {
   return 0;
 }
 
+function parseClaimDrugName(row: any[]) {
+  // 兼容不同匯出格式：藥品名稱可能落在 B~I 欄任一位置
+  const nameCols = [1, 2, 3, 4, 5, 6, 7, 8];
+  for (const col of nameCols) {
+    const value = String(row?.[col] ?? '').trim();
+    if (!value) continue;
+    if (/^診所別[:：]/.test(value)) continue;
+    return value;
+  }
+  return '';
+}
+
 function buildRowDebugSample(rows: any[][]) {
   return rows
     .map((row, idx) => {
       const colA = String(row?.[0] || '').trim();
       const colB = String(row?.[1] || '').trim();
+      const colC = String(row?.[2] || '').trim();
+      const colD = String(row?.[3] || '').trim();
       const rawK = row?.[10] ?? '';
       const rawL = row?.[11] ?? '';
       const rawM = row?.[12] ?? '';
@@ -88,10 +102,13 @@ function buildRowDebugSample(rows: any[][]) {
         lineNo: idx + 1,
         colA,
         colB,
+        colC,
+        colD,
         colK: rawK,
         colL: rawL,
         colM: rawM,
         qtyParsed: parseClaimQty(row || []),
+        drugNameParsed: parseClaimDrugName(row || []),
       };
     })
     .filter(Boolean)
@@ -142,6 +159,7 @@ function extractItems(rows: any[][]): {
     const row = rows[i] || [];
     const colA = String(row[0] || '').trim();
     const colB = String(row[1] || '').trim();
+    const drugName = parseClaimDrugName(row);
     const qty = parseClaimQty(row);
     const normalizedCode = colA.toUpperCase();
 
@@ -153,7 +171,7 @@ function extractItems(rows: any[][]): {
       continue;
     }
 
-    if (!colA || !colB) {
+    if (!colA) {
       debugStats.skippedEmpty += 1;
       continue;
     }
@@ -183,7 +201,7 @@ function extractItems(rows: any[][]): {
     items.push({
       lineNo: i + 1,
       healthInsuranceCode: normalizedCode,
-      drugName: colB,
+      drugName: drugName || '未提供藥品名稱',
       qty,
     });
     debugStats.acceptedRows += 1;
