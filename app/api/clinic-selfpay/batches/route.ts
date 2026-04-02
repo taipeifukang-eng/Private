@@ -21,10 +21,10 @@ export async function GET(request: NextRequest) {
     const admin = createAdminClient();
     let query = admin
       .from('clinic_selfpay_claim_batches')
-      .select('id, store_id, year_month, clinic_code, clinic_name, period_start, period_end, imported_at')
+      .select('id, store_id, year_month, clinic_code, clinic_name, period_start, period_end, item_count, total_qty, total_billing_amount, total_gross_profit_amount, imported_at')
       .in('store_id', stores.map((s) => s.id))
       .order('imported_at', { ascending: false })
-      .limit(20);
+      .limit(100);
 
     if (yearMonth) query = query.eq('year_month', yearMonth);
     if (storeId) query = query.eq('store_id', storeId);

@@ -34,6 +34,11 @@ function parsePeriod(text: string): { start: string | null; end: string | null }
   };
 }
 
+function parseClinicCodeFromRange(text: string): string | null {
+  const m = text.match(/診所區間[:：]\s*([0-9A-Za-z]+)/);
+  return m ? m[1].trim() : null;
+}
+
 function extractItems(rows: any[][]): {
   clinicCode: string | null;
   clinicName: string | null;
@@ -45,13 +50,17 @@ function extractItems(rows: any[][]): {
 } {
   const sourceB2Text = String(rows[1]?.[1] || '').trim();
   const sourceB4Text = String(rows[3]?.[1] || '').trim();
+  const sourceB6Text = String(rows[5]?.[1] || '').trim();
+  const sourceB7Text = String(rows[6]?.[1] || '').trim();
 
   let clinicCode: string | null = null;
   let clinicName: string | null = null;
 
+  clinicCode = parseClinicCodeFromRange(sourceB6Text) || parseClinicCodeFromRange(sourceB7Text);
+
   const clinicFromB14 = parseClinicInfo(String(rows[13]?.[1] || ''));
   if (clinicFromB14) {
-    clinicCode = clinicFromB14.code;
+    if (!clinicCode) clinicCode = clinicFromB14.code;
     clinicName = clinicFromB14.name;
   }
 
@@ -154,12 +163,33 @@ export async function POST(request: NextRequest) {
     const periodStart = parsed.periodStart;
     const periodEnd = parsed.periodEnd;
     const inferredYearMonth = toYearMonth(periodStart);
+    const targetYearMonth = inferredYearMonth || yearMonth;
+
+    const { data: priceRows, error: priceError } = await admin
+      .from('clinic_selfpay_price_entries')
+      .select('id, health_insurance_code, product_code, member_price, cost_price')
+      .eq('store_id', storeId)
+      .eq('year_month', targetYearMonth);
+
+    if (priceError) {
+      return NextResponse.json({ success: false, error: priceError.message }, { status: 500 });
+    }
+
+    if (!priceRows || priceRows.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `尚未有${targetYearMonth.slice(5)}月成本、會員價的月度紀錄請聯繫營業部匯入`,
+        },
+        { status: 400 }
+      );
+    }
 
     const { data: batch, error: batchError } = await admin
       .from('clinic_selfpay_claim_batches')
       .insert({
         store_id: storeId,
-        year_month: yearMonth,
+        year_month: targetYearMonth,
         clinic_code: parsed.clinicCode,
         clinic_name: parsed.clinicName,
         period_start: periodStart,
@@ -175,16 +205,6 @@ export async function POST(request: NextRequest) {
 
     if (batchError || !batch) {
       return NextResponse.json({ success: false, error: batchError?.message || '建立批次失敗' }, { status: 500 });
-    }
-
-    const { data: priceRows, error: priceError } = await admin
-      .from('clinic_selfpay_price_entries')
-      .select('id, health_insurance_code, product_code, member_price, cost_price')
-      .eq('store_id', storeId)
-      .eq('year_month', yearMonth);
-
-    if (priceError) {
-      return NextResponse.json({ success: false, error: priceError.message }, { status: 500 });
     }
 
     const priceMap = new Map<string, any>();
@@ -242,6 +262,20 @@ export async function POST(request: NextRequest) {
         totalGrossProfit: 0,
       }
     );
+
+    const { error: updateBatchError } = await admin
+      .from('clinic_selfpay_claim_batches')
+      .update({
+        item_count: summary.itemCount,
+        total_qty: summary.totalQty,
+        total_billing_amount: summary.totalBilling,
+        total_gross_profit_amount: summary.totalGrossProfit,
+      })
+      .eq('id', batch.id);
+
+    if (updateBatchError) {
+      return NextResponse.json({ success: false, error: updateBatchError.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,

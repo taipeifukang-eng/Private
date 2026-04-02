@@ -38,6 +38,10 @@ create table if not exists public.clinic_selfpay_claim_batches (
   clinic_name text,
   period_start date,
   period_end date,
+  item_count integer not null default 0,
+  total_qty numeric(14,2) not null default 0,
+  total_billing_amount numeric(14,2) not null default 0,
+  total_gross_profit_amount numeric(14,2) not null default 0,
   screenshot_path text,
   source_file_name text,
   source_b2_text text,
@@ -51,6 +55,16 @@ create table if not exists public.clinic_selfpay_claim_batches (
 
 create index if not exists idx_clinic_selfpay_claim_batches_store_month
   on public.clinic_selfpay_claim_batches (store_id, year_month, imported_at desc);
+
+-- 相容已建立環境：補欄位
+alter table if exists public.clinic_selfpay_claim_batches
+  add column if not exists item_count integer not null default 0;
+alter table if exists public.clinic_selfpay_claim_batches
+  add column if not exists total_qty numeric(14,2) not null default 0;
+alter table if exists public.clinic_selfpay_claim_batches
+  add column if not exists total_billing_amount numeric(14,2) not null default 0;
+alter table if exists public.clinic_selfpay_claim_batches
+  add column if not exists total_gross_profit_amount numeric(14,2) not null default 0;
 
 -- 3) 診所檔明細 + 計算結果
 create table if not exists public.clinic_selfpay_claim_items (
@@ -165,3 +179,12 @@ create policy "clinic_selfpay_screenshot_service_role_all"
 insert into public.permissions (module, feature, code, action, description)
 values ('store', 'clinic_selfpay_margin', 'store.clinic_selfpay.margin', 'manage', '診所自費藥毛利計算管理')
 on conflict (code) do nothing;
+
+insert into public.role_permissions (role_id, permission_id, is_allowed)
+select r.id, p.id, true
+from public.roles r
+join public.permissions p
+  on p.code = 'store.clinic_selfpay.margin'
+where r.code in ('admin', 'admin_role')
+on conflict (role_id, permission_id) do update
+set is_allowed = excluded.is_allowed;

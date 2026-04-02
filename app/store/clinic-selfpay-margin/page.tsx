@@ -27,6 +27,10 @@ type BatchSummary = {
   clinic_name: string | null;
   period_start: string | null;
   period_end: string | null;
+  item_count: number;
+  total_qty: number;
+  total_billing_amount: number;
+  total_gross_profit_amount: number;
   imported_at: string;
 };
 
@@ -104,7 +108,7 @@ export default function ClinicSelfpayMarginPage() {
     if (selectedStoreId) {
       loadRecentBatches();
     }
-  }, [selectedStoreId, yearMonth]);
+  }, [selectedStoreId]);
 
   async function loadStores() {
     setLoadingStores(true);
@@ -128,7 +132,7 @@ export default function ClinicSelfpayMarginPage() {
     if (!selectedStoreId) return;
     setLoadingBatches(true);
     try {
-      const url = `/api/clinic-selfpay/batches?store_id=${encodeURIComponent(selectedStoreId)}&year_month=${encodeURIComponent(yearMonth)}`;
+      const url = `/api/clinic-selfpay/batches?store_id=${encodeURIComponent(selectedStoreId)}`;
       const res = await fetch(url);
       const json = await res.json();
       if (!json.success) throw new Error(json.error || '載入批次失敗');
@@ -365,23 +369,37 @@ export default function ClinicSelfpayMarginPage() {
 
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm xl:col-span-1">
-            <h3 className="mb-3 text-sm font-bold text-gray-900">最近匯入批次</h3>
+            <h3 className="mb-3 text-sm font-bold text-gray-900">歷史匯入紀錄（依門市）</h3>
             {loadingBatches ? (
               <p className="text-sm text-gray-500">載入中...</p>
             ) : recentBatches.length === 0 ? (
-              <p className="text-sm text-gray-500">本月尚無批次</p>
+              <p className="text-sm text-gray-500">目前門市尚無匯入紀錄</p>
             ) : (
-              <div className="space-y-2">
-                {recentBatches.map((batch) => (
-                  <button
-                    key={batch.id}
-                    onClick={() => loadReport(batch.id)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:bg-gray-50"
-                  >
-                    <div className="font-semibold text-gray-800">{batch.clinic_name || '未命名診所'}</div>
-                    <div className="text-xs text-gray-500">{batch.clinic_code || '-'} ・ {batch.year_month}</div>
-                  </button>
-                ))}
+              <div className="max-h-[420px] overflow-auto rounded-lg border border-gray-200">
+                <table className="min-w-full text-xs">
+                  <thead className="sticky top-0 bg-gray-100 text-gray-700">
+                    <tr>
+                      <th className="px-2 py-2 text-left">診所機構代碼</th>
+                      <th className="px-2 py-2 text-left">月份</th>
+                      <th className="px-2 py-2 text-right">自費藥總額</th>
+                      <th className="px-2 py-2 text-right">毛利總額</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentBatches.map((batch) => (
+                      <tr
+                        key={batch.id}
+                        onClick={() => loadReport(batch.id)}
+                        className="cursor-pointer odd:bg-white even:bg-gray-50 hover:bg-blue-50"
+                      >
+                        <td className="px-2 py-1.5 font-mono">{batch.clinic_code || '-'}</td>
+                        <td className="px-2 py-1.5">{batch.year_month}</td>
+                        <td className="px-2 py-1.5 text-right">{money(batch.total_billing_amount || 0)}</td>
+                        <td className="px-2 py-1.5 text-right">{money(batch.total_gross_profit_amount || 0)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
