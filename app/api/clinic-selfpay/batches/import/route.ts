@@ -375,6 +375,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const screenshotPaths: string[] = [];
     let screenshotPath: string | null = null;
     for (const screenshot of screenshotFiles) {
       if (!screenshot || screenshot.size <= 0) continue;
@@ -390,8 +391,12 @@ export async function POST(request: NextRequest) {
       if (uploadError) {
         return NextResponse.json({ success: false, error: `截圖上傳失敗: ${uploadError.message}` }, { status: 500 });
       }
-      // Keep backward compatibility with existing single-path column.
+      screenshotPaths.push(path);
       if (!screenshotPath) screenshotPath = path;
+    }
+
+    if (screenshotPaths.length > 1) {
+      screenshotPath = JSON.stringify(screenshotPaths);
     }
 
     const { data: batch, error: batchError } = await admin

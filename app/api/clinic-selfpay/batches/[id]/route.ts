@@ -2,6 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getAuthorizedStores, getCurrentUserId } from '../../_lib';
 
+function parseScreenshotPaths(raw: unknown): string[] {
+  const value = String(raw || '').trim();
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) {
+      return parsed.map((v) => String(v || '').trim()).filter(Boolean);
+    }
+  } catch {
+    // legacy single-path format
+  }
+  return [value];
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } }
@@ -38,6 +52,15 @@ export async function GET(
       return NextResponse.json({ success: false, error: itemError.message }, { status: 500 });
     }
 
+    const screenshotPaths = parseScreenshotPaths(batch.screenshot_path);
+    const screenshotUrls: string[] = [];
+    for (const path of screenshotPaths) {
+      const { data } = await admin.storage
+        .from('clinic-selfpay-screenshots')
+        .createSignedUrl(path, 60 * 60);
+      if (data?.signedUrl) screenshotUrls.push(data.signedUrl);
+    }
+
     const summary = (items || []).reduce(
       (acc, row: any) => {
         acc.itemCount += 1;
@@ -58,7 +81,7 @@ export async function GET(
       }
     );
 
-    return NextResponse.json({ success: true, batch, items: items || [], summary });
+    return NextResponse.json({ success: true, batch, items: items || [], summary, screenshotUrls });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

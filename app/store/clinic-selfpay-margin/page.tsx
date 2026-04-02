@@ -54,6 +54,7 @@ type ReportItem = {
 type ReportPayload = {
   batch: any;
   items: ReportItem[];
+  screenshotUrls?: string[];
   summary: {
     itemCount: number;
     matchedCount: number;
@@ -116,6 +117,8 @@ export default function ClinicSelfpayMarginPage() {
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
   const [exportingClaimPdf, setExportingClaimPdf] = useState(false);
+  const [showScreenshotModal, setShowScreenshotModal] = useState(false);
+  const [activeScreenshotIndex, setActiveScreenshotIndex] = useState(0);
 
   const [mappings, setMappings] = useState<MappingRow[]>([]);
   const [loadingMappings, setLoadingMappings] = useState(false);
@@ -372,6 +375,8 @@ export default function ClinicSelfpayMarginPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error || '載入報表失敗');
       setReport(json as ReportPayload);
+      setShowScreenshotModal(false);
+      setActiveScreenshotIndex(0);
     } catch (error: any) {
       setBatchMessage(`載入明細失敗：${error.message}`);
     } finally {
@@ -767,6 +772,19 @@ export default function ClinicSelfpayMarginPage() {
               <div className="flex items-center gap-2">
                 {report && (
                   <button
+                    onClick={() => {
+                      setActiveScreenshotIndex(0);
+                      setShowScreenshotModal(true);
+                    }}
+                    disabled={!report.screenshotUrls || report.screenshotUrls.length === 0}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    回看截圖{report.screenshotUrls && report.screenshotUrls.length > 0 ? `（${report.screenshotUrls.length}）` : ''}
+                  </button>
+                )}
+                {report && (
+                  <button
                     onClick={handleExportClaimPdf}
                     disabled={exportingClaimPdf}
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
@@ -1015,6 +1033,63 @@ export default function ClinicSelfpayMarginPage() {
           </div>
         )}
       </div>
+
+      {showScreenshotModal && report?.screenshotUrls && report.screenshotUrls.length > 0 && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowScreenshotModal(false)}>
+          <div
+            className="w-full max-w-5xl rounded-xl bg-white p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-gray-900">健保系統截圖回看</h4>
+              <button
+                onClick={() => setShowScreenshotModal(false)}
+                className="rounded-md p-1 text-gray-500 hover:bg-gray-100"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="mb-2 flex items-center justify-between text-xs text-gray-600">
+              <button
+                onClick={() => setActiveScreenshotIndex((prev) => Math.max(prev - 1, 0))}
+                disabled={activeScreenshotIndex === 0}
+                className="rounded border border-gray-300 px-2 py-1 disabled:opacity-40"
+              >
+                上一張
+              </button>
+              <span>第 {activeScreenshotIndex + 1} 張 / 共 {report.screenshotUrls.length} 張</span>
+              <button
+                onClick={() => setActiveScreenshotIndex((prev) => Math.min(prev + 1, report.screenshotUrls!.length - 1))}
+                disabled={activeScreenshotIndex >= report.screenshotUrls.length - 1}
+                className="rounded border border-gray-300 px-2 py-1 disabled:opacity-40"
+              >
+                下一張
+              </button>
+            </div>
+
+            <div className="flex max-h-[72vh] items-center justify-center overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-2">
+              <img
+                src={report.screenshotUrls[activeScreenshotIndex]}
+                alt={`健保系統截圖 ${activeScreenshotIndex + 1}`}
+                className="max-h-[68vh] w-auto max-w-full rounded"
+              />
+            </div>
+
+            <div className="mt-2 flex gap-2 overflow-auto pb-1">
+              {report.screenshotUrls.map((url, idx) => (
+                <button
+                  key={url}
+                  onClick={() => setActiveScreenshotIndex(idx)}
+                  className={`shrink-0 overflow-hidden rounded border ${idx === activeScreenshotIndex ? 'border-blue-500' : 'border-gray-200'}`}
+                >
+                  <img src={url} alt={`縮圖 ${idx + 1}`} className="h-14 w-20 object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
