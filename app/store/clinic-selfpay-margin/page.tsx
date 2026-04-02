@@ -432,7 +432,7 @@ export default function ClinicSelfpayMarginPage() {
         <div className="grid grid-cols-1 gap-5">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="mb-2 text-base font-bold text-gray-900">步驟 1：匯入診所自費藥檔</h2>
-            <p className="mb-3 text-xs text-gray-600">支援健保系統 .xls 匯出，系統會讀取 A 欄健保代碼與 K 欄數量計算毛利。</p>
+            <p className="mb-3 text-xs text-gray-600">支援健保系統 .xls 匯出，系統會讀取 A 欄藥品資訊，並優先使用 M 欄總量計算毛利；舊格式仍可回退讀取 K 欄數量。</p>
 
             <div className="space-y-2">
               <label className="block text-xs font-semibold text-gray-600">診所自費藥檔</label>

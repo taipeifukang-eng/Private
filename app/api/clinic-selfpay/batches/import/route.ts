@@ -39,6 +39,16 @@ function parseClinicCodeFromRange(text: string): string | null {
   return m ? m[1].trim() : null;
 }
 
+function parseClaimQty(row: any[]) {
+  const qtyFromM = parseNumber(row[12]);
+  if (qtyFromM > 0) return qtyFromM;
+
+  const qtyFromK = parseNumber(row[10]);
+  if (qtyFromK > 0) return qtyFromK;
+
+  return 0;
+}
+
 function extractItems(rows: any[][]): {
   clinicCode: string | null;
   clinicName: string | null;
@@ -71,7 +81,7 @@ function extractItems(rows: any[][]): {
     const row = rows[i] || [];
     const colA = String(row[0] || '').trim();
     const colB = String(row[1] || '').trim();
-    const qty = parseNumber(row[10]);
+    const qty = parseClaimQty(row);
 
     const clinicLine = parseClinicInfo(colB);
     if (clinicLine) {
