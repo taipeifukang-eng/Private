@@ -9,6 +9,7 @@ import {
   Loader2,
   RefreshCw,
   Upload,
+  X,
 } from 'lucide-react';
 
 type StoreOption = {
@@ -61,6 +62,25 @@ type ReportPayload = {
   };
 };
 
+type MappingRow = {
+  health_insurance_code: string;
+  drug_name: string;
+  product_code: string;
+  product_name: string;
+  latest_year_month: string;
+};
+
+type PriceHistoryRow = {
+  year_month: string;
+  health_insurance_code: string;
+  product_code: string;
+  product_name: string;
+  member_price: number;
+  cost_price: number;
+  source_file_name: string | null;
+  updated_at: string;
+};
+
 function getCurrentYearMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -71,6 +91,7 @@ function money(v: number) {
 }
 
 export default function ClinicSelfpayMarginPage() {
+  const [activeTab, setActiveTab] = useState<'calculator' | 'mapping'>('calculator');
   const [loadingStores, setLoadingStores] = useState(true);
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
@@ -87,6 +108,14 @@ export default function ClinicSelfpayMarginPage() {
 
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+
+  const [mappings, setMappings] = useState<MappingRow[]>([]);
+  const [loadingMappings, setLoadingMappings] = useState(false);
+  const [mappingMessage, setMappingMessage] = useState('');
+
+  const [historyTarget, setHistoryTarget] = useState<MappingRow | null>(null);
+  const [historyRows, setHistoryRows] = useState<PriceHistoryRow[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const priceInputRef = useRef<HTMLInputElement>(null);
   const claimInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +136,7 @@ export default function ClinicSelfpayMarginPage() {
   useEffect(() => {
     if (selectedStoreId) {
       loadRecentBatches();
+      loadMappings();
     }
   }, [selectedStoreId]);
 
@@ -141,6 +171,39 @@ export default function ClinicSelfpayMarginPage() {
       setBatchMessage(`載入最近批次失敗：${error.message}`);
     } finally {
       setLoadingBatches(false);
+    }
+  }
+
+  async function loadMappings() {
+    if (!selectedStoreId) return;
+    setLoadingMappings(true);
+    setMappingMessage('');
+    try {
+      const res = await fetch(`/api/clinic-selfpay/mappings?store_id=${encodeURIComponent(selectedStoreId)}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || '載入對應主檔失敗');
+      setMappings((json.data || []) as MappingRow[]);
+    } catch (error: any) {
+      setMappingMessage(`載入對應主檔失敗：${error.message}`);
+    } finally {
+      setLoadingMappings(false);
+    }
+  }
+
+  async function openHistory(row: MappingRow) {
+    setHistoryTarget(row);
+    setLoadingHistory(true);
+    setHistoryRows([]);
+    try {
+      const url = `/api/clinic-selfpay/mappings/history?store_id=${encodeURIComponent(selectedStoreId)}&health_insurance_code=${encodeURIComponent(row.health_insurance_code)}`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || '載入歷史價格失敗');
+      setHistoryRows((json.data || []) as PriceHistoryRow[]);
+    } catch (error: any) {
+      setMappingMessage(`載入歷史價格失敗：${error.message}`);
+    } finally {
+      setLoadingHistory(false);
     }
   }
 
@@ -269,6 +332,7 @@ export default function ClinicSelfpayMarginPage() {
                 onClick={() => {
                   loadStores();
                   loadRecentBatches();
+                  loadMappings();
                 }}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
@@ -280,7 +344,29 @@ export default function ClinicSelfpayMarginPage() {
           {selectedStore && (
             <p className="mt-2 text-xs text-gray-500">目前門市：{selectedStore.store_code} {selectedStore.store_name}</p>
           )}
+
+          <div className="mt-4 inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1">
+            <button
+              onClick={() => setActiveTab('calculator')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                activeTab === 'calculator' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              毛利計算
+            </button>
+            <button
+              onClick={() => setActiveTab('mapping')}
+              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                activeTab === 'mapping' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              DPOS 對應主檔
+            </button>
+          </div>
         </div>
+
+        {activeTab === 'calculator' && (
+          <>
 
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -487,6 +573,115 @@ export default function ClinicSelfpayMarginPage() {
             )}
           </div>
         </div>
+
+          </>
+        )}
+
+        {activeTab === 'mapping' && (
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900">該門市診所自費藥對應 DPOS 商品主檔</h3>
+              {loadingMappings && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+            </div>
+
+            <p className="mb-3 text-xs text-gray-600">欄位：DPOS 品號、DPOS 品名、藥品健保碼、藥品名稱。點擊列可看歷史會員價/成本。</p>
+
+            {mappingMessage && (
+              <p className="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">{mappingMessage}</p>
+            )}
+
+            {loadingMappings ? (
+              <p className="text-sm text-gray-500">載入中...</p>
+            ) : mappings.length === 0 ? (
+              <p className="text-sm text-gray-500">目前門市尚無對應主檔資料，請先匯入月價格檔。</p>
+            ) : (
+              <div className="max-h-[620px] overflow-auto rounded-lg border border-gray-200">
+                <table className="min-w-full text-xs">
+                  <thead className="sticky top-0 bg-gray-100 text-gray-700">
+                    <tr>
+                      <th className="px-2 py-2 text-left">DPOS品號</th>
+                      <th className="px-2 py-2 text-left">DPOS品名</th>
+                      <th className="px-2 py-2 text-left">藥品健保碼</th>
+                      <th className="px-2 py-2 text-left">藥品名稱</th>
+                      <th className="px-2 py-2 text-left">最新月份</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mappings.map((row) => (
+                      <tr
+                        key={`${row.health_insurance_code}-${row.product_code}`}
+                        onClick={() => openHistory(row)}
+                        className="cursor-pointer odd:bg-white even:bg-gray-50 hover:bg-blue-50"
+                      >
+                        <td className="px-2 py-1.5 font-mono">{row.product_code || '-'}</td>
+                        <td className="px-2 py-1.5">{row.product_name || '-'}</td>
+                        <td className="px-2 py-1.5 font-mono">{row.health_insurance_code}</td>
+                        <td className="px-2 py-1.5">{row.drug_name || '-'}</td>
+                        <td className="px-2 py-1.5">{row.latest_year_month || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {historyTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-4xl rounded-xl border border-gray-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+                <div>
+                  <h4 className="text-base font-bold text-gray-900">歷史會員價與成本</h4>
+                  <p className="text-xs text-gray-600">
+                    健保碼：{historyTarget.health_insurance_code}｜藥品名稱：{historyTarget.drug_name || '-'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setHistoryTarget(null)}
+                  className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="p-5">
+                {loadingHistory ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />載入中...
+                  </div>
+                ) : historyRows.length === 0 ? (
+                  <p className="text-sm text-gray-500">尚無歷史資料。</p>
+                ) : (
+                  <div className="max-h-[420px] overflow-auto rounded-lg border border-gray-200">
+                    <table className="min-w-full text-xs">
+                      <thead className="sticky top-0 bg-gray-100 text-gray-700">
+                        <tr>
+                          <th className="px-2 py-2 text-left">月份</th>
+                          <th className="px-2 py-2 text-left">DPOS品號</th>
+                          <th className="px-2 py-2 text-left">DPOS品名</th>
+                          <th className="px-2 py-2 text-right">會員價</th>
+                          <th className="px-2 py-2 text-right">成本</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {historyRows.map((row, idx) => (
+                          <tr key={`${row.year_month}-${idx}`} className="odd:bg-white even:bg-gray-50">
+                            <td className="px-2 py-1.5">{row.year_month}</td>
+                            <td className="px-2 py-1.5 font-mono">{row.product_code || '-'}</td>
+                            <td className="px-2 py-1.5">{row.product_name || '-'}</td>
+                            <td className="px-2 py-1.5 text-right">{money(row.member_price)}</td>
+                            <td className="px-2 py-1.5 text-right">{money(row.cost_price)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

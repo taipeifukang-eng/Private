@@ -143,23 +143,6 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    let screenshotPath: string | null = null;
-    if (screenshot && screenshot.size > 0) {
-      const ext = (screenshot.name.split('.').pop() || 'jpg').toLowerCase();
-      const path = `${storeId}/${yearMonth}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
-      const screenshotBytes = await screenshot.arrayBuffer();
-      const { error: uploadError } = await admin.storage
-        .from('clinic-selfpay-screenshots')
-        .upload(path, Buffer.from(screenshotBytes), {
-          contentType: screenshot.type || 'image/jpeg',
-          upsert: false,
-        });
-      if (uploadError) {
-        return NextResponse.json({ success: false, error: `截圖上傳失敗: ${uploadError.message}` }, { status: 500 });
-      }
-      screenshotPath = path;
-    }
-
     const periodStart = parsed.periodStart;
     const periodEnd = parsed.periodEnd;
     const inferredYearMonth = toYearMonth(periodStart);
@@ -185,6 +168,56 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const priceMap = new Map<string, any>();
+    (priceRows || []).forEach((row) => {
+      priceMap.set(String(row.health_insurance_code || '').toUpperCase(), row);
+    });
+
+    const unmatchedMap = new Map<string, { code: string; name: string }>();
+    parsed.items.forEach((item) => {
+      const matched = priceMap.get(item.healthInsuranceCode.toUpperCase());
+      if (!matched) {
+        const key = `${item.healthInsuranceCode.toUpperCase()}|${item.drugName || ''}`;
+        if (!unmatchedMap.has(key)) {
+          unmatchedMap.set(key, {
+            code: item.healthInsuranceCode,
+            name: item.drugName || '未提供藥品名稱',
+          });
+        }
+      }
+    });
+
+    if (unmatchedMap.size > 0) {
+      const lines = Array.from(unmatchedMap.values()).map(
+        (u) => `健保代碼${u.code} 藥品名稱:${u.name} 尚未有DPOS商品資訊，請將此訊息之藥品內容複製給營業部匯入DPOS商品主檔資訊`
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: lines.join('\n'),
+          unmatched: Array.from(unmatchedMap.values()),
+        },
+        { status: 400 }
+      );
+    }
+
+    let screenshotPath: string | null = null;
+    if (screenshot && screenshot.size > 0) {
+      const ext = (screenshot.name.split('.').pop() || 'jpg').toLowerCase();
+      const path = `${storeId}/${targetYearMonth}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+      const screenshotBytes = await screenshot.arrayBuffer();
+      const { error: uploadError } = await admin.storage
+        .from('clinic-selfpay-screenshots')
+        .upload(path, Buffer.from(screenshotBytes), {
+          contentType: screenshot.type || 'image/jpeg',
+          upsert: false,
+        });
+      if (uploadError) {
+        return NextResponse.json({ success: false, error: `截圖上傳失敗: ${uploadError.message}` }, { status: 500 });
+      }
+      screenshotPath = path;
+    }
+
     const { data: batch, error: batchError } = await admin
       .from('clinic_selfpay_claim_batches')
       .insert({
@@ -206,11 +239,6 @@ export async function POST(request: NextRequest) {
     if (batchError || !batch) {
       return NextResponse.json({ success: false, error: batchError?.message || '建立批次失敗' }, { status: 500 });
     }
-
-    const priceMap = new Map<string, any>();
-    (priceRows || []).forEach((row) => {
-      priceMap.set(String(row.health_insurance_code || '').toUpperCase(), row);
-    });
 
     const claimItems = parsed.items.map((item) => {
       const matched = priceMap.get(item.healthInsuranceCode.toUpperCase());
