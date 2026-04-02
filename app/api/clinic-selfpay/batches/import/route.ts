@@ -18,6 +18,18 @@ type ParsedClaimItem = {
   qty: number;
 };
 
+type ParseDebugStats = {
+  scannedRows: number;
+  acceptedRows: number;
+  skippedClinicLine: number;
+  skippedEmpty: number;
+  skippedHeaderOrCount: number;
+  skippedNoInsuranceCode: number;
+  skippedNoQty: number;
+  skippedExcludedCode: number;
+  skippedInvalidCode: number;
+};
+
 const EXCLUDED_HEALTH_INSURANCE_CODES = new Set([
   'A100000100',
   'B200000100',
@@ -58,6 +70,29 @@ function parseClaimQty(row: any[]) {
   return 0;
 }
 
+function buildRowDebugSample(rows: any[][]) {
+  return rows
+    .map((row, idx) => {
+      const colA = String(row?.[0] || '').trim();
+      const colB = String(row?.[1] || '').trim();
+      const rawK = row?.[10] ?? '';
+      const rawM = row?.[12] ?? '';
+      if (!colA && !colB && String(rawK).trim() === '' && String(rawM).trim() === '') {
+        return null;
+      }
+      return {
+        lineNo: idx + 1,
+        colA,
+        colB,
+        colK: rawK,
+        colM: rawM,
+        qtyParsed: parseClaimQty(row || []),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 25);
+}
+
 function extractItems(rows: any[][]): {
   clinicCode: string | null;
   clinicName: string | null;
@@ -66,6 +101,7 @@ function extractItems(rows: any[][]): {
   periodStart: string | null;
   periodEnd: string | null;
   items: ParsedClaimItem[];
+  debugStats: ParseDebugStats;
 } {
   const sourceB2Text = String(rows[1]?.[1] || '').trim();
   const sourceB4Text = String(rows[3]?.[1] || '').trim();
@@ -85,6 +121,17 @@ function extractItems(rows: any[][]): {
 
   const period = parsePeriod(sourceB4Text);
   const items: ParsedClaimItem[] = [];
+  const debugStats: ParseDebugStats = {
+    scannedRows: rows.length,
+    acceptedRows: 0,
+    skippedClinicLine: 0,
+    skippedEmpty: 0,
+    skippedHeaderOrCount: 0,
+    skippedNoInsuranceCode: 0,
+    skippedNoQty: 0,
+    skippedExcludedCode: 0,
+    skippedInvalidCode: 0,
+  };
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i] || [];
@@ -97,17 +144,36 @@ function extractItems(rows: any[][]): {
     if (clinicLine) {
       clinicCode = clinicLine.code;
       clinicName = clinicLine.name;
+      debugStats.skippedClinicLine += 1;
       continue;
     }
 
-    if (!colA || !colB) continue;
-    if (/^健保代號/.test(colA) || /^count\s*[:：]/i.test(colA)) continue;
-    if (normalizedCode === '無健保碼') continue;
-    if (qty <= 0) continue;
-    if (EXCLUDED_HEALTH_INSURANCE_CODES.has(normalizedCode)) continue;
+    if (!colA || !colB) {
+      debugStats.skippedEmpty += 1;
+      continue;
+    }
+    if (/^健保代號/.test(colA) || /^count\s*[:：]/i.test(colA)) {
+      debugStats.skippedHeaderOrCount += 1;
+      continue;
+    }
+    if (normalizedCode === '無健保碼') {
+      debugStats.skippedNoInsuranceCode += 1;
+      continue;
+    }
+    if (qty <= 0) {
+      debugStats.skippedNoQty += 1;
+      continue;
+    }
+    if (EXCLUDED_HEALTH_INSURANCE_CODES.has(normalizedCode)) {
+      debugStats.skippedExcludedCode += 1;
+      continue;
+    }
 
     const looksLikeCode = /^[A-Za-z0-9]{4,}$/.test(colA);
-    if (!looksLikeCode) continue;
+    if (!looksLikeCode) {
+      debugStats.skippedInvalidCode += 1;
+      continue;
+    }
 
     items.push({
       lineNo: i + 1,
@@ -115,6 +181,7 @@ function extractItems(rows: any[][]): {
       drugName: colB,
       qty,
     });
+    debugStats.acceptedRows += 1;
   }
 
   return {
@@ -125,6 +192,7 @@ function extractItems(rows: any[][]): {
     periodStart: period.start,
     periodEnd: period.end,
     items,
+    debugStats,
   };
 }
 
@@ -160,7 +228,26 @@ export async function POST(request: NextRequest) {
 
     const parsed = extractItems(rows);
     if (!parsed.items.length) {
-      return NextResponse.json({ success: false, error: '未解析出藥品明細，請確認檔案格式' }, { status: 400 });
+      return NextResponse.json(
+        {
+          success: false,
+          error: '未解析出藥品明細，請確認檔案格式',
+          debug: {
+            fileName: file.name,
+            sheetName: workbook.SheetNames[0] || '',
+            totalRows: rows.length,
+            source: {
+              b2: parsed.sourceB2Text,
+              b4: parsed.sourceB4Text,
+              periodStart: parsed.periodStart,
+              periodEnd: parsed.periodEnd,
+            },
+            parseStats: parsed.debugStats,
+            rowSample: buildRowDebugSample(rows),
+          },
+        },
+        { status: 400 }
+      );
     }
 
     const admin = createAdminClient();
@@ -185,6 +272,12 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: `尚未有${targetYearMonth.slice(5)}月成本、會員價的月度紀錄請聯繫營業部匯入`,
+          debug: {
+            targetYearMonth,
+            sourceYearMonth: inferredYearMonth,
+            selectedYearMonth: yearMonth,
+            itemCount: parsed.items.length,
+          },
         },
         { status: 400 }
       );
@@ -218,6 +311,11 @@ export async function POST(request: NextRequest) {
           success: false,
           error: lines.join('\n'),
           unmatched: Array.from(unmatchedMap.values()),
+          debug: {
+            unmatchedCount: unmatchedMap.size,
+            matchedPriceRows: priceRows.length,
+            targetYearMonth,
+          },
         },
         { status: 400 }
       );

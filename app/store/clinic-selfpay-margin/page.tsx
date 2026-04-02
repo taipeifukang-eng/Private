@@ -308,7 +308,13 @@ export default function ClinicSelfpayMarginPage() {
         body: form,
       });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error || '匯入失敗');
+      if (!json.success) {
+        console.error('[clinic-selfpay] 診所檔匯入失敗', {
+          status: res.status,
+          response: json,
+        });
+        throw new Error(json.error || '匯入失敗');
+      }
 
       setBatchMessage(
         `✅ 匯入成功：共 ${json.summary.itemCount} 筆，匹配 ${json.summary.matchedCount} 筆，未匹配 ${json.summary.unmatchedCount} 筆`
@@ -321,6 +327,7 @@ export default function ClinicSelfpayMarginPage() {
       if (claimInputRef.current) claimInputRef.current.value = '';
       if (screenshotInputRef.current) screenshotInputRef.current.value = '';
     } catch (error: any) {
+      console.error('[clinic-selfpay] 匯入請求例外', error);
       setBatchMessage(`❌ 匯入失敗：${error.message}`);
     } finally {
       setBatchUploading(false);
