@@ -102,6 +102,7 @@ function extractItems(rows: any[][]): {
 
     if (!colA || !colB) continue;
     if (/^健保代號/.test(colA) || /^count\s*[:：]/i.test(colA)) continue;
+    if (normalizedCode === '無健保碼') continue;
     if (qty <= 0) continue;
     if (EXCLUDED_HEALTH_INSURANCE_CODES.has(normalizedCode)) continue;
 
