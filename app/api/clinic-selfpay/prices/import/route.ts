@@ -14,6 +14,11 @@ function getCell(row: Record<string, any>, keys: string[]) {
   return '';
 }
 
+function isMissingSelfpayColumnError(message: string) {
+  const msg = String(message || '').toLowerCase();
+  return msg.includes('selfpay_drug_name') && (msg.includes('does not exist') || msg.includes('schema cache'));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -97,7 +102,15 @@ export async function POST(request: NextRequest) {
       .from('clinic_selfpay_price_entries')
       .upsert(records, { onConflict: 'store_id,year_month,health_insurance_code' });
 
-    if (error) {
+    if (error && isMissingSelfpayColumnError(error.message)) {
+      const legacyRecords = records.map(({ selfpay_drug_name, ...rest }) => rest);
+      const { error: legacyError } = await admin
+        .from('clinic_selfpay_price_entries')
+        .upsert(legacyRecords, { onConflict: 'store_id,year_month,health_insurance_code' });
+      if (legacyError) {
+        return NextResponse.json({ success: false, error: legacyError.message }, { status: 500 });
+      }
+    } else if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
