@@ -254,13 +254,20 @@ export async function POST(request: NextRequest) {
     const storeId = String(form.get('store_id') || '');
     const yearMonth = String(form.get('year_month') || '');
     const file = form.get('file') as File | null;
-    const screenshot = form.get('screenshot') as File | null;
+    const screenshotFiles = (form.getAll('screenshots') || []).filter((entry) => entry instanceof File) as File[];
+    const legacyScreenshot = form.get('screenshot');
+    if (legacyScreenshot instanceof File) {
+      screenshotFiles.push(legacyScreenshot);
+    }
 
     if (!storeId || !yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) {
       return NextResponse.json({ success: false, error: '請提供正確的門市與年月' }, { status: 400 });
     }
     if (!file) {
       return NextResponse.json({ success: false, error: '缺少診所自費藥檔案' }, { status: 400 });
+    }
+    if (!screenshotFiles.length) {
+      return NextResponse.json({ success: false, error: '請至少上傳 1 張健保系統截圖' }, { status: 400 });
     }
 
     const stores = await getAuthorizedStores(userId);
@@ -369,7 +376,8 @@ export async function POST(request: NextRequest) {
     }
 
     let screenshotPath: string | null = null;
-    if (screenshot && screenshot.size > 0) {
+    for (const screenshot of screenshotFiles) {
+      if (!screenshot || screenshot.size <= 0) continue;
       const ext = (screenshot.name.split('.').pop() || 'jpg').toLowerCase();
       const path = `${storeId}/${targetYearMonth}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
       const screenshotBytes = await screenshot.arrayBuffer();
@@ -382,7 +390,8 @@ export async function POST(request: NextRequest) {
       if (uploadError) {
         return NextResponse.json({ success: false, error: `截圖上傳失敗: ${uploadError.message}` }, { status: 500 });
       }
-      screenshotPath = path;
+      // Keep backward compatibility with existing single-path column.
+      if (!screenshotPath) screenshotPath = path;
     }
 
     const { data: batch, error: batchError } = await admin

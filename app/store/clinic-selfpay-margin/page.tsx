@@ -132,7 +132,7 @@ export default function ClinicSelfpayMarginPage() {
   const screenshotInputRef = useRef<HTMLInputElement>(null);
 
   const [claimFile, setClaimFile] = useState<File | null>(null);
-  const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
+  const [screenshotFiles, setScreenshotFiles] = useState<File[]>([]);
 
   const selectedStore = useMemo(
     () => stores.find((s) => s.id === selectedStoreId) || null,
@@ -154,6 +154,31 @@ export default function ClinicSelfpayMarginPage() {
       loadMappings();
     }
   }, [selectedStoreId, yearMonth]);
+
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const items = event.clipboardData?.items;
+      if (!items || items.length === 0) return;
+
+      const images: File[] = [];
+      for (const item of Array.from(items)) {
+        if (!item.type.startsWith('image/')) continue;
+        const file = item.getAsFile();
+        if (file) {
+          const ext = (file.type.split('/')[1] || 'png').toLowerCase();
+          const pasted = new File([file], `clipboard_${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`, { type: file.type });
+          images.push(pasted);
+        }
+      }
+
+      if (images.length === 0) return;
+      event.preventDefault();
+      setScreenshotFiles((prev) => [...prev, ...images]);
+    };
+
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  }, []);
 
   async function loadStores() {
     setLoadingStores(true);
@@ -295,6 +320,10 @@ export default function ClinicSelfpayMarginPage() {
       setBatchMessage('請先選擇診所自費藥檔案');
       return;
     }
+    if (screenshotFiles.length === 0) {
+      setBatchMessage('請至少上傳 1 張健保系統截圖（可多檔或 Ctrl+V 貼上）');
+      return;
+    }
 
     setBatchUploading(true);
     setBatchMessage('');
@@ -303,7 +332,7 @@ export default function ClinicSelfpayMarginPage() {
       form.append('file', claimFile);
       form.append('store_id', selectedStoreId);
       form.append('year_month', yearMonth);
-      if (screenshotFile) form.append('screenshot', screenshotFile);
+      screenshotFiles.forEach((f) => form.append('screenshots', f));
 
       const res = await fetch('/api/clinic-selfpay/batches/import', {
         method: 'POST',
@@ -325,7 +354,7 @@ export default function ClinicSelfpayMarginPage() {
       await loadRecentBatches();
       await loadReport(json.batchId);
       setClaimFile(null);
-      setScreenshotFile(null);
+      setScreenshotFiles([]);
       if (claimInputRef.current) claimInputRef.current.value = '';
       if (screenshotInputRef.current) screenshotInputRef.current.value = '';
     } catch (error: any) {
@@ -650,25 +679,38 @@ export default function ClinicSelfpayMarginPage() {
             </div>
 
             <div className="mt-3 space-y-2">
-              <label className="block text-xs font-semibold text-gray-600">健保系統截圖（選填）</label>
+              <label className="block text-xs font-semibold text-gray-600">健保系統截圖（必填）</label>
               <input
                 ref={screenshotInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
+                multiple
                 className="hidden"
-                onChange={(e) => setScreenshotFile(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || []);
+                  if (!files.length) return;
+                  setScreenshotFiles((prev) => [...prev, ...files]);
+                }}
               />
               <button
                 onClick={() => screenshotInputRef.current?.click()}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-50"
               >
                 <Upload className="h-4 w-4" />
-                {screenshotFile ? screenshotFile.name : '上傳截圖'}
+                {screenshotFiles.length > 0 ? `已選擇 ${screenshotFiles.length} 張截圖` : '上傳截圖'}
               </button>
+              <p className="text-xs text-gray-500">可一次選多張，或先用螢幕截圖後直接按 Ctrl+V 貼上。</p>
+              {screenshotFiles.length > 0 && (
+                <div className="max-h-24 overflow-auto rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
+                  {screenshotFiles.map((f, idx) => (
+                    <div key={`${f.name}_${idx}`} className="truncate">{idx + 1}. {f.name}</div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button
-              disabled={batchUploading || !claimFile || !selectedStoreId}
+              disabled={batchUploading || !claimFile || !selectedStoreId || screenshotFiles.length === 0}
               onClick={handleImportClaimBatch}
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
