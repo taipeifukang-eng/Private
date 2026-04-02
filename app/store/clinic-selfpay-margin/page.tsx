@@ -435,7 +435,32 @@ export default function ClinicSelfpayMarginPage() {
         chunks.push(src.splice(0, ROWS_MID_PAGE));
       }
       if (src.length > 0) chunks.push(src.splice(0));
-      const totalPages = chunks.length;
+
+      const buildPageHtml = (rows: typeof report.items, options: { isFirst: boolean; isLast: boolean; pageNo: number; totalPages: number }) => {
+        const { isFirst, isLast, pageNo, totalPages } = options;
+        return `
+          ${isFirst
+            ? `<h1 style="text-align:center;font-size:22px;font-weight:700;margin:0 0 12px 0;">${escapeHtml(storeName)}診所請款明細</h1>${INFO_BLOCK_HTML}`
+            : `<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${escapeHtml(storeName)}診所請款明細（續）</div>`
+          }
+          ${TABLE_HEADER_HTML}${makeRowsHtml(rows)}
+          <div style="margin-top:8px;text-align:right;font-size:11px;color:#6b7280;">第 ${pageNo} 頁 / 共 ${totalPages} 頁</div>
+          ${isLast ? SIGNATURE_HTML : ''}
+          ${isLast ? `<div style="margin-top:10px;text-align:right;font-size:11px;color:#9ca3af;">列印日期：${new Date().toLocaleDateString('zh-TW')}</div>` : ''}
+        `;
+      };
+
+      // Measure page height before rendering to canvas, so last page signature area never gets cut.
+      const measurePageHeight = async (innerHtml: string): Promise<number> => {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:fixed;left:-9999px;top:0;width:980px;background:white;padding:24px 28px;box-sizing:border-box;';
+        el.innerHTML = `<div style="${BASE_STYLE}">${innerHtml}</div>`;
+        document.body.appendChild(el);
+        await new Promise((r) => setTimeout(r, 30));
+        const height = el.scrollHeight;
+        document.body.removeChild(el);
+        return height;
+      };
 
       // Render a single page's HTML to a canvas
       const renderPage = async (innerHtml: string): Promise<HTMLCanvasElement> => {
@@ -451,22 +476,43 @@ export default function ClinicSelfpayMarginPage() {
 
       const pdf = new jsPDF('p', 'mm', 'a4');
       const pdfImgWidth = pdf.internal.pageSize.getWidth() - 16;
+      const pageUsableHeightMm = pdf.internal.pageSize.getHeight() - 16;
+      const pageUsableHeightPx = (pageUsableHeightMm * 980) / pdfImgWidth;
+
+      // Adaptive protection for last page: if signature area overflows, shift rows forward.
+      while (chunks.length > 0) {
+        const totalPages = chunks.length;
+        const lastIdx = chunks.length - 1;
+        const lastHtml = buildPageHtml(chunks[lastIdx], {
+          isFirst: lastIdx === 0,
+          isLast: true,
+          pageNo: totalPages,
+          totalPages,
+        });
+        const lastHeight = await measurePageHeight(lastHtml);
+        if (lastHeight <= pageUsableHeightPx) break;
+
+        if (chunks[lastIdx].length === 0) break;
+
+        const shifted = chunks[lastIdx].shift();
+        if (!shifted) break;
+
+        const prevIdx = lastIdx - 1;
+        if (prevIdx >= 0 && chunks[prevIdx].length < ROWS_MID_PAGE) {
+          chunks[prevIdx].push(shifted);
+        } else {
+          chunks.splice(lastIdx, 0, [shifted]);
+        }
+      }
+
+      const totalPages = chunks.length;
 
       for (let i = 0; i < chunks.length; i++) {
         const isFirst = i === 0;
         const isLast = i === chunks.length - 1;
         const pageNo = i + 1;
 
-        const pageHtml = `
-          ${isFirst
-            ? `<h1 style="text-align:center;font-size:22px;font-weight:700;margin:0 0 12px 0;">${escapeHtml(storeName)}診所請款明細</h1>${INFO_BLOCK_HTML}`
-            : `<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${escapeHtml(storeName)}診所請款明細（續）</div>`
-          }
-          ${TABLE_HEADER_HTML}${makeRowsHtml(chunks[i])}
-          <div style="margin-top:8px;text-align:right;font-size:11px;color:#6b7280;">第 ${pageNo} 頁 / 共 ${totalPages} 頁</div>
-          ${isLast ? SIGNATURE_HTML : ''}
-          ${isLast ? `<div style="margin-top:10px;text-align:right;font-size:11px;color:#9ca3af;">列印日期：${new Date().toLocaleDateString('zh-TW')}</div>` : ''}
-        `;
+        const pageHtml = buildPageHtml(chunks[i], { isFirst, isLast, pageNo, totalPages });
 
         const canvas = await renderPage(pageHtml);
         const imgData = canvas.toDataURL('image/png');
