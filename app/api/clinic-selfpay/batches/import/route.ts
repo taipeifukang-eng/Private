@@ -61,6 +61,9 @@ function parseClinicCodeFromRange(text: string): string | null {
 }
 
 function parseClaimQty(row: any[]) {
+  const qtyFromL = parseNumber(row[11]);
+  if (qtyFromL > 0) return qtyFromL;
+
   const qtyFromM = parseNumber(row[12]);
   if (qtyFromM > 0) return qtyFromM;
 
@@ -76,8 +79,9 @@ function buildRowDebugSample(rows: any[][]) {
       const colA = String(row?.[0] || '').trim();
       const colB = String(row?.[1] || '').trim();
       const rawK = row?.[10] ?? '';
+      const rawL = row?.[11] ?? '';
       const rawM = row?.[12] ?? '';
-      if (!colA && !colB && String(rawK).trim() === '' && String(rawM).trim() === '') {
+      if (!colA && !colB && String(rawK).trim() === '' && String(rawL).trim() === '' && String(rawM).trim() === '') {
         return null;
       }
       return {
@@ -85,6 +89,7 @@ function buildRowDebugSample(rows: any[][]) {
         colA,
         colB,
         colK: rawK,
+        colL: rawL,
         colM: rawM,
         qtyParsed: parseClaimQty(row || []),
       };
