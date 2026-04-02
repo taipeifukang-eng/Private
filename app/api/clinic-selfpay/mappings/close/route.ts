@@ -43,6 +43,39 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '所選年月尚無主檔資料，無法關帳' }, { status: 400 });
     }
 
+    const { data: closureRows, error: closureCheckError } = await admin
+      .from('clinic_selfpay_price_month_closures')
+      .select('id')
+      .eq('store_id', storeId)
+      .eq('year_month', yearMonth)
+      .limit(1);
+
+    if (closureCheckError) {
+      if (isMissingClosureTableError(closureCheckError.message)) {
+        return NextResponse.json(
+          { success: false, error: '資料庫尚未建立主檔關帳表，請先執行 clinic selfpay migration' },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({ success: false, error: closureCheckError.message }, { status: 500 });
+    }
+
+    const isClosed = Boolean(closureRows && closureRows.length > 0);
+
+    if (isClosed) {
+      const { error: reopenError } = await admin
+        .from('clinic_selfpay_price_month_closures')
+        .delete()
+        .eq('store_id', storeId)
+        .eq('year_month', yearMonth);
+
+      if (reopenError) {
+        return NextResponse.json({ success: false, error: reopenError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, yearMonth, isClosed: false, action: 'reopened' });
+    }
+
     const { error } = await admin
       .from('clinic_selfpay_price_month_closures')
       .upsert(
@@ -64,7 +97,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, yearMonth });
+    return NextResponse.json({ success: true, yearMonth, isClosed: true, action: 'closed' });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

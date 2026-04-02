@@ -210,7 +210,11 @@ export default function ClinicSelfpayMarginPage() {
 
   async function closeMappingsForMonth() {
     if (!selectedStoreId || !yearMonth) return;
-    const confirmed = window.confirm(`確認將 ${yearMonth} 的 DPOS 對應主檔關帳？關帳後再次匯入同年月分頁將不會覆蓋。`);
+    const confirmed = window.confirm(
+      mappingMeta.isClosed
+        ? `確認將 ${yearMonth} 的 DPOS 對應主檔開帳？開帳後可再次匯入同年月分頁覆蓋資料。`
+        : `確認將 ${yearMonth} 的 DPOS 對應主檔關帳？關帳後再次匯入同年月分頁將不會覆蓋。`
+    );
     if (!confirmed) return;
 
     setClosingMappings(true);
@@ -223,10 +227,14 @@ export default function ClinicSelfpayMarginPage() {
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || '關帳失敗');
-      setMappingMessage(`✅ ${yearMonth} 主檔已關帳`);
+      setMappingMessage(
+        json.action === 'reopened'
+          ? `✅ ${yearMonth} 主檔已開帳`
+          : `✅ ${yearMonth} 主檔已關帳`
+      );
       await loadMappings();
     } catch (error: any) {
-      setMappingMessage(`❌ 主檔關帳失敗：${error.message}`);
+      setMappingMessage(`❌ 主檔狀態更新失敗：${error.message}`);
     } finally {
       setClosingMappings(false);
     }
@@ -644,11 +652,11 @@ export default function ClinicSelfpayMarginPage() {
                 </span>
                 <button
                   onClick={closeMappingsForMonth}
-                  disabled={closingMappings || !selectedStoreId || !yearMonth || mappingMeta.isClosed || mappings.length === 0}
+                  disabled={closingMappings || !selectedStoreId || !yearMonth || mappings.length === 0}
                   className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {closingMappings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
-                  {closingMappings ? '關帳中...' : '關帳主檔'}
+                  {closingMappings ? '處理中...' : mappingMeta.isClosed ? '開帳主檔' : '關帳主檔'}
                 </button>
               </div>
             </div>
