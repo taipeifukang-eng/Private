@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthorizedStores, getClinicSelfpayAccess, getCurrentUserId } from '../_lib';
+import { getClinicSelfpayAccess, getCurrentUserId } from '../_lib';
 
 export async function GET() {
   try {
@@ -9,12 +9,7 @@ export async function GET() {
     }
 
     const access = await getClinicSelfpayAccess(userId);
-    if (!access.canUseCalculator && !access.canManageMapping) {
-      return NextResponse.json({ success: false, error: '無診所自費藥毛利計算使用權限' }, { status: 403 });
-    }
-
-    const stores = await getAuthorizedStores(userId);
-    return NextResponse.json({ success: true, data: stores });
+    return NextResponse.json({ success: true, data: access });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

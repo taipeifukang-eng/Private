@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getAuthorizedStores, getCurrentUserId, parseNumber } from '../../_lib';
+import { getAuthorizedStores, getClinicSelfpayAccess, getCurrentUserId, parseNumber } from '../../_lib';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +70,11 @@ export async function POST(request: NextRequest) {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    const access = await getClinicSelfpayAccess(userId);
+    if (!access.canManageMapping) {
+      return NextResponse.json({ success: false, error: '無 DPOS 對應主檔管理權限' }, { status: 403 });
     }
 
     const form = await request.formData();

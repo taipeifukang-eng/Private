@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getAuthorizedStores, getCurrentUserId } from '../_lib';
+import { getAuthorizedStores, getClinicSelfpayAccess, getCurrentUserId } from '../_lib';
 
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    const access = await getClinicSelfpayAccess(userId);
+    if (!access.canUseCalculator) {
+      return NextResponse.json({ success: false, error: '無毛利計算查閱權限' }, { status: 403 });
     }
 
     const stores = await getAuthorizedStores(userId);

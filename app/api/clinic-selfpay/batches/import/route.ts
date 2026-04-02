@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { createAdminClient } from '@/lib/supabase/server';
 import {
   getAuthorizedStores,
+  getClinicSelfpayAccess,
   getCurrentUserId,
   parseNumber,
   parseRocDateToIso,
@@ -252,6 +253,11 @@ export async function POST(request: NextRequest) {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    const access = await getClinicSelfpayAccess(userId);
+    if (!access.canUseCalculator) {
+      return NextResponse.json({ success: false, error: '無毛利計算匯入權限' }, { status: 403 });
     }
 
     const form = await request.formData();

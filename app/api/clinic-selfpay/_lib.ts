@@ -1,4 +1,5 @@
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { hasAnyPermission } from '@/lib/permissions/check';
 
 export type AuthorizedStore = {
   id: string;
@@ -11,10 +12,54 @@ function isStoreScopedJobTitle(jobTitle: string | null | undefined) {
   return ['店長', '代理店長', '督導', '督導(代理店長)'].includes(title);
 }
 
+function isManagerJobTitle(jobTitle: string | null | undefined) {
+  const title = String(jobTitle || '').trim();
+  return ['經理', '副理', '區經理', '營業經理', '區域經理', '門市經理'].some((k) => title.includes(k));
+}
+
+export type ClinicSelfpayAccess = {
+  canUseCalculator: boolean;
+  canManageMapping: boolean;
+  canDeleteBatch: boolean;
+};
+
 export async function getCurrentUserId() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   return user?.id || null;
+}
+
+export async function getClinicSelfpayAccess(userId: string): Promise<ClinicSelfpayAccess> {
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, job_title')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const title = String(profile?.job_title || '').trim();
+  const isStoreTitle = isStoreScopedJobTitle(title);
+  const isManagerTitle = isManagerJobTitle(title);
+
+  const legacyOrCalcAllowed = await hasAnyPermission(userId, [
+    'store.clinic_selfpay.margin',
+    'store.clinic_selfpay.calculator.use',
+  ]);
+
+  const mappingAllowed = await hasAnyPermission(userId, [
+    'store.clinic_selfpay.margin',
+    'store.clinic_selfpay.mapping.manage',
+  ]);
+
+  const deleteAllowed = await hasAnyPermission(userId, [
+    'store.clinic_selfpay.batch.delete',
+  ]);
+
+  return {
+    canUseCalculator: legacyOrCalcAllowed || isStoreTitle || isManagerTitle,
+    canManageMapping: mappingAllowed || isManagerTitle,
+    canDeleteBatch: deleteAllowed || isManagerTitle,
+  };
 }
 
 export async function getAuthorizedStores(userId: string): Promise<AuthorizedStore[]> {

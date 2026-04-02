@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   Loader2,
   RefreshCw,
+  Trash2,
   Upload,
   X,
 } from 'lucide-react';
@@ -89,6 +90,12 @@ type PriceHistoryRow = {
   updated_at: string;
 };
 
+type ClinicSelfpayAccess = {
+  canUseCalculator: boolean;
+  canManageMapping: boolean;
+  canDeleteBatch: boolean;
+};
+
 function getCurrentYearMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -104,6 +111,12 @@ function money1(v: number) {
 
 export default function ClinicSelfpayMarginPage() {
   const [activeTab, setActiveTab] = useState<'calculator' | 'mapping'>('calculator');
+  const [accessLoading, setAccessLoading] = useState(true);
+  const [access, setAccess] = useState<ClinicSelfpayAccess>({
+    canUseCalculator: false,
+    canManageMapping: false,
+    canDeleteBatch: false,
+  });
   const [loadingStores, setLoadingStores] = useState(true);
   const [stores, setStores] = useState<StoreOption[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
@@ -148,6 +161,10 @@ export default function ClinicSelfpayMarginPage() {
   );
 
   useEffect(() => {
+    loadAccess();
+  }, []);
+
+  useEffect(() => {
     loadStores();
   }, []);
 
@@ -158,10 +175,16 @@ export default function ClinicSelfpayMarginPage() {
   }, [selectedStoreId]);
 
   useEffect(() => {
-    if (selectedStoreId && yearMonth) {
+    if (selectedStoreId && yearMonth && access.canManageMapping) {
       loadMappings();
     }
-  }, [selectedStoreId, yearMonth]);
+  }, [selectedStoreId, yearMonth, access.canManageMapping]);
+
+  useEffect(() => {
+    if (activeTab === 'mapping' && !access.canManageMapping) {
+      setActiveTab('calculator');
+    }
+  }, [activeTab, access.canManageMapping]);
 
   useEffect(() => {
     const onPaste = (event: ClipboardEvent) => {
@@ -193,6 +216,20 @@ export default function ClinicSelfpayMarginPage() {
     setScreenshotPreviewUrls(urls);
     return () => urls.forEach((url) => URL.revokeObjectURL(url));
   }, [screenshotFiles]);
+
+  async function loadAccess() {
+    setAccessLoading(true);
+    try {
+      const res = await fetch('/api/clinic-selfpay/permissions');
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || '載入權限失敗');
+      setAccess(json.data as ClinicSelfpayAccess);
+    } catch (error: any) {
+      setBatchMessage(`載入權限失敗：${error.message}`);
+    } finally {
+      setAccessLoading(false);
+    }
+  }
 
   async function loadStores() {
     setLoadingStores(true);
@@ -229,7 +266,7 @@ export default function ClinicSelfpayMarginPage() {
   }
 
   async function loadMappings() {
-    if (!selectedStoreId) return;
+    if (!selectedStoreId || !access.canManageMapping) return;
     setLoadingMappings(true);
     setMappingMessage('');
     try {
@@ -299,7 +336,7 @@ export default function ClinicSelfpayMarginPage() {
   }
 
   async function handleImportPriceFile(file: File) {
-    if (!selectedStoreId) return;
+    if (!selectedStoreId || !access.canManageMapping) return;
     setPriceUploading(true);
     setPriceMessage('');
     try {
@@ -330,6 +367,11 @@ export default function ClinicSelfpayMarginPage() {
   }
 
   async function handleImportClaimBatch() {
+    if (!access.canUseCalculator) {
+      setBatchMessage('目前帳號無毛利計算操作權限');
+      return;
+    }
+
     if (!selectedStoreId || !claimFile) {
       setBatchMessage('請先選擇診所自費藥檔案');
       return;
@@ -380,6 +422,7 @@ export default function ClinicSelfpayMarginPage() {
   }
 
   async function loadReport(batchId: string) {
+    if (!access.canUseCalculator) return;
     setLoadingReport(true);
     try {
       const res = await fetch(`/api/clinic-selfpay/batches/${batchId}`);
@@ -583,6 +626,25 @@ export default function ClinicSelfpayMarginPage() {
     }
   }
 
+  async function handleDeleteBatch(batchId: string) {
+    if (!access.canDeleteBatch) return;
+    const confirmed = window.confirm('確認刪除此批次匯入結果？刪除後不可復原，店長需重新上傳。');
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/clinic-selfpay/batches/${batchId}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || '刪除失敗');
+      setBatchMessage('✅ 匯入批次已刪除');
+      if (report?.batch?.id === batchId) {
+        setReport(null);
+      }
+      await loadRecentBatches();
+    } catch (error: any) {
+      setBatchMessage(`❌ 刪除匯入批次失敗：${error.message}`);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-5">
@@ -599,7 +661,7 @@ export default function ClinicSelfpayMarginPage() {
         </div>
 
         <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-gray-600">門市</label>
               {stores.length <= 1 ? (
@@ -621,21 +683,12 @@ export default function ClinicSelfpayMarginPage() {
                 </select>
               )}
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-semibold text-gray-600">年月（DPOS 月價格版本）</label>
-              <input
-                type="month"
-                value={yearMonth}
-                onChange={(e) => setYearMonth(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
             <div className="flex items-end">
               <button
                 onClick={() => {
                   loadStores();
                   loadRecentBatches();
-                  loadMappings();
+                  if (access.canManageMapping) loadMappings();
                 }}
                 className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
@@ -657,18 +710,26 @@ export default function ClinicSelfpayMarginPage() {
             >
               毛利計算
             </button>
-            <button
-              onClick={() => setActiveTab('mapping')}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                activeTab === 'mapping' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              DPOS 對應主檔
-            </button>
+            {access.canManageMapping && (
+              <button
+                onClick={() => setActiveTab('mapping')}
+                className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  activeTab === 'mapping' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                DPOS 對應主檔
+              </button>
+            )}
           </div>
+
+          {accessLoading ? (
+            <p className="mt-2 text-xs text-gray-500">載入權限中...</p>
+          ) : !access.canUseCalculator ? (
+            <p className="mt-2 text-xs text-rose-600">目前帳號未開放診所自費藥毛利計算功能。</p>
+          ) : null}
         </div>
 
-        {activeTab === 'calculator' && (
+        {activeTab === 'calculator' && access.canUseCalculator && (
           <>
 
         <div className="grid grid-cols-1 gap-5">
@@ -783,6 +844,7 @@ export default function ClinicSelfpayMarginPage() {
                       <th className="px-2 py-2 text-left">月份</th>
                       <th className="px-2 py-2 text-right">自費藥總額</th>
                       <th className="px-2 py-2 text-right">毛利總額</th>
+                      {access.canDeleteBatch && <th className="px-2 py-2 text-center">操作</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -796,6 +858,19 @@ export default function ClinicSelfpayMarginPage() {
                         <td className="px-2 py-1.5">{batch.year_month}</td>
                         <td className="px-2 py-1.5 text-right">{money1(batch.total_billing_amount || 0)}</td>
                         <td className="px-2 py-1.5 text-right">{money1(batch.total_gross_profit_amount || 0)}</td>
+                        {access.canDeleteBatch && (
+                          <td className="px-2 py-1.5 text-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteBatch(batch.id);
+                              }}
+                              className="inline-flex items-center gap-1 rounded border border-rose-300 px-2 py-1 text-[11px] text-rose-700 hover:bg-rose-50"
+                            >
+                              <Trash2 className="h-3 w-3" />刪除
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -916,7 +991,13 @@ export default function ClinicSelfpayMarginPage() {
           </>
         )}
 
-        {activeTab === 'mapping' && (
+        {activeTab === 'calculator' && !accessLoading && !access.canUseCalculator && (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
+            目前帳號無毛利計算操作權限，請聯繫管理者開通。
+          </div>
+        )}
+
+        {activeTab === 'mapping' && access.canManageMapping && (
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-bold text-gray-900">診所自費藥與 DPOS 商品對應主檔</h3>
@@ -928,6 +1009,16 @@ export default function ClinicSelfpayMarginPage() {
               <p className="mt-1 text-xs text-indigo-800">
                 欄位格式：健保碼｜自費藥名稱｜品號｜品名｜會員價｜成本。系統會讀取分頁名稱 YYYY-MM 作為匯入月份，並使用品號/品名/會員價/成本做計算。
               </p>
+
+              <div className="mt-3 w-full max-w-xs">
+                <label className="mb-1 block text-xs font-semibold text-indigo-900">年月（DPOS 月價格版本）</label>
+                <input
+                  type="month"
+                  value={yearMonth}
+                  onChange={(e) => setYearMonth(e.target.value)}
+                  className="w-full rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm"
+                />
+              </div>
 
               <input
                 ref={priceInputRef}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getAuthorizedStores, getCurrentUserId } from '../../_lib';
+import { getAuthorizedStores, getClinicSelfpayAccess, getCurrentUserId } from '../../_lib';
 
 function isMissingClosureTableError(message: string) {
   const msg = String(message || '').toLowerCase();
@@ -12,6 +12,11 @@ export async function POST(request: NextRequest) {
     const userId = await getCurrentUserId();
     if (!userId) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    const access = await getClinicSelfpayAccess(userId);
+    if (!access.canManageMapping) {
+      return NextResponse.json({ success: false, error: '無 DPOS 對應主檔管理權限' }, { status: 403 });
     }
 
     const body = await request.json();
