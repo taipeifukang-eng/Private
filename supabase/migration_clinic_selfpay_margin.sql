@@ -66,6 +66,8 @@ alter table if exists public.clinic_selfpay_claim_batches
   add column if not exists total_billing_amount numeric(14,2) not null default 0;
 alter table if exists public.clinic_selfpay_claim_batches
   add column if not exists total_gross_profit_amount numeric(14,2) not null default 0;
+alter table if exists public.clinic_selfpay_price_entries
+  add column if not exists selfpay_drug_name text;
 
 -- 3) 診所檔明細 + 計算結果
 create table if not exists public.clinic_selfpay_claim_items (

@@ -91,7 +91,9 @@ export async function GET(request: NextRequest) {
     const data = Array.from(latestMap.entries())
       .map(([code, row]) => ({
         health_insurance_code: code,
-        drug_name: row.selfpay_drug_name || drugNameMap.get(code) || row.product_name || '',
+        drug_name: useLegacyDrugNameFallback
+          ? (drugNameMap.get(code) || row.product_name || '')
+          : (row.selfpay_drug_name || ''),
         product_code: row.product_code || '',
         product_name: row.product_name || '',
         latest_year_month: row.year_month || '',
