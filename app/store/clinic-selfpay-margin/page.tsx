@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Calculator,
   CheckCircle2,
+  FileText,
   Lock,
   FileSpreadsheet,
   Loader2,
@@ -114,6 +115,7 @@ export default function ClinicSelfpayMarginPage() {
 
   const [report, setReport] = useState<ReportPayload | null>(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [exportingClaimPdf, setExportingClaimPdf] = useState(false);
 
   const [mappings, setMappings] = useState<MappingRow[]>([]);
   const [loadingMappings, setLoadingMappings] = useState(false);
@@ -348,6 +350,127 @@ export default function ClinicSelfpayMarginPage() {
     }
   }
 
+  async function handleExportClaimPdf() {
+    if (!report) return;
+
+    const escapeHtml = (value: string) => String(value || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+    const fmt = (n: number | null | undefined) => Number(n || 0).toLocaleString('zh-TW', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2,
+    });
+
+    let container: HTMLDivElement | null = null;
+
+    setExportingClaimPdf(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      container = document.createElement('div');
+      container.style.position = 'fixed';
+      container.style.left = '-9999px';
+      container.style.width = '980px';
+      container.style.backgroundColor = 'white';
+      container.style.padding = '24px';
+      document.body.appendChild(container);
+
+      const clinicName = String(report.batch?.clinic_name || '-');
+      const clinicCode = String(report.batch?.clinic_code || '-');
+      const periodStart = String(report.batch?.period_start || '-');
+      const periodEnd = String(report.batch?.period_end || '-');
+      const totalBilling = fmt(report.summary.totalBilling);
+
+      const rowsHtml = report.items.map((item) => `
+        <tr>
+          <td style="border:1px solid #d1d5db;padding:8px;vertical-align:top;">${escapeHtml(item.health_insurance_code || '-')}</td>
+          <td style="border:1px solid #d1d5db;padding:8px;vertical-align:top;">${escapeHtml(item.drug_name || '-')}</td>
+          <td style="border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top;">${fmt(Number(item.qty || 0))}</td>
+          <td style="border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top;">${item.matched_member_price == null ? '-' : fmt(item.matched_member_price)}</td>
+          <td style="border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top;">${fmt(item.billing_amount)}</td>
+        </tr>
+      `).join('');
+
+      container.innerHTML = `
+        <div style="font-family:'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif;color:#111827;">
+          <h1 style="text-align:center;font-size:24px;font-weight:700;margin:0 0 16px 0;">診所請款明細</h1>
+          <div style="border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:14px;line-height:1.8;">
+            <div>診所：${escapeHtml(clinicName)}（${escapeHtml(clinicCode)}）</div>
+            <div>期間：${escapeHtml(periodStart)} ~ ${escapeHtml(periodEnd)}</div>
+            <div>藥費總價：${totalBilling}</div>
+          </div>
+
+          <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead>
+              <tr style="background:#f3f4f6;">
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">健保代碼</th>
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">藥品名稱</th>
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;">數量</th>
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;">藥費</th>
+                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;">藥費總額</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div style="margin-top:12px;text-align:right;font-size:12px;color:#6b7280;">
+            列印日期：${new Date().toLocaleDateString('zh-TW')}
+          </div>
+        </div>
+      `;
+
+      await new Promise((resolve) => setTimeout(resolve, 120));
+
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+
+      if (document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgData = canvas.toDataURL('image/png');
+      const pdfWidth = pdf.internal.pageSize.getWidth() - 16;
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      let heightLeft = pdfHeight;
+      let position = 8;
+      pdf.addImage(imgData, 'PNG', 8, position, pdfWidth, pdfHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - pdfHeight + 8;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 8, position, pdfWidth, pdfHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const ym = String(report.batch?.year_month || yearMonth || 'unknown');
+      const safeClinicCode = clinicCode === '-' ? 'clinic' : clinicCode;
+      pdf.save(`診所請款明細_${safeClinicCode}_${ym}.pdf`);
+    } catch (error) {
+      console.error('[clinic-selfpay] 診所請款明細PDF匯出失敗', error);
+      setBatchMessage('❌ 診所請款明細PDF匯出失敗，請稍後再試');
+    } finally {
+      if (container && document.body.contains(container)) {
+        document.body.removeChild(container);
+      }
+      setExportingClaimPdf(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8">
       <div className="mx-auto max-w-7xl space-y-5">
@@ -532,7 +655,19 @@ export default function ClinicSelfpayMarginPage() {
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm xl:col-span-2">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-bold text-gray-900">計算結果</h3>
-              {loadingReport && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+              <div className="flex items-center gap-2">
+                {report && (
+                  <button
+                    onClick={handleExportClaimPdf}
+                    disabled={exportingClaimPdf}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    {exportingClaimPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                    {exportingClaimPdf ? '匯出中...' : '診所請款明細PDF'}
+                  </button>
+                )}
+                {loadingReport && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+              </div>
             </div>
 
             {!report ? (
