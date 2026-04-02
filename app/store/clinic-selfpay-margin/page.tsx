@@ -365,108 +365,122 @@ export default function ClinicSelfpayMarginPage() {
       maximumFractionDigits: 2,
     });
 
-    let container: HTMLDivElement | null = null;
-
     setExportingClaimPdf(true);
     try {
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
 
-      container = document.createElement('div');
-      container.style.position = 'fixed';
-      container.style.left = '-9999px';
-      container.style.width = '980px';
-      container.style.backgroundColor = 'white';
-      container.style.padding = '24px';
-      document.body.appendChild(container);
-
+      const storeName = selectedStore?.store_name || '';
       const clinicName = String(report.batch?.clinic_name || '-');
       const clinicCode = String(report.batch?.clinic_code || '-');
       const periodStart = String(report.batch?.period_start || '-');
       const periodEnd = String(report.batch?.period_end || '-');
       const totalBilling = fmt(report.summary.totalBilling);
+      const ym = String(report.batch?.year_month || yearMonth || 'unknown');
 
-      const rowsHtml = report.items.map((item) => `
-        <tr>
-          <td style="border:1px solid #d1d5db;padding:8px;vertical-align:top;">${escapeHtml(item.health_insurance_code || '-')}</td>
-          <td style="border:1px solid #d1d5db;padding:8px;vertical-align:top;">${escapeHtml(item.drug_name || '-')}</td>
-          <td style="border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top;">${fmt(Number(item.qty || 0))}</td>
-          <td style="border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top;">${item.matched_member_price == null ? '-' : fmt(item.matched_member_price)}</td>
-          <td style="border:1px solid #d1d5db;padding:8px;text-align:right;vertical-align:top;">${fmt(item.billing_amount)}</td>
-        </tr>
-      `).join('');
+      const BASE_STYLE = `font-family:'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif;color:#111827;`;
 
-      container.innerHTML = `
-        <div style="font-family:'Microsoft JhengHei','Noto Sans TC',Arial,sans-serif;color:#111827;">
-          <h1 style="text-align:center;font-size:24px;font-weight:700;margin:0 0 16px 0;">診所請款明細</h1>
-          <div style="border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:14px;line-height:1.8;">
-            <div>診所：${escapeHtml(clinicName)}（${escapeHtml(clinicCode)}）</div>
-            <div>期間：${escapeHtml(periodStart)} ~ ${escapeHtml(periodEnd)}</div>
-            <div>藥費總價：${totalBilling}</div>
+      const TABLE_HEADER_HTML = `
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px;">
+          <thead>
+            <tr style="background:#f3f4f6;">
+              <th style="border:1px solid #d1d5db;padding:7px 6px;text-align:left;width:110px;">健保代碼</th>
+              <th style="border:1px solid #d1d5db;padding:7px 6px;text-align:left;">藥品名稱</th>
+              <th style="border:1px solid #d1d5db;padding:7px 6px;text-align:right;width:56px;">數量</th>
+              <th style="border:1px solid #d1d5db;padding:7px 6px;text-align:right;width:72px;">藥費</th>
+              <th style="border:1px solid #d1d5db;padding:7px 6px;text-align:right;width:96px;">藥費總額</th>
+            </tr>
+          </thead>
+      `;
+
+      const makeRowsHtml = (rows: typeof report.items) =>
+        `<tbody>${rows.map((item) => `
+          <tr>
+            <td style="border:1px solid #d1d5db;padding:7px 6px;vertical-align:top;">${escapeHtml(item.health_insurance_code || '-')}</td>
+            <td style="border:1px solid #d1d5db;padding:7px 6px;vertical-align:top;">${escapeHtml(item.drug_name || '-')}</td>
+            <td style="border:1px solid #d1d5db;padding:7px 6px;text-align:right;vertical-align:top;">${fmt(Number(item.qty || 0))}</td>
+            <td style="border:1px solid #d1d5db;padding:7px 6px;text-align:right;vertical-align:top;">${item.matched_member_price == null ? '-' : fmt(item.matched_member_price)}</td>
+            <td style="border:1px solid #d1d5db;padding:7px 6px;text-align:right;vertical-align:top;">${fmt(item.billing_amount)}</td>
+          </tr>
+        `).join('')}</tbody></table>`;
+
+      const INFO_BLOCK_HTML = `
+        <div style="border:1px solid #d1d5db;background:#f9fafb;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:14px;line-height:1.9;">
+          <div>診所：${escapeHtml(clinicName)}（${escapeHtml(clinicCode)}）</div>
+          <div>期間：${escapeHtml(periodStart)} ~ ${escapeHtml(periodEnd)}</div>
+          <div style="margin-top:6px;font-size:22px;font-weight:700;color:#111827;letter-spacing:0.01em;">藥費總額：${totalBilling}</div>
+        </div>
+      `;
+
+      const SIGNATURE_HTML = `
+        <div style="display:flex;gap:24px;margin-top:44px;padding-top:16px;border-top:2px solid #e5e7eb;">
+          <div style="flex:1;border:1px solid #6b7280;border-radius:4px;padding:12px 16px;min-height:90px;">
+            <div style="font-size:13px;font-weight:600;color:#374151;">分店蓋章 / 簽名處</div>
           </div>
-
-          <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead>
-              <tr style="background:#f3f4f6;">
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">健保代碼</th>
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:left;">藥品名稱</th>
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;">數量</th>
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;">藥費</th>
-                <th style="border:1px solid #d1d5db;padding:8px;text-align:right;">藥費總額</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rowsHtml}
-            </tbody>
-          </table>
-
-          <div style="margin-top:12px;text-align:right;font-size:12px;color:#6b7280;">
-            列印日期：${new Date().toLocaleDateString('zh-TW')}
+          <div style="flex:1;border:1px solid #6b7280;border-radius:4px;padding:12px 16px;min-height:90px;">
+            <div style="font-size:13px;font-weight:600;color:#374151;">診所蓋章 / 簽名處</div>
           </div>
         </div>
       `;
 
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      // Split items into page chunks to prevent row cutoff across pages:
+      // First page has title+info block (takes ~155px), so fewer rows fit.
+      // Middle/last pages are table-only, more rows fit.
+      const ROWS_FIRST_PAGE = 25;
+      const ROWS_MID_PAGE = 32;
+      const ROWS_LAST_PAGE = 27; // reserve room for signature block
 
-      const canvas = await html2canvas(container, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-
-      if (document.body.contains(container)) {
-        document.body.removeChild(container);
+      const src = [...report.items];
+      const chunks: (typeof report.items)[] = [];
+      chunks.push(src.splice(0, ROWS_FIRST_PAGE));
+      while (src.length > ROWS_LAST_PAGE) {
+        chunks.push(src.splice(0, ROWS_MID_PAGE));
       }
+      if (src.length > 0) chunks.push(src.splice(0));
+
+      // Render a single page's HTML to a canvas
+      const renderPage = async (innerHtml: string): Promise<HTMLCanvasElement> => {
+        const el = document.createElement('div');
+        el.style.cssText = 'position:fixed;left:-9999px;top:0;width:980px;background:white;padding:24px 28px;box-sizing:border-box;';
+        el.innerHTML = `<div style="${BASE_STYLE}">${innerHtml}</div>`;
+        document.body.appendChild(el);
+        await new Promise((r) => setTimeout(r, 100));
+        const cv = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+        document.body.removeChild(el);
+        return cv;
+      };
 
       const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgData = canvas.toDataURL('image/png');
-      const pdfWidth = pdf.internal.pageSize.getWidth() - 16;
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-      const pageHeight = pdf.internal.pageSize.getHeight();
+      const pdfImgWidth = pdf.internal.pageSize.getWidth() - 16;
 
-      let heightLeft = pdfHeight;
-      let position = 8;
-      pdf.addImage(imgData, 'PNG', 8, position, pdfWidth, pdfHeight);
-      heightLeft -= pageHeight;
+      for (let i = 0; i < chunks.length; i++) {
+        const isFirst = i === 0;
+        const isLast = i === chunks.length - 1;
 
-      while (heightLeft > 0) {
-        position = heightLeft - pdfHeight + 8;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 8, position, pdfWidth, pdfHeight);
-        heightLeft -= pageHeight;
+        const pageHtml = `
+          ${isFirst
+            ? `<h1 style="text-align:center;font-size:22px;font-weight:700;margin:0 0 12px 0;">${escapeHtml(storeName)}診所請款明細</h1>${INFO_BLOCK_HTML}`
+            : `<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${escapeHtml(storeName)}診所請款明細（續）</div>`
+          }
+          ${TABLE_HEADER_HTML}${makeRowsHtml(chunks[i])}
+          ${isLast ? SIGNATURE_HTML : ''}
+          ${isLast ? `<div style="margin-top:10px;text-align:right;font-size:11px;color:#9ca3af;">列印日期：${new Date().toLocaleDateString('zh-TW')}</div>` : ''}
+        `;
+
+        const canvas = await renderPage(pageHtml);
+        const imgData = canvas.toDataURL('image/png');
+        const imgH = (canvas.height * pdfImgWidth) / canvas.width;
+
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 8, 8, pdfImgWidth, imgH);
       }
 
-      const ym = String(report.batch?.year_month || yearMonth || 'unknown');
       const safeClinicCode = clinicCode === '-' ? 'clinic' : clinicCode;
-      pdf.save(`診所請款明細_${safeClinicCode}_${ym}.pdf`);
+      pdf.save(`${storeName}診所請款明細_${safeClinicCode}_${ym}.pdf`);
     } catch (error) {
       console.error('[clinic-selfpay] 診所請款明細PDF匯出失敗', error);
       setBatchMessage('❌ 診所請款明細PDF匯出失敗，請稍後再試');
     } finally {
-      if (container && document.body.contains(container)) {
-        document.body.removeChild(container);
-      }
       setExportingClaimPdf(false);
     }
   }
