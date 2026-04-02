@@ -79,14 +79,23 @@ function parseClaimQty(row: any[]) {
   return 0;
 }
 
-function normalizeInsuranceCode(raw: string) {
-  return String(raw || '')
+function parseCodeAndNameFromColA(raw: string) {
+  const text = String(raw || '').replace(/\u3000/g, ' ').trim();
+  if (!text) {
+    return { code: '', nameFromA: '' };
+  }
+
+  const firstToken = text.split(/\s+/)[0] || '';
+  const code = firstToken
     .toUpperCase()
-    .replace(/[\s\u3000'"`]/g, '')
+    .replace(/[\s'"`]/g, '')
     .replace(/[^A-Z0-9]/g, '');
+
+  const nameFromA = text.slice(firstToken.length).trim();
+  return { code, nameFromA };
 }
 
-function parseClaimDrugName(row: any[]) {
+function parseClaimDrugName(row: any[], fallbackNameFromA: string) {
   // 兼容不同匯出格式：藥品名稱可能落在 B~I 欄任一位置
   const nameCols = [1, 2, 3, 4, 5, 6, 7, 8];
   for (const col of nameCols) {
@@ -95,7 +104,7 @@ function parseClaimDrugName(row: any[]) {
     if (/^診所別[:：]/.test(value)) continue;
     return value;
   }
-  return '';
+  return fallbackNameFromA || '';
 }
 
 function buildRowDebugSample(rows: any[][]) {
@@ -121,7 +130,8 @@ function buildRowDebugSample(rows: any[][]) {
         colL: rawL,
         colM: rawM,
         qtyParsed: parseClaimQty(row || []),
-        drugNameParsed: parseClaimDrugName(row || []),
+        drugNameParsed: parseClaimDrugName(row || [], parseCodeAndNameFromColA(colA).nameFromA),
+        codeParsed: parseCodeAndNameFromColA(colA).code,
       };
     })
     .filter(Boolean)
@@ -172,9 +182,10 @@ function extractItems(rows: any[][]): {
     const row = rows[i] || [];
     const colA = String(row[0] || '').trim();
     const colB = String(row[1] || '').trim();
-    const drugName = parseClaimDrugName(row);
+    const parsedColA = parseCodeAndNameFromColA(colA);
+    const drugName = parseClaimDrugName(row, parsedColA.nameFromA);
     const qty = parseClaimQty(row);
-    const normalizedCode = normalizeInsuranceCode(colA);
+    const normalizedCode = parsedColA.code;
 
     const clinicLine = parseClinicInfo(colB);
     if (clinicLine) {
