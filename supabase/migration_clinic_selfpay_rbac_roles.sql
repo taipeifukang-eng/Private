@@ -9,15 +9,13 @@ BEGIN;
 INSERT INTO public.permissions (module, feature, code, action, description)
 VALUES
   ('store', 'clinic_selfpay_margin', 'store.clinic_selfpay.calculator.use', 'use', '診所自費藥毛利計算：使用毛利計算流程'),
-  ('store', 'clinic_selfpay_margin', 'store.clinic_selfpay.mapping.manage', 'manage', '診所自費藥毛利計算：管理 DPOS 對應主檔'),
   ('store', 'clinic_selfpay_margin', 'store.clinic_selfpay.batch.delete', 'delete', '診所自費藥毛利計算：刪除門市匯入批次')
 ON CONFLICT (code) DO UPDATE
 SET
   module = EXCLUDED.module,
   feature = EXCLUDED.feature,
   action = EXCLUDED.action,
-  description = EXCLUDED.description,
-  updated_at = NOW();
+  description = EXCLUDED.description;
 
 -- 2) 店長/督導：只給 calculator.use
 INSERT INTO public.role_permissions (role_id, permission_id, is_allowed)
@@ -36,6 +34,7 @@ JOIN public.permissions p
   ON p.code IN (
     'store.clinic_selfpay.calculator.use',
     'store.clinic_selfpay.mapping.manage',
+    'store.clinic_selfpay.margin',
     'store.clinic_selfpay.batch.delete'
   )
 WHERE r.code IN (

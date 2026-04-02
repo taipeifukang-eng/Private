@@ -106,7 +106,7 @@ function money(v: number) {
 }
 
 function money1(v: number) {
-  return Number(v || 0).toLocaleString('zh-TW', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return Math.round(Number(v || 0)).toLocaleString('zh-TW');
 }
 
 export default function ClinicSelfpayMarginPage() {
