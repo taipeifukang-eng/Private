@@ -360,18 +360,24 @@ export default function ClinicSelfpayMarginPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs font-semibold text-gray-600">門市</label>
-              <select
-                value={selectedStoreId}
-                onChange={(e) => setSelectedStoreId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                disabled={loadingStores}
-              >
-                {stores.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.store_code} {s.store_name}
-                  </option>
-                ))}
-              </select>
+              {stores.length <= 1 ? (
+                <div className="flex min-h-[42px] items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  {selectedStore ? `${selectedStore.store_code} ${selectedStore.store_name}` : loadingStores ? '載入中...' : '尚無可用門市'}
+                </div>
+              ) : (
+                <select
+                  value={selectedStoreId}
+                  onChange={(e) => setSelectedStoreId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  disabled={loadingStores}
+                >
+                  {stores.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.store_code} {s.store_name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div>
               <label className="mb-1 block text-xs font-semibold text-gray-600">年月（DPOS 月價格版本）</label>
