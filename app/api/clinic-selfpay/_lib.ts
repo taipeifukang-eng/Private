@@ -6,6 +6,11 @@ export type AuthorizedStore = {
   store_name: string;
 };
 
+function isStoreScopedJobTitle(jobTitle: string | null | undefined) {
+  const title = String(jobTitle || '').trim();
+  return ['店長', '代理店長', '督導', '督導(代理店長)'].includes(title);
+}
+
 export async function getCurrentUserId() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,11 +22,13 @@ export async function getAuthorizedStores(userId: string): Promise<AuthorizedSto
 
   const { data: profile } = await admin
     .from('profiles')
-    .select('id, role')
+    .select('id, role, job_title')
     .eq('id', userId)
     .maybeSingle();
 
-  if (profile?.role === 'admin') {
+  const storeScopedByTitle = isStoreScopedJobTitle(profile?.job_title);
+
+  if (profile?.role === 'admin' && !storeScopedByTitle) {
     const { data } = await admin
       .from('stores')
       .select('id, store_code, store_name')
