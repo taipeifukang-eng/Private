@@ -51,20 +51,29 @@ export async function POST(request: NextRequest) {
 
     const records = rows
       .map((row) => {
-        const healthCode = getCell(row, ['健保代號', '健保碼', 'HIS代碼', 'health_insurance_code']);
-        const productCode = getCell(row, ['品號', '商品編號', '料號', 'product_code']);
-        const productName = getCell(row, ['品名', '商品名稱', '藥品名稱', 'product_name']);
+        const healthCodeRaw = getCell(row, [
+          '健保碼',
+          '健保代號',
+          '健保代碼',
+          'HIS代碼',
+          'health_insurance_code',
+        ]);
+        const selfpayDrugName = getCell(row, ['自費藥名稱', '診所自費藥名稱', '藥品名稱', 'selfpay_drug_name']);
+        const productCode = getCell(row, ['品號', '商品編號', '料號', 'DPOS品號', 'product_code']);
+        const productName = getCell(row, ['品名', '商品名稱', 'DPOS品名', 'product_name']);
         const memberPrice = parseNumber(getCell(row, ['會員價', '會員售價', 'member_price']));
         const costPrice = parseNumber(getCell(row, ['成本', '成本價', '進價', 'cost_price']));
 
-        if (!healthCode || !productCode) return null;
+        if (!healthCodeRaw || !productCode) return null;
+
+        const healthCode = healthCodeRaw.toUpperCase();
 
         return {
           store_id: storeId,
           year_month: yearMonth,
           health_insurance_code: healthCode,
           product_code: productCode,
-          product_name: productName || null,
+          product_name: productName || selfpayDrugName || null,
           member_price: memberPrice,
           cost_price: costPrice,
           source_file_name: file.name,
@@ -77,7 +86,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: '找不到有效資料，請確認欄位至少包含：健保代號、品號、會員價、成本',
+          error: '找不到有效資料，請確認欄位格式：健保碼、自費藥名稱、品號、品名、會員價、成本（至少需有健保碼與品號）',
         },
         { status: 400 }
       );

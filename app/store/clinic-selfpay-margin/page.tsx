@@ -225,6 +225,7 @@ export default function ClinicSelfpayMarginPage() {
       if (!json.success) throw new Error(json.error || '匯入失敗');
 
       setPriceMessage(`✅ 月價匯入成功：${json.imported} 筆`);
+      await loadMappings();
     } catch (error: any) {
       setPriceMessage(`❌ 月價匯入失敗：${error.message}`);
     } finally {
@@ -296,7 +297,7 @@ export default function ClinicSelfpayMarginPage() {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">診所自費藥毛利計算</h1>
-              <p className="text-sm text-gray-600">匯入每月 DPOS 成本/會員價與診所自費藥檔，自動計算總額與毛利</p>
+              <p className="text-sm text-gray-600">毛利計算頁僅匯入診所自費藥檔；DPOS 月價格檔請至「DPOS 對應主檔」TAB 匯入</p>
             </div>
           </div>
         </div>
@@ -319,7 +320,7 @@ export default function ClinicSelfpayMarginPage() {
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-gray-600">年月（價格版本）</label>
+              <label className="mb-1 block text-xs font-semibold text-gray-600">年月（DPOS 月價格版本）</label>
               <input
                 type="month"
                 value={yearMonth}
@@ -368,38 +369,9 @@ export default function ClinicSelfpayMarginPage() {
         {activeTab === 'calculator' && (
           <>
 
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-2 text-base font-bold text-gray-900">步驟 1：匯入月價格檔（DPOS）</h2>
-            <p className="mb-3 text-xs text-gray-600">Excel 欄位至少包含：健保代號、品號、會員價、成本（可加品名）。</p>
-
-            <input
-              ref={priceInputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImportPriceFile(file);
-              }}
-            />
-
-            <button
-              disabled={priceUploading || !selectedStoreId}
-              onClick={() => priceInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
-            >
-              {priceUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-              {priceUploading ? '匯入中...' : '選擇月價格 Excel'}
-            </button>
-
-            {priceMessage && (
-              <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">{priceMessage}</p>
-            )}
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
-            <h2 className="mb-2 text-base font-bold text-gray-900">步驟 2：匯入診所自費藥檔</h2>
+            <h2 className="mb-2 text-base font-bold text-gray-900">步驟 1：匯入診所自費藥檔</h2>
             <p className="mb-3 text-xs text-gray-600">支援健保系統 .xls 匯出，系統會讀取 A 欄健保代碼與 K 欄數量計算毛利。</p>
 
             <div className="space-y-2">
@@ -439,7 +411,7 @@ export default function ClinicSelfpayMarginPage() {
             </div>
 
             <button
-              disabled={batchUploading || !claimFile || !selectedStoreId || !yearMonth}
+              disabled={batchUploading || !claimFile || !selectedStoreId}
               onClick={handleImportClaimBatch}
               className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
             >
@@ -582,6 +554,40 @@ export default function ClinicSelfpayMarginPage() {
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-base font-bold text-gray-900">該門市診所自費藥對應 DPOS 商品主檔</h3>
               {loadingMappings && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+            </div>
+
+            <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+              <h4 className="text-sm font-bold text-indigo-900">匯入月價格檔（DPOS）</h4>
+              <p className="mt-1 text-xs text-indigo-800">
+                欄位格式：健保碼｜自費藥名稱｜品號｜品名｜會員價｜成本。系統以健保碼對應診所自費藥，並使用品號/品名/會員價/成本做計算。
+              </p>
+
+              <input
+                ref={priceInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleImportPriceFile(file);
+                }}
+              />
+
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  disabled={priceUploading || !selectedStoreId || !yearMonth}
+                  onClick={() => priceInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {priceUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  {priceUploading ? '匯入中...' : '選擇月價格 Excel'}
+                </button>
+                <span className="text-xs text-indigo-800">目前匯入月份：{yearMonth}</span>
+              </div>
+
+              {priceMessage && (
+                <p className="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-gray-700">{priceMessage}</p>
+              )}
             </div>
 
             <p className="mb-3 text-xs text-gray-600">欄位：DPOS 品號、DPOS 品名、藥品健保碼、藥品名稱。點擊列可看歷史會員價/成本。</p>
