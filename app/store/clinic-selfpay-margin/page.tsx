@@ -481,22 +481,21 @@ export default function ClinicSelfpayMarginPage() {
 
       const allItems = [...report.items];
       const chunks: (typeof report.items)[] = [];
+      const remaining = [...allItems];
 
-      // 1) Determine how many tail rows can stay on the last page with signature block.
-      let lastChunk: typeof report.items = [];
-      for (let i = allItems.length - 1; i >= 0; i--) {
-        const candidate = [allItems[i], ...lastChunk];
-        const fits = await canFitPage(candidate, { isFirst: i === 0, isLast: true });
-        if (!fits) break;
-        lastChunk = candidate;
-      }
-
-      // 2) Fill previous pages sequentially with safety boundary (no signature block).
-      const remaining = allItems.slice(0, allItems.length - lastChunk.length);
+      // Fill pages in order: if remaining rows can fit as the final page (with signature), end here;
+      // otherwise fill a non-final page to maximum height and continue.
       while (remaining.length > 0) {
-        const pageRows: typeof report.items = [];
         const isFirst = chunks.length === 0;
 
+        const canUseAsLastPage = await canFitPage(remaining, { isFirst, isLast: true });
+        if (canUseAsLastPage) {
+          chunks.push([...remaining]);
+          remaining.length = 0;
+          break;
+        }
+
+        const pageRows: typeof report.items = [];
         while (remaining.length > 0) {
           const candidate = [...pageRows, remaining[0]];
           const fits = await canFitPage(candidate, { isFirst, isLast: false });
@@ -504,17 +503,12 @@ export default function ClinicSelfpayMarginPage() {
           pageRows.push(remaining.shift()!);
         }
 
-        // Always progress at least one row to avoid dead loop with exceptionally long content.
-        if (pageRows.length === 0 && remaining.length > 0) {
+        // Always progress at least one row to avoid dead loop with exceptionally tall row content.
+        if (pageRows.length === 0) {
           pageRows.push(remaining.shift()!);
         }
 
         chunks.push(pageRows);
-      }
-
-      // 3) Append final signature page chunk (or single-page case).
-      if (lastChunk.length > 0 || chunks.length === 0) {
-        chunks.push(lastChunk);
       }
 
       const totalPages = chunks.length;
