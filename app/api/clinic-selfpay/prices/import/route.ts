@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
           health_insurance_code: healthCode,
           product_code: productCode,
           product_name: productName || selfpayDrugName || null,
+                    selfpay_drug_name: selfpayDrugName || null,
           member_price: memberPrice,
           cost_price: costPrice,
           source_file_name: file.name,

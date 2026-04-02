@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     const { data: priceRows, error: priceError } = await admin
       .from('clinic_selfpay_price_entries')
-      .select('health_insurance_code, product_code, product_name, year_month, updated_at')
+      .select('health_insurance_code, product_code, product_name, selfpay_drug_name, year_month, updated_at')
       .eq('store_id', storeId)
       .order('updated_at', { ascending: false })
       .limit(5000);
@@ -32,31 +32,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: priceError.message }, { status: 500 });
     }
 
-    const { data: batchRows } = await admin
-      .from('clinic_selfpay_claim_batches')
-      .select('id')
-      .eq('store_id', storeId)
-      .order('imported_at', { ascending: false })
-      .limit(300);
-
-    const batchIds = (batchRows || []).map((b: any) => b.id);
-    let drugNameMap = new Map<string, string>();
-
-    if (batchIds.length > 0) {
-      const { data: itemRows } = await admin
-        .from('clinic_selfpay_claim_items')
-        .select('health_insurance_code, drug_name, created_at')
-        .in('batch_id', batchIds)
-        .order('created_at', { ascending: false })
-        .limit(10000);
-
-      (itemRows || []).forEach((row: any) => {
-        const code = String(row.health_insurance_code || '').toUpperCase();
-        const name = String(row.drug_name || '').trim();
-        if (!code || !name) return;
-        if (!drugNameMap.has(code)) drugNameMap.set(code, name);
-      });
-    }
 
     const latestMap = new Map<string, any>();
     (priceRows || []).forEach((row: any) => {
@@ -68,7 +43,7 @@ export async function GET(request: NextRequest) {
     const data = Array.from(latestMap.entries())
       .map(([code, row]) => ({
         health_insurance_code: code,
-        drug_name: drugNameMap.get(code) || row.product_name || '',
+        drug_name: row.selfpay_drug_name || '',
         product_code: row.product_code || '',
         product_name: row.product_name || '',
         latest_year_month: row.year_month || '',

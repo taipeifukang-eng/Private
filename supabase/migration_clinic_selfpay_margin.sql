@@ -10,6 +10,7 @@ create table if not exists public.clinic_selfpay_price_entries (
   health_insurance_code varchar(30) not null,
   product_code varchar(50) not null,
   product_name text,
+  selfpay_drug_name text,
   member_price numeric(12,2) not null default 0,
   cost_price numeric(12,2) not null default 0,
   source_file_name text,
