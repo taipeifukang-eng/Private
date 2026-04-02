@@ -423,11 +423,9 @@ export default function ClinicSelfpayMarginPage() {
         </div>
       `;
 
-      // Split items into page chunks to prevent row cutoff across pages:
-      // First page has title+info block (takes ~155px), so fewer rows fit.
-      // Middle/last pages are table-only, more rows fit.
-      const ROWS_FIRST_PAGE = 25;
-      const ROWS_MID_PAGE = 32;
+      // Split items into page chunks to prevent row cutoff across pages.
+      const ROWS_FIRST_PAGE = 32;
+      const ROWS_MID_PAGE = 37;
       const ROWS_LAST_PAGE = 27; // reserve room for signature block
 
       const src = [...report.items];
@@ -437,6 +435,7 @@ export default function ClinicSelfpayMarginPage() {
         chunks.push(src.splice(0, ROWS_MID_PAGE));
       }
       if (src.length > 0) chunks.push(src.splice(0));
+      const totalPages = chunks.length;
 
       // Render a single page's HTML to a canvas
       const renderPage = async (innerHtml: string): Promise<HTMLCanvasElement> => {
@@ -456,6 +455,7 @@ export default function ClinicSelfpayMarginPage() {
       for (let i = 0; i < chunks.length; i++) {
         const isFirst = i === 0;
         const isLast = i === chunks.length - 1;
+        const pageNo = i + 1;
 
         const pageHtml = `
           ${isFirst
@@ -463,6 +463,7 @@ export default function ClinicSelfpayMarginPage() {
             : `<div style="font-size:12px;color:#6b7280;margin-bottom:6px;">${escapeHtml(storeName)}診所請款明細（續）</div>`
           }
           ${TABLE_HEADER_HTML}${makeRowsHtml(chunks[i])}
+          <div style="margin-top:8px;text-align:right;font-size:11px;color:#6b7280;">第 ${pageNo} 頁 / 共 ${totalPages} 頁</div>
           ${isLast ? SIGNATURE_HTML : ''}
           ${isLast ? `<div style="margin-top:10px;text-align:right;font-size:11px;color:#9ca3af;">列印日期：${new Date().toLocaleDateString('zh-TW')}</div>` : ''}
         `;
