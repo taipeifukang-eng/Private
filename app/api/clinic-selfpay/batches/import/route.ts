@@ -61,16 +61,29 @@ function parseClinicCodeFromRange(text: string): string | null {
 }
 
 function parseClaimQty(row: any[]) {
-  const qtyFromL = parseNumber(row[11]);
-  if (qtyFromL > 0) return qtyFromL;
+  const qtyCols = [12, 11, 10, 9, 13]; // 優先 M/L/K，再回退 J/N
+  for (const col of qtyCols) {
+    const raw = row?.[col];
+    const parsed = parseNumber(raw);
+    if (parsed > 0) return parsed;
 
-  const qtyFromM = parseNumber(row[12]);
-  if (qtyFromM > 0) return qtyFromM;
-
-  const qtyFromK = parseNumber(row[10]);
-  if (qtyFromK > 0) return qtyFromK;
+    // 相容格式：例如含單位、空白、逗號等字串
+    const text = String(raw ?? '').replace(/,/g, '').trim();
+    if (!text) continue;
+    const m = text.match(/-?\d+(?:\.\d+)?/);
+    if (!m) continue;
+    const loose = Number(m[0]);
+    if (Number.isFinite(loose) && loose > 0) return loose;
+  }
 
   return 0;
+}
+
+function normalizeInsuranceCode(raw: string) {
+  return String(raw || '')
+    .toUpperCase()
+    .replace(/[\s\u3000'"`]/g, '')
+    .replace(/[^A-Z0-9]/g, '');
 }
 
 function parseClaimDrugName(row: any[]) {
@@ -161,7 +174,7 @@ function extractItems(rows: any[][]): {
     const colB = String(row[1] || '').trim();
     const drugName = parseClaimDrugName(row);
     const qty = parseClaimQty(row);
-    const normalizedCode = colA.toUpperCase();
+    const normalizedCode = normalizeInsuranceCode(colA);
 
     const clinicLine = parseClinicInfo(colB);
     if (clinicLine) {
@@ -192,7 +205,7 @@ function extractItems(rows: any[][]): {
       continue;
     }
 
-    const looksLikeCode = /^[A-Za-z0-9]{4,}$/.test(colA);
+    const looksLikeCode = /^[A-Z0-9]{4,}$/.test(normalizedCode);
     if (!looksLikeCode) {
       debugStats.skippedInvalidCode += 1;
       continue;
