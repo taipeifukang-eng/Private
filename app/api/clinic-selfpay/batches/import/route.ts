@@ -351,12 +351,12 @@ export async function POST(request: NextRequest) {
 
     if (unmatchedMap.size > 0) {
       const lines = Array.from(unmatchedMap.values()).map(
-        (u) => `健保代碼${u.code} 藥品名稱:${u.name} 尚未有DPOS商品資訊，請將此訊息之藥品內容複製給營業部匯入DPOS商品主檔資訊`
+        (u) => `健保代碼${u.code} 藥品名稱:${u.name}`
       );
       return NextResponse.json(
         {
           success: false,
-          error: lines.join('\n'),
+          error: `尚未有DPOS商品資訊，請將此訊息之藥品內容複製給營業部匯入DPOS商品主檔資訊\n${lines.join('\n')}`,
           unmatched: Array.from(unmatchedMap.values()),
           debug: {
             unmatchedCount: unmatchedMap.size,

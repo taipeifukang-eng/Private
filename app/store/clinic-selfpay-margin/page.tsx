@@ -487,7 +487,7 @@ export default function ClinicSelfpayMarginPage() {
             </button>
 
             {batchMessage && (
-              <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">{batchMessage}</p>
+              <p className="mt-3 whitespace-pre-line rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">{batchMessage}</p>
             )}
           </div>
         </div>
