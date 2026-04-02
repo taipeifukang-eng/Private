@@ -7,6 +7,11 @@ function isMissingSelfpayColumnError(message: string) {
   return msg.includes('selfpay_drug_name') && (msg.includes('does not exist') || msg.includes('schema cache'));
 }
 
+function isMissingClosureTableError(message: string) {
+  const msg = String(message || '').toLowerCase();
+  return msg.includes('clinic_selfpay_price_month_closures') && (msg.includes('does not exist') || msg.includes('schema cache'));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -15,8 +20,12 @@ export async function GET(request: NextRequest) {
     }
 
     const storeId = (request.nextUrl.searchParams.get('store_id') || '').trim();
+    const yearMonth = (request.nextUrl.searchParams.get('year_month') || '').trim();
     if (!storeId) {
       return NextResponse.json({ success: false, error: '缺少 store_id' }, { status: 400 });
+    }
+    if (yearMonth && !/^\d{4}-\d{2}$/.test(yearMonth)) {
+      return NextResponse.json({ success: false, error: 'year_month 格式錯誤' }, { status: 400 });
     }
 
     const stores = await getAuthorizedStores(userId);
@@ -26,10 +35,16 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    const { data: priceRowsWithSelfpay, error: priceErrorWithSelfpay } = await admin
+    let priceQueryWithSelfpay = admin
       .from('clinic_selfpay_price_entries')
       .select('health_insurance_code, product_code, product_name, selfpay_drug_name, year_month, updated_at')
-      .eq('store_id', storeId)
+      .eq('store_id', storeId);
+
+    if (yearMonth) {
+      priceQueryWithSelfpay = priceQueryWithSelfpay.eq('year_month', yearMonth);
+    }
+
+    const { data: priceRowsWithSelfpay, error: priceErrorWithSelfpay } = await priceQueryWithSelfpay
       .order('updated_at', { ascending: false })
       .limit(5000);
 
@@ -37,10 +52,16 @@ export async function GET(request: NextRequest) {
     let useLegacyDrugNameFallback = false;
 
     if (priceErrorWithSelfpay && isMissingSelfpayColumnError(priceErrorWithSelfpay.message)) {
-      const { data: legacyPriceRows, error: legacyPriceError } = await admin
+      let legacyPriceQuery = admin
         .from('clinic_selfpay_price_entries')
         .select('health_insurance_code, product_code, product_name, year_month, updated_at')
-        .eq('store_id', storeId)
+        .eq('store_id', storeId);
+
+      if (yearMonth) {
+        legacyPriceQuery = legacyPriceQuery.eq('year_month', yearMonth);
+      }
+
+      const { data: legacyPriceRows, error: legacyPriceError } = await legacyPriceQuery
         .order('updated_at', { ascending: false })
         .limit(5000);
 
@@ -88,6 +109,22 @@ export async function GET(request: NextRequest) {
       latestMap.set(code, row);
     });
 
+    let isClosed = false;
+    if (yearMonth) {
+      const { data: closureRows, error: closureError } = await admin
+        .from('clinic_selfpay_price_month_closures')
+        .select('year_month')
+        .eq('store_id', storeId)
+        .eq('year_month', yearMonth)
+        .limit(1);
+
+      if (closureError && !isMissingClosureTableError(closureError.message)) {
+        return NextResponse.json({ success: false, error: closureError.message }, { status: 500 });
+      }
+
+      isClosed = Boolean(closureRows && closureRows.length > 0);
+    }
+
     const data = Array.from(latestMap.entries())
       .map(([code, row]) => ({
         health_insurance_code: code,
@@ -96,11 +133,11 @@ export async function GET(request: NextRequest) {
           : (row.selfpay_drug_name || ''),
         product_code: row.product_code || '',
         product_name: row.product_name || '',
-        latest_year_month: row.year_month || '',
+        latest_year_month: row.year_month || yearMonth || '',
       }))
       .sort((a, b) => a.health_insurance_code.localeCompare(b.health_insurance_code));
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, data, meta: { yearMonth, isClosed } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

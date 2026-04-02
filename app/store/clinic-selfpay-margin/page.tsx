@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Calculator,
   CheckCircle2,
+  Lock,
   FileSpreadsheet,
   Loader2,
   RefreshCw,
@@ -70,6 +71,11 @@ type MappingRow = {
   latest_year_month: string;
 };
 
+type MappingMeta = {
+  yearMonth: string;
+  isClosed: boolean;
+};
+
 type PriceHistoryRow = {
   year_month: string;
   health_insurance_code: string;
@@ -112,6 +118,8 @@ export default function ClinicSelfpayMarginPage() {
   const [mappings, setMappings] = useState<MappingRow[]>([]);
   const [loadingMappings, setLoadingMappings] = useState(false);
   const [mappingMessage, setMappingMessage] = useState('');
+  const [mappingMeta, setMappingMeta] = useState<MappingMeta>({ yearMonth: '', isClosed: false });
+  const [closingMappings, setClosingMappings] = useState(false);
 
   const [historyTarget, setHistoryTarget] = useState<MappingRow | null>(null);
   const [historyRows, setHistoryRows] = useState<PriceHistoryRow[]>([]);
@@ -136,9 +144,14 @@ export default function ClinicSelfpayMarginPage() {
   useEffect(() => {
     if (selectedStoreId) {
       loadRecentBatches();
-      loadMappings();
     }
   }, [selectedStoreId]);
+
+  useEffect(() => {
+    if (selectedStoreId && yearMonth) {
+      loadMappings();
+    }
+  }, [selectedStoreId, yearMonth]);
 
   async function loadStores() {
     setLoadingStores(true);
@@ -179,14 +192,43 @@ export default function ClinicSelfpayMarginPage() {
     setLoadingMappings(true);
     setMappingMessage('');
     try {
-      const res = await fetch(`/api/clinic-selfpay/mappings?store_id=${encodeURIComponent(selectedStoreId)}`);
+      const res = await fetch(`/api/clinic-selfpay/mappings?store_id=${encodeURIComponent(selectedStoreId)}&year_month=${encodeURIComponent(yearMonth)}`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error || '載入對應主檔失敗');
       setMappings((json.data || []) as MappingRow[]);
+      setMappingMeta({
+        yearMonth: String(json.meta?.yearMonth || yearMonth),
+        isClosed: Boolean(json.meta?.isClosed),
+      });
     } catch (error: any) {
       setMappingMessage(`載入對應主檔失敗：${error.message}`);
+      setMappingMeta({ yearMonth, isClosed: false });
     } finally {
       setLoadingMappings(false);
+    }
+  }
+
+  async function closeMappingsForMonth() {
+    if (!selectedStoreId || !yearMonth) return;
+    const confirmed = window.confirm(`確認將 ${yearMonth} 的 DPOS 對應主檔關帳？關帳後再次匯入同年月分頁將不會覆蓋。`);
+    if (!confirmed) return;
+
+    setClosingMappings(true);
+    setMappingMessage('');
+    try {
+      const res = await fetch('/api/clinic-selfpay/mappings/close', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ store_id: selectedStoreId, year_month: yearMonth }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || '關帳失敗');
+      setMappingMessage(`✅ ${yearMonth} 主檔已關帳`);
+      await loadMappings();
+    } catch (error: any) {
+      setMappingMessage(`❌ 主檔關帳失敗：${error.message}`);
+    } finally {
+      setClosingMappings(false);
     }
   }
 
@@ -224,7 +266,11 @@ export default function ClinicSelfpayMarginPage() {
       const json = await res.json();
       if (!json.success) throw new Error(json.error || '匯入失敗');
 
-      setPriceMessage(`✅ 月價匯入成功：${json.imported} 筆`);
+      const importedMonths = Array.isArray(json.importedMonths) ? json.importedMonths.join('、') : yearMonth;
+      const skippedClosedMonths = Array.isArray(json.skippedClosedMonths) && json.skippedClosedMonths.length > 0
+        ? `；已略過關帳月份：${json.skippedClosedMonths.join('、')}`
+        : '';
+      setPriceMessage(`✅ 月價匯入成功：${json.imported} 筆，匯入月份：${importedMonths}${skippedClosedMonths}`);
       await loadMappings();
     } catch (error: any) {
       setPriceMessage(`❌ 月價匯入失敗：${error.message}`);
@@ -559,7 +605,7 @@ export default function ClinicSelfpayMarginPage() {
             <div className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
               <h4 className="text-sm font-bold text-indigo-900">匯入月價格檔（DPOS）</h4>
               <p className="mt-1 text-xs text-indigo-800">
-                欄位格式：健保碼｜自費藥名稱｜品號｜品名｜會員價｜成本。系統以健保碼對應診所自費藥，並使用品號/品名/會員價/成本做計算。
+                欄位格式：健保碼｜自費藥名稱｜品號｜品名｜會員價｜成本。系統會讀取分頁名稱 YYYY-MM 作為匯入月份，並使用品號/品名/會員價/成本做計算。
               </p>
 
               <input
@@ -582,7 +628,7 @@ export default function ClinicSelfpayMarginPage() {
                   {priceUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                   {priceUploading ? '匯入中...' : '選擇月價格 Excel'}
                 </button>
-                <span className="text-xs text-indigo-800">目前匯入月份：{yearMonth}</span>
+                <span className="text-xs text-indigo-800">目前檢視月份：{yearMonth}</span>
               </div>
 
               {priceMessage && (
@@ -590,7 +636,22 @@ export default function ClinicSelfpayMarginPage() {
               )}
             </div>
 
-            <p className="mb-3 text-xs text-gray-600">欄位：DPOS 品號、DPOS 品名、診所藥品健保碼、診所開立藥品名稱。點擊列可看歷史會員價/成本。</p>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-gray-600">欄位：DPOS 品號、DPOS 品名、診所藥品健保碼、診所開立藥品名稱。點擊列可看歷史會員價/成本。</p>
+              <div className="flex items-center gap-2">
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${mappingMeta.isClosed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {mappingMeta.isClosed ? `${yearMonth} 已關帳` : `${yearMonth} 未關帳`}
+                </span>
+                <button
+                  onClick={closeMappingsForMonth}
+                  disabled={closingMappings || !selectedStoreId || !yearMonth || mappingMeta.isClosed || mappings.length === 0}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {closingMappings ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Lock className="h-3.5 w-3.5" />}
+                  {closingMappings ? '關帳中...' : '關帳主檔'}
+                </button>
+              </div>
+            </div>
 
             {mappingMessage && (
               <p className="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-sm text-gray-700">{mappingMessage}</p>
@@ -609,7 +670,7 @@ export default function ClinicSelfpayMarginPage() {
                       <th className="px-2 py-2 text-left">DPOS品名</th>
                       <th className="px-2 py-2 text-left">診所藥品健保碼</th>
                       <th className="px-2 py-2 text-left">診所開立藥品名稱</th>
-                      <th className="px-2 py-2 text-left">最新月份</th>
+                      <th className="px-2 py-2 text-left">主檔月份</th>
                     </tr>
                   </thead>
                   <tbody>
