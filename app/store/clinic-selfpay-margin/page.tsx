@@ -423,19 +423,6 @@ export default function ClinicSelfpayMarginPage() {
         </div>
       `;
 
-      // Split items into page chunks to prevent row cutoff across pages.
-      const ROWS_FIRST_PAGE = 32;
-      const ROWS_MID_PAGE = 37;
-      const ROWS_LAST_PAGE = 27; // reserve room for signature block
-
-      const src = [...report.items];
-      const chunks: (typeof report.items)[] = [];
-      chunks.push(src.splice(0, ROWS_FIRST_PAGE));
-      while (src.length > ROWS_LAST_PAGE) {
-        chunks.push(src.splice(0, ROWS_MID_PAGE));
-      }
-      if (src.length > 0) chunks.push(src.splice(0));
-
       const buildPageHtml = (rows: typeof report.items, options: { isFirst: boolean; isLast: boolean; pageNo: number; totalPages: number }) => {
         const { isFirst, isLast, pageNo, totalPages } = options;
         return `
@@ -478,31 +465,56 @@ export default function ClinicSelfpayMarginPage() {
       const pdfImgWidth = pdf.internal.pageSize.getWidth() - 16;
       const pageUsableHeightMm = pdf.internal.pageSize.getHeight() - 16;
       const pageUsableHeightPx = (pageUsableHeightMm * 980) / pdfImgWidth;
+      const SAFETY_MARGIN_PX = 28;
+      const maxContentHeightPx = pageUsableHeightPx - SAFETY_MARGIN_PX;
 
-      // Adaptive protection for last page: if signature area overflows, shift rows forward.
-      while (chunks.length > 0) {
-        const totalPages = chunks.length;
-        const lastIdx = chunks.length - 1;
-        const lastHtml = buildPageHtml(chunks[lastIdx], {
-          isFirst: lastIdx === 0,
-          isLast: true,
-          pageNo: totalPages,
-          totalPages,
+      const canFitPage = async (rows: typeof report.items, options: { isFirst: boolean; isLast: boolean }) => {
+        const html = buildPageHtml(rows, {
+          isFirst: options.isFirst,
+          isLast: options.isLast,
+          pageNo: 1,
+          totalPages: 1,
         });
-        const lastHeight = await measurePageHeight(lastHtml);
-        if (lastHeight <= pageUsableHeightPx) break;
+        const h = await measurePageHeight(html);
+        return h <= maxContentHeightPx;
+      };
 
-        if (chunks[lastIdx].length === 0) break;
+      const allItems = [...report.items];
+      const chunks: (typeof report.items)[] = [];
 
-        const shifted = chunks[lastIdx].shift();
-        if (!shifted) break;
+      // 1) Determine how many tail rows can stay on the last page with signature block.
+      let lastChunk: typeof report.items = [];
+      for (let i = allItems.length - 1; i >= 0; i--) {
+        const candidate = [allItems[i], ...lastChunk];
+        const fits = await canFitPage(candidate, { isFirst: i === 0, isLast: true });
+        if (!fits) break;
+        lastChunk = candidate;
+      }
 
-        const prevIdx = lastIdx - 1;
-        if (prevIdx >= 0 && chunks[prevIdx].length < ROWS_MID_PAGE) {
-          chunks[prevIdx].push(shifted);
-        } else {
-          chunks.splice(lastIdx, 0, [shifted]);
+      // 2) Fill previous pages sequentially with safety boundary (no signature block).
+      const remaining = allItems.slice(0, allItems.length - lastChunk.length);
+      while (remaining.length > 0) {
+        const pageRows: typeof report.items = [];
+        const isFirst = chunks.length === 0;
+
+        while (remaining.length > 0) {
+          const candidate = [...pageRows, remaining[0]];
+          const fits = await canFitPage(candidate, { isFirst, isLast: false });
+          if (!fits) break;
+          pageRows.push(remaining.shift()!);
         }
+
+        // Always progress at least one row to avoid dead loop with exceptionally long content.
+        if (pageRows.length === 0 && remaining.length > 0) {
+          pageRows.push(remaining.shift()!);
+        }
+
+        chunks.push(pageRows);
+      }
+
+      // 3) Append final signature page chunk (or single-page case).
+      if (lastChunk.length > 0 || chunks.length === 0) {
+        chunks.push(lastChunk);
       }
 
       const totalPages = chunks.length;
