@@ -18,6 +18,15 @@ type ParsedClaimItem = {
   qty: number;
 };
 
+const EXCLUDED_HEALTH_INSURANCE_CODES = new Set([
+  'A100000100',
+  'B200000100',
+  'A400000100',
+  'B100000100',
+  'B000000100',
+  'A900000100',
+]);
+
 function parseClinicInfo(text: string): { code: string; name: string } | null {
   const cleaned = text.replace(/\s+/g, ' ').trim();
   const m = cleaned.match(/診所別[:：]\s*([^\s]+)\s+(.+)/);
@@ -82,6 +91,7 @@ function extractItems(rows: any[][]): {
     const colA = String(row[0] || '').trim();
     const colB = String(row[1] || '').trim();
     const qty = parseClaimQty(row);
+    const normalizedCode = colA.toUpperCase();
 
     const clinicLine = parseClinicInfo(colB);
     if (clinicLine) {
@@ -93,13 +103,14 @@ function extractItems(rows: any[][]): {
     if (!colA || !colB) continue;
     if (/^健保代號/.test(colA) || /^count\s*[:：]/i.test(colA)) continue;
     if (qty <= 0) continue;
+    if (EXCLUDED_HEALTH_INSURANCE_CODES.has(normalizedCode)) continue;
 
     const looksLikeCode = /^[A-Za-z0-9]{4,}$/.test(colA);
     if (!looksLikeCode) continue;
 
     items.push({
       lineNo: i + 1,
-      healthInsuranceCode: colA,
+      healthInsuranceCode: normalizedCode,
       drugName: colB,
       qty,
     });
