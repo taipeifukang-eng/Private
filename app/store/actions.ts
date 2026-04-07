@@ -1082,6 +1082,40 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
               .limit(1)
               .single();
 
+            // 調入時優先沿用既有到職日；若新門市員工檔缺值，再回查歷史月資料與入職異動
+            let resolvedStartDate = empData?.start_date || null;
+
+            if (!resolvedStartDate) {
+              const { data: latestStartDateRow } = await supabase
+                .from('monthly_staff_status')
+                .select('start_date, year_month')
+                .eq('employee_code', movement.employee_code.toUpperCase())
+                .not('start_date', 'is', null)
+                .lt('year_month', yearMonth)
+                .order('year_month', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+              if (latestStartDateRow?.start_date) {
+                resolvedStartDate = latestStartDateRow.start_date;
+              }
+            }
+
+            if (!resolvedStartDate) {
+              const { data: firstOnboarding } = await supabase
+                .from('employee_movement_history')
+                .select('movement_date')
+                .eq('employee_code', movement.employee_code.toUpperCase())
+                .eq('movement_type', 'onboarding')
+                .order('movement_date', { ascending: true })
+                .limit(1)
+                .maybeSingle();
+
+              if (firstOnboarding?.movement_date) {
+                resolvedStartDate = firstOnboarding.movement_date;
+              }
+            }
+
             const workDays = daysInMonth - transferDay + 1; // 含調入當天
 
             statusRecords.push({
@@ -1093,7 +1127,7 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
               position: empData?.current_position || empData?.position || '',
               employment_type: empData?.employment_type || 'full_time',
               is_pharmacist: empData?.is_pharmacist || false,
-              start_date: empData?.start_date || null,
+              start_date: resolvedStartDate,
               monthly_status: 'transferred_in' as MonthlyStatusType,
               work_days: workDays,
               total_days_in_month: daysInMonth,
