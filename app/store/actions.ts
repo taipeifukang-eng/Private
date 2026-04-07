@@ -832,29 +832,54 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       .gte('movement_date', `${yearMonth}-01`)
       .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
 
+    const buildOnboardingOverrides = (movement: any) => {
+      const employeeCode = String(movement.employee_code || '').toUpperCase();
+      const isPartTimeOnboarding = employeeCode.startsWith('FKPT');
+      const isPharmacistOnboarding = Boolean(movement.onboarding_is_pharmacist);
+      const movementDate = new Date(movement.movement_date);
+      const startDay = movementDate.getDate();
+      const workDays = daysInMonth - startDay + 1;
+      const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(startDay).padStart(2, '0')}`;
+
+      return {
+        employeeCode,
+        isPartTimeOnboarding,
+        isPharmacistOnboarding,
+        movementDate,
+        workDays,
+        mmdd,
+        position: isPartTimeOnboarding
+          ? (isPharmacistOnboarding ? '兼職藥師' : '兼職助理')
+          : '新人',
+        employmentType: isPartTimeOnboarding ? 'part_time' as const : 'full_time' as const,
+        work_days: isPartTimeOnboarding ? null : workDays,
+        work_hours: isPartTimeOnboarding ? 0 : null
+      };
+    };
+
     if (onboardingMovements && onboardingMovements.length > 0) {
       for (const movement of onboardingMovements) {
+        const onboardingOverrides = buildOnboardingOverrides(movement);
+
         // 檢查是否已經在 statusRecords 中（避免重複）
         const existingIndex = statusRecords.findIndex(
           (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
         );
         if (existingIndex >= 0) {
-          // 已存在時仍要帶入是否藥師，避免 onboarding 設定被忽略
-          statusRecords[existingIndex].is_pharmacist = Boolean(movement.onboarding_is_pharmacist);
-          // 若尚未有到職日，補上入職日
-          if (!statusRecords[existingIndex].start_date) {
-            statusRecords[existingIndex].start_date = movement.movement_date;
-          }
+          // 已存在時以入職異動覆蓋本月初始化資料，避免被 store_employees / 上月資料誤判
+          statusRecords[existingIndex].employee_code = movement.employee_code;
+          statusRecords[existingIndex].employee_name = movement.employee_name;
+          statusRecords[existingIndex].position = onboardingOverrides.position;
+          statusRecords[existingIndex].employment_type = onboardingOverrides.employmentType;
+          statusRecords[existingIndex].is_pharmacist = onboardingOverrides.isPharmacistOnboarding;
+          statusRecords[existingIndex].start_date = movement.movement_date;
+          statusRecords[existingIndex].monthly_status = 'new_hire';
+          statusRecords[existingIndex].work_days = onboardingOverrides.work_days;
+          statusRecords[existingIndex].work_hours = onboardingOverrides.work_hours;
+          statusRecords[existingIndex].partial_month_notes = `${onboardingOverrides.mmdd}到職`;
+          statusRecords[existingIndex].is_manually_added = false;
           continue;
         }
-
-        // 計算從入職日到月底的工作天數
-        const movementDate = new Date(movement.movement_date);
-        const startDay = movementDate.getDate();
-        const workDays = daysInMonth - startDay + 1; // 含入職當天
-
-        // 格式化入職說明，例如 "03/02到職"
-        const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(startDay).padStart(2, '0')}`;
 
         statusRecords.push({
           year_month: yearMonth,
@@ -862,14 +887,14 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
           user_id: null,
           employee_code: movement.employee_code,
           employee_name: movement.employee_name,
-          position: '新人',
-          employment_type: 'full_time',
-          is_pharmacist: Boolean(movement.onboarding_is_pharmacist),
+          position: onboardingOverrides.position,
+          employment_type: onboardingOverrides.employmentType,
+          is_pharmacist: onboardingOverrides.isPharmacistOnboarding,
           start_date: movement.movement_date,
           monthly_status: 'new_hire' as MonthlyStatusType,
-          work_days: workDays,
+          work_days: onboardingOverrides.work_days,
           total_days_in_month: daysInMonth,
-          work_hours: null,
+          work_hours: onboardingOverrides.work_hours,
           is_dual_position: false,
           has_manager_bonus: false,
           is_supervisor_rotation: false,
@@ -877,7 +902,7 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
           newbie_level: '未過階新人',
           partial_month_reason: null,
           partial_month_days: null,
-          partial_month_notes: `${mmdd}到職`,
+          partial_month_notes: `${onboardingOverrides.mmdd}到職`,
           extra_tasks: null,
           is_manually_added: false,
           status: 'draft' as const
