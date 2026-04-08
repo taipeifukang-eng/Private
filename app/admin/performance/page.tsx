@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   calcMonthlyBonus,
@@ -853,6 +853,8 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const [loading,        setLoading]        = useState(false);
   const [importLoading,  setImportLoading]  = useState(false);
   const [canImportBonus, setCanImportBonus] = useState(false);
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [message,        setMessage]        = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [storesWS,       setStoresWS]       = useState<StoreWithSupervisor[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -987,6 +989,62 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   // 合計列
   const grandTotal = records.reduce((sum, r) => sum + rowTotal(r), 0);
 
+  function handleSortClick(key: string) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDirection('asc');
+      return;
+    }
+    setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+  }
+
+  function handleSortClear(key: string) {
+    if (sortKey === key) {
+      setSortKey(null);
+      setSortDirection('asc');
+    }
+  }
+
+  function sortIndicator(key: string) {
+    if (sortKey !== key) return '';
+    return sortDirection === 'asc' ? ' ↑' : ' ↓';
+  }
+
+  function getSortValue(record: BonusRecord, key: string): string | number {
+    const storeInfo = getStoreInfo(record.store);
+    if (key === 'store') return `${storeInfo.code} ${storeInfo.name}`;
+    if (key === 'year_month') return record.year_month || '';
+    if (key === 'employee_code') return record.employee_code || '';
+    if (key === 'employee_name') return record.employee_name || '';
+    if (key === 'total') return rowTotal(record);
+    if (key.startsWith('bonus:')) {
+      const bonusKey = key.replace('bonus:', '') as keyof BonusRecord;
+      return Number(record[bonusKey]) || 0;
+    }
+    return '';
+  }
+
+  const sortedRecords = useMemo(() => {
+    if (!sortKey) return records;
+
+    const sorted = [...records];
+    sorted.sort((a, b) => {
+      const av = getSortValue(a, sortKey);
+      const bv = getSortValue(b, sortKey);
+
+      let cmp = 0;
+      if (typeof av === 'number' && typeof bv === 'number') {
+        cmp = av - bv;
+      } else {
+        cmp = String(av).localeCompare(String(bv), 'zh-Hant', { numeric: true, sensitivity: 'base' });
+      }
+
+      return sortDirection === 'asc' ? cmp : -cmp;
+    });
+
+    return sorted;
+  }, [records, sortKey, sortDirection]);
+
   return (
     <div className="max-w-full px-4 py-6 space-y-4">
 
@@ -1089,14 +1147,57 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
           <table className="w-full text-xs whitespace-nowrap">
             <thead className="bg-gray-50 text-gray-500 sticky top-0">
               <tr>
-                <th className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10">門市</th>
-                <th className="px-3 py-2 text-left">年月</th>
-                <th className="px-3 py-2 text-left">員編</th>
-                <th className="px-3 py-2 text-left">姓名</th>
+                <th
+                  className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10 cursor-pointer select-none"
+                  title="左鍵排序，右鍵取消排序"
+                  onClick={() => handleSortClick('store')}
+                  onContextMenu={e => { e.preventDefault(); handleSortClear('store'); }}
+                >
+                  門市{sortIndicator('store')}
+                </th>
+                <th
+                  className="px-3 py-2 text-left cursor-pointer select-none"
+                  title="左鍵排序，右鍵取消排序"
+                  onClick={() => handleSortClick('year_month')}
+                  onContextMenu={e => { e.preventDefault(); handleSortClear('year_month'); }}
+                >
+                  年月{sortIndicator('year_month')}
+                </th>
+                <th
+                  className="px-3 py-2 text-left cursor-pointer select-none"
+                  title="左鍵排序，右鍵取消排序"
+                  onClick={() => handleSortClick('employee_code')}
+                  onContextMenu={e => { e.preventDefault(); handleSortClear('employee_code'); }}
+                >
+                  員編{sortIndicator('employee_code')}
+                </th>
+                <th
+                  className="px-3 py-2 text-left cursor-pointer select-none"
+                  title="左鍵排序，右鍵取消排序"
+                  onClick={() => handleSortClick('employee_name')}
+                  onContextMenu={e => { e.preventDefault(); handleSortClear('employee_name'); }}
+                >
+                  姓名{sortIndicator('employee_name')}
+                </th>
                 {BONUS_COLS.map(c => (
-                  <th key={c.key} className="px-3 py-2 text-right">{c.label}</th>
+                  <th
+                    key={c.key}
+                    className="px-3 py-2 text-right cursor-pointer select-none"
+                    title="左鍵排序，右鍵取消排序"
+                    onClick={() => handleSortClick(`bonus:${String(c.key)}`)}
+                    onContextMenu={e => { e.preventDefault(); handleSortClear(`bonus:${String(c.key)}`); }}
+                  >
+                    {c.label}{sortIndicator(`bonus:${String(c.key)}`)}
+                  </th>
                 ))}
-                <th className="px-3 py-2 text-right bg-blue-50 font-semibold text-blue-700">合計</th>
+                <th
+                  className="px-3 py-2 text-right bg-blue-50 font-semibold text-blue-700 cursor-pointer select-none"
+                  title="左鍵排序，右鍵取消排序"
+                  onClick={() => handleSortClick('total')}
+                  onContextMenu={e => { e.preventDefault(); handleSortClear('total'); }}
+                >
+                  合計{sortIndicator('total')}
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -1113,7 +1214,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                   </td>
                 </tr>
               ) : (
-                records.map(r => {
+                sortedRecords.map(r => {
                   const storeInfo = getStoreInfo(r.store);
                   const total = rowTotal(r);
                   return (
