@@ -13,13 +13,26 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
 
-    const canView = await hasPermission(user.id, 'performance.bonus.view');
-    if (!canView) return NextResponse.json({ error: '無檢視權限' }, { status: 403 });
+    // RBAC: 檢視權限（admin 保底放行）
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.role !== 'admin') {
+      const canView = await hasPermission(user.id, 'performance.bonus.view');
+      if (!canView) {
+        return NextResponse.json({ error: '無檢視權限' }, { status: 403 });
+      }
+    }
 
     const { searchParams } = new URL(request.url);
     const yearMonth   = searchParams.get('year_month') || '';
     const storeIds    = searchParams.getAll('store_id');   // 可多個
     const supervisorId = searchParams.get('supervisor_id') || '';
+
+    console.log('[GET /api/performance-bonus] Query:', { yearMonth, storeIds, supervisorId, userId: user.id });
 
     const admin = createAdminClient();
 
@@ -47,10 +60,13 @@ export async function GET(request: NextRequest) {
     if (resolvedStoreIds.length > 0) q = q.in('store_id', resolvedStoreIds);
 
     const { data, error } = await q;
+    console.log('[GET /api/performance-bonus] Result:', { count: data?.length || 0, error: error?.message });
+    
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return NextResponse.json({ success: true, records: data || [] });
   } catch (e: any) {
+    console.error('[GET /api/performance-bonus]', e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

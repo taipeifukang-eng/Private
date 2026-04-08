@@ -210,15 +210,17 @@ export async function POST(request: NextRequest) {
 
     // 逐筆插入或更新，避免複合唯一約束衝突問題
     let successCount = 0;
+    const importErrors: { code: string; error: string }[] = [];
+    
     for (const record of upserts) {
       // 先嘗試插入
-      const { error: insertError } = await admin
+      const { data: inserted, error: insertError } = await admin
         .from('monthly_bonus_records')
         .insert([record])
-        .select()
-        .single();
+        .select();
       
       if (insertError) {
+        console.log(`[Insert error for ${record.employee_code}]`, insertError.code, insertError.message);
         // 如果是唯一約束衝突 (23505)，嘗試更新
         if (insertError.code === '23505') {
           const { error: updateError } = await admin
@@ -229,15 +231,23 @@ export async function POST(request: NextRequest) {
             .eq('employee_code', record.employee_code);
           
           if (!updateError) {
+            console.log(`[Update success for ${record.employee_code}]`);
             successCount++;
+          } else {
+            console.error(`[Update error for ${record.employee_code}]`, updateError);
+            importErrors.push({ code: record.employee_code, error: updateError.message });
           }
         } else {
-          console.error(`[Insert/Update error for ${record.employee_code}]`, insertError);
+          console.error(`[Insert error for ${record.employee_code}]`, insertError);
+          importErrors.push({ code: record.employee_code, error: insertError.message });
         }
       } else {
+        console.log(`[Insert success for ${record.employee_code}]`);
         successCount++;
       }
     }
+    
+    console.log(`[Import Summary] Total: ${upserts.length}, Success: ${successCount}, Failed: ${importErrors.length}`);
 
     return NextResponse.json({
       success: true,
