@@ -237,37 +237,47 @@ export async function POST(request: NextRequest) {
 
     console.log(`[${Date.now() - startTime}ms] Starting database upsert...`);
 
-    // 優先使用 RPC，但設定備用方案
+    // 獲取此次匯入的年月份和門市，以便清理舊記錄
+    const uniqueYearMonths = [...new Set(upserts.map(r => r.year_month))];
+    const uniqueStoreIds = [...new Set(upserts.map(r => r.store_id))];
+    
+    console.log(`[${Date.now() - startTime}ms] Year/months to import: ${uniqueYearMonths.join(', ')}, Stores: ${uniqueStoreIds.length}`);
+
     let successCount = 0;
     try {
-      console.log(`[${Date.now() - startTime}ms] Attempting RPC insert...`);
-      const { data, error: rpcError } = await admin.rpc('upsert_monthly_bonus_records', {
-        records: upserts
-      });
-
-      if (rpcError) {
-        console.error(`[${Date.now() - startTime}ms] [RPC error] ${rpcError.message}`);
-        throw new Error(rpcError.message);
+      // 第1步：刪除既有記錄（避免唯一約束衝突）
+      console.log(`[${Date.now() - startTime}ms] Clearing existing records for these periods and stores...`);
+      for (const ym of uniqueYearMonths) {
+        for (const storeId of uniqueStoreIds) {
+          const { error: delError } = await admin
+            .from('monthly_bonus_records')
+            .delete()
+            .eq('year_month', ym)
+            .eq('store_id', storeId);
+          
+          if (delError) {
+            console.warn(`[${Date.now() - startTime}ms] Delete warning for ${ym}/${storeId}: ${delError.message}`);
+          }
+        }
       }
+      console.log(`[${Date.now() - startTime}ms] Cleanup complete`);
 
-      successCount = data?.[0]?.imported_count || upserts.length;
-      console.log(`[${Date.now() - startTime}ms] RPC success: ${successCount} records`);
-    } catch (rpcErr: any) {
-      console.error(`[${Date.now() - startTime}ms] [RPC failed] Falling back to direct insert: ${rpcErr.message}`);
-
-      // 直接批量插入備用方案
-      console.log(`[${Date.now() - startTime}ms] Direct insert starting...`);
+      // 第2步：插入新記錄
+      console.log(`[${Date.now() - startTime}ms] Inserting ${upserts.length} new records...`);
       const { error: insertError } = await admin
         .from('monthly_bonus_records')
         .insert(upserts);
 
       if (insertError) {
-        console.error(`[${Date.now() - startTime}ms] [Direct insert error] ${insertError.message}`);
-        return NextResponse.json({ success: false, error: '資料庫操作失敗：' + insertError.message }, { status: 500 });
+        console.error(`[${Date.now() - startTime}ms] [Insert error] ${insertError.message}`);
+        return NextResponse.json({ success: false, error: '資料庫插入失敗：' + insertError.message }, { status: 500 });
       }
 
       successCount = upserts.length;
-      console.log(`[${Date.now() - startTime}ms] Direct insert success: ${successCount} records`);
+      console.log(`[${Date.now() - startTime}ms] Insert success: ${successCount} records`);
+    } catch (dbErr: any) {
+      console.error(`[${Date.now() - startTime}ms] [Database error] ${dbErr.message}`);
+      return NextResponse.json({ success: false, error: '資料庫操作失敗：' + dbErr.message }, { status: 500 });
     }
 
     console.log(`[${Date.now() - startTime}ms] Total processing time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
