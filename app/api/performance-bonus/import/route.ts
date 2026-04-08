@@ -62,10 +62,18 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
 
-    // RBAC: 匯入每月獎金
-    const canImport = await hasPermission(user.id, 'performance.bonus.import');
-    if (!canImport) {
-      return NextResponse.json({ error: '無匯入權限' }, { status: 403 });
+    // RBAC: 匯入每月獎金（admin 保底放行）
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+
+    if (profile?.role !== 'admin') {
+      const canImport = await hasPermission(user.id, 'performance.bonus.import');
+      if (!canImport) {
+        return NextResponse.json({ error: '無匯入權限' }, { status: 403 });
+      }
     }
 
     const formData = await request.formData();

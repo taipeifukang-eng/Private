@@ -376,7 +376,7 @@ export default function PerformancePage() {
       </div>
 
       {canViewBonusTab && activeTab === 'bonus-import' && (
-        <BonusImportTab allStores={stores} />
+        <BonusImportTab profile={profile} allStores={stores} />
       )}
 
       {activeTab === 'performance' && (
@@ -842,7 +842,7 @@ function rowTotal(r: BonusRecord): number {
   return BONUS_COLS.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
 }
 
-function BonusImportTab({ allStores }: { allStores: Store[] }) {
+function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store[] }) {
   const now = new Date();
   const defaultYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -866,9 +866,13 @@ function BonusImportTab({ allStores }: { allStores: Store[] }) {
     })();
   }, []);
 
-  // RBAC: 是否可匯入每月獎金
+  // RBAC: 是否可匯入每月獎金（admin 保底放行）
   useEffect(() => {
     (async () => {
+      if (profile?.role === 'admin') {
+        setCanImportBonus(true);
+        return;
+      }
       try {
         const res = await fetch('/api/permissions/check', {
           method: 'POST',
@@ -881,7 +885,7 @@ function BonusImportTab({ allStores }: { allStores: Store[] }) {
         setCanImportBonus(false);
       }
     })();
-  }, []);
+  }, [profile?.role]);
 
   // 督導清單（不重複）
   const supervisors = Array.from(
