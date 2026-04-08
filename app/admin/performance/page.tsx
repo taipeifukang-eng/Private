@@ -909,7 +909,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   }
   ymOptions.sort().reverse();
 
-  const isAdmin = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '');
+  const isAdmin = ['admin', 'supervisor', 'area_manager', 'manager'].includes(profile?.role || '');
 
   // 合計列
   const grandTotal = records.reduce((sum, r) => sum + rowTotal(r), 0);

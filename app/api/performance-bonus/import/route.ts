@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
 
-    // 只有 admin / supervisor / area_manager 可以匯入
+    // 只有 admin / supervisor / area_manager / manager 可以匯入
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
       .eq('id', user.id)
       .single();
-    if (!['admin', 'supervisor', 'area_manager'].includes(profile?.role || '')) {
+    if (!['admin', 'supervisor', 'area_manager', 'manager'].includes(profile?.role || '')) {
       return NextResponse.json({ error: '無匯入權限' }, { status: 403 });
     }
 
