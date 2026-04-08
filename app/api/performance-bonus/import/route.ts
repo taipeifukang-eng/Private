@@ -22,6 +22,34 @@ function getNum(row: Record<string, unknown>, keys: string[]): number {
   return 0;
 }
 
+// 智能解析月份（支援 "1", "01", "1月", "一月" 等格式）
+function parseMonth(monthStr: string): number | null {
+  if (!monthStr) return null;
+  const trimmed = monthStr.trim();
+  
+  // 移除 "月" 字
+  let cleaned = trimmed.replace(/月/g, '');
+  
+  // 支援中文數字
+  const chineseToNum: Record<string, number> = {
+    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+    '六': 6, '七': 7, '八': 8, '九': 9, '十': 10,
+    '十一': 11, '十二': 12
+  };
+  
+  if (chineseToNum[cleaned]) {
+    return chineseToNum[cleaned];
+  }
+  
+  // 嘗試解析為數字
+  const num = parseInt(cleaned);
+  if (!isNaN(num) && num >= 1 && num <= 12) {
+    return num;
+  }
+  
+  return null;
+}
+
 // Excel 欄位名稱對照（支援中英文）
 const COL = {
   store_code:             ['門市代號', '分店代號', 'store_code'],
@@ -90,6 +118,12 @@ export async function POST(request: NextRequest) {
     const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
     if (rows.length === 0) return NextResponse.json({ success: false, error: 'Excel 無資料' }, { status: 400 });
 
+    // 診斷：輸出實際的 Excel 欄位名
+    const firstRow = rows[0];
+    const actualKeys = Object.keys(firstRow);
+    console.log('[Excel Diagnosis] Actual column keys:', actualKeys);
+    console.log('[Excel Diagnosis] First row data:', firstRow);
+
     const admin = createAdminClient();
 
     // 載入所有門市代號對照
@@ -120,14 +154,17 @@ export async function POST(request: NextRequest) {
         // 嘗試從年份 + 月份欄位組合
         const rawMonth = getStr(row, COL.month);
         const rawYear  = getStr(row, COL.year) || fallbackYear;
-        if (rawMonth) {
-          const m = parseInt(rawMonth);
-          if (m >= 1 && m <= 12) {
-            yearMonth = `${rawYear}-${String(m).padStart(2, '0')}`;
-          }
+        
+        // 智能解析月份
+        const monthNum = parseMonth(rawMonth);
+        if (monthNum) {
+          yearMonth = `${rawYear}-${String(monthNum).padStart(2, '0')}`;
         }
       }
-      if (!yearMonth) { errors.push(`${rowLabel}：無法解析年月（${employeeCode}）`); continue; }
+      if (!yearMonth) { 
+        errors.push(`${rowLabel}：無法解析年月。月份值="${getStr(row, COL.month)}"，年份值="${getStr(row, COL.year) || fallbackYear}"（${employeeCode}）`); 
+        continue; 
+      }
 
       // ── 門市 ──
       const rawCode = getStr(row, COL.store_code);
