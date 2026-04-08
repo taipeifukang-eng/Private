@@ -17,7 +17,7 @@ import {
 import {
   TrendingUp, Upload, Save, Edit2, X, Check,
   ChevronDown, ChevronRight, RefreshCw, AlertCircle,
-  BarChart2, Award, Target, Calendar,
+  BarChart2, Award, Target, Calendar, DollarSign, Filter,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -74,6 +74,7 @@ export default function PerformancePage() {
   const [importLoading, setImportLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedQuarter, setExpandedQuarter] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'performance' | 'bonus-import'>('performance');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 門市自訂獎金閾值
@@ -319,13 +320,43 @@ export default function PerformancePage() {
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 pb-16">
-      {/* Header */}
-      <div className="bg-white border-b px-6 py-4 flex items-center gap-3">
-        <BarChart2 className="text-blue-600" size={24} />
-        <h1 className="text-xl font-bold text-gray-800">業績管理</h1>
-        <span className="text-sm text-gray-500">— 團體獎金計算</span>
+      {/* Header + Tabs */}
+      <div className="bg-white border-b px-6 pt-4">
+        <div className="flex items-center gap-3 mb-3">
+          <BarChart2 className="text-blue-600" size={24} />
+          <h1 className="text-xl font-bold text-gray-800">業績管理</h1>
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setActiveTab('performance')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'performance'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <BarChart2 size={14} />
+            團體獎金計算
+          </button>
+          <button
+            onClick={() => setActiveTab('bonus-import')}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'bonus-import'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <DollarSign size={14} />
+            匯入每月獎金
+          </button>
+        </div>
       </div>
 
+      {activeTab === 'bonus-import' && (
+        <BonusImportTab profile={profile} allStores={stores} />
+      )}
+
+      {activeTab === 'performance' && (
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
         {/* Toolbar */}
@@ -697,8 +728,8 @@ export default function PerformancePage() {
           <code className="bg-blue-100 px-1 rounded mx-1">營業天數</code>；
           其餘欄位：月毛利目標、月營業額目標、月來客數目標、上個月處方箋目標、月毛利實際、月營業額實際、月來客數實際、上個月處方箋實際
         </div>
-      </div>
-    </div>
+      </div>      </div>
+      )}    </div>
   );
 }
 
@@ -715,5 +746,344 @@ function NumInput({ value, onChange }: { value: number | null; onChange: (v: str
         hover:bg-white hover:border hover:border-gray-200"
       step="any"
     />
+  );
+}
+
+// ─── BonusImportTab ───────────────────────────────────────────────────────────
+
+interface StoreWithSupervisor {
+  id: string;
+  store_code: string;
+  store_name: string;
+  supervisor_id: string | null;
+  supervisor_name: string | null;
+}
+
+interface BonusRecord {
+  id: string;
+  store_id: string;
+  year_month: string;
+  employee_code: string;
+  employee_name: string | null;
+  group_bonus: number;
+  hr_subsidy_bonus: number;
+  single_item_bonus: number;
+  inventory_diff_penalty: number;
+  talent_bonus: number;
+  transport_fee: number;
+  inventory_bonus: number;
+  rx_incentive_bonus: number;
+  quarterly_makeup_bonus: number;
+  meal_allowance: number;
+  spring_festival_bonus: number;
+  pharmacist_guarantee: number;
+  owner_rx_makeup: number;
+  sales_competition_bonus: number;
+  owner_signing_bonus: number;
+  store?: { store_code: string; store_name: string } | { store_code: string; store_name: string }[];
+}
+
+const BONUS_COLS: { key: keyof BonusRecord; label: string }[] = [
+  { key: 'group_bonus',            label: '團體獎金' },
+  { key: 'hr_subsidy_bonus',       label: '人力補貼' },
+  { key: 'single_item_bonus',      label: '單品獎金' },
+  { key: 'inventory_diff_penalty', label: '盤差承擔' },
+  { key: 'talent_bonus',           label: '育才獎金' },
+  { key: 'transport_fee',          label: '交通費' },
+  { key: 'inventory_bonus',        label: '盤點獎金' },
+  { key: 'rx_incentive_bonus',     label: '處方激勵' },
+  { key: 'quarterly_makeup_bonus', label: '季回補' },
+  { key: 'meal_allowance',         label: '誤餐費' },
+  { key: 'spring_festival_bonus',  label: '春節出勤' },
+  { key: 'pharmacist_guarantee',   label: '藥師保證金' },
+  { key: 'owner_rx_makeup',        label: '負責人處方回補' },
+  { key: 'sales_competition_bonus',label: '銷售競賽' },
+  { key: 'owner_signing_bonus',    label: '負責人簽約金' },
+];
+
+function getStoreInfo(store: BonusRecord['store']) {
+  if (!store) return { code: '', name: '' };
+  const s = Array.isArray(store) ? store[0] : store;
+  return { code: s?.store_code || '', name: s?.store_name || '' };
+}
+
+function fmt(v: number) {
+  if (!v) return '';
+  return v.toLocaleString('zh-TW');
+}
+
+function rowTotal(r: BonusRecord): number {
+  return BONUS_COLS.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
+}
+
+function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store[] }) {
+  const now = new Date();
+  const defaultYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+  const [yearMonth,      setYearMonth]      = useState(defaultYM);
+  const [supervisorId,   setSupervisorId]   = useState('');
+  const [filterStoreId,  setFilterStoreId]  = useState('');
+  const [records,        setRecords]        = useState<BonusRecord[]>([]);
+  const [loading,        setLoading]        = useState(false);
+  const [importLoading,  setImportLoading]  = useState(false);
+  const [message,        setMessage]        = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [storesWS,       setStoresWS]       = useState<StoreWithSupervisor[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // 載入督導-門市對應
+  useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/stores-with-supervisors');
+      const json = await res.json();
+      if (json.success) setStoresWS(json.data || []);
+    })();
+  }, []);
+
+  // 督導清單（不重複）
+  const supervisors = Array.from(
+    new Map(
+      storesWS
+        .filter(s => s.supervisor_id && s.supervisor_name)
+        .map(s => [s.supervisor_id!, { id: s.supervisor_id!, name: s.supervisor_name! }])
+    ).values()
+  ).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hant'));
+
+  // 依督導篩選門市列表
+  const visibleStores = supervisorId
+    ? storesWS.filter(s => s.supervisor_id === supervisorId)
+    : allStores;
+
+  // 載入資料
+  const loadRecords = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ year_month: yearMonth });
+      if (supervisorId && !filterStoreId) params.set('supervisor_id', supervisorId);
+      if (filterStoreId) params.append('store_id', filterStoreId);
+      const res = await fetch(`/api/performance-bonus?${params}`);
+      const json = await res.json();
+      setRecords(json.records || []);
+    } finally {
+      setLoading(false);
+    }
+  }, [yearMonth, supervisorId, filterStoreId]);
+
+  useEffect(() => { loadRecords(); }, [loadRecords]);
+
+  // 匯入
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('year', yearMonth.split('-')[0]);
+      if (filterStoreId) fd.append('store_id', filterStoreId);
+      const res  = await fetch('/api/performance-bonus/import', { method: 'POST', body: fd });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      showMsg('success', `匯入完成：${json.imported} 筆${json.skipped ? `，略過 ${json.skipped} 筆` : ''}`);
+      await loadRecords();
+    } catch (err: any) {
+      showMsg('error', `匯入失敗：${err.message}`);
+    } finally {
+      setImportLoading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function showMsg(type: 'success' | 'error', text: string) {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 5000);
+  }
+
+  // 可用年月選項（近 12 個月 + 未來 2 個月）
+  const ymOptions: string[] = [];
+  for (let i = -12; i <= 2; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    ymOptions.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  ymOptions.sort().reverse();
+
+  const isAdmin = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '');
+
+  // 合計列
+  const grandTotal = records.reduce((sum, r) => sum + rowTotal(r), 0);
+
+  return (
+    <div className="max-w-full px-4 py-6 space-y-4">
+
+      {/* 篩選列 */}
+      <div className="bg-white rounded-xl shadow-sm p-4 flex flex-wrap items-center gap-3">
+        <Filter size={16} className="text-gray-400" />
+
+        {/* 年月份 */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">年月份</label>
+          <select
+            value={yearMonth}
+            onChange={e => setYearMonth(e.target.value)}
+            className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {ymOptions.map(ym => (
+              <option key={ym} value={ym}>{ym}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 督導區 */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">督導區</label>
+          <select
+            value={supervisorId}
+            onChange={e => { setSupervisorId(e.target.value); setFilterStoreId(''); }}
+            className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">全部</option>
+            {supervisors.map(sv => (
+              <option key={sv.id} value={sv.id}>{sv.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 門市別 */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">門市別</label>
+          <select
+            value={filterStoreId}
+            onChange={e => setFilterStoreId(e.target.value)}
+            className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">全部</option>
+            {visibleStores.map(s => (
+              <option key={s.id} value={s.id}>{s.store_code} {s.store_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 重新載入 */}
+        <button
+          onClick={loadRecords}
+          disabled={loading}
+          className="flex items-center gap-1 px-3 py-1.5 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          重新載入
+        </button>
+
+        {/* 匯入按鈕（僅 admin/supervisor/area_manager） */}
+        {isAdmin && (
+          <div className="ml-auto flex items-center gap-2">
+            <input type="file" accept=".xlsx,.xls" ref={fileRef} onChange={handleImport} className="hidden" id="bonus-import-file" />
+            <label
+              htmlFor="bonus-import-file"
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer ${
+                importLoading ? 'bg-gray-100 text-gray-400 pointer-events-none' : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              <Upload size={14} />
+              {importLoading ? '匯入中...' : '匯入 Excel'}
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* 訊息列 */}
+      {message && (
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-lg text-sm font-medium ${
+          message.type === 'success'
+            ? 'bg-green-50 text-green-700 border border-green-200'
+            : 'bg-red-50 text-red-700 border border-red-200'
+        }`}>
+          <AlertCircle size={16} />
+          {message.text}
+        </div>
+      )}
+
+      {/* 統計摘要 */}
+      <div className="bg-white rounded-xl shadow-sm px-5 py-3 flex items-center gap-6 text-sm">
+        <span className="text-gray-500">共 <strong>{records.length}</strong> 筆</span>
+        <span className="text-gray-500">獎金合計：<strong className="text-blue-700">{grandTotal.toLocaleString('zh-TW')}</strong> 元</span>
+      </div>
+
+      {/* 資料表格 */}
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs whitespace-nowrap">
+            <thead className="bg-gray-50 text-gray-500 sticky top-0">
+              <tr>
+                <th className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10">門市</th>
+                <th className="px-3 py-2 text-left">年月</th>
+                <th className="px-3 py-2 text-left">員編</th>
+                <th className="px-3 py-2 text-left">姓名</th>
+                {BONUS_COLS.map(c => (
+                  <th key={c.key} className="px-3 py-2 text-right">{c.label}</th>
+                ))}
+                <th className="px-3 py-2 text-right bg-blue-50 font-semibold text-blue-700">合計</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-8 text-center text-gray-400">
+                    <RefreshCw size={18} className="animate-spin inline-block mr-2" />載入中...
+                  </td>
+                </tr>
+              ) : records.length === 0 ? (
+                <tr>
+                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-10 text-center text-gray-400">
+                    尚無資料，請先匯入 Excel
+                  </td>
+                </tr>
+              ) : (
+                records.map(r => {
+                  const storeInfo = getStoreInfo(r.store);
+                  const total = rowTotal(r);
+                  return (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-1.5 sticky left-0 bg-white font-medium text-gray-700 z-10">
+                        {storeInfo.code}<br />
+                        <span className="text-gray-400 font-normal">{storeInfo.name}</span>
+                      </td>
+                      <td className="px-3 py-1.5 text-gray-600">{r.year_month}</td>
+                      <td className="px-3 py-1.5 text-gray-600">{r.employee_code}</td>
+                      <td className="px-3 py-1.5 text-gray-700">{r.employee_name || '—'}</td>
+                      {BONUS_COLS.map(c => {
+                        const v = Number(r[c.key]) || 0;
+                        return (
+                          <td key={c.key} className={`px-3 py-1.5 text-right ${v < 0 ? 'text-red-600' : v > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+                            {fmt(v)}
+                          </td>
+                        );
+                      })}
+                      <td className={`px-3 py-1.5 text-right font-semibold bg-blue-50/50 ${total < 0 ? 'text-red-700' : 'text-blue-700'}`}>
+                        {total.toLocaleString('zh-TW')}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Excel 格式說明 */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+        <strong>Excel 匯入格式（第一列為標題列）：</strong><br />
+        <span className="font-medium">必填欄位：</span>
+        <code className="bg-blue-100 px-1 rounded mx-0.5">員編</code>
+        <code className="bg-blue-100 px-1 rounded mx-0.5">年月</code>（格式：2026-03）或
+        <code className="bg-blue-100 px-1 rounded mx-0.5">月份</code> + <code className="bg-blue-100 px-1 rounded mx-0.5">年份</code>（省略年份則使用篩選器所選年份）<br />
+        <span className="font-medium">選填欄位：</span>
+        <code className="bg-blue-100 px-1 rounded mx-0.5">門市代號</code>（省略時使用篩選器所選門市）
+        <code className="bg-blue-100 px-1 rounded mx-0.5">姓名</code><br />
+        <span className="font-medium">獎金欄位：</span>
+        團體獎金、人力補貼團體獎金、單品獎金、盤點盤差承擔金額、育才獎金、交通費、
+        盤點獎金、處方激勵獎金、季回補獎金、誤餐費、春節出勤獎金、藥師保證金、
+        負責人處方回補獎金、銷售競賽獎金、負責人簽約金
+      </div>
+    </div>
   );
 }
