@@ -357,7 +357,8 @@ export default function PerformancePage() {
       )}
 
       {activeTab === 'performance' && (
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <div>
+          <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
 
         {/* Toolbar */}
         <div className="bg-white rounded-xl shadow-sm p-4 flex flex-wrap items-center gap-4">
@@ -714,22 +715,24 @@ export default function PerformancePage() {
 
       </div>
 
-      {/* Excel template tip */}
-      <div className="max-w-7xl mx-auto px-4 pb-6">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
-          <strong>Excel 匯入格式：</strong>
-          第一列為標題列。<br />
-          <span className="font-medium">選填欄位（可跨門市/跨年份匯入）：</span>
-          <code className="bg-blue-100 px-1 rounded mx-1">門市代號</code>
-          <code className="bg-blue-100 px-1 rounded mx-1">年份</code>
-          — 省略時使用頁面所選門市與年份。<br />
-          <span className="font-medium">必填欄位：</span>
-          <code className="bg-blue-100 px-1 rounded mx-1">月份</code>
-          <code className="bg-blue-100 px-1 rounded mx-1">營業天數</code>；
-          其餘欄位：月毛利目標、月營業額目標、月來客數目標、上個月處方箋目標、月毛利實際、月營業額實際、月來客數實際、上個月處方箋實際
+          {/* Excel template tip */}
+          <div className="max-w-7xl mx-auto px-4 pb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+              <strong>Excel 匯入格式：</strong>
+              第一列為標題列。<br />
+              <span className="font-medium">選填欄位（可跨門市/跨年份匯入）：</span>
+              <code className="bg-blue-100 px-1 rounded mx-1">門市代號</code>
+              <code className="bg-blue-100 px-1 rounded mx-1">年份</code>
+              — 省略時使用頁面所選門市與年份。<br />
+              <span className="font-medium">必填欄位：</span>
+              <code className="bg-blue-100 px-1 rounded mx-1">月份</code>
+              <code className="bg-blue-100 px-1 rounded mx-1">營業天數</code>；
+              其餘欄位：月毛利目標、月營業額目標、月來客數目標、上個月處方箋目標、月毛利實際、月營業額實際、月來客數實際、上個月處方箋實際
+            </div>
+          </div>
         </div>
-      </div>      </div>
-      )}    </div>
+      )}
+    </div>
   );
 }
 
