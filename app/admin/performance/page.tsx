@@ -934,9 +934,9 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       if (filterStoreId) fd.append('store_id', filterStoreId);
       console.log('📡 發送請求到 /api/performance-bonus/import');
       
-      // 添加 30 秒超時
+      // 添加 180 秒超時（避免大量資料時過早中斷）
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
       
       const res  = await fetch('/api/performance-bonus/import', { 
         method: 'POST', 
@@ -962,7 +962,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       console.error('❌ 匯入錯誤:', err);
       let errorMsg = err?.message || String(err);
       if (err?.name === 'AbortError') {
-        errorMsg = '匯入逾時（超過 30 秒）- 檔案可能過大，請稍後重試';
+        errorMsg = '匯入逾時（超過 180 秒）- 伺服器忙碌，請稍後重試';
       }
       showMsg('error', `匯入失敗：${errorMsg}`);
     } finally {

@@ -275,62 +275,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: `沒有可匯入的資料。${errors.length > 0 ? '錯誤：' + errors.join('；') : ''}` });
     }
 
-    console.log(`[${Date.now() - startTime}ms] Starting database import via RPC...`);
+    console.log(`[${Date.now() - startTime}ms] Preparing deduplicated upsert payload...`);
 
-    let successCount = 0;
-    try {
-      // 使用 RPC 函數在數據庫端執行批量操作（最高效）
-      console.log(`[${Date.now() - startTime}ms] Calling RPC upsert_monthly_bonus_records...`);
-      const { data, error: rpcError } = await admin.rpc('upsert_monthly_bonus_records', {
-        records: upserts
-      });
-
-      if (rpcError) {
-        console.error(`[${Date.now() - startTime}ms] [RPC error] ${rpcError.message}`);
-        throw new Error(`RPC 錯誤: ${rpcError.message}`);
-      }
-
-      successCount = data?.[0]?.imported_count || upserts.length;
-      const deletedCount = data?.[0]?.deleted_count || 0;
-      console.log(`[${Date.now() - startTime}ms] RPC success: deleted ${deletedCount}, imported ${successCount} records`);
-    } catch (rpcErr: any) {
-      console.error(`[${Date.now() - startTime}ms] [RPC failed, fallback to direct insert] ${rpcErr.message}`);
-
-      // 備用方案：JavaScript 層操作（如果 RPC 不可用）
-      try {
-        console.log(`[${Date.now() - startTime}ms] Falling back to JavaScript delete+insert...`);
-        
-        // 一次性刪除所有該期間的舊記錄
-        const uniqueYearMonths = Array.from(new Set(upserts.map(r => r.year_month)));
-        const uniqueStoreIds = Array.from(new Set(upserts.map(r => r.store_id)));
-        
-        console.log(`[${Date.now() - startTime}ms] Deleting old records...`);
-        for (const ym of uniqueYearMonths) {
-          for (const storeId of uniqueStoreIds) {
-            await admin
-              .from('monthly_bonus_records')
-              .delete()
-              .eq('year_month', ym)
-              .eq('store_id', storeId);
-          }
-        }
-        
-        console.log(`[${Date.now() - startTime}ms] Inserting new records...`);
-        const { error: insertError } = await admin
-          .from('monthly_bonus_records')
-          .insert(upserts);
-
-        if (insertError) {
-          throw new Error(`插入失敗: ${insertError.message}`);
-        }
-
-        successCount = upserts.length;
-        console.log(`[${Date.now() - startTime}ms] Fallback success: ${successCount} records`);
-      } catch (fallbackErr: any) {
-        console.error(`[${Date.now() - startTime}ms] [Fallback failed] ${fallbackErr.message}`);
-        return NextResponse.json({ success: false, error: '資料庫操作失敗：' + fallbackErr.message }, { status: 500 });
-      }
+    // 先去重，避免同一批資料中出現相同 key 造成 ON CONFLICT second time 錯誤
+    const dedupMap = new Map<string, Record<string, any>>();
+    for (const r of upserts) {
+      const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
+      dedupMap.set(key, r);
     }
+    const dedupedUpserts = Array.from(dedupMap.values());
+
+    console.log(
+      `[${Date.now() - startTime}ms] Upserting ${dedupedUpserts.length} records (raw: ${upserts.length}, deduped: ${dedupedUpserts.length})...`
+    );
+
+    const { error: upsertError } = await admin
+      .from('monthly_bonus_records')
+      .upsert(dedupedUpserts, { onConflict: 'store_id,year_month,employee_code' });
+
+    if (upsertError) {
+      console.error(`[${Date.now() - startTime}ms] [Upsert error] ${upsertError.message}`);
+      return NextResponse.json({ success: false, error: '資料庫操作失敗：' + upsertError.message }, { status: 500 });
+    }
+
+    const successCount = dedupedUpserts.length;
+    console.log(`[${Date.now() - startTime}ms] Upsert success: ${successCount} records`);
 
     console.log(`[${Date.now() - startTime}ms] Total processing time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
 
