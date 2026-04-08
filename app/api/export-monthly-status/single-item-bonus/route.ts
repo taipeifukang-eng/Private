@@ -69,26 +69,53 @@ export async function POST(request: NextRequest) {
       // 不中斷，繼續處理 monthly_staff_status 的資料
     }
 
-    // 準備 Excel 資料 - 來自 monthly_staff_status
-    const excelData = staffData.map((record: any) => ({
-      '門市代號': codeMap[record.store_id] || record.stores.store_code || '',
-      '月份': year_month,
-      '員編': record.employee_code || '',
-      '姓名': record.employee_name || '',
-      '單品獎金總額': record.last_month_single_item_bonus || 0
-    }));
+    // 匯出去重：同門市同員編只保留一筆，且以 support_staff_bonus 覆蓋 monthly_staff_status
+    const bonusMap = new Map<string, {
+      storeId: string;
+      storeCode: string;
+      employeeCode: string;
+      employeeName: string;
+      amount: number;
+    }>();
 
-    // 加入支援人員獎金資料（帶門市代號）
-    if (supportBonusData && supportBonusData.length > 0) {
-      const supportExcelData = supportBonusData.map((record: any) => ({
-        '門市代號': codeMap[record.store_id] || record.stores?.store_code || '',
-        '月份': year_month,
-        '員編': record.employee_code || '',
-        '姓名': record.employee_name || '',
-        '單品獎金總額': record.bonus_amount || 0
-      }));
-      excelData.push(...supportExcelData);
+    for (const record of staffData || []) {
+      const storeId = String(record.store_id || '');
+      const employeeCode = String(record.employee_code || '').toUpperCase();
+      if (!storeId || !employeeCode) continue;
+      const key = `${storeId}::${employeeCode}`;
+
+      bonusMap.set(key, {
+        storeId,
+        storeCode: codeMap[record.store_id] || record.stores?.store_code || '',
+        employeeCode: record.employee_code || '',
+        employeeName: record.employee_name || '',
+        amount: record.last_month_single_item_bonus || 0
+      });
     }
+
+    for (const record of supportBonusData || []) {
+      const storeId = String(record.store_id || '');
+      const employeeCode = String(record.employee_code || '').toUpperCase();
+      if (!storeId || !employeeCode) continue;
+      const key = `${storeId}::${employeeCode}`;
+
+      // support_staff_bonus 視為店長最終填寫結果，覆蓋同 key 的舊值
+      bonusMap.set(key, {
+        storeId,
+        storeCode: codeMap[record.store_id] || record.stores?.store_code || '',
+        employeeCode: record.employee_code || '',
+        employeeName: record.employee_name || '',
+        amount: record.bonus_amount || 0
+      });
+    }
+
+    const excelData = Array.from(bonusMap.values()).map((record) => ({
+      '門市代號': record.storeCode,
+      '月份': year_month,
+      '員編': record.employeeCode,
+      '姓名': record.employeeName,
+      '單品獎金總額': record.amount
+    }));
 
     // 按門市代號排序
     excelData.sort((a: any, b: any) => {
