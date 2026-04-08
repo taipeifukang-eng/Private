@@ -50,6 +50,16 @@ function parseMonth(monthStr: string): number | null {
   return null;
 }
 
+function normalizeStoreCode(code: string): string {
+  return String(code || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function getStoreCodeBase(code: string): string {
+  const normalized = normalizeStoreCode(code);
+  const m = normalized.match(/^\d+/);
+  return m ? m[0] : normalized;
+}
+
 // Excel 欄位名稱對照（支援中英文）
 const COL = {
   store_code:             ['門市代號', '分店代號', 'store_code'],
@@ -148,7 +158,19 @@ export async function POST(request: NextRequest) {
       .select('id, store_code')
       .eq('is_active', true);
     const storeCodeMap: Record<string, string> = {};
-    (storeList || []).forEach(s => { storeCodeMap[s.store_code.trim()] = s.id; });
+    const storeCodeBaseMap: Record<string, { id: string; code: string }[]> = {};
+    (storeList || []).forEach(s => {
+      const normalized = normalizeStoreCode(s.store_code);
+      const base = getStoreCodeBase(normalized);
+      storeCodeMap[normalized] = s.id;
+      if (!storeCodeBaseMap[base]) storeCodeBaseMap[base] = [];
+      storeCodeBaseMap[base].push({ id: s.id, code: normalized });
+    });
+
+    // 固定排序，確保前綴比對在多候選時有一致結果
+    Object.keys(storeCodeBaseMap).forEach(base => {
+      storeCodeBaseMap[base].sort((a, b) => a.code.localeCompare(b.code, 'en'));
+    });
     console.log(`[${Date.now() - startTime}ms] Store mappings loaded: ${storeList?.length || 0} stores`);
 
     const upserts: Record<string, any>[] = [];
@@ -195,7 +217,25 @@ export async function POST(request: NextRequest) {
       const rawCode = getStr(row, COL.store_code);
       let storeId = fallbackStoreId;
       if (rawCode) {
-        const found = storeCodeMap[rawCode];
+        const normalizedRawCode = normalizeStoreCode(rawCode);
+
+        // 1) 先精準匹配（例：0015B -> 0015B）
+        let found = storeCodeMap[normalizedRawCode];
+
+        // 2) 再做前綴/基礎碼匹配（例：0015 -> 0015B/0015C/0015D）
+        if (!found) {
+          const base = getStoreCodeBase(normalizedRawCode);
+          const candidates = storeCodeBaseMap[base] || [];
+          if (candidates.length > 0) {
+            found = candidates[0].id;
+            if (candidates.length > 1) {
+              console.warn(
+                `[Store code prefix match] ${rawCode} matched multiple stores: ${candidates.map(c => c.code).join(', ')}; using ${candidates[0].code}`
+              );
+            }
+          }
+        }
+
         if (!found) { errors.push(`${rowLabel}：找不到門市代號 "${rawCode}"（${employeeCode}）`); continue; }
         storeId = found;
       }
@@ -261,8 +301,8 @@ export async function POST(request: NextRequest) {
         console.log(`[${Date.now() - startTime}ms] Falling back to JavaScript delete+insert...`);
         
         // 一次性刪除所有該期間的舊記錄
-        const uniqueYearMonths = [...new Set(upserts.map(r => r.year_month))];
-        const uniqueStoreIds = [...new Set(upserts.map(r => r.store_id))];
+        const uniqueYearMonths = Array.from(new Set(upserts.map(r => r.year_month)));
+        const uniqueStoreIds = Array.from(new Set(upserts.map(r => r.store_id)));
         
         console.log(`[${Date.now() - startTime}ms] Deleting old records...`);
         for (const ym of uniqueYearMonths) {
