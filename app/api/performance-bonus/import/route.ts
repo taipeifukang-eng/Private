@@ -208,17 +208,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: `沒有可匯入的資料。${errors.length > 0 ? '錯誤：' + errors.join('；') : ''}` });
     }
 
-    // Upsert（以 store_id, year_month, employee_code 為 key）
-    const { error: upsertError } = await admin
-      .from('monthly_bonus_records')
-      .upsert(upserts, { onConflict: 'store_id,year_month,employee_code' });
-
-    if (upsertError) return NextResponse.json({ success: false, error: upsertError.message }, { status: 500 });
+    // 逐筆插入或更新，避免複合唯一約束衝突問題
+    let successCount = 0;
+    for (const record of upserts) {
+      // 先嘗試插入
+      const { error: insertError } = await admin
+        .from('monthly_bonus_records')
+        .insert([record])
+        .select()
+        .single();
+      
+      if (insertError) {
+        // 如果是唯一約束衝突 (23505)，嘗試更新
+        if (insertError.code === '23505') {
+          const { error: updateError } = await admin
+            .from('monthly_bonus_records')
+            .update(record)
+            .eq('store_id', record.store_id)
+            .eq('year_month', record.year_month)
+            .eq('employee_code', record.employee_code);
+          
+          if (!updateError) {
+            successCount++;
+          }
+        } else {
+          console.error(`[Insert/Update error for ${record.employee_code}]`, insertError);
+        }
+      } else {
+        successCount++;
+      }
+    }
 
     return NextResponse.json({
       success: true,
-      imported: upserts.length,
-      skipped: rows.length - upserts.length,
+      imported: successCount,
+      skipped: upserts.length - successCount,
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (e: any) {
