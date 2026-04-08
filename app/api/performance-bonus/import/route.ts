@@ -201,7 +201,6 @@ export async function POST(request: NextRequest) {
         owner_rx_makeup:        getNum(row, COL.owner_rx_makeup),
         sales_competition_bonus:getNum(row, COL.sales_competition_bonus),
         owner_signing_bonus:    getNum(row, COL.owner_signing_bonus),
-        updated_at:             new Date().toISOString(),
       });
     }
 
