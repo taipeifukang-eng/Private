@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
+import { hasPermission } from '@/lib/permissions/check';
 
 function getStr(row: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
@@ -61,13 +62,9 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
 
-    // 只有 admin / supervisor / area_manager / manager 可以匯入
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-    if (!['admin', 'supervisor', 'area_manager', 'manager'].includes(profile?.role || '')) {
+    // RBAC: 匯入每月獎金
+    const canImport = await hasPermission(user.id, 'performance.bonus.import');
+    if (!canImport) {
       return NextResponse.json({ error: '無匯入權限' }, { status: 403 });
     }
 

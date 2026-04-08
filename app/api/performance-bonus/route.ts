@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 /**
  * GET /api/performance-bonus
@@ -11,6 +12,9 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
+
+    const canView = await hasPermission(user.id, 'performance.bonus.view');
+    if (!canView) return NextResponse.json({ error: '無檢視權限' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const yearMonth   = searchParams.get('year_month') || '';

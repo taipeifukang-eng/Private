@@ -65,6 +65,7 @@ function emptyRecord(storeId: string, year: number, month: number): EditRow {
 export default function PerformancePage() {
   const supabase = createClient();
   const [profile, setProfile] = useState<any>(null);
+  const [canViewBonusTab, setCanViewBonusTab] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -113,6 +114,26 @@ export default function PerformancePage() {
         .eq('id', user.id)
         .single();
       setProfile(p);
+    })();
+  }, []);
+
+  // ─── RBAC: 是否可檢視「匯入每月獎金」Tab ──────────────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/permissions/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissionCode: 'performance.bonus.view' })
+        });
+        const json = await res.json();
+        const allowed = Boolean(json.allowed);
+        setCanViewBonusTab(allowed);
+        if (!allowed) setActiveTab('performance');
+      } catch {
+        setCanViewBonusTab(false);
+        setActiveTab('performance');
+      }
     })();
   }, []);
 
@@ -338,22 +359,24 @@ export default function PerformancePage() {
             <BarChart2 size={14} />
             團體獎金計算
           </button>
-          <button
-            onClick={() => setActiveTab('bonus-import')}
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'bonus-import'
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            <DollarSign size={14} />
-            匯入每月獎金
-          </button>
+          {canViewBonusTab && (
+            <button
+              onClick={() => setActiveTab('bonus-import')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'bonus-import'
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <DollarSign size={14} />
+              匯入每月獎金
+            </button>
+          )}
         </div>
       </div>
 
-      {activeTab === 'bonus-import' && (
-        <BonusImportTab profile={profile} allStores={stores} />
+      {canViewBonusTab && activeTab === 'bonus-import' && (
+        <BonusImportTab allStores={stores} />
       )}
 
       {activeTab === 'performance' && (
@@ -819,7 +842,7 @@ function rowTotal(r: BonusRecord): number {
   return BONUS_COLS.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
 }
 
-function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store[] }) {
+function BonusImportTab({ allStores }: { allStores: Store[] }) {
   const now = new Date();
   const defaultYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -829,6 +852,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const [records,        setRecords]        = useState<BonusRecord[]>([]);
   const [loading,        setLoading]        = useState(false);
   const [importLoading,  setImportLoading]  = useState(false);
+  const [canImportBonus, setCanImportBonus] = useState(false);
   const [message,        setMessage]        = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [storesWS,       setStoresWS]       = useState<StoreWithSupervisor[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -839,6 +863,23 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       const res = await fetch('/api/stores-with-supervisors');
       const json = await res.json();
       if (json.success) setStoresWS(json.data || []);
+    })();
+  }, []);
+
+  // RBAC: 是否可匯入每月獎金
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/permissions/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissionCode: 'performance.bonus.import' })
+        });
+        const json = await res.json();
+        setCanImportBonus(Boolean(json.allowed));
+      } catch {
+        setCanImportBonus(false);
+      }
     })();
   }, []);
 
@@ -909,8 +950,6 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   }
   ymOptions.sort().reverse();
 
-  const isAdmin = ['admin', 'supervisor', 'area_manager', 'manager'].includes(profile?.role || '');
-
   // 合計列
   const grandTotal = records.reduce((sum, r) => sum + rowTotal(r), 0);
 
@@ -975,8 +1014,8 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
           重新載入
         </button>
 
-        {/* 匯入按鈕（僅 admin/supervisor/area_manager） */}
-        {isAdmin && (
+        {/* 匯入按鈕（RBAC: performance.bonus.import） */}
+        {canImportBonus && (
           <div className="ml-auto flex items-center gap-2">
             <input type="file" accept=".xlsx,.xls" ref={fileRef} onChange={handleImport} className="hidden" id="bonus-import-file" />
             <label
