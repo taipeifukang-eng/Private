@@ -105,7 +105,7 @@ export default function EditStaffStatusPage() {
   // 當表單值變更時，重新計算區塊
   useEffect(() => {
     calculateBlock();
-  }, [position, monthlyStatus, isDualPosition, isSupervisorRotation, employmentType, staffStatus?.is_pharmacist, workDays]);
+  }, [position, monthlyStatus, isDualPosition, isSupervisorRotation, employmentType, staffStatus?.is_pharmacist, workDays, isActingManager]);
 
   // 自動計算「該店規劃實上時數」當選擇額外任務時
   useEffect(() => {
@@ -210,7 +210,8 @@ export default function EditStaffStatusPage() {
     }
 
     // 區塊 4：特殊時數 (督導(代理店長)-雙 或 長照外務/診所業務)
-    if ((position.includes('督導') && position.includes('代理店長') && isDualPosition) ||
+    // 條件：職位含「督導」且勾選雙職務 且 (職位含「代理店長」 或 勾選「擔任代理店長」)
+    if ((position.includes('督導') && isDualPosition && (position.includes('代理店長') || isActingManager)) ||
         (extraTasks.length > 0 && (extraTasks.includes('長照外務') || extraTasks.includes('診所業務')))) {
       setPreviewBlock(4);
       return;
