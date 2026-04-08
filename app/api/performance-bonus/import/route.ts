@@ -85,6 +85,9 @@ const COL = {
  *   store_id : 後備門市 UUID
  */
 export async function POST(request: NextRequest) {
+  const startTime = Date.now();
+  console.log(`[${new Date().toISOString()}] [POST /api/performance-bonus/import] Started`);
+  
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -104,6 +107,8 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    console.log(`[${Date.now() - startTime}ms] Auth verified`);
+
     const formData = await request.formData();
     const file       = formData.get('file') as File | null;
     const fallbackYear    = (formData.get('year')     as string) || String(new Date().getFullYear());
@@ -111,31 +116,46 @@ export async function POST(request: NextRequest) {
 
     if (!file) return NextResponse.json({ success: false, error: '缺少檔案' }, { status: 400 });
 
+    console.log(`[${Date.now() - startTime}ms] File received: ${file.name}, size: ${file.size} bytes`);
+
     // 讀取 Excel
+    console.log(`[${Date.now() - startTime}ms] Reading Excel file...`);
     const buffer   = await file.arrayBuffer();
+    console.log(`[${Date.now() - startTime}ms] Buffer created, parsing workbook...`);
+    
     const workbook = XLSX.read(buffer, { type: 'buffer' });
+    console.log(`[${Date.now() - startTime}ms] Workbook parsed, sheet names: ${workbook.SheetNames.join(', ')}`);
+    
     const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+    console.log(`[${Date.now() - startTime}ms] Converting sheet to JSON...`);
+    
     const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+    console.log(`[${Date.now() - startTime}ms] Sheet converted, ${rows.length} rows found`);
+    
     if (rows.length === 0) return NextResponse.json({ success: false, error: 'Excel 無資料' }, { status: 400 });
 
     // 診斷：輸出實際的 Excel 欄位名
     const firstRow = rows[0];
     const actualKeys = Object.keys(firstRow);
-    console.log('[Excel Diagnosis] Actual column keys:', actualKeys);
-    console.log('[Excel Diagnosis] First row data:', firstRow);
+    console.log(`[${Date.now() - startTime}ms] [Excel Column Keys] ${actualKeys.join(', ')}`);
 
     const admin = createAdminClient();
 
     // 載入所有門市代號對照
+    console.log(`[${Date.now() - startTime}ms] Loading store mappings...`);
     const { data: storeList } = await admin
       .from('stores')
       .select('id, store_code')
       .eq('is_active', true);
     const storeCodeMap: Record<string, string> = {};
     (storeList || []).forEach(s => { storeCodeMap[s.store_code.trim()] = s.id; });
+    console.log(`[${Date.now() - startTime}ms] Store mappings loaded: ${storeList?.length || 0} stores`);
 
     const upserts: Record<string, any>[] = [];
     const errors: string[] = [];
+
+    console.log(`[${Date.now() - startTime}ms] Processing rows...`);
+    let processedCount = 0;
 
     for (let i = 0; i < rows.length; i++) {
       const row  = rows[i];
@@ -202,63 +222,58 @@ export async function POST(request: NextRequest) {
         sales_competition_bonus:getNum(row, COL.sales_competition_bonus),
         owner_signing_bonus:    getNum(row, COL.owner_signing_bonus),
       });
+
+      processedCount++;
+      if (processedCount % 50 === 0) {
+        console.log(`[${Date.now() - startTime}ms] Processed ${processedCount} rows...`);
+      }
     }
+
+    console.log(`[${Date.now() - startTime}ms] Row processing complete: ${upserts.length} valid records, ${errors.length} errors`);
 
     if (upserts.length === 0) {
       return NextResponse.json({ success: false, error: `沒有可匯入的資料。${errors.length > 0 ? '錯誤：' + errors.join('；') : ''}` });
     }
 
-    // 嘗試批量插入（更高效）
-    let successCount = 0;
-    console.log(`[Bulk import] Attempting to insert ${upserts.length} records...`);
-    
-    const { error: bulkInsertError } = await admin
-      .from('monthly_bonus_records')
-      .insert(upserts);
-    
-    if (!bulkInsertError) {
-      // 批量插入成功
-      successCount = upserts.length;
-      console.log(`[Bulk import] SUCCESS: ${successCount} records inserted`);
-    } else {
-      // 批量插入失敗，改用逐筆方式處理
-      console.log(`[Bulk import] Failed - ${bulkInsertError.message}. Falling back to individual inserts...`);
-      
-      for (const record of upserts) {
-        // 先嘗試插入
-        const { error: insertError } = await admin
-          .from('monthly_bonus_records')
-          .insert([record]);
-        
-        if (insertError) {
-          console.log(`[Individual insert] Insert failed for ${record.employee_code}, trying update...`);
-          // 如果是唯一約束衝突 (23505)，嘗試更新
-          if (insertError.code === '23505') {
-            const { error: updateError } = await admin
-              .from('monthly_bonus_records')
-              .update(record)
-              .eq('store_id', record.store_id)
-              .eq('year_month', record.year_month)
-              .eq('employee_code', record.employee_code);
-            
-            if (!updateError) {
-              console.log(`[Individual insert] Update success for ${record.employee_code}`);
-              successCount++;
-            } else {
-              console.error(`[Individual insert] Update error for ${record.employee_code}:`, updateError.message);
-            }
-          } else {
-            console.error(`[Individual insert] Insert error for ${record.employee_code}:`, insertError.message);
-          }
-        } else {
-          console.log(`[Individual insert] Insert success for ${record.employee_code}`);
-          successCount++;
-        }
-      }
-    }
-    
-    console.log(`[Import complete] Total: ${upserts.length}, Success: ${successCount}, Failed: ${upserts.length - successCount}`);
+    console.log(`[${Date.now() - startTime}ms] Starting database upsert...`);
 
+    // 優先使用 RPC，但設定備用方案
+    let successCount = 0;
+    try {
+      console.log(`[${Date.now() - startTime}ms] Attempting RPC insert...`);
+      const { data, error: rpcError } = await admin.rpc('upsert_monthly_bonus_records', {
+        records: upserts
+      });
+
+      if (rpcError) {
+        console.error(`[${Date.now() - startTime}ms] [RPC error] ${rpcError.message}`);
+        throw new Error(rpcError.message);
+      }
+
+      successCount = data?.[0]?.imported_count || upserts.length;
+      console.log(`[${Date.now() - startTime}ms] RPC success: ${successCount} records`);
+    } catch (rpcErr: any) {
+      console.error(`[${Date.now() - startTime}ms] [RPC failed] Falling back to direct insert: ${rpcErr.message}`);
+
+      // 直接批量插入備用方案
+      console.log(`[${Date.now() - startTime}ms] Direct insert starting...`);
+      const { error: insertError } = await admin
+        .from('monthly_bonus_records')
+        .insert(upserts);
+
+      if (insertError) {
+        console.error(`[${Date.now() - startTime}ms] [Direct insert error] ${insertError.message}`);
+        return NextResponse.json({ success: false, error: '資料庫操作失敗：' + insertError.message }, { status: 500 });
+      }
+
+      successCount = upserts.length;
+      console.log(`[${Date.now() - startTime}ms] Direct insert success: ${successCount} records`);
+    }
+
+    console.log(`[${Date.now() - startTime}ms] Total processing time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
+
+    console.log(`[${Date.now() - startTime}ms] Upsert complete`);
+    
     return NextResponse.json({
       success: true,
       imported: successCount,
@@ -266,7 +281,7 @@ export async function POST(request: NextRequest) {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (e: any) {
-    console.error('[performance-bonus/import]', e);
+    console.error('[performance-bonus/import] Fatal error:', e);
     return NextResponse.json({ success: false, error: e.message }, { status: 500 });
   }
 }
