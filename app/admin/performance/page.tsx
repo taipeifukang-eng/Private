@@ -933,16 +933,38 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       fd.append('year', yearMonth.split('-')[0]);
       if (filterStoreId) fd.append('store_id', filterStoreId);
       console.log('📡 發送請求到 /api/performance-bonus/import');
-      const res  = await fetch('/api/performance-bonus/import', { method: 'POST', body: fd });
+      
+      // 添加 30 秒超時
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      const res  = await fetch('/api/performance-bonus/import', { 
+        method: 'POST', 
+        body: fd,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      
       console.log('✅ 收到回應，Status:', res.status, res.statusText);
       const json = await res.json();
       console.log('📦 回應內容:', json);
-      if (!json.success) throw new Error(json.error || '匯入失敗');
-      showMsg('success', `匯入完成：${json.imported} 筆${json.skipped ? `，略過 ${json.skipped} 筆` : ''}`);
+      
+      if (!json.success) {
+        throw new Error(json.error || '匯入失敗（無詳細錯誤訊息）');
+      }
+      
+      const msg = `匯入完成：${json.imported} 筆${json.skipped ? `，略過 ${json.skipped} 筆` : ''}`;
+      showMsg('success', msg);
+      console.log('✅ ' + msg);
+      
       await loadRecords();
     } catch (err: any) {
       console.error('❌ 匯入錯誤:', err);
-      showMsg('error', `匯入失敗：${err?.message || String(err)}`);
+      let errorMsg = err?.message || String(err);
+      if (err?.name === 'AbortError') {
+        errorMsg = '匯入逾時（超過 30 秒）- 檔案可能過大，請稍後重試';
+      }
+      showMsg('error', `匯入失敗：${errorMsg}`);
     } finally {
       setImportLoading(false);
       if (fileRef.current) fileRef.current.value = '';
