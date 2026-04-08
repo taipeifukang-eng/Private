@@ -3,6 +3,13 @@ import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
+function getStoreCode(stores: any): string {
+  if (Array.isArray(stores)) {
+    return stores[0]?.store_code || '';
+  }
+  return stores?.store_code || '';
+}
+
 /**
  * 匯出單品獎金 Excel
  * 欄位：門市代號 | 月份 | 員編 | 姓名 | 單品獎金總額
@@ -86,7 +93,7 @@ export async function POST(request: NextRequest) {
 
       bonusMap.set(key, {
         storeId,
-        storeCode: codeMap[record.store_id] || record.stores?.store_code || '',
+        storeCode: codeMap[record.store_id] || getStoreCode(record.stores),
         employeeCode: record.employee_code || '',
         employeeName: record.employee_name || '',
         amount: record.last_month_single_item_bonus || 0
@@ -102,7 +109,7 @@ export async function POST(request: NextRequest) {
       // support_staff_bonus 視為店長最終填寫結果，覆蓋同 key 的舊值
       bonusMap.set(key, {
         storeId,
-        storeCode: codeMap[record.store_id] || record.stores?.store_code || '',
+        storeCode: codeMap[record.store_id] || getStoreCode(record.stores),
         employeeCode: record.employee_code || '',
         employeeName: record.employee_name || '',
         amount: record.bonus_amount || 0
