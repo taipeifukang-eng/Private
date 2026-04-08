@@ -921,20 +921,28 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   // 匯入
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      console.log('❌ 未選擇檔案');
+      return;
+    }
+    console.log('📤 開始匯入，檔案:', file.name, '大小:', file.size, 'bytes');
     setImportLoading(true);
     try {
       const fd = new FormData();
       fd.append('file', file);
       fd.append('year', yearMonth.split('-')[0]);
       if (filterStoreId) fd.append('store_id', filterStoreId);
+      console.log('📡 發送請求到 /api/performance-bonus/import');
       const res  = await fetch('/api/performance-bonus/import', { method: 'POST', body: fd });
+      console.log('✅ 收到回應，Status:', res.status, res.statusText);
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      console.log('📦 回應內容:', json);
+      if (!json.success) throw new Error(json.error || '匯入失敗');
       showMsg('success', `匯入完成：${json.imported} 筆${json.skipped ? `，略過 ${json.skipped} 筆` : ''}`);
       await loadRecords();
     } catch (err: any) {
-      showMsg('error', `匯入失敗：${err.message}`);
+      console.error('❌ 匯入錯誤:', err);
+      showMsg('error', `匯入失敗：${err?.message || String(err)}`);
     } finally {
       setImportLoading(false);
       if (fileRef.current) fileRef.current.value = '';
