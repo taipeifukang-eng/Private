@@ -151,14 +151,19 @@ export async function POST(request: NextRequest) {
       if (rawYearMonth && /^\d{4}-\d{2}$/.test(rawYearMonth)) {
         yearMonth = rawYearMonth;
       } else {
-        // 嘗試從年份 + 月份欄位組合
+        // 嘗試從月份欄位取值
         const rawMonth = getStr(row, COL.month);
-        const rawYear  = getStr(row, COL.year) || fallbackYear;
         
-        // 智能解析月份
-        const monthNum = parseMonth(rawMonth);
-        if (monthNum) {
-          yearMonth = `${rawYear}-${String(monthNum).padStart(2, '0')}`;
+        // 檢查月份欄位是否已經是 YYYY-MM 格式
+        if (rawMonth && /^\d{4}-\d{2}$/.test(rawMonth)) {
+          yearMonth = rawMonth;
+        } else {
+          // 如果月份欄位不是完整日期，則嘗試結合年份
+          const rawYear = getStr(row, COL.year) || fallbackYear;
+          const monthNum = parseMonth(rawMonth);
+          if (monthNum) {
+            yearMonth = `${rawYear}-${String(monthNum).padStart(2, '0')}`;
+          }
         }
       }
       if (!yearMonth) { 
