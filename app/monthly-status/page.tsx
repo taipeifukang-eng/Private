@@ -319,29 +319,6 @@ function MonthlyStatusContent() {
     );
   }
 
-  const bonusDetailColumns = [
-    { key: 'group_bonus', label: '團體獎金' },
-    { key: 'hr_subsidy_bonus', label: '人力補貼' },
-    { key: 'single_item_bonus', label: '單品獎金' },
-    { key: 'inventory_diff_penalty', label: '盤差承擔' },
-    { key: 'talent_bonus', label: '育才獎金' },
-    { key: 'transport_fee', label: '交通費' },
-    { key: 'inventory_bonus', label: '盤點獎金' },
-    { key: 'rx_incentive_bonus', label: '處方激勵' },
-    { key: 'quarterly_makeup_bonus', label: '季回補' },
-    { key: 'meal_allowance', label: '誤餐費' },
-    { key: 'spring_festival_bonus', label: '春節出勤' },
-    { key: 'pharmacist_guarantee', label: '藥師保證金' },
-    { key: 'owner_rx_makeup', label: '負責人處方回補' },
-    { key: 'sales_competition_bonus', label: '銷售競賽' },
-    { key: 'owner_signing_bonus', label: '負責人簽約金' },
-  ] as const;
-
-  const flattenedBonusEntries = monthlyBonusDetails.flatMap((staff: any) => staff.entries || []);
-  const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
-    flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
-  );
-
   // 計算統計資料
   const totalStores = managedStores.length;
   const confirmedStores = storeSummaries.filter(s => s.store_status === 'confirmed').length;
@@ -1265,6 +1242,29 @@ function StoreStatusDetail({
       </div>
     );
   }
+
+  const bonusDetailColumns = [
+    { key: 'group_bonus', label: '團體獎金' },
+    { key: 'hr_subsidy_bonus', label: '人力補貼' },
+    { key: 'single_item_bonus', label: '單品獎金' },
+    { key: 'inventory_diff_penalty', label: '盤差承擔' },
+    { key: 'talent_bonus', label: '育才獎金' },
+    { key: 'transport_fee', label: '交通費' },
+    { key: 'inventory_bonus', label: '盤點獎金' },
+    { key: 'rx_incentive_bonus', label: '處方激勵' },
+    { key: 'quarterly_makeup_bonus', label: '季回補' },
+    { key: 'meal_allowance', label: '誤餐費' },
+    { key: 'spring_festival_bonus', label: '春節出勤' },
+    { key: 'pharmacist_guarantee', label: '藥師保證金' },
+    { key: 'owner_rx_makeup', label: '負責人處方回補' },
+    { key: 'sales_competition_bonus', label: '銷售競賽' },
+    { key: 'owner_signing_bonus', label: '負責人簽約金' },
+  ] as const;
+
+  const flattenedBonusEntries = monthlyBonusDetails.flatMap((staff: any) => staff.entries || []);
+  const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
+    flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
+  );
 
   // 尚未初始化
   if (staffList.length === 0) {
