@@ -842,6 +842,10 @@ function rowTotal(r: BonusRecord): number {
   return BONUS_COLS.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
 }
 
+function rowTotalByCols(r: BonusRecord, cols: { key: keyof BonusRecord; label: string }[]): number {
+  return cols.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
+}
+
 function isAllBonusZero(r: BonusRecord): boolean {
   return BONUS_COLS.every(c => (Number(r[c.key]) || 0) === 0);
 }
@@ -851,8 +855,10 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const defaultYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
   const [yearMonth,      setYearMonth]      = useState(defaultYM);
+  const [quarter,        setQuarter]        = useState('');
   const [supervisorId,   setSupervisorId]   = useState('');
   const [filterStoreId,  setFilterStoreId]  = useState('');
+  const [bonusKey,       setBonusKey]       = useState('');
   const [records,        setRecords]        = useState<BonusRecord[]>([]);
   const [loading,        setLoading]        = useState(false);
   const [importLoading,  setImportLoading]  = useState(false);
@@ -911,16 +917,65 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const loadRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ year_month: yearMonth });
-      if (supervisorId && !filterStoreId) params.set('supervisor_id', supervisorId);
-      if (filterStoreId) params.append('store_id', filterStoreId);
-      const res = await fetch(`/api/performance-bonus?${params}`);
-      const json = await res.json();
-      setRecords(json.records || []);
+      const baseParams = new URLSearchParams();
+      if (supervisorId && !filterStoreId) baseParams.set('supervisor_id', supervisorId);
+      if (filterStoreId) baseParams.append('store_id', filterStoreId);
+
+      if (!quarter) {
+        const params = new URLSearchParams(baseParams);
+        params.set('year_month', yearMonth);
+        const res = await fetch(`/api/performance-bonus?${params}`);
+        const json = await res.json();
+        setRecords(json.records || []);
+      } else {
+        const year = yearMonth.split('-')[0];
+        const q = Number(quarter);
+        const startMonth = (q - 1) * 3 + 1;
+        const quarterMonths = [0, 1, 2].map(i => `${year}-${String(startMonth + i).padStart(2, '0')}`);
+
+        const responses = await Promise.all(
+          quarterMonths.map(async (ym) => {
+            const params = new URLSearchParams(baseParams);
+            params.set('year_month', ym);
+            const res = await fetch(`/api/performance-bonus?${params}`);
+            const json = await res.json();
+            return (json.records || []) as BonusRecord[];
+          })
+        );
+
+        const flatRecords = responses.flat();
+        const grouped = new Map<string, BonusRecord>();
+
+        flatRecords.forEach((r) => {
+          const key = `${r.store_id}__${r.employee_code}`;
+          const existing = grouped.get(key);
+
+          if (!existing) {
+            const initRecord = {
+              ...r,
+              id: `${year}-Q${quarter}__${r.store_id}__${r.employee_code}`,
+              year_month: `${year}-Q${quarter}`,
+            };
+            BONUS_COLS.forEach((c) => {
+              (initRecord[c.key] as unknown as number) = Number(r[c.key]) || 0;
+            });
+            grouped.set(key, initRecord);
+            return;
+          }
+
+          BONUS_COLS.forEach((c) => {
+            const prev = Number(existing[c.key]) || 0;
+            const cur = Number(r[c.key]) || 0;
+            (existing[c.key] as unknown as number) = prev + cur;
+          });
+        });
+
+        setRecords(Array.from(grouped.values()));
+      }
     } finally {
       setLoading(false);
     }
-  }, [yearMonth, supervisorId, filterStoreId]);
+  }, [yearMonth, quarter, supervisorId, filterStoreId]);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
@@ -990,14 +1045,19 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   }
   ymOptions.sort().reverse();
 
-  // 僅顯示至少有一個獎金欄位不為0的資料列
+  const visibleBonusCols = useMemo(() => {
+    if (!bonusKey) return BONUS_COLS;
+    return BONUS_COLS.filter(c => String(c.key) === bonusKey);
+  }, [bonusKey]);
+
+  // 僅顯示至少有一個可視獎金欄位不為0的資料列
   const visibleRecords = useMemo(
-    () => records.filter(r => !isAllBonusZero(r)),
-    [records]
+    () => records.filter(r => visibleBonusCols.some(c => (Number(r[c.key]) || 0) !== 0)),
+    [records, visibleBonusCols]
   );
 
-  // 合計列（只計可見資料）
-  const grandTotal = visibleRecords.reduce((sum, r) => sum + rowTotal(r), 0);
+  // 合計列（只計可見資料、可視獎金欄位）
+  const grandTotal = visibleRecords.reduce((sum, r) => sum + rowTotalByCols(r, visibleBonusCols), 0);
 
   function handleSortClick(key: string) {
     if (sortKey !== key) {
@@ -1026,7 +1086,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
     if (key === 'year_month') return record.year_month || '';
     if (key === 'employee_code') return record.employee_code || '';
     if (key === 'employee_name') return record.employee_name || '';
-    if (key === 'total') return rowTotal(record);
+    if (key === 'total') return rowTotalByCols(record, visibleBonusCols);
     if (key.startsWith('bonus:')) {
       const bonusKey = key.replace('bonus:', '') as keyof BonusRecord;
       return Number(record[bonusKey]) || 0;
@@ -1053,7 +1113,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
     });
 
     return sorted;
-  }, [visibleRecords, sortKey, sortDirection]);
+  }, [visibleRecords, sortKey, sortDirection, visibleBonusCols]);
 
   return (
     <div className="max-w-full px-4 py-6 space-y-4">
@@ -1073,6 +1133,22 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
             {ymOptions.map(ym => (
               <option key={ym} value={ym}>{ym}</option>
             ))}
+          </select>
+        </div>
+
+        {/* 年季度 */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">年季度</label>
+          <select
+            value={quarter}
+            onChange={e => setQuarter(e.target.value)}
+            className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">不套用</option>
+            <option value="1">第1季 (Q1)</option>
+            <option value="2">第2季 (Q2)</option>
+            <option value="3">第3季 (Q3)</option>
+            <option value="4">第4季 (Q4)</option>
           </select>
         </div>
 
@@ -1102,6 +1178,21 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
             <option value="">全部</option>
             {visibleStores.map(s => (
               <option key={s.id} value={s.id}>{s.store_code} {s.store_name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 獎金名稱 */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">獎金名稱</label>
+          <select
+            value={bonusKey}
+            onChange={e => setBonusKey(e.target.value)}
+            className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">全部</option>
+            {BONUS_COLS.map(c => (
+              <option key={String(c.key)} value={String(c.key)}>{c.label}</option>
             ))}
           </select>
         </div>
@@ -1149,6 +1240,9 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       <div className="bg-white rounded-xl shadow-sm px-5 py-3 flex items-center gap-6 text-sm">
         <span className="text-gray-500">共 <strong>{visibleRecords.length}</strong> 筆</span>
         <span className="text-gray-500">獎金合計：<strong className="text-blue-700">{grandTotal.toLocaleString('zh-TW')}</strong> 元</span>
+        {quarter && (
+          <span className="text-blue-600">季別模式：{yearMonth.split('-')[0]}-Q{quarter}（同人員各獎金已加總）</span>
+        )}
       </div>
 
       {/* 資料表格 */}
@@ -1189,7 +1283,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                 >
                   姓名{sortIndicator('employee_name')}
                 </th>
-                {BONUS_COLS.map(c => (
+                {visibleBonusCols.map(c => (
                   <th
                     key={c.key}
                     className="px-3 py-2 text-right cursor-pointer select-none border border-gray-200"
@@ -1213,20 +1307,20 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-8 text-center text-gray-400 border border-gray-200">
+                  <td colSpan={4 + visibleBonusCols.length + 1} className="px-4 py-8 text-center text-gray-400 border border-gray-200">
                     <RefreshCw size={18} className="animate-spin inline-block mr-2" />載入中...
                   </td>
                 </tr>
               ) : sortedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-10 text-center text-gray-400 border border-gray-200">
+                  <td colSpan={4 + visibleBonusCols.length + 1} className="px-4 py-10 text-center text-gray-400 border border-gray-200">
                     尚無可顯示資料（全0資料列已自動隱藏）
                   </td>
                 </tr>
               ) : (
                 sortedRecords.map(r => {
                   const storeInfo = getStoreInfo(r.store);
-                  const total = rowTotal(r);
+                  const total = rowTotalByCols(r, visibleBonusCols);
                   return (
                     <tr key={r.id} className="hover:bg-gray-50">
                       <td className="px-3 py-1.5 sticky left-0 bg-white font-medium text-gray-700 z-10 border border-gray-200">
@@ -1236,7 +1330,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                       <td className="px-3 py-1.5 text-gray-600 border border-gray-200">{r.year_month}</td>
                       <td className="px-3 py-1.5 text-gray-600 border border-gray-200">{r.employee_code}</td>
                       <td className="px-3 py-1.5 text-gray-700 border border-gray-200">{r.employee_name || '—'}</td>
-                      {BONUS_COLS.map(c => {
+                      {visibleBonusCols.map(c => {
                         const v = Number(r[c.key]) || 0;
                         return (
                           <td key={c.key} className={`px-3 py-1.5 text-right border border-gray-200 ${v < 0 ? 'text-red-600' : v > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
