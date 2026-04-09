@@ -653,7 +653,6 @@ export default function MerchandisePage() {
       params.set('pageSize', String(pageSize));
 
       if (searchQuery) params.set('q', searchQuery);
-      if (filterStatus !== 'all') params.set('status', filterStatus);
 
       if (activeTab === 'my-store') {
         const myStoreIds = userManagedStores.map(s => s.id);
@@ -709,7 +708,6 @@ export default function MerchandisePage() {
     activeTab,
     userManagedStores,
     searchQuery,
-    filterStatus,
     selectedStoreFilter,
     useRecent30Days,
     selectedMonth,
