@@ -30,7 +30,8 @@ import {
   AlertTriangle,
   Layers,
   ShoppingCart,
-  Calculator
+  Calculator,
+  Wrench
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission, hasAnyCrossDeptPermission } from '@/hooks/useNavbarPermissions';
@@ -157,6 +158,7 @@ export default function Navbar({ user }: NavbarProps) {
   // 跨部門管理相關的子選單項目（使用 RBAC 權限）
   const crossDeptSubItems = [
     { href: '/cross-dept/merchandise', label: '商品部', icon: ShoppingCart, show: permissions.canAccessCrossDeptMerchandise },
+    { href: '/cross-dept/maintenance', label: '總務組', icon: Wrench, show: permissions.canAccessMaintenance },
   ].filter(item => item.show);
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
