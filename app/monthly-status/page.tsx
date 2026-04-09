@@ -319,6 +319,29 @@ function MonthlyStatusContent() {
     );
   }
 
+  const bonusDetailColumns = [
+    { key: 'group_bonus', label: '團體獎金' },
+    { key: 'hr_subsidy_bonus', label: '人力補貼' },
+    { key: 'single_item_bonus', label: '單品獎金' },
+    { key: 'inventory_diff_penalty', label: '盤差承擔' },
+    { key: 'talent_bonus', label: '育才獎金' },
+    { key: 'transport_fee', label: '交通費' },
+    { key: 'inventory_bonus', label: '盤點獎金' },
+    { key: 'rx_incentive_bonus', label: '處方激勵' },
+    { key: 'quarterly_makeup_bonus', label: '季回補' },
+    { key: 'meal_allowance', label: '誤餐費' },
+    { key: 'spring_festival_bonus', label: '春節出勤' },
+    { key: 'pharmacist_guarantee', label: '藥師保證金' },
+    { key: 'owner_rx_makeup', label: '負責人處方回補' },
+    { key: 'sales_competition_bonus', label: '銷售競賽' },
+    { key: 'owner_signing_bonus', label: '負責人簽約金' },
+  ] as const;
+
+  const flattenedBonusEntries = monthlyBonusDetails.flatMap((staff: any) => staff.entries || []);
+  const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
+    flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
+  );
+
   // 計算統計資料
   const totalStores = managedStores.length;
   const confirmedStores = storeSummaries.filter(s => s.store_status === 'confirmed').length;
@@ -1526,21 +1549,9 @@ function StoreStatusDetail({
                         <th className="px-3 py-2 text-left">姓名</th>
                         <th className="px-3 py-2 text-left">來源門市</th>
                         <th className="px-3 py-2 text-left">來源類型</th>
-                        <th className="px-3 py-2 text-right">團體獎金</th>
-                        <th className="px-3 py-2 text-right">人力補貼</th>
-                        <th className="px-3 py-2 text-right">單品獎金</th>
-                        <th className="px-3 py-2 text-right">盤差承擔</th>
-                        <th className="px-3 py-2 text-right">育才獎金</th>
-                        <th className="px-3 py-2 text-right">交通費</th>
-                        <th className="px-3 py-2 text-right">盤點獎金</th>
-                        <th className="px-3 py-2 text-right">處方激勵</th>
-                        <th className="px-3 py-2 text-right">季回補</th>
-                        <th className="px-3 py-2 text-right">誤餐費</th>
-                        <th className="px-3 py-2 text-right">春節出勤</th>
-                        <th className="px-3 py-2 text-right">藥師保證金</th>
-                        <th className="px-3 py-2 text-right">負責人處方回補</th>
-                        <th className="px-3 py-2 text-right">銷售競賽</th>
-                        <th className="px-3 py-2 text-right">負責人簽約金</th>
+                        {visibleBonusDetailColumns.map(col => (
+                          <th key={col.key} className="px-3 py-2 text-right">{col.label}</th>
+                        ))}
                         <th className="px-3 py-2 text-right font-semibold text-blue-700">合計</th>
                       </tr>
                     </thead>
@@ -1551,7 +1562,7 @@ function StoreStatusDetail({
                             <tr key={`${staff.employee_code}-empty`}>
                               <td className="px-3 py-2">{staff.employee_code}</td>
                               <td className="px-3 py-2">{staff.employee_name || '-'}</td>
-                              <td className="px-3 py-2 text-gray-400" colSpan={17}>無匯入獎金資料</td>
+                              <td className="px-3 py-2 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
                               <td className="px-3 py-2 text-right">0</td>
                             </tr>
                           ];
@@ -1569,21 +1580,11 @@ function StoreStatusDetail({
                                 <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700">本店來源</span>
                               )}
                             </td>
-                            <td className="px-3 py-2 text-right">{(entry.group_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.hr_subsidy_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.single_item_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.inventory_diff_penalty || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.talent_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.transport_fee || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.inventory_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.rx_incentive_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.quarterly_makeup_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.meal_allowance || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.spring_festival_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.pharmacist_guarantee || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.owner_rx_makeup || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.sales_competition_bonus || 0).toLocaleString('zh-TW')}</td>
-                            <td className="px-3 py-2 text-right">{(entry.owner_signing_bonus || 0).toLocaleString('zh-TW')}</td>
+                            {visibleBonusDetailColumns.map(col => (
+                              <td key={col.key} className="px-3 py-2 text-right">
+                                {(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}
+                              </td>
+                            ))}
                             <td className="px-3 py-2 text-right font-semibold text-blue-700">{(entry.total || 0).toLocaleString('zh-TW')}</td>
                           </tr>
                         ));
