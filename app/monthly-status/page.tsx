@@ -1542,22 +1542,19 @@ function StoreStatusDetail({
                 <div className="py-10 text-center text-gray-500">本店本月員工尚無匯入獎金資料</div>
               ) : (
                 <div className="overflow-x-auto max-h-[70vh] border rounded-lg">
-                  <table className="w-full table-fixed text-xs">
+                  <table className="w-full table-auto text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        <th className="w-[72px] px-1.5 py-2 text-left">員編</th>
-                        <th className="w-[88px] px-1.5 py-2 text-left">姓名</th>
-                        <th className="w-[150px] px-1 py-2 text-left">來源門市</th>
-                        <th className="w-[82px] px-1.5 py-2 text-left">來源類型</th>
+                        <th className="px-2 py-2 text-left whitespace-nowrap">員編</th>
+                        <th className="px-2 py-2 text-left whitespace-nowrap">姓名</th>
+                        <th className="px-2 py-2 text-left whitespace-nowrap">來源門市</th>
+                        <th className="px-2 py-2 text-left whitespace-nowrap">來源類型</th>
                         {visibleBonusDetailColumns.map(col => (
-                          <th
-                            key={col.key}
-                            className="w-[72px] px-1 py-2 text-right whitespace-normal break-words leading-tight"
-                          >
+                          <th key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
                             {col.label}
                           </th>
                         ))}
-                        <th className="w-[74px] px-1 py-2 text-right font-semibold text-blue-700">合計</th>
+                        <th className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1565,24 +1562,20 @@ function StoreStatusDetail({
                         if (!staff.entries || staff.entries.length === 0) {
                           return [
                             <tr key={`${staff.employee_code}-empty`}>
-                              <td className="px-1 py-1.5">{staff.employee_code}</td>
-                              <td className="px-1 py-1.5">{staff.employee_name || '-'}</td>
-                              <td className="px-1 py-1.5 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
-                              <td className="px-1 py-1.5 text-right">0</td>
+                              <td className="px-2 py-2 whitespace-nowrap">{staff.employee_code}</td>
+                              <td className="px-2 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
+                              <td className="px-2 py-2 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
+                              <td className="px-2 py-2 text-right whitespace-nowrap">0</td>
                             </tr>
                           ];
                         }
 
                         return staff.entries.map((entry: any, idx: number) => (
                           <tr key={`${staff.employee_code}-${idx}`} className={entry.is_other_store ? 'bg-amber-50/50' : ''}>
-                            <td className="px-1 py-1.5 whitespace-nowrap">{staff.employee_code}</td>
-                            <td className="px-1 py-1.5 whitespace-nowrap">{staff.employee_name || '-'}</td>
-                            <td className="px-1 py-1.5">
-                              <div className="truncate" title={`${entry.source_store_code} ${entry.source_store_name}`}>
-                                {entry.source_store_code} {entry.source_store_name}
-                              </div>
-                            </td>
-                            <td className="px-1 py-1.5 whitespace-nowrap">
+                            <td className="px-2 py-2 whitespace-nowrap">{staff.employee_code}</td>
+                            <td className="px-2 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
+                            <td className="px-2 py-2 whitespace-nowrap">{entry.source_store_code} {entry.source_store_name}</td>
+                            <td className="px-2 py-2 whitespace-nowrap">
                               {entry.is_other_store ? (
                                 <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">他店來源</span>
                               ) : (
@@ -1590,11 +1583,11 @@ function StoreStatusDetail({
                               )}
                             </td>
                             {visibleBonusDetailColumns.map(col => (
-                              <td key={col.key} className="px-1 py-1.5 text-right whitespace-nowrap">
+                              <td key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
                                 {(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}
                               </td>
                             ))}
-                            <td className="px-1 py-1.5 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>
                           </tr>
                         ));
                       })}
