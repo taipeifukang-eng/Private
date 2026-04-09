@@ -853,7 +853,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const [loading,        setLoading]        = useState(false);
   const [importLoading,  setImportLoading]  = useState(false);
   const [canImportBonus, setCanImportBonus] = useState(false);
-  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<string | null>('store');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [message,        setMessage]        = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [storesWS,       setStoresWS]       = useState<StoreWithSupervisor[]>([]);
