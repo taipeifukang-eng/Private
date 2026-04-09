@@ -844,9 +844,6 @@ export default function MerchandisePage() {
             >
               缺貨商品管理
             </button>
-            <span className="px-3 py-2 text-xs text-gray-400 border border-dashed border-gray-200 rounded-lg whitespace-nowrap">
-              其他商品部工具（未來可新增 Tab）
-            </span>
           </div>
         </div>
 
