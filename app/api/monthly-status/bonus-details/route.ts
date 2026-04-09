@@ -20,6 +20,29 @@ const BONUS_FIELDS = [
   'owner_signing_bonus',
 ] as const;
 
+const POSITION_PRIORITY = [
+  '經理',
+  '督導',
+  '店長',
+  '儲備店長',
+  '代理店長',
+  '副店長',
+  '主任',
+  '組長',
+  '專員',
+  '新人',
+  '兼職專員',
+  '兼職藥師專員',
+  '兼職藥師',
+  '兼職助理',
+] as const;
+
+function getPositionRank(position: string | null | undefined): number {
+  if (!position) return 999;
+  const idx = POSITION_PRIORITY.findIndex(p => p === position);
+  return idx >= 0 ? idx : 999;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -56,7 +79,7 @@ export async function GET(request: NextRequest) {
 
     const { data: staffList, error: staffError } = await admin
       .from('monthly_staff_status')
-      .select('employee_code, employee_name')
+      .select('employee_code, employee_name, position')
       .eq('year_month', yearMonth)
       .eq('store_id', storeId);
 
@@ -146,9 +169,16 @@ export async function GET(request: NextRequest) {
       return {
         employee_code: staff.employee_code,
         employee_name: staff.employee_name,
+        position: staff.position || '',
         entries,
         total: entries.reduce((sum: number, e: any) => sum + (e.total || 0), 0),
       };
+    })
+    .sort((a: any, b: any) => {
+      const rankA = getPositionRank(a.position);
+      const rankB = getPositionRank(b.position);
+      if (rankA !== rankB) return rankA - rankB;
+      return String(a.employee_code || '').localeCompare(String(b.employee_code || ''), 'zh-Hant', { numeric: true, sensitivity: 'base' });
     });
 
     return NextResponse.json({ success: true, data });
