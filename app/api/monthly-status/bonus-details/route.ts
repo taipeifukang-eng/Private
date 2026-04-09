@@ -108,12 +108,18 @@ export async function GET(request: NextRequest) {
       const current = grouped.get(row.employee_code) || [];
       const total = BONUS_FIELDS.reduce((sum, f) => sum + (Number(row[f]) || 0), 0);
       const storeInfo = Array.isArray(row.store) ? row.store[0] : row.store;
+      const isOtherStore = row.store_id !== storeId;
+
+      // 他店來源若整列獎金皆為空值/0，則不顯示
+      if (isOtherStore && total === 0) {
+        return;
+      }
 
       current.push({
         source_store_id: row.store_id,
         source_store_code: storeInfo?.store_code || '',
         source_store_name: storeInfo?.store_name || '',
-        is_other_store: row.store_id !== storeId,
+        is_other_store: isOtherStore,
         total,
         group_bonus: Number(row.group_bonus) || 0,
         hr_subsidy_bonus: Number(row.hr_subsidy_bonus) || 0,
