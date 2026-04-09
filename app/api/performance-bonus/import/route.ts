@@ -22,6 +22,17 @@ function getNum(row: Record<string, unknown>, keys: string[]): number {
   return 0;
 }
 
+function getNumOptional(row: Record<string, unknown>, keys: string[]): number | undefined {
+  for (const k of keys) {
+    const v = row[k];
+    if (v !== null && v !== undefined && String(v).trim() !== '') {
+      const n = parseFloat(String(v).replace(/,/g, ''));
+      if (!isNaN(n)) return n;
+    }
+  }
+  return undefined;
+}
+
 // 智能解析月份（支援 "1", "01", "1月", "一月" 等格式）
 function parseMonth(monthStr: string): number | null {
   if (!monthStr) return null;
@@ -84,6 +95,24 @@ const COL = {
   sales_competition_bonus:['銷售競賽獎金', '競賽獎金'],
   owner_signing_bonus:    ['負責人簽約金'],
 };
+
+const BONUS_VALUE_FIELDS = [
+  'group_bonus',
+  'hr_subsidy_bonus',
+  'single_item_bonus',
+  'inventory_diff_penalty',
+  'talent_bonus',
+  'transport_fee',
+  'inventory_bonus',
+  'rx_incentive_bonus',
+  'quarterly_makeup_bonus',
+  'meal_allowance',
+  'spring_festival_bonus',
+  'pharmacist_guarantee',
+  'owner_rx_makeup',
+  'sales_competition_bonus',
+  'owner_signing_bonus',
+] as const;
 
 /**
  * POST /api/performance-bonus/import
@@ -245,22 +274,22 @@ export async function POST(request: NextRequest) {
         store_id:               storeId,
         year_month:             yearMonth,
         employee_code:          employeeCode,
-        employee_name:          getStr(row, COL.employee_name) || null,
-        group_bonus:            getNum(row, COL.group_bonus),
-        hr_subsidy_bonus:       getNum(row, COL.hr_subsidy_bonus),
-        single_item_bonus:      getNum(row, COL.single_item_bonus),
-        inventory_diff_penalty: getNum(row, COL.inventory_diff_penalty),
-        talent_bonus:           getNum(row, COL.talent_bonus),
-        transport_fee:          getNum(row, COL.transport_fee),
-        inventory_bonus:        getNum(row, COL.inventory_bonus),
-        rx_incentive_bonus:     getNum(row, COL.rx_incentive_bonus),
-        quarterly_makeup_bonus: getNum(row, COL.quarterly_makeup_bonus),
-        meal_allowance:         getNum(row, COL.meal_allowance),
-        spring_festival_bonus:  getNum(row, COL.spring_festival_bonus),
-        pharmacist_guarantee:   getNum(row, COL.pharmacist_guarantee),
-        owner_rx_makeup:        getNum(row, COL.owner_rx_makeup),
-        sales_competition_bonus:getNum(row, COL.sales_competition_bonus),
-        owner_signing_bonus:    getNum(row, COL.owner_signing_bonus),
+        employee_name:          getStr(row, COL.employee_name) || undefined,
+        group_bonus:            getNumOptional(row, COL.group_bonus),
+        hr_subsidy_bonus:       getNumOptional(row, COL.hr_subsidy_bonus),
+        single_item_bonus:      getNumOptional(row, COL.single_item_bonus),
+        inventory_diff_penalty: getNumOptional(row, COL.inventory_diff_penalty),
+        talent_bonus:           getNumOptional(row, COL.talent_bonus),
+        transport_fee:          getNumOptional(row, COL.transport_fee),
+        inventory_bonus:        getNumOptional(row, COL.inventory_bonus),
+        rx_incentive_bonus:     getNumOptional(row, COL.rx_incentive_bonus),
+        quarterly_makeup_bonus: getNumOptional(row, COL.quarterly_makeup_bonus),
+        meal_allowance:         getNumOptional(row, COL.meal_allowance),
+        spring_festival_bonus:  getNumOptional(row, COL.spring_festival_bonus),
+        pharmacist_guarantee:   getNumOptional(row, COL.pharmacist_guarantee),
+        owner_rx_makeup:        getNumOptional(row, COL.owner_rx_makeup),
+        sales_competition_bonus:getNumOptional(row, COL.sales_competition_bonus),
+        owner_signing_bonus:    getNumOptional(row, COL.owner_signing_bonus),
       });
 
       processedCount++;
@@ -289,16 +318,81 @@ export async function POST(request: NextRequest) {
       `[${Date.now() - startTime}ms] Upserting ${dedupedUpserts.length} records (raw: ${upserts.length}, deduped: ${dedupedUpserts.length})...`
     );
 
+    // 讀取既有資料，做「欄位合併更新」：新檔案未提供的欄位保留舊值
+    const uniqueStoreIds = Array.from(new Set(dedupedUpserts.map(r => r.store_id)));
+    const uniqueYearMonths = Array.from(new Set(dedupedUpserts.map(r => r.year_month)));
+    const uniqueEmployeeCodes = Array.from(new Set(dedupedUpserts.map(r => r.employee_code)));
+
+    const { data: existingRows, error: existingError } = await admin
+      .from('monthly_bonus_records')
+      .select(`
+        store_id,
+        year_month,
+        employee_code,
+        employee_name,
+        group_bonus,
+        hr_subsidy_bonus,
+        single_item_bonus,
+        inventory_diff_penalty,
+        talent_bonus,
+        transport_fee,
+        inventory_bonus,
+        rx_incentive_bonus,
+        quarterly_makeup_bonus,
+        meal_allowance,
+        spring_festival_bonus,
+        pharmacist_guarantee,
+        owner_rx_makeup,
+        sales_competition_bonus,
+        owner_signing_bonus
+      `)
+      .in('store_id', uniqueStoreIds)
+      .in('year_month', uniqueYearMonths)
+      .in('employee_code', uniqueEmployeeCodes);
+
+    if (existingError) {
+      console.error(`[${Date.now() - startTime}ms] [Load existing error] ${existingError.message}`);
+      return NextResponse.json({ success: false, error: '讀取既有資料失敗：' + existingError.message }, { status: 500 });
+    }
+
+    const existingMap = new Map<string, Record<string, any>>();
+    (existingRows || []).forEach(r => {
+      const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
+      existingMap.set(key, r as Record<string, any>);
+    });
+
+    const mergedUpserts = dedupedUpserts.map(r => {
+      const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
+      const old = existingMap.get(key);
+      const merged: Record<string, any> = {
+        store_id: r.store_id,
+        year_month: r.year_month,
+        employee_code: r.employee_code,
+        employee_name: r.employee_name ?? old?.employee_name ?? null,
+      };
+
+      BONUS_VALUE_FIELDS.forEach(field => {
+        const incoming = r[field];
+        if (incoming === undefined) {
+          merged[field] = old?.[field] ?? 0;
+        } else {
+          merged[field] = incoming;
+        }
+      });
+
+      return merged;
+    });
+
     const { error: upsertError } = await admin
       .from('monthly_bonus_records')
-      .upsert(dedupedUpserts, { onConflict: 'store_id,year_month,employee_code' });
+      .upsert(mergedUpserts, { onConflict: 'store_id,year_month,employee_code' });
 
     if (upsertError) {
       console.error(`[${Date.now() - startTime}ms] [Upsert error] ${upsertError.message}`);
       return NextResponse.json({ success: false, error: '資料庫操作失敗：' + upsertError.message }, { status: 500 });
     }
 
-    const successCount = dedupedUpserts.length;
+    const successCount = mergedUpserts.length;
     console.log(`[${Date.now() - startTime}ms] Upsert success: ${successCount} records`);
 
     console.log(`[${Date.now() - startTime}ms] Total processing time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
