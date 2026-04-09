@@ -57,6 +57,7 @@ function MonthlyStatusContent() {
   const [canEditSupportHours, setCanEditSupportHours] = useState(false);
   const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
   const [canViewPerformance, setCanViewPerformance] = useState(false);
+  const [canViewMonthlyBonusDetail, setCanViewMonthlyBonusDetail] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
   const [allManagedStores, setAllManagedStores] = useState<Store[]>([]); // 含已停止門市
   const [showInactiveStores, setShowInactiveStores] = useState(false);
@@ -147,6 +148,7 @@ function MonthlyStatusContent() {
           setCanEditSupportHours(permissionsResult.canEditSupportHours || false);
           setCanAccessActivityManagement(permissionsResult.canAccessActivityManagement || false);
           setCanViewPerformance(permissionsResult.canViewPerformance || false);
+          setCanViewMonthlyBonusDetail(permissionsResult.canViewMonthlyBonusDetail || false);
         }
         
         // 檢查 URL 參數中是否有指定門市
@@ -490,6 +492,7 @@ function MonthlyStatusContent() {
               canViewSupportHours={canViewSupportHours}
               canEditSupportHours={canEditSupportHours}
               canViewPerformance={canViewPerformance}
+              canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
               onRefresh={loadStoreSummaries}
             />
           </>
@@ -572,6 +575,7 @@ function MonthlyStatusContent() {
                     canViewSupportHours={canViewSupportHours}
                     canEditSupportHours={canEditSupportHours}
                     canViewPerformance={canViewPerformance}
+                    canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
                     onRefresh={(moveToNext?: boolean) => loadStoreSummaries(moveToNext || false)}
                   />
                 </div>
@@ -764,6 +768,7 @@ function StoreStatusDetail({
   canViewSupportHours,
   canEditSupportHours,
   canViewPerformance,
+  canViewMonthlyBonusDetail,
   onRefresh
 }: {
   store: Store;
@@ -776,6 +781,7 @@ function StoreStatusDetail({
   canViewSupportHours: boolean;
   canEditSupportHours: boolean;
   canViewPerformance: boolean;
+  canViewMonthlyBonusDetail: boolean;
   onRefresh: (moveToNext?: boolean) => void;
 }) {
   const router = useRouter();
@@ -791,6 +797,9 @@ function StoreStatusDetail({
   const [showTransportExpenseModal, setShowTransportExpenseModal] = useState(false);
   const [showTalentCultivationModal, setShowTalentCultivationModal] = useState(false);
   const [showSpringFestivalBonusModal, setShowSpringFestivalBonusModal] = useState(false);
+  const [showMonthlyBonusDetailModal, setShowMonthlyBonusDetailModal] = useState(false);
+  const [loadingMonthlyBonusDetail, setLoadingMonthlyBonusDetail] = useState(false);
+  const [monthlyBonusDetails, setMonthlyBonusDetails] = useState<any[]>([]);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<{code: string; name: string} | null>(null);
   const [movementHistory, setMovementHistory] = useState<any[]>([]);
@@ -1179,6 +1188,27 @@ function StoreStatusDetail({
     }
   };
 
+  const handleOpenMonthlyBonusDetail = async () => {
+    setShowMonthlyBonusDetailModal(true);
+    setLoadingMonthlyBonusDetail(true);
+    try {
+      const res = await fetch(
+        `/api/monthly-status/bonus-details?year_month=${encodeURIComponent(yearMonth)}&store_id=${encodeURIComponent(store.id)}`
+      );
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '載入每月人員各式獎金明細失敗');
+      }
+      setMonthlyBonusDetails(json.data || []);
+    } catch (error: any) {
+      alert(`❌ 載入失敗: ${error.message || '未知錯誤'}`);
+      setShowMonthlyBonusDetailModal(false);
+      setMonthlyBonusDetails([]);
+    } finally {
+      setLoadingMonthlyBonusDetail(false);
+    }
+  };
+
   const handleDeleteManual = async (staffId: string, staffName: string, isManuallyAdded: boolean) => {
     const message = isManuallyAdded 
       ? `確定要刪除手動新增的員工 "${staffName}"？此操作無法復原。`
@@ -1323,6 +1353,15 @@ function StoreStatusDetail({
                 <RefreshCw size={16} />
                 重新整理
               </button>
+              {canViewMonthlyBonusDetail && (
+                <button
+                  onClick={handleOpenMonthlyBonusDetail}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors flex items-center gap-2"
+                >
+                  <FileText size={16} />
+                  每月人員各式獎金明細
+                </button>
+              )}
               {storeStatus === 'confirmed' && (
                 <button
                   onClick={handleExport}
@@ -1452,6 +1491,110 @@ function StoreStatusDetail({
           storeId={store.id}
           currentStaffList={staffList}
         />
+      )}
+
+      {showMonthlyBonusDetailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white w-full max-w-7xl rounded-xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">每月人員各式獎金明細</h3>
+                <p className="text-sm text-gray-500">{store.store_code} {store.store_name} · {yearMonth}</p>
+              </div>
+              <button
+                onClick={() => setShowMonthlyBonusDetailModal(false)}
+                className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {loadingMonthlyBonusDetail ? (
+                <div className="py-10 text-center text-gray-500">
+                  <RefreshCw size={18} className="animate-spin inline-block mr-2" />
+                  載入獎金明細中...
+                </div>
+              ) : monthlyBonusDetails.length === 0 ? (
+                <div className="py-10 text-center text-gray-500">本店本月員工尚無匯入獎金資料</div>
+              ) : (
+                <div className="overflow-x-auto max-h-[70vh] border rounded-lg">
+                  <table className="min-w-[1600px] w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        <th className="px-3 py-2 text-left">員編</th>
+                        <th className="px-3 py-2 text-left">姓名</th>
+                        <th className="px-3 py-2 text-left">來源門市</th>
+                        <th className="px-3 py-2 text-left">來源類型</th>
+                        <th className="px-3 py-2 text-right">團體獎金</th>
+                        <th className="px-3 py-2 text-right">人力補貼</th>
+                        <th className="px-3 py-2 text-right">單品獎金</th>
+                        <th className="px-3 py-2 text-right">盤差承擔</th>
+                        <th className="px-3 py-2 text-right">育才獎金</th>
+                        <th className="px-3 py-2 text-right">交通費</th>
+                        <th className="px-3 py-2 text-right">盤點獎金</th>
+                        <th className="px-3 py-2 text-right">處方激勵</th>
+                        <th className="px-3 py-2 text-right">季回補</th>
+                        <th className="px-3 py-2 text-right">誤餐費</th>
+                        <th className="px-3 py-2 text-right">春節出勤</th>
+                        <th className="px-3 py-2 text-right">藥師保證金</th>
+                        <th className="px-3 py-2 text-right">負責人處方回補</th>
+                        <th className="px-3 py-2 text-right">銷售競賽</th>
+                        <th className="px-3 py-2 text-right">負責人簽約金</th>
+                        <th className="px-3 py-2 text-right font-semibold text-blue-700">合計</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {monthlyBonusDetails.flatMap((staff: any) => {
+                        if (!staff.entries || staff.entries.length === 0) {
+                          return [
+                            <tr key={`${staff.employee_code}-empty`}>
+                              <td className="px-3 py-2">{staff.employee_code}</td>
+                              <td className="px-3 py-2">{staff.employee_name || '-'}</td>
+                              <td className="px-3 py-2 text-gray-400" colSpan={17}>無匯入獎金資料</td>
+                              <td className="px-3 py-2 text-right">0</td>
+                            </tr>
+                          ];
+                        }
+
+                        return staff.entries.map((entry: any, idx: number) => (
+                          <tr key={`${staff.employee_code}-${idx}`} className={entry.is_other_store ? 'bg-amber-50/50' : ''}>
+                            <td className="px-3 py-2">{staff.employee_code}</td>
+                            <td className="px-3 py-2">{staff.employee_name || '-'}</td>
+                            <td className="px-3 py-2">{entry.source_store_code} {entry.source_store_name}</td>
+                            <td className="px-3 py-2">
+                              {entry.is_other_store ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">他店來源</span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-700">本店來源</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2 text-right">{(entry.group_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.hr_subsidy_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.single_item_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.inventory_diff_penalty || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.talent_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.transport_fee || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.inventory_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.rx_incentive_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.quarterly_makeup_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.meal_allowance || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.spring_festival_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.pharmacist_guarantee || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.owner_rx_makeup || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.sales_competition_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right">{(entry.owner_signing_bonus || 0).toLocaleString('zh-TW')}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-blue-700">{(entry.total || 0).toLocaleString('zh-TW')}</td>
+                          </tr>
+                        ));
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 人員列表 */}

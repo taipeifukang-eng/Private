@@ -2140,16 +2140,18 @@ export async function checkMonthlyStatusPermissions() {
         canViewSupportHours: false,
         canEditSupportHours: false,
         canAccessActivityManagement: false,
-        canViewPerformance: false
+        canViewPerformance: false,
+        canViewMonthlyBonusDetail: false
       };
     }
 
-    const [canViewStats, canViewSupportHours, canEditSupportHours, canAccessActivityManagement, canViewPerformance] = await Promise.all([
+    const [canViewStats, canViewSupportHours, canEditSupportHours, canAccessActivityManagement, canViewPerformance, canViewMonthlyBonusDetail] = await Promise.all([
       hasPermission(user.id, 'monthly.status.view_stats'),
       hasPermission(user.id, 'monthly.allowance.view_support_hours'),
       hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
       hasPermission(user.id, 'activity.management.access'),
-      hasPermission(user.id, 'monthly.status.view_performance')
+      hasPermission(user.id, 'monthly.status.view_performance'),
+      hasPermission(user.id, 'monthly.status.bonus_detail.view')
     ]);
 
     return {
@@ -2158,7 +2160,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewSupportHours,
       canEditSupportHours,
       canAccessActivityManagement,
-      canViewPerformance
+      canViewPerformance,
+      canViewMonthlyBonusDetail
     };
   } catch (error: any) {
     console.error('檢查每月狀態權限錯誤:', error);
@@ -2169,7 +2172,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewSupportHours: false,
       canEditSupportHours: false,
       canAccessActivityManagement: false,
-      canViewPerformance: false
+      canViewPerformance: false,
+      canViewMonthlyBonusDetail: false
     };
   }
 }
