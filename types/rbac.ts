@@ -95,6 +95,8 @@ export const MODULE_NAMES: Record<string, string> = {
   inventory: '盤點管理',
   inspection: '督導巡店',
   cross_dept: '跨部門管理',
+  performance: '業績管理',
+  monthly_status: '每月人員狀態',
   // 相容 navbar migration 遺留的中文 module 值
   '任務管理': '任務管理',
   '門市管理': '門市管理',
@@ -103,6 +105,7 @@ export const MODULE_NAMES: Record<string, string> = {
   '盤點管理': '盤點管理',
   '每月狀態': '每月人員狀態',
   '每月人員狀態': '每月人員狀態',
+  '業績管理': '業績管理',
   '系統': '系統管理',
   '督導巡店': '督導巡店',
 };

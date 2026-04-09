@@ -5,7 +5,7 @@
 
 INSERT INTO permissions (module, feature, code, action, description)
 VALUES (
-  'monthly_status',
+  'monthly',
   'bonus_detail',
   'monthly.status.bonus_detail.view',
   'view',
