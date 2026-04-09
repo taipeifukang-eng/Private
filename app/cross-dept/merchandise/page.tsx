@@ -39,8 +39,16 @@ interface MonthBucket {
 }
 
 const getTodayInTaipei = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+
+const isArrivedByResponseText = (text: string | null | undefined) => {
+  if (!text) return false;
+  // 回覆內容若已明確標示到貨/補貨完成，應視為已回覆，不再列為待回覆
+  return /(已到貨|到貨完成|已補貨|已到店|已入庫|已到)/.test(text);
+};
+
 const isResponseActive = (response: StockoutResponse | null | undefined) => {
   if (!response) return false;
+  if (isArrivedByResponseText(response.response_content)) return true;
   if (!response.eta_date) return true;
   return response.eta_date >= getTodayInTaipei();
 };
