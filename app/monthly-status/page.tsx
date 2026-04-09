@@ -1548,7 +1548,7 @@ function StoreStatusDetail({
                         <th className="px-2 py-2 text-left whitespace-nowrap">員編</th>
                         <th className="px-2 py-2 text-left whitespace-nowrap">姓名</th>
                         <th className="px-2 py-2 text-left whitespace-nowrap">來源門市</th>
-                        <th className="px-2 py-2 text-left whitespace-nowrap">來源類型</th>
+                        <th className="w-[82px] max-w-[82px] px-2 py-2 text-left whitespace-nowrap">來源類型</th>
                         {visibleBonusDetailColumns.map(col => (
                           <th key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
                             {col.label}
@@ -1575,11 +1575,11 @@ function StoreStatusDetail({
                             <td className="px-2 py-2 whitespace-nowrap">{staff.employee_code}</td>
                             <td className="px-2 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
                             <td className="px-2 py-2 whitespace-nowrap">{entry.source_store_code} {entry.source_store_name}</td>
-                            <td className="px-2 py-2 whitespace-nowrap">
+                            <td className="w-[82px] max-w-[82px] px-2 py-2 whitespace-nowrap">
                               {entry.is_other_store ? (
-                                <span className="px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">他店來源</span>
+                                <span className="inline-flex min-w-[52px] items-center justify-center px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">他店來源</span>
                               ) : (
-                                <span className="px-1.5 py-0.5 rounded-full bg-green-100 text-green-700">本店來源</span>
+                                <span className="inline-flex min-w-[52px] items-center justify-center px-1 py-0.5 rounded-full bg-green-100 text-green-700 leading-none">本店來源</span>
                               )}
                             </td>
                             {visibleBonusDetailColumns.map(col => (
