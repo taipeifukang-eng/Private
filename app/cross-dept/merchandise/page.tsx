@@ -620,6 +620,7 @@ export default function MerchandisePage() {
   const [userManagedStores, setUserManagedStores] = useState<{ id: string; store_code: string; store_name: string }[]>([]);
   const [canViewAll, setCanViewAll] = useState(false);
   const [canRespond, setCanRespond] = useState(false);
+  const [canSubmit, setCanSubmit] = useState(false);
   const [permLoading, setPermLoading] = useState(true);
 
   const [reports, setReports] = useState<StockoutReport[]>([]);
@@ -670,17 +671,21 @@ export default function MerchandisePage() {
       const permData = await res.json();
 
       // 個別檢查
-      const [viewAllRes, respondRes] = await Promise.all([
+      const [viewAllRes, respondRes, submitRes] = await Promise.all([
         fetch('/api/permissions/check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ permissionCode: 'cross_dept.stockout.view_all' }) }),
         fetch('/api/permissions/check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ permissionCode: 'cross_dept.stockout.respond' }) }),
+        fetch('/api/permissions/check', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissionCode: 'cross_dept.stockout.submit' }) }),
       ]);
-      const [vaD, rD] = await Promise.all([viewAllRes.json(), respondRes.json()]);
+      const [vaD, rD, sD] = await Promise.all([viewAllRes.json(), respondRes.json(), submitRes.json()]);
       const hasViewAll = vaD.allowed || false;
       const hasRespond = rD.allowed || false;
+      const hasSubmit = sD.allowed || false;
       setCanViewAll(hasViewAll);
       setCanRespond(hasRespond);
+      setCanSubmit(hasSubmit);
 
       // 取用戶所管轄門市（依 store_managers 表）
       const { data: storeManagerRows } = await supabase
@@ -869,7 +874,7 @@ export default function MerchandisePage() {
     );
   }
 
-  if (!canViewAll && !canRespond && !userStoreId) {
+  if (!canViewAll && !canRespond && !canSubmit && !userStoreId) {
     return (
       <div className="flex items-center justify-center min-h-screen text-gray-500">
         <div className="text-center space-y-2">
