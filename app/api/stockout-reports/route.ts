@@ -168,8 +168,13 @@ export async function POST(request: NextRequest) {
       .eq('product_code', product_code.trim())
       .maybeSingle();
 
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
-    const hasActiveResponse = !!existingResp && (!existingResp.eta_date || existingResp.eta_date >= today);
+    const graceStartDate = new Date();
+    graceStartDate.setDate(graceStartDate.getDate() - 15);
+    const responseGraceLowerBound = graceStartDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+    // ETA 在回報日前15天內仍視為有效回覆，避免短時間內重複回覆同結論
+    const hasActiveResponse = !!existingResp && (
+      !existingResp.eta_date || existingResp.eta_date >= responseGraceLowerBound
+    );
     const status = hasActiveResponse ? 'responded' : 'pending';
 
     const { data, error } = await supabase

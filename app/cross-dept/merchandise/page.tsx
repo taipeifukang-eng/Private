@@ -38,19 +38,19 @@ interface MonthBucket {
   count: number;
 }
 
-const getTodayInTaipei = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
-
-const isArrivedByResponseText = (text: string | null | undefined) => {
-  if (!text) return false;
-  // 回覆內容若已明確標示到貨/補貨完成，應視為已回覆，不再列為待回覆
-  return /(已到貨|到貨完成|已補貨|已到店|已入庫|已到)/.test(text);
+const getDateInTaipei = (offsetDays = 0) => {
+  const d = new Date();
+  d.setDate(d.getDate() + offsetDays);
+  return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
 };
+
+const getResponseGraceLowerBound = () => getDateInTaipei(-15);
 
 const isResponseActive = (response: StockoutResponse | null | undefined) => {
   if (!response) return false;
-  if (isArrivedByResponseText(response.response_content)) return true;
   if (!response.eta_date) return true;
-  return response.eta_date >= getTodayInTaipei();
+  // 預計到貨日在「今天往前15天」內，仍視為有效回覆
+  return response.eta_date >= getResponseGraceLowerBound();
 };
 
 // 依商品編號聚合後的結構（商品部視角）
@@ -341,7 +341,7 @@ function AddReportModal({
                 {existingResponse.eta_date ? `（預計到貨：${existingResponse.eta_date}）` : ''}
               </p>
               {!isResponseActive(existingResponse) && (
-                <p className="text-xs mb-1">此回覆預計到貨日已過，建議仍送出回報讓商品部更新進度。</p>
+                <p className="text-xs mb-1">此回覆預計到貨日已超過15天緩衝，建議仍送出回報讓商品部更新進度。</p>
               )}
               <p className="text-xs whitespace-pre-wrap">{existingResponse.response_content}</p>
             </div>
@@ -393,7 +393,7 @@ function AddReportModal({
               </p>
               {!isResponseActive(existingResponse) && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
-                  此回覆預計到貨日已過，建議仍送出回報讓商品部更新進度。
+                  此回覆預計到貨日已超過15天緩衝，建議仍送出回報讓商品部更新進度。
                 </p>
               )}
               <p className="text-sm whitespace-pre-wrap text-gray-700 bg-gray-50 border border-gray-200 rounded-md px-3 py-2">
