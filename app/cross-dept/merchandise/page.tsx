@@ -192,16 +192,34 @@ function AddReportModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [showResponseAlertModal]);
 
-  const handleSelectSuggestion = (s: ProductSuggestion) => {
+  const handleSelectSuggestion = async (s: ProductSuggestion) => {
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
     setSelectedUnit(s.unit);
     setNameFromMaster(true);
     setSuggestions([]);
     setShowSuggestions(false);
-    setTimeout(() => {
-      requiredQtyInputRef.current?.focus();
-      requiredQtyInputRef.current?.select();
-    }, 0);
+
+    try {
+      // 點選商品名稱索引當下即判斷是否已回覆
+      const foundResponse = await fetchResponseByCode(s.product_code);
+      setExistingResponse(foundResponse);
+      const shouldShowAlert = isResponseActive(foundResponse);
+      setShowResponseAlertModal(shouldShowAlert);
+
+      // 若不需提醒則直接回到需求數量；若需提醒則由提醒關閉後回焦
+      if (!shouldShowAlert) {
+        setTimeout(() => {
+          requiredQtyInputRef.current?.focus();
+          requiredQtyInputRef.current?.select();
+        }, 0);
+      }
+    } catch {
+      setShowResponseAlertModal(false);
+      setTimeout(() => {
+        requiredQtyInputRef.current?.focus();
+        requiredQtyInputRef.current?.select();
+      }, 0);
+    }
   };
 
   const handleProductCodeEnter = async () => {
@@ -220,12 +238,7 @@ function AddReportModal({
       // 無完整匹配就不帶入品名，也不彈窗
       if (!matchedSuggestion) return;
 
-      handleSelectSuggestion(matchedSuggestion);
-
-      // Enter 確認後，立即以該商品編號查詢回覆並決定是否彈窗
-      const foundResponse = await fetchResponseByCode(matchedSuggestion.product_code);
-      setExistingResponse(foundResponse);
-      setShowResponseAlertModal(isResponseActive(foundResponse));
+      await handleSelectSuggestion(matchedSuggestion);
     } catch {
       setShowResponseAlertModal(false);
     }
@@ -314,7 +327,7 @@ function AddReportModal({
                 {suggestions.map(s => (
                   <li
                     key={s.product_code}
-                    onMouseDown={() => handleSelectSuggestion(s)}
+                    onMouseDown={() => { void handleSelectSuggestion(s); }}
                     className="px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 flex items-center justify-between gap-2"
                   >
                     <span>
