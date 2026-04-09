@@ -842,6 +842,10 @@ function rowTotal(r: BonusRecord): number {
   return BONUS_COLS.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
 }
 
+function isAllBonusZero(r: BonusRecord): boolean {
+  return BONUS_COLS.every(c => (Number(r[c.key]) || 0) === 0);
+}
+
 function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store[] }) {
   const now = new Date();
   const defaultYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -986,8 +990,14 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   }
   ymOptions.sort().reverse();
 
-  // 合計列
-  const grandTotal = records.reduce((sum, r) => sum + rowTotal(r), 0);
+  // 僅顯示至少有一個獎金欄位不為0的資料列
+  const visibleRecords = useMemo(
+    () => records.filter(r => !isAllBonusZero(r)),
+    [records]
+  );
+
+  // 合計列（只計可見資料）
+  const grandTotal = visibleRecords.reduce((sum, r) => sum + rowTotal(r), 0);
 
   function handleSortClick(key: string) {
     if (sortKey !== key) {
@@ -1025,9 +1035,9 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   }
 
   const sortedRecords = useMemo(() => {
-    if (!sortKey) return records;
+    if (!sortKey) return visibleRecords;
 
-    const sorted = [...records];
+    const sorted = [...visibleRecords];
     sorted.sort((a, b) => {
       const av = getSortValue(a, sortKey);
       const bv = getSortValue(b, sortKey);
@@ -1043,7 +1053,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
     });
 
     return sorted;
-  }, [records, sortKey, sortDirection]);
+  }, [visibleRecords, sortKey, sortDirection]);
 
   return (
     <div className="max-w-full px-4 py-6 space-y-4">
@@ -1137,18 +1147,18 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
 
       {/* 統計摘要 */}
       <div className="bg-white rounded-xl shadow-sm px-5 py-3 flex items-center gap-6 text-sm">
-        <span className="text-gray-500">共 <strong>{records.length}</strong> 筆</span>
+        <span className="text-gray-500">共 <strong>{visibleRecords.length}</strong> 筆</span>
         <span className="text-gray-500">獎金合計：<strong className="text-blue-700">{grandTotal.toLocaleString('zh-TW')}</strong> 元</span>
       </div>
 
       {/* 資料表格 */}
       <div className="bg-white rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-xs whitespace-nowrap">
+          <table className="w-full text-xs whitespace-nowrap border border-gray-200 border-collapse">
             <thead className="bg-gray-50 text-gray-500 sticky top-0">
               <tr>
                 <th
-                  className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10 cursor-pointer select-none"
+                  className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10 cursor-pointer select-none border border-gray-200"
                   title="左鍵排序，右鍵取消排序"
                   onClick={() => handleSortClick('store')}
                   onContextMenu={e => { e.preventDefault(); handleSortClear('store'); }}
@@ -1156,7 +1166,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                   門市{sortIndicator('store')}
                 </th>
                 <th
-                  className="px-3 py-2 text-left cursor-pointer select-none"
+                  className="px-3 py-2 text-left cursor-pointer select-none border border-gray-200"
                   title="左鍵排序，右鍵取消排序"
                   onClick={() => handleSortClick('year_month')}
                   onContextMenu={e => { e.preventDefault(); handleSortClear('year_month'); }}
@@ -1164,7 +1174,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                   年月{sortIndicator('year_month')}
                 </th>
                 <th
-                  className="px-3 py-2 text-left cursor-pointer select-none"
+                  className="px-3 py-2 text-left cursor-pointer select-none border border-gray-200"
                   title="左鍵排序，右鍵取消排序"
                   onClick={() => handleSortClick('employee_code')}
                   onContextMenu={e => { e.preventDefault(); handleSortClear('employee_code'); }}
@@ -1172,7 +1182,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                   員編{sortIndicator('employee_code')}
                 </th>
                 <th
-                  className="px-3 py-2 text-left cursor-pointer select-none"
+                  className="px-3 py-2 text-left cursor-pointer select-none border border-gray-200"
                   title="左鍵排序，右鍵取消排序"
                   onClick={() => handleSortClick('employee_name')}
                   onContextMenu={e => { e.preventDefault(); handleSortClear('employee_name'); }}
@@ -1182,7 +1192,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                 {BONUS_COLS.map(c => (
                   <th
                     key={c.key}
-                    className="px-3 py-2 text-right cursor-pointer select-none"
+                    className="px-3 py-2 text-right cursor-pointer select-none border border-gray-200"
                     title="左鍵排序，右鍵取消排序"
                     onClick={() => handleSortClick(`bonus:${String(c.key)}`)}
                     onContextMenu={e => { e.preventDefault(); handleSortClear(`bonus:${String(c.key)}`); }}
@@ -1191,7 +1201,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                   </th>
                 ))}
                 <th
-                  className="px-3 py-2 text-right bg-blue-50 font-semibold text-blue-700 cursor-pointer select-none"
+                  className="px-3 py-2 text-right bg-blue-50 font-semibold text-blue-700 cursor-pointer select-none border border-gray-200"
                   title="左鍵排序，右鍵取消排序"
                   onClick={() => handleSortClick('total')}
                   onContextMenu={e => { e.preventDefault(); handleSortClear('total'); }}
@@ -1200,17 +1210,17 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-8 text-center text-gray-400 border border-gray-200">
                     <RefreshCw size={18} className="animate-spin inline-block mr-2" />載入中...
                   </td>
                 </tr>
-              ) : records.length === 0 ? (
+              ) : sortedRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-10 text-center text-gray-400">
-                    尚無資料，請先匯入 Excel
+                  <td colSpan={4 + BONUS_COLS.length + 1} className="px-4 py-10 text-center text-gray-400 border border-gray-200">
+                    尚無可顯示資料（全0資料列已自動隱藏）
                   </td>
                 </tr>
               ) : (
@@ -1219,22 +1229,22 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                   const total = rowTotal(r);
                   return (
                     <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="px-3 py-1.5 sticky left-0 bg-white font-medium text-gray-700 z-10">
+                      <td className="px-3 py-1.5 sticky left-0 bg-white font-medium text-gray-700 z-10 border border-gray-200">
                         {storeInfo.code}<br />
                         <span className="text-gray-400 font-normal">{storeInfo.name}</span>
                       </td>
-                      <td className="px-3 py-1.5 text-gray-600">{r.year_month}</td>
-                      <td className="px-3 py-1.5 text-gray-600">{r.employee_code}</td>
-                      <td className="px-3 py-1.5 text-gray-700">{r.employee_name || '—'}</td>
+                      <td className="px-3 py-1.5 text-gray-600 border border-gray-200">{r.year_month}</td>
+                      <td className="px-3 py-1.5 text-gray-600 border border-gray-200">{r.employee_code}</td>
+                      <td className="px-3 py-1.5 text-gray-700 border border-gray-200">{r.employee_name || '—'}</td>
                       {BONUS_COLS.map(c => {
                         const v = Number(r[c.key]) || 0;
                         return (
-                          <td key={c.key} className={`px-3 py-1.5 text-right ${v < 0 ? 'text-red-600' : v > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
+                          <td key={c.key} className={`px-3 py-1.5 text-right border border-gray-200 ${v < 0 ? 'text-red-600' : v > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
                             {fmt(v)}
                           </td>
                         );
                       })}
-                      <td className={`px-3 py-1.5 text-right font-semibold bg-blue-50/50 ${total < 0 ? 'text-red-700' : 'text-blue-700'}`}>
+                      <td className={`px-3 py-1.5 text-right font-semibold bg-blue-50/50 border border-gray-200 ${total < 0 ? 'text-red-700' : 'text-blue-700'}`}>
                         {total.toLocaleString('zh-TW')}
                       </td>
                     </tr>
