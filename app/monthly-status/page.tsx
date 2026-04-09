@@ -2807,6 +2807,11 @@ function StoreMonthlyStatsForm({
     ? Math.round(stats.total_gross_profit / (stats.total_customer_count - stats.prescription_addon_only_count))
     : 0;
 
+  // 計算日來客數：(總來客數 - 單純處方加購來客數) / 營業天數
+  const dailyCustomerCount = stats.business_days > 0
+    ? Math.round((stats.total_customer_count - stats.prescription_addon_only_count) / stats.business_days * 10) / 10
+    : 0;
+
   if (loading) {
     return <div className="text-sm text-gray-500">載入統計資料中...</div>;
   }
@@ -2941,6 +2946,12 @@ function StoreMonthlyStatsForm({
                 <label className="text-xs text-gray-600 font-semibold text-blue-600">客毛利</label>
                 <div className="w-16 px-2 py-1 bg-blue-100 text-blue-900 rounded text-xs font-semibold text-center">
                   {customerGrossProfit.toLocaleString()}
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <label className="text-xs text-gray-600 font-semibold text-green-600">日來客數</label>
+                <div className="w-16 px-2 py-1 bg-green-100 text-green-900 rounded text-xs font-semibold text-center">
+                  {dailyCustomerCount.toLocaleString()}
                 </div>
               </div>
             </div>
