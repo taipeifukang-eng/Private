@@ -1545,16 +1545,16 @@ function StoreStatusDetail({
                   <table className="w-full table-auto text-sm">
                     <thead className="bg-gray-50 sticky top-0">
                       <tr>
-                        <th className="px-2 py-2 text-left whitespace-nowrap">員編</th>
-                        <th className="px-2 py-2 text-left whitespace-nowrap">姓名</th>
-                        <th className="px-2 py-2 text-left whitespace-nowrap">來源門市</th>
-                        <th className="w-[82px] max-w-[82px] px-2 py-2 text-left whitespace-nowrap">來源類型</th>
+                        <th className="w-[84px] max-w-[84px] px-1.5 py-2 text-left whitespace-nowrap">員編</th>
+                        <th className="w-[110px] max-w-[110px] px-1.5 py-2 text-left whitespace-nowrap">姓名</th>
+                        <th className="w-[190px] max-w-[190px] px-1.5 py-2 text-left whitespace-nowrap">來源門市</th>
+                        <th className="w-[70px] max-w-[70px] px-1.5 py-2 text-left whitespace-nowrap">來源類型</th>
                         {visibleBonusDetailColumns.map(col => (
-                          <th key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
+                          <th key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
                             {col.label}
                           </th>
                         ))}
-                        <th className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
+                        <th className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -1562,32 +1562,40 @@ function StoreStatusDetail({
                         if (!staff.entries || staff.entries.length === 0) {
                           return [
                             <tr key={`${staff.employee_code}-empty`}>
-                              <td className="px-2 py-2 whitespace-nowrap">{staff.employee_code}</td>
-                              <td className="px-2 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
-                              <td className="px-2 py-2 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
-                              <td className="px-2 py-2 text-right whitespace-nowrap">0</td>
+                              <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_code}</td>
+                              <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
+                              <td className="px-1.5 py-2 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
+                              <td className="px-1.5 py-2 text-right whitespace-nowrap">0</td>
                             </tr>
                           ];
                         }
 
                         return staff.entries.map((entry: any, idx: number) => (
                           <tr key={`${staff.employee_code}-${idx}`} className={entry.is_other_store ? 'bg-amber-50/50' : ''}>
-                            <td className="px-2 py-2 whitespace-nowrap">{staff.employee_code}</td>
-                            <td className="px-2 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
-                            <td className="px-2 py-2 whitespace-nowrap">{entry.source_store_code} {entry.source_store_name}</td>
-                            <td className="w-[82px] max-w-[82px] px-2 py-2 whitespace-nowrap">
+                            <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_code}</td>
+                            <td className="px-1.5 py-2 whitespace-nowrap">
+                              <div className="max-w-[100px] truncate" title={staff.employee_name || '-'}>
+                                {staff.employee_name || '-'}
+                              </div>
+                            </td>
+                            <td className="px-1.5 py-2 whitespace-nowrap">
+                              <div className="max-w-[180px] truncate" title={`${entry.source_store_code} ${entry.source_store_name}`}>
+                                {entry.source_store_code} {entry.source_store_name}
+                              </div>
+                            </td>
+                            <td className="w-[70px] max-w-[70px] px-1.5 py-2 whitespace-nowrap">
                               {entry.is_other_store ? (
-                                <span className="inline-flex min-w-[52px] items-center justify-center px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">他店來源</span>
+                                <span className="inline-flex min-w-[40px] items-center justify-center px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">他店</span>
                               ) : (
-                                <span className="inline-flex min-w-[52px] items-center justify-center px-1 py-0.5 rounded-full bg-green-100 text-green-700 leading-none">本店來源</span>
+                                <span className="inline-flex min-w-[40px] items-center justify-center px-1 py-0.5 rounded-full bg-green-100 text-green-700 leading-none">本店</span>
                               )}
                             </td>
                             {visibleBonusDetailColumns.map(col => (
-                              <td key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
+                              <td key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
                                 {(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}
                               </td>
                             ))}
-                            <td className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>
+                            <td className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>
                           </tr>
                         ));
                       })}
