@@ -152,6 +152,46 @@ function AddReportModal({
     return masterData.data ?? [];
   };
 
+  const closeResponseAlertModal = () => {
+    setShowResponseAlertModal(false);
+    // 關閉提醒後回到需求數量，方便直接繼續送出回報
+    setTimeout(() => {
+      requiredQtyInputRef.current?.focus();
+      requiredQtyInputRef.current?.select();
+    }, 0);
+  };
+
+  const handleProductNameInteraction = async () => {
+    const code = form.product_code.trim();
+    if (!code) return;
+
+    let response = existingResponse;
+    if (!response) {
+      try {
+        response = await fetchResponseByCode(code);
+        setExistingResponse(response);
+      } catch {
+        return;
+      }
+    }
+
+    if (isResponseActive(response)) {
+      setShowResponseAlertModal(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!showResponseAlertModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeResponseAlertModal();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showResponseAlertModal]);
+
   const handleSelectSuggestion = (s: ProductSuggestion) => {
     setForm(f => ({ ...f, product_code: s.product_code, product_name: s.product_name }));
     setSelectedUnit(s.unit);
@@ -185,7 +225,7 @@ function AddReportModal({
       // Enter 確認後，立即以該商品編號查詢回覆並決定是否彈窗
       const foundResponse = await fetchResponseByCode(matchedSuggestion.product_code);
       setExistingResponse(foundResponse);
-      setShowResponseAlertModal(!!foundResponse);
+      setShowResponseAlertModal(isResponseActive(foundResponse));
     } catch {
       setShowResponseAlertModal(false);
     }
@@ -302,6 +342,8 @@ function AddReportModal({
                   setForm(f => ({ ...f, product_name: e.target.value }));
                   setNameFromMaster(false);
                 }}
+                onClick={handleProductNameInteraction}
+                onFocus={handleProductNameInteraction}
                 placeholder="例：感冒糖漿"
                 readOnly={nameFromMaster}
                 className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-400 ${
@@ -378,7 +420,7 @@ function AddReportModal({
               </div>
               <button
                 type="button"
-                onClick={() => setShowResponseAlertModal(false)}
+                onClick={closeResponseAlertModal}
                 className="p-1.5 rounded-lg hover:bg-gray-100"
                 aria-label="關閉提醒"
               >
@@ -387,9 +429,13 @@ function AddReportModal({
             </div>
 
             <div className="px-5 py-4 space-y-2">
-              <p className="text-sm text-gray-800">
-                此商品已有商品部回覆
-                {existingResponse.eta_date ? `（預計到貨：${existingResponse.eta_date}）` : ''}
+              <p className="text-sm text-gray-800 leading-6">
+                此商品預計到貨日為: {existingResponse.eta_date || '未填寫'}，商品部已於{' '}
+                {new Date(existingResponse.responded_at).toLocaleDateString('zh-TW', {
+                  month: '2-digit',
+                  day: '2-digit',
+                })}{' '}
+                回覆此商品，回覆內容為:
               </p>
               {!isResponseActive(existingResponse) && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2.5 py-1.5">
@@ -404,7 +450,7 @@ function AddReportModal({
             <div className="px-5 py-3 border-t flex justify-end">
               <button
                 type="button"
-                onClick={() => setShowResponseAlertModal(false)}
+                onClick={closeResponseAlertModal}
                 className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600"
               >
                 我知道了
