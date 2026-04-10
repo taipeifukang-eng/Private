@@ -2,7 +2,7 @@ import { getCurrentUser } from '@/app/auth/actions';
 import { getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft, FileText, BellRing } from 'lucide-react';
+import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft, FileText, BellRing, UserPlus } from 'lucide-react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 
@@ -22,6 +22,16 @@ type MovementRow = {
   movement_date: string;
   store_id?: string | null;
   employee_name?: string | null;
+};
+
+type ManagedStoreOnboardingRow = {
+  employee_code: string;
+  employee_name: string;
+  movement_date: string;
+  store_id: string | null;
+  store_name: string | null;
+  store_code: string | null;
+  onboarding_is_pharmacist?: boolean | null;
 };
 
 type AnnualFeeRow = {
@@ -148,6 +158,58 @@ export default async function HomePage() {
     isManagerOrAdmin ||
     isSupervisor ||
     isBusinessAdminSupervisor;
+  let managedStoreOnboardings: ManagedStoreOnboardingRow[] = [];
+
+  const { data: managedStoreRows } = await adminSupabase
+    .from('store_managers')
+    .select('store_id, stores(store_code, store_name)')
+    .eq('user_id', user.id);
+
+  const managedStoreIds = Array.from(
+    new Set((managedStoreRows || []).map((row: any) => String(row.store_id || '')).filter(Boolean))
+  );
+
+  if (managedStoreIds.length > 0) {
+    const { data: onboardingRows } = await adminSupabase
+      .from('employee_movement_history')
+      .select('employee_code, employee_name, movement_date, store_id, onboarding_is_pharmacist, stores(store_code, store_name)')
+      .eq('movement_type', 'onboarding')
+      .in('store_id', managedStoreIds)
+      .gte('movement_date', `${currentYearMonth}-01`)
+      .lte('movement_date', `${currentYearMonth}-${String(currentMonthEnd.getDate()).padStart(2, '0')}`)
+      .order('movement_date', { ascending: true });
+
+    const onboardingMap = new Map<string, ManagedStoreOnboardingRow>();
+    (onboardingRows || []).forEach((row: any) => {
+      const employeeCode = String(row.employee_code || '').toUpperCase();
+      const employeeName = String(row.employee_name || '').trim();
+      const storeId = row.store_id ? String(row.store_id) : null;
+      const key = `${employeeCode}::${storeId || '-'}`;
+      if (!employeeCode || !employeeName || onboardingMap.has(key)) return;
+
+      onboardingMap.set(key, {
+        employee_code: employeeCode,
+        employee_name: employeeName,
+        movement_date: String(row.movement_date || ''),
+        store_id: storeId,
+        store_code: row.stores?.store_code ? String(row.stores.store_code) : null,
+        store_name: row.stores?.store_name ? String(row.stores.store_name) : null,
+        onboarding_is_pharmacist: row.onboarding_is_pharmacist ?? null,
+      });
+    });
+
+    managedStoreOnboardings = Array.from(onboardingMap.values()).sort((a, b) => {
+      if (a.movement_date !== b.movement_date) {
+        return a.movement_date.localeCompare(b.movement_date);
+      }
+      const storeCodeA = a.store_code || '';
+      const storeCodeB = b.store_code || '';
+      if (storeCodeA !== storeCodeB) {
+        return storeCodeA.localeCompare(storeCodeB, 'zh-TW');
+      }
+      return a.employee_code.localeCompare(b.employee_code);
+    });
+  }
 
   let birthdayEmployees: { employee_code: string; employee_name: string; birthday: string }[] = [];
 
@@ -669,6 +731,54 @@ export default async function HomePage() {
             <ArrowRight className="h-5 w-5 flex-shrink-0 text-amber-600 transition-transform group-hover:translate-x-1 sm:h-6 sm:w-6" />
           </Link>
         </div>
+
+        {managedStoreOnboardings.length > 0 && (
+          <div className="mb-4 sm:mb-5">
+            <div className="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="flex items-start gap-3 sm:gap-4">
+                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 sm:h-14 sm:w-14">
+                  <UserPlus className="h-6 w-6 sm:h-7 sm:w-7" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-base font-bold tracking-wide text-gray-900 sm:text-lg">本月新人入職公告</h2>
+                    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                      {managedStoreOnboardings.length} 人
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-600 sm:text-sm">
+                    以下為你目前管理門市於 {currentYearMonth.replace('-', '/')} 已登記的人員入職紀錄。
+                  </p>
+
+                  <div className="mt-4 overflow-hidden rounded-xl border border-emerald-100">
+                    <div className="grid grid-cols-4 gap-2 bg-emerald-50 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                      <span>到職日</span>
+                      <span>門市</span>
+                      <span>姓名</span>
+                      <span>身分</span>
+                    </div>
+                    <div className="divide-y divide-emerald-100 bg-white">
+                      {managedStoreOnboardings.map((row) => (
+                        <div
+                          key={`${row.employee_code}-${row.store_id || 'unknown'}-${row.movement_date}`}
+                          className="grid grid-cols-4 gap-2 px-3 py-2 text-xs transition-colors hover:bg-emerald-50/50 sm:text-sm"
+                        >
+                          <span className="font-medium text-emerald-700">{row.movement_date.replace(/-/g, '/')}</span>
+                          <span className="truncate text-gray-600">{row.store_code ? `${row.store_code} - ${row.store_name || '-'}` : (row.store_name || '-')}</span>
+                          <span className="truncate text-gray-900">
+                            {row.employee_name}
+                            <span className="ml-2 font-mono text-gray-400">{row.employee_code}</span>
+                          </span>
+                          <span className="text-gray-600">{row.onboarding_is_pharmacist ? '藥師' : '一般人員'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cards Row */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6 items-start">
