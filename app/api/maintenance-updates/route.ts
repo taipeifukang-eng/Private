@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+
+const STORAGE_BUCKET = 'maintenance-photos';
 
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
@@ -20,6 +22,7 @@ function normalizeMaintenanceError(err: any) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminClient = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
@@ -38,7 +41,44 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true, data: data ?? [] });
+    const updateIds = (data ?? []).map((u: any) => u.id);
+    let photoMap = new Map<string, any[]>();
+
+    if (updateIds.length > 0) {
+      const { data: photoRows, error: photoErr } = await supabase
+        .from('maintenance_update_photos')
+        .select('*')
+        .in('update_id', updateIds)
+        .order('created_at', { ascending: false });
+      if (photoErr) throw photoErr;
+
+      const paths = (photoRows ?? []).map((p: any) => p.storage_path).filter(Boolean);
+      let signedMap = new Map<string, string>();
+      if (paths.length > 0) {
+        const { data: signedData, error: signedErr } = await adminClient.storage
+          .from(STORAGE_BUCKET)
+          .createSignedUrls(paths, 60 * 60 * 24 * 7);
+        if (signedErr) throw signedErr;
+
+        (signedData ?? []).forEach((item, idx) => {
+          const p = paths[idx];
+          if (p && item?.signedUrl) signedMap.set(p, item.signedUrl);
+        });
+      }
+
+      for (const row of (photoRows ?? [])) {
+        const next = photoMap.get(row.update_id) ?? [];
+        next.push({ ...row, signed_url: signedMap.get(row.storage_path) ?? null });
+        photoMap.set(row.update_id, next);
+      }
+    }
+
+    const withPhotos = (data ?? []).map((u: any) => ({
+      ...u,
+      photos: photoMap.get(u.id) ?? [],
+    }));
+
+    return NextResponse.json({ success: true, data: withPhotos });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
   }

@@ -30,6 +30,11 @@ interface MaintenanceUpdate {
   updated_by: string;
   updated_by_name: string;
   created_at: string;
+  photos?: Array<{
+    id: string;
+    signed_url?: string | null;
+    file_name: string;
+  }>;
 }
 
 interface MaintenancePhoto {
@@ -86,7 +91,11 @@ export default function MaintenancePage() {
   // 進度更新表單
   const [updateTarget, setUpdateTarget] = useState<MaintenanceRequest | null>(null);
   const [updateForm, setUpdateForm] = useState({ status: 'pending', notes: '' });
+  const [updateFormPhotos, setUpdateFormPhotos] = useState<Array<{ file: File; preview: string }>>([]);
+  const updatePhotoInputRef = useRef<HTMLInputElement>(null);
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
+  const [updatesMap, setUpdatesMap] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
+  const [updatesLoading, setUpdatesLoading] = useState<Set<string>>(new Set());
 
   // 照片上傳
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -330,6 +339,51 @@ export default function MaintenancePage() {
     }
   };
 
+  const loadRequestUpdates = async (requestId: string) => {
+    setUpdatesLoading((prev) => new Set(prev).add(requestId));
+    try {
+      const res = await fetch(`/api/maintenance-updates?request_id=${requestId}`);
+      const result = await res.json();
+      if (!result.success) return;
+      setUpdatesMap((prev) => {
+        const next = new Map(prev);
+        next.set(requestId, result.data || []);
+        return next;
+      });
+    } catch {
+      // ignore
+    } finally {
+      setUpdatesLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  };
+
+  const clearUpdateFormPhotos = useCallback(() => {
+    setUpdateFormPhotos((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.preview));
+      return [];
+    });
+  }, []);
+
+  const handleAddUpdatePhoto = (file: File) => {
+    setUpdateFormPhotos((prev) => {
+      if (prev.length >= 5) return prev;
+      const preview = URL.createObjectURL(file);
+      return [...prev, { file, preview }];
+    });
+  };
+
+  const removeUpdatePhoto = (index: number) => {
+    setUpdateFormPhotos((prev) => {
+      const target = prev[index];
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((_, idx) => idx !== index);
+    });
+  };
+
   const openLightbox = (urls: string[], index: number) => {
     setLightboxPhotos(urls);
     setLightboxIndex(index);
@@ -369,8 +423,26 @@ export default function MaintenancePage() {
 
       const result = await res.json();
       if (result.success) {
+        const updateId: string | undefined = result?.data?.id;
+        if (updateId && updateFormPhotos.length > 0) {
+          const formData = new FormData();
+          formData.append('update_id', updateId);
+          updateFormPhotos.forEach((p) => formData.append('files', p.file));
+
+          const photoRes = await fetch('/api/maintenance-update-photos', {
+            method: 'POST',
+            body: formData,
+          });
+          const photoResult = await photoRes.json();
+          if (!photoResult.success) {
+            alert(`進度已建立，但照片上傳失敗: ${photoResult.error}`);
+          }
+        }
+
+        await loadRequestUpdates(updateTarget.id);
         setUpdateTarget(null);
         setUpdateForm({ status: 'pending', notes: '' });
+        clearUpdateFormPhotos();
         loadData();
       } else {
         alert(`更新失敗: ${result.error}`);
@@ -583,6 +655,9 @@ export default function MaintenancePage() {
                           if (willExpand && !photos.has(req.id)) {
                             void loadRequestPhotos(req.id);
                           }
+                          if (willExpand && !updatesMap.has(req.id)) {
+                            void loadRequestUpdates(req.id);
+                          }
                         }}
                         className="p-1 hover:bg-gray-100 rounded"
                       >
@@ -670,6 +745,53 @@ export default function MaintenancePage() {
                       {canUpdate && (
                         <div>
                           <p className="text-sm font-medium text-gray-600 mb-2">進度更新</p>
+                          <div className="space-y-2 mb-3">
+                            {updatesLoading.has(req.id) ? (
+                              <div className="text-xs text-gray-500">更新歷程載入中...</div>
+                            ) : (
+                              (updatesMap.get(req.id) ?? []).map((u) => (
+                                <div key={u.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                                  <div className="flex items-center justify-between gap-2 mb-1">
+                                    <div className="text-xs text-gray-500">
+                                      {new Date(u.created_at).toLocaleString('zh-TW', {
+                                        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+                                      })}
+                                      {' · '}更新者：{u.updated_by_name}
+                                    </div>
+                                    <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
+                                      {{ pending: '待處理', in_progress: '處理中', completed: '已完成', closed: '已關閉' }[u.status]}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{u.notes}</p>
+                                  {(u.photos?.length ?? 0) > 0 && (
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      {(u.photos ?? []).filter((p) => !!p.signed_url).map((p, idx, arr) => (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() => {
+                                            const urls = arr.map((x) => x.signed_url!).filter(Boolean);
+                                            openLightbox(urls, idx);
+                                          }}
+                                        >
+                                          <img
+                                            src={p.signed_url || ''}
+                                            alt={p.file_name}
+                                            className="w-16 h-16 object-cover rounded border border-gray-200 hover:border-blue-400"
+                                          />
+                                        </button>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))
+                            )}
+
+                            {!updatesLoading.has(req.id) && (updatesMap.get(req.id)?.length ?? 0) === 0 && (
+                              <div className="text-xs text-gray-500">目前尚無更新歷程</div>
+                            )}
+                          </div>
+
                           {updateTarget?.id === req.id ? (
                             <div className="space-y-2">
                               <select
@@ -699,6 +821,49 @@ export default function MaintenancePage() {
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                                 rows={3}
                               />
+
+                              <div>
+                                <label className="block text-xs text-gray-600 mb-1">進度照片（最多 5 張）</label>
+                                <div className="flex flex-wrap gap-2">
+                                  {updateFormPhotos.map((photo, idx) => (
+                                    <div key={`${photo.file.name}-${idx}`} className="relative group">
+                                      <img
+                                        src={photo.preview}
+                                        alt={`進度照片 ${idx + 1}`}
+                                        className="w-16 h-16 object-cover rounded border border-gray-200"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => removeUpdatePhoto(idx)}
+                                        className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+
+                                  {updateFormPhotos.length < 5 && (
+                                    <label className="w-16 h-16 border-2 border-dashed border-blue-300 rounded flex items-center justify-center cursor-pointer hover:bg-blue-50">
+                                      <Camera className="w-4 h-4 text-blue-500" />
+                                      <input
+                                        ref={updatePhotoInputRef}
+                                        type="file"
+                                        accept="image/*"
+                                        capture="environment"
+                                        onChange={(e) => {
+                                          const file = e.target.files?.[0];
+                                          if (file) {
+                                            handleAddUpdatePhoto(file);
+                                            e.target.value = '';
+                                          }
+                                        }}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  )}
+                                </div>
+                              </div>
+
                               <div className="flex gap-2">
                                 <button
                                   onClick={handleSubmitUpdate}
@@ -708,7 +873,10 @@ export default function MaintenancePage() {
                                   {submittingUpdate ? '提交中...' : '提交'}
                                 </button>
                                 <button
-                                  onClick={() => setUpdateTarget(null)}
+                                  onClick={() => {
+                                    setUpdateTarget(null);
+                                    clearUpdateFormPhotos();
+                                  }}
                                   className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
                                 >
                                   取消
@@ -720,6 +888,7 @@ export default function MaintenancePage() {
                               onClick={() => {
                                 setUpdateTarget(req);
                                 setUpdateForm({ status: req.status, notes: '' });
+                                clearUpdateFormPhotos();
                               }}
                               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
                             >
