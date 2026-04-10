@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 
+function normalizeMaintenanceError(err: any) {
+  const msg = String(err?.message || '');
+  if (
+    msg.includes("Could not find the table 'public.maintenance_") ||
+    msg.includes('schema cache')
+  ) {
+    return '維修模組資料表尚未建置到目前環境，請先在該環境執行 migration_general_affairs_maintenance.sql';
+  }
+  return msg || '維修模組操作失敗';
+}
+
 // ──────────────────────────────────────────
 // GET /api/maintenance-updates?request_id=xxx
 //   取得維修進度更新紀錄
@@ -32,7 +43,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: data ?? [] });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
   }
 }
 
@@ -101,6 +112,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: updateRecord }, { status: 201 });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
   }
 }

@@ -6,6 +6,17 @@ const STORAGE_BUCKET = 'maintenance-photos';
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB per photo
 const MAX_FILES_PER_REQUEST = 5;
 
+function normalizeMaintenanceError(err: any) {
+  const msg = String(err?.message || '');
+  if (
+    msg.includes("Could not find the table 'public.maintenance_") ||
+    msg.includes('schema cache')
+  ) {
+    return '維修模組資料表尚未建置到目前環境，請先在該環境執行 migration_general_affairs_maintenance.sql';
+  }
+  return msg || '維修模組操作失敗';
+}
+
 // ──────────────────────────────────────────
 // POST /api/maintenance-photos
 //   上傳維修照片
@@ -117,7 +128,7 @@ export async function POST(request: NextRequest) {
       data: uploadedRecords,
     });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message || '上傳失敗' }, { status: 500 });
+    return NextResponse.json({ success: false, error: normalizeMaintenanceError(error) }, { status: 500 });
   }
 }
 
@@ -149,6 +160,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: data ?? [] });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
   }
 }
