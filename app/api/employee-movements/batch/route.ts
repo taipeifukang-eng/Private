@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 
 type MovementType = 'onboarding' | 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
@@ -10,6 +10,7 @@ interface MovementInput {
   movement_type: MovementType;
   store_id?: string; // 任職門市（入職時必填）
   onboarding_is_pharmacist?: boolean; // 入職時是否為藥師
+  birthday?: string; // 入職時必填生日
   position?: string; // 僅升職時需要
   effective_date: string;
   notes?: string;
@@ -20,6 +21,7 @@ interface MovementInput {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
     
     // 檢查權限
     const { data: { user } } = await supabase.auth.getUser();
@@ -58,6 +60,23 @@ export async function POST(request: NextRequest) {
           success: false, 
           error: `員工 ${movement.employee_code} 升職需要指定職位` 
         }, { status: 400 });
+      }
+
+      // 如果是入職，必須提供生日
+      if (movement.movement_type === 'onboarding') {
+        const birthday = String(movement.birthday || '').trim();
+        if (!birthday) {
+          return NextResponse.json({
+            success: false,
+            error: `員工 ${movement.employee_code} 入職需要填寫生日`
+          }, { status: 400 });
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(birthday)) {
+          return NextResponse.json({
+            success: false,
+            error: `員工 ${movement.employee_code} 生日格式錯誤，請使用 YYYY-MM-DD`
+          }, { status: 400 });
+        }
       }
 
       // 如果是調店，必須提供原任職門市和新任職門市
@@ -190,6 +209,62 @@ export async function POST(request: NextRequest) {
         success: false, 
         error: error.message 
       }, { status: 500 });
+    }
+
+    // 入職異動補寫生日到員工主檔（員工管理頁來源）
+    const onboardingWithBirthday = movements.filter(
+      (m) => m.movement_type === 'onboarding' && !!m.birthday
+    );
+
+    if (onboardingWithBirthday.length > 0) {
+      const onboardingCodes = Array.from(
+        new Set(onboardingWithBirthday.map((m) => m.employee_code.toUpperCase()))
+      );
+
+      const { data: existingEmployees } = await adminSupabase
+        .from('store_employees')
+        .select('employee_code')
+        .in('employee_code', onboardingCodes);
+
+      const existingCodeSet = new Set(
+        (existingEmployees || []).map((e: any) => String(e.employee_code).toUpperCase())
+      );
+
+      for (const movement of onboardingWithBirthday) {
+        const employeeCode = movement.employee_code.toUpperCase();
+        const isPartTime = employeeCode.startsWith('FKPT');
+        const birthday = String(movement.birthday || '').trim();
+
+        if (existingCodeSet.has(employeeCode)) {
+          // 已存在時只更新必要欄位，避免覆蓋既有資料
+          await adminSupabase
+            .from('store_employees')
+            .update({
+              employee_name: movement.employee_name,
+              birthday,
+              start_date: movement.effective_date || null,
+              is_pharmacist: Boolean(movement.onboarding_is_pharmacist),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('employee_code', employeeCode);
+        } else {
+          // 不存在時補建主檔，讓員工管理可直接看到生日
+          await adminSupabase
+            .from('store_employees')
+            .insert({
+              employee_code: employeeCode,
+              employee_name: movement.employee_name,
+              position: null,
+              current_position: null,
+              start_date: movement.effective_date || null,
+              birthday,
+              employment_type: isPartTime ? 'part_time' : 'full_time',
+              is_pharmacist: Boolean(movement.onboarding_is_pharmacist),
+              is_active: true,
+              store_id: movement.store_id || null,
+            });
+        }
+      }
     }
 
     // 觸發器會自動處理相關更新
