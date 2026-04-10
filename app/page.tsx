@@ -644,14 +644,41 @@ export default async function HomePage() {
   // ─────────────────────────────────────────────────────────
 
   // ── 調店登記確認快捷（有確認權限者） ────────────────────
+  const canCreateTransfer = role === 'admin' || await hasPermission(user.id, 'employee.store_transfer.create');
   const canConfirmTransfer = role === 'admin' || await hasPermission(user.id, 'employee.store_transfer.confirm');
   let pendingTransferCount = 0;
   if (canConfirmTransfer) {
-    const { count } = await adminSupabase
-      .from('store_transfer_requests')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending');
-    pendingTransferCount = count ?? 0;
+    // 與 /api/store-transfer-requests 一致：
+    // 1) admin 或具建立權限者看全部 pending
+    // 2) 僅有確認權限（督導角色）只看自己管轄門市相關申請
+    if (role !== 'admin' && canConfirmTransfer && !canCreateTransfer) {
+      const { data: managed } = await adminSupabase
+        .from('store_managers')
+        .select('store_id')
+        .eq('user_id', user.id);
+
+      const managedStoreIds = Array.from(
+        new Set((managed || []).map((m: any) => String(m.store_id || '')).filter(Boolean))
+      );
+
+      if (managedStoreIds.length === 0) {
+        pendingTransferCount = 0;
+      } else {
+        const storeFilter = managedStoreIds.join(',');
+        const { count } = await adminSupabase
+          .from('store_transfer_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+          .or(`from_store_id.in.(${storeFilter}),to_store_id.in.(${storeFilter})`);
+        pendingTransferCount = count ?? 0;
+      }
+    } else {
+      const { count } = await adminSupabase
+        .from('store_transfer_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      pendingTransferCount = count ?? 0;
+    }
   }
   // ─────────────────────────────────────────────────────────
 
