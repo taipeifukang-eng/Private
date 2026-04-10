@@ -36,6 +36,7 @@ interface MaintenancePhoto {
   id: string;
   request_id: string;
   storage_path: string;
+  signed_url?: string | null;
   file_name: string;
   uploaded_by: string;
   photo_type: 'before' | 'progress' | 'after' | 'other';
@@ -92,6 +93,7 @@ export default function MaintenancePage() {
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadPhotoTarget, setUploadPhotoTarget] = useState<string | null>(null);
   const [photos, setPhotos] = useState<Map<string, MaintenancePhoto[]>>(new Map());
+  const [photoLoading, setPhotoLoading] = useState<Set<string>>(new Set());
 
   // ── 初始化：載入權限與門市 ──
   useEffect(() => {
@@ -289,11 +291,8 @@ export default function MaintenancePage() {
 
       const result = await res.json();
       if (result.success) {
-        // 更新本地照片列表
-        const newPhotos = new Map(photos);
-        const existing = newPhotos.get(requestId) || [];
-        newPhotos.set(requestId, [...existing, ...result.data]);
-        setPhotos(newPhotos);
+        // 上傳後重新抓取一次，取得可顯示的簽名 URL
+        await loadRequestPhotos(requestId);
 
         if (fileInputRef.current) fileInputRef.current.value = '';
       } else {
@@ -304,6 +303,28 @@ export default function MaintenancePage() {
     } finally {
       setUploadingPhotos(false);
       setUploadPhotoTarget(null);
+    }
+  };
+
+  const loadRequestPhotos = async (requestId: string) => {
+    setPhotoLoading((prev) => new Set(prev).add(requestId));
+    try {
+      const res = await fetch(`/api/maintenance-photos?request_id=${requestId}`);
+      const result = await res.json();
+      if (!result.success) return;
+      setPhotos((prev) => {
+        const next = new Map(prev);
+        next.set(requestId, result.data || []);
+        return next;
+      });
+    } catch {
+      // ignore
+    } finally {
+      setPhotoLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
     }
   };
 
@@ -536,9 +557,13 @@ export default function MaintenancePage() {
                         </button>
                       )}
                       <button
-                        onClick={() =>
-                          setExpandedRequestId(expandedRequestId === req.id ? null : req.id)
-                        }
+                        onClick={() => {
+                          const willExpand = expandedRequestId !== req.id;
+                          setExpandedRequestId(willExpand ? req.id : null);
+                          if (willExpand && !photos.has(req.id)) {
+                            void loadRequestPhotos(req.id);
+                          }
+                        }}
                         className="p-1 hover:bg-gray-100 rounded"
                       >
                         {expandedRequestId === req.id ? (
@@ -590,6 +615,34 @@ export default function MaintenancePage() {
                           </div>
                         </div>
                       )}
+
+                      {/* 照片縮圖 */}
+                      <div>
+                        <p className="text-sm font-medium text-gray-600 mb-2">維修照片</p>
+                        {photoLoading.has(req.id) ? (
+                          <div className="text-xs text-gray-500">照片載入中...</div>
+                        ) : (photos.get(req.id)?.length ?? 0) > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {(photos.get(req.id) ?? []).map((p) => (
+                              <a
+                                key={p.id}
+                                href={p.signed_url || '#'}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="block"
+                              >
+                                <img
+                                  src={p.signed_url || ''}
+                                  alt={p.file_name}
+                                  className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                                />
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-500">目前沒有照片</div>
+                        )}
+                      </div>
 
                       {/* 進度更新 */}
                       {canUpdate && (

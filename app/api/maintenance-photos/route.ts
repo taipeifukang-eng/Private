@@ -139,6 +139,7 @@ export async function POST(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminClient = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
@@ -158,7 +159,28 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    return NextResponse.json({ success: true, data: data ?? [] });
+    const rows = data ?? [];
+    const paths = rows.map((r: any) => r.storage_path).filter(Boolean);
+    let signedMap = new Map<string, string>();
+
+    if (paths.length > 0) {
+      const { data: signedData, error: signedError } = await adminClient.storage
+        .from(STORAGE_BUCKET)
+        .createSignedUrls(paths, 60 * 60 * 24 * 7);
+      if (signedError) throw signedError;
+
+      (signedData ?? []).forEach((item, idx) => {
+        const p = paths[idx];
+        if (p && item?.signedUrl) signedMap.set(p, item.signedUrl);
+      });
+    }
+
+    const withSignedUrl = rows.map((r: any) => ({
+      ...r,
+      signed_url: signedMap.get(r.storage_path) ?? null,
+    }));
+
+    return NextResponse.json({ success: true, data: withSignedUrl });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
   }
