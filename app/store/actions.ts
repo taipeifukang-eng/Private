@@ -1750,6 +1750,7 @@ export async function addManualEmployee(
     // 店長/代理店長支援時數
     support_to_other_stores_hours?: number;
     support_from_other_stores_hours?: number;
+    start_date?: string;
   }
 ) {
   try {
@@ -1806,6 +1807,7 @@ export async function addManualEmployee(
         transport_expense_notes: employeeData.transport_expense_notes || null,
         support_to_other_stores_hours: employeeData.support_to_other_stores_hours || null,
         support_from_other_stores_hours: employeeData.support_from_other_stores_hours || null,
+        start_date: employeeData.start_date || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

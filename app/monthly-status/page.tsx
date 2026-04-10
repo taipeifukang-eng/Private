@@ -2304,7 +2304,8 @@ function AddManualEmployeeModal({
         talent_cultivation_bonus: talentCultivationBonus || undefined,
         talent_cultivation_target: talentCultivationTarget || undefined,
         support_to_other_stores_hours: supportToOtherStoresHours || undefined,
-        support_from_other_stores_hours: supportFromOtherStoresHours || undefined
+        support_from_other_stores_hours: supportFromOtherStoresHours || undefined,
+        start_date: startDate || undefined,
       });
 
       if (result.success) {
