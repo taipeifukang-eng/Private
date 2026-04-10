@@ -16,7 +16,7 @@ interface MaintenanceRequest {
   description: string | null;
   reported_by: string;
   reporter_name: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'closed';
+  status: 'pending' | 'in_progress' | 'completed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
   reported_at: string;
   store?: { id: string; store_code: string; store_name: string } | null;
@@ -25,7 +25,7 @@ interface MaintenanceRequest {
 interface MaintenanceUpdate {
   id: string;
   request_id: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'closed';
+  status: 'pending' | 'in_progress' | 'completed';
   notes: string;
   progress_date: string;
   updated_by: string;
@@ -62,7 +62,6 @@ interface StoreStatusSummary {
   pending: number;
   in_progress: number;
   completed: number;
-  closed: number;
   total: number;
 }
 
@@ -89,7 +88,10 @@ export default function MaintenancePage() {
   const [loading, setLoading] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [allStores, setAllStores] = useState<UserManagedStore[]>([]);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'closed'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
+  const [filterYearMonth, setFilterYearMonth] = useState(() =>
+    new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' }).slice(0, 7)
+  );
   const [searchInput, setSearchInput] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
@@ -204,6 +206,7 @@ export default function MaintenancePage() {
 
     try {
       let url = `/api/maintenance-requests?page=${page}&pageSize=30`;
+      url += `&year_month=${filterYearMonth}`;
       if (selectedStoreId) url += `&store_id=${selectedStoreId}`;
       if (filterStatus !== 'all') url += `&status=${filterStatus}`;
       if (searchInput.trim()) url += `&q=${encodeURIComponent(searchInput.trim())}`;
@@ -224,12 +227,12 @@ export default function MaintenancePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedStoreId, filterStatus, searchInput, permLoading]);
+  }, [page, selectedStoreId, filterStatus, filterYearMonth, searchInput, permLoading]);
 
   const loadStoreSummary = useCallback(async () => {
     if (permLoading || !canViewAll) return;
     try {
-      const res = await fetch('/api/maintenance-requests/summary');
+      const res = await fetch(`/api/maintenance-requests/summary?year_month=${filterYearMonth}`);
       const result = await res.json();
       if (result.success) {
         setStoreSummary(result.data || []);
@@ -237,7 +240,7 @@ export default function MaintenancePage() {
     } catch {
       // ignore
     }
-  }, [permLoading, canViewAll]);
+  }, [permLoading, canViewAll, filterYearMonth]);
 
   useEffect(() => {
     loadData();
@@ -561,33 +564,47 @@ export default function MaintenancePage() {
 
         {/* Filters & Controls */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-4">
-          {/* 門市選擇 */}
+          {/* 門市選擇 + 年月篩選 */}
           {(canSubmit || canViewAll) && (
-            <div className="flex items-center gap-3">
-              <label className="text-sm font-medium text-gray-600">門市：</label>
-              <select
-                value={selectedStoreId || 'all'}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSelectedStoreId(value === 'all' ? null : value);
-                  setPage(1);
-                }}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-              >
-                {canViewAll && <option value="all">全部門市</option>}
-                {(canViewAll ? allStores : userManagedStores).map((store) => (
-                  <option key={store.id} value={store.id}>
-                    {store.store_code} - {store.store_name}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-600">門市：</label>
+                <select
+                  value={selectedStoreId || 'all'}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setSelectedStoreId(value === 'all' ? null : value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  {canViewAll && <option value="all">全部門市</option>}
+                  {(canViewAll ? allStores : userManagedStores).map((store) => (
+                    <option key={store.id} value={store.id}>
+                      {store.store_code} - {store.store_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-600">年月：</label>
+                <input
+                  type="month"
+                  value={filterYearMonth}
+                  onChange={(e) => {
+                    setFilterYearMonth(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
             </div>
           )}
 
           {/* 狀態篩選 & 搜尋 */}
           <div className="flex gap-3 items-center flex-wrap">
             <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm">
-              {(['all', 'pending', 'in_progress', 'completed', 'closed'] as const).map((s) => (
+              {(['all', 'pending', 'in_progress', 'completed'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => {
@@ -605,7 +622,6 @@ export default function MaintenancePage() {
                     pending: '待處理',
                     in_progress: '處理中',
                     completed: '已完成',
-                    closed: '已關閉',
                   }[s]}
                 </button>
               ))}
@@ -649,7 +665,6 @@ export default function MaintenancePage() {
                       <th className="py-2 pr-2">待處理</th>
                       <th className="py-2 pr-2">處理中</th>
                       <th className="py-2 pr-2">已完成</th>
-                      <th className="py-2 pr-2">已關閉</th>
                       <th className="py-2">總數</th>
                     </tr>
                   </thead>
@@ -660,7 +675,6 @@ export default function MaintenancePage() {
                         <td className="py-2 pr-2 text-orange-600 font-medium">{s.pending}</td>
                         <td className="py-2 pr-2 text-blue-600 font-medium">{s.in_progress}</td>
                         <td className="py-2 pr-2 text-emerald-600 font-medium">{s.completed}</td>
-                        <td className="py-2 pr-2 text-gray-500">{s.closed}</td>
                         <td className="py-2 text-gray-700">{s.total}</td>
                       </tr>
                     ))}
@@ -686,9 +700,7 @@ export default function MaintenancePage() {
             {requests.map((req) => (
               <div
                 key={req.id}
-                className={`bg-white rounded-xl border-2 overflow-hidden transition-colors ${
-                  req.status === 'closed' ? 'border-gray-200' : 'border-amber-200'
-                }`}
+                className="bg-white rounded-xl border-2 overflow-hidden transition-colors border-amber-200"
               >
                 <div className="p-4">
                   {/* 標題行 */}
@@ -769,7 +781,7 @@ export default function MaintenancePage() {
                       )}
 
                       {/* 照片上傳 */}
-                      {canSubmit && req.status !== 'closed' && (
+                      {canSubmit && (
                         <div>
                           <p className="text-sm font-medium text-gray-600 mb-2">上傳照片</p>
                           <div className="flex gap-2">
@@ -849,7 +861,7 @@ export default function MaintenancePage() {
                                       {' · '}更新者：{u.updated_by_name}
                                     </div>
                                     <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
-                                      {{ pending: '待處理', in_progress: '處理中', completed: '已完成', closed: '已關閉' }[u.status]}
+                                      {{ pending: '待處理', in_progress: '處理中', completed: '已完成' }[u.status as 'pending' | 'in_progress' | 'completed'] ?? u.status}
                                     </span>
                                   </div>
                                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{u.notes}</p>
@@ -897,7 +909,6 @@ export default function MaintenancePage() {
                                 <option value="pending">待處理</option>
                                 <option value="in_progress">處理中</option>
                                 <option value="completed">已完成</option>
-                                <option value="closed">已關閉</option>
                               </select>
                               <textarea
                                 placeholder="輸入更新說明..."

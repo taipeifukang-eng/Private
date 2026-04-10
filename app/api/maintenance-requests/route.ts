@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
     const storeId = searchParams.get('store_id');
     const status = searchParams.get('status');
     const q = searchParams.get('q')?.trim() ?? '';
+    const yearMonth = searchParams.get('year_month'); // format: YYYY-MM
 
     const canViewAll = await hasAnyPermission(user.id, [
       'cross_dept.maintenance.view_all',
@@ -68,6 +69,15 @@ export async function GET(request: NextRequest) {
 
     if (q) {
       query = query.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
+    }
+
+    if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
+      const [yr, mo] = yearMonth.split('-').map(Number);
+      const nextMo = mo === 12 ? 1 : mo + 1;
+      const nextYr = mo === 12 ? yr + 1 : yr;
+      const startStr = `${yearMonth}-01T00:00:00+08:00`;
+      const endStr = `${String(nextYr).padStart(4, '0')}-${String(nextMo).padStart(2, '0')}-01T00:00:00+08:00`;
+      query = query.gte('reported_at', startStr).lt('reported_at', endStr);
     }
 
     const { data, error, count } = await query.range(from, to);

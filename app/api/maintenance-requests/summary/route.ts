@@ -15,7 +15,7 @@ function normalizeMaintenanceError(err: any) {
 
 // GET /api/maintenance-requests/summary
 // 回傳各門市在不同狀態的回報筆數，供總務快速掌握
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -30,9 +30,23 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ success: false, error: '沒有查看總覽權限' }, { status: 403 });
     }
 
-    const { data, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const yearMonth = searchParams.get('year_month');
+
+    let query = supabase
       .from('maintenance_requests')
       .select('store_id, status, store:stores(id, store_code, store_name)');
+
+    if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
+      const [yr, mo] = yearMonth.split('-').map(Number);
+      const nextMo = mo === 12 ? 1 : mo + 1;
+      const nextYr = mo === 12 ? yr + 1 : yr;
+      const startStr = `${yearMonth}-01T00:00:00+08:00`;
+      const endStr = `${String(nextYr).padStart(4, '0')}-${String(nextMo).padStart(2, '0')}-01T00:00:00+08:00`;
+      query = query.gte('reported_at', startStr).lt('reported_at', endStr);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -43,7 +57,6 @@ export async function GET(_request: NextRequest) {
       pending: number;
       in_progress: number;
       completed: number;
-      closed: number;
       total: number;
     }>();
 
@@ -58,7 +71,6 @@ export async function GET(_request: NextRequest) {
           pending: 0,
           in_progress: 0,
           completed: 0,
-          closed: 0,
           total: 0,
         });
       }
@@ -68,7 +80,6 @@ export async function GET(_request: NextRequest) {
       if (row.status === 'pending') bucket.pending += 1;
       else if (row.status === 'in_progress') bucket.in_progress += 1;
       else if (row.status === 'completed') bucket.completed += 1;
-      else if (row.status === 'closed') bucket.closed += 1;
     }
 
     const summary = Array.from(map.values())
