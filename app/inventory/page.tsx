@@ -452,14 +452,11 @@ export default function InventoryManagement() {
         }
 
         // 先逐列解析並合成儲位
-        // 規則：貨架以"1"開頭 → 外${貨架}-${棚板}-${序號}；否則 → 外${貨架}-${棚板}（不含序號，同儲位數量加總）
+        // 規則：統一為 外${貨架}-${棚板}（不使用序號），同儲位數量自動加總
         const rawParsed = data.map((row: any) => {
           const 貨架 = String(row['貨架'] || '').trim();
           const 棚板 = String(row['棚板'] || '').trim();
-          const 序號 = String(row['序號'] || '').trim();
-          const 盤點儲位 = 貨架.startsWith('1')
-            ? `外${貨架}-${棚板}-${序號}`
-            : `外${貨架}-${棚板}`;
+          const 盤點儲位 = `外${貨架}-${棚板}`;
 
           return {
             品號: formatProductCode(row['貨號']),
@@ -470,7 +467,7 @@ export default function InventoryManagement() {
           };
         });
 
-        // 依（品號 + 盤點儲位）做數量加總（非1開頭貨架的多序號會合併，1開頭因序號不同不影響）
+        // 依（品號 + 盤點儲位）做數量加總（序號不納入儲位，所有同儲位自動合併）
         const mergeMap = new Map<string, typeof rawParsed[0]>();
         rawParsed.forEach(item => {
           const key = `${item.品號}__${item.盤點儲位}`;
@@ -1117,7 +1114,7 @@ export default function InventoryManagement() {
                   <h3 className="font-semibold text-gray-800">外盤公司盤點Stock明細檔</h3>
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
-                  欄位：貨號、數量、貨架、棚板、序號（支援一品號多行）
+                  欄位：貨號、數量、貨架、棚板、序號（序號僅作來源欄位，盤點儲位不使用）
                 </p>
                 <label className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 transition-colors">
                   <Upload size={18} />
@@ -1150,7 +1147,7 @@ export default function InventoryManagement() {
                   <p className="font-semibold mb-1">處理邏輯說明：</p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>一品號多行格式：同品號若出現在不同檔案/儲位，會顯示多行</li>
-                    <li>外盤檔案儲位合成："外" + 貨架 + "-" + 棚板 + "-" + 序號（例：外1001-1-1）</li>
+                    <li>外盤檔案儲位合成："外" + 貨架 + "-" + 棚板（不使用序號，例：外1001-1）</li>
                     <li>計算各品號的盤點總數，與庫存比對後產生盤差量</li>
                     <li>產生兩個檔案：內部複盤資料（有盤差）、未盤點清單（有庫存但未盤）</li>
                   </ul>
