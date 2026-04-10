@@ -55,6 +55,17 @@ interface UserManagedStore {
   store_name: string;
 }
 
+interface StoreStatusSummary {
+  store_id: string;
+  store_code: string;
+  store_name: string;
+  pending: number;
+  in_progress: number;
+  completed: number;
+  closed: number;
+  total: number;
+}
+
 // ── 主元件 ──────────────────────────────────────────────────────
 export default function MaintenancePage() {
   const supabase = createClient();
@@ -77,6 +88,7 @@ export default function MaintenancePage() {
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
+  const [allStores, setAllStores] = useState<UserManagedStore[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in_progress' | 'completed' | 'closed'>('all');
   const [searchInput, setSearchInput] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -102,6 +114,7 @@ export default function MaintenancePage() {
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
   const [updatesMap, setUpdatesMap] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
   const [updatesLoading, setUpdatesLoading] = useState<Set<string>>(new Set());
+  const [storeSummary, setStoreSummary] = useState<StoreStatusSummary[]>([]);
 
   // 照片上傳
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -164,10 +177,20 @@ export default function MaintenancePage() {
           .sort((a: any, b: any) => a.store_code.localeCompare(b.store_code));
 
         setUserManagedStores(managed);
-        if (managed.length > 0) {
+        if (hasViewAll) {
+          setSelectedStoreId(null);
+        } else if (managed.length > 0) {
           setUserStoreId(managed[0].id);
           setSelectedStoreId(managed[0].id);
         }
+      }
+
+      if (hasViewAll) {
+        const { data: stores } = await supabase
+          .from('stores')
+          .select('id, store_code, store_name')
+          .order('store_code');
+        setAllStores((stores ?? []) as UserManagedStore[]);
       }
 
       setPermLoading(false);
@@ -203,9 +226,26 @@ export default function MaintenancePage() {
     }
   }, [page, selectedStoreId, filterStatus, searchInput, permLoading]);
 
+  const loadStoreSummary = useCallback(async () => {
+    if (permLoading || !canViewAll) return;
+    try {
+      const res = await fetch('/api/maintenance-requests/summary');
+      const result = await res.json();
+      if (result.success) {
+        setStoreSummary(result.data || []);
+      }
+    } catch {
+      // ignore
+    }
+  }, [permLoading, canViewAll]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    loadStoreSummary();
+  }, [loadStoreSummary]);
 
   const clearNewRequestPhotos = useCallback(() => {
     setNewRequestPhotos((prev) => {
@@ -451,6 +491,7 @@ export default function MaintenancePage() {
         setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
         clearUpdateFormPhotos();
         loadData();
+        loadStoreSummary();
       } else {
         alert(`更新失敗: ${result.error}`);
       }
@@ -476,6 +517,7 @@ export default function MaintenancePage() {
         setExpandedRequestId(null);
       }
       loadData();
+      loadStoreSummary();
     } catch (error) {
       alert(`刪除失敗: ${error}`);
     }
@@ -520,18 +562,20 @@ export default function MaintenancePage() {
         {/* Filters & Controls */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-4">
           {/* 門市選擇 */}
-          {(canSubmit || canViewAll) && userManagedStores.length > 0 && (
+          {(canSubmit || canViewAll) && (
             <div className="flex items-center gap-3">
               <label className="text-sm font-medium text-gray-600">門市：</label>
               <select
-                value={selectedStoreId || ''}
+                value={selectedStoreId || 'all'}
                 onChange={(e) => {
-                  setSelectedStoreId(e.target.value);
+                  const value = e.target.value;
+                  setSelectedStoreId(value === 'all' ? null : value);
                   setPage(1);
                 }}
                 className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
               >
-                {userManagedStores.map((store) => (
+                {canViewAll && <option value="all">全部門市</option>}
+                {(canViewAll ? allStores : userManagedStores).map((store) => (
                   <option key={store.id} value={store.id}>
                     {store.store_code} - {store.store_name}
                   </option>
@@ -589,6 +633,43 @@ export default function MaintenancePage() {
             )}
           </div>
         </div>
+
+        {/* 總務快速總覽 */}
+        {canViewAll && (
+          <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
+            <p className="text-sm font-semibold text-gray-700 mb-3">門市維修狀態總覽</p>
+            {storeSummary.length === 0 ? (
+              <p className="text-xs text-gray-500">目前無資料</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-gray-500 border-b border-gray-200">
+                      <th className="py-2 pr-2">門市</th>
+                      <th className="py-2 pr-2">待處理</th>
+                      <th className="py-2 pr-2">處理中</th>
+                      <th className="py-2 pr-2">已完成</th>
+                      <th className="py-2 pr-2">已關閉</th>
+                      <th className="py-2">總數</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {storeSummary.map((s) => (
+                      <tr key={s.store_id} className="border-b border-gray-100">
+                        <td className="py-2 pr-2 text-gray-700">{s.store_code} - {s.store_name}</td>
+                        <td className="py-2 pr-2 text-orange-600 font-medium">{s.pending}</td>
+                        <td className="py-2 pr-2 text-blue-600 font-medium">{s.in_progress}</td>
+                        <td className="py-2 pr-2 text-emerald-600 font-medium">{s.completed}</td>
+                        <td className="py-2 pr-2 text-gray-500">{s.closed}</td>
+                        <td className="py-2 text-gray-700">{s.total}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* 回報列表 */}
         {loading ? (
