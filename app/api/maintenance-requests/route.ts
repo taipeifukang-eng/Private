@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 
 function normalizeMaintenanceError(err: any) {
@@ -140,6 +140,67 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     return NextResponse.json({ success: true, data }, { status: 201 });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
+  }
+}
+
+// ──────────────────────────────────────────
+// DELETE /api/maintenance-requests?id=xxx
+//   刪除維修回報（本人可刪自己的；總務可刪任意）
+// ──────────────────────────────────────────
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ success: false, error: '缺少 id' }, { status: 400 });
+
+    const { data: req, error: reqErr } = await supabase
+      .from('maintenance_requests')
+      .select('id, reported_by')
+      .eq('id', id)
+      .single();
+    if (reqErr) throw reqErr;
+    if (!req) return NextResponse.json({ success: false, error: '維修回報不存在' }, { status: 404 });
+
+    const canManage = await hasAnyPermission(user.id, [
+      'cross_dept.maintenance.view_all',
+      'cross_dept.maintenance.update',
+    ]);
+    const canDeleteOwn = req.reported_by === user.id;
+
+    if (!canManage && !canDeleteOwn) {
+      return NextResponse.json({ success: false, error: '沒有刪除權限' }, { status: 403 });
+    }
+
+    const { data: photoRows } = await supabase
+      .from('maintenance_photos')
+      .select('storage_path')
+      .eq('request_id', id);
+
+    const { error: delErr } = await supabase
+      .from('maintenance_requests')
+      .delete()
+      .eq('id', id);
+    if (delErr) throw delErr;
+
+    const paths = (photoRows ?? []).map((p: any) => p.storage_path).filter(Boolean);
+    if (paths.length > 0) {
+      const { error: storageErr } = await adminClient.storage
+        .from('maintenance-photos')
+        .remove(paths);
+      // 不中斷刪除流程，只記錄錯誤
+      if (storageErr) {
+        console.error('清理維修照片檔案失敗:', storageErr.message);
+      }
+    }
+
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
   }

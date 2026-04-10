@@ -341,6 +341,26 @@ export default function MaintenancePage() {
     }
   };
 
+  const handleDeleteRequest = async (requestId: string) => {
+    if (!confirm('確定要刪除這筆維修回報嗎？')) return;
+    try {
+      const res = await fetch(`/api/maintenance-requests?id=${requestId}`, {
+        method: 'DELETE',
+      });
+      const result = await res.json();
+      if (!result.success) {
+        alert(`刪除失敗: ${result.error || '未知錯誤'}`);
+        return;
+      }
+      if (expandedRequestId === requestId) {
+        setExpandedRequestId(null);
+      }
+      loadData();
+    } catch (error) {
+      alert(`刪除失敗: ${error}`);
+    }
+  };
+
   // ── 權限檢查 ──
   if (permLoading) {
     return (
@@ -505,18 +525,29 @@ export default function MaintenancePage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() =>
-                        setExpandedRequestId(expandedRequestId === req.id ? null : req.id)
-                      }
-                      className="p-1 hover:bg-gray-100 rounded"
-                    >
-                      {expandedRequestId === req.id ? (
-                        <ChevronUp className="w-5 h-5" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5" />
+                    <div className="flex items-center gap-1">
+                      {(req.reported_by === userId || canViewAll || canUpdate) && (
+                        <button
+                          onClick={() => handleDeleteRequest(req.id)}
+                          className="p-1.5 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors"
+                          title="刪除回報"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       )}
-                    </button>
+                      <button
+                        onClick={() =>
+                          setExpandedRequestId(expandedRequestId === req.id ? null : req.id)
+                        }
+                        className="p-1 hover:bg-gray-100 rounded"
+                      >
+                        {expandedRequestId === req.id ? (
+                          <ChevronUp className="w-5 h-5" />
+                        ) : (
+                          <ChevronDown className="w-5 h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   {expandedRequestId === req.id && (
