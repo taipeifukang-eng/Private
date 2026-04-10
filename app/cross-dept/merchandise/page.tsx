@@ -1090,7 +1090,8 @@ export default function MerchandisePage() {
               const hasResp = prod.response !== null;
               const latestResp = latestResponses.get(prod.product_code) ?? null;
               const hasExpiredResponse = !hasResp && !!latestResp && !isResponseActive(latestResp);
-              const hideStoreDetails = isStoreView && hasResp;
+              // 已回覆也保留明細，讓使用者仍可檢視/刪除自己的回報紀錄
+              const hideStoreDetails = false;
               const totalQty = prod.reports.reduce((s, r) => s + r.required_qty, 0);
 
               return (
@@ -1251,8 +1252,8 @@ export default function MerchandisePage() {
                                     month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
                                   })}
                                 </span>
-                                {/* 本人可刪除自己的 */}
-                                {r.reported_by === userId && (
+                                {/* 本人可刪除自己的；商品部(可管理者)可刪除任意回報 */}
+                                {(r.reported_by === userId || canViewAll || canRespond) && (
                                   <button
                                     onClick={async () => {
                                       if (!confirm('確定刪除這筆回報？')) return;
