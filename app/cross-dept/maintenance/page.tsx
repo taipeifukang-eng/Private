@@ -27,6 +27,7 @@ interface MaintenanceUpdate {
   request_id: string;
   status: 'pending' | 'in_progress' | 'completed' | 'closed';
   notes: string;
+  progress_date: string;
   updated_by: string;
   updated_by_name: string;
   created_at: string;
@@ -57,6 +58,11 @@ interface UserManagedStore {
 // ── 主元件 ──────────────────────────────────────────────────────
 export default function MaintenancePage() {
   const supabase = createClient();
+  const getDateInTaipei = (offsetDays = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+  };
 
   // 權限與使用者狀態
   const [userId, setUserId] = useState<string | null>(null);
@@ -90,7 +96,7 @@ export default function MaintenancePage() {
 
   // 進度更新表單
   const [updateTarget, setUpdateTarget] = useState<MaintenanceRequest | null>(null);
-  const [updateForm, setUpdateForm] = useState({ status: 'pending', notes: '' });
+  const [updateForm, setUpdateForm] = useState({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
   const [updateFormPhotos, setUpdateFormPhotos] = useState<Array<{ file: File; preview: string }>>([]);
   const updatePhotoInputRef = useRef<HTMLInputElement>(null);
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
@@ -418,6 +424,7 @@ export default function MaintenancePage() {
           request_id: updateTarget.id,
           status: updateForm.status,
           notes: updateForm.notes,
+          progress_date: updateForm.progressDate,
         }),
       });
 
@@ -441,7 +448,7 @@ export default function MaintenancePage() {
 
         await loadRequestUpdates(updateTarget.id);
         setUpdateTarget(null);
-        setUpdateForm({ status: 'pending', notes: '' });
+        setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
         clearUpdateFormPhotos();
         loadData();
       } else {
@@ -753,6 +760,8 @@ export default function MaintenancePage() {
                                 <div key={u.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                                   <div className="flex items-center justify-between gap-2 mb-1">
                                     <div className="text-xs text-gray-500">
+                                      紀錄日期：{u.progress_date}
+                                      {' · '}登錄時間：
                                       {new Date(u.created_at).toLocaleString('zh-TW', {
                                         month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
                                       })}
@@ -822,6 +831,18 @@ export default function MaintenancePage() {
                                 rows={3}
                               />
 
+                              <input
+                                type="date"
+                                value={updateForm.progressDate}
+                                onChange={(e) =>
+                                  setUpdateForm({
+                                    ...updateForm,
+                                    progressDate: e.target.value,
+                                  })
+                                }
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                              />
+
                               <div>
                                 <label className="block text-xs text-gray-600 mb-1">進度照片（最多 5 張）</label>
                                 <div className="flex flex-wrap gap-2">
@@ -887,7 +908,7 @@ export default function MaintenancePage() {
                             <button
                               onClick={() => {
                                 setUpdateTarget(req);
-                                setUpdateForm({ status: req.status, notes: '' });
+                                setUpdateForm({ status: req.status, notes: '', progressDate: getDateInTaipei() });
                                 clearUpdateFormPhotos();
                               }}
                               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"

@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
       .from('maintenance_updates')
       .select('*')
       .eq('request_id', requestId)
+      .order('progress_date', { ascending: false })
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -103,10 +104,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { request_id, status, notes } = body;
+    const { request_id, status, notes, progress_date } = body;
 
-    if (!request_id || !status || !notes) {
+    if (!request_id || !status || !notes || !progress_date) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
+    }
+
+    // 驗證 progress_date（YYYY-MM-DD）
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(progress_date))) {
+      return NextResponse.json({ success: false, error: '紀錄日期格式錯誤' }, { status: 400 });
     }
 
     // 驗證 status 有效
@@ -131,6 +137,7 @@ export async function POST(request: NextRequest) {
         request_id,
         status,
         notes,
+        progress_date,
         updated_by: user.id,
         updated_by_name: updaterName,
       })
