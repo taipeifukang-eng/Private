@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   Wrench, Plus, Loader2, AlertCircle, X, Send, Calendar, MapPin,
-  Upload, Image as ImageIcon, ChevronDown, ChevronUp, Trash2,
+  Upload, Camera, ChevronDown, ChevronUp, Trash2,
   CheckCircle, Clock, Pause
 } from 'lucide-react';
 
@@ -78,6 +78,8 @@ export default function MaintenancePage() {
     description: '',
     priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
   });
+  const [newRequestPhotos, setNewRequestPhotos] = useState<Array<{ file: File; preview: string }>>([]);
+  const addRequestPhotoInputRef = useRef<HTMLInputElement>(null);
   const [submittingRequest, setSubmittingRequest] = useState(false);
 
   // 進度更新表單
@@ -182,6 +184,29 @@ export default function MaintenancePage() {
     loadData();
   }, [loadData]);
 
+  const clearNewRequestPhotos = useCallback(() => {
+    setNewRequestPhotos((prev) => {
+      prev.forEach((p) => URL.revokeObjectURL(p.preview));
+      return [];
+    });
+  }, []);
+
+  const handleAddRequestPhoto = (file: File) => {
+    setNewRequestPhotos((prev) => {
+      if (prev.length >= 5) return prev;
+      const preview = URL.createObjectURL(file);
+      return [...prev, { file, preview }];
+    });
+  };
+
+  const removeRequestPhoto = (index: number) => {
+    setNewRequestPhotos((prev) => {
+      const target = prev[index];
+      if (target) URL.revokeObjectURL(target.preview);
+      return prev.filter((_, idx) => idx !== index);
+    });
+  };
+
   // ── 提交新維修回報 ──
   const handleSubmitRequest = async () => {
     if (!newRequestForm.title || !selectedStoreId) {
@@ -204,7 +229,25 @@ export default function MaintenancePage() {
 
       const result = await res.json();
       if (result.success) {
+        const requestId: string | undefined = result?.data?.id;
+        if (requestId && newRequestPhotos.length > 0) {
+          const formData = new FormData();
+          formData.append('request_id', requestId);
+          formData.append('photo_type', 'before');
+          newRequestPhotos.forEach((p) => formData.append('files', p.file));
+
+          const photoRes = await fetch('/api/maintenance-photos', {
+            method: 'POST',
+            body: formData,
+          });
+          const photoResult = await photoRes.json();
+          if (!photoResult.success) {
+            alert(`維修回報已建立，但照片上傳失敗: ${photoResult.error}`);
+          }
+        }
+
         setNewRequestForm({ title: '', description: '', priority: 'normal' });
+        clearNewRequestPhotos();
         setShowAddModal(false);
         loadData();
       } else {
@@ -611,7 +654,10 @@ export default function MaintenancePage() {
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-bold">新增維修回報</h2>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  clearNewRequestPhotos();
+                  setShowAddModal(false);
+                }}
                 className="p-1 hover:bg-gray-100 rounded"
               >
                 <X className="w-5 h-5" />
@@ -669,11 +715,68 @@ export default function MaintenancePage() {
                   <option value="urgent">緊急</option>
                 </select>
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Camera className="inline w-4 h-4 mr-1" />
+                  維修照片（最多 5 張）
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {newRequestPhotos.map((photo, idx) => (
+                    <div key={`${photo.file.name}-${idx}`} className="relative group">
+                      <img
+                        src={photo.preview}
+                        alt={`維修照片 ${idx + 1}`}
+                        className="w-20 h-20 object-cover rounded-lg border-2 border-gray-300 shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeRequestPhoto(idx)}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-lg opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+                        aria-label="刪除照片"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {newRequestPhotos.length < 5 && (
+                    <label className="w-20 h-20 border-2 border-dashed border-blue-300 rounded-lg flex flex-col items-center justify-center cursor-pointer hover:bg-blue-50 hover:border-blue-500 transition-all shadow-sm">
+                      <Camera className="w-6 h-6 text-blue-500 mb-1" />
+                      <span className="text-xs text-blue-600 font-medium">拍照</span>
+                      <input
+                        ref={addRequestPhotoInputRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            handleAddRequestPhoto(file);
+                            e.target.value = '';
+                          }
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {newRequestPhotos.length >= 5 && (
+                  <p className="text-xs text-amber-600 mt-2 font-medium">✓ 已達上傳上限（5張）</p>
+                )}
+                {newRequestPhotos.length === 0 && (
+                  <p className="text-xs text-gray-500 mt-2">點擊拍照按鈕可直接開啟相機</p>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-2 pt-4 border-t">
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  clearNewRequestPhotos();
+                  setShowAddModal(false);
+                }}
                 className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
               >
                 取消
