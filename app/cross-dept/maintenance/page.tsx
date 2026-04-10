@@ -172,6 +172,10 @@ export default function MaintenancePage() {
       if (result.success) {
         setRequests(result.data);
         setTotalPages(result.pagination?.totalPages ?? 1);
+      } else {
+        setRequests([]);
+        setTotalPages(1);
+        alert(`載入維修回報失敗: ${result.error || '未知錯誤'}`);
       }
     } catch (error) {
       console.error('載入維修回報失敗:', error);
@@ -247,6 +251,9 @@ export default function MaintenancePage() {
         }
 
         setNewRequestForm({ title: '', description: '', priority: 'normal' });
+        setFilterStatus('all');
+        setSearchInput('');
+        setPage(1);
         clearNewRequestPhotos();
         setShowAddModal(false);
         loadData();

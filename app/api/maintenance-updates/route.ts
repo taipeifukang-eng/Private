@@ -32,10 +32,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('maintenance_updates')
-      .select(`
-        *,
-        updated_by_user:auth.users!updated_by(id, email)
-      `)
+      .select('*')
       .eq('request_id', requestId)
       .order('created_at', { ascending: false });
 

@@ -54,8 +54,7 @@ export async function GET(request: NextRequest) {
       .from('maintenance_requests')
       .select(`
         *,
-        store:stores(id, store_code, store_name),
-        reported_by_user:auth.users!reported_by(id, email)
+        store:stores(id, store_code, store_name)
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
