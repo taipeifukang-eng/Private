@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import {
   Wrench, Plus, Loader2, AlertCircle, X, Send, Calendar, MapPin,
-  Upload, Camera, ChevronDown, ChevronUp, Trash2,
+  Upload, Camera, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trash2,
   CheckCircle, Clock, Pause
 } from 'lucide-react';
 
@@ -94,6 +94,8 @@ export default function MaintenancePage() {
   const [uploadPhotoTarget, setUploadPhotoTarget] = useState<string | null>(null);
   const [photos, setPhotos] = useState<Map<string, MaintenancePhoto[]>>(new Map());
   const [photoLoading, setPhotoLoading] = useState<Set<string>>(new Set());
+  const [lightboxPhotos, setLightboxPhotos] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // ── 初始化：載入權限與門市 ──
   useEffect(() => {
@@ -326,6 +328,24 @@ export default function MaintenancePage() {
         return next;
       });
     }
+  };
+
+  const openLightbox = (urls: string[], index: number) => {
+    setLightboxPhotos(urls);
+    setLightboxIndex(index);
+  };
+
+  const closeLightbox = () => {
+    setLightboxIndex(null);
+    setLightboxPhotos([]);
+  };
+
+  const prevLightbox = () => {
+    setLightboxIndex((i) => (i !== null ? (i - 1 + lightboxPhotos.length) % lightboxPhotos.length : null));
+  };
+
+  const nextLightbox = () => {
+    setLightboxIndex((i) => (i !== null ? (i + 1) % lightboxPhotos.length : null));
   };
 
   // ── 更新維修進度 ──
@@ -623,20 +643,22 @@ export default function MaintenancePage() {
                           <div className="text-xs text-gray-500">照片載入中...</div>
                         ) : (photos.get(req.id)?.length ?? 0) > 0 ? (
                           <div className="flex flex-wrap gap-2">
-                            {(photos.get(req.id) ?? []).map((p) => (
-                              <a
+                            {((photos.get(req.id) ?? []).filter((p) => !!p.signed_url)).map((p, idx, arr) => (
+                              <button
                                 key={p.id}
-                                href={p.signed_url || '#'}
-                                target="_blank"
-                                rel="noreferrer"
+                                type="button"
+                                onClick={() => {
+                                  const urls = arr.map((x) => x.signed_url!).filter(Boolean);
+                                  openLightbox(urls, idx);
+                                }}
                                 className="block"
                               >
                                 <img
                                   src={p.signed_url || ''}
                                   alt={p.file_name}
-                                  className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                                  className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
                                 />
-                              </a>
+                              </button>
                             ))}
                           </div>
                         ) : (
@@ -737,6 +759,58 @@ export default function MaintenancePage() {
           </div>
         )}
       </div>
+
+      {/* 照片燈箱 */}
+      {lightboxIndex !== null && lightboxPhotos.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 text-white hover:text-gray-300 transition-colors bg-black/40 rounded-full p-2"
+            aria-label="關閉"
+          >
+            <X size={28} />
+          </button>
+
+          {lightboxPhotos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); prevLightbox(); }}
+              className="absolute left-4 text-white hover:text-gray-300 transition-colors bg-black/40 rounded-full p-2"
+              aria-label="上一張"
+            >
+              <ChevronLeft size={32} />
+            </button>
+          )}
+
+          <img
+            src={lightboxPhotos[lightboxIndex]}
+            alt={`維修照片 ${lightboxIndex + 1}`}
+            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {lightboxPhotos.length > 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); nextLightbox(); }}
+              className="absolute right-4 text-white hover:text-gray-300 transition-colors bg-black/40 rounded-full p-2"
+              aria-label="下一張"
+            >
+              <ChevronRight size={32} />
+            </button>
+          )}
+
+          {lightboxPhotos.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/40 px-3 py-1 rounded-full">
+              {lightboxIndex + 1} / {lightboxPhotos.length}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 新增回報 Modal */}
       {showAddModal && (
