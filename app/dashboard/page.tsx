@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Activity, CheckCircle2, Clock, User, RefreshCw, Store, ArrowRight, Calendar } from 'lucide-react';
-import PerformanceDashboard from '@/components/PerformanceDashboard';
 import type { Assignment, Template, Log } from '@/types/workflow';
 
 // Extended types for joined data
@@ -216,54 +215,28 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">管理功能</h2>
-                  <p className="text-sm text-gray-600">查看和管理所負責門市和團隊狀態</p>
+                  <p className="text-sm text-gray-600">任務統計總覽</p>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 指派檔案表數 */}
-              <Link
-                href="/admin/assign/create"
-                className="flex items-center justify-between p-4 border-2 border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center group-hover:bg-purple-200 transition-colors">
-                    <Activity className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">指派檔案表數</div>
-                    <div className="text-sm text-gray-500">建立和指派工作流程</div>
-                  </div>
-                </div>
-                <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 transition-colors" />
-              </Link>
-
-              {/* 月人員狀態管理 */}
-              <Link
-                href="/monthly-status"
-                className="flex items-center justify-between p-4 border-2 border-blue-200 bg-blue-50 rounded-lg hover:border-blue-500 hover:bg-blue-100 transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-200 transition-colors">
-                    <Calendar className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <div className="font-semibold text-gray-900">月人員狀態</div>
-                    <div className="text-sm text-gray-600">
-                      {currentYear}年{currentMonth}月 · {managedStores.length} 間門市
-                    </div>
-                  </div>
-                </div>
-                <ArrowRight className="w-5 h-5 text-blue-600 group-hover:translate-x-1 transition-transform" />
-              </Link>
-            </div>
-
-            {/* 業绩儀表板小元件 */}
-            <div className="mt-6">
-              <PerformanceDashboard
-                storeIds={managedStores.map(s => String(s.id))}
-              />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div className="text-sm text-gray-600">總任務數</div>
+                <div className="mt-2 text-2xl font-bold text-gray-900">{totalAssignments}</div>
+              </div>
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div className="text-sm text-amber-700">待處理</div>
+                <div className="mt-2 text-2xl font-bold text-amber-800">{pendingAssignments}</div>
+              </div>
+              <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+                <div className="text-sm text-blue-700">進行中</div>
+                <div className="mt-2 text-2xl font-bold text-blue-800">{inProgressAssignments}</div>
+              </div>
+              <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+                <div className="text-sm text-green-700">已完成</div>
+                <div className="mt-2 text-2xl font-bold text-green-800">{completedAssignments}</div>
+              </div>
             </div>
           </div>
         )}
