@@ -927,7 +927,24 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
         params.set('year_month', yearMonth);
         const res = await fetch(`/api/performance-bonus?${params}`);
         const json = await res.json();
-        setRecords(json.records || []);
+        const loadedRecords = json.records || [];
+        
+        // 🔍 DEBUG: 追踪 FK0278
+        const fk0278 = loadedRecords.find((r: BonusRecord) => r.employee_code?.toUpperCase() === 'FK0278');
+        console.log(`[bonusImport DEBUG] 已加载 ${loadedRecords.length} 筆記錄`);
+        if (fk0278) {
+          console.log(`[bonusImport DEBUG] ✓ FK0278 在記錄中:`, {
+            employee_code: fk0278.employee_code,
+            employee_name: fk0278.employee_name,
+            store: fk0278.store,
+            single_item_bonus: fk0278.single_item_bonus,
+            all_fields: fk0278,
+          });
+        } else {
+          console.warn(`[bonusImport DEBUG] ✗ FK0278 未在記錄中`);
+        }
+        
+        setRecords(loadedRecords);
       } else {
         const year = yearMonth.split('-')[0];
         const q = Number(quarter);
@@ -945,6 +962,14 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
         );
 
         const flatRecords = responses.flat();
+        
+        // 🔍 DEBUG: 季度数据追踪
+        const fk0278Quarterly = flatRecords.find((r: BonusRecord) => r.employee_code?.toUpperCase() === 'FK0278');
+        console.log(`[bonusImport DEBUG] 季度模式: 已加载 ${flatRecords.length} 筆記錄`);
+        if (fk0278Quarterly) {
+          console.log(`[bonusImport DEBUG] ✓ FK0278 在季度記錄中:`, fk0278Quarterly);
+        }
+        
         const grouped = new Map<string, BonusRecord>();
 
         flatRecords.forEach((r) => {
@@ -971,7 +996,18 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
           });
         });
 
-        setRecords(Array.from(grouped.values()));
+        const finalRecords = Array.from(grouped.values());
+        
+        // 🔍 DEBUG: 合并后追踪
+        const fk0278Final = finalRecords.find((r: BonusRecord) => r.employee_code?.toUpperCase() === 'FK0278');
+        console.log(`[bonusImport DEBUG] 合并后: ${finalRecords.length} 筆記錄`);
+        if (fk0278Final) {
+          console.log(`[bonusImport DEBUG] ✓ FK0278 在合并記錄中:`, fk0278Final);
+        } else {
+          console.warn(`[bonusImport DEBUG] ✗ FK0278 在合并后消失了!`);
+        }
+        
+        setRecords(finalRecords);
       }
     } finally {
       setLoading(false);
@@ -1011,6 +1047,9 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       const json = await res.json();
       console.log('📦 回應內容:', json);
       
+      // 🔍 DEBUG: 导入后立即检查FK0278
+      console.log('⏳ 导入完成，刷新数据中...');
+      
       if (!json.success) {
         throw new Error(json.error || '匯入失敗（無詳細錯誤訊息）');
       }
@@ -1019,7 +1058,13 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       showMsg('success', msg);
       console.log('✅ ' + msg);
       
+      // 导入成功后，加延迟再查询，确保数据已写入
+      await new Promise(r => setTimeout(r, 500));
+      
       await loadRecords();
+      
+      // 导入后再次检查FK0278
+      console.log('🔍 [导入后检查] 正在查找FK0278...');
     } catch (err: any) {
       console.error('❌ 匯入錯誤:', err);
       let errorMsg = err?.message || String(err);
@@ -1056,12 +1101,38 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
 
   // 僅顯示至少有一個可視獎金欄位不為0，且符合員編過濾的資料列
   const visibleRecords = useMemo(
-    () => records
-      .filter(r => visibleBonusCols.some(c => (Number(r[c.key]) || 0) !== 0))
-      .filter(r => {
+    () => {
+      const step1 = records.filter(r => visibleBonusCols.some(c => (Number(r[c.key]) || 0) !== 0));
+      
+      // 🔍 DEBUG: 检查 FK0278 是否在 step1
+      const fk0278_step1 = step1.find(r => r.employee_code?.toUpperCase() === 'FK0278');
+      if (fk0278_step1) {
+        console.log(`[bonusImport FILTER] FK0278 在步骤1（奖金列过滤）中:`, {
+          store: fk0278_step1.store,
+          single_item_bonus: fk0278_step1.single_item_bonus,
+          visibleBonusColsCount: visibleBonusCols.length,
+          visibleBonusCols: visibleBonusCols.map(c => c.key),
+          hasNonZeroBonus: visibleBonusCols.some(c => (Number(fk0278_step1[c.key]) || 0) !== 0),
+        });
+      } else if (records.find(r => r.employee_code?.toUpperCase() === 'FK0278')) {
+        console.warn(`[bonusImport FILTER] FK0278 被奖金列过滤过掉了! visibleBonusCols=${visibleBonusCols.map(c => c.key).join(',')}`);
+      }
+      
+      const step2 = step1.filter(r => {
         if (!employeeCodeKeyword) return true;
         return String(r.employee_code || '').toUpperCase().includes(employeeCodeKeyword);
-      }),
+      });
+      
+      // 🔍 DEBUG: 检查 FK0278 是否在 step2
+      const fk0278_final = step2.find(r => r.employee_code?.toUpperCase() === 'FK0278');
+      if (fk0278_final) {
+        console.log(`[bonusImport FILTER] FK0278 在最终可见记录中 ✓`);
+      } else if (fk0278_step1 && !fk0278_final) {
+        console.warn(`[bonusImport FILTER] FK0278 被员编过滤过掉了! employeeCodeKeyword="${employeeCodeKeyword}"`);
+      }
+      
+      return step2;
+    },
     [records, visibleBonusCols, employeeCodeKeyword]
   );
 

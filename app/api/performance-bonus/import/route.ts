@@ -215,6 +215,12 @@ export async function POST(request: NextRequest) {
       // ── 員編 ──
       const employeeCode = getStr(row, COL.employee_code);
       if (!employeeCode) { errors.push(`${rowLabel}：缺少員編`); continue; }
+      
+      // 🔍 DEBUG: 追踪 FK0278
+      const isTrackedEmployee = employeeCode.toUpperCase() === 'FK0278';
+      if (isTrackedEmployee) {
+        console.log(`[${Date.now() - startTime}ms] [FK0278 DEBUG] 正在处理 FK0278，行号=${i + 2}，行数据=${JSON.stringify(row)}`);
+      }
 
       // ── 年月份 ──
       let yearMonth = '';
@@ -239,7 +245,14 @@ export async function POST(request: NextRequest) {
       }
       if (!yearMonth) { 
         errors.push(`${rowLabel}：無法解析年月。月份值="${getStr(row, COL.month)}"，年份值="${getStr(row, COL.year) || fallbackYear}"（${employeeCode}）`); 
+        if (isTrackedEmployee) {
+          console.warn(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ❌ 年月份解析失败: rawMonth="${getStr(row, COL.month)}", rawYear="${getStr(row, COL.year) || fallbackYear}"`);
+        }
         continue; 
+      }
+      
+      if (isTrackedEmployee) {
+        console.log(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ✓ 年月份=${yearMonth}`);
       }
 
       // ── 門市 ──
@@ -265,12 +278,28 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        if (!found) { errors.push(`${rowLabel}：找不到門市代號 "${rawCode}"（${employeeCode}）`); continue; }
+        if (!found) { 
+          errors.push(`${rowLabel}：找不到門市代號 "${rawCode}"（${employeeCode}）`); 
+          if (isTrackedEmployee) {
+            console.warn(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ❌ 找不到门市: rawCode="${rawCode}"`);
+          }
+          continue; 
+        }
         storeId = found;
+        
+        if (isTrackedEmployee) {
+          console.log(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ✓ 门市=${rawCode} -> storeId=${storeId}`);
+        }
       }
-      if (!storeId) { errors.push(`${rowLabel}：缺少門市（${employeeCode}）`); continue; }
+      if (!storeId) { 
+        errors.push(`${rowLabel}：缺少門市（${employeeCode}）`); 
+        if (isTrackedEmployee) {
+          console.warn(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ❌ 缺少门市信息`);
+        }
+        continue; 
+      }
 
-      upserts.push({
+      const upsertRecord = {
         store_id:               storeId,
         year_month:             yearMonth,
         employee_code:          employeeCode,
@@ -290,7 +319,14 @@ export async function POST(request: NextRequest) {
         owner_rx_makeup:        getNumOptional(row, COL.owner_rx_makeup),
         sales_competition_bonus:getNumOptional(row, COL.sales_competition_bonus),
         owner_signing_bonus:    getNumOptional(row, COL.owner_signing_bonus),
-      });
+      };
+      
+      // 🔍 DEBUG: 输出FK0278的最终upsert记录
+      if (isTrackedEmployee) {
+        console.log(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ✓ 最终upsert记录:`, upsertRecord);
+      }
+      
+      upserts.push(upsertRecord);
 
       processedCount++;
       if (processedCount % 50 === 0) {
@@ -299,6 +335,14 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[${Date.now() - startTime}ms] Row processing complete: ${upserts.length} valid records, ${errors.length} errors`);
+    
+    // 🔍 DEBUG: 检查FK0278是否在upserts中
+    const fk0278InUpserts = upserts.find(r => r.employee_code?.toUpperCase() === 'FK0278');
+    if (fk0278InUpserts) {
+      console.log(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ✓ FK0278 在 upserts 中:`, fk0278InUpserts);
+    } else {
+      console.warn(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ❌ FK0278 不在 upserts 中!`);
+    }
 
     if (upserts.length === 0) {
       return NextResponse.json({ success: false, error: `沒有可匯入的資料。${errors.length > 0 ? '錯誤：' + errors.join('；') : ''}` });
@@ -382,6 +426,14 @@ export async function POST(request: NextRequest) {
 
       return merged;
     });
+    
+    // 🔍 DEBUG: 检查FK0278在merged中是否存在
+    const fk0278InMerged = mergedUpserts.find(r => r.employee_code?.toUpperCase() === 'FK0278');
+    if (fk0278InMerged) {
+      console.log(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ✓ FK0278 在 mergedUpserts 中:`, fk0278InMerged);
+    } else {
+      console.warn(`[${Date.now() - startTime}ms] [FK0278 DEBUG] ❌ FK0278 在 mergedUpserts 中消失了!`);
+    }
 
     const { error: upsertError } = await admin
       .from('monthly_bonus_records')
