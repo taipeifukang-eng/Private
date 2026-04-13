@@ -858,6 +858,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const [quarter,        setQuarter]        = useState('');
   const [supervisorId,   setSupervisorId]   = useState('');
   const [filterStoreId,  setFilterStoreId]  = useState('');
+  const [employeeCode,   setEmployeeCode]   = useState('');
   const [bonusKey,       setBonusKey]       = useState('');
   const [records,        setRecords]        = useState<BonusRecord[]>([]);
   const [loading,        setLoading]        = useState(false);
@@ -1050,10 +1051,18 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
     return BONUS_COLS.filter(c => String(c.key) === bonusKey);
   }, [bonusKey]);
 
-  // 僅顯示至少有一個可視獎金欄位不為0的資料列
+  // 員編過濾（支援包含查詢）
+  const employeeCodeKeyword = employeeCode.trim().toUpperCase();
+
+  // 僅顯示至少有一個可視獎金欄位不為0，且符合員編過濾的資料列
   const visibleRecords = useMemo(
-    () => records.filter(r => visibleBonusCols.some(c => (Number(r[c.key]) || 0) !== 0)),
-    [records, visibleBonusCols]
+    () => records
+      .filter(r => visibleBonusCols.some(c => (Number(r[c.key]) || 0) !== 0))
+      .filter(r => {
+        if (!employeeCodeKeyword) return true;
+        return String(r.employee_code || '').toUpperCase().includes(employeeCodeKeyword);
+      }),
+    [records, visibleBonusCols, employeeCodeKeyword]
   );
 
   // 合計列（只計可見資料、可視獎金欄位）
@@ -1195,6 +1204,18 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
               <option key={String(c.key)} value={String(c.key)}>{c.label}</option>
             ))}
           </select>
+        </div>
+
+        {/* 員編 */}
+        <div className="flex items-center gap-1.5">
+          <label className="text-sm font-medium text-gray-600 whitespace-nowrap">員編</label>
+          <input
+            type="text"
+            value={employeeCode}
+            onChange={e => setEmployeeCode(e.target.value.toUpperCase())}
+            placeholder="例如 FK1067"
+            className="border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+          />
         </div>
 
         {/* 重新載入 */}
