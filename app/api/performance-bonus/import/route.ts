@@ -33,6 +33,10 @@ function getNumOptional(row: Record<string, unknown>, keys: string[]): number | 
   return undefined;
 }
 
+function isNonZeroNumber(value: unknown): value is number {
+  return typeof value === 'number' && !isNaN(value) && value !== 0;
+}
+
 // 智能解析月份（支援 "1", "01", "1月", "一月" 等格式）
 function parseMonth(monthStr: string): number | null {
   if (!monthStr) return null;
@@ -204,6 +208,7 @@ export async function POST(request: NextRequest) {
 
     const upserts: Record<string, any>[] = [];
     const errors: string[] = [];
+    const conflicts: string[] = [];
 
     console.log(`[${Date.now() - startTime}ms] Processing rows...`);
     let processedCount = 0;
@@ -319,6 +324,8 @@ export async function POST(request: NextRequest) {
         owner_rx_makeup:        getNumOptional(row, COL.owner_rx_makeup),
         sales_competition_bonus:getNumOptional(row, COL.sales_competition_bonus),
         owner_signing_bonus:    getNumOptional(row, COL.owner_signing_bonus),
+        __rowLabel:             rowLabel,
+        __rawStoreCode:         rawCode,
       };
       
       // 🔍 DEBUG: 输出FK0278的最终upsert记录
@@ -353,8 +360,9 @@ export async function POST(request: NextRequest) {
     // 去重：相同 store_id + year_month + employee_code 視為同一筆
     // 不同門市的相同員工保持獨立記錄（key 包含 store_id）。
     // 同一 key 出現多列時：
-    //   - 某欄位只有一列有值 → 取該值（跨列合併，補齊各欄位）
-    //   - 某欄位在兩列都有值 → 衝突，報錯並以後者覆蓋
+    //   - 0 視為 Excel 佔位值，不覆蓋既有非 0 值
+    //   - 非 0 可以覆蓋 undefined / 0
+    //   - 同一欄位若出現兩個非 0 值，視為來源資料衝突，整批匯入失敗
     const dedupMap = new Map<string, Record<string, any>>();
     for (const r of upserts) {
       const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
@@ -363,21 +371,38 @@ export async function POST(request: NextRequest) {
         dedupMap.set(key, { ...r });
       } else {
         for (const field of BONUS_VALUE_FIELDS) {
-          const incomingVal = r[field]; // undefined = 該列此欄位為空
-          if (incomingVal === undefined) continue; // 此列沒有值，保留既有
+          const incomingVal = r[field];
+          if (incomingVal === undefined) continue;
+
           const existingVal = existing[field];
-          if (existingVal !== undefined) {
-            // 同一 store+month+employee 的同一獎金欄位出現兩次非空值 → 衝突
-            errors.push(
-              `員編 ${r.employee_code} (${r.year_month} / 門市 ${r.store_id}) 的「${field}」欄位重複出現（${existingVal} vs ${incomingVal}），已使用後者覆蓋，請確認來源資料`
+
+          if (isNonZeroNumber(existingVal) && isNonZeroNumber(incomingVal)) {
+            conflicts.push(
+              `${r.__rowLabel}：員編 ${r.employee_code}、年月 ${r.year_month}、門市 ${r.__rawStoreCode || r.store_id} 的「${field}」重複出現非 0 值（${existingVal} vs ${incomingVal})`
             );
+            continue;
           }
-          existing[field] = incomingVal;
+
+          if (isNonZeroNumber(existingVal) && incomingVal === 0) {
+            continue;
+          }
+
+          if ((existingVal === undefined || existingVal === 0) && incomingVal !== undefined) {
+            existing[field] = incomingVal;
+          }
         }
         if (r.employee_name) existing.employee_name = r.employee_name;
       }
     }
     const dedupedUpserts = Array.from(dedupMap.values());
+
+    if (conflicts.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: '匯入資料存在同月、同門市、同員編、同獎金欄位的重複非 0 值衝突',
+        conflicts,
+      }, { status: 400 });
+    }
 
     console.log(
       `[${Date.now() - startTime}ms] Upserting ${dedupedUpserts.length} records (raw: ${upserts.length}, deduped: ${dedupedUpserts.length})...`
