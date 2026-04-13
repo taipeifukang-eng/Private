@@ -208,7 +208,6 @@ export async function POST(request: NextRequest) {
 
     const upserts: Record<string, any>[] = [];
     const errors: string[] = [];
-    const conflicts: string[] = [];
 
     console.log(`[${Date.now() - startTime}ms] Processing rows...`);
     let processedCount = 0;
@@ -362,7 +361,7 @@ export async function POST(request: NextRequest) {
     // 同一 key 出現多列時：
     //   - 0 視為 Excel 佔位值，不覆蓋既有非 0 值
     //   - 非 0 可以覆蓋 undefined / 0
-    //   - 同一欄位若出現兩個非 0 值，視為來源資料衝突，整批匯入失敗
+    //   - 同一欄位若出現兩個不同的非 0 值，記錄警告並以後者覆蓋
     const dedupMap = new Map<string, Record<string, any>>();
     for (const r of upserts) {
       const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
@@ -377,9 +376,12 @@ export async function POST(request: NextRequest) {
           const existingVal = existing[field];
 
           if (isNonZeroNumber(existingVal) && isNonZeroNumber(incomingVal)) {
-            conflicts.push(
-              `${r.__rowLabel}：員編 ${r.employee_code}、年月 ${r.year_month}、門市 ${r.__rawStoreCode || r.store_id} 的「${field}」重複出現非 0 值（${existingVal} vs ${incomingVal})`
-            );
+            if (existingVal !== incomingVal) {
+              errors.push(
+                `${r.__rowLabel}：員編 ${r.employee_code}、年月 ${r.year_month}、門市 ${r.__rawStoreCode || r.store_id} 的「${field}」重複出現非 0 值（${existingVal} vs ${incomingVal}），已使用後者覆蓋`
+              );
+            }
+            existing[field] = incomingVal;
             continue;
           }
 
@@ -395,14 +397,6 @@ export async function POST(request: NextRequest) {
       }
     }
     const dedupedUpserts = Array.from(dedupMap.values());
-
-    if (conflicts.length > 0) {
-      return NextResponse.json({
-        success: false,
-        error: '匯入資料存在同月、同門市、同員編、同獎金欄位的重複非 0 值衝突',
-        conflicts,
-      }, { status: 400 });
-    }
 
     console.log(
       `[${Date.now() - startTime}ms] Upserting ${dedupedUpserts.length} records (raw: ${upserts.length}, deduped: ${dedupedUpserts.length})...`
