@@ -350,11 +350,32 @@ export async function POST(request: NextRequest) {
 
     console.log(`[${Date.now() - startTime}ms] Preparing deduplicated upsert payload...`);
 
-    // 先去重，避免同一批資料中出現相同 key 造成 ON CONFLICT second time 錯誤
+    // 去重：相同 store_id + year_month + employee_code 視為同一筆
+    // 不同門市的相同員工保持獨立記錄（key 包含 store_id）。
+    // 同一 key 出現多列時：
+    //   - 某欄位只有一列有值 → 取該值（跨列合併，補齊各欄位）
+    //   - 某欄位在兩列都有值 → 衝突，報錯並以後者覆蓋
     const dedupMap = new Map<string, Record<string, any>>();
     for (const r of upserts) {
       const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
-      dedupMap.set(key, r);
+      const existing = dedupMap.get(key);
+      if (!existing) {
+        dedupMap.set(key, { ...r });
+      } else {
+        for (const field of BONUS_VALUE_FIELDS) {
+          const incomingVal = r[field]; // undefined = 該列此欄位為空
+          if (incomingVal === undefined) continue; // 此列沒有值，保留既有
+          const existingVal = existing[field];
+          if (existingVal !== undefined) {
+            // 同一 store+month+employee 的同一獎金欄位出現兩次非空值 → 衝突
+            errors.push(
+              `員編 ${r.employee_code} (${r.year_month} / 門市 ${r.store_id}) 的「${field}」欄位重複出現（${existingVal} vs ${incomingVal}），已使用後者覆蓋，請確認來源資料`
+            );
+          }
+          existing[field] = incomingVal;
+        }
+        if (r.employee_name) existing.employee_name = r.employee_name;
+      }
     }
     const dedupedUpserts = Array.from(dedupMap.values());
 
