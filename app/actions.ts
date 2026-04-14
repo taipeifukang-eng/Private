@@ -1325,6 +1325,8 @@ export async function deleteTemplate(templateId: string) {
 export async function createTemplateV2(data: {
   title: string;
   description: string;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
   sections: {
     id: string;
     department: string;
@@ -1348,11 +1350,20 @@ export async function createTemplateV2(data: {
       .eq('id', user.id)
       .single();
 
+    const plannedStartDate = data.planned_start_date?.trim() || null;
+    const plannedEndDate = data.planned_end_date?.trim() || null;
+
+    if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
+      return { success: false, error: '預計起始日不可晚於預計結束日' };
+    }
+
     console.log('[createTemplateV2] Creating template with sections:', {
       title: data.title,
       sections_count: data.sections.length,
       total_users: data.sections.reduce((sum, s) => sum + s.assigned_users.length, 0),
       total_steps: data.sections.reduce((sum, s) => sum + s.steps.length, 0),
+      planned_start_date: plannedStartDate,
+      planned_end_date: plannedEndDate,
     });
 
     // Create template with sections
@@ -1397,6 +1408,8 @@ export async function createTemplateV2(data: {
         status: 'pending',
         department: creatorProfile?.department || null,
         created_by: user.id,
+        planned_start_date: plannedStartDate,
+        planned_end_date: plannedEndDate,
       })
       .select()
       .single();
@@ -1444,6 +1457,8 @@ export async function createTemplateV2(data: {
 export async function updateTemplateV2(templateId: string, data: {
   title: string;
   description: string;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
   sections: {
     id: string;
     department: string;
@@ -1478,6 +1493,13 @@ export async function updateTemplateV2(templateId: string, data: {
       return { success: false, error: '此任務已有完成的指派記錄，無法編輯' };
     }
 
+    const plannedStartDate = data.planned_start_date?.trim() || null;
+    const plannedEndDate = data.planned_end_date?.trim() || null;
+
+    if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
+      return { success: false, error: '預計起始日不可晚於預計結束日' };
+    }
+
     console.log('[updateTemplateV2] Updating template:', templateId);
 
     // Flatten steps for backward compatibility
@@ -1499,6 +1521,21 @@ export async function updateTemplateV2(templateId: string, data: {
     if (error) {
       console.error('[updateTemplateV2] Error updating template:', error);
       return { success: false, error: error.message };
+    }
+
+    // Keep active assignments schedule in sync with latest template setting
+    const { error: scheduleUpdateError } = await supabase
+      .from('assignments')
+      .update({
+        planned_start_date: plannedStartDate,
+        planned_end_date: plannedEndDate,
+      })
+      .eq('template_id', templateId)
+      .in('status', ['pending', 'in_progress']);
+
+    if (scheduleUpdateError) {
+      console.error('[updateTemplateV2] Error updating assignment schedule:', scheduleUpdateError);
+      return { success: false, error: scheduleUpdateError.message };
     }
 
     // Update collaborators for all active assignments

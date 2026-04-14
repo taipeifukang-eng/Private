@@ -33,6 +33,8 @@ export default function WorkflowBuilderV2({
   // Basic info
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
+  const [plannedStartDate, setPlannedStartDate] = useState('');
+  const [plannedEndDate, setPlannedEndDate] = useState('');
   
   // Department sections
   const [sections, setSections] = useState<DepartmentSection[]>(template?.sections || []);
@@ -62,6 +64,27 @@ export default function WorkflowBuilderV2({
       setSections(template.sections || []);
     }
   }, [template]);
+
+  // Load latest planned schedule dates for edit mode
+  useEffect(() => {
+    const loadExistingSchedule = async () => {
+      if (!template?.id) return;
+
+      try {
+        const { getExistingCollaborators } = await import('@/app/actions');
+        const result = await getExistingCollaborators(template.id);
+
+        if (result.success && result.data) {
+          setPlannedStartDate(result.data.planned_start_date || '');
+          setPlannedEndDate(result.data.planned_end_date || '');
+        }
+      } catch (error) {
+        console.error('Error loading existing schedule:', error);
+      }
+    };
+
+    loadExistingSchedule();
+  }, [template?.id]);
 
   const loadInitialData = async () => {
     try {
@@ -272,6 +295,10 @@ export default function WorkflowBuilderV2({
       const hasEmptyLabel = section.steps.some(step => !step.label.trim());
       if (hasEmptyLabel) return `「${section.department}」部門的步驟名稱不能為空`;
     }
+
+    if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
+      return '預計起始日不可晚於預計結束日';
+    }
     
     return null;
   };
@@ -293,7 +320,9 @@ export default function WorkflowBuilderV2({
       const templateData = {
         title: title.trim(),
         description: description.trim(),
-        sections
+        sections,
+        planned_start_date: plannedStartDate || null,
+        planned_end_date: plannedEndDate || null,
       };
 
       let result;
@@ -399,6 +428,36 @@ export default function WorkflowBuilderV2({
                 rows={3}
                 placeholder="輸入專案描述（選填）"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                任務預計時程（選填）
+              </label>
+              <p className="text-sm text-gray-500 mb-3">
+                設定後會套用到此任務的排程，甘特圖會依此區間顯示每週時間軸。
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">預計起始日</label>
+                  <input
+                    type="date"
+                    value={plannedStartDate}
+                    onChange={(e) => setPlannedStartDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">預計結束日</label>
+                  <input
+                    type="date"
+                    value={plannedEndDate}
+                    onChange={(e) => setPlannedEndDate(e.target.value)}
+                    min={plannedStartDate || undefined}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
