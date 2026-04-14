@@ -484,7 +484,7 @@ export interface EmployeeMovementHistory {
   employee_code: string;
   employee_name: string;
   store_id: string;
-  movement_type: 'promotion' | 'store_transfer' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
+  movement_type: 'onboarding' | 'promotion' | 'store_transfer' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
   movement_date: string; // YYYY-MM-DD
   new_value: string;
   old_value: string | null;
@@ -492,7 +492,7 @@ export interface EmployeeMovementHistory {
   created_by: string | null;
   created_at: string;
   updated_at: string;
-  stores?: { name: string } | null; // Join with stores table
+  stores?: { name?: string; store_name?: string } | null; // Join with stores table
 }
 
 // 活動門市細節（每間門市的活動人員安排）

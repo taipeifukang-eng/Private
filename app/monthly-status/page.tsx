@@ -242,9 +242,7 @@ function MonthlyStatusContent() {
         console.error('Error loading movement history:', error);
         throw error;
       }
-      // 只保留有門市資料的記錄
-      const validData = (data || []).filter(record => record.stores && record.stores.store_name);
-      setMovementHistory(validData);
+      setMovementHistory((data || []) as EmployeeMovementHistory[]);
     } catch (error) {
       console.error('Error loading movement history:', error);
       setMovementHistory([]);
@@ -670,13 +668,19 @@ function MonthlyStatusContent() {
                               <span className={`px-2 py-1 text-xs rounded-full ${getMovementTypeColor(record.movement_type)}`}>
                                 {getMovementTypeLabel(record.movement_type)}
                               </span>
-                              {record.stores && (
+                              {(record.stores?.store_name || record.stores?.name) && (
                                 <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                                  {record.stores.name}
+                                  {record.stores?.store_name || record.stores?.name}
                                 </span>
                               )}
                             </div>
                           </div>
+
+                          {record.movement_type === 'onboarding' && (record.stores?.store_name || record.stores?.name) && (
+                            <p className="text-sm text-blue-700 mb-2">
+                              入職門市：{record.stores?.store_name || record.stores?.name}
+                            </p>
+                          )}
                           
                           {record.movement_type === 'promotion' && record.new_value && (
                             <div className="flex items-center gap-2 mb-2">
@@ -906,9 +910,7 @@ function StoreStatusDetail({
         console.error('Error loading movement history:', error);
         throw error;
       }
-      // 只保留有門市資料的記錄
-      const validData = (data || []).filter(record => record.stores && record.stores.store_name);
-      setMovementHistory(validData);
+      setMovementHistory((data || []) as EmployeeMovementHistory[]);
     } catch (error) {
       console.error('Error loading movement history:', error);
       setMovementHistory([]);
@@ -1995,13 +1997,19 @@ function StoreStatusDetail({
                               <span className={`px-2 py-1 text-xs rounded-full ${getMovementTypeColor(record.movement_type)}`}>
                                 {getMovementTypeLabel(record.movement_type)}
                               </span>
-                              {record.stores && (
+                              {(record.stores?.store_name || record.stores?.name) && (
                                 <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
-                                  {record.stores.name}
+                                  {record.stores?.store_name || record.stores?.name}
                                 </span>
                               )}
                             </div>
                           </div>
+
+                          {record.movement_type === 'onboarding' && (record.stores?.store_name || record.stores?.name) && (
+                            <p className="text-sm text-blue-700 mb-2">
+                              入職門市：{record.stores?.store_name || record.stores?.name}
+                            </p>
+                          )}
                           
                           {record.movement_type === 'promotion' && record.new_value && (
                             <div className="flex items-center gap-2 mb-2">

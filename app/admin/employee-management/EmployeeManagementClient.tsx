@@ -21,6 +21,10 @@ interface PromotionHistory {
   new_value: string;
   old_value: string | null;
   notes: string | null;
+  stores?: {
+    store_name?: string;
+    name?: string;
+  } | null;
 }
 
 export default function EmployeeManagementClient({ 
@@ -148,7 +152,12 @@ export default function EmployeeManagementClient({
       
       const { data } = await supabase
         .from('employee_movement_history')
-        .select('*')
+        .select(`
+          *,
+          stores:store_id (
+            store_name
+          )
+        `)
         .eq('employee_code', employeeCode)
         .order('movement_date', { ascending: false });
 
@@ -835,6 +844,11 @@ export default function EmployeeManagementClient({
                             <span className="text-gray-400">→</span>
                             <span className="font-semibold text-gray-900">{record.new_value}</span>
                           </div>
+                          {record.movement_type === 'onboarding' && (record.stores?.store_name || record.stores?.name) && (
+                            <p className="text-sm text-blue-700 mt-2">
+                              入職門市：{record.stores?.store_name || record.stores?.name}
+                            </p>
+                          )}
                           {record.notes && (
                             <p className="text-sm text-gray-600 mt-2">備註：{record.notes}</p>
                           )}
