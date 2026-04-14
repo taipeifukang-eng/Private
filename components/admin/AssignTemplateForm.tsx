@@ -21,6 +21,8 @@ interface AssignTemplateFormProps {
 export default function AssignTemplateForm({ templateId, templateTitle }: AssignTemplateFormProps) {
   const router = useRouter();
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [plannedStartDate, setPlannedStartDate] = useState('');
+  const [plannedEndDate, setPlannedEndDate] = useState('');
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
@@ -46,10 +48,12 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
       const collaborators = await getExistingCollaborators(templateId);
       
       if (collaborators.success && collaborators.data) {
-        const existingUserIds = collaborators.data
+        const existingUserIds = collaborators.data.collaborators
           .map((c: any) => c.user_id)
           .filter((id: string) => id);  // Remove null/undefined
         setSelectedUserIds(existingUserIds);
+        setPlannedStartDate(collaborators.data.planned_start_date || '');
+        setPlannedEndDate(collaborators.data.planned_end_date || '');
         console.log('[AssignTemplateForm] Loaded existing collaborators:', existingUserIds);
       }
     } catch (error) {
@@ -73,6 +77,11 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
     console.log('[AssignTemplateForm] Selected User IDs (before call):', selectedUserIds);
     console.log('[AssignTemplateForm] Number of selected users:', selectedUserIds.length);
     console.log('[AssignTemplateForm] Selected IDs array:', JSON.stringify(selectedUserIds));
+
+    if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
+      alert('❌ 預計起始日不可晚於預計完成日');
+      return;
+    }
     
     // If no users selected, assignment will be automatically assigned to creator
     // The createAssignment function will add the creator automatically
@@ -89,6 +98,8 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
       const result = await createAssignment({
         template_id: templateId,
         assigned_to: selectedUserIds,
+        planned_start_date: plannedStartDate || null,
+        planned_end_date: plannedEndDate || null,
       });
 
       console.log('[AssignTemplateForm] Result:', result);
@@ -151,6 +162,36 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
           </div>
 
           <form onSubmit={handleSubmit}>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                任務預計時程（選填）
+              </label>
+              <p className="text-sm text-gray-500 mb-3">
+                若此任務可預先規劃時程，請設定起始日與完成日，甘特圖會依此區間顯示每週時間軸。
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">預計起始日</label>
+                  <input
+                    type="date"
+                    value={plannedStartDate}
+                    onChange={(e) => setPlannedStartDate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">預計完成日</label>
+                  <input
+                    type="date"
+                    value={plannedEndDate}
+                    onChange={(e) => setPlannedEndDate(e.target.value)}
+                    min={plannedStartDate || undefined}
+                    className="w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 選擇協作使用者（可多選，不選則僅指派給自己）

@@ -45,6 +45,13 @@ function formatWeekRange(date: Date) {
   return `${startText}-${endText}`;
 }
 
+function diffWeeksInclusive(startInput: string, endInput: string) {
+  const start = startOfWeek(startInput);
+  const end = startOfWeek(endInput);
+  const diffMs = end.getTime() - start.getTime();
+  return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+}
+
 function flattenSteps(steps: WorkflowStep[]) {
   const items: Array<{ id: string; label: string; isSubStep: boolean }> = [];
 
@@ -86,6 +93,12 @@ function getStatusClass(status: GanttItem['status']) {
 }
 
 export default function AssignmentGanttModal({ assignment, onClose }: AssignmentGanttModalProps) {
+  const hasPlannedRange = Boolean(
+    assignment.planned_start_date &&
+    assignment.planned_end_date &&
+    assignment.planned_start_date <= assignment.planned_end_date
+  );
+
   const collaboratorMap = useMemo(() => {
     const map = new Map<string, string>();
     (assignment.collaborators || []).forEach((collaborator) => {
@@ -111,10 +124,15 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
       .map((section) => {
         const flatItems = flattenSteps(section.steps || []);
         const firstPendingIndex = flatItems.findIndex((item) => !checkedStepIds.has(item.id));
+        const scheduledWeeks = hasPlannedRange && assignment.planned_start_date && assignment.planned_end_date
+          ? Math.max(1, diffWeeksInclusive(assignment.planned_start_date, assignment.planned_end_date))
+          : Math.max(1, flatItems.length);
 
         const items: GanttItem[] = flatItems.map((item, index) => ({
           ...item,
-          weekIndex: index,
+          weekIndex: flatItems.length <= 1
+            ? 0
+            : Math.min(scheduledWeeks - 1, Math.floor((index * scheduledWeeks) / flatItems.length)),
           status: checkedStepIds.has(item.id)
             ? 'completed'
             : firstPendingIndex === index
@@ -130,15 +148,18 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
         } satisfies GanttSection;
       })
       .filter((section) => section.items.length > 0);
-  }, [assignment.collaborators, assignment.department, assignment.logs, assignment.template.sections, assignment.template.steps_schema, collaboratorMap]);
+  }, [assignment.collaborators, assignment.department, assignment.logs, assignment.planned_end_date, assignment.planned_start_date, assignment.template.sections, assignment.template.steps_schema, collaboratorMap, hasPlannedRange]);
 
   const totalWeeks = useMemo(() => {
+    if (hasPlannedRange && assignment.planned_start_date && assignment.planned_end_date) {
+      return Math.max(1, diffWeeksInclusive(assignment.planned_start_date, assignment.planned_end_date));
+    }
     const maxWeekCount = Math.max(0, ...ganttSections.map((section) => section.items.length));
     return Math.max(1, maxWeekCount);
-  }, [ganttSections]);
+  }, [assignment.planned_end_date, assignment.planned_start_date, ganttSections, hasPlannedRange]);
 
   const weekHeaders = useMemo(() => {
-    const firstWeek = startOfWeek(assignment.created_at);
+    const firstWeek = startOfWeek(assignment.planned_start_date || assignment.created_at);
     return Array.from({ length: totalWeeks }, (_, index) => {
       const weekStart = new Date(firstWeek);
       weekStart.setDate(weekStart.getDate() + index * 7);
@@ -147,7 +168,7 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
         range: formatWeekRange(weekStart),
       };
     });
-  }, [assignment.created_at, totalWeeks]);
+  }, [assignment.created_at, assignment.planned_start_date, totalWeeks]);
 
   const totalItems = ganttSections.reduce((sum, section) => sum + section.items.length, 0);
 
@@ -184,6 +205,14 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
             <div className="text-sm text-gray-500">時間軸週數</div>
             <div className="mt-2 text-2xl font-bold text-gray-900">{totalWeeks}</div>
           </div>
+        </div>
+
+        <div className="border-b border-gray-200 bg-white px-6 py-4 text-sm text-gray-600">
+          {hasPlannedRange ? (
+            <span>預計時程：{assignment.planned_start_date} 至 {assignment.planned_end_date}</span>
+          ) : (
+            <span>尚未設定預計時程，甘特圖以任務建立週為起點自動推算。</span>
+          )}
         </div>
 
         <div className="overflow-auto px-6 py-5">

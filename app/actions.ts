@@ -258,6 +258,8 @@ export async function getTemplates() {
 export async function createAssignment(data: {
   template_id: string;
   assigned_to: string | string[]; // Support single user or array of users
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
 }) {
   try {
     const supabase = createClient();
@@ -272,6 +274,13 @@ export async function createAssignment(data: {
     console.log('[createAssignment] ===== START =====');
     console.log('[createAssignment] Current user ID:', user.id);
     console.log('[createAssignment] Template ID:', data.template_id);
+
+    const plannedStartDate = data.planned_start_date?.trim() || null;
+    const plannedEndDate = data.planned_end_date?.trim() || null;
+
+    if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
+      return { success: false, error: '預計起始日不可晚於預計完成日' };
+    }
 
     // Get creator's profile to get their department and role
     const { data: creatorProfile, error: profileError } = await supabase
@@ -321,6 +330,21 @@ export async function createAssignment(data: {
       // Update existing assignment
       assignment = existingAssignments[0];
       console.log('[createAssignment] Found existing assignment:', assignment.id);
+
+      const { error: updateAssignmentError } = await supabase
+        .from('assignments')
+        .update({
+          assigned_to: allUserIds[0],
+          department: creatorProfile?.department || null,
+          planned_start_date: plannedStartDate,
+          planned_end_date: plannedEndDate,
+        })
+        .eq('id', assignment.id);
+
+      if (updateAssignmentError) {
+        console.error('[createAssignment] ERROR updating assignment schedule:', updateAssignmentError);
+        return { success: false, error: updateAssignmentError.message };
+      }
       
       // Delete all existing collaborators for this assignment
       const { error: deleteError } = await supabase
@@ -346,6 +370,8 @@ export async function createAssignment(data: {
           status: 'pending',
           department: creatorProfile?.department || null,
           created_by: user.id,
+          planned_start_date: plannedStartDate,
+          planned_end_date: plannedEndDate,
         })
         .select()
         .single();
@@ -416,14 +442,21 @@ export async function getExistingCollaborators(templateId: string) {
     // Get the most recent assignment for this template
     const { data: assignment } = await supabase
       .from('assignments')
-      .select('id')
+      .select('id, planned_start_date, planned_end_date')
       .eq('template_id', templateId)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
 
     if (!assignment) {
-      return { success: true, data: [] };
+      return {
+        success: true,
+        data: {
+          collaborators: [],
+          planned_start_date: null,
+          planned_end_date: null,
+        },
+      };
     }
 
     // Get all collaborators for this assignment
@@ -437,10 +470,25 @@ export async function getExistingCollaborators(templateId: string) {
       return { success: false, error: error.message, data: [] };
     }
 
-    return { success: true, data: collaborators || [] };
+    return {
+      success: true,
+      data: {
+        collaborators: collaborators || [],
+        planned_start_date: assignment.planned_start_date || null,
+        planned_end_date: assignment.planned_end_date || null,
+      },
+    };
   } catch (error: any) {
     console.error('[getExistingCollaborators] Unexpected error:', error);
-    return { success: false, error: error.message || '發生未知錯誤', data: [] };
+    return {
+      success: false,
+      error: error.message || '發生未知錯誤',
+      data: {
+        collaborators: [],
+        planned_start_date: null,
+        planned_end_date: null,
+      },
+    };
   }
 }
 

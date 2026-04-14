@@ -94,6 +94,11 @@ export default async function AssignmentPage({
               {assignment.template?.description && (
                 <p className="text-gray-600">{assignment.template.description}</p>
               )}
+              {(assignment.planned_start_date || assignment.planned_end_date) && (
+                <p className="mt-3 text-sm text-blue-700">
+                  預計時程：{assignment.planned_start_date || '未設定'} 至 {assignment.planned_end_date || '未設定'}
+                </p>
+              )}
             </div>
           </div>
         </div>

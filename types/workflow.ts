@@ -41,6 +41,8 @@ export interface Assignment {
   assigned_to: string | null;
   status: 'pending' | 'in_progress' | 'completed';
   department: string | null; // Department of the task creator
+  planned_start_date: string | null;
+  planned_end_date: string | null;
   completed_at: string | null; // When the task was completed
   archived: boolean; // Whether the task is archived
   archived_at: string | null; // When the task was archived

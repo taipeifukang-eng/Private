@@ -246,6 +246,11 @@ export default async function TemplateDetailPage({ params }: { params: { id: str
 
                         {/* Date */}
                         <p className="text-sm text-gray-500">指派日期：{createdDate}</p>
+                        {(assignment.planned_start_date || assignment.planned_end_date) && (
+                          <p className="text-sm text-blue-700 mt-1">
+                            預計時程：{assignment.planned_start_date || '未設定'} 至 {assignment.planned_end_date || '未設定'}
+                          </p>
+                        )}
                       </div>
 
                       {/* Actions */}
