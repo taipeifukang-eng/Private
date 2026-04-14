@@ -2,20 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Circle, ArrowLeft, Users, Building, CornerDownRight, MessageSquare } from 'lucide-react';
-import type { Assignment, WorkflowStep, Profile } from '@/types/workflow';
+import { CheckCircle2, Circle, ArrowLeft, Users, Building, CornerDownRight, MessageSquare, CalendarRange } from 'lucide-react';
+import type { Assignment, WorkflowStep, Profile, DepartmentSection, Log } from '@/types/workflow';
+import AssignmentGanttModal from '@/components/user/AssignmentGanttModal';
 
 interface ChecklistRunnerProps {
   assignment: Assignment & {
     template: {
       title: string;
       steps_schema: WorkflowStep[];
+      sections?: DepartmentSection[];
       userSection?: {
         id: string;
         department: string;
       };
     };
     collaborators?: Profile[];
+    logs?: Log[];
   };
   initialCheckedSteps?: Set<string>;
 }
@@ -31,6 +34,7 @@ export default function ChecklistRunner({
   const [tempNote, setTempNote] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [showGanttModal, setShowGanttModal] = useState(false);
   const isProcessingRef = useRef(false);
   const pendingActionsRef = useRef<Array<{ stepId: string; action: 'checked' | 'unchecked'; note?: string }>>([]);
 
@@ -307,9 +311,21 @@ export default function ChecklistRunner({
       <div className="bg-white rounded-lg shadow-lg p-8">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            {assignment.template.title}
-          </h1>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                {assignment.template.title}
+              </h1>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGanttModal(true)}
+              className="inline-flex items-center gap-2 self-start rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+            >
+              <CalendarRange size={18} />
+              建立甘特圖
+            </button>
+          </div>
           <div className="flex items-center gap-4 text-sm text-gray-600 flex-wrap">
             <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full font-medium">
               {assignment.status === 'pending' && '待處理'}
@@ -673,6 +689,13 @@ export default function ChecklistRunner({
           )}
         </div>
       </div>
+
+      {showGanttModal && (
+        <AssignmentGanttModal
+          assignment={assignment}
+          onClose={() => setShowGanttModal(false)}
+        />
+      )}
     </div>
   );
 }
