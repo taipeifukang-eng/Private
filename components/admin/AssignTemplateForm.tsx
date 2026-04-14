@@ -48,9 +48,9 @@ export default function AssignTemplateForm({ templateId, templateTitle }: Assign
       const collaborators = await getExistingCollaborators(templateId);
       
       if (collaborators.success && collaborators.data) {
-        const existingUserIds = collaborators.data.collaborators
-          .map((c: any) => c.user_id)
-          .filter((id: string) => id);  // Remove null/undefined
+        const existingUserIds = (collaborators.data.collaborators || [])
+          .map((c: { user_id: string | null }) => c.user_id)
+          .filter((id): id is string => Boolean(id)); // Remove null/undefined
         setSelectedUserIds(existingUserIds);
         setPlannedStartDate(collaborators.data.planned_start_date || '');
         setPlannedEndDate(collaborators.data.planned_end_date || '');

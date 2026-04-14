@@ -430,13 +430,19 @@ export async function createAssignment(data: {
  * Returns all users that have been assigned to assignments for this template
  */
 export async function getExistingCollaborators(templateId: string) {
+  const emptyData = {
+    collaborators: [] as Array<{ user_id: string | null }>,
+    planned_start_date: null as string | null,
+    planned_end_date: null as string | null,
+  };
+
   try {
     const supabase = createClient();
 
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
-      return { success: false, error: '未登入', data: [] };
+      return { success: false, error: '未登入', data: emptyData };
     }
 
     // Get the most recent assignment for this template
@@ -467,7 +473,7 @@ export async function getExistingCollaborators(templateId: string) {
 
     if (error) {
       console.error('[getExistingCollaborators] Error:', error);
-      return { success: false, error: error.message, data: [] };
+      return { success: false, error: error.message, data: emptyData };
     }
 
     return {
@@ -483,11 +489,7 @@ export async function getExistingCollaborators(templateId: string) {
     return {
       success: false,
       error: error.message || '發生未知錯誤',
-      data: {
-        collaborators: [],
-        planned_start_date: null,
-        planned_end_date: null,
-      },
+      data: emptyData,
     };
   }
 }
