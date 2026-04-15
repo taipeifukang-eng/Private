@@ -1292,9 +1292,8 @@ function StoreStatusDetail({
   const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
     flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
   );
-  const quarterSummaryColumns = bonusDetailColumns.filter(col =>
-    Number(quarterBonusSummary?.totals?.[col.key]) !== 0
-  );
+  const quarterSummaryColumns = bonusDetailColumns;
+  const quarterSummaryEmployees = Array.isArray(quarterBonusSummary?.employees) ? quarterBonusSummary.employees : [];
   const currentMonth = Number(yearMonth.split('-')[1] || '0');
   const quarterNumber = currentMonth >= 1 && currentMonth <= 12 ? Math.ceil(currentMonth / 3) : 0;
   const isQuarterEndMonth = [3, 6, 9, 12].includes(currentMonth);
@@ -1680,24 +1679,41 @@ function StoreStatusDetail({
                   <p className="text-sm text-gray-600 mb-3">
                     統計月份：{(quarterBonusSummary.months || []).join('、')}
                   </p>
-                  <div className="overflow-x-auto border rounded-lg">
+                  <div className="overflow-x-auto border rounded-lg max-h-[60vh]">
                     <table className="w-full table-auto text-sm">
                       <thead className="bg-gray-50">
                         <tr>
+                          <th className="px-2 py-2 text-left whitespace-nowrap">員編</th>
+                          <th className="px-2 py-2 text-left whitespace-nowrap">姓名</th>
                           {quarterSummaryColumns.map(col => (
                             <th key={col.key} className="px-2 py-2 text-right whitespace-nowrap">{col.label}</th>
                           ))}
                           <th className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        <tr>
+                      <tbody className="divide-y divide-gray-100">
+                        {quarterSummaryEmployees.map((emp: any) => (
+                          <tr key={emp.employee_code}>
+                            <td className="px-2 py-2 whitespace-nowrap">{emp.employee_code}</td>
+                            <td className="px-2 py-2 whitespace-nowrap">{emp.employee_name || '-'}</td>
+                            {quarterSummaryColumns.map(col => (
+                              <td key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
+                                {(Number(emp.totals?.[col.key]) || 0).toLocaleString('zh-TW')}
+                              </td>
+                            ))}
+                            <td className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">
+                              {(Number(emp.total) || 0).toLocaleString('zh-TW')}
+                            </td>
+                          </tr>
+                        ))}
+                        <tr className="bg-blue-50 font-semibold">
+                          <td className="px-2 py-2 whitespace-nowrap" colSpan={2}>總計</td>
                           {quarterSummaryColumns.map(col => (
                             <td key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
                               {(Number(quarterBonusSummary.totals?.[col.key]) || 0).toLocaleString('zh-TW')}
                             </td>
                           ))}
-                          <td className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">
+                          <td className="px-2 py-2 text-right text-blue-700 whitespace-nowrap">
                             {(Number(quarterBonusSummary.grand_total) || 0).toLocaleString('zh-TW')}
                           </td>
                         </tr>

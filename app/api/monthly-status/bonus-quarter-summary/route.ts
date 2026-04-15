@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
 
     const { data: staffRows, error: staffError } = await admin
       .from('monthly_staff_status')
-      .select('employee_code')
+      .select('employee_code, employee_name')
       .in('year_month', quarterInfo.months)
       .eq('store_id', storeId);
 
@@ -95,7 +95,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: staffError.message }, { status: 500 });
     }
 
-    const employeeCodes = Array.from(new Set((staffRows || []).map((r: any) => r.employee_code).filter(Boolean)));
+    const staffMap = new Map<string, { employee_code: string; employee_name: string }>();
+    (staffRows || []).forEach((row: any) => {
+      const code = String(row.employee_code || '').trim();
+      if (!code) return;
+      const name = String(row.employee_name || '').trim();
+      if (!staffMap.has(code)) {
+        staffMap.set(code, { employee_code: code, employee_name: name });
+        return;
+      }
+      const current = staffMap.get(code)!;
+      if (!current.employee_name && name) {
+        staffMap.set(code, { employee_code: code, employee_name: name });
+      }
+    });
+
+    const employeeCodes = Array.from(staffMap.keys());
     const totals = createZeroTotals();
 
     if (employeeCodes.length === 0) {
@@ -104,9 +119,15 @@ export async function GET(request: NextRequest) {
         quarter_label: `${quarterInfo.year}-Q${quarterInfo.quarter}`,
         months: quarterInfo.months,
         totals,
+        employees: [],
         grand_total: 0,
       });
     }
+
+    const employeeTotalsMap = new Map<string, Record<BonusField, number>>();
+    employeeCodes.forEach(code => {
+      employeeTotalsMap.set(code, createZeroTotals());
+    });
 
     const { data: bonusRows, error: bonusError } = await admin
       .from('monthly_bonus_records')
@@ -139,6 +160,10 @@ export async function GET(request: NextRequest) {
     }
 
     (bonusRows || []).forEach((row: any) => {
+      const employeeCode = String(row.employee_code || '').trim();
+      const employeeTotals = employeeTotalsMap.get(employeeCode);
+      if (!employeeTotals) return;
+
       const rowTotal = BONUS_FIELDS.reduce((sum, field) => sum + (Number(row[field]) || 0), 0);
       const isOtherStore = row.store_id !== storeId;
 
@@ -147,17 +172,34 @@ export async function GET(request: NextRequest) {
       }
 
       BONUS_FIELDS.forEach(field => {
-        totals[field] += Number(row[field]) || 0;
+        const value = Number(row[field]) || 0;
+        totals[field] += value;
+        employeeTotals[field] += value;
       });
     });
 
     const grandTotal = BONUS_FIELDS.reduce((sum, field) => sum + (totals[field] || 0), 0);
+
+    const employees = employeeCodes
+      .map(code => {
+        const staff = staffMap.get(code)!;
+        const bonusTotals = employeeTotalsMap.get(code) || createZeroTotals();
+        const total = BONUS_FIELDS.reduce((sum, field) => sum + (bonusTotals[field] || 0), 0);
+        return {
+          employee_code: code,
+          employee_name: staff.employee_name || '',
+          totals: bonusTotals,
+          total,
+        };
+      })
+      .sort((a, b) => a.employee_code.localeCompare(b.employee_code, 'zh-Hant', { numeric: true, sensitivity: 'base' }));
 
     return NextResponse.json({
       success: true,
       quarter_label: `${quarterInfo.year}-Q${quarterInfo.quarter}`,
       months: quarterInfo.months,
       totals,
+      employees,
       grand_total: grandTotal,
     });
   } catch (error: any) {
