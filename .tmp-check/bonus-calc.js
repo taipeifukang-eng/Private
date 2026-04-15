@@ -1,0 +1,210 @@
+"use strict";
+/**
+ * 業績團體獎金計算核心邏輯
+ *
+ * 月團體獎金計算規則：
+ * - 先計算日毛利目標 = 月毛利目標 / 營業天數
+ * - 第一檻門檻 = 日毛利目標
+ * - 第二檻起每檻固定增加 1,000 元日毛利
+ *   例：若日毛利目標為 32,500，則各檻門檻為
+ *   第一檻 32,500、第二檻 33,500、第三檻 34,500、第四檻 35,500、第五檻 36,500
+ *
+ * 各指標權重：
+ * - 毛利: 90%（決定基本金額的門檻）
+ * - 月營業額: 5%
+ * - 月來客數: 5%
+ * - 上月處方箋: 10%
+ *
+ * 最終獎金 = 達標檻金額 × 各已達標指標權重加總
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.MONTHLY_DAILY_GP_STEP = exports.WEIGHTS = exports.QUARTERLY_THRESHOLDS = exports.MONTHLY_THRESHOLDS = void 0;
+exports.calcGpThresholdLevel = calcGpThresholdLevel;
+exports.calcQuarterlyGpThresholdLevel = calcQuarterlyGpThresholdLevel;
+exports.calcMonthlyBonus = calcMonthlyBonus;
+exports.calcQuarterlyBonus = calcQuarterlyBonus;
+exports.getQuarter = getQuarter;
+exports.getQuarterMonths = getQuarterMonths;
+exports.formatAmount = formatAmount;
+exports.formatRate = formatRate;
+/** 月團體獎金檻預設值 */
+exports.MONTHLY_THRESHOLDS = [
+    { multiplier: 1.0, baseAmount: 3000, label: '第一檻' },
+    { multiplier: 1.1, baseAmount: 5000, label: '第二檻' },
+    { multiplier: 1.2, baseAmount: 7000, label: '第三檻' },
+    { multiplier: 1.3, baseAmount: 8000, label: '第四檻' },
+    { multiplier: 1.4, baseAmount: 10000, label: '第五檻' },
+];
+/** 季團體獎金檻預設值 */
+exports.QUARTERLY_THRESHOLDS = [
+    { multiplier: 1.0, baseAmount: 9000, label: '第一檻' },
+    { multiplier: 1.1, baseAmount: 15000, label: '第二檻' },
+    { multiplier: 1.2, baseAmount: 21000, label: '第三檻' },
+    { multiplier: 1.3, baseAmount: 24000, label: '第四檻' },
+    { multiplier: 1.4, baseAmount: 30000, label: '第五檻' },
+];
+/** 指標權重 */
+exports.WEIGHTS = {
+    grossProfit: 0.90,
+    revenue: 0.05,
+    customerCount: 0.05,
+    rx: 0.10,
+};
+exports.MONTHLY_DAILY_GP_STEP = 1000;
+/**
+ * 計算月毛利所達到的檻級別 (0=未達標, 1~5)
+ * @param customThresholds 門市自訂閾值，未傳入時使用預設值
+ */
+function calcGpThresholdLevel(actualGp, targetGp, businessDays, customThresholds = exports.MONTHLY_THRESHOLDS) {
+    if (!targetGp || targetGp <= 0 || !businessDays || businessDays <= 0)
+        return 0;
+    const dailyGpTarget = targetGp / businessDays;
+    const dailyGpActual = actualGp / businessDays;
+    for (let i = customThresholds.length - 1; i >= 0; i--) {
+        const thresholdDailyAmount = dailyGpTarget + exports.MONTHLY_DAILY_GP_STEP * i;
+        if (dailyGpActual >= thresholdDailyAmount)
+            return i + 1;
+    }
+    return 0;
+}
+/**
+ * 計算季毛利所達到的檻級別 (0=未達標, 1~5)
+ * @param customThresholds 門市自訂閾值，未傳入時使用預設值
+ */
+function calcQuarterlyGpThresholdLevel(actualGp, targetGp, customThresholds = exports.QUARTERLY_THRESHOLDS) {
+    if (!targetGp || targetGp <= 0)
+        return 0;
+    const rate = actualGp / targetGp;
+    for (let i = customThresholds.length - 1; i >= 0; i--) {
+        if (rate >= customThresholds[i].multiplier)
+            return i + 1;
+    }
+    return 0;
+}
+/**
+ * 計算單月團體獎金
+ * @param customThresholds 門市自訂月閾值，未傳入時使用預設值
+ */
+function calcMonthlyBonus(perf, customThresholds = exports.MONTHLY_THRESHOLDS) {
+    const { businessDays, grossProfitTarget, grossProfitActual, revenueTarget, revenueActual, customerCountTarget, customerCountActual, rxTarget, rxActual, } = perf;
+    const safeGpTarget = grossProfitTarget || 0;
+    const safeGpActual = grossProfitActual || 0;
+    const dailyGpTarget = businessDays > 0 ? safeGpTarget / businessDays : 0;
+    const dailyGpActual = businessDays > 0 ? safeGpActual / businessDays : 0;
+    const gpAchievementRate = safeGpTarget > 0 ? (safeGpActual / safeGpTarget) * 100 : 0;
+    const gpThresholdLevel = calcGpThresholdLevel(safeGpActual, safeGpTarget, businessDays, customThresholds);
+    const thresholdBaseAmount = gpThresholdLevel > 0 ? customThresholds[gpThresholdLevel - 1].baseAmount : 0;
+    const thresholdDailyAmount = gpThresholdLevel > 0
+        ? dailyGpTarget + exports.MONTHLY_DAILY_GP_STEP * (gpThresholdLevel - 1)
+        : 0;
+    const gpAchieved = gpThresholdLevel > 0;
+    const revenueAchieved = !!(revenueTarget && revenueTarget > 0 && revenueActual !== null && revenueActual >= revenueTarget);
+    const customerCountAchieved = !!(customerCountTarget && customerCountTarget > 0 && customerCountActual !== null && customerCountActual >= customerCountTarget);
+    const rxAchieved = !!(rxTarget && rxTarget > 0 && rxActual !== null && rxActual >= rxTarget);
+    const revenueAchievementRate = (revenueTarget && revenueTarget > 0 && revenueActual !== null) ? (revenueActual / revenueTarget) * 100 : 0;
+    const customerCountAchievementRate = (customerCountTarget && customerCountTarget > 0 && customerCountActual !== null) ? (customerCountActual / customerCountTarget) * 100 : 0;
+    const rxAchievementRate = (rxTarget && rxTarget > 0 && rxActual !== null) ? (rxActual / rxTarget) * 100 : 0;
+    // 毛利沒達標則獎金為0
+    let totalWeight = 0;
+    if (gpAchieved) {
+        totalWeight += exports.WEIGHTS.grossProfit;
+        if (revenueAchieved)
+            totalWeight += exports.WEIGHTS.revenue;
+        if (customerCountAchieved)
+            totalWeight += exports.WEIGHTS.customerCount;
+        if (rxAchieved)
+            totalWeight += exports.WEIGHTS.rx;
+    }
+    const finalBonus = Math.round(thresholdBaseAmount * totalWeight);
+    return {
+        gpThresholdLevel,
+        gpAchievementRate,
+        thresholdBaseAmount,
+        gpAchieved,
+        revenueAchieved,
+        customerCountAchieved,
+        rxAchieved,
+        revenueAchievementRate,
+        customerCountAchievementRate,
+        rxAchievementRate,
+        totalWeight,
+        finalBonus,
+        dailyGpTarget,
+        dailyGpActual,
+        thresholdDailyAmount,
+    };
+}
+/**
+ * 計算季團體獎金
+ * @param customThresholds 門市自訂季閾值，未傳入時使用預設值
+ */
+function calcQuarterlyBonus(months, monthlyBonuses, // 三個月實際領取的月獎金
+customThresholds = exports.QUARTERLY_THRESHOLDS) {
+    // 加總各指標
+    const quarterlyGpTarget = months.reduce((s, m) => s + (m.grossProfitTarget || 0), 0);
+    const quarterlyGpActual = months.reduce((s, m) => s + (m.grossProfitActual || 0), 0);
+    const quarterlyRevenueTarget = months.reduce((s, m) => s + (m.revenueTarget || 0), 0);
+    const quarterlyRevenueActual = months.reduce((s, m) => s + (m.revenueActual || 0), 0);
+    const quarterlyCustomerCountTarget = months.reduce((s, m) => s + (m.customerCountTarget || 0), 0);
+    const quarterlyCustomerCountActual = months.reduce((s, m) => s + (m.customerCountActual || 0), 0);
+    const quarterlyRxTarget = months.reduce((s, m) => s + (m.rxTarget || 0), 0);
+    const quarterlyRxActual = months.reduce((s, m) => s + (m.rxActual || 0), 0);
+    const gpAchievementRate = quarterlyGpTarget > 0 ? (quarterlyGpActual / quarterlyGpTarget) * 100 : 0;
+    const gpThresholdLevel = calcQuarterlyGpThresholdLevel(quarterlyGpActual, quarterlyGpTarget, customThresholds);
+    const thresholdBaseAmount = gpThresholdLevel > 0 ? customThresholds[gpThresholdLevel - 1].baseAmount : 0;
+    const gpAchieved = gpThresholdLevel > 0;
+    const revenueAchieved = quarterlyRevenueTarget > 0 && quarterlyRevenueActual >= quarterlyRevenueTarget;
+    const customerCountAchieved = quarterlyCustomerCountTarget > 0 && quarterlyCustomerCountActual >= quarterlyCustomerCountTarget;
+    const rxAchieved = quarterlyRxTarget > 0 && quarterlyRxActual >= quarterlyRxTarget;
+    let totalWeight = 0;
+    if (gpAchieved) {
+        totalWeight += exports.WEIGHTS.grossProfit;
+        if (revenueAchieved)
+            totalWeight += exports.WEIGHTS.revenue;
+        if (customerCountAchieved)
+            totalWeight += exports.WEIGHTS.customerCount;
+        if (rxAchieved)
+            totalWeight += exports.WEIGHTS.rx;
+    }
+    const quarterlyBonus = Math.round(thresholdBaseAmount * totalWeight);
+    const monthlyBonusSum = monthlyBonuses.reduce((s, b) => s + b, 0);
+    const makeupBonus = Math.max(0, quarterlyBonus - monthlyBonusSum);
+    return {
+        quarterlyGpTarget,
+        quarterlyGpActual,
+        quarterlyRevenueTarget,
+        quarterlyRevenueActual,
+        quarterlyCustomerCountTarget,
+        quarterlyCustomerCountActual,
+        quarterlyRxTarget,
+        quarterlyRxActual,
+        gpThresholdLevel,
+        gpAchievementRate,
+        thresholdBaseAmount,
+        gpAchieved,
+        revenueAchieved,
+        customerCountAchieved,
+        rxAchieved,
+        totalWeight,
+        quarterlyBonus,
+        monthlyBonusSum,
+        makeupBonus,
+    };
+}
+/** 取得某年某月所屬的季 (1-4) */
+function getQuarter(month) {
+    return Math.ceil(month / 3);
+}
+/** 取得某季的月份列表 */
+function getQuarterMonths(quarter) {
+    const start = (quarter - 1) * 3 + 1;
+    return [start, start + 1, start + 2];
+}
+/** 格式化金額（加逗號） */
+function formatAmount(amount) {
+    return amount.toLocaleString('zh-TW');
+}
+/** 格式化達成率 */
+function formatRate(rate) {
+    return rate.toFixed(1) + '%';
+}

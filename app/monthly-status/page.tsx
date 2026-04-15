@@ -804,6 +804,9 @@ function StoreStatusDetail({
   const [showMonthlyBonusDetailModal, setShowMonthlyBonusDetailModal] = useState(false);
   const [loadingMonthlyBonusDetail, setLoadingMonthlyBonusDetail] = useState(false);
   const [monthlyBonusDetails, setMonthlyBonusDetails] = useState<any[]>([]);
+  const [showMonthlyPerformanceModal, setShowMonthlyPerformanceModal] = useState(false);
+  const [loadingMonthlyPerformance, setLoadingMonthlyPerformance] = useState(false);
+  const [monthlyPerformanceSnapshot, setMonthlyPerformanceSnapshot] = useState<any | null>(null);
   const [showQuarterBonusSummaryModal, setShowQuarterBonusSummaryModal] = useState(false);
   const [loadingQuarterBonusSummary, setLoadingQuarterBonusSummary] = useState(false);
   const [quarterBonusSummary, setQuarterBonusSummary] = useState<any | null>(null);
@@ -847,7 +850,7 @@ function StoreStatusDetail({
   }, [store.id, yearMonth]);
 
   useEffect(() => {
-    if (!showMonthlyBonusDetailModal && !showQuarterBonusSummaryModal) {
+    if (!showMonthlyBonusDetailModal && !showQuarterBonusSummaryModal && !showMonthlyPerformanceModal) {
       return;
     }
 
@@ -861,6 +864,11 @@ function StoreStatusDetail({
         return;
       }
 
+      if (showMonthlyPerformanceModal) {
+        setShowMonthlyPerformanceModal(false);
+        return;
+      }
+
       if (showMonthlyBonusDetailModal) {
         setShowMonthlyBonusDetailModal(false);
       }
@@ -868,7 +876,7 @@ function StoreStatusDetail({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showMonthlyBonusDetailModal, showQuarterBonusSummaryModal]);
+  }, [showMonthlyBonusDetailModal, showQuarterBonusSummaryModal, showMonthlyPerformanceModal]);
 
   const loadStaffStatus = async () => {
     setLoading(true);
@@ -1259,6 +1267,30 @@ function StoreStatusDetail({
     }
   };
 
+  const handleOpenMonthlyPerformance = async () => {
+    setShowMonthlyPerformanceModal(true);
+    setLoadingMonthlyPerformance(true);
+    try {
+      const [year, month] = yearMonth.split('-').map(Number);
+      const res = await fetch(
+        `/api/performance-data?year=${encodeURIComponent(String(year))}&store_id=${encodeURIComponent(store.id)}&month=${encodeURIComponent(String(month))}`
+      );
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '載入該月業績狀況失敗');
+      }
+
+      const record = Array.isArray(json.records) && json.records.length > 0 ? json.records[0] : null;
+      setMonthlyPerformanceSnapshot(record);
+    } catch (error: any) {
+      alert(`❌ 載入失敗: ${error.message || '未知錯誤'}`);
+      setShowMonthlyPerformanceModal(false);
+      setMonthlyPerformanceSnapshot(null);
+    } finally {
+      setLoadingMonthlyPerformance(false);
+    }
+  };
+
   const handleDeleteManual = async (staffId: string, staffName: string, isManuallyAdded: boolean) => {
     const message = isManuallyAdded 
       ? `確定要刪除手動新增的員工 "${staffName}"？此操作無法復原。`
@@ -1321,6 +1353,90 @@ function StoreStatusDetail({
   const currentMonth = Number(yearMonth.split('-')[1] || '0');
   const quarterNumber = currentMonth >= 1 && currentMonth <= 12 ? Math.ceil(currentMonth / 3) : 0;
   const isQuarterEndMonth = [3, 6, 9, 12].includes(currentMonth);
+  const monthlyPerformanceFields = [
+    { key: 'monthly_revenue_target', label: '月營業額目標' },
+    { key: 'monthly_revenue_actual', label: '月營業額實際' },
+    { key: 'system_monthly_revenue', label: '系統月營業額' },
+    { key: 'self_pay_monthly_revenue', label: '自費月藥營業額' },
+    { key: 'monthly_gross_profit_target', label: '月毛利額目標' },
+    { key: 'monthly_gross_profit_actual', label: '月實際毛利額' },
+    { key: 'system_monthly_gross_profit', label: '系統月毛利額' },
+    { key: 'monthly_long_term_care_gross_profit', label: '月長照毛利額' },
+    { key: 'monthly_rx_addon_makeup_gross_profit', label: '處方加購回補月毛利額' },
+    { key: 'monthly_theft_compensation_makeup_gross_profit', label: '小偷賠償回補月毛利' },
+    { key: 'monthly_kamedis_deduction_gross_profit', label: 'Kamedis業績扣月毛利額' },
+    { key: 'monthly_customer_count_target', label: '月來客數目標' },
+    { key: 'monthly_customer_count_actual', label: '月實際來客數' },
+    { key: 'last_month_rx_target', label: '上個月慢箋總張數目標' },
+    { key: 'last_month_rx_actual', label: '上個月慢箋總張數實際' },
+  ] as const;
+
+  const formatPerformanceValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') {
+      return '-';
+    }
+    const n = Number(value);
+    return Number.isNaN(n) ? String(value) : n.toLocaleString('zh-TW');
+  };
+
+  const getPerformanceValueClass = (fieldKey: string) => {
+    if (!monthlyPerformanceSnapshot) {
+      return 'text-gray-900';
+    }
+
+    const revenueTarget = Number(monthlyPerformanceSnapshot.monthly_revenue_target);
+    const revenueActual = Number(monthlyPerformanceSnapshot.monthly_revenue_actual);
+    const gpTarget = Number(monthlyPerformanceSnapshot.monthly_gross_profit_target);
+    const gpActual = Number(monthlyPerformanceSnapshot.monthly_gross_profit_actual);
+    const customerTarget = Number(monthlyPerformanceSnapshot.monthly_customer_count_target);
+    const customerActual = Number(monthlyPerformanceSnapshot.monthly_customer_count_actual);
+    const rxTarget = Number(monthlyPerformanceSnapshot.last_month_rx_target);
+    const rxActual = Number(monthlyPerformanceSnapshot.last_month_rx_actual);
+
+    if (fieldKey === 'monthly_revenue_actual' && !Number.isNaN(revenueTarget) && !Number.isNaN(revenueActual)) {
+      return revenueActual >= revenueTarget ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
+    }
+
+    if (fieldKey === 'monthly_gross_profit_actual' && !Number.isNaN(gpTarget) && !Number.isNaN(gpActual)) {
+      return gpTarget < gpActual ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
+    }
+
+    if (fieldKey === 'monthly_customer_count_actual' && !Number.isNaN(customerTarget) && !Number.isNaN(customerActual)) {
+      return customerTarget < customerActual ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
+    }
+
+    if (fieldKey === 'last_month_rx_actual' && !Number.isNaN(rxTarget) && !Number.isNaN(rxActual)) {
+      return rxTarget < rxActual ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold';
+    }
+
+    return 'text-gray-900';
+  };
+
+  const visibleMonthlyPerformanceFields = monthlyPerformanceSnapshot
+    ? monthlyPerformanceFields.filter((field) => {
+      const rawValue = monthlyPerformanceSnapshot[field.key];
+      const hasValue = !(rawValue === null || rawValue === undefined || rawValue === '');
+
+      // 沒有數值的欄位直接隱藏。
+      if (!hasValue) {
+        return false;
+      }
+
+      if (field.key !== 'system_monthly_revenue') {
+        return true;
+      }
+
+      const actual = Number(monthlyPerformanceSnapshot.monthly_revenue_actual);
+      const system = Number(monthlyPerformanceSnapshot.system_monthly_revenue);
+
+      // 只有兩者都為有效數字且相等時，才隱藏「系統月營業額」。
+      if (!Number.isNaN(actual) && !Number.isNaN(system) && actual === system) {
+        return false;
+      }
+
+      return true;
+    })
+    : monthlyPerformanceFields;
 
   // 尚未初始化
   if (staffList.length === 0) {
@@ -1439,6 +1555,15 @@ function StoreStatusDetail({
                 >
                   <FileText size={16} />
                   每月人員各式獎金明細
+                </button>
+              )}
+              {canViewPerformance && (
+                <button
+                  onClick={handleOpenMonthlyPerformance}
+                  className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors flex items-center gap-2"
+                >
+                  <TrendingUp size={16} />
+                  該月業績狀況
                 </button>
               )}
               {storeStatus === 'confirmed' && (
@@ -1745,6 +1870,62 @@ function StoreStatusDetail({
                     </table>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMonthlyPerformanceModal && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white w-[min(96vw,1500px)] max-h-[85vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">該月業績狀況</h3>
+                <p className="text-sm text-gray-500">{store.store_code} {store.store_name} · {yearMonth}</p>
+              </div>
+              <button
+                onClick={() => setShowMonthlyPerformanceModal(false)}
+                className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-auto">
+              {loadingMonthlyPerformance ? (
+                <div className="py-10 text-center text-gray-500">
+                  <RefreshCw size={18} className="animate-spin inline-block mr-2" />
+                  載入該月業績資料中...
+                </div>
+              ) : !monthlyPerformanceSnapshot ? (
+                <div className="py-10 text-center text-gray-500">本店本月尚無業績資料</div>
+              ) : (
+                <div className="border rounded-lg overflow-auto">
+                  <table className="min-w-[980px] w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        {visibleMonthlyPerformanceFields.map((field) => (
+                          <th key={field.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">
+                            {field.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-t">
+                        {visibleMonthlyPerformanceFields.map((field) => (
+                          <td
+                            key={field.key}
+                            className={`px-3 py-3 text-right whitespace-nowrap ${getPerformanceValueClass(field.key)}`}
+                          >
+                            {formatPerformanceValue(monthlyPerformanceSnapshot[field.key])}
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           </div>

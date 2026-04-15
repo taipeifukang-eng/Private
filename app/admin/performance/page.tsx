@@ -821,16 +821,43 @@ export default function PerformancePage() {
 
 // ─── NumInput ─────────────────────────────────────────────────────────────────
 function NumInput({ value, onChange }: { value: number | null; onChange: (v: string) => void }) {
+  const formatNumber = (n: number) => n.toLocaleString('zh-TW');
+  const toEditString = (v: number | null) => (v === null ? '' : String(v));
+  const toDisplayString = (v: number | null) => (v === null ? '' : formatNumber(v));
+
+  const [displayValue, setDisplayValue] = useState<string>(toDisplayString(value));
+
+  useEffect(() => {
+    setDisplayValue(toDisplayString(value));
+  }, [value]);
+
   return (
     <input
-      type="number"
-      defaultValue={value ?? ''}
-      key={value ?? 'empty'}
-      onBlur={e => onChange(e.target.value)}
+      type="text"
+      inputMode="decimal"
+      value={displayValue}
+      onFocus={() => {
+        setDisplayValue(toEditString(value));
+      }}
+      onChange={(e) => {
+        setDisplayValue(e.target.value);
+      }}
+      onBlur={(e) => {
+        const raw = e.target.value.trim();
+        const normalized = raw.replace(/,/g, '');
+
+        onChange(normalized);
+
+        const parsed = Number(normalized);
+        if (raw === '' || Number.isNaN(parsed)) {
+          setDisplayValue('');
+        } else {
+          setDisplayValue(formatNumber(parsed));
+        }
+      }}
       className="w-full min-w-[80px] text-right border-0 bg-transparent text-sm
         focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 py-0.5
         hover:bg-white hover:border hover:border-gray-200"
-      step="any"
     />
   );
 }
