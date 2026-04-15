@@ -270,6 +270,7 @@ export default async function InspectionDetailPage({
 
     // 11. 檢查是否有刪除巡店記錄的權限（使用 RBAC）
     const canDelete = await hasPermission(user.id, 'inspection.delete');
+    const roundedTotalDeduction = Math.round(((inspection.max_possible_score || 0) - (inspection.total_score || 0)) * 10) / 10;
 
     console.log('✅ 所有資料載入完成，開始渲染頁面');
 
@@ -458,7 +459,7 @@ export default async function InspectionDetailPage({
               <p className="text-sm opacity-90">總扣分</p>
               <div className="mt-1">
                 <span className="text-2xl font-bold text-red-200">
-                  -{inspection.max_possible_score - inspection.total_score}
+                  -{roundedTotalDeduction}
                 </span>
               </div>
             </div>

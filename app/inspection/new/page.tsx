@@ -520,6 +520,7 @@ function NewInspectionPage() {
 
   // 計算總分和評級
   const calculateTotals = () => {
+    const roundToOneDecimal = (value: number) => Math.round(value * 10) / 10;
     let totalDeduction = 0;
     let totalEarned = 0;
 
@@ -528,7 +529,8 @@ function NewInspectionPage() {
       totalEarned += score.earned_score;
     });
 
-    const finalScore = 220 - totalDeduction;
+    totalDeduction = roundToOneDecimal(totalDeduction);
+    const finalScore = roundToOneDecimal(220 - totalDeduction);
     
     // 評分系統: 0-10 分
     let grade = '0';

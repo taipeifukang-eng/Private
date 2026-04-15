@@ -597,12 +597,14 @@ export default function EditInspectionPage() {
 
   // 計算總分和評級
   const calculateTotals = () => {
+    const roundToOneDecimal = (value: number) => Math.round(value * 10) / 10;
     let totalDeduction = 0;
     itemScores.forEach((score) => {
       totalDeduction += score.deduction;
     });
 
-    const finalScore = 220 - totalDeduction;
+    totalDeduction = roundToOneDecimal(totalDeduction);
+    const finalScore = roundToOneDecimal(220 - totalDeduction);
     let grade = '0';
     if (finalScore >= 220) grade = '10';
     else if (finalScore >= 215) grade = '9';
