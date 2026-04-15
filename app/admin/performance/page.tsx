@@ -1056,7 +1056,18 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
         throw new Error(json.error || '匯入失敗（無詳細錯誤訊息）');
       }
       
-      const msg = `匯入完成：${json.imported} 筆${json.skipped ? `，略過 ${json.skipped} 筆` : ''}`;
+      const importedMonths = Array.isArray(json.importedMonths) ? json.importedMonths : [];
+      const importErrors = Array.isArray(json.errors) ? json.errors : [];
+      const monthHint = importedMonths.length > 0
+        ? `\n匯入月份：${importedMonths.join('、')}`
+        : '';
+      const viewHint = importedMonths.length > 1 && !quarter
+        ? `\n目前頁面只會顯示你篩選的年月 ${yearMonth}，請切換年月或改用季別查看。`
+        : '';
+      const errorHint = importErrors.length > 0
+        ? `\n略過原因：\n${importErrors.slice(0, 5).join('\n')}${importErrors.length > 5 ? `\n... 另有 ${importErrors.length - 5} 筆` : ''}`
+        : '';
+      const msg = `匯入完成：${json.imported} 筆${json.skipped ? `，略過 ${json.skipped} 筆` : ''}${monthHint}${viewHint}${errorHint}`;
       showMsg('success', msg);
       console.log('✅ ' + msg);
       

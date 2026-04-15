@@ -3,6 +3,14 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
 import { hasPermission } from '@/lib/permissions/check';
 
+function getRaw(row: Record<string, unknown>, keys: string[]): unknown {
+  for (const k of keys) {
+    const v = row[k];
+    if (v !== null && v !== undefined && String(v).trim() !== '') return v;
+  }
+  return undefined;
+}
+
 function getStr(row: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
     const v = row[k];
@@ -63,6 +71,71 @@ function parseMonth(monthStr: string): number | null {
   }
   
   return null;
+}
+
+function formatYearMonth(year: number, month: number): string {
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function parseExcelDateSerial(value: number): string {
+  const parsed = XLSX.SSF.parse_date_code(value);
+  if (!parsed?.y || !parsed?.m) return '';
+  return formatYearMonth(parsed.y, parsed.m);
+}
+
+function parseYearMonthValue(value: unknown, fallbackYear: string): string {
+  if (value === null || value === undefined) return '';
+
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return formatYearMonth(value.getFullYear(), value.getMonth() + 1);
+  }
+
+  if (typeof value === 'number') {
+    const parsedDate = parseExcelDateSerial(value);
+    if (parsedDate) return parsedDate;
+
+    if (value >= 1 && value <= 12) {
+      return formatYearMonth(Number(fallbackYear), value);
+    }
+
+    return '';
+  }
+
+  const raw = String(value).trim();
+  if (!raw) return '';
+
+  const serial = Number(raw);
+  if (!isNaN(serial) && /^\d+(\.\d+)?$/.test(raw)) {
+    const parsedDate = parseExcelDateSerial(serial);
+    if (parsedDate) return parsedDate;
+  }
+
+  const normalized = raw
+    .replace(/年/g, '-')
+    .replace(/月/g, '')
+    .replace(/[/.]/g, '-')
+    .replace(/\s+/g, '');
+
+  const fullDateMatch = normalized.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/);
+  if (fullDateMatch) {
+    const year = Number(fullDateMatch[1]);
+    const month = Number(fullDateMatch[2]);
+    if (month >= 1 && month <= 12) {
+      return formatYearMonth(year, month);
+    }
+  }
+
+  const parsedMonth = parseMonth(normalized);
+  if (parsedMonth) {
+    return formatYearMonth(Number(fallbackYear), parsedMonth);
+  }
+
+  const date = new Date(raw);
+  if (!isNaN(date.getTime())) {
+    return formatYearMonth(date.getFullYear(), date.getMonth() + 1);
+  }
+
+  return '';
 }
 
 function normalizeStoreCode(code: string): string {
@@ -230,26 +303,10 @@ export async function POST(request: NextRequest) {
       }
 
       // ── 年月份 ──
-      let yearMonth = '';
-      const rawYearMonth = getStr(row, COL.year_month);
-      if (rawYearMonth && /^\d{4}-\d{2}$/.test(rawYearMonth)) {
-        yearMonth = rawYearMonth;
-      } else {
-        // 嘗試從月份欄位取值
-        const rawMonth = getStr(row, COL.month);
-        
-        // 檢查月份欄位是否已經是 YYYY-MM 格式
-        if (rawMonth && /^\d{4}-\d{2}$/.test(rawMonth)) {
-          yearMonth = rawMonth;
-        } else {
-          // 如果月份欄位不是完整日期，則嘗試結合年份
-          const rawYear = getStr(row, COL.year) || fallbackYear;
-          const monthNum = parseMonth(rawMonth);
-          if (monthNum) {
-            yearMonth = `${rawYear}-${String(monthNum).padStart(2, '0')}`;
-          }
-        }
-      }
+      const rawYear = getStr(row, COL.year) || fallbackYear;
+      const rawYearMonth = getRaw(row, COL.year_month);
+      const rawMonth = getRaw(row, COL.month);
+      const yearMonth = parseYearMonthValue(rawYearMonth, rawYear) || parseYearMonthValue(rawMonth, rawYear);
       if (!yearMonth) { 
         errors.push(`${rowLabel}：無法解析年月。月份值="${getStr(row, COL.month)}"，年份值="${getStr(row, COL.year) || fallbackYear}"（${employeeCode}）`); 
         if (isTrackedEmployee) {
@@ -497,6 +554,7 @@ export async function POST(request: NextRequest) {
     }
 
     const successCount = mergedUpserts.length;
+    const importedMonths = Array.from(new Set(mergedUpserts.map(r => r.year_month))).sort();
     console.log(`[${Date.now() - startTime}ms] Upsert success: ${successCount} records`);
 
     console.log(`[${Date.now() - startTime}ms] Total processing time: ${((Date.now() - startTime) / 1000).toFixed(2)}s`);
@@ -506,6 +564,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       imported: successCount,
+      importedMonths,
       skipped: upserts.length - successCount,
       errors: errors.length > 0 ? errors : undefined,
     });
