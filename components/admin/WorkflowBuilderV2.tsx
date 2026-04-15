@@ -294,6 +294,16 @@ export default function WorkflowBuilderV2({
       
       const hasEmptyLabel = section.steps.some(step => !step.label.trim());
       if (hasEmptyLabel) return `「${section.department}」部門的步驟名稱不能為空`;
+
+      const hasInvalidStepDateRange = section.steps.some(
+        (step) =>
+          step.planned_start_date &&
+          step.planned_end_date &&
+          step.planned_start_date > step.planned_end_date
+      );
+      if (hasInvalidStepDateRange) {
+        return `「${section.department}」部門有步驟的預計起始日晚於預計結束日`;
+      }
     }
 
     if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
@@ -678,6 +688,27 @@ export default function WorkflowBuilderV2({
                                   />
                                   必填步驟
                                 </label>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                  <div>
+                                    <label className="mb-1 block text-xs text-gray-600">步驟預計起始日（選填）</label>
+                                    <input
+                                      type="date"
+                                      value={step.planned_start_date || ''}
+                                      onChange={(e) => updateStepInSection(activeSectionIndex, stepIndex, 'planned_start_date', e.target.value || null)}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-xs text-gray-600">步驟預計結束日（選填）</label>
+                                    <input
+                                      type="date"
+                                      value={step.planned_end_date || ''}
+                                      min={step.planned_start_date || undefined}
+                                      onChange={(e) => updateStepInSection(activeSectionIndex, stepIndex, 'planned_end_date', e.target.value || null)}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none text-sm"
+                                    />
+                                  </div>
+                                </div>
                               </div>
 
                               {/* Step Actions */}

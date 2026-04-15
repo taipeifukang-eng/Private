@@ -4,6 +4,8 @@ export interface SubStep {
   label: string;
   description?: string;
   required: boolean;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
 }
 
 // WorkflowStep: The structure stored in JSONB for dynamic steps
@@ -12,6 +14,8 @@ export interface WorkflowStep {
   label: string;
   description?: string;
   required: boolean;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
   subSteps?: SubStep[];  // Optional sub-steps under this step
 }
 

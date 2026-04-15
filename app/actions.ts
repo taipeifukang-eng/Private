@@ -1331,7 +1331,14 @@ export async function createTemplateV2(data: {
     id: string;
     department: string;
     assigned_users: string[];
-    steps: { id: string; label: string; description?: string; required: boolean }[];
+    steps: {
+      id: string;
+      label: string;
+      description?: string;
+      required: boolean;
+      planned_start_date?: string | null;
+      planned_end_date?: string | null;
+    }[];
   }[];
 }) {
   try {
@@ -1463,7 +1470,14 @@ export async function updateTemplateV2(templateId: string, data: {
     id: string;
     department: string;
     assigned_users: string[];
-    steps: { id: string; label: string; description?: string; required: boolean }[];
+    steps: {
+      id: string;
+      label: string;
+      description?: string;
+      required: boolean;
+      planned_start_date?: string | null;
+      planned_end_date?: string | null;
+    }[];
   }[];
 }) {
   try {

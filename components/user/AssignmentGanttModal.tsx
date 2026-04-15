@@ -17,6 +17,8 @@ interface GanttItem {
   id: string;
   label: string;
   weekIndex: number;
+  plannedStartDate?: string | null;
+  plannedEndDate?: string | null;
   status: 'completed' | 'in_progress' | 'pending';
   isSubStep: boolean;
 }
@@ -53,12 +55,30 @@ function diffWeeksInclusive(startInput: string, endInput: string) {
 }
 
 function flattenSteps(steps: WorkflowStep[]) {
-  const items: Array<{ id: string; label: string; isSubStep: boolean }> = [];
+  const items: Array<{
+    id: string;
+    label: string;
+    isSubStep: boolean;
+    plannedStartDate?: string | null;
+    plannedEndDate?: string | null;
+  }> = [];
 
   steps.forEach((step) => {
-    items.push({ id: step.id, label: step.label, isSubStep: false });
+    items.push({
+      id: step.id,
+      label: step.label,
+      isSubStep: false,
+      plannedStartDate: step.planned_start_date || null,
+      plannedEndDate: step.planned_end_date || null,
+    });
     (step.subSteps || []).forEach((subStep) => {
-      items.push({ id: subStep.id, label: subStep.label, isSubStep: true });
+      items.push({
+        id: subStep.id,
+        label: subStep.label,
+        isSubStep: true,
+        plannedStartDate: subStep.planned_start_date || null,
+        plannedEndDate: subStep.planned_end_date || null,
+      });
     });
   });
 
@@ -107,6 +127,51 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
     return map;
   }, [assignment.collaborators]);
 
+  const stepPlannedRange = useMemo(() => {
+    const rawSections: DepartmentSection[] = assignment.template.sections && assignment.template.sections.length > 0
+      ? assignment.template.sections
+      : [
+          {
+            id: 'default-section',
+            department: assignment.department || '未分部門',
+            assigned_users: (assignment.collaborators || []).map((collaborator) => collaborator.id),
+            steps: assignment.template.steps_schema || [],
+          },
+        ];
+
+    const dates = rawSections
+      .flatMap((section) => flattenSteps(section.steps || []))
+      .flatMap((item) => [item.plannedStartDate, item.plannedEndDate])
+      .filter((value): value is string => Boolean(value));
+
+    if (dates.length === 0) return null;
+
+    const sorted = [...dates].sort();
+    return {
+      start: sorted[0],
+      end: sorted[sorted.length - 1],
+    };
+  }, [assignment.collaborators, assignment.department, assignment.template.sections, assignment.template.steps_schema]);
+
+  const timelineStartDate = useMemo(() => {
+    if (hasPlannedRange && assignment.planned_start_date) return assignment.planned_start_date;
+    if (stepPlannedRange?.start) return stepPlannedRange.start;
+    return assignment.created_at;
+  }, [assignment.created_at, assignment.planned_start_date, hasPlannedRange, stepPlannedRange]);
+
+  const timelineEndDate = useMemo(() => {
+    if (hasPlannedRange && assignment.planned_end_date) return assignment.planned_end_date;
+    if (stepPlannedRange?.end) return stepPlannedRange.end;
+    return null;
+  }, [assignment.planned_end_date, hasPlannedRange, stepPlannedRange]);
+
+  const totalWeeks = useMemo(() => {
+    if (timelineStartDate && timelineEndDate && timelineStartDate <= timelineEndDate) {
+      return Math.max(1, diffWeeksInclusive(timelineStartDate, timelineEndDate));
+    }
+    return 1;
+  }, [timelineEndDate, timelineStartDate]);
+
   const ganttSections = useMemo(() => {
     const checkedStepIds = buildCheckedStepIds(assignment.logs || []);
     const rawSections: DepartmentSection[] = assignment.template.sections && assignment.template.sections.length > 0
@@ -124,15 +189,18 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
       .map((section) => {
         const flatItems = flattenSteps(section.steps || []);
         const firstPendingIndex = flatItems.findIndex((item) => !checkedStepIds.has(item.id));
-        const scheduledWeeks = hasPlannedRange && assignment.planned_start_date && assignment.planned_end_date
-          ? Math.max(1, diffWeeksInclusive(assignment.planned_start_date, assignment.planned_end_date))
-          : Math.max(1, flatItems.length);
+        const scheduledWeeks = Math.max(1, totalWeeks);
 
         const items: GanttItem[] = flatItems.map((item, index) => ({
           ...item,
-          weekIndex: flatItems.length <= 1
-            ? 0
-            : Math.min(scheduledWeeks - 1, Math.floor((index * scheduledWeeks) / flatItems.length)),
+          weekIndex: item.plannedStartDate && timelineStartDate
+            ? Math.min(
+                scheduledWeeks - 1,
+                Math.max(0, diffWeeksInclusive(timelineStartDate, item.plannedStartDate) - 1)
+              )
+            : flatItems.length <= 1
+              ? 0
+              : Math.min(scheduledWeeks - 1, Math.floor((index * scheduledWeeks) / flatItems.length)),
           status: checkedStepIds.has(item.id)
             ? 'completed'
             : firstPendingIndex === index
@@ -148,18 +216,10 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
         } satisfies GanttSection;
       })
       .filter((section) => section.items.length > 0);
-  }, [assignment.collaborators, assignment.department, assignment.logs, assignment.planned_end_date, assignment.planned_start_date, assignment.template.sections, assignment.template.steps_schema, collaboratorMap, hasPlannedRange]);
-
-  const totalWeeks = useMemo(() => {
-    if (hasPlannedRange && assignment.planned_start_date && assignment.planned_end_date) {
-      return Math.max(1, diffWeeksInclusive(assignment.planned_start_date, assignment.planned_end_date));
-    }
-    const maxWeekCount = Math.max(0, ...ganttSections.map((section) => section.items.length));
-    return Math.max(1, maxWeekCount);
-  }, [assignment.planned_end_date, assignment.planned_start_date, ganttSections, hasPlannedRange]);
+  }, [assignment.collaborators, assignment.department, assignment.logs, assignment.template.sections, assignment.template.steps_schema, collaboratorMap, timelineStartDate, totalWeeks]);
 
   const weekHeaders = useMemo(() => {
-    const firstWeek = startOfWeek(assignment.planned_start_date || assignment.created_at);
+    const firstWeek = startOfWeek(timelineStartDate);
     return Array.from({ length: totalWeeks }, (_, index) => {
       const weekStart = new Date(firstWeek);
       weekStart.setDate(weekStart.getDate() + index * 7);
@@ -168,7 +228,7 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
         range: formatWeekRange(weekStart),
       };
     });
-  }, [assignment.created_at, assignment.planned_start_date, totalWeeks]);
+  }, [timelineStartDate, totalWeeks]);
 
   const totalItems = ganttSections.reduce((sum, section) => sum + section.items.length, 0);
 
@@ -210,6 +270,8 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
         <div className="border-b border-gray-200 bg-white px-6 py-4 text-sm text-gray-600">
           {hasPlannedRange ? (
             <span>預計時程：{assignment.planned_start_date} 至 {assignment.planned_end_date}</span>
+          ) : stepPlannedRange ? (
+            <span>步驟預計時程：{stepPlannedRange.start} 至 {stepPlannedRange.end}</span>
           ) : (
             <span>尚未設定預計時程，甘特圖以任務建立週為起點自動推算。</span>
           )}
@@ -271,6 +333,11 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
                                 {item.status === 'completed' ? '已完成' : item.status === 'in_progress' ? '進行中' : '待執行'}
                               </span>
                             </div>
+                            {(item.plannedStartDate || item.plannedEndDate) && (
+                              <div className="mt-1 text-xs text-purple-600">
+                                預計：{item.plannedStartDate || '未設定'} 至 {item.plannedEndDate || '未設定'}
+                              </div>
+                            )}
                           </div>
                         </td>
                         {weekHeaders.map((week, weekIndex) => (
