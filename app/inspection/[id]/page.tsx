@@ -219,6 +219,43 @@ export default async function InspectionDetailPage({
     // 9. 需改善項目
     const improvementItems = results.filter((r: any) => r.is_improvement);
 
+    // 9.2 改善回報紀錄（店長上傳）
+    const { data: improvementRecords } = await adminClient
+      .from('inspection_improvements')
+      .select(`
+        id,
+        template_id,
+        status,
+        deduction_amount,
+        days_taken,
+        bonus_score,
+        improved_at,
+        improvement_description,
+        improvement_photo_urls,
+        improved_by
+      `)
+      .eq('inspection_id', params.id);
+
+    const improvedByIds = Array.from(
+      new Set((improvementRecords || []).map((r: any) => r.improved_by).filter(Boolean))
+    );
+
+    let improvedByNameMap = new Map<string, string>();
+    if (improvedByIds.length > 0) {
+      const { data: improvedByProfiles } = await adminClient
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', improvedByIds);
+
+      improvedByNameMap = new Map(
+        (improvedByProfiles || []).map((p: any) => [p.id, p.full_name || '未知'])
+      );
+    }
+
+    const improvementMap = new Map(
+      (improvementRecords || []).map((record: any) => [record.template_id, record])
+    );
+
     // 9.5 當班人員
     const { data: onDutyStaff } = await adminClient
       .from('inspection_on_duty_staff')
@@ -488,6 +525,70 @@ export default async function InspectionDetailPage({
                       {item.photo_urls && item.photo_urls.length > 0 && (
                         <InspectionPhotoViewer photoUrls={item.photo_urls} />
                       )}
+
+                      {/* 店長改善回報（回填） */}
+                      {(() => {
+                        const improvement = improvementMap.get(item.template_id);
+                        if (!improvement) {
+                          return (
+                            <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                              <p className="text-sm text-gray-600">
+                                <strong>店長改善回報：</strong>尚未建立回報紀錄
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        const statusText =
+                          improvement.status === 'improved'
+                            ? '已改善回報'
+                            : improvement.status === 'overdue'
+                              ? '逾期未改善'
+                              : '待改善';
+
+                        const statusClass =
+                          improvement.status === 'improved'
+                            ? 'bg-green-50 border-green-200 text-green-800'
+                            : improvement.status === 'overdue'
+                              ? 'bg-red-50 border-red-200 text-red-800'
+                              : 'bg-amber-50 border-amber-200 text-amber-800';
+
+                        const improvedByName = improvement.improved_by
+                          ? improvedByNameMap.get(improvement.improved_by) || '未知'
+                          : '未回報';
+
+                        return (
+                          <div className={`mt-3 p-3 border rounded-lg ${statusClass}`}>
+                            <p className="text-sm font-semibold">店長改善回報：{statusText}</p>
+                            {improvement.status === 'improved' && (
+                              <>
+                                <p className="mt-1 text-sm">
+                                  回報人：{improvedByName}
+                                  {improvement.improved_at
+                                    ? `（${new Date(improvement.improved_at).toLocaleString('zh-TW')}）`
+                                    : ''}
+                                </p>
+                                {improvement.days_taken !== null && (
+                                  <p className="mt-1 text-sm">
+                                    改善天數：{improvement.days_taken} 天，回補加分：+{improvement.bonus_score} 分
+                                  </p>
+                                )}
+                                {improvement.improvement_description && (
+                                  <p className="mt-2 text-sm whitespace-pre-wrap">
+                                    <strong>改善說明：</strong>{improvement.improvement_description}
+                                  </p>
+                                )}
+                                {improvement.improvement_photo_urls && improvement.improvement_photo_urls.length > 0 && (
+                                  <div className="mt-2">
+                                    <p className="text-xs mb-1">改善照片（{improvement.improvement_photo_urls.length} 張）</p>
+                                    <InspectionPhotoViewer photoUrls={improvement.improvement_photo_urls} />
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>

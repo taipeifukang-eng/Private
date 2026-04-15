@@ -202,12 +202,16 @@ export default function ImprovementDetailPage() {
     };
   };
 
-  // 預估加分
-  const getEstimatedBonus = (daysSince: number) => {
+  // 預估加分（依扣分比例回補）
+  const getEstimatedBonus = (daysSince: number, deductionAmount: number) => {
     const config = bonusConfig.find(
       (c) => daysSince >= c.day_from && daysSince <= c.day_to
     );
-    return config?.bonus_score || 0;
+    const percent = config?.bonus_score || 0;
+    return {
+      percent,
+      score: Math.round(((deductionAmount || 0) * percent) * 10 / 100) / 10,
+    };
   };
 
   // 壓縮圖片
@@ -343,7 +347,7 @@ export default function ImprovementDetailPage() {
   }
 
   const { daysRemaining, daysSince } = getDaysInfo();
-  const estimatedBonus = getEstimatedBonus(daysSince);
+  const estimatedBonus = getEstimatedBonus(daysSince, improvement.deduction_amount);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -614,15 +618,16 @@ export default function ImprovementDetailPage() {
                           {config.day_from === 0 ? '當天' : `第${config.day_from}天`} ~{' '}
                           第{config.day_to}天
                         </span>
-                        <span>+{config.bonus_score} 分</span>
+                        <span>回補 {config.bonus_score}%</span>
                       </div>
                     ))}
                   </div>
                   <div className="mt-2 text-xs text-amber-700 border-t border-amber-200 pt-2">
                     目前已第 <span className="font-bold">{daysSince}</span> 天，
-                    {estimatedBonus > 0 ? (
+                    {estimatedBonus.score > 0 ? (
                       <span>
-                        現在上傳可加 <span className="font-bold text-green-700">+{estimatedBonus}分</span>
+                        現在上傳可回補 <span className="font-bold text-green-700">+{estimatedBonus.score}分</span>
+                        （扣分 {improvement.deduction_amount} × {estimatedBonus.percent}%）
                       </span>
                     ) : (
                       <span className="text-red-600">已超過加分期限</span>

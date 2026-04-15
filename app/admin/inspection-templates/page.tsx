@@ -78,7 +78,7 @@ export default function InspectionTemplatesPage() {
   const [bonusConfigs, setBonusConfigs] = useState<BonusConfig[]>([]);
   const [editingBonus, setEditingBonus] = useState<BonusConfig | null>(null);
   const [isCreatingBonus, setIsCreatingBonus] = useState(false);
-  const [bonusForm, setBonusForm] = useState({ day_from: 0, day_to: 3, bonus_score: 5, description: '' });
+  const [bonusForm, setBonusForm] = useState({ day_from: 0, day_to: 3, bonus_score: 20, description: '' });
 
   // 權限檢查
   const [authorized, setAuthorized] = useState(false);
@@ -165,7 +165,7 @@ export default function InspectionTemplatesPage() {
       await loadBonusConfigs();
       setEditingBonus(null);
       setIsCreatingBonus(false);
-      setBonusForm({ day_from: 0, day_to: 3, bonus_score: 5, description: '' });
+      setBonusForm({ day_from: 0, day_to: 3, bonus_score: 20, description: '' });
     } catch (e: any) {
       alert('儲存失敗：' + (e?.message || '未知錯誤'));
     } finally {
@@ -622,7 +622,7 @@ export default function InspectionTemplatesPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">改善加分規則</h3>
                   <p className="text-sm text-gray-500 mt-1">
-                    設定店長在幾天內上傳改善內容可以獲得的加分。越早改善加分越多。
+                    設定店長在幾天內上傳改善內容可回補「被扣分數」的百分比。越早改善回補比例越高。
                   </p>
                 </div>
                 {!isCreatingBonus && !editingBonus && (
@@ -631,7 +631,7 @@ export default function InspectionTemplatesPage() {
                       setIsCreatingBonus(true);
                       setEditingBonus(null);
                       const maxDay = bonusConfigs.length > 0 ? Math.max(...bonusConfigs.map(c => c.day_to)) + 1 : 0;
-                      setBonusForm({ day_from: maxDay, day_to: maxDay + 2, bonus_score: 1, description: '' });
+                      setBonusForm({ day_from: maxDay, day_to: maxDay + 2, bonus_score: 5, description: '' });
                     }}
                     className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
                   >
@@ -656,7 +656,7 @@ export default function InspectionTemplatesPage() {
                 <div className="max-w-2xl mx-auto">
                   <div className="grid grid-cols-12 gap-3 mb-3 text-sm font-medium text-gray-500 px-4">
                     <div className="col-span-4">改善天數</div>
-                    <div className="col-span-2 text-center">加分</div>
+                    <div className="col-span-2 text-center">回補比例</div>
                     <div className="col-span-4">說明</div>
                     <div className="col-span-2 text-right">操作</div>
                   </div>
@@ -674,7 +674,7 @@ export default function InspectionTemplatesPage() {
                       </div>
                       <div className="col-span-2 text-center">
                         <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-2.5 py-1 rounded-full text-sm font-bold">
-                          +{config.bonus_score}分
+                          {config.bonus_score}%
                         </span>
                       </div>
                       <div className="col-span-4">
@@ -741,12 +741,13 @@ export default function InspectionTemplatesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-medium text-gray-600 mb-1">
-                        加分分數
+                        回補比例（%）
                       </label>
                       <input
                         type="number"
                         min={0}
-                        step={0.5}
+                        max={100}
+                        step={0.1}
                         value={bonusForm.bonus_score}
                         onChange={(e) => setBonusForm({ ...bonusForm, bonus_score: Number(e.target.value) })}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
@@ -760,7 +761,7 @@ export default function InspectionTemplatesPage() {
                         type="text"
                         value={bonusForm.description}
                         onChange={(e) => setBonusForm({ ...bonusForm, description: e.target.value })}
-                        placeholder="例如：3天內改善 +5分"
+                        placeholder="例如：3天內改善回補扣分 20%"
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                       />
                     </div>
@@ -770,7 +771,7 @@ export default function InspectionTemplatesPage() {
                       onClick={() => {
                         setEditingBonus(null);
                         setIsCreatingBonus(false);
-                        setBonusForm({ day_from: 0, day_to: 3, bonus_score: 5, description: '' });
+                        setBonusForm({ day_from: 0, day_to: 3, bonus_score: 20, description: '' });
                       }}
                       className="px-4 py-2 text-sm text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                     >
@@ -778,7 +779,7 @@ export default function InspectionTemplatesPage() {
                     </button>
                     <button
                       onClick={handleSaveBonus}
-                      disabled={saving || bonusForm.day_to < bonusForm.day_from || bonusForm.bonus_score < 0}
+                      disabled={saving || bonusForm.day_to < bonusForm.day_from || bonusForm.bonus_score < 0 || bonusForm.bonus_score > 100}
                       className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
                     >
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -797,7 +798,8 @@ export default function InspectionTemplatesPage() {
                     <ul className="list-disc list-inside space-y-1 text-green-700">
                       <li>督導巡店完成後，系統會自動為扣分項目建立「待改善事項」</li>
                       <li>店長登入後可看到待改善清單，並上傳改善說明與照片</li>
-                      <li>系統根據改善天數（提交日 - 巡店日）自動計算加分</li>
+                      <li>系統根據改善天數（提交日 - 巡店日）套用回補比例</li>
+                      <li>單項回補分數 = 該項扣分 × 回補比例（%）</li>
                       <li>加分會加到該次巡店的總分上（改善加分欄位）</li>
                       <li>改善期限 = 巡店日 + 最大天數設定（取所有規則最大的結束天數）</li>
                     </ul>
