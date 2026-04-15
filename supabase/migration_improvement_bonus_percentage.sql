@@ -65,22 +65,21 @@ SET
   bonus_score = ROUND(
     (
       COALESCE(ii.deduction_amount, 0)
-      * COALESCE(cfg.bonus_score, 0)
+      * COALESCE((
+        SELECT bc.bonus_score
+        FROM inspection_bonus_config bc
+        WHERE bc.is_active = true
+          AND GREATEST((COALESCE(ii.improved_at, NOW())::date - im.inspection_date), 0)
+            BETWEEN bc.day_from AND bc.day_to
+        ORDER BY bc.sort_order
+        LIMIT 1
+      ), 0)
       / 100.0
     )::numeric,
     1
   ),
   updated_at = NOW()
 FROM inspection_masters im
-LEFT JOIN LATERAL (
-  SELECT bc.bonus_score
-  FROM inspection_bonus_config bc
-  WHERE bc.is_active = true
-    AND GREATEST((COALESCE(ii.improved_at, NOW())::date - im.inspection_date), 0)
-      BETWEEN bc.day_from AND bc.day_to
-  ORDER BY bc.sort_order
-  LIMIT 1
-) cfg ON TRUE
 WHERE ii.inspection_id = im.id
   AND ii.status = 'improved';
 
