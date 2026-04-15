@@ -16,7 +16,8 @@ interface AssignmentGanttModalProps {
 interface GanttItem {
   id: string;
   label: string;
-  weekIndex: number;
+  weekStartIndex: number;
+  weekEndIndex: number;
   plannedStartDate?: string | null;
   plannedEndDate?: string | null;
   status: 'completed' | 'in_progress' | 'pending';
@@ -52,6 +53,10 @@ function diffWeeksInclusive(startInput: string, endInput: string) {
   const end = startOfWeek(endInput);
   const diffMs = end.getTime() - start.getTime();
   return Math.floor(diffMs / (7 * 24 * 60 * 60 * 1000)) + 1;
+}
+
+function getWeekOffset(baseStart: string, targetDate: string) {
+  return diffWeeksInclusive(baseStart, targetDate) - 1;
 }
 
 function flattenSteps(steps: WorkflowStep[]) {
@@ -193,14 +198,32 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
 
         const items: GanttItem[] = flatItems.map((item, index) => ({
           ...item,
-          weekIndex: item.plannedStartDate && timelineStartDate
-            ? Math.min(
-                scheduledWeeks - 1,
-                Math.max(0, diffWeeksInclusive(timelineStartDate, item.plannedStartDate) - 1)
-              )
-            : flatItems.length <= 1
-              ? 0
-              : Math.min(scheduledWeeks - 1, Math.floor((index * scheduledWeeks) / flatItems.length)),
+          weekStartIndex:
+            item.plannedStartDate && timelineStartDate
+              ? Math.min(
+                  scheduledWeeks - 1,
+                  Math.max(0, getWeekOffset(timelineStartDate, item.plannedStartDate))
+                )
+              : flatItems.length <= 1
+                ? 0
+                : Math.min(scheduledWeeks - 1, Math.floor((index * scheduledWeeks) / flatItems.length)),
+          weekEndIndex:
+            item.plannedStartDate && item.plannedEndDate && timelineStartDate
+              ? Math.min(
+                  scheduledWeeks - 1,
+                  Math.max(
+                    Math.max(0, getWeekOffset(timelineStartDate, item.plannedStartDate)),
+                    getWeekOffset(timelineStartDate, item.plannedEndDate)
+                  )
+                )
+              : item.plannedStartDate && timelineStartDate
+                ? Math.min(
+                    scheduledWeeks - 1,
+                    Math.max(0, getWeekOffset(timelineStartDate, item.plannedStartDate))
+                  )
+                : flatItems.length <= 1
+                  ? 0
+                  : Math.min(scheduledWeeks - 1, Math.floor((index * scheduledWeeks) / flatItems.length)),
           status: checkedStepIds.has(item.id)
             ? 'completed'
             : firstPendingIndex === index
@@ -342,13 +365,11 @@ export default function AssignmentGanttModal({ assignment, onClose }: Assignment
                         </td>
                         {weekHeaders.map((week, weekIndex) => (
                           <td key={`${section.id}-${item.id}-${week.label}`} className="border-r border-t border-gray-200 px-2 py-2 last:border-r-0">
-                            {weekIndex === item.weekIndex ? (
+                            {weekIndex >= item.weekStartIndex && weekIndex <= item.weekEndIndex ? (
                               <div className={`rounded-lg border px-3 py-3 text-xs font-medium ${getStatusClass(item.status)}`}>
-                                {item.label}
+                                {weekIndex === item.weekStartIndex ? item.label : ''}
                               </div>
-                            ) : (
-                              <div className="h-11 rounded-lg bg-gray-50"></div>
-                            )}
+                            ) : <div className="h-11 rounded-lg bg-gray-50"></div>}
                           </td>
                         ))}
                       </tr>
