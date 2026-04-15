@@ -2,11 +2,11 @@
  * 業績團體獎金計算核心邏輯
  *
  * 月團體獎金計算規則：
- * - 日毛利達到目標 100% → 第一檻: 3,000 元/人
- * - 日毛利達到目標 110% → 第二檻: 5,000 元/人
- * - 日毛利達到目標 120% → 第三檻: 7,000 元/人
- * - 日毛利達到目標 130% → 第四檻: 8,000 元/人
- * - 日毛利達到目標 140% → 第五檻: 10,000 元/人
+ * - 先計算日毛利目標 = 月毛利目標 / 營業天數
+ * - 第一檻門檻 = 日毛利目標
+ * - 第二檻起每檻固定增加 1,000 元日毛利
+ *   例：若日毛利目標為 32,500，則各檻門檻為
+ *   第一檻 32,500、第二檻 33,500、第三檻 34,500、第四檻 35,500、第五檻 36,500
  *
  * 各指標權重：
  * - 毛利: 90%（決定基本金額的門檻）
@@ -55,6 +55,7 @@ export interface BonusResult {
   // 細節
   dailyGpTarget: number;   // 日毛利目標
   dailyGpActual: number;   // 日毛利實際
+  thresholdDailyAmount: number; // 本次達成檻所對應的日毛利門檻
 }
 
 /** 獎金門檻定義型別 */
@@ -90,6 +91,8 @@ export const WEIGHTS = {
   rx:            0.10,
 };
 
+export const MONTHLY_DAILY_GP_STEP = 1000;
+
 /**
  * 計算月毛利所達到的檻級別 (0=未達標, 1~5)
  * @param customThresholds 門市自訂閾值，未傳入時使用預設值
@@ -97,12 +100,17 @@ export const WEIGHTS = {
 export function calcGpThresholdLevel(
   actualGp: number,
   targetGp: number,
+  businessDays: number,
   customThresholds: ThresholdDef[] = MONTHLY_THRESHOLDS,
 ): number {
-  if (!targetGp || targetGp <= 0) return 0;
-  const rate = actualGp / targetGp;
+  if (!targetGp || targetGp <= 0 || !businessDays || businessDays <= 0) return 0;
+
+  const dailyGpTarget = targetGp / businessDays;
+  const dailyGpActual = actualGp / businessDays;
+
   for (let i = customThresholds.length - 1; i >= 0; i--) {
-    if (rate >= customThresholds[i].multiplier) return i + 1;
+    const thresholdDailyAmount = dailyGpTarget + MONTHLY_DAILY_GP_STEP * i;
+    if (dailyGpActual >= thresholdDailyAmount) return i + 1;
   }
   return 0;
 }
@@ -146,8 +154,11 @@ export function calcMonthlyBonus(
   const dailyGpActual = businessDays > 0 ? safeGpActual / businessDays : 0;
 
   const gpAchievementRate = safeGpTarget > 0 ? (safeGpActual / safeGpTarget) * 100 : 0;
-  const gpThresholdLevel = calcGpThresholdLevel(safeGpActual, safeGpTarget, customThresholds);
+  const gpThresholdLevel = calcGpThresholdLevel(safeGpActual, safeGpTarget, businessDays, customThresholds);
   const thresholdBaseAmount = gpThresholdLevel > 0 ? customThresholds[gpThresholdLevel - 1].baseAmount : 0;
+  const thresholdDailyAmount = gpThresholdLevel > 0
+    ? dailyGpTarget + MONTHLY_DAILY_GP_STEP * (gpThresholdLevel - 1)
+    : 0;
 
   const gpAchieved = gpThresholdLevel > 0;
   const revenueAchieved = !!(revenueTarget && revenueTarget > 0 && revenueActual !== null && revenueActual >= revenueTarget);
@@ -184,6 +195,7 @@ export function calcMonthlyBonus(
     finalBonus,
     dailyGpTarget,
     dailyGpActual,
+    thresholdDailyAmount,
   };
 }
 

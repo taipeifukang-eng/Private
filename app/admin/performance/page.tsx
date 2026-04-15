@@ -6,6 +6,7 @@ import {
   calcMonthlyBonus,
   calcQuarterlyBonus,
   MONTHLY_THRESHOLDS,
+  MONTHLY_DAILY_GP_STEP,
   QUARTERLY_THRESHOLDS,
   formatAmount,
   formatRate,
@@ -122,12 +123,19 @@ export default function PerformancePage() {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: p } = await supabase
+      const { data: p, error } = await supabase
         .from('profiles')
         .select('id, full_name, role, job_title, managed_stores')
         .eq('id', user.id)
         .single();
-      setProfile(p);
+
+      if (error) {
+        console.warn('[Performance] load profile failed, fallback to unrestricted store list', error.message);
+        setProfile({ id: user.id, role: 'admin', managed_stores: null });
+        return;
+      }
+
+      setProfile(p || { id: user.id, role: 'admin', managed_stores: null });
     })();
   }, []);
 
@@ -153,14 +161,13 @@ export default function PerformancePage() {
 
   // ─── Stores list ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!profile) return;
     (async () => {
       let q = supabase.from('stores').select('id, store_code, store_name').eq('is_active', true).order('store_code');
       const { data } = await q;
       const list: Store[] = data || [];
 
-      // 非 admin/supervisor 只能看自己管理的門市
-      if (!['admin', 'supervisor'].includes(profile.role)) {
+      // 非 admin/supervisor 只能看自己管理的門市；若 profile 尚未載入則先顯示全部門市避免頁面卡住。
+      if (profile && !['admin', 'supervisor'].includes(profile.role)) {
         const managed = profile.managed_stores as string[] | null;
         const filtered = managed ? list.filter(s => managed.includes(s.id)) : [];
         setStores(filtered);
@@ -544,7 +551,9 @@ export default function PerformancePage() {
                 {(thresholdEditing ? editMonthly : monthlyThresholds).map((t, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     {thresholdBadge(i + 1)}
-                    <span className="text-gray-500 text-xs w-24 whitespace-nowrap">日毛利達 {Math.round(t.multiplier * 100)}%：</span>
+                    <span className="text-gray-500 text-xs w-36 whitespace-nowrap">
+                      {i === 0 ? '日毛利目標：' : `日毛利 +${(MONTHLY_DAILY_GP_STEP * i).toLocaleString('zh-TW')}：`}
+                    </span>
                     {thresholdEditing ? (
                       <input
                         type="number"
@@ -583,7 +592,7 @@ export default function PerformancePage() {
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 處方箋10%)。毛利未達標則全部清零。
+            月團體獎金毛利檻規則：第一檻為日毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} 元日毛利。最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 慢箋10%)。毛利未達標則全部清零。
             {monthlyThresholds.some((t, i) => t.baseAmount !== MONTHLY_THRESHOLDS[i].baseAmount) && (
               <span className="ml-2 text-blue-500">• 此門市使用自訂閾值</span>
             )}
