@@ -846,6 +846,30 @@ function StoreStatusDetail({
     loadStaffStatus();
   }, [store.id, yearMonth]);
 
+  useEffect(() => {
+    if (!showMonthlyBonusDetailModal && !showQuarterBonusSummaryModal) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      if (showQuarterBonusSummaryModal) {
+        setShowQuarterBonusSummaryModal(false);
+        return;
+      }
+
+      if (showMonthlyBonusDetailModal) {
+        setShowMonthlyBonusDetailModal(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showMonthlyBonusDetailModal, showQuarterBonusSummaryModal]);
+
   const loadStaffStatus = async () => {
     setLoading(true);
     try {
