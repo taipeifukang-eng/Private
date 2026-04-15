@@ -187,6 +187,19 @@ export default function ImprovementDetailPage() {
     fetchDetail();
   }, [fetchDetail]);
 
+  useEffect(() => {
+    if (!showLightbox) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowLightbox(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showLightbox]);
+
   // 計算天數
   const getDaysInfo = () => {
     if (!improvement) return { daysRemaining: 0, daysSince: 0 };

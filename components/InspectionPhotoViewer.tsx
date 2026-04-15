@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X, ChevronLeft, ChevronRight, Camera } from 'lucide-react';
 
 interface Props {
@@ -16,6 +16,19 @@ export default function InspectionPhotoViewer({ photoUrls }: Props) {
   const close = () => setLightboxIndex(null);
   const prev = () => setLightboxIndex(i => (i !== null ? (i - 1 + photoUrls.length) % photoUrls.length : null));
   const next = () => setLightboxIndex(i => (i !== null ? (i + 1) % photoUrls.length : null));
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        close();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [lightboxIndex]);
 
   return (
     <>
