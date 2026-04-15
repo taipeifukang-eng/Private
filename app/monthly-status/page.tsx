@@ -1261,6 +1261,7 @@ function StoreStatusDetail({
     { key: 'owner_rx_makeup', label: '負責人處方回補' },
     { key: 'sales_competition_bonus', label: '銷售競賽' },
     { key: 'owner_signing_bonus', label: '負責人簽約金' },
+    { key: 'long_term_care_bonus', label: '長照獎金' },
   ] as const;
 
   const flattenedBonusEntries = monthlyBonusDetails.flatMap((staff: any) => staff.entries || []);

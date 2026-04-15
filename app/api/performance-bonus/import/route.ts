@@ -98,6 +98,7 @@ const COL = {
   owner_rx_makeup:        ['負責人處方回補獎金', '負責人處方回補'],
   sales_competition_bonus:['銷售競賽獎金', '競賽獎金'],
   owner_signing_bonus:    ['負責人簽約金'],
+  long_term_care_bonus:   ['長照獎金'],
 };
 
 const BONUS_VALUE_FIELDS = [
@@ -116,6 +117,7 @@ const BONUS_VALUE_FIELDS = [
   'owner_rx_makeup',
   'sales_competition_bonus',
   'owner_signing_bonus',
+  'long_term_care_bonus',
 ] as const;
 
 /**
@@ -324,6 +326,7 @@ export async function POST(request: NextRequest) {
         owner_rx_makeup:        getNumOptional(row, COL.owner_rx_makeup),
         sales_competition_bonus:getNumOptional(row, COL.sales_competition_bonus),
         owner_signing_bonus:    getNumOptional(row, COL.owner_signing_bonus),
+        long_term_care_bonus:   getNumOptional(row, COL.long_term_care_bonus),
         __rowLabel:             rowLabel,
         __rawStoreCode:         rawCode,
       };
@@ -436,7 +439,8 @@ export async function POST(request: NextRequest) {
         pharmacist_guarantee,
         owner_rx_makeup,
         sales_competition_bonus,
-        owner_signing_bonus
+        owner_signing_bonus,
+        long_term_care_bonus
       `)
       .in('store_id', uniqueStoreIds)
       .in('year_month', uniqueYearMonths)

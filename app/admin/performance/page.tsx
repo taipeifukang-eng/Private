@@ -806,6 +806,7 @@ interface BonusRecord {
   owner_rx_makeup: number;
   sales_competition_bonus: number;
   owner_signing_bonus: number;
+  long_term_care_bonus: number;
   store?: { store_code: string; store_name: string } | { store_code: string; store_name: string }[];
 }
 
@@ -825,6 +826,7 @@ const BONUS_COLS: { key: keyof BonusRecord; label: string }[] = [
   { key: 'owner_rx_makeup',        label: '負責人處方回補' },
   { key: 'sales_competition_bonus',label: '銷售競賽' },
   { key: 'owner_signing_bonus',    label: '負責人簽約金' },
+  { key: 'long_term_care_bonus',   label: '長照獎金' },
 ];
 
 function getStoreInfo(store: BonusRecord['store']) {

@@ -18,6 +18,7 @@ const BONUS_FIELDS = [
   'owner_rx_makeup',
   'sales_competition_bonus',
   'owner_signing_bonus',
+  'long_term_care_bonus',
 ] as const;
 
 const POSITION_PRIORITY = [
@@ -115,6 +116,7 @@ export async function GET(request: NextRequest) {
         owner_rx_makeup,
         sales_competition_bonus,
         owner_signing_bonus,
+        long_term_care_bonus,
         store:stores!monthly_bonus_records_store_id_fkey(store_code, store_name)
       `)
       .eq('year_month', yearMonth)
@@ -159,6 +161,7 @@ export async function GET(request: NextRequest) {
         owner_rx_makeup: Number(row.owner_rx_makeup) || 0,
         sales_competition_bonus: Number(row.sales_competition_bonus) || 0,
         owner_signing_bonus: Number(row.owner_signing_bonus) || 0,
+        long_term_care_bonus: Number(row.long_term_care_bonus) || 0,
       });
 
       grouped.set(row.employee_code, current);
