@@ -249,6 +249,12 @@ export default function EditStaffStatusPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      if (position === '行政' && !newbieLevel) {
+        alert('職位為行政時，請標註「過階」或「未過階」');
+        setSaving(false);
+        return;
+      }
+
       // 檢查新人階段
       if (startDate && (position === '新人' || monthlyStatus === 'new_hire')) {
         const hireDate = new Date(startDate);
@@ -535,7 +541,7 @@ export default function EditStaffStatusPage() {
           {showAdminLevel && (
             <div className="bg-green-50 rounded-lg p-4">
               <label className="block text-sm font-medium text-green-700 mb-2">
-                行政階級
+                行政階級 *
               </label>
               <div className="flex flex-wrap gap-3">
                 {ADMIN_LEVEL_OPTIONS.map(opt => (
@@ -559,6 +565,9 @@ export default function EditStaffStatusPage() {
                   </label>
                 ))}
               </div>
+              {!newbieLevel && (
+                <p className="mt-2 text-xs text-red-600">請選擇「過階」或「未過階」</p>
+              )}
             </div>
           )}
 

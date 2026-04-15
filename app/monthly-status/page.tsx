@@ -1657,9 +1657,11 @@ function StoreStatusDetail({
                 </td>
                 <td className="px-4 py-3 text-sm text-gray-700">
                   {staff.position || '-'}
-                  {staff.newbie_level && (staff.position === '新人' || staff.position === '行政') && (
-                    <span className="ml-1 text-xs text-blue-600">
-                      ({staff.newbie_level.replace('新人', '').replace('行政', '')})
+                  {(staff.position === '新人' || staff.position === '行政') && (
+                    <span className={`ml-1 text-xs ${staff.newbie_level ? 'text-blue-600' : 'text-red-600 font-semibold'}`}>
+                      ({staff.newbie_level
+                        ? staff.newbie_level.replace('新人', '').replace('行政', '')
+                        : '未標註'})
                     </span>
                   )}
                 </td>
@@ -2280,6 +2282,10 @@ function AddManualEmployeeModal({
       alert('請選擇職位');
       return;
     }
+    if (position === '行政' && !newbieLevel) {
+      alert('職位為行政時，請標註「過階」或「未過階」');
+      return;
+    }
 
     // 驗證員編
     if (employeeCode.trim() && !validateEmployeeCode(employeeCode)) {
@@ -2475,7 +2481,7 @@ function AddManualEmployeeModal({
           {showAdminLevel && (
             <div className="bg-green-50 rounded-lg p-4">
               <label className="block text-sm font-medium text-green-700 mb-2">
-                行政階級
+                行政階級 *
               </label>
               <div className="flex flex-wrap gap-2">
                 {ADMIN_LEVEL_OPTIONS.map(opt => (
@@ -2498,6 +2504,9 @@ function AddManualEmployeeModal({
                   </label>
                 ))}
               </div>
+              {!newbieLevel && (
+                <p className="mt-2 text-xs text-red-600">請選擇「過階」或「未過階」</p>
+              )}
             </div>
           )}
 

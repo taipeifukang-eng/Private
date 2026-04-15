@@ -1230,6 +1230,10 @@ export async function updateStaffStatus(
       return { success: false, error: '未登入' };
     }
 
+    if (updates.position === '行政' && !updates.newbie_level) {
+      return { success: false, error: '職位為行政時，必須標註「過階」或「未過階」' };
+    }
+
     const { data, error } = await supabase
       .from('monthly_staff_status')
       .update({
@@ -1759,6 +1763,10 @@ export async function addManualEmployee(
     
     if (!user) {
       return { success: false, error: '未登入' };
+    }
+
+    if (employeeData.position === '行政' && !employeeData.newbie_level) {
+      return { success: false, error: '職位為行政時，必須標註「過階」或「未過階」' };
     }
 
     // 計算當月天數
