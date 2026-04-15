@@ -236,7 +236,24 @@ export default function PerformancePage() {
   // ─── Excel import ────────────────────────────────────────────────────────
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !selectedStoreId) return;
+    if (!file) {
+      showMsg('error', '請先選擇要匯入的 Excel 檔案');
+      return;
+    }
+    if (!selectedStoreId) {
+      showMsg('error', '請先選擇門市再匯入');
+      console.warn('[Performance Import] blocked: selectedStoreId is empty');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    console.info('[Performance Import] start', {
+      fileName: file.name,
+      fileSize: file.size,
+      storeId: selectedStoreId,
+      year: selectedYear,
+    });
+
     setImportLoading(true);
     try {
       const fd = new FormData();
@@ -245,6 +262,7 @@ export default function PerformancePage() {
       fd.append('year', String(selectedYear));
       const res = await fetch('/api/performance-data/import', { method: 'POST', body: fd });
       const json = await res.json();
+      console.info('[Performance Import] response', { status: res.status, ok: res.ok, json });
       if (!json.success) {
         const details = Array.isArray(json.errors) && json.errors.length > 0
           ? `\n${json.errors.slice(0, 5).join('\n')}${json.errors.length > 5 ? `\n...另有 ${json.errors.length - 5} 筆` : ''}`
@@ -255,6 +273,7 @@ export default function PerformancePage() {
       if (json.errors?.length) console.warn('[Import]', json.errors);
       await loadData();
     } catch (e: any) {
+      console.error('[Performance Import] failed', e);
       showMsg('error', `匯入失敗：${e.message}`);
     } finally {
       setImportLoading(false);
@@ -412,6 +431,7 @@ export default function PerformancePage() {
               onChange={e => setSelectedStoreId(e.target.value)}
               className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
+              <option value="">請選擇門市</option>
               {stores.map(s => (
                 <option key={s.id} value={s.id}>{s.store_code} {s.store_name}</option>
               ))}
@@ -452,8 +472,16 @@ export default function PerformancePage() {
             />
             <label
               htmlFor="import-file"
+              onClick={(event) => {
+                if (!selectedStoreId || importLoading) {
+                  event.preventDefault();
+                  if (!selectedStoreId) {
+                    showMsg('error', '請先選擇門市再匯入');
+                  }
+                }
+              }}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer
-                ${importLoading
+                ${importLoading || !selectedStoreId
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
