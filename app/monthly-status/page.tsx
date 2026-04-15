@@ -804,6 +804,9 @@ function StoreStatusDetail({
   const [showMonthlyBonusDetailModal, setShowMonthlyBonusDetailModal] = useState(false);
   const [loadingMonthlyBonusDetail, setLoadingMonthlyBonusDetail] = useState(false);
   const [monthlyBonusDetails, setMonthlyBonusDetails] = useState<any[]>([]);
+  const [showQuarterBonusSummaryModal, setShowQuarterBonusSummaryModal] = useState(false);
+  const [loadingQuarterBonusSummary, setLoadingQuarterBonusSummary] = useState(false);
+  const [quarterBonusSummary, setQuarterBonusSummary] = useState<any | null>(null);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<{code: string; name: string} | null>(null);
   const [movementHistory, setMovementHistory] = useState<any[]>([]);
@@ -1211,6 +1214,27 @@ function StoreStatusDetail({
     }
   };
 
+  const handleOpenQuarterBonusSummary = async () => {
+    setShowQuarterBonusSummaryModal(true);
+    setLoadingQuarterBonusSummary(true);
+    try {
+      const res = await fetch(
+        `/api/monthly-status/bonus-quarter-summary?year_month=${encodeURIComponent(yearMonth)}&store_id=${encodeURIComponent(store.id)}`
+      );
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '載入季度獎金總額失敗');
+      }
+      setQuarterBonusSummary(json);
+    } catch (error: any) {
+      alert(`❌ 載入失敗: ${error.message || '未知錯誤'}`);
+      setShowQuarterBonusSummaryModal(false);
+      setQuarterBonusSummary(null);
+    } finally {
+      setLoadingQuarterBonusSummary(false);
+    }
+  };
+
   const handleDeleteManual = async (staffId: string, staffName: string, isManuallyAdded: boolean) => {
     const message = isManuallyAdded 
       ? `確定要刪除手動新增的員工 "${staffName}"？此操作無法復原。`
@@ -1268,6 +1292,12 @@ function StoreStatusDetail({
   const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
     flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
   );
+  const quarterSummaryColumns = bonusDetailColumns.filter(col =>
+    Number(quarterBonusSummary?.totals?.[col.key]) !== 0
+  );
+  const currentMonth = Number(yearMonth.split('-')[1] || '0');
+  const quarterNumber = currentMonth >= 1 && currentMonth <= 12 ? Math.ceil(currentMonth / 3) : 0;
+  const isQuarterEndMonth = [3, 6, 9, 12].includes(currentMonth);
 
   // 尚未初始化
   if (staffList.length === 0) {
@@ -1527,12 +1557,22 @@ function StoreStatusDetail({
                 <h3 className="text-lg font-bold text-gray-900">每月人員各式獎金明細</h3>
                 <p className="text-sm text-gray-500">{store.store_code} {store.store_name} · {yearMonth}</p>
               </div>
-              <button
-                onClick={() => setShowMonthlyBonusDetailModal(false)}
-                className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                {isQuarterEndMonth && (
+                  <button
+                    onClick={handleOpenQuarterBonusSummary}
+                    className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                  >
+                    查看 Q{quarterNumber} 各式獎金總額
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowMonthlyBonusDetailModal(false)}
+                  className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="p-4">
@@ -1605,6 +1645,66 @@ function StoreStatusDetail({
                     </tbody>
                   </table>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQuarterBonusSummaryModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white w-full max-w-5xl rounded-xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Q{quarterNumber} 各式獎金總額</h3>
+                <p className="text-sm text-gray-500">{store.store_code} {store.store_name} · {quarterBonusSummary?.quarter_label || `${yearMonth.split('-')[0]}-Q${quarterNumber}`}</p>
+              </div>
+              <button
+                onClick={() => setShowQuarterBonusSummaryModal(false)}
+                className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-4">
+              {loadingQuarterBonusSummary ? (
+                <div className="py-10 text-center text-gray-500">
+                  <RefreshCw size={18} className="animate-spin inline-block mr-2" />
+                  載入季度總額中...
+                </div>
+              ) : !quarterBonusSummary ? (
+                <div className="py-10 text-center text-gray-500">查無季度獎金資料</div>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 mb-3">
+                    統計月份：{(quarterBonusSummary.months || []).join('、')}
+                  </p>
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full table-auto text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {quarterSummaryColumns.map(col => (
+                            <th key={col.key} className="px-2 py-2 text-right whitespace-nowrap">{col.label}</th>
+                          ))}
+                          <th className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          {quarterSummaryColumns.map(col => (
+                            <td key={col.key} className="px-2 py-2 text-right whitespace-nowrap">
+                              {(Number(quarterBonusSummary.totals?.[col.key]) || 0).toLocaleString('zh-TW')}
+                            </td>
+                          ))}
+                          <td className="px-2 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">
+                            {(Number(quarterBonusSummary.grand_total) || 0).toLocaleString('zh-TW')}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
