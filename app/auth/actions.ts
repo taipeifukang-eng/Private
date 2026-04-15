@@ -179,10 +179,14 @@ export async function updateUserProfile(userId: string, updates: {
       })
       .eq('id', userId)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       return { success: false, error: error.message };
+    }
+
+    if (!data) {
+      return { success: false, error: '找不到可更新的使用者資料（可能無權限或資料不存在）' };
     }
 
     revalidatePath('/admin/users');
