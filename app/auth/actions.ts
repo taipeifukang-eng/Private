@@ -163,15 +163,17 @@ export async function updateUserProfile(userId: string, updates: {
   employee_code?: string;
 }) {
   try {
-    const supabase = createClient();
-
     // Check if current user is admin
     const currentUser = await getCurrentUser();
     if (!currentUser.success || currentUser.user?.profile?.role !== 'admin') {
       return { success: false, error: '權限不足' };
     }
 
-    const { data, error } = await supabase
+    // 使用 admin client 繞過 RLS，避免管理員更新其他帳號時被 policy 擋下
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const adminSupabase = createAdminClient();
+
+    const { data, error } = await adminSupabase
       .from('profiles')
       .update({
         ...updates,
