@@ -25,6 +25,12 @@ export async function GET(request: NextRequest) {
         monthly_customer_count_target, last_month_rx_target,
         monthly_gross_profit_actual, monthly_revenue_actual,
         monthly_customer_count_actual, last_month_rx_actual,
+        system_monthly_revenue, self_pay_monthly_revenue,
+        monthly_true_gross_profit, system_monthly_gross_profit,
+        monthly_long_term_care_gross_profit,
+        monthly_rx_addon_makeup_gross_profit,
+        monthly_theft_compensation_makeup_gross_profit,
+        monthly_kamedis_deduction_gross_profit,
         stores!inner(store_code, store_name)
       `)
       .order('month', { ascending: true });
@@ -59,6 +65,12 @@ export async function POST(request: NextRequest) {
       monthly_customer_count_target, last_month_rx_target,
       monthly_gross_profit_actual, monthly_revenue_actual,
       monthly_customer_count_actual, last_month_rx_actual,
+      system_monthly_revenue, self_pay_monthly_revenue,
+      monthly_true_gross_profit, system_monthly_gross_profit,
+      monthly_long_term_care_gross_profit,
+      monthly_rx_addon_makeup_gross_profit,
+      monthly_theft_compensation_makeup_gross_profit,
+      monthly_kamedis_deduction_gross_profit,
     } = body;
 
     if (!store_id || !year || !month || !business_days) {
@@ -77,6 +89,14 @@ export async function POST(request: NextRequest) {
         monthly_revenue_actual,
         monthly_customer_count_actual,
         last_month_rx_actual,
+        system_monthly_revenue,
+        self_pay_monthly_revenue,
+        monthly_true_gross_profit,
+        system_monthly_gross_profit,
+        monthly_long_term_care_gross_profit,
+        monthly_rx_addon_makeup_gross_profit,
+        monthly_theft_compensation_makeup_gross_profit,
+        monthly_kamedis_deduction_gross_profit,
         created_by: user.id,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'store_id,year,month' })

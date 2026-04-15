@@ -42,6 +42,14 @@ interface PerformanceRecord {
   monthly_revenue_actual: number | null;
   monthly_customer_count_actual: number | null;
   last_month_rx_actual: number | null;
+  system_monthly_revenue: number | null;
+  self_pay_monthly_revenue: number | null;
+  monthly_true_gross_profit: number | null;
+  system_monthly_gross_profit: number | null;
+  monthly_long_term_care_gross_profit: number | null;
+  monthly_rx_addon_makeup_gross_profit: number | null;
+  monthly_theft_compensation_makeup_gross_profit: number | null;
+  monthly_kamedis_deduction_gross_profit: number | null;
 }
 
 type EditRow = PerformanceRecord & { _edited: boolean };
@@ -56,6 +64,12 @@ function emptyRecord(storeId: string, year: number, month: number): EditRow {
     monthly_customer_count_target: null, last_month_rx_target: null,
     monthly_gross_profit_actual: null, monthly_revenue_actual: null,
     monthly_customer_count_actual: null, last_month_rx_actual: null,
+    system_monthly_revenue: null, self_pay_monthly_revenue: null,
+    monthly_true_gross_profit: null, system_monthly_gross_profit: null,
+    monthly_long_term_care_gross_profit: null,
+    monthly_rx_addon_makeup_gross_profit: null,
+    monthly_theft_compensation_makeup_gross_profit: null,
+    monthly_kamedis_deduction_gross_profit: null,
     _edited: false,
   };
 }
@@ -231,7 +245,12 @@ export default function PerformancePage() {
       fd.append('year', String(selectedYear));
       const res = await fetch('/api/performance-data/import', { method: 'POST', body: fd });
       const json = await res.json();
-      if (!json.success) throw new Error(json.error);
+      if (!json.success) {
+        const details = Array.isArray(json.errors) && json.errors.length > 0
+          ? `\n${json.errors.slice(0, 5).join('\n')}${json.errors.length > 5 ? `\n...另有 ${json.errors.length - 5} 筆` : ''}`
+          : '';
+        throw new Error(`${json.error || '匯入失敗'}${details}`);
+      }
       showMsg('success', `匯入完成：成功 ${json.imported} 筆，略過 ${json.skipped} 筆${json.errors?.length ? '；有警告請見主控台' : ''}`);
       if (json.errors?.length) console.warn('[Import]', json.errors);
       await loadData();
@@ -602,8 +621,8 @@ export default function PerformancePage() {
                   <th className="px-3 py-2 text-center whitespace-nowrap">營業額實際</th>
                   <th className="px-3 py-2 text-center whitespace-nowrap">來客數目標</th>
                   <th className="px-3 py-2 text-center whitespace-nowrap">來客數實際</th>
-                  <th className="px-3 py-2 text-center whitespace-nowrap">處方箋目標</th>
-                  <th className="px-3 py-2 text-center whitespace-nowrap">處方箋實際</th>
+                  <th className="px-3 py-2 text-center whitespace-nowrap">慢箋總張數目標</th>
+                  <th className="px-3 py-2 text-center whitespace-nowrap">慢箋總張數實際</th>
                   <th className="px-3 py-2 text-center bg-green-50 whitespace-nowrap">達成門檻</th>
                   <th className="px-3 py-2 text-center bg-green-50 whitespace-nowrap">獎金</th>
                   <th className="px-3 py-2 text-center whitespace-nowrap">操作</th>
@@ -745,12 +764,16 @@ export default function PerformancePage() {
               第一列為標題列。<br />
               <span className="font-medium">選填欄位（可跨門市/跨年份匯入）：</span>
               <code className="bg-blue-100 px-1 rounded mx-1">門市代號</code>
+              <code className="bg-blue-100 px-1 rounded mx-1">年月份</code>
               <code className="bg-blue-100 px-1 rounded mx-1">年份</code>
-              — 省略時使用頁面所選門市與年份。<br />
-              <span className="font-medium">必填欄位：</span>
               <code className="bg-blue-100 px-1 rounded mx-1">月份</code>
-              <code className="bg-blue-100 px-1 rounded mx-1">營業天數</code>；
-              其餘欄位：月毛利目標、月營業額目標、月來客數目標、上個月處方箋目標、月毛利實際、月營業額實際、月來客數實際、上個月處方箋實際
+              — 年月份可直接填入例如 2026-03，若省略則可改用年份 + 月份；門市代號與年份省略時使用頁面所選門市與年份。<br />
+              <span className="font-medium">主要匯入欄位：</span>
+              營業天數、月營業額目標、月營業額實際、系統月營業額、自費月藥營業額、月毛利額目標、月實際毛利額、月真實毛利額、系統月毛利額、月長照毛利額、處方加購回補月毛利額、小偷賠償回補月毛利、Kamedis業績扣月毛利額、月來客數目標、月實際來客數、上個月慢箋總張數目標、上個月慢箋總張數實際。<br />
+              <span className="font-medium">其他說明：</span>
+              <code className="bg-blue-100 px-1 rounded mx-1">月份</code>
+              <code className="bg-blue-100 px-1 rounded mx-1">營業天數</code>
+              未提供時會優先沿用該年月既有資料；若該年月尚無既有資料，該列會略過並在匯入訊息顯示錯誤原因。
             </div>
           </div>
         </div>

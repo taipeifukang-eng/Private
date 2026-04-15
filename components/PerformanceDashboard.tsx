@@ -26,6 +26,14 @@ interface PerformanceRecord {
   monthly_revenue_actual: number | null;
   monthly_customer_count_actual: number | null;
   last_month_rx_actual: number | null;
+  system_monthly_revenue?: number | null;
+  self_pay_monthly_revenue?: number | null;
+  monthly_true_gross_profit?: number | null;
+  system_monthly_gross_profit?: number | null;
+  monthly_long_term_care_gross_profit?: number | null;
+  monthly_rx_addon_makeup_gross_profit?: number | null;
+  monthly_theft_compensation_makeup_gross_profit?: number | null;
+  monthly_kamedis_deduction_gross_profit?: number | null;
   stores?: { store_code: string; store_name: string };
 }
 
