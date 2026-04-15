@@ -240,12 +240,6 @@ export default function PerformancePage() {
       showMsg('error', '請先選擇要匯入的 Excel 檔案');
       return;
     }
-    if (!selectedStoreId) {
-      showMsg('error', '請先選擇門市再匯入');
-      console.warn('[Performance Import] blocked: selectedStoreId is empty');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      return;
-    }
 
     console.info('[Performance Import] start', {
       fileName: file.name,
@@ -258,8 +252,15 @@ export default function PerformancePage() {
     try {
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('store_id', selectedStoreId);
+      if (selectedStoreId) {
+        fd.append('store_id', selectedStoreId);
+      }
       fd.append('year', String(selectedYear));
+
+      if (!selectedStoreId) {
+        showMsg('success', '未選擇門市：將依 Excel 的「門市代號」欄位匯入');
+      }
+
       const res = await fetch('/api/performance-data/import', { method: 'POST', body: fd });
       const json = await res.json();
       console.info('[Performance Import] response', { status: res.status, ok: res.ok, json });
@@ -473,15 +474,14 @@ export default function PerformancePage() {
             <label
               htmlFor="import-file"
               onClick={(event) => {
-                if (!selectedStoreId || importLoading) {
+                if (importLoading) {
                   event.preventDefault();
-                  if (!selectedStoreId) {
-                    showMsg('error', '請先選擇門市再匯入');
-                  }
+                } else if (!selectedStoreId) {
+                  showMsg('success', '未選擇門市：請確認 Excel 含「門市代號」欄位');
                 }
               }}
               className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer
-                ${importLoading || !selectedStoreId
+                ${importLoading
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
