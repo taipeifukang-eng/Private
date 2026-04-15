@@ -314,6 +314,36 @@ export interface MonthlyStoreSummary {
   store?: Store;
 }
 
+// 每月獎金匯入記錄
+export interface MonthlyBonusRecord {
+  id: string;
+  store_id: string;
+  year_month: string;
+  employee_code: string;
+  employee_name: string | null;
+
+  // 各式獎金欄位
+  group_bonus: number;                // 團體獎金
+  hr_subsidy_bonus: number;           // 人力補貼團體獎金
+  single_item_bonus: number;          // 單品獎金
+  inventory_diff_penalty: number;     // 盤點盤差承擔金額
+  talent_bonus: number;               // 育才獎金
+  transport_fee: number;              // 交通費
+  inventory_bonus: number;            // 盤點獎金
+  rx_incentive_bonus: number;         // 處方激勵獎金
+  quarterly_makeup_bonus: number;     // 季回補獎金
+  meal_allowance: number;             // 誤餐費
+  spring_festival_bonus: number;      // 春節出勤獎金
+  pharmacist_guarantee: number;       // 藥師保證金
+  owner_rx_makeup: number;            // 負責人處方回補獎金
+  sales_competition_bonus: number;    // 銷售競賽獎金
+  owner_signing_bonus: number;        // 負責人簽約金
+  long_term_care_bonus: number;       // 長照獎金
+
+  created_at: string;
+  updated_at: string;
+}
+
 // 獎金區塊說明
 export const BONUS_BLOCK_DESCRIPTIONS: Record<number, string> = {
   0: '未分類',
