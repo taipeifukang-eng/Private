@@ -42,6 +42,46 @@ type AnnualFeeRow = {
   created_at: string;
 };
 
+type PersonalMonthlyBonusSummary = {
+  year_month: string;
+  group_bonus: number;
+  hr_subsidy_bonus: number;
+  single_item_bonus: number;
+  inventory_diff_penalty: number;
+  talent_bonus: number;
+  transport_fee: number;
+  inventory_bonus: number;
+  rx_incentive_bonus: number;
+  quarterly_makeup_bonus: number;
+  meal_allowance: number;
+  spring_festival_bonus: number;
+  pharmacist_guarantee: number;
+  owner_rx_makeup: number;
+  sales_competition_bonus: number;
+  owner_signing_bonus: number;
+  long_term_care_bonus: number;
+  total: number;
+};
+
+const PERSONAL_BONUS_FIELDS: Array<{ key: keyof PersonalMonthlyBonusSummary; label: string }> = [
+  { key: 'group_bonus', label: '月團體獎金' },
+  { key: 'hr_subsidy_bonus', label: '人時補助獎金' },
+  { key: 'single_item_bonus', label: '上月單品獎金' },
+  { key: 'inventory_diff_penalty', label: '盤差獎罰' },
+  { key: 'talent_bonus', label: '育才獎金' },
+  { key: 'transport_fee', label: '交通費用' },
+  { key: 'inventory_bonus', label: '庫存獎金' },
+  { key: 'rx_incentive_bonus', label: '處方箋獎勵' },
+  { key: 'quarterly_makeup_bonus', label: '季度補差額' },
+  { key: 'meal_allowance', label: '誤餐費' },
+  { key: 'spring_festival_bonus', label: '春節出勤獎金' },
+  { key: 'pharmacist_guarantee', label: '藥師底薪保障補貼' },
+  { key: 'owner_rx_makeup', label: '店東處方箋補差額' },
+  { key: 'sales_competition_bonus', label: '銷售競賽獎金' },
+  { key: 'owner_signing_bonus', label: '店東簽約獎金' },
+  { key: 'long_term_care_bonus', label: '長照獎金' },
+];
+
 function parseDateTs(dateStr: string | null | undefined): number | null {
   if (!dateStr) return null;
   const t = new Date(`${dateStr}T00:00:00`).getTime();
@@ -70,6 +110,10 @@ function parseYearMonthStartTs(yearMonth: string | null | undefined): number | n
   if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) return null;
   const t = new Date(`${yearMonth}-01T00:00:00`).getTime();
   return Number.isNaN(t) ? null : t;
+}
+
+function formatAmount(value: number): string {
+  return Number(value || 0).toLocaleString('zh-TW');
 }
 
 export default async function HomePage() {
@@ -143,6 +187,7 @@ export default async function HomePage() {
   const currentMonthEndTs = currentMonthEnd.getTime();
   const jobTitle = user.profile?.job_title || '';
   const role = user.profile?.role || '';
+  const employeeCode = String(user.profile?.employee_code || '').toUpperCase();
   const isSupervisor = jobTitle.includes('督導');
   const isStoreManager = ['店長', '代理店長'].includes(jobTitle) && !isSupervisor;
   const isManagerOrAdmin = role === 'admin' || (role === 'manager' && !isSupervisor && !isStoreManager);
@@ -158,7 +203,74 @@ export default async function HomePage() {
     isManagerOrAdmin ||
     isSupervisor ||
     isBusinessAdminSupervisor;
+  const canViewOwnBonusOnHome = await hasPermission(user.id, 'home.bonus_detail.view_own');
   let managedStoreOnboardings: ManagedStoreOnboardingRow[] = [];
+  let ownMonthlyBonusSummaries: PersonalMonthlyBonusSummary[] = [];
+
+  if (canViewOwnBonusOnHome && employeeCode) {
+    const { data: bonusRows } = await adminSupabase
+      .from('monthly_bonus_records')
+      .select(`
+        year_month,
+        group_bonus,
+        hr_subsidy_bonus,
+        single_item_bonus,
+        inventory_diff_penalty,
+        talent_bonus,
+        transport_fee,
+        inventory_bonus,
+        rx_incentive_bonus,
+        quarterly_makeup_bonus,
+        meal_allowance,
+        spring_festival_bonus,
+        pharmacist_guarantee,
+        owner_rx_makeup,
+        sales_competition_bonus,
+        owner_signing_bonus,
+        long_term_care_bonus
+      `)
+      .eq('employee_code', employeeCode)
+      .order('year_month', { ascending: false })
+      .limit(120);
+
+    const monthMap = new Map<string, PersonalMonthlyBonusSummary>();
+    (bonusRows || []).forEach((row: any) => {
+      const ym = String(row.year_month || '');
+      if (!ym) return;
+
+      const current = monthMap.get(ym) || {
+        year_month: ym,
+        group_bonus: 0,
+        hr_subsidy_bonus: 0,
+        single_item_bonus: 0,
+        inventory_diff_penalty: 0,
+        talent_bonus: 0,
+        transport_fee: 0,
+        inventory_bonus: 0,
+        rx_incentive_bonus: 0,
+        quarterly_makeup_bonus: 0,
+        meal_allowance: 0,
+        spring_festival_bonus: 0,
+        pharmacist_guarantee: 0,
+        owner_rx_makeup: 0,
+        sales_competition_bonus: 0,
+        owner_signing_bonus: 0,
+        long_term_care_bonus: 0,
+        total: 0,
+      };
+
+      PERSONAL_BONUS_FIELDS.forEach((field) => {
+        current[field.key] += Number(row[field.key]) || 0;
+      });
+
+      current.total = PERSONAL_BONUS_FIELDS.reduce((sum, field) => sum + (current[field.key] || 0), 0);
+      monthMap.set(ym, current);
+    });
+
+    ownMonthlyBonusSummaries = Array.from(monthMap.values())
+      .sort((a, b) => b.year_month.localeCompare(a.year_month))
+      .slice(0, 12);
+  }
 
   const { data: managedStoreRows } = await adminSupabase
     .from('store_managers')
@@ -758,6 +870,58 @@ export default async function HomePage() {
             <ArrowRight className="h-5 w-5 flex-shrink-0 text-amber-600 transition-transform group-hover:translate-x-1 sm:h-6 sm:w-6" />
           </Link>
         </div>
+
+        {canViewOwnBonusOnHome && (
+          <div className="mb-4 sm:mb-5">
+            <div className="rounded-2xl border border-violet-200 bg-white p-4 shadow-sm sm:p-5">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-100 text-violet-700">
+                    <FileText className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold tracking-wide text-gray-900 sm:text-lg">我的每月獎金明細</h2>
+                    <p className="text-xs text-gray-500">員編：{employeeCode}</p>
+                  </div>
+                </div>
+                <Link
+                  href="/monthly-status"
+                  className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
+                >
+                  前往月狀態
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+
+              {ownMonthlyBonusSummaries.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-violet-200 bg-violet-50/50 px-3 py-4 text-center text-sm text-gray-500">
+                  目前查無你的每月獎金資料
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {ownMonthlyBonusSummaries.map((row) => (
+                    <details key={row.year_month} className="overflow-hidden rounded-xl border border-violet-100 bg-violet-50/40">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+                        <span className="text-sm font-semibold text-violet-800">{row.year_month.replace('-', '/')}</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-violet-700 shadow-sm">
+                          合計 {formatAmount(row.total)}
+                        </span>
+                      </summary>
+                      <div className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-violet-100 bg-white px-3 py-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
+                        {PERSONAL_BONUS_FIELDS.map((field) => (
+                          <div key={`${row.year_month}-${field.key}`} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5">
+                            <span className="text-gray-600">{field.label}</span>
+                            <span className="font-semibold text-gray-900">{formatAmount(row[field.key] as number)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {managedStoreOnboardings.length > 0 && (
           <div className="mb-4 sm:mb-5">

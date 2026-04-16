@@ -490,6 +490,19 @@ export default async function PharmacistManagementPage({
   const previousRows = previousRowsRaw || [];
   let currentRows = currentRowsBase;
 
+  if (isSelectedMonthLocked) {
+    const selectedMonthMm = selectedYearMonth.slice(5, 7);
+    const selectedMonthResignationRegex = new RegExp(`(^|\\D)${selectedMonthMm}\\/\\d{2}\\s+resignation`, 'i');
+
+    // 關帳月份也要與未關帳顯示邏輯一致：
+    // 只顯示在職者，或「當月離職」者；避免把前月已離職人員帶進來。
+    currentRows = currentRowsBase.filter((row: any) => {
+      if (row.is_active !== false) return true;
+      const noteText = String(row.notes || '');
+      return selectedMonthResignationRegex.test(noteText);
+    });
+  }
+
   // 已關帳月份：不做異動補丁、不做離職補抓，完全以快照為準
   const resignationByEmpCode = new Map<string, any>();
   const monthlyMovementByEmpCode = new Map<string, { movement_type: string; movement_date: string }>();
@@ -798,9 +811,13 @@ export default async function PharmacistManagementPage({
     } else if (!prev) {
       // 關帳月份若缺少前月快照，不應把全員誤判為新增任職
       if (isSelectedMonthLocked) {
+        const lockedOnboardingMatch = noteText.match(new RegExp(`(${selectedMonthMm}\/\\d{2})\\s+(onboarding|return_to_work)`, 'i'));
         if (row.is_active === false && noteLower.includes('resignation')) {
           changeType = '離職';
           changeNote = '離職';
+        } else if (lockedOnboardingMatch) {
+          changeType = '新增任職';
+          changeNote = `${lockedOnboardingMatch[1].replace(/^0/, '')}入職`;
         } else {
           changeType = '無變更';
           changeNote = '';
@@ -843,6 +860,21 @@ export default async function PharmacistManagementPage({
         const d = movement.movement_date ? new Date(movement.movement_date) : null;
         const mmdd = d ? `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}` : '';
         changeNote = mmdd ? `${mmdd} 留職停薪` : '留職停薪';
+      } else if (isSelectedMonthLocked) {
+        const lockedTransferMatch = noteText.match(new RegExp(`(${selectedMonthMm}\/\\d{2})\\s+transfer`, 'i'));
+        const lockedPromotionMatch = noteText.match(new RegExp(`(${selectedMonthMm}\/\\d{2})\\s+promotion`, 'i'));
+        const lockedLeaveMatch = noteText.match(new RegExp(`(${selectedMonthMm}\/\\d{2})\\s+leave_of_absence`, 'i'));
+
+        if (lockedTransferMatch) {
+          changeType = '門市異動';
+          changeNote = `${lockedTransferMatch[1]} 調店（次月生效）`;
+        } else if (lockedPromotionMatch) {
+          changeType = '職級異動';
+          changeNote = `${lockedPromotionMatch[1]} 升遷（次月生效）`;
+        } else if (lockedLeaveMatch) {
+          changeType = '留職停薪';
+          changeNote = `${lockedLeaveMatch[1]} 留職停薪`;
+        }
       }
     }
 
