@@ -63,7 +63,7 @@ type PersonalMonthlyBonusSummary = {
   total: number;
 };
 
-const PERSONAL_BONUS_FIELDS: Array<{ key: keyof PersonalMonthlyBonusSummary; label: string }> = [
+const PERSONAL_BONUS_FIELDS: Array<{ key: Exclude<keyof PersonalMonthlyBonusSummary, 'year_month' | 'total'>; label: string }> = [
   { key: 'group_bonus', label: '月團體獎金' },
   { key: 'hr_subsidy_bonus', label: '人時補助獎金' },
   { key: 'single_item_bonus', label: '上月單品獎金' },
