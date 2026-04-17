@@ -45,12 +45,24 @@ const getDateInTaipei = (offsetDays = 0) => {
 };
 
 const getResponseGraceLowerBound = () => getDateInTaipei(-15);
+const getResponseReminderLowerBound = () => getDateInTaipei(-30);
 
 const isResponseActive = (response: StockoutResponse | null | undefined) => {
   if (!response) return false;
   if (!response.eta_date) return true;
   // 預計到貨日在「今天往前15天」內，仍視為有效回覆
   return response.eta_date >= getResponseGraceLowerBound();
+};
+
+const shouldShowResponseReminder = (response: StockoutResponse | null | undefined) => {
+  if (!response) return false;
+  if (!response.eta_date) return true;
+  // 超過 ETA 30 天則不再顯示任何提醒，視同新回報
+  return response.eta_date >= getResponseReminderLowerBound();
+};
+
+const normalizeResponseForReminder = (response: StockoutResponse | null | undefined) => {
+  return shouldShowResponseReminder(response) ? (response ?? null) : null;
 };
 
 // 依商品編號聚合後的結構（商品部視角）
@@ -129,7 +141,7 @@ function AddReportModal({
         setSuggestions(masterData.data ?? []);
         setShowSuggestions((masterData.data ?? []).length > 0);
 
-        const foundResponse = (responseData.data ?? [])[0] ?? null;
+        const foundResponse = normalizeResponseForReminder((responseData.data ?? [])[0] ?? null);
         setExistingResponse(foundResponse);
       } catch {
         if (searchSeqRef.current !== seq) return;
@@ -143,7 +155,7 @@ function AddReportModal({
   const fetchResponseByCode = async (code: string) => {
     const responseRes = await fetch(`/api/stockout-responses?product_codes=${encodeURIComponent(code)}`);
     const responseData = await responseRes.json();
-    return (responseData.data ?? [])[0] ?? null;
+    return normalizeResponseForReminder((responseData.data ?? [])[0] ?? null);
   };
 
   const fetchProductSuggestionsByCode = async (code: string): Promise<ProductSuggestion[]> => {
