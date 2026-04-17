@@ -216,6 +216,23 @@ export async function DELETE(request: NextRequest) {
       'cross_dept.stockout.respond',
     ]);
 
+    // 先取出將刪除的紀錄，後續可判斷是否要同步清除商品部回覆
+    let targetQuery = supabase
+      .from('stockout_reports')
+      .select('id, product_code')
+      .eq('id', id)
+      .limit(1);
+    if (!canManage) {
+      targetQuery = targetQuery.eq('reported_by', user.id);
+    }
+
+    const { data: targetRows, error: targetError } = await targetQuery;
+    if (targetError) throw targetError;
+    const target = (targetRows && targetRows[0]) || null;
+    if (!target) {
+      return NextResponse.json({ success: false, error: '找不到可刪除的缺貨回報' }, { status: 404 });
+    }
+
     let query = supabase.from('stockout_reports').delete().eq('id', id);
     if (!canManage) {
       // 一般提交者只能刪自己的
@@ -224,7 +241,25 @@ export async function DELETE(request: NextRequest) {
 
     const { error } = await query;
     if (error) throw error;
-    return NextResponse.json({ success: true });
+
+    // 若此商品已無任何缺貨回報，清除當前回覆快取，避免 UI 顯示殘留提醒
+    const { count: remainingCount, error: countError } = await supabase
+      .from('stockout_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('product_code', target.product_code);
+    if (countError) throw countError;
+
+    let clearedResponse = false;
+    if ((remainingCount || 0) === 0) {
+      const { error: clearError } = await supabase
+        .from('stockout_product_responses')
+        .delete()
+        .eq('product_code', target.product_code);
+      if (clearError) throw clearError;
+      clearedResponse = true;
+    }
+
+    return NextResponse.json({ success: true, clearedResponse });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
