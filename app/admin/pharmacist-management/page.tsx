@@ -60,15 +60,23 @@ export default async function PharmacistManagementPage({
     redirect('/login');
   }
 
-  const [canViewModule, canEditModule, canViewAllMonthly, canViewOwnMonthly] = await Promise.all([
+  const [canViewModule, canEditModule, canViewMasterTab, canEditMasterTab, canViewAllMonthly, canViewOwnMonthly] = await Promise.all([
     hasPermission(user.id, 'pharmacist.management.view'),
     hasPermission(user.id, 'pharmacist.management.edit'),
+    hasPermission(user.id, 'pharmacist.management.master.view'),
+    hasPermission(user.id, 'pharmacist.management.master.edit'),
     hasPermission(user.id, 'monthly.status.view_all'),
     hasPermission(user.id, 'monthly.status.view_own'),
   ]);
 
   if (!canViewModule) {
     redirect('/dashboard');
+  }
+
+  // 任何人進來時預設轉到 overview 標籤，若無 master 權限但強制訪問 master 則重定向
+  const requestedTab = (searchParams?.tab === 'master') ? 'master' : 'overview';
+  if (requestedTab === 'master' && !canViewMasterTab) {
+    redirect('/admin/pharmacist-management?tab=overview');
   }
 
   const selectedYearMonth =
@@ -78,7 +86,7 @@ export default async function PharmacistManagementPage({
   const previousYearMonth = getPreviousYearMonth(selectedYearMonth);
   const selectedZone = (searchParams?.zone || 'all').trim();
   const isDebug = searchParams?.debug === '1';
-  const activeTab = (searchParams?.tab === 'master') ? 'master' : 'overview';
+  const activeTab = requestedTab;
 
   let storeIds: string[] = [];
 
@@ -1038,22 +1046,24 @@ export default async function PharmacistManagementPage({
           >
             督導區總覽
           </Link>
-          <Link
-            href="/admin/pharmacist-management?tab=master"
-            className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              activeTab === 'master'
-                ? 'bg-blue-600 text-white shadow'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            藥師主檔
-          </Link>
+          {canViewMasterTab && (
+            <Link
+              href="/admin/pharmacist-management?tab=master"
+              className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'master'
+                  ? 'bg-blue-600 text-white shadow'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              藥師主檔
+            </Link>
+          )}
         </div>
 
         {activeTab === 'master' ? (
           <PharmacistMasterList
             rows={masterRows}
-            canEdit={canEditModule}
+            canEdit={canEditMasterTab}
             initialYear={currentYear}
           />
         ) : (<>
