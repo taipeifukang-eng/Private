@@ -8,8 +8,8 @@
 -- 1. 新增子權限代碼
 INSERT INTO permissions (module, feature, code, action, description)
 VALUES
-  ('store', 'pharmacist_management', 'pharmacist.management.master.view', 'view', '藥師管理-主檔檢視：查看藥師基本資料與學位資訊'),
-  ('store', 'pharmacist_management', 'pharmacist.management.master.edit', 'edit', '藥師管理-主檔編輯：可編輯藥師基本資料')
+  ('store', 'pharmacist_master', 'pharmacist.management.master.view', 'view', '藥師管理-主檔檢視：查看藥師基本資料與學位資訊'),
+  ('store', 'pharmacist_master', 'pharmacist.management.master.edit', 'edit', '藥師管理-主檔編輯：可編輯藥師基本資料')
 ON CONFLICT (code) DO UPDATE SET
   module = EXCLUDED.module,
   feature = EXCLUDED.feature,
