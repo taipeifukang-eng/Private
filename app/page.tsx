@@ -269,6 +269,7 @@ export default async function HomePage() {
 
     ownMonthlyBonusSummaries = Array.from(monthMap.values())
       .sort((a, b) => b.year_month.localeCompare(a.year_month))
+      .filter((row) => PERSONAL_BONUS_FIELDS.some((field) => Number(row[field.key] || 0) !== 0))
       .slice(0, 12);
   }
 
@@ -908,7 +909,7 @@ export default async function HomePage() {
                         </span>
                       </summary>
                       <div className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-violet-100 bg-white px-3 py-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
-                        {PERSONAL_BONUS_FIELDS.map((field) => (
+                        {PERSONAL_BONUS_FIELDS.filter((field) => Number(row[field.key] || 0) !== 0).map((field) => (
                           <div key={`${row.year_month}-${field.key}`} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5">
                             <span className="text-gray-600">{field.label}</span>
                             <span className="font-semibold text-gray-900">{formatAmount(row[field.key] as number)}</span>
