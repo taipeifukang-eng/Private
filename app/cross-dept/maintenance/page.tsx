@@ -102,7 +102,6 @@ export default function MaintenancePage() {
   const [newRequestForm, setNewRequestForm] = useState({
     title: '',
     description: '',
-    priority: 'normal' as 'low' | 'normal' | 'high' | 'urgent',
   });
   const [newRequestPhotos, setNewRequestPhotos] = useState<Array<{ file: File; preview: string }>>([]);
   const addRequestPhotoInputRef = useRef<HTMLInputElement>(null);
@@ -289,7 +288,6 @@ export default function MaintenancePage() {
           store_id: selectedStoreId,
           title: newRequestForm.title,
           description: newRequestForm.description || null,
-          priority: newRequestForm.priority,
         }),
       });
 
@@ -312,7 +310,7 @@ export default function MaintenancePage() {
           }
         }
 
-        setNewRequestForm({ title: '', description: '', priority: 'normal' });
+        setNewRequestForm({ title: '', description: '' });
         setFilterStatus('all');
         setSearchInput('');
         setPage(1);
@@ -1140,27 +1138,6 @@ export default function MaintenancePage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                   rows={3}
                 />
-              </div>
-
-              <div>
-                <label className="text-sm font-medium text-gray-700 block mb-1">
-                  優先度
-                </label>
-                <select
-                  value={newRequestForm.priority}
-                  onChange={(e) =>
-                    setNewRequestForm({
-                      ...newRequestForm,
-                      priority: e.target.value as any,
-                    })
-                  }
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  <option value="low">低</option>
-                  <option value="normal">普通</option>
-                  <option value="high">高</option>
-                  <option value="urgent">緊急</option>
-                </select>
               </div>
 
               <div>

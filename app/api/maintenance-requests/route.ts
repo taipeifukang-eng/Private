@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { store_id, title, description, priority } = body;
+    const { store_id, title, description } = body;
 
     if (!store_id || !title) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
         description: description || null,
         reported_by: user.id,
         reporter_name: reporterName,
-        priority: priority || 'normal',
+        priority: 'normal',
         status: 'pending',
       })
       .select()
