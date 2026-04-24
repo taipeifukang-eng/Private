@@ -10,7 +10,6 @@ import { POSITION_OPTIONS } from '@/types/workflow';
 const MOVEMENT_TYPES = [
   { value: 'onboarding', label: '入職' },
   { value: 'promotion', label: '升職' },
-  { value: 'store_transfer', label: '調店' },
   { value: 'leave_without_pay', label: '留職停薪' },
   { value: 'return_to_work', label: '復職' },
   { value: 'pass_probation', label: '過試用期' },
