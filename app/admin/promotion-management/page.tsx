@@ -13,7 +13,8 @@ const MOVEMENT_TYPES = [
   { value: 'leave_without_pay', label: '留職停薪' },
   { value: 'return_to_work', label: '復職' },
   { value: 'pass_probation', label: '過試用期' },
-  { value: 'resignation', label: '離職' }
+  { value: 'resignation', label: '離職' },
+  { value: 'store_transfer', label: '調店' }
 ] as const;
 
 type MovementType = typeof MOVEMENT_TYPES[number]['value'];
