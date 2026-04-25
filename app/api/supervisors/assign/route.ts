@@ -20,7 +20,7 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: string[]) {
 
   const { data: rows, error } = await supabase
     .from('store_managers')
-    .select('id, store_id, is_primary, created_at')
+    .select('id, store_id, is_primary, created_at, profiles(job_title)')
     .eq('role_type', 'supervisor')
     .in('store_id', uniqueStoreIds);
 
@@ -28,8 +28,14 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: string[]) {
     throw new Error(`讀取督導主責資料失敗: ${error.message}`);
   }
 
+  // 只處理職稱含「督導」的人，排除經理等全門市管理者
+  const supervisorRows = (rows || []).filter((row: SupervisorAssignmentRow & { profiles: any }) => {
+    const jobTitle = Array.isArray(row.profiles) ? row.profiles[0]?.job_title : row.profiles?.job_title;
+    return jobTitle?.includes('督導');
+  });
+
   const grouped = new Map<string, SupervisorAssignmentRow[]>();
-  (rows || []).forEach((row: SupervisorAssignmentRow) => {
+  supervisorRows.forEach((row: SupervisorAssignmentRow) => {
     const list = grouped.get(row.store_id) || [];
     list.push(row);
     grouped.set(row.store_id, list);
@@ -127,7 +133,7 @@ export async function POST(request: Request) {
     if (roleType === 'supervisor' && toInsert.length > 0) {
       const { data: existingSupervisors, error: existingSupervisorsError } = await supabase
         .from('store_managers')
-        .select('store_id')
+        .select('store_id, profiles(job_title)')
         .eq('role_type', 'supervisor')
         .in('store_id', toInsert)
         .neq('user_id', userId);
@@ -139,7 +145,15 @@ export async function POST(request: Request) {
         }, { status: 500 });
       }
 
-      existingSupervisorStoreSet = new Set((existingSupervisors || []).map((r: any) => String(r.store_id)));
+      // 只計算職稱含「督導」的人，排除經理等全門市管理者
+      existingSupervisorStoreSet = new Set(
+        (existingSupervisors || [])
+          .filter((r: any) => {
+            const jobTitle = Array.isArray(r.profiles) ? r.profiles[0]?.job_title : r.profiles?.job_title;
+            return jobTitle?.includes('督導');
+          })
+          .map((r: any) => String(r.store_id))
+      );
     }
 
     // 執行刪除
@@ -205,19 +219,25 @@ export async function POST(request: Request) {
       console.log('[DEBUG assign] 代理 is_primary=false update 完成，正在查詢其他督導行...');
       const { data: otherRows } = await supabase
         .from('store_managers')
-        .select('id, store_id, is_primary, created_at')
+        .select('id, store_id, is_primary, created_at, profiles(job_title)')
         .eq('role_type', 'supervisor')
         .neq('user_id', userId)
         .in('store_id', proxyStoreIdsParsed);
 
       console.log('[DEBUG assign] otherRows (proxy 門市的其他督導):', JSON.stringify(otherRows));
       const otherByStore = new Map<string, any[]>();
-      (otherRows || []).forEach((row: any) => {
-        const sid = String(row.store_id);
-        const list = otherByStore.get(sid) || [];
-        list.push(row);
-        otherByStore.set(sid, list);
-      });
+      // 只計算職稱含「督導」的人，排除經理等全門市管理者
+      (otherRows || [])
+        .filter((row: any) => {
+          const jobTitle = Array.isArray(row.profiles) ? row.profiles[0]?.job_title : row.profiles?.job_title;
+          return jobTitle?.includes('督導');
+        })
+        .forEach((row: any) => {
+          const sid = String(row.store_id);
+          const list = otherByStore.get(sid) || [];
+          list.push(row);
+          otherByStore.set(sid, list);
+        });
 
       const otherEntries = Array.from(otherByStore.entries());
       for (let j = 0; j < otherEntries.length; j++) {
