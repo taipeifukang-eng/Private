@@ -595,13 +595,17 @@ export default function EmployeeMovementManagementPage() {
           const storeByCode = stores.find(s => s.store_code === rawStoreCode);
           const store_id = storeByCode ? storeByCode.id : rawStoreCode;
 
+          // 模糊查找生日欄位：只要 key 包含「生日」或「出生年月日」即命中（容忍全形斜線/空格差異）
+          const birthdayKey = Object.keys(row).find(k => k.includes('生日') || k.includes('出生年月日'));
+          const rawBirthday = birthdayKey ? row[birthdayKey] : (row['birthday'] ?? '');
+
           return {
             employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
             employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
             store_id,
             movement_type,
             onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
-            birthday: normalizeDate(row['生日/出生年月日'] ?? row['生日'] ?? row['出生年月日'] ?? row['birthday'] ?? ''),
+            birthday: normalizeDate(rawBirthday),
             position: (row['職位'] || row['position'] || '').toString(),
             effective_date: normalizeDate(row['生效日期'] ?? row['effective_date'] ?? ''),
             notes: (row['備註'] || row['notes'] || '').toString(),
