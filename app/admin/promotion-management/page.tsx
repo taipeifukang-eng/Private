@@ -550,9 +550,30 @@ export default function EmployeeMovementManagementPage() {
     reader.onload = (event) => {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
+        const workbook = XLSX.read(data, { type: 'array', cellDates: false });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json<any>(sheet);
+        const jsonData = XLSX.utils.sheet_to_json<any>(sheet, { raw: true });
+
+        // 日期正規化：支援 Excel 日期序號、YYYY/MM/DD、YYYY-MM-DD、MM/DD/YYYY 等格式 → YYYY-MM-DD
+        const normalizeDate = (raw: any): string => {
+          if (!raw && raw !== 0) return '';
+          // Excel 日期序號（數字）
+          if (typeof raw === 'number') {
+            const date = new Date(Math.round((raw - 25569) * 86400 * 1000));
+            const y = date.getUTCFullYear();
+            const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const d = String(date.getUTCDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+          }
+          const str = raw.toString().trim();
+          if (!str) return '';
+          // YYYY/MM/DD 或 YYYY-MM-DD
+          const isoMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+          if (isoMatch) {
+            return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+          }
+          return str;
+        };
 
         // 中文異動類型 → 英文 value 對照表
         const movementTypeLabelMap: Record<string, string> = {
@@ -580,9 +601,9 @@ export default function EmployeeMovementManagementPage() {
             store_id,
             movement_type,
             onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
-            birthday: (row['生日/出生年月日'] || row['生日'] || row['出生年月日'] || row['birthday'] || '').toString(),
+            birthday: normalizeDate(row['生日/出生年月日'] ?? row['生日'] ?? row['出生年月日'] ?? row['birthday'] ?? ''),
             position: (row['職位'] || row['position'] || '').toString(),
-            effective_date: row['生效日期'] || row['effective_date'] || '',
+            effective_date: normalizeDate(row['生效日期'] ?? row['effective_date'] ?? ''),
             notes: (row['備註'] || row['notes'] || '').toString(),
             from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
             to_store_id: (row['新任職門市ID'] || row['to_store_id'] || '').toString(),
