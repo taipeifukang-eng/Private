@@ -554,19 +554,40 @@ export default function EmployeeMovementManagementPage() {
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json<any>(sheet);
 
-        const imported = jsonData.map((row: any) => ({
-          employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
-          employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
-          store_id: (row['任職門市ID'] || row['store_id'] || '').toString(),
-          movement_type: (row['異動類型'] || row['movement_type'] || '') as MovementType | '',
-          onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
-          birthday: (row['生日'] || row['出生年月日'] || row['birthday'] || '').toString(),
-          position: (row['職位'] || row['position'] || '').toString(),
-          effective_date: row['生效日期'] || row['effective_date'] || '',
-          notes: (row['備註'] || row['notes'] || '').toString(),
-          from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
-          to_store_id: (row['新任職門市ID'] || row['to_store_id'] || '').toString()
-        }));
+        // 中文異動類型 → 英文 value 對照表
+        const movementTypeLabelMap: Record<string, string> = {
+          '入職': 'onboarding',
+          '升職': 'promotion',
+          '留職停薪': 'leave_without_pay',
+          '復職': 'return_to_work',
+          '過試用期': 'pass_probation',
+          '離職': 'resignation',
+        };
+
+        const imported = jsonData.map((row: any) => {
+          // 異動類型：支援中文標籤或英文 value
+          const rawMovementType = (row['異動類型'] || row['movement_type'] || '').toString().trim();
+          const movement_type = (movementTypeLabelMap[rawMovementType] || rawMovementType) as MovementType | '';
+
+          // 任職門市：支援門市代號（如 0058）或 UUID，優先用代號對應
+          const rawStoreCode = (row['任職門市ID'] || row['store_id'] || '').toString().trim();
+          const storeByCode = stores.find(s => s.store_code === rawStoreCode);
+          const store_id = storeByCode ? storeByCode.id : rawStoreCode;
+
+          return {
+            employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
+            employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
+            store_id,
+            movement_type,
+            onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
+            birthday: (row['生日/出生年月日'] || row['生日'] || row['出生年月日'] || row['birthday'] || '').toString(),
+            position: (row['職位'] || row['position'] || '').toString(),
+            effective_date: row['生效日期'] || row['effective_date'] || '',
+            notes: (row['備註'] || row['notes'] || '').toString(),
+            from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
+            to_store_id: (row['新任職門市ID'] || row['to_store_id'] || '').toString(),
+          };
+        });
 
         setMovements(imported);
         alert(`✅ 成功匯入 ${imported.length} 筆資料`);
