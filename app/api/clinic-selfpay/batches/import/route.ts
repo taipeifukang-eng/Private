@@ -11,6 +11,7 @@ import {
 } from '../../_lib';
 
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 
 function roundTo1(value: number) {
   return Math.round((Number(value || 0) + Number.EPSILON) * 10) / 10;

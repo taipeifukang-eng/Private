@@ -382,13 +382,50 @@ export default function ClinicSelfpayMarginPage() {
     }
 
     setBatchUploading(true);
-    setBatchMessage('');
+    setBatchMessage('壓縮截圖中...');
     try {
+      // 壓縮截圖：長寬限制 1920px、JPEG 0.85 品質，避免超出 Vercel 上傳限制
+      const compressImage = (file: File): Promise<File> =>
+        new Promise((resolve) => {
+          const MAX_SIDE = 1920;
+          const QUALITY = 0.85;
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const ratio = Math.min(1, MAX_SIDE / Math.max(img.width, img.height));
+              const w = Math.round(img.width * ratio);
+              const h = Math.round(img.height * ratio);
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d')!;
+              ctx.drawImage(img, 0, 0, w, h);
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob) { resolve(file); return; }
+                  const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+                  resolve(compressed);
+                },
+                'image/jpeg',
+                QUALITY
+              );
+            };
+            img.onerror = () => resolve(file);
+            img.src = e.target?.result as string;
+          };
+          reader.onerror = () => resolve(file);
+          reader.readAsDataURL(file);
+        });
+
+      const compressedScreenshots = await Promise.all(screenshotFiles.map(compressImage));
+      setBatchMessage('');
+
       const form = new FormData();
       form.append('file', claimFile);
       form.append('store_id', selectedStoreId);
       form.append('year_month', yearMonth);
-      screenshotFiles.forEach((f) => form.append('screenshots', f));
+      compressedScreenshots.forEach((f) => form.append('screenshots', f));
 
       const res = await fetch('/api/clinic-selfpay/batches/import', {
         method: 'POST',
