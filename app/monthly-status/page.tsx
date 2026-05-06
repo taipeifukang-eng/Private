@@ -1348,7 +1348,9 @@ function StoreStatusDetail({
   const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
     flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
   );
-  const quarterSummaryColumns = bonusDetailColumns;
+  const quarterSummaryColumns = bonusDetailColumns.filter(col =>
+    Number(quarterBonusSummary?.totals?.[col.key] ?? 0) !== 0
+  );
   const quarterSummaryEmployees = Array.isArray(quarterBonusSummary?.employees) ? quarterBonusSummary.employees : [];
   const currentMonth = Number(yearMonth.split('-')[1] || '0');
   const quarterNumber = currentMonth >= 1 && currentMonth <= 12 ? Math.ceil(currentMonth / 3) : 0;
