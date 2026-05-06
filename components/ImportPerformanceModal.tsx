@@ -2,6 +2,17 @@
 
 import { useState, useRef } from 'react';
 import { Upload, X } from 'lucide-react';
+import * as XLSX from 'xlsx';
+
+interface SkippedDetail {
+  employeeCode: string;
+  employeeName: string;
+  reason: string;
+  totalTransactionCount: number;
+  totalSalesAmount: number;
+  totalGrossProfit: number;
+  storeCodes: string;
+}
 
 interface ImportPerformanceModalProps {
   yearMonth: string;
@@ -19,6 +30,26 @@ export default function ImportPerformanceModal({
   const [file2, setFile2] = useState<File | null>(null);
   const fileInput1Ref = useRef<HTMLInputElement>(null);
   const fileInput2Ref = useRef<HTMLInputElement>(null);
+
+  const downloadSkippedDetailsXlsx = (skippedDetails: SkippedDetail[]) => {
+    if (!skippedDetails || skippedDetails.length === 0) return;
+
+    const rows = skippedDetails.map((item, index) => ({
+      '序號': index + 1,
+      '員工代號': item.employeeCode,
+      '員工姓名': item.employeeName || '',
+      '原因': item.reason,
+      '門市別': item.storeCodes || '',
+      '交易次數': item.totalTransactionCount,
+      '銷售金額': item.totalSalesAmount,
+      '毛利': item.totalGrossProfit
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(workbook, worksheet, '略過明細');
+    XLSX.writeFile(workbook, `略過資料明細_${yearMonth}.xlsx`);
+  };
 
   const handleFileChange1 = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -55,7 +86,14 @@ export default function ImportPerformanceModal({
       const result = await response.json();
 
       if (result.success) {
+        if (Array.isArray(result.skippedDetails) && result.skippedDetails.length > 0) {
+          downloadSkippedDetailsXlsx(result.skippedDetails);
+        }
+
         let message = `✅ 匯入成功！\n更新了 ${result.updated} 筆資料\n跳過 ${result.skipped} 筆資料`;
+        if (Array.isArray(result.skippedDetails) && result.skippedDetails.length > 0) {
+          message += `\n已匯出略過資料明細_${yearMonth}.xlsx`;
+        }
         if (result.errors && result.errors.length > 0) {
           message += `\n\n錯誤訊息：\n${result.errors.slice(0, 5).join('\n')}`;
           if (result.errors.length > 5) {

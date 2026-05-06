@@ -24,6 +24,16 @@ interface GrossProfitRow {
   '銷售毛利 合計': number;
 }
 
+interface SkippedEmployeeDetail {
+  employeeCode: string;
+  employeeName: string;
+  reason: string;
+  totalTransactionCount: number;
+  totalSalesAmount: number;
+  totalGrossProfit: number;
+  storeCodes: string;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -227,6 +237,7 @@ export async function POST(request: NextRequest) {
     let updatedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
+    const skippedDetails: SkippedEmployeeDetail[] = [];
 
     const allEmployeeCodes = Array.from(employeeMap.keys());
 
@@ -250,7 +261,22 @@ export async function POST(request: NextRequest) {
 
     // 統計跳過人數
     for (const code of allEmployeeCodes) {
-      if (!recordsByCode.has(code)) skippedCount++;
+      if (!recordsByCode.has(code)) {
+        skippedCount++;
+        const empData = employeeMap.get(code);
+        if (empData) {
+          const uniqueStoreCodes = Array.from(new Set(empData.storeDetails.map((detail) => detail.storeCode).filter(Boolean)));
+          skippedDetails.push({
+            employeeCode: code,
+            employeeName: empData.employeeName || '',
+            reason: `${yearMonth} 無對應人員狀態資料`,
+            totalTransactionCount: empData.totalTransactionCount,
+            totalSalesAmount: Math.round(empData.totalSalesAmount * 100) / 100,
+            totalGrossProfit: Math.round(empData.totalGrossProfit * 100) / 100,
+            storeCodes: uniqueStoreCodes.join(', ')
+          });
+        }
+      }
     }
 
     // 收集所有要更新的資料
@@ -353,6 +379,7 @@ export async function POST(request: NextRequest) {
       updated: updatedCount,
       skipped: skippedCount,
       total: data.length,
+      skippedDetails,
       errors: errors.length > 0 ? errors : undefined
     });
 
