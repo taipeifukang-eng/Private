@@ -12,6 +12,7 @@ interface MovementInput {
   onboarding_is_pharmacist?: boolean; // 入職時是否為藥師
   birthday?: string; // 入職時必填生日
   position?: string; // 僅升職時需要
+  newbie_level?: string; // 升職為新人時的新人等級（一階新人/二階新人）
   effective_date: string;
   notes?: string;
   from_store_id?: string; // 調店：原任職門市
@@ -268,6 +269,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 觸發器會自動處理相關更新
+
+    // 升職為「新人」且指定新人等級時，額外更新 monthly_staff_status.newbie_level
+    const promotionNewbieMovements = movements.filter(
+      m => m.movement_type === 'promotion' && m.position === '新人' && m.newbie_level
+    );
+    for (const movement of promotionNewbieMovements) {
+      const targetYearMonth = movement.effective_date.substring(0, 7);
+      await adminSupabase
+        .from('monthly_staff_status')
+        .update({ newbie_level: movement.newbie_level, updated_at: new Date().toISOString() })
+        .eq('employee_code', movement.employee_code.toUpperCase())
+        .gte('year_month', targetYearMonth);
+    }
 
     const skippedCount = movements.length - data.length;
     const message = skippedCount > 0 

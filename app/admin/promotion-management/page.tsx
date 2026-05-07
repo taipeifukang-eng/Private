@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar, ArrowRightLeft, CheckCircle, XCircle, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { POSITION_OPTIONS } from '@/types/workflow';
+import { POSITION_OPTIONS, NEWBIE_LEVEL_OPTIONS } from '@/types/workflow';
 
 // 異動類型定義
 const MOVEMENT_TYPES = [
@@ -27,6 +27,7 @@ interface MovementInput {
   onboarding_is_pharmacist: boolean; // 入職是否為藥師
   birthday: string; // 入職需填寫生日
   position: string; // 僅升職時需要
+  newbie_level: string; // 升職為新人時的新人等級（一階/二階）
   effective_date: string;
   notes: string;
   from_store_id: string; // 調店：原任職門市
@@ -100,7 +101,7 @@ export default function EmployeeMovementManagementPage() {
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [transferStatusFilter, setTransferStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('pending');
   const [movements, setMovements] = useState<MovementInput[]>([
-    { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
+    { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', newbie_level: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
   ]);
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<MovementHistory[]>([]);
@@ -408,7 +409,7 @@ export default function EmployeeMovementManagementPage() {
   };
 
   const addRow = () => {
-    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
+    setMovements([...movements, { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', newbie_level: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
   };
 
   const removeRow = (index: number) => {
@@ -451,6 +452,10 @@ export default function EmployeeMovementManagementPage() {
     // 調店選擇新任職門市時，自動帶入 store_id
     if (field === 'to_store_id' && updated[index].movement_type === 'store_transfer') {
       updated[index].store_id = typeof value === 'string' ? value : '';
+    }
+    // 升職結束新人時，清空新人等級
+    if (field === 'position' && value !== '新人') {
+      updated[index].newbie_level = '';
     }
     
     setMovements(updated);
@@ -528,7 +533,7 @@ export default function EmployeeMovementManagementPage() {
       if (result.success) {
         alert(`✅ 成功建立 ${result.created} 筆異動記錄！`);
         // 重置表單
-        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
+        setMovements([{ employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', newbie_level: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }]);
         // 重新載入歷史記錄
         loadMovementHistory();
       } else {
@@ -607,6 +612,7 @@ export default function EmployeeMovementManagementPage() {
             onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
             birthday: normalizeDate(rawBirthday),
             position: (row['職位'] || row['position'] || '').toString(),
+            newbie_level: (row['新人等級'] || row['newbie_level'] || '').toString(),
             effective_date: normalizeDate(row['生效日期'] ?? row['effective_date'] ?? ''),
             notes: (row['備註'] || row['notes'] || '').toString(),
             from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
@@ -639,6 +645,7 @@ export default function EmployeeMovementManagementPage() {
         '是否為藥師': m.movement_type === 'onboarding' ? (m.onboarding_is_pharmacist ? '是' : '否') : '',
         '生日': m.movement_type === 'onboarding' ? m.birthday : '',
         '職位': m.position,
+        '新人等級': (m.movement_type === 'promotion' && m.position === '新人') ? m.newbie_level : '',
         '原任職門市': m.movement_type === 'store_transfer' ? fromStoreName : '',
         '新任職門市': m.movement_type === 'store_transfer' ? toStoreName : '',
         '生效日期': m.effective_date,
@@ -883,16 +890,32 @@ export default function EmployeeMovementManagementPage() {
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       {movement.movement_type === 'promotion' ? (
-                        <select
-                          value={movement.position}
-                          onChange={(e) => updateRow(index, 'position', e.target.value)}
-                          className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
-                        >
-                          <option value="">請選擇職位</option>
-                          {POSITION_OPTIONS.map(pos => (
-                            <option key={pos} value={pos}>{pos}</option>
-                          ))}
-                        </select>
+                        <div className="space-y-1">
+                          <select
+                            value={movement.position}
+                            onChange={(e) => updateRow(index, 'position', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          >
+                            <option value="">請選擇職位</option>
+                            {POSITION_OPTIONS.map(pos => (
+                              <option key={pos} value={pos}>{pos}</option>
+                            ))}
+                          </select>
+                          {movement.position === '新人' && (
+                            <div>
+                              <label className="text-xs text-gray-500">新人等級</label>
+                              <select
+                                value={movement.newbie_level}
+                                onChange={(e) => updateRow(index, 'newbie_level', e.target.value)}
+                                className="w-full px-2 py-1 text-sm border border-gray-200 focus:ring-2 focus:ring-blue-500 rounded bg-blue-50"
+                              >
+                                <option value="">請選擇等級</option>
+                                <option value="一階新人">一階新人</option>
+                                <option value="二階新人">二階新人</option>
+                              </select>
+                            </div>
+                          )}
+                        </div>
                       ) : movement.movement_type === 'store_transfer' ? (
                         <div className="space-y-1">
                           <div>
