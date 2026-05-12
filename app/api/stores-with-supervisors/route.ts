@@ -30,7 +30,7 @@ export async function GET() {
     // 獲取所有門市管理者關聯（從經理/督導管理設定）
     const { data: storeManagers, error: managersError } = await adminSupabase
       .from('store_managers')
-      .select('store_id, user_id, role_type, user:profiles!store_managers_user_id_fkey(full_name, employee_code)');
+      .select('store_id, user_id, role_type, user:profiles!store_managers_user_id_fkey(full_name, employee_code, job_title)');
 
     if (managersError) {
       return NextResponse.json({ success: false, error: managersError.message }, { status: 500 });
@@ -41,7 +41,7 @@ export async function GET() {
     console.log('Total assignments:', storeManagers?.length || 0);
     
     // 先統計每個人管理的門市數量
-    const managerStoreCount = new Map<string, { count: number; name: string; code: string | null; hasRoleType: boolean }>();
+    const managerStoreCount = new Map<string, { count: number; name: string; code: string | null; hasRoleType: boolean; jobTitle: string | null }>();
     storeManagers?.forEach(m => {
       const user = Array.isArray(m.user) ? m.user[0] : m.user;
       const current = managerStoreCount.get(m.user_id);
@@ -49,7 +49,8 @@ export async function GET() {
         count: (current?.count || 0) + 1,
         name: user?.full_name || '未知',
         code: user?.employee_code || null,
-        hasRoleType: current?.hasRoleType || m.role_type === 'supervisor'
+        hasRoleType: current?.hasRoleType || m.role_type === 'supervisor',
+        jobTitle: user?.job_title || null
       });
     });
 
@@ -67,11 +68,18 @@ export async function GET() {
     console.log('Managers with role_type=supervisor:', supervisorsWithRoleType.length);
     
     if (supervisorsWithRoleType.length > 0) {
-      // 有 role_type 標記，但仍需排除區域經理（管理90%以上門市）
+      // 有 role_type 標記，但仍需排除：
+      // 1) 區域經理（管理90%以上門市）
+      // 2) 職稱為「經理」而非「督導」的人員
       supervisorsWithRoleType.forEach(([userId, info]) => {
-        console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores [role_type=supervisor]`);
+        console.log(`  ${info.name} (${info.code || 'N/A'}): ${info.count} stores [role_type=supervisor] job_title=${info.jobTitle}`);
+        const jobTitle = info.jobTitle || '';
+        const isSupervisorTitle = jobTitle.includes('督導');
+        const isManagerOnlyTitle = !isSupervisorTitle; // 純經理職稱，不含督導
         if (info.count >= maxThreshold) {
           console.log(`    ⚠️ 排除（區域經理，管理 ${info.count}/${totalStores} 門市，雖有 supervisor 標記）`);
+        } else if (isManagerOnlyTitle) {
+          console.log(`    ⚠️ 排除（職稱為「${jobTitle}」，非督導職稱）`);
         } else if (info.count >= minThreshold) {
           actualSupervisors.add(userId);
           console.log(`    ✓ 認定為督導`);

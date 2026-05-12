@@ -590,7 +590,9 @@ export default function SupervisorsManagementPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {stores.map((store) => {
                       const isAssigned = userStores.has(store.id);
-                      const isProxy = isAssigned && (proxyStores.get(selectedSupervisor.id)?.has(store.id) ?? false);
+                      // 經理職稱不顯示「代」badge，只有督導職稱才需要區分代理
+                      const isSupervisorTitle = selectedSupervisor.job_title?.includes('督導') ?? false;
+                      const isProxy = isAssigned && isSupervisorTitle && (proxyStores.get(selectedSupervisor.id)?.has(store.id) ?? false);
 
                       return (
                         <label
