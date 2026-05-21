@@ -27,17 +27,28 @@ interface PromotionHistory {
   } | null;
 }
 
-export default function EmployeeManagementClient({ 
+const STATUS_LABEL: Record<string, string> = {
+  active: '在職',
+  resigned: '離職',
+  leave_without_pay: '留職停薪',
+};
+
+function translateStatus(value: string | null | undefined): string {
+  if (!value) return '';
+  return STATUS_LABEL[value] ?? value;
+}
+
+export default function EmployeeManagementClient({
   initialEmployees,
   totalCount,
   activeCount
-}: { 
+}: {
   initialEmployees: Employee[];
   totalCount: number;
   activeCount: number;
 }) {
   // 先對初始員工資料按員編排序
-  const sortedInitialEmployees = [...initialEmployees].sort((a, b) => 
+  const sortedInitialEmployees = [...initialEmployees].sort((a, b) =>
     a.employee_code.localeCompare(b.employee_code)
   );
 
@@ -840,9 +851,9 @@ export default function EmployeeManagementClient({
                             </span>
                           </div>
                           <div className="flex items-center gap-2 text-sm">
-                            <span className="text-gray-500">{record.old_value || '無'}</span>
+                            <span className="text-gray-500">{translateStatus(record.old_value) || '無'}</span>
                             <span className="text-gray-400">→</span>
-                            <span className="font-semibold text-gray-900">{record.new_value}</span>
+                            <span className="font-semibold text-gray-900">{translateStatus(record.new_value)}</span>
                           </div>
                           {record.movement_type === 'onboarding' && (record.stores?.store_name || record.stores?.name) && (
                             <p className="text-sm text-blue-700 mt-2">

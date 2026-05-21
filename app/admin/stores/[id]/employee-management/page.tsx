@@ -15,6 +15,17 @@ interface StoreEmployee {
   last_promotion_date: string | null;
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  active: '在職',
+  resigned: '離職',
+  leave_without_pay: '留職停薪',
+};
+
+function translateStatus(value: string | null | undefined): string {
+  if (!value) return '';
+  return STATUS_LABEL[value] ?? value;
+}
+
 export default function EmployeeManagementPage() {
   const params = useParams();
   const router = useRouter();
@@ -300,11 +311,11 @@ export default function EmployeeManagementPage() {
                           <div className="flex items-center gap-2 mb-2">
                             {record.old_value && (
                               <>
-                                <span className="text-gray-600">{record.old_value}</span>
+                                <span className="text-gray-600">{translateStatus(record.old_value)}</span>
                                 <span className="text-gray-400">→</span>
                               </>
                             )}
-                            <span className="font-semibold text-blue-600">{record.new_value}</span>
+                            <span className="font-semibold text-blue-600">{translateStatus(record.new_value)}</span>
                           </div>
 
                           {record.notes && (
