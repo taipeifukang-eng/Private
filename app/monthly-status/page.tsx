@@ -1884,7 +1884,7 @@ function StoreStatusDetail({
 
       {showMonthlyPerformanceModal && (
         <div className="fixed inset-0 z-[55] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white w-[min(96vw,1500px)] max-h-[85vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+          <div className="bg-white w-[min(96vw,860px)] max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">該月業績狀況</h3>
@@ -1898,7 +1898,7 @@ function StoreStatusDetail({
               </button>
             </div>
 
-            <div className="p-4 overflow-auto">
+            <div className="p-5 overflow-auto">
               {loadingMonthlyPerformance ? (
                 <div className="py-10 text-center text-gray-500">
                   <RefreshCw size={18} className="animate-spin inline-block mr-2" />
@@ -1906,33 +1906,141 @@ function StoreStatusDetail({
                 </div>
               ) : !monthlyPerformanceSnapshot ? (
                 <div className="py-10 text-center text-gray-500">本店本月尚無業績資料</div>
-              ) : (
-                <div className="border rounded-lg overflow-auto">
-                  <table className="min-w-[980px] w-full text-sm">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {visibleMonthlyPerformanceFields.map((field) => (
-                          <th key={field.key} className="px-3 py-2 text-left text-xs font-semibold text-gray-600 whitespace-nowrap">
-                            {field.label}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t">
-                        {visibleMonthlyPerformanceFields.map((field) => (
-                          <td
-                            key={field.key}
-                            className={`px-3 py-3 text-right whitespace-nowrap ${getPerformanceValueClass(field.key)}`}
-                          >
-                            {formatPerformanceValue(monthlyPerformanceSnapshot[field.key])}
-                          </td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              ) : (() => {
+                const snap = monthlyPerformanceSnapshot;
+                const hasVal = (v: unknown) => v !== null && v !== undefined && v !== '';
+                const fmt = formatPerformanceValue;
+                const revenueTarget = Number(snap.monthly_revenue_target);
+                const revenueActual = Number(snap.monthly_revenue_actual);
+                const gpTarget = Number(snap.monthly_gross_profit_target);
+                const gpActual = Number(snap.monthly_gross_profit_actual);
+                const custTarget = Number(snap.monthly_customer_count_target);
+                const custActual = Number(snap.monthly_customer_count_actual);
+                const rxTarget = Number(snap.last_month_rx_target);
+                const rxActual = Number(snap.last_month_rx_actual);
+                const metClass = (actual: number, target: number) =>
+                  !Number.isNaN(actual) && !Number.isNaN(target)
+                    ? actual >= target ? 'text-green-600' : 'text-red-500'
+                    : 'text-gray-900';
+
+                return (
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* 營業額 */}
+                    <div className="rounded-xl border-2 border-blue-200 bg-blue-50/40 p-4">
+                      <h4 className="text-sm font-bold text-blue-700 mb-3 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
+                        營業額
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+                          <span className="text-xs font-semibold text-amber-700">目標</span>
+                          <span className="text-lg font-bold text-amber-700">{fmt(snap.monthly_revenue_target)}</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
+                          <span className="text-xs text-gray-500">實際</span>
+                          <span className={`text-lg font-bold ${metClass(revenueActual, revenueTarget)}`}>{fmt(snap.monthly_revenue_actual)}</span>
+                        </div>
+                        {hasVal(snap.system_monthly_revenue) && !(revenueActual === Number(snap.system_monthly_revenue)) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">系統營業額</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.system_monthly_revenue)}</span>
+                          </div>
+                        )}
+                        {hasVal(snap.self_pay_monthly_revenue) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">自費月藥</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.self_pay_monthly_revenue)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 毛利額 */}
+                    <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/40 p-4">
+                      <h4 className="text-sm font-bold text-emerald-700 mb-3 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
+                        毛利額
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+                          <span className="text-xs font-semibold text-amber-700">目標</span>
+                          <span className="text-lg font-bold text-amber-700">{fmt(snap.monthly_gross_profit_target)}</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
+                          <span className="text-xs text-gray-500">實際</span>
+                          <span className={`text-lg font-bold ${metClass(gpActual, gpTarget)}`}>{fmt(snap.monthly_gross_profit_actual)}</span>
+                        </div>
+                        {hasVal(snap.system_monthly_gross_profit) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">系統毛利額</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.system_monthly_gross_profit)}</span>
+                          </div>
+                        )}
+                        {hasVal(snap.monthly_long_term_care_gross_profit) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">長照毛利額</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.monthly_long_term_care_gross_profit)}</span>
+                          </div>
+                        )}
+                        {hasVal(snap.monthly_rx_addon_makeup_gross_profit) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">處方加購回補</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.monthly_rx_addon_makeup_gross_profit)}</span>
+                          </div>
+                        )}
+                        {hasVal(snap.monthly_theft_compensation_makeup_gross_profit) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">小偷賠償回補</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.monthly_theft_compensation_makeup_gross_profit)}</span>
+                          </div>
+                        )}
+                        {hasVal(snap.monthly_kamedis_deduction_gross_profit) && (
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 rounded-lg border border-gray-100">
+                            <span className="text-xs text-gray-400">Kamedis扣除</span>
+                            <span className="text-sm text-gray-600">{fmt(snap.monthly_kamedis_deduction_gross_profit)}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 來客數 */}
+                    <div className="rounded-xl border-2 border-violet-200 bg-violet-50/40 p-4">
+                      <h4 className="text-sm font-bold text-violet-700 mb-3 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-violet-500 inline-block" />
+                        來客數
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+                          <span className="text-xs font-semibold text-amber-700">目標</span>
+                          <span className="text-lg font-bold text-amber-700">{fmt(snap.monthly_customer_count_target)}</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
+                          <span className="text-xs text-gray-500">實際</span>
+                          <span className={`text-lg font-bold ${metClass(custActual, custTarget)}`}>{fmt(snap.monthly_customer_count_actual)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 慢箋張數 */}
+                    <div className="rounded-xl border-2 border-orange-200 bg-orange-50/40 p-4">
+                      <h4 className="text-sm font-bold text-orange-700 mb-3 flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" />
+                        慢箋張數（上月）
+                      </h4>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between bg-amber-50 border border-amber-300 rounded-lg px-3 py-2">
+                          <span className="text-xs font-semibold text-amber-700">目標</span>
+                          <span className="text-lg font-bold text-amber-700">{fmt(snap.last_month_rx_target)}</span>
+                        </div>
+                        <div className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
+                          <span className="text-xs text-gray-500">實際</span>
+                          <span className={`text-lg font-bold ${metClass(rxActual, rxTarget)}`}>{fmt(snap.last_month_rx_actual)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
