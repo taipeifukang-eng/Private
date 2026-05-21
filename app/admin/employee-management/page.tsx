@@ -29,7 +29,7 @@ export default async function EmployeeManagementPage() {
     redirect('/dashboard');
   }
 
-  // 獲取所有員工的基本資料（包含離職員工）
+  // 獲取所有員工的基本資料（包含離職員工），並去重
   const { data: storeEmployees } = await supabase
     .from('store_employees')
     .select('employee_code, employee_name, start_date, birthday, current_position');
@@ -42,36 +42,76 @@ export default async function EmployeeManagementPage() {
     />;
   }
 
-  // 獲取每個員工的最新職位（從 monthly_staff_status）
-  const employeesWithPosition = await Promise.all(
-    storeEmployees.map(async (emp) => {
-      const { data: latestStatus } = await supabase
-        .from('monthly_staff_status')
-        .select('position, year_month')
-        .eq('employee_code', emp.employee_code)
-        .order('year_month', { ascending: false })
-        .limit(1)
-        .single();
-
-      return {
-        id: emp.employee_code, // 使用 employee_code 作為 id
-        employee_code: emp.employee_code,
-        employee_name: emp.employee_name,
-        current_position: latestStatus?.position || emp.current_position || null,
-        start_date: emp.start_date,
-        birthday: emp.birthday || null,
-        is_active: true
-      };
-    })
-  );
-
-  // 去重：相同員編只保留一個
-  const uniqueEmployees = employeesWithPosition.reduce((acc: any[], emp) => {
-    if (!acc.find(e => e.employee_code === emp.employee_code)) {
-      acc.push(emp);
+  // 先去重（同一員編可能有多筆門市記錄）
+  const uniqueMap = new Map<string, typeof storeEmployees[0]>();
+  for (const emp of storeEmployees) {
+    if (!uniqueMap.has(emp.employee_code)) {
+      uniqueMap.set(emp.employee_code, emp);
     }
-    return acc;
-  }, []);
+  }
+  const uniqueEmpList = Array.from(uniqueMap.values());
+  const allCodes = uniqueEmpList.map(e => e.employee_code);
+
+  // 批次查詢：每位員工最新的 monthly_staff_status（取最大 year_month）
+  const { data: allStatuses } = await supabase
+    .from('monthly_staff_status')
+    .select('employee_code, position, year_month')
+    .in('employee_code', allCodes)
+    .order('year_month', { ascending: false });
+
+  // 每位員工只保留最新 year_month
+  const latestStatusMap = new Map<string, { position: string; year_month: string }>();
+  for (const s of allStatuses || []) {
+    if (!latestStatusMap.has(s.employee_code)) {
+      latestStatusMap.set(s.employee_code, { position: s.position, year_month: s.year_month });
+    }
+  }
+
+  // 批次查詢：每位員工最新的升遷記錄（movement_type = 'promotion'）
+  const { data: allPromotions } = await supabase
+    .from('employee_movement_history')
+    .select('employee_code, new_value, movement_date')
+    .in('employee_code', allCodes)
+    .eq('movement_type', 'promotion')
+    .order('movement_date', { ascending: false });
+
+  // 每位員工只保留最新升遷
+  const latestPromotionMap = new Map<string, { position: string; movement_date: string }>();
+  for (const p of allPromotions || []) {
+    if (!latestPromotionMap.has(p.employee_code)) {
+      latestPromotionMap.set(p.employee_code, { position: p.new_value, movement_date: p.movement_date });
+    }
+  }
+
+  // 合併：比較 monthly_staff_status 和最新升遷記錄，取較新者
+  const uniqueEmployees = uniqueEmpList.map(emp => {
+    const latestStatus = latestStatusMap.get(emp.employee_code);
+    const latestPromotion = latestPromotionMap.get(emp.employee_code);
+
+    let currentPosition = emp.current_position || null;
+
+    if (latestStatus && latestPromotion) {
+      // 升遷日期 vs 最新月報年月（取較新）
+      const statusDate = latestStatus.year_month + '-01';
+      currentPosition = latestPromotion.movement_date >= statusDate
+        ? latestPromotion.position
+        : latestStatus.position;
+    } else if (latestPromotion) {
+      currentPosition = latestPromotion.position;
+    } else if (latestStatus) {
+      currentPosition = latestStatus.position;
+    }
+
+    return {
+      id: emp.employee_code,
+      employee_code: emp.employee_code,
+      employee_name: emp.employee_name,
+      current_position: currentPosition,
+      start_date: emp.start_date,
+      birthday: emp.birthday || null,
+      is_active: true,
+    };
+  });
 
   // 按員編排序
   uniqueEmployees.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
