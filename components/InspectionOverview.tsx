@@ -15,6 +15,12 @@ type InspectionRecord = {
   id: string;
   store_id: string;
   inspection_date: string;
+  store: {
+    store_name: string;
+    store_code: string;
+    short_name?: string | null;
+  };
+  grade: string;
 };
 
 type Props = {
