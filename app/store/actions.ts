@@ -675,6 +675,19 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
         .filter(Boolean)
     );
 
+    // 目前頁面門市代碼（若本店是加盟店，仍需保留本店自己的業績）
+    const { data: currentStoreInfo, error: currentStoreError } = await supabase
+      .from('stores')
+      .select('store_code')
+      .eq('id', storeId)
+      .single();
+
+    if (currentStoreError) {
+      console.error('Error fetching current store info:', currentStoreError);
+    }
+
+    const currentStoreCode = extractStoreCode(currentStoreInfo?.store_code);
+
     const performanceByStaffId = new Map<string, {
       transaction_count: number;
       sales_amount: number;
@@ -699,7 +712,7 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
           if (!staffStatusId) continue;
 
           const normalizedCode = extractStoreCode(row.store_code);
-          if (franchiseCodeSet.has(normalizedCode)) {
+          if (franchiseCodeSet.has(normalizedCode) && normalizedCode !== currentStoreCode) {
             continue;
           }
 

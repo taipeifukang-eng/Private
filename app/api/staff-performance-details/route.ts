@@ -40,6 +40,19 @@ export async function GET(request: NextRequest) {
         .filter(Boolean)
     );
 
+    // 目前 staff_status 所屬門市代碼（若本店是加盟店，保留本店明細）
+    const { data: currentStaffStatus, error: currentStaffStatusError } = await supabase
+      .from('monthly_staff_status')
+      .select('store_id, stores:store_id(store_code)')
+      .eq('id', staffStatusId)
+      .maybeSingle();
+
+    if (currentStaffStatusError) {
+      console.error('Error fetching current staff status store:', currentStaffStatusError);
+    }
+
+    const currentStoreCode = extractStoreCode(currentStaffStatus?.stores?.store_code);
+
     // 獲取該員工的業績明細
     const { data, error } = await supabase
       .from('monthly_performance_details')
@@ -54,7 +67,7 @@ export async function GET(request: NextRequest) {
 
     const filteredData = (data || []).filter((row: any) => {
       const code = extractStoreCode(row.store_code);
-      return !franchiseCodeSet.has(code);
+      return !(franchiseCodeSet.has(code) && code !== currentStoreCode);
     });
 
     return NextResponse.json({
