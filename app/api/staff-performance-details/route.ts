@@ -51,7 +51,10 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching current staff status store:', currentStaffStatusError);
     }
 
-    const currentStoreCode = extractStoreCode(currentStaffStatus?.stores?.store_code);
+    const currentStoreRelation = Array.isArray(currentStaffStatus?.stores)
+      ? currentStaffStatus.stores[0]
+      : currentStaffStatus?.stores;
+    const currentStoreCode = extractStoreCode(currentStoreRelation?.store_code);
 
     // 獲取該員工的業績明細
     const { data, error } = await supabase
