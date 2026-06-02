@@ -11,17 +11,17 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_has_permission BOOLEAN := false;
-  v_is_admin BOOLEAN := false;
+  v_is_admin_like BOOLEAN := false;
 BEGIN
-  -- A) profiles.role = 'admin' 直接放行
+  -- A) profiles.role 為 admin 類型直接放行
   SELECT EXISTS (
     SELECT 1
     FROM profiles
     WHERE id = p_user_id
-      AND role = 'admin'
-  ) INTO v_is_admin;
+      AND lower(coalesce(role, '')) IN ('admin', 'system_admin', 'admin_role')
+  ) INTO v_is_admin_like;
 
-  IF v_is_admin THEN
+  IF v_is_admin_like THEN
     RETURN true;
   END IF;
 

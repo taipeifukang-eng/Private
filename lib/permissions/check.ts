@@ -4,6 +4,43 @@
 
 import { createClient } from '@/lib/supabase/server';
 
+async function isAdminLikeUser(userId: string): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (profile?.role === 'admin') {
+      return true;
+    }
+
+    const { data: userRoles, error } = await supabase
+      .from('user_roles')
+      .select('is_active, expires_at, role:roles(code)')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (error || !userRoles) {
+      return false;
+    }
+
+    const now = Date.now();
+    return userRoles.some((row: any) => {
+      const roleCode = row?.role?.code;
+      const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : null;
+      const notExpired = expiresAt === null || expiresAt > now;
+      return notExpired && ['admin', 'system_admin', 'admin_role'].includes(roleCode);
+    });
+  } catch (error) {
+    console.error('管理員身份檢查異常:', error);
+    return false;
+  }
+}
+
 /**
  * 檢查使用者是否擁有指定權限
  */
@@ -12,6 +49,12 @@ export async function hasPermission(
   permissionCode: string
 ): Promise<boolean> {
   try {
+    // 保底策略：管理員角色永遠允許，避免 DB 函式版本落後造成誤判。
+    const isAdminLike = await isAdminLikeUser(userId);
+    if (isAdminLike) {
+      return true;
+    }
+
     const supabase = await createClient();
     
     const { data, error } = await supabase
