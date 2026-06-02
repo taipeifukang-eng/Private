@@ -101,6 +101,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const extractStoreCode = (raw: string | null | undefined): string => {
+      const text = String(raw || '').toUpperCase();
+      const matched = text.match(/\d{4}[A-Z]?/);
+      return matched ? matched[0] : text.trim();
+    };
+
+    const extractStoreRelation = (storesValue: any) => {
+      return Array.isArray(storesValue) ? storesValue[0] : storesValue;
+    };
+
     // 獲取所有選中門市的員工資料（不在資料庫層排序職位，稍後在程式中處理）
     const { data: staffData, error: staffError } = await supabase
       .from('monthly_staff_status')
@@ -123,6 +133,65 @@ export async function POST(request: NextRequest) {
     // 建立歷史門市代碼映射
     const codeMap = await buildHistoricalStoreCodeMap(supabase, store_ids, year_month);
 
+    // 加盟店門市代碼集合（用於排除個人毛利加總）
+    const { data: franchiseStores, error: franchiseError } = await supabase
+      .from('stores')
+      .select('store_code')
+      .eq('is_franchise', true);
+
+    if (franchiseError) {
+      console.error('Error fetching franchise stores:', franchiseError);
+    }
+
+    const franchiseCodeSet = new Set(
+      (franchiseStores || [])
+        .map((s: any) => extractStoreCode(s.store_code))
+        .filter(Boolean)
+    );
+
+    // 依 staff_status_id 重新計算毛利，規則：排除其他加盟店，保留本店
+    const adjustedGrossProfitByStaffId = new Map<string, number>();
+    const staffIds = (staffData || []).map((item: any) => item.id).filter(Boolean);
+    const currentStoreCodeByStaffId = new Map<string, string>();
+
+    for (const row of (staffData || [])) {
+      if (!row?.id) continue;
+      const rowStore = extractStoreRelation(row.stores);
+      const currentCode = extractStoreCode(codeMap[row.store_id] || rowStore?.store_code);
+      currentStoreCodeByStaffId.set(row.id, currentCode);
+    }
+
+    if (staffIds.length > 0 && franchiseCodeSet.size > 0) {
+      const { data: detailRows, error: detailError } = await supabase
+        .from('monthly_performance_details')
+        .select('staff_status_id, store_code, gross_profit')
+        .in('staff_status_id', staffIds);
+
+      if (detailError) {
+        console.error('Error fetching performance details for export adjustment:', detailError);
+      } else {
+        const grossProfitAccumulator = new Map<string, number>();
+
+        for (const detail of (detailRows || [])) {
+          const staffStatusId = detail.staff_status_id;
+          if (!staffStatusId) continue;
+
+          const normalizedCode = extractStoreCode(detail.store_code);
+          const currentStoreCode = currentStoreCodeByStaffId.get(staffStatusId) || '';
+          if (franchiseCodeSet.has(normalizedCode) && normalizedCode !== currentStoreCode) {
+            continue;
+          }
+
+          const currentGrossProfit = grossProfitAccumulator.get(staffStatusId) || 0;
+          grossProfitAccumulator.set(staffStatusId, currentGrossProfit + Number(detail.gross_profit || 0));
+        }
+
+        for (const [staffStatusId, grossProfit] of Array.from(grossProfitAccumulator.entries())) {
+          adjustedGrossProfitByStaffId.set(staffStatusId, Math.round(grossProfit * 100) / 100);
+        }
+      }
+    }
+
     // 在程式中進行排序：先門市代號，再職位順序
     const sortedData = (staffData || []).sort((a: any, b: any) => {
       // 1. 先按門市代號排序
@@ -143,6 +212,8 @@ export async function POST(request: NextRequest) {
 
     // 轉換資料為 Excel 格式
     const excelData = sortedData.map((record: any) => {
+      const storeRelation = extractStoreRelation(record.stores);
+
       // 計算區塊處理 - 直接顯示數字
       let calculationBlock = '';
       if (record.calculated_block) {
@@ -183,11 +254,10 @@ export async function POST(request: NextRequest) {
       const stage = calculateStage(record.position || '', record.newbie_level);
 
       // 當月個人實際毛利（四捨五入到整數）
-      // 加盟店不計入毛利匯出
-      const isFranchiseStore = Boolean(record.stores?.is_franchise);
-      const grossProfit = isFranchiseStore
-        ? ''
-        : (record.gross_profit ? Math.round(record.gross_profit) : '');
+      // 規則：排除其他加盟店，保留本店（包含加盟店本店）
+      const adjustedGrossProfit = adjustedGrossProfitByStaffId.get(record.id);
+      const grossProfitBase = adjustedGrossProfit ?? record.gross_profit;
+      const grossProfit = grossProfitBase ? Math.round(grossProfitBase) : '';
       
       // 時數：如果有外務實上規劃時數則使用該時數，否則使用一般工作時數
       const hours = record.extra_task_planned_hours || record.work_hours || '';
@@ -196,7 +266,7 @@ export async function POST(request: NextRequest) {
       const externalHours = record.extra_task_external_hours || '';
 
       return {
-        '門市代碼': codeMap[record.store_id] || record.stores?.store_code || '',
+        '門市代碼': codeMap[record.store_id] || storeRelation?.store_code || '',
         '月份': year_month, // 完整年月格式 YYYY-MM
         '員工代號': record.employee_code || '',
         '員工姓名': record.employee_name || '',
