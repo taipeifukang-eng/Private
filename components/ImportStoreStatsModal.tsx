@@ -19,6 +19,29 @@ export default function ImportStoreStatsModal({
   const [result, setResult] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const parseErrorResponse = async (response: Response): Promise<{ error: string; details?: any }> => {
+    const rawText = await response.text();
+
+    if (!rawText) {
+      return { error: `伺服器錯誤 (${response.status})` };
+    }
+
+    try {
+      return JSON.parse(rawText);
+    } catch {
+      if (response.status === 504) {
+        return {
+          error: '匯入處理逾時，請稍後重試或拆小檔案分批匯入',
+          details: rawText
+        };
+      }
+
+      return {
+        error: rawText
+      };
+    }
+  };
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -44,7 +67,7 @@ export default function ImportStoreStatsModal({
       });
 
       if (!response.ok) {
-        const data = await response.json();
+        const data = await parseErrorResponse(response);
         
         // 特別處理權限錯誤
         if (response.status === 403) {

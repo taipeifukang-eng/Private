@@ -4,7 +4,13 @@ import * as XLSX from 'xlsx';
 
 // 配置 API Route
 export const runtime = 'nodejs'; // 使用 Node.js runtime
-export const maxDuration = 60; // 最大執行時間 60 秒
+export const maxDuration = 120; // 最大執行時間 120 秒
+
+interface StoreLite {
+  id: string;
+  store_code: string;
+  store_name: string | null;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,6 +77,95 @@ export async function POST(request: NextRequest) {
       sampleRow: data[0]
     });
 
+    // 先批次載入門市與既有資料，降低逐列查詢造成的 timeout 風險
+    const uniqueStoreCodes = Array.from(
+      new Set(
+        data
+          .map((row) => row['門市代號']?.toString().trim())
+          .filter((code): code is string => Boolean(code))
+      )
+    );
+
+    const { data: allStores, error: allStoresError } = await supabase
+      .from('stores')
+      .select('id, store_code, store_name');
+
+    if (allStoresError) {
+      return NextResponse.json(
+        { error: `查詢門市資料失敗: ${allStoresError.message}` },
+        { status: 500 }
+      );
+    }
+
+    const stores = (allStores || []) as StoreLite[];
+    const exactStoreMap = new Map<string, StoreLite>();
+    for (const store of stores) {
+      exactStoreMap.set(store.store_code, store);
+    }
+
+    const resolvedStoreMap = new Map<string, StoreLite | null>();
+    for (const storeCode of uniqueStoreCodes) {
+      const exactStore = exactStoreMap.get(storeCode);
+      if (exactStore) {
+        resolvedStoreMap.set(storeCode, exactStore);
+        continue;
+      }
+
+      const fuzzyStore = stores.find((store) => store.store_code.startsWith(storeCode)) || null;
+      if (fuzzyStore) {
+        console.log(`✓ 門市代號映射: ${storeCode} → ${fuzzyStore.store_code}`);
+      }
+      resolvedStoreMap.set(storeCode, fuzzyStore);
+    }
+
+    const resolvedStoreIds = Array.from(
+      new Set(
+        Array.from(resolvedStoreMap.values())
+          .filter((store): store is StoreLite => Boolean(store))
+          .map((store) => store.id)
+      )
+    );
+
+    const existingRecordMap = new Map<string, string>();
+    if (resolvedStoreIds.length > 0) {
+      const { data: existingRecords, error: existingBatchError } = await supabase
+        .from('monthly_store_summary')
+        .select('id, store_id')
+        .eq('year_month', yearMonth)
+        .in('store_id', resolvedStoreIds);
+
+      if (existingBatchError) {
+        return NextResponse.json(
+          { error: `查詢現有統計資料失敗: ${existingBatchError.message}` },
+          { status: 500 }
+        );
+      }
+
+      for (const record of existingRecords || []) {
+        existingRecordMap.set(record.store_id, record.id);
+      }
+    }
+
+    const staffCountMap = new Map<string, number>();
+    if (resolvedStoreIds.length > 0) {
+      const { data: staffRows, error: staffRowsError } = await supabase
+        .from('monthly_staff_status')
+        .select('store_id')
+        .eq('year_month', yearMonth)
+        .in('store_id', resolvedStoreIds);
+
+      if (staffRowsError) {
+        return NextResponse.json(
+          { error: `查詢員工狀態資料失敗: ${staffRowsError.message}` },
+          { status: 500 }
+        );
+      }
+
+      for (const row of staffRows || []) {
+        staffCountMap.set(row.store_id, (staffCountMap.get(row.store_id) || 0) + 1);
+      }
+    }
+
     // 處理每一列數據
     const results = {
       success: 0,
@@ -88,26 +183,7 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 查詢門市 ID - 先精確匹配，若找不到則模糊匹配（如 0023 → 0023B）
-        let { data: store } = await supabase
-          .from('stores')
-          .select('id, store_code')
-          .eq('store_code', storeCode)
-          .single();
-
-        // 如果精確匹配找不到，嘗試模糊匹配（store_code LIKE '0023%'）
-        if (!store) {
-          const { data: stores } = await supabase
-            .from('stores')
-            .select('id, store_code')
-            .ilike('store_code', `${storeCode}%`)
-            .limit(1);
-          
-          if (stores && stores.length > 0) {
-            store = stores[0];
-            console.log(`✓ 門市代號映射: ${storeCode} → ${store.store_code}`);
-          }
-        }
+        const store = resolvedStoreMap.get(storeCode) || null;
 
         if (!store) {
           results.errors.push(`找不到門市: ${storeCode}`);
@@ -115,16 +191,9 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // 先獲取門市的完整信息
-        const { data: storeInfo } = await supabase
-          .from('stores')
-          .select('*')
-          .eq('id', store.id)
-          .single();
-
         // 準備更新數據（只更新統計欄位，不影響其他欄位）
         const statsData = {
-          store_name: storeInfo?.store_name || store.store_code,
+          store_name: store.store_name || store.store_code,
           store_code: store.store_code,
           total_staff_count: parseInt(row['門市人數']) || 0,
           admin_staff_count: parseInt(row['行政人數']) || 0,
@@ -137,27 +206,14 @@ export async function POST(request: NextRequest) {
           chronic_prescription_count: parseInt(row['慢箋張數']) || 0
         };
 
-        // 檢查是否已存在記錄
-        const { data: existing, error: existingError } = await supabase
-          .from('monthly_store_summary')
-          .select('id')
-          .eq('year_month', yearMonth)
-          .eq('store_id', store.id)
-          .maybeSingle();
+        const existingId = existingRecordMap.get(store.id);
 
-        if (existingError) {
-          console.error('查詢記錄錯誤:', existingError);
-          results.errors.push(`查詢失敗 ${store.store_code}: ${existingError.message}`);
-          results.failed++;
-          continue;
-        }
-
-        if (existing) {
+        if (existingId) {
           // 更新現有記錄
           const { error: updateError } = await supabase
             .from('monthly_store_summary')
             .update(statsData)
-            .eq('id', existing.id);
+            .eq('id', existingId);
 
           if (updateError) {
             console.error('更新錯誤:', updateError);
@@ -173,23 +229,19 @@ export async function POST(request: NextRequest) {
             results.success++;
           }
         } else {
-          // 創建新記錄（獲取該門市該月的員工數）
-          const { count: staffCount } = await supabase
-            .from('monthly_staff_status')
-            .select('id', { count: 'exact', head: true })
-            .eq('year_month', yearMonth)
-            .eq('store_id', store.id);
-
-          const { error: insertError } = await supabase
+          // 創建新記錄
+          const { data: insertedRecord, error: insertError } = await supabase
             .from('monthly_store_summary')
             .insert({
               year_month: yearMonth,
               store_id: store.id,
-              total_employees: staffCount || 0,
+              total_employees: staffCountMap.get(store.id) || 0,
               confirmed_count: 0,
               store_status: 'pending',
               ...statsData
-            });
+            })
+            .select('id')
+            .single();
 
           if (insertError) {
             console.error('新增錯誤:', insertError);
@@ -201,6 +253,9 @@ export async function POST(request: NextRequest) {
             }
             results.failed++;
           } else {
+            if (insertedRecord?.id) {
+              existingRecordMap.set(store.id, insertedRecord.id);
+            }
             console.log(`✓ 新增成功: ${store.store_code}`);
             results.success++;
           }

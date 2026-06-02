@@ -13,9 +13,10 @@ type StoreItem = {
 type Props = {
   inspectedStores: StoreItem[];
   notInspectedStores: StoreItem[];
+  monthLabel: string;
 };
 
-export default function InspectionStoreStatus({ inspectedStores, notInspectedStores }: Props) {
+export default function InspectionStoreStatus({ inspectedStores, notInspectedStores, monthLabel }: Props) {
   const [inspectedOpen, setInspectedOpen] = useState(false);
   const [notInspectedOpen, setNotInspectedOpen] = useState(true);
 
@@ -30,7 +31,7 @@ export default function InspectionStoreStatus({ inspectedStores, notInspectedSto
           <div className="flex items-center gap-2">
             <CheckCircle className="w-5 h-5 text-green-600" />
             <h3 className="text-lg font-semibold text-green-800">
-              本月已巡店（{inspectedStores.length}）
+              {monthLabel} 已巡店（{inspectedStores.length}）
             </h3>
           </div>
           {inspectedOpen ? (
@@ -68,7 +69,7 @@ export default function InspectionStoreStatus({ inspectedStores, notInspectedSto
           <div className="flex items-center gap-2">
             <XCircle className="w-5 h-5 text-red-600" />
             <h3 className="text-lg font-semibold text-red-800">
-              本月尚未巡店（{notInspectedStores.length}）
+              {monthLabel} 尚未巡店（{notInspectedStores.length}）
             </h3>
           </div>
           {notInspectedOpen ? (

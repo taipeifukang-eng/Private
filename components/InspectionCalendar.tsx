@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 import Link from 'next/link';
 
@@ -17,11 +17,11 @@ type InspectionRecord = {
 
 type InspectionCalendarProps = {
   inspections: InspectionRecord[];
+  currentDate: Date;
+  onMonthChange: (date: Date) => void;
 };
 
-export default function InspectionCalendar({ inspections }: InspectionCalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date());
-
+export default function InspectionCalendar({ inspections, currentDate, onMonthChange }: InspectionCalendarProps) {
   // 獲取當前月份的年月
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -47,14 +47,17 @@ export default function InspectionCalendar({ inspections }: InspectionCalendarPr
   }
 
   // 根據日期分組巡店記錄
-  const inspectionsByDate = new Map<string, InspectionRecord[]>();
-  inspections.forEach((inspection) => {
-    const dateKey = inspection.inspection_date.split('T')[0];
-    if (!inspectionsByDate.has(dateKey)) {
-      inspectionsByDate.set(dateKey, []);
-    }
-    inspectionsByDate.get(dateKey)!.push(inspection);
-  });
+  const inspectionsByDate = useMemo(() => {
+    const grouped = new Map<string, InspectionRecord[]>();
+    inspections.forEach((inspection) => {
+      const dateKey = inspection.inspection_date.split('T')[0];
+      if (!grouped.has(dateKey)) {
+        grouped.set(dateKey, []);
+      }
+      grouped.get(dateKey)!.push(inspection);
+    });
+    return grouped;
+  }, [inspections]);
 
   // 格式化日期為本地時間字串（避免 toISOString 的 UTC 偏移）
   const formatDateKey = (date: Date) => {
@@ -66,15 +69,15 @@ export default function InspectionCalendar({ inspections }: InspectionCalendarPr
 
   // 切換月份
   const goToPreviousMonth = () => {
-    setCurrentDate(new Date(year, month - 1, 1));
+    onMonthChange(new Date(year, month - 1, 1));
   };
 
   const goToNextMonth = () => {
-    setCurrentDate(new Date(year, month + 1, 1));
+    onMonthChange(new Date(year, month + 1, 1));
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date());
+    onMonthChange(new Date());
   };
 
   // 評級顏色

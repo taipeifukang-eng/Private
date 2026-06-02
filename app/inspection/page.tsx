@@ -2,8 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, TrendingUp, Calendar, Store, User, GitCompare } from 'lucide-react';
-import InspectionCalendar from '@/components/InspectionCalendar';
-import InspectionStoreStatus from '@/components/InspectionStoreStatus';
+import InspectionOverview from '@/components/InspectionOverview';
 import { hasPermission } from '@/lib/permissions/check';
 
 // 強制動態渲染，禁用快取
@@ -159,8 +158,6 @@ export default async function InspectionListPage({
       inspector: inspectorMap.get(ins.inspector_id) || { id: ins.inspector_id, full_name: '未知' },
     }));
 
-    // === 門市巡店狀態（本月）===
-    const now = new Date();
     let assignedStores: any[] = [];
 
     if (canViewStoreStatus) {
@@ -192,19 +189,6 @@ export default async function InspectionListPage({
         }
       }
     }
-
-    // 本月已巡店的門市 ID 集合
-    const currentMonthInspectedStoreIds = new Set(
-      (rawInspections || [])
-        .filter((i: any) => {
-          const d = new Date(i.inspection_date);
-          return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-        })
-        .map((i: any) => i.store_id)
-    );
-
-    const inspectedStores = assignedStores.filter((s: any) => currentMonthInspectedStoreIds.has(s.id));
-    const notInspectedStores = assignedStores.filter((s: any) => !currentMonthInspectedStoreIds.has(s.id));
 
     return (
       <div className="min-h-screen bg-gray-50">
@@ -335,18 +319,10 @@ export default async function InspectionListPage({
             </div>
           </div>
 
-          {/* 門市巡店狀態 */}
-          {assignedStores.length > 0 && (
-            <InspectionStoreStatus
-              inspectedStores={inspectedStores}
-              notInspectedStores={notInspectedStores}
-            />
-          )}
-
-          {/* 日曆視圖 */}
-          <div className="mb-8">
-            <InspectionCalendar inspections={normalizedInspections} />
-          </div>
+          <InspectionOverview
+            inspections={normalizedInspections}
+            assignedStores={assignedStores}
+          />
 
           {/* 巡店記錄列表 */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
