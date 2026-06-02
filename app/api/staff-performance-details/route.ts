@@ -18,6 +18,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少員工狀態ID' }, { status: 400 });
     }
 
+    const extractStoreCode = (raw: string | null | undefined): string => {
+      const text = String(raw || '').toUpperCase();
+      const matched = text.match(/\d{4}[A-Z]?/);
+      return matched ? matched[0] : text.trim();
+    };
+
+    // 查詢加盟店門市代碼
+    const { data: franchiseStores, error: franchiseError } = await supabase
+      .from('stores')
+      .select('store_code')
+      .eq('is_franchise', true);
+
+    if (franchiseError) {
+      console.error('Error fetching franchise stores:', franchiseError);
+    }
+
+    const franchiseCodeSet = new Set(
+      (franchiseStores || [])
+        .map((s: any) => extractStoreCode(s.store_code))
+        .filter(Boolean)
+    );
+
     // 獲取該員工的業績明細
     const { data, error } = await supabase
       .from('monthly_performance_details')
@@ -30,9 +52,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
+    const filteredData = (data || []).filter((row: any) => {
+      const code = extractStoreCode(row.store_code);
+      return !franchiseCodeSet.has(code);
+    });
+
     return NextResponse.json({
       success: true,
-      data: data || []
+      data: filteredData
     });
 
   } catch (error: any) {

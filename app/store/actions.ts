@@ -653,12 +653,85 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
       console.error('Error fetching bonus data:', bonusError);
     }
 
+    const extractStoreCode = (raw: string | null | undefined): string => {
+      const text = String(raw || '').toUpperCase();
+      const matched = text.match(/\d{4}[A-Z]?/);
+      return matched ? matched[0] : text.trim();
+    };
+
+    // 加盟店門市代碼集合（用於排除個人業績加總）
+    const { data: franchiseStores, error: franchiseError } = await supabase
+      .from('stores')
+      .select('store_code')
+      .eq('is_franchise', true);
+
+    if (franchiseError) {
+      console.error('Error fetching franchise stores:', franchiseError);
+    }
+
+    const franchiseCodeSet = new Set(
+      (franchiseStores || [])
+        .map((s: any) => extractStoreCode(s.store_code))
+        .filter(Boolean)
+    );
+
+    const performanceByStaffId = new Map<string, {
+      transaction_count: number;
+      sales_amount: number;
+      gross_profit: number;
+      gross_profit_rate: number;
+    }>();
+
+    const staffIds = (data || []).map((s: any) => s.id).filter(Boolean);
+    if (staffIds.length > 0 && franchiseCodeSet.size > 0) {
+      const { data: detailRows, error: detailError } = await supabase
+        .from('monthly_performance_details')
+        .select('staff_status_id, store_code, transaction_count, sales_amount, gross_profit')
+        .in('staff_status_id', staffIds);
+
+      if (detailError) {
+        console.error('Error fetching performance details for adjustment:', detailError);
+      } else {
+        const tmp = new Map<string, { tx: number; sales: number; gp: number }>();
+
+        for (const row of (detailRows || [])) {
+          const staffStatusId = row.staff_status_id;
+          if (!staffStatusId) continue;
+
+          const normalizedCode = extractStoreCode(row.store_code);
+          if (franchiseCodeSet.has(normalizedCode)) {
+            continue;
+          }
+
+          if (!tmp.has(staffStatusId)) {
+            tmp.set(staffStatusId, { tx: 0, sales: 0, gp: 0 });
+          }
+
+          const acc = tmp.get(staffStatusId)!;
+          acc.tx += Number(row.transaction_count || 0);
+          acc.sales += Number(row.sales_amount || 0);
+          acc.gp += Number(row.gross_profit || 0);
+        }
+
+        for (const [staffStatusId, acc] of Array.from(tmp.entries())) {
+          performanceByStaffId.set(staffStatusId, {
+            transaction_count: acc.tx,
+            sales_amount: Math.round(acc.sales * 100) / 100,
+            gross_profit: Math.round(acc.gp * 100) / 100,
+            gross_profit_rate: acc.sales > 0 ? Math.round((acc.gp / acc.sales) * 10000) / 100 : 0
+          });
+        }
+      }
+    }
+
     // 將獎金資料合併到員工資料中
     const staffWithBonus = (data || []).map(staff => {
       const bonus = bonusData?.find(b => b.employee_code === staff.employee_code);
+      const adjustedPerformance = performanceByStaffId.get(staff.id);
       return {
         ...staff,
-        last_month_single_item_bonus: bonus?.bonus_amount || null
+        last_month_single_item_bonus: bonus?.bonus_amount || null,
+        ...(adjustedPerformance ? adjustedPerformance : {})
       };
     });
 

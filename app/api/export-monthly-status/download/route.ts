@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
       .from('monthly_staff_status')
       .select(`
         *,
-        stores:store_id (store_code, store_name)
+        stores:store_id (store_code, store_name, is_franchise)
       `)
       .in('store_id', store_ids)
       .eq('year_month', year_month)
@@ -183,7 +183,11 @@ export async function POST(request: NextRequest) {
       const stage = calculateStage(record.position || '', record.newbie_level);
 
       // 當月個人實際毛利（四捨五入到整數）
-      const grossProfit = record.gross_profit ? Math.round(record.gross_profit) : '';
+      // 加盟店不計入毛利匯出
+      const isFranchiseStore = Boolean(record.stores?.is_franchise);
+      const grossProfit = isFranchiseStore
+        ? ''
+        : (record.gross_profit ? Math.round(record.gross_profit) : '');
       
       // 時數：如果有外務實上規劃時數則使用該時數，否則使用一般工作時數
       const hours = record.extra_task_planned_hours || record.work_hours || '';
