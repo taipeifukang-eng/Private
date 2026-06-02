@@ -11,6 +11,7 @@ export default function CreateStorePage() {
   
   const [storeCode, setStoreCode] = useState('');
   const [storeName, setStoreName] = useState('');
+  const [isFranchise, setIsFranchise] = useState(false);
   const [shortName, setShortName] = useState('');
   const [hrStoreCode, setHrStoreCode] = useState('');
   const [managerName, setManagerName] = useState('');
@@ -29,6 +30,7 @@ export default function CreateStorePage() {
       const result = await createStore({
         store_code: storeCode.trim(),
         store_name: storeName.trim(),
+        is_franchise: isFranchise,
         short_name: shortName.trim() || undefined,
         hr_store_code: hrStoreCode.trim() || undefined,
         manager_name: managerName.trim() || undefined,
@@ -102,6 +104,22 @@ export default function CreateStorePage() {
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="例如: 富康藥局 中正店"
             />
+          </div>
+
+          {/* 加盟店 */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              門市類型
+            </label>
+            <label className="inline-flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isFranchise}
+                onChange={(e) => setIsFranchise(e.target.checked)}
+                className="w-4 h-4 text-blue-600 rounded border-gray-300"
+              />
+              <span className="text-sm text-gray-700">標記為加盟店</span>
+            </label>
           </div>
 
           {/* 簡稱 */}

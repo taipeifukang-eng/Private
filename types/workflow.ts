@@ -96,6 +96,7 @@ export interface Store {
   id: string;
   store_code: string;
   store_name: string;
+  is_franchise: boolean;
   short_name: string | null;  // 簡稱
   hr_store_code: string | null;  // 人資系統門市代碼
   manager_name: string | null;  // 負責人姓名

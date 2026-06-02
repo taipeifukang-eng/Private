@@ -54,6 +54,7 @@ export async function getStores() {
 export async function createStore(data: {
   store_code: string;
   store_name: string;
+  is_franchise?: boolean;
   short_name?: string;
   hr_store_code?: string;
   manager_name?: string;
@@ -79,6 +80,7 @@ export async function createStore(data: {
       .insert({
         store_code: data.store_code,
         store_name: data.store_name,
+        is_franchise: data.is_franchise || false,
         short_name: data.short_name || null,
         hr_store_code: data.hr_store_code || null,
         manager_name: data.manager_name || null,

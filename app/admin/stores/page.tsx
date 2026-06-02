@@ -181,7 +181,14 @@ export default async function StoresPage({
                     
                     {/* 門市名稱 */}
                     <div className="col-span-2">
-                      <div className="font-semibold text-gray-900">{store.store_name}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-gray-900">{store.store_name}</span>
+                        {store.is_franchise && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 border border-amber-200">
+                            加盟店
+                          </span>
+                        )}
+                      </div>
                       {managers.length > 0 && (
                         <div className="text-xs text-gray-500 mt-1">
                           {managers.map(m => m.user?.full_name || m.user?.email).join(', ')}
