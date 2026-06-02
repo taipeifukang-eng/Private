@@ -1141,8 +1141,8 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
         const transferDay = movementDate.getDate();
         const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(transferDay).padStart(2, '0')}`;
 
-        // 調出：原門市的員工
-        if (movement.old_value) {
+        // 調出：僅在原門市處理（store_id 為新門市，故需排除當前為新門市的情境）
+        if (movement.old_value && movement.store_id !== storeId) {
           const existingIndex = statusRecords.findIndex(
             (r: any) => r.employee_code?.toUpperCase() === movement.employee_code?.toUpperCase()
           );
