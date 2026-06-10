@@ -168,6 +168,12 @@ export default async function InspectionListPage({
     const exportMonth = /^\d{4}-\d{2}$/.test(searchParams.month || '')
       ? (searchParams.month as string)
       : defaultExportMonth;
+    const monthlyInspections = normalizedInspections.filter((inspection: any) => {
+      const date = new Date(inspection.inspection_date);
+      if (Number.isNaN(date.getTime())) return false;
+      const inspectionMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      return inspectionMonth === exportMonth;
+    });
     const exportMonths = Array.from(
       new Set(
         normalizedInspections
@@ -354,6 +360,7 @@ export default async function InspectionListPage({
           <InspectionOverview
             inspections={normalizedInspections}
             assignedStores={assignedStores}
+            initialMonth={exportMonth}
           />
 
           {/* 巡店記錄列表 */}
@@ -373,18 +380,18 @@ export default async function InspectionListPage({
               )}
             </div>
 
-            {normalizedInspections.length === 0 ? (
+            {monthlyInspections.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Store className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {isManagerTab ? '尚無經理巡店記錄' : '尚無巡店記錄'}
+                  {isManagerTab ? `${exportMonth} 尚無經理巡店記錄` : `${exportMonth} 尚無巡店記錄`}
                 </h3>
                 <p className="text-gray-600 mb-6">
                   {isManagerTab
-                    ? '開始經理巡店紀錄，與督導巡店結果進行對比分析'
-                    : '開始第一次巡店紀錄，建立門市品質管理軌跡'}
+                    ? '可切換月曆月份查看其他月份紀錄，或新增本月巡店紀錄'
+                    : '可切換月曆月份查看其他月份紀錄，或新增本月巡店紀錄'}
                 </p>
                 {canCreateInspection && (
                   <Link
@@ -411,7 +418,7 @@ export default async function InspectionListPage({
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {normalizedInspections.map((inspection: any) => (
+                    {monthlyInspections.map((inspection: any) => (
                       <tr key={inspection.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -487,7 +494,7 @@ export default async function InspectionListPage({
             )}
 
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
-              目前共 {normalizedInspections.length} 筆記錄
+              {exportMonth} 共 {monthlyInspections.length} 筆記錄
             </div>
           </div>
         </div>

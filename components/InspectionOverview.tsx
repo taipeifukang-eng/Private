@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import InspectionCalendar from '@/components/InspectionCalendar';
 import InspectionStoreStatus from '@/components/InspectionStoreStatus';
 
@@ -26,11 +27,32 @@ type InspectionRecord = {
 type Props = {
   inspections: InspectionRecord[];
   assignedStores: StoreItem[];
+  initialMonth: string;
 };
 
-export default function InspectionOverview({ inspections, assignedStores }: Props) {
-  const [currentDate, setCurrentDate] = useState(new Date());
+function parseMonthToDate(month: string) {
+  const matched = month.match(/^(\d{4})-(\d{2})$/);
+  if (!matched) return new Date();
+  const year = Number(matched[1]);
+  const monthNumber = Number(matched[2]);
+  return new Date(year, monthNumber - 1, 1);
+}
+
+export default function InspectionOverview({ inspections, assignedStores, initialMonth }: Props) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [currentDate, setCurrentDate] = useState(parseMonthToDate(initialMonth));
   const monthLabel = `${currentDate.getFullYear()} 年 ${currentDate.getMonth() + 1} 月`;
+
+  const handleMonthChange = (nextDate: Date) => {
+    setCurrentDate(nextDate);
+
+    const nextMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('month', nextMonth);
+
+    router.replace(`/inspection?${params.toString()}`, { scroll: false });
+  };
 
   const { inspectedStores, notInspectedStores } = useMemo(() => {
     const inspectedStoreIds = new Set(
@@ -65,7 +87,7 @@ export default function InspectionOverview({ inspections, assignedStores }: Prop
         <InspectionCalendar
           inspections={inspections}
           currentDate={currentDate}
-          onMonthChange={setCurrentDate}
+          onMonthChange={handleMonthChange}
         />
       </div>
     </>
