@@ -1,8 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, TrendingUp, Calendar, Store, User, GitCompare, Download } from 'lucide-react';
+import { Plus, TrendingUp, Calendar, Store, User, GitCompare } from 'lucide-react';
 import InspectionOverview from '@/components/InspectionOverview';
+import InspectionExportControls from '@/components/InspectionExportControls';
 import { hasPermission } from '@/lib/permissions/check';
 
 // 強制動態渲染，禁用快取
@@ -167,6 +168,21 @@ export default async function InspectionListPage({
     const exportMonth = /^\d{4}-\d{2}$/.test(searchParams.month || '')
       ? (searchParams.month as string)
       : defaultExportMonth;
+    const exportMonths = Array.from(
+      new Set(
+        normalizedInspections
+          .map((inspection: any) => {
+            const date = new Date(inspection.inspection_date);
+            if (Number.isNaN(date.getTime())) return null;
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          })
+          .filter(Boolean) as string[]
+      )
+    ).sort((a, b) => b.localeCompare(a));
+
+    if (!exportMonths.includes(defaultExportMonth)) {
+      exportMonths.unshift(defaultExportMonth);
+    }
 
     let assignedStores: any[] = [];
 
@@ -220,13 +236,10 @@ export default async function InspectionListPage({
 
               <div className="flex items-center gap-3">
                 {!isManagerTab && canExport && (
-                  <a
-                    href={`/api/inspection/export-monthly-score?month=${encodeURIComponent(exportMonth)}`}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 border border-emerald-200 font-medium rounded-lg hover:bg-emerald-50 transition-all shadow-sm text-sm"
-                  >
-                    <Download size={18} />
-                    匯出當月巡店得分
-                  </a>
+                  <InspectionExportControls
+                    months={exportMonths}
+                    initialMonth={exportMonth}
+                  />
                 )}
                 {canCreateInspection && !isManagerTab && (
                   <Link
