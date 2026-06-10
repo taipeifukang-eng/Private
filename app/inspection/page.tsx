@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, TrendingUp, Calendar, Store, User, GitCompare } from 'lucide-react';
+import { Plus, TrendingUp, Calendar, Store, User, GitCompare, Download } from 'lucide-react';
 import InspectionOverview from '@/components/InspectionOverview';
 import { hasPermission } from '@/lib/permissions/check';
 
@@ -51,7 +51,7 @@ const getStatusLabel = (status: string) => {
 export default async function InspectionListPage({
   searchParams,
 }: {
-  searchParams: { tab?: string };
+  searchParams: { tab?: string; month?: string };
 }) {
   const activeTab = searchParams.tab === 'manager' ? 'manager' : 'supervisor';
   const isManagerTab = activeTab === 'manager';
@@ -94,12 +94,13 @@ export default async function InspectionListPage({
   }
 
   try {
-    const [canCreateInspection, canViewManagerTab, canCompare, canViewStoreStatus, canViewAll] = await Promise.all([
+    const [canCreateInspection, canViewManagerTab, canCompare, canViewStoreStatus, canViewAll, canExport] = await Promise.all([
       hasPermission(user.id, 'inspection.create'),
       hasPermission(user.id, 'inspection.manager_tab'),
       hasPermission(user.id, 'inspection.compare'),
       hasPermission(user.id, 'inspection.view_store_status'),
       hasPermission(user.id, 'inspection.view_all'),
+      hasPermission(user.id, 'inspection.export'),
     ]);
 
     // 如果沒有經理巡店分頁權限但試圖存取 manager tab，導回督導巡店
@@ -158,6 +159,15 @@ export default async function InspectionListPage({
       inspector: inspectorMap.get(ins.inspector_id) || { id: ins.inspector_id, full_name: '未知' },
     }));
 
+    const latestInspectionDate = normalizedInspections[0]?.inspection_date;
+    const latestInspectionMonth = latestInspectionDate
+      ? `${new Date(latestInspectionDate).getFullYear()}-${String(new Date(latestInspectionDate).getMonth() + 1).padStart(2, '0')}`
+      : '';
+    const defaultExportMonth = latestInspectionMonth || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const exportMonth = /^\d{4}-\d{2}$/.test(searchParams.month || '')
+      ? (searchParams.month as string)
+      : defaultExportMonth;
+
     let assignedStores: any[] = [];
 
     if (canViewStoreStatus) {
@@ -209,6 +219,15 @@ export default async function InspectionListPage({
               </div>
 
               <div className="flex items-center gap-3">
+                {!isManagerTab && canExport && (
+                  <a
+                    href={`/api/inspection/export-monthly-score?month=${encodeURIComponent(exportMonth)}`}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-white text-emerald-700 border border-emerald-200 font-medium rounded-lg hover:bg-emerald-50 transition-all shadow-sm text-sm"
+                  >
+                    <Download size={18} />
+                    匯出當月巡店得分
+                  </a>
+                )}
                 {canCreateInspection && !isManagerTab && (
                   <Link
                     href="/inspection/new"
@@ -379,7 +398,7 @@ export default async function InspectionListPage({
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {normalizedInspections.slice(0, 30).map((inspection: any) => (
+                    {normalizedInspections.map((inspection: any) => (
                       <tr key={inspection.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -453,12 +472,10 @@ export default async function InspectionListPage({
                 </table>
               </div>
             )}
-            
-            {normalizedInspections.length > 30 && (
-              <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
-                顯示最近 30 筆記錄，共 {normalizedInspections.length} 筆
-              </div>
-            )}
+
+            <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
+              目前共 {normalizedInspections.length} 筆記錄
+            </div>
           </div>
         </div>
       </div>
