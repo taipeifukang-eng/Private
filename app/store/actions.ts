@@ -368,6 +368,109 @@ export async function getStoreRelocationHistory(storeId: string) {
 }
 
 /**
+ * 刪除單筆門市搬遷歷史記錄
+ * 僅刪除歷史表，不回復或修改目前門市主檔。
+ */
+export async function deleteStoreRelocationHistory(recordId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: '未登入' };
+
+    const permission = await requirePermission(user.id, 'store.store.clone');
+    if (!permission.allowed) return { success: false, error: '權限不足' };
+
+    const { data: record, error: fetchError } = await supabase
+      .from('store_relocation_history')
+      .select('*')
+      .eq('id', recordId)
+      .maybeSingle();
+
+    if (fetchError) return { success: false, error: fetchError.message };
+    if (!record) return { success: false, error: '找不到搬遷歷史記錄' };
+
+    const { error } = await supabase
+      .from('store_relocation_history')
+      .delete()
+      .eq('id', recordId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath('/admin/stores');
+    return { success: true, data: record };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 手動補建門市搬遷歷史記錄
+ * 用於刪錯日期後重新填寫歷史，不更新目前門市主檔。
+ */
+export async function createStoreRelocationHistory(data: {
+  store_id: string;
+  relocation_date: string;
+  old_store_code: string | null;
+  old_store_name: string | null;
+  old_short_name: string | null;
+  old_hr_store_code: string | null;
+  old_manager_name: string | null;
+  new_store_code: string | null;
+  new_store_name: string | null;
+  new_short_name: string | null;
+  new_hr_store_code: string | null;
+  new_manager_name: string | null;
+  note?: string | null;
+}) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { success: false, error: '未登入' };
+
+    const permission = await requirePermission(user.id, 'store.store.clone');
+    if (!permission.allowed) return { success: false, error: '權限不足' };
+
+    if (!data.store_id) return { success: false, error: '缺少門市 ID' };
+    if (!data.relocation_date) return { success: false, error: '請填寫搬遷日期' };
+
+    const { data: store, error: storeError } = await supabase
+      .from('stores')
+      .select('id')
+      .eq('id', data.store_id)
+      .maybeSingle();
+
+    if (storeError) return { success: false, error: storeError.message };
+    if (!store) return { success: false, error: '找不到門市' };
+
+    const { error } = await supabase.from('store_relocation_history').insert({
+      store_id: data.store_id,
+      relocation_date: data.relocation_date,
+      old_store_code: data.old_store_code,
+      new_store_code: data.new_store_code,
+      old_store_name: data.old_store_name,
+      new_store_name: data.new_store_name,
+      old_short_name: data.old_short_name,
+      new_short_name: data.new_short_name,
+      old_hr_store_code: data.old_hr_store_code,
+      new_hr_store_code: data.new_hr_store_code,
+      old_manager_name: data.old_manager_name,
+      new_manager_name: data.new_manager_name,
+      note: data.note || null,
+      created_by: user.id,
+    });
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath('/admin/stores');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * 獲取用戶可管理的門市列表
  * - admin: 所有門市
  * - manager (督導/區經理): 被指派的門市

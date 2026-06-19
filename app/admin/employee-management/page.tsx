@@ -55,15 +55,19 @@ export default async function EmployeeManagementPage() {
   // 批次查詢：每位員工最新的 monthly_staff_status（取最大 year_month）
   const { data: allStatuses } = await supabase
     .from('monthly_staff_status')
-    .select('employee_code, position, year_month')
+    .select('employee_code, position, year_month, monthly_status')
     .in('employee_code', allCodes)
     .order('year_month', { ascending: false });
 
   // 每位員工只保留最新 year_month
-  const latestStatusMap = new Map<string, { position: string; year_month: string }>();
+  const latestStatusMap = new Map<string, { position: string; year_month: string; monthly_status: string }>();
   for (const s of allStatuses || []) {
     if (!latestStatusMap.has(s.employee_code)) {
-      latestStatusMap.set(s.employee_code, { position: s.position, year_month: s.year_month });
+      latestStatusMap.set(s.employee_code, {
+        position: s.position,
+        year_month: s.year_month,
+        monthly_status: (s as any).monthly_status,
+      });
     }
   }
 
@@ -109,16 +113,18 @@ export default async function EmployeeManagementPage() {
       current_position: currentPosition,
       start_date: emp.start_date,
       birthday: emp.birthday || null,
-      is_active: true,
+      current_status: latestStatus?.monthly_status || null,
+      is_active: latestStatus?.monthly_status !== 'resigned',
     };
   });
 
   // 按員編排序
   uniqueEmployees.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+  const activeEmployeesCount = uniqueEmployees.filter(emp => emp.is_active).length;
 
   return <EmployeeManagementClient 
     initialEmployees={uniqueEmployees} 
     totalCount={uniqueEmployees.length}
-    activeCount={uniqueEmployees.length}
+    activeCount={activeEmployeesCount}
   />;
 }

@@ -6,8 +6,14 @@ import Link from 'next/link';
 import {
   ChevronLeft, Store, Hash, User, Tag, Building2,
   Loader2, History, Calendar, ArrowRight, CheckCircle,
+  Trash2, RotateCcw,
 } from 'lucide-react';
-import { relocateStore, getStoreRelocationHistory } from '@/app/store/actions';
+import {
+  relocateStore,
+  getStoreRelocationHistory,
+  deleteStoreRelocationHistory,
+  createStoreRelocationHistory,
+} from '@/app/store/actions';
 
 interface StoreData {
   id: string;
@@ -59,6 +65,21 @@ export default function CloneStorePage() {
   const [newManagerName, setNewManagerName] = useState('');
   const [relocationDate, setRelocationDate] = useState(today);
   const [note, setNote] = useState('');
+  const [historySaving, setHistorySaving] = useState(false);
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
+  const [showManualHistoryForm, setShowManualHistoryForm] = useState(false);
+  const [manualRelocationDate, setManualRelocationDate] = useState(today);
+  const [manualOldStoreCode, setManualOldStoreCode] = useState('');
+  const [manualOldStoreName, setManualOldStoreName] = useState('');
+  const [manualOldShortName, setManualOldShortName] = useState('');
+  const [manualOldHrStoreCode, setManualOldHrStoreCode] = useState('');
+  const [manualOldManagerName, setManualOldManagerName] = useState('');
+  const [manualNewStoreCode, setManualNewStoreCode] = useState('');
+  const [manualNewStoreName, setManualNewStoreName] = useState('');
+  const [manualNewShortName, setManualNewShortName] = useState('');
+  const [manualNewHrStoreCode, setManualNewHrStoreCode] = useState('');
+  const [manualNewManagerName, setManualNewManagerName] = useState('');
+  const [manualNote, setManualNote] = useState('');
 
   useEffect(() => {
     loadData();
@@ -87,6 +108,11 @@ export default function CloneStorePage() {
       setNewShortName(storeData.short_name || '');
       setNewHrStoreCode(storeData.hr_store_code || '');
       setNewManagerName(storeData.manager_name || '');
+      setManualNewStoreCode(storeData.store_code);
+      setManualNewStoreName(storeData.store_name);
+      setManualNewShortName(storeData.short_name || '');
+      setManualNewHrStoreCode(storeData.hr_store_code || '');
+      setManualNewManagerName(storeData.manager_name || '');
 
       const histResult = await getStoreRelocationHistory(storeId);
       if (histResult.success) {
@@ -97,6 +123,105 @@ export default function CloneStorePage() {
       alert('載入失敗');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const reloadHistory = async () => {
+    const histResult = await getStoreRelocationHistory(storeId);
+    if (histResult.success) setHistory(histResult.data as RelocationRecord[]);
+  };
+
+  const fillManualHistoryFromRecord = (rec: RelocationRecord) => {
+    setManualRelocationDate(rec.relocation_date || today);
+    setManualOldStoreCode(rec.old_store_code || '');
+    setManualOldStoreName(rec.old_store_name || '');
+    setManualOldShortName(rec.old_short_name || '');
+    setManualOldHrStoreCode(rec.old_hr_store_code || '');
+    setManualOldManagerName(rec.old_manager_name || '');
+    setManualNewStoreCode(rec.new_store_code || store?.store_code || '');
+    setManualNewStoreName(rec.new_store_name || store?.store_name || '');
+    setManualNewShortName(rec.new_short_name || store?.short_name || '');
+    setManualNewHrStoreCode(rec.new_hr_store_code || store?.hr_store_code || '');
+    setManualNewManagerName(rec.new_manager_name || store?.manager_name || '');
+    setManualNote(rec.note || '');
+    setShowManualHistoryForm(true);
+  };
+
+  const handleDeleteAndRefillHistory = async (rec: RelocationRecord) => {
+    const message = [
+      '確定要刪除這筆搬遷歷史並帶入重填嗎？',
+      '',
+      `搬遷日期：${rec.relocation_date}`,
+      `門市代碼：${rec.old_store_code || '-'} → ${rec.new_store_code || '-'}`,
+      '',
+      '注意：這只會刪除歷史紀錄，不會回復目前門市主檔。',
+    ].join('\n');
+    if (!confirm(message)) return;
+
+    setDeletingHistoryId(rec.id);
+    try {
+      const result = await deleteStoreRelocationHistory(rec.id);
+      if (!result.success) {
+        alert(`❌ 刪除失敗：${result.error}`);
+        return;
+      }
+
+      fillManualHistoryFromRecord(rec);
+      await reloadHistory();
+      alert('✅ 已刪除原搬遷歷史，請在下方修正日期後重新儲存。');
+    } catch (error) {
+      console.error('Error deleting relocation history:', error);
+      alert('刪除失敗');
+    } finally {
+      setDeletingHistoryId(null);
+    }
+  };
+
+  const handleCreateManualHistory = async () => {
+    if (!manualRelocationDate) {
+      alert('請選擇搬遷日期');
+      return;
+    }
+    if (!manualOldStoreCode.trim() || !manualOldStoreName.trim()) {
+      alert('請填寫搬遷前門市代碼與門市名稱');
+      return;
+    }
+    if (!manualNewStoreCode.trim() || !manualNewStoreName.trim()) {
+      alert('請填寫搬遷後門市代碼與門市名稱');
+      return;
+    }
+
+    setHistorySaving(true);
+    try {
+      const result = await createStoreRelocationHistory({
+        store_id: storeId,
+        relocation_date: manualRelocationDate,
+        old_store_code: manualOldStoreCode.trim(),
+        old_store_name: manualOldStoreName.trim(),
+        old_short_name: manualOldShortName.trim() || null,
+        old_hr_store_code: manualOldHrStoreCode.trim() || null,
+        old_manager_name: manualOldManagerName.trim() || null,
+        new_store_code: manualNewStoreCode.trim(),
+        new_store_name: manualNewStoreName.trim(),
+        new_short_name: manualNewShortName.trim() || null,
+        new_hr_store_code: manualNewHrStoreCode.trim() || null,
+        new_manager_name: manualNewManagerName.trim() || null,
+        note: manualNote.trim() || null,
+      });
+
+      if (!result.success) {
+        alert(`❌ 儲存失敗：${result.error}`);
+        return;
+      }
+
+      alert('✅ 搬遷歷史已重新建立');
+      setShowManualHistoryForm(false);
+      await reloadHistory();
+    } catch (error) {
+      console.error('Error creating relocation history:', error);
+      alert('儲存失敗');
+    } finally {
+      setHistorySaving(false);
     }
   };
 
@@ -163,8 +288,7 @@ export default function CloneStorePage() {
       setRelocationDate(today);
 
       // 重新載入歷史
-      const histResult = await getStoreRelocationHistory(storeId);
-      if (histResult.success) setHistory(histResult.data as RelocationRecord[]);
+      await reloadHistory();
     } catch (error) {
       console.error('Error relocating store:', error);
       alert('操作失敗');
@@ -394,6 +518,93 @@ export default function CloneStorePage() {
             )}
           </h2>
 
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => {
+                setShowManualHistoryForm((prev) => !prev);
+                if (!showManualHistoryForm && store) {
+                  setManualNewStoreCode(store.store_code);
+                  setManualNewStoreName(store.store_name);
+                  setManualNewShortName(store.short_name || '');
+                  setManualNewHrStoreCode(store.hr_store_code || '');
+                  setManualNewManagerName(store.manager_name || '');
+                }
+              }}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 text-sm font-medium"
+            >
+              <RotateCcw size={15} />
+              {showManualHistoryForm ? '收合重填表單' : '手動補登搬遷歷史'}
+            </button>
+          </div>
+
+          {showManualHistoryForm && (
+            <div className="mb-6 rounded-xl border border-purple-200 bg-purple-50/60 p-4">
+              <div className="mb-3">
+                <h3 className="font-semibold text-purple-900">重填搬遷歷史</h3>
+                <p className="text-xs text-purple-700 mt-1">
+                  此功能只新增歷史紀錄，不會修改目前門市主檔。刪除重填時，系統會自動帶入原資料。
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">搬遷日期 *</label>
+                  <input
+                    type="date"
+                    value={manualRelocationDate}
+                    onChange={(e) => setManualRelocationDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">備註</label>
+                  <input
+                    value={manualNote}
+                    onChange={(e) => setManualNote(e.target.value)}
+                    className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm"
+                    placeholder="選填"
+                  />
+                </div>
+
+                <ManualHistoryColumn title="搬遷前">
+                  <HistoryInput label="門市代碼 *" value={manualOldStoreCode} onChange={setManualOldStoreCode} mono />
+                  <HistoryInput label="門市名稱 *" value={manualOldStoreName} onChange={setManualOldStoreName} />
+                  <HistoryInput label="簡稱" value={manualOldShortName} onChange={setManualOldShortName} />
+                  <HistoryInput label="人資系統代碼" value={manualOldHrStoreCode} onChange={setManualOldHrStoreCode} />
+                  <HistoryInput label="負責人" value={manualOldManagerName} onChange={setManualOldManagerName} />
+                </ManualHistoryColumn>
+
+                <ManualHistoryColumn title="搬遷後">
+                  <HistoryInput label="門市代碼 *" value={manualNewStoreCode} onChange={setManualNewStoreCode} mono />
+                  <HistoryInput label="門市名稱 *" value={manualNewStoreName} onChange={setManualNewStoreName} />
+                  <HistoryInput label="簡稱" value={manualNewShortName} onChange={setManualNewShortName} />
+                  <HistoryInput label="人資系統代碼" value={manualNewHrStoreCode} onChange={setManualNewHrStoreCode} />
+                  <HistoryInput label="負責人" value={manualNewManagerName} onChange={setManualNewManagerName} />
+                </ManualHistoryColumn>
+              </div>
+
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowManualHistoryForm(false)}
+                  className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-white"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  disabled={historySaving}
+                  onClick={handleCreateManualHistory}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {historySaving && <Loader2 size={15} className="animate-spin" />}
+                  儲存重填紀錄
+                </button>
+              </div>
+            </div>
+          )}
+
           {history.length === 0 ? (
             <p className="text-center text-gray-400 py-10 text-sm">尚無搬遷紀錄</p>
           ) : (
@@ -407,6 +618,7 @@ export default function CloneStorePage() {
                     <th className="px-4 py-3 font-semibold">簡稱</th>
                     <th className="px-4 py-3 font-semibold">負責人</th>
                     <th className="px-4 py-3 font-semibold">備註</th>
+                    <th className="px-4 py-3 font-semibold text-center">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -426,6 +638,21 @@ export default function CloneStorePage() {
                         <ChangeCell old={rec.old_manager_name} next={rec.new_manager_name} />
                       </td>
                       <td className="px-4 py-3 text-gray-400">{rec.note || '-'}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          type="button"
+                          disabled={deletingHistoryId === rec.id}
+                          onClick={() => handleDeleteAndRefillHistory(rec)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-50 text-xs font-medium"
+                        >
+                          {deletingHistoryId === rec.id ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={13} />
+                          )}
+                          刪除重填
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -435,6 +662,38 @@ export default function CloneStorePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ManualHistoryColumn({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-lg bg-white border border-purple-100 p-3 space-y-3">
+      <div className="text-sm font-semibold text-purple-800">{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function HistoryInput({
+  label,
+  value,
+  onChange,
+  mono,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  mono?: boolean;
+}) {
+  return (
+    <label className="block text-xs font-medium text-gray-600">
+      {label}
+      <input
+        value={value}
+        onChange={(e) => onChange(mono ? e.target.value.toUpperCase() : e.target.value)}
+        className={`mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm ${mono ? 'font-mono uppercase' : ''}`}
+      />
+    </label>
   );
 }
 

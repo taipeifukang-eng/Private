@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2, Upload, Download } from 'lucide-react';
+import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2, Upload, Download, Filter } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS } from '@/types/workflow';
 
 interface Employee {
@@ -12,6 +13,7 @@ interface Employee {
   start_date: string | null;
   birthday: string | null;
   is_active: boolean;
+  current_status?: string | null;
 }
 
 interface PromotionHistory {
@@ -30,7 +32,16 @@ interface PromotionHistory {
 const STATUS_LABEL: Record<string, string> = {
   active: '在職',
   resigned: '離職',
+  full_month: '整月在職',
+  new_hire: '新進',
+  leave_of_absence: '留職停薪',
   leave_without_pay: '留職停薪',
+  transferred_in: '調入',
+  transferred_out: '調出',
+  promoted: '升職',
+  support_rotation: '支援卡班',
+  dual_store_manager: '擔任雙店長',
+  leave_return: '留停復職',
 };
 
 function translateStatus(value: string | null | undefined): string {
@@ -55,6 +66,8 @@ export default function EmployeeManagementClient({
   const [employees, setEmployees] = useState<Employee[]>(sortedInitialEmployees);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>(sortedInitialEmployees);
   const [searchTerm, setSearchTerm] = useState('');
+  const [employmentStatusFilter, setEmploymentStatusFilter] = useState<'all' | 'active' | 'resigned'>('all');
+  const [positionFilter, setPositionFilter] = useState('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPromotionModal, setShowPromotionModal] = useState(false);
@@ -65,6 +78,7 @@ export default function EmployeeManagementClient({
   const [importResult, setImportResult] = useState<{ successCount: number; errorCount: number; errors: string[] } | null>(null);
   const [importData, setImportData] = useState<{ employee_code: string; employee_name: string; birthday: string }[]>([]);
   const [importLoading, setImportLoading] = useState(false);
+  const resignedCount = Math.max(totalCount - activeCount, 0);
 
   // 新增員工表單
   const [newEmployee, setNewEmployee] = useState({
@@ -84,22 +98,43 @@ export default function EmployeeManagementClient({
     birthday: ''
   });
 
-  // 搜尋過濾
+  const positionOptions = Array.from(
+    new Set(employees.map(emp => emp.current_position).filter((pos): pos is string => Boolean(pos)))
+  ).sort((a, b) => a.localeCompare(b, 'zh-Hant'));
+
+  const hasActiveFilters = Boolean(searchTerm.trim()) || employmentStatusFilter !== 'all' || positionFilter !== 'all';
+
+  // 搜尋與篩選
   useEffect(() => {
-    let result: Employee[];
-    if (!searchTerm.trim()) {
-      result = employees;
-    } else {
+    let result = employees;
+
+    if (employmentStatusFilter === 'active') {
+      result = result.filter(emp => emp.is_active);
+    } else if (employmentStatusFilter === 'resigned') {
+      result = result.filter(emp => !emp.is_active);
+    }
+
+    if (positionFilter !== 'all') {
+      result = result.filter(emp => (emp.current_position || '') === positionFilter);
+    }
+
+    if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
-      result = employees.filter(emp => 
+      result = result.filter(emp => 
         emp.employee_code.toLowerCase().includes(term) ||
         emp.employee_name.toLowerCase().includes(term)
       );
     }
     // 按員編排序
-    result.sort((a, b) => a.employee_code.localeCompare(b.employee_code));
+    result = [...result].sort((a, b) => a.employee_code.localeCompare(b.employee_code));
     setFilteredEmployees(result);
-  }, [searchTerm, employees]);
+  }, [searchTerm, employmentStatusFilter, positionFilter, employees]);
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setEmploymentStatusFilter('all');
+    setPositionFilter('all');
+  };
 
   const handleAddEmployee = async () => {
     // 驗證
@@ -249,6 +284,46 @@ export default function EmployeeManagementClient({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportFilteredExcel = () => {
+    if (filteredEmployees.length === 0) {
+      alert('目前篩選結果沒有資料可匯出');
+      return;
+    }
+
+    const exportRows = filteredEmployees.map(emp => ({
+      員編: emp.employee_code,
+      姓名: emp.employee_name,
+      當前職位: emp.current_position || '',
+      狀態: translateStatus(emp.current_status) || (emp.is_active ? '在職' : '離職'),
+      到職日: emp.start_date || '',
+      生日: emp.birthday || '',
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportRows);
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '員工篩選結果');
+
+    const today = new Date().toISOString().slice(0, 10);
+    const statusName = employmentStatusFilter === 'active'
+      ? '在職'
+      : employmentStatusFilter === 'resigned'
+        ? '離職'
+        : '全部狀態';
+    const positionName = positionFilter === 'all' ? '全部職位' : positionFilter;
+    const filename = `員工資料_${statusName}_${positionName}_${today}.xlsx`.replace(/[\\/:*?"<>|]/g, '_');
+
+    XLSX.writeFile(workbook, filename);
+  };
+
   // 解析 CSV 檔案
   const handleCSVFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -318,6 +393,13 @@ export default function EmployeeManagementClient({
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={handleExportFilteredExcel}
+              className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
+            >
+              <Download size={18} />
+              匯出篩選結果 Excel
+            </button>
+            <button
               onClick={handleExportCSV}
               className="flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold"
             >
@@ -342,7 +424,7 @@ export default function EmployeeManagementClient({
         </div>
 
         {/* 統計卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -366,23 +448,72 @@ export default function EmployeeManagementClient({
               </div>
             </div>
           </div>
+
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-600 text-sm font-medium mb-1">離職員工</p>
+                <p className="text-3xl font-bold text-gray-600">{resignedCount}</p>
+              </div>
+              <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                <UserCog className="text-gray-600" size={24} />
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* 員工列表 */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
           {/* 搜尋列 */}
           <div className="bg-gray-50 border-b border-gray-200 px-6 py-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <h2 className="text-lg font-semibold text-gray-900">員工資料庫</h2>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="搜尋員編或姓名..."
-                  className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="搜尋員編或姓名..."
+                    className="w-full lg:w-56 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+                    <Filter size={16} />
+                    篩選
+                  </div>
+                  <select
+                    value={employmentStatusFilter}
+                    onChange={(e) => setEmploymentStatusFilter(e.target.value as 'all' | 'active' | 'resigned')}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部狀態</option>
+                    <option value="active">在職員工</option>
+                    <option value="resigned">離職員工</option>
+                  </select>
+                  <select
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg bg-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  >
+                    <option value="all">全部職位</option>
+                    {positionOptions.map(pos => (
+                      <option key={pos} value={pos}>{pos}</option>
+                    ))}
+                  </select>
+                  {hasActiveFilters && (
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg"
+                    >
+                      清除篩選
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -392,10 +523,10 @@ export default function EmployeeManagementClient({
             <div className="p-12 text-center">
               <UserCog className="w-16 h-16 mx-auto text-gray-400 mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                {searchTerm ? '找不到符合的員工' : '尚無員工資料'}
+                {hasActiveFilters ? '找不到符合條件的員工' : '尚無員工資料'}
               </h3>
               <p className="text-gray-600">
-                {searchTerm ? '請嘗試其他搜尋關鍵字' : '點擊右上方「新增員工」開始建立資料'}
+                {hasActiveFilters ? '請調整搜尋字、在職狀態或職位篩選' : '點擊右上方「新增員工」開始建立資料'}
               </p>
             </div>
           ) : (
@@ -406,6 +537,7 @@ export default function EmployeeManagementClient({
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">員編</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">姓名</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">當前職位</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">狀態</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">到職日</th>
                     <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">生日</th>
                     <th className="px-6 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider">操作</th>
@@ -422,6 +554,15 @@ export default function EmployeeManagementClient({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {emp.current_position || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                          emp.is_active
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-gray-200 text-gray-700'
+                        }`}>
+                          {translateStatus(emp.current_status) || (emp.is_active ? '在職' : '離職')}
+                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {emp.start_date || '-'}
@@ -457,7 +598,7 @@ export default function EmployeeManagementClient({
           {/* 表尾統計 */}
           <div className="bg-gray-50 border-t border-gray-200 px-6 py-3">
             <div className="text-sm text-gray-600">
-              {searchTerm ? (
+              {hasActiveFilters ? (
                 <>顯示 <span className="font-semibold text-gray-900">{filteredEmployees.length}</span> / {totalCount} 位員工</>
               ) : (
                 <>共 <span className="font-semibold text-gray-900">{totalCount}</span> 位員工</>

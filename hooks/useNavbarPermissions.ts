@@ -29,6 +29,7 @@ interface NavbarPermissions {
   canViewPharmacistManagement: boolean;
   canEditPharmacistManagement: boolean;
   canUseClinicSelfpayMargin: boolean;
+  canViewRelationshipMembers: boolean;
   
   // 每月人員狀態
   canViewMonthlyStatus: boolean;
@@ -83,6 +84,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canViewPharmacistManagement: false,
     canEditPharmacistManagement: false,
     canUseClinicSelfpayMargin: false,
+    canViewRelationshipMembers: false,
     canViewMonthlyStatus: false,
     canExportMonthlyStatus: false,
     canViewInspections: false,
@@ -171,6 +173,10 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('monthly.status.view_all') ||
             permissionSet.has('employee.movement.manage') ||
             permissionSet.has('store.manage'),
+          canViewRelationshipMembers:
+            permissionSet.has('relationship_member.view') ||
+            permissionSet.has('relationship_member.edit') ||
+            permissionSet.has('relationship_member.delete'),
           
           // 每月人員狀態
           canViewMonthlyStatus: 
@@ -242,7 +248,8 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canManageInventory ||
          permissions.canManagePerformance ||
          permissions.canViewPharmacistManagement ||
-         permissions.canUseClinicSelfpayMargin;
+         permissions.canUseClinicSelfpayMargin ||
+         permissions.canViewRelationshipMembers;
 }
 
 /**

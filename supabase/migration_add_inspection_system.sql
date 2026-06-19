@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS inspection_masters (
   -- 評分結果
   total_score DECIMAL(6,1) DEFAULT 0 CHECK (total_score >= 0), -- 實得總分
   max_possible_score DECIMAL(6,1) DEFAULT 220, -- 滿分
-  grade VARCHAR(2) CHECK (grade IN ('S', 'A', 'B', 'F')), -- 等級
+  grade VARCHAR(2) CHECK (grade IN ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10')), -- 等級（0-10分制）
   score_percentage DECIMAL(5,2), -- 分數百分比
   
   -- 區塊得分明細
@@ -134,7 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_inspection_masters_store_date
 -- 註解
 COMMENT ON TABLE inspection_masters IS '督導巡店主記錄表，記錄每次巡店的基本資訊與總分';
 COMMENT ON COLUMN inspection_masters.status IS '狀態: draft(草稿), in_progress(進行中), completed(完成), closed(已結案)';
-COMMENT ON COLUMN inspection_masters.grade IS '等級: S(≥208分), A(196-207分), B(188-195分), F(<188分)';
+COMMENT ON COLUMN inspection_masters.grade IS '評級（0-10分制）';
 
 -- =====================================================
 -- 3. 各項目評分詳細記錄表
@@ -250,6 +250,7 @@ CREATE TRIGGER trigger_auto_improvement_flag
 CREATE OR REPLACE FUNCTION auto_calculate_total_score()
 RETURNS TRIGGER AS $$
 DECLARE
+  v_inspection_id UUID;
   v_total_score DECIMAL(6,1);
   v_section_1 DECIMAL(5,1);
   v_section_2 DECIMAL(5,1);
@@ -258,6 +259,8 @@ DECLARE
   v_section_5 DECIMAL(5,1);
   v_grade VARCHAR(2);
 BEGIN
+  v_inspection_id := CASE WHEN TG_OP = 'DELETE' THEN OLD.inspection_id ELSE NEW.inspection_id END;
+
   -- 計算各區塊得分
   SELECT 
     COALESCE(SUM(CASE WHEN t.section = 'section_1' THEN r.given_score ELSE 0 END), 0),
@@ -268,20 +271,23 @@ BEGIN
   INTO v_section_1, v_section_2, v_section_3, v_section_4, v_section_5
   FROM inspection_results r
   JOIN inspection_templates t ON r.template_id = t.id
-  WHERE r.inspection_id = NEW.inspection_id;
+  WHERE r.inspection_id = v_inspection_id;
   
   -- 計算總分
   v_total_score := v_section_1 + v_section_2 + v_section_3 + v_section_4 + v_section_5;
   
-  -- 判定等級
-  IF v_total_score >= 208 THEN
-    v_grade := 'S';  -- S 級：≥ 208 分（94.5%）
-  ELSIF v_total_score >= 196 THEN
-    v_grade := 'A';  -- A 級：196-207 分（89.1%-94.1%）
-  ELSIF v_total_score >= 188 THEN
-    v_grade := 'B';  -- B 級：188-195 分（85.5%-88.6%）
-  ELSE
-    v_grade := 'F';  -- F 級：< 188 分（<85.5%）
+  -- 判定等級（0-10 分制）
+  IF v_total_score >= 220 THEN v_grade := '10';
+  ELSIF v_total_score >= 215 THEN v_grade := '9';
+  ELSIF v_total_score >= 191 THEN v_grade := '8';
+  ELSIF v_total_score >= 181 THEN v_grade := '7';
+  ELSIF v_total_score >= 171 THEN v_grade := '6';
+  ELSIF v_total_score >= 161 THEN v_grade := '5';
+  ELSIF v_total_score >= 151 THEN v_grade := '4';
+  ELSIF v_total_score >= 141 THEN v_grade := '3';
+  ELSIF v_total_score >= 131 THEN v_grade := '2';
+  ELSIF v_total_score >= 121 THEN v_grade := '1';
+  ELSE v_grade := '0';
   END IF;
   
   -- 更新 inspection_masters
@@ -295,9 +301,9 @@ BEGIN
     total_score = v_total_score,
     score_percentage = ROUND((v_total_score / max_possible_score) * 100, 2),
     grade = v_grade
-  WHERE id = NEW.inspection_id;
+  WHERE id = v_inspection_id;
   
-  RETURN NEW;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$ LANGUAGE plpgsql;
 
