@@ -16,13 +16,14 @@ export async function GET() {
     'relationship_member.view',
     'relationship_member.edit',
     'relationship_member.delete',
+    'relationship_member.approve',
   ]);
   if (!allowed) return NextResponse.json({ error: '權限不足' }, { status: 403 });
 
   const admin = createAdminClient();
   const { data, error } = await admin
     .from('relationship_members')
-    .select('id, member_name, phone, relationship, member_number, created_by, created_at, updated_at, creator:profiles!relationship_members_created_by_fkey(full_name, email)')
+    .select('id, member_name, phone, relationship, member_number, is_approved, approved_at, approved_by, created_by, created_at, updated_at, creator:profiles!relationship_members_created_by_fkey(full_name, email), approver:profiles!relationship_members_approved_by_fkey(full_name, email)')
     .order('member_number', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: true });
 

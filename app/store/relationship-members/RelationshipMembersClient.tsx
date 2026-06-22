@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
+  CheckCircle2,
   Download,
   Edit3,
   FileSpreadsheet,
@@ -23,9 +24,12 @@ type Member = {
   phone: string;
   relationship: string;
   member_number: string | null;
+  is_approved: boolean;
+  approved_at: string | null;
   created_at: string;
   updated_at: string;
   creator?: { full_name?: string | null; email?: string | null } | null;
+  approver?: { full_name?: string | null; email?: string | null } | null;
 };
 
 type Sale = {
@@ -60,6 +64,23 @@ function creatorName(member: Member) {
   return member.creator?.full_name || member.creator?.email || '-';
 }
 
+function approverName(member: Member) {
+  return member.approver?.full_name || member.approver?.email || '-';
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return '';
+  return new Date(value).toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+}
+
 async function readError(response: Response) {
   const payload = await response.json().catch(() => ({}));
   return payload.error || '操作失敗';
@@ -70,11 +91,13 @@ export default function RelationshipMembersClient({
   canViewSales,
   canEdit,
   canDelete,
+  canApprove,
 }: {
   canSubmit: boolean;
   canViewSales: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  canApprove: boolean;
 }) {
   const [tab, setTab] = useState<'members' | 'sales'>('members');
   const [members, setMembers] = useState<Member[]>([]);
@@ -85,6 +108,7 @@ export default function RelationshipMembersClient({
   const [loadingSales, setLoadingSales] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [filters, setFilters] = useState({ member_name: '', member_number: '' });
@@ -176,6 +200,19 @@ export default function RelationshipMembersClient({
     setDeletingId(null);
   }
 
+  async function approveMember(member: Member) {
+    setApprovingId(member.id);
+    setMessage(null);
+    const response = await fetch(`/api/relationship-members/${member.id}/approve`, { method: 'POST' });
+    if (response.ok) {
+      setMessage({ type: 'success', text: `已核可關係會員「${member.member_name}」` });
+      await loadMembers();
+    } else {
+      setMessage({ type: 'error', text: await readError(response) });
+    }
+    setApprovingId(null);
+  }
+
   function downloadTemplate() {
     const sheet = XLSX.utils.json_to_sheet([
       { 門市代號: 'FK001', 銷售日期: '2026/06/12 14:30', 會員編號: 'M00001', 品號: 'P001', 品名: '範例商品', 數量: 1, 金額: 100 },
@@ -205,6 +242,8 @@ export default function RelationshipMembersClient({
 
   const totalAmount = sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const totalQuantity = sales.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const hasMemberActions = canEdit || canDelete || canApprove;
+  const memberColumnCount = hasMemberActions ? 7 : 6;
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -277,10 +316,82 @@ export default function RelationshipMembersClient({
               <div className="border-b border-slate-200 px-5 py-4"><h2 className="font-bold text-slate-900">關係會員檢視表</h2></div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
-                  <thead className="bg-slate-50 text-left text-slate-600"><tr><th className="px-4 py-3">姓名</th><th className="px-4 py-3">電話</th><th className="px-4 py-3">關係</th><th className="px-4 py-3">填表人</th><th className="px-4 py-3">會員編號</th>{(canEdit || canDelete) && <th className="px-4 py-3 text-center">操作</th>}</tr></thead>
+                  <thead className="bg-slate-50 text-left text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">姓名</th>
+                      <th className="px-4 py-3">電話</th>
+                      <th className="px-4 py-3">關係</th>
+                      <th className="px-4 py-3">填表人</th>
+                      <th className="px-4 py-3">會員編號</th>
+                      <th className="px-4 py-3">核可</th>
+                      {hasMemberActions && <th className="px-4 py-3 text-center">操作</th>}
+                    </tr>
+                  </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {loadingMembers ? <tr><td colSpan={(canEdit || canDelete) ? 6 : 5} className="px-4 py-12 text-center text-slate-500"><Loader2 className="mx-auto animate-spin" /></td></tr> : members.length === 0 ? <tr><td colSpan={(canEdit || canDelete) ? 6 : 5} className="px-4 py-12 text-center text-slate-500">尚無關係會員資料</td></tr> : members.map((member) => (
-                      <tr key={member.id} className="hover:bg-slate-50"><td className="px-4 py-3 font-semibold text-slate-900">{member.member_name}</td><td className="px-4 py-3">{member.phone}</td><td className="px-4 py-3">{member.relationship}</td><td className="px-4 py-3">{creatorName(member)}</td><td className="px-4 py-3 font-mono">{member.member_number || <span className="text-amber-600">待填寫</span>}</td>{(canEdit || canDelete) && <td className="px-4 py-3 text-center"><div className="flex justify-center gap-2">{canEdit && <button onClick={() => beginEdit(member)} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-200"><Edit3 size={14} />再編輯</button>}{canDelete && <button disabled={deletingId === member.id} onClick={() => deleteMember(member)} className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:opacity-60">{deletingId === member.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}刪除</button>}</div></td>}</tr>
+                    {loadingMembers ? (
+                      <tr>
+                        <td colSpan={memberColumnCount} className="px-4 py-12 text-center text-slate-500">
+                          <Loader2 className="mx-auto animate-spin" />
+                        </td>
+                      </tr>
+                    ) : members.length === 0 ? (
+                      <tr>
+                        <td colSpan={memberColumnCount} className="px-4 py-12 text-center text-slate-500">
+                          尚無關係會員資料
+                        </td>
+                      </tr>
+                    ) : members.map((member) => (
+                      <tr key={member.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-semibold text-slate-900">{member.member_name}</td>
+                        <td className="px-4 py-3">{member.phone}</td>
+                        <td className="px-4 py-3">{member.relationship}</td>
+                        <td className="px-4 py-3">{creatorName(member)}</td>
+                        <td className="px-4 py-3 font-mono">
+                          {member.member_number || <span className="text-amber-600">待填寫</span>}
+                        </td>
+                        <td className="px-4 py-3">
+                          {member.is_approved ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                <CheckCircle2 size={14} />已核可
+                              </span>
+                              <div className="text-xs text-slate-500">
+                                {approverName(member)} {formatDateTime(member.approved_at)}
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                              待核可
+                            </span>
+                          )}
+                        </td>
+                        {hasMemberActions && (
+                          <td className="px-4 py-3 text-center">
+                            <div className="flex justify-center gap-2">
+                              {canApprove && !member.is_approved && (
+                                <button
+                                  disabled={approvingId === member.id}
+                                  onClick={() => approveMember(member)}
+                                  className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                >
+                                  {approvingId === member.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                  核可
+                                </button>
+                              )}
+                              {canEdit && (
+                                <button onClick={() => beginEdit(member)} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-200">
+                                  <Edit3 size={14} />再編輯
+                                </button>
+                              )}
+                              {canDelete && (
+                                <button disabled={deletingId === member.id} onClick={() => deleteMember(member)} className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:opacity-60">
+                                  {deletingId === member.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}刪除
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
                     ))}
                   </tbody>
                 </table>

@@ -176,7 +176,8 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canViewRelationshipMembers:
             permissionSet.has('relationship_member.view') ||
             permissionSet.has('relationship_member.edit') ||
-            permissionSet.has('relationship_member.delete'),
+            permissionSet.has('relationship_member.delete') ||
+            permissionSet.has('relationship_member.approve'),
           
           // 每月人員狀態
           canViewMonthlyStatus: 
