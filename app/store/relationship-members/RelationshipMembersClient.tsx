@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   CheckCircle2,
@@ -52,6 +52,8 @@ type MemberForm = {
   relationship: string;
   member_number: string;
 };
+
+type MemberFilterTab = 'all' | 'approved_missing_number' | 'unapproved';
 
 const EMPTY_FORM: MemberForm = {
   member_name: '',
@@ -111,6 +113,7 @@ export default function RelationshipMembersClient({
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [memberFilterTab, setMemberFilterTab] = useState<MemberFilterTab>('all');
   const [filters, setFilters] = useState({ member_name: '', member_number: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -244,6 +247,25 @@ export default function RelationshipMembersClient({
   const totalQuantity = sales.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const hasMemberActions = canEdit || canDelete || canApprove;
   const memberColumnCount = hasMemberActions ? 7 : 6;
+  const memberFilterCounts = useMemo(() => ({
+    all: members.length,
+    approved_missing_number: members.filter((member) => member.is_approved && !String(member.member_number || '').trim()).length,
+    unapproved: members.filter((member) => !member.is_approved).length,
+  }), [members]);
+  const filteredMembers = useMemo(() => {
+    if (memberFilterTab === 'approved_missing_number') {
+      return members.filter((member) => member.is_approved && !String(member.member_number || '').trim());
+    }
+    if (memberFilterTab === 'unapproved') {
+      return members.filter((member) => !member.is_approved);
+    }
+    return members;
+  }, [memberFilterTab, members]);
+  const memberFilterTabs: { key: MemberFilterTab; label: string }[] = [
+    { key: 'all', label: '全部' },
+    { key: 'approved_missing_number', label: '待填寫(已核可)' },
+    { key: 'unapproved', label: '未核可' },
+  ];
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -313,7 +335,34 @@ export default function RelationshipMembersClient({
               </section>}
 
             <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-200 px-5 py-4"><h2 className="font-bold text-slate-900">關係會員檢視表</h2></div>
+              <div className="border-b border-slate-200 px-5 py-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <h2 className="font-bold text-slate-900">關係會員檢視表</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {memberFilterTabs.map((filterTab) => (
+                      <button
+                        key={filterTab.key}
+                        type="button"
+                        onClick={() => setMemberFilterTab(filterTab.key)}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold ${
+                          memberFilterTab === filterTab.key
+                            ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                            : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {filterTab.label}
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${
+                          memberFilterTab === filterTab.key
+                            ? 'bg-indigo-100 text-indigo-700'
+                            : 'bg-slate-100 text-slate-600'
+                        }`}>
+                          {memberFilterCounts[filterTab.key]}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50 text-left text-slate-600">
@@ -334,13 +383,13 @@ export default function RelationshipMembersClient({
                           <Loader2 className="mx-auto animate-spin" />
                         </td>
                       </tr>
-                    ) : members.length === 0 ? (
+                    ) : filteredMembers.length === 0 ? (
                       <tr>
                         <td colSpan={memberColumnCount} className="px-4 py-12 text-center text-slate-500">
-                          尚無關係會員資料
+                          {members.length === 0 ? '尚無關係會員資料' : '此篩選條件下沒有關係會員資料'}
                         </td>
                       </tr>
-                    ) : members.map((member) => (
+                    ) : filteredMembers.map((member) => (
                       <tr key={member.id} className="hover:bg-slate-50">
                         <td className="px-4 py-3 font-semibold text-slate-900">{member.member_name}</td>
                         <td className="px-4 py-3">{member.phone}</td>
