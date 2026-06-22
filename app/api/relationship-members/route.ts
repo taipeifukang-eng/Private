@@ -23,13 +23,34 @@ export async function GET() {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from('relationship_members')
-    .select('id, member_name, phone, relationship, member_number, is_approved, approved_at, approved_by, created_by, created_at, updated_at, creator:profiles!relationship_members_created_by_fkey(full_name, email), approver:profiles!relationship_members_approved_by_fkey(full_name, email)')
+    .select('id, member_name, phone, relationship, member_number, is_approved, approved_at, approved_by, created_by, created_at, updated_at')
     .order('member_number', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const members = [...(data || [])].sort((a, b) => {
+  const profileIds = Array.from(new Set(
+    (data || [])
+      .flatMap((member) => [member.created_by, member.approved_by])
+      .filter((id): id is string => Boolean(id))
+  ));
+  const { data: profiles, error: profilesError } = profileIds.length > 0
+    ? await admin
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', profileIds)
+    : { data: [], error: null };
+
+  if (profilesError) return NextResponse.json({ error: profilesError.message }, { status: 500 });
+
+  const profileById = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  const membersWithProfiles = (data || []).map((member) => ({
+    ...member,
+    creator: member.created_by ? profileById.get(member.created_by) || null : null,
+    approver: member.approved_by ? profileById.get(member.approved_by) || null : null,
+  }));
+
+  const members = membersWithProfiles.sort((a, b) => {
     const aMemberNumber = String(a.member_number || '').trim();
     const bMemberNumber = String(b.member_number || '').trim();
 
