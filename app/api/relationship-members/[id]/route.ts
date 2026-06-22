@@ -20,13 +20,27 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 
   const admin = createAdminClient();
+  const { data: currentMember, error: currentError } = await admin
+    .from('relationship_members')
+    .select('id, member_number')
+    .eq('id', params.id)
+    .maybeSingle();
+
+  if (currentError) return NextResponse.json({ error: currentError.message }, { status: 500 });
+  if (!currentMember) return NextResponse.json({ error: '找不到關係會員資料' }, { status: 404 });
+
+  const existingMemberNumber = String(currentMember.member_number || '').trim();
+  if (existingMemberNumber && memberNumber !== existingMemberNumber) {
+    return NextResponse.json({ error: '會員編號已建立，不可清空或再次修改' }, { status: 409 });
+  }
+
   const { error } = await admin
     .from('relationship_members')
     .update({
       member_name: memberName,
       phone,
       relationship,
-      member_number: memberNumber,
+      member_number: existingMemberNumber || memberNumber,
       updated_by: user.id,
     })
     .eq('id', params.id);

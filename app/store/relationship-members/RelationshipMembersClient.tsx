@@ -252,6 +252,24 @@ export default function RelationshipMembersClient({
     approved_missing_number: members.filter((member) => member.is_approved && !String(member.member_number || '').trim()).length,
     unapproved: members.filter((member) => !member.is_approved).length,
   }), [members]);
+  const latestFkrsMemberNumber = useMemo(() => {
+    let latestSerial = -1;
+    let latestCode = '';
+
+    members.forEach((member) => {
+      const code = String(member.member_number || '').trim();
+      const match = code.match(/^FKRS(\d+)$/i);
+      if (!match) return;
+
+      const serial = Number(match[1]);
+      if (Number.isFinite(serial) && serial > latestSerial) {
+        latestSerial = serial;
+        latestCode = code.toUpperCase();
+      }
+    });
+
+    return latestCode || '尚無 FKRS 編號';
+  }, [members]);
   const filteredMembers = useMemo(() => {
     if (memberFilterTab === 'approved_missing_number') {
       return members.filter((member) => member.is_approved && !String(member.member_number || '').trim());
@@ -266,6 +284,7 @@ export default function RelationshipMembersClient({
     { key: 'approved_missing_number', label: '待填寫(已核可)' },
     { key: 'unapproved', label: '未核可' },
   ];
+  const isMemberNumberLocked = Boolean(editing?.member_number?.trim());
 
   return (
     <main className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
@@ -324,7 +343,8 @@ export default function RelationshipMembersClient({
                     <input required value={form.relationship} onChange={(e) => setForm({ ...form, relationship: e.target.value })} placeholder="例如：配偶、父母、朋友" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
                   </label>
                   <label className="text-sm font-medium text-slate-700">會員編號
-                    <input disabled={!editing} value={form.member_number} onChange={(e) => setForm({ ...form, member_number: e.target.value })} placeholder={editing ? '可於再編輯時填寫' : '建立後再編輯填寫'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none disabled:bg-slate-100 disabled:text-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+                    <input disabled={!editing || isMemberNumberLocked} value={form.member_number} onChange={(e) => setForm({ ...form, member_number: e.target.value })} placeholder={isMemberNumberLocked ? '會員編號已建立，不可再次修改' : editing ? '可於再編輯時填寫' : '建立後再編輯填寫'} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none disabled:bg-slate-100 disabled:text-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" />
+                    {isMemberNumberLocked && <span className="mt-1 block text-xs font-normal text-amber-600">會員編號已建立，不可再次修改。</span>}
                   </label>
                   <div className="md:col-span-4 flex justify-end">
                     <button disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 font-semibold text-white hover:bg-indigo-700 disabled:opacity-60">
@@ -363,6 +383,15 @@ export default function RelationshipMembersClient({
                   </div>
                 </div>
               </div>
+              {memberFilterTab === 'approved_missing_number' && (
+                <div className="border-b border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-medium">目前 FKRS 會員編號最後一號</span>
+                    <span className="font-mono text-base font-bold text-amber-700">{latestFkrsMemberNumber}</span>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-700">填寫會員編號後會鎖定，避免同一筆資料被重複改號。</p>
+                </div>
+              )}
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50 text-left text-slate-600">
