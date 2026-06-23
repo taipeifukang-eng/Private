@@ -127,7 +127,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '無效的狀態' }, { status: 400 });
     }
 
-    const normalizedCategoryId =
+    const hasCategoryPayload = Object.prototype.hasOwnProperty.call(body, 'category_id');
+    let normalizedCategoryId =
       typeof category_id === 'string' && category_id.trim() ? category_id.trim() : null;
 
     if (normalizedCategoryId) {
@@ -141,6 +142,17 @@ export async function POST(request: NextRequest) {
       if (categoryError || !category) {
         return NextResponse.json({ success: false, error: '維修分類不存在或已停用' }, { status: 400 });
       }
+    }
+
+    if (!hasCategoryPayload) {
+      const { data: requestRow, error: requestError } = await supabase
+        .from('maintenance_requests')
+        .select('category_id')
+        .eq('id', request_id)
+        .single();
+
+      if (requestError) throw requestError;
+      normalizedCategoryId = requestRow?.category_id ?? null;
     }
 
     // 取得更新者姓名
@@ -169,10 +181,15 @@ export async function POST(request: NextRequest) {
 
     if (dbError) throw dbError;
 
-    // 同時更新 maintenance_requests 的 status
+    const requestUpdatePayload: Record<string, any> = { status };
+    if (hasCategoryPayload) {
+      requestUpdatePayload.category_id = normalizedCategoryId;
+    }
+
+    // 同時更新 maintenance_requests 的 status；分類由標題旁下拉選單直接管理
     const { error: updateError } = await supabase
       .from('maintenance_requests')
-      .update({ status, category_id: normalizedCategoryId })
+      .update(requestUpdatePayload)
       .eq('id', request_id);
 
     if (updateError) throw updateError;

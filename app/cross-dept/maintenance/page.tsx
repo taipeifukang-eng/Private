@@ -137,11 +137,11 @@ export default function MaintenancePage() {
     status: 'pending',
     notes: '',
     progressDate: getDateInTaipei(),
-    categoryId: '',
   });
   const [updateFormPhotos, setUpdateFormPhotos] = useState<Array<{ file: File; preview: string }>>([]);
   const updatePhotoInputRef = useRef<HTMLInputElement>(null);
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
+  const [savingCategoryIds, setSavingCategoryIds] = useState<Set<string>>(new Set());
   const [updatesMap, setUpdatesMap] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
   const [updatesLoading, setUpdatesLoading] = useState<Set<string>>(new Set());
   const [storeSummary, setStoreSummary] = useState<StoreStatusSummary[]>([]);
@@ -545,7 +545,6 @@ export default function MaintenancePage() {
           status: updateForm.status,
           notes: updateForm.notes,
           progress_date: updateForm.progressDate,
-          category_id: updateForm.categoryId || null,
         }),
       });
 
@@ -569,7 +568,7 @@ export default function MaintenancePage() {
 
         await loadRequestUpdates(updateTarget.id);
         setUpdateTarget(null);
-        setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei(), categoryId: '' });
+        setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
         clearUpdateFormPhotos();
         loadData();
         loadStoreSummary();
@@ -609,6 +608,43 @@ export default function MaintenancePage() {
     if (category?.name) return category.name;
     if (!categoryId) return '未分類';
     return categories.find((c) => c.id === categoryId)?.name || '未分類';
+  };
+
+  const handleChangeRequestCategory = async (requestId: string, categoryId: string) => {
+    setSavingCategoryIds((prev) => new Set(prev).add(requestId));
+    try {
+      const nextCategoryId = categoryId || null;
+      const res = await fetch('/api/maintenance-requests', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: requestId, category_id: nextCategoryId }),
+      });
+      const result = await res.json();
+      if (!result.success) {
+        alert(`更新分類失敗: ${result.error || '未知錯誤'}`);
+        return;
+      }
+
+      setRequests((prev) =>
+        prev.map((req) =>
+          req.id === requestId
+            ? {
+                ...req,
+                category_id: result.data?.category_id ?? null,
+                category: result.data?.category ?? null,
+              }
+            : req
+        )
+      );
+    } catch (error) {
+      alert(`更新分類失敗: ${error}`);
+    } finally {
+      setSavingCategoryIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
   };
 
   const handleCreateCategory = async () => {
@@ -1077,13 +1113,31 @@ export default function MaintenancePage() {
                             }[req.priority]
                           }
                         </span>
-                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                          req.category_id
-                            ? 'bg-sky-100 text-sky-700'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}>
-                          {getCategoryName(req.category_id, req.category)}
-                        </span>
+                        {canUpdate ? (
+                          <select
+                            value={req.category_id || ''}
+                            onChange={(e) => handleChangeRequestCategory(req.id, e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            disabled={loadingCategories || savingCategoryIds.has(req.id)}
+                            className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 disabled:opacity-50"
+                            title="維修分類"
+                          >
+                            <option value="">未分類</option>
+                            {activeCategories.map((category) => (
+                              <option key={category.id} value={category.id}>
+                                {category.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                            req.category_id
+                              ? 'bg-sky-100 text-sky-700'
+                              : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {getCategoryName(req.category_id, req.category)}
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-4 text-sm text-gray-600">
                         <div className="flex items-center gap-1">
@@ -1271,24 +1325,6 @@ export default function MaintenancePage() {
                                 <option value="in_progress">處理中</option>
                                 <option value="completed">已完成</option>
                               </select>
-                              <select
-                                value={updateForm.categoryId}
-                                onChange={(e) =>
-                                  setUpdateForm({
-                                    ...updateForm,
-                                    categoryId: e.target.value,
-                                  })
-                                }
-                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                                disabled={loadingCategories}
-                              >
-                                <option value="">未分類</option>
-                                {activeCategories.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name}
-                                  </option>
-                                ))}
-                              </select>
                               <textarea
                                 placeholder="輸入更新說明..."
                                 value={updateForm.notes}
@@ -1383,7 +1419,6 @@ export default function MaintenancePage() {
                                   status: req.status,
                                   notes: '',
                                   progressDate: getDateInTaipei(),
-                                  categoryId: req.category_id || '',
                                 });
                                 clearUpdateFormPhotos();
                               }}

@@ -170,6 +170,67 @@ export async function POST(request: NextRequest) {
 }
 
 // ──────────────────────────────────────────
+// PATCH /api/maintenance-requests
+//   更新維修回報欄位（目前用於總務直接調整分類）
+// ──────────────────────────────────────────
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+    const canManage = await hasAnyPermission(user.id, [
+      'cross_dept.maintenance.update',
+      'cross_dept.maintenance.view_all',
+    ]);
+    if (!canManage) {
+      return NextResponse.json({ success: false, error: '沒有更新維修回報的權限' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const id = String(body?.id ?? '').trim();
+    const normalizedCategoryId =
+      typeof body?.category_id === 'string' && body.category_id.trim()
+        ? body.category_id.trim()
+        : null;
+
+    if (!id) {
+      return NextResponse.json({ success: false, error: '缺少 id' }, { status: 400 });
+    }
+
+    if (normalizedCategoryId) {
+      const { data: category, error: categoryError } = await supabase
+        .from('maintenance_categories')
+        .select('id')
+        .eq('id', normalizedCategoryId)
+        .eq('is_active', true)
+        .single();
+
+      if (categoryError || !category) {
+        return NextResponse.json({ success: false, error: '維修分類不存在或已停用' }, { status: 400 });
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('maintenance_requests')
+      .update({ category_id: normalizedCategoryId })
+      .eq('id', id)
+      .select(`
+        *,
+        store:stores(id, store_code, store_name),
+        category:maintenance_categories(id, name, sort_order, is_active)
+      `)
+      .single();
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true, data });
+  } catch (err: any) {
+    return NextResponse.json({ success: false, error: normalizeMaintenanceError(err) }, { status: 500 });
+  }
+}
+
+// ──────────────────────────────────────────
 // DELETE /api/maintenance-requests?id=xxx
 //   刪除維修回報（本人可刪自己的；總務可刪任意）
 // ──────────────────────────────────────────
