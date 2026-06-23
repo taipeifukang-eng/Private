@@ -16,21 +16,25 @@ interface MaintenanceRequest {
   description: string | null;
   reported_by: string;
   reporter_name: string;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'completed' | 'closed';
   priority: 'low' | 'normal' | 'high' | 'urgent';
+  category_id?: string | null;
   reported_at: string;
   store?: { id: string; store_code: string; store_name: string } | null;
+  category?: MaintenanceCategory | null;
 }
 
 interface MaintenanceUpdate {
   id: string;
   request_id: string;
-  status: 'pending' | 'in_progress' | 'completed';
+  status: 'pending' | 'in_progress' | 'completed' | 'closed';
   notes: string;
   progress_date: string;
+  category_id?: string | null;
   updated_by: string;
   updated_by_name: string;
   created_at: string;
+  category?: MaintenanceCategory | null;
   photos?: Array<{
     id: string;
     signed_url?: string | null;
@@ -65,6 +69,15 @@ interface StoreStatusSummary {
   total: number;
 }
 
+interface MaintenanceCategory {
+  id: string;
+  name: string;
+  sort_order: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // ── 主元件 ──────────────────────────────────────────────────────
 export default function MaintenancePage() {
   const supabase = createClient();
@@ -79,6 +92,7 @@ export default function MaintenancePage() {
   const [canViewAll, setCanViewAll] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
   const [canUpdate, setCanUpdate] = useState(false);
+  const [canEditCategories, setCanEditCategories] = useState(false);
   const [userManagedStores, setUserManagedStores] = useState<UserManagedStore[]>([]);
   const [userStoreId, setUserStoreId] = useState<string | null>(null);
   const [permLoading, setPermLoading] = useState(true);
@@ -89,6 +103,7 @@ export default function MaintenancePage() {
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [allStores, setAllStores] = useState<UserManagedStore[]>([]);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
+  const [filterCategoryId, setFilterCategoryId] = useState('all');
   const [filterYearMonth, setFilterYearMonth] = useState(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' }).slice(0, 7)
   );
@@ -97,6 +112,15 @@ export default function MaintenancePage() {
   const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [activeTab, setActiveTab] = useState<'requests' | 'categories'>('requests');
+
+  // 維修分類
+  const [categories, setCategories] = useState<MaintenanceCategory[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(false);
+  const [categoryFormName, setCategoryFormName] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editingCategoryName, setEditingCategoryName] = useState('');
+  const [submittingCategory, setSubmittingCategory] = useState(false);
 
   // 新增回報表單
   const [newRequestForm, setNewRequestForm] = useState({
@@ -109,13 +133,19 @@ export default function MaintenancePage() {
 
   // 進度更新表單
   const [updateTarget, setUpdateTarget] = useState<MaintenanceRequest | null>(null);
-  const [updateForm, setUpdateForm] = useState({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
+  const [updateForm, setUpdateForm] = useState({
+    status: 'pending',
+    notes: '',
+    progressDate: getDateInTaipei(),
+    categoryId: '',
+  });
   const [updateFormPhotos, setUpdateFormPhotos] = useState<Array<{ file: File; preview: string }>>([]);
   const updatePhotoInputRef = useRef<HTMLInputElement>(null);
   const [submittingUpdate, setSubmittingUpdate] = useState(false);
   const [updatesMap, setUpdatesMap] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
   const [updatesLoading, setUpdatesLoading] = useState<Set<string>>(new Set());
   const [storeSummary, setStoreSummary] = useState<StoreStatusSummary[]>([]);
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
 
   // 照片上傳
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -137,7 +167,7 @@ export default function MaintenancePage() {
       setUserId(user.id);
 
       // 檢查權限
-      const [viewAllRes, submitRes, updateRes] = await Promise.all([
+      const [viewAllRes, submitRes, updateRes, categoryEditRes] = await Promise.all([
         fetch('/api/permissions/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -153,16 +183,28 @@ export default function MaintenancePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ permissionCode: 'cross_dept.maintenance.update' }),
         }),
+        fetch('/api/permissions/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ permissionCode: 'cross_dept.maintenance.category.edit' }),
+        }),
       ]);
 
-      const [vaD, sD, uD] = await Promise.all([viewAllRes.json(), submitRes.json(), updateRes.json()]);
+      const [vaD, sD, uD, cD] = await Promise.all([
+        viewAllRes.json(),
+        submitRes.json(),
+        updateRes.json(),
+        categoryEditRes.json(),
+      ]);
       const hasViewAll = vaD.allowed || false;
       const hasSubmit = sD.allowed || false;
       const hasUpdate = uD.allowed || false;
+      const hasCategoryEdit = cD.allowed || false;
 
       setCanViewAll(hasViewAll);
       setCanSubmit(hasSubmit);
       setCanUpdate(hasUpdate);
+      setCanEditCategories(hasCategoryEdit);
 
       // 取得使用者所管轄門市
       if (hasSubmit || hasViewAll) {
@@ -198,6 +240,30 @@ export default function MaintenancePage() {
     })();
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    if (permLoading) return;
+    setLoadingCategories(true);
+    try {
+      const includeInactive = canEditCategories ? '?include_inactive=1' : '';
+      const res = await fetch(`/api/maintenance-categories${includeInactive}`);
+      const result = await res.json();
+      if (result.success) {
+        setCategories(result.data || []);
+      } else {
+        setCategories([]);
+        console.warn('載入維修分類失敗:', result.error);
+      }
+    } catch (error) {
+      console.error('載入維修分類失敗:', error);
+    } finally {
+      setLoadingCategories(false);
+    }
+  }, [permLoading, canEditCategories]);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
+
   // ── 載入資料 ──
   const loadData = useCallback(async () => {
     if (permLoading) return;
@@ -208,6 +274,9 @@ export default function MaintenancePage() {
       url += `&year_month=${filterYearMonth}`;
       if (selectedStoreId) url += `&store_id=${selectedStoreId}`;
       if (filterStatus !== 'all') url += `&status=${filterStatus}`;
+      if (filterCategoryId !== 'all') {
+        url += `&category_id=${filterCategoryId === 'uncategorized' ? '__none__' : filterCategoryId}`;
+      }
       if (searchInput.trim()) url += `&q=${encodeURIComponent(searchInput.trim())}`;
 
       const res = await fetch(url);
@@ -226,7 +295,7 @@ export default function MaintenancePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedStoreId, filterStatus, filterYearMonth, searchInput, permLoading]);
+  }, [page, selectedStoreId, filterStatus, filterCategoryId, filterYearMonth, searchInput, permLoading]);
 
   const loadStoreSummary = useCallback(async () => {
     if (permLoading || !canViewAll) return;
@@ -476,6 +545,7 @@ export default function MaintenancePage() {
           status: updateForm.status,
           notes: updateForm.notes,
           progress_date: updateForm.progressDate,
+          category_id: updateForm.categoryId || null,
         }),
       });
 
@@ -499,7 +569,7 @@ export default function MaintenancePage() {
 
         await loadRequestUpdates(updateTarget.id);
         setUpdateTarget(null);
-        setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
+        setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei(), categoryId: '' });
         clearUpdateFormPhotos();
         loadData();
         loadStoreSummary();
@@ -534,6 +604,95 @@ export default function MaintenancePage() {
     }
   };
 
+  const activeCategories = categories.filter((c) => c.is_active);
+  const getCategoryName = (categoryId?: string | null, category?: MaintenanceCategory | null) => {
+    if (category?.name) return category.name;
+    if (!categoryId) return '未分類';
+    return categories.find((c) => c.id === categoryId)?.name || '未分類';
+  };
+
+  const handleCreateCategory = async () => {
+    const name = categoryFormName.trim();
+    if (!name) {
+      alert('請輸入分類名稱');
+      return;
+    }
+
+    setSubmittingCategory(true);
+    try {
+      const res = await fetch('/api/maintenance-categories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      const result = await res.json();
+      if (!result.success) {
+        alert(`新增分類失敗: ${result.error}`);
+        return;
+      }
+      setCategoryFormName('');
+      await loadCategories();
+    } catch (error) {
+      alert(`新增分類失敗: ${error}`);
+    } finally {
+      setSubmittingCategory(false);
+    }
+  };
+
+  const handleRenameCategory = async (categoryId: string) => {
+    const name = editingCategoryName.trim();
+    if (!name) {
+      alert('請輸入分類名稱');
+      return;
+    }
+
+    setSubmittingCategory(true);
+    try {
+      const res = await fetch('/api/maintenance-categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: categoryId, name }),
+      });
+      const result = await res.json();
+      if (!result.success) {
+        alert(`更新分類失敗: ${result.error}`);
+        return;
+      }
+      setEditingCategoryId(null);
+      setEditingCategoryName('');
+      await loadCategories();
+      await loadData();
+    } catch (error) {
+      alert(`更新分類失敗: ${error}`);
+    } finally {
+      setSubmittingCategory(false);
+    }
+  };
+
+  const handleToggleCategory = async (category: MaintenanceCategory) => {
+    setSubmittingCategory(true);
+    try {
+      const res = await fetch('/api/maintenance-categories', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: category.id, is_active: !category.is_active }),
+      });
+      const result = await res.json();
+      if (!result.success) {
+        alert(`更新分類狀態失敗: ${result.error}`);
+        return;
+      }
+      if (filterCategoryId === category.id && category.is_active) {
+        setFilterCategoryId('all');
+      }
+      await loadCategories();
+    } catch (error) {
+      alert(`更新分類狀態失敗: ${error}`);
+    } finally {
+      setSubmittingCategory(false);
+    }
+  };
+
   // ── 權限檢查 ──
   if (permLoading) {
     return (
@@ -543,7 +702,7 @@ export default function MaintenancePage() {
     );
   }
 
-  if (!canViewAll && !canSubmit && !canUpdate) {
+  if (!canViewAll && !canSubmit && !canUpdate && !canEditCategories) {
     return (
       <div className="flex items-center justify-center min-h-screen text-gray-500">
         <div className="text-center space-y-2">
@@ -569,6 +728,152 @@ export default function MaintenancePage() {
             </div>
           </div>
         </div>
+
+        {canEditCategories && (
+          <div className="mb-4 flex gap-2 border-b border-gray-200">
+            {([
+              ['requests', '維修回報'],
+              ['categories', '分類管理'],
+            ] as const).map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  activeTab === tab
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {canEditCategories && activeTab === 'categories' ? (
+          <div className="bg-white rounded-xl border border-gray-200 p-4">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">維修分類管理</h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  啟用中的分類會出現在維修進度更新與列表篩選器。
+                </p>
+              </div>
+              {loadingCategories && <Loader2 className="w-5 h-5 animate-spin text-orange-500" />}
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                value={categoryFormName}
+                onChange={(e) => setCategoryFormName(e.target.value)}
+                placeholder="新增分類名稱"
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              />
+              <button
+                type="button"
+                onClick={handleCreateCategory}
+                disabled={submittingCategory}
+                className="px-4 py-2 bg-orange-500 text-white rounded-lg text-sm font-medium hover:bg-orange-600 disabled:opacity-50"
+              >
+                新增分類
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-gray-500 border-b border-gray-200">
+                    <th className="py-2 pr-3">分類名稱</th>
+                    <th className="py-2 pr-3">狀態</th>
+                    <th className="py-2">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((category) => (
+                    <tr key={category.id} className="border-b border-gray-100">
+                      <td className="py-2 pr-3">
+                        {editingCategoryId === category.id ? (
+                          <input
+                            type="text"
+                            value={editingCategoryName}
+                            onChange={(e) => setEditingCategoryName(e.target.value)}
+                            className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm"
+                          />
+                        ) : (
+                          <span className="font-medium text-gray-800">{category.name}</span>
+                        )}
+                      </td>
+                      <td className="py-2 pr-3">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                          category.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {category.is_active ? '啟用' : '停用'}
+                        </span>
+                      </td>
+                      <td className="py-2">
+                        <div className="flex gap-2">
+                          {editingCategoryId === category.id ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleRenameCategory(category.id)}
+                                disabled={submittingCategory}
+                                className="px-3 py-1.5 bg-orange-500 text-white rounded-lg text-xs hover:bg-orange-600 disabled:opacity-50"
+                              >
+                                儲存
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCategoryId(null);
+                                  setEditingCategoryName('');
+                                }}
+                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50"
+                              >
+                                取消
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCategoryId(category.id);
+                                  setEditingCategoryName(category.name);
+                                }}
+                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50"
+                              >
+                                編輯
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleCategory(category)}
+                                disabled={submittingCategory}
+                                className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 disabled:opacity-50"
+                              >
+                                {category.is_active ? '停用' : '啟用'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {categories.length === 0 && (
+                    <tr>
+                      <td colSpan={3} className="py-6 text-center text-gray-400">
+                        尚未建立維修分類
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <>
 
         {/* Filters & Controls */}
         <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4 space-y-4">
@@ -605,6 +910,26 @@ export default function MaintenancePage() {
                   }}
                   className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                 />
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-600">分類：</label>
+                <select
+                  value={filterCategoryId}
+                  onChange={(e) => {
+                    setFilterCategoryId(e.target.value);
+                    setPage(1);
+                  }}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  disabled={loadingCategories}
+                >
+                  <option value="all">全部分類</option>
+                  <option value="uncategorized">未分類</option>
+                  {activeCategories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
@@ -661,33 +986,53 @@ export default function MaintenancePage() {
         {/* 總務快速總覽 */}
         {canViewAll && (
           <div className="bg-white rounded-xl border border-gray-200 p-4 mb-4">
-            <p className="text-sm font-semibold text-gray-700 mb-3">門市維修狀態總覽</p>
-            {storeSummary.length === 0 ? (
-              <p className="text-xs text-gray-500">目前無資料</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-gray-500 border-b border-gray-200">
-                      <th className="py-2 pr-2">門市</th>
-                      <th className="py-2 pr-2">待處理</th>
-                      <th className="py-2 pr-2">處理中</th>
-                      <th className="py-2 pr-2">已完成</th>
-                      <th className="py-2">總數</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {storeSummary.map((s) => (
-                      <tr key={s.store_id} className="border-b border-gray-100">
-                        <td className="py-2 pr-2 text-gray-700">{s.store_code} - {s.store_name}</td>
-                        <td className="py-2 pr-2 text-orange-600 font-medium">{s.pending}</td>
-                        <td className="py-2 pr-2 text-blue-600 font-medium">{s.in_progress}</td>
-                        <td className="py-2 pr-2 text-emerald-600 font-medium">{s.completed}</td>
-                        <td className="py-2 text-gray-700">{s.total}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <button
+              type="button"
+              onClick={() => setSummaryCollapsed((collapsed) => !collapsed)}
+              className="flex w-full items-center justify-between gap-3 text-left"
+              aria-expanded={!summaryCollapsed}
+            >
+              <div>
+                <p className="text-sm font-semibold text-gray-700">門市維修狀態總覽</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {storeSummary.length > 0 ? `共 ${storeSummary.length} 間門市有維修紀錄` : '目前無資料'}
+                </p>
+              </div>
+              <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 px-3 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
+                {summaryCollapsed ? '展開' : '收合'}
+                {summaryCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+              </span>
+            </button>
+            {!summaryCollapsed && (
+              <div className="mt-3">
+                {storeSummary.length === 0 ? (
+                  <p className="text-xs text-gray-500">目前無資料</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 border-b border-gray-200">
+                          <th className="py-2 pr-2">門市</th>
+                          <th className="py-2 pr-2">待處理</th>
+                          <th className="py-2 pr-2">處理中</th>
+                          <th className="py-2 pr-2">已完成</th>
+                          <th className="py-2">總數</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {storeSummary.map((s) => (
+                          <tr key={s.store_id} className="border-b border-gray-100">
+                            <td className="py-2 pr-2 text-gray-700">{s.store_code} - {s.store_name}</td>
+                            <td className="py-2 pr-2 text-orange-600 font-medium">{s.pending}</td>
+                            <td className="py-2 pr-2 text-blue-600 font-medium">{s.in_progress}</td>
+                            <td className="py-2 pr-2 text-emerald-600 font-medium">{s.completed}</td>
+                            <td className="py-2 text-gray-700">{s.total}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -731,6 +1076,13 @@ export default function MaintenancePage() {
                               urgent: '緊急',
                             }[req.priority]
                           }
+                        </span>
+                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                          req.category_id
+                            ? 'bg-sky-100 text-sky-700'
+                            : 'bg-gray-100 text-gray-500'
+                        }`}>
+                          {getCategoryName(req.category_id, req.category)}
                         </span>
                       </div>
                       <div className="flex gap-4 text-sm text-gray-600">
@@ -867,6 +1219,7 @@ export default function MaintenancePage() {
                                         month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
                                       })}
                                       {' · '}更新者：{u.updated_by_name}
+                                      {' · '}分類：{getCategoryName(u.category_id, u.category)}
                                     </div>
                                     <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
                                       {{ pending: '待處理', in_progress: '處理中', completed: '已完成' }[u.status as 'pending' | 'in_progress' | 'completed'] ?? u.status}
@@ -917,6 +1270,24 @@ export default function MaintenancePage() {
                                 <option value="pending">待處理</option>
                                 <option value="in_progress">處理中</option>
                                 <option value="completed">已完成</option>
+                              </select>
+                              <select
+                                value={updateForm.categoryId}
+                                onChange={(e) =>
+                                  setUpdateForm({
+                                    ...updateForm,
+                                    categoryId: e.target.value,
+                                  })
+                                }
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                disabled={loadingCategories}
+                              >
+                                <option value="">未分類</option>
+                                {activeCategories.map((category) => (
+                                  <option key={category.id} value={category.id}>
+                                    {category.name}
+                                  </option>
+                                ))}
                               </select>
                               <textarea
                                 placeholder="輸入更新說明..."
@@ -1008,7 +1379,12 @@ export default function MaintenancePage() {
                             <button
                               onClick={() => {
                                 setUpdateTarget(req);
-                                setUpdateForm({ status: req.status, notes: '', progressDate: getDateInTaipei() });
+                                setUpdateForm({
+                                  status: req.status,
+                                  notes: '',
+                                  progressDate: getDateInTaipei(),
+                                  categoryId: req.category_id || '',
+                                });
                                 clearUpdateFormPhotos();
                               }}
                               className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50"
@@ -1047,6 +1423,8 @@ export default function MaintenancePage() {
               下一頁
             </button>
           </div>
+        )}
+          </>
         )}
       </div>
 

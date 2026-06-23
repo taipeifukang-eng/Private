@@ -5,6 +5,12 @@ import { hasAnyPermission } from '@/lib/permissions/check';
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
   if (
+    msg.includes('maintenance_categories') ||
+    msg.includes('category_id')
+  ) {
+    return '維修分類欄位尚未建置到目前環境，請先執行 migration_add_maintenance_categories.sql';
+  }
+  if (
     msg.includes("Could not find the table 'public.maintenance_") ||
     msg.includes('schema cache')
   ) {
@@ -31,6 +37,7 @@ export async function GET(request: NextRequest) {
 
     const storeId = searchParams.get('store_id');
     const status = searchParams.get('status');
+    const categoryId = searchParams.get('category_id');
     const q = searchParams.get('q')?.trim() ?? '';
     const yearMonth = searchParams.get('year_month'); // format: YYYY-MM
 
@@ -55,7 +62,8 @@ export async function GET(request: NextRequest) {
       .from('maintenance_requests')
       .select(`
         *,
-        store:stores(id, store_code, store_name)
+        store:stores(id, store_code, store_name),
+        category:maintenance_categories(id, name, sort_order, is_active)
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
 
@@ -65,6 +73,12 @@ export async function GET(request: NextRequest) {
 
     if (status) {
       query = query.eq('status', status);
+    }
+
+    if (categoryId === '__none__') {
+      query = query.is('category_id', null);
+    } else if (categoryId) {
+      query = query.eq('category_id', categoryId);
     }
 
     if (q) {

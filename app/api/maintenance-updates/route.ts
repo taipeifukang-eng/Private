@@ -7,6 +7,12 @@ const STORAGE_BUCKET = 'maintenance-photos';
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
   if (
+    msg.includes('maintenance_categories') ||
+    msg.includes('category_id')
+  ) {
+    return '維修分類欄位尚未建置到目前環境，請先執行 migration_add_maintenance_categories.sql';
+  }
+  if (
     msg.includes("Could not find the table 'public.maintenance_") ||
     msg.includes('schema cache')
   ) {
@@ -35,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('maintenance_updates')
-      .select('*')
+      .select('*, category:maintenance_categories(id, name, sort_order, is_active)')
       .eq('request_id', requestId)
       .order('progress_date', { ascending: false })
       .order('created_at', { ascending: false });
@@ -104,7 +110,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { request_id, status, notes, progress_date } = body;
+    const { request_id, status, notes, progress_date, category_id } = body;
 
     if (!request_id || !status || !notes || !progress_date) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
@@ -119,6 +125,22 @@ export async function POST(request: NextRequest) {
     const validStatuses = ['pending', 'in_progress', 'completed', 'closed'];
     if (!validStatuses.includes(status)) {
       return NextResponse.json({ success: false, error: '無效的狀態' }, { status: 400 });
+    }
+
+    const normalizedCategoryId =
+      typeof category_id === 'string' && category_id.trim() ? category_id.trim() : null;
+
+    if (normalizedCategoryId) {
+      const { data: category, error: categoryError } = await supabase
+        .from('maintenance_categories')
+        .select('id')
+        .eq('id', normalizedCategoryId)
+        .eq('is_active', true)
+        .single();
+
+      if (categoryError || !category) {
+        return NextResponse.json({ success: false, error: '維修分類不存在或已停用' }, { status: 400 });
+      }
     }
 
     // 取得更新者姓名
@@ -138,6 +160,7 @@ export async function POST(request: NextRequest) {
         status,
         notes,
         progress_date,
+        category_id: normalizedCategoryId,
         updated_by: user.id,
         updated_by_name: updaterName,
       })
@@ -149,7 +172,7 @@ export async function POST(request: NextRequest) {
     // 同時更新 maintenance_requests 的 status
     const { error: updateError } = await supabase
       .from('maintenance_requests')
-      .update({ status })
+      .update({ status, category_id: normalizedCategoryId })
       .eq('id', request_id);
 
     if (updateError) throw updateError;
