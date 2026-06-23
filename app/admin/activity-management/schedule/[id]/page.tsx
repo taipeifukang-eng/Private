@@ -35,6 +35,8 @@ interface CampaignDepartmentPublish {
   merchandise_allocation_file_data?: string | null;
 }
 
+const MAX_STORES_PER_ACTIVITY_DAY = 3;
+
 export default function ScheduleEditPage() {
   const params = useParams();
   const router = useRouter();
@@ -549,7 +551,7 @@ export default function ScheduleEditPage() {
     })));
 
     const allowedDays = [3, 6, 7]; // 週三(3)、週六(6)、週日(7)
-    const maxPerDay = 2;
+    const maxPerDay = MAX_STORES_PER_ACTIVITY_DAY;
     
     // 按督導區分組門市
     const supervisorGroups = new Map<string, string[]>();
@@ -886,10 +888,10 @@ export default function ScheduleEditPage() {
   const assignStoreToDate = (storeId: string, date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
 
-    // 檢查該日是否已有兩間門市
+    // 檢查該日是否已達門市安排上限
     const schedulesOnDate = schedules.filter(s => s.activity_date.split('T')[0] === dateStr);
-    if (schedulesOnDate.length >= 2) {
-      alert('該日已有兩間門市，請先移除其中一間');
+    if (schedulesOnDate.length >= MAX_STORES_PER_ACTIVITY_DAY) {
+      alert(`該日已有 ${MAX_STORES_PER_ACTIVITY_DAY} 間門市，請先移除其中一間`);
       return;
     }
 
@@ -1370,7 +1372,7 @@ export default function ScheduleEditPage() {
                                       );
                                     })}
 
-                                    {daySchedules.length < 2 && canEditCalendar && (
+                                    {daySchedules.length < MAX_STORES_PER_ACTIVITY_DAY && canEditCalendar && (
                                       <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
                                         拖放門市到此
                                       </div>
