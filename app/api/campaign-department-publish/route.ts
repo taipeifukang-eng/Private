@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
+import {
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 const STORAGE_BUCKET = 'campaign-department-assets';
 
@@ -30,6 +35,29 @@ export async function GET(request: NextRequest) {
     const campaignId = searchParams.get('campaign_id');
     if (!campaignId) {
       return NextResponse.json({ success: false, error: '缺少 campaign_id' }, { status: 400 });
+    }
+
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+    }
+
+    const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+    const canEditDepartmentContent =
+      await hasPermission(user.id, 'activity.marketing.publish') ||
+      await hasPermission(user.id, 'activity.merchandise.publish') ||
+      await hasPermission(user.id, 'activity.checklist.edit');
+
+    if (!hasCampaignPublishedAccess(access) && !canEditDepartmentContent) {
+      return NextResponse.json(
+        { success: false, error: getCampaignAccessDeniedMessage(access) },
+        { status: 403 }
+      );
     }
 
     const { data, error } = await supabase

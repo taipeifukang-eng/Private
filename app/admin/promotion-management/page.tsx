@@ -6,6 +6,15 @@ import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS, NEWBIE_LEVEL_OPTIONS } from '@/types/workflow';
 
+const PROMOTION_POSITION_OPTIONS = POSITION_OPTIONS.flatMap((pos) =>
+  pos === '行政' ? ['行政(未過階)', '行政(過階)'] : [pos]
+);
+
+const ADMIN_PROMOTION_LEVEL: Record<string, string> = {
+  '行政(未過階)': '未過階行政',
+  '行政(過階)': '過階行政',
+};
+
 // 異動類型定義
 const MOVEMENT_TYPES = [
   { value: 'onboarding', label: '入職' },
@@ -27,7 +36,7 @@ interface MovementInput {
   onboarding_is_pharmacist: boolean; // 入職是否為藥師
   birthday: string; // 入職需填寫生日
   position: string; // 僅升職時需要
-  newbie_level: string; // 升職為新人時的新人等級（一階/二階）
+  newbie_level: string; // 升職為新人/行政時的階級
   effective_date: string;
   notes: string;
   from_store_id: string; // 調店：原任職門市
@@ -453,8 +462,12 @@ export default function EmployeeMovementManagementPage() {
     if (field === 'to_store_id' && updated[index].movement_type === 'store_transfer') {
       updated[index].store_id = typeof value === 'string' ? value : '';
     }
-    // 升職結束新人時，清空新人等級
-    if (field === 'position' && value !== '新人') {
+    // 行政職位用月度資料既有的 newbie_level 表示過階/未過階
+    if (field === 'position' && typeof value === 'string' && value in ADMIN_PROMOTION_LEVEL) {
+      updated[index].newbie_level = ADMIN_PROMOTION_LEVEL[value];
+    }
+    // 升職結束新人/行政時，清空階級
+    if (field === 'position' && value !== '新人' && !(typeof value === 'string' && value in ADMIN_PROMOTION_LEVEL)) {
       updated[index].newbie_level = '';
     }
     
@@ -500,6 +513,10 @@ export default function EmployeeMovementManagementPage() {
       if (m.movement_type === 'promotion' && !m.position) {
         return true;
       }
+      // 如果是升職為新人，必須填寫新人等級；行政等級由職位選項自動帶入
+      if (m.movement_type === 'promotion' && m.position === '新人' && !m.newbie_level) {
+        return true;
+      }
       // 如果是調店，必須填寫原任職門市和新任職門市
       if (m.movement_type === 'store_transfer' && (!m.from_store_id || !m.to_store_id)) {
         return true;
@@ -512,7 +529,7 @@ export default function EmployeeMovementManagementPage() {
     });
 
     if (emptyFields.length > 0) {
-      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期；入職需填生日；升職需填職位；調店需填原任職/新任職門市）');
+      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期；入職需填生日；升職需填職位；升職為新人需填新人等級；調店需填原任職/新任職門市）');
       return;
     }
 
@@ -612,7 +629,7 @@ export default function EmployeeMovementManagementPage() {
             onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
             birthday: normalizeDate(rawBirthday),
             position: (row['職位'] || row['position'] || '').toString(),
-            newbie_level: (row['新人等級'] || row['newbie_level'] || '').toString(),
+            newbie_level: (row['新人/行政等級'] || row['新人等級'] || row['newbie_level'] || '').toString(),
             effective_date: normalizeDate(row['生效日期'] ?? row['effective_date'] ?? ''),
             notes: (row['備註'] || row['notes'] || '').toString(),
             from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
@@ -645,7 +662,7 @@ export default function EmployeeMovementManagementPage() {
         '是否為藥師': m.movement_type === 'onboarding' ? (m.onboarding_is_pharmacist ? '是' : '否') : '',
         '生日': m.movement_type === 'onboarding' ? m.birthday : '',
         '職位': m.position,
-        '新人等級': (m.movement_type === 'promotion' && m.position === '新人') ? m.newbie_level : '',
+        '新人/行政等級': m.movement_type === 'promotion' && (m.position === '新人' || m.position in ADMIN_PROMOTION_LEVEL) ? m.newbie_level : '',
         '原任職門市': m.movement_type === 'store_transfer' ? fromStoreName : '',
         '新任職門市': m.movement_type === 'store_transfer' ? toStoreName : '',
         '生效日期': m.effective_date,
@@ -897,7 +914,7 @@ export default function EmployeeMovementManagementPage() {
                             className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                           >
                             <option value="">請選擇職位</option>
-                            {POSITION_OPTIONS.map(pos => (
+                            {PROMOTION_POSITION_OPTIONS.map(pos => (
                               <option key={pos} value={pos}>{pos}</option>
                             ))}
                           </select>

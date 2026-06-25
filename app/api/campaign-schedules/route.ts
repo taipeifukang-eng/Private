@@ -1,5 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import {
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 // GET: 取得指定活動的排程
 export async function GET(request: Request) {
@@ -18,7 +23,25 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, error: '缺少活動 ID' }, { status: 400 });
     }
 
-    const { data: schedules, error } = await supabase
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaign_id)
+      .single();
+
+    if (campaignError || !campaign) {
+      return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+    }
+
+    const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+    if (!hasCampaignPublishedAccess(access)) {
+      return NextResponse.json(
+        { success: false, error: getCampaignAccessDeniedMessage(access) },
+        { status: 403 }
+      );
+    }
+
+    let query = supabase
       .from('campaign_schedules')
       .select(`
         *,
@@ -26,6 +49,15 @@ export async function GET(request: Request) {
       `)
       .eq('campaign_id', campaign_id)
       .order('activity_date');
+
+    if (!access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager) {
+      if (access.managedStoreIds.length === 0) {
+        return NextResponse.json({ success: true, schedules: [] });
+      }
+      query = query.in('store_id', access.managedStoreIds);
+    }
+
+    const { data: schedules, error } = await query;
 
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
+import {
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 // GET /api/campaign-equipment-trips?campaign_id=xxx
 export async function GET(request: NextRequest) {
@@ -14,6 +19,25 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+  const { data: campaign, error: campaignError } = await supabase
+    .from('campaigns')
+    .select('*')
+    .eq('id', campaign_id)
+    .single();
+
+  if (campaignError || !campaign) {
+    return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+  }
+
+  const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+  const canEdit = await hasPermission(user.id, 'activity.equipment_trip.edit');
+  if (!hasCampaignPublishedAccess(access) && !canEdit) {
+    return NextResponse.json(
+      { success: false, error: getCampaignAccessDeniedMessage(access) },
+      { status: 403 }
+    );
+  }
 
   // 查詢所有車次
   const { data, error } = await supabase
@@ -31,10 +55,8 @@ export async function GET(request: NextRequest) {
   }
 
   // 權限過濾：有編輯權限者看全部，否則只看與自己負責門市相關的車次
-  const canEdit = await hasPermission(user.id, 'activity.equipment_trip.edit');
-  
-  if (canEdit) {
-    // 管理者/活動組：顯示所有車次
+  if (canEdit || access.canViewAll || access.canViewAsSupervisor || access.canViewAsDepartment) {
+    // 管理者、督導、部門角色：顯示所有車次
     return NextResponse.json({ success: true, data: data ?? [] });
   }
 

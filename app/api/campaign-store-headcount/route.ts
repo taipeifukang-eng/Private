@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
+import {
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,12 +33,43 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少 campaign_id' }, { status: 400 });
     }
 
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+    }
+
+    const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+    const canManageHeadcount =
+      await hasPermission(user.id, 'activity.staff_overview.view') ||
+      await hasPermission(user.id, 'activity.support_assign.edit');
+    if (!hasCampaignPublishedAccess(access) && !canManageHeadcount) {
+      return NextResponse.json(
+        { success: false, error: getCampaignAccessDeniedMessage(access) },
+        { status: 403 }
+      );
+    }
+
+    const shouldLimitToManagedStores =
+      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
+    if (storeId && shouldLimitToManagedStores && !access.managedStoreIds.includes(storeId)) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+
     // 查詢頭數設定
     let hcQuery = supabase
       .from('campaign_store_headcount')
       .select('campaign_id, store_id, extra_support_count, supervisor_count, notes, updated_at')
       .eq('campaign_id', campaignId);
     if (storeId) hcQuery = hcQuery.eq('store_id', storeId);
+    else if (shouldLimitToManagedStores) {
+      if (access.managedStoreIds.length === 0) return NextResponse.json({ success: true, data: [] });
+      hcQuery = hcQuery.in('store_id', access.managedStoreIds);
+    }
 
     const { data: hcData, error: hcError } = await hcQuery;
     if (hcError) {
@@ -49,6 +86,7 @@ export async function GET(request: NextRequest) {
       .select('store_id')
       .eq('campaign_id', campaignId);
     if (storeId) ownQuery = ownQuery.eq('store_id', storeId);
+    else if (shouldLimitToManagedStores) ownQuery = ownQuery.in('store_id', access.managedStoreIds);
 
     const { data: ownData, error: ownError } = await ownQuery;
     if (ownError && ownError.code !== '42P01') {

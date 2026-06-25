@@ -12,11 +12,26 @@ interface MovementInput {
   onboarding_is_pharmacist?: boolean; // 入職時是否為藥師
   birthday?: string; // 入職時必填生日
   position?: string; // 僅升職時需要
-  newbie_level?: string; // 升職為新人時的新人等級（一階新人/二階新人）
+  newbie_level?: string; // 升職為新人/行政時的階級
   effective_date: string;
   notes?: string;
   from_store_id?: string; // 調店：原任職門市
   to_store_id?: string;   // 調店：新任職門市
+}
+
+function normalizePromotionPosition(position?: string, newbieLevel?: string) {
+  const rawPosition = String(position || '').trim();
+  const rawLevel = String(newbieLevel || '').trim();
+
+  if (rawPosition === '行政(過階)' || rawLevel === '過階行政') {
+    return { position: '行政', newbie_level: '過階行政' };
+  }
+
+  if (rawPosition === '行政(未過階)' || rawLevel === '未過階行政') {
+    return { position: '行政', newbie_level: '未過階行政' };
+  }
+
+  return { position: rawPosition, newbie_level: rawLevel };
 }
 
 export async function POST(request: NextRequest) {
@@ -56,10 +71,36 @@ export async function POST(request: NextRequest) {
       }
 
       // 如果是升職，必須提供職位
-      if (movement.movement_type === 'promotion' && !movement.position) {
+      const normalizedPromotion = movement.movement_type === 'promotion'
+        ? normalizePromotionPosition(movement.position, movement.newbie_level)
+        : null;
+
+      if (movement.movement_type === 'promotion' && !normalizedPromotion?.position) {
         return NextResponse.json({ 
           success: false, 
           error: `員工 ${movement.employee_code} 升職需要指定職位` 
+        }, { status: 400 });
+      }
+
+      if (
+        movement.movement_type === 'promotion' &&
+        normalizedPromotion?.position === '新人' &&
+        !normalizedPromotion.newbie_level
+      ) {
+        return NextResponse.json({
+          success: false,
+          error: `員工 ${movement.employee_code} 升職為新人需要指定新人等級`
+        }, { status: 400 });
+      }
+
+      if (
+        movement.movement_type === 'promotion' &&
+        normalizedPromotion?.position === '行政' &&
+        !normalizedPromotion.newbie_level
+      ) {
+        return NextResponse.json({
+          success: false,
+          error: `員工 ${movement.employee_code} 升職為行政需要指定行政(過階)或行政(未過階)`
         }, { status: 400 });
       }
 
@@ -128,8 +169,11 @@ export async function POST(request: NextRequest) {
 
       // 根據異動類型設定新舊值
       if (movement.movement_type === 'promotion') {
+        const normalizedPromotion = normalizePromotionPosition(movement.position, movement.newbie_level);
         oldValue = empData?.current_position || empData?.position || null;
-        newValue = movement.position;
+        newValue = normalizedPromotion.position;
+        movement.position = normalizedPromotion.position;
+        movement.newbie_level = normalizedPromotion.newbie_level;
       } else if (movement.movement_type === 'store_transfer') {
         // 調店：查詢原門市名稱和新門市名稱
         const { data: fromStore } = await supabase
@@ -172,9 +216,14 @@ export async function POST(request: NextRequest) {
         ? Boolean(movement.onboarding_is_pharmacist)
         : null;
 
+      const promotionLevelNote = movement.movement_type === 'promotion' && movement.position === '行政' && movement.newbie_level
+        ? `行政階級:${movement.newbie_level}`
+        : '';
       const normalizedNotes = movement.movement_type === 'onboarding'
         ? `${movement.notes || ''}${movement.notes ? '；' : ''}是否藥師:${onboardingIsPharmacist ? '是' : '否'}`
-        : (movement.notes || null);
+        : promotionLevelNote
+          ? `${movement.notes || ''}${movement.notes ? '；' : ''}${promotionLevelNote}`
+          : (movement.notes || null);
 
       movementRecords.push({
         employee_code: movement.employee_code.toUpperCase(),
@@ -270,11 +319,14 @@ export async function POST(request: NextRequest) {
 
     // 觸發器會自動處理相關更新
 
-    // 升職為「新人」且指定新人等級時，額外更新 monthly_staff_status.newbie_level
-    const promotionNewbieMovements = movements.filter(
-      m => m.movement_type === 'promotion' && m.position === '新人' && m.newbie_level
+    // 升職為「新人」或「行政」且指定階級時，額外更新 monthly_staff_status.newbie_level
+    const promotionLevelMovements = movements.filter(
+      (m): m is MovementInput & { position: string; newbie_level: string } =>
+        m.movement_type === 'promotion' &&
+        ['新人', '行政'].includes(String(m.position || '')) &&
+        Boolean(m.newbie_level)
     );
-    for (const movement of promotionNewbieMovements) {
+    for (const movement of promotionLevelMovements) {
       const targetYearMonth = movement.effective_date.substring(0, 7);
       await adminSupabase
         .from('monthly_staff_status')

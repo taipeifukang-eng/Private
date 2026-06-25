@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
+import {
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +28,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少 campaign_id' }, { status: 400 });
     }
 
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaignId)
+      .single();
+
+    if (campaignError || !campaign) {
+      return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+    }
+
+    const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+    const canManageStaff =
+      await hasPermission(user.id, 'activity.staff_overview.view') ||
+      await hasPermission(user.id, 'activity.support_assign.edit');
+    if (!hasCampaignPublishedAccess(access) && !canManageStaff) {
+      return NextResponse.json(
+        { success: false, error: getCampaignAccessDeniedMessage(access) },
+        { status: 403 }
+      );
+    }
+
+    const shouldLimitToManagedStores =
+      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
+    if (storeId && shouldLimitToManagedStores && !access.managedStoreIds.includes(storeId)) {
+      return NextResponse.json({ success: true, data: [] });
+    }
+
     let query = supabase
       .from('campaign_store_own_staff')
       .select('*')
@@ -31,6 +64,9 @@ export async function GET(request: NextRequest) {
 
     if (storeId) {
       query = query.eq('store_id', storeId);
+    } else if (shouldLimitToManagedStores) {
+      if (access.managedStoreIds.length === 0) return NextResponse.json({ success: true, data: [] });
+      query = query.in('store_id', access.managedStoreIds);
     }
 
     const { data, error } = await query;

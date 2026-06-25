@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
+import {
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 // =====================================================
 // GET /api/campaign-checklist-completions
@@ -8,6 +14,14 @@ import { createClient } from '@/lib/supabase/server';
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: '未登入' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const campaign_id = searchParams.get('campaign_id');
     const store_id = searchParams.get('store_id');
@@ -16,6 +30,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: '缺少 campaign_id 參數' },
         { status: 400 }
+      );
+    }
+
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaign_id)
+      .single();
+
+    if (campaignError || !campaign) {
+      return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+    }
+
+    const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+    const canEdit = await hasPermission(user.id, 'activity.checklist.edit');
+    if (!hasCampaignPublishedAccess(access) && !canEdit) {
+      return NextResponse.json(
+        { success: false, error: getCampaignAccessDeniedMessage(access) },
+        { status: 403 }
       );
     }
 
@@ -49,8 +82,19 @@ export async function GET(request: NextRequest) {
       .select('*')
       .in('checklist_item_id', itemIds);
 
+    const shouldLimitToManagedStores =
+      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
+
     if (store_id) {
+      if (shouldLimitToManagedStores && !access.managedStoreIds.includes(store_id)) {
+        return NextResponse.json({ success: true, data: [] });
+      }
       query = query.eq('store_id', store_id);
+    } else if (shouldLimitToManagedStores) {
+      if (access.managedStoreIds.length === 0) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+      query = query.in('store_id', access.managedStoreIds);
     }
 
     const { data, error } = await query;
