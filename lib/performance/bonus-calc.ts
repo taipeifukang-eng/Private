@@ -8,6 +8,10 @@
  *   例：若日毛利目標為 32,500，則各檻門檻為
  *   第一檻 32,500、第二檻 33,500、第三檻 34,500、第四檻 35,500、第五檻 36,500
  *
+ * 季團體獎金毛利檻規則：
+ * - 第一檻 = 三個月毛利目標加總
+ * - 第二檻起每檻固定增加 1,000 × 三個月營業天數
+ *
  * 各指標權重：
  * - 毛利: 90%（決定基本金額的門檻）
  * - 月營業額: 5%
@@ -122,12 +126,13 @@ export function calcGpThresholdLevel(
 export function calcQuarterlyGpThresholdLevel(
   actualGp: number,
   targetGp: number,
+  businessDays: number,
   customThresholds: ThresholdDef[] = QUARTERLY_THRESHOLDS,
 ): number {
-  if (!targetGp || targetGp <= 0) return 0;
-  const rate = actualGp / targetGp;
+  if (!targetGp || targetGp <= 0 || !businessDays || businessDays <= 0) return 0;
   for (let i = customThresholds.length - 1; i >= 0; i--) {
-    if (rate >= customThresholds[i].multiplier) return i + 1;
+    const thresholdAmount = targetGp + MONTHLY_DAILY_GP_STEP * businessDays * i;
+    if (actualGp >= thresholdAmount) return i + 1;
   }
   return 0;
 }
@@ -212,10 +217,12 @@ export interface QuarterlyBonusResult {
   quarterlyCustomerCountActual: number;
   quarterlyRxTarget: number;
   quarterlyRxActual: number;
+  quarterlyBusinessDays: number;
 
   gpThresholdLevel: number;
   gpAchievementRate: number;
   thresholdBaseAmount: number;
+  thresholdGpAmount: number;
 
   gpAchieved: boolean;
   revenueAchieved: boolean;
@@ -246,10 +253,19 @@ export function calcQuarterlyBonus(
   const quarterlyCustomerCountActual = months.reduce((s, m) => s + (m.customerCountActual || 0), 0);
   const quarterlyRxTarget = months.reduce((s, m) => s + (m.rxTarget || 0), 0);
   const quarterlyRxActual = months.reduce((s, m) => s + (m.rxActual || 0), 0);
+  const quarterlyBusinessDays = months.reduce((s, m) => s + (m.businessDays || 0), 0);
 
   const gpAchievementRate = quarterlyGpTarget > 0 ? (quarterlyGpActual / quarterlyGpTarget) * 100 : 0;
-  const gpThresholdLevel = calcQuarterlyGpThresholdLevel(quarterlyGpActual, quarterlyGpTarget, customThresholds);
+  const gpThresholdLevel = calcQuarterlyGpThresholdLevel(
+    quarterlyGpActual,
+    quarterlyGpTarget,
+    quarterlyBusinessDays,
+    customThresholds
+  );
   const thresholdBaseAmount = gpThresholdLevel > 0 ? customThresholds[gpThresholdLevel - 1].baseAmount : 0;
+  const thresholdGpAmount = gpThresholdLevel > 0
+    ? quarterlyGpTarget + MONTHLY_DAILY_GP_STEP * quarterlyBusinessDays * (gpThresholdLevel - 1)
+    : 0;
 
   const gpAchieved = gpThresholdLevel > 0;
   const revenueAchieved = quarterlyRevenueTarget > 0 && quarterlyRevenueActual >= quarterlyRevenueTarget;
@@ -277,9 +293,11 @@ export function calcQuarterlyBonus(
     quarterlyCustomerCountActual,
     quarterlyRxTarget,
     quarterlyRxActual,
+    quarterlyBusinessDays,
     gpThresholdLevel,
     gpAchievementRate,
     thresholdBaseAmount,
+    thresholdGpAmount,
     gpAchieved,
     revenueAchieved,
     customerCountAchieved,

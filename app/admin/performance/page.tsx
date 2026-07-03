@@ -575,7 +575,9 @@ export default function PerformancePage() {
                 {(thresholdEditing ? editQuarterly : quarterlyThresholds).map((t, i) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     {thresholdBadge(i + 1)}
-                    <span className="text-gray-500 text-xs w-24 whitespace-nowrap">季毛利達 {Math.round(t.multiplier * 100)}%：</span>
+                    <span className="text-gray-500 text-xs w-36 whitespace-nowrap">
+                      {i === 0 ? '季毛利目標：' : `季毛利 +${(MONTHLY_DAILY_GP_STEP * i).toLocaleString('zh-TW')}×天：`}
+                    </span>
                     {thresholdEditing ? (
                       <input
                         type="number"
@@ -592,7 +594,7 @@ export default function PerformancePage() {
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            月團體獎金毛利檻規則：第一檻為日毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} 元日毛利。最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 慢箋10%)。毛利未達標則全部清零。
+            月團體獎金毛利檻規則：第一檻為日毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} 元日毛利。季團體獎金毛利檻規則：第一檻為季毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} × 季營業天數。最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 慢箋10%)。毛利未達標則全部清零。
             {monthlyThresholds.some((t, i) => t.baseAmount !== MONTHLY_THRESHOLDS[i].baseAmount) && (
               <span className="ml-2 text-blue-500">• 此門市使用自訂閾值</span>
             )}
@@ -627,6 +629,7 @@ export default function PerformancePage() {
                       <div className="mt-3 pt-3 border-t text-xs text-gray-500 space-y-1">
                         <div>季毛利目標：{formatAmount(qr.quarterlyGpTarget ?? 0)}</div>
                         <div>季毛利實際：{formatAmount(qr.quarterlyGpActual ?? 0)}</div>
+                        <div>達標門檻：{formatAmount(qr.thresholdGpAmount ?? 0)}</div>
                         <div>加權達成：{formatRate(qr.totalWeight * 100)}</div>
                       </div>
                     )}
