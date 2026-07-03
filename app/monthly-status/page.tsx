@@ -781,6 +781,7 @@ interface QuarterPerformanceSummary {
   months: number[];
   monthlyBonuses: Array<BonusResult | null>;
   quarterlyResult: QuarterlyBonusResult | null;
+  quarterlyThresholds: ThresholdDef[];
 }
 
 function StoreStatusDetail({
@@ -1372,6 +1373,7 @@ function StoreStatusDetail({
         months: quarterMonths,
         monthlyBonuses,
         quarterlyResult,
+        quarterlyThresholds,
       });
     } catch (error: any) {
       alert(`❌ 載入失敗: ${error.message || '未知錯誤'}`);
@@ -2693,25 +2695,40 @@ function QuarterPerformanceDetail({ summary }: { summary: QuarterPerformanceSumm
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
-            {[1, 2, 3, 4, 5].map(level => (
-              <div
-                key={level}
-                className={`rounded-md px-2 py-1.5 text-center border ${
-                  qr.gpThresholdLevel >= level
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : 'bg-white border-gray-100 text-gray-500'
-                }`}
-              >
-                <div className="text-[11px]">{performanceThresholdBadge(level)}</div>
-                <div className="text-xs font-semibold mt-1">
-                  {formatAmount(getQuarterlyPerformanceGpThresholdAmount(qr, level))}
+            {[1, 2, 3, 4, 5].map(level => {
+              const thresholdAmount = getQuarterlyPerformanceGpThresholdAmount(qr, level);
+              const remainingGp = Math.max(0, thresholdAmount - qr.quarterlyGpActual);
+              const baseAmount = summary.quarterlyThresholds[level - 1]?.baseAmount ?? QUARTERLY_THRESHOLDS[level - 1]?.baseAmount ?? 0;
+              return (
+                <div
+                  key={level}
+                  className={`rounded-md px-2 py-1.5 text-center border ${
+                    qr.gpThresholdLevel >= level
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-white border-gray-100 text-gray-500'
+                  }`}
+                >
+                  <div className="text-[11px]">{performanceThresholdBadge(level)}</div>
+                  <div className="text-xs font-semibold mt-1">
+                    目標 {formatAmount(thresholdAmount)}
+                  </div>
+                  <div className="text-[11px] mt-1 text-blue-700">
+                    獎金 {formatAmount(baseAmount)}
+                  </div>
+                  <div className={`text-[11px] mt-1 font-medium ${remainingGp === 0 ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {remainingGp === 0 ? '已達標' : `還差 ${formatAmount(remainingGp)}`}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <div className="flex justify-between text-xs pt-1">
             <span className="text-gray-500">實際季毛利</span>
             <span className="font-bold text-gray-900">{formatAmount(qr.quarterlyGpActual)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">差距計算</span>
+            <span className="font-medium text-gray-700">依目前已輸入季毛利累計</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-gray-500">季毛利達成率</span>
