@@ -382,6 +382,10 @@ export default function PerformancePage() {
     );
   }
 
+  function getQuarterlyGpThresholdAmount(qr: QuarterlyBonusResult, level: number) {
+    return qr.quarterlyGpTarget + MONTHLY_DAILY_GP_STEP * qr.quarterlyBusinessDays * (level - 1);
+  }
+
   const years = [selectedYear - 1, selectedYear, selectedYear + 1];
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -785,9 +789,62 @@ export default function PerformancePage() {
                       <span>+{formatAmount(qr.makeupBonus)}</span>
                     </div>
                   )}
-                  <div className="flex items-center gap-2 mt-1">
-                    {thresholdBadge(qr.gpThresholdLevel)}
-                    <span className="text-xs text-gray-400">季毛利達成 {formatRate(qr.gpAchievementRate)}</span>
+                  <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-gray-600 font-medium">季毛利獎金檻位目標</span>
+                      <div className="flex items-center gap-2">
+                        {qr.gpAchieved && weightBadge(true, '90%')}
+                        {thresholdBadge(qr.gpThresholdLevel)}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
+                      {[1,2,3,4,5].map(level => (
+                        <div
+                          key={level}
+                          className={`rounded-md px-2 py-1.5 text-center border ${
+                            qr.gpThresholdLevel >= level
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-white border-gray-100 text-gray-500'
+                          }`}
+                        >
+                          <div className="text-[11px]">{thresholdBadge(level)}</div>
+                          <div className="text-xs font-semibold mt-1">
+                            {formatAmount(getQuarterlyGpThresholdAmount(qr, level))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between text-xs pt-1">
+                      <span className="text-gray-500">實際季毛利</span>
+                      <span className="font-bold text-gray-900">{formatAmount(qr.quarterlyGpActual)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-gray-500">季毛利達成率</span>
+                      <span className="font-medium text-gray-700">{formatRate(qr.gpAchievementRate)}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+                    <QuarterMetricRow
+                      label="季營業額"
+                      target={qr.quarterlyRevenueTarget}
+                      actual={qr.quarterlyRevenueActual}
+                      achieved={qr.revenueAchieved}
+                      weight="5%"
+                    />
+                    <QuarterMetricRow
+                      label="季來客數"
+                      target={qr.quarterlyCustomerCountTarget}
+                      actual={qr.quarterlyCustomerCountActual}
+                      achieved={qr.customerCountAchieved}
+                      weight="5%"
+                    />
+                    <QuarterMetricRow
+                      label="季處方箋"
+                      target={qr.quarterlyRxTarget}
+                      actual={qr.quarterlyRxActual}
+                      achieved={qr.rxAchieved}
+                      weight="10%"
+                    />
                   </div>
                 </div>
               </div>
@@ -818,6 +875,43 @@ export default function PerformancePage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function weightBadge(achieved: boolean, weight: string) {
+  return achieved ? (
+    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+      {weight}
+    </span>
+  ) : (
+    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
+      0%
+    </span>
+  );
+}
+
+function QuarterMetricRow({
+  label,
+  target,
+  actual,
+  achieved,
+  weight,
+}: {
+  label: string;
+  target: number;
+  actual: number;
+  achieved: boolean;
+  weight: string;
+}) {
+  return (
+    <div className="grid grid-cols-[88px_1fr_auto] items-center gap-3 px-3 py-2 bg-white text-xs">
+      <span className="font-medium text-gray-600">{label}</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 text-gray-500">
+        <span>目標 <strong className="text-gray-800">{formatAmount(target)}</strong></span>
+        <span>實際 <strong className="text-gray-800">{formatAmount(actual)}</strong></span>
+      </div>
+      {weightBadge(achieved, weight)}
     </div>
   );
 }
