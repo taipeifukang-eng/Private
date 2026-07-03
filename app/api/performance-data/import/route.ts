@@ -73,7 +73,7 @@ function parseYearMonthCell(value: unknown): { year: number; month: number } | n
  *
  * Excel 欄位 (第一列為標題):
  *   門市代號 | 年月份 | 月營業額目標 | 月營業額實際 | 系統月營業額 | 自費月藥營業額
- *   | 月毛利額目標 | 月實際毛利額 | 月真實毛利額 | 系統月毛利額 | 月長照毛利額
+ *   | 月毛利額目標 | 月實際毛利額 | 活動當日毛利 | 月真實毛利額 | 系統月毛利額 | 月長照毛利額
  *   | 處方加購回補月毛利額 | 小偷賠償回補月毛利 | Kamedis業績扣月毛利額
  *   | 月來客數目標 | 月實際來客數 | 上個月慢箋總張數目標 | 上個月慢箋總張數實際
  *
@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
       cc_target:    ['月來客數目標', '來客數目標'],
       rx_target:    ['上個月慢箋總張數目標', '上個月處方箋目標', '慢箋總張數目標', '處方箋目標'],
       gp_actual:    ['月實際毛利額', '月毛利實際', '毛利實際'],
+      activity_day_gp: ['活動當日毛利', '活動日毛利', '活動毛利'],
       rev_actual:   ['月營業額實際', '營業額實際'],
       cc_actual:    ['月實際來客數', '月來客數實際', '來客數實際'],
       rx_actual:    ['上個月慢箋總張數實際', '上個月處方箋實際', '慢箋總張數實際', '處方箋實際'],
@@ -210,6 +211,7 @@ export async function POST(request: NextRequest) {
         monthly_customer_count_target:  getVal(row, COL.cc_target),
         last_month_rx_target:           getVal(row, COL.rx_target),
         monthly_gross_profit_actual:    getVal(row, COL.gp_actual),
+        activity_day_gross_profit:      getVal(row, COL.activity_day_gp),
         monthly_revenue_actual:         getVal(row, COL.rev_actual),
         monthly_customer_count_actual:  getVal(row, COL.cc_actual),
         last_month_rx_actual:           getVal(row, COL.rx_actual),

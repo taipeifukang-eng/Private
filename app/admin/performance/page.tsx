@@ -40,6 +40,7 @@ interface PerformanceRecord {
   monthly_customer_count_target: number | null;
   last_month_rx_target: number | null;
   monthly_gross_profit_actual: number | null;
+  activity_day_gross_profit: number | null;
   monthly_revenue_actual: number | null;
   monthly_customer_count_actual: number | null;
   last_month_rx_actual: number | null;
@@ -64,6 +65,7 @@ function emptyRecord(storeId: string, year: number, month: number): EditRow {
     monthly_gross_profit_target: null, monthly_revenue_target: null,
     monthly_customer_count_target: null, last_month_rx_target: null,
     monthly_gross_profit_actual: null, monthly_revenue_actual: null,
+    activity_day_gross_profit: null,
     monthly_customer_count_actual: null, last_month_rx_actual: null,
     system_monthly_revenue: null, self_pay_monthly_revenue: null,
     monthly_true_gross_profit: null, system_monthly_gross_profit: null,
@@ -298,6 +300,7 @@ export default function PerformancePage() {
       customerCountTarget: r.monthly_customer_count_target,
       rxTarget: r.last_month_rx_target,
       grossProfitActual: r.monthly_gross_profit_actual,
+      activityDayGrossProfit: r.activity_day_gross_profit,
       revenueActual: r.monthly_revenue_actual,
       customerCountActual: r.monthly_customer_count_actual,
       rxActual: r.last_month_rx_actual,
@@ -599,6 +602,7 @@ export default function PerformancePage() {
           </div>
           <p className="text-xs text-gray-400 mt-3">
             月團體獎金毛利檻規則：第一檻為日毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} 元日毛利。季團體獎金毛利檻規則：第一檻為季毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} × 季營業天數。最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 慢箋10%)。毛利未達標則全部清零。
+            活動當日毛利有填寫時，若（整月毛利 - 活動當日毛利）÷（營業天數 - 1）低於第一檻日毛利目標，當月團體獎金 × 80%。
             {monthlyThresholds.some((t, i) => t.baseAmount !== MONTHLY_THRESHOLDS[i].baseAmount) && (
               <span className="ml-2 text-blue-500">• 此門市使用自訂閾值</span>
             )}
@@ -661,6 +665,7 @@ export default function PerformancePage() {
                   <th className="px-3 py-2 text-center whitespace-nowrap">營業天數</th>
                   <th className="px-3 py-2 text-center bg-blue-50 whitespace-nowrap">毛利目標</th>
                   <th className="px-3 py-2 text-center bg-blue-50 whitespace-nowrap">毛利實際</th>
+                  <th className="px-3 py-2 text-center bg-blue-50 whitespace-nowrap">活動當日毛利</th>
                   <th className="px-3 py-2 text-center whitespace-nowrap">營業額目標</th>
                   <th className="px-3 py-2 text-center whitespace-nowrap">營業額實際</th>
                   <th className="px-3 py-2 text-center whitespace-nowrap">來客數目標</th>
@@ -693,6 +698,9 @@ export default function PerformancePage() {
                       <td className="px-2 py-1.5 bg-blue-50/30">
                         <NumInput value={row.monthly_gross_profit_actual} onChange={v => setField(row.month, 'monthly_gross_profit_actual', v)} />
                       </td>
+                      <td className="px-2 py-1.5 bg-blue-50/30">
+                        <NumInput value={row.activity_day_gross_profit} onChange={v => setField(row.month, 'activity_day_gross_profit', v)} />
+                      </td>
                       <td className="px-2 py-1.5">
                         <NumInput value={row.monthly_revenue_target} onChange={v => setField(row.month, 'monthly_revenue_target', v)} />
                       </td>
@@ -716,7 +724,19 @@ export default function PerformancePage() {
                       </td>
                       <td className="px-3 py-2 text-center bg-green-50/30 font-bold text-blue-700">
                         {bonus && bonus.gpThresholdLevel > 0
-                          ? formatAmount(bonus.finalBonus)
+                          ? (
+                            <div>
+                              <div>{formatAmount(bonus.finalBonus)}</div>
+                              {bonus.activityPenaltyApplied && (
+                                <div
+                                  className="mt-1 text-[11px] font-medium text-amber-600"
+                                  title={`扣除活動日後日毛利 ${formatAmount(Math.round(bonus.activityAdjustedDailyGp ?? 0))}，第一檻日毛利 ${formatAmount(Math.round(bonus.activityAdjustedDailyGpTarget))}`}
+                                >
+                                  活動日折減80%
+                                </div>
+                              )}
+                            </div>
+                          )
                           : <span className="text-gray-300">—</span>
                         }
                       </td>
@@ -766,6 +786,9 @@ export default function PerformancePage() {
                             {thresholdBadge(br.gpThresholdLevel)}
                             <div className="text-sm font-bold text-blue-600 mt-1">{formatAmount(br.finalBonus)}</div>
                             <div className="text-xs text-gray-400">達成 {formatRate(br.gpAchievementRate)}</div>
+                            {br.activityPenaltyApplied && (
+                              <div className="text-xs text-amber-600 mt-0.5">活動日折減80%</div>
+                            )}
                           </>
                         ) : (
                           <div className="text-xs text-gray-400 mt-2">無資料</div>
@@ -866,7 +889,7 @@ export default function PerformancePage() {
               <code className="bg-blue-100 px-1 rounded mx-1">月份</code>
               — 年月份可直接填入例如 2026-03，若省略則可改用年份 + 月份；門市代號與年份省略時使用頁面所選門市與年份。<br />
               <span className="font-medium">主要匯入欄位：</span>
-              營業天數、月營業額目標、月營業額實際、系統月營業額、自費月藥營業額、月毛利額目標、月實際毛利額、月真實毛利額、系統月毛利額、月長照毛利額、處方加購回補月毛利額、小偷賠償回補月毛利、Kamedis業績扣月毛利額、月來客數目標、月實際來客數、上個月慢箋總張數目標、上個月慢箋總張數實際。<br />
+              營業天數、月營業額目標、月營業額實際、系統月營業額、自費月藥營業額、月毛利額目標、月實際毛利額、活動當日毛利、月真實毛利額、系統月毛利額、月長照毛利額、處方加購回補月毛利額、小偷賠償回補月毛利、Kamedis業績扣月毛利額、月來客數目標、月實際來客數、上個月慢箋總張數目標、上個月慢箋總張數實際。<br />
               <span className="font-medium">其他說明：</span>
               <code className="bg-blue-100 px-1 rounded mx-1">月份</code>
               <code className="bg-blue-100 px-1 rounded mx-1">營業天數</code>

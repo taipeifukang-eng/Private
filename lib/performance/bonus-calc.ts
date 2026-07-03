@@ -18,7 +18,10 @@
  * - 月來客數: 5%
  * - 上月處方箋: 10%
  *
- * 最終獎金 = 達標檻金額 × 各已達標指標權重加總
+ * 若填入活動當日毛利，且扣除活動日後的其他營業日平均毛利未達第一檻，
+ * 則月團體獎金再乘以 80%。
+ *
+ * 最終獎金 = 達標檻金額 × 各已達標指標權重加總 × 活動日折減（如適用）
  */
 
 export interface MonthlyPerformance {
@@ -33,6 +36,7 @@ export interface MonthlyPerformance {
   revenueActual: number | null;
   customerCountActual: number | null;
   rxActual: number | null;
+  activityDayGrossProfit?: number | null; // 活動當日毛利
 }
 
 export interface BonusResult {
@@ -54,12 +58,18 @@ export interface BonusResult {
 
   // 加權計算
   totalWeight: number; // 達標權重加總 (0~1.1)
+  preActivityPenaltyBonus: number; // 活動日折減前獎金
   finalBonus: number;  // 最終獎金金額
 
   // 細節
   dailyGpTarget: number;   // 日毛利目標
   dailyGpActual: number;   // 日毛利實際
   thresholdDailyAmount: number; // 本次達成檻所對應的日毛利門檻
+  activityDayGrossProfit: number; // 活動當日毛利
+  activityAdjustedDailyGp: number | null; // 扣除活動日後的平均日毛利
+  activityAdjustedDailyGpTarget: number; // 活動日折減判斷目標（第一檻日毛利）
+  activityPenaltyApplied: boolean; // 是否套用活動日80%折減
+  activityPenaltyMultiplier: number; // 活動日折減倍率
 }
 
 /** 獎金門檻定義型別 */
@@ -151,12 +161,17 @@ export function calcMonthlyBonus(
     revenueTarget, revenueActual,
     customerCountTarget, customerCountActual,
     rxTarget, rxActual,
+    activityDayGrossProfit,
   } = perf;
 
   const safeGpTarget = grossProfitTarget || 0;
   const safeGpActual = grossProfitActual || 0;
+  const safeActivityDayGrossProfit = activityDayGrossProfit || 0;
   const dailyGpTarget = businessDays > 0 ? safeGpTarget / businessDays : 0;
   const dailyGpActual = businessDays > 0 ? safeGpActual / businessDays : 0;
+  const activityAdjustedDailyGp = safeActivityDayGrossProfit > 0 && businessDays > 1
+    ? (safeGpActual - safeActivityDayGrossProfit) / (businessDays - 1)
+    : null;
 
   const gpAchievementRate = safeGpTarget > 0 ? (safeGpActual / safeGpTarget) * 100 : 0;
   const gpThresholdLevel = calcGpThresholdLevel(safeGpActual, safeGpTarget, businessDays, customThresholds);
@@ -183,7 +198,17 @@ export function calcMonthlyBonus(
     if (rxAchieved) totalWeight += WEIGHTS.rx;
   }
 
-  const finalBonus = Math.round(thresholdBaseAmount * totalWeight);
+  const preActivityPenaltyBonus = Math.round(thresholdBaseAmount * totalWeight);
+  const activityPenaltyApplied = !!(
+    gpAchieved &&
+    safeActivityDayGrossProfit > 0 &&
+    businessDays > 1 &&
+    dailyGpTarget > 0 &&
+    activityAdjustedDailyGp !== null &&
+    activityAdjustedDailyGp < dailyGpTarget
+  );
+  const activityPenaltyMultiplier = activityPenaltyApplied ? 0.8 : 1;
+  const finalBonus = Math.round(preActivityPenaltyBonus * activityPenaltyMultiplier);
 
   return {
     gpThresholdLevel,
@@ -197,10 +222,16 @@ export function calcMonthlyBonus(
     customerCountAchievementRate,
     rxAchievementRate,
     totalWeight,
+    preActivityPenaltyBonus,
     finalBonus,
     dailyGpTarget,
     dailyGpActual,
     thresholdDailyAmount,
+    activityDayGrossProfit: safeActivityDayGrossProfit,
+    activityAdjustedDailyGp,
+    activityAdjustedDailyGpTarget: dailyGpTarget,
+    activityPenaltyApplied,
+    activityPenaltyMultiplier,
   };
 }
 
