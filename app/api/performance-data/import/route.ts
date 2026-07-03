@@ -109,10 +109,15 @@ export async function POST(request: NextRequest) {
     // 預載所有門市代號 → UUID 對照表
     const { data: storeList } = await supabase
       .from('stores')
-      .select('id, store_code')
-      .eq('is_active', true);
+      .select('id, store_code');
     const storeCodeMap: Record<string, string> = {};
     const pureNumericStoreMap: Record<string, string[]> = {};
+    const prefixStoreMap: Record<string, string[]> = {};
+    const pushStoreCandidate = (map: Record<string, string[]>, key: string, storeId: string) => {
+      if (!key) return;
+      if (!map[key]) map[key] = [];
+      if (!map[key].includes(storeId)) map[key].push(storeId);
+    };
     (storeList || []).forEach(s => {
       const normalized = normalizeStoreCode(s.store_code);
       storeCodeMap[normalized] = s.id;
@@ -121,6 +126,12 @@ export async function POST(request: NextRequest) {
         const key = String(Number(normalized));
         if (!pureNumericStoreMap[key]) pureNumericStoreMap[key] = [];
         pureNumericStoreMap[key].push(s.id);
+      }
+
+      const numericPrefix = normalized.match(/^(\d+)/)?.[1];
+      if (numericPrefix && numericPrefix !== normalized) {
+        pushStoreCandidate(prefixStoreMap, numericPrefix, s.id);
+        pushStoreCandidate(prefixStoreMap, String(Number(numericPrefix)), s.id);
       }
     });
 
@@ -136,7 +147,7 @@ export async function POST(request: NextRequest) {
       cc_target:    ['月來客數目標', '來客數目標'],
       rx_target:    ['上個月慢箋總張數目標', '上個月處方箋目標', '慢箋總張數目標', '處方箋目標'],
       gp_actual:    ['月實際毛利額', '月毛利實際', '毛利實際'],
-      activity_day_gp: ['活動當日毛利', '活動日毛利', '活動毛利'],
+      activity_day_gp: ['活動當日毛利', '當日活動毛利', '活動日毛利', '活動毛利'],
       rev_actual:   ['月營業額實際', '營業額實際'],
       cc_actual:    ['月實際來客數', '月來客數實際', '來客數實際'],
       rx_actual:    ['上個月慢箋總張數實際', '上個月處方箋實際', '慢箋總張數實際', '處方箋實際'],
@@ -171,6 +182,20 @@ export async function POST(request: NextRequest) {
             found = candidates[0];
           } else if (candidates.length > 1) {
             errors.push(`第 ${i + 2} 列: 門市代號「${rowStoreCode}」比對到多個門市，請改為完整代號（含前導零）`);
+            continue;
+          }
+        }
+
+        if (!found && /^\d+(\.0+)?$/.test(normalizedRowStoreCode)) {
+          const numericKey = String(Number(normalizedRowStoreCode));
+          const candidates = [
+            ...(prefixStoreMap[normalizedRowStoreCode] || []),
+            ...(prefixStoreMap[numericKey] || []),
+          ].filter((id, index, arr) => arr.indexOf(id) === index);
+          if (candidates.length === 1) {
+            found = candidates[0];
+          } else if (candidates.length > 1) {
+            errors.push(`第 ${i + 2} 列: 門市代號「${rowStoreCode}」比對到多個含後綴門市，請改為完整代號（例如含 A/B）`);
             continue;
           }
         }
