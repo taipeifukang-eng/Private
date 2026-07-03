@@ -778,6 +778,7 @@ interface QuarterPerformanceSummary {
   year: number;
   quarterNumber: number;
   quarterLabel: string;
+  includedThroughMonth: number;
   months: number[];
   monthlyBonuses: Array<BonusResult | null>;
   quarterlyResult: QuarterlyBonusResult | null;
@@ -1355,7 +1356,7 @@ function StoreStatusDetail({
       const records = Array.isArray(performanceJson.records) ? performanceJson.records : [];
       const monthPerfs = quarterMonths.map((quarterMonth) => {
         const row = records.find((record: any) => Number(record.month) === quarterMonth);
-        return rowToQuarterPerformance(row);
+        return rowToQuarterPerformance(row, quarterMonth > month);
       });
       const monthlyBonuses = monthPerfs.map((perf) => {
         if (!perf.grossProfitTarget || !perf.grossProfitActual) return null;
@@ -1370,6 +1371,7 @@ function StoreStatusDetail({
         year,
         quarterNumber: quarterNumberForMonth,
         quarterLabel: `${year}-Q${quarterNumberForMonth} (${quarterMonths[0]}-${quarterMonths[2]}月)`,
+        includedThroughMonth: month,
         months: quarterMonths,
         monthlyBonuses,
         quarterlyResult,
@@ -1384,17 +1386,17 @@ function StoreStatusDetail({
     }
   };
 
-  const rowToQuarterPerformance = (row: any): MonthlyPerformance => ({
+  const rowToQuarterPerformance = (row: any, ignoreActuals: boolean): MonthlyPerformance => ({
     businessDays: Number(row?.business_days || 0),
     grossProfitTarget: row?.monthly_gross_profit_target ?? null,
     revenueTarget: row?.monthly_revenue_target ?? null,
     customerCountTarget: row?.monthly_customer_count_target ?? null,
     rxTarget: row?.last_month_rx_target ?? null,
-    grossProfitActual: row?.monthly_gross_profit_actual ?? null,
-    revenueActual: row?.monthly_revenue_actual ?? null,
-    customerCountActual: row?.monthly_customer_count_actual ?? null,
-    rxActual: row?.last_month_rx_actual ?? null,
-    activityDayGrossProfit: row?.activity_day_gross_profit ?? null,
+    grossProfitActual: ignoreActuals ? null : row?.monthly_gross_profit_actual ?? null,
+    revenueActual: ignoreActuals ? null : row?.monthly_revenue_actual ?? null,
+    customerCountActual: ignoreActuals ? null : row?.monthly_customer_count_actual ?? null,
+    rxActual: ignoreActuals ? null : row?.last_month_rx_actual ?? null,
+    activityDayGrossProfit: ignoreActuals ? null : row?.activity_day_gross_profit ?? null,
   });
 
   const handleDeleteManual = async (staffId: string, staffName: string, isManuallyAdded: boolean) => {
@@ -2651,10 +2653,13 @@ function QuarterPerformanceDetail({ summary }: { summary: QuarterPerformanceSumm
       <div className="grid grid-cols-3 gap-3">
         {summary.months.map((month, index) => {
           const br = summary.monthlyBonuses[index];
+          const isFutureMonth = month > summary.includedThroughMonth;
           return (
             <div key={month} className="bg-gray-50 rounded-lg p-3 text-center">
               <div className="text-xs text-gray-500 mb-1">{month} 月</div>
-              {br && br.gpThresholdLevel > 0 ? (
+              {isFutureMonth ? (
+                <div className="text-xs text-gray-400 mt-2">未納入實際</div>
+              ) : br && br.gpThresholdLevel > 0 ? (
                 <>
                   {performanceThresholdBadge(br.gpThresholdLevel)}
                   <div className="text-sm font-bold text-blue-600 mt-1">{formatAmount(br.finalBonus)}</div>
@@ -2728,7 +2733,7 @@ function QuarterPerformanceDetail({ summary }: { summary: QuarterPerformanceSumm
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-gray-500">差距計算</span>
-            <span className="font-medium text-gray-700">依目前已輸入季毛利累計</span>
+            <span className="font-medium text-gray-700">實際累計至 {summary.includedThroughMonth} 月，目標採完整季度</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-gray-500">季毛利達成率</span>
