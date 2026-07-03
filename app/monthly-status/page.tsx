@@ -44,6 +44,19 @@ import {
   SPECIAL_ROLE_OPTIONS
 } from '@/types/workflow';
 import { generateSingleItemBonusPDF } from '@/components/SingleItemBonusPDF';
+import {
+  calcMonthlyBonus,
+  calcQuarterlyBonus,
+  MONTHLY_THRESHOLDS,
+  MONTHLY_DAILY_GP_STEP,
+  QUARTERLY_THRESHOLDS,
+  formatAmount,
+  formatRate,
+  type BonusResult,
+  type MonthlyPerformance,
+  type QuarterlyBonusResult,
+  type ThresholdDef,
+} from '@/lib/performance/bonus-calc';
 
 function MonthlyStatusContent() {
   const router = useRouter();
@@ -761,6 +774,15 @@ function StatCard({
 }
 
 // 門市狀態詳情元件
+interface QuarterPerformanceSummary {
+  year: number;
+  quarterNumber: number;
+  quarterLabel: string;
+  months: number[];
+  monthlyBonuses: Array<BonusResult | null>;
+  quarterlyResult: QuarterlyBonusResult | null;
+}
+
 function StoreStatusDetail({
   store,
   yearMonth,
@@ -807,6 +829,9 @@ function StoreStatusDetail({
   const [showMonthlyPerformanceModal, setShowMonthlyPerformanceModal] = useState(false);
   const [loadingMonthlyPerformance, setLoadingMonthlyPerformance] = useState(false);
   const [monthlyPerformanceSnapshot, setMonthlyPerformanceSnapshot] = useState<any | null>(null);
+  const [showQuarterPerformanceModal, setShowQuarterPerformanceModal] = useState(false);
+  const [loadingQuarterPerformance, setLoadingQuarterPerformance] = useState(false);
+  const [quarterPerformanceSummary, setQuarterPerformanceSummary] = useState<QuarterPerformanceSummary | null>(null);
   const [showQuarterBonusSummaryModal, setShowQuarterBonusSummaryModal] = useState(false);
   const [loadingQuarterBonusSummary, setLoadingQuarterBonusSummary] = useState(false);
   const [quarterBonusSummary, setQuarterBonusSummary] = useState<any | null>(null);
@@ -850,12 +875,17 @@ function StoreStatusDetail({
   }, [store.id, yearMonth]);
 
   useEffect(() => {
-    if (!showMonthlyBonusDetailModal && !showQuarterBonusSummaryModal && !showMonthlyPerformanceModal) {
+    if (!showMonthlyBonusDetailModal && !showQuarterBonusSummaryModal && !showMonthlyPerformanceModal && !showQuarterPerformanceModal) {
       return;
     }
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') {
+        return;
+      }
+
+      if (showQuarterPerformanceModal) {
+        setShowQuarterPerformanceModal(false);
         return;
       }
 
@@ -876,7 +906,7 @@ function StoreStatusDetail({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [showMonthlyBonusDetailModal, showQuarterBonusSummaryModal, showMonthlyPerformanceModal]);
+  }, [showMonthlyBonusDetailModal, showQuarterBonusSummaryModal, showMonthlyPerformanceModal, showQuarterPerformanceModal]);
 
   const loadStaffStatus = async () => {
     setLoading(true);
@@ -1291,6 +1321,80 @@ function StoreStatusDetail({
     }
   };
 
+  const handleOpenQuarterPerformance = async () => {
+    setShowQuarterPerformanceModal(true);
+    setLoadingQuarterPerformance(true);
+    try {
+      const [year, month] = yearMonth.split('-').map(Number);
+      const quarterNumberForMonth = Math.ceil(month / 3);
+      const quarterStartMonth = (quarterNumberForMonth - 1) * 3 + 1;
+      const quarterMonths = [quarterStartMonth, quarterStartMonth + 1, quarterStartMonth + 2];
+
+      const [performanceRes, thresholdsRes] = await Promise.all([
+        fetch(`/api/performance-data?year=${encodeURIComponent(String(year))}&store_id=${encodeURIComponent(store.id)}`),
+        fetch(`/api/performance-thresholds?store_id=${encodeURIComponent(store.id)}`),
+      ]);
+      const performanceJson = await performanceRes.json();
+      const thresholdsJson = await thresholdsRes.json();
+
+      if (!performanceRes.ok || !performanceJson.success) {
+        throw new Error(performanceJson.error || '載入該季業績狀況失敗');
+      }
+      if (!thresholdsRes.ok) {
+        throw new Error(thresholdsJson.error || '載入業績門檻失敗');
+      }
+
+      const monthlyThresholds: ThresholdDef[] = Array.isArray(thresholdsJson.monthly)
+        ? thresholdsJson.monthly.map((t: any) => ({ multiplier: t.multiplier, baseAmount: t.baseAmount, label: t.label }))
+        : MONTHLY_THRESHOLDS;
+      const quarterlyThresholds: ThresholdDef[] = Array.isArray(thresholdsJson.quarterly)
+        ? thresholdsJson.quarterly.map((t: any) => ({ multiplier: t.multiplier, baseAmount: t.baseAmount, label: t.label }))
+        : QUARTERLY_THRESHOLDS;
+
+      const records = Array.isArray(performanceJson.records) ? performanceJson.records : [];
+      const monthPerfs = quarterMonths.map((quarterMonth) => {
+        const row = records.find((record: any) => Number(record.month) === quarterMonth);
+        return rowToQuarterPerformance(row);
+      });
+      const monthlyBonuses = monthPerfs.map((perf) => {
+        if (!perf.grossProfitTarget || !perf.grossProfitActual) return null;
+        return calcMonthlyBonus(perf, monthlyThresholds);
+      });
+      const hasQuarterData = monthPerfs.some((perf) => perf.grossProfitTarget || perf.grossProfitActual);
+      const quarterlyResult = hasQuarterData
+        ? calcQuarterlyBonus(monthPerfs, monthlyBonuses.map((bonus) => bonus?.finalBonus ?? 0), quarterlyThresholds)
+        : null;
+
+      setQuarterPerformanceSummary({
+        year,
+        quarterNumber: quarterNumberForMonth,
+        quarterLabel: `${year}-Q${quarterNumberForMonth} (${quarterMonths[0]}-${quarterMonths[2]}月)`,
+        months: quarterMonths,
+        monthlyBonuses,
+        quarterlyResult,
+      });
+    } catch (error: any) {
+      alert(`❌ 載入失敗: ${error.message || '未知錯誤'}`);
+      setShowQuarterPerformanceModal(false);
+      setQuarterPerformanceSummary(null);
+    } finally {
+      setLoadingQuarterPerformance(false);
+    }
+  };
+
+  const rowToQuarterPerformance = (row: any): MonthlyPerformance => ({
+    businessDays: Number(row?.business_days || 0),
+    grossProfitTarget: row?.monthly_gross_profit_target ?? null,
+    revenueTarget: row?.monthly_revenue_target ?? null,
+    customerCountTarget: row?.monthly_customer_count_target ?? null,
+    rxTarget: row?.last_month_rx_target ?? null,
+    grossProfitActual: row?.monthly_gross_profit_actual ?? null,
+    revenueActual: row?.monthly_revenue_actual ?? null,
+    customerCountActual: row?.monthly_customer_count_actual ?? null,
+    rxActual: row?.last_month_rx_actual ?? null,
+    activityDayGrossProfit: row?.activity_day_gross_profit ?? null,
+  });
+
   const handleDeleteManual = async (staffId: string, staffName: string, isManuallyAdded: boolean) => {
     const message = isManuallyAdded 
       ? `確定要刪除手動新增的員工 "${staffName}"？此操作無法復原。`
@@ -1365,6 +1469,7 @@ function StoreStatusDetail({
     { key: 'self_pay_monthly_revenue', label: '自費月藥營業額' },
     { key: 'monthly_gross_profit_target', label: '月毛利額目標' },
     { key: 'monthly_gross_profit_actual', label: '月實際毛利額' },
+    { key: 'activity_day_gross_profit', label: '活動當日毛利' },
     { key: 'system_monthly_gross_profit', label: '系統月毛利額' },
     { key: 'monthly_long_term_care_gross_profit', label: '月長照毛利額' },
     { key: 'monthly_rx_addon_makeup_gross_profit', label: '處方加購回補月毛利額' },
@@ -1890,12 +1995,20 @@ function StoreStatusDetail({
                 <h3 className="text-lg font-bold text-gray-900">該月業績狀況</h3>
                 <p className="text-sm text-gray-500">{store.store_code} {store.store_name} · {yearMonth}</p>
               </div>
-              <button
-                onClick={() => setShowMonthlyPerformanceModal(false)}
-                className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleOpenQuarterPerformance}
+                  className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm"
+                >
+                  該季業績狀況
+                </button>
+                <button
+                  onClick={() => setShowMonthlyPerformanceModal(false)}
+                  className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             <div className="p-5 overflow-auto">
@@ -2041,6 +2154,40 @@ function StoreStatusDetail({
                   </div>
                 );
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showQuarterPerformanceModal && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white w-[min(96vw,980px)] max-h-[90vh] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">該季業績狀況</h3>
+                <p className="text-sm text-gray-500">
+                  {store.store_code} {store.store_name} · {quarterPerformanceSummary?.quarterLabel || `Q${quarterNumber}`}
+                </p>
+              </div>
+              <button
+                onClick={() => setShowQuarterPerformanceModal(false)}
+                className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-auto">
+              {loadingQuarterPerformance ? (
+                <div className="py-10 text-center text-gray-500">
+                  <RefreshCw size={18} className="animate-spin inline-block mr-2" />
+                  載入該季業績資料中...
+                </div>
+              ) : !quarterPerformanceSummary?.quarterlyResult ? (
+                <div className="py-10 text-center text-gray-500">本店該季尚無業績資料</div>
+              ) : (
+                <QuarterPerformanceDetail summary={quarterPerformanceSummary} />
+              )}
             </div>
           </div>
         </div>
@@ -2489,6 +2636,170 @@ function StoreStatusDetail({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function QuarterPerformanceDetail({ summary }: { summary: QuarterPerformanceSummary }) {
+  const qr = summary.quarterlyResult;
+  if (!qr) return null;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-3 gap-3">
+        {summary.months.map((month, index) => {
+          const br = summary.monthlyBonuses[index];
+          return (
+            <div key={month} className="bg-gray-50 rounded-lg p-3 text-center">
+              <div className="text-xs text-gray-500 mb-1">{month} 月</div>
+              {br && br.gpThresholdLevel > 0 ? (
+                <>
+                  {performanceThresholdBadge(br.gpThresholdLevel)}
+                  <div className="text-sm font-bold text-blue-600 mt-1">{formatAmount(br.finalBonus)}</div>
+                  <div className="text-xs text-gray-400">達成 {formatRate(br.gpAchievementRate)}</div>
+                  {br.activityPenaltyApplied && (
+                    <div className="text-xs text-amber-600 mt-0.5">活動日折減80%</div>
+                  )}
+                </>
+              ) : (
+                <div className="text-xs text-gray-400 mt-2">無資料</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="border-t pt-3 space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-500">月獎金合計</span>
+          <span className="font-medium">{formatAmount(qr.monthlyBonusSum)}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">季獎金應得</span>
+          <span className="font-bold text-blue-700">{formatAmount(qr.quarterlyBonus)}</span>
+        </div>
+        {qr.makeupBonus > 0 && (
+          <div className="flex justify-between text-green-600 font-semibold">
+            <span>補差額</span>
+            <span>+{formatAmount(qr.makeupBonus)}</span>
+          </div>
+        )}
+        <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-gray-600 font-medium">季毛利獎金檻位目標</span>
+            <div className="flex items-center gap-2">
+              {qr.gpAchieved && performanceWeightBadge(true, '90%')}
+              {performanceThresholdBadge(qr.gpThresholdLevel)}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
+            {[1, 2, 3, 4, 5].map(level => (
+              <div
+                key={level}
+                className={`rounded-md px-2 py-1.5 text-center border ${
+                  qr.gpThresholdLevel >= level
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-white border-gray-100 text-gray-500'
+                }`}
+              >
+                <div className="text-[11px]">{performanceThresholdBadge(level)}</div>
+                <div className="text-xs font-semibold mt-1">
+                  {formatAmount(getQuarterlyPerformanceGpThresholdAmount(qr, level))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-between text-xs pt-1">
+            <span className="text-gray-500">實際季毛利</span>
+            <span className="font-bold text-gray-900">{formatAmount(qr.quarterlyGpActual)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-gray-500">季毛利達成率</span>
+            <span className="font-medium text-gray-700">{formatRate(qr.gpAchievementRate)}</span>
+          </div>
+        </div>
+        <div className="rounded-lg border border-gray-100 divide-y divide-gray-100 overflow-hidden">
+          <QuarterPerformanceMetricRow
+            label="季營業額"
+            target={qr.quarterlyRevenueTarget}
+            actual={qr.quarterlyRevenueActual}
+            achieved={qr.revenueAchieved}
+            weight="5%"
+          />
+          <QuarterPerformanceMetricRow
+            label="季來客數"
+            target={qr.quarterlyCustomerCountTarget}
+            actual={qr.quarterlyCustomerCountActual}
+            achieved={qr.customerCountAchieved}
+            weight="5%"
+          />
+          <QuarterPerformanceMetricRow
+            label="季處方箋"
+            target={qr.quarterlyRxTarget}
+            actual={qr.quarterlyRxActual}
+            achieved={qr.rxAchieved}
+            weight="10%"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function getQuarterlyPerformanceGpThresholdAmount(qr: QuarterlyBonusResult, level: number) {
+  return qr.quarterlyGpTarget + MONTHLY_DAILY_GP_STEP * qr.quarterlyBusinessDays * (level - 1);
+}
+
+function performanceThresholdBadge(level: number) {
+  const colors = [
+    'bg-gray-100 text-gray-500',
+    'bg-green-100 text-green-700',
+    'bg-blue-100 text-blue-700',
+    'bg-purple-100 text-purple-700',
+    'bg-orange-100 text-orange-700',
+    'bg-red-100 text-red-700',
+  ];
+  const labels = ['-', '第一檻', '第二檻', '第三檻', '第四檻', '第五檻'];
+  return (
+    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[level]}`}>
+      {labels[level]}
+    </span>
+  );
+}
+
+function performanceWeightBadge(achieved: boolean, weight: string) {
+  return achieved ? (
+    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+      {weight}
+    </span>
+  ) : (
+    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
+      0%
+    </span>
+  );
+}
+
+function QuarterPerformanceMetricRow({
+  label,
+  target,
+  actual,
+  achieved,
+  weight,
+}: {
+  label: string;
+  target: number;
+  actual: number;
+  achieved: boolean;
+  weight: string;
+}) {
+  return (
+    <div className="grid grid-cols-[88px_1fr_auto] items-center gap-3 px-3 py-2 bg-white text-xs">
+      <span className="font-medium text-gray-600">{label}</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-0.5 text-gray-500">
+        <span>目標 <strong className="text-gray-800">{formatAmount(target)}</strong></span>
+        <span>實際 <strong className="text-gray-800">{formatAmount(actual)}</strong></span>
+      </div>
+      {performanceWeightBadge(achieved, weight)}
     </div>
   );
 }
