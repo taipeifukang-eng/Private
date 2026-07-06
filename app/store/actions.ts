@@ -859,6 +859,230 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
 }
 
 /**
+ * 依員編解析到職日，優先序：
+ * 1. 員工主檔同門市 start_date
+ * 2. 員工主檔任一門市 start_date
+ * 3. 既有月度資料最早的 start_date
+ * 4. 入職異動最早日期
+ */
+async function resolveEmployeeStartDate(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  employeeCode: string | null | undefined,
+  storeId?: string | null
+) {
+  const code = String(employeeCode || '').trim().toUpperCase();
+  if (!code) return null;
+
+  if (storeId) {
+    const { data: sameStoreEmployee } = await supabase
+      .from('store_employees')
+      .select('start_date')
+      .eq('employee_code', code)
+      .eq('store_id', storeId)
+      .not('start_date', 'is', null)
+      .order('is_active', { ascending: false })
+      .order('last_movement_date', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (sameStoreEmployee?.start_date) return sameStoreEmployee.start_date;
+  }
+
+  const { data: anyStoreEmployee } = await supabase
+    .from('store_employees')
+    .select('start_date')
+    .eq('employee_code', code)
+    .not('start_date', 'is', null)
+    .order('start_date', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (anyStoreEmployee?.start_date) return anyStoreEmployee.start_date;
+
+  const { data: monthlyStatus } = await supabase
+    .from('monthly_staff_status')
+    .select('start_date')
+    .eq('employee_code', code)
+    .not('start_date', 'is', null)
+    .order('start_date', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (monthlyStatus?.start_date) return monthlyStatus.start_date;
+
+  const { data: onboarding } = await supabase
+    .from('employee_movement_history')
+    .select('movement_date')
+    .eq('employee_code', code)
+    .eq('movement_type', 'onboarding')
+    .order('movement_date', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  return onboarding?.movement_date || null;
+}
+
+async function ensureStatusRecordStartDates(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  statusRecords: any[]
+) {
+  const cache = new Map<string, string | null>();
+
+  for (const record of statusRecords) {
+    const code = String(record.employee_code || '').trim().toUpperCase();
+    if (!code || record.start_date) continue;
+
+    const cacheKey = `${code}:${record.store_id || ''}`;
+    if (!cache.has(cacheKey)) {
+      cache.set(cacheKey, await resolveEmployeeStartDate(supabase, code, record.store_id));
+    }
+
+    record.start_date = cache.get(cacheKey);
+  }
+}
+
+/**
+ * 已初始化的月份若後續才新增調店異動，需要補齊/更新當月調入調出。
+ */
+async function syncTransferMovementsForMonthlyStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  yearMonth: string,
+  storeId: string,
+  daysInMonth: number
+) {
+  const { data: transferMovements } = await supabase
+    .from('employee_movement_history')
+    .select('*')
+    .eq('movement_type', 'store_transfer')
+    .gte('movement_date', `${yearMonth}-01`)
+    .lte('movement_date', `${yearMonth}-${String(daysInMonth).padStart(2, '0')}`);
+
+  if (!transferMovements || transferMovements.length === 0) {
+    return;
+  }
+
+  for (const movement of transferMovements) {
+    const employeeCode = String(movement.employee_code || '').toUpperCase();
+    if (!employeeCode) continue;
+
+    const movementDate = new Date(movement.movement_date);
+    const transferDay = movementDate.getDate();
+    const mmdd = `${String(movementDate.getMonth() + 1).padStart(2, '0')}/${String(transferDay).padStart(2, '0')}`;
+
+    const { data: existingInStore } = await supabase
+      .from('monthly_staff_status')
+      .select('id, status')
+      .eq('year_month', yearMonth)
+      .eq('store_id', storeId)
+      .eq('employee_code', employeeCode)
+      .maybeSingle();
+
+    const isLocked = existingInStore?.status === 'confirmed';
+
+    // 原門市：員工已存在於本月資料時標成調出。
+    if (movement.store_id !== storeId && existingInStore?.id && !isLocked) {
+      await supabase
+        .from('monthly_staff_status')
+        .update({
+          monthly_status: 'transferred_out',
+          work_days: Math.max(transferDay - 1, 0),
+          total_days_in_month: daysInMonth,
+          partial_month_reason: '調出店',
+          partial_month_notes: `${mmdd}調出至${movement.new_value || ''}`,
+          is_manually_added: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingInStore.id);
+      continue;
+    }
+
+    // 新門市：store_id 就是新門市，若本月資料已初始化，補入調入人員。
+    if (movement.store_id === storeId && !isLocked) {
+      const { data: empData } = await supabase
+        .from('store_employees')
+        .select('*')
+        .eq('employee_code', employeeCode)
+        .eq('store_id', storeId)
+        .order('last_movement_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let resolvedStartDate = empData?.start_date || null;
+
+      if (!resolvedStartDate) {
+        const { data: latestStartDateRow } = await supabase
+          .from('monthly_staff_status')
+          .select('start_date, year_month')
+          .eq('employee_code', employeeCode)
+          .not('start_date', 'is', null)
+          .lt('year_month', yearMonth)
+          .order('year_month', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (latestStartDateRow?.start_date) {
+          resolvedStartDate = latestStartDateRow.start_date;
+        }
+      }
+
+      if (!resolvedStartDate) {
+        const { data: firstOnboarding } = await supabase
+          .from('employee_movement_history')
+          .select('movement_date')
+          .eq('employee_code', employeeCode)
+          .eq('movement_type', 'onboarding')
+          .order('movement_date', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (firstOnboarding?.movement_date) {
+          resolvedStartDate = firstOnboarding.movement_date;
+        }
+      }
+
+      const payload = {
+        year_month: yearMonth,
+        store_id: storeId,
+        user_id: empData?.user_id || null,
+        employee_code: employeeCode,
+        employee_name: movement.employee_name || empData?.employee_name || '',
+        position: empData?.current_position || empData?.position || '',
+        employment_type: empData?.employment_type || 'full_time',
+        is_pharmacist: empData?.is_pharmacist || false,
+        start_date: resolvedStartDate,
+        monthly_status: 'transferred_in' as MonthlyStatusType,
+        work_days: Math.max(daysInMonth - transferDay + 1, 0),
+        total_days_in_month: daysInMonth,
+        work_hours: empData?.employment_type === 'part_time' ? 0 : null,
+        is_dual_position: false,
+        has_manager_bonus: false,
+        is_supervisor_rotation: false,
+        is_acting_manager: false,
+        newbie_level: null,
+        partial_month_reason: '調入店',
+        partial_month_days: null,
+        partial_month_notes: `${mmdd}自${movement.old_value || ''}調入`,
+        extra_tasks: null,
+        is_manually_added: false,
+        status: 'draft' as const,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (existingInStore?.id) {
+        await supabase
+          .from('monthly_staff_status')
+          .update(payload)
+          .eq('id', existingInStore.id);
+      } else {
+        await supabase
+          .from('monthly_staff_status')
+          .insert(payload);
+      }
+    }
+  }
+}
+
+/**
  * 初始化指定年月、門市的人員狀態
  * 從 store_employees 複製當前員工名單
  */
@@ -871,6 +1095,10 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       return { success: false, error: '未登入' };
     }
 
+    // 計算本月天數
+    const [year, month] = yearMonth.split('-').map(Number);
+    const daysInMonth = new Date(year, month, 0).getDate();
+
     // 檢查是否已有資料
     const { data: existing } = await supabase
       .from('monthly_staff_status')
@@ -880,12 +1108,9 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
       .limit(1);
 
     if (existing && existing.length > 0) {
+      await syncTransferMovementsForMonthlyStatus(supabase, yearMonth, storeId, daysInMonth);
       return { success: true, message: '資料已存在', initialized: false };
     }
-
-    // 計算本月天數
-    const [year, month] = yearMonth.split('-').map(Number);
-    const daysInMonth = new Date(year, month, 0).getDate();
 
     // 計算上個月的年月
     const prevDate = new Date(year, month - 2, 1); // month-2 因為 JS 月份從 0 開始
@@ -1339,6 +1564,8 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
         }
       }
     }
+
+    await ensureStatusRecordStartDates(supabase, statusRecords);
 
     const { error: insertError } = await supabase
       .from('monthly_staff_status')
@@ -1968,6 +2195,8 @@ export async function addManualEmployee(
     const workDays = employeeData.work_days ?? (
       employeeData.monthly_status === 'full_month' ? totalDays : 0
     );
+    const resolvedStartDate = employeeData.start_date ||
+      await resolveEmployeeStartDate(supabase, employeeData.employee_code, storeId);
 
     const { data, error } = await supabase
       .from('monthly_staff_status')
@@ -2006,7 +2235,7 @@ export async function addManualEmployee(
         transport_expense_notes: employeeData.transport_expense_notes || null,
         support_to_other_stores_hours: employeeData.support_to_other_stores_hours || null,
         support_from_other_stores_hours: employeeData.support_from_other_stores_hours || null,
-        start_date: employeeData.start_date || null,
+        start_date: resolvedStartDate || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })

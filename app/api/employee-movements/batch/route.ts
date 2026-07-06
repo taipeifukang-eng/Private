@@ -34,6 +34,166 @@ function normalizePromotionPosition(position?: string, newbieLevel?: string) {
   return { position: rawPosition, newbie_level: rawLevel };
 }
 
+function getYearMonth(date: string) {
+  return String(date || '').slice(0, 7);
+}
+
+function getDaysInMonth(yearMonth: string) {
+  const [year, month] = yearMonth.split('-').map(Number);
+  return new Date(year, month, 0).getDate();
+}
+
+async function syncStoreTransferMonthlyStatus(
+  adminSupabase: ReturnType<typeof createAdminClient>,
+  movement: MovementInput
+) {
+  if (movement.movement_type !== 'store_transfer' || !movement.from_store_id || !movement.to_store_id) {
+    return;
+  }
+
+  const employeeCode = movement.employee_code.toUpperCase();
+  const transferYearMonth = getYearMonth(movement.effective_date);
+  const transferDate = new Date(movement.effective_date);
+  const transferDay = transferDate.getDate();
+  const mmdd = `${String(transferDate.getMonth() + 1).padStart(2, '0')}/${String(transferDay).padStart(2, '0')}`;
+
+  const [{ data: fromStore }, { data: toStore }] = await Promise.all([
+    adminSupabase.from('stores').select('store_name').eq('id', movement.from_store_id).maybeSingle(),
+    adminSupabase.from('stores').select('store_name').eq('id', movement.to_store_id).maybeSingle(),
+  ]);
+
+  const { data: fromMonthRecord } = await adminSupabase
+    .from('monthly_staff_status')
+    .select('id, status')
+    .eq('year_month', transferYearMonth)
+    .eq('store_id', movement.from_store_id)
+    .eq('employee_code', employeeCode)
+    .maybeSingle();
+
+  if (fromMonthRecord?.id && fromMonthRecord.status !== 'confirmed') {
+    const daysInMonth = getDaysInMonth(transferYearMonth);
+    await adminSupabase
+      .from('monthly_staff_status')
+      .update({
+        monthly_status: 'transferred_out',
+        work_days: Math.max(transferDay - 1, 0),
+        total_days_in_month: daysInMonth,
+        partial_month_reason: '調出店',
+        partial_month_notes: `${mmdd}調出至${toStore?.store_name || movement.to_store_id}`,
+        is_manually_added: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', fromMonthRecord.id);
+  }
+
+  const { data: initializedMonths } = await adminSupabase
+    .from('monthly_staff_status')
+    .select('year_month')
+    .eq('store_id', movement.to_store_id)
+    .gte('year_month', transferYearMonth)
+    .order('year_month', { ascending: true });
+
+  const monthList = Array.from(
+    new Set((initializedMonths || []).map((m: any) => String(m.year_month || '')))
+  ).filter(Boolean);
+
+  if (monthList.length === 0) {
+    return;
+  }
+
+  const { data: targetEmployee } = await adminSupabase
+    .from('store_employees')
+    .select('user_id, employee_name, current_position, position, employment_type, is_pharmacist, start_date')
+    .eq('employee_code', employeeCode)
+    .eq('store_id', movement.to_store_id)
+    .order('last_movement_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  let resolvedStartDate = targetEmployee?.start_date || null;
+  if (!resolvedStartDate) {
+    const { data: firstOnboarding } = await adminSupabase
+      .from('employee_movement_history')
+      .select('movement_date')
+      .eq('employee_code', employeeCode)
+      .eq('movement_type', 'onboarding')
+      .order('movement_date', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (firstOnboarding?.movement_date) {
+      resolvedStartDate = firstOnboarding.movement_date;
+    }
+  }
+
+  for (const ym of monthList) {
+    const daysInMonth = getDaysInMonth(ym);
+    const isEffectiveMonth = ym === transferYearMonth;
+    const monthlyStatus = isEffectiveMonth ? 'transferred_in' : 'full_month';
+    const workDays = isEffectiveMonth ? Math.max(daysInMonth - transferDay + 1, 0) : daysInMonth;
+    const partialMonthReason = isEffectiveMonth ? '調入店' : null;
+    const partialMonthNotes = isEffectiveMonth
+      ? `${mmdd}自${fromStore?.store_name || movement.from_store_id}調入`
+      : null;
+
+    const { data: exists } = await adminSupabase
+      .from('monthly_staff_status')
+      .select('id, status')
+      .eq('year_month', ym)
+      .eq('store_id', movement.to_store_id)
+      .eq('employee_code', employeeCode)
+      .maybeSingle();
+
+    if (exists?.status === 'confirmed') {
+      continue;
+    }
+
+    if (exists?.id) {
+      await adminSupabase
+        .from('monthly_staff_status')
+        .update({
+          monthly_status: monthlyStatus,
+          work_days: workDays,
+          total_days_in_month: daysInMonth,
+          partial_month_reason: partialMonthReason,
+          partial_month_notes: partialMonthNotes,
+          is_manually_added: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', exists.id);
+      continue;
+    }
+
+    await adminSupabase
+      .from('monthly_staff_status')
+      .insert({
+        year_month: ym,
+        store_id: movement.to_store_id,
+        user_id: targetEmployee?.user_id || null,
+        employee_code: employeeCode,
+        employee_name: movement.employee_name || targetEmployee?.employee_name || '',
+        position: targetEmployee?.current_position || targetEmployee?.position || '',
+        employment_type: targetEmployee?.employment_type || 'full_time',
+        is_pharmacist: Boolean(targetEmployee?.is_pharmacist),
+        start_date: resolvedStartDate,
+        monthly_status: monthlyStatus,
+        work_days: workDays,
+        total_days_in_month: daysInMonth,
+        work_hours: targetEmployee?.employment_type === 'part_time' ? 0 : null,
+        is_dual_position: false,
+        has_manager_bonus: false,
+        is_supervisor_rotation: false,
+        is_acting_manager: false,
+        partial_month_reason: partialMonthReason,
+        partial_month_days: null,
+        partial_month_notes: partialMonthNotes,
+        extra_tasks: null,
+        is_manually_added: false,
+        status: 'draft',
+      });
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -318,6 +478,15 @@ export async function POST(request: NextRequest) {
     }
 
     // 觸發器會自動處理相關更新
+
+    const transferMovements = movements.filter((m) => m.movement_type === 'store_transfer');
+    for (const movement of transferMovements) {
+      try {
+        await syncStoreTransferMonthlyStatus(adminSupabase, movement);
+      } catch (syncError) {
+        console.error('Store transfer monthly status sync warning:', syncError);
+      }
+    }
 
     // 升職為「新人」或「行政」且指定階級時，額外更新 monthly_staff_status.newbie_level
     const promotionLevelMovements = movements.filter(
