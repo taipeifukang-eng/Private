@@ -19,6 +19,10 @@ const BONUS_FIELDS = [
   'sales_competition_bonus',
   'owner_signing_bonus',
   'long_term_care_bonus',
+  'manager_supervisor_quarterly_bonus',
+  'opening_abnormal_responsibility_amount',
+  'bonus_difference_adjustment',
+  'other_bonus',
 ] as const;
 
 const POSITION_PRIORITY = [
@@ -117,6 +121,11 @@ export async function GET(request: NextRequest) {
         sales_competition_bonus,
         owner_signing_bonus,
         long_term_care_bonus,
+        manager_supervisor_quarterly_bonus,
+        opening_abnormal_responsibility_amount,
+        bonus_difference_adjustment,
+        other_bonus,
+        other_bonus_note,
         store:stores!monthly_bonus_records_store_id_fkey(store_code, store_name)
       `)
       .eq('year_month', yearMonth)
@@ -162,6 +171,11 @@ export async function GET(request: NextRequest) {
         sales_competition_bonus: Number(row.sales_competition_bonus) || 0,
         owner_signing_bonus: Number(row.owner_signing_bonus) || 0,
         long_term_care_bonus: Number(row.long_term_care_bonus) || 0,
+        manager_supervisor_quarterly_bonus: Number(row.manager_supervisor_quarterly_bonus) || 0,
+        opening_abnormal_responsibility_amount: Number(row.opening_abnormal_responsibility_amount) || 0,
+        bonus_difference_adjustment: Number(row.bonus_difference_adjustment) || 0,
+        other_bonus: Number(row.other_bonus) || 0,
+        other_bonus_note: Number(row.other_bonus) !== 0 ? (row.other_bonus_note || '') : '',
       });
 
       grouped.set(row.employee_code, current);

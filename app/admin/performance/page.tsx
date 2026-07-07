@@ -1014,6 +1014,11 @@ interface BonusRecord {
   sales_competition_bonus: number;
   owner_signing_bonus: number;
   long_term_care_bonus: number;
+  manager_supervisor_quarterly_bonus: number;
+  opening_abnormal_responsibility_amount: number;
+  bonus_difference_adjustment: number;
+  other_bonus: number;
+  other_bonus_note: string | null;
   store?: { store_code: string; store_name: string } | { store_code: string; store_name: string }[];
 }
 
@@ -1034,6 +1039,10 @@ const BONUS_COLS: { key: keyof BonusRecord; label: string }[] = [
   { key: 'sales_competition_bonus',label: '銷售競賽' },
   { key: 'owner_signing_bonus',    label: '負責人簽約金' },
   { key: 'long_term_care_bonus',   label: '長照獎金' },
+  { key: 'manager_supervisor_quarterly_bonus', label: '經理.督導季獎金' },
+  { key: 'opening_abnormal_responsibility_amount', label: '開店異常責任金額' },
+  { key: 'bonus_difference_adjustment', label: '獎金差額調整' },
+  { key: 'other_bonus', label: '其他獎金' },
 ];
 
 function getStoreInfo(store: BonusRecord['store']) {
@@ -1646,7 +1655,16 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
                         const v = Number(r[c.key]) || 0;
                         return (
                           <td key={c.key} className={`px-3 py-1.5 text-right border border-gray-200 ${v < 0 ? 'text-red-600' : v > 0 ? 'text-gray-800' : 'text-gray-300'}`}>
-                            {fmt(v)}
+                            {c.key === 'other_bonus' && v !== 0 && r.other_bonus_note ? (
+                              <div className="space-y-0.5">
+                                <div>{fmt(v)}</div>
+                                <div className="max-w-[160px] whitespace-normal text-[11px] leading-snug text-gray-500">
+                                  {r.other_bonus_note}
+                                </div>
+                              </div>
+                            ) : (
+                              fmt(v)
+                            )}
                           </td>
                         );
                       })}
@@ -1675,7 +1693,8 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
         <span className="font-medium">獎金欄位：</span>
         團體獎金、人力補貼團體獎金、單品獎金、盤點盤差承擔金額、育才獎金、交通費、
         盤點獎金、處方激勵獎金、季回補獎金、誤餐費、春節出勤獎金、藥師保證金、
-        負責人處方回補獎金、銷售競賽獎金、負責人簽約金
+        負責人處方回補獎金、銷售競賽獎金、負責人簽約金、長照獎金、經理.督導季獎金、
+        開店異常責任金額、獎金差額調整、其他獎金、其他獎金備註
       </div>
     </div>
   );

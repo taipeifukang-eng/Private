@@ -1450,6 +1450,10 @@ function StoreStatusDetail({
     { key: 'sales_competition_bonus', label: '銷售競賽' },
     { key: 'owner_signing_bonus', label: '負責人簽約金' },
     { key: 'long_term_care_bonus', label: '長照獎金' },
+    { key: 'manager_supervisor_quarterly_bonus', label: '經理.督導季獎金' },
+    { key: 'opening_abnormal_responsibility_amount', label: '開店異常責任金額' },
+    { key: 'bonus_difference_adjustment', label: '獎金差額調整' },
+    { key: 'other_bonus', label: '其他獎金' },
   ] as const;
 
   const flattenedBonusEntries = monthlyBonusDetails.flatMap((staff: any) => staff.entries || []);
@@ -1898,7 +1902,16 @@ function StoreStatusDetail({
                             </td>
                             {visibleBonusDetailColumns.map(col => (
                               <td key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
-                                {(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}
+                                {col.key === 'other_bonus' && Number(entry.other_bonus) !== 0 && entry.other_bonus_note ? (
+                                  <div className="space-y-0.5">
+                                    <div>{(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}</div>
+                                    <div className="whitespace-normal text-[11px] leading-snug text-gray-500">
+                                      {entry.other_bonus_note}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  (Number(entry[col.key]) || 0).toLocaleString('zh-TW')
+                                )}
                               </td>
                             ))}
                             <td className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>

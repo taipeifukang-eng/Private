@@ -19,6 +19,10 @@ const BONUS_FIELDS = [
   'sales_competition_bonus',
   'owner_signing_bonus',
   'long_term_care_bonus',
+  'manager_supervisor_quarterly_bonus',
+  'opening_abnormal_responsibility_amount',
+  'bonus_difference_adjustment',
+  'other_bonus',
 ] as const;
 
 type BonusField = (typeof BONUS_FIELDS)[number];
@@ -150,7 +154,11 @@ export async function GET(request: NextRequest) {
         owner_rx_makeup,
         sales_competition_bonus,
         owner_signing_bonus,
-        long_term_care_bonus
+        long_term_care_bonus,
+        manager_supervisor_quarterly_bonus,
+        opening_abnormal_responsibility_amount,
+        bonus_difference_adjustment,
+        other_bonus
       `)
       .in('year_month', quarterInfo.months)
       .in('employee_code', employeeCodes);

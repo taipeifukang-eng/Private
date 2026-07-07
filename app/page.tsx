@@ -60,10 +60,15 @@ type PersonalMonthlyBonusSummary = {
   sales_competition_bonus: number;
   owner_signing_bonus: number;
   long_term_care_bonus: number;
+  manager_supervisor_quarterly_bonus: number;
+  opening_abnormal_responsibility_amount: number;
+  bonus_difference_adjustment: number;
+  other_bonus: number;
+  other_bonus_note: string | null;
   total: number;
 };
 
-const PERSONAL_BONUS_FIELDS: Array<{ key: Exclude<keyof PersonalMonthlyBonusSummary, 'year_month' | 'total'>; label: string }> = [
+const PERSONAL_BONUS_FIELDS: Array<{ key: Exclude<keyof PersonalMonthlyBonusSummary, 'year_month' | 'total' | 'other_bonus_note'>; label: string }> = [
   { key: 'group_bonus', label: '月團體獎金' },
   { key: 'hr_subsidy_bonus', label: '人時補助獎金' },
   { key: 'single_item_bonus', label: '上月單品獎金' },
@@ -80,6 +85,10 @@ const PERSONAL_BONUS_FIELDS: Array<{ key: Exclude<keyof PersonalMonthlyBonusSumm
   { key: 'sales_competition_bonus', label: '銷售競賽獎金' },
   { key: 'owner_signing_bonus', label: '店東簽約獎金' },
   { key: 'long_term_care_bonus', label: '長照獎金' },
+  { key: 'manager_supervisor_quarterly_bonus', label: '經理.督導季獎金' },
+  { key: 'opening_abnormal_responsibility_amount', label: '開店異常責任金額' },
+  { key: 'bonus_difference_adjustment', label: '獎金差額調整' },
+  { key: 'other_bonus', label: '其他獎金' },
 ];
 
 function parseDateTs(dateStr: string | null | undefined): number | null {
@@ -227,7 +236,12 @@ export default async function HomePage() {
         owner_rx_makeup,
         sales_competition_bonus,
         owner_signing_bonus,
-        long_term_care_bonus
+        long_term_care_bonus,
+        manager_supervisor_quarterly_bonus,
+        opening_abnormal_responsibility_amount,
+        bonus_difference_adjustment,
+        other_bonus,
+        other_bonus_note
       `)
       .eq('employee_code', employeeCode)
       .order('year_month', { ascending: false })
@@ -256,12 +270,27 @@ export default async function HomePage() {
         sales_competition_bonus: 0,
         owner_signing_bonus: 0,
         long_term_care_bonus: 0,
+        manager_supervisor_quarterly_bonus: 0,
+        opening_abnormal_responsibility_amount: 0,
+        bonus_difference_adjustment: 0,
+        other_bonus: 0,
+        other_bonus_note: null,
         total: 0,
       };
 
       PERSONAL_BONUS_FIELDS.forEach((field) => {
         current[field.key] += Number(row[field.key]) || 0;
       });
+
+      const otherBonusNote = Number(row.other_bonus) !== 0 ? String(row.other_bonus_note || '').trim() : '';
+      if (otherBonusNote) {
+        const notes = current.other_bonus_note
+          ? current.other_bonus_note.split('；').map((note) => note.trim()).filter(Boolean)
+          : [];
+        if (!notes.includes(otherBonusNote)) {
+          current.other_bonus_note = [...notes, otherBonusNote].join('；');
+        }
+      }
 
       current.total = PERSONAL_BONUS_FIELDS.reduce((sum, field) => sum + (current[field.key] || 0), 0);
       monthMap.set(ym, current);
@@ -912,7 +941,14 @@ export default async function HomePage() {
                         {PERSONAL_BONUS_FIELDS.filter((field) => Number(row[field.key] || 0) !== 0).map((field) => (
                           <div key={`${row.year_month}-${field.key}`} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5">
                             <span className="text-gray-600">{field.label}</span>
-                            <span className="font-semibold text-gray-900">{formatAmount(row[field.key] as number)}</span>
+                            <span className="text-right font-semibold text-gray-900">
+                              {formatAmount(row[field.key] as number)}
+                              {field.key === 'other_bonus' && row.other_bonus_note ? (
+                                <span className="mt-0.5 block max-w-[180px] text-[11px] font-normal leading-snug text-gray-500">
+                                  {row.other_bonus_note}
+                                </span>
+                              ) : null}
+                            </span>
                           </div>
                         ))}
                       </div>

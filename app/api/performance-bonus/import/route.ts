@@ -172,6 +172,11 @@ const COL = {
   sales_competition_bonus:['銷售競賽獎金', '競賽獎金'],
   owner_signing_bonus:    ['負責人簽約金'],
   long_term_care_bonus:   ['長照獎金'],
+  manager_supervisor_quarterly_bonus: ['經理.督導季獎金', '經理督導季獎金', '經理/督導季獎金'],
+  opening_abnormal_responsibility_amount: ['開店異常責任金額', '開店異常責任'],
+  bonus_difference_adjustment: ['獎金差額調整', '差額調整'],
+  other_bonus:            ['其他獎金'],
+  other_bonus_note:       ['其他獎金備註', '其他獎金備註說明', '其他備註'],
 };
 
 const BONUS_VALUE_FIELDS = [
@@ -191,6 +196,10 @@ const BONUS_VALUE_FIELDS = [
   'sales_competition_bonus',
   'owner_signing_bonus',
   'long_term_care_bonus',
+  'manager_supervisor_quarterly_bonus',
+  'opening_abnormal_responsibility_amount',
+  'bonus_difference_adjustment',
+  'other_bonus',
 ] as const;
 
 /**
@@ -363,6 +372,9 @@ export async function POST(request: NextRequest) {
         continue; 
       }
 
+      const otherBonus = getNumOptional(row, COL.other_bonus);
+      const otherBonusNote = getStr(row, COL.other_bonus_note);
+
       const upsertRecord = {
         store_id:               storeId,
         year_month:             yearMonth,
@@ -384,6 +396,11 @@ export async function POST(request: NextRequest) {
         sales_competition_bonus:getNumOptional(row, COL.sales_competition_bonus),
         owner_signing_bonus:    getNumOptional(row, COL.owner_signing_bonus),
         long_term_care_bonus:   getNumOptional(row, COL.long_term_care_bonus),
+        manager_supervisor_quarterly_bonus: getNumOptional(row, COL.manager_supervisor_quarterly_bonus),
+        opening_abnormal_responsibility_amount: getNumOptional(row, COL.opening_abnormal_responsibility_amount),
+        bonus_difference_adjustment: getNumOptional(row, COL.bonus_difference_adjustment),
+        other_bonus:            otherBonus,
+        other_bonus_note:       otherBonus !== undefined && otherBonus !== 0 && otherBonusNote ? otherBonusNote : undefined,
         __rowLabel:             rowLabel,
         __rawStoreCode:         rawCode,
       };
@@ -454,6 +471,7 @@ export async function POST(request: NextRequest) {
           }
         }
         if (r.employee_name) existing.employee_name = r.employee_name;
+        if (r.other_bonus_note) existing.other_bonus_note = r.other_bonus_note;
       }
     }
     const dedupedUpserts = Array.from(dedupMap.values());
@@ -497,7 +515,12 @@ export async function POST(request: NextRequest) {
         owner_rx_makeup,
         sales_competition_bonus,
         owner_signing_bonus,
-        long_term_care_bonus
+        long_term_care_bonus,
+        manager_supervisor_quarterly_bonus,
+        opening_abnormal_responsibility_amount,
+        bonus_difference_adjustment,
+        other_bonus,
+        other_bonus_note
       `)
       .in('store_id', uniqueStoreIds)
       .in('year_month', uniqueYearMonths)
@@ -532,6 +555,14 @@ export async function POST(request: NextRequest) {
           merged[field] = incoming;
         }
       });
+
+      if (r.other_bonus === undefined) {
+        merged.other_bonus_note = old?.other_bonus_note ?? null;
+      } else {
+        merged.other_bonus_note = Number(r.other_bonus) !== 0
+          ? (r.other_bonus_note ?? old?.other_bonus_note ?? null)
+          : null;
+      }
 
       return merged;
     });
