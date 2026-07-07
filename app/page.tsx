@@ -302,6 +302,34 @@ export default async function HomePage() {
       .slice(0, 12);
   }
 
+  const recentOwnMonthlyBonusSummaries = ownMonthlyBonusSummaries.slice(0, 3);
+  const olderOwnMonthlyBonusSummaries = ownMonthlyBonusSummaries.slice(3);
+  const renderOwnMonthlyBonusSummary = (row: PersonalMonthlyBonusSummary) => (
+    <details key={row.year_month} className="overflow-hidden rounded-xl border border-violet-100 bg-violet-50/40">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
+        <span className="text-sm font-semibold text-violet-800">{row.year_month.replace('-', '/')}</span>
+        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-violet-700 shadow-sm">
+          合計 {formatAmount(row.total)}
+        </span>
+      </summary>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-violet-100 bg-white px-3 py-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
+        {PERSONAL_BONUS_FIELDS.filter((field) => Number(row[field.key] || 0) !== 0).map((field) => (
+          <div key={`${row.year_month}-${field.key}`} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5">
+            <span className="text-gray-600">{field.label}</span>
+            <span className="text-right font-semibold text-gray-900">
+              {formatAmount(row[field.key] as number)}
+              {field.key === 'other_bonus' && row.other_bonus_note ? (
+                <span className="mt-0.5 block max-w-[180px] text-[11px] font-normal leading-snug text-gray-500">
+                  {row.other_bonus_note}
+                </span>
+              ) : null}
+            </span>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+
   const { data: managedStoreRows } = await adminSupabase
     .from('store_managers')
     .select('store_id, stores(store_code, store_name)')
@@ -929,31 +957,20 @@ export default async function HomePage() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {ownMonthlyBonusSummaries.map((row) => (
-                    <details key={row.year_month} className="overflow-hidden rounded-xl border border-violet-100 bg-violet-50/40">
+                  {recentOwnMonthlyBonusSummaries.map(renderOwnMonthlyBonusSummary)}
+                  {olderOwnMonthlyBonusSummaries.length > 0 && (
+                    <details className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50">
                       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5">
-                        <span className="text-sm font-semibold text-violet-800">{row.year_month.replace('-', '/')}</span>
-                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-violet-700 shadow-sm">
-                          合計 {formatAmount(row.total)}
+                        <span className="text-sm font-semibold text-gray-700">較早月份</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-gray-600 shadow-sm">
+                          {olderOwnMonthlyBonusSummaries.length} 個月
                         </span>
                       </summary>
-                      <div className="grid grid-cols-1 gap-x-4 gap-y-1 border-t border-violet-100 bg-white px-3 py-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
-                        {PERSONAL_BONUS_FIELDS.filter((field) => Number(row[field.key] || 0) !== 0).map((field) => (
-                          <div key={`${row.year_month}-${field.key}`} className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2 py-1.5">
-                            <span className="text-gray-600">{field.label}</span>
-                            <span className="text-right font-semibold text-gray-900">
-                              {formatAmount(row[field.key] as number)}
-                              {field.key === 'other_bonus' && row.other_bonus_note ? (
-                                <span className="mt-0.5 block max-w-[180px] text-[11px] font-normal leading-snug text-gray-500">
-                                  {row.other_bonus_note}
-                                </span>
-                              ) : null}
-                            </span>
-                          </div>
-                        ))}
+                      <div className="space-y-2 border-t border-gray-200 bg-white p-2">
+                        {olderOwnMonthlyBonusSummaries.map(renderOwnMonthlyBonusSummary)}
                       </div>
                     </details>
-                  ))}
+                  )}
                 </div>
               )}
             </div>

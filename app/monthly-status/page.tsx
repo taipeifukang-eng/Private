@@ -828,6 +828,7 @@ function StoreStatusDetail({
   const [showMonthlyBonusDetailModal, setShowMonthlyBonusDetailModal] = useState(false);
   const [loadingMonthlyBonusDetail, setLoadingMonthlyBonusDetail] = useState(false);
   const [monthlyBonusDetails, setMonthlyBonusDetails] = useState<any[]>([]);
+  const [monthlyBonusNameFilter, setMonthlyBonusNameFilter] = useState('');
   const [showMonthlyPerformanceModal, setShowMonthlyPerformanceModal] = useState(false);
   const [loadingMonthlyPerformance, setLoadingMonthlyPerformance] = useState(false);
   const [monthlyPerformanceSnapshot, setMonthlyPerformanceSnapshot] = useState<any | null>(null);
@@ -1260,6 +1261,7 @@ function StoreStatusDetail({
   const handleOpenMonthlyBonusDetail = async () => {
     setShowMonthlyBonusDetailModal(true);
     setLoadingMonthlyBonusDetail(true);
+    setMonthlyBonusNameFilter('');
     try {
       const res = await fetch(
         `/api/monthly-status/bonus-details?year_month=${encodeURIComponent(yearMonth)}&store_id=${encodeURIComponent(store.id)}`
@@ -1456,9 +1458,15 @@ function StoreStatusDetail({
     { key: 'other_bonus', label: '其他獎金' },
   ] as const;
 
-  const flattenedBonusEntries = monthlyBonusDetails.flatMap((staff: any) => staff.entries || []);
+  const monthlyBonusNameKeyword = monthlyBonusNameFilter.trim().toLowerCase();
+  const filteredMonthlyBonusDetails = monthlyBonusNameKeyword
+    ? monthlyBonusDetails.filter((staff: any) =>
+      String(staff.employee_name || '').toLowerCase().includes(monthlyBonusNameKeyword)
+    )
+    : monthlyBonusDetails;
+  const filteredFlattenedBonusEntries = filteredMonthlyBonusDetails.flatMap((staff: any) => staff.entries || []);
   const visibleBonusDetailColumns = bonusDetailColumns.filter(col =>
-    flattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
+    filteredFlattenedBonusEntries.some((entry: any) => Number(entry[col.key]) !== 0)
   );
   const quarterSummaryColumns = bonusDetailColumns.filter(col =>
     Number(quarterBonusSummary?.totals?.[col.key] ?? 0) !== 0
@@ -1834,7 +1842,10 @@ function StoreStatusDetail({
                   </button>
                 )}
                 <button
-                  onClick={() => setShowMonthlyBonusDetailModal(false)}
+                  onClick={() => {
+                    setShowMonthlyBonusDetailModal(false);
+                    setMonthlyBonusNameFilter('');
+                  }}
                   className="p-2 rounded-md hover:bg-gray-100 text-gray-500"
                 >
                   <X size={18} />
@@ -1851,75 +1862,103 @@ function StoreStatusDetail({
               ) : monthlyBonusDetails.length === 0 ? (
                 <div className="py-10 text-center text-gray-500">本店本月員工尚無匯入獎金資料</div>
               ) : (
-                <div className="overflow-x-auto max-h-[70vh] border rounded-lg">
-                  <table className="w-full table-auto text-sm">
-                    <thead className="bg-gray-50 sticky top-0">
-                      <tr>
-                        <th className="w-[84px] max-w-[84px] px-1.5 py-2 text-left whitespace-nowrap">員編</th>
-                        <th className="w-[110px] max-w-[110px] px-1.5 py-2 text-left whitespace-nowrap">姓名</th>
-                        <th className="w-[190px] max-w-[190px] px-1.5 py-2 text-left whitespace-nowrap">來源門市</th>
-                        <th className="w-[70px] max-w-[70px] px-1.5 py-2 text-left whitespace-nowrap">來源類型</th>
-                        {visibleBonusDetailColumns.map(col => (
-                          <th key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
-                            {col.label}
-                          </th>
-                        ))}
-                        <th className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {monthlyBonusDetails.flatMap((staff: any) => {
-                        if (!staff.entries || staff.entries.length === 0) {
-                          return [
-                            <tr key={`${staff.employee_code}-empty`}>
-                              <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_code}</td>
-                              <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
-                              <td className="px-1.5 py-2 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
-                              <td className="px-1.5 py-2 text-right whitespace-nowrap">0</td>
-                            </tr>
-                          ];
-                        }
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="text-sm font-medium text-gray-600">姓名</label>
+                    <input
+                      type="text"
+                      value={monthlyBonusNameFilter}
+                      onChange={(e) => setMonthlyBonusNameFilter(e.target.value)}
+                      placeholder="輸入姓名篩選"
+                      className="w-56 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-100"
+                    />
+                    {monthlyBonusNameFilter && (
+                      <button
+                        onClick={() => setMonthlyBonusNameFilter('')}
+                        className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                      >
+                        清除
+                      </button>
+                    )}
+                    <span className="text-xs text-gray-400">
+                      顯示 {filteredMonthlyBonusDetails.length} / {monthlyBonusDetails.length} 人
+                    </span>
+                  </div>
 
-                        return staff.entries.map((entry: any, idx: number) => (
-                          <tr key={`${staff.employee_code}-${idx}`} className={entry.is_other_store ? 'bg-amber-50/50' : ''}>
-                            <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_code}</td>
-                            <td className="px-1.5 py-2 whitespace-nowrap">
-                              <div className="max-w-[100px] truncate" title={staff.employee_name || '-'}>
-                                {staff.employee_name || '-'}
-                              </div>
-                            </td>
-                            <td className="px-1.5 py-2 whitespace-nowrap">
-                              <div className="max-w-[180px] truncate" title={`${entry.source_store_code} ${entry.source_store_name}`}>
-                                {entry.source_store_code} {entry.source_store_name}
-                              </div>
-                            </td>
-                            <td className="w-[70px] max-w-[70px] px-1.5 py-2 whitespace-nowrap">
-                              {entry.is_other_store ? (
-                                <span className="inline-flex min-w-[40px] items-center justify-center px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">他店</span>
-                              ) : (
-                                <span className="inline-flex min-w-[40px] items-center justify-center px-1 py-0.5 rounded-full bg-green-100 text-green-700 leading-none">本店</span>
-                              )}
-                            </td>
+                  {filteredMonthlyBonusDetails.length === 0 ? (
+                    <div className="py-10 text-center text-gray-500">查無符合姓名篩選的人員</div>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[70vh] border rounded-lg">
+                      <table className="w-full table-auto text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="w-[84px] max-w-[84px] px-1.5 py-2 text-left whitespace-nowrap">員編</th>
+                            <th className="w-[110px] max-w-[110px] px-1.5 py-2 text-left whitespace-nowrap">姓名</th>
+                            <th className="w-[190px] max-w-[190px] px-1.5 py-2 text-left whitespace-nowrap">來源門市</th>
+                            <th className="w-[70px] max-w-[70px] px-1.5 py-2 text-left whitespace-nowrap">來源類型</th>
                             {visibleBonusDetailColumns.map(col => (
-                              <td key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
-                                {col.key === 'other_bonus' && Number(entry.other_bonus) !== 0 && entry.other_bonus_note ? (
-                                  <div className="space-y-0.5">
-                                    <div>{(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}</div>
-                                    <div className="whitespace-normal text-[11px] leading-snug text-gray-500">
-                                      {entry.other_bonus_note}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  (Number(entry[col.key]) || 0).toLocaleString('zh-TW')
-                                )}
-                              </td>
+                              <th key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
+                                {col.label}
+                              </th>
                             ))}
-                            <td className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>
+                            <th className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">合計</th>
                           </tr>
-                        ));
-                      })}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredMonthlyBonusDetails.flatMap((staff: any) => {
+                            if (!staff.entries || staff.entries.length === 0) {
+                              return [
+                                <tr key={`${staff.employee_code}-empty`}>
+                                  <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_code}</td>
+                                  <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_name || '-'}</td>
+                                  <td className="px-1.5 py-2 text-gray-400" colSpan={2 + visibleBonusDetailColumns.length}>無匯入獎金資料</td>
+                                  <td className="px-1.5 py-2 text-right whitespace-nowrap">0</td>
+                                </tr>
+                              ];
+                            }
+
+                            return staff.entries.map((entry: any, idx: number) => (
+                              <tr key={`${staff.employee_code}-${idx}`} className={entry.is_other_store ? 'bg-amber-50/50' : ''}>
+                                <td className="px-1.5 py-2 whitespace-nowrap">{staff.employee_code}</td>
+                                <td className="px-1.5 py-2 whitespace-nowrap">
+                                  <div className="max-w-[100px] truncate" title={staff.employee_name || '-'}>
+                                    {staff.employee_name || '-'}
+                                  </div>
+                                </td>
+                                <td className="px-1.5 py-2 whitespace-nowrap">
+                                  <div className="max-w-[180px] truncate" title={`${entry.source_store_code} ${entry.source_store_name}`}>
+                                    {entry.source_store_code} {entry.source_store_name}
+                                  </div>
+                                </td>
+                                <td className="w-[70px] max-w-[70px] px-1.5 py-2 whitespace-nowrap">
+                                  {entry.is_other_store ? (
+                                    <span className="inline-flex min-w-[40px] items-center justify-center px-1 py-0.5 rounded-full bg-amber-100 text-amber-700 leading-none">他店</span>
+                                  ) : (
+                                    <span className="inline-flex min-w-[40px] items-center justify-center px-1 py-0.5 rounded-full bg-green-100 text-green-700 leading-none">本店</span>
+                                  )}
+                                </td>
+                                {visibleBonusDetailColumns.map(col => (
+                                  <td key={col.key} className="w-[86px] max-w-[86px] px-1.5 py-2 text-right whitespace-nowrap">
+                                    {col.key === 'other_bonus' && Number(entry.other_bonus) !== 0 && entry.other_bonus_note ? (
+                                      <div className="space-y-0.5">
+                                        <div>{(Number(entry[col.key]) || 0).toLocaleString('zh-TW')}</div>
+                                        <div className="whitespace-normal text-[11px] leading-snug text-gray-500">
+                                          {entry.other_bonus_note}
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      (Number(entry[col.key]) || 0).toLocaleString('zh-TW')
+                                    )}
+                                  </td>
+                                ))}
+                                <td className="w-[92px] max-w-[92px] px-1.5 py-2 text-right font-semibold text-blue-700 whitespace-nowrap">{(entry.total || 0).toLocaleString('zh-TW')}</td>
+                              </tr>
+                            ));
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
