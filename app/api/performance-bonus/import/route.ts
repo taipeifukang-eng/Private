@@ -45,6 +45,16 @@ function isNonZeroNumber(value: unknown): value is number {
   return typeof value === 'number' && !isNaN(value) && value !== 0;
 }
 
+function mergeBonusValue(existing: unknown, incoming: unknown): number {
+  const oldValue = Number(existing) || 0;
+  if (incoming === undefined) return oldValue;
+
+  const incomingValue = Number(incoming) || 0;
+  if (oldValue !== 0 && incomingValue === 0) return oldValue;
+
+  return incomingValue;
+}
+
 // 智能解析月份（支援 "1", "01", "1月", "一月" 等格式）
 function parseMonth(monthStr: string): number | null {
   if (!monthStr) return null;
@@ -548,18 +558,13 @@ export async function POST(request: NextRequest) {
       };
 
       BONUS_VALUE_FIELDS.forEach(field => {
-        const incoming = r[field];
-        if (incoming === undefined) {
-          merged[field] = old?.[field] ?? 0;
-        } else {
-          merged[field] = incoming;
-        }
+        merged[field] = mergeBonusValue(old?.[field], r[field]);
       });
 
-      if (r.other_bonus === undefined) {
+      if (r.other_bonus === undefined || (Number(old?.other_bonus) !== 0 && Number(r.other_bonus) === 0)) {
         merged.other_bonus_note = old?.other_bonus_note ?? null;
       } else {
-        merged.other_bonus_note = Number(r.other_bonus) !== 0
+        merged.other_bonus_note = Number(merged.other_bonus) !== 0
           ? (r.other_bonus_note ?? old?.other_bonus_note ?? null)
           : null;
       }
