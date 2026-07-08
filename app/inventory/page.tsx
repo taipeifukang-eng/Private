@@ -51,6 +51,10 @@ type InventoryResultBatch = {
   shortage_count: number;
   surplus_count: number;
   zero_difference_count: number;
+  non_excluded_diff_count?: number;
+  non_excluded_diff_positive_cost_total?: number;
+  non_excluded_diff_negative_cost_total?: number;
+  non_excluded_diff_net_cost_total?: number;
 };
 
 type InventoryResultItem = {
@@ -154,6 +158,10 @@ export default function InventoryManagement() {
   const formatMoney = (value: unknown): string => {
     const n = Number(value) || 0;
     return n.toLocaleString('zh-TW');
+  };
+  const formatSummaryNumber = (value: unknown): string => {
+    const n = Number(value) || 0;
+    return Math.round(n).toLocaleString('zh-TW');
   };
   const productCategoryMap: Record<string, string> = {
     '01': '處方藥品',
@@ -1125,22 +1133,6 @@ export default function InventoryManagement() {
       negative_cost_total: analysisNonExcludedSummary?.negative_cost_total || 0,
       net_cost_total: analysisNonExcludedSummary?.net_cost_total || 0,
     };
-  const nonExcludedDiffItems = analysisItems.filter((item) => {
-    return !excludedAnalysisCategoryCodes.has(getItemCategoryCode(item)) && Number(item.difference_qty) !== 0;
-  });
-  const nonExcludedDiffSummary = nonExcludedDiffItems.reduce((summary, item) => {
-    const cost = Number(item.cost) || 0;
-    summary.row_count += 1;
-    summary.net_cost_total += cost;
-    if (cost > 0) summary.positive_cost_total += cost;
-    if (cost < 0) summary.negative_cost_total += cost;
-    return summary;
-  }, {
-    row_count: 0,
-    positive_cost_total: 0,
-    negative_cost_total: 0,
-    net_cost_total: 0,
-  });
   const topShortageItems = [...filteredAnalysisItems]
     .filter((item) => Number(item.cost) < 0)
     .sort((a, b) => Number(a.cost) - Number(b.cost))
@@ -1767,6 +1759,21 @@ export default function InventoryManagement() {
                           <span className="rounded bg-red-50 px-2 py-1 text-red-700">短少 {batch.shortage_count} 品項</span>
                           <span className="rounded bg-green-50 px-2 py-1 text-green-700">盤盈 {batch.surplus_count} 品項</span>
                         </div>
+                        <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 p-2 text-xs">
+                          <div className="mb-2 font-semibold text-emerald-900">排除 01 / 97 / 98 / 99 且有盤差量</div>
+                          <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                            <span className="text-gray-600">統計筆數</span>
+                            <span className="text-right font-semibold text-gray-900">{batch.non_excluded_diff_count || 0}</span>
+                            <span className="text-green-700">正盤差成本</span>
+                            <span className="text-right font-semibold text-green-700">{formatSummaryNumber(batch.non_excluded_diff_positive_cost_total)}</span>
+                            <span className="text-red-700">負盤差成本</span>
+                            <span className="text-right font-semibold text-red-700">{formatSummaryNumber(batch.non_excluded_diff_negative_cost_total)}</span>
+                            <span className="text-emerald-700">正負加總成本</span>
+                            <span className={`text-right font-semibold ${Number(batch.non_excluded_diff_net_cost_total || 0) < 0 ? 'text-red-700' : Number(batch.non_excluded_diff_net_cost_total || 0) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
+                              {formatSummaryNumber(batch.non_excluded_diff_net_cost_total)}
+                            </span>
+                          </div>
+                        </div>
                         <div className="mt-2 text-xs text-gray-400">
                           {batch.imported_at ? new Date(batch.imported_at).toLocaleString('zh-TW') : ''}
                         </div>
@@ -1797,40 +1804,16 @@ export default function InventoryManagement() {
                           </div>
                           <div className="min-w-0 rounded-xl border border-green-200 bg-green-50 p-4">
                             <div className="text-xs text-green-600">正盤差成本</div>
-                            <div className="mt-1 whitespace-nowrap text-2xl font-bold text-green-700">{formatMoney(dashboardSummary.positive_cost_total)}</div>
+                            <div className="mt-1 whitespace-nowrap text-2xl font-bold text-green-700">{formatSummaryNumber(dashboardSummary.positive_cost_total)}</div>
                           </div>
                           <div className="min-w-0 rounded-xl border border-red-200 bg-red-50 p-4">
                             <div className="text-xs text-red-600">負盤差成本</div>
-                            <div className="mt-1 whitespace-nowrap text-2xl font-bold text-red-700">{formatMoney(dashboardSummary.negative_cost_total)}</div>
+                            <div className="mt-1 whitespace-nowrap text-2xl font-bold text-red-700">{formatSummaryNumber(dashboardSummary.negative_cost_total)}</div>
                           </div>
                           <div className="min-w-0 rounded-xl border border-blue-200 bg-blue-50 p-4">
                             <div className="text-xs text-blue-600">正負加總成本</div>
                             <div className={`mt-1 whitespace-nowrap text-2xl font-bold ${Number(dashboardSummary.net_cost_total) < 0 ? 'text-red-700' : Number(dashboardSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
-                              {formatMoney(dashboardSummary.net_cost_total)}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                        <h4 className="mb-3 font-bold text-emerald-900">排除 01 / 97 / 98 / 99 且有盤差量</h4>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-                          <div className="min-w-0 rounded-xl bg-white p-4">
-                            <div className="text-xs text-gray-500">統計筆數</div>
-                            <div className="mt-1 whitespace-nowrap text-xl font-bold text-gray-900">{nonExcludedDiffSummary.row_count}</div>
-                          </div>
-                          <div className="min-w-0 rounded-xl bg-white p-4">
-                            <div className="text-xs text-green-600">正盤差成本</div>
-                            <div className="mt-1 whitespace-nowrap text-xl font-bold text-green-700">{formatMoney(nonExcludedDiffSummary.positive_cost_total)}</div>
-                          </div>
-                          <div className="min-w-0 rounded-xl bg-white p-4">
-                            <div className="text-xs text-red-600">負盤差成本</div>
-                            <div className="mt-1 whitespace-nowrap text-xl font-bold text-red-700">{formatMoney(nonExcludedDiffSummary.negative_cost_total)}</div>
-                          </div>
-                          <div className="min-w-0 rounded-xl bg-white p-4">
-                            <div className="text-xs text-emerald-700">正負加總成本</div>
-                            <div className={`mt-1 whitespace-nowrap text-xl font-bold ${Number(nonExcludedDiffSummary.net_cost_total) < 0 ? 'text-red-700' : Number(nonExcludedDiffSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
-                              {formatMoney(nonExcludedDiffSummary.net_cost_total)}
+                              {formatSummaryNumber(dashboardSummary.net_cost_total)}
                             </div>
                           </div>
                         </div>
@@ -1875,19 +1858,19 @@ export default function InventoryManagement() {
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                   <div className="rounded-lg bg-green-50 p-2">
                                     <div className="text-green-600">正盤差成本</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-green-700">{formatMoney(category.positive_cost_total)}</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-green-700">{formatSummaryNumber(category.positive_cost_total)}</div>
                                   </div>
                                   <div className="rounded-lg bg-red-50 p-2">
                                     <div className="text-red-600">負盤差成本</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-red-700">{formatMoney(category.negative_cost_total)}</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-red-700">{formatSummaryNumber(category.negative_cost_total)}</div>
                                   </div>
                                   <div className="rounded-lg bg-blue-50 p-2">
                                     <div className="text-blue-600">加總成本</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-blue-700">{formatMoney(category.net_cost_total)}</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-blue-700">{formatSummaryNumber(category.net_cost_total)}</div>
                                   </div>
                                   <div className="rounded-lg bg-gray-50 p-2">
                                     <div className="text-gray-500">庫存額總額</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-gray-800">{formatMoney(category.stock_amount_total)}</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-gray-800">{formatSummaryNumber(category.stock_amount_total)}</div>
                                   </div>
                                 </div>
                               </button>

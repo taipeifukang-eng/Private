@@ -170,6 +170,28 @@ async function fetchInventoryResultItems(admin: ReturnType<typeof createAdminCli
   return rows;
 }
 
+function getNonExcludedDiffSummary(items: any[]) {
+  return items.reduce((summary, item) => {
+    const { code } = getItemCategory(item);
+    if (EXCLUDED_CATEGORY_CODES.has(code) || (Number(item.difference_qty) || 0) === 0) {
+      return summary;
+    }
+
+    const differenceQty = Number(item.difference_qty) || 0;
+    const cost = Number(item.cost) || 0;
+    summary.non_excluded_diff_count += 1;
+    summary.non_excluded_diff_net_cost_total += cost;
+    if (differenceQty > 0) summary.non_excluded_diff_positive_cost_total += cost;
+    if (differenceQty < 0) summary.non_excluded_diff_negative_cost_total += cost;
+    return summary;
+  }, {
+    non_excluded_diff_count: 0,
+    non_excluded_diff_positive_cost_total: 0,
+    non_excluded_diff_negative_cost_total: 0,
+    non_excluded_diff_net_cost_total: 0,
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -209,7 +231,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: batchError.message }, { status: 500 });
     }
 
-    const selectedBatchId = batchId || batches?.[0]?.id || '';
+    const batchRows = batches || [];
+    const batchSummaries = new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
+    await Promise.all(batchRows.map(async (batch: any) => {
+      const batchItems = await fetchInventoryResultItems(admin, batch.id);
+      batchSummaries.set(batch.id, getNonExcludedDiffSummary(batchItems));
+    }));
+    const enrichedBatches = batchRows.map((batch: any) => ({
+      ...batch,
+      ...(batchSummaries.get(batch.id) || getNonExcludedDiffSummary([])),
+    }));
+
+    const selectedBatchId = batchId || enrichedBatches?.[0]?.id || '';
     let items: any[] = [];
     let allItemsForAnalysis: any[] = [];
 
@@ -230,6 +263,7 @@ export async function GET(request: NextRequest) {
     allItemsForAnalysis.forEach((item: any) => {
       const category = getItemCategory(item);
       const code = category.code || 'NA';
+      const differenceQty = Number(item.difference_qty) || 0;
       const cost = Number(item.cost) || 0;
       const stockAmount = Number(item.stock_amount) || 0;
       const current = categorySummaryMap.get(code) || {
@@ -246,22 +280,22 @@ export async function GET(request: NextRequest) {
         surplus_count: 0,
       };
       current.row_count += 1;
-      current.total_difference_qty += Number(item.difference_qty) || 0;
+      current.total_difference_qty += differenceQty;
       current.net_cost_total += cost;
       current.stock_amount_total += stockAmount;
-      if (cost > 0) current.positive_cost_total += cost;
-      if (cost < 0) current.negative_cost_total += cost;
+      if (differenceQty > 0) current.positive_cost_total += cost;
+      if (differenceQty < 0) current.negative_cost_total += cost;
       current.total_difference_amount_member += Number(item.difference_amount_member) || 0;
-      if ((Number(item.difference_qty) || 0) < 0) current.shortage_count += 1;
-      if ((Number(item.difference_qty) || 0) > 0) current.surplus_count += 1;
+      if (differenceQty < 0) current.shortage_count += 1;
+      if (differenceQty > 0) current.surplus_count += 1;
       categorySummaryMap.set(code, current);
 
       if (!EXCLUDED_CATEGORY_CODES.has(code)) {
         nonExcludedSummary.row_count += 1;
         nonExcludedSummary.net_cost_total += cost;
         nonExcludedSummary.stock_amount_total += stockAmount;
-        if (cost > 0) nonExcludedSummary.positive_cost_total += cost;
-        if (cost < 0) nonExcludedSummary.negative_cost_total += cost;
+        if (differenceQty > 0) nonExcludedSummary.positive_cost_total += cost;
+        if (differenceQty < 0) nonExcludedSummary.negative_cost_total += cost;
       }
     });
 
@@ -270,7 +304,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      batches: batches || [],
+      batches: enrichedBatches,
       items,
       category_summary: categorySummary,
       non_excluded_summary: nonExcludedSummary,
