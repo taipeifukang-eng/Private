@@ -21,6 +21,25 @@ const REQUIRED_COLUMNS = [
   '庫存額',
 ] as const;
 
+const PRODUCT_CATEGORY_MAP: Record<string, string> = {
+  '01': '處方藥品',
+  '02': '保健食品',
+  '03': 'OTC藥品',
+  '04': '醫美產品',
+  '05': '奶製品',
+  '06': '醫療器材/輔具',
+  '07': '護具/護理用品/醫療用耗材/隱形眼鏡',
+  '08': '生活用品',
+  '09': '一般食品',
+  '10': '婦嬰用品',
+  '11': '寵物用品',
+  '12': '尿布',
+  '97': '庶務類消耗品',
+  '98': '虛擬產品',
+  '99': '贈品與展示品',
+};
+const EXCLUDED_CATEGORY_CODES = new Set(['01', '97', '98', '99']);
+
 function normalizeStoreCode(code: unknown): string {
   return String(code || '').trim().toUpperCase().replace(/\s+/g, '');
 }
@@ -43,6 +62,21 @@ function getNum(row: Record<string, unknown>, key: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeProductCode(code: unknown): string {
+  const raw = String(code || '').trim();
+  if (!raw) return '';
+  return /^\d+$/.test(raw) ? raw.padStart(8, '0') : raw;
+}
+
+function getProductCategory(productCode: string): { code: string; name: string } {
+  const code = productCode.slice(0, 2);
+  return { code, name: PRODUCT_CATEGORY_MAP[code] || '未分類' };
+}
+
+function isValidYearMonth(value: string): boolean {
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
 async function ensurePermission(userId: string): Promise<boolean> {
   return (await hasPermission(userId, 'inventory.inventory.access'))
     || (await hasPermission(userId, 'inventory.inventory.view'))
@@ -62,6 +96,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const storeKeyword = (searchParams.get('store') || '').trim();
     const orderKeyword = (searchParams.get('order_no') || '').trim();
+    const yearMonth = (searchParams.get('year_month') || '').trim();
     const batchId = searchParams.get('batch_id') || '';
 
     const admin = createAdminClient();
@@ -76,6 +111,7 @@ export async function GET(request: NextRequest) {
       .limit(50);
 
     if (batchId) q = q.eq('id', batchId);
+    if (yearMonth) q = q.eq('year_month', yearMonth);
     if (orderKeyword) q = q.ilike('inventory_order_no', `%${orderKeyword}%`);
     if (storeKeyword) {
       q = q.or(`store_code.ilike.%${storeKeyword}%,store_name.ilike.%${storeKeyword}%`);
@@ -88,6 +124,7 @@ export async function GET(request: NextRequest) {
 
     const selectedBatchId = batchId || batches?.[0]?.id || '';
     let items: any[] = [];
+    let allItemsForAnalysis: any[] = [];
 
     if (selectedBatchId) {
       const { data: itemRows, error: itemError } = await admin
@@ -101,9 +138,76 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: false, error: itemError.message }, { status: 500 });
       }
       items = itemRows || [];
+
+      const { data: allItemRows, error: allItemsError } = await admin
+        .from('inventory_result_items')
+        .select('category_code, category_name, difference_qty, difference_amount_member, cost, stock_amount')
+        .eq('batch_id', selectedBatchId);
+
+      if (allItemsError) {
+        return NextResponse.json({ success: false, error: allItemsError.message }, { status: 500 });
+      }
+      allItemsForAnalysis = allItemRows || [];
     }
 
-    return NextResponse.json({ success: true, batches: batches || [], items, selected_batch_id: selectedBatchId });
+    const categorySummaryMap = new Map<string, any>();
+    const nonExcludedSummary = {
+      positive_cost_total: 0,
+      negative_cost_total: 0,
+      net_cost_total: 0,
+      stock_amount_total: 0,
+      row_count: 0,
+    };
+
+    allItemsForAnalysis.forEach((item: any) => {
+      const code = item.category_code || 'NA';
+      const cost = Number(item.cost) || 0;
+      const stockAmount = Number(item.stock_amount) || 0;
+      const current = categorySummaryMap.get(code) || {
+        category_code: code,
+        category_name: item.category_name || '未分類',
+        row_count: 0,
+        total_difference_qty: 0,
+        positive_cost_total: 0,
+        negative_cost_total: 0,
+        net_cost_total: 0,
+        stock_amount_total: 0,
+        total_difference_amount_member: 0,
+        shortage_count: 0,
+        surplus_count: 0,
+      };
+      current.row_count += 1;
+      current.total_difference_qty += Number(item.difference_qty) || 0;
+      current.net_cost_total += cost;
+      current.stock_amount_total += stockAmount;
+      if (cost > 0) current.positive_cost_total += cost;
+      if (cost < 0) current.negative_cost_total += cost;
+      current.total_difference_amount_member += Number(item.difference_amount_member) || 0;
+      if ((Number(item.difference_qty) || 0) < 0) current.shortage_count += 1;
+      if ((Number(item.difference_qty) || 0) > 0) current.surplus_count += 1;
+      categorySummaryMap.set(code, current);
+
+      if (!EXCLUDED_CATEGORY_CODES.has(code)) {
+        nonExcludedSummary.row_count += 1;
+        nonExcludedSummary.net_cost_total += cost;
+        nonExcludedSummary.stock_amount_total += stockAmount;
+        if (cost > 0) nonExcludedSummary.positive_cost_total += cost;
+        if (cost < 0) nonExcludedSummary.negative_cost_total += cost;
+      }
+    });
+
+    const categorySummary = Array.from(categorySummaryMap.values())
+      .sort((a, b) => Math.abs(Number(b.net_cost_total) || 0) - Math.abs(Number(a.net_cost_total) || 0));
+
+    return NextResponse.json({
+      success: true,
+      batches: batches || [],
+      items,
+      category_summary: categorySummary,
+      non_excluded_summary: nonExcludedSummary,
+      excluded_category_codes: Array.from(EXCLUDED_CATEGORY_CODES),
+      selected_batch_id: selectedBatchId,
+    });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
@@ -121,7 +225,11 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
+    const yearMonth = String(formData.get('year_month') || '').trim();
     if (!file) return NextResponse.json({ success: false, error: '缺少匯入檔案' }, { status: 400 });
+    if (!isValidYearMonth(yearMonth)) {
+      return NextResponse.json({ success: false, error: '請選擇正確的資料年月（YYYY-MM）' }, { status: 400 });
+    }
 
     const workbook = XLSX.read(await file.arrayBuffer(), { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -201,6 +309,7 @@ export async function POST(request: NextRequest) {
       const rowCount = group.rows.length;
       const totalDifferenceQty = group.rows.reduce((sum: number, row: Record<string, unknown>) => sum + getNum(row, '盤差量'), 0);
       const totalDifferenceAmount = group.rows.reduce((sum: number, row: Record<string, unknown>) => sum + getNum(row, '盤差額(會員)'), 0);
+      const totalCost = group.rows.reduce((sum: number, row: Record<string, unknown>) => sum + getNum(row, '成本'), 0);
       const shortageCount = group.rows.filter((row: Record<string, unknown>) => getNum(row, '盤差量') < 0).length;
       const surplusCount = group.rows.filter((row: Record<string, unknown>) => getNum(row, '盤差量') > 0).length;
       const zeroDifferenceCount = group.rows.filter((row: Record<string, unknown>) => getNum(row, '盤差量') === 0).length;
@@ -210,6 +319,7 @@ export async function POST(request: NextRequest) {
         .from('inventory_result_batches')
         .upsert({
           store_id: group.store.id,
+          year_month: yearMonth,
           store_code: group.store.store_code,
           store_name: getStr(group.rows[0], '店名') || group.store.store_name,
           inventory_order_no: group.orderNo,
@@ -220,10 +330,11 @@ export async function POST(request: NextRequest) {
           row_count: rowCount,
           total_difference_qty: totalDifferenceQty,
           total_difference_amount_member: totalDifferenceAmount,
+          total_cost: totalCost,
           shortage_count: shortageCount,
           surplus_count: surplusCount,
           zero_difference_count: zeroDifferenceCount,
-        }, { onConflict: 'store_id,inventory_order_no' })
+        }, { onConflict: 'store_id,year_month,inventory_order_no' })
         .select('id, store_code, store_name, inventory_order_no')
         .single();
 
@@ -233,24 +344,30 @@ export async function POST(request: NextRequest) {
 
       await admin.from('inventory_result_items').delete().eq('batch_id', batch.id);
 
-      const itemPayload = group.rows.map((row: Record<string, unknown>, index: number) => ({
-        batch_id: batch.id,
-        store_id: group.store.id,
-        row_number: index + 2,
-        closed_text: getStr(row, '結案?') || null,
-        product_code: getStr(row, '品號'),
-        product_name: getStr(row, '品名'),
-        unit: getStr(row, '單位') || null,
-        storage_location_1: getStr(row, '儲位1') || null,
-        storage_location_2: getStr(row, '儲位2') || null,
-        difference_qty: getNum(row, '盤差量'),
-        difference_amount_member: getNum(row, '盤差額(會員)'),
-        cost: getNum(row, '成本'),
-        unit_cost: getNum(row, '單位成本'),
-        stock_qty: getNum(row, '庫存量'),
-        stock_amount: getNum(row, '庫存額'),
-        raw_data: row,
-      }));
+      const itemPayload = group.rows.map((row: Record<string, unknown>, index: number) => {
+        const productCode = normalizeProductCode(getStr(row, '品號'));
+        const category = getProductCategory(productCode);
+        return {
+          batch_id: batch.id,
+          store_id: group.store.id,
+          row_number: index + 2,
+          closed_text: getStr(row, '結案?') || null,
+          product_code: productCode,
+          product_name: getStr(row, '品名'),
+          unit: getStr(row, '單位') || null,
+          storage_location_1: getStr(row, '儲位1') || null,
+          storage_location_2: getStr(row, '儲位2') || null,
+          difference_qty: getNum(row, '盤差量'),
+          difference_amount_member: getNum(row, '盤差額(會員)'),
+          cost: getNum(row, '成本'),
+          unit_cost: getNum(row, '單位成本'),
+          stock_qty: getNum(row, '庫存量'),
+          stock_amount: getNum(row, '庫存額'),
+          category_code: category.code,
+          category_name: category.name,
+          raw_data: row,
+        };
+      });
 
       const { error: itemsError } = await admin
         .from('inventory_result_items')

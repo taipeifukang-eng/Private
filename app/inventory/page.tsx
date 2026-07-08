@@ -37,6 +37,7 @@ type PreInventory = {
 
 type InventoryResultBatch = {
   id: string;
+  year_month: string;
   store_code: string;
   store_name: string | null;
   inventory_order_no: string;
@@ -46,6 +47,7 @@ type InventoryResultBatch = {
   row_count: number;
   total_difference_qty: number;
   total_difference_amount_member: number;
+  total_cost: number;
   shortage_count: number;
   surplus_count: number;
   zero_difference_count: number;
@@ -53,6 +55,8 @@ type InventoryResultBatch = {
 
 type InventoryResultItem = {
   id: string;
+  category_code: string | null;
+  category_name: string | null;
   product_code: string | null;
   product_name: string | null;
   unit: string | null;
@@ -64,6 +68,28 @@ type InventoryResultItem = {
   unit_cost: number;
   stock_qty: number;
   stock_amount: number;
+};
+
+type InventoryCategorySummary = {
+  category_code: string;
+  category_name: string;
+  row_count: number;
+  total_difference_qty: number;
+  positive_cost_total: number;
+  negative_cost_total: number;
+  net_cost_total: number;
+  stock_amount_total: number;
+  total_difference_amount_member: number;
+  shortage_count: number;
+  surplus_count: number;
+};
+
+type InventoryNonExcludedSummary = {
+  positive_cost_total: number;
+  negative_cost_total: number;
+  net_cost_total: number;
+  stock_amount_total: number;
+  row_count: number;
 };
 
 export default function InventoryManagement() {
@@ -92,7 +118,13 @@ export default function InventoryManagement() {
   // 盤點結果分析報表
   const [analysisBatches, setAnalysisBatches] = useState<InventoryResultBatch[]>([]);
   const [analysisItems, setAnalysisItems] = useState<InventoryResultItem[]>([]);
+  const [analysisCategorySummary, setAnalysisCategorySummary] = useState<InventoryCategorySummary[]>([]);
+  const [analysisNonExcludedSummary, setAnalysisNonExcludedSummary] = useState<InventoryNonExcludedSummary | null>(null);
   const [selectedAnalysisBatchId, setSelectedAnalysisBatchId] = useState('');
+  const [analysisYearMonth, setAnalysisYearMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [analysisStoreKeyword, setAnalysisStoreKeyword] = useState('');
   const [analysisOrderKeyword, setAnalysisOrderKeyword] = useState('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -141,6 +173,7 @@ export default function InventoryManagement() {
     setAnalysisLoading(true);
     try {
       const params = new URLSearchParams();
+      if (analysisYearMonth) params.set('year_month', analysisYearMonth);
       if (storeKeyword.trim()) params.set('store', storeKeyword.trim());
       if (orderKeyword.trim()) params.set('order_no', orderKeyword.trim());
       if (batchId) params.set('batch_id', batchId);
@@ -153,6 +186,8 @@ export default function InventoryManagement() {
 
       setAnalysisBatches(json.batches || []);
       setAnalysisItems(json.items || []);
+      setAnalysisCategorySummary(json.category_summary || []);
+      setAnalysisNonExcludedSummary(json.non_excluded_summary || null);
       setSelectedAnalysisBatchId(json.selected_batch_id || '');
     } catch (error: any) {
       alert(`❌ ${error.message || '載入盤點結果分析報表失敗'}`);
@@ -173,6 +208,7 @@ export default function InventoryManagement() {
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('year_month', analysisYearMonth);
 
       const res = await fetch('/api/inventory/result-analysis', {
         method: 'POST',
@@ -1427,26 +1463,37 @@ export default function InventoryManagement() {
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">盤點結果分析報表</h2>
                 <p className="text-gray-600">匯入盤點結果檔後，依門市與盤點單號保存並產生基礎分析摘要</p>
               </div>
-              <label className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-md ${
-                analysisImporting
-                  ? 'bg-gray-100 text-gray-400 pointer-events-none'
-                  : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700'
-              }`}>
-                <Upload size={18} />
-                <span>{analysisImporting ? '匯入中...' : '匯入 .xlsx'}</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleInventoryResultAnalysisUpload(file);
-                      e.target.value = '';
-                    }
-                  }}
-                />
-              </label>
+              <div className="flex flex-wrap items-end gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500">此次匯入資料年月</label>
+                  <input
+                    type="month"
+                    value={analysisYearMonth}
+                    onChange={(e) => setAnalysisYearMonth(e.target.value)}
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+                <label className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-md ${
+                  analysisImporting
+                    ? 'bg-gray-100 text-gray-400 pointer-events-none'
+                    : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700'
+                }`}>
+                  <Upload size={18} />
+                  <span>{analysisImporting ? '匯入中...' : '匯入 .xlsx'}</span>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        handleInventoryResultAnalysisUpload(file);
+                        e.target.value = '';
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
@@ -1455,12 +1502,24 @@ export default function InventoryManagement() {
                 <div className="text-sm text-indigo-900">
                   <p className="font-semibold mb-1">匯入欄位格式</p>
                   <p>店號、店名、盤點單號、結案?、品號、品名、單位、儲位1、儲位2、盤差量、盤差額(會員)、成本、單位成本、庫存量、庫存額</p>
+                  <p className="mt-1 text-indigo-700">
+                    庫存量為盤點前系統庫存；庫存額 = 庫存量 * 單位成本；盤差量為此次盤點差值；成本 = 盤差量 * 單位成本；盤差額(會員)因未提供會員價，僅作參考。
+                  </p>
+                  <p className="mt-1 text-indigo-700">
+                    品號為 8 碼，前兩碼作為商品分類碼，報表會依分類統計盤差與成本影響。
+                  </p>
                   <p className="mt-1 text-indigo-700">同一門市同一盤點單號重新匯入時，會替換該批次舊明細。</p>
                 </div>
               </div>
             </div>
 
             <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <input
+                type="month"
+                value={analysisYearMonth}
+                onChange={(e) => setAnalysisYearMonth(e.target.value)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              />
               <div className="flex items-center gap-2">
                 <Search size={16} className="text-gray-400" />
                 <input
@@ -1524,6 +1583,7 @@ export default function InventoryManagement() {
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <div className="font-semibold text-gray-900">{batch.store_code} {batch.store_name}</div>
+                            <div className="mt-1 text-xs font-semibold text-indigo-700">年月：{batch.year_month}</div>
                             <div className="mt-1 text-xs text-gray-500">單號：{batch.inventory_order_no}</div>
                           </div>
                           <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
@@ -1545,7 +1605,7 @@ export default function InventoryManagement() {
                 <div className="space-y-6">
                   {selectedAnalysisBatch && (
                     <>
-                      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                      <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
                         <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                           <div className="text-xs text-gray-500">明細筆數</div>
                           <div className="mt-1 text-2xl font-bold text-gray-900">{selectedAnalysisBatch.row_count}</div>
@@ -1562,8 +1622,12 @@ export default function InventoryManagement() {
                           <div className="text-xs text-blue-600">盤差量合計</div>
                           <div className="mt-1 text-2xl font-bold text-blue-700">{formatMoney(selectedAnalysisBatch.total_difference_qty)}</div>
                         </div>
+                        <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+                          <div className="text-xs text-purple-600">成本合計</div>
+                          <div className="mt-1 text-2xl font-bold text-purple-700">{formatMoney(selectedAnalysisBatch.total_cost)}</div>
+                        </div>
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                          <div className="text-xs text-amber-600">盤差額合計</div>
+                          <div className="text-xs text-amber-600">盤差額(會員)參考</div>
                           <div className="mt-1 text-2xl font-bold text-amber-700">{formatMoney(selectedAnalysisBatch.total_difference_amount_member)}</div>
                         </div>
                       </div>
@@ -1603,6 +1667,83 @@ export default function InventoryManagement() {
                         </div>
                       </div>
 
+                      {analysisNonExcludedSummary && (
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="mb-3">
+                            <h4 className="font-bold text-emerald-900">排除 01 / 97 / 98 / 99 後商品盤差成本</h4>
+                            <p className="mt-1 text-xs text-emerald-700">排除處方藥品、庶務類消耗品、虛擬產品、贈品與展示品。</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                            <div className="rounded-lg bg-white p-3">
+                              <div className="text-xs text-gray-500">統計筆數</div>
+                              <div className="mt-1 text-xl font-bold text-gray-900">{analysisNonExcludedSummary.row_count}</div>
+                            </div>
+                            <div className="rounded-lg bg-white p-3">
+                              <div className="text-xs text-green-600">正盤差成本</div>
+                              <div className="mt-1 text-xl font-bold text-green-700">{formatMoney(analysisNonExcludedSummary.positive_cost_total)}</div>
+                            </div>
+                            <div className="rounded-lg bg-white p-3">
+                              <div className="text-xs text-red-600">負盤差成本</div>
+                              <div className="mt-1 text-xl font-bold text-red-700">{formatMoney(analysisNonExcludedSummary.negative_cost_total)}</div>
+                            </div>
+                            <div className="rounded-lg bg-white p-3">
+                              <div className="text-xs text-emerald-700">正負加總成本</div>
+                              <div className={`mt-1 text-xl font-bold ${Number(analysisNonExcludedSummary.net_cost_total) < 0 ? 'text-red-700' : Number(analysisNonExcludedSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
+                                {formatMoney(analysisNonExcludedSummary.net_cost_total)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="rounded-xl border border-gray-200">
+                        <div className="border-b border-gray-200 px-4 py-3">
+                          <h4 className="font-bold text-gray-800">分類別盤點分析</h4>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead className="bg-gray-50 text-gray-500">
+                              <tr>
+                                <th className="px-3 py-2 text-left">分類</th>
+                                <th className="px-3 py-2 text-right">筆數</th>
+                                <th className="px-3 py-2 text-right">短少</th>
+                                <th className="px-3 py-2 text-right">盤盈</th>
+                                <th className="px-3 py-2 text-right">盤差量</th>
+                                <th className="px-3 py-2 text-right">正盤差成本</th>
+                                <th className="px-3 py-2 text-right">負盤差成本</th>
+                                <th className="px-3 py-2 text-right">正負加總成本</th>
+                                <th className="px-3 py-2 text-right">庫存額總額</th>
+                                <th className="px-3 py-2 text-right">盤差額(會員)參考</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {analysisCategorySummary.map((category) => (
+                                <tr key={category.category_code} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-semibold text-gray-800">
+                                    {category.category_code} {category.category_name}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">{category.row_count}</td>
+                                  <td className="px-3 py-2 text-right text-red-600">{category.shortage_count}</td>
+                                  <td className="px-3 py-2 text-right text-green-600">{category.surplus_count}</td>
+                                  <td className="px-3 py-2 text-right">{formatMoney(category.total_difference_qty)}</td>
+                                  <td className="px-3 py-2 text-right font-semibold text-green-700">
+                                    {formatMoney(category.positive_cost_total)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right font-semibold text-red-700">
+                                    {formatMoney(category.negative_cost_total)}
+                                  </td>
+                                  <td className={`px-3 py-2 text-right font-semibold ${Number(category.net_cost_total) < 0 ? 'text-red-600' : Number(category.net_cost_total) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                    {formatMoney(category.net_cost_total)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-700">{formatMoney(category.stock_amount_total)}</td>
+                                  <td className="px-3 py-2 text-right text-amber-700">{formatMoney(category.total_difference_amount_member)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
                       <div className="rounded-xl border border-gray-200">
                         <div className="border-b border-gray-200 px-4 py-3">
                           <h4 className="font-bold text-gray-800">明細預覽（依盤差額排序，最多 200 筆）</h4>
@@ -1612,6 +1753,7 @@ export default function InventoryManagement() {
                             <thead className="sticky top-0 bg-gray-50 text-gray-500">
                               <tr>
                                 <th className="px-3 py-2 text-left">品號</th>
+                                <th className="px-3 py-2 text-left">分類</th>
                                 <th className="px-3 py-2 text-left">品名</th>
                                 <th className="px-3 py-2 text-left">儲位</th>
                                 <th className="px-3 py-2 text-right">盤差量</th>
@@ -1624,6 +1766,7 @@ export default function InventoryManagement() {
                               {analysisItems.map((item) => (
                                 <tr key={item.id} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 font-mono">{item.product_code}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap">{item.category_code} {item.category_name}</td>
                                   <td className="px-3 py-2">{item.product_name}</td>
                                   <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
                                   <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
