@@ -267,6 +267,23 @@ export async function POST(request: NextRequest) {
       storeCodeMap.set(code, store);
       storeBaseMap.set(base, [...(storeBaseMap.get(base) || []), store]);
     });
+    storeBaseMap.forEach((candidates, base) => {
+      candidates.sort((a: any, b: any) => {
+        const aCode = normalizeStoreCode(a.store_code);
+        const bCode = normalizeStoreCode(b.store_code);
+        const aIsBase = aCode === base;
+        const bIsBase = bCode === base;
+        if (aIsBase !== bIsBase) return aIsBase ? -1 : 1;
+        return aCode.localeCompare(bCode, 'en');
+      });
+    });
+
+    const resolveStoreByCode = (rawCode: string) => {
+      const normalizedCode = normalizeStoreCode(rawCode);
+      return storeCodeMap.get(normalizedCode)
+        || (storeBaseMap.get(getStoreCodeBase(normalizedCode)) || [])[0]
+        || null;
+    };
 
     const groups = new Map<string, { store: any; orderNo: string; rows: Record<string, unknown>[] }>();
     const errors: string[] = [];
@@ -285,9 +302,7 @@ export async function POST(request: NextRequest) {
         return;
       }
 
-      const normalizedCode = normalizeStoreCode(rawStoreCode);
-      const candidates = storeBaseMap.get(getStoreCodeBase(normalizedCode)) || [];
-      const store = storeCodeMap.get(normalizedCode) || candidates[0];
+      const store = resolveStoreByCode(rawStoreCode);
       if (!store) {
         errors.push(`${rowLabel}：找不到門市店號「${rawStoreCode}」`);
         return;
