@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { MONTHLY_THRESHOLDS, QUARTERLY_THRESHOLDS } from '@/lib/performance/bonus-calc';
+import { hasPermission } from '@/lib/permissions/check';
 
 /**
  * GET /api/performance-thresholds?store_id=xxx
@@ -61,6 +62,8 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
+    const canEdit = await hasPermission(user.id, 'performance.edit');
+    if (!canEdit) return NextResponse.json({ success: false, error: '無編輯業績門檻權限' }, { status: 403 });
 
     const body = await request.json();
     const { store_id, monthly, quarterly } = body as {

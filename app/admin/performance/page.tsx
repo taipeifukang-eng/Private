@@ -20,6 +20,7 @@ import {
   ChevronDown, ChevronRight, RefreshCw, AlertCircle,
   BarChart2, Award, Target, Calendar, DollarSign, Filter,
 } from 'lucide-react';
+import { usePermission } from '@/lib/permissions/hooks';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ function emptyRecord(storeId: string, year: number, month: number): EditRow {
 
 export default function PerformancePage() {
   const supabase = createClient();
+  const { allowed: canEditPerformance } = usePermission('performance.edit');
   const [profile, setProfile] = useState<any>(null);
   const [canViewBonusTab, setCanViewBonusTab] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
@@ -476,34 +478,36 @@ export default function PerformancePage() {
           </button>
 
           {/* Import */}
-          <div className="ml-auto flex items-center gap-2">
-            <input
-              type="file"
-              accept=".xlsx,.xls"
-              ref={fileInputRef}
-              onChange={handleImport}
-              className="hidden"
-              id="import-file"
-            />
-            <label
-              htmlFor="import-file"
-              onClick={(event) => {
-                if (importLoading) {
-                  event.preventDefault();
-                } else if (!selectedStoreId) {
-                  showMsg('success', '未選擇門市：請確認 Excel 含「門市代號」欄位');
-                }
-              }}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer
-                ${importLoading
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-            >
-              <Upload size={14} />
-              {importLoading ? '匯入中...' : '匯入 Excel'}
-            </label>
-          </div>
+          {canEditPerformance && (
+            <div className="ml-auto flex items-center gap-2">
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                ref={fileInputRef}
+                onChange={handleImport}
+                className="hidden"
+                id="import-file"
+              />
+              <label
+                htmlFor="import-file"
+                onClick={(event) => {
+                  if (importLoading) {
+                    event.preventDefault();
+                  } else if (!selectedStoreId) {
+                    showMsg('success', '未選擇門市：請確認 Excel 含「門市代號」欄位');
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-medium cursor-pointer
+                  ${importLoading
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+              >
+                <Upload size={14} />
+                {importLoading ? '匯入中...' : '匯入 Excel'}
+              </label>
+            </div>
+          )}
         </div>
 
         {/* Message */}
@@ -523,7 +527,7 @@ export default function PerformancePage() {
               獎金閾值設定（每人）
             </h2>
             <div className="flex items-center gap-2">
-              {thresholdEditing ? (
+              {canEditPerformance && (thresholdEditing ? (
                 <>
                   <button
                     onClick={saveThresholds}
@@ -547,7 +551,7 @@ export default function PerformancePage() {
                 >
                   <Edit2 size={12} /> 設定閾值
                 </button>
-              )}
+              ))}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -655,7 +659,9 @@ export default function PerformancePage() {
           <div className="px-6 py-4 border-b flex items-center gap-2">
             <Calendar size={18} className="text-blue-500" />
             <h2 className="font-semibold text-gray-800">逐月業績明細</h2>
-            <span className="text-xs text-gray-400 ml-2">點擊儲存格直接編輯，修改後按儲存</span>
+            {canEditPerformance && (
+              <span className="text-xs text-gray-400 ml-2">點擊儲存格直接編輯，修改後按儲存</span>
+            )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -690,34 +696,34 @@ export default function PerformancePage() {
                         {row._edited && <span className="ml-1 text-xs text-yellow-600">*</span>}
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.business_days} onChange={v => setField(row.month, 'business_days', v)} />
+                        <NumInput value={row.business_days} disabled={!canEditPerformance} onChange={v => setField(row.month, 'business_days', v)} />
                       </td>
                       <td className="px-2 py-1.5 bg-blue-50/30">
-                        <NumInput value={row.monthly_gross_profit_target} onChange={v => setField(row.month, 'monthly_gross_profit_target', v)} />
+                        <NumInput value={row.monthly_gross_profit_target} disabled={!canEditPerformance} onChange={v => setField(row.month, 'monthly_gross_profit_target', v)} />
                       </td>
                       <td className="px-2 py-1.5 bg-blue-50/30">
-                        <NumInput value={row.monthly_gross_profit_actual} onChange={v => setField(row.month, 'monthly_gross_profit_actual', v)} />
+                        <NumInput value={row.monthly_gross_profit_actual} disabled={!canEditPerformance} onChange={v => setField(row.month, 'monthly_gross_profit_actual', v)} />
                       </td>
                       <td className="px-2 py-1.5 bg-blue-50/30">
-                        <NumInput value={row.activity_day_gross_profit} onChange={v => setField(row.month, 'activity_day_gross_profit', v)} />
+                        <NumInput value={row.activity_day_gross_profit} disabled={!canEditPerformance} onChange={v => setField(row.month, 'activity_day_gross_profit', v)} />
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.monthly_revenue_target} onChange={v => setField(row.month, 'monthly_revenue_target', v)} />
+                        <NumInput value={row.monthly_revenue_target} disabled={!canEditPerformance} onChange={v => setField(row.month, 'monthly_revenue_target', v)} />
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.monthly_revenue_actual} onChange={v => setField(row.month, 'monthly_revenue_actual', v)} />
+                        <NumInput value={row.monthly_revenue_actual} disabled={!canEditPerformance} onChange={v => setField(row.month, 'monthly_revenue_actual', v)} />
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.monthly_customer_count_target} onChange={v => setField(row.month, 'monthly_customer_count_target', v)} />
+                        <NumInput value={row.monthly_customer_count_target} disabled={!canEditPerformance} onChange={v => setField(row.month, 'monthly_customer_count_target', v)} />
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.monthly_customer_count_actual} onChange={v => setField(row.month, 'monthly_customer_count_actual', v)} />
+                        <NumInput value={row.monthly_customer_count_actual} disabled={!canEditPerformance} onChange={v => setField(row.month, 'monthly_customer_count_actual', v)} />
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.last_month_rx_target} onChange={v => setField(row.month, 'last_month_rx_target', v)} />
+                        <NumInput value={row.last_month_rx_target} disabled={!canEditPerformance} onChange={v => setField(row.month, 'last_month_rx_target', v)} />
                       </td>
                       <td className="px-2 py-1.5">
-                        <NumInput value={row.last_month_rx_actual} onChange={v => setField(row.month, 'last_month_rx_actual', v)} />
+                        <NumInput value={row.last_month_rx_actual} disabled={!canEditPerformance} onChange={v => setField(row.month, 'last_month_rx_actual', v)} />
                       </td>
                       <td className="px-3 py-2 text-center bg-green-50/30">
                         {bonus ? thresholdBadge(bonus.gpThresholdLevel) : <span className="text-gray-300">—</span>}
@@ -741,7 +747,7 @@ export default function PerformancePage() {
                         }
                       </td>
                       <td className="px-3 py-2 text-center">
-                        {row._edited && (
+                        {canEditPerformance && row._edited && (
                           <button
                             onClick={() => saveRow(row.month)}
                             disabled={saving === row.month}
@@ -940,7 +946,7 @@ function QuarterMetricRow({
 }
 
 // ─── NumInput ─────────────────────────────────────────────────────────────────
-function NumInput({ value, onChange }: { value: number | null; onChange: (v: string) => void }) {
+function NumInput({ value, disabled = false, onChange }: { value: number | null; disabled?: boolean; onChange: (v: string) => void }) {
   const formatNumber = (n: number) => n.toLocaleString('zh-TW');
   const toEditString = (v: number | null) => (v === null ? '' : String(v));
   const toDisplayString = (v: number | null) => (v === null ? '' : formatNumber(v));
@@ -955,14 +961,18 @@ function NumInput({ value, onChange }: { value: number | null; onChange: (v: str
     <input
       type="text"
       inputMode="decimal"
+      disabled={disabled}
       value={displayValue}
       onFocus={() => {
+        if (disabled) return;
         setDisplayValue(toEditString(value));
       }}
       onChange={(e) => {
+        if (disabled) return;
         setDisplayValue(e.target.value);
       }}
       onBlur={(e) => {
+        if (disabled) return;
         const raw = e.target.value.trim();
         const normalized = raw.replace(/,/g, '');
 
@@ -977,7 +987,7 @@ function NumInput({ value, onChange }: { value: number | null; onChange: (v: str
       }}
       className="w-full min-w-[80px] text-right border-0 bg-transparent text-sm
         focus:outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 py-0.5
-        hover:bg-white hover:border hover:border-gray-200"
+        hover:bg-white hover:border hover:border-gray-200 disabled:text-gray-700 disabled:hover:bg-transparent disabled:cursor-default"
     />
   );
 }

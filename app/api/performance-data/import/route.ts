@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
+import { hasPermission } from '@/lib/permissions/check';
 
 function normalizeStoreCode(raw: string): string {
   return String(raw || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -85,6 +86,8 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
+    const canEdit = await hasPermission(user.id, 'performance.edit');
+    if (!canEdit) return NextResponse.json({ success: false, error: '無匯入業績資料權限' }, { status: 403 });
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;

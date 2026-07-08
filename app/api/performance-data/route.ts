@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 /**
  * GET /api/performance-data?year=2026&store_id=xxx
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: '未登入' }, { status: 401 });
+    const canEdit = await hasPermission(user.id, 'performance.edit');
+    if (!canEdit) return NextResponse.json({ success: false, error: '無編輯業績資料權限' }, { status: 403 });
 
     const body = await request.json();
     const {
