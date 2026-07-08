@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { useUserPermissions } from '@/lib/permissions/hooks';
 
 type ProductData = {
   品號: string;
@@ -108,6 +109,20 @@ type AnalysisDetailSortKey =
   | 'stock_amount';
 
 export default function InventoryManagement() {
+  const { permissions: userPermissions } = useUserPermissions();
+  const hasPermission = (permissionCode: string) => userPermissions.includes(permissionCode);
+  const canUseInventoryTools =
+    hasPermission('inventory.manage') ||
+    hasPermission('inventory.inventory.access') ||
+    hasPermission('inventory.inventory.view');
+  const canViewInventoryResultAnalysis =
+    canUseInventoryTools ||
+    hasPermission('inventory.result_analysis.view_own');
+  const canImportInventoryResultAnalysis =
+    hasPermission('inventory.manage') ||
+    hasPermission('inventory.inventory.access') ||
+    hasPermission('inventory.result_analysis.import');
+
   const [activeSection, setActiveSection] = useState<'offline' | 'analysis'>('offline');
   const [activeModule, setActiveModule] = useState<1 | 2 | 3>(1);
 
@@ -268,6 +283,12 @@ export default function InventoryManagement() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSection]);
+
+  useEffect(() => {
+    if (!canUseInventoryTools && canViewInventoryResultAnalysis) {
+      setActiveSection('analysis');
+    }
+  }, [canUseInventoryTools, canViewInventoryResultAnalysis]);
 
   const handleInventoryResultAnalysisUpload = async (file: File) => {
     setAnalysisImporting(true);
@@ -1152,36 +1173,40 @@ export default function InventoryManagement() {
         </div>
 
         {/* 功能區切換 */}
-        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2">
-          <button
-            onClick={() => setActiveSection('offline')}
-            className={`rounded-xl border p-5 text-left transition-all ${
-              activeSection === 'offline'
-                ? 'border-indigo-400 bg-indigo-600 text-white shadow-lg'
-                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <div className="text-lg font-bold">離線盤點匯入匯出工具</div>
-            <div className={`mt-1 text-sm ${activeSection === 'offline' ? 'text-indigo-100' : 'text-gray-500'}`}>
-              原本模組一至三，檔案僅在本機流程中處理並輸出 Excel
-            </div>
-          </button>
-          <button
-            onClick={() => setActiveSection('analysis')}
-            className={`rounded-xl border p-5 text-left transition-all ${
-              activeSection === 'analysis'
-                ? 'border-emerald-400 bg-emerald-600 text-white shadow-lg'
-                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <div className="text-lg font-bold">盤點結果分析報表</div>
-            <div className={`mt-1 text-sm ${activeSection === 'analysis' ? 'text-emerald-100' : 'text-gray-500'}`}>
-              新功能，匯入後依門市與盤點單號保存至 Supabase
-            </div>
-          </button>
+        <div className={`mb-6 grid grid-cols-1 gap-3 ${canUseInventoryTools && canViewInventoryResultAnalysis ? 'md:grid-cols-2' : ''}`}>
+          {canUseInventoryTools && (
+            <button
+              onClick={() => setActiveSection('offline')}
+              className={`rounded-xl border p-5 text-left transition-all ${
+                activeSection === 'offline'
+                  ? 'border-indigo-400 bg-indigo-600 text-white shadow-lg'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-lg font-bold">離線盤點匯入匯出工具</div>
+              <div className={`mt-1 text-sm ${activeSection === 'offline' ? 'text-indigo-100' : 'text-gray-500'}`}>
+                原本模組一至三，檔案僅在本機流程中處理並輸出 Excel
+              </div>
+            </button>
+          )}
+          {canViewInventoryResultAnalysis && (
+            <button
+              onClick={() => setActiveSection('analysis')}
+              className={`rounded-xl border p-5 text-left transition-all ${
+                activeSection === 'analysis'
+                  ? 'border-emerald-400 bg-emerald-600 text-white shadow-lg'
+                  : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-lg font-bold">盤點結果分析報表</div>
+              <div className={`mt-1 text-sm ${activeSection === 'analysis' ? 'text-emerald-100' : 'text-gray-500'}`}>
+                匯入後依門市與盤點單號保存至 Supabase
+              </div>
+            </button>
+          )}
         </div>
 
-        {activeSection === 'offline' && (
+        {activeSection === 'offline' && canUseInventoryTools && (
           <>
             {/* 全局：1F當日商品資料上傳區 */}
             <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg p-6 mb-6">
@@ -1597,56 +1622,59 @@ export default function InventoryManagement() {
         )}
 
         {/* 盤點結果分析報表 */}
-        {activeSection === 'analysis' && (
+        {activeSection === 'analysis' && canViewInventoryResultAnalysis && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">盤點結果分析報表</h2>
                 <p className="text-gray-600">匯入盤點結果檔後，依門市與盤點單號保存並產生基礎分析摘要</p>
               </div>
-              <div className="flex flex-wrap items-end gap-3">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-gray-500">此次匯入資料年月</label>
-                  <input
-                    type="month"
-                    value={analysisYearMonth}
-                    onChange={(e) => setAnalysisYearMonth(e.target.value)}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
+              {canImportInventoryResultAnalysis && (
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-500">此次匯入資料年月</label>
+                    <input
+                      type="month"
+                      value={analysisYearMonth}
+                      onChange={(e) => setAnalysisYearMonth(e.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-500">盤點批次名稱</label>
+                    <input
+                      type="text"
+                      value={analysisImportOrderNo}
+                      onChange={(e) => setAnalysisImportOrderNo(e.target.value)}
+                      placeholder="空白時使用檔名"
+                      className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <label className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-md ${
+                    analysisImporting
+                      ? 'bg-gray-100 text-gray-400 pointer-events-none'
+                      : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700'
+                  }`}>
+                    <Upload size={18} />
+                    <span>{analysisImporting ? '匯入中...' : '匯入 .xlsx'}</span>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleInventoryResultAnalysisUpload(file);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                  </label>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold text-gray-500">盤點批次名稱</label>
-                  <input
-                    type="text"
-                    value={analysisImportOrderNo}
-                    onChange={(e) => setAnalysisImportOrderNo(e.target.value)}
-                    placeholder="空白時使用檔名"
-                    className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                  />
-                </div>
-                <label className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-md ${
-                  analysisImporting
-                    ? 'bg-gray-100 text-gray-400 pointer-events-none'
-                    : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700'
-                }`}>
-                  <Upload size={18} />
-                  <span>{analysisImporting ? '匯入中...' : '匯入 .xlsx'}</span>
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        handleInventoryResultAnalysisUpload(file);
-                        e.target.value = '';
-                      }
-                    }}
-                  />
-                </label>
-              </div>
+              )}
             </div>
 
+            {canImportInventoryResultAnalysis && (
             <div className="mb-6 rounded-lg border border-indigo-200 bg-indigo-50">
               <button
                 type="button"
@@ -1677,6 +1705,7 @@ export default function InventoryManagement() {
                 </div>
               )}
             </div>
+            )}
 
             <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
               <input

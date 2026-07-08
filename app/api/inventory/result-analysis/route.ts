@@ -39,6 +39,13 @@ const PRODUCT_CATEGORY_MAP: Record<string, string> = {
   '99': '贈品與展示品',
 };
 const EXCLUDED_CATEGORY_CODES = new Set(['01', '97', '98', '99']);
+const INVENTORY_FULL_ACCESS_PERMISSIONS = [
+  'inventory.inventory.access',
+  'inventory.inventory.view',
+  'inventory.manage',
+];
+const INVENTORY_RESULT_ANALYSIS_OWN_VIEW_PERMISSION = 'inventory.result_analysis.view_own';
+const INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION = 'inventory.result_analysis.import';
 
 function normalizeStoreCode(code: unknown): string {
   return String(code || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -143,10 +150,39 @@ function parseWorksheetRows(sheet: XLSX.WorkSheet): { rows: Record<string, unkno
   return { rows, actualColumns: actualColumns.filter(Boolean), headerRowIndex };
 }
 
-async function ensurePermission(userId: string): Promise<boolean> {
-  return (await hasPermission(userId, 'inventory.inventory.access'))
-    || (await hasPermission(userId, 'inventory.inventory.view'))
-    || (await hasPermission(userId, 'inventory.manage'));
+async function hasAnyInventoryFullAccessPermission(userId: string): Promise<boolean> {
+  for (const permissionCode of INVENTORY_FULL_ACCESS_PERMISSIONS) {
+    if (await hasPermission(userId, permissionCode)) return true;
+  }
+  return false;
+}
+
+async function getInventoryResultAnalysisAccess(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<{ allowed: boolean; scope: 'all' | 'own'; storeIds: string[] }> {
+  if (await hasAnyInventoryFullAccessPermission(userId)) {
+    return { allowed: true, scope: 'all', storeIds: [] };
+  }
+
+  if (!(await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_OWN_VIEW_PERMISSION))) {
+    return { allowed: false, scope: 'own', storeIds: [] };
+  }
+
+  const { data, error } = await admin
+    .from('store_managers')
+    .select('store_id')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  const storeIds = Array.from(new Set((data || []).map((row: any) => row.store_id).filter(Boolean)));
+  return { allowed: true, scope: 'own', storeIds };
+}
+
+async function canImportInventoryResultAnalysis(userId: string): Promise<boolean> {
+  return (await hasAnyInventoryFullAccessPermission(userId))
+    || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION));
 }
 
 async function fetchInventoryResultItems(admin: ReturnType<typeof createAdminClient>, batchId: string): Promise<any[]> {
@@ -198,7 +234,9 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
-    if (!(await ensurePermission(user.id))) {
+    const admin = createAdminClient();
+    const access = await getInventoryResultAnalysisAccess(admin, user.id);
+    if (!access.allowed) {
       return NextResponse.json({ success: false, error: '無查看盤點結果分析報表權限' }, { status: 403 });
     }
 
@@ -207,8 +245,6 @@ export async function GET(request: NextRequest) {
     const orderKeyword = (searchParams.get('order_no') || '').trim();
     const yearMonth = (searchParams.get('year_month') || '').trim();
     const batchId = searchParams.get('batch_id') || '';
-
-    const admin = createAdminClient();
 
     let q = admin
       .from('inventory_result_batches')
@@ -219,6 +255,27 @@ export async function GET(request: NextRequest) {
       .order('imported_at', { ascending: false })
       .limit(50);
 
+    if (access.scope === 'own') {
+      if (access.storeIds.length === 0) {
+        return NextResponse.json({
+          success: true,
+          batches: [],
+          items: [],
+          category_summary: [],
+          non_excluded_summary: {
+            positive_cost_total: 0,
+            negative_cost_total: 0,
+            net_cost_total: 0,
+            stock_amount_total: 0,
+            row_count: 0,
+          },
+          excluded_category_codes: Array.from(EXCLUDED_CATEGORY_CODES),
+          selected_batch_id: '',
+          access_scope: access.scope,
+        });
+      }
+      q = q.in('store_id', access.storeIds);
+    }
     if (batchId) q = q.eq('id', batchId);
     if (yearMonth) q = q.eq('year_month', yearMonth);
     if (orderKeyword) q = q.ilike('inventory_order_no', `%${orderKeyword}%`);
@@ -242,7 +299,10 @@ export async function GET(request: NextRequest) {
       ...(batchSummaries.get(batch.id) || getNonExcludedDiffSummary([])),
     }));
 
-    const selectedBatchId = batchId || enrichedBatches?.[0]?.id || '';
+    const selectedBatchId =
+      batchId && enrichedBatches.some((batch: any) => batch.id === batchId)
+        ? batchId
+        : enrichedBatches?.[0]?.id || '';
     let items: any[] = [];
     let allItemsForAnalysis: any[] = [];
 
@@ -310,6 +370,7 @@ export async function GET(request: NextRequest) {
       non_excluded_summary: nonExcludedSummary,
       excluded_category_codes: Array.from(EXCLUDED_CATEGORY_CODES),
       selected_batch_id: selectedBatchId,
+      access_scope: access.scope,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
@@ -322,7 +383,7 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
-    if (!(await ensurePermission(user.id))) {
+    if (!(await canImportInventoryResultAnalysis(user.id))) {
       return NextResponse.json({ success: false, error: '無匯入盤點結果分析報表權限' }, { status: 403 });
     }
 

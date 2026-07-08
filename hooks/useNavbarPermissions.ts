@@ -164,7 +164,11 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('activity.store_detail.edit') ||
             permissionSet.has('activity.equipment_trip.edit') ||
             permissionSet.has('activity.checklist.edit'),
-          canManageInventory: permissionSet.has('inventory.manage'),
+          canManageInventory:
+            permissionSet.has('inventory.manage') ||
+            permissionSet.has('inventory.inventory.access') ||
+            permissionSet.has('inventory.inventory.view') ||
+            permissionSet.has('inventory.result_analysis.view_own'),
           canManagePerformance: permissionSet.has('performance.view') || permissionSet.has('performance.edit'),
           canViewPharmacistManagement: permissionSet.has('pharmacist.management.view'),
           canEditPharmacistManagement: permissionSet.has('pharmacist.management.edit'),
