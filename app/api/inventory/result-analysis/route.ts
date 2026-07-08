@@ -73,6 +73,17 @@ function getProductCategory(productCode: string): { code: string; name: string }
   return { code, name: PRODUCT_CATEGORY_MAP[code] || '未分類' };
 }
 
+function getItemCategory(item: any): { code: string; name: string } {
+  const productCode = normalizeProductCode(item.product_code || '');
+  if (item.category_code) {
+    return {
+      code: item.category_code,
+      name: item.category_name || PRODUCT_CATEGORY_MAP[item.category_code] || '未分類',
+    };
+  }
+  return getProductCategory(productCode);
+}
+
 function isSummaryRow(row: Record<string, unknown>): boolean {
   const productCode = getStr(row, '品號');
   const productName = getStr(row, '品名');
@@ -177,23 +188,15 @@ export async function GET(request: NextRequest) {
         .from('inventory_result_items')
         .select('*')
         .eq('batch_id', selectedBatchId)
-        .order('difference_amount_member', { ascending: true })
-        .limit(200);
+        .order('category_code', { ascending: true, nullsFirst: false })
+        .order('product_code', { ascending: true })
+        .range(0, 49999);
 
       if (itemError) {
         return NextResponse.json({ success: false, error: itemError.message }, { status: 500 });
       }
       items = itemRows || [];
-
-      const { data: allItemRows, error: allItemsError } = await admin
-        .from('inventory_result_items')
-        .select('category_code, category_name, difference_qty, difference_amount_member, cost, stock_amount')
-        .eq('batch_id', selectedBatchId);
-
-      if (allItemsError) {
-        return NextResponse.json({ success: false, error: allItemsError.message }, { status: 500 });
-      }
-      allItemsForAnalysis = allItemRows || [];
+      allItemsForAnalysis = items;
     }
 
     const categorySummaryMap = new Map<string, any>();
@@ -206,12 +209,13 @@ export async function GET(request: NextRequest) {
     };
 
     allItemsForAnalysis.forEach((item: any) => {
-      const code = item.category_code || 'NA';
+      const category = getItemCategory(item);
+      const code = category.code || 'NA';
       const cost = Number(item.cost) || 0;
       const stockAmount = Number(item.stock_amount) || 0;
       const current = categorySummaryMap.get(code) || {
         category_code: code,
-        category_name: item.category_name || '未分類',
+        category_name: category.name || '未分類',
         row_count: 0,
         total_difference_qty: 0,
         positive_cost_total: 0,
