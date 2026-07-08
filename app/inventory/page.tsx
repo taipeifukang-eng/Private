@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FileSpreadsheet, AlertCircle } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search } from 'lucide-react';
 
 type ProductData = {
   品號: string;
@@ -35,7 +35,39 @@ type PreInventory = {
   盤點儲位: string;
 };
 
+type InventoryResultBatch = {
+  id: string;
+  store_code: string;
+  store_name: string | null;
+  inventory_order_no: string;
+  closed_text: string | null;
+  source_file_name: string | null;
+  imported_at: string;
+  row_count: number;
+  total_difference_qty: number;
+  total_difference_amount_member: number;
+  shortage_count: number;
+  surplus_count: number;
+  zero_difference_count: number;
+};
+
+type InventoryResultItem = {
+  id: string;
+  product_code: string | null;
+  product_name: string | null;
+  unit: string | null;
+  storage_location_1: string | null;
+  storage_location_2: string | null;
+  difference_qty: number;
+  difference_amount_member: number;
+  cost: number;
+  unit_cost: number;
+  stock_qty: number;
+  stock_amount: number;
+};
+
 export default function InventoryManagement() {
+  const [activeSection, setActiveSection] = useState<'offline' | 'analysis'>('offline');
   const [activeModule, setActiveModule] = useState<1 | 2 | 3>(1);
 
   // 全局共用的 1F當日商品資料（三個模組共用）
@@ -56,6 +88,20 @@ export default function InventoryManagement() {
   // 模組三：狀態
   const [internalRecount, setInternalRecount] = useState<any[]>([]);
   const [unInventoried, setUnInventoried] = useState<any[]>([]);
+
+  // 盤點結果分析報表
+  const [analysisBatches, setAnalysisBatches] = useState<InventoryResultBatch[]>([]);
+  const [analysisItems, setAnalysisItems] = useState<InventoryResultItem[]>([]);
+  const [selectedAnalysisBatchId, setSelectedAnalysisBatchId] = useState('');
+  const [analysisStoreKeyword, setAnalysisStoreKeyword] = useState('');
+  const [analysisOrderKeyword, setAnalysisOrderKeyword] = useState('');
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisImporting, setAnalysisImporting] = useState(false);
+
+  const formatMoney = (value: unknown): string => {
+    const n = Number(value) || 0;
+    return n.toLocaleString('zh-TW');
+  };
   // 統一的品號格式化函數（確保 8 位數，不足補零）
   const formatProductCode = (code: any): string => {
     if (!code) return '';
@@ -85,6 +131,70 @@ export default function InventoryManagement() {
       reader.onerror = reject;
       reader.readAsBinaryString(file);
     });
+  };
+
+  const loadInventoryResultAnalysis = async (
+    batchId = selectedAnalysisBatchId,
+    storeKeyword = analysisStoreKeyword,
+    orderKeyword = analysisOrderKeyword
+  ) => {
+    setAnalysisLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (storeKeyword.trim()) params.set('store', storeKeyword.trim());
+      if (orderKeyword.trim()) params.set('order_no', orderKeyword.trim());
+      if (batchId) params.set('batch_id', batchId);
+
+      const res = await fetch(`/api/inventory/result-analysis?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '載入盤點結果分析報表失敗');
+      }
+
+      setAnalysisBatches(json.batches || []);
+      setAnalysisItems(json.items || []);
+      setSelectedAnalysisBatchId(json.selected_batch_id || '');
+    } catch (error: any) {
+      alert(`❌ ${error.message || '載入盤點結果分析報表失敗'}`);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeSection === 'analysis') {
+      loadInventoryResultAnalysis('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSection]);
+
+  const handleInventoryResultAnalysisUpload = async (file: File) => {
+    setAnalysisImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/inventory/result-analysis', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '匯入盤點結果分析報表失敗');
+      }
+
+      const errorHint = Array.isArray(json.errors) && json.errors.length > 0
+        ? `\n略過資料：\n${json.errors.slice(0, 5).join('\n')}${json.errors.length > 5 ? `\n... 另有 ${json.errors.length - 5} 筆` : ''}`
+        : '';
+      alert(`✅ 匯入完成：${json.imported_batches} 個批次、${json.imported_rows} 筆明細${errorHint}`);
+      setAnalysisStoreKeyword('');
+      setAnalysisOrderKeyword('');
+      await loadInventoryResultAnalysis(json.batches?.[0]?.id || '', '', '');
+    } catch (error: any) {
+      alert(`❌ ${error.message || '匯入盤點結果分析報表失敗'}`);
+    } finally {
+      setAnalysisImporting(false);
+    }
   };
 
   // 讀取 FKS0701 Excel 檔案（明確處理標題行）
@@ -845,92 +955,136 @@ export default function InventoryManagement() {
     alert(`✅ 已產生 ${result.length} 筆盤點結果檔\n\n其中：\n• 盤差為0：${result.filter(r => r.盤差量 === 0).length} 筆\n• 有盤差：${result.filter(r => r.盤差量 !== 0).length} 筆`);
   };
 
+  const selectedAnalysisBatch = analysisBatches.find((batch) => batch.id === selectedAnalysisBatchId) || analysisBatches[0];
+  const topShortageItems = [...analysisItems]
+    .filter((item) => Number(item.difference_amount_member) < 0)
+    .sort((a, b) => Number(a.difference_amount_member) - Number(b.difference_amount_member))
+    .slice(0, 10);
+  const topSurplusItems = [...analysisItems]
+    .filter((item) => Number(item.difference_amount_member) > 0)
+    .sort((a, b) => Number(b.difference_amount_member) - Number(a.difference_amount_member))
+    .slice(0, 10);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* 標題 */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">盤點管理系統</h1>
-          <p className="text-gray-600">整合外盤、內盤、預盤資料，產生複盤清單與最終盤點結果</p>
+          <p className="text-gray-600">離線盤點工具與雲端盤點結果分析報表</p>
         </div>
 
-        {/* 全局：1F當日商品資料上傳區 */}
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <FileSpreadsheet className="text-white" size={28} />
-                <h3 className="text-xl font-bold text-white">1F當日商品資料（必填）</h3>
-              </div>
-              <p className="text-indigo-100 text-sm mb-2">
-                此檔案供三個模組共用，請先上傳後再使用各模組功能
-              </p>
-              <p className="text-indigo-200 text-xs">
-                欄位：品號、品名、條碼、庫存、主要儲位
-              </p>
+        {/* 功能區切換 */}
+        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <button
+            onClick={() => setActiveSection('offline')}
+            className={`rounded-xl border p-5 text-left transition-all ${
+              activeSection === 'offline'
+                ? 'border-indigo-400 bg-indigo-600 text-white shadow-lg'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <div className="text-lg font-bold">離線盤點匯入匯出工具</div>
+            <div className={`mt-1 text-sm ${activeSection === 'offline' ? 'text-indigo-100' : 'text-gray-500'}`}>
+              原本模組一至三，檔案僅在本機流程中處理並輸出 Excel
             </div>
-            <div className="ml-6">
-              <label className="flex items-center gap-2 px-6 py-3 bg-white text-indigo-600 rounded-lg cursor-pointer hover:bg-indigo-50 transition-colors font-semibold shadow-md">
-                <Upload size={20} />
-                <span>上傳 1F 資料</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleBaseDataUpload(file);
-                      e.target.value = ''; // 清空以便可以重新上傳
-                    }
-                  }}
-                />
-              </label>
-              {baseData.length > 0 && (
-                <div className="mt-2 text-center text-sm text-white font-medium bg-green-500 rounded px-3 py-1">
-                  ✓ 已匯入 {baseData.length} 筆
+          </button>
+          <button
+            onClick={() => setActiveSection('analysis')}
+            className={`rounded-xl border p-5 text-left transition-all ${
+              activeSection === 'analysis'
+                ? 'border-emerald-400 bg-emerald-600 text-white shadow-lg'
+                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <div className="text-lg font-bold">盤點結果分析報表</div>
+            <div className={`mt-1 text-sm ${activeSection === 'analysis' ? 'text-emerald-100' : 'text-gray-500'}`}>
+              新功能，匯入後依門市與盤點單號保存至 Supabase
+            </div>
+          </button>
+        </div>
+
+        {activeSection === 'offline' && (
+          <>
+            {/* 全局：1F當日商品資料上傳區 */}
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl shadow-lg p-6 mb-6">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <FileSpreadsheet className="text-white" size={28} />
+                    <h3 className="text-xl font-bold text-white">1F當日商品資料（必填）</h3>
+                  </div>
+                  <p className="text-indigo-100 text-sm mb-2">
+                    此檔案供三個模組共用，請先上傳後再使用各模組功能
+                  </p>
+                  <p className="text-indigo-200 text-xs">
+                    欄位：品號、品名、條碼、庫存、主要儲位
+                  </p>
                 </div>
-              )}
+                <div className="ml-6">
+                  <label className="flex items-center gap-2 px-6 py-3 bg-white text-indigo-600 rounded-lg cursor-pointer hover:bg-indigo-50 transition-colors font-semibold shadow-md">
+                    <Upload size={20} />
+                    <span>上傳 1F 資料</span>
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          handleBaseDataUpload(file);
+                          e.target.value = ''; // 清空以便可以重新上傳
+                        }
+                      }}
+                    />
+                  </label>
+                  {baseData.length > 0 && (
+                    <div className="mt-2 text-center text-sm text-white font-medium bg-green-500 rounded px-3 py-1">
+                      ✓ 已匯入 {baseData.length} 筆
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* 模組選擇 */}
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setActiveModule(1)}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              activeModule === 1
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            模組一：產出外盤複盤清單
-          </button>
-          <button
-            onClick={() => setActiveModule(2)}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              activeModule === 2
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            模組二：產出內部+外盤公司資料整合之複盤表與未盤表
-          </button>
-          <button
-            onClick={() => setActiveModule(3)}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-              activeModule === 3
-                ? 'bg-indigo-600 text-white shadow-lg'
-                : 'bg-white text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            模組三：產出匯入DPOS檔案
-          </button>
-        </div>
+            {/* 模組選擇 */}
+            <div className="flex gap-4 mb-6">
+              <button
+                onClick={() => setActiveModule(1)}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  activeModule === 1
+                    ? 'bg-indigo-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                模組一：產出外盤複盤清單
+              </button>
+              <button
+                onClick={() => setActiveModule(2)}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  activeModule === 2
+                    ? 'bg-indigo-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                模組二：產出內部+外盤公司資料整合之複盤表與未盤表
+              </button>
+              <button
+                onClick={() => setActiveModule(3)}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  activeModule === 3
+                    ? 'bg-indigo-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                模組三：產出匯入DPOS檔案
+              </button>
+            </div>
+          </>
+        )}
 
         {/* 模組一內容 */}
-        {activeModule === 1 && (
+        {activeSection === 'offline' && activeModule === 1 && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">產出外盤複盤清單</h2>
@@ -1029,7 +1183,7 @@ export default function InventoryManagement() {
         )}
 
         {/* 模組二內容 */}
-        {activeModule === 2 && (
+        {activeSection === 'offline' && activeModule === 2 && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">產出內部+外盤公司資料整合之複盤表與未盤表</h2>
@@ -1166,7 +1320,7 @@ export default function InventoryManagement() {
         )}
 
         {/* 模組三內容 */}
-        {activeModule === 3 && (
+        {activeSection === 'offline' && activeModule === 3 && (
           <div className="bg-white rounded-xl shadow-lg p-8">
             <div className="mb-6">
               <h2 className="text-2xl font-bold text-gray-800 mb-2">產出匯入DPOS檔案</h2>
@@ -1262,6 +1416,235 @@ export default function InventoryManagement() {
               <Download size={20} />
               產生盤點結果檔（上傳 DPOS 用）
             </button>
+          </div>
+        )}
+
+        {/* 盤點結果分析報表 */}
+        {activeSection === 'analysis' && (
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">盤點結果分析報表</h2>
+                <p className="text-gray-600">匯入盤點結果檔後，依門市與盤點單號保存並產生基礎分析摘要</p>
+              </div>
+              <label className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-md ${
+                analysisImporting
+                  ? 'bg-gray-100 text-gray-400 pointer-events-none'
+                  : 'bg-indigo-600 text-white cursor-pointer hover:bg-indigo-700'
+              }`}>
+                <Upload size={18} />
+                <span>{analysisImporting ? '匯入中...' : '匯入 .xlsx'}</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleInventoryResultAnalysisUpload(file);
+                      e.target.value = '';
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="text-indigo-600 flex-shrink-0 mt-1" size={20} />
+                <div className="text-sm text-indigo-900">
+                  <p className="font-semibold mb-1">匯入欄位格式</p>
+                  <p>店號、店名、盤點單號、結案?、品號、品名、單位、儲位1、儲位2、盤差量、盤差額(會員)、成本、單位成本、庫存量、庫存額</p>
+                  <p className="mt-1 text-indigo-700">同一門市同一盤點單號重新匯入時，會替換該批次舊明細。</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
+              <div className="flex items-center gap-2">
+                <Search size={16} className="text-gray-400" />
+                <input
+                  value={analysisStoreKeyword}
+                  onChange={(e) => setAnalysisStoreKeyword(e.target.value)}
+                  placeholder="店號或店名"
+                  className="w-40 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <input
+                value={analysisOrderKeyword}
+                onChange={(e) => setAnalysisOrderKeyword(e.target.value)}
+                placeholder="盤點單號"
+                className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              />
+              <button
+                onClick={() => loadInventoryResultAnalysis('')}
+                disabled={analysisLoading}
+                className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={analysisLoading ? 'animate-spin' : ''} />
+                查詢
+              </button>
+              <button
+                onClick={() => {
+                  setAnalysisStoreKeyword('');
+                  setAnalysisOrderKeyword('');
+                  setSelectedAnalysisBatchId('');
+                  loadInventoryResultAnalysis('', '', '');
+                }}
+                className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                清除
+              </button>
+            </div>
+
+            {analysisLoading ? (
+              <div className="py-12 text-center text-gray-500">
+                <RefreshCw size={20} className="mr-2 inline-block animate-spin" />
+                載入盤點結果分析資料中...
+              </div>
+            ) : analysisBatches.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-12 text-center text-gray-500">
+                尚無盤點結果分析資料，請先匯入 .xlsx
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-6 xl:grid-cols-[360px_1fr]">
+                <div className="space-y-3">
+                  <h3 className="font-bold text-gray-800">匯入批次</h3>
+                  <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
+                    {analysisBatches.map((batch) => (
+                      <button
+                        key={batch.id}
+                        onClick={() => loadInventoryResultAnalysis(batch.id)}
+                        className={`w-full rounded-lg border p-3 text-left transition-colors ${
+                          selectedAnalysisBatchId === batch.id
+                            ? 'border-indigo-400 bg-indigo-50'
+                            : 'border-gray-200 bg-white hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-semibold text-gray-900">{batch.store_code} {batch.store_name}</div>
+                            <div className="mt-1 text-xs text-gray-500">單號：{batch.inventory_order_no}</div>
+                          </div>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                            {batch.row_count} 筆
+                          </span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                          <span className="rounded bg-red-50 px-2 py-1 text-red-700">短少 {batch.shortage_count}</span>
+                          <span className="rounded bg-green-50 px-2 py-1 text-green-700">盤盈 {batch.surplus_count}</span>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-400">
+                          {batch.imported_at ? new Date(batch.imported_at).toLocaleString('zh-TW') : ''}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  {selectedAnalysisBatch && (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <div className="text-xs text-gray-500">明細筆數</div>
+                          <div className="mt-1 text-2xl font-bold text-gray-900">{selectedAnalysisBatch.row_count}</div>
+                        </div>
+                        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                          <div className="text-xs text-red-600">短少品項</div>
+                          <div className="mt-1 text-2xl font-bold text-red-700">{selectedAnalysisBatch.shortage_count}</div>
+                        </div>
+                        <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                          <div className="text-xs text-green-600">盤盈品項</div>
+                          <div className="mt-1 text-2xl font-bold text-green-700">{selectedAnalysisBatch.surplus_count}</div>
+                        </div>
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                          <div className="text-xs text-blue-600">盤差量合計</div>
+                          <div className="mt-1 text-2xl font-bold text-blue-700">{formatMoney(selectedAnalysisBatch.total_difference_qty)}</div>
+                        </div>
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                          <div className="text-xs text-amber-600">盤差額合計</div>
+                          <div className="mt-1 text-2xl font-bold text-amber-700">{formatMoney(selectedAnalysisBatch.total_difference_amount_member)}</div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                        <div className="rounded-xl border border-gray-200 p-4">
+                          <h4 className="mb-3 flex items-center gap-2 font-bold text-gray-800">
+                            <BarChart3 size={18} className="text-red-600" />
+                            短少金額 Top 10
+                          </h4>
+                          <div className="space-y-2">
+                            {topShortageItems.length === 0 ? (
+                              <div className="text-sm text-gray-400">無短少資料</div>
+                            ) : topShortageItems.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm">
+                                <span className="min-w-0 truncate text-gray-800">{item.product_code} {item.product_name}</span>
+                                <span className="font-semibold text-red-700">{formatMoney(item.difference_amount_member)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 p-4">
+                          <h4 className="mb-3 flex items-center gap-2 font-bold text-gray-800">
+                            <BarChart3 size={18} className="text-green-600" />
+                            盤盈金額 Top 10
+                          </h4>
+                          <div className="space-y-2">
+                            {topSurplusItems.length === 0 ? (
+                              <div className="text-sm text-gray-400">無盤盈資料</div>
+                            ) : topSurplusItems.map((item) => (
+                              <div key={item.id} className="flex items-center justify-between gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm">
+                                <span className="min-w-0 truncate text-gray-800">{item.product_code} {item.product_name}</span>
+                                <span className="font-semibold text-green-700">{formatMoney(item.difference_amount_member)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-gray-200">
+                        <div className="border-b border-gray-200 px-4 py-3">
+                          <h4 className="font-bold text-gray-800">明細預覽（依盤差額排序，最多 200 筆）</h4>
+                        </div>
+                        <div className="max-h-[520px] overflow-auto">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 bg-gray-50 text-gray-500">
+                              <tr>
+                                <th className="px-3 py-2 text-left">品號</th>
+                                <th className="px-3 py-2 text-left">品名</th>
+                                <th className="px-3 py-2 text-left">儲位</th>
+                                <th className="px-3 py-2 text-right">盤差量</th>
+                                <th className="px-3 py-2 text-right">盤差額(會員)</th>
+                                <th className="px-3 py-2 text-right">庫存量</th>
+                                <th className="px-3 py-2 text-right">庫存額</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                              {analysisItems.map((item) => (
+                                <tr key={item.id} className="hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-mono">{item.product_code}</td>
+                                  <td className="px-3 py-2">{item.product_name}</td>
+                                  <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
+                                  <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                    {formatMoney(item.difference_qty)}
+                                  </td>
+                                  <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_amount_member) < 0 ? 'text-red-600' : Number(item.difference_amount_member) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                    {formatMoney(item.difference_amount_member)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right">{formatMoney(item.stock_qty)}</td>
+                                  <td className="px-3 py-2 text-right">{formatMoney(item.stock_amount)}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
