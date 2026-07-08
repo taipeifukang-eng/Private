@@ -149,6 +149,27 @@ async function ensurePermission(userId: string): Promise<boolean> {
     || (await hasPermission(userId, 'inventory.manage'));
 }
 
+async function fetchInventoryResultItems(admin: ReturnType<typeof createAdminClient>, batchId: string): Promise<any[]> {
+  const pageSize = 1000;
+  const rows: any[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await admin
+      .from('inventory_result_items')
+      .select('*')
+      .eq('batch_id', batchId)
+      .order('product_code', { ascending: true, nullsFirst: false })
+      .range(from, to);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return rows;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -193,18 +214,7 @@ export async function GET(request: NextRequest) {
     let allItemsForAnalysis: any[] = [];
 
     if (selectedBatchId) {
-      const { data: itemRows, error: itemError } = await admin
-        .from('inventory_result_items')
-        .select('*')
-        .eq('batch_id', selectedBatchId)
-        .order('category_code', { ascending: true, nullsFirst: false })
-        .order('product_code', { ascending: true })
-        .range(0, 49999);
-
-      if (itemError) {
-        return NextResponse.json({ success: false, error: itemError.message }, { status: 500 });
-      }
-      items = itemRows || [];
+      items = await fetchInventoryResultItems(admin, selectedBatchId);
       allItemsForAnalysis = items;
     }
 
