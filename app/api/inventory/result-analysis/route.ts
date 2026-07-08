@@ -77,6 +77,38 @@ function isValidYearMonth(value: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
 }
 
+function parseWorksheetRows(sheet: XLSX.WorkSheet): { rows: Record<string, unknown>[]; actualColumns: string[]; headerRowIndex: number } {
+  const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
+  const normalizedRequired = REQUIRED_COLUMNS.map((col) => String(col).trim());
+
+  const headerRowIndex = rawRows.findIndex((row) => {
+    const headers = (row || []).map((cell) => String(cell ?? '').trim());
+    return normalizedRequired.every((col) => headers.includes(col));
+  });
+
+  if (headerRowIndex < 0) {
+    const firstNonEmptyRow = rawRows.find((row) => (row || []).some((cell) => String(cell ?? '').trim() !== '')) || [];
+    return {
+      rows: [],
+      actualColumns: firstNonEmptyRow.map((cell) => String(cell ?? '').trim()).filter(Boolean),
+      headerRowIndex: -1,
+    };
+  }
+
+  const actualColumns = (rawRows[headerRowIndex] || []).map((cell) => String(cell ?? '').trim());
+  const rows = rawRows.slice(headerRowIndex + 1)
+    .filter((row) => (row || []).some((cell) => String(cell ?? '').trim() !== ''))
+    .map((row, dataIndex) => {
+      const record: Record<string, unknown> = { __excelRowNumber: headerRowIndex + dataIndex + 2 };
+      actualColumns.forEach((col, index) => {
+        if (col) record[col] = row?.[index] ?? null;
+      });
+      return record;
+    });
+
+  return { rows, actualColumns: actualColumns.filter(Boolean), headerRowIndex };
+}
+
 async function ensurePermission(userId: string): Promise<boolean> {
   return (await hasPermission(userId, 'inventory.inventory.access'))
     || (await hasPermission(userId, 'inventory.inventory.view'))
@@ -233,20 +265,19 @@ export async function POST(request: NextRequest) {
 
     const workbook = XLSX.read(await file.arrayBuffer(), { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: null });
+    const { rows, actualColumns, headerRowIndex } = parseWorksheetRows(sheet);
 
-    if (rows.length === 0) {
-      return NextResponse.json({ success: false, error: 'Excel 無資料' }, { status: 400 });
-    }
-
-    const actualColumns = Object.keys(rows[0] || {});
     const missingColumns = REQUIRED_COLUMNS.filter((col) => !actualColumns.includes(col));
-    if (missingColumns.length > 0) {
+    if (headerRowIndex < 0 || missingColumns.length > 0) {
       return NextResponse.json({
         success: false,
         error: `缺少必要欄位：${missingColumns.join('、')}`,
         actualColumns,
       }, { status: 400 });
+    }
+
+    if (rows.length === 0) {
+      return NextResponse.json({ success: false, error: 'Excel 無資料' }, { status: 400 });
     }
 
     const admin = createAdminClient();
@@ -289,7 +320,7 @@ export async function POST(request: NextRequest) {
     const errors: string[] = [];
 
     rows.forEach((row, index) => {
-      const rowLabel = `第 ${index + 2} 列`;
+      const rowLabel = `第 ${Number(row.__excelRowNumber) || index + headerRowIndex + 2} 列`;
       const rawStoreCode = getStr(row, '店號');
       const orderNo = getStr(row, '盤點單號');
 
