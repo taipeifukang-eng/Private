@@ -73,8 +73,22 @@ function getProductCategory(productCode: string): { code: string; name: string }
   return { code, name: PRODUCT_CATEGORY_MAP[code] || '未分類' };
 }
 
+function isSummaryRow(row: Record<string, unknown>): boolean {
+  const productCode = getStr(row, '品號');
+  const productName = getStr(row, '品名');
+  const unit = getStr(row, '單位');
+  const storage1 = getStr(row, '儲位1');
+  const storage2 = getStr(row, '儲位2');
+  const hasSummaryAmount = getNum(row, '盤差額(會員)') !== 0 || getNum(row, '成本') !== 0;
+  return !productCode && !productName && !unit && !storage1 && !storage2 && hasSummaryAmount;
+}
+
 function isValidYearMonth(value: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
+}
+
+function getFileBaseName(fileName: string): string {
+  return fileName.replace(/\.[^.]+$/, '').trim() || '未命名盤點結果';
 }
 
 function parseWorksheetRows(sheet: XLSX.WorkSheet): { rows: Record<string, unknown>[]; actualColumns: string[]; headerRowIndex: number } {
@@ -258,6 +272,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const yearMonth = String(formData.get('year_month') || '').trim();
+    const requestedOrderNo = String(formData.get('inventory_order_no') || '').trim();
     if (!file) return NextResponse.json({ success: false, error: '缺少匯入檔案' }, { status: 400 });
     if (!isValidYearMonth(yearMonth)) {
       return NextResponse.json({ success: false, error: '請選擇正確的資料年月（YYYY-MM）' }, { status: 400 });
@@ -318,18 +333,21 @@ export async function POST(request: NextRequest) {
 
     const groups = new Map<string, { store: any; orderNo: string; rows: Record<string, unknown>[] }>();
     const errors: string[] = [];
+    let lastStoreCode = '';
+    let lastOrderNo = '';
+    const fallbackOrderNo = requestedOrderNo || getFileBaseName(file.name);
 
     rows.forEach((row, index) => {
       const rowLabel = `第 ${Number(row.__excelRowNumber) || index + headerRowIndex + 2} 列`;
-      const rawStoreCode = getStr(row, '店號');
-      const orderNo = getStr(row, '盤點單號');
+      if (isSummaryRow(row)) {
+        return;
+      }
+
+      const rawStoreCode = getStr(row, '店號') || lastStoreCode;
+      const orderNo = getStr(row, '盤點單號') || lastOrderNo || fallbackOrderNo;
 
       if (!rawStoreCode) {
         errors.push(`${rowLabel}：缺少店號`);
-        return;
-      }
-      if (!orderNo) {
-        errors.push(`${rowLabel}：缺少盤點單號`);
         return;
       }
 
@@ -338,6 +356,9 @@ export async function POST(request: NextRequest) {
         errors.push(`${rowLabel}：找不到門市店號「${rawStoreCode}」`);
         return;
       }
+
+      lastStoreCode = rawStoreCode;
+      lastOrderNo = orderNo;
 
       const key = `${store.id}|${orderNo}`;
       const group = groups.get(key) || { store, orderNo, rows: [] };

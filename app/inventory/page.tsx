@@ -125,6 +125,7 @@ export default function InventoryManagement() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [analysisImportOrderNo, setAnalysisImportOrderNo] = useState('');
   const [analysisStoreKeyword, setAnalysisStoreKeyword] = useState('');
   const [analysisOrderKeyword, setAnalysisOrderKeyword] = useState('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
@@ -209,6 +210,9 @@ export default function InventoryManagement() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('year_month', analysisYearMonth);
+      if (analysisImportOrderNo.trim()) {
+        formData.append('inventory_order_no', analysisImportOrderNo.trim());
+      }
 
       const res = await fetch('/api/inventory/result-analysis', {
         method: 'POST',
@@ -225,6 +229,7 @@ export default function InventoryManagement() {
       alert(`✅ 匯入完成：${json.imported_batches} 個批次、${json.imported_rows} 筆明細${errorHint}`);
       setAnalysisStoreKeyword('');
       setAnalysisOrderKeyword('');
+      setAnalysisImportOrderNo('');
       await loadInventoryResultAnalysis(json.batches?.[0]?.id || '', '', '');
     } catch (error: any) {
       alert(`❌ ${error.message || '匯入盤點結果分析報表失敗'}`);
@@ -1473,6 +1478,16 @@ export default function InventoryManagement() {
                     className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
                   />
                 </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-gray-500">盤點批次名稱</label>
+                  <input
+                    type="text"
+                    value={analysisImportOrderNo}
+                    onChange={(e) => setAnalysisImportOrderNo(e.target.value)}
+                    placeholder="空白時使用檔名"
+                    className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
                 <label className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-semibold shadow-md ${
                   analysisImporting
                     ? 'bg-gray-100 text-gray-400 pointer-events-none'
@@ -1508,7 +1523,9 @@ export default function InventoryManagement() {
                   <p className="mt-1 text-indigo-700">
                     品號為 8 碼，前兩碼作為商品分類碼，報表會依分類統計盤差與成本影響。
                   </p>
-                  <p className="mt-1 text-indigo-700">同一門市同一盤點單號重新匯入時，會替換該批次舊明細。</p>
+                  <p className="mt-1 text-indigo-700">
+                    匯入檔內盤點單號可為空，系統會優先使用上方「盤點批次名稱」，若未填則使用檔名。同一門市、同年月、同批次名稱重新匯入時，會替換該批次舊明細。
+                  </p>
                 </div>
               </div>
             </div>
