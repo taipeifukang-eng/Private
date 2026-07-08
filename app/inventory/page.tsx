@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search, ChevronDown, ArrowUpDown } from 'lucide-react';
 
 type ProductData = {
   品號: string;
@@ -92,6 +92,17 @@ type InventoryNonExcludedSummary = {
   row_count: number;
 };
 
+type AnalysisDetailSortKey =
+  | 'product_code'
+  | 'category'
+  | 'product_name'
+  | 'storage'
+  | 'difference_qty'
+  | 'cost'
+  | 'difference_amount_member'
+  | 'stock_qty'
+  | 'stock_amount';
+
 export default function InventoryManagement() {
   const [activeSection, setActiveSection] = useState<'offline' | 'analysis'>('offline');
   const [activeModule, setActiveModule] = useState<1 | 2 | 3>(1);
@@ -131,6 +142,12 @@ export default function InventoryManagement() {
   const [analysisOrderKeyword, setAnalysisOrderKeyword] = useState('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisImporting, setAnalysisImporting] = useState(false);
+  const [analysisCategoriesCollapsed, setAnalysisCategoriesCollapsed] = useState(false);
+  const [analysisShowDiffOnly, setAnalysisShowDiffOnly] = useState(false);
+  const [analysisDetailSort, setAnalysisDetailSort] = useState<{ key: AnalysisDetailSortKey; direction: 'asc' | 'desc' }>({
+    key: 'product_code',
+    direction: 'asc',
+  });
 
   const formatMoney = (value: unknown): string => {
     const n = Number(value) || 0;
@@ -1036,9 +1053,52 @@ export default function InventoryManagement() {
 
   const selectedAnalysisBatch = analysisBatches.find((batch) => batch.id === selectedAnalysisBatchId) || analysisBatches[0];
   const selectedAnalysisCategory = analysisCategorySummary.find((category) => category.category_code === selectedAnalysisCategoryCode) || null;
-  const filteredAnalysisItems = selectedAnalysisCategoryCode
+  const sortedAnalysisCategorySummary = [...analysisCategorySummary].sort((a, b) => {
+    const aCode = String(a.category_code || '');
+    const bCode = String(b.category_code || '');
+    const aNum = Number(aCode);
+    const bNum = Number(bCode);
+    if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum - bNum;
+    return aCode.localeCompare(bCode, 'zh-TW');
+  });
+  const categoryFilteredAnalysisItems = selectedAnalysisCategoryCode
     ? analysisItems.filter((item) => getItemCategoryCode(item) === selectedAnalysisCategoryCode)
     : analysisItems;
+  const filteredAnalysisItems = analysisShowDiffOnly
+    ? categoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
+    : categoryFilteredAnalysisItems;
+  const getAnalysisSortValue = (item: InventoryResultItem, key: AnalysisDetailSortKey): string | number => {
+    if (key === 'product_code') return normalizeAnalysisProductCode(item.product_code);
+    if (key === 'category') return `${getItemCategoryCode(item)} ${getItemCategoryName(item)}`;
+    if (key === 'product_name') return item.product_name || '';
+    if (key === 'storage') return [item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ');
+    return Number(item[key]) || 0;
+  };
+  const sortedFilteredAnalysisItems = [...filteredAnalysisItems].sort((a, b) => {
+    const aValue = getAnalysisSortValue(a, analysisDetailSort.key);
+    const bValue = getAnalysisSortValue(b, analysisDetailSort.key);
+    const direction = analysisDetailSort.direction === 'asc' ? 1 : -1;
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return (aValue - bValue) * direction;
+    }
+    return String(aValue).localeCompare(String(bValue), 'zh-TW', { numeric: true }) * direction;
+  });
+  const handleAnalysisSort = (key: AnalysisDetailSortKey) => {
+    setAnalysisDetailSort((current) => ({
+      key,
+      direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+  const renderAnalysisSortLabel = (label: string, key: AnalysisDetailSortKey) => (
+    <button
+      type="button"
+      onClick={() => handleAnalysisSort(key)}
+      className="inline-flex items-center gap-1 font-semibold hover:text-indigo-700"
+    >
+      {label}
+      <ArrowUpDown size={12} className={analysisDetailSort.key === key ? 'text-indigo-600' : 'text-gray-400'} />
+    </button>
+  );
   const dashboardSummary = selectedAnalysisCategory
     ? {
       label: `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}`,
@@ -1714,12 +1774,25 @@ export default function InventoryManagement() {
                       </div>
 
                       <div className="rounded-xl border border-gray-200 bg-white">
-                        <div className="border-b border-gray-200 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
                           <h4 className="font-bold text-gray-800">分類別盤點分析（點擊分類可切換儀表板、Top 10 與明細）</h4>
+                          <button
+                            type="button"
+                            onClick={() => setAnalysisCategoriesCollapsed((value) => !value)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                          >
+                            {analysisCategoriesCollapsed ? '展開分類' : '收折分類'}
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform ${analysisCategoriesCollapsed ? '-rotate-90' : ''}`}
+                            />
+                          </button>
                         </div>
+                        {!analysisCategoriesCollapsed && (
                         <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
-                          {analysisCategorySummary.map((category) => {
+                          {sortedAnalysisCategorySummary.map((category) => {
                             const isActive = selectedAnalysisCategoryCode === category.category_code;
+                            const diffItemCount = (Number(category.shortage_count) || 0) + (Number(category.surplus_count) || 0);
                             return (
                               <button
                                 type="button"
@@ -1731,7 +1804,10 @@ export default function InventoryManagement() {
                               >
                                 <div className="mb-3 flex items-start justify-between gap-2">
                                   <div className="font-bold text-gray-900">{category.category_code} {category.category_name}</div>
-                                  <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{category.row_count} 項</span>
+                                  <div className="flex flex-col items-end gap-1">
+                                    <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">總品項 {category.row_count}</span>
+                                    <span className="whitespace-nowrap rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">有盤差 {diffItemCount}</span>
+                                  </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2 text-xs">
                                   <div className="rounded-lg bg-green-50 p-2">
@@ -1755,6 +1831,7 @@ export default function InventoryManagement() {
                             );
                           })}
                         </div>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -1822,28 +1899,39 @@ export default function InventoryManagement() {
                       )}
 
                       <div className="rounded-xl border border-gray-200">
-                        <div className="border-b border-gray-200 px-4 py-3">
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
                           <h4 className="font-bold text-gray-800">
                             明細資料（{selectedAnalysisCategory ? `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}` : '全部分類'}，共 {filteredAnalysisItems.length} 筆）
                           </h4>
+                          <button
+                            type="button"
+                            onClick={() => setAnalysisShowDiffOnly((value) => !value)}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              analysisShowDiffOnly
+                                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            {analysisShowDiffOnly ? '顯示全部品項' : '只看盤差不等於 0'}
+                          </button>
                         </div>
                         <div className="max-h-[680px] overflow-auto">
                           <table className="w-full text-xs">
                             <thead className="sticky top-0 bg-gray-50 text-gray-500">
                               <tr>
-                                <th className="px-3 py-2 text-left">品號</th>
-                                <th className="px-3 py-2 text-left">分類</th>
-                                <th className="px-3 py-2 text-left">品名</th>
-                                <th className="px-3 py-2 text-left">儲位</th>
-                                <th className="px-3 py-2 text-right">盤差量</th>
-                                <th className="px-3 py-2 text-right">成本</th>
-                                <th className="px-3 py-2 text-right">盤差額(會員)</th>
-                                <th className="px-3 py-2 text-right">庫存量</th>
-                                <th className="px-3 py-2 text-right">庫存額</th>
+                                <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('品號', 'product_code')}</th>
+                                <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('分類', 'category')}</th>
+                                <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('品名', 'product_name')}</th>
+                                <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('儲位', 'storage')}</th>
+                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差量', 'difference_qty')}</th>
+                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('成本', 'cost')}</th>
+                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差額(會員)', 'difference_amount_member')}</th>
+                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存量', 'stock_qty')}</th>
+                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存額', 'stock_amount')}</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {filteredAnalysisItems.map((item) => (
+                              {sortedFilteredAnalysisItems.map((item) => (
                                 <tr key={item.id} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 font-mono">{item.product_code}</td>
                                   <td className="px-3 py-2 whitespace-nowrap">{getItemCategoryCode(item)} {getItemCategoryName(item)}</td>
