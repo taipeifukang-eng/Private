@@ -1054,6 +1054,11 @@ export default function InventoryManagement() {
   };
 
   const selectedAnalysisBatch = analysisBatches.find((batch) => batch.id === selectedAnalysisBatchId) || analysisBatches[0];
+  const sortedAnalysisBatches = [...analysisBatches].sort((a, b) => {
+    const storeCompare = String(a.store_code || '').localeCompare(String(b.store_code || ''), 'zh-TW', { numeric: true });
+    if (storeCompare !== 0) return storeCompare;
+    return String(a.inventory_order_no || '').localeCompare(String(b.inventory_order_no || ''), 'zh-TW', { numeric: true });
+  });
   const selectedAnalysisCategory = analysisCategorySummary.find((category) => category.category_code === selectedAnalysisCategoryCode) || null;
   const sortedAnalysisCategorySummary = [...analysisCategorySummary].sort((a, b) => {
     const aCode = String(a.category_code || '');
@@ -1120,6 +1125,22 @@ export default function InventoryManagement() {
       negative_cost_total: analysisNonExcludedSummary?.negative_cost_total || 0,
       net_cost_total: analysisNonExcludedSummary?.net_cost_total || 0,
     };
+  const nonExcludedDiffItems = analysisItems.filter((item) => {
+    return !excludedAnalysisCategoryCodes.has(getItemCategoryCode(item)) && Number(item.difference_qty) !== 0;
+  });
+  const nonExcludedDiffSummary = nonExcludedDiffItems.reduce((summary, item) => {
+    const cost = Number(item.cost) || 0;
+    summary.row_count += 1;
+    summary.net_cost_total += cost;
+    if (cost > 0) summary.positive_cost_total += cost;
+    if (cost < 0) summary.negative_cost_total += cost;
+    return summary;
+  }, {
+    row_count: 0,
+    positive_cost_total: 0,
+    negative_cost_total: 0,
+    net_cost_total: 0,
+  });
   const topShortageItems = [...filteredAnalysisItems]
     .filter((item) => Number(item.cost) < 0)
     .sort((a, b) => Number(a.cost) - Number(b.cost))
@@ -1722,7 +1743,7 @@ export default function InventoryManagement() {
                 <div className="space-y-3">
                   <h3 className="font-bold text-gray-800">匯入批次</h3>
                   <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
-                    {analysisBatches.map((batch) => (
+                    {sortedAnalysisBatches.map((batch) => (
                       <button
                         key={batch.id}
                         onClick={() => loadInventoryResultAnalysis(batch.id)}
@@ -1743,8 +1764,8 @@ export default function InventoryManagement() {
                           </span>
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
-                          <span className="rounded bg-red-50 px-2 py-1 text-red-700">短少 {batch.shortage_count}</span>
-                          <span className="rounded bg-green-50 px-2 py-1 text-green-700">盤盈 {batch.surplus_count}</span>
+                          <span className="rounded bg-red-50 px-2 py-1 text-red-700">短少 {batch.shortage_count} 品項</span>
+                          <span className="rounded bg-green-50 px-2 py-1 text-green-700">盤盈 {batch.surplus_count} 品項</span>
                         </div>
                         <div className="mt-2 text-xs text-gray-400">
                           {batch.imported_at ? new Date(batch.imported_at).toLocaleString('zh-TW') : ''}
@@ -1786,6 +1807,30 @@ export default function InventoryManagement() {
                             <div className="text-xs text-blue-600">正負加總成本</div>
                             <div className={`mt-1 whitespace-nowrap text-2xl font-bold ${Number(dashboardSummary.net_cost_total) < 0 ? 'text-red-700' : Number(dashboardSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
                               {formatMoney(dashboardSummary.net_cost_total)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <h4 className="mb-3 font-bold text-emerald-900">排除 01 / 97 / 98 / 99 且有盤差量</h4>
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                          <div className="min-w-0 rounded-xl bg-white p-4">
+                            <div className="text-xs text-gray-500">統計筆數</div>
+                            <div className="mt-1 whitespace-nowrap text-xl font-bold text-gray-900">{nonExcludedDiffSummary.row_count}</div>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-white p-4">
+                            <div className="text-xs text-green-600">正盤差成本</div>
+                            <div className="mt-1 whitespace-nowrap text-xl font-bold text-green-700">{formatMoney(nonExcludedDiffSummary.positive_cost_total)}</div>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-white p-4">
+                            <div className="text-xs text-red-600">負盤差成本</div>
+                            <div className="mt-1 whitespace-nowrap text-xl font-bold text-red-700">{formatMoney(nonExcludedDiffSummary.negative_cost_total)}</div>
+                          </div>
+                          <div className="min-w-0 rounded-xl bg-white p-4">
+                            <div className="text-xs text-emerald-700">正負加總成本</div>
+                            <div className={`mt-1 whitespace-nowrap text-xl font-bold ${Number(nonExcludedDiffSummary.net_cost_total) < 0 ? 'text-red-700' : Number(nonExcludedDiffSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
+                              {formatMoney(nonExcludedDiffSummary.net_cost_total)}
                             </div>
                           </div>
                         </div>
@@ -1886,35 +1931,6 @@ export default function InventoryManagement() {
                           </div>
                         </div>
                       </div>
-
-                      {analysisNonExcludedSummary && (
-                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                          <div className="mb-3">
-                            <h4 className="font-bold text-emerald-900">排除 01 / 97 / 98 / 99 後商品盤差成本</h4>
-                            <p className="mt-1 text-xs text-emerald-700">排除處方藥品、庶務類消耗品、虛擬產品、贈品與展示品。</p>
-                          </div>
-                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-                            <div className="rounded-lg bg-white p-3">
-                              <div className="text-xs text-gray-500">統計筆數</div>
-                              <div className="mt-1 text-xl font-bold text-gray-900">{analysisNonExcludedSummary.row_count}</div>
-                            </div>
-                            <div className="rounded-lg bg-white p-3">
-                              <div className="text-xs text-green-600">正盤差成本</div>
-                              <div className="mt-1 text-xl font-bold text-green-700">{formatMoney(analysisNonExcludedSummary.positive_cost_total)}</div>
-                            </div>
-                            <div className="rounded-lg bg-white p-3">
-                              <div className="text-xs text-red-600">負盤差成本</div>
-                              <div className="mt-1 text-xl font-bold text-red-700">{formatMoney(analysisNonExcludedSummary.negative_cost_total)}</div>
-                            </div>
-                            <div className="rounded-lg bg-white p-3">
-                              <div className="text-xs text-emerald-700">正負加總成本</div>
-                              <div className={`mt-1 text-xl font-bold ${Number(analysisNonExcludedSummary.net_cost_total) < 0 ? 'text-red-700' : Number(analysisNonExcludedSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
-                                {formatMoney(analysisNonExcludedSummary.net_cost_total)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
 
                       <div className="rounded-xl border border-gray-200">
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
