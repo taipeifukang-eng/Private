@@ -143,7 +143,9 @@ export default function InventoryManagement() {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisImporting, setAnalysisImporting] = useState(false);
   const [analysisCategoriesCollapsed, setAnalysisCategoriesCollapsed] = useState(false);
+  const [analysisImportGuideCollapsed, setAnalysisImportGuideCollapsed] = useState(true);
   const [analysisShowDiffOnly, setAnalysisShowDiffOnly] = useState(false);
+  const [analysisExcludeSpecialCategories, setAnalysisExcludeSpecialCategories] = useState(false);
   const [analysisDetailSort, setAnalysisDetailSort] = useState<{ key: AnalysisDetailSortKey; direction: 'asc' | 'desc' }>({
     key: 'product_code',
     direction: 'asc',
@@ -1064,9 +1066,13 @@ export default function InventoryManagement() {
   const categoryFilteredAnalysisItems = selectedAnalysisCategoryCode
     ? analysisItems.filter((item) => getItemCategoryCode(item) === selectedAnalysisCategoryCode)
     : analysisItems;
-  const filteredAnalysisItems = analysisShowDiffOnly
-    ? categoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
+  const excludedAnalysisCategoryCodes = new Set(['01', '97', '98', '99']);
+  const specialCategoryFilteredAnalysisItems = analysisExcludeSpecialCategories
+    ? categoryFilteredAnalysisItems.filter((item) => !excludedAnalysisCategoryCodes.has(getItemCategoryCode(item)))
     : categoryFilteredAnalysisItems;
+  const filteredAnalysisItems = analysisShowDiffOnly
+    ? specialCategoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
+    : specialCategoryFilteredAnalysisItems;
   const getAnalysisSortValue = (item: InventoryResultItem, key: AnalysisDetailSortKey): string | number => {
     if (key === 'product_code') return normalizeAnalysisProductCode(item.product_code);
     if (key === 'category') return `${getItemCategoryCode(item)} ${getItemCategoryName(item)}`;
@@ -1628,11 +1634,23 @@ export default function InventoryManagement() {
               </div>
             </div>
 
-            <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-6">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="text-indigo-600 flex-shrink-0 mt-1" size={20} />
-                <div className="text-sm text-indigo-900">
-                  <p className="font-semibold mb-1">匯入欄位格式</p>
+            <div className="mb-6 rounded-lg border border-indigo-200 bg-indigo-50">
+              <button
+                type="button"
+                onClick={() => setAnalysisImportGuideCollapsed((value) => !value)}
+                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-semibold text-indigo-900 hover:bg-indigo-100/60"
+              >
+                <span className="flex items-center gap-2">
+                  <AlertCircle className="text-indigo-600" size={18} />
+                  匯入欄位格式說明
+                </span>
+                <ChevronDown
+                  size={16}
+                  className={`text-indigo-700 transition-transform ${analysisImportGuideCollapsed ? '-rotate-90' : ''}`}
+                />
+              </button>
+              {!analysisImportGuideCollapsed && (
+                <div className="border-t border-indigo-200 px-4 py-3 text-sm text-indigo-900">
                   <p>店號、店名、盤點單號、結案?、品號、品名、單位、儲位1、儲位2、盤差量、盤差額(會員)、成本、單位成本、庫存量、庫存額</p>
                   <p className="mt-1 text-indigo-700">
                     庫存量為盤點前系統庫存；庫存額 = 庫存量 * 單位成本；盤差量為此次盤點差值；成本 = 盤差量 * 單位成本；盤差額(會員)因未提供會員價，僅作參考。
@@ -1644,7 +1662,7 @@ export default function InventoryManagement() {
                     匯入檔內盤點單號可為空，系統會優先使用上方「盤點批次名稱」，若未填則使用檔名。同一門市、同年月、同批次名稱重新匯入時，會替換該批次舊明細。
                   </p>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -1903,17 +1921,30 @@ export default function InventoryManagement() {
                           <h4 className="font-bold text-gray-800">
                             明細資料（{selectedAnalysisCategory ? `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}` : '全部分類'}，共 {filteredAnalysisItems.length} 筆）
                           </h4>
-                          <button
-                            type="button"
-                            onClick={() => setAnalysisShowDiffOnly((value) => !value)}
-                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                              analysisShowDiffOnly
-                                ? 'border-amber-300 bg-amber-50 text-amber-800'
-                                : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
-                            }`}
-                          >
-                            {analysisShowDiffOnly ? '顯示全部品項' : '只看盤差不等於 0'}
-                          </button>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setAnalysisExcludeSpecialCategories((value) => !value)}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                analysisExcludeSpecialCategories
+                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              {analysisExcludeSpecialCategories ? '已排除 01/97/98/99' : '排除 01/97/98/99'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAnalysisShowDiffOnly((value) => !value)}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                analysisShowDiffOnly
+                                  ? 'border-amber-300 bg-amber-50 text-amber-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              {analysisShowDiffOnly ? '顯示全部品項' : '只看盤差不等於 0'}
+                            </button>
+                          </div>
                         </div>
                         <div className="max-h-[680px] overflow-auto">
                           <table className="w-full text-xs">
