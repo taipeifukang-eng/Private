@@ -65,7 +65,13 @@ function getNum(row: Record<string, unknown>, key: string): number {
 function normalizeProductCode(code: unknown): string {
   const raw = String(code || '').trim();
   if (!raw) return '';
-  return /^\d+$/.test(raw) ? raw.padStart(8, '0') : raw;
+  if (/^\d+$/.test(raw)) return raw.padStart(8, '0');
+  if (/^\d+\.0+$/.test(raw)) return raw.replace(/\.0+$/, '').padStart(8, '0');
+  const numeric = Number(raw.replace(/,/g, ''));
+  if (Number.isFinite(numeric) && numeric > 0) {
+    return String(Math.trunc(numeric)).padStart(8, '0');
+  }
+  return raw;
 }
 
 function getProductCategory(productCode: string): { code: string; name: string } {
@@ -75,13 +81,16 @@ function getProductCategory(productCode: string): { code: string; name: string }
 
 function getItemCategory(item: any): { code: string; name: string } {
   const productCode = normalizeProductCode(item.product_code || '');
+  if (productCode) {
+    return getProductCategory(productCode);
+  }
   if (item.category_code) {
     return {
       code: item.category_code,
       name: item.category_name || PRODUCT_CATEGORY_MAP[item.category_code] || '未分類',
     };
   }
-  return getProductCategory(productCode);
+  return { code: 'NA', name: '未分類' };
 }
 
 function isSummaryRow(row: Record<string, unknown>): boolean {

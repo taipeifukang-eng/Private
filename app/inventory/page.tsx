@@ -136,8 +136,41 @@ export default function InventoryManagement() {
     const n = Number(value) || 0;
     return n.toLocaleString('zh-TW');
   };
+  const productCategoryMap: Record<string, string> = {
+    '01': '處方藥品',
+    '02': '保健食品',
+    '03': 'OTC藥品',
+    '04': '醫美產品',
+    '05': '奶製品',
+    '06': '醫療器材/輔具',
+    '07': '護具/護理用品/醫療用耗材/隱形眼鏡',
+    '08': '生活用品',
+    '09': '一般食品',
+    '10': '婦嬰用品',
+    '11': '寵物用品',
+    '12': '尿布',
+    '97': '庶務類消耗品',
+    '98': '虛擬產品',
+    '99': '贈品與展示品',
+  };
+  const normalizeAnalysisProductCode = (code: unknown): string => {
+    const raw = String(code || '').trim();
+    if (!raw) return '';
+    if (/^\d+$/.test(raw)) return raw.padStart(8, '0');
+    if (/^\d+\.0+$/.test(raw)) return raw.replace(/\.0+$/, '').padStart(8, '0');
+    const numeric = Number(raw.replace(/,/g, ''));
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return String(Math.trunc(numeric)).padStart(8, '0');
+    }
+    return raw;
+  };
   const getItemCategoryCode = (item: InventoryResultItem): string => {
-    return item.category_code || String(item.product_code || '').slice(0, 2);
+    const productCode = normalizeAnalysisProductCode(item.product_code);
+    return productCode ? productCode.slice(0, 2) : item.category_code || 'NA';
+  };
+  const getItemCategoryName = (item: InventoryResultItem): string => {
+    const code = getItemCategoryCode(item);
+    return productCategoryMap[code] || item.category_name || '未分類';
   };
   // 統一的品號格式化函數（確保 8 位數，不足補零）
   const formatProductCode = (code: any): string => {
@@ -1680,6 +1713,50 @@ export default function InventoryManagement() {
                         </div>
                       </div>
 
+                      <div className="rounded-xl border border-gray-200 bg-white">
+                        <div className="border-b border-gray-200 px-4 py-3">
+                          <h4 className="font-bold text-gray-800">分類別盤點分析（點擊分類可切換儀表板、Top 10 與明細）</h4>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
+                          {analysisCategorySummary.map((category) => {
+                            const isActive = selectedAnalysisCategoryCode === category.category_code;
+                            return (
+                              <button
+                                type="button"
+                                key={category.category_code}
+                                onClick={() => setSelectedAnalysisCategoryCode(isActive ? '' : category.category_code)}
+                                className={`rounded-xl border p-4 text-left transition-colors ${
+                                  isActive ? 'border-indigo-400 bg-indigo-50 ring-2 ring-indigo-100' : 'border-gray-200 bg-white hover:bg-gray-50'
+                                }`}
+                              >
+                                <div className="mb-3 flex items-start justify-between gap-2">
+                                  <div className="font-bold text-gray-900">{category.category_code} {category.category_name}</div>
+                                  <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{category.row_count} 項</span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-xs">
+                                  <div className="rounded-lg bg-green-50 p-2">
+                                    <div className="text-green-600">正盤差成本</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-green-700">{formatMoney(category.positive_cost_total)}</div>
+                                  </div>
+                                  <div className="rounded-lg bg-red-50 p-2">
+                                    <div className="text-red-600">負盤差成本</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-red-700">{formatMoney(category.negative_cost_total)}</div>
+                                  </div>
+                                  <div className="rounded-lg bg-blue-50 p-2">
+                                    <div className="text-blue-600">加總成本</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-blue-700">{formatMoney(category.net_cost_total)}</div>
+                                  </div>
+                                  <div className="rounded-lg bg-gray-50 p-2">
+                                    <div className="text-gray-500">庫存額總額</div>
+                                    <div className="mt-1 whitespace-nowrap font-bold text-gray-800">{formatMoney(category.stock_amount_total)}</div>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                         <div className="rounded-xl border border-gray-200 p-4">
                           <h4 className="mb-3 flex items-center gap-2 font-bold text-gray-800">
@@ -1746,49 +1823,6 @@ export default function InventoryManagement() {
 
                       <div className="rounded-xl border border-gray-200">
                         <div className="border-b border-gray-200 px-4 py-3">
-                          <h4 className="font-bold text-gray-800">分類別盤點分析（點擊分類可切換上方儀表板與明細）</h4>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2 2xl:grid-cols-3">
-                          {analysisCategorySummary.map((category) => {
-                            const isActive = selectedAnalysisCategoryCode === category.category_code;
-                            return (
-                              <button
-                                key={category.category_code}
-                                onClick={() => setSelectedAnalysisCategoryCode(isActive ? '' : category.category_code)}
-                                className={`rounded-xl border p-4 text-left transition-colors ${
-                                  isActive ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-white hover:bg-gray-50'
-                                }`}
-                              >
-                                <div className="mb-3 flex items-start justify-between gap-2">
-                                  <div className="font-bold text-gray-900">{category.category_code} {category.category_name}</div>
-                                  <span className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{category.row_count} 項</span>
-                                </div>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                  <div className="rounded-lg bg-green-50 p-2">
-                                    <div className="text-green-600">正盤差成本</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-green-700">{formatMoney(category.positive_cost_total)}</div>
-                                  </div>
-                                  <div className="rounded-lg bg-red-50 p-2">
-                                    <div className="text-red-600">負盤差成本</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-red-700">{formatMoney(category.negative_cost_total)}</div>
-                                  </div>
-                                  <div className="rounded-lg bg-blue-50 p-2">
-                                    <div className="text-blue-600">加總成本</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-blue-700">{formatMoney(category.net_cost_total)}</div>
-                                  </div>
-                                  <div className="rounded-lg bg-gray-50 p-2">
-                                    <div className="text-gray-500">庫存額總額</div>
-                                    <div className="mt-1 whitespace-nowrap font-bold text-gray-800">{formatMoney(category.stock_amount_total)}</div>
-                                  </div>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-gray-200">
-                        <div className="border-b border-gray-200 px-4 py-3">
                           <h4 className="font-bold text-gray-800">
                             明細資料（{selectedAnalysisCategory ? `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}` : '全部分類'}，共 {filteredAnalysisItems.length} 筆）
                           </h4>
@@ -1812,7 +1846,7 @@ export default function InventoryManagement() {
                               {filteredAnalysisItems.map((item) => (
                                 <tr key={item.id} className="hover:bg-gray-50">
                                   <td className="px-3 py-2 font-mono">{item.product_code}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap">{item.category_code} {item.category_name}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap">{getItemCategoryCode(item)} {getItemCategoryName(item)}</td>
                                   <td className="px-3 py-2">{item.product_name}</td>
                                   <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
                                   <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
