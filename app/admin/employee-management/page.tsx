@@ -32,7 +32,7 @@ export default async function EmployeeManagementPage() {
   // 獲取所有員工的基本資料（包含離職員工），並去重
   const { data: storeEmployees } = await supabase
     .from('store_employees')
-    .select('employee_code, employee_name, start_date, birthday, current_position, is_active, employment_status');
+    .select('employee_code, employee_name, start_date, birthday, current_position, is_active, employment_status, last_movement_date');
 
   if (!storeEmployees || storeEmployees.length === 0) {
     return <EmployeeManagementClient 
@@ -42,12 +42,30 @@ export default async function EmployeeManagementPage() {
     />;
   }
 
-  // 先去重（同一員編可能有多筆門市記錄）
+  // 先去重（同一員編可能有多筆門市記錄；跨店調動時優先採用仍在職的門市資料）
   const uniqueMap = new Map<string, typeof storeEmployees[0]>();
   for (const emp of storeEmployees) {
-    if (!uniqueMap.has(emp.employee_code)) {
+    const existing = uniqueMap.get(emp.employee_code);
+    if (!existing) {
       uniqueMap.set(emp.employee_code, emp);
+      continue;
     }
+
+    const isEmpActive = emp.is_active !== false && emp.employment_status !== 'resigned';
+    const isExistingActive = existing.is_active !== false && existing.employment_status !== 'resigned';
+    const shouldUseEmp =
+      (isEmpActive && !isExistingActive) ||
+      (isEmpActive === isExistingActive &&
+        String(emp.last_movement_date || '') > String(existing.last_movement_date || ''));
+
+    const preferred = shouldUseEmp ? emp : existing;
+    const fallback = shouldUseEmp ? existing : emp;
+    uniqueMap.set(emp.employee_code, {
+      ...preferred,
+      start_date: preferred.start_date || fallback.start_date,
+      birthday: preferred.birthday || fallback.birthday,
+      current_position: preferred.current_position || fallback.current_position,
+    });
   }
   const uniqueEmpList = Array.from(uniqueMap.values());
   const allCodes = uniqueEmpList.map(e => e.employee_code);
@@ -127,13 +145,17 @@ export default async function EmployeeManagementPage() {
     }
 
     const statusDate = latestStatus ? `${latestStatus.year_month}-01` : null;
-    const hasResignedInMaster = emp.is_active === false || emp.employment_status === 'resigned';
-    const hasLatestResignationMovement =
+    const latestMovementIsNewerOrSame =
+      latestMovement && (!statusDate || latestMovement.movement_date >= statusDate);
+    const latestMovementIsResignation =
       latestMovement?.movement_type === 'resignation' &&
-      latestMovement.new_value === 'resigned' &&
-      (!statusDate || latestMovement.movement_date >= statusDate);
+      latestMovement.new_value === 'resigned';
+    const hasResignedInMasterFallback =
+      !latestMovement && (emp.is_active === false || emp.employment_status === 'resigned');
 
-    if (hasResignedInMaster || hasLatestResignationMovement) {
+    if (latestMovementIsNewerOrSame && latestMovementIsResignation) {
+      currentStatus = 'resigned';
+    } else if (hasResignedInMasterFallback) {
       currentStatus = 'resigned';
     }
 
