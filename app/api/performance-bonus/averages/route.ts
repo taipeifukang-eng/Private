@@ -67,6 +67,24 @@ function isFullTimeSpecialistOrAbove(row: Record<string, any>) {
   return FULL_TIME_SPECIALIST_OR_ABOVE_POSITIONS.has(position);
 }
 
+async function fetchAllPages<T>(
+  createQuery: (from: number, to: number) => any
+): Promise<{ data: T[]; error: any }> {
+  const pageSize = 1000;
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await createQuery(from, to);
+    if (error) return { data: rows, error };
+
+    rows.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return { data: rows, error: null };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -107,14 +125,16 @@ export async function GET(request: NextRequest) {
       resolvedStoreIds = (managed || []).map((row: any) => row.store_id).filter(Boolean);
     }
 
-    let staffQ = admin
-      .from('monthly_staff_status')
-      .select('store_id, year_month, employee_code, position, employment_type')
-      .lte('year_month', asOfYearMonth);
+    const { data: staffRows, error: staffError } = await fetchAllPages<any>((from, to) => {
+      let staffQ = admin
+        .from('monthly_staff_status')
+        .select('store_id, year_month, employee_code, position, employment_type')
+        .lte('year_month', asOfYearMonth)
+        .range(from, to);
 
-    if (resolvedStoreIds.length > 0) staffQ = staffQ.in('store_id', resolvedStoreIds);
-
-    const { data: staffRows, error: staffError } = await staffQ;
+      if (resolvedStoreIds.length > 0) staffQ = staffQ.in('store_id', resolvedStoreIds);
+      return staffQ;
+    });
     if (staffError) return NextResponse.json({ error: staffError.message }, { status: 500 });
 
     const eligiblePersonMonthKeys = new Set(
@@ -123,38 +143,40 @@ export async function GET(request: NextRequest) {
         .map((row: any) => `${row.store_id}|${row.year_month}|${row.employee_code}`)
     );
 
-    let q = admin
-      .from('monthly_bonus_records')
-      .select(`
-        store_id,
-        year_month,
-        employee_code,
-        group_bonus,
-        hr_subsidy_bonus,
-        single_item_bonus,
-        inventory_diff_penalty,
-        talent_bonus,
-        transport_fee,
-        inventory_bonus,
-        rx_incentive_bonus,
-        quarterly_makeup_bonus,
-        meal_allowance,
-        spring_festival_bonus,
-        pharmacist_guarantee,
-        owner_rx_makeup,
-        sales_competition_bonus,
-        owner_signing_bonus,
-        long_term_care_bonus,
-        manager_supervisor_quarterly_bonus,
-        opening_abnormal_responsibility_amount,
-        bonus_difference_adjustment,
-        other_bonus
-      `)
-      .lte('year_month', asOfYearMonth);
+    const { data, error } = await fetchAllPages<any>((from, to) => {
+      let q = admin
+        .from('monthly_bonus_records')
+        .select(`
+          store_id,
+          year_month,
+          employee_code,
+          group_bonus,
+          hr_subsidy_bonus,
+          single_item_bonus,
+          inventory_diff_penalty,
+          talent_bonus,
+          transport_fee,
+          inventory_bonus,
+          rx_incentive_bonus,
+          quarterly_makeup_bonus,
+          meal_allowance,
+          spring_festival_bonus,
+          pharmacist_guarantee,
+          owner_rx_makeup,
+          sales_competition_bonus,
+          owner_signing_bonus,
+          long_term_care_bonus,
+          manager_supervisor_quarterly_bonus,
+          opening_abnormal_responsibility_amount,
+          bonus_difference_adjustment,
+          other_bonus
+        `)
+        .lte('year_month', asOfYearMonth)
+        .range(from, to);
 
-    if (resolvedStoreIds.length > 0) q = q.in('store_id', resolvedStoreIds);
-
-    const { data, error } = await q;
+      if (resolvedStoreIds.length > 0) q = q.in('store_id', resolvedStoreIds);
+      return q;
+    });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const personMonthKeys = new Set<string>();
