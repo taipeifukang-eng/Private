@@ -1032,6 +1032,15 @@ interface BonusRecord {
   store?: { store_code: string; store_name: string } | { store_code: string; store_name: string }[];
 }
 
+interface BonusAverageSummary {
+  as_of_year_month: string;
+  person_month_count: number;
+  single_item_total: number;
+  group_composite_total: number;
+  average_single_item_bonus: number;
+  average_group_bonus: number;
+}
+
 const BONUS_COLS: { key: keyof BonusRecord; label: string }[] = [
   { key: 'group_bonus',            label: '團體獎金' },
   { key: 'hr_subsidy_bonus',       label: '人力補貼' },
@@ -1066,6 +1075,10 @@ function fmt(v: number) {
   return v.toLocaleString('zh-TW');
 }
 
+function fmtAmount(v: unknown) {
+  return Math.round(Number(v) || 0).toLocaleString('zh-TW');
+}
+
 function rowTotal(r: BonusRecord): number {
   return BONUS_COLS.reduce((sum, c) => sum + (Number(r[c.key]) || 0), 0);
 }
@@ -1089,7 +1102,9 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const [employeeCode,   setEmployeeCode]   = useState('');
   const [bonusKey,       setBonusKey]       = useState('');
   const [records,        setRecords]        = useState<BonusRecord[]>([]);
+  const [averageSummary, setAverageSummary] = useState<BonusAverageSummary | null>(null);
   const [loading,        setLoading]        = useState(false);
+  const [averageLoading, setAverageLoading] = useState(false);
   const [importLoading,  setImportLoading]  = useState(false);
   const [canImportBonus, setCanImportBonus] = useState(false);
   const [sortKey, setSortKey] = useState<string | null>('store');
@@ -1141,6 +1156,25 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const visibleStores = supervisorId
     ? storesWS.filter(s => s.supervisor_id === supervisorId)
     : allStores;
+
+  const loadAverageSummary = useCallback(async () => {
+    setAverageLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (supervisorId && !filterStoreId) params.set('supervisor_id', supervisorId);
+      if (filterStoreId) params.append('store_id', filterStoreId);
+
+      const res = await fetch(`/api/performance-bonus/averages?${params}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || '載入平均獎金失敗');
+      setAverageSummary(json);
+    } catch (error) {
+      console.error('[bonus average] load failed', error);
+      setAverageSummary(null);
+    } finally {
+      setAverageLoading(false);
+    }
+  }, [supervisorId, filterStoreId]);
 
   // 載入資料
   const loadRecords = useCallback(async () => {
@@ -1243,6 +1277,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   }, [yearMonth, quarter, supervisorId, filterStoreId]);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
+  useEffect(() => { loadAverageSummary(); }, [loadAverageSummary]);
 
   // 匯入
   async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
@@ -1301,6 +1336,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       await new Promise(r => setTimeout(r, 500));
       
       await loadRecords();
+      await loadAverageSummary();
       
       // 导入后再次检查FK0278
       console.log('🔍 [导入后检查] 正在查找FK0278...');
@@ -1553,6 +1589,37 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
             </label>
           </div>
         )}
+      </div>
+
+      {/* 至今平均 */}
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+          <div className="text-xs font-medium text-gray-500">計算對象</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900">
+            {averageLoading ? '...' : `${fmtAmount(averageSummary?.person_month_count)} 人月`}
+          </div>
+          <div className="mt-1 text-xs text-gray-400">
+            至 {averageSummary?.as_of_year_month || '目前'}，以有任一獎金的員工月份計
+          </div>
+        </div>
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 shadow-sm">
+          <div className="text-xs font-medium text-blue-700">平均每人單品獎金 / 月</div>
+          <div className="mt-1 text-2xl font-bold text-blue-800">
+            {averageLoading ? '...' : `${fmtAmount(averageSummary?.average_single_item_bonus)} 元`}
+          </div>
+          <div className="mt-1 text-xs text-blue-600">
+            單品獎金合計 {fmtAmount(averageSummary?.single_item_total)} 元
+          </div>
+        </div>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 shadow-sm">
+          <div className="text-xs font-medium text-emerald-700">平均每人團體獎金 / 月</div>
+          <div className="mt-1 text-2xl font-bold text-emerald-800">
+            {averageLoading ? '...' : `${fmtAmount(averageSummary?.average_group_bonus)} 元`}
+          </div>
+          <div className="mt-1 text-xs text-emerald-700">
+            團體 + 季回補 + 人力補貼合計 {fmtAmount(averageSummary?.group_composite_total)} 元
+          </div>
+        </div>
       </div>
 
       {/* 訊息列 */}
