@@ -25,6 +25,25 @@ const BONUS_VALUE_FIELDS = [
   'other_bonus',
 ] as const;
 
+const FULL_TIME_SPECIALIST_OR_ABOVE_POSITIONS = new Set([
+  '總經理',
+  '副總經理',
+  '經理',
+  '區經理',
+  '督導',
+  '店長',
+  '儲備店長',
+  '代理店長',
+  '副店長',
+  '主任',
+  '組長',
+  '專員',
+  '督導(代理店長)',
+  '區經理(代理店長)',
+  '督導(店長)',
+  '區經理(店長)',
+]);
+
 function currentYearMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -32,6 +51,20 @@ function currentYearMonth() {
 
 function isNonZeroBonusRecord(row: Record<string, any>) {
   return BONUS_VALUE_FIELDS.some((field) => (Number(row[field]) || 0) !== 0);
+}
+
+function normalizePosition(position: unknown) {
+  return String(position || '')
+    .trim()
+    .replace(/-雙$/, '')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')');
+}
+
+function isFullTimeSpecialistOrAbove(row: Record<string, any>) {
+  if (row.employment_type !== 'full_time') return false;
+  const position = normalizePosition(row.position);
+  return FULL_TIME_SPECIALIST_OR_ABOVE_POSITIONS.has(position);
 }
 
 export async function GET(request: NextRequest) {
@@ -74,6 +107,22 @@ export async function GET(request: NextRequest) {
       resolvedStoreIds = (managed || []).map((row: any) => row.store_id).filter(Boolean);
     }
 
+    let staffQ = admin
+      .from('monthly_staff_status')
+      .select('store_id, year_month, employee_code, position, employment_type')
+      .lte('year_month', asOfYearMonth);
+
+    if (resolvedStoreIds.length > 0) staffQ = staffQ.in('store_id', resolvedStoreIds);
+
+    const { data: staffRows, error: staffError } = await staffQ;
+    if (staffError) return NextResponse.json({ error: staffError.message }, { status: 500 });
+
+    const eligiblePersonMonthKeys = new Set(
+      (staffRows || [])
+        .filter(isFullTimeSpecialistOrAbove)
+        .map((row: any) => `${row.store_id}|${row.year_month}|${row.employee_code}`)
+    );
+
     let q = admin
       .from('monthly_bonus_records')
       .select(`
@@ -115,7 +164,10 @@ export async function GET(request: NextRequest) {
     (data || []).forEach((row: any) => {
       if (!isNonZeroBonusRecord(row)) return;
 
-      personMonthKeys.add(`${row.store_id}|${row.year_month}|${row.employee_code}`);
+      const personMonthKey = `${row.store_id}|${row.year_month}|${row.employee_code}`;
+      if (!eligiblePersonMonthKeys.has(personMonthKey)) return;
+
+      personMonthKeys.add(personMonthKey);
       singleItemTotal += Number(row.single_item_bonus) || 0;
       groupCompositeTotal +=
         (Number(row.group_bonus) || 0) +
@@ -134,7 +186,7 @@ export async function GET(request: NextRequest) {
       average_single_item_bonus: personMonthCount > 0 ? singleItemTotal / personMonthCount : 0,
       average_group_bonus: personMonthCount > 0 ? groupCompositeTotal / personMonthCount : 0,
       formula: {
-        denominator: 'distinct store_id + year_month + employee_code with any non-zero bonus',
+        denominator: 'distinct store_id + year_month + employee_code with any non-zero bonus and monthly_staff_status full_time specialist-or-above',
         single_item: 'single_item_bonus',
         group: 'group_bonus + quarterly_makeup_bonus + hr_subsidy_bonus',
       },

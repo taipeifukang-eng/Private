@@ -1599,7 +1599,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
             {averageLoading ? '...' : `${fmtAmount(averageSummary?.person_month_count)} 人月`}
           </div>
           <div className="mt-1 text-xs text-gray-400">
-            至 {averageSummary?.as_of_year_month || '目前'}，以有任一獎金的員工月份計
+            至 {averageSummary?.as_of_year_month || '目前'}，僅含正職專員以上且有任一獎金的員工月份
           </div>
         </div>
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 shadow-sm">
