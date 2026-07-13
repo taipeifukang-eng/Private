@@ -85,6 +85,90 @@ async function fetchAllPages<T>(
   return { data: rows, error: null };
 }
 
+function getGroupCompositeBonus(row: Record<string, any>) {
+  return (
+    (Number(row.group_bonus) || 0) +
+    (Number(row.quarterly_makeup_bonus) || 0) +
+    (Number(row.hr_subsidy_bonus) || 0)
+  );
+}
+
+function summarizePersonMonthAverage(data: any[], eligiblePersonMonthKeys: Set<string>) {
+  const personMonthKeys = new Set<string>();
+  let singleItemTotal = 0;
+  let groupCompositeTotal = 0;
+
+  data.forEach((row: any) => {
+    if (!isNonZeroBonusRecord(row)) return;
+
+    const personMonthKey = `${row.store_id}|${row.year_month}|${row.employee_code}`;
+    if (!eligiblePersonMonthKeys.has(personMonthKey)) return;
+
+    personMonthKeys.add(personMonthKey);
+    singleItemTotal += Number(row.single_item_bonus) || 0;
+    groupCompositeTotal += getGroupCompositeBonus(row);
+  });
+
+  const denominator = personMonthKeys.size;
+  return {
+    person_month_count: denominator,
+    employee_count: 0,
+    imported_month_count: 0,
+    single_item_total: singleItemTotal,
+    group_composite_total: groupCompositeTotal,
+    average_single_item_bonus: denominator > 0 ? singleItemTotal / denominator : 0,
+    average_group_bonus: denominator > 0 ? groupCompositeTotal / denominator : 0,
+  };
+}
+
+function summarizeContinuousEmployeeAverage(data: any[], staffRows: any[]) {
+  const importedMonths = Array.from(new Set(data.map((row: any) => row.year_month).filter(Boolean))).sort();
+  const importedMonthSet = new Set(importedMonths);
+
+  const eligibleMonthsByEmployee = new Map<string, Set<string>>();
+  staffRows
+    .filter(isFullTimeSpecialistOrAbove)
+    .filter((row: any) => importedMonthSet.has(row.year_month))
+    .forEach((row: any) => {
+      const employeeCode = String(row.employee_code || '').trim();
+      if (!employeeCode) return;
+      if (!eligibleMonthsByEmployee.has(employeeCode)) {
+        eligibleMonthsByEmployee.set(employeeCode, new Set());
+      }
+      eligibleMonthsByEmployee.get(employeeCode)!.add(row.year_month);
+    });
+
+  const continuousEmployeeCodes = new Set(
+    Array.from(eligibleMonthsByEmployee.entries())
+      .filter(([, months]) => importedMonths.every((month) => months.has(month)))
+      .map(([employeeCode]) => employeeCode)
+  );
+
+  let singleItemTotal = 0;
+  let groupCompositeTotal = 0;
+
+  data.forEach((row: any) => {
+    if (!continuousEmployeeCodes.has(String(row.employee_code || '').trim())) return;
+
+    singleItemTotal += Number(row.single_item_bonus) || 0;
+    groupCompositeTotal += getGroupCompositeBonus(row);
+  });
+
+  const employeeCount = continuousEmployeeCodes.size;
+  const importedMonthCount = importedMonths.length;
+  const denominator = employeeCount * importedMonthCount;
+
+  return {
+    person_month_count: denominator,
+    employee_count: employeeCount,
+    imported_month_count: importedMonthCount,
+    single_item_total: singleItemTotal,
+    group_composite_total: groupCompositeTotal,
+    average_single_item_bonus: denominator > 0 ? singleItemTotal / denominator : 0,
+    average_group_bonus: denominator > 0 ? groupCompositeTotal / denominator : 0,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -106,6 +190,10 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const asOfYearMonth = searchParams.get('as_of_year_month') || currentYearMonth();
+    const startYearMonth = searchParams.get('start_year_month') || `${asOfYearMonth.slice(0, 4)}-01`;
+    const averageMode = searchParams.get('average_mode') === 'person_month'
+      ? 'person_month'
+      : 'continuous_employee';
     const storeIds = searchParams.getAll('store_id');
     const supervisorId = searchParams.get('supervisor_id') || '';
 
@@ -129,6 +217,7 @@ export async function GET(request: NextRequest) {
       let staffQ = admin
         .from('monthly_staff_status')
         .select('store_id, year_month, employee_code, position, employment_type')
+        .gte('year_month', startYearMonth)
         .lte('year_month', asOfYearMonth)
         .range(from, to);
 
@@ -171,6 +260,7 @@ export async function GET(request: NextRequest) {
           bonus_difference_adjustment,
           other_bonus
         `)
+        .gte('year_month', startYearMonth)
         .lte('year_month', asOfYearMonth)
         .range(from, to);
 
@@ -179,36 +269,20 @@ export async function GET(request: NextRequest) {
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    const personMonthKeys = new Set<string>();
-    let singleItemTotal = 0;
-    let groupCompositeTotal = 0;
-
-    (data || []).forEach((row: any) => {
-      if (!isNonZeroBonusRecord(row)) return;
-
-      const personMonthKey = `${row.store_id}|${row.year_month}|${row.employee_code}`;
-      if (!eligiblePersonMonthKeys.has(personMonthKey)) return;
-
-      personMonthKeys.add(personMonthKey);
-      singleItemTotal += Number(row.single_item_bonus) || 0;
-      groupCompositeTotal +=
-        (Number(row.group_bonus) || 0) +
-        (Number(row.quarterly_makeup_bonus) || 0) +
-        (Number(row.hr_subsidy_bonus) || 0);
-    });
-
-    const personMonthCount = personMonthKeys.size;
+    const summary = averageMode === 'person_month'
+      ? summarizePersonMonthAverage(data || [], eligiblePersonMonthKeys)
+      : summarizeContinuousEmployeeAverage(data || [], staffRows || []);
 
     return NextResponse.json({
       success: true,
+      average_mode: averageMode,
+      start_year_month: startYearMonth,
       as_of_year_month: asOfYearMonth,
-      person_month_count: personMonthCount,
-      single_item_total: singleItemTotal,
-      group_composite_total: groupCompositeTotal,
-      average_single_item_bonus: personMonthCount > 0 ? singleItemTotal / personMonthCount : 0,
-      average_group_bonus: personMonthCount > 0 ? groupCompositeTotal / personMonthCount : 0,
+      ...summary,
       formula: {
-        denominator: 'distinct store_id + year_month + employee_code with any non-zero bonus and monthly_staff_status full_time specialist-or-above',
+        denominator: averageMode === 'person_month'
+          ? 'distinct store_id + year_month + employee_code with any non-zero bonus and monthly_staff_status full_time specialist-or-above'
+          : 'employees who are full_time specialist-or-above in every imported month, multiplied by imported month count',
         single_item: 'single_item_bonus',
         group: 'group_bonus + quarterly_makeup_bonus + hr_subsidy_bonus',
       },

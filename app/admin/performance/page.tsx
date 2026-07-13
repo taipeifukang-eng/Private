@@ -1033,8 +1033,12 @@ interface BonusRecord {
 }
 
 interface BonusAverageSummary {
+  average_mode: 'person_month' | 'continuous_employee';
+  start_year_month: string;
   as_of_year_month: string;
   person_month_count: number;
+  employee_count: number;
+  imported_month_count: number;
   single_item_total: number;
   group_composite_total: number;
   average_single_item_bonus: number;
@@ -1101,6 +1105,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
   const [filterStoreId,  setFilterStoreId]  = useState('');
   const [employeeCode,   setEmployeeCode]   = useState('');
   const [bonusKey,       setBonusKey]       = useState('');
+  const [averageMode,    setAverageMode]    = useState<'continuous_employee' | 'person_month'>('continuous_employee');
   const [records,        setRecords]        = useState<BonusRecord[]>([]);
   const [averageSummary, setAverageSummary] = useState<BonusAverageSummary | null>(null);
   const [loading,        setLoading]        = useState(false);
@@ -1161,6 +1166,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
     setAverageLoading(true);
     try {
       const params = new URLSearchParams();
+      params.set('average_mode', averageMode);
       if (supervisorId && !filterStoreId) params.set('supervisor_id', supervisorId);
       if (filterStoreId) params.append('store_id', filterStoreId);
 
@@ -1174,7 +1180,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
     } finally {
       setAverageLoading(false);
     }
-  }, [supervisorId, filterStoreId]);
+  }, [averageMode, supervisorId, filterStoreId]);
 
   // 載入資料
   const loadRecords = useCallback(async () => {
@@ -1592,14 +1598,55 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
       </div>
 
       {/* 至今平均 */}
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="space-y-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-gray-800">年度累積平均獎金</h3>
+            <p className="mt-0.5 text-xs text-gray-500">
+              每年重新計算；團體獎金 = 團體 + 季回補 + 人力補貼
+            </p>
+          </div>
+          <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setAverageMode('continuous_employee')}
+              className={`rounded-md px-3 py-1.5 transition-colors ${
+                averageMode === 'continuous_employee'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              每月皆存在員工
+            </button>
+            <button
+              type="button"
+              onClick={() => setAverageMode('person_month')}
+              className={`rounded-md px-3 py-1.5 transition-colors ${
+                averageMode === 'person_month'
+                  ? 'bg-white text-blue-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              人月平均
+            </button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
         <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
           <div className="text-xs font-medium text-gray-500">計算對象</div>
           <div className="mt-1 text-2xl font-bold text-gray-900">
-            {averageLoading ? '...' : `${fmtAmount(averageSummary?.person_month_count)} 人月`}
+            {averageLoading
+              ? '...'
+              : averageMode === 'continuous_employee'
+                ? `${fmtAmount(averageSummary?.employee_count)} 人 × ${fmtAmount(averageSummary?.imported_month_count)} 月`
+                : `${fmtAmount(averageSummary?.person_month_count)} 人月`
+            }
           </div>
           <div className="mt-1 text-xs text-gray-400">
-            至 {averageSummary?.as_of_year_month || '目前'}，僅含正職專員以上且有任一獎金的員工月份
+            {averageMode === 'continuous_employee'
+              ? `${averageSummary?.start_year_month?.slice(0, 4) || '本'} 年累積，已匯入 ${fmtAmount(averageSummary?.imported_month_count)} 個月份，僅含每月皆存在的正職專員以上員工`
+              : `${averageSummary?.start_year_month?.slice(0, 4) || '本'} 年累積，已匯入 ${fmtAmount(averageSummary?.imported_month_count)} 個月份，僅含正職專員以上且有任一獎金的員工月份`
+            }
           </div>
         </div>
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 shadow-sm">
@@ -1619,6 +1666,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
           <div className="mt-1 text-xs text-emerald-700">
             團體 + 季回補 + 人力補貼合計 {fmtAmount(averageSummary?.group_composite_total)} 元
           </div>
+        </div>
         </div>
       </div>
 
