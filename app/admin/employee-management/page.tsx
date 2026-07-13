@@ -32,7 +32,7 @@ export default async function EmployeeManagementPage() {
   // 獲取所有員工的基本資料（包含離職員工），並去重
   const { data: storeEmployees } = await supabase
     .from('store_employees')
-    .select('employee_code, employee_name, start_date, birthday, current_position');
+    .select('employee_code, employee_name, start_date, birthday, current_position, is_active, employment_status');
 
   if (!storeEmployees || storeEmployees.length === 0) {
     return <EmployeeManagementClient 
@@ -87,12 +87,32 @@ export default async function EmployeeManagementPage() {
     }
   }
 
+  // 批次查詢：每位員工最新異動，用於判斷是否已在最新月報後離職
+  const { data: allMovements } = await supabase
+    .from('employee_movement_history')
+    .select('employee_code, movement_type, new_value, movement_date')
+    .in('employee_code', allCodes)
+    .order('movement_date', { ascending: false });
+
+  const latestMovementMap = new Map<string, { movement_type: string; new_value: string; movement_date: string }>();
+  for (const movement of allMovements || []) {
+    if (!latestMovementMap.has(movement.employee_code)) {
+      latestMovementMap.set(movement.employee_code, {
+        movement_type: movement.movement_type,
+        new_value: movement.new_value,
+        movement_date: movement.movement_date,
+      });
+    }
+  }
+
   // 合併：比較 monthly_staff_status 和最新升遷記錄，取較新者
   const uniqueEmployees = uniqueEmpList.map(emp => {
     const latestStatus = latestStatusMap.get(emp.employee_code);
     const latestPromotion = latestPromotionMap.get(emp.employee_code);
+    const latestMovement = latestMovementMap.get(emp.employee_code);
 
     let currentPosition = emp.current_position || null;
+    let currentStatus = latestStatus?.monthly_status || null;
 
     if (latestStatus && latestPromotion) {
       // 升遷日期 vs 最新月報年月（取較新）
@@ -106,6 +126,17 @@ export default async function EmployeeManagementPage() {
       currentPosition = latestStatus.position;
     }
 
+    const statusDate = latestStatus ? `${latestStatus.year_month}-01` : null;
+    const hasResignedInMaster = emp.is_active === false || emp.employment_status === 'resigned';
+    const hasLatestResignationMovement =
+      latestMovement?.movement_type === 'resignation' &&
+      latestMovement.new_value === 'resigned' &&
+      (!statusDate || latestMovement.movement_date >= statusDate);
+
+    if (hasResignedInMaster || hasLatestResignationMovement) {
+      currentStatus = 'resigned';
+    }
+
     return {
       id: emp.employee_code,
       employee_code: emp.employee_code,
@@ -113,8 +144,8 @@ export default async function EmployeeManagementPage() {
       current_position: currentPosition,
       start_date: emp.start_date,
       birthday: emp.birthday || null,
-      current_status: latestStatus?.monthly_status || null,
-      is_active: latestStatus?.monthly_status !== 'resigned',
+      current_status: currentStatus,
+      is_active: currentStatus !== 'resigned',
     };
   });
 

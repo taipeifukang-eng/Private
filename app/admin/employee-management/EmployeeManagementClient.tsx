@@ -205,6 +205,7 @@ export default function EmployeeManagementClient({
           )
         `)
         .eq('employee_code', employeeCode)
+        .eq('movement_type', 'promotion')
         .order('movement_date', { ascending: false });
 
       setPromotionHistory(data || []);
