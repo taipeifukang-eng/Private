@@ -392,6 +392,10 @@ export async function POST(request: NextRequest) {
     const yearMonth = String(formData.get('year_month') || '').trim();
     const requestedOrderNo = String(formData.get('inventory_order_no') || '').trim();
     if (!file) return NextResponse.json({ success: false, error: '缺少匯入檔案' }, { status: 400 });
+    const sourceFileName = file.name.trim();
+    if (!sourceFileName) {
+      return NextResponse.json({ success: false, error: '檔案名稱不可為空' }, { status: 400 });
+    }
     if (!isValidYearMonth(yearMonth)) {
       return NextResponse.json({ success: false, error: '請選擇正確的資料年月（YYYY-MM）' }, { status: 400 });
     }
@@ -490,6 +494,28 @@ export async function POST(request: NextRequest) {
 
     const importedBatches: any[] = [];
 
+    const { data: replacedBatches, error: existingBatchError } = await admin
+      .from('inventory_result_batches')
+      .select('id')
+      .eq('year_month', yearMonth)
+      .eq('source_file_name', sourceFileName);
+
+    if (existingBatchError) {
+      return NextResponse.json({ success: false, error: existingBatchError.message }, { status: 500 });
+    }
+
+    if ((replacedBatches || []).length > 0) {
+      const { error: deleteExistingError } = await admin
+        .from('inventory_result_batches')
+        .delete()
+        .eq('year_month', yearMonth)
+        .eq('source_file_name', sourceFileName);
+
+      if (deleteExistingError) {
+        return NextResponse.json({ success: false, error: deleteExistingError.message }, { status: 500 });
+      }
+    }
+
     for (const group of Array.from(groups.values())) {
       const rowCount = group.rows.length;
       const totalDifferenceQty = group.rows.reduce((sum: number, row: Record<string, unknown>) => sum + getNum(row, '盤差量'), 0);
@@ -502,14 +528,14 @@ export async function POST(request: NextRequest) {
 
       const { data: batch, error: batchError } = await admin
         .from('inventory_result_batches')
-        .upsert({
+        .insert({
           store_id: group.store.id,
           year_month: yearMonth,
           store_code: group.store.store_code,
           store_name: getStr(group.rows[0], '店名') || group.store.store_name,
           inventory_order_no: group.orderNo,
           closed_text: closedTexts.join('、') || null,
-          source_file_name: file.name,
+          source_file_name: sourceFileName,
           imported_by: user.id,
           imported_at: new Date().toISOString(),
           row_count: rowCount,
@@ -519,15 +545,13 @@ export async function POST(request: NextRequest) {
           shortage_count: shortageCount,
           surplus_count: surplusCount,
           zero_difference_count: zeroDifferenceCount,
-        }, { onConflict: 'store_id,year_month,inventory_order_no' })
+        })
         .select('id, store_code, store_name, inventory_order_no')
         .single();
 
       if (batchError) {
         return NextResponse.json({ success: false, error: batchError.message }, { status: 500 });
       }
-
-      await admin.from('inventory_result_items').delete().eq('batch_id', batch.id);
 
       const itemPayload = group.rows.map((row: Record<string, unknown>, index: number) => {
         const productCode = normalizeProductCode(getStr(row, '品號'));
@@ -569,6 +593,7 @@ export async function POST(request: NextRequest) {
       success: true,
       imported_batches: importedBatches.length,
       imported_rows: rows.length - errors.length,
+      replaced_batches: (replacedBatches || []).length,
       batches: importedBatches,
       errors: errors.length > 0 ? errors : undefined,
     });

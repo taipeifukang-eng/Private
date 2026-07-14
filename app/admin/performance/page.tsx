@@ -1043,6 +1043,12 @@ interface BonusAverageSummary {
   group_composite_total: number;
   average_single_item_bonus: number;
   average_group_bonus: number;
+  manager_group_person_month_count: number;
+  manager_group_composite_total: number;
+  average_manager_group_bonus: number;
+  staff_group_person_month_count: number;
+  staff_group_composite_total: number;
+  average_staff_group_bonus: number;
 }
 
 const BONUS_COLS: { key: keyof BonusRecord; label: string }[] = [
@@ -1665,6 +1671,26 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
           </div>
           <div className="mt-1 text-xs text-emerald-700">
             團體 + 季回補 + 人力補貼合計 {fmtAmount(averageSummary?.group_composite_total)} 元
+          </div>
+          <div className="mt-3 grid grid-cols-1 gap-2 border-t border-emerald-200 pt-3 text-xs sm:grid-cols-2">
+            <div>
+              <div className="font-medium text-emerald-700">平均店長(代理店長)團體獎金 / 月</div>
+              <div className="mt-0.5 text-lg font-bold text-emerald-900">
+                {averageLoading ? '...' : `${fmtAmount(averageSummary?.average_manager_group_bonus)} 元`}
+              </div>
+              <div className="text-emerald-700">
+                {fmtAmount(averageSummary?.manager_group_person_month_count)} 人月，合計 {fmtAmount(averageSummary?.manager_group_composite_total)} 元
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-emerald-700">平均專員以上店長下團體獎金 / 月</div>
+              <div className="mt-0.5 text-lg font-bold text-emerald-900">
+                {averageLoading ? '...' : `${fmtAmount(averageSummary?.average_staff_group_bonus)} 元`}
+              </div>
+              <div className="text-emerald-700">
+                {fmtAmount(averageSummary?.staff_group_person_month_count)} 人月，合計 {fmtAmount(averageSummary?.staff_group_composite_total)} 元
+              </div>
+            </div>
           </div>
         </div>
         </div>

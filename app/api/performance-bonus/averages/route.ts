@@ -44,6 +44,15 @@ const FULL_TIME_SPECIALIST_OR_ABOVE_POSITIONS = new Set([
   '區經理(店長)',
 ]);
 
+const STORE_MANAGER_POSITIONS = new Set([
+  '店長',
+  '代理店長',
+  '督導(代理店長)',
+  '區經理(代理店長)',
+  '督導(店長)',
+  '區經理(店長)',
+]);
+
 function currentYearMonth() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -65,6 +74,10 @@ function isFullTimeSpecialistOrAbove(row: Record<string, any>) {
   if (row.employment_type !== 'full_time') return false;
   const position = normalizePosition(row.position);
   return FULL_TIME_SPECIALIST_OR_ABOVE_POSITIONS.has(position);
+}
+
+function isStoreManagerPosition(position: unknown) {
+  return STORE_MANAGER_POSITIONS.has(normalizePosition(position));
 }
 
 async function fetchAllPages<T>(
@@ -93,23 +106,65 @@ function getGroupCompositeBonus(row: Record<string, any>) {
   );
 }
 
-function summarizePersonMonthAverage(data: any[], eligiblePersonMonthKeys: Set<string>) {
+function getPersonMonthKey(row: Record<string, any>) {
+  return `${row.store_id}|${row.year_month}|${row.employee_code}`;
+}
+
+function getEmployeeMonthKey(row: Record<string, any>) {
+  return `${String(row.employee_code || '').trim()}|${row.year_month}`;
+}
+
+function createStaffPositionLookups(staffRows: any[]) {
+  const positionByPersonMonthKey = new Map<string, string>();
+  const positionByEmployeeMonthKey = new Map<string, string>();
+
+  staffRows.forEach((row: any) => {
+    const position = normalizePosition(row.position);
+    if (!position) return;
+    positionByPersonMonthKey.set(getPersonMonthKey(row), position);
+    if (!positionByEmployeeMonthKey.has(getEmployeeMonthKey(row))) {
+      positionByEmployeeMonthKey.set(getEmployeeMonthKey(row), position);
+    }
+  });
+
+  return { positionByPersonMonthKey, positionByEmployeeMonthKey };
+}
+
+function summarizePersonMonthAverage(data: any[], eligiblePersonMonthKeys: Set<string>, staffRows: any[]) {
+  const { positionByPersonMonthKey } = createStaffPositionLookups(staffRows);
   const personMonthKeys = new Set<string>();
+  const managerPersonMonthKeys = new Set<string>();
+  const staffPersonMonthKeys = new Set<string>();
   let singleItemTotal = 0;
   let groupCompositeTotal = 0;
+  let managerGroupCompositeTotal = 0;
+  let staffGroupCompositeTotal = 0;
 
   data.forEach((row: any) => {
     if (!isNonZeroBonusRecord(row)) return;
 
-    const personMonthKey = `${row.store_id}|${row.year_month}|${row.employee_code}`;
+    const personMonthKey = getPersonMonthKey(row);
     if (!eligiblePersonMonthKeys.has(personMonthKey)) return;
+
+    const groupCompositeBonus = getGroupCompositeBonus(row);
+    const isManager = isStoreManagerPosition(positionByPersonMonthKey.get(personMonthKey));
 
     personMonthKeys.add(personMonthKey);
     singleItemTotal += Number(row.single_item_bonus) || 0;
-    groupCompositeTotal += getGroupCompositeBonus(row);
+    groupCompositeTotal += groupCompositeBonus;
+
+    if (isManager) {
+      managerPersonMonthKeys.add(personMonthKey);
+      managerGroupCompositeTotal += groupCompositeBonus;
+    } else {
+      staffPersonMonthKeys.add(personMonthKey);
+      staffGroupCompositeTotal += groupCompositeBonus;
+    }
   });
 
   const denominator = personMonthKeys.size;
+  const managerDenominator = managerPersonMonthKeys.size;
+  const staffDenominator = staffPersonMonthKeys.size;
   return {
     person_month_count: denominator,
     employee_count: 0,
@@ -118,6 +173,12 @@ function summarizePersonMonthAverage(data: any[], eligiblePersonMonthKeys: Set<s
     group_composite_total: groupCompositeTotal,
     average_single_item_bonus: denominator > 0 ? singleItemTotal / denominator : 0,
     average_group_bonus: denominator > 0 ? groupCompositeTotal / denominator : 0,
+    manager_group_person_month_count: managerDenominator,
+    manager_group_composite_total: managerGroupCompositeTotal,
+    average_manager_group_bonus: managerDenominator > 0 ? managerGroupCompositeTotal / managerDenominator : 0,
+    staff_group_person_month_count: staffDenominator,
+    staff_group_composite_total: staffGroupCompositeTotal,
+    average_staff_group_bonus: staffDenominator > 0 ? staffGroupCompositeTotal / staffDenominator : 0,
   };
 }
 
@@ -146,17 +207,49 @@ function summarizeContinuousEmployeeAverage(data: any[], staffRows: any[]) {
 
   let singleItemTotal = 0;
   let groupCompositeTotal = 0;
+  let managerGroupCompositeTotal = 0;
+  let staffGroupCompositeTotal = 0;
+  const managerPersonMonthKeys = new Set<string>();
+  const staffPersonMonthKeys = new Set<string>();
+  const { positionByPersonMonthKey, positionByEmployeeMonthKey } = createStaffPositionLookups(staffRows);
+
+  staffRows
+    .filter(isFullTimeSpecialistOrAbove)
+    .filter((row: any) => importedMonthSet.has(row.year_month))
+    .filter((row: any) => continuousEmployeeCodes.has(String(row.employee_code || '').trim()))
+    .forEach((row: any) => {
+      const employeeMonthKey = getEmployeeMonthKey(row);
+      if (isStoreManagerPosition(row.position)) {
+        managerPersonMonthKeys.add(employeeMonthKey);
+      } else {
+        staffPersonMonthKeys.add(employeeMonthKey);
+      }
+    });
 
   data.forEach((row: any) => {
     if (!continuousEmployeeCodes.has(String(row.employee_code || '').trim())) return;
 
+    const groupCompositeBonus = getGroupCompositeBonus(row);
+    const rowPosition =
+      positionByPersonMonthKey.get(getPersonMonthKey(row))
+      || positionByEmployeeMonthKey.get(getEmployeeMonthKey(row))
+      || '';
+
     singleItemTotal += Number(row.single_item_bonus) || 0;
-    groupCompositeTotal += getGroupCompositeBonus(row);
+    groupCompositeTotal += groupCompositeBonus;
+
+    if (isStoreManagerPosition(rowPosition)) {
+      managerGroupCompositeTotal += groupCompositeBonus;
+    } else {
+      staffGroupCompositeTotal += groupCompositeBonus;
+    }
   });
 
   const employeeCount = continuousEmployeeCodes.size;
   const importedMonthCount = importedMonths.length;
   const denominator = employeeCount * importedMonthCount;
+  const managerDenominator = managerPersonMonthKeys.size;
+  const staffDenominator = staffPersonMonthKeys.size;
 
   return {
     person_month_count: denominator,
@@ -166,6 +259,12 @@ function summarizeContinuousEmployeeAverage(data: any[], staffRows: any[]) {
     group_composite_total: groupCompositeTotal,
     average_single_item_bonus: denominator > 0 ? singleItemTotal / denominator : 0,
     average_group_bonus: denominator > 0 ? groupCompositeTotal / denominator : 0,
+    manager_group_person_month_count: managerDenominator,
+    manager_group_composite_total: managerGroupCompositeTotal,
+    average_manager_group_bonus: managerDenominator > 0 ? managerGroupCompositeTotal / managerDenominator : 0,
+    staff_group_person_month_count: staffDenominator,
+    staff_group_composite_total: staffGroupCompositeTotal,
+    average_staff_group_bonus: staffDenominator > 0 ? staffGroupCompositeTotal / staffDenominator : 0,
   };
 }
 
@@ -270,7 +369,7 @@ export async function GET(request: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     const summary = averageMode === 'person_month'
-      ? summarizePersonMonthAverage(data || [], eligiblePersonMonthKeys)
+      ? summarizePersonMonthAverage(data || [], eligiblePersonMonthKeys, staffRows || [])
       : summarizeContinuousEmployeeAverage(data || [], staffRows || []);
 
     return NextResponse.json({
@@ -285,6 +384,8 @@ export async function GET(request: NextRequest) {
           : 'employees who are full_time specialist-or-above in every imported month, multiplied by imported month count',
         single_item: 'single_item_bonus',
         group: 'group_bonus + quarterly_makeup_bonus + hr_subsidy_bonus',
+        manager_group: 'positions: 店長, 代理店長, 督導/區經理(店長或代理店長)',
+        staff_group: 'full_time specialist-or-above positions not in manager_group',
       },
     });
   } catch (e: any) {
