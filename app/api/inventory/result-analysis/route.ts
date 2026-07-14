@@ -46,6 +46,7 @@ const INVENTORY_FULL_ACCESS_PERMISSIONS = [
 ];
 const INVENTORY_RESULT_ANALYSIS_OWN_VIEW_PERMISSION = 'inventory.result_analysis.view_own';
 const INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION = 'inventory.result_analysis.import';
+const INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION = 'inventory.result_analysis.delete';
 
 function normalizeStoreCode(code: unknown): string {
   return String(code || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -183,6 +184,11 @@ async function getInventoryResultAnalysisAccess(
 async function canImportInventoryResultAnalysis(userId: string): Promise<boolean> {
   return (await hasAnyInventoryFullAccessPermission(userId))
     || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION));
+}
+
+async function canDeleteInventoryResultAnalysis(userId: string): Promise<boolean> {
+  return (await hasAnyInventoryFullAccessPermission(userId))
+    || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION));
 }
 
 async function fetchInventoryResultItems(admin: ReturnType<typeof createAdminClient>, batchId: string): Promise<any[]> {
@@ -597,6 +603,48 @@ export async function POST(request: NextRequest) {
       batches: importedBatches,
       errors: errors.length > 0 ? errors : undefined,
     });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+    if (!(await canDeleteInventoryResultAnalysis(user.id))) {
+      return NextResponse.json({ success: false, error: '無刪除盤點結果分析報表權限' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const batchId = (searchParams.get('batch_id') || '').trim();
+    if (!batchId) {
+      return NextResponse.json({ success: false, error: '缺少匯入批次 ID' }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+    const { data: batch, error: batchError } = await admin
+      .from('inventory_result_batches')
+      .select('id')
+      .eq('id', batchId)
+      .single();
+
+    if (batchError || !batch) {
+      return NextResponse.json({ success: false, error: '找不到匯入批次' }, { status: 404 });
+    }
+
+    const { error: deleteError } = await admin
+      .from('inventory_result_batches')
+      .delete()
+      .eq('id', batchId);
+
+    if (deleteError) {
+      return NextResponse.json({ success: false, error: deleteError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

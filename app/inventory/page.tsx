@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search, ChevronDown, ArrowUpDown, Trash2 } from 'lucide-react';
 import { useUserPermissions } from '@/lib/permissions/hooks';
 
 type ProductData = {
@@ -122,6 +122,10 @@ export default function InventoryManagement() {
     hasPermission('inventory.manage') ||
     hasPermission('inventory.inventory.access') ||
     hasPermission('inventory.result_analysis.import');
+  const canDeleteInventoryResultAnalysis =
+    hasPermission('inventory.manage') ||
+    hasPermission('inventory.inventory.access') ||
+    hasPermission('inventory.result_analysis.delete');
 
   const [activeSection, setActiveSection] = useState<'offline' | 'analysis'>('offline');
   const [activeModule, setActiveModule] = useState<1 | 2 | 3>(1);
@@ -321,6 +325,32 @@ export default function InventoryManagement() {
       alert(`❌ ${error.message || '匯入盤點結果分析報表失敗'}`);
     } finally {
       setAnalysisImporting(false);
+    }
+  };
+
+  const handleDeleteInventoryResultAnalysisBatch = async (batch: InventoryResultBatch) => {
+    if (!canDeleteInventoryResultAnalysis) return;
+
+    const confirmed = window.confirm(
+      `確認刪除此盤點結果分析匯入批次？\n\n門市：${batch.store_code} ${batch.store_name || ''}\n年月：${batch.year_month}\n單號：${batch.inventory_order_no}\n\n刪除後不可復原。`
+    );
+    if (!confirmed) return;
+
+    setAnalysisLoading(true);
+    try {
+      const params = new URLSearchParams({ batch_id: batch.id });
+      const res = await fetch(`/api/inventory/result-analysis?${params.toString()}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '刪除盤點結果分析報表失敗');
+      }
+
+      alert('✅ 匯入批次已刪除');
+      const fallbackBatch = analysisBatches.find((row) => row.id !== batch.id);
+      await loadInventoryResultAnalysis(fallbackBatch?.id || '');
+    } catch (error: any) {
+      alert(`❌ ${error.message || '刪除盤點結果分析報表失敗'}`);
+      setAnalysisLoading(false);
     }
   };
 
@@ -1765,9 +1795,17 @@ export default function InventoryManagement() {
                   <h3 className="font-bold text-gray-800">匯入批次</h3>
                   <div className="max-h-[620px] space-y-2 overflow-y-auto pr-1">
                     {sortedAnalysisBatches.map((batch) => (
-                      <button
+                      <div
                         key={batch.id}
                         onClick={() => loadInventoryResultAnalysis(batch.id)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            loadInventoryResultAnalysis(batch.id);
+                          }
+                        }}
                         className={`w-full rounded-lg border p-3 text-left transition-colors ${
                           selectedAnalysisBatchId === batch.id
                             ? 'border-indigo-400 bg-indigo-50'
@@ -1780,9 +1818,25 @@ export default function InventoryManagement() {
                             <div className="mt-1 text-xs font-semibold text-indigo-700">年月：{batch.year_month}</div>
                             <div className="mt-1 text-xs text-gray-500">單號：{batch.inventory_order_no}</div>
                           </div>
-                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
-                            {batch.row_count} 筆
-                          </span>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                              {batch.row_count} 筆
+                            </span>
+                            {canDeleteInventoryResultAnalysis && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteInventoryResultAnalysisBatch(batch);
+                                }}
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                                title="刪除此匯入批次"
+                              >
+                                <Trash2 size={12} />
+                                刪除
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
                           <span className="rounded bg-red-50 px-2 py-1 text-red-700">短少 {batch.shortage_count} 品項</span>
@@ -1806,7 +1860,7 @@ export default function InventoryManagement() {
                         <div className="mt-2 text-xs text-gray-400">
                           {batch.imported_at ? new Date(batch.imported_at).toLocaleString('zh-TW') : ''}
                         </div>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>
