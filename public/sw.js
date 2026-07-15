@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fk-elite-v1';
+const CACHE_NAME = 'fk-elite-v2';
 
 // 預快取的核心資源
 const PRECACHE_URLS = [
@@ -35,15 +35,24 @@ self.addEventListener('activate', (event) => {
 // 攔截請求：Network First 策略（適合動態管理系統）
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  const url = new URL(request.url);
 
   // 只處理 GET 請求
   if (request.method !== 'GET') return;
 
-  // 跳過 Supabase API 和認證相關請求
+  // 只處理同源 http(s) 靜態資源；頁面、API、Next RSC 請求全部交給瀏覽器網路流程。
+  if (url.origin !== self.location.origin || !['http:', 'https:'].includes(url.protocol)) {
+    return;
+  }
+
+  // 跳過 Supabase API、認證、API、Next 動態/RSC 請求
   if (
     request.url.includes('supabase.co') ||
     request.url.includes('/auth/') ||
-    request.url.includes('/api/')
+    request.url.includes('/api/') ||
+    request.headers.get('RSC') === '1' ||
+    request.headers.has('Next-Router-State-Tree') ||
+    request.mode === 'navigate'
   ) {
     return;
   }
@@ -60,34 +69,16 @@ self.addEventListener('fetch', (event) => {
         return fetch(request).then((response) => {
           if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            caches.open(CACHE_NAME)
+              .then((cache) => cache.put(request, clone))
+              .catch(() => {});
           }
           return response;
+        }).catch(() => {
+          return new Response('Offline', { status: 503 });
         });
       })
     );
     return;
   }
-
-  // 頁面和其他資源使用 Network First 策略
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-        }
-        return response;
-      })
-      .catch(() => {
-        return caches.match(request).then((cached) => {
-          if (cached) return cached;
-          // 離線時導回首頁快取
-          if (request.mode === 'navigate') {
-            return caches.match('/');
-          }
-          return new Response('Offline', { status: 503 });
-        });
-      })
-  );
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/SignaturePad';
@@ -71,6 +71,91 @@ interface OnDutyStaff {
   is_manually_added: boolean;
 }
 
+type InspectionDraft = {
+  id: string;
+  inspectionType: 'supervisor' | 'manager';
+  updatedAt: string;
+  selectedStoreId: string;
+  inspectionDate: string;
+  expandedSections: string[];
+  itemScores: ItemScore[];
+  signaturePhoto: string;
+  supervisorSignature: string;
+  gpsLocation: { latitude: number; longitude: number; accuracy?: number } | null;
+  supervisorNotes: string;
+  indoorTemperature: string;
+  onDutyStaff: OnDutyStaff[];
+};
+
+const INSPECTION_DRAFT_DB_NAME = 'fk-inspection-drafts';
+const INSPECTION_DRAFT_STORE = 'drafts';
+
+function getInspectionDraftId(inspectionType: 'supervisor' | 'manager') {
+  return `inspection-new-${inspectionType}`;
+}
+
+function openInspectionDraftDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined' || !('indexedDB' in window)) {
+      reject(new Error('此裝置不支援巡店暫存'));
+      return;
+    }
+
+    const request = indexedDB.open(INSPECTION_DRAFT_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(INSPECTION_DRAFT_STORE)) {
+        db.createObjectStore(INSPECTION_DRAFT_STORE, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('開啟巡店暫存失敗'));
+  });
+}
+
+async function readInspectionDraft(id: string): Promise<InspectionDraft | null> {
+  const db = await openInspectionDraftDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(INSPECTION_DRAFT_STORE, 'readonly');
+    const request = tx.objectStore(INSPECTION_DRAFT_STORE).get(id);
+    request.onsuccess = () => resolve((request.result as InspectionDraft | undefined) || null);
+    request.onerror = () => reject(request.error || new Error('讀取巡店暫存失敗'));
+    tx.oncomplete = () => db.close();
+  });
+}
+
+async function writeInspectionDraft(draft: InspectionDraft): Promise<void> {
+  const db = await openInspectionDraftDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(INSPECTION_DRAFT_STORE, 'readwrite');
+    tx.objectStore(INSPECTION_DRAFT_STORE).put(draft);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error || new Error('寫入巡店暫存失敗'));
+    };
+  });
+}
+
+async function deleteInspectionDraft(id: string): Promise<void> {
+  const db = await openInspectionDraftDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(INSPECTION_DRAFT_STORE, 'readwrite');
+    tx.objectStore(INSPECTION_DRAFT_STORE).delete(id);
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error || new Error('刪除巡店暫存失敗'));
+    };
+  });
+}
+
 export default function NewInspectionPageWrapper() {
   return (
     <Suspense fallback={
@@ -91,6 +176,7 @@ function NewInspectionPage() {
   const searchParams = useSearchParams();
   const inspectionType = searchParams.get('type') === 'manager' ? 'manager' : 'supervisor';
   const isManagerType = inspectionType === 'manager';
+  const draftId = getInspectionDraftId(inspectionType);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
@@ -118,6 +204,29 @@ function NewInspectionPage() {
   const [newStaffCode, setNewStaffCode] = useState('');
   const [newStaffName, setNewStaffName] = useState('');
   const [newStaffPosition, setNewStaffPosition] = useState('');
+  const [draftSavedAt, setDraftSavedAt] = useState<string>('');
+  const draftReadyRef = useRef(false);
+  const hasDraftContentRef = useRef(false);
+  const skipNextStaffFetchForStoreRef = useRef<string | null>(null);
+
+  const hasDraftContent = () => {
+    const hasScoreContent = Array.from(itemScores.values()).some((score) =>
+      score.checked_items.length > 0 ||
+      Object.keys(score.quantities || {}).length > 0 ||
+      Boolean(score.improvement_notes.trim()) ||
+      score.photos.length > 0
+    );
+
+    return Boolean(
+      selectedStoreId ||
+      indoorTemperature ||
+      supervisorNotes.trim() ||
+      signaturePhoto ||
+      supervisorSignature ||
+      onDutyStaff.some((staff) => staff.is_manually_added || staff.is_duty_supervisor) ||
+      hasScoreContent
+    );
+  };
 
   useEffect(() => {
     loadData();
@@ -127,11 +236,85 @@ function NewInspectionPage() {
   // 門市變更時自動載入當班人員
   useEffect(() => {
     if (selectedStoreId) {
+      if (skipNextStaffFetchForStoreRef.current === selectedStoreId) {
+        skipNextStaffFetchForStoreRef.current = null;
+        return;
+      }
       fetchStaffForStore(selectedStoreId);
     } else {
       setOnDutyStaff([]);
     }
   }, [selectedStoreId]);
+
+  useEffect(() => {
+    hasDraftContentRef.current = hasDraftContent();
+  }, [
+    selectedStoreId,
+    indoorTemperature,
+    supervisorNotes,
+    signaturePhoto,
+    supervisorSignature,
+    onDutyStaff,
+    itemScores,
+  ]);
+
+  useEffect(() => {
+    if (!draftReadyRef.current || loading || submitting) return;
+
+    const timer = window.setTimeout(() => {
+      if (!hasDraftContent()) return;
+
+      const draft: InspectionDraft = {
+        id: draftId,
+        inspectionType,
+        updatedAt: new Date().toISOString(),
+        selectedStoreId,
+        inspectionDate,
+        expandedSections: Array.from(expandedSections),
+        itemScores: Array.from(itemScores.values()),
+        signaturePhoto,
+        supervisorSignature,
+        gpsLocation,
+        supervisorNotes,
+        indoorTemperature,
+        onDutyStaff,
+      };
+
+      writeInspectionDraft(draft)
+        .then(() => setDraftSavedAt(draft.updatedAt))
+        .catch((error) => {
+          console.warn('巡店暫存失敗:', error);
+        });
+    }, 700);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    draftId,
+    inspectionType,
+    loading,
+    submitting,
+    selectedStoreId,
+    inspectionDate,
+    expandedSections,
+    itemScores,
+    signaturePhoto,
+    supervisorSignature,
+    gpsLocation,
+    supervisorNotes,
+    indoorTemperature,
+    onDutyStaff,
+  ]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (!draftReadyRef.current || submitting || !hasDraftContentRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [submitting]);
 
   // 從上個月的月報表抓取人員
   const fetchStaffForStore = async (storeId: string) => {
@@ -247,8 +430,48 @@ function NewInspectionPage() {
           photos: [],
         });
       });
-      setItemScores(initialScores);
+      const draft = await readInspectionDraft(draftId).catch((error) => {
+        console.warn('讀取巡店暫存失敗:', error);
+        return null;
+      });
 
+      if (draft) {
+        const updatedAtLabel = new Date(draft.updatedAt).toLocaleString('zh-TW');
+        const shouldRestore = window.confirm(`偵測到尚未送出的巡店暫存資料（${updatedAtLabel}）。是否恢復？`);
+
+        if (shouldRestore) {
+          const restoredScores = new Map(initialScores);
+          draft.itemScores.forEach((score) => {
+            if (restoredScores.has(score.template_id)) {
+              restoredScores.set(score.template_id, score);
+            }
+          });
+
+          skipNextStaffFetchForStoreRef.current = draft.selectedStoreId || null;
+          setSelectedStoreId(draft.selectedStoreId || '');
+          setInspectionDate(draft.inspectionDate || new Date().toISOString().split('T')[0]);
+          setExpandedSections(new Set(draft.expandedSections || []));
+          setItemScores(restoredScores);
+          setSignaturePhoto(draft.signaturePhoto || '');
+          setSupervisorSignature(draft.supervisorSignature || '');
+          setGpsLocation(draft.gpsLocation || null);
+          if (draft.gpsLocation) {
+            setGpsStatus('success');
+            setGpsError('');
+          }
+          setSupervisorNotes(draft.supervisorNotes || '');
+          setIndoorTemperature(draft.indoorTemperature || '');
+          setOnDutyStaff(draft.onDutyStaff || []);
+          setDraftSavedAt(draft.updatedAt);
+        } else {
+          await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
+          setItemScores(initialScores);
+        }
+      } else {
+        setItemScores(initialScores);
+      }
+
+      draftReadyRef.current = true;
       setLoading(false);
     } catch (error) {
       console.error('❌ 載入資料失敗:', error);
@@ -665,6 +888,7 @@ function NewInspectionPage() {
       }
 
       console.log('🎯 送出完成，記錄 ID:', masterData.id);
+      await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
 
       if (isDraft) {
         alert('草稿已儲存！即將跳轉到編輯頁面，您可以預覽報表並讓店長簽名確認。');
@@ -753,6 +977,11 @@ function NewInspectionPage() {
           <p className="mt-1.5 text-xs sm:text-sm text-gray-600 leading-relaxed break-words">
             {isManagerType ? '經理巡店檢查，填寫方式與督導巡店相同' : '填寫門市巡店檢查項目，系統將自動計算分數與評級'}
           </p>
+          {draftSavedAt && (
+            <p className="mt-1 text-[11px] sm:text-xs text-emerald-600">
+              已自動暫存：{new Date(draftSavedAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })}
+            </p>
+          )}
         </div>
 
         {/* 基本資訊 */}

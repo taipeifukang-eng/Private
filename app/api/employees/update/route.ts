@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     const adminSupabase = createAdminClient();
 
     // 更新 store_employees 的基本資料
-    const { error: storeEmpError } = await adminSupabase
+    const { data: updatedEmployees, error: storeEmpError } = await adminSupabase
       .from('store_employees')
       .update({
         employee_name: employee_name.trim(),
@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
         position: current_position || null,
         current_position: current_position || null
       })
-      .eq('employee_code', employee_code.toUpperCase());
+      .eq('employee_code', employee_code.toUpperCase())
+      .select('employee_code');
 
     if (storeEmpError) {
       console.error('Error updating store_employees:', storeEmpError);
@@ -51,13 +52,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!updatedEmployees || updatedEmployees.length === 0) {
+      const { error: insertError } = await adminSupabase
+        .from('store_employees')
+        .insert({
+          employee_code: employee_code.toUpperCase(),
+          employee_name: employee_name.trim(),
+          start_date: start_date || null,
+          birthday: birthday || null,
+          position: current_position || null,
+          current_position: current_position || null,
+          employment_type: 'full_time',
+          employment_status: 'active',
+          is_active: true,
+          store_id: null,
+        });
+
+      if (insertError) {
+        console.error('Error inserting missing store_employees:', insertError);
+        return NextResponse.json(
+          { success: false, error: `資料庫補建主檔失敗：${insertError.message}` },
+          { status: 500 }
+        );
+      }
+    }
+
     // 如果有更新職位，則更新所有 monthly_staff_status 的職位
     if (current_position) {
       const { error: monthlyError } = await adminSupabase
         .from('monthly_staff_status')
         .update({
           position: current_position,
-          name: employee_name.trim()
+          employee_name: employee_name.trim()
         })
         .eq('employee_code', employee_code.toUpperCase());
 
@@ -70,7 +96,7 @@ export async function POST(request: NextRequest) {
       const { error: monthlyError } = await adminSupabase
         .from('monthly_staff_status')
         .update({
-          name: employee_name.trim()
+          employee_name: employee_name.trim()
         })
         .eq('employee_code', employee_code.toUpperCase());
 

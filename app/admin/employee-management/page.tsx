@@ -4,6 +4,49 @@ import EmployeeManagementClient from './EmployeeManagementClient';
 
 export const dynamic = 'force-dynamic';
 
+type EmployeeSource = {
+  employee_code: string;
+  employee_name: string | null;
+  start_date: string | null;
+  birthday: string | null;
+  current_position: string | null;
+  is_active: boolean | null;
+  employment_status: string | null;
+  last_movement_date: string | null;
+};
+
+type MonthlyStaffStatusSource = {
+  employee_code: string;
+  employee_name: string | null;
+  position: string | null;
+  year_month: string;
+  monthly_status: string | null;
+  start_date: string | null;
+};
+
+type EmployeeMovementSource = {
+  employee_code: string;
+  employee_name: string | null;
+  movement_type: string;
+  new_value: string | null;
+  movement_date: string;
+};
+
+async function fetchAllPages<T>(createQuery: (from: number, to: number) => any): Promise<T[]> {
+  const pageSize = 1000;
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await createQuery(from, to);
+    if (error) throw error;
+    rows.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+
+  return rows;
+}
+
 export default async function EmployeeManagementPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -29,12 +72,29 @@ export default async function EmployeeManagementPage() {
     redirect('/dashboard');
   }
 
-  // 獲取所有員工的基本資料（包含離職員工），並去重
-  const { data: storeEmployees } = await supabase
-    .from('store_employees')
-    .select('employee_code, employee_name, start_date, birthday, current_position, is_active, employment_status, last_movement_date');
+  // 獲取所有員工來源：主檔、月人員狀態、人員異動。
+  // 有些復職/歷史匯入資料只存在月報或異動紀錄，仍應出現在員工管理。
+  const [storeEmployees, allStatuses, allMovements] = await Promise.all([
+    fetchAllPages<EmployeeSource>((from, to) => supabase
+      .from('store_employees')
+      .select('employee_code, employee_name, start_date, birthday, current_position, is_active, employment_status, last_movement_date')
+      .range(from, to)
+    ),
+    fetchAllPages<MonthlyStaffStatusSource>((from, to) => supabase
+      .from('monthly_staff_status')
+      .select('employee_code, employee_name, position, year_month, monthly_status, start_date')
+      .order('year_month', { ascending: false })
+      .range(from, to)
+    ),
+    fetchAllPages<EmployeeMovementSource>((from, to) => supabase
+      .from('employee_movement_history')
+      .select('employee_code, employee_name, movement_type, new_value, movement_date')
+      .order('movement_date', { ascending: false })
+      .range(from, to)
+    ),
+  ]);
 
-  if (!storeEmployees || storeEmployees.length === 0) {
+  if (storeEmployees.length === 0 && allStatuses.length === 0 && allMovements.length === 0) {
     return <EmployeeManagementClient 
       initialEmployees={[]} 
       totalCount={0}
@@ -42,12 +102,40 @@ export default async function EmployeeManagementPage() {
     />;
   }
 
+  const latestStatusMap = new Map<string, { position: string | null; year_month: string; monthly_status: string | null; employee_name: string | null; start_date: string | null }>();
+  for (const s of allStatuses || []) {
+    const employeeCode = String(s.employee_code || '').trim().toUpperCase();
+    if (!employeeCode || latestStatusMap.has(employeeCode)) continue;
+    latestStatusMap.set(employeeCode, {
+      position: s.position,
+      year_month: s.year_month,
+      monthly_status: s.monthly_status,
+      employee_name: s.employee_name,
+      start_date: s.start_date,
+    });
+  }
+
+  const latestMovementMap = new Map<string, { movement_type: string; new_value: string | null; movement_date: string; employee_name: string | null }>();
+  for (const movement of allMovements || []) {
+    const employeeCode = String(movement.employee_code || '').trim().toUpperCase();
+    if (!employeeCode || latestMovementMap.has(employeeCode)) continue;
+    latestMovementMap.set(employeeCode, {
+      movement_type: movement.movement_type,
+      new_value: movement.new_value,
+      movement_date: movement.movement_date,
+      employee_name: movement.employee_name,
+    });
+  }
+
   // 先去重（同一員編可能有多筆門市記錄；跨店調動時優先採用仍在職的門市資料）
-  const uniqueMap = new Map<string, typeof storeEmployees[0]>();
+  const uniqueMap = new Map<string, EmployeeSource>();
   for (const emp of storeEmployees) {
-    const existing = uniqueMap.get(emp.employee_code);
+    const employeeCode = String(emp.employee_code || '').trim().toUpperCase();
+    if (!employeeCode) continue;
+
+    const existing = uniqueMap.get(employeeCode);
     if (!existing) {
-      uniqueMap.set(emp.employee_code, emp);
+      uniqueMap.set(employeeCode, { ...emp, employee_code: employeeCode });
       continue;
     }
 
@@ -60,66 +148,55 @@ export default async function EmployeeManagementPage() {
 
     const preferred = shouldUseEmp ? emp : existing;
     const fallback = shouldUseEmp ? existing : emp;
-    uniqueMap.set(emp.employee_code, {
+    uniqueMap.set(employeeCode, {
       ...preferred,
       start_date: preferred.start_date || fallback.start_date,
       birthday: preferred.birthday || fallback.birthday,
       current_position: preferred.current_position || fallback.current_position,
     });
   }
-  const uniqueEmpList = Array.from(uniqueMap.values());
-  const allCodes = uniqueEmpList.map(e => e.employee_code);
 
-  // 批次查詢：每位員工最新的 monthly_staff_status（取最大 year_month）
-  const { data: allStatuses } = await supabase
-    .from('monthly_staff_status')
-    .select('employee_code, position, year_month, monthly_status')
-    .in('employee_code', allCodes)
-    .order('year_month', { ascending: false });
-
-  // 每位員工只保留最新 year_month
-  const latestStatusMap = new Map<string, { position: string; year_month: string; monthly_status: string }>();
-  for (const s of allStatuses || []) {
-    if (!latestStatusMap.has(s.employee_code)) {
-      latestStatusMap.set(s.employee_code, {
-        position: s.position,
-        year_month: s.year_month,
-        monthly_status: (s as any).monthly_status,
-      });
-    }
+  for (const [employeeCode, status] of Array.from(latestStatusMap.entries())) {
+    if (uniqueMap.has(employeeCode)) continue;
+    uniqueMap.set(employeeCode, {
+      employee_code: employeeCode,
+      employee_name: status.employee_name || '',
+      start_date: status.start_date,
+      birthday: null,
+      current_position: status.position,
+      is_active: status.monthly_status !== 'resigned',
+      employment_status: status.monthly_status === 'resigned' ? 'resigned' : 'active',
+      last_movement_date: null,
+    });
   }
 
-  // 批次查詢：每位員工最新的升遷記錄（movement_type = 'promotion'）
-  const { data: allPromotions } = await supabase
-    .from('employee_movement_history')
-    .select('employee_code, new_value, movement_date')
-    .in('employee_code', allCodes)
-    .eq('movement_type', 'promotion')
-    .order('movement_date', { ascending: false });
+  for (const [employeeCode, movement] of Array.from(latestMovementMap.entries())) {
+    if (uniqueMap.has(employeeCode)) continue;
+    uniqueMap.set(employeeCode, {
+      employee_code: employeeCode,
+      employee_name: movement.employee_name || '',
+      start_date: null,
+      birthday: null,
+      current_position: movement.movement_type === 'promotion' ? movement.new_value : null,
+      is_active: movement.movement_type !== 'resignation',
+      employment_status: movement.movement_type === 'resignation' ? 'resigned' : 'active',
+      last_movement_date: movement.movement_date,
+    });
+  }
+
+  const uniqueEmpList = Array.from(uniqueMap.values());
 
   // 每位員工只保留最新升遷
   const latestPromotionMap = new Map<string, { position: string; movement_date: string }>();
-  for (const p of allPromotions || []) {
-    if (!latestPromotionMap.has(p.employee_code)) {
-      latestPromotionMap.set(p.employee_code, { position: p.new_value, movement_date: p.movement_date });
-    }
-  }
-
-  // 批次查詢：每位員工最新異動，用於判斷是否已在最新月報後離職
-  const { data: allMovements } = await supabase
-    .from('employee_movement_history')
-    .select('employee_code, movement_type, new_value, movement_date')
-    .in('employee_code', allCodes)
-    .order('movement_date', { ascending: false });
-
-  const latestMovementMap = new Map<string, { movement_type: string; new_value: string; movement_date: string }>();
   for (const movement of allMovements || []) {
-    if (!latestMovementMap.has(movement.employee_code)) {
-      latestMovementMap.set(movement.employee_code, {
-        movement_type: movement.movement_type,
-        new_value: movement.new_value,
-        movement_date: movement.movement_date,
-      });
+    const employeeCode = String(movement.employee_code || '').trim().toUpperCase();
+    if (
+      employeeCode &&
+      movement.movement_type === 'promotion' &&
+      movement.new_value &&
+      !latestPromotionMap.has(employeeCode)
+    ) {
+      latestPromotionMap.set(employeeCode, { position: movement.new_value, movement_date: movement.movement_date });
     }
   }
 
@@ -162,7 +239,7 @@ export default async function EmployeeManagementPage() {
     return {
       id: emp.employee_code,
       employee_code: emp.employee_code,
-      employee_name: emp.employee_name,
+      employee_name: emp.employee_name || '',
       current_position: currentPosition,
       start_date: emp.start_date,
       birthday: emp.birthday || null,
