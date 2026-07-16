@@ -1270,11 +1270,10 @@ export default function InventoryManagement() {
       品號: normalizeAnalysisProductCode(item.product_code),
       品名: item.product_name || '',
       盤差量: Number(item.difference_qty) || 0,
-      成本: Number(item.cost) || 0,
       盤差原因: item.difference_reason || '',
     }));
     const worksheet = XLSX.utils.json_to_sheet(rows, {
-      header: ['品號', '品名', '盤差量', '成本', '盤差原因'],
+      header: ['品號', '品名', '盤差量', '盤差原因'],
     });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, '盤差原因');
@@ -1298,7 +1297,7 @@ export default function InventoryManagement() {
       }
 
       const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
-      const requiredColumns = ['品號', '品名', '盤差量', '成本', '盤差原因'];
+      const requiredColumns = ['品號', '品名', '盤差量', '盤差原因'];
       const firstRow = rows[0] || {};
       const missingColumns = requiredColumns.filter((column) => !(column in firstRow));
       if (missingColumns.length > 0) {
