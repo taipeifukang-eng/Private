@@ -181,6 +181,7 @@ export default function Navbar({ user }: NavbarProps) {
   const isInInspectionSection = ['/inspection', '/admin/inspection-templates'].some(
     path => pathname.startsWith(path) || pathname === path
   );
+  const isInGeneralAffairsSection = pathname.startsWith('/general-affairs');
   // 判斷是否在跨部門管理相關頁面
   const isInCrossDeptSection = pathname.startsWith('/cross-dept');
   // 其他獨立的導航項目
@@ -401,6 +402,20 @@ export default function Navbar({ user }: NavbarProps) {
                     </div>
                   )}
                 </div>
+              )}
+
+              {permissions.canAccessGeneralAffairsService && (
+                <Link
+                  href="/general-affairs"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    isInGeneralAffairsSection
+                      ? 'bg-orange-50 text-orange-700'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <Wrench size={18} />
+                  總務服務中心
+                </Link>
               )}
 
               {/* 跨部門管理下拉選單 */}
@@ -660,6 +675,21 @@ export default function Navbar({ user }: NavbarProps) {
                   })}
                 </div>
               </div>
+            )}
+
+            {permissions.canAccessGeneralAffairsService && (
+              <Link
+                href="/general-affairs"
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                  isInGeneralAffairsSection
+                    ? 'bg-orange-50 text-orange-700'
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Wrench size={18} />
+                總務服務中心
+              </Link>
             )}
 
             {/* 其他導航項目 */}

@@ -46,6 +46,7 @@ interface NavbarPermissions {
   
   // 總務組管理
   canAccessMaintenance: boolean;           // 總務組維修回報頁面入口
+  canAccessGeneralAffairsService: boolean; // 新版總務服務中心入口
 }
 
 /**
@@ -94,6 +95,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canAccessCrossDeptMerchandise: false,
     canManageProductsMaster: false,
     canAccessMaintenance: false,
+    canAccessGeneralAffairsService: false,
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -210,6 +212,10 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           
           // 總務組管理
           canAccessMaintenance:
+            permissionSet.has('cross_dept.maintenance.view_all') ||
+            permissionSet.has('cross_dept.maintenance.submit') ||
+            permissionSet.has('cross_dept.maintenance.update'),
+          canAccessGeneralAffairsService:
             permissionSet.has('cross_dept.maintenance.view_all') ||
             permissionSet.has('cross_dept.maintenance.submit') ||
             permissionSet.has('cross_dept.maintenance.update'),

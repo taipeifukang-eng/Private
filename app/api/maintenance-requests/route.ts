@@ -19,6 +19,16 @@ function normalizeMaintenanceError(err: any) {
   return msg || '維修模組操作失敗';
 }
 
+async function getManagedStoreIds(supabase: Awaited<ReturnType<typeof createClient>>, userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('store_managers')
+    .select('store_id')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+  return Array.from(new Set((data || []).map((row: any) => row.store_id).filter(Boolean)));
+}
+
 // ──────────────────────────────────────────
 // GET /api/maintenance-requests
 //   查詢維修回報
@@ -53,9 +63,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '沒有查看所有維修回報的權限' }, { status: 403 });
     }
 
-    // 指定店舖需要有 submit 或 view_all
+    // 指定店舖需要有 submit 或 view_all；submit 僅限自己管理的門市
     if (storeId && !canSubmit && !canViewAll) {
       return NextResponse.json({ success: false, error: '沒有權限' }, { status: 403 });
+    }
+    if (storeId && canSubmit && !canViewAll) {
+      const managedStoreIds = await getManagedStoreIds(supabase, user.id);
+      if (!managedStoreIds.includes(storeId)) {
+        return NextResponse.json({ success: false, error: '沒有此門市維修回報查看權限' }, { status: 403 });
+      }
     }
 
     let query = supabase
@@ -123,19 +139,29 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
-    const canSubmit = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.submit',
-      'cross_dept.maintenance.view_all',
+    const [canSubmit, canViewAll] = await Promise.all([
+      hasAnyPermission(user.id, ['cross_dept.maintenance.submit']),
+      hasAnyPermission(user.id, ['cross_dept.maintenance.view_all']),
     ]);
-    if (!canSubmit) {
+    if (!canSubmit && !canViewAll) {
       return NextResponse.json({ success: false, error: '沒有提交維修回報的權限' }, { status: 403 });
     }
 
     const body = await request.json();
     const { store_id, title, description } = body;
+    const resourceType = String(body?.resource_type || '').trim() || null;
+    const issueType = String(body?.issue_type || '').trim() || null;
+    const contactName = String(body?.contact_name || '').trim() || null;
+    const contactPhone = String(body?.contact_phone || '').trim() || null;
 
     if (!store_id || !title) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
+    }
+    if (!canViewAll) {
+      const managedStoreIds = await getManagedStoreIds(supabase, user.id);
+      if (!managedStoreIds.includes(store_id)) {
+        return NextResponse.json({ success: false, error: '沒有此門市維修回報提交權限' }, { status: 403 });
+      }
     }
 
     // 取得回報者姓名
@@ -147,9 +173,38 @@ export async function POST(request: NextRequest) {
 
     const reporterName = profile?.full_name || user.email || 'Unknown';
 
+    const insertPayload: Record<string, any> = {
+      store_id,
+      title,
+      description: description || null,
+      reported_by: user.id,
+      reporter_name: reporterName,
+      priority: 'normal',
+      status: 'pending',
+      resource_type: resourceType,
+      issue_type: issueType,
+      contact_name: contactName,
+      contact_phone: contactPhone,
+    };
+
     const { data, error } = await supabase
       .from('maintenance_requests')
-      .insert({
+      .insert(insertPayload)
+      .select()
+      .single();
+
+    if (error) {
+      const message = String(error.message || '');
+      const missingNewColumns =
+        message.includes('resource_type') ||
+        message.includes('issue_type') ||
+        message.includes('contact_name') ||
+        message.includes('contact_phone') ||
+        message.includes('schema cache');
+
+      if (!missingNewColumns) throw error;
+
+      const fallbackPayload = {
         store_id,
         title,
         description: description || null,
@@ -157,11 +212,16 @@ export async function POST(request: NextRequest) {
         reporter_name: reporterName,
         priority: 'normal',
         status: 'pending',
-      })
-      .select()
-      .single();
+      };
+      const { data: fallbackData, error: fallbackError } = await supabase
+        .from('maintenance_requests')
+        .insert(fallbackPayload)
+        .select()
+        .single();
+      if (fallbackError) throw fallbackError;
 
-    if (error) throw error;
+      return NextResponse.json({ success: true, data: fallbackData, warning: 'maintenance_requests 新欄位尚未套用 migration，已用舊格式建立回報' }, { status: 201 });
+    }
 
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (err: any) {
