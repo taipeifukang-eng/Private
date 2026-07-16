@@ -47,6 +47,8 @@ const INVENTORY_FULL_ACCESS_PERMISSIONS = [
 const INVENTORY_RESULT_ANALYSIS_OWN_VIEW_PERMISSION = 'inventory.result_analysis.view_own';
 const INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION = 'inventory.result_analysis.import';
 const INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION = 'inventory.result_analysis.delete';
+const DIFFERENCE_REASON_THRESHOLD_SETTING_KEY = 'difference_reason_cost_threshold';
+const DEFAULT_DIFFERENCE_REASON_COST_THRESHOLD = 100;
 
 function normalizeStoreCode(code: unknown): string {
   return String(code || '').trim().toUpperCase().replace(/\s+/g, '');
@@ -191,6 +193,29 @@ async function canDeleteInventoryResultAnalysis(userId: string): Promise<boolean
     || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION));
 }
 
+async function canManageDifferenceReasonThreshold(userId: string): Promise<boolean> {
+  return hasPermission(userId, 'inventory.manage');
+}
+
+async function getDifferenceReasonCostThreshold(admin: ReturnType<typeof createAdminClient>): Promise<number> {
+  const { data, error } = await admin
+    .from('inventory_result_settings')
+    .select('value')
+    .eq('key', DIFFERENCE_REASON_THRESHOLD_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) {
+    const message = String(error.message || '');
+    if (message.includes('inventory_result_settings') || message.includes('schema cache')) {
+      return DEFAULT_DIFFERENCE_REASON_COST_THRESHOLD;
+    }
+    throw error;
+  }
+
+  const amount = Number((data?.value as any)?.amount);
+  return Number.isFinite(amount) && amount >= 0 ? amount : DEFAULT_DIFFERENCE_REASON_COST_THRESHOLD;
+}
+
 async function fetchInventoryResultItems(admin: ReturnType<typeof createAdminClient>, batchId: string): Promise<any[]> {
   const pageSize = 1000;
   const rows: any[] = [];
@@ -242,6 +267,7 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
     const access = await getInventoryResultAnalysisAccess(admin, user.id);
+    const canManageSettings = await canManageDifferenceReasonThreshold(user.id);
     if (!access.allowed) {
       return NextResponse.json({ success: false, error: '無查看盤點結果分析報表權限' }, { status: 403 });
     }
@@ -278,6 +304,8 @@ export async function GET(request: NextRequest) {
           excluded_category_codes: Array.from(EXCLUDED_CATEGORY_CODES),
           selected_batch_id: '',
           access_scope: access.scope,
+          difference_reason_cost_threshold: await getDifferenceReasonCostThreshold(admin),
+          can_manage_difference_reason_threshold: canManageSettings,
         });
       }
       q = q.in('store_id', access.storeIds);
@@ -377,7 +405,161 @@ export async function GET(request: NextRequest) {
       excluded_category_codes: Array.from(EXCLUDED_CATEGORY_CODES),
       selected_batch_id: selectedBatchId,
       access_scope: access.scope,
+      difference_reason_cost_threshold: await getDifferenceReasonCostThreshold(admin),
+      can_manage_difference_reason_threshold: canManageSettings,
     });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+    const admin = createAdminClient();
+    const body = await request.json();
+    const action = String(body?.action || '').trim();
+
+    if (action === 'update_threshold') {
+      if (!(await canManageDifferenceReasonThreshold(user.id))) {
+        return NextResponse.json({ success: false, error: '無調整盤差原因門檻權限' }, { status: 403 });
+      }
+
+      const amount = Number(body?.amount);
+      if (!Number.isFinite(amount) || amount < 0) {
+        return NextResponse.json({ success: false, error: '門檻需為 0 以上數字' }, { status: 400 });
+      }
+
+      const { error } = await admin
+        .from('inventory_result_settings')
+        .upsert({
+          key: DIFFERENCE_REASON_THRESHOLD_SETTING_KEY,
+          value: { amount },
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'key' });
+
+      if (error) {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, difference_reason_cost_threshold: amount });
+    }
+
+    if (action === 'update_reason') {
+      const itemId = String(body?.item_id || '').trim();
+      const reason = String(body?.reason || '').trim();
+      if (!itemId) {
+        return NextResponse.json({ success: false, error: '缺少明細 ID' }, { status: 400 });
+      }
+
+      const access = await getInventoryResultAnalysisAccess(admin, user.id);
+      if (!access.allowed) {
+        return NextResponse.json({ success: false, error: '無編輯盤差原因權限' }, { status: 403 });
+      }
+
+      const { data: item, error: itemError } = await admin
+        .from('inventory_result_items')
+        .select('id, store_id')
+        .eq('id', itemId)
+        .single();
+
+      if (itemError || !item) {
+        return NextResponse.json({ success: false, error: '找不到盤點明細' }, { status: 404 });
+      }
+
+      if (access.scope === 'own' && !access.storeIds.includes(item.store_id)) {
+        return NextResponse.json({ success: false, error: '無此門市盤點明細編輯權限' }, { status: 403 });
+      }
+
+      const { data: updated, error: updateError } = await admin
+        .from('inventory_result_items')
+        .update({
+          difference_reason: reason || null,
+          difference_reason_updated_by: user.id,
+          difference_reason_updated_at: new Date().toISOString(),
+        })
+        .eq('id', itemId)
+        .select('id, difference_reason, difference_reason_updated_at')
+        .single();
+
+      if (updateError) {
+        return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, item: updated });
+    }
+
+    if (action === 'bulk_update_reasons') {
+      const batchId = String(body?.batch_id || '').trim();
+      const rows = Array.isArray(body?.rows) ? body.rows : [];
+      if (!batchId) {
+        return NextResponse.json({ success: false, error: '缺少盤點批次 ID' }, { status: 400 });
+      }
+      if (rows.length === 0) {
+        return NextResponse.json({ success: false, error: '匯入檔案無可更新資料' }, { status: 400 });
+      }
+
+      const access = await getInventoryResultAnalysisAccess(admin, user.id);
+      if (!access.allowed) {
+        return NextResponse.json({ success: false, error: '無編輯盤差原因權限' }, { status: 403 });
+      }
+
+      const { data: batch, error: batchError } = await admin
+        .from('inventory_result_batches')
+        .select('id, store_id')
+        .eq('id', batchId)
+        .single();
+
+      if (batchError || !batch) {
+        return NextResponse.json({ success: false, error: '找不到盤點批次' }, { status: 404 });
+      }
+
+      if (access.scope === 'own' && !access.storeIds.includes(batch.store_id)) {
+        return NextResponse.json({ success: false, error: '無此門市盤點明細編輯權限' }, { status: 403 });
+      }
+
+      const reasonByProductCode = new Map<string, string>();
+      rows.forEach((row: any) => {
+        const productCode = normalizeProductCode(row?.product_code);
+        if (!productCode) return;
+        reasonByProductCode.set(productCode, String(row?.difference_reason || '').trim());
+      });
+
+      if (reasonByProductCode.size === 0) {
+        return NextResponse.json({ success: false, error: '匯入檔案缺少有效品號' }, { status: 400 });
+      }
+
+      const updatedItems: any[] = [];
+      for (const [productCode, reason] of Array.from(reasonByProductCode.entries())) {
+        const { data: updated, error: updateError } = await admin
+          .from('inventory_result_items')
+          .update({
+            difference_reason: reason || null,
+            difference_reason_updated_by: user.id,
+            difference_reason_updated_at: new Date().toISOString(),
+          })
+          .eq('batch_id', batchId)
+          .eq('product_code', productCode)
+          .select('id, product_code, difference_reason, difference_reason_updated_at');
+
+        if (updateError) {
+          return NextResponse.json({ success: false, error: updateError.message }, { status: 500 });
+        }
+        updatedItems.push(...(updated || []));
+      }
+
+      return NextResponse.json({
+        success: true,
+        updated_count: updatedItems.length,
+        updated_items: updatedItems,
+      });
+    }
+
+    return NextResponse.json({ success: false, error: '未知的更新動作' }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }

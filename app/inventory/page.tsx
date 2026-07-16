@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search, ChevronDown, ArrowUpDown, Trash2 } from 'lucide-react';
 import { useUserPermissions } from '@/lib/permissions/hooks';
@@ -73,6 +73,8 @@ type InventoryResultItem = {
   unit_cost: number;
   stock_qty: number;
   stock_amount: number;
+  difference_reason: string | null;
+  difference_reason_updated_at: string | null;
 };
 
 type InventoryCategorySummary = {
@@ -169,6 +171,13 @@ export default function InventoryManagement() {
   const [analysisImportGuideCollapsed, setAnalysisImportGuideCollapsed] = useState(true);
   const [analysisShowDiffOnly, setAnalysisShowDiffOnly] = useState(false);
   const [analysisExcludeSpecialCategories, setAnalysisExcludeSpecialCategories] = useState(false);
+  const [analysisShowReasonRequiredOnly, setAnalysisShowReasonRequiredOnly] = useState(false);
+  const [differenceReasonCostThreshold, setDifferenceReasonCostThreshold] = useState(100);
+  const [differenceReasonThresholdInput, setDifferenceReasonThresholdInput] = useState('100');
+  const [canManageDifferenceReasonThreshold, setCanManageDifferenceReasonThreshold] = useState(false);
+  const [savingDifferenceReasonIds, setSavingDifferenceReasonIds] = useState<Set<string>>(new Set());
+  const [savingDifferenceReasonThreshold, setSavingDifferenceReasonThreshold] = useState(false);
+  const differenceReasonImportRef = useRef<HTMLInputElement>(null);
   const [analysisDetailSort, setAnalysisDetailSort] = useState<{ key: AnalysisDetailSortKey; direction: 'asc' | 'desc' }>({
     key: 'product_code',
     direction: 'asc',
@@ -274,6 +283,11 @@ export default function InventoryManagement() {
       setAnalysisNonExcludedSummary(json.non_excluded_summary || null);
       setSelectedAnalysisBatchId(json.selected_batch_id || '');
       setSelectedAnalysisCategoryCode('');
+      const threshold = Number(json.difference_reason_cost_threshold);
+      const normalizedThreshold = Number.isFinite(threshold) && threshold >= 0 ? threshold : 100;
+      setDifferenceReasonCostThreshold(normalizedThreshold);
+      setDifferenceReasonThresholdInput(String(normalizedThreshold));
+      setCanManageDifferenceReasonThreshold(Boolean(json.can_manage_difference_reason_threshold));
     } catch (error: any) {
       alert(`❌ ${error.message || '載入盤點結果分析報表失敗'}`);
     } finally {
@@ -351,6 +365,90 @@ export default function InventoryManagement() {
     } catch (error: any) {
       alert(`❌ ${error.message || '刪除盤點結果分析報表失敗'}`);
       setAnalysisLoading(false);
+    }
+  };
+
+  const isDifferenceReasonRequired = (item: InventoryResultItem) => {
+    const cost = Number(item.cost) || 0;
+    return cost > differenceReasonCostThreshold || cost < -differenceReasonCostThreshold;
+  };
+
+  const isDifferenceReasonMissing = (item: InventoryResultItem) =>
+    isDifferenceReasonRequired(item) && !String(item.difference_reason || '').trim();
+
+  const updateDifferenceReasonLocal = (itemId: string, reason: string) => {
+    setAnalysisItems((items) => items.map((item) => (
+      item.id === itemId ? { ...item, difference_reason: reason } : item
+    )));
+  };
+
+  const saveDifferenceReason = async (item: InventoryResultItem, reason: string) => {
+    const normalizedReason = reason.trim();
+
+    setSavingDifferenceReasonIds((current) => new Set(current).add(item.id));
+    try {
+      const res = await fetch('/api/inventory/result-analysis', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_reason',
+          item_id: item.id,
+          reason: normalizedReason,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '儲存盤差原因失敗');
+      }
+      setAnalysisItems((items) => items.map((row) => (
+        row.id === item.id
+          ? {
+            ...row,
+            difference_reason: json.item?.difference_reason || '',
+            difference_reason_updated_at: json.item?.difference_reason_updated_at || row.difference_reason_updated_at,
+          }
+          : row
+      )));
+    } catch (error: any) {
+      alert(`❌ ${error.message || '儲存盤差原因失敗'}`);
+    } finally {
+      setSavingDifferenceReasonIds((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  };
+
+  const saveDifferenceReasonThreshold = async () => {
+    const amount = Number(differenceReasonThresholdInput);
+    if (!Number.isFinite(amount) || amount < 0) {
+      alert('❌ 門檻需為 0 以上數字');
+      return;
+    }
+
+    setSavingDifferenceReasonThreshold(true);
+    try {
+      const res = await fetch('/api/inventory/result-analysis', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_threshold',
+          amount,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '更新盤差原因門檻失敗');
+      }
+      const updatedThreshold = Number(json.difference_reason_cost_threshold);
+      setDifferenceReasonCostThreshold(updatedThreshold);
+      setDifferenceReasonThresholdInput(String(updatedThreshold));
+      alert('✅ 盤差原因門檻已更新');
+    } catch (error: any) {
+      alert(`❌ ${error.message || '更新盤差原因門檻失敗'}`);
+    } finally {
+      setSavingDifferenceReasonThreshold(false);
     }
   };
 
@@ -1134,9 +1232,14 @@ export default function InventoryManagement() {
   const specialCategoryFilteredAnalysisItems = analysisExcludeSpecialCategories
     ? categoryFilteredAnalysisItems.filter((item) => !excludedAnalysisCategoryCodes.has(getItemCategoryCode(item)))
     : categoryFilteredAnalysisItems;
-  const filteredAnalysisItems = analysisShowDiffOnly
+  const diffFilteredAnalysisItems = analysisShowDiffOnly
     ? specialCategoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
     : specialCategoryFilteredAnalysisItems;
+  const filteredAnalysisItems = analysisShowReasonRequiredOnly
+    ? diffFilteredAnalysisItems.filter(isDifferenceReasonMissing)
+    : diffFilteredAnalysisItems;
+  const differenceReasonRequiredItems = specialCategoryFilteredAnalysisItems.filter(isDifferenceReasonRequired);
+  const differenceReasonMissingCount = differenceReasonRequiredItems.filter(isDifferenceReasonMissing).length;
   const getAnalysisSortValue = (item: InventoryResultItem, key: AnalysisDetailSortKey): string | number => {
     if (key === 'product_code') return normalizeAnalysisProductCode(item.product_code);
     if (key === 'category') return `${getItemCategoryCode(item)} ${getItemCategoryName(item)}`;
@@ -1153,6 +1256,103 @@ export default function InventoryManagement() {
     }
     return String(aValue).localeCompare(String(bValue), 'zh-TW', { numeric: true }) * direction;
   });
+  const exportDifferenceReasonXlsx = () => {
+    if (!selectedAnalysisBatch) {
+      alert('❌ 請先選擇盤點批次');
+      return;
+    }
+    if (sortedFilteredAnalysisItems.length === 0) {
+      alert('❌ 目前篩選結果沒有可匯出的明細');
+      return;
+    }
+
+    const rows = sortedFilteredAnalysisItems.map((item) => ({
+      品號: normalizeAnalysisProductCode(item.product_code),
+      品名: item.product_name || '',
+      盤差量: Number(item.difference_qty) || 0,
+      成本: Number(item.cost) || 0,
+      盤差原因: item.difference_reason || '',
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows, {
+      header: ['品號', '品名', '盤差量', '成本', '盤差原因'],
+    });
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, '盤差原因');
+    const storeCode = selectedAnalysisBatch.store_code || '門市';
+    const yearMonth = selectedAnalysisBatch.year_month || analysisYearMonth || '年月';
+    XLSX.writeFile(workbook, `盤差原因匯入_${storeCode}_${yearMonth}.xlsx`);
+  };
+
+  const importDifferenceReasonXlsx = async (file: File) => {
+    if (!selectedAnalysisBatchId) {
+      alert('❌ 請先選擇盤點批次');
+      return;
+    }
+
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      if (!worksheet) {
+        throw new Error('Excel 無工作表');
+      }
+
+      const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet, { defval: '' });
+      const requiredColumns = ['品號', '品名', '盤差量', '成本', '盤差原因'];
+      const firstRow = rows[0] || {};
+      const missingColumns = requiredColumns.filter((column) => !(column in firstRow));
+      if (missingColumns.length > 0) {
+        throw new Error(`缺少欄位：${missingColumns.join('、')}`);
+      }
+
+      const importRows = rows
+        .map((row) => ({
+          product_code: normalizeAnalysisProductCode(row['品號']),
+          difference_reason: String(row['盤差原因'] || '').trim(),
+        }))
+        .filter((row) => row.product_code);
+
+      if (importRows.length === 0) {
+        throw new Error('匯入檔案沒有有效品號');
+      }
+
+      const res = await fetch('/api/inventory/result-analysis', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'bulk_update_reasons',
+          batch_id: selectedAnalysisBatchId,
+          rows: importRows,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '匯入盤差原因失敗');
+      }
+
+      const updatedById = new Map<string, any>(
+        (json.updated_items || []).map((item: any) => [item.id, item])
+      );
+      setAnalysisItems((items) => items.map((item) => {
+        const updated = updatedById.get(item.id);
+        return updated
+          ? {
+            ...item,
+            difference_reason: updated.difference_reason || '',
+            difference_reason_updated_at: updated.difference_reason_updated_at || item.difference_reason_updated_at,
+          }
+          : item;
+      }));
+      alert(`✅ 已匯入盤差原因：更新 ${Number(json.updated_count) || 0} 筆明細`);
+    } catch (error: any) {
+      alert(`❌ ${error.message || '匯入盤差原因失敗'}`);
+    } finally {
+      if (differenceReasonImportRef.current) {
+        differenceReasonImportRef.current.value = '';
+      }
+    }
+  };
+
   const handleAnalysisSort = (key: AnalysisDetailSortKey) => {
     setAnalysisDetailSort((current) => ({
       key,
@@ -2000,10 +2200,65 @@ export default function InventoryManagement() {
 
                       <div className="rounded-xl border border-gray-200">
                         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
-                          <h4 className="font-bold text-gray-800">
-                            明細資料（{selectedAnalysisCategory ? `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}` : '全部分類'}，共 {filteredAnalysisItems.length} 筆）
-                          </h4>
+                          <div>
+                            <h4 className="font-bold text-gray-800">
+                              明細資料（{selectedAnalysisCategory ? `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}` : '全部分類'}，共 {filteredAnalysisItems.length} 筆）
+                            </h4>
+                            <p className="mt-1 text-xs text-gray-500">
+                              成本 &gt; {formatSummaryNumber(differenceReasonCostThreshold)} 或 &lt; -{formatSummaryNumber(differenceReasonCostThreshold)} 需填寫盤差原因；未填 {differenceReasonMissingCount} 筆
+                            </p>
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={exportDifferenceReasonXlsx}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                              >
+                                <Download size={14} />
+                                匯出
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => differenceReasonImportRef.current?.click()}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                              >
+                                <Upload size={14} />
+                                匯入
+                              </button>
+                              <input
+                                ref={differenceReasonImportRef}
+                                type="file"
+                                accept=".xlsx,.xls"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  if (file) {
+                                    void importDifferenceReasonXlsx(file);
+                                  }
+                                }}
+                              />
+                            </div>
+                          </div>
                           <div className="flex flex-wrap items-center gap-2">
+                            {canManageDifferenceReasonThreshold && (
+                              <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1">
+                                <span className="text-xs font-semibold text-gray-600">原因門檻</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={differenceReasonThresholdInput}
+                                  onChange={(e) => setDifferenceReasonThresholdInput(e.target.value)}
+                                  className="w-20 rounded border border-gray-300 px-2 py-1 text-right text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-100"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={saveDifferenceReasonThreshold}
+                                  disabled={savingDifferenceReasonThreshold}
+                                  className="rounded bg-indigo-600 px-2 py-1 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                                >
+                                  {savingDifferenceReasonThreshold ? '儲存中' : '儲存'}
+                                </button>
+                              </div>
+                            )}
                             <button
                               type="button"
                               onClick={() => setAnalysisExcludeSpecialCategories((value) => !value)}
@@ -2026,6 +2281,17 @@ export default function InventoryManagement() {
                             >
                               {analysisShowDiffOnly ? '顯示全部品項' : '只看盤差不等於 0'}
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setAnalysisShowReasonRequiredOnly((value) => !value)}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                analysisShowReasonRequiredOnly
+                                  ? 'border-red-300 bg-red-50 text-red-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              {analysisShowReasonRequiredOnly ? '顯示全部原因狀態' : `填寫盤差原因（${differenceReasonMissingCount}）`}
+                            </button>
                           </div>
                         </div>
                         <div className="max-h-[680px] overflow-auto">
@@ -2041,28 +2307,59 @@ export default function InventoryManagement() {
                                 <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差額(會員)', 'difference_amount_member')}</th>
                                 <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存量', 'stock_qty')}</th>
                                 <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存額', 'stock_amount')}</th>
+                                <th className="min-w-[240px] px-3 py-2 text-left">盤差原因</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {sortedFilteredAnalysisItems.map((item) => (
-                                <tr key={item.id} className="hover:bg-gray-50">
-                                  <td className="px-3 py-2 font-mono">{item.product_code}</td>
-                                  <td className="px-3 py-2 whitespace-nowrap">{getItemCategoryCode(item)} {getItemCategoryName(item)}</td>
-                                  <td className="px-3 py-2">{item.product_name}</td>
-                                  <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
-                                  <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                    {formatMoney(item.difference_qty)}
-                                  </td>
-                                  <td className={`px-3 py-2 text-right font-semibold ${Number(item.cost) < 0 ? 'text-red-600' : Number(item.cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                    {formatMoney(item.cost)}
-                                  </td>
-                                  <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_amount_member) < 0 ? 'text-red-600' : Number(item.difference_amount_member) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                    {formatMoney(item.difference_amount_member)}
-                                  </td>
-                                  <td className="px-3 py-2 text-right">{formatMoney(item.stock_qty)}</td>
-                                  <td className="px-3 py-2 text-right">{formatMoney(item.stock_amount)}</td>
-                                </tr>
-                              ))}
+                              {sortedFilteredAnalysisItems.map((item) => {
+                                const reasonRequired = isDifferenceReasonRequired(item);
+                                const reasonMissing = isDifferenceReasonMissing(item);
+                                const isSavingReason = savingDifferenceReasonIds.has(item.id);
+                                return (
+                                  <tr key={item.id} className={`hover:bg-gray-50 ${reasonMissing ? 'bg-red-50/40' : ''}`}>
+                                    <td className="px-3 py-2 font-mono">{item.product_code}</td>
+                                    <td className="px-3 py-2 whitespace-nowrap">{getItemCategoryCode(item)} {getItemCategoryName(item)}</td>
+                                    <td className="px-3 py-2">{item.product_name}</td>
+                                    <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
+                                    <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {formatMoney(item.difference_qty)}
+                                    </td>
+                                    <td className={`px-3 py-2 text-right font-semibold ${Number(item.cost) < 0 ? 'text-red-600' : Number(item.cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {formatMoney(item.cost)}
+                                    </td>
+                                    <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_amount_member) < 0 ? 'text-red-600' : Number(item.difference_amount_member) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                      {formatMoney(item.difference_amount_member)}
+                                    </td>
+                                    <td className="px-3 py-2 text-right">{formatMoney(item.stock_qty)}</td>
+                                    <td className="px-3 py-2 text-right">{formatMoney(item.stock_amount)}</td>
+                                    <td className="px-3 py-2">
+                                      <div className="space-y-1">
+                                        <input
+                                          value={item.difference_reason || ''}
+                                          onChange={(e) => updateDifferenceReasonLocal(item.id, e.target.value)}
+                                          onBlur={(e) => saveDifferenceReason(item, e.target.value)}
+                                          placeholder={reasonRequired ? '請填寫盤差原因' : '選填'}
+                                          className={`w-full rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus:ring-2 ${
+                                            reasonMissing
+                                              ? 'border-red-300 bg-white text-red-900 focus:border-red-500 focus:ring-red-100'
+                                              : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-100'
+                                          }`}
+                                        />
+                                        <div className="flex items-center justify-between gap-2 text-[10px]">
+                                          {reasonRequired ? (
+                                            <span className={reasonMissing ? 'font-semibold text-red-600' : 'font-semibold text-emerald-600'}>
+                                              {reasonMissing ? '需填寫' : '已填寫'}
+                                            </span>
+                                          ) : (
+                                            <span className="text-gray-400">未達門檻</span>
+                                          )}
+                                          {isSavingReason && <span className="text-indigo-600">儲存中...</span>}
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
