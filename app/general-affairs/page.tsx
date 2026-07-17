@@ -562,6 +562,28 @@ export default function GeneralAffairsServiceCenterPage() {
     );
   };
 
+  const renderReportDateFilter = () => (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2">
+      <CalendarDays size={16} className="text-orange-500" />
+      <span className="text-sm font-semibold text-slate-700">回報日期</span>
+      <input
+        type="date"
+        value={reportStartDate}
+        max={reportEndDate || undefined}
+        onChange={(event) => updateReportStartDate(event.target.value)}
+        className="rounded-md border border-orange-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+      />
+      <span className="text-xs font-semibold text-orange-400">至</span>
+      <input
+        type="date"
+        value={reportEndDate}
+        min={reportStartDate || undefined}
+        onChange={(event) => updateReportEndDate(event.target.value)}
+        className="rounded-md border border-orange-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+      />
+    </div>
+  );
+
   const renderNewReport = () => (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
       <div className="rounded-lg border border-slate-200 bg-white">
@@ -856,10 +878,13 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const renderMyReports = () => (
     <div className="space-y-4">
-      <div>
-        <div className="text-sm text-slate-500">維修回報 / 我的回報</div>
-        <h1 className="mt-1 text-2xl font-bold text-slate-950">我的回報</h1>
-        <p className="mt-1 text-sm text-slate-500">查看您發起或所屬門市的維修工單與處理進度</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="text-sm text-slate-500">維修回報 / 我的回報</div>
+          <h1 className="mt-1 text-2xl font-bold text-slate-950">我的回報</h1>
+          <p className="mt-1 text-sm text-slate-500">查看您發起或所屬門市的維修工單與處理進度</p>
+        </div>
+        {renderReportDateFilter()}
       </div>
 
       <div className="overflow-x-auto border-b border-slate-200">
@@ -933,25 +958,6 @@ export default function GeneralAffairsServiceCenterPage() {
               ))}
             </select>
           </label>
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-            <CalendarDays size={16} className="text-orange-500" />
-            <span className="text-sm font-semibold text-slate-700">回報日期</span>
-            <input
-              type="date"
-              value={reportStartDate}
-              max={reportEndDate || undefined}
-              onChange={(event) => updateReportStartDate(event.target.value)}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-            />
-            <span className="text-xs font-semibold text-slate-400">至</span>
-            <input
-              type="date"
-              value={reportEndDate}
-              min={reportStartDate || undefined}
-              onChange={(event) => updateReportEndDate(event.target.value)}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
-            />
-          </div>
           <label className="relative min-w-[260px] flex-1">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
             <input
