@@ -380,6 +380,7 @@ export default function GeneralAffairsServiceCenterPage() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [vendorForm, setVendorForm] = useState(emptyVendorForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
+  const [categoryCommonItemInput, setCategoryCommonItemInput] = useState('');
   const [regionForm, setRegionForm] = useState(emptyRegionForm);
   const [form, setForm] = useState({
     resourceType: 'equipment' as ResourceType,
@@ -466,6 +467,7 @@ export default function GeneralAffairsServiceCenterPage() {
   const openNewCategoryForm = () => {
     setEditingCategoryId(null);
     setCategoryForm(emptyCategoryForm);
+    setCategoryCommonItemInput('');
     setIsCategoryFormOpen(true);
   };
 
@@ -481,13 +483,40 @@ export default function GeneralAffairsServiceCenterPage() {
       sortOrder: Number(category.sort_order || 10),
       commonItems: (category.common_items || []).join(','),
     });
+    setCategoryCommonItemInput('');
     setIsCategoryFormOpen(true);
   };
 
   const closeCategoryForm = () => {
     setEditingCategoryId(null);
     setCategoryForm(emptyCategoryForm);
+    setCategoryCommonItemInput('');
     setIsCategoryFormOpen(false);
+  };
+
+  const getCategoryCommonItems = () =>
+    categoryForm.commonItems.split(',').map((item) => item.trim()).filter(Boolean);
+
+  const addCategoryCommonItem = () => {
+    const nextItem = categoryCommonItemInput.trim();
+    if (!nextItem) return;
+    const currentItems = getCategoryCommonItems();
+    if (currentItems.includes(nextItem)) {
+      setCategoryCommonItemInput('');
+      return;
+    }
+    setCategoryForm((current) => ({
+      ...current,
+      commonItems: [...currentItems, nextItem].join(','),
+    }));
+    setCategoryCommonItemInput('');
+  };
+
+  const removeCategoryCommonItem = (target: string) => {
+    setCategoryForm((current) => ({
+      ...current,
+      commonItems: current.commonItems.split(',').map((item) => item.trim()).filter((item) => item && item !== target).join(','),
+    }));
   };
 
   const updateReportStartDate = (value: string) => {
@@ -2098,7 +2127,39 @@ export default function GeneralAffairsServiceCenterPage() {
           <label className="block text-sm font-semibold text-slate-700">分類代碼 *<input value={categoryForm.code} onChange={(event) => setCategoryForm({ ...categoryForm, code: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="英文大寫，2-10碼" /></label>
           <textarea value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="分類描述（選填）" />
           <div className="grid grid-cols-2 gap-3"><label className="block text-sm font-semibold text-slate-700">狀態<select value={categoryForm.status} onChange={(event) => setCategoryForm({ ...categoryForm, status: event.target.value as VendorCategoryStatus })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="active">啟用中</option><option value="inactive">停用中</option></select></label><label className="block text-sm font-semibold text-slate-700">排序<input type="number" value={categoryForm.sortOrder} onChange={(event) => setCategoryForm({ ...categoryForm, sortOrder: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label></div>
-          <label className="block text-sm font-semibold text-slate-700">常見服務項目<input value={categoryForm.commonItems} onChange={(event) => setCategoryForm({ ...categoryForm, commonItems: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="以逗號分隔，例如：冷氣維修,冷氣保養" /></label>
+          <div className="block text-sm font-semibold text-slate-700">
+            常見服務項目
+            <input
+              value={categoryCommonItemInput}
+              onChange={(event) => setCategoryCommonItemInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  addCategoryCommonItem();
+                }
+              }}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+              placeholder="請輸入服務項目後按 Enter 新增"
+            />
+            <div className="mt-1 text-xs font-normal text-slate-500">可加入此分類下常見的服務項目，便於工單建立時選擇</div>
+            {getCategoryCommonItems().length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {getCategoryCommonItems().map((item) => (
+                  <span key={item} className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                    {item}
+                    <button
+                      type="button"
+                      onClick={() => removeCategoryCommonItem(item)}
+                      className="text-slate-400 hover:text-slate-700"
+                      aria-label={`移除${item}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
           <button type="button" onClick={saveVendorCategory} disabled={savingCategory} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">{savingCategory ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}{editingCategoryId ? '更新分類' : '儲存分類'}</button>
         </div>
       )}
