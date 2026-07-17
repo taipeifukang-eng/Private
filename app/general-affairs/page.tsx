@@ -862,6 +862,31 @@ export default function GeneralAffairsServiceCenterPage() {
         <p className="mt-1 text-sm text-slate-500">查看您發起或所屬門市的維修工單與處理進度</p>
       </div>
 
+      <div className="overflow-x-auto border-b border-slate-200">
+        <div className="flex min-w-max items-center gap-7 px-1">
+          {reportStatusFilters.map((filter) => {
+            const Icon = filter.icon;
+            const isActive = statusFilter === filter.key;
+
+            return (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setStatusFilter(filter.key)}
+                className={`inline-flex items-center gap-1.5 border-b-2 px-1 py-3 text-sm font-bold transition-colors ${
+                  isActive
+                    ? 'border-orange-500 text-orange-600'
+                    : 'border-transparent text-slate-500 hover:border-orange-200 hover:text-slate-800'
+                }`}
+              >
+                <Icon size={16} strokeWidth={2.4} />
+                {filter.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid gap-3 md:grid-cols-5">
         {reportStatusFilters.map((filter) => {
           const Icon = filter.icon;
