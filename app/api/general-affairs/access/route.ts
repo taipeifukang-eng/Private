@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 const GENERAL_AFFAIRS_SERVICE_ACCESS_PERMISSION = 'general_affairs.service_center.access';
 
@@ -12,35 +13,7 @@ export async function GET() {
       return NextResponse.json({ allowed: false, error: '未登入' }, { status: 401 });
     }
 
-    const adminClient = createAdminClient();
-    const { data, error } = await adminClient
-      .from('user_roles')
-      .select(`
-        is_active,
-        expires_at,
-        role:roles!inner (
-          role_permissions!inner (
-            is_allowed,
-            permission:permissions!inner (code)
-          )
-        )
-      `)
-      .eq('user_id', user.id)
-      .eq('is_active', true);
-
-    if (error) throw error;
-
-    const now = Date.now();
-    const allowed = (data || []).some((userRole: any) => {
-      const expiresAt = userRole.expires_at ? new Date(userRole.expires_at).getTime() : null;
-      const notExpired = expiresAt === null || expiresAt > now;
-      if (!notExpired) return false;
-
-      return userRole.role?.role_permissions?.some((rolePermission: any) =>
-        rolePermission.is_allowed &&
-        rolePermission.permission?.code === GENERAL_AFFAIRS_SERVICE_ACCESS_PERMISSION
-      );
-    });
+    const allowed = await hasPermission(user.id, GENERAL_AFFAIRS_SERVICE_ACCESS_PERMISSION);
 
     return NextResponse.json({ allowed });
   } catch (error) {

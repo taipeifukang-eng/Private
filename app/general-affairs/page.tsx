@@ -2046,7 +2046,10 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const renderCategoryFormPanel = () => (
     <aside className={`rounded-lg border border-slate-200 bg-white p-5 ${isCategoryFormOpen ? '' : 'hidden xl:block'}`}>
-      <h2 className="text-lg font-black text-slate-950">新增服務分類</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-black text-slate-950">新增服務分類</h2>
+        {isCategoryFormOpen && <button type="button" onClick={() => setIsCategoryFormOpen(false)} className="text-slate-400 hover:text-slate-700">×</button>}
+      </div>
       {!isCategoryFormOpen ? <div className="mt-8 text-center text-sm text-slate-500">點選「新增分類」建立分類</div> : (
         <div className="mt-4 space-y-4">
           <label className="block text-sm font-semibold text-slate-700">上層分類<select value={categoryForm.parentId} onChange={(event) => setCategoryForm({ ...categoryForm, parentId: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="">無（頂層分類）</option>{vendorCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
@@ -2063,7 +2066,10 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const renderRegionFormPanel = () => (
     <aside className={`rounded-lg border border-slate-200 bg-white p-5 ${isRegionFormOpen ? '' : 'hidden xl:block'}`}>
-      <h2 className="text-lg font-black text-slate-950">新增服務區域</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-black text-slate-950">新增服務區域</h2>
+        {isRegionFormOpen && <button type="button" onClick={() => setIsRegionFormOpen(false)} className="text-slate-400 hover:text-slate-700">×</button>}
+      </div>
       {!isRegionFormOpen ? <div className="mt-8 text-center text-sm text-slate-500">點選「新增服務區域」建立區域</div> : (
         <div className="mt-4 space-y-4">
           <label className="block text-sm font-semibold text-slate-700">上層區域<select value={regionForm.parentId} onChange={(event) => setRegionForm({ ...regionForm, parentId: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="">無（頂層區域）</option>{vendorRegions.map((region) => <option key={region.id} value={region.id}>{region.name}</option>)}</select></label>

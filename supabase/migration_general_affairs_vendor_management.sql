@@ -2,7 +2,7 @@
 -- 總務服務中心 - 廠商管理
 -- 說明：
 --   建立新版總務服務中心使用的廠商、服務分類與服務區域資料表。
---   UI 入口由 general_affairs.service_center.access 控制。
+--   UI 入口與資料存取皆由 general_affairs.service_center.access 控制。
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS ga_service_categories (
@@ -100,24 +100,33 @@ ALTER TABLE ga_vendors ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "ga_service_categories_read" ON ga_service_categories;
 CREATE POLICY "ga_service_categories_read" ON ga_service_categories
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT TO authenticated
+  USING (has_permission(auth.uid(), 'general_affairs.service_center.access'));
 DROP POLICY IF EXISTS "ga_service_categories_write" ON ga_service_categories;
 CREATE POLICY "ga_service_categories_write" ON ga_service_categories
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated
+  USING (has_permission(auth.uid(), 'general_affairs.service_center.access'))
+  WITH CHECK (has_permission(auth.uid(), 'general_affairs.service_center.access'));
 
 DROP POLICY IF EXISTS "ga_service_regions_read" ON ga_service_regions;
 CREATE POLICY "ga_service_regions_read" ON ga_service_regions
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT TO authenticated
+  USING (has_permission(auth.uid(), 'general_affairs.service_center.access'));
 DROP POLICY IF EXISTS "ga_service_regions_write" ON ga_service_regions;
 CREATE POLICY "ga_service_regions_write" ON ga_service_regions
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated
+  USING (has_permission(auth.uid(), 'general_affairs.service_center.access'))
+  WITH CHECK (has_permission(auth.uid(), 'general_affairs.service_center.access'));
 
 DROP POLICY IF EXISTS "ga_vendors_read" ON ga_vendors;
 CREATE POLICY "ga_vendors_read" ON ga_vendors
-  FOR SELECT TO authenticated USING (true);
+  FOR SELECT TO authenticated
+  USING (has_permission(auth.uid(), 'general_affairs.service_center.access'));
 DROP POLICY IF EXISTS "ga_vendors_write" ON ga_vendors;
 CREATE POLICY "ga_vendors_write" ON ga_vendors
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated
+  USING (has_permission(auth.uid(), 'general_affairs.service_center.access'))
+  WITH CHECK (has_permission(auth.uid(), 'general_affairs.service_center.access'));
 
 CREATE INDEX IF NOT EXISTS idx_ga_service_categories_status ON ga_service_categories(status);
 CREATE INDEX IF NOT EXISTS idx_ga_service_categories_parent ON ga_service_categories(parent_id);
