@@ -416,6 +416,8 @@ export default function GeneralAffairsServiceCenterPage() {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [vendorFormStep, setVendorFormStep] = useState<VendorFormStep>('basic');
   const [vendorAttachmentNames, setVendorAttachmentNames] = useState<string[]>([]);
+  const [expandedRegionIds, setExpandedRegionIds] = useState<string[]>([]);
+  const [regionSearch, setRegionSearch] = useState('');
   const [vendorForm, setVendorForm] = useState(emptyVendorForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [categoryCommonItemInput, setCategoryCommonItemInput] = useState('');
@@ -440,6 +442,70 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const getRegionName = (regionId: string) =>
     vendorRegions.find((region) => region.id === regionId)?.name || regionId;
+
+  const getRegionLabel = (regionId: string) => {
+    const region = vendorRegions.find((item) => item.id === regionId);
+    if (!region) return regionId;
+    if (region.region_type !== 'district' || !region.parent_id) return region.name;
+    const city = vendorRegions.find((item) => item.id === region.parent_id);
+    return city ? `${city.name} ${region.name}` : region.name;
+  };
+
+  const regionChildrenMap = useMemo(() => {
+    const map = new Map<string | null, VendorRegion[]>();
+    vendorRegions.forEach((region) => {
+      const key = region.parent_id || null;
+      map.set(key, [...(map.get(key) || []), region]);
+    });
+    map.forEach((regions) => regions.sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || a.name.localeCompare(b.name, 'zh-TW')));
+    return map;
+  }, [vendorRegions]);
+
+  const getRegionChildren = (parentId: string | null) => regionChildrenMap.get(parentId) || [];
+
+  const getRegionDescendantIds = (regionId: string): string[] => {
+    const children = getRegionChildren(regionId);
+    return children.flatMap((child) => [child.id, ...getRegionDescendantIds(child.id)]);
+  };
+
+  const getRegionAncestorIds = (region: VendorRegion): string[] => {
+    const result: string[] = [];
+    let parentId = region.parent_id;
+    while (parentId) {
+      result.push(parentId);
+      parentId = vendorRegions.find((item) => item.id === parentId)?.parent_id || null;
+    }
+    return result;
+  };
+
+  const selectedRegionLabels = useMemo(() => vendorForm.regionIds.map(getRegionLabel), [vendorForm.regionIds, vendorRegions]);
+
+  const regionMatchesSearch = (region: VendorRegion, keyword: string): boolean => {
+    if (!keyword) return true;
+    const haystack = [region.name, region.code, region.description, ...(region.included_locations || [])].join(' ').toLowerCase();
+    if (haystack.includes(keyword)) return true;
+    return getRegionChildren(region.id).some((child) => regionMatchesSearch(child, keyword));
+  };
+
+  const toggleVendorRegionSelection = (region: VendorRegion) => {
+    setVendorForm((current) => {
+      const selected = current.regionIds.includes(region.id);
+      const descendants = getRegionDescendantIds(region.id);
+      const ancestors = getRegionAncestorIds(region);
+      const nextIds = selected
+        ? current.regionIds.filter((id) => id !== region.id)
+        : [...current.regionIds.filter((id) => id !== region.id && !descendants.includes(id) && !ancestors.includes(id)), region.id];
+      return { ...current, regionIds: nextIds };
+    });
+  };
+
+  const removeVendorRegionSelection = (regionId: string) => {
+    setVendorForm((current) => ({ ...current, regionIds: current.regionIds.filter((id) => id !== regionId) }));
+  };
+
+  const toggleExpandedRegion = (regionId: string) => {
+    setExpandedRegionIds((current) => current.includes(regionId) ? current.filter((id) => id !== regionId) : [...current, regionId]);
+  };
 
   const vendorStats = useMemo(() => {
     const active = vendors.filter((vendor) => vendor.status === 'active').length;
@@ -2157,6 +2223,51 @@ export default function GeneralAffairsServiceCenterPage() {
     );
   };
 
+  const renderVendorRegionTree = (regions: VendorRegion[], level = 0) => {
+    const keyword = regionSearch.trim().toLowerCase();
+    return regions
+      .filter((region) => region.status === 'active' && regionMatchesSearch(region, keyword))
+      .map((region) => {
+        const children = getRegionChildren(region.id).filter((child) => child.status === 'active' && regionMatchesSearch(child, keyword));
+        const hasChildren = children.length > 0;
+        const expanded = expandedRegionIds.includes(region.id) || Boolean(keyword);
+        const selected = vendorForm.regionIds.includes(region.id);
+        const descendantSelected = getRegionDescendantIds(region.id).some((id) => vendorForm.regionIds.includes(id));
+
+        return (
+          <div key={region.id}>
+            <div
+              className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${selected ? 'bg-orange-50 text-orange-700' : descendantSelected ? 'bg-slate-50 text-slate-800' : 'text-slate-700 hover:bg-slate-50'}`}
+              style={{ paddingLeft: `${8 + level * 18}px` }}
+            >
+              {hasChildren ? (
+                <button type="button" onClick={() => toggleExpandedRegion(region.id)} className="grid h-6 w-6 place-items-center rounded hover:bg-white">
+                  <ChevronRight size={15} className={expanded ? 'rotate-90' : ''} />
+                </button>
+              ) : (
+                <span className="h-6 w-6" />
+              )}
+              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selected}
+                  onChange={() => toggleVendorRegionSelection(region)}
+                />
+                <span className="truncate font-semibold">{region.name}</span>
+                {region.region_type === 'city' && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">全縣市</span>}
+              </label>
+              {hasChildren && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{children.length}</span>}
+            </div>
+            {hasChildren && expanded && (
+              <div className="mt-1 space-y-1">
+                {renderVendorRegionTree(children, level + 1)}
+              </div>
+            )}
+          </div>
+        );
+      });
+  };
+
   const renderVendorFormPanel = () => {
     const currentStepIndex = vendorFormSteps.findIndex((step) => step.key === vendorFormStep);
     const isLastStep = vendorFormStep === 'attachments';
@@ -2285,8 +2396,54 @@ export default function GeneralAffairsServiceCenterPage() {
                     <label className="mt-4 block text-sm font-semibold text-slate-700">服務能力說明<textarea value={vendorForm.serviceCapabilityNote} onChange={(event) => setVendorForm({ ...vendorForm, serviceCapabilityNote: event.target.value })} rows={4} className={inputClass} placeholder="請描述廠商的服務特色、專長、設備或服務能力等..." /></label>
                   </div>
                   <div className="rounded-lg border border-slate-200 p-5">
-                    <h2 className="font-black text-slate-950">服務區域設定</h2>
-                    <div className="mt-3 flex flex-wrap gap-2">{vendorRegions.map((region) => <button key={region.id} type="button" onClick={() => toggleVendorFormArray('regionIds', region.id)} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${vendorForm.regionIds.includes(region.id) ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{region.name}</button>)}</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="font-black text-slate-950">服務區域設定</h2>
+                        <p className="mt-1 text-sm text-slate-500">可選擇整個縣市，或展開到行政區精準設定。</p>
+                      </div>
+                      {vendorForm.regionIds.length > 0 && (
+                        <button type="button" onClick={() => setVendorForm({ ...vendorForm, regionIds: [] })} className="text-sm font-semibold text-orange-600 hover:text-orange-700">清除全部</button>
+                      )}
+                    </div>
+                    <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+                      <div className="rounded-lg border border-slate-200">
+                        <div className="border-b border-slate-200 p-3">
+                          <label className="relative block">
+                            <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
+                            <input
+                              value={regionSearch}
+                              onChange={(event) => setRegionSearch(event.target.value)}
+                              className="w-full rounded-lg border border-slate-300 py-2 pl-9 pr-3 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+                              placeholder="搜尋縣市或行政區"
+                            />
+                          </label>
+                        </div>
+                        <div className="max-h-[420px] space-y-1 overflow-auto p-2">
+                          {renderVendorRegionTree(getRegionChildren(null))}
+                        </div>
+                      </div>
+                      <aside className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="font-black text-slate-950">已選服務範圍</h3>
+                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">{vendorForm.regionIds.length}</span>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {vendorForm.regionIds.length === 0 ? (
+                            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-sm text-slate-500">尚未選擇服務區域</div>
+                          ) : vendorForm.regionIds.map((id) => (
+                            <span key={id} className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                              {getRegionLabel(id)}
+                              <button type="button" onClick={() => removeVendorRegionSelection(id)} className="text-slate-400 hover:text-slate-700">×</button>
+                            </span>
+                          ))}
+                        </div>
+                        {selectedRegionLabels.length > 0 && (
+                          <div className="mt-4 rounded-lg bg-white p-3 text-xs leading-5 text-slate-500">
+                            已選：{selectedRegionLabels.slice(0, 5).join('、')}{selectedRegionLabels.length > 5 ? ` 等 ${selectedRegionLabels.length} 個區域` : ''}
+                          </div>
+                        )}
+                      </aside>
+                    </div>
                   </div>
                 </section>
               </div>
