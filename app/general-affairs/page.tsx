@@ -1654,7 +1654,7 @@ export default function GeneralAffairsServiceCenterPage() {
     );
   };
 
-  const renderVendorStatusBadge = (status: VendorStatus | VendorCategoryStatus | VendorRegionStatus) => {
+  const renderVendorStatusBadge = (status: VendorStatus | VendorCategoryStatus | VendorRegionStatus, scope: 'vendor' | 'setting' = 'vendor') => {
     const meta: Record<string, string> = {
       active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       paused: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -1662,9 +1662,9 @@ export default function GeneralAffairsServiceCenterPage() {
       archived: 'bg-slate-100 text-slate-500 border-slate-200',
     };
     const label: Record<string, string> = {
-      active: '合作中',
+      active: scope === 'vendor' ? '合作中' : '啟用中',
       paused: '暫停合作',
-      inactive: '已停用',
+      inactive: scope === 'vendor' ? '已停用' : '停用中',
       archived: '已歸檔',
     };
     return <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${meta[status] || meta.inactive}`}>{label[status] || status}</span>;
@@ -1872,7 +1872,7 @@ export default function GeneralAffairsServiceCenterPage() {
                   <td className="px-4 py-3 font-mono text-slate-600">{category.code}</td>
                   <td className="px-4 py-3 text-slate-600">{category.parent_id ? getCategoryName(category.parent_id) : '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{category.common_items?.length || 0}</td>
-                  <td className="px-4 py-3">{renderVendorStatusBadge(category.status)}</td>
+                  <td className="px-4 py-3">{renderVendorStatusBadge(category.status, 'setting')}</td>
                   <td className="px-4 py-3 text-slate-600">{category.sort_order}</td>
                 </tr>
               ))}
@@ -1906,7 +1906,7 @@ export default function GeneralAffairsServiceCenterPage() {
                   <td className="px-4 py-3 font-mono text-slate-600">{region.code}</td>
                   <td className="px-4 py-3 text-slate-600">{region.region_type}</td>
                   <td className="px-4 py-3 text-slate-600">{(region.included_locations || []).slice(0, 4).join('、') || '-'}</td>
-                  <td className="px-4 py-3">{renderVendorStatusBadge(region.status)}</td>
+                  <td className="px-4 py-3">{renderVendorStatusBadge(region.status, 'setting')}</td>
                   <td className="px-4 py-3 text-slate-600">{vendors.filter((vendor) => (vendor.service_region_ids || []).includes(region.id)).length}</td>
                 </tr>
               ))}
