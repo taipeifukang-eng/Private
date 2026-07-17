@@ -27,6 +27,7 @@ import {
   MapPin,
   MoreHorizontal,
   Package,
+  Pencil,
   Phone,
   Plus,
   Search,
@@ -376,6 +377,7 @@ export default function GeneralAffairsServiceCenterPage() {
   const [isVendorFormOpen, setIsVendorFormOpen] = useState(false);
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isRegionFormOpen, setIsRegionFormOpen] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [vendorForm, setVendorForm] = useState(emptyVendorForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [regionForm, setRegionForm] = useState(emptyRegionForm);
@@ -459,6 +461,33 @@ export default function GeneralAffairsServiceCenterPage() {
         [key]: list.includes(value) ? list.filter((item) => item !== value) : [...list, value],
       };
     });
+  };
+
+  const openNewCategoryForm = () => {
+    setEditingCategoryId(null);
+    setCategoryForm(emptyCategoryForm);
+    setIsCategoryFormOpen(true);
+  };
+
+  const openEditCategoryForm = (category: VendorCategory) => {
+    setEditingCategoryId(category.id);
+    setCategoryForm({
+      parentId: category.parent_id || '',
+      name: category.name || '',
+      code: category.code || '',
+      description: category.description || '',
+      iconKey: category.icon_key || 'wrench',
+      status: category.status || 'active',
+      sortOrder: Number(category.sort_order || 10),
+      commonItems: (category.common_items || []).join(','),
+    });
+    setIsCategoryFormOpen(true);
+  };
+
+  const closeCategoryForm = () => {
+    setEditingCategoryId(null);
+    setCategoryForm(emptyCategoryForm);
+    setIsCategoryFormOpen(false);
   };
 
   const updateReportStartDate = (value: string) => {
@@ -603,7 +632,7 @@ export default function GeneralAffairsServiceCenterPage() {
     setSavingCategory(true);
     try {
       const commonItems = categoryForm.commonItems.split(',').map((item) => item.trim()).filter(Boolean);
-      const { error } = await supabase.from('ga_service_categories').insert({
+      const payload = {
         name: categoryForm.name.trim(),
         code: categoryForm.code.trim().toUpperCase(),
         parent_id: categoryForm.parentId || null,
@@ -612,10 +641,12 @@ export default function GeneralAffairsServiceCenterPage() {
         status: categoryForm.status,
         sort_order: Number(categoryForm.sortOrder || 10),
         common_items: commonItems,
-      });
+      };
+      const { error } = editingCategoryId
+        ? await supabase.from('ga_service_categories').update(payload).eq('id', editingCategoryId)
+        : await supabase.from('ga_service_categories').insert(payload);
       if (error) throw error;
-      setCategoryForm(emptyCategoryForm);
-      setIsCategoryFormOpen(false);
+      closeCategoryForm();
       await loadVendorManagementData();
     } catch (error: any) {
       alert(`儲存服務分類失敗：${error.message || error}`);
@@ -1853,7 +1884,7 @@ export default function GeneralAffairsServiceCenterPage() {
   const renderVendorCategories = () => (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-4">
-        {renderVendorHeader('服務分類管理', '管理服務分類項目，供廠商設定服務能力與工單分類使用', '新增分類', () => setIsCategoryFormOpen(true))}
+        {renderVendorHeader('服務分類管理', '管理服務分類項目，供廠商設定服務能力與工單分類使用', '新增分類', openNewCategoryForm)}
         <div className="grid gap-3 md:grid-cols-4">
           {[
             ['全部分類', vendorCategories.length, Folder, 'bg-blue-50 text-blue-600'],
@@ -1864,7 +1895,7 @@ export default function GeneralAffairsServiceCenterPage() {
         </div>
         <div className="rounded-lg border border-slate-200 bg-white">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500"><tr><th className="px-4 py-3">分類名稱</th><th className="px-4 py-3">分類代碼</th><th className="px-4 py-3">上層分類</th><th className="px-4 py-3">包含項目數</th><th className="px-4 py-3">狀態</th><th className="px-4 py-3">排序</th></tr></thead>
+            <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500"><tr><th className="px-4 py-3">分類名稱</th><th className="px-4 py-3">分類代碼</th><th className="px-4 py-3">上層分類</th><th className="px-4 py-3">包含項目數</th><th className="px-4 py-3">狀態</th><th className="px-4 py-3">排序</th><th className="px-4 py-3">操作</th></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {vendorCategories.map((category) => (
                 <tr key={category.id}>
@@ -1874,6 +1905,16 @@ export default function GeneralAffairsServiceCenterPage() {
                   <td className="px-4 py-3 text-slate-600">{category.common_items?.length || 0}</td>
                   <td className="px-4 py-3">{renderVendorStatusBadge(category.status, 'setting')}</td>
                   <td className="px-4 py-3 text-slate-600">{category.sort_order}</td>
+                  <td className="px-4 py-3">
+                    <button
+                      type="button"
+                      onClick={() => openEditCategoryForm(category)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 hover:text-orange-600"
+                    >
+                      <Pencil size={14} />
+                      編輯
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -2047,18 +2088,18 @@ export default function GeneralAffairsServiceCenterPage() {
   const renderCategoryFormPanel = () => (
     <aside className={`rounded-lg border border-slate-200 bg-white p-5 ${isCategoryFormOpen ? '' : 'hidden xl:block'}`}>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-black text-slate-950">新增服務分類</h2>
-        {isCategoryFormOpen && <button type="button" onClick={() => setIsCategoryFormOpen(false)} className="text-slate-400 hover:text-slate-700">×</button>}
+        <h2 className="text-lg font-black text-slate-950">{editingCategoryId ? '編輯服務分類' : '新增服務分類'}</h2>
+        {isCategoryFormOpen && <button type="button" onClick={closeCategoryForm} className="text-slate-400 hover:text-slate-700">×</button>}
       </div>
       {!isCategoryFormOpen ? <div className="mt-8 text-center text-sm text-slate-500">點選「新增分類」建立分類</div> : (
         <div className="mt-4 space-y-4">
-          <label className="block text-sm font-semibold text-slate-700">上層分類<select value={categoryForm.parentId} onChange={(event) => setCategoryForm({ ...categoryForm, parentId: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="">無（頂層分類）</option>{vendorCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+          <label className="block text-sm font-semibold text-slate-700">上層分類<select value={categoryForm.parentId} onChange={(event) => setCategoryForm({ ...categoryForm, parentId: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="">無（頂層分類）</option>{vendorCategories.filter((category) => category.id !== editingCategoryId).map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
           <label className="block text-sm font-semibold text-slate-700">分類名稱 *<input value={categoryForm.name} onChange={(event) => setCategoryForm({ ...categoryForm, name: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
           <label className="block text-sm font-semibold text-slate-700">分類代碼 *<input value={categoryForm.code} onChange={(event) => setCategoryForm({ ...categoryForm, code: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="英文大寫，2-10碼" /></label>
           <textarea value={categoryForm.description} onChange={(event) => setCategoryForm({ ...categoryForm, description: event.target.value })} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="分類描述（選填）" />
           <div className="grid grid-cols-2 gap-3"><label className="block text-sm font-semibold text-slate-700">狀態<select value={categoryForm.status} onChange={(event) => setCategoryForm({ ...categoryForm, status: event.target.value as VendorCategoryStatus })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"><option value="active">啟用中</option><option value="inactive">停用中</option></select></label><label className="block text-sm font-semibold text-slate-700">排序<input type="number" value={categoryForm.sortOrder} onChange={(event) => setCategoryForm({ ...categoryForm, sortOrder: Number(event.target.value) })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" /></label></div>
           <label className="block text-sm font-semibold text-slate-700">常見服務項目<input value={categoryForm.commonItems} onChange={(event) => setCategoryForm({ ...categoryForm, commonItems: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" placeholder="以逗號分隔，例如：冷氣維修,冷氣保養" /></label>
-          <button type="button" onClick={saveVendorCategory} disabled={savingCategory} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">{savingCategory ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}儲存分類</button>
+          <button type="button" onClick={saveVendorCategory} disabled={savingCategory} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">{savingCategory ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}{editingCategoryId ? '更新分類' : '儲存分類'}</button>
         </div>
       )}
     </aside>
