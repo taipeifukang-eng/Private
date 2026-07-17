@@ -27,6 +27,7 @@ import {
   MapPin,
   MoreHorizontal,
   Package,
+  Paperclip,
   Pencil,
   Phone,
   Plus,
@@ -36,6 +37,7 @@ import {
   Star,
   Tags,
   Trash2,
+  Upload,
   User,
   Warehouse,
   Wrench,
@@ -47,6 +49,7 @@ type ResourceType = 'equipment' | 'facility' | 'material';
 type ServiceSection = 'maintenance' | 'work-orders' | 'equipment' | 'facilities' | 'vendors' | 'parts';
 type MaintenanceView = 'new' | 'mine';
 type VendorView = 'list' | 'categories' | 'regions' | 'stats';
+type VendorFormStep = 'basic' | 'services' | 'contacts' | 'cooperation' | 'attachments';
 type VendorStatus = 'active' | 'paused' | 'inactive';
 type VendorCategoryStatus = 'active' | 'inactive';
 type VendorRegionStatus = 'active' | 'inactive' | 'archived';
@@ -130,6 +133,19 @@ type Vendor = {
   line_id: string | null;
   email: string | null;
   description: string | null;
+  service_capability_note: string | null;
+  billing_title: string | null;
+  billing_address: string | null;
+  invoice_type: string | null;
+  payment_terms: string | null;
+  payment_methods: string[] | null;
+  accounting_notes: string | null;
+  cooperation_start_date: string | null;
+  contract_end_date: string | null;
+  contract_required: boolean;
+  preferred_vendor: boolean;
+  cooperation_notes: string | null;
+  attachment_names: string[] | null;
   tags: string[] | null;
   brands: string[] | null;
   equipment_types: string[] | null;
@@ -253,6 +269,14 @@ const vendorViewItems: Array<{ key: VendorView; label: string; icon: any }> = [
   { key: 'stats', label: '合作記錄統計', icon: BarChart3 },
 ];
 
+const vendorFormSteps: Array<{ key: VendorFormStep; label: string }> = [
+  { key: 'basic', label: '基本資料' },
+  { key: 'services', label: '服務項目與區域' },
+  { key: 'contacts', label: '聯絡人與帳務' },
+  { key: 'cooperation', label: '合作與備註' },
+  { key: 'attachments', label: '附件檔案' },
+];
+
 const defaultBrandSeeds = ['DAIKIN 大金', '國際牌 Panasonic', '日立 HITACHI', '三菱電機 MITSUBISHI', '東元 TECO', '格力 GREE', '聲寶 SAMPO', '禾聯 HERAN'];
 
 const emptyVendorForm = {
@@ -277,11 +301,23 @@ const emptyVendorForm = {
   lineId: '',
   email: '',
   description: '',
+  serviceCapabilityNote: '',
+  cooperationNotes: '',
   tags: '',
   categoryIds: [] as string[],
   regionIds: [] as string[],
   brands: [] as string[],
   equipmentTypes: [] as string[],
+  billingTitle: '',
+  billingAddress: '',
+  invoiceType: '二聯式',
+  paymentTerms: '月結30天',
+  paymentMethods: [] as string[],
+  accountingNotes: '',
+  cooperationStartDate: '',
+  contractEndDate: '',
+  contractRequired: true,
+  preferredVendor: true,
 };
 
 const emptyCategoryForm = {
@@ -378,6 +414,8 @@ export default function GeneralAffairsServiceCenterPage() {
   const [isCategoryFormOpen, setIsCategoryFormOpen] = useState(false);
   const [isRegionFormOpen, setIsRegionFormOpen] = useState(false);
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [vendorFormStep, setVendorFormStep] = useState<VendorFormStep>('basic');
+  const [vendorAttachmentNames, setVendorAttachmentNames] = useState<string[]>([]);
   const [vendorForm, setVendorForm] = useState(emptyVendorForm);
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [categoryCommonItemInput, setCategoryCommonItemInput] = useState('');
@@ -462,6 +500,41 @@ export default function GeneralAffairsServiceCenterPage() {
         [key]: list.includes(value) ? list.filter((item) => item !== value) : [...list, value],
       };
     });
+  };
+
+  const toggleVendorPaymentMethod = (value: string) => {
+    setVendorForm((current) => ({
+      ...current,
+      paymentMethods: current.paymentMethods.includes(value)
+        ? current.paymentMethods.filter((item) => item !== value)
+        : [...current.paymentMethods, value],
+    }));
+  };
+
+  const openVendorForm = () => {
+    setVendorForm(emptyVendorForm);
+    setVendorFormStep('basic');
+    setVendorAttachmentNames([]);
+    setIsVendorFormOpen(true);
+  };
+
+  const closeVendorForm = () => {
+    setVendorForm(emptyVendorForm);
+    setVendorFormStep('basic');
+    setVendorAttachmentNames([]);
+    setIsVendorFormOpen(false);
+  };
+
+  const goNextVendorFormStep = () => {
+    const currentIndex = vendorFormSteps.findIndex((step) => step.key === vendorFormStep);
+    const nextStep = vendorFormSteps[currentIndex + 1];
+    if (nextStep) setVendorFormStep(nextStep.key);
+  };
+
+  const goPreviousVendorFormStep = () => {
+    const currentIndex = vendorFormSteps.findIndex((step) => step.key === vendorFormStep);
+    const previousStep = vendorFormSteps[currentIndex - 1];
+    if (previousStep) setVendorFormStep(previousStep.key);
   };
 
   const openNewCategoryForm = () => {
@@ -630,6 +703,19 @@ export default function GeneralAffairsServiceCenterPage() {
         line_id: vendorForm.lineId.trim() || null,
         email: vendorForm.email.trim() || null,
         description: vendorForm.description.trim() || null,
+        service_capability_note: vendorForm.serviceCapabilityNote.trim() || null,
+        billing_title: vendorForm.billingTitle.trim() || null,
+        billing_address: vendorForm.billingAddress.trim() || null,
+        invoice_type: vendorForm.invoiceType || null,
+        payment_terms: vendorForm.paymentTerms || null,
+        payment_methods: vendorForm.paymentMethods,
+        accounting_notes: vendorForm.accountingNotes.trim() || null,
+        cooperation_start_date: vendorForm.cooperationStartDate || null,
+        contract_end_date: vendorForm.contractEndDate || null,
+        contract_required: vendorForm.contractRequired,
+        preferred_vendor: vendorForm.preferredVendor,
+        cooperation_notes: vendorForm.cooperationNotes.trim() || null,
+        attachment_names: vendorAttachmentNames,
         tags,
         brands: vendorForm.brands,
         equipment_types: vendorForm.equipmentTypes,
@@ -643,8 +729,7 @@ export default function GeneralAffairsServiceCenterPage() {
 
       const { error } = await supabase.from('ga_vendors').insert(payload);
       if (error) throw error;
-      setVendorForm(emptyVendorForm);
-      setIsVendorFormOpen(false);
+      closeVendorForm();
       await loadVendorManagementData();
     } catch (error: any) {
       alert(`儲存廠商失敗：${error.message || error}`);
@@ -1786,10 +1871,13 @@ export default function GeneralAffairsServiceCenterPage() {
     </div>
   );
 
-  const renderVendorList = () => (
+  const renderVendorList = () => {
+    if (isVendorFormOpen) return renderVendorFormPanel();
+
+    return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-4">
-        {renderVendorHeader('廠商列表', '管理合作廠商資料、服務項目與聯絡資訊，並追蹤廠商服務績效', '新增廠商', () => setIsVendorFormOpen(true))}
+        {renderVendorHeader('廠商列表', '管理合作廠商資料、服務項目與聯絡資訊，並追蹤廠商服務績效', '新增廠商', openVendorForm)}
         {renderVendorDashboardCards()}
         <div className="rounded-lg border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
@@ -1861,7 +1949,6 @@ export default function GeneralAffairsServiceCenterPage() {
           </div>
         </div>
       </div>
-      {isVendorFormOpen ? renderVendorFormPanel() : (
       <aside className="rounded-lg border border-slate-200 bg-white p-5">
         {selectedVendor ? (
           <div>
@@ -1906,9 +1993,9 @@ export default function GeneralAffairsServiceCenterPage() {
           <div className="grid min-h-[320px] place-items-center text-center text-sm text-slate-500">選擇廠商查看詳細資料</div>
         )}
       </aside>
-      )}
     </div>
-  );
+    );
+  };
 
   const renderVendorCategories = () => (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -2070,49 +2157,243 @@ export default function GeneralAffairsServiceCenterPage() {
     );
   };
 
-  const renderVendorFormPanel = () => (
-    <aside className={`rounded-lg border border-slate-200 bg-white p-5 ${isVendorFormOpen ? '' : 'hidden xl:block'}`}>
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-black text-slate-950">新增廠商</h2>
-        {isVendorFormOpen && <button type="button" onClick={() => setIsVendorFormOpen(false)} className="text-slate-400 hover:text-slate-700">×</button>}
-      </div>
-      {!isVendorFormOpen ? (
-        <div className="mt-8 text-center text-sm text-slate-500">點選「新增廠商」建立合作廠商資料</div>
-      ) : (
-        <div className="mt-4 space-y-4">
-          <label className="block text-sm font-semibold text-slate-700">廠商名稱 *<input value={vendorForm.name} onChange={(event) => setVendorForm({ ...vendorForm, name: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500" placeholder="請輸入廠商名稱" /></label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm font-semibold text-slate-700">廠商類型<select value={vendorForm.vendorType} onChange={(event) => setVendorForm({ ...vendorForm, vendorType: event.target.value as Vendor['vendor_type'] })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="company">公司</option><option value="studio">工作室</option><option value="personal">個人工作室</option></select></label>
-            <label className="block text-sm font-semibold text-slate-700">合作狀態<select value={vendorForm.status} onChange={(event) => setVendorForm({ ...vendorForm, status: event.target.value as VendorStatus })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal"><option value="active">合作中</option><option value="paused">暫停合作</option><option value="inactive">已停用</option></select></label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm font-semibold text-slate-700">統一編號<input value={vendorForm.taxId} onChange={(event) => setVendorForm({ ...vendorForm, taxId: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
-            <label className="block text-sm font-semibold text-slate-700">品牌名稱 / 別名<input value={vendorForm.alias} onChange={(event) => setVendorForm({ ...vendorForm, alias: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm font-semibold text-slate-700">聯絡人<input value={vendorForm.contactName} onChange={(event) => setVendorForm({ ...vendorForm, contactName: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
-            <label className="block text-sm font-semibold text-slate-700">聯絡電話<input value={vendorForm.contactPhone} onChange={(event) => setVendorForm({ ...vendorForm, contactPhone: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
-          </div>
-          <label className="block text-sm font-semibold text-slate-700">電子郵件<input value={vendorForm.email} onChange={(event) => setVendorForm({ ...vendorForm, email: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
-          <label className="block text-sm font-semibold text-slate-700">公司地址<input value={vendorForm.address} onChange={(event) => setVendorForm({ ...vendorForm, address: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal" /></label>
+  const renderVendorFormPanel = () => {
+    const currentStepIndex = vendorFormSteps.findIndex((step) => step.key === vendorFormStep);
+    const isLastStep = vendorFormStep === 'attachments';
+    const inputClass = 'mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100';
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-4">
           <div>
-            <div className="text-sm font-semibold text-slate-700">服務分類</div>
-            <div className="mt-2 grid grid-cols-2 gap-2">{vendorCategories.map((category) => <label key={category.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={vendorForm.categoryIds.includes(category.id)} onChange={() => toggleVendorFormArray('categoryIds', category.id)} />{category.name}</label>)}</div>
+            <div className="text-sm font-semibold text-slate-500">廠商管理 / 廠商列表 / 新增廠商</div>
+            <h1 className="mt-2 text-2xl font-black text-slate-950">新增廠商</h1>
+            <p className="mt-1 text-sm text-slate-500">建立新的合作廠商資料</p>
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-700">服務區域</div>
-            <div className="mt-2 grid grid-cols-2 gap-2">{vendorRegions.map((region) => <label key={region.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={vendorForm.regionIds.includes(region.id)} onChange={() => toggleVendorFormArray('regionIds', region.id)} />{region.name}</label>)}</div>
+          <div className="flex gap-2">
+            <button type="button" onClick={closeVendorForm} className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">取消</button>
+            <button type="button" onClick={saveVendor} disabled={savingVendor || !vendorForm.name.trim()} className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">暫存</button>
+            {isLastStep ? (
+              <button type="button" onClick={saveVendor} disabled={savingVendor} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">
+                {savingVendor ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
+                完成新增
+              </button>
+            ) : (
+              <button type="button" onClick={goNextVendorFormStep} className="rounded-lg bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600">下一步</button>
+            )}
           </div>
-          <div>
-            <div className="text-sm font-semibold text-slate-700">熟悉品牌 / 品項</div>
-            <div className="mt-2 grid grid-cols-2 gap-2">{defaultBrandSeeds.slice(0, 8).map((brand) => <label key={brand} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={vendorForm.brands.includes(brand)} onChange={() => toggleVendorFormArray('brands', brand)} />{brand}</label>)}</div>
-          </div>
-          <textarea value={vendorForm.description} onChange={(event) => setVendorForm({ ...vendorForm, description: event.target.value })} rows={3} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="公司簡介 / 備註" />
-          <button type="button" onClick={saveVendor} disabled={savingVendor} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">{savingVendor ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}儲存廠商</button>
         </div>
-      )}
-    </aside>
-  );
+
+        <div className="rounded-lg border border-slate-200 bg-white">
+          <div className="grid gap-2 border-b border-slate-200 p-4 md:grid-cols-5">
+            {vendorFormSteps.map((step, index) => {
+              const active = vendorFormStep === step.key;
+              return (
+                <button
+                  key={step.key}
+                  type="button"
+                  onClick={() => setVendorFormStep(step.key)}
+                  className={`flex items-center justify-center gap-2 border-b-2 px-3 py-2 text-sm font-bold ${active ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                >
+                  <span className={`grid h-6 w-6 place-items-center rounded-full text-xs ${active ? 'bg-orange-100 text-orange-700' : 'bg-slate-100 text-slate-500'}`}>{index + 1}</span>
+                  {step.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="p-5">
+            {vendorFormStep === 'basic' && (
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="mb-4 font-black text-slate-950">基本資訊</h2>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <label className="text-sm font-semibold text-slate-700">廠商名稱 *<input value={vendorForm.name} onChange={(event) => setVendorForm({ ...vendorForm, name: event.target.value })} className={inputClass} placeholder="請輸入廠商名稱" /></label>
+                    <label className="text-sm font-semibold text-slate-700">廠商類型 *<select value={vendorForm.vendorType} onChange={(event) => setVendorForm({ ...vendorForm, vendorType: event.target.value as Vendor['vendor_type'] })} className={inputClass}><option value="company">公司</option><option value="studio">工作室</option><option value="personal">個人工作室</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">統一編號<input value={vendorForm.taxId} onChange={(event) => setVendorForm({ ...vendorForm, taxId: event.target.value })} className={inputClass} placeholder="請輸入統一編號" /></label>
+                    <label className="text-sm font-semibold text-slate-700">品牌名稱 / 別名<input value={vendorForm.alias} onChange={(event) => setVendorForm({ ...vendorForm, alias: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">成立日期<input type="date" value={vendorForm.foundedDate} onChange={(event) => setVendorForm({ ...vendorForm, foundedDate: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">合作狀態 *<select value={vendorForm.status} onChange={(event) => setVendorForm({ ...vendorForm, status: event.target.value as VendorStatus })} className={inputClass}><option value="active">合作中</option><option value="paused">暫停合作</option><option value="inactive">已停用</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">公司電話<input value={vendorForm.phone} onChange={(event) => setVendorForm({ ...vendorForm, phone: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">傳真號碼<input value={vendorForm.fax} onChange={(event) => setVendorForm({ ...vendorForm, fax: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">公司網站<input value={vendorForm.website} onChange={(event) => setVendorForm({ ...vendorForm, website: event.target.value })} className={inputClass} placeholder="https://..." /></label>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-[160px_160px_minmax(0,1fr)]">
+                    <label className="text-sm font-semibold text-slate-700">公司縣市<input value={vendorForm.city} onChange={(event) => setVendorForm({ ...vendorForm, city: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">公司區域<input value={vendorForm.district} onChange={(event) => setVendorForm({ ...vendorForm, district: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">詳細地址<input value={vendorForm.address} onChange={(event) => setVendorForm({ ...vendorForm, address: event.target.value })} className={inputClass} /></label>
+                  </div>
+                  <div className="mt-4">
+                    <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={vendorForm.sameServiceAddress} onChange={(event) => setVendorForm({ ...vendorForm, sameServiceAddress: event.target.checked })} />服務據點同公司地址</label>
+                    {!vendorForm.sameServiceAddress && (
+                      <div className="mt-3 grid gap-4 md:grid-cols-[160px_160px_minmax(0,1fr)]">
+                        <input value={vendorForm.serviceCity} onChange={(event) => setVendorForm({ ...vendorForm, serviceCity: event.target.value })} className={inputClass} placeholder="服務縣市" />
+                        <input value={vendorForm.serviceDistrict} onChange={(event) => setVendorForm({ ...vendorForm, serviceDistrict: event.target.value })} className={inputClass} placeholder="服務區域" />
+                        <input value={vendorForm.serviceAddress} onChange={(event) => setVendorForm({ ...vendorForm, serviceAddress: event.target.value })} className={inputClass} placeholder="服務地址" />
+                      </div>
+                    )}
+                  </div>
+                  <label className="mt-4 block text-sm font-semibold text-slate-700">公司簡介<textarea value={vendorForm.description} onChange={(event) => setVendorForm({ ...vendorForm, description: event.target.value })} rows={4} className={inputClass} placeholder="請輸入公司簡介、主要服務內容或特色..." /></label>
+                  <label className="mt-4 block text-sm font-semibold text-slate-700">標籤<input value={vendorForm.tags} onChange={(event) => setVendorForm({ ...vendorForm, tags: event.target.value })} className={inputClass} placeholder="以逗號分隔，例如：冷氣專家,北部地區" /></label>
+                </section>
+
+                <aside className="space-y-4">
+                  <section className="rounded-lg border border-slate-200 p-5">
+                    <h3 className="font-black text-slate-950">服務分類（可複選）</h3>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {vendorCategories.slice(0, 12).map((category) => <label key={category.id} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.categoryIds.includes(category.id)} onChange={() => toggleVendorFormArray('categoryIds', category.id)} />{category.name}</label>)}
+                    </div>
+                  </section>
+                  <section className="rounded-lg border border-slate-200 p-5">
+                    <h3 className="font-black text-slate-950">服務區域（可複選）</h3>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {vendorRegions.slice(0, 10).map((region) => <label key={region.id} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.regionIds.includes(region.id)} onChange={() => toggleVendorFormArray('regionIds', region.id)} />{region.name}</label>)}
+                    </div>
+                  </section>
+                  <section className="rounded-lg border border-slate-200 p-5">
+                    <h3 className="font-black text-slate-950">熟悉品牌 / 品項</h3>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">{defaultBrandSeeds.map((brand) => <label key={brand} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.brands.includes(brand)} onChange={() => toggleVendorFormArray('brands', brand)} />{brand}</label>)}</div>
+                  </section>
+                </aside>
+              </div>
+            )}
+
+            {vendorFormStep === 'services' && (
+              <div className="grid gap-5 xl:grid-cols-2">
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="font-black text-slate-950">服務項目設定</h2>
+                  <div className="mt-4 max-h-[420px] space-y-3 overflow-auto pr-2">
+                    {vendorCategories.map((category) => (
+                      <label key={category.id} className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm ${vendorForm.categoryIds.includes(category.id) ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-slate-200 text-slate-700'}`}>
+                        <span className="flex items-center gap-2"><input type="checkbox" checked={vendorForm.categoryIds.includes(category.id)} onChange={() => toggleVendorFormArray('categoryIds', category.id)} />{category.name}</span>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">{category.common_items?.length || 0}</span>
+                      </label>
+                    ))}
+                  </div>
+                </section>
+                <section className="space-y-5">
+                  <div className="rounded-lg border border-slate-200 p-5">
+                    <h2 className="font-black text-slate-950">已選擇的服務項目（{vendorForm.categoryIds.length}）</h2>
+                    <div className="mt-3 space-y-2">
+                      {vendorForm.categoryIds.length === 0 ? <div className="text-sm text-slate-500">尚未選擇服務分類</div> : vendorForm.categoryIds.map((id) => (
+                        <div key={id} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700">
+                          {getCategoryName(id)}
+                          <button type="button" onClick={() => toggleVendorFormArray('categoryIds', id)} className="text-slate-400 hover:text-slate-700">×</button>
+                        </div>
+                      ))}
+                    </div>
+                    <label className="mt-4 block text-sm font-semibold text-slate-700">服務能力說明<textarea value={vendorForm.serviceCapabilityNote} onChange={(event) => setVendorForm({ ...vendorForm, serviceCapabilityNote: event.target.value })} rows={4} className={inputClass} placeholder="請描述廠商的服務特色、專長、設備或服務能力等..." /></label>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 p-5">
+                    <h2 className="font-black text-slate-950">服務區域設定</h2>
+                    <div className="mt-3 flex flex-wrap gap-2">{vendorRegions.map((region) => <button key={region.id} type="button" onClick={() => toggleVendorFormArray('regionIds', region.id)} className={`rounded-lg border px-3 py-2 text-sm font-semibold ${vendorForm.regionIds.includes(region.id) ? 'border-orange-200 bg-orange-50 text-orange-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>{region.name}</button>)}</div>
+                  </div>
+                </section>
+              </div>
+            )}
+
+            {vendorFormStep === 'contacts' && (
+              <div className="grid gap-5 xl:grid-cols-2">
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="font-black text-slate-950">聯絡人資訊</h2>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-semibold text-slate-700">主要聯絡人<input value={vendorForm.contactName} onChange={(event) => setVendorForm({ ...vendorForm, contactName: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">手機<input value={vendorForm.contactPhone} onChange={(event) => setVendorForm({ ...vendorForm, contactPhone: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">LINE ID<input value={vendorForm.lineId} onChange={(event) => setVendorForm({ ...vendorForm, lineId: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">Email<input value={vendorForm.email} onChange={(event) => setVendorForm({ ...vendorForm, email: event.target.value })} className={inputClass} /></label>
+                  </div>
+                </section>
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="font-black text-slate-950">帳務資訊</h2>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-semibold text-slate-700">發票抬頭<input value={vendorForm.billingTitle} onChange={(event) => setVendorForm({ ...vendorForm, billingTitle: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">發票類型<select value={vendorForm.invoiceType} onChange={(event) => setVendorForm({ ...vendorForm, invoiceType: event.target.value })} className={inputClass}><option>二聯式</option><option>三聯式</option><option>電子發票</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">付款條件<select value={vendorForm.paymentTerms} onChange={(event) => setVendorForm({ ...vendorForm, paymentTerms: event.target.value })} className={inputClass}><option>月結30天</option><option>月結45天</option><option>現結</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">發票地址<input value={vendorForm.billingAddress} onChange={(event) => setVendorForm({ ...vendorForm, billingAddress: event.target.value })} className={inputClass} /></label>
+                  </div>
+                  <div className="mt-4">
+                    <div className="text-sm font-semibold text-slate-700">付款方式</div>
+                    <div className="mt-2 flex flex-wrap gap-4">
+                      {['匯款', '支票', '現金'].map((method) => <label key={method} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.paymentMethods.includes(method)} onChange={() => toggleVendorPaymentMethod(method)} />{method}</label>)}
+                    </div>
+                  </div>
+                  <label className="mt-4 block text-sm font-semibold text-slate-700">帳務備註<textarea value={vendorForm.accountingNotes} onChange={(event) => setVendorForm({ ...vendorForm, accountingNotes: event.target.value })} rows={4} className={inputClass} placeholder="其他帳務注意事項..." /></label>
+                </section>
+              </div>
+            )}
+
+            {vendorFormStep === 'cooperation' && (
+              <div className="grid gap-5 xl:grid-cols-2">
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="font-black text-slate-950">合作資訊</h2>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="text-sm font-semibold text-slate-700">合作狀態<select value={vendorForm.status} onChange={(event) => setVendorForm({ ...vendorForm, status: event.target.value as VendorStatus })} className={inputClass}><option value="active">合作中</option><option value="paused">暫停合作</option><option value="inactive">已停用</option></select></label>
+                    <label className="text-sm font-semibold text-slate-700">合作開始日期<input type="date" value={vendorForm.cooperationStartDate} onChange={(event) => setVendorForm({ ...vendorForm, cooperationStartDate: event.target.value })} className={inputClass} /></label>
+                    <label className="text-sm font-semibold text-slate-700">合約到期日<input type="date" value={vendorForm.contractEndDate} onChange={(event) => setVendorForm({ ...vendorForm, contractEndDate: event.target.value })} className={inputClass} /></label>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-6">
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={vendorForm.preferredVendor} onChange={(event) => setVendorForm({ ...vendorForm, preferredVendor: event.target.checked })} />是否為優質廠商</label>
+                    <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={vendorForm.contractRequired} onChange={(event) => setVendorForm({ ...vendorForm, contractRequired: event.target.checked })} />是否需訂合約</label>
+                  </div>
+                  <label className="mt-4 block text-sm font-semibold text-slate-700">合作備註<textarea value={vendorForm.cooperationNotes} onChange={(event) => setVendorForm({ ...vendorForm, cooperationNotes: event.target.value })} rows={5} className={inputClass} placeholder="配合度、價格、回覆速度或合作注意事項..." /></label>
+                </section>
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="font-black text-slate-950">內部評分與紀錄</h2>
+                  <div className="mt-4 space-y-3 text-sm text-slate-700">
+                    {['服務品質', '交期準確度', '價格合理度', '配合度', '整體評價'].map((label, idx) => <div key={label} className="flex items-center justify-between"><span>{label}</span><span className="text-amber-500">{'★'.repeat(idx === 1 || idx === 3 ? 5 : 4)}{'☆'.repeat(idx === 1 || idx === 3 ? 0 : 1)}</span></div>)}
+                  </div>
+                  <div className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-500">合作記錄會在廠商建立後，由後續工單與評價資料累積。</div>
+                </section>
+              </div>
+            )}
+
+            {vendorFormStep === 'attachments' && (
+              <div className="space-y-5">
+                <section className="rounded-lg border border-slate-200 p-5">
+                  <h2 className="font-black text-slate-950">附件檔案上傳</h2>
+                  <label className="mt-4 grid cursor-pointer place-items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center text-sm text-slate-500 hover:border-orange-300 hover:bg-orange-50/40">
+                    <input type="file" multiple className="hidden" onChange={(event) => setVendorAttachmentNames(Array.from(event.target.files || []).map((file) => file.name))} />
+                    <Upload className="mb-3 text-slate-400" />
+                    <span className="font-bold text-slate-700">拖曳檔案到此處，或點擊上傳</span>
+                    <span className="mt-2">支援 JPG、PNG、PDF、DOC、DOCX、XLS、XLSX、ZIP</span>
+                  </label>
+                </section>
+                <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_260px]">
+                  <div className="rounded-lg border border-slate-200 bg-white">
+                    <div className="border-b border-slate-200 px-4 py-3 font-black text-slate-950">已選擇檔案（{vendorAttachmentNames.length}）</div>
+                    <div className="divide-y divide-slate-100">
+                      {vendorAttachmentNames.length === 0 ? <div className="px-4 py-8 text-center text-sm text-slate-500">尚未選擇檔案</div> : vendorAttachmentNames.map((name) => (
+                        <div key={name} className="flex items-center justify-between px-4 py-3 text-sm">
+                          <span className="inline-flex items-center gap-2 text-slate-700"><Paperclip size={16} />{name}</span>
+                          <button type="button" onClick={() => setVendorAttachmentNames((current) => current.filter((item) => item !== name))} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 p-5">
+                    <h3 className="font-black text-slate-950">文件分類</h3>
+                    <div className="mt-3 space-y-2 text-sm text-slate-600">
+                      {['營業證照', '合約文件', '廠商型錄', '保險證明', '帳務資料'].map((item) => <div key={item} className="rounded bg-slate-50 px-3 py-2">{item}</div>)}
+                    </div>
+                  </div>
+                </section>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3">
+          <button type="button" onClick={closeVendorForm} className="rounded-lg border border-slate-200 bg-white px-8 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">取消</button>
+          {currentStepIndex > 0 && <button type="button" onClick={goPreviousVendorFormStep} className="rounded-lg border border-slate-200 bg-white px-8 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">上一步</button>}
+          {isLastStep ? (
+            <button type="button" onClick={saveVendor} disabled={savingVendor} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-8 py-2.5 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-50">{savingVendor ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}完成新增</button>
+          ) : (
+            <button type="button" onClick={goNextVendorFormStep} className="rounded-lg bg-orange-500 px-8 py-2.5 text-sm font-semibold text-white hover:bg-orange-600">下一步</button>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const renderCategoryFormPanel = () => (
     <aside className={`rounded-lg border border-slate-200 bg-white p-5 ${isCategoryFormOpen ? '' : 'hidden xl:block'}`}>
