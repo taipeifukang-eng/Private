@@ -419,6 +419,7 @@ export default function GeneralAffairsServiceCenterPage() {
   const [expandedRegionIds, setExpandedRegionIds] = useState<string[]>([]);
   const [regionSearch, setRegionSearch] = useState('');
   const [vendorForm, setVendorForm] = useState(emptyVendorForm);
+  const [vendorTagInput, setVendorTagInput] = useState('');
   const [categoryForm, setCategoryForm] = useState(emptyCategoryForm);
   const [categoryCommonItemInput, setCategoryCommonItemInput] = useState('');
   const [regionForm, setRegionForm] = useState(emptyRegionForm);
@@ -577,8 +578,34 @@ export default function GeneralAffairsServiceCenterPage() {
     }));
   };
 
+  const getVendorTags = () =>
+    vendorForm.tags.split(',').map((item) => item.trim()).filter(Boolean);
+
+  const addVendorTag = () => {
+    const nextTag = vendorTagInput.trim();
+    if (!nextTag) return;
+    const currentTags = getVendorTags();
+    if (currentTags.includes(nextTag)) {
+      setVendorTagInput('');
+      return;
+    }
+    setVendorForm((current) => ({
+      ...current,
+      tags: [...currentTags, nextTag].join(','),
+    }));
+    setVendorTagInput('');
+  };
+
+  const removeVendorTag = (target: string) => {
+    setVendorForm((current) => ({
+      ...current,
+      tags: current.tags.split(',').map((item) => item.trim()).filter((item) => item && item !== target).join(','),
+    }));
+  };
+
   const openVendorForm = () => {
     setVendorForm(emptyVendorForm);
+    setVendorTagInput('');
     setVendorFormStep('basic');
     setVendorAttachmentNames([]);
     setIsVendorFormOpen(true);
@@ -586,6 +613,7 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const closeVendorForm = () => {
     setVendorForm(emptyVendorForm);
+    setVendorTagInput('');
     setVendorFormStep('basic');
     setVendorAttachmentNames([]);
     setIsVendorFormOpen(false);
@@ -2345,7 +2373,39 @@ export default function GeneralAffairsServiceCenterPage() {
                     )}
                   </div>
                   <label className="mt-4 block text-sm font-semibold text-slate-700">公司簡介<textarea value={vendorForm.description} onChange={(event) => setVendorForm({ ...vendorForm, description: event.target.value })} rows={4} className={inputClass} placeholder="請輸入公司簡介、主要服務內容或特色..." /></label>
-                  <label className="mt-4 block text-sm font-semibold text-slate-700">標籤<input value={vendorForm.tags} onChange={(event) => setVendorForm({ ...vendorForm, tags: event.target.value })} className={inputClass} placeholder="以逗號分隔，例如：冷氣專家,北部地區" /></label>
+                  <div className="mt-4 block text-sm font-semibold text-slate-700">
+                    標籤
+                    <input
+                      value={vendorTagInput}
+                      onChange={(event) => setVendorTagInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          addVendorTag();
+                        }
+                      }}
+                      className={inputClass}
+                      placeholder="請輸入標籤後按 Enter 新增"
+                    />
+                    <div className="mt-1 text-xs font-normal text-slate-500">可加入廠商特色、服務範圍或管理用關鍵字。</div>
+                    {getVendorTags().length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {getVendorTags().map((tag) => (
+                          <span key={tag} className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-700">
+                            {tag}
+                            <button
+                              type="button"
+                              onClick={() => removeVendorTag(tag)}
+                              className="text-slate-400 hover:text-slate-700"
+                              aria-label={`移除${tag}`}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </section>
               </div>
             )}
