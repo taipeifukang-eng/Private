@@ -29,6 +29,15 @@ async function getManagedStoreIds(supabase: Awaited<ReturnType<typeof createClie
   return Array.from(new Set((data || []).map((row: any) => row.store_id).filter(Boolean)));
 }
 
+function getTaipeiDayBoundary(dateStr: string, addDays = 0) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
+  const date = new Date(`${dateStr}T00:00:00+08:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  date.setUTCDate(date.getUTCDate() + addDays);
+  const taipeiDate = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+  return `${taipeiDate}T00:00:00+08:00`;
+}
+
 // ──────────────────────────────────────────
 // GET /api/maintenance-requests
 //   查詢維修回報
@@ -50,6 +59,8 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('category_id');
     const q = searchParams.get('q')?.trim() ?? '';
     const yearMonth = searchParams.get('year_month'); // format: YYYY-MM
+    const startDate = searchParams.get('start_date'); // format: YYYY-MM-DD
+    const endDate = searchParams.get('end_date'); // format: YYYY-MM-DD
 
     const canViewAll = await hasAnyPermission(user.id, [
       'cross_dept.maintenance.view_all',
@@ -108,6 +119,11 @@ export async function GET(request: NextRequest) {
       const startStr = `${yearMonth}-01T00:00:00+08:00`;
       const endStr = `${String(nextYr).padStart(4, '0')}-${String(nextMo).padStart(2, '0')}-01T00:00:00+08:00`;
       query = query.gte('reported_at', startStr).lt('reported_at', endStr);
+    } else {
+      const startStr = startDate ? getTaipeiDayBoundary(startDate) : null;
+      const endStr = endDate ? getTaipeiDayBoundary(endDate, 1) : null;
+      if (startStr) query = query.gte('reported_at', startStr);
+      if (endStr) query = query.lt('reported_at', endStr);
     }
 
     const { data, error, count } = await query.range(from, to);

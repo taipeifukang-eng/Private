@@ -14,6 +14,7 @@ import {
   ChevronRight,
   ClipboardList,
   Clock3,
+  CalendarDays,
   FileText,
   Filter,
   ImagePlus,
@@ -119,6 +120,56 @@ const progressSteps: Array<{ status: MaintenanceStatus; label: string }> = [
   { status: 'closed', label: '完成結案' },
 ];
 
+const reportStatusFilters: Array<{
+  key: 'all' | MaintenanceStatus;
+  label: string;
+  helper: string;
+  icon: any;
+  iconTone: string;
+  badgeTone: string;
+}> = [
+  {
+    key: 'all',
+    label: '全部工單',
+    helper: '查看全部',
+    icon: Wrench,
+    iconTone: 'bg-blue-50 text-blue-600 ring-blue-100',
+    badgeTone: 'bg-blue-50 text-blue-700',
+  },
+  {
+    key: 'in_progress',
+    label: '處理中',
+    helper: '總務處理中',
+    icon: Settings,
+    iconTone: 'bg-orange-50 text-orange-600 ring-orange-100',
+    badgeTone: 'bg-orange-50 text-orange-700',
+  },
+  {
+    key: 'pending',
+    label: '等待處理',
+    helper: '已受理待處理',
+    icon: Clock3,
+    iconTone: 'bg-amber-50 text-amber-600 ring-amber-100',
+    badgeTone: 'bg-amber-50 text-amber-700',
+  },
+  {
+    key: 'completed',
+    label: '已完成',
+    helper: '查看歷史',
+    icon: CheckCircle2,
+    iconTone: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
+    badgeTone: 'bg-emerald-50 text-emerald-700',
+  },
+  {
+    key: 'closed',
+    label: '已結案',
+    helper: '已結案工單',
+    icon: XCircle,
+    iconTone: 'bg-slate-100 text-slate-500 ring-slate-200',
+    badgeTone: 'bg-slate-100 text-slate-600',
+  },
+];
+
 const getDateTimeLabel = (value: string | null | undefined) => {
   if (!value) return '-';
   const d = new Date(value);
@@ -135,6 +186,12 @@ const getDateTimeLabel = (value: string | null | undefined) => {
 
 const getDateInTaipei = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
 
+const getDefaultReportStartDate = () => {
+  const date = new Date();
+  date.setMonth(date.getMonth() - 2);
+  return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
+};
+
 export default function GeneralAffairsServiceCenterPage() {
   const supabase = createClient();
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -145,6 +202,7 @@ export default function GeneralAffairsServiceCenterPage() {
   const [loadingInitial, setLoadingInitial] = useState(true);
   const [loadingReports, setLoadingReports] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [canAccessService, setCanAccessService] = useState(false);
   const [canSubmit, setCanSubmit] = useState(false);
   const [canViewAll, setCanViewAll] = useState(false);
   const [canUpdateWorkOrders, setCanUpdateWorkOrders] = useState(false);
@@ -155,6 +213,8 @@ export default function GeneralAffairsServiceCenterPage() {
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [updatesByRequestId, setUpdatesByRequestId] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
   const [statusFilter, setStatusFilter] = useState<'all' | MaintenanceStatus>('all');
+  const [reportStartDate, setReportStartDate] = useState(getDefaultReportStartDate);
+  const [reportEndDate, setReportEndDate] = useState(getDateInTaipei);
   const [searchText, setSearchText] = useState('');
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string | null>(null);
@@ -177,6 +237,20 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const activeResource = resourceTypes.find((item) => item.key === form.resourceType) || resourceTypes[0];
   const selectedStore = stores.find((store) => store.id === reportStoreId) || null;
+
+  const updateReportStartDate = (value: string) => {
+    setReportStartDate(value);
+    if (value && reportEndDate && value > reportEndDate) {
+      setReportEndDate(value);
+    }
+  };
+
+  const updateReportEndDate = (value: string) => {
+    setReportEndDate(value);
+    if (value && reportStartDate && value < reportStartDate) {
+      setReportStartDate(value);
+    }
+  };
 
   const statusCounts = useMemo(() => {
     return requests.reduce((acc, row) => {
@@ -212,12 +286,21 @@ export default function GeneralAffairsServiceCenterPage() {
     return Boolean(json.allowed);
   };
 
+  const checkServiceAccess = async () => {
+    const res = await fetch('/api/general-affairs/access', { cache: 'no-store' });
+    if (!res.ok) return false;
+    const json = await res.json();
+    return Boolean(json.allowed);
+  };
+
   const loadReports = useCallback(async () => {
     if (!selectedStoreId && !canViewAll) return;
     setLoadingReports(true);
     try {
       const params = new URLSearchParams({ page: '1', pageSize: '50' });
       if (selectedStoreId) params.set('store_id', selectedStoreId);
+      if (reportStartDate) params.set('start_date', reportStartDate);
+      if (reportEndDate) params.set('end_date', reportEndDate);
       const res = await fetch(`/api/maintenance-requests?${params.toString()}`);
       const json = await res.json();
       if (!res.ok || !json.success) {
@@ -239,7 +322,7 @@ export default function GeneralAffairsServiceCenterPage() {
     } finally {
       setLoadingReports(false);
     }
-  }, [canViewAll, selectedStoreId]);
+  }, [canViewAll, reportEndDate, reportStartDate, selectedStoreId]);
 
   useEffect(() => {
     (async () => {
@@ -248,7 +331,8 @@ export default function GeneralAffairsServiceCenterPage() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        const [submitAllowed, viewAllAllowed, updateAllowed, profileRes] = await Promise.all([
+        const [accessAllowed, submitAllowed, viewAllAllowed, updateAllowed, profileRes] = await Promise.all([
+          checkServiceAccess(),
           checkPermission('cross_dept.maintenance.submit'),
           checkPermission('cross_dept.maintenance.view_all'),
           checkPermission('cross_dept.maintenance.update'),
@@ -258,6 +342,7 @@ export default function GeneralAffairsServiceCenterPage() {
         const name = profileRes.data?.full_name || user.email || '';
         setProfileName(name);
         setForm((current) => ({ ...current, contactName: current.contactName || name }));
+        setCanAccessService(accessAllowed);
         setCanSubmit(submitAllowed || viewAllAllowed);
         setCanViewAll(viewAllAllowed);
         setCanUpdateWorkOrders(updateAllowed || viewAllAllowed);
@@ -778,23 +863,34 @@ export default function GeneralAffairsServiceCenterPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">
-        {[
-          ['all', '全部工單', statusCounts.all, 'bg-blue-50 text-blue-700'],
-          ['in_progress', '處理中', statusCounts.in_progress, 'bg-orange-50 text-orange-700'],
-          ['pending', '等待處理', statusCounts.pending, 'bg-amber-50 text-amber-700'],
-          ['completed', '已完成', statusCounts.completed, 'bg-emerald-50 text-emerald-700'],
-          ['closed', '已結案', statusCounts.closed, 'bg-slate-100 text-slate-600'],
-        ].map(([key, label, count, tone]) => (
-          <button
-            key={String(key)}
-            type="button"
-            onClick={() => setStatusFilter(key as any)}
-            className={`rounded-lg border border-slate-200 bg-white p-4 text-left ${statusFilter === key ? 'ring-2 ring-orange-200' : ''}`}
-          >
-            <div className={`inline-flex rounded-full px-2 py-1 text-xs font-bold ${tone}`}>{label}</div>
-            <div className="mt-3 text-2xl font-bold text-slate-950">{count}</div>
-          </button>
-        ))}
+        {reportStatusFilters.map((filter) => {
+          const Icon = filter.icon;
+          const isActive = statusFilter === filter.key;
+
+          return (
+            <button
+              key={filter.key}
+              type="button"
+              onClick={() => setStatusFilter(filter.key)}
+              className={`rounded-lg border bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:border-orange-200 hover:shadow-sm ${
+                isActive ? 'border-orange-200 ring-2 ring-orange-200' : 'border-slate-200'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ring-1 ${filter.iconTone}`}>
+                  <Icon size={20} strokeWidth={2.4} />
+                </span>
+                <div className="min-w-0">
+                  <div className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-bold ${filter.badgeTone}`}>
+                    {filter.label}
+                  </div>
+                  <div className="mt-2 text-2xl font-bold leading-none text-slate-950">{statusCounts[filter.key]}</div>
+                  <div className="mt-1 text-xs font-semibold text-slate-500">{filter.helper}</div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white">
@@ -812,6 +908,25 @@ export default function GeneralAffairsServiceCenterPage() {
               ))}
             </select>
           </label>
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <CalendarDays size={16} className="text-orange-500" />
+            <span className="text-sm font-semibold text-slate-700">回報日期</span>
+            <input
+              type="date"
+              value={reportStartDate}
+              max={reportEndDate || undefined}
+              onChange={(event) => updateReportStartDate(event.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+            />
+            <span className="text-xs font-semibold text-slate-400">至</span>
+            <input
+              type="date"
+              value={reportEndDate}
+              min={reportStartDate || undefined}
+              onChange={(event) => updateReportEndDate(event.target.value)}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100"
+            />
+          </div>
           <label className="relative min-w-[260px] flex-1">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
             <input
@@ -1162,7 +1277,7 @@ export default function GeneralAffairsServiceCenterPage() {
       );
     }
 
-    if (!canSubmit && !canViewAll) {
+    if (!canAccessService) {
       return (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
           <AlertCircle className="mb-3" />
@@ -1171,7 +1286,24 @@ export default function GeneralAffairsServiceCenterPage() {
       );
     }
 
+    if (!canSubmit && !canViewAll && !canUpdateWorkOrders) {
+      return (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
+          <AlertCircle className="mb-3" />
+          目前帳號已開啟總務服務中心入口，但尚未設定回報、查看或處理工單權限。
+        </div>
+      );
+    }
+
     if (activeSection === 'maintenance') {
+      if (maintenanceView === 'new' && !canSubmit) {
+        return (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
+            <AlertCircle className="mb-3" />
+            目前帳號沒有新增維修回報權限。
+          </div>
+        );
+      }
       return maintenanceView === 'new' ? renderNewReport() : renderMyReports();
     }
     if (activeSection === 'work-orders') return renderWorkOrderCenter();
@@ -1210,16 +1342,18 @@ export default function GeneralAffairsServiceCenterPage() {
                     </button>
                     {maintenanceExpanded && (
                       <div className="ml-6 mt-1 space-y-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setActiveSection('maintenance');
-                            setMaintenanceView('new');
-                          }}
-                          className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold ${maintenanceView === 'new' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
-                        >
-                          新增回報
-                        </button>
+                        {canSubmit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveSection('maintenance');
+                              setMaintenanceView('new');
+                            }}
+                            className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold ${maintenanceView === 'new' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                          >
+                            新增回報
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
@@ -1274,13 +1408,15 @@ export default function GeneralAffairsServiceCenterPage() {
 
           {activeSection === 'maintenance' && (
             <div className="mb-4 flex gap-2 lg:hidden">
-              <button
-                type="button"
-                onClick={() => setMaintenanceView('new')}
-                className={`rounded-lg px-3 py-2 text-sm font-bold ${maintenanceView === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600'}`}
-              >
-                新增回報
-              </button>
+              {canSubmit && (
+                <button
+                  type="button"
+                  onClick={() => setMaintenanceView('new')}
+                  className={`rounded-lg px-3 py-2 text-sm font-bold ${maintenanceView === 'new' ? 'bg-orange-500 text-white' : 'bg-white text-slate-600'}`}
+                >
+                  新增回報
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setMaintenanceView('mine')}

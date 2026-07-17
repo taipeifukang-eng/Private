@@ -145,6 +145,17 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           }
         });
 
+        let canAccessGeneralAffairsService = false;
+        try {
+          const accessRes = await fetch('/api/general-affairs/access', { cache: 'no-store' });
+          if (accessRes.ok) {
+            const accessJson = await accessRes.json();
+            canAccessGeneralAffairsService = Boolean(accessJson.allowed);
+          }
+        } catch (accessError) {
+          console.error('❌ 載入總務服務中心入口權限失敗:', accessError);
+        }
+
         // 更新權限狀態
         setPermissions({
           // 任務管理
@@ -215,10 +226,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             permissionSet.has('cross_dept.maintenance.view_all') ||
             permissionSet.has('cross_dept.maintenance.submit') ||
             permissionSet.has('cross_dept.maintenance.update'),
-          canAccessGeneralAffairsService:
-            permissionSet.has('cross_dept.maintenance.view_all') ||
-            permissionSet.has('cross_dept.maintenance.submit') ||
-            permissionSet.has('cross_dept.maintenance.update'),
+          canAccessGeneralAffairsService,
         });
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);
