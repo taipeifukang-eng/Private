@@ -2315,7 +2315,7 @@ export default function GeneralAffairsServiceCenterPage() {
 
           <div className="p-5">
             {vendorFormStep === 'basic' && (
-              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
+              <div className="grid gap-5">
                 <section className="rounded-lg border border-slate-200 p-5">
                   <h2 className="mb-4 font-black text-slate-950">基本資訊</h2>
                   <div className="grid gap-4 md:grid-cols-3">
@@ -2347,25 +2347,6 @@ export default function GeneralAffairsServiceCenterPage() {
                   <label className="mt-4 block text-sm font-semibold text-slate-700">公司簡介<textarea value={vendorForm.description} onChange={(event) => setVendorForm({ ...vendorForm, description: event.target.value })} rows={4} className={inputClass} placeholder="請輸入公司簡介、主要服務內容或特色..." /></label>
                   <label className="mt-4 block text-sm font-semibold text-slate-700">標籤<input value={vendorForm.tags} onChange={(event) => setVendorForm({ ...vendorForm, tags: event.target.value })} className={inputClass} placeholder="以逗號分隔，例如：冷氣專家,北部地區" /></label>
                 </section>
-
-                <aside className="space-y-4">
-                  <section className="rounded-lg border border-slate-200 p-5">
-                    <h3 className="font-black text-slate-950">服務分類（可複選）</h3>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {vendorCategories.slice(0, 12).map((category) => <label key={category.id} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.categoryIds.includes(category.id)} onChange={() => toggleVendorFormArray('categoryIds', category.id)} />{category.name}</label>)}
-                    </div>
-                  </section>
-                  <section className="rounded-lg border border-slate-200 p-5">
-                    <h3 className="font-black text-slate-950">服務區域（可複選）</h3>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {vendorRegions.slice(0, 10).map((region) => <label key={region.id} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.regionIds.includes(region.id)} onChange={() => toggleVendorFormArray('regionIds', region.id)} />{region.name}</label>)}
-                    </div>
-                  </section>
-                  <section className="rounded-lg border border-slate-200 p-5">
-                    <h3 className="font-black text-slate-950">熟悉品牌 / 品項</h3>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">{defaultBrandSeeds.map((brand) => <label key={brand} className="flex items-center gap-2 text-sm text-slate-700"><input type="checkbox" checked={vendorForm.brands.includes(brand)} onChange={() => toggleVendorFormArray('brands', brand)} />{brand}</label>)}</div>
-                  </section>
-                </aside>
               </div>
             )}
 
