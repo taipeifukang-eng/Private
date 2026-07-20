@@ -22,6 +22,7 @@ import {
   Filter,
   Folder,
   Globe,
+  Home,
   ImagePlus,
   Loader2,
   MapPin,
@@ -56,7 +57,7 @@ import {
 type MaintenanceStatus = MaintenanceTicketStatus;
 type MaintenanceStatusValue = MaintenanceTicketStatus | LegacyMaintenanceStatus;
 type ResourceType = 'equipment' | 'facility' | 'material';
-type ServiceSection = 'maintenance' | 'work-orders' | 'equipment' | 'facilities' | 'vendors' | 'parts';
+type ServiceSection = 'home' | 'maintenance' | 'work-orders' | 'equipment' | 'facilities' | 'vendors' | 'parts';
 type MaintenanceView = 'new' | 'mine';
 type VendorView = 'list' | 'categories' | 'regions' | 'stats';
 type VendorFormStep = 'basic' | 'services' | 'contacts' | 'cooperation' | 'attachments';
@@ -183,6 +184,7 @@ type Vendor = {
 };
 
 const serviceNavItems: Array<{ key: ServiceSection; label: string; icon: any }> = [
+  { key: 'home', label: '服務首頁', icon: Home },
   { key: 'maintenance', label: '維修回報', icon: Wrench },
   { key: 'work-orders', label: '工單中心', icon: ClipboardList },
   { key: 'equipment', label: '設備管理', icon: Settings },
@@ -396,7 +398,7 @@ const getNormalizedStage = (stage: MaintenanceProgressStage | string | null | un
 export default function GeneralAffairsServiceCenterPage() {
   const supabase = createClient();
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [activeSection, setActiveSection] = useState<ServiceSection>('maintenance');
+  const [activeSection, setActiveSection] = useState<ServiceSection>('home');
   const [maintenanceExpanded, setMaintenanceExpanded] = useState(true);
   const [maintenanceView, setMaintenanceView] = useState<MaintenanceView>('new');
   const [vendorExpanded, setVendorExpanded] = useState(true);
@@ -1033,7 +1035,7 @@ export default function GeneralAffairsServiceCenterPage() {
   }, []);
 
   useEffect(() => {
-    if (!loadingInitial && (maintenanceView === 'mine' || activeSection === 'work-orders')) {
+    if (!loadingInitial && (activeSection === 'home' || maintenanceView === 'mine' || activeSection === 'work-orders')) {
       loadReports();
     }
   }, [activeSection, loadingInitial, maintenanceView, loadReports]);
@@ -1295,6 +1297,357 @@ export default function GeneralAffairsServiceCenterPage() {
       />
     </div>
   );
+
+  const openSection = (section: ServiceSection, options?: { maintenanceView?: MaintenanceView; status?: 'all' | MaintenanceStatus }) => {
+    setActiveSection(section);
+    if (options?.maintenanceView) setMaintenanceView(options.maintenanceView);
+    if (options?.status) setStatusFilter(options.status);
+  };
+
+  const renderHomeDashboard = () => {
+    const isAffairsView = canUpdateWorkOrders || canViewAll;
+    const currentMonth = getDateInTaipei().slice(0, 7);
+    const counts = requests.reduce((acc, request) => {
+      const status = getNormalizedStatus(request.status);
+      const stage = getNormalizedStage(request.progress_stage);
+      acc.status[status] = (acc.status[status] || 0) + 1;
+      if (stage) acc.stage[stage] = (acc.stage[stage] || 0) + 1;
+      if (status === 'COMPLETED' && request.reported_at?.slice(0, 7) === currentMonth) acc.monthCompleted += 1;
+      return acc;
+    }, {
+      status: { UNACCEPTED: 0, ACCEPTED: 0, PROCESSING: 0, COMPLETED: 0 } as Record<MaintenanceStatus, number>,
+      stage: {} as Partial<Record<MaintenanceProgressStage, number>>,
+      monthCompleted: 0,
+    });
+
+    const storeTodoRows = requests
+      .filter((request) => ['WAITING_STORE_INFO', 'WAITING_STORE_CONFIRMATION', 'WAITING_VENDOR_VISIT'].includes(getNormalizedStage(request.progress_stage) || ''))
+      .slice(0, 5)
+      .map((request) => {
+        const stage = getNormalizedStage(request.progress_stage);
+        return {
+          task: stage === 'WAITING_STORE_CONFIRMATION' ? '確認完成' : stage === 'WAITING_STORE_INFO' ? '補充資料' : '回覆時間',
+          item: request.title,
+          store: request.store ? `${request.store.store_code} ${request.store.store_name}` : '-',
+          status: stage === 'WAITING_STORE_CONFIRMATION' ? '總務已送出完成確認' : stage === 'WAITING_STORE_INFO' ? '總務要求補充照片或說明' : '需確認廠商可到場時段',
+          action: stage === 'WAITING_STORE_CONFIRMATION' ? '確認結果' : stage === 'WAITING_STORE_INFO' ? '補充資料' : '回覆',
+        };
+      });
+
+    const affairsTodoRows = requests
+      .filter((request) => {
+        const status = getNormalizedStatus(request.status);
+        const stage = getNormalizedStage(request.progress_stage);
+        return status === 'UNACCEPTED' || ['INITIAL_REVIEW', 'SEARCHING_VENDOR', 'WAITING_VENDOR_QUOTE', 'WAITING_PARTS', 'VENDOR_WORKING'].includes(stage || '');
+      })
+      .slice(0, 6)
+      .map((request) => {
+        const status = getNormalizedStatus(request.status);
+        const stage = getNormalizedStage(request.progress_stage);
+        const task = status === 'UNACCEPTED'
+          ? '受理工單'
+          : stage === 'WAITING_VENDOR_QUOTE'
+            ? '審視報價'
+            : stage === 'WAITING_PARTS'
+              ? '調撥料件'
+              : stage === 'SEARCHING_VENDOR'
+                ? '選擇廠商'
+                : stage === 'VENDOR_WORKING'
+                  ? '確認處理結果'
+                  : '處理進度';
+        return {
+          task,
+          item: request.title,
+          store: request.store ? `${request.store.store_code} ${request.store.store_name}` : '-',
+          status: status === 'UNACCEPTED' ? '尚未受理' : stage ? MAINTENANCE_PROGRESS_STAGE_LABELS[stage] : MAINTENANCE_STATUS_LABELS[status],
+          action: task === '受理工單' ? '開始處理' : task === '選擇廠商' ? '指派廠商' : task === '審視報價' ? '查看報價' : task === '調撥料件' ? '處理調撥' : '查看',
+        };
+      });
+
+    const recentRows = requests
+      .map((request) => {
+        const updates = updatesByRequestId.get(request.id) || [];
+        const latest = updates[0];
+        const stage = getNormalizedStage(request.progress_stage);
+        return {
+          id: request.id,
+          title: request.title,
+          store: request.store ? `${request.store.store_code} ${request.store.store_name}` : '-',
+          stageLabel: stage ? MAINTENANCE_PROGRESS_STAGE_LABELS[stage] : MAINTENANCE_STATUS_LABELS[getNormalizedStatus(request.status)],
+          at: latest?.progress_date || request.reported_at,
+          note: latest?.notes || request.description || '尚無處理紀錄',
+        };
+      })
+      .sort((a, b) => String(b.at).localeCompare(String(a.at)))
+      .slice(0, 5);
+
+    const todoCards = isAffairsView
+      ? [
+          { label: '新進待處理', value: counts.status.UNACCEPTED, helper: '尚未受理', icon: Clock3, tone: 'border-orange-200 bg-orange-50 text-orange-700', target: 'UNACCEPTED' as MaintenanceStatus },
+          { label: '處理中', value: counts.status.PROCESSING, helper: '目前執行案件', icon: Settings, tone: 'border-blue-200 bg-blue-50 text-blue-700', target: 'PROCESSING' as MaintenanceStatus },
+          { label: '等待外部回覆', value: (counts.stage.WAITING_VENDOR_REPLY || 0) + (counts.stage.WAITING_VENDOR_QUOTE || 0) + (counts.stage.WAITING_PARTS || 0), helper: '廠商／報價／料件', icon: Briefcase, tone: 'border-sky-200 bg-sky-50 text-sky-700', target: 'PROCESSING' as MaintenanceStatus },
+          { label: '完成待確認', value: counts.stage.WAITING_STORE_CONFIRMATION || 0, helper: '等待門市確認', icon: CheckCircle2, tone: 'border-emerald-200 bg-emerald-50 text-emerald-700', target: 'PROCESSING' as MaintenanceStatus },
+          { label: '待調撥料件', value: counts.stage.WAITING_PARTS || 0, helper: '尚未完成出庫', icon: Package, tone: 'border-amber-200 bg-amber-50 text-amber-700', target: 'PROCESSING' as MaintenanceStatus },
+        ]
+      : [
+          { label: '處理中的回報', value: counts.status.PROCESSING, helper: '總務處理中', icon: Settings, tone: 'border-blue-200 bg-blue-50 text-blue-700', target: 'PROCESSING' as MaintenanceStatus },
+          { label: '等待我補充', value: counts.stage.WAITING_STORE_INFO || 0, helper: '需補照片或說明', icon: AlertCircle, tone: 'border-orange-300 bg-orange-50 text-orange-700 ring-2 ring-orange-100', target: 'PROCESSING' as MaintenanceStatus },
+          { label: '完成待確認', value: counts.stage.WAITING_STORE_CONFIRMATION || 0, helper: '請確認維修結果', icon: CheckCircle2, tone: 'border-emerald-300 bg-emerald-50 text-emerald-700 ring-2 ring-emerald-100', target: 'PROCESSING' as MaintenanceStatus },
+          { label: '本月已完成', value: counts.monthCompleted, helper: '查看歷史紀錄', icon: CalendarDays, tone: 'border-slate-200 bg-white text-slate-700', target: 'COMPLETED' as MaintenanceStatus },
+        ];
+
+    const stageSummary: Array<{ stage: MaintenanceProgressStage; label: string }> = [
+      { stage: 'INITIAL_REVIEW', label: '待總務受理' },
+      { stage: 'WAITING_STORE_INFO', label: '待門市補充' },
+      { stage: 'WAITING_VENDOR_REPLY', label: '等待廠商回覆' },
+      { stage: 'WAITING_VENDOR_VISIT', label: '已預約到場' },
+      { stage: 'WAITING_VENDOR_QUOTE', label: '等待報價' },
+      { stage: 'WAITING_PARTS', label: '等待料件' },
+      { stage: 'VENDOR_WORKING', label: '維修施工中' },
+      { stage: 'WAITING_STORE_CONFIRMATION', label: '完成待確認' },
+    ];
+
+    const importantParts = [
+      ['展裕30cm掛勾', '百福店需30個', '文德店有42個', '建立調撥'],
+      ['中島架層板', '總倉剩2片', '多店使用', '查看庫存'],
+      ['價格牌軌', '東湖店閒置20支', '東湖店', '確認數量'],
+    ];
+    const equipmentAlerts = [
+      ['即將到期保固', '12台', '未來60天內'],
+      ['重複維修設備', '5台', '近半年維修2次以上'],
+      ['資料不完整設備', '18台', '缺照片、型號或序號'],
+      ['待停用／汰換', '3台', '等待處理'],
+    ];
+    const vendorRows = [
+      ['和泰冷氣工程行', '百福店冷氣A', '今日到場', '14:00–16:00'],
+      ['大安水電工程行', '文德店漏水', '等待報價', '—'],
+      ['潔淨病媒防治', '東湖店鼠患', '已安排巡檢', '07/22上午'],
+    ];
+    const visitRows = [
+      ['今天 10:00', '東湖店｜自動門檢修', '永盛自動門'],
+      ['今天 14:00', '百福店｜冷氣檢查', '和泰冷氣'],
+      ['明天 上午', '文德店｜鼠害現場勘查', '潔淨病媒防治'],
+    ];
+    const quickLinks = isAffairsView
+      ? [
+          ['維修回報', 'maintenance', Wrench],
+          ['工單中心', 'work-orders', ClipboardList],
+          ['設備管理', 'equipment', Settings],
+          ['設施管理', 'facilities', Building2],
+          ['料件中心', 'parts', Warehouse],
+          ['廠商管理', 'vendors', Briefcase],
+        ] as Array<[string, ServiceSection, any]>
+      : [
+          ['新增維修', 'maintenance', Wrench],
+          ['我的回報', 'maintenance', ClipboardList],
+          ['門市設備', 'equipment', Settings],
+          ['申請料件', 'parts', Package],
+          ['料件申請紀錄', 'parts', FileText],
+        ] as Array<[string, ServiceSection, any]>;
+
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-black text-slate-950">總務服務中心</h1>
+            <p className="mt-1 text-sm text-slate-500">提出門市需求、追蹤工單進度及查詢設備與料件資訊</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {(canSubmit || isAffairsView) && (
+              <button type="button" onClick={() => openSection('maintenance', { maintenanceView: 'new' })} className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-bold text-white hover:bg-orange-600">
+                <Plus size={16} />
+                {isAffairsView ? '建立工單' : '新增維修回報'}
+              </button>
+            )}
+            <button type="button" onClick={() => openSection('parts')} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+              <Plus size={16} />
+              {isAffairsView ? '新增料件' : '申請料件'}
+            </button>
+            {isAffairsView && (
+              <button type="button" onClick={() => openSection('equipment')} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+                <Plus size={16} />
+                新增設備
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className={`grid gap-3 ${isAffairsView ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
+          {todoCards.map((card) => {
+            const Icon = card.icon;
+            return (
+              <button key={card.label} type="button" onClick={() => openSection('work-orders', { status: card.target })} className={`rounded-lg border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${card.tone}`}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-white/80"><Icon size={20} /></span>
+                  <span className="text-3xl font-black">{card.value}</span>
+                </div>
+                <div className="mt-3 text-sm font-black">{card.label}</div>
+                <div className="mt-1 text-xs font-semibold opacity-80">{card.helper}</div>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(360px,0.85fr)]">
+          <section className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <div>
+                <h2 className="text-lg font-black text-slate-950">需要我處理</h2>
+                <p className="mt-0.5 text-xs font-semibold text-slate-500">{isAffairsView ? '依總務應採取行動排序' : '只顯示需要門市回覆或確認的案件'}</p>
+              </div>
+              <button type="button" onClick={() => openSection('work-orders')} className="text-xs font-bold text-orange-600 hover:text-orange-700">進入工單中心</button>
+            </div>
+            <div className="overflow-auto">
+              <table className="w-full min-w-[680px] text-sm">
+                <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">待辦事項</th>
+                    <th className="px-4 py-3">工單／項目</th>
+                    {isAffairsView && <th className="px-4 py-3">門市</th>}
+                    <th className="px-4 py-3">目前狀況</th>
+                    <th className="px-4 py-3">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {(isAffairsView ? affairsTodoRows : storeTodoRows).length === 0 ? (
+                    <tr><td colSpan={isAffairsView ? 5 : 4} className="px-4 py-8 text-center text-sm text-slate-500">目前沒有需要立即處理的案件</td></tr>
+                  ) : (isAffairsView ? affairsTodoRows : storeTodoRows).map((row, index) => (
+                    <tr key={`${row.item}-${index}`} className="hover:bg-slate-50">
+                      <td className="px-4 py-3"><span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-black text-orange-700">{row.task}</span></td>
+                      <td className="px-4 py-3 font-bold text-slate-900">{row.item}</td>
+                      {isAffairsView && <td className="px-4 py-3 text-slate-600">{row.store}</td>}
+                      <td className="px-4 py-3 text-slate-600">{row.status}</td>
+                      <td className="px-4 py-3"><button type="button" onClick={() => openSection('work-orders')} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50">{row.action}</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+              <h2 className="text-lg font-black text-slate-950">最近更新的工單</h2>
+              <div className="flex gap-1 text-xs font-bold text-slate-500">
+                {['全部更新', '維修', '料件', '完成'].map((item) => <span key={item} className="rounded-full px-2 py-1 hover:bg-slate-100">{item}</span>)}
+              </div>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {recentRows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-slate-500">目前沒有近期更新</div>
+              ) : recentRows.map((row) => (
+                <button key={row.id} type="button" onClick={() => openSection('maintenance', { maintenanceView: 'mine' })} className="block w-full px-4 py-3 text-left hover:bg-slate-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-mono text-xs font-bold text-slate-400">WO-{row.id.slice(0, 8).toUpperCase()}</div>
+                      <div className="mt-1 truncate font-black text-slate-900">{row.title}</div>
+                      <div className="mt-1 text-xs font-semibold text-slate-500">{row.store}</div>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">{row.stageLabel}</span>
+                  </div>
+                  <div className="mt-2 text-xs text-slate-500">{getDateTimeLabel(row.at)}</div>
+                  <div className="mt-1 line-clamp-2 text-sm text-slate-700">{row.note}</div>
+                </button>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-black text-slate-950">工單狀況總覽</h2>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {stageSummary.map((row) => (
+                <button key={row.stage} type="button" onClick={() => openSection('work-orders', { status: row.stage === 'INITIAL_REVIEW' ? 'UNACCEPTED' : 'PROCESSING' })} className="flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-orange-200 hover:bg-orange-50">
+                  <span className="text-sm font-bold text-slate-700">{row.label}</span>
+                  <span className="text-lg font-black text-slate-950">{row.stage === 'INITIAL_REVIEW' ? counts.status.UNACCEPTED : counts.stage[row.stage] || 0}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <h2 className="text-lg font-black text-slate-950">今日／本週到場安排</h2>
+            <div className="mt-4 space-y-3">
+              {visitRows.map((row) => (
+                <div key={row.join('-')} className="flex gap-3 rounded-lg bg-slate-50 p-3">
+                  <div className="w-20 shrink-0 text-xs font-black text-orange-600">{row[0]}</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-slate-900">{row[1]}</div>
+                    <div className="mt-0.5 text-xs text-slate-500">{row[2]}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-3">
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-slate-950">料件動態</h2>
+              <button type="button" onClick={() => openSection('parts')} className="text-xs font-bold text-orange-600">料件中心</button>
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+              {[
+                ['待申請', '4'],
+                ['庫存不足', '6'],
+                ['閒置待確認', '12'],
+                ['調撥中', '3'],
+              ].map((row) => <div key={row[0]} className="rounded-lg bg-slate-50 px-2 py-3"><div className="text-lg font-black text-slate-950">{row[1]}</div><div className="text-[11px] font-bold text-slate-500">{row[0]}</div></div>)}
+            </div>
+            <div className="mt-3 space-y-2">
+              {importantParts.map((row) => <div key={row[0]} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border border-slate-100 p-3 text-sm"><div><div className="font-bold text-slate-900">{row[0]}</div><div className="text-xs text-slate-500">{row[1]}｜{row[2]}</div></div><button type="button" className="text-xs font-bold text-orange-600">{row[3]}</button></div>)}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-slate-950">設備與設施提醒</h2>
+              <button type="button" onClick={() => openSection('equipment')} className="text-xs font-bold text-orange-600">設備管理</button>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {equipmentAlerts.map((row) => <div key={row[0]} className="rounded-lg border border-slate-100 p-3"><div className="text-xs font-bold text-slate-500">{row[0]}</div><div className="mt-1 text-xl font-black text-slate-950">{row[1]}</div><div className="mt-1 text-xs text-slate-500">{row[2]}</div></div>)}
+            </div>
+            <div className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
+              <div className="font-black">0014 百福店｜冷氣A</div>
+              <div className="mt-1 text-xs font-semibold">近90天回報3次，建議檢查是否需汰換或保固處理</div>
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black text-slate-950">廠商待辦與合作動態</h2>
+              <button type="button" onClick={() => openSection('vendors')} className="text-xs font-bold text-orange-600">廠商管理</button>
+            </div>
+            <div className="mt-3 grid grid-cols-4 gap-2 text-center">
+              {[
+                ['待回覆', counts.stage.WAITING_VENDOR_REPLY || 0],
+                ['今日到場', 4],
+                ['報價待確認', counts.stage.WAITING_VENDOR_QUOTE || 0],
+                ['施工待回報', counts.stage.VENDOR_WORKING || 0],
+              ].map((row) => <div key={row[0]} className="rounded-lg bg-slate-50 px-2 py-3"><div className="text-lg font-black text-slate-950">{row[1]}</div><div className="text-[11px] font-bold text-slate-500">{row[0]}</div></div>)}
+            </div>
+            <div className="mt-3 space-y-2">
+              {vendorRows.map((row) => <div key={row.join('-')} className="rounded-lg border border-slate-100 p-3 text-sm"><div className="font-bold text-slate-900">{row[0]}</div><div className="mt-1 text-xs text-slate-500">{row[1]}｜{row[2]}｜{row[3]}</div></div>)}
+            </div>
+          </section>
+        </div>
+
+        <section className="rounded-lg border border-slate-200 bg-white p-4">
+          <h2 className="text-lg font-black text-slate-950">快速入口</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
+            {quickLinks.map(([label, section, Icon]) => (
+              <button key={label} type="button" onClick={() => openSection(section, label === '我的回報' ? { maintenanceView: 'mine' } : label === '新增維修' ? { maintenanceView: 'new' } : undefined)} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-3 text-left hover:border-orange-200 hover:bg-orange-50">
+                <span className="grid h-9 w-9 place-items-center rounded-full bg-slate-100 text-slate-600"><Icon size={18} /></span>
+                <span className="text-sm font-black text-slate-800">{label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   const renderNewReport = () => (
     <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
@@ -2966,6 +3319,8 @@ export default function GeneralAffairsServiceCenterPage() {
         </div>
       );
     }
+
+    if (activeSection === 'home') return renderHomeDashboard();
 
     if (activeSection === 'maintenance') {
       if (!canSubmit && !canViewAll && !canUpdateWorkOrders) {
