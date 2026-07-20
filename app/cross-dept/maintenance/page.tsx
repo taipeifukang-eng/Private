@@ -7,6 +7,15 @@ import {
   Upload, Camera, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trash2,
   CheckCircle, Clock, Pause
 } from 'lucide-react';
+import {
+  MAINTENANCE_PROGRESS_STAGE_LABELS,
+  MAINTENANCE_STATUS_LABELS,
+  normalizeMaintenanceStatus,
+  normalizeProgressStage,
+  type LegacyMaintenanceStatus,
+  type MaintenanceProgressStage,
+  type MaintenanceTicketStatus,
+} from '@/lib/maintenance/status';
 
 // ── 型別 ──────────────────────────────────────────────────────
 interface MaintenanceRequest {
@@ -16,7 +25,8 @@ interface MaintenanceRequest {
   description: string | null;
   reported_by: string;
   reporter_name: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'closed';
+  status: MaintenanceTicketStatus | LegacyMaintenanceStatus;
+  progress_stage?: MaintenanceProgressStage | null;
   priority: 'low' | 'normal' | 'high' | 'urgent';
   category_id?: string | null;
   reported_at: string;
@@ -27,7 +37,9 @@ interface MaintenanceRequest {
 interface MaintenanceUpdate {
   id: string;
   request_id: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'closed';
+  status: MaintenanceTicketStatus | LegacyMaintenanceStatus;
+  progress_stage?: MaintenanceProgressStage | null;
+  visibility?: 'PUBLIC' | 'INTERNAL';
   notes: string;
   progress_date: string;
   category_id?: string | null;
@@ -63,6 +75,9 @@ interface StoreStatusSummary {
   store_id: string;
   store_code: string;
   store_name: string;
+  unaccepted: number;
+  accepted: number;
+  processing: number;
   pending: number;
   in_progress: number;
   completed: number;
@@ -77,6 +92,12 @@ interface MaintenanceCategory {
   created_at?: string;
   updated_at?: string;
 }
+
+const getNormalizedStatus = (status: MaintenanceTicketStatus | LegacyMaintenanceStatus | null | undefined): MaintenanceTicketStatus =>
+  normalizeMaintenanceStatus(status) || 'UNACCEPTED';
+
+const getNormalizedStage = (stage: MaintenanceProgressStage | string | null | undefined) =>
+  normalizeProgressStage(stage) || null;
 
 // ── 主元件 ──────────────────────────────────────────────────────
 export default function MaintenancePage() {
@@ -102,7 +123,7 @@ export default function MaintenancePage() {
   const [loading, setLoading] = useState(false);
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [allStores, setAllStores] = useState<UserManagedStore[]>([]);
-  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'in_progress' | 'completed'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | MaintenanceTicketStatus>('all');
   const [filterCategoryId, setFilterCategoryId] = useState('all');
   const [filterYearMonth, setFilterYearMonth] = useState(() =>
     new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' }).slice(0, 7)
@@ -134,7 +155,8 @@ export default function MaintenancePage() {
   // 進度更新表單
   const [updateTarget, setUpdateTarget] = useState<MaintenanceRequest | null>(null);
   const [updateForm, setUpdateForm] = useState({
-    status: 'pending',
+    status: 'PROCESSING',
+    progressStage: 'INITIAL_REVIEW' as MaintenanceProgressStage,
     notes: '',
     progressDate: getDateInTaipei(),
   });
@@ -543,6 +565,7 @@ export default function MaintenancePage() {
         body: JSON.stringify({
           request_id: updateTarget.id,
           status: updateForm.status,
+          progress_stage: updateForm.progressStage,
           notes: updateForm.notes,
           progress_date: updateForm.progressDate,
         }),
@@ -568,7 +591,7 @@ export default function MaintenancePage() {
 
         await loadRequestUpdates(updateTarget.id);
         setUpdateTarget(null);
-        setUpdateForm({ status: 'pending', notes: '', progressDate: getDateInTaipei() });
+        setUpdateForm({ status: 'PROCESSING', progressStage: 'INITIAL_REVIEW', notes: '', progressDate: getDateInTaipei() });
         clearUpdateFormPhotos();
         loadData();
         loadStoreSummary();
@@ -973,7 +996,7 @@ export default function MaintenancePage() {
           {/* 狀態篩選 & 搜尋 */}
           <div className="flex gap-3 items-center flex-wrap">
             <div className="flex rounded-lg overflow-hidden border border-gray-200 text-sm">
-              {(['all', 'pending', 'in_progress', 'completed'] as const).map((s) => (
+              {(['all', 'UNACCEPTED', 'ACCEPTED', 'PROCESSING', 'COMPLETED'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => {
@@ -988,9 +1011,10 @@ export default function MaintenancePage() {
                 >
                   {{
                     all: '全部',
-                    pending: '待處理',
-                    in_progress: '處理中',
-                    completed: '已完成',
+                    UNACCEPTED: MAINTENANCE_STATUS_LABELS.UNACCEPTED,
+                    ACCEPTED: MAINTENANCE_STATUS_LABELS.ACCEPTED,
+                    PROCESSING: MAINTENANCE_STATUS_LABELS.PROCESSING,
+                    COMPLETED: MAINTENANCE_STATUS_LABELS.COMPLETED,
                   }[s]}
                 </button>
               ))}
@@ -1049,7 +1073,8 @@ export default function MaintenancePage() {
                       <thead>
                         <tr className="text-left text-gray-500 border-b border-gray-200">
                           <th className="py-2 pr-2">門市</th>
-                          <th className="py-2 pr-2">待處理</th>
+                          <th className="py-2 pr-2">未受理</th>
+                          <th className="py-2 pr-2">已受理</th>
                           <th className="py-2 pr-2">處理中</th>
                           <th className="py-2 pr-2">已完成</th>
                           <th className="py-2">總數</th>
@@ -1059,8 +1084,9 @@ export default function MaintenancePage() {
                         {storeSummary.map((s) => (
                           <tr key={s.store_id} className="border-b border-gray-100">
                             <td className="py-2 pr-2 text-gray-700">{s.store_code} - {s.store_name}</td>
-                            <td className="py-2 pr-2 text-orange-600 font-medium">{s.pending}</td>
-                            <td className="py-2 pr-2 text-blue-600 font-medium">{s.in_progress}</td>
+                            <td className="py-2 pr-2 text-orange-600 font-medium">{s.unaccepted ?? s.pending}</td>
+                            <td className="py-2 pr-2 text-sky-600 font-medium">{s.accepted ?? 0}</td>
+                            <td className="py-2 pr-2 text-blue-600 font-medium">{s.processing ?? s.in_progress}</td>
                             <td className="py-2 pr-2 text-emerald-600 font-medium">{s.completed}</td>
                             <td className="py-2 text-gray-700">{s.total}</td>
                           </tr>
@@ -1263,7 +1289,10 @@ export default function MaintenancePage() {
                             {updatesLoading.has(req.id) ? (
                               <div className="text-xs text-gray-500">更新歷程載入中...</div>
                             ) : (
-                              (updatesMap.get(req.id) ?? []).map((u) => (
+                              (updatesMap.get(req.id) ?? []).map((u) => {
+                                const updateStatus = getNormalizedStatus(u.status);
+                                const updateStage = getNormalizedStage(u.progress_stage);
+                                return (
                                 <div key={u.id} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
                                   <div className="flex items-center justify-between gap-2 mb-1">
                                     <div className="text-xs text-gray-500">
@@ -1275,9 +1304,16 @@ export default function MaintenancePage() {
                                       {' · '}更新者：{u.updated_by_name}
                                       {' · '}分類：{getCategoryName(u.category_id, u.category)}
                                     </div>
-                                    <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
-                                      {{ pending: '待處理', in_progress: '處理中', completed: '已完成' }[u.status as 'pending' | 'in_progress' | 'completed'] ?? u.status}
-                                    </span>
+                                    <div className="flex flex-wrap justify-end gap-1">
+                                      <span className="text-xs px-2 py-0.5 rounded-full bg-white border border-gray-200 text-gray-700">
+                                        {MAINTENANCE_STATUS_LABELS[updateStatus]}
+                                      </span>
+                                      {updateStage && (
+                                        <span className="text-xs px-2 py-0.5 rounded-full bg-orange-50 text-orange-700">
+                                          {MAINTENANCE_PROGRESS_STAGE_LABELS[updateStage]}
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <p className="text-sm text-gray-700 whitespace-pre-wrap">{u.notes}</p>
                                   {(u.photos?.length ?? 0) > 0 && (
@@ -1301,7 +1337,8 @@ export default function MaintenancePage() {
                                     </div>
                                   )}
                                 </div>
-                              ))
+                              );
+                              })
                             )}
 
                             {!updatesLoading.has(req.id) && (updatesMap.get(req.id)?.length ?? 0) === 0 && (
@@ -1321,9 +1358,23 @@ export default function MaintenancePage() {
                                 }
                                 className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
                               >
-                                <option value="pending">待處理</option>
-                                <option value="in_progress">處理中</option>
-                                <option value="completed">已完成</option>
+                                <option value="ACCEPTED">已受理</option>
+                                <option value="PROCESSING">處理中</option>
+                                <option value="COMPLETED">處理完成，請門市確認</option>
+                              </select>
+                              <select
+                                value={updateForm.progressStage}
+                                onChange={(e) =>
+                                  setUpdateForm({
+                                    ...updateForm,
+                                    progressStage: e.target.value as MaintenanceProgressStage,
+                                  })
+                                }
+                                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                              >
+                                {Object.entries(MAINTENANCE_PROGRESS_STAGE_LABELS).map(([code, label]) => (
+                                  <option key={code} value={code}>{label}</option>
+                                ))}
                               </select>
                               <textarea
                                 placeholder="輸入更新說明..."
@@ -1416,7 +1467,8 @@ export default function MaintenancePage() {
                               onClick={() => {
                                 setUpdateTarget(req);
                                 setUpdateForm({
-                                  status: req.status,
+                                  status: getNormalizedStatus(req.status),
+                                  progressStage: getNormalizedStage(req.progress_stage) || 'INITIAL_REVIEW',
                                   notes: '',
                                   progressDate: getDateInTaipei(),
                                 });

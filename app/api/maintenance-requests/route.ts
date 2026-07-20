@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+import { normalizeMaintenanceStatus } from '@/lib/maintenance/status';
 
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      query = query.eq('status', status);
+      query = query.eq('status', normalizeMaintenanceStatus(status) || status);
     }
 
     if (categoryId === '__none__') {
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
       reported_by: user.id,
       reporter_name: reporterName,
       priority: 'normal',
-      status: 'pending',
+      status: 'UNACCEPTED',
       resource_type: resourceType,
       issue_type: issueType,
       contact_name: contactName,
@@ -227,7 +228,7 @@ export async function POST(request: NextRequest) {
         reported_by: user.id,
         reporter_name: reporterName,
         priority: 'normal',
-        status: 'pending',
+        status: 'UNACCEPTED',
       };
       const { data: fallbackData, error: fallbackError } = await supabase
         .from('maintenance_requests')
@@ -238,6 +239,20 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ success: true, data: fallbackData, warning: 'maintenance_requests 新欄位尚未套用 migration，已用舊格式建立回報' }, { status: 201 });
     }
+
+    await supabase
+      .from('maintenance_ticket_events')
+      .insert({
+        ticket_id: data.id,
+        event_type: 'CREATED',
+        previous_status: null,
+        new_status: 'UNACCEPTED',
+        previous_progress_stage: null,
+        new_progress_stage: null,
+        description: '門市送出維修回報',
+        visibility: 'PUBLIC',
+        created_by: user.id,
+      });
 
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (err: any) {

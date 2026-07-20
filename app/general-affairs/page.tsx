@@ -43,8 +43,18 @@ import {
   Wrench,
   XCircle,
 } from 'lucide-react';
+import {
+  MAINTENANCE_PROGRESS_STAGE_LABELS,
+  MAINTENANCE_STATUS_LABELS,
+  normalizeMaintenanceStatus,
+  normalizeProgressStage,
+  type LegacyMaintenanceStatus,
+  type MaintenanceProgressStage,
+  type MaintenanceTicketStatus,
+} from '@/lib/maintenance/status';
 
-type MaintenanceStatus = 'pending' | 'in_progress' | 'completed' | 'closed';
+type MaintenanceStatus = MaintenanceTicketStatus;
+type MaintenanceStatusValue = MaintenanceTicketStatus | LegacyMaintenanceStatus;
 type ResourceType = 'equipment' | 'facility' | 'material';
 type ServiceSection = 'maintenance' | 'work-orders' | 'equipment' | 'facilities' | 'vendors' | 'parts';
 type MaintenanceView = 'new' | 'mine';
@@ -66,7 +76,18 @@ type MaintenanceRequest = {
   title: string;
   description: string | null;
   reporter_name: string;
-  status: MaintenanceStatus;
+  status: MaintenanceStatusValue;
+  progress_stage?: MaintenanceProgressStage | null;
+  accepted_at?: string | null;
+  accepted_by?: string | null;
+  assignee_name?: string | null;
+  handling_method?: string | null;
+  completed_at?: string | null;
+  completed_by?: string | null;
+  completion_method?: string | null;
+  completion_requested_at?: string | null;
+  completion_requested_by?: string | null;
+  unresolved_reason?: string | null;
   priority: string | null;
   resource_type?: ResourceType | null;
   issue_type?: string | null;
@@ -79,7 +100,9 @@ type MaintenanceRequest = {
 type MaintenanceUpdate = {
   id: string;
   request_id: string;
-  status: MaintenanceStatus;
+  status: MaintenanceStatusValue;
+  progress_stage?: MaintenanceProgressStage | null;
+  visibility?: 'PUBLIC' | 'INTERNAL';
   notes: string;
   progress_date: string;
   updated_by_name: string;
@@ -199,17 +222,17 @@ const resourceTypes: Array<{
 ];
 
 const statusMeta: Record<MaintenanceStatus, { label: string; tone: string; dot: string; icon: any }> = {
-  pending: { label: '等待處理', tone: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400', icon: Clock3 },
-  in_progress: { label: '處理中', tone: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', icon: Settings },
-  completed: { label: '已完成', tone: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', icon: CheckCircle2 },
-  closed: { label: '已結案', tone: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-400', icon: XCircle },
+  UNACCEPTED: { label: MAINTENANCE_STATUS_LABELS.UNACCEPTED, tone: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-400', icon: Clock3 },
+  ACCEPTED: { label: MAINTENANCE_STATUS_LABELS.ACCEPTED, tone: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500', icon: CheckCircle2 },
+  PROCESSING: { label: MAINTENANCE_STATUS_LABELS.PROCESSING, tone: 'bg-blue-50 text-blue-700 border-blue-200', dot: 'bg-blue-500', icon: Settings },
+  COMPLETED: { label: MAINTENANCE_STATUS_LABELS.COMPLETED, tone: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500', icon: CheckCircle2 },
 };
 
 const progressSteps: Array<{ status: MaintenanceStatus; label: string }> = [
-  { status: 'pending', label: '提出回報' },
-  { status: 'in_progress', label: '總務處理' },
-  { status: 'completed', label: '完成結果' },
-  { status: 'closed', label: '完成結案' },
+  { status: 'UNACCEPTED', label: '提出回報' },
+  { status: 'ACCEPTED', label: '總務受理' },
+  { status: 'PROCESSING', label: '處理中' },
+  { status: 'COMPLETED', label: '完成確認' },
 ];
 
 const reportStatusFilters: Array<{
@@ -229,36 +252,36 @@ const reportStatusFilters: Array<{
     badgeTone: 'bg-blue-50 text-blue-700',
   },
   {
-    key: 'in_progress',
-    label: '處理中',
-    helper: '總務處理中',
-    icon: Settings,
-    iconTone: 'bg-orange-50 text-orange-600 ring-orange-100',
-    badgeTone: 'bg-orange-50 text-orange-700',
-  },
-  {
-    key: 'pending',
-    label: '等待處理',
-    helper: '已受理待處理',
+    key: 'UNACCEPTED',
+    label: '未受理',
+    helper: '等待總務受理',
     icon: Clock3,
     iconTone: 'bg-amber-50 text-amber-600 ring-amber-100',
     badgeTone: 'bg-amber-50 text-amber-700',
   },
   {
-    key: 'completed',
+    key: 'ACCEPTED',
+    label: '已受理',
+    helper: '已進入總務處理',
+    icon: CheckCircle2,
+    iconTone: 'bg-sky-50 text-sky-600 ring-sky-100',
+    badgeTone: 'bg-sky-50 text-sky-700',
+  },
+  {
+    key: 'PROCESSING',
+    label: '處理中',
+    helper: '顯示目前進度',
+    icon: Settings,
+    iconTone: 'bg-orange-50 text-orange-600 ring-orange-100',
+    badgeTone: 'bg-orange-50 text-orange-700',
+  },
+  {
+    key: 'COMPLETED',
     label: '已完成',
     helper: '查看歷史',
     icon: CheckCircle2,
     iconTone: 'bg-emerald-50 text-emerald-600 ring-emerald-100',
     badgeTone: 'bg-emerald-50 text-emerald-700',
-  },
-  {
-    key: 'closed',
-    label: '已結案',
-    helper: '已結案工單',
-    icon: XCircle,
-    iconTone: 'bg-slate-100 text-slate-500 ring-slate-200',
-    badgeTone: 'bg-slate-100 text-slate-600',
   },
 ];
 
@@ -364,6 +387,12 @@ const getDefaultReportStartDate = () => {
   return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Taipei' });
 };
 
+const getNormalizedStatus = (status: MaintenanceStatusValue | null | undefined): MaintenanceStatus =>
+  normalizeMaintenanceStatus(status) || 'UNACCEPTED';
+
+const getNormalizedStage = (stage: MaintenanceProgressStage | string | null | undefined) =>
+  normalizeProgressStage(stage) || null;
+
 export default function GeneralAffairsServiceCenterPage() {
   const supabase = createClient();
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -391,6 +420,9 @@ export default function GeneralAffairsServiceCenterPage() {
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [updatesByRequestId, setUpdatesByRequestId] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
   const [statusFilter, setStatusFilter] = useState<'all' | MaintenanceStatus>('all');
+  const [progressStageOptions, setProgressStageOptions] = useState<Array<{ code: MaintenanceProgressStage; name: string }>>(
+    Object.entries(MAINTENANCE_PROGRESS_STAGE_LABELS).map(([code, name]) => ({ code: code as MaintenanceProgressStage, name }))
+  );
   const [reportStartDate, setReportStartDate] = useState(getDefaultReportStartDate);
   const [reportEndDate, setReportEndDate] = useState(getDateInTaipei);
   const [searchText, setSearchText] = useState('');
@@ -398,9 +430,14 @@ export default function GeneralAffairsServiceCenterPage() {
   const [selectedWorkOrderId, setSelectedWorkOrderId] = useState<string | null>(null);
   const [savingWorkOrderUpdate, setSavingWorkOrderUpdate] = useState(false);
   const [workOrderUpdateForm, setWorkOrderUpdateForm] = useState({
-    status: 'in_progress' as MaintenanceStatus,
+    action: 'SAVE_PROGRESS' as 'ACCEPT' | 'SAVE_PROGRESS' | 'REQUEST_COMPLETION' | 'FORCE_CLOSE',
+    progressStage: 'INITIAL_REVIEW' as MaintenanceProgressStage,
+    visibility: 'PUBLIC' as 'PUBLIC' | 'INTERNAL',
     progressDate: getDateInTaipei(),
+    assigneeName: '',
+    handlingMethod: '',
     notes: '',
+    forceCloseReason: '',
   });
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [vendorCategories, setVendorCategories] = useState<VendorCategory[]>([]);
@@ -702,16 +739,17 @@ export default function GeneralAffairsServiceCenterPage() {
 
   const statusCounts = useMemo(() => {
     return requests.reduce((acc, row) => {
+      const status = getNormalizedStatus(row.status);
       acc.all += 1;
-      acc[row.status] = (acc[row.status] || 0) + 1;
+      acc[status] = (acc[status] || 0) + 1;
       return acc;
-    }, { all: 0, pending: 0, in_progress: 0, completed: 0, closed: 0 } as Record<'all' | MaintenanceStatus, number>);
+    }, { all: 0, UNACCEPTED: 0, ACCEPTED: 0, PROCESSING: 0, COMPLETED: 0 } as Record<'all' | MaintenanceStatus, number>);
   }, [requests]);
 
   const filteredRequests = useMemo(() => {
     const keyword = searchText.trim().toLowerCase();
     return requests.filter((request) => {
-      if (statusFilter !== 'all' && request.status !== statusFilter) return false;
+      if (statusFilter !== 'all' && getNormalizedStatus(request.status) !== statusFilter) return false;
       if (!keyword) return true;
       return [
         request.title,
@@ -923,6 +961,24 @@ export default function GeneralAffairsServiceCenterPage() {
     }
   }, [canViewAll, reportEndDate, reportStartDate, selectedStoreId]);
 
+  const loadProgressStages = useCallback(async () => {
+    try {
+      const res = await fetch('/api/maintenance-progress-stages');
+      const json = await res.json();
+      if (res.ok && json.success && Array.isArray(json.data)) {
+        const rows = json.data
+          .map((row: any) => {
+            const code = normalizeProgressStage(row.code);
+            return code ? { code, name: String(row.name || MAINTENANCE_PROGRESS_STAGE_LABELS[code]) } : null;
+          })
+          .filter(Boolean) as Array<{ code: MaintenanceProgressStage; name: string }>;
+        if (rows.length > 0) setProgressStageOptions(rows);
+      }
+    } catch (error) {
+      console.warn('載入維修進度階段失敗，使用預設選項', error);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoadingInitial(true);
@@ -945,6 +1001,7 @@ export default function GeneralAffairsServiceCenterPage() {
         setCanSubmit(submitAllowed || viewAllAllowed);
         setCanViewAll(viewAllAllowed);
         setCanUpdateWorkOrders(updateAllowed || viewAllAllowed);
+        await loadProgressStages();
 
         if (viewAllAllowed) {
           const { data } = await supabase
@@ -1056,9 +1113,16 @@ export default function GeneralAffairsServiceCenterPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           request_id: requestId,
-          status: workOrderUpdateForm.status,
+          action: workOrderUpdateForm.action,
+          progress_stage: workOrderUpdateForm.action === 'REQUEST_COMPLETION'
+            ? 'WAITING_STORE_CONFIRMATION'
+            : workOrderUpdateForm.progressStage,
+          visibility: workOrderUpdateForm.visibility,
           notes: workOrderUpdateForm.notes.trim(),
           progress_date: workOrderUpdateForm.progressDate,
+          assignee_name: workOrderUpdateForm.assigneeName.trim() || undefined,
+          handling_method: workOrderUpdateForm.handlingMethod.trim() || undefined,
+          force_close_reason: workOrderUpdateForm.forceCloseReason.trim() || undefined,
         }),
       });
       const json = await res.json();
@@ -1066,14 +1130,51 @@ export default function GeneralAffairsServiceCenterPage() {
         throw new Error(json.error || '更新工單進度失敗');
       }
       setWorkOrderUpdateForm({
-        status: workOrderUpdateForm.status === 'closed' ? 'closed' : 'in_progress',
+        action: 'SAVE_PROGRESS',
+        progressStage: 'INITIAL_REVIEW',
+        visibility: 'PUBLIC',
         progressDate: getDateInTaipei(),
+        assigneeName: '',
+        handlingMethod: '',
         notes: '',
+        forceCloseReason: '',
       });
       await loadReports();
       alert('工單進度已更新');
     } catch (error: any) {
       alert(`更新失敗：${error.message || error}`);
+    } finally {
+      setSavingWorkOrderUpdate(false);
+    }
+  };
+
+  const submitStoreCompletionResponse = async (requestId: string, action: 'STORE_CONFIRM_COMPLETE' | 'REPORT_UNRESOLVED') => {
+    const notes = action === 'STORE_CONFIRM_COMPLETE'
+      ? '門市確認處理完成'
+      : window.prompt('請填寫仍有問題的原因');
+    if (!notes?.trim()) return;
+
+    setSavingWorkOrderUpdate(true);
+    try {
+      const res = await fetch('/api/maintenance-updates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          request_id: requestId,
+          action,
+          notes: notes.trim(),
+          progress_date: getDateInTaipei(),
+          visibility: 'PUBLIC',
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '更新確認結果失敗');
+      }
+      await loadReports();
+      alert(action === 'STORE_CONFIRM_COMPLETE' ? '已確認完成' : '已送出仍有問題');
+    } catch (error: any) {
+      alert(`送出失敗：${error.message || error}`);
     } finally {
       setSavingWorkOrderUpdate(false);
     }
@@ -1138,9 +1239,13 @@ export default function GeneralAffairsServiceCenterPage() {
   };
 
   const renderProgress = (request: MaintenanceRequest) => {
-    const currentIndex = progressSteps.findIndex((step) => step.status === request.status);
+    const normalizedStatus = getNormalizedStatus(request.status);
+    const currentIndex = progressSteps.findIndex((step) => step.status === normalizedStatus);
     const updates = updatesByRequestId.get(request.id) || [];
     const latest = updates[0];
+    const stageLabel = getNormalizedStage(request.progress_stage)
+      ? MAINTENANCE_PROGRESS_STAGE_LABELS[getNormalizedStage(request.progress_stage)!]
+      : null;
     return (
       <div className="space-y-2">
         <div className="flex min-w-[180px] items-center gap-1.5">
@@ -1161,7 +1266,9 @@ export default function GeneralAffairsServiceCenterPage() {
           })}
         </div>
         <div className="text-xs text-slate-500">
-          {latest ? `${latest.notes}｜${getDateTimeLabel(latest.progress_date)}` : statusMeta[request.status].label}
+          {latest
+            ? `${latest.notes}｜${getDateTimeLabel(latest.progress_date)}`
+            : stageLabel || statusMeta[normalizedStatus].label}
         </div>
       </div>
     );
@@ -1601,7 +1708,10 @@ export default function GeneralAffairsServiceCenterPage() {
               ) : filteredRequests.length === 0 ? (
                 <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-500">目前沒有符合條件的回報</td></tr>
               ) : filteredRequests.map((request) => {
-                const meta = statusMeta[request.status] || statusMeta.pending;
+                const normalizedStatus = getNormalizedStatus(request.status);
+                const normalizedStage = getNormalizedStage(request.progress_stage);
+                const stageLabel = normalizedStage ? MAINTENANCE_PROGRESS_STAGE_LABELS[normalizedStage] : null;
+                const meta = statusMeta[normalizedStatus];
                 const StatusIcon = meta.icon;
                 const expanded = expandedReportId === request.id;
                 const updates = updatesByRequestId.get(request.id) || [];
@@ -1621,6 +1731,9 @@ export default function GeneralAffairsServiceCenterPage() {
                           <StatusIcon size={13} />
                           {meta.label}
                         </span>
+                        {normalizedStatus === 'PROCESSING' && stageLabel && (
+                          <div className="mt-1 text-xs font-semibold text-slate-500">{stageLabel}</div>
+                        )}
                       </td>
                       <td className="px-4 py-4">{renderProgress(request)}</td>
                       <td className="whitespace-nowrap px-4 py-4 text-slate-600">{getDateTimeLabel(request.reported_at)}</td>
@@ -1645,11 +1758,15 @@ export default function GeneralAffairsServiceCenterPage() {
                                 {updates.length === 0 ? (
                                   <div className="text-sm text-slate-500">尚無總務更新紀錄</div>
                                 ) : updates.map((update) => {
-                                  const updateMeta = statusMeta[update.status] || statusMeta.pending;
+                                  const updateStatus = getNormalizedStatus(update.status);
+                                  const updateStage = getNormalizedStage(update.progress_stage);
+                                  const updateMeta = statusMeta[updateStatus];
                                   return (
                                     <div key={update.id} className="border-l-2 border-orange-300 pl-3">
                                       <div className="flex flex-wrap items-center gap-2">
                                         <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${updateMeta.tone}`}>{updateMeta.label}</span>
+                                        {updateStage && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{MAINTENANCE_PROGRESS_STAGE_LABELS[updateStage]}</span>}
+                                        {update.visibility === 'INTERNAL' && <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs font-bold text-purple-700">內部</span>}
                                         <span className="text-xs text-slate-500">{getDateTimeLabel(update.progress_date)}｜{update.updated_by_name}</span>
                                       </div>
                                       <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{update.notes}</div>
@@ -1666,6 +1783,28 @@ export default function GeneralAffairsServiceCenterPage() {
                                 <div>電話：{request.contact_phone || '-'}</div>
                                 <div>回報者：{request.reporter_name}</div>
                               </div>
+                              {normalizedStage === 'WAITING_STORE_CONFIRMATION' && normalizedStatus === 'PROCESSING' && (
+                                <div className="mt-4 grid gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => submitStoreCompletionResponse(request.id, 'STORE_CONFIRM_COMPLETE')}
+                                    disabled={savingWorkOrderUpdate}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
+                                  >
+                                    <CheckCircle2 size={16} />
+                                    確認完成
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => submitStoreCompletionResponse(request.id, 'REPORT_UNRESOLVED')}
+                                    disabled={savingWorkOrderUpdate}
+                                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-orange-200 bg-white px-3 py-2 text-sm font-bold text-orange-700 hover:bg-orange-50 disabled:opacity-50"
+                                  >
+                                    <AlertCircle size={16} />
+                                    仍有問題
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </td>
@@ -1764,7 +1903,9 @@ export default function GeneralAffairsServiceCenterPage() {
                   ) : filteredRequests.length === 0 ? (
                     <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-500">目前沒有工單</td></tr>
                   ) : filteredRequests.map((request) => {
-                    const meta = statusMeta[request.status] || statusMeta.pending;
+                    const normalizedStatus = getNormalizedStatus(request.status);
+                    const normalizedStage = getNormalizedStage(request.progress_stage);
+                    const meta = statusMeta[normalizedStatus];
                     const latest = (updatesByRequestId.get(request.id) || [])[0];
                     const active = selectedWorkOrder?.id === request.id;
                     return (
@@ -1784,6 +1925,9 @@ export default function GeneralAffairsServiceCenterPage() {
                         </td>
                         <td className="px-4 py-4">
                           <span className={`inline-flex rounded-full border px-2 py-1 text-xs font-bold ${meta.tone}`}>{meta.label}</span>
+                          {normalizedStatus === 'PROCESSING' && normalizedStage && (
+                            <div className="mt-1 text-xs font-semibold text-slate-500">{MAINTENANCE_PROGRESS_STAGE_LABELS[normalizedStage]}</div>
+                          )}
                         </td>
                         <td className="px-4 py-4 text-xs text-slate-500">
                           {latest ? (
@@ -1810,22 +1954,108 @@ export default function GeneralAffairsServiceCenterPage() {
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
                       <div>聯絡人：<span className="font-semibold text-slate-700">{selectedWorkOrder.contact_name || selectedWorkOrder.reporter_name || '-'}</span></div>
                       <div>電話：<span className="font-semibold text-slate-700">{selectedWorkOrder.contact_phone || '-'}</span></div>
+                      <div>承辦人：<span className="font-semibold text-slate-700">{selectedWorkOrder.assignee_name || '-'}</span></div>
+                      <div>處理方式：<span className="font-semibold text-slate-700">{selectedWorkOrder.handling_method || '-'}</span></div>
                     </div>
                     <div className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{selectedWorkOrder.description || '-'}</div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {(() => {
+                        const currentStatus = getNormalizedStatus(selectedWorkOrder.status);
+                        const currentStage = getNormalizedStage(selectedWorkOrder.progress_stage);
+                        const CurrentIcon = statusMeta[currentStatus].icon;
+                        return (
+                          <>
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-bold ${statusMeta[currentStatus].tone}`}>
+                              <CurrentIcon size={13} />
+                              {statusMeta[currentStatus].label}
+                            </span>
+                            {currentStage && <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">{MAINTENANCE_PROGRESS_STAGE_LABELS[currentStage]}</span>}
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
                     <div className="font-bold text-slate-950">新增處理進度</div>
                     <div className="mt-3 space-y-3">
+                      {getNormalizedStatus(selectedWorkOrder.status) === 'UNACCEPTED' && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWorkOrderUpdateForm((current) => ({
+                              ...current,
+                              action: 'ACCEPT',
+                              progressStage: 'INITIAL_REVIEW',
+                              notes: current.notes || '受理工單，進行初步評估',
+                            }));
+                          }}
+                          disabled={!canUpdateWorkOrders}
+                          className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-bold text-sky-700 hover:bg-sky-100 disabled:opacity-50"
+                        >
+                          <CheckCircle2 size={16} />
+                          受理工單
+                        </button>
+                      )}
                       <label className="block text-sm font-semibold text-slate-700">
-                        工單狀態
+                        處理動作
                         <select
-                          value={workOrderUpdateForm.status}
-                          onChange={(event) => setWorkOrderUpdateForm({ ...workOrderUpdateForm, status: event.target.value as MaintenanceStatus })}
+                          value={workOrderUpdateForm.action}
+                          onChange={(event) => setWorkOrderUpdateForm({
+                            ...workOrderUpdateForm,
+                            action: event.target.value as typeof workOrderUpdateForm.action,
+                            progressStage: event.target.value === 'REQUEST_COMPLETION' ? 'WAITING_STORE_CONFIRMATION' : workOrderUpdateForm.progressStage,
+                          })}
                           disabled={!canUpdateWorkOrders}
                           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
                         >
-                          {progressSteps.map((step) => <option key={step.status} value={step.status}>{statusMeta[step.status].label}</option>)}
+                          <option value="ACCEPT">受理工單</option>
+                          <option value="SAVE_PROGRESS">新增處理進度</option>
+                          <option value="REQUEST_COMPLETION">處理完成，請門市確認</option>
+                          <option value="FORCE_CLOSE">強制結案</option>
+                        </select>
+                      </label>
+                      <label className="block text-sm font-semibold text-slate-700">
+                        目前處理進度
+                        <select
+                          value={workOrderUpdateForm.progressStage}
+                          onChange={(event) => setWorkOrderUpdateForm({ ...workOrderUpdateForm, progressStage: event.target.value as MaintenanceProgressStage })}
+                          disabled={!canUpdateWorkOrders || workOrderUpdateForm.action === 'REQUEST_COMPLETION'}
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
+                        >
+                          {progressStageOptions.map((stage) => <option key={stage.code} value={stage.code}>{stage.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="block text-sm font-semibold text-slate-700">
+                        承辦人
+                        <input
+                          value={workOrderUpdateForm.assigneeName}
+                          onChange={(event) => setWorkOrderUpdateForm({ ...workOrderUpdateForm, assigneeName: event.target.value })}
+                          disabled={!canUpdateWorkOrders}
+                          placeholder="請輸入承辦人姓名"
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
+                        />
+                      </label>
+                      <label className="block text-sm font-semibold text-slate-700">
+                        處理方式
+                        <input
+                          value={workOrderUpdateForm.handlingMethod}
+                          onChange={(event) => setWorkOrderUpdateForm({ ...workOrderUpdateForm, handlingMethod: event.target.value })}
+                          disabled={!canUpdateWorkOrders}
+                          placeholder="例如：總務自行處理、廠商派工、等待料件"
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
+                        />
+                      </label>
+                      <label className="block text-sm font-semibold text-slate-700">
+                        紀錄可見性
+                        <select
+                          value={workOrderUpdateForm.visibility}
+                          onChange={(event) => setWorkOrderUpdateForm({ ...workOrderUpdateForm, visibility: event.target.value as 'PUBLIC' | 'INTERNAL' })}
+                          disabled={!canUpdateWorkOrders}
+                          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
+                        >
+                          <option value="PUBLIC">公開進度</option>
+                          <option value="INTERNAL">內部備註</option>
                         </select>
                       </label>
                       <label className="block text-sm font-semibold text-slate-700">
@@ -1838,6 +2068,18 @@ export default function GeneralAffairsServiceCenterPage() {
                           className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
                         />
                       </label>
+                      {workOrderUpdateForm.action === 'FORCE_CLOSE' && (
+                        <label className="block text-sm font-semibold text-slate-700">
+                          強制結案原因
+                          <input
+                            value={workOrderUpdateForm.forceCloseReason}
+                            onChange={(event) => setWorkOrderUpdateForm({ ...workOrderUpdateForm, forceCloseReason: event.target.value })}
+                            disabled={!canUpdateWorkOrders}
+                            placeholder="請填寫強制結案原因"
+                            className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-normal outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 disabled:bg-slate-100"
+                          />
+                        </label>
+                      )}
                       <label className="block text-sm font-semibold text-slate-700">
                         處理內容
                         <textarea
@@ -1867,11 +2109,15 @@ export default function GeneralAffairsServiceCenterPage() {
                       {selectedUpdates.length === 0 ? (
                         <div className="text-sm text-slate-500">尚無處理紀錄</div>
                       ) : selectedUpdates.map((update) => {
-                        const meta = statusMeta[update.status] || statusMeta.pending;
+                        const updateStatus = getNormalizedStatus(update.status);
+                        const updateStage = getNormalizedStage(update.progress_stage);
+                        const meta = statusMeta[updateStatus];
                         return (
                           <div key={update.id} className="border-l-2 border-orange-300 pl-3">
                             <div className="flex flex-wrap items-center gap-2">
                               <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${meta.tone}`}>{meta.label}</span>
+                              {updateStage && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{MAINTENANCE_PROGRESS_STAGE_LABELS[updateStage]}</span>}
+                              {update.visibility === 'INTERNAL' && <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs font-bold text-purple-700">內部</span>}
                               <span className="text-xs text-slate-500">{getDateTimeLabel(update.progress_date)}｜{update.updated_by_name}</span>
                             </div>
                             <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{update.notes}</div>

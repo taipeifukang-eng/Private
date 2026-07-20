@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+import {
+  inferMaintenanceActionFromPayload,
+  transitionMaintenanceTicket,
+} from '@/lib/maintenance/status-service';
+import { normalizeProgressStage } from '@/lib/maintenance/status';
 
 const STORAGE_BUCKET = 'maintenance-photos';
 
@@ -39,12 +44,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少 request_id' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const canManage = await hasAnyPermission(user.id, [
+      'cross_dept.maintenance.update',
+      'cross_dept.maintenance.view_all',
+    ]);
+
+    let query = supabase
       .from('maintenance_updates')
       .select('*, category:maintenance_categories(id, name, sort_order, is_active)')
       .eq('request_id', requestId)
       .order('progress_date', { ascending: false })
       .order('created_at', { ascending: false });
+
+    if (!canManage) {
+      query = query.eq('visibility', 'PUBLIC');
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
 
@@ -101,30 +117,16 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
-    const canUpdate = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.update',
-      'cross_dept.maintenance.view_all',
-    ]);
-    if (!canUpdate) {
-      return NextResponse.json({ success: false, error: '沒有更新進度的權限' }, { status: 403 });
-    }
-
     const body = await request.json();
-    const { request_id, status, notes, progress_date, category_id } = body;
+    const { request_id, notes, progress_date, category_id } = body;
 
-    if (!request_id || !status || !notes || !progress_date) {
+    if (!request_id || !notes || !progress_date) {
       return NextResponse.json({ success: false, error: '缺少必要欄位' }, { status: 400 });
     }
 
     // 驗證 progress_date（YYYY-MM-DD）
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(progress_date))) {
       return NextResponse.json({ success: false, error: '紀錄日期格式錯誤' }, { status: 400 });
-    }
-
-    // 驗證 status 有效
-    const validStatuses = ['pending', 'in_progress', 'completed', 'closed'];
-    if (!validStatuses.includes(status)) {
-      return NextResponse.json({ success: false, error: '無效的狀態' }, { status: 400 });
     }
 
     const hasCategoryPayload = Object.prototype.hasOwnProperty.call(body, 'category_id');
@@ -155,44 +157,22 @@ export async function POST(request: NextRequest) {
       normalizedCategoryId = requestRow?.category_id ?? null;
     }
 
-    // 取得更新者姓名
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', user.id)
-      .single();
-
-    const updaterName = profile?.full_name || user.email || 'Unknown';
-
-    // 新增更新紀錄
-    const { data: updateRecord, error: dbError } = await supabase
-      .from('maintenance_updates')
-      .insert({
-        request_id,
-        status,
-        notes,
-        progress_date,
-        category_id: normalizedCategoryId,
-        updated_by: user.id,
-        updated_by_name: updaterName,
-      })
-      .select()
-      .single();
-
-    if (dbError) throw dbError;
-
-    const requestUpdatePayload: Record<string, any> = { status };
-    if (hasCategoryPayload) {
-      requestUpdatePayload.category_id = normalizedCategoryId;
-    }
-
-    // 同時更新 maintenance_requests 的 status；分類由標題旁下拉選單直接管理
-    const { error: updateError } = await supabase
-      .from('maintenance_requests')
-      .update(requestUpdatePayload)
-      .eq('id', request_id);
-
-    if (updateError) throw updateError;
+    const progressStage = normalizeProgressStage(body?.progress_stage);
+    const updateRecord = await transitionMaintenanceTicket(supabase, {
+      requestId: request_id,
+      userId: user.id,
+      action: inferMaintenanceActionFromPayload(body),
+      notes,
+      progressDate: progress_date,
+      progressStage,
+      visibility: body?.visibility === 'INTERNAL' ? 'INTERNAL' : 'PUBLIC',
+      categoryId: hasCategoryPayload ? normalizedCategoryId : undefined,
+      assigneeId: typeof body?.assignee_id === 'string' ? body.assignee_id : undefined,
+      assigneeName: typeof body?.assignee_name === 'string' ? body.assignee_name : undefined,
+      handlingMethod: typeof body?.handling_method === 'string' ? body.handling_method : undefined,
+      vendorId: typeof body?.vendor_id === 'string' ? body.vendor_id : undefined,
+      forceCloseReason: typeof body?.force_close_reason === 'string' ? body.force_close_reason : undefined,
+    });
 
     return NextResponse.json({ success: true, data: updateRecord }, { status: 201 });
   } catch (err: any) {

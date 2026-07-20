@@ -54,9 +54,12 @@ export async function GET(request: NextRequest) {
       store_id: string;
       store_code: string;
       store_name: string;
+      unaccepted: number;
+      accepted: number;
+      processing: number;
+      completed: number;
       pending: number;
       in_progress: number;
-      completed: number;
       total: number;
     }>();
 
@@ -68,22 +71,40 @@ export async function GET(request: NextRequest) {
           store_id: key,
           store_code: String(store.store_code || '-'),
           store_name: String(store.store_name || '未知門市'),
+          unaccepted: 0,
+          accepted: 0,
+          processing: 0,
+          completed: 0,
           pending: 0,
           in_progress: 0,
-          completed: 0,
           total: 0,
         });
       }
 
       const bucket = map.get(key)!;
       bucket.total += 1;
-      if (row.status === 'pending') bucket.pending += 1;
-      else if (row.status === 'in_progress') bucket.in_progress += 1;
-      else if (row.status === 'completed') bucket.completed += 1;
+      const status = row.status === 'pending'
+        ? 'UNACCEPTED'
+        : row.status === 'in_progress'
+          ? 'PROCESSING'
+          : row.status === 'completed' || row.status === 'closed'
+            ? 'COMPLETED'
+            : row.status;
+      if (status === 'UNACCEPTED') {
+        bucket.unaccepted += 1;
+        bucket.pending += 1;
+      } else if (status === 'ACCEPTED') {
+        bucket.accepted += 1;
+      } else if (status === 'PROCESSING') {
+        bucket.processing += 1;
+        bucket.in_progress += 1;
+      } else if (status === 'COMPLETED') {
+        bucket.completed += 1;
+      }
     }
 
     const summary = Array.from(map.values())
-      .sort((a, b) => (b.pending - a.pending) || (b.in_progress - a.in_progress) || a.store_code.localeCompare(b.store_code));
+      .sort((a, b) => (b.unaccepted - a.unaccepted) || (b.processing - a.processing) || a.store_code.localeCompare(b.store_code));
 
     return NextResponse.json({ success: true, data: summary });
   } catch (err: any) {
