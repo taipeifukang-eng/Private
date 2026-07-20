@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 
+export const dynamic = 'force-dynamic';
+
 async function getManagedStoreIds(supabase: any, userId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('store_managers')

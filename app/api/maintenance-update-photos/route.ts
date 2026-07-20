@@ -6,6 +6,8 @@ const STORAGE_BUCKET = 'maintenance-photos';
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 const MAX_FILES_PER_REQUEST = 5;
 
+export const dynamic = 'force-dynamic';
+
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
   if (

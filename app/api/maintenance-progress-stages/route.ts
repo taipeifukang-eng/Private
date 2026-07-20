@@ -3,6 +3,8 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 import { MAINTENANCE_PROGRESS_STAGE_OPTIONS } from '@/lib/maintenance/status';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const supabase = await createClient();

@@ -3,6 +3,8 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 import { normalizeMaintenanceStatus } from '@/lib/maintenance/status';
 
+export const dynamic = 'force-dynamic';
+
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
   if (

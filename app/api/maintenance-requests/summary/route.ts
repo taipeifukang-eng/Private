@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 
+export const dynamic = 'force-dynamic';
+
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
   if (

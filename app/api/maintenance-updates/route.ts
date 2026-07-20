@@ -9,6 +9,8 @@ import { normalizeProgressStage } from '@/lib/maintenance/status';
 
 const STORAGE_BUCKET = 'maintenance-photos';
 
+export const dynamic = 'force-dynamic';
+
 function normalizeMaintenanceError(err: any) {
   const msg = String(err?.message || '');
   if (
