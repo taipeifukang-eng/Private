@@ -13,6 +13,7 @@ import {
   Camera,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ClipboardList,
   Clock3,
@@ -42,6 +43,7 @@ import {
   User,
   Warehouse,
   Wrench,
+  X,
   XCircle,
 } from 'lucide-react';
 import {
@@ -107,6 +109,18 @@ type MaintenanceUpdate = {
   notes: string;
   progress_date: string;
   updated_by_name: string;
+  created_at: string;
+  photos?: MaintenancePhoto[];
+};
+
+type MaintenancePhoto = {
+  id: string;
+  request_id?: string;
+  update_id?: string;
+  storage_path: string;
+  signed_url?: string | null;
+  file_name: string;
+  photo_type?: 'before' | 'progress' | 'after' | 'other';
   created_at: string;
 };
 
@@ -421,6 +435,10 @@ export default function GeneralAffairsServiceCenterPage() {
   const [profileName, setProfileName] = useState('');
   const [requests, setRequests] = useState<MaintenanceRequest[]>([]);
   const [updatesByRequestId, setUpdatesByRequestId] = useState<Map<string, MaintenanceUpdate[]>>(new Map());
+  const [requestPhotosById, setRequestPhotosById] = useState<Map<string, MaintenancePhoto[]>>(new Map());
+  const [photoLoadingIds, setPhotoLoadingIds] = useState<Set<string>>(new Set());
+  const [lightboxPhotos, setLightboxPhotos] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | MaintenanceStatus>('all');
   const [progressStageOptions, setProgressStageOptions] = useState<Array<{ code: MaintenanceProgressStage; name: string }>>(
     Object.entries(MAINTENANCE_PROGRESS_STAGE_LABELS).map(([code, name]) => ({ code: code as MaintenanceProgressStage, name }))
@@ -963,6 +981,67 @@ export default function GeneralAffairsServiceCenterPage() {
     }
   }, [canViewAll, reportEndDate, reportStartDate, selectedStoreId]);
 
+  const loadRequestPhotos = useCallback(async (requestId: string) => {
+    if (!requestId) return;
+    setPhotoLoadingIds((current) => new Set(current).add(requestId));
+    try {
+      const res = await fetch(`/api/maintenance-photos?request_id=${requestId}`);
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setRequestPhotosById((current) => {
+          const next = new Map(current);
+          next.set(requestId, json.data || []);
+          return next;
+        });
+      }
+    } catch (error) {
+      console.warn('載入維修附件失敗', error);
+    } finally {
+      setPhotoLoadingIds((current) => {
+        const next = new Set(current);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  }, []);
+
+  const openLightbox = (urls: string[], index: number) => {
+    setLightboxPhotos(urls);
+    setLightboxIndex(index);
+  };
+
+  const closeLightbox = useCallback(() => {
+    setLightboxIndex(null);
+    setLightboxPhotos([]);
+  }, []);
+
+  const prevLightbox = useCallback(() => {
+    setLightboxIndex((current) => (
+      current !== null && lightboxPhotos.length > 0
+        ? (current - 1 + lightboxPhotos.length) % lightboxPhotos.length
+        : current
+    ));
+  }, [lightboxPhotos.length]);
+
+  const nextLightbox = useCallback(() => {
+    setLightboxIndex((current) => (
+      current !== null && lightboxPhotos.length > 0
+        ? (current + 1) % lightboxPhotos.length
+        : current
+    ));
+  }, [lightboxPhotos.length]);
+
+  useEffect(() => {
+    if (lightboxIndex === null) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeLightbox();
+      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') nextLightbox();
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') prevLightbox();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeLightbox, lightboxIndex, nextLightbox, prevLightbox]);
+
   const loadProgressStages = useCallback(async () => {
     try {
       const res = await fetch('/api/maintenance-progress-stages');
@@ -1045,6 +1124,13 @@ export default function GeneralAffairsServiceCenterPage() {
       loadVendorManagementData();
     }
   }, [activeSection, canAccessService, loadingInitial, loadVendorManagementData]);
+
+  useEffect(() => {
+    if (activeSection !== 'work-orders') return;
+    const targetId = selectedWorkOrderId || filteredRequests[0]?.id;
+    if (!targetId || requestPhotosById.has(targetId) || photoLoadingIds.has(targetId)) return;
+    void loadRequestPhotos(targetId);
+  }, [activeSection, filteredRequests, loadRequestPhotos, photoLoadingIds, requestPhotosById, selectedWorkOrderId]);
 
   const setResourceType = (resourceType: ResourceType) => {
     const nextResource = resourceTypes.find((item) => item.key === resourceType) || resourceTypes[0];
@@ -1297,6 +1383,100 @@ export default function GeneralAffairsServiceCenterPage() {
       />
     </div>
   );
+
+  const renderRequestAttachments = (requestId: string) => {
+    const requestPhotos = requestPhotosById.get(requestId) || [];
+    const updatePhotos = (updatesByRequestId.get(requestId) || [])
+      .flatMap((update) => (update.photos || []).map((photo) => ({
+        ...photo,
+        file_name: photo.file_name || '處理附件',
+      })));
+    const allPhotos = [
+      ...requestPhotos.filter((photo) => photo.signed_url),
+      ...updatePhotos.filter((photo) => photo.signed_url),
+    ];
+    const urls = allPhotos.map((photo) => photo.signed_url!).filter(Boolean);
+    const loading = photoLoadingIds.has(requestId);
+
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="font-bold text-slate-900">相關附件</div>
+            <div className="mt-1 text-xs font-semibold text-slate-500">門市上傳照片與處理進度附件集中存放</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => loadRequestPhotos(requestId)}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+            重新載入
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="mt-4 rounded-lg bg-slate-50 p-4 text-center text-sm text-slate-500">
+            <Loader2 className="mx-auto mb-2 animate-spin text-orange-500" size={18} />
+            載入附件中
+          </div>
+        ) : allPhotos.length === 0 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
+            尚無附件或照片
+          </div>
+        ) : (
+          <div className="mt-4 space-y-4">
+            {requestPhotos.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs font-black text-slate-500">門市回報附件</div>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {requestPhotos.filter((photo) => photo.signed_url).map((photo) => {
+                    const index = urls.indexOf(photo.signed_url!);
+                    return (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        onClick={() => openLightbox(urls, index)}
+                        className="group overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-left"
+                        title={photo.file_name}
+                      >
+                        <img src={photo.signed_url || ''} alt={photo.file_name} className="aspect-square w-full object-cover transition group-hover:scale-105" />
+                        <div className="truncate px-2 py-1 text-[11px] font-semibold text-slate-500">{photo.file_name}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {updatePhotos.length > 0 && (
+              <div>
+                <div className="mb-2 text-xs font-black text-slate-500">處理進度附件</div>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {updatePhotos.filter((photo) => photo.signed_url).map((photo) => {
+                    const index = urls.indexOf(photo.signed_url!);
+                    return (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        onClick={() => openLightbox(urls, index)}
+                        className="group overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-left"
+                        title={photo.file_name}
+                      >
+                        <img src={photo.signed_url || ''} alt={photo.file_name} className="aspect-square w-full object-cover transition group-hover:scale-105" />
+                        <div className="truncate px-2 py-1 text-[11px] font-semibold text-slate-500">{photo.file_name}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const openSection = (section: ServiceSection, options?: { maintenanceView?: MaintenanceView; status?: 'all' | MaintenanceStatus }) => {
     setActiveSection(section);
@@ -2093,7 +2273,12 @@ export default function GeneralAffairsServiceCenterPage() {
                       <td className="px-4 py-4">
                         <button
                           type="button"
-                          onClick={() => setExpandedReportId(expanded ? null : request.id)}
+                          onClick={() => {
+                            setExpandedReportId(expanded ? null : request.id);
+                            if (!expanded && !requestPhotosById.has(request.id)) {
+                              void loadRequestPhotos(request.id);
+                            }
+                          }}
                           className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
                         >
                           查看詳情
@@ -2105,28 +2290,31 @@ export default function GeneralAffairsServiceCenterPage() {
                       <tr>
                         <td colSpan={7} className="bg-slate-50 px-4 py-4">
                           <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-                            <div className="rounded-lg border border-slate-200 bg-white p-4">
-                              <div className="text-sm font-bold text-slate-900">工單處理紀錄</div>
-                              <div className="mt-4 space-y-3">
-                                {updates.length === 0 ? (
-                                  <div className="text-sm text-slate-500">尚無總務更新紀錄</div>
-                                ) : updates.map((update) => {
-                                  const updateStatus = getNormalizedStatus(update.status);
-                                  const updateStage = getNormalizedStage(update.progress_stage);
-                                  const updateMeta = statusMeta[updateStatus];
-                                  return (
-                                    <div key={update.id} className="border-l-2 border-orange-300 pl-3">
-                                      <div className="flex flex-wrap items-center gap-2">
-                                        <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${updateMeta.tone}`}>{updateMeta.label}</span>
-                                        {updateStage && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{MAINTENANCE_PROGRESS_STAGE_LABELS[updateStage]}</span>}
-                                        {update.visibility === 'INTERNAL' && <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs font-bold text-purple-700">內部</span>}
-                                        <span className="text-xs text-slate-500">{getDateTimeLabel(update.progress_date)}｜{update.updated_by_name}</span>
+                            <div className="space-y-4">
+                              <div className="rounded-lg border border-slate-200 bg-white p-4">
+                                <div className="text-sm font-bold text-slate-900">工單處理紀錄</div>
+                                <div className="mt-4 space-y-3">
+                                  {updates.length === 0 ? (
+                                    <div className="text-sm text-slate-500">尚無總務更新紀錄</div>
+                                  ) : updates.map((update) => {
+                                    const updateStatus = getNormalizedStatus(update.status);
+                                    const updateStage = getNormalizedStage(update.progress_stage);
+                                    const updateMeta = statusMeta[updateStatus];
+                                    return (
+                                      <div key={update.id} className="border-l-2 border-orange-300 pl-3">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${updateMeta.tone}`}>{updateMeta.label}</span>
+                                          {updateStage && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">{MAINTENANCE_PROGRESS_STAGE_LABELS[updateStage]}</span>}
+                                          {update.visibility === 'INTERNAL' && <span className="rounded-full bg-purple-50 px-2 py-0.5 text-xs font-bold text-purple-700">內部</span>}
+                                          <span className="text-xs text-slate-500">{getDateTimeLabel(update.progress_date)}｜{update.updated_by_name}</span>
+                                        </div>
+                                        <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{update.notes}</div>
                                       </div>
-                                      <div className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{update.notes}</div>
-                                    </div>
-                                  );
-                                })}
+                                    );
+                                  })}
+                                </div>
                               </div>
+                              {renderRequestAttachments(request.id)}
                             </div>
                             <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm">
                               <div className="font-bold text-slate-900">聯絡與門市資訊</div>
@@ -2264,7 +2452,12 @@ export default function GeneralAffairsServiceCenterPage() {
                     return (
                       <tr
                         key={request.id}
-                        onClick={() => setSelectedWorkOrderId(request.id)}
+                        onClick={() => {
+                          setSelectedWorkOrderId(request.id);
+                          if (!requestPhotosById.has(request.id)) {
+                            void loadRequestPhotos(request.id);
+                          }
+                        }}
                         className={`cursor-pointer hover:bg-slate-50 ${active ? 'bg-orange-50/70' : ''}`}
                       >
                         <td className="px-4 py-4">
@@ -2328,6 +2521,8 @@ export default function GeneralAffairsServiceCenterPage() {
                       })()}
                     </div>
                   </div>
+
+                  {renderRequestAttachments(selectedWorkOrder.id)}
 
                   <div className="rounded-lg border border-slate-200 bg-white p-4">
                     <div className="font-bold text-slate-950">新增處理進度</div>
@@ -3506,6 +3701,63 @@ export default function GeneralAffairsServiceCenterPage() {
           {renderMainContent()}
         </main>
       </div>
+
+      {lightboxIndex !== null && lightboxPhotos.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+          onClick={closeLightbox}
+        >
+          <button
+            type="button"
+            onClick={closeLightbox}
+            className="absolute right-4 top-4 rounded-full bg-black/40 p-2 text-white transition-colors hover:text-slate-300"
+            aria-label="關閉附件預覽"
+          >
+            <X size={28} />
+          </button>
+
+          {lightboxPhotos.length > 1 && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                prevLightbox();
+              }}
+              className="absolute left-4 rounded-full bg-black/40 p-2 text-white transition-colors hover:text-slate-300"
+              aria-label="上一張"
+            >
+              <ChevronLeft size={32} />
+            </button>
+          )}
+
+          <img
+            src={lightboxPhotos[lightboxIndex]}
+            alt={`維修附件 ${lightboxIndex + 1}`}
+            className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+          />
+
+          {lightboxPhotos.length > 1 && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                nextLightbox();
+              }}
+              className="absolute right-4 rounded-full bg-black/40 p-2 text-white transition-colors hover:text-slate-300"
+              aria-label="下一張"
+            >
+              <ChevronRight size={32} />
+            </button>
+          )}
+
+          {lightboxPhotos.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/40 px-3 py-1 text-sm text-white">
+              {lightboxIndex + 1} / {lightboxPhotos.length}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
