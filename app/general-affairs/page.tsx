@@ -1744,27 +1744,6 @@ export default function GeneralAffairsServiceCenterPage() {
       { stage: 'WAITING_STORE_CONFIRMATION', label: '完成待確認' },
     ];
 
-    const importantParts = [
-      ['展裕30cm掛勾', '百福店需30個', '文德店有42個', '建立調撥'],
-      ['中島架層板', '總倉剩2片', '多店使用', '查看庫存'],
-      ['價格牌軌', '東湖店閒置20支', '東湖店', '確認數量'],
-    ];
-    const equipmentAlerts = [
-      ['即將到期保固', '12台', '未來60天內'],
-      ['重複維修設備', '5台', '近半年維修2次以上'],
-      ['資料不完整設備', '18台', '缺照片、型號或序號'],
-      ['待停用／汰換', '3台', '等待處理'],
-    ];
-    const vendorRows = [
-      ['和泰冷氣工程行', '百福店冷氣A', '今日到場', '14:00–16:00'],
-      ['大安水電工程行', '文德店漏水', '等待報價', '—'],
-      ['潔淨病媒防治', '東湖店鼠患', '已安排巡檢', '07/22上午'],
-    ];
-    const visitRows = [
-      ['今天 10:00', '東湖店｜自動門檢修', '永盛自動門'],
-      ['今天 14:00', '百福店｜冷氣檢查', '和泰冷氣'],
-      ['明天 上午', '文德店｜鼠害現場勘查', '潔淨病媒防治'],
-    ];
     const quickLinks = isAffairsView
       ? [
           ['維修回報', 'maintenance', Wrench],
@@ -1890,7 +1869,7 @@ export default function GeneralAffairsServiceCenterPage() {
           </section>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-4">
           <section className="rounded-lg border border-slate-200 bg-white p-4">
             <h2 className="text-lg font-black text-slate-950">工單狀況總覽</h2>
             <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -1900,73 +1879,6 @@ export default function GeneralAffairsServiceCenterPage() {
                   <span className="text-lg font-black text-slate-950">{row.stage === 'INITIAL_REVIEW' ? counts.status.UNACCEPTED : counts.stage[row.stage] || 0}</span>
                 </button>
               ))}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-black text-slate-950">今日／本週到場安排</h2>
-            <div className="mt-4 space-y-3">
-              {visitRows.map((row) => (
-                <div key={row.join('-')} className="flex gap-3 rounded-lg bg-slate-50 p-3">
-                  <div className="w-20 shrink-0 text-xs font-black text-orange-600">{row[0]}</div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-slate-900">{row[1]}</div>
-                    <div className="mt-0.5 text-xs text-slate-500">{row[2]}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-
-        <div className="grid gap-4 xl:grid-cols-3">
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-950">料件動態</h2>
-              <button type="button" onClick={() => openSection('parts')} className="text-xs font-bold text-orange-600">料件中心</button>
-            </div>
-            <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-              {[
-                ['待申請', '4'],
-                ['庫存不足', '6'],
-                ['閒置待確認', '12'],
-                ['調撥中', '3'],
-              ].map((row) => <div key={row[0]} className="rounded-lg bg-slate-50 px-2 py-3"><div className="text-lg font-black text-slate-950">{row[1]}</div><div className="text-[11px] font-bold text-slate-500">{row[0]}</div></div>)}
-            </div>
-            <div className="mt-3 space-y-2">
-              {importantParts.map((row) => <div key={row[0]} className="grid grid-cols-[1fr_auto] gap-2 rounded-lg border border-slate-100 p-3 text-sm"><div><div className="font-bold text-slate-900">{row[0]}</div><div className="text-xs text-slate-500">{row[1]}｜{row[2]}</div></div><button type="button" className="text-xs font-bold text-orange-600">{row[3]}</button></div>)}
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-950">設備與設施提醒</h2>
-              <button type="button" onClick={() => openSection('equipment')} className="text-xs font-bold text-orange-600">設備管理</button>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {equipmentAlerts.map((row) => <div key={row[0]} className="rounded-lg border border-slate-100 p-3"><div className="text-xs font-bold text-slate-500">{row[0]}</div><div className="mt-1 text-xl font-black text-slate-950">{row[1]}</div><div className="mt-1 text-xs text-slate-500">{row[2]}</div></div>)}
-            </div>
-            <div className="mt-3 rounded-lg bg-orange-50 p-3 text-sm text-orange-800">
-              <div className="font-black">0014 百福店｜冷氣A</div>
-              <div className="mt-1 text-xs font-semibold">近90天回報3次，建議檢查是否需汰換或保固處理</div>
-            </div>
-          </section>
-
-          <section className="rounded-lg border border-slate-200 bg-white p-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-black text-slate-950">廠商待辦與合作動態</h2>
-              <button type="button" onClick={() => openSection('vendors')} className="text-xs font-bold text-orange-600">廠商管理</button>
-            </div>
-            <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-              {[
-                ['待回覆', counts.stage.WAITING_VENDOR_REPLY || 0],
-                ['今日到場', 4],
-                ['報價待確認', counts.stage.WAITING_VENDOR_QUOTE || 0],
-                ['施工待回報', counts.stage.VENDOR_WORKING || 0],
-              ].map((row) => <div key={row[0]} className="rounded-lg bg-slate-50 px-2 py-3"><div className="text-lg font-black text-slate-950">{row[1]}</div><div className="text-[11px] font-bold text-slate-500">{row[0]}</div></div>)}
-            </div>
-            <div className="mt-3 space-y-2">
-              {vendorRows.map((row) => <div key={row.join('-')} className="rounded-lg border border-slate-100 p-3 text-sm"><div className="font-bold text-slate-900">{row[0]}</div><div className="mt-1 text-xs text-slate-500">{row[1]}｜{row[2]}｜{row[3]}</div></div>)}
             </div>
           </section>
         </div>
