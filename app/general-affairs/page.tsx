@@ -18,6 +18,7 @@ import {
   ClipboardList,
   Clock3,
   CalendarDays,
+  Copy,
   Download,
   FileText,
   Filter,
@@ -32,6 +33,7 @@ import {
   Paperclip,
   Pencil,
   Phone,
+  Printer,
   Plus,
   Search,
   Send,
@@ -412,10 +414,11 @@ const getNormalizedStage = (stage: MaintenanceProgressStage | string | null | un
 export default function GeneralAffairsServiceCenterPage() {
   const supabase = createClient();
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const workOrderUpdatePanelRef = useRef<HTMLDivElement>(null);
   const [activeSection, setActiveSection] = useState<ServiceSection>('home');
-  const [maintenanceExpanded, setMaintenanceExpanded] = useState(true);
+  const [maintenanceExpanded, setMaintenanceExpanded] = useState(false);
   const [maintenanceView, setMaintenanceView] = useState<MaintenanceView>('new');
-  const [vendorExpanded, setVendorExpanded] = useState(true);
+  const [vendorExpanded, setVendorExpanded] = useState(false);
   const [vendorView, setVendorView] = useState<VendorView>('list');
   const [reportStep, setReportStep] = useState(1);
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -1478,6 +1481,160 @@ export default function GeneralAffairsServiceCenterPage() {
     );
   };
 
+  const getWorkOrderCode = (request: MaintenanceRequest) => `WO-${request.id.slice(0, 8).toUpperCase()}`;
+
+  const getPriorityLabel = (priority: string | null | undefined) => {
+    if (!priority || priority === 'normal') return '一般';
+    if (priority === 'urgent' || priority === 'high') return '急件';
+    if (priority === 'low') return '低';
+    return priority;
+  };
+
+  const getResourceLabel = (resourceType: ResourceType | null | undefined) =>
+    resourceTypes.find((resource) => resource.key === resourceType)?.label || '維修項目';
+
+  const getRequestPhotoGroups = (requestId: string) => {
+    const requestPhotos = requestPhotosById.get(requestId) || [];
+    const updatePhotos = (updatesByRequestId.get(requestId) || [])
+      .flatMap((update) => (update.photos || []).map((photo) => ({
+        ...photo,
+        file_name: photo.file_name || '處理附件',
+      })));
+    const allPhotos = [
+      ...requestPhotos.filter((photo) => photo.signed_url),
+      ...updatePhotos.filter((photo) => photo.signed_url),
+    ];
+    return {
+      requestPhotos,
+      updatePhotos,
+      allPhotos,
+      urls: allPhotos.map((photo) => photo.signed_url!).filter(Boolean),
+    };
+  };
+
+  const renderDetailField = (label: string, value: string | null | undefined) => (
+    <div>
+      <div className="text-[11px] font-bold text-slate-400">{label}</div>
+      <div className="mt-1 text-sm font-semibold text-slate-800">{value || '-'}</div>
+    </div>
+  );
+
+  const renderWorkOrderAttachmentStrip = (request: MaintenanceRequest) => {
+    const { allPhotos, urls } = getRequestPhotoGroups(request.id);
+    const loading = photoLoadingIds.has(request.id);
+
+    return (
+      <section className="border-t border-slate-200 pt-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-black text-slate-900">相關附件 ({allPhotos.length})</h3>
+          <button
+            type="button"
+            onClick={() => loadRequestPhotos(request.id)}
+            disabled={loading}
+            className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-orange-600 disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+            重新載入
+          </button>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {allPhotos.slice(0, 7).map((photo, photoIndex) => (
+            <button
+              key={`${photo.id}-${photoIndex}`}
+              type="button"
+              onClick={() => openLightbox(urls, photoIndex)}
+              className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+              title={photo.file_name}
+            >
+              <img src={photo.signed_url || ''} alt={photo.file_name} className="h-full w-full object-cover transition group-hover:scale-105" />
+              <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-white/90 text-slate-500 shadow-sm">
+                <X size={12} />
+              </span>
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => loadRequestPhotos(request.id)}
+            disabled={loading}
+            className="grid aspect-square place-items-center rounded-lg border border-dashed border-slate-300 bg-white text-center text-xs font-bold text-slate-500 hover:border-orange-300 hover:text-orange-600 disabled:opacity-50"
+          >
+            <span>
+              <Plus className="mx-auto mb-1" size={18} />
+              上傳檔案
+              <span className="mt-1 block text-[10px] font-semibold text-slate-400">圖片 / 影片 / 檔案</span>
+            </span>
+          </button>
+        </div>
+      </section>
+    );
+  };
+
+  const renderWorkOrderTimeline = (request: MaintenanceRequest, updates: MaintenanceUpdate[]) => {
+    const timelineItems = [
+      {
+        id: `${request.id}-created`,
+        label: '店長發起工單',
+        actor: request.reporter_name || request.contact_name || '門市',
+        note: '建立工單並上傳照片',
+        date: request.reported_at,
+        icon: CheckCircle2,
+        tone: 'bg-orange-500 text-white',
+      },
+      ...updates.map((update) => {
+        const updateStage = getNormalizedStage(update.progress_stage);
+        const updateStatus = getNormalizedStatus(update.status);
+        return {
+          id: update.id,
+          label: updateStage ? MAINTENANCE_PROGRESS_STAGE_LABELS[updateStage] : statusMeta[updateStatus].label,
+          actor: update.updated_by_name,
+          note: update.notes,
+          date: update.progress_date,
+          icon: statusMeta[updateStatus].icon,
+          tone: update.visibility === 'INTERNAL' ? 'bg-slate-600 text-white' : `${statusMeta[updateStatus].dot} text-white`,
+        };
+      }),
+    ];
+
+    if (getNormalizedStatus(request.status) !== 'COMPLETED') {
+      timelineItems.push({
+        id: `${request.id}-next`,
+        label: '等待廠商到場',
+        actor: request.assignee_name || '尚未指派',
+        note: request.progress_stage ? `目前進度：${MAINTENANCE_PROGRESS_STAGE_LABELS[getNormalizedStage(request.progress_stage)!]}` : '預計時程待補',
+        date: '',
+        icon: Clock3,
+        tone: 'bg-slate-100 text-slate-500',
+      });
+    }
+
+    return (
+      <section className="border-t border-slate-200 pt-4">
+        <h3 className="mb-4 text-sm font-black text-slate-900">處理進度</h3>
+        <div className="space-y-0">
+          {timelineItems.map((item, index) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.id} className="grid grid-cols-[24px_minmax(0,1fr)_72px] gap-3">
+                <div className="flex flex-col items-center">
+                  <span className={`grid h-5 w-5 place-items-center rounded-full ${item.tone}`}>
+                    <Icon size={12} />
+                  </span>
+                  {index < timelineItems.length - 1 && <span className="mt-1 h-full min-h-[48px] w-px bg-slate-200" />}
+                </div>
+                <div className="pb-5">
+                  <div className="text-sm font-bold text-slate-900">{item.label}</div>
+                  <div className="mt-0.5 text-xs font-semibold text-slate-500">{item.actor}</div>
+                  <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">{item.note || '-'}</div>
+                </div>
+                <div className="pt-0.5 text-right text-xs font-semibold text-slate-500">{getDateTimeLabel(item.date)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  };
+
   const openSection = (section: ServiceSection, options?: { maintenanceView?: MaintenanceView; status?: 'all' | MaintenanceStatus }) => {
     setActiveSection(section);
     if (options?.maintenanceView) setMaintenanceView(options.maintenanceView);
@@ -2426,7 +2583,7 @@ export default function GeneralAffairsServiceCenterPage() {
             </label>
           </div>
 
-          <div className="grid min-h-[560px] lg:grid-cols-[minmax(0,1fr)_390px]">
+          <div className="grid min-h-[560px] lg:grid-cols-[minmax(0,1fr)_500px]">
             <div className="overflow-auto border-r border-slate-200">
               <table className="w-full min-w-[760px] text-sm">
                 <thead className="bg-slate-50 text-left text-xs font-bold text-slate-500">
@@ -2493,38 +2650,127 @@ export default function GeneralAffairsServiceCenterPage() {
             <aside className="bg-slate-50 p-4">
               {selectedWorkOrder ? (
                 <div className="space-y-4">
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
-                    <div className="text-xs font-bold text-slate-500">目前選取</div>
-                    <div className="mt-1 text-lg font-bold text-slate-950">{selectedWorkOrder.title}</div>
-                    <div className="mt-2 text-sm text-slate-600">{selectedWorkOrder.store ? `${selectedWorkOrder.store.store_code} ${selectedWorkOrder.store.store_name}` : '-'}</div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
-                      <div>聯絡人：<span className="font-semibold text-slate-700">{selectedWorkOrder.contact_name || selectedWorkOrder.reporter_name || '-'}</span></div>
-                      <div>電話：<span className="font-semibold text-slate-700">{selectedWorkOrder.contact_phone || '-'}</span></div>
-                      <div>承辦人：<span className="font-semibold text-slate-700">{selectedWorkOrder.assignee_name || '-'}</span></div>
-                      <div>處理方式：<span className="font-semibold text-slate-700">{selectedWorkOrder.handling_method || '-'}</span></div>
+                  <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
+                    <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+                      <h2 className="text-sm font-black text-slate-950">工單詳情</h2>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => window.print()}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                        >
+                          <Printer size={13} />
+                          列印
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void navigator.clipboard?.writeText(getWorkOrderCode(selectedWorkOrder))}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                        >
+                          <Copy size={13} />
+                          複製工單
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canUpdateWorkOrders}
+                          onClick={() => workOrderUpdatePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                          className="inline-flex items-center gap-1.5 rounded-md bg-orange-500 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-orange-600 disabled:opacity-50"
+                        >
+                          <Pencil size={13} />
+                          編輯
+                        </button>
+                      </div>
                     </div>
-                    <div className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-700">{selectedWorkOrder.description || '-'}</div>
-                    <div className="mt-3 flex flex-wrap gap-2">
+
+                    <div className="space-y-4 p-4">
                       {(() => {
                         const currentStatus = getNormalizedStatus(selectedWorkOrder.status);
                         const currentStage = getNormalizedStage(selectedWorkOrder.progress_stage);
                         const CurrentIcon = statusMeta[currentStatus].icon;
+                        const { allPhotos, urls } = getRequestPhotoGroups(selectedWorkOrder.id);
+                        const previewPhoto = allPhotos[0];
                         return (
                           <>
-                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-xs font-bold ${statusMeta[currentStatus].tone}`}>
-                              <CurrentIcon size={13} />
-                              {statusMeta[currentStatus].label}
-                            </span>
-                            {currentStage && <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">{MAINTENANCE_PROGRESS_STAGE_LABELS[currentStage]}</span>}
+                            <section className="rounded-lg border border-slate-200 bg-white p-4">
+                              <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="font-mono text-xl font-black text-slate-950">{getWorkOrderCode(selectedWorkOrder)}</div>
+                                    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-black ${statusMeta[currentStatus].tone}`}>
+                                      <CurrentIcon size={13} />
+                                      {statusMeta[currentStatus].label}
+                                    </span>
+                                    <span className="rounded-md bg-orange-100 px-2 py-1 text-xs font-black text-orange-700">{getPriorityLabel(selectedWorkOrder.priority)}</span>
+                                  </div>
+                                  <div className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 text-xs font-semibold text-slate-500 sm:grid-cols-2">
+                                    <div>建立時間：{getDateTimeLabel(selectedWorkOrder.reported_at)}</div>
+                                    <div>預計完成：-</div>
+                                    <div>來源：店長發起</div>
+                                    <div>實際完成：{getDateTimeLabel(selectedWorkOrder.completed_at)}</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </section>
+
+                            <section className="border-t border-slate-200 pt-4">
+                              <h3 className="mb-3 text-sm font-black text-slate-900">基本資訊</h3>
+                              <div className="grid grid-cols-2 gap-x-8 gap-y-4">
+                                {renderDetailField('門市', selectedWorkOrder.store ? `${selectedWorkOrder.store.store_code} - ${selectedWorkOrder.store.store_name}` : '-')}
+                                {renderDetailField('發起人', selectedWorkOrder.reporter_name)}
+                                {renderDetailField('聯絡電話', selectedWorkOrder.contact_phone)}
+                                {renderDetailField('問題類型', selectedWorkOrder.issue_type)}
+                                {renderDetailField('系統程度', getPriorityLabel(selectedWorkOrder.priority))}
+                                {renderDetailField('聯絡人', selectedWorkOrder.contact_name || selectedWorkOrder.reporter_name)}
+                              </div>
+                            </section>
+
+                            <section className="border-t border-slate-200 pt-4">
+                              <h3 className="mb-3 text-sm font-black text-slate-900">設備 / 項目</h3>
+                              <div className="grid grid-cols-[86px_minmax(0,1fr)] gap-4">
+                                <button
+                                  type="button"
+                                  onClick={() => previewPhoto && openLightbox(urls, 0)}
+                                  disabled={!previewPhoto}
+                                  className="aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100 disabled:cursor-default"
+                                >
+                                  {previewPhoto ? (
+                                    <img src={previewPhoto.signed_url || ''} alt={previewPhoto.file_name} className="h-full w-full object-cover" />
+                                  ) : (
+                                    <span className="grid h-full place-items-center text-slate-400">
+                                      <Camera size={26} />
+                                    </span>
+                                  )}
+                                </button>
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="truncate text-base font-black text-slate-900">{selectedWorkOrder.title}</div>
+                                    <button type="button" className="text-xs font-black text-blue-600 hover:text-blue-700">查看設備詳情</button>
+                                  </div>
+                                  <div className="mt-2 grid grid-cols-1 gap-1 text-xs font-semibold leading-5 text-slate-600 sm:grid-cols-2">
+                                    <div>類別：{getResourceLabel(selectedWorkOrder.resource_type)}</div>
+                                    <div>序號：-</div>
+                                    <div>品牌：-</div>
+                                    <div>安裝日期：-</div>
+                                    <div className="sm:col-span-2">安裝位置：-</div>
+                                  </div>
+                                </div>
+                              </div>
+                            </section>
+
+                            <section className="border-t border-slate-200 pt-4">
+                              <h3 className="mb-2 text-sm font-black text-slate-900">問題描述</h3>
+                              <div className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{selectedWorkOrder.description || '-'}</div>
+                            </section>
+
+                            {renderWorkOrderAttachmentStrip(selectedWorkOrder)}
+                            {renderWorkOrderTimeline(selectedWorkOrder, selectedUpdates)}
                           </>
                         );
                       })()}
-                    </div>
+                  </div>
                   </div>
 
-                  {renderRequestAttachments(selectedWorkOrder.id)}
-
-                  <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div ref={workOrderUpdatePanelRef} className="rounded-lg border border-slate-200 bg-white p-4">
                     <div className="font-bold text-slate-950">新增處理進度</div>
                     <div className="mt-3 space-y-3">
                       {getNormalizedStatus(selectedWorkOrder.status) === 'UNACCEPTED' && (
@@ -3561,7 +3807,6 @@ export default function GeneralAffairsServiceCenterPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setActiveSection('maintenance');
                         setMaintenanceExpanded((value) => !value);
                       }}
                       className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-bold ${
@@ -3580,7 +3825,7 @@ export default function GeneralAffairsServiceCenterPage() {
                               setActiveSection('maintenance');
                               setMaintenanceView('new');
                             }}
-                            className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold ${maintenanceView === 'new' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                            className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeSection === 'maintenance' && maintenanceView === 'new' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
                           >
                             新增回報
                           </button>
@@ -3591,7 +3836,7 @@ export default function GeneralAffairsServiceCenterPage() {
                             setActiveSection('maintenance');
                             setMaintenanceView('mine');
                           }}
-                          className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold ${maintenanceView === 'mine' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                          className={`w-full rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeSection === 'maintenance' && maintenanceView === 'mine' ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
                         >
                           我的回報
                         </button>
@@ -3606,7 +3851,6 @@ export default function GeneralAffairsServiceCenterPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        setActiveSection('vendors');
                         setVendorExpanded((value) => !value);
                       }}
                       className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-bold ${
@@ -3628,7 +3872,7 @@ export default function GeneralAffairsServiceCenterPage() {
                                 setActiveSection('vendors');
                                 setVendorView(viewItem.key);
                               }}
-                              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold ${vendorView === viewItem.key ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold ${activeSection === 'vendors' && vendorView === viewItem.key ? 'bg-orange-100 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}
                             >
                               <ViewIcon size={15} />
                               {viewItem.label}
