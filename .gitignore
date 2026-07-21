@@ -36,6 +36,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local verification artifacts
+.tmp-check/*
+supabase/.temp/
+
 # dependencies
 /node_modules
 /.pnp
