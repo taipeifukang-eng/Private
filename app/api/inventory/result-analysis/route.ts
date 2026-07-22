@@ -39,7 +39,7 @@ const PRODUCT_CATEGORY_MAP: Record<string, string> = {
   '99': '贈品與展示品',
 };
 const EXCLUDED_CATEGORY_CODES = new Set(['01', '97', '98', '99']);
-const INVENTORY_FULL_ACCESS_PERMISSIONS = [
+const INVENTORY_LEGACY_VIEW_PERMISSIONS = [
   'inventory.inventory.access',
   'inventory.inventory.view',
   'inventory.manage',
@@ -153,25 +153,70 @@ function parseWorksheetRows(sheet: XLSX.WorkSheet): { rows: Record<string, unkno
   return { rows, actualColumns: actualColumns.filter(Boolean), headerRowIndex };
 }
 
-async function hasAnyInventoryFullAccessPermission(userId: string): Promise<boolean> {
-  for (const permissionCode of INVENTORY_FULL_ACCESS_PERMISSIONS) {
+async function hasAnyInventoryLegacyViewPermission(userId: string): Promise<boolean> {
+  for (const permissionCode of INVENTORY_LEGACY_VIEW_PERMISSIONS) {
     if (await hasPermission(userId, permissionCode)) return true;
   }
   return false;
 }
 
-async function getInventoryResultAnalysisAccess(
+async function hasInventoryResultAnalysisUnrestrictedPermission(userId: string): Promise<boolean> {
+  return (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION))
+    || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION));
+}
+
+async function isInventoryResultAnalysisAdminLike(
   admin: ReturnType<typeof createAdminClient>,
   userId: string
-): Promise<{ allowed: boolean; scope: 'all' | 'own'; storeIds: string[] }> {
-  if (await hasAnyInventoryFullAccessPermission(userId)) {
-    return { allowed: true, scope: 'all', storeIds: [] };
-  }
+): Promise<boolean> {
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .maybeSingle();
 
-  if (!(await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_OWN_VIEW_PERMISSION))) {
-    return { allowed: false, scope: 'own', storeIds: [] };
-  }
+  if (profile?.role === 'admin') return true;
 
+  const { data: userRoles, error } = await admin
+    .from('user_roles')
+    .select('is_active, expires_at, role:roles(code)')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  if (error || !userRoles) return false;
+
+  const now = Date.now();
+  return userRoles.some((row: any) => {
+    const roleCode = row?.role?.code;
+    const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : null;
+    const notExpired = expiresAt === null || expiresAt > now;
+    return notExpired && ['admin', 'system_admin', 'admin_role'].includes(roleCode);
+  });
+}
+
+async function isInventoryResultAnalysisFieldRole(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<boolean> {
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, job_title')
+    .eq('id', userId)
+    .maybeSingle();
+
+  const role = String(profile?.role || '');
+  const jobTitle = String(profile?.job_title || '');
+  return role === 'store_manager'
+    || role === 'supervisor'
+    || role === 'area_manager'
+    || jobTitle.includes('店長')
+    || jobTitle.includes('督導');
+}
+
+async function getAssignedInventoryResultStoreIds(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<string[]> {
   const { data, error } = await admin
     .from('store_managers')
     .select('store_id')
@@ -179,17 +224,53 @@ async function getInventoryResultAnalysisAccess(
 
   if (error) throw error;
 
-  const storeIds = Array.from(new Set((data || []).map((row: any) => row.store_id).filter(Boolean)));
-  return { allowed: true, scope: 'own', storeIds };
+  return Array.from(new Set((data || []).map((row: any) => row.store_id).filter(Boolean)));
+}
+
+async function getInventoryResultAnalysisAccess(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string
+): Promise<{ allowed: boolean; scope: 'all' | 'own'; storeIds: string[] }> {
+  const storeIds = await getAssignedInventoryResultStoreIds(admin, userId);
+  const isAdminLike = await isInventoryResultAnalysisAdminLike(admin, userId);
+  const isFieldRole = await isInventoryResultAnalysisFieldRole(admin, userId);
+  const hasUnrestrictedPermission = await hasInventoryResultAnalysisUnrestrictedPermission(userId);
+  const canViewOwn = await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_OWN_VIEW_PERMISSION);
+  const hasLegacyView = await hasAnyInventoryLegacyViewPermission(userId);
+
+  if (isAdminLike || (hasUnrestrictedPermission && !isFieldRole && storeIds.length === 0)) {
+    return { allowed: true, scope: 'all', storeIds: [] };
+  }
+
+  // 店長與督導都透過 store_managers 指派門市控管可見範圍。
+  // 即使他們同時有舊盤點或匯入/刪除權限，也不得因此看到全部門市的盤點結果。
+  if (storeIds.length > 0 && (canViewOwn || hasLegacyView || hasUnrestrictedPermission)) {
+    return { allowed: true, scope: 'own', storeIds };
+  }
+
+  if (canViewOwn) {
+    return { allowed: true, scope: 'own', storeIds: [] };
+  }
+
+  if (isFieldRole && (hasLegacyView || hasUnrestrictedPermission)) {
+    return { allowed: true, scope: 'own', storeIds: [] };
+  }
+
+  // 保留給未綁定門市的盤點後台人員，避免舊 full-view 權限完全失效。
+  if (hasLegacyView) {
+    return { allowed: true, scope: 'all', storeIds: [] };
+  }
+
+  return { allowed: false, scope: 'own', storeIds: [] };
 }
 
 async function canImportInventoryResultAnalysis(userId: string): Promise<boolean> {
-  return (await hasAnyInventoryFullAccessPermission(userId))
+  return (await hasAnyInventoryLegacyViewPermission(userId))
     || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION));
 }
 
 async function canDeleteInventoryResultAnalysis(userId: string): Promise<boolean> {
-  return (await hasAnyInventoryFullAccessPermission(userId))
+  return (await hasAnyInventoryLegacyViewPermission(userId))
     || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION));
 }
 
