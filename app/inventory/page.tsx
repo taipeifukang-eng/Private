@@ -1251,10 +1251,11 @@ export default function InventoryManagement() {
     ? diffFilteredAnalysisItems.filter((item) => (
       analysisReasonFilterItemIds
         ? analysisReasonFilterItemIds.has(item.id)
-        : isDifferenceReasonMissing(item)
+        : isDifferenceReasonRequired(item)
     ))
     : diffFilteredAnalysisItems;
-  const differenceReasonRequiredItems = specialCategoryFilteredAnalysisItems.filter(isDifferenceReasonRequired);
+  const differenceReasonRequiredItems = diffFilteredAnalysisItems.filter(isDifferenceReasonRequired);
+  const differenceReasonRequiredCount = differenceReasonRequiredItems.length;
   const differenceReasonMissingCount = differenceReasonRequiredItems.filter(isDifferenceReasonMissing).length;
   const toggleAnalysisReasonRequiredFilter = () => {
     if (analysisShowReasonRequiredOnly) {
@@ -1265,7 +1266,7 @@ export default function InventoryManagement() {
 
     setAnalysisReasonFilterItemIds(new Set(
       diffFilteredAnalysisItems
-        .filter(isDifferenceReasonMissing)
+        .filter(isDifferenceReasonRequired)
         .map((item) => item.id)
     ));
     setAnalysisShowReasonRequiredOnly(true);
@@ -2319,7 +2320,7 @@ export default function InventoryManagement() {
                                   : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                               }`}
                             >
-                              {analysisShowReasonRequiredOnly ? '顯示全部原因狀態' : `填寫盤差原因（${differenceReasonMissingCount}）`}
+                              {analysisShowReasonRequiredOnly ? '顯示全部原因狀態' : `填寫盤差原因（${differenceReasonRequiredCount}）`}
                             </button>
                           </div>
                         </div>
