@@ -172,6 +172,7 @@ export default function InventoryManagement() {
   const [analysisShowDiffOnly, setAnalysisShowDiffOnly] = useState(false);
   const [analysisExcludeSpecialCategories, setAnalysisExcludeSpecialCategories] = useState(false);
   const [analysisShowReasonRequiredOnly, setAnalysisShowReasonRequiredOnly] = useState(false);
+  const [analysisReasonFilterItemIds, setAnalysisReasonFilterItemIds] = useState<Set<string> | null>(null);
   const [differenceReasonCostThreshold, setDifferenceReasonCostThreshold] = useState(100);
   const [differenceReasonThresholdInput, setDifferenceReasonThresholdInput] = useState('100');
   const [canManageDifferenceReasonThreshold, setCanManageDifferenceReasonThreshold] = useState(false);
@@ -182,6 +183,17 @@ export default function InventoryManagement() {
     key: 'product_code',
     direction: 'asc',
   });
+
+  useEffect(() => {
+    setAnalysisShowReasonRequiredOnly(false);
+    setAnalysisReasonFilterItemIds(null);
+  }, [
+    selectedAnalysisBatchId,
+    selectedAnalysisCategoryCode,
+    analysisShowDiffOnly,
+    analysisExcludeSpecialCategories,
+    differenceReasonCostThreshold,
+  ]);
 
   const formatMoney = (value: unknown): string => {
     const n = Number(value) || 0;
@@ -1236,10 +1248,28 @@ export default function InventoryManagement() {
     ? specialCategoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
     : specialCategoryFilteredAnalysisItems;
   const filteredAnalysisItems = analysisShowReasonRequiredOnly
-    ? diffFilteredAnalysisItems.filter(isDifferenceReasonMissing)
+    ? diffFilteredAnalysisItems.filter((item) => (
+      analysisReasonFilterItemIds
+        ? analysisReasonFilterItemIds.has(item.id)
+        : isDifferenceReasonMissing(item)
+    ))
     : diffFilteredAnalysisItems;
   const differenceReasonRequiredItems = specialCategoryFilteredAnalysisItems.filter(isDifferenceReasonRequired);
   const differenceReasonMissingCount = differenceReasonRequiredItems.filter(isDifferenceReasonMissing).length;
+  const toggleAnalysisReasonRequiredFilter = () => {
+    if (analysisShowReasonRequiredOnly) {
+      setAnalysisShowReasonRequiredOnly(false);
+      setAnalysisReasonFilterItemIds(null);
+      return;
+    }
+
+    setAnalysisReasonFilterItemIds(new Set(
+      diffFilteredAnalysisItems
+        .filter(isDifferenceReasonMissing)
+        .map((item) => item.id)
+    ));
+    setAnalysisShowReasonRequiredOnly(true);
+  };
   const getAnalysisSortValue = (item: InventoryResultItem, key: AnalysisDetailSortKey): string | number => {
     if (key === 'product_code') return normalizeAnalysisProductCode(item.product_code);
     if (key === 'category') return `${getItemCategoryCode(item)} ${getItemCategoryName(item)}`;
@@ -2282,7 +2312,7 @@ export default function InventoryManagement() {
                             </button>
                             <button
                               type="button"
-                              onClick={() => setAnalysisShowReasonRequiredOnly((value) => !value)}
+                              onClick={toggleAnalysisReasonRequiredFilter}
                               className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
                                 analysisShowReasonRequiredOnly
                                   ? 'border-red-300 bg-red-50 text-red-800'
