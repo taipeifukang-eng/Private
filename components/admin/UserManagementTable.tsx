@@ -1,11 +1,89 @@
 'use client';
 
 import { useState } from 'react';
-import { Edit2, Trash2, Shield, User as UserIcon, CheckCircle, Search, Crown, Key } from 'lucide-react';
+import { Copy, Edit2, Eye, Key, Search, Shield, Store, Trash2, User as UserIcon, CheckCircle, Crown, X } from 'lucide-react';
 import { updateUserProfile, deleteUser } from '@/app/auth/actions';
 import type { Profile } from '@/types/workflow';
 
-export default function UserManagementTable({ users }: { users: Profile[] }) {
+type UserRbacRoleSummary = {
+  id: string;
+  name: string;
+  code: string;
+  assignment_id: string;
+  is_system: boolean;
+  is_active: boolean;
+  assignment_active: boolean;
+  assigned_at: string | null;
+  assigned_by: string | null;
+  expires_at: string | null;
+  is_expired: boolean;
+  is_current: boolean;
+  permission_count: number;
+  is_dev_verification_role: boolean;
+};
+
+type UserRbacPermissionSummary = {
+  code: string;
+  module: string;
+  feature: string;
+  action: string;
+  description: string | null;
+  source_roles: Array<{ id: string; name: string; code: string }>;
+};
+
+type UserStoreScopeSummary = {
+  id: string;
+  store_id: string;
+  store_code: string | null;
+  store_name: string | null;
+  short_name: string | null;
+  role_type: string;
+  is_primary: boolean;
+  store_is_active: boolean | null;
+};
+
+type UserRbacDetail = {
+  user: {
+    id: string;
+    email: string | null;
+    full_name: string | null;
+    employee_code: string | null;
+    legacy_role: string | null;
+    department: string | null;
+    job_title: string | null;
+    is_disabled: boolean;
+    is_dev_test_account: boolean;
+  };
+  roles: UserRbacRoleSummary[];
+  effective_permissions: UserRbacPermissionSummary[];
+  legacy_compatibility: {
+    is_admin_like: boolean;
+    source: string | null;
+    note: string | null;
+  };
+  store_scopes: UserStoreScopeSummary[];
+  validation_summary: {
+    can_view_users: boolean;
+    can_view_roles: boolean;
+    can_access_general_affairs_service: boolean;
+    can_view_inventory_balances: boolean;
+    can_view_inventory_transactions: boolean;
+    can_post_inventory_transactions: boolean;
+    can_view_parts: boolean;
+    store_scope_count: number;
+    store_manager_scope_label: string;
+  };
+};
+
+type UserRow = Profile & {
+  rbac_roles?: UserRbacRoleSummary[];
+  effective_permission_count?: number;
+  store_scope_count?: number;
+  is_admin_compatibility?: boolean;
+  is_dev_test_account?: boolean;
+};
+
+export default function UserManagementTable({ users }: { users: UserRow[] }) {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ full_name: '', role: 'member' as Profile['role'], department: '', job_title: '', employee_code: '' });
   const [searchTerm, setSearchTerm] = useState('');
@@ -13,6 +91,11 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
   const [resettingPasswordFor, setResettingPasswordFor] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [isResetting, setIsResetting] = useState(false);
+  const [rbacDetailUser, setRbacDetailUser] = useState<UserRow | null>(null);
+  const [rbacDetail, setRbacDetail] = useState<UserRbacDetail | null>(null);
+  const [rbacDetailLoading, setRbacDetailLoading] = useState(false);
+  const [rbacDetailError, setRbacDetailError] = useState<string | null>(null);
+  const [permissionSearch, setPermissionSearch] = useState('');
 
   // Filter and sort users
   const filteredUsers = users
@@ -87,7 +170,8 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
     const result = await deleteUser(userId);
     
     if (result.success) {
-      alert('✅ 刪除成功！');
+      const message = 'message' in result ? result.message : '刪除成功！';
+      alert(`✅ ${message}`);
       window.location.reload();
     } else {
       alert(`❌ 刪除失敗：${result.error}`);
@@ -158,6 +242,62 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
     navigator.clipboard.writeText(text);
     alert('✅ 已複製到剪貼簿');
   };
+
+  const copyEffectivePermissions = () => {
+    if (!rbacDetail) return;
+    copyToClipboard(rbacDetail.effective_permissions.map(permission => permission.code).join('\n'));
+  };
+
+  const openRbacDetail = async (user: UserRow) => {
+    setRbacDetailUser(user);
+    setRbacDetail(null);
+    setRbacDetailError(null);
+    setPermissionSearch('');
+    setRbacDetailLoading(true);
+
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}/rbac`, {
+        headers: { Accept: 'application/json' },
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '取得角色與權限失敗');
+      }
+      setRbacDetail(result.data);
+    } catch (error) {
+      setRbacDetailError(error instanceof Error ? error.message : '取得角色與權限失敗');
+    } finally {
+      setRbacDetailLoading(false);
+    }
+  };
+
+  const closeRbacDetail = () => {
+    setRbacDetailUser(null);
+    setRbacDetail(null);
+    setRbacDetailError(null);
+    setPermissionSearch('');
+  };
+
+  const groupedPermissions = (rbacDetail?.effective_permissions || [])
+    .filter(permission => {
+      const term = permissionSearch.trim().toLowerCase();
+      if (!term) return true;
+      return (
+        permission.code.toLowerCase().includes(term) ||
+        permission.module.toLowerCase().includes(term) ||
+        permission.feature.toLowerCase().includes(term) ||
+        permission.action.toLowerCase().includes(term) ||
+        permission.source_roles.some(role => role.code.toLowerCase().includes(term) || role.name.toLowerCase().includes(term))
+      );
+    })
+    .reduce<Record<string, UserRbacPermissionSummary[]>>((groups, permission) => {
+      const key = permission.module || 'uncategorized';
+      groups[key] = groups[key] || [];
+      groups[key].push(permission);
+      return groups;
+    }, {});
+
+  const getCurrentRbacRoles = (user: UserRow) => (user.rbac_roles || []).filter(role => role.is_current);
 
   const getRoleBadge = (role: string) => {
     const config = {
@@ -257,6 +397,226 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
         </div>
       )}
 
+      {rbacDetailUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">角色與有效權限</h3>
+                <p className="text-sm text-gray-600">
+                  {rbacDetailUser.full_name || rbacDetailUser.email || '未命名使用者'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeRbacDetail}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                title="關閉"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-6">
+              {rbacDetailLoading && (
+                <div className="py-12 text-center text-gray-600">載入角色與權限中...</div>
+              )}
+
+              {rbacDetailError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {rbacDetailError}
+                </div>
+              )}
+
+              {rbacDetail && (
+                <div className="space-y-6">
+                  <section className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <div className="border border-gray-200 rounded-lg p-4 md:col-span-2">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">基本資料</h4>
+                      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <dt className="text-gray-500">姓名</dt>
+                          <dd className="font-medium text-gray-900">{rbacDetail.user.full_name || '未設定'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500">Email</dt>
+                          <dd className="font-medium text-gray-900 break-all">{rbacDetail.user.email || '-'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500">員編</dt>
+                          <dd className="font-medium text-gray-900">{rbacDetail.user.employee_code || '未設定'}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500">舊 profiles.role</dt>
+                          <dd>{getRoleBadge(rbacDetail.user.legacy_role || 'member')}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500">狀態</dt>
+                          <dd className={rbacDetail.user.is_disabled ? 'font-medium text-red-700' : 'font-medium text-green-700'}>
+                            {rbacDetail.user.is_disabled ? '停用' : '啟用'}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500">DEV 測試帳號</dt>
+                          <dd>
+                            {rbacDetail.user.is_dev_test_account ? (
+                              <span className="inline-flex px-2 py-1 rounded bg-indigo-50 text-indigo-700 text-xs font-semibold">DEV</span>
+                            ) : (
+                              <span className="text-gray-500">否</span>
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">有效權限</h4>
+                      <p className="text-3xl font-semibold text-gray-900">{rbacDetail.effective_permissions.length}</p>
+                      <p className="text-xs text-gray-500 mt-1">由目前有效 RBAC 角色計算</p>
+                      {rbacDetail.legacy_compatibility.is_admin_like && (
+                        <div className="mt-3 text-xs rounded bg-purple-50 text-purple-700 p-2">
+                          Admin compatibility：{rbacDetail.legacy_compatibility.source}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">門市範圍</h4>
+                      <p className="text-3xl font-semibold text-gray-900">{rbacDetail.store_scopes.length}</p>
+                      <p className="text-xs text-gray-500 mt-1">{rbacDetail.validation_summary.store_manager_scope_label}</p>
+                    </div>
+                  </section>
+
+                  <section className="border border-gray-200 rounded-lg p-4">
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3">已指派角色</h4>
+                    <div className="space-y-2">
+                      {rbacDetail.roles.length === 0 && (
+                        <p className="text-sm text-gray-500">尚未指派 RBAC 角色</p>
+                      )}
+                      {rbacDetail.roles.map(role => (
+                        <div key={role.assignment_id} className="flex flex-col md:flex-row md:items-center gap-2 justify-between border border-gray-100 rounded-lg p-3">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-gray-900">{role.name}</span>
+                              <code className="px-2 py-1 rounded bg-gray-100 text-xs text-gray-700">{role.code}</code>
+                              {role.is_system && <span className="px-2 py-1 rounded bg-blue-50 text-xs text-blue-700">系統</span>}
+                              {role.is_dev_verification_role && <span className="px-2 py-1 rounded bg-indigo-50 text-xs text-indigo-700">DEV</span>}
+                              {!role.is_current && <span className="px-2 py-1 rounded bg-amber-50 text-xs text-amber-700">目前無效</span>}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              assigned_at：{role.assigned_at ? new Date(role.assigned_at).toLocaleString('zh-TW') : '-'}，
+                              expires_at：{role.expires_at ? new Date(role.expires_at).toLocaleString('zh-TW') : '永久'}
+                            </p>
+                          </div>
+                          <div className="text-sm text-gray-700">
+                            權限 {role.permission_count}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-900">有效權限代碼</h4>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={permissionSearch}
+                          onChange={(event) => setPermissionSearch(event.target.value)}
+                          placeholder="搜尋權限代碼、模組或來源角色"
+                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none w-full md:w-72"
+                        />
+                        <button
+                          type="button"
+                          onClick={copyEffectivePermissions}
+                          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm"
+                        >
+                          <Copy size={16} />
+                          複製
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                      {Object.keys(groupedPermissions).length === 0 && (
+                        <p className="text-sm text-gray-500">沒有符合條件的有效權限</p>
+                      )}
+                      {Object.entries(groupedPermissions).map(([module, permissions]) => (
+                        <div key={module} className="border border-gray-100 rounded-lg overflow-hidden">
+                          <div className="px-3 py-2 bg-gray-50 text-sm font-semibold text-gray-800">
+                            {module} <span className="text-gray-500 font-normal">({permissions.length})</span>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {permissions.map(permission => (
+                              <div key={permission.code} className="px-3 py-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <code className="text-xs bg-gray-100 rounded px-2 py-1 text-gray-800">{permission.code}</code>
+                                  <span className="text-xs text-gray-500">{permission.feature} / {permission.action}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  來源：{permission.source_roles.map(role => `${role.name}(${role.code})`).join('、')}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">門市範圍</h4>
+                      <div className="space-y-2">
+                        {rbacDetail.store_scopes.length === 0 && (
+                          <p className="text-sm text-gray-500">未設定 store_managers 範圍</p>
+                        )}
+                        {rbacDetail.store_scopes.map(scope => (
+                          <div key={scope.id} className="flex items-start gap-2 text-sm border border-gray-100 rounded p-2">
+                            <Store size={16} className="text-gray-500 mt-0.5" />
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                {scope.store_code || '-'} {scope.short_name || scope.store_name || ''}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {scope.role_type}{scope.is_primary ? ' / primary' : ''}{scope.store_is_active === false ? ' / 門市停用' : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-3">DEV 人工驗證摘要</h4>
+                      <div className="grid grid-cols-1 gap-2 text-sm">
+                        {[
+                          ['可看使用者管理', rbacDetail.validation_summary.can_view_users],
+                          ['可看角色管理', rbacDetail.validation_summary.can_view_roles],
+                          ['可進總務服務中心', rbacDetail.validation_summary.can_access_general_affairs_service],
+                          ['可看庫存餘額', rbacDetail.validation_summary.can_view_inventory_balances],
+                          ['可看庫存流水', rbacDetail.validation_summary.can_view_inventory_transactions],
+                          ['可登錄庫存交易', rbacDetail.validation_summary.can_post_inventory_transactions],
+                          ['可看料件目錄', rbacDetail.validation_summary.can_view_parts],
+                        ].map(([label, allowed]) => (
+                          <div key={String(label)} className="flex items-center justify-between border border-gray-100 rounded px-3 py-2">
+                            <span>{label}</span>
+                            <span className={allowed ? 'text-green-700 font-semibold' : 'text-gray-500'}>
+                              {allowed ? '是' : '否'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       {/* Header with Search and Filters */}
       <div className="px-6 py-4 border-b border-gray-200">
@@ -316,6 +676,15 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 角色
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                RBAC角色
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                有效權限
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                門市範圍
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 註冊日期
@@ -412,6 +781,40 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                     getRoleBadge(user.role)
                   )}
                 </td>
+                <td className="px-6 py-4 min-w-56">
+                  <div className="flex flex-wrap gap-1">
+                    {getCurrentRbacRoles(user).slice(0, 3).map(role => (
+                      <span key={role.assignment_id} className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 text-xs text-gray-700">
+                        {role.name}
+                        <code className="text-[10px] text-gray-500">{role.code}</code>
+                      </span>
+                    ))}
+                    {getCurrentRbacRoles(user).length === 0 && (
+                      <span className="text-sm text-gray-500">未指派</span>
+                    )}
+                    {getCurrentRbacRoles(user).length > 3 && (
+                      <span className="px-2 py-1 rounded bg-gray-50 text-xs text-gray-500">
+                        +{getCurrentRbacRoles(user).length - 3}
+                      </span>
+                    )}
+                    {user.is_dev_test_account && (
+                      <span className="px-2 py-1 rounded bg-indigo-50 text-xs font-semibold text-indigo-700">DEV</span>
+                    )}
+                    {user.is_admin_compatibility && (
+                      <span className="px-2 py-1 rounded bg-purple-50 text-xs font-semibold text-purple-700">Admin bypass</span>
+                    )}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900">
+                    {user.effective_permission_count ?? 0}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">
+                    {user.store_scope_count ?? 0}
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                   {new Date(user.created_at).toLocaleDateString('zh-TW')}
                 </td>
@@ -486,6 +889,13 @@ export default function UserManagementTable({ users }: { users: Profile[] }) {
                     </div>
                   ) : (
                     <div className="flex gap-2">
+                      <button
+                        onClick={() => openRbacDetail(user)}
+                        className="p-2 text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                        title="查看角色與權限"
+                      >
+                        <Eye size={18} />
+                      </button>
                       <button
                         onClick={() => handleEdit(user)}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
