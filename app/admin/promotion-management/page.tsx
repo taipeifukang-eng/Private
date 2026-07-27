@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar, ArrowRightLeft, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar, ArrowRightLeft, CheckCircle, XCircle, Clock, Edit2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS, NEWBIE_LEVEL_OPTIONS } from '@/types/workflow';
 
@@ -121,6 +121,15 @@ export default function EmployeeMovementManagementPage() {
   const [historyYearMonth, setHistoryYearMonth] = useState<string>('');
   const [historyMovementType, setHistoryMovementType] = useState<string>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editMovement, setEditMovement] = useState({
+    employee_name: '',
+    movement_date: '',
+    new_value: '',
+    newbie_level: '',
+    notes: '',
+    onboarding_is_pharmacist: false,
+  });
 
   useEffect(() => {
     checkPermissionAndLoadData();
@@ -414,6 +423,113 @@ export default function EmployeeMovementManagementPage() {
       alert(`❌ 刪除失敗: ${error.message || '未知錯誤'}`);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const getPromotionLevelFromRecord = (record: MovementHistory) => {
+    const notes = record.notes || '';
+    const adminMatch = notes.match(/行政階級:([^；\n]+)/);
+    if (adminMatch?.[1]) return adminMatch[1].trim();
+
+    const newbieMatch = notes.match(/新人等級:([^；\n]+)/);
+    if (newbieMatch?.[1]) return newbieMatch[1].trim();
+
+    return '';
+  };
+
+  const getEditableNotes = (record: MovementHistory) => {
+    return String(record.notes || '')
+      .split('；')
+      .map(part => part.trim())
+      .filter(part => part && !part.startsWith('行政階級:') && !part.startsWith('新人等級:'))
+      .join('；');
+  };
+
+  const openEditMovement = (record: MovementHistory) => {
+    setEditingId(record.id);
+    setEditMovement({
+      employee_name: record.employee_name || '',
+      movement_date: record.movement_date || '',
+      new_value: record.new_value || '',
+      newbie_level: getPromotionLevelFromRecord(record),
+      notes: getEditableNotes(record),
+      onboarding_is_pharmacist: Boolean(record.onboarding_is_pharmacist),
+    });
+  };
+
+  const closeEditMovement = () => {
+    setEditingId(null);
+    setEditMovement({
+      employee_name: '',
+      movement_date: '',
+      new_value: '',
+      newbie_level: '',
+      notes: '',
+      onboarding_is_pharmacist: false,
+    });
+  };
+
+  const handleUpdateMovement = async () => {
+    const record = movementHistory.find(m => m.id === editingId);
+    if (!record) return;
+
+    if (!editMovement.employee_name.trim()) {
+      alert('請填寫姓名');
+      return;
+    }
+
+    if (!editMovement.movement_date) {
+      alert('請填寫生效日期');
+      return;
+    }
+
+    if (record.movement_type === 'promotion' && !editMovement.new_value.trim()) {
+      alert('升職異動必須填寫新職位');
+      return;
+    }
+
+    if (record.movement_type === 'promotion' && editMovement.new_value === '新人' && !editMovement.newbie_level) {
+      alert('升職為新人時必須選擇新人等級');
+      return;
+    }
+
+    if (record.movement_type === 'promotion' && editMovement.new_value === '行政' && !editMovement.newbie_level) {
+      alert('升職為行政時必須選擇行政階級');
+      return;
+    }
+
+    const confirmMessage = `確定要更新這筆人員異動嗎？\n\n` +
+      `員工：${record.employee_code} ${editMovement.employee_name}\n` +
+      `生效日期：${editMovement.movement_date}\n\n` +
+      (record.movement_type === 'promotion'
+        ? '升職異動更新後，系統會從受影響月份開始重算後續每月人員狀態的職位。'
+        : '姓名或生效日期更新後，系統會同步受影響月份後的月度姓名。');
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/employee-movements/${record.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editMovement),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        alert(`✅ ${result.message || '已更新人員異動記錄'}`);
+        closeEditMovement();
+        await loadMovementHistory();
+      } else {
+        alert(`❌ 編輯失敗：${result.error}`);
+      }
+    } catch (error: any) {
+      console.error('Error updating movement:', error);
+      alert(`❌ 編輯失敗：${error.message || '未知錯誤'}`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1201,21 +1317,31 @@ export default function EmployeeMovementManagementPage() {
                             <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
                             <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{record.movement_date}</td>
-                            <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => handleDeleteMovement(record)}
-                                disabled={deletingId === record.id}
-                                className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                title="刪除此異動記錄"
-                              >
-                                {deletingId === record.id ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent" />
-                                ) : (
-                                  <Trash2 size={16} />
-                                )}
-                              </button>
-                            </td>
                             <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => openEditMovement(record)}
+                                  disabled={Boolean(editingId) || deletingId === record.id}
+                                  className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="編輯此異動記錄"
+                                >
+                                  <Edit2 size={16} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMovement(record)}
+                                  disabled={deletingId === record.id}
+                                  className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                  title="刪除此異動記錄"
+                                >
+                                  {deletingId === record.id ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent" />
+                                  ) : (
+                                    <Trash2 size={16} />
+                                  )}
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         );
                       })}
@@ -1544,6 +1670,164 @@ export default function EmployeeMovementManagementPage() {
             </div>
           </div>
         )}
+
+        {editingId && (() => {
+          const record = movementHistory.find(m => m.id === editingId);
+          if (!record) return null;
+          const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
+                <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">編輯人員異動</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {record.employee_code} · {typeLabel}
+                    </p>
+                  </div>
+                  <button
+                    onClick={closeEditMovement}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <XCircle size={22} />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    {record.movement_type === 'promotion'
+                      ? '升職異動儲存後，會從原生效月份與新生效月份中較早者開始，依該員工升職時間線重算後續每月人員狀態職位。'
+                      : '姓名或生效日期儲存後，會同步受影響月份後的每月人員狀態姓名。'}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      姓名 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editMovement.employee_name}
+                      onChange={(e) => setEditMovement(prev => ({ ...prev, employee_name: e.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      生效日期 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={editMovement.movement_date}
+                      onChange={(e) => setEditMovement(prev => ({ ...prev, movement_date: e.target.value }))}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  {record.movement_type === 'onboarding' && (
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={editMovement.onboarding_is_pharmacist}
+                        onChange={(e) => setEditMovement(prev => ({ ...prev, onboarding_is_pharmacist: e.target.checked }))}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      入職時為藥師
+                    </label>
+                  )}
+
+                  {record.movement_type === 'promotion' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          新職位 <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          value={editMovement.new_value}
+                          onChange={(e) => {
+                            const nextPosition = e.target.value;
+                            setEditMovement(prev => ({
+                              ...prev,
+                              new_value: nextPosition,
+                              newbie_level: nextPosition === '新人' || nextPosition === '行政'
+                                ? prev.newbie_level
+                                : '',
+                            }));
+                          }}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                        >
+                          <option value="">請選擇</option>
+                          {POSITION_OPTIONS.map(pos => (
+                            <option key={pos} value={pos}>{pos}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {(editMovement.new_value === '新人' || editMovement.new_value === '行政') && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            {editMovement.new_value === '行政' ? '行政階級' : '新人等級'} <span className="text-red-500">*</span>
+                          </label>
+                          <select
+                            value={editMovement.newbie_level}
+                            onChange={(e) => setEditMovement(prev => ({ ...prev, newbie_level: e.target.value }))}
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                          >
+                            <option value="">請選擇</option>
+                            {(editMovement.new_value === '行政'
+                              ? ['未過階行政', '過階行政']
+                              : NEWBIE_LEVEL_OPTIONS.map(option => option.value)
+                            ).map(level => (
+                              <option key={level} value={level}>{level}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">備註</label>
+                    <textarea
+                      value={editMovement.notes}
+                      onChange={(e) => setEditMovement(prev => ({ ...prev, notes: e.target.value }))}
+                      rows={3}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                      placeholder="可填寫修正原因或備註"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-3 p-6 border-t border-gray-200">
+                  <button
+                    onClick={closeEditMovement}
+                    disabled={saving}
+                    className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={handleUpdateMovement}
+                    disabled={saving}
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                        同步中...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        儲存並同步
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
+import { syncPromotionPositionToMonthlyStaffStatus } from '@/lib/monthly-staff/promotion-position-sync';
 
 type MovementType = 'onboarding' | 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
 
@@ -300,6 +301,7 @@ export async function POST(request: NextRequest) {
 
     // 為每筆記錄準備資料
     const movementRecords = [];
+    const promotionPositionSyncInputs = [];
     
     for (const movement of movements) {
       // 檢查是否已存在相同的異動記錄（同員工、同日期、同異動類型）
@@ -397,6 +399,15 @@ export async function POST(request: NextRequest) {
         notes: normalizedNotes,
         created_by: user.id
       });
+
+      if (movement.movement_type === 'promotion' && newValue) {
+        promotionPositionSyncInputs.push({
+          employee_code: movement.employee_code,
+          effective_date: movement.effective_date,
+          position: newValue,
+          newbie_level: ['新人', '行政'].includes(String(newValue)) ? (movement.newbie_level || null) : null,
+        });
+      }
     }
 
     // 如果所有記錄都是重複的
@@ -477,7 +488,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 觸發器會自動處理相關更新
+    // DB trigger should handle the same update, but this app-level sync keeps
+    // existing monthly snapshots correct when a legacy environment lacks it.
+    try {
+      await syncPromotionPositionToMonthlyStaffStatus(adminSupabase, promotionPositionSyncInputs);
+    } catch (syncError) {
+      console.error('Promotion monthly status sync warning:', syncError);
+      return NextResponse.json({
+        success: false,
+        error: syncError instanceof Error ? syncError.message : '同步升職月度職位失敗'
+      }, { status: 500 });
+    }
 
     const transferMovements = movements.filter((m) => m.movement_type === 'store_transfer');
     for (const movement of transferMovements) {
@@ -486,22 +507,6 @@ export async function POST(request: NextRequest) {
       } catch (syncError) {
         console.error('Store transfer monthly status sync warning:', syncError);
       }
-    }
-
-    // 升職為「新人」或「行政」且指定階級時，額外更新 monthly_staff_status.newbie_level
-    const promotionLevelMovements = movements.filter(
-      (m): m is MovementInput & { position: string; newbie_level: string } =>
-        m.movement_type === 'promotion' &&
-        ['新人', '行政'].includes(String(m.position || '')) &&
-        Boolean(m.newbie_level)
-    );
-    for (const movement of promotionLevelMovements) {
-      const targetYearMonth = movement.effective_date.substring(0, 7);
-      await adminSupabase
-        .from('monthly_staff_status')
-        .update({ newbie_level: movement.newbie_level, updated_at: new Date().toISOString() })
-        .eq('employee_code', movement.employee_code.toUpperCase())
-        .gte('year_month', targetYearMonth);
     }
 
     const skippedCount = movements.length - data.length;

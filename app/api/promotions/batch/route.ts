@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { syncPromotionPositionToMonthlyStaffStatus } from '@/lib/monthly-staff/promotion-position-sync';
 import type { BatchPromotionInput } from '@/types/workflow';
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
     
     // 檢查權限
     const { data: { user } } = await supabase.auth.getUser();
@@ -40,13 +42,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 批次插入升遷記錄
-    const promotionRecords = promotions.map(promo => ({
+    const promotionRecords: Array<{
+      employee_code: string;
+      employee_name: string;
+      store_id: string;
+      movement_type: 'promotion';
+      movement_date: string;
+      new_value: string;
+      old_value: string | null;
+      notes: string | null;
+      created_by: string;
+    }> = promotions.map(promo => ({
       employee_code: promo.employee_code.toUpperCase(),
       employee_name: promo.employee_name,
       store_id,
-      promotion_date: promo.effective_date,
-      new_position: promo.position,
-      old_position: null, // 會從現有資料查詢
+      movement_type: 'promotion',
+      movement_date: promo.effective_date,
+      new_value: promo.position,
+      old_value: null, // 會從現有資料查詢
       notes: promo.notes || null,
       created_by: user.id
     }));
@@ -61,7 +74,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (empData) {
-        promotionRecords[i].old_position = empData.current_position || empData.position || null;
+        promotionRecords[i].old_value = empData.current_position || empData.position || null;
       }
     }
 
@@ -78,7 +91,22 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // 觸發器會自動更新 monthly_staff_status 和 store_employees
+    try {
+      await syncPromotionPositionToMonthlyStaffStatus(
+        adminSupabase,
+        promotionRecords.map((record) => ({
+          employee_code: record.employee_code,
+          effective_date: record.movement_date,
+          position: record.new_value,
+        }))
+      );
+    } catch (syncError) {
+      console.error('Promotion monthly status sync warning:', syncError);
+      return NextResponse.json({
+        success: false,
+        error: syncError instanceof Error ? syncError.message : '同步升職月度職位失敗'
+      }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
