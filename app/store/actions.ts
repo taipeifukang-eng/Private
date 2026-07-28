@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { requirePermission, hasPermission } from '@/lib/permissions/check';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 import type { 
@@ -17,6 +17,10 @@ import type {
 // =====================================================
 // 門市管理 Actions
 // =====================================================
+
+const STORE_CREATE_PERMISSION_CODES = ['store.store.create', 'store.manage'] as const;
+const STORE_EDIT_PERMISSION_CODES = ['store.store.edit', 'store.manage'] as const;
+const STORE_VIEW_PERMISSION_CODES = ['store.store.view', 'store.store.view_inactive', 'store.manage'] as const;
 
 /**
  * 獲取所有門市
@@ -49,6 +53,51 @@ export async function getStores() {
 }
 
 /**
+ * 取得單一門市供管理頁編輯使用。
+ */
+export async function getStoreForAdminEdit(storeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: '未登入', data: null };
+    }
+
+    if (!storeId) {
+      return { success: false, error: '缺少門市 ID', data: null };
+    }
+
+    const canViewStore = await hasAnyPermission(user.id, STORE_VIEW_PERMISSION_CODES);
+    const canEditStore = await hasAnyPermission(user.id, STORE_EDIT_PERMISSION_CODES);
+    if (!canViewStore && !canEditStore) {
+      return { success: false, error: '權限不足', data: null };
+    }
+
+    const adminSupabase = createAdminClient();
+    const { data: adminData, error: adminError } = await adminSupabase
+      .from('stores')
+      .select('*')
+      .eq('id', storeId)
+      .maybeSingle();
+
+    if (adminError) {
+      console.error('Error fetching store:', adminError);
+      return { success: false, error: adminError.message, data: null };
+    }
+
+    if (!adminData) {
+      return { success: false, error: '找不到該門市', data: null };
+    }
+
+    return { success: true, data: adminData };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message, data: null };
+  }
+}
+
+/**
  * 建立新門市
  */
 export async function createStore(data: {
@@ -69,13 +118,14 @@ export async function createStore(data: {
       return { success: false, error: '未登入' };
     }
 
-    // 檢查權限：需要 store.store.create 權限
-    const permission = await requirePermission(user.id, 'store.store.create');
-    if (!permission.allowed) {
+    // 檢查權限：需要 store.store.create 或 store.manage 權限
+    const canCreateStore = await hasAnyPermission(user.id, STORE_CREATE_PERMISSION_CODES);
+    if (!canCreateStore) {
       return { success: false, error: '權限不足' };
     }
 
-    const { data: store, error } = await supabase
+    const adminSupabase = createAdminClient();
+    const { data: adminStore, error: adminError } = await adminSupabase
       .from('stores')
       .insert({
         store_code: data.store_code,
@@ -90,13 +140,80 @@ export async function createStore(data: {
       .select()
       .single();
 
+    if (adminError) {
+      console.error('Error creating store:', adminError);
+      return { success: false, error: adminError.message };
+    }
+
+    revalidatePath('/admin/stores');
+    return { success: true, data: adminStore };
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * 更新門市基本資料。
+ */
+export async function updateStore(data: {
+  store_id: string;
+  store_name: string;
+  is_franchise?: boolean;
+  short_name?: string | null;
+  hr_store_code?: string | null;
+  manager_name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  is_active?: boolean;
+}) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      return { success: false, error: '未登入' };
+    }
+
+    if (!data.store_id) {
+      return { success: false, error: '缺少門市 ID' };
+    }
+
+    if (!data.store_name?.trim()) {
+      return { success: false, error: '請填寫門市名稱' };
+    }
+
+    const canEditStore = await hasAnyPermission(user.id, STORE_EDIT_PERMISSION_CODES);
+    if (!canEditStore) {
+      return { success: false, error: '權限不足' };
+    }
+
+    const adminSupabase = createAdminClient();
+    const updatePayload = {
+      store_name: data.store_name.trim(),
+      is_franchise: data.is_franchise ?? false,
+      short_name: data.short_name?.trim() || null,
+      hr_store_code: data.hr_store_code?.trim() || null,
+      manager_name: data.manager_name?.trim() || null,
+      address: data.address?.trim() || null,
+      phone: data.phone?.trim() || null,
+      is_active: data.is_active ?? true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await adminSupabase
+      .from('stores')
+      .update(updatePayload)
+      .eq('id', data.store_id);
+
     if (error) {
-      console.error('Error creating store:', error);
+      console.error('Error updating store:', error);
       return { success: false, error: error.message };
     }
 
     revalidatePath('/admin/stores');
-    return { success: true, data: store };
+    revalidatePath(`/admin/stores/${data.store_id}/edit`);
+    return { success: true };
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message };
@@ -1082,6 +1199,127 @@ async function syncTransferMovementsForMonthlyStatus(
   }
 }
 
+const MONTHLY_STATUS_REACTIVATION_MOVEMENT_TYPES = ['onboarding', 'return_to_work'] as const;
+
+/**
+ * 取得目標月份開始日前，最新人員異動仍為離職的員編。
+ * 用來避免 5/31 離職者在 6 月初始化時被上月月度資料繼續帶入。
+ */
+async function resolvePreMonthResignedEmployeeCodes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  employeeCodes: Array<string | null | undefined>,
+  monthStart: string
+) {
+  const normalizedCodes = Array.from(
+    new Set(
+      employeeCodes
+        .map(code => String(code || '').trim().toUpperCase())
+        .filter(Boolean)
+    )
+  );
+
+  if (normalizedCodes.length === 0) {
+    return new Set<string>();
+  }
+
+  const { data, error } = await supabase
+    .from('employee_movement_history')
+    .select('employee_code, movement_type, movement_date, created_at')
+    .in('employee_code', normalizedCodes)
+    .in('movement_type', ['resignation', ...MONTHLY_STATUS_REACTIVATION_MOVEMENT_TYPES])
+    .lt('movement_date', monthStart)
+    .order('movement_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    throw new Error(`檢查月初前離職異動失敗：${error.message}`);
+  }
+
+  const latestMovementByCode = new Map<string, any>();
+  for (const movement of data || []) {
+    const code = String(movement.employee_code || '').trim().toUpperCase();
+    if (!code || latestMovementByCode.has(code)) continue;
+    latestMovementByCode.set(code, movement);
+  }
+
+  return new Set(
+    Array.from(latestMovementByCode.entries())
+      .filter(([, movement]) => movement.movement_type === 'resignation')
+      .map(([code]) => code)
+  );
+}
+
+/**
+ * 已初始化但仍為草稿的月份，若先前離職者被上月資料帶入，重新初始化時清掉該列。
+ */
+async function syncPreMonthResignationsForMonthlyStatus(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  yearMonth: string,
+  storeId: string
+) {
+  const { data: draftRows, error } = await supabase
+    .from('monthly_staff_status')
+    .select('id, employee_code, monthly_status, is_manually_added')
+    .eq('year_month', yearMonth)
+    .eq('store_id', storeId)
+    .eq('status', 'draft');
+
+  if (error) {
+    throw new Error(`檢查已初始化月份離職資料失敗：${error.message}`);
+  }
+
+  if (!draftRows || draftRows.length === 0) {
+    return 0;
+  }
+
+  const monthStart = `${yearMonth}-01`;
+  const preMonthResignedCodes = await resolvePreMonthResignedEmployeeCodes(
+    supabase,
+    draftRows.map(row => row.employee_code),
+    monthStart
+  );
+
+  const staleRowIds = draftRows
+    .filter(row => {
+      const code = String(row.employee_code || '').trim().toUpperCase();
+      return !row.is_manually_added && (
+        row.monthly_status === 'resigned' ||
+        preMonthResignedCodes.has(code)
+      );
+    })
+    .map(row => row.id);
+
+  if (staleRowIds.length === 0) {
+    return 0;
+  }
+
+  const { error: deleteError } = await supabase
+    .from('monthly_staff_status')
+    .delete()
+    .in('id', staleRowIds);
+
+  if (deleteError) {
+    throw new Error(`清理跨月離職月度資料失敗：${deleteError.message}`);
+  }
+
+  const { count } = await supabase
+    .from('monthly_staff_status')
+    .select('id', { count: 'exact', head: true })
+    .eq('year_month', yearMonth)
+    .eq('store_id', storeId);
+
+  await supabase
+    .from('monthly_store_summary')
+    .update({
+      total_employees: count || 0,
+      updated_at: new Date().toISOString()
+    })
+    .eq('year_month', yearMonth)
+    .eq('store_id', storeId);
+
+  return staleRowIds.length;
+}
+
 /**
  * 初始化指定年月、門市的人員狀態
  * 從 store_employees 複製當前員工名單
@@ -1109,6 +1347,7 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
 
     if (existing && existing.length > 0) {
       await syncTransferMovementsForMonthlyStatus(supabase, yearMonth, storeId, daysInMonth);
+      await syncPreMonthResignationsForMonthlyStatus(supabase, yearMonth, storeId);
       return { success: true, message: '資料已存在', initialized: false };
     }
 
@@ -1145,8 +1384,18 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
     let statusRecords: any[] = [];
 
     if (prevMonthData && prevMonthData.length > 0) {
+      const preMonthResignedCodes = await resolvePreMonthResignedEmployeeCodes(
+        supabase,
+        prevMonthData.map(prev => prev.employee_code),
+        `${yearMonth}-01`
+      );
+      const carryForwardMonthData = prevMonthData.filter(prev => {
+        const code = String(prev.employee_code || '').trim().toUpperCase();
+        return prev.monthly_status !== 'resigned' && !preMonthResignedCodes.has(code);
+      });
+
       // 有上個月的資料，從上個月複製
-      statusRecords = prevMonthData.map(prev => {
+      statusRecords = carryForwardMonthData.map(prev => {
         // 判斷是否為兼職（工作時數需重設為0）
         const isPartTime = prev.employment_type === 'part_time';
         
@@ -1209,7 +1458,21 @@ export async function initializeMonthlyStatus(yearMonth: string, storeId: string
         return { success: false, error: '該門市沒有員工資料' };
       }
 
-      statusRecords = employees.map(emp => {
+      const preMonthResignedCodes = await resolvePreMonthResignedEmployeeCodes(
+        supabase,
+        employees.map(emp => emp.employee_code),
+        `${yearMonth}-01`
+      );
+      const activeEmployees = employees.filter(emp => {
+        const code = String(emp.employee_code || '').trim().toUpperCase();
+        return !preMonthResignedCodes.has(code);
+      });
+
+      if (activeEmployees.length === 0) {
+        return { success: false, error: '該門市沒有可初始化的在職員工資料' };
+      }
+
+      statusRecords = activeEmployees.map(emp => {
         // 判斷是否有店長加成：只有「店長」或「代理店長」才有，「副店長」沒有
         const position = emp.position || '';
         const hasManagerBonus = position === '店長' || 
