@@ -33,7 +33,16 @@ async function isAdminLikeUser(userId: string): Promise<boolean> {
       const roleCode = row?.role?.code;
       const expiresAt = row?.expires_at ? new Date(row.expires_at).getTime() : null;
       const notExpired = expiresAt === null || expiresAt > now;
-      return notExpired && ['admin', 'system_admin', 'admin_role'].includes(roleCode);
+      return notExpired && [
+        'admin',
+        'system_admin',
+        'admin_role',
+        'full_admin',
+        'full_admin_role',
+        'dev_full_admin',
+        'owner',
+        'owner_role'
+      ].includes(roleCode);
     });
   } catch (error) {
     console.error('管理員身份檢查異常:', error);
@@ -80,7 +89,7 @@ export async function hasPermission(
  */
 export async function hasAnyPermission(
   userId: string,
-  permissionCodes: string[]
+  permissionCodes: readonly string[]
 ): Promise<boolean> {
   try {
     for (const code of permissionCodes) {
@@ -99,7 +108,7 @@ export async function hasAnyPermission(
  */
 export async function hasAllPermissions(
   userId: string,
-  permissionCodes: string[]
+  permissionCodes: readonly string[]
 ): Promise<boolean> {
   try {
     for (const code of permissionCodes) {
@@ -118,19 +127,71 @@ export async function hasAllPermissions(
  */
 export async function getUserPermissions(userId: string): Promise<string[]> {
   try {
-    const supabase = await createClient();
-    
-    const { data, error } = await supabase
-      .rpc('get_user_permissions', {
-        p_user_id: userId
-      });
+    // Read the formal RBAC source tables directly. The legacy
+    // get_user_permissions RPC may be absent or contain environment-specific
+    // SQL, and should not block navbar / route permission loading.
+    const { createAdminClient } = await import('@/lib/supabase/server');
+    const adminSupabase = createAdminClient();
 
-    if (error) {
-      console.error('取得權限列表錯誤:', error);
+    const isAdminLike = await isAdminLikeUser(userId);
+    if (isAdminLike) {
+      const { data: permissions, error: permissionsError } = await adminSupabase
+        .from('permissions')
+        .select('code')
+        .eq('is_active', true);
+
+      if (permissionsError) {
+        console.error('取得管理員權限列表錯誤:', permissionsError);
+        return [];
+      }
+
+      return Array.from(
+        new Set((permissions || []).map((permission: any) => permission.code).filter(Boolean))
+      );
+    }
+
+    const { data: rolePermissions, error: rolePermissionsError } = await adminSupabase
+      .from('user_roles')
+      .select(`
+        is_active,
+        expires_at,
+        role:roles!inner (
+          is_active,
+          role_permissions!inner (
+            is_allowed,
+            permission:permissions!inner (code, is_active)
+          )
+        )
+      `)
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (rolePermissionsError) {
+      console.error('取得使用者 RBAC 權限列表錯誤:', rolePermissionsError);
       return [];
     }
 
-    return (data || []).map((row: any) => row.permission_code);
+    const now = Date.now();
+    const codes = new Set<string>();
+    (rolePermissions || []).forEach((userRole: any) => {
+      const expiresAt = userRole.expires_at ? new Date(userRole.expires_at).getTime() : null;
+      if (expiresAt !== null && expiresAt <= now) return;
+      if (userRole.role?.is_active === false) return;
+
+      (userRole.role?.role_permissions || []).forEach((rolePermission: any) => {
+        const permissionCode = rolePermission.permission?.code;
+        if (
+          rolePermission.is_allowed &&
+          rolePermission.permission?.is_active !== false &&
+          typeof permissionCode === 'string' &&
+          permissionCode.trim()
+        ) {
+          codes.add(permissionCode.trim());
+        }
+      });
+    });
+
+    return Array.from(codes);
   } catch (error) {
     console.error('取得權限列表異常:', error);
     return [];
