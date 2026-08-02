@@ -356,7 +356,8 @@ export default function ClinicSelfpayMarginPage() {
       const skippedClosedMonths = Array.isArray(json.skippedClosedMonths) && json.skippedClosedMonths.length > 0
         ? `；已略過關帳月份：${json.skippedClosedMonths.join('、')}`
         : '';
-      setPriceMessage(`✅ 月價匯入成功：${json.imported} 筆，匯入月份：${importedMonths}${skippedClosedMonths}`);
+      const warning = json.warning ? `；${json.warning}` : '';
+      setPriceMessage(`✅ 月價匯入成功：${json.imported} 筆，匯入月份：${importedMonths}${skippedClosedMonths}${warning}`);
       await loadMappings();
     } catch (error: any) {
       setPriceMessage(`❌ 月價匯入失敗：${error.message}`);

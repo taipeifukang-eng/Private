@@ -65,6 +65,26 @@ function buildRecords(rows: Record<string, any>[], storeId: string, yearMonth: s
     .filter(Boolean) as any[];
 }
 
+function deduplicatePriceRecords(records: any[]) {
+  const byConflictKey = new Map<string, any>();
+
+  for (const record of records) {
+    const key = [
+      record.store_id,
+      record.year_month,
+      record.health_insurance_code,
+    ].join('|');
+
+    // 同一份匯入檔若重複同門市、同月份、同健保碼，採用檔案中最後一筆。
+    byConflictKey.set(key, record);
+  }
+
+  return {
+    records: Array.from(byConflictKey.values()),
+    duplicateCount: records.length - byConflictKey.size,
+  };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getCurrentUserId();
@@ -143,12 +163,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const deduped = deduplicatePriceRecords(records);
+
     const { error } = await admin
       .from('clinic_selfpay_price_entries')
-      .upsert(records, { onConflict: 'store_id,year_month,health_insurance_code' });
+      .upsert(deduped.records, { onConflict: 'store_id,year_month,health_insurance_code' });
 
     if (error && isMissingSelfpayColumnError(error.message)) {
-      const legacyRecords = records.map(({ selfpay_drug_name, ...rest }) => rest);
+      const legacyRecords = deduped.records.map(({ selfpay_drug_name, ...rest }) => rest);
       const { error: legacyError } = await admin
         .from('clinic_selfpay_price_entries')
         .upsert(legacyRecords, { onConflict: 'store_id,year_month,health_insurance_code' });
@@ -161,9 +183,14 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      imported: records.length,
-      importedMonths: Array.from(new Set(records.map((row: any) => row.year_month))).sort(),
+      imported: deduped.records.length,
+      rawRows: records.length,
+      deduplicatedRows: deduped.duplicateCount,
+      importedMonths: Array.from(new Set(deduped.records.map((row: any) => row.year_month))).sort(),
       skippedClosedMonths,
+      warning: deduped.duplicateCount > 0
+        ? `匯入檔內有 ${deduped.duplicateCount} 筆重複健保碼資料，已依門市、年月、健保碼保留最後一筆。`
+        : null,
     });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
