@@ -1406,6 +1406,7 @@ export default function InventoryManagement() {
       positive_cost_total: selectedAnalysisCategory.positive_cost_total,
       negative_cost_total: selectedAnalysisCategory.negative_cost_total,
       net_cost_total: selectedAnalysisCategory.net_cost_total,
+      stock_amount_total: selectedAnalysisCategory.stock_amount_total,
     }
     : {
       label: '排除 01 / 97 / 98 / 99',
@@ -1413,6 +1414,7 @@ export default function InventoryManagement() {
       positive_cost_total: analysisNonExcludedSummary?.positive_cost_total || 0,
       negative_cost_total: analysisNonExcludedSummary?.negative_cost_total || 0,
       net_cost_total: analysisNonExcludedSummary?.net_cost_total || 0,
+      stock_amount_total: analysisNonExcludedSummary?.stock_amount_total || 0,
     };
   const topShortageItems = [...filteredAnalysisItems]
     .filter((item) => Number(item.cost) < 0)
@@ -2110,7 +2112,7 @@ export default function InventoryManagement() {
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
                           <div className="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-4">
                             <div className="text-xs text-gray-500">統計筆數</div>
                             <div className="mt-1 whitespace-nowrap text-2xl font-bold text-gray-900">{dashboardSummary.row_count}</div>
@@ -2128,6 +2130,10 @@ export default function InventoryManagement() {
                             <div className={`mt-1 whitespace-nowrap text-2xl font-bold ${Number(dashboardSummary.net_cost_total) < 0 ? 'text-red-700' : Number(dashboardSummary.net_cost_total) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
                               {formatSummaryNumber(dashboardSummary.net_cost_total)}
                             </div>
+                          </div>
+                          <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="text-xs text-slate-600">庫存額總額</div>
+                            <div className="mt-1 whitespace-nowrap text-2xl font-bold text-slate-800">{formatSummaryNumber(dashboardSummary.stock_amount_total)}</div>
                           </div>
                         </div>
                       </div>
