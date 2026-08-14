@@ -99,6 +99,12 @@ type InventoryNonExcludedSummary = {
   row_count: number;
 };
 
+type InventoryAnalysisBatchDetail = {
+  items: InventoryResultItem[];
+  category_summary: InventoryCategorySummary[];
+  non_excluded_summary: InventoryNonExcludedSummary | null;
+};
+
 type AnalysisDetailSortKey =
   | 'product_code'
   | 'category'
@@ -156,6 +162,7 @@ export default function InventoryManagement() {
   const [analysisItems, setAnalysisItems] = useState<InventoryResultItem[]>([]);
   const [analysisCategorySummary, setAnalysisCategorySummary] = useState<InventoryCategorySummary[]>([]);
   const [analysisNonExcludedSummary, setAnalysisNonExcludedSummary] = useState<InventoryNonExcludedSummary | null>(null);
+  const [analysisBatchDetailCache, setAnalysisBatchDetailCache] = useState<Record<string, InventoryAnalysisBatchDetail>>({});
   const [selectedAnalysisBatchId, setSelectedAnalysisBatchId] = useState('');
   const [selectedAnalysisCategoryCode, setSelectedAnalysisCategoryCode] = useState('');
   const [analysisYearMonth, setAnalysisYearMonth] = useState(() => {
@@ -166,6 +173,7 @@ export default function InventoryManagement() {
   const [analysisStoreKeyword, setAnalysisStoreKeyword] = useState('');
   const [analysisOrderKeyword, setAnalysisOrderKeyword] = useState('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisDetailLoading, setAnalysisDetailLoading] = useState(false);
   const [analysisImporting, setAnalysisImporting] = useState(false);
   const [analysisCategoriesCollapsed, setAnalysisCategoriesCollapsed] = useState(false);
   const [analysisImportGuideCollapsed, setAnalysisImportGuideCollapsed] = useState(true);
@@ -179,6 +187,7 @@ export default function InventoryManagement() {
   const [savingDifferenceReasonIds, setSavingDifferenceReasonIds] = useState<Set<string>>(new Set());
   const [savingDifferenceReasonThreshold, setSavingDifferenceReasonThreshold] = useState(false);
   const differenceReasonImportRef = useRef<HTMLInputElement>(null);
+  const analysisDetailRequestSeq = useRef(0);
   const [analysisDetailSort, setAnalysisDetailSort] = useState<{ key: AnalysisDetailSortKey; direction: 'asc' | 'desc' }>({
     key: 'product_code',
     direction: 'asc',
@@ -202,6 +211,15 @@ export default function InventoryManagement() {
   const formatSummaryNumber = (value: unknown): string => {
     const n = Number(value) || 0;
     return Math.round(n).toLocaleString('zh-TW');
+  };
+  const formatPercent = (numerator: unknown, denominator: unknown): string => {
+    const top = Number(numerator) || 0;
+    const bottom = Number(denominator) || 0;
+    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom === 0) return '-';
+    return `${((top / bottom) * 100).toLocaleString('zh-TW', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}%`;
   };
   const productCategoryMap: Record<string, string> = {
     '01': '處方藥品',
@@ -275,7 +293,9 @@ export default function InventoryManagement() {
     storeKeyword = analysisStoreKeyword,
     orderKeyword = analysisOrderKeyword
   ) => {
+    analysisDetailRequestSeq.current += 1;
     setAnalysisLoading(true);
+    setAnalysisDetailLoading(false);
     try {
       const params = new URLSearchParams();
       if (analysisYearMonth) params.set('year_month', analysisYearMonth);
@@ -289,11 +309,23 @@ export default function InventoryManagement() {
         throw new Error(json.error || '載入盤點結果分析報表失敗');
       }
 
+      const nextSelectedBatchId = json.selected_batch_id || '';
+      const nextItems = json.items || [];
+      const nextCategorySummary = json.category_summary || [];
+      const nextNonExcludedSummary = json.non_excluded_summary || null;
+
       setAnalysisBatches(json.batches || []);
-      setAnalysisItems(json.items || []);
-      setAnalysisCategorySummary(json.category_summary || []);
-      setAnalysisNonExcludedSummary(json.non_excluded_summary || null);
-      setSelectedAnalysisBatchId(json.selected_batch_id || '');
+      setAnalysisItems(nextItems);
+      setAnalysisCategorySummary(nextCategorySummary);
+      setAnalysisNonExcludedSummary(nextNonExcludedSummary);
+      setSelectedAnalysisBatchId(nextSelectedBatchId);
+      setAnalysisBatchDetailCache(nextSelectedBatchId ? {
+        [nextSelectedBatchId]: {
+          items: nextItems,
+          category_summary: nextCategorySummary,
+          non_excluded_summary: nextNonExcludedSummary,
+        },
+      } : {});
       setSelectedAnalysisCategoryCode('');
       const threshold = Number(json.difference_reason_cost_threshold);
       const normalizedThreshold = Number.isFinite(threshold) && threshold >= 0 ? threshold : 100;
@@ -304,6 +336,62 @@ export default function InventoryManagement() {
       alert(`❌ ${error.message || '載入盤點結果分析報表失敗'}`);
     } finally {
       setAnalysisLoading(false);
+    }
+  };
+
+  const selectInventoryResultAnalysisBatch = async (batchId: string) => {
+    if (!batchId) return;
+
+    setSelectedAnalysisBatchId(batchId);
+    setSelectedAnalysisCategoryCode('');
+
+    const cached = analysisBatchDetailCache[batchId];
+    if (cached) {
+      setAnalysisItems(cached.items);
+      setAnalysisCategorySummary(cached.category_summary);
+      setAnalysisNonExcludedSummary(cached.non_excluded_summary);
+      return;
+    }
+
+    const requestSeq = analysisDetailRequestSeq.current + 1;
+    analysisDetailRequestSeq.current = requestSeq;
+    setAnalysisItems([]);
+    setAnalysisCategorySummary([]);
+    setAnalysisNonExcludedSummary(null);
+    setAnalysisDetailLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (analysisYearMonth) params.set('year_month', analysisYearMonth);
+      params.set('batch_id', batchId);
+
+      const res = await fetch(`/api/inventory/result-analysis?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '載入盤點結果明細失敗');
+      }
+
+      const detail: InventoryAnalysisBatchDetail = {
+        items: json.items || [],
+        category_summary: json.category_summary || [],
+        non_excluded_summary: json.non_excluded_summary || null,
+      };
+
+      if (requestSeq !== analysisDetailRequestSeq.current) return;
+
+      setAnalysisItems(detail.items);
+      setAnalysisCategorySummary(detail.category_summary);
+      setAnalysisNonExcludedSummary(detail.non_excluded_summary);
+      setAnalysisBatchDetailCache((cache) => ({
+        ...cache,
+        [batchId]: detail,
+      }));
+    } catch (error: any) {
+      if (requestSeq !== analysisDetailRequestSeq.current) return;
+      alert(`❌ ${error.message || '載入盤點結果明細失敗'}`);
+    } finally {
+      if (requestSeq === analysisDetailRequestSeq.current) {
+        setAnalysisDetailLoading(false);
+      }
     }
   };
 
@@ -372,8 +460,7 @@ export default function InventoryManagement() {
       }
 
       alert('✅ 匯入批次已刪除');
-      const fallbackBatch = analysisBatches.find((row) => row.id !== batch.id);
-      await loadInventoryResultAnalysis(fallbackBatch?.id || '');
+      await loadInventoryResultAnalysis('');
     } catch (error: any) {
       alert(`❌ ${error.message || '刪除盤點結果分析報表失敗'}`);
       setAnalysisLoading(false);
@@ -392,6 +479,21 @@ export default function InventoryManagement() {
     setAnalysisItems((items) => items.map((item) => (
       item.id === itemId ? { ...item, difference_reason: reason } : item
     )));
+    if (selectedAnalysisBatchId) {
+      setAnalysisBatchDetailCache((cache) => {
+        const detail = cache[selectedAnalysisBatchId];
+        if (!detail) return cache;
+        return {
+          ...cache,
+          [selectedAnalysisBatchId]: {
+            ...detail,
+            items: detail.items.map((item) => (
+              item.id === itemId ? { ...item, difference_reason: reason } : item
+            )),
+          },
+        };
+      });
+    }
   };
 
   const saveDifferenceReason = async (item: InventoryResultItem, reason: string) => {
@@ -421,6 +523,27 @@ export default function InventoryManagement() {
           }
           : row
       )));
+      if (selectedAnalysisBatchId) {
+        setAnalysisBatchDetailCache((cache) => {
+          const detail = cache[selectedAnalysisBatchId];
+          if (!detail) return cache;
+          return {
+            ...cache,
+            [selectedAnalysisBatchId]: {
+              ...detail,
+              items: detail.items.map((row) => (
+                row.id === item.id
+                  ? {
+                    ...row,
+                    difference_reason: json.item?.difference_reason || '',
+                    difference_reason_updated_at: json.item?.difference_reason_updated_at || row.difference_reason_updated_at,
+                  }
+                  : row
+              )),
+            },
+          };
+        });
+      }
     } catch (error: any) {
       alert(`❌ ${error.message || '儲存盤差原因失敗'}`);
     } finally {
@@ -1373,6 +1496,28 @@ export default function InventoryManagement() {
           }
           : item;
       }));
+      if (selectedAnalysisBatchId) {
+        setAnalysisBatchDetailCache((cache) => {
+          const detail = cache[selectedAnalysisBatchId];
+          if (!detail) return cache;
+          return {
+            ...cache,
+            [selectedAnalysisBatchId]: {
+              ...detail,
+              items: detail.items.map((item) => {
+                const updated = updatedById.get(item.id);
+                return updated
+                  ? {
+                    ...item,
+                    difference_reason: updated.difference_reason || '',
+                    difference_reason_updated_at: updated.difference_reason_updated_at || item.difference_reason_updated_at,
+                  }
+                  : item;
+              }),
+            },
+          };
+        });
+      }
       alert(`✅ 已匯入盤差原因：更新 ${Number(json.updated_count) || 0} 筆明細`);
     } catch (error: any) {
       alert(`❌ ${error.message || '匯入盤差原因失敗'}`);
@@ -2029,13 +2174,13 @@ export default function InventoryManagement() {
                     {sortedAnalysisBatches.map((batch) => (
                       <div
                         key={batch.id}
-                        onClick={() => loadInventoryResultAnalysis(batch.id)}
+                        onClick={() => selectInventoryResultAnalysisBatch(batch.id)}
                         role="button"
                         tabIndex={0}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
                             e.preventDefault();
-                            loadInventoryResultAnalysis(batch.id);
+                            selectInventoryResultAnalysisBatch(batch.id);
                           }
                         }}
                         className={`w-full rounded-lg border p-3 text-left transition-colors ${
@@ -2102,7 +2247,15 @@ export default function InventoryManagement() {
                     <>
                       <div className="rounded-xl border border-gray-200 bg-white p-4">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="font-bold text-gray-800">目前統計：{dashboardSummary.label}</h4>
+                          <div>
+                            <h4 className="font-bold text-gray-800">目前統計：{dashboardSummary.label}</h4>
+                            {analysisDetailLoading && (
+                              <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">
+                                <RefreshCw size={12} className="animate-spin" />
+                                載入右側明細中...
+                              </div>
+                            )}
+                          </div>
                           {selectedAnalysisCategoryCode && (
                             <button
                               onClick={() => setSelectedAnalysisCategoryCode('')}
@@ -2112,7 +2265,7 @@ export default function InventoryManagement() {
                             </button>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                           <div className="min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-4">
                             <div className="text-xs text-gray-500">統計筆數</div>
                             <div className="mt-1 whitespace-nowrap text-2xl font-bold text-gray-900">{dashboardSummary.row_count}</div>
@@ -2134,6 +2287,13 @@ export default function InventoryManagement() {
                           <div className="min-w-0 rounded-xl border border-slate-200 bg-slate-50 p-4">
                             <div className="text-xs text-slate-600">庫存額總額</div>
                             <div className="mt-1 whitespace-nowrap text-2xl font-bold text-slate-800">{formatSummaryNumber(dashboardSummary.stock_amount_total)}</div>
+                          </div>
+                          <div className="min-w-0 rounded-xl border border-violet-200 bg-violet-50 p-4">
+                            <div className="text-xs text-violet-600">成本佔比</div>
+                            <div className={`mt-1 whitespace-nowrap text-2xl font-bold ${Number(dashboardSummary.net_cost_total) < 0 ? 'text-red-700' : Number(dashboardSummary.net_cost_total) > 0 ? 'text-violet-700' : 'text-gray-700'}`}>
+                              {formatPercent(dashboardSummary.net_cost_total, dashboardSummary.stock_amount_total)}
+                            </div>
+                            <div className="mt-1 text-[11px] text-violet-500">正負加總成本 / 庫存額總額</div>
                           </div>
                         </div>
                       </div>

@@ -405,8 +405,10 @@ export async function GET(request: NextRequest) {
 
     const batchRows = batches || [];
     const batchSummaries = new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
+    const batchItemCache = new Map<string, any[]>();
     await Promise.all(batchRows.map(async (batch: any) => {
       const batchItems = await fetchInventoryResultItems(admin, batch.id);
+      batchItemCache.set(batch.id, batchItems);
       batchSummaries.set(batch.id, getNonExcludedDiffSummary(batchItems));
     }));
     const enrichedBatches = batchRows.map((batch: any) => ({
@@ -422,7 +424,7 @@ export async function GET(request: NextRequest) {
     let allItemsForAnalysis: any[] = [];
 
     if (selectedBatchId) {
-      items = await fetchInventoryResultItems(admin, selectedBatchId);
+      items = batchItemCache.get(selectedBatchId) || await fetchInventoryResultItems(admin, selectedBatchId);
       allItemsForAnalysis = items;
     }
 
