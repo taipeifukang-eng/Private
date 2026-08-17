@@ -344,6 +344,144 @@ function getNonExcludedDiffSummary(items: any[]) {
   });
 }
 
+function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
+  const mergedByProductCode = new Map<string, any>();
+
+  initialItems.forEach((item) => {
+    const productCode = normalizeProductCode(item.product_code);
+    if (!productCode) return;
+    mergedByProductCode.set(productCode, {
+      ...item,
+      id: `merged-${productCode}`,
+      source_item_id: item.id,
+      recount_item_id: null,
+      product_code: productCode,
+      report_kind: 'MERGED',
+    });
+  });
+
+  recountItems.forEach((item) => {
+    const productCode = normalizeProductCode(item.product_code);
+    if (!productCode) return;
+
+    const existing = mergedByProductCode.get(productCode);
+    const stockQty = existing ? Number(existing.stock_qty) || 0 : Number(item.stock_qty) || 0;
+    const unitCost = Number(item.unit_cost) || Number(existing?.unit_cost) || 0;
+    const actualQty = Number(item.stock_qty || 0) + Number(item.difference_qty || 0);
+    const differenceQty = actualQty - stockQty;
+    const cost = differenceQty * unitCost;
+    const category = getProductCategory(productCode);
+
+    mergedByProductCode.set(productCode, {
+      ...(existing || {}),
+      id: `merged-${productCode}`,
+      source_item_id: existing?.source_item_id || null,
+      recount_item_id: item.id,
+      batch_id: existing?.batch_id || item.batch_id,
+      store_id: existing?.store_id || item.store_id,
+      row_number: existing?.row_number || item.row_number,
+      closed_text: item.closed_text || existing?.closed_text || null,
+      product_code: productCode,
+      product_name: item.product_name || existing?.product_name || '',
+      unit: item.unit || existing?.unit || null,
+      storage_location_1: item.storage_location_1 || existing?.storage_location_1 || null,
+      storage_location_2: item.storage_location_2 || existing?.storage_location_2 || null,
+      difference_qty: differenceQty,
+      difference_amount_member: item.difference_amount_member,
+      cost,
+      unit_cost: unitCost,
+      stock_qty: stockQty,
+      stock_amount: stockQty * unitCost,
+      raw_data: {
+        ...(existing?.raw_data || {}),
+        recount_raw_data: item.raw_data || {},
+      },
+      created_at: item.created_at || existing?.created_at,
+      category_code: existing?.category_code || item.category_code || category.code,
+      category_name: existing?.category_name || item.category_name || category.name,
+      difference_reason: existing?.difference_reason || null,
+      difference_reason_updated_by: existing?.difference_reason_updated_by || null,
+      difference_reason_updated_at: existing?.difference_reason_updated_at || null,
+      report_kind: 'MERGED',
+    });
+  });
+
+  return Array.from(mergedByProductCode.values())
+    .sort((a, b) => String(a.product_code || '').localeCompare(String(b.product_code || ''), 'zh-TW', { numeric: true }));
+}
+
+function getInventoryResultActualQty(item: any) {
+  return (Number(item?.stock_qty) || 0) + (Number(item?.difference_qty) || 0);
+}
+
+function getInventoryResultCost(item: any) {
+  return Number(item?.cost) || 0;
+}
+
+function buildInventoryRecountChangeItems(initialItems: any[], recountItems: any[]) {
+  const initialByProductCode = new Map<string, any>();
+  const finalRecountByProductCode = new Map<string, any>();
+
+  initialItems.forEach((item) => {
+    const productCode = normalizeProductCode(item.product_code);
+    if (productCode) initialByProductCode.set(productCode, item);
+  });
+
+  recountItems.forEach((item) => {
+    const productCode = normalizeProductCode(item.product_code);
+    if (productCode) finalRecountByProductCode.set(productCode, item);
+  });
+
+  return Array.from(finalRecountByProductCode.entries()).flatMap(([productCode, recountItem]) => {
+    const initialItem = initialByProductCode.get(productCode);
+    const category = getProductCategory(productCode);
+    const initialActualQty = initialItem ? getInventoryResultActualQty(initialItem) : null;
+    const recountActualQty = getInventoryResultActualQty(recountItem);
+    const initialDifferenceQty = initialItem ? Number(initialItem.difference_qty) || 0 : null;
+    const recountDifferenceQty = Number(recountItem.difference_qty) || 0;
+    const initialCost = initialItem ? getInventoryResultCost(initialItem) : null;
+    const recountCost = getInventoryResultCost(recountItem);
+
+    const changed = !initialItem
+      || initialActualQty !== recountActualQty
+      || initialDifferenceQty !== recountDifferenceQty
+      || initialCost !== recountCost;
+    if (!changed) return [];
+
+    return [{
+      ...recountItem,
+      id: `recount-change-${productCode}`,
+      source_item_id: initialItem?.id || null,
+      recount_item_id: recountItem.id,
+      report_kind: 'RECOUNT_CHANGE',
+      change_type: initialItem ? 'UPDATED' : 'RECOUNT_ONLY',
+      product_code: productCode,
+      product_name: recountItem.product_name || initialItem?.product_name || '',
+      unit: recountItem.unit || initialItem?.unit || null,
+      storage_location_1: recountItem.storage_location_1 || initialItem?.storage_location_1 || null,
+      storage_location_2: recountItem.storage_location_2 || initialItem?.storage_location_2 || null,
+      category_code: initialItem?.category_code || recountItem.category_code || category.code,
+      category_name: initialItem?.category_name || recountItem.category_name || category.name,
+      initial_stock_qty: initialItem ? Number(initialItem.stock_qty) || 0 : null,
+      initial_actual_qty: initialActualQty,
+      initial_difference_qty: initialDifferenceQty,
+      initial_cost: initialCost,
+      initial_stock_amount: initialItem ? Number(initialItem.stock_amount) || 0 : null,
+      recount_stock_qty: Number(recountItem.stock_qty) || 0,
+      recount_actual_qty: recountActualQty,
+      recount_difference_qty: recountDifferenceQty,
+      recount_cost: recountCost,
+      recount_stock_amount: Number(recountItem.stock_amount) || 0,
+      actual_qty_delta: initialActualQty === null ? null : recountActualQty - initialActualQty,
+      difference_qty_delta: initialDifferenceQty === null ? null : recountDifferenceQty - initialDifferenceQty,
+      cost_delta: initialCost === null ? null : recountCost - initialCost,
+      difference_reason: initialItem?.difference_reason || null,
+      difference_reason_updated_by: initialItem?.difference_reason_updated_by || null,
+      difference_reason_updated_at: initialItem?.difference_reason_updated_at || null,
+    }];
+  }).sort((a, b) => String(a.product_code || '').localeCompare(String(b.product_code || ''), 'zh-TW', { numeric: true }));
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -362,6 +500,7 @@ export async function GET(request: NextRequest) {
     const orderKeyword = (searchParams.get('order_no') || '').trim();
     const yearMonth = (searchParams.get('year_month') || '').trim();
     const batchId = searchParams.get('batch_id') || '';
+    const reportView = (searchParams.get('view') || '').trim().toLowerCase();
 
     let q = admin
       .from('inventory_result_batches')
@@ -452,8 +591,36 @@ export async function GET(request: NextRequest) {
         : '';
     let items: any[] = [];
     let allItemsForAnalysis: any[] = [];
+    let mergedSourceBatchId = '';
+    let mergedRecountBatchIds: string[] = [];
 
-    if (selectedBatchId) {
+    if (selectedBatchId && (reportView === 'merged' || reportView === 'recount_changes')) {
+      const selectedBatch = enrichedBatches.find((batch: any) => batch.id === selectedBatchId);
+      const rootBatchId = getReportRootBatchId(selectedBatch);
+      const initialBatch = enrichedBatches.find((batch: any) => batch.id === rootBatchId)
+        || enrichedBatches.find((batch: any) => (Number(batch.report_round) || 1) <= 1);
+      const recountBatches = enrichedBatches
+        .filter((batch: any) => batch.id !== initialBatch?.id && getReportRootBatchId(batch) === rootBatchId)
+        .sort((a: any, b: any) => {
+          const roundCompare = (Number(a.report_round) || 1) - (Number(b.report_round) || 1);
+          if (roundCompare !== 0) return roundCompare;
+          return String(a.imported_at || '').localeCompare(String(b.imported_at || ''));
+        });
+
+      if (initialBatch && recountBatches.length > 0) {
+        const initialItems = batchItemCache.get(initialBatch.id) || await fetchInventoryResultItems(admin, initialBatch.id);
+        const recountItems = (await Promise.all(recountBatches.map(async (batch: any) => (
+          batchItemCache.get(batch.id) || await fetchInventoryResultItems(admin, batch.id)
+        )))).flat();
+
+        items = reportView === 'recount_changes'
+          ? buildInventoryRecountChangeItems(initialItems, recountItems)
+          : mergeInventoryResultItems(initialItems, recountItems);
+        allItemsForAnalysis = items;
+        mergedSourceBatchId = initialBatch.id;
+        mergedRecountBatchIds = recountBatches.map((batch: any) => batch.id);
+      }
+    } else if (selectedBatchId) {
       items = batchItemCache.get(selectedBatchId) || await fetchInventoryResultItems(admin, selectedBatchId);
       allItemsForAnalysis = items;
     }
@@ -517,6 +684,9 @@ export async function GET(request: NextRequest) {
       non_excluded_summary: nonExcludedSummary,
       excluded_category_codes: Array.from(EXCLUDED_CATEGORY_CODES),
       selected_batch_id: selectedBatchId,
+      selected_report_view: (reportView === 'merged' || reportView === 'recount_changes') && items.length > 0 ? reportView : 'batch',
+      merged_source_batch_id: mergedSourceBatchId,
+      merged_recount_batch_ids: mergedRecountBatchIds,
       access_scope: access.scope,
       difference_reason_cost_threshold: await getDifferenceReasonCostThreshold(admin),
       can_manage_difference_reason_threshold: canManageSettings,

@@ -64,6 +64,10 @@ type InventoryResultBatch = {
 
 type InventoryResultItem = {
   id: string;
+  report_kind?: 'MERGED' | string | null;
+  source_item_id?: string | null;
+  recount_item_id?: string | null;
+  change_type?: 'UPDATED' | 'RECOUNT_ONLY' | string | null;
   category_code: string | null;
   category_name: string | null;
   product_code: string | null;
@@ -77,6 +81,19 @@ type InventoryResultItem = {
   unit_cost: number;
   stock_qty: number;
   stock_amount: number;
+  initial_stock_qty?: number | null;
+  initial_actual_qty?: number | null;
+  initial_difference_qty?: number | null;
+  initial_cost?: number | null;
+  initial_stock_amount?: number | null;
+  recount_stock_qty?: number | null;
+  recount_actual_qty?: number | null;
+  recount_difference_qty?: number | null;
+  recount_cost?: number | null;
+  recount_stock_amount?: number | null;
+  actual_qty_delta?: number | null;
+  difference_qty_delta?: number | null;
+  cost_delta?: number | null;
   difference_reason: string | null;
   difference_reason_updated_at: string | null;
 };
@@ -108,6 +125,8 @@ type InventoryAnalysisBatchDetail = {
   category_summary: InventoryCategorySummary[];
   non_excluded_summary: InventoryNonExcludedSummary | null;
 };
+
+type AnalysisReportView = 'batch' | 'merged' | 'recount_changes';
 
 type AnalysisDetailSortKey =
   | 'product_code'
@@ -168,6 +187,7 @@ export default function InventoryManagement() {
   const [analysisNonExcludedSummary, setAnalysisNonExcludedSummary] = useState<InventoryNonExcludedSummary | null>(null);
   const [analysisBatchDetailCache, setAnalysisBatchDetailCache] = useState<Record<string, InventoryAnalysisBatchDetail>>({});
   const [selectedAnalysisBatchId, setSelectedAnalysisBatchId] = useState('');
+  const [selectedAnalysisReportView, setSelectedAnalysisReportView] = useState<AnalysisReportView>('batch');
   const [selectedAnalysisCategoryCode, setSelectedAnalysisCategoryCode] = useState('');
   const [analysisYearMonth, setAnalysisYearMonth] = useState(() => {
     const now = new Date();
@@ -206,6 +226,7 @@ export default function InventoryManagement() {
     selectedAnalysisCategoryCode,
     analysisShowDiffOnly,
     analysisExcludeSpecialCategories,
+    selectedAnalysisReportView,
     differenceReasonCostThreshold,
   ]);
 
@@ -258,6 +279,9 @@ export default function InventoryManagement() {
     }
     return raw;
   };
+  const getAnalysisDetailCacheKey = (batchId: string, view: AnalysisReportView = 'batch') => (
+    view === 'batch' ? batchId : `${batchId}:${view}`
+  );
   const getItemCategoryCode = (item: InventoryResultItem): string => {
     const productCode = normalizeAnalysisProductCode(item.product_code);
     return productCode ? productCode.slice(0, 2) : item.category_code || 'NA';
@@ -320,17 +344,24 @@ export default function InventoryManagement() {
 
       const nextBatches = json.batches || [];
       const nextSelectedBatchId = json.selected_batch_id || '';
+      const nextReportView: AnalysisReportView = json.selected_report_view === 'merged'
+        ? 'merged'
+        : json.selected_report_view === 'recount_changes'
+          ? 'recount_changes'
+          : 'batch';
       const nextItems = json.items || [];
       const nextCategorySummary = json.category_summary || [];
       const nextNonExcludedSummary = json.non_excluded_summary || null;
+      const nextCacheKey = nextSelectedBatchId ? getAnalysisDetailCacheKey(nextSelectedBatchId, nextReportView) : '';
 
       setAnalysisBatches(nextBatches);
       setAnalysisItems(nextItems);
       setAnalysisCategorySummary(nextCategorySummary);
       setAnalysisNonExcludedSummary(nextNonExcludedSummary);
       setSelectedAnalysisBatchId(nextSelectedBatchId);
-      setAnalysisBatchDetailCache(nextSelectedBatchId ? {
-        [nextSelectedBatchId]: {
+      setSelectedAnalysisReportView(nextReportView);
+      setAnalysisBatchDetailCache(nextCacheKey ? {
+        [nextCacheKey]: {
           items: nextItems,
           category_summary: nextCategorySummary,
           non_excluded_summary: nextNonExcludedSummary,
@@ -357,9 +388,11 @@ export default function InventoryManagement() {
     if (!batchId) return;
 
     setSelectedAnalysisBatchId(batchId);
+    setSelectedAnalysisReportView('batch');
     setSelectedAnalysisCategoryCode('');
 
-    const cached = analysisBatchDetailCache[batchId];
+    const cacheKey = getAnalysisDetailCacheKey(batchId, 'batch');
+    const cached = analysisBatchDetailCache[cacheKey];
     if (cached) {
       setAnalysisItems(cached.items);
       setAnalysisCategorySummary(cached.category_summary);
@@ -397,11 +430,74 @@ export default function InventoryManagement() {
       setAnalysisNonExcludedSummary(detail.non_excluded_summary);
       setAnalysisBatchDetailCache((cache) => ({
         ...cache,
-        [batchId]: detail,
+        [cacheKey]: detail,
       }));
     } catch (error: any) {
       if (requestSeq !== analysisDetailRequestSeq.current) return;
       alert(`❌ ${error.message || '載入盤點結果明細失敗'}`);
+    } finally {
+      if (requestSeq === analysisDetailRequestSeq.current) {
+        setAnalysisDetailLoading(false);
+      }
+    }
+  };
+
+  const selectInventoryResultAnalysisComputedReport = async (view: Exclude<AnalysisReportView, 'batch'>) => {
+    if (!selectedAnalysisBatch) return;
+
+    const rootBatchId = getAnalysisBatchRootId(selectedAnalysisBatch);
+    if (!rootBatchId) return;
+
+    setSelectedAnalysisBatchId(rootBatchId);
+    setSelectedAnalysisReportView(view);
+    setSelectedAnalysisCategoryCode('');
+
+    const cacheKey = getAnalysisDetailCacheKey(rootBatchId, view);
+    const cached = analysisBatchDetailCache[cacheKey];
+    if (cached) {
+      setAnalysisItems(cached.items);
+      setAnalysisCategorySummary(cached.category_summary);
+      setAnalysisNonExcludedSummary(cached.non_excluded_summary);
+      return;
+    }
+
+    const requestSeq = analysisDetailRequestSeq.current + 1;
+    analysisDetailRequestSeq.current = requestSeq;
+    setAnalysisItems([]);
+    setAnalysisCategorySummary([]);
+    setAnalysisNonExcludedSummary(null);
+    setAnalysisDetailLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (analysisYearMonth) params.set('year_month', analysisYearMonth);
+      params.set('batch_id', rootBatchId);
+      params.set('view', view);
+
+      const res = await fetch(`/api/inventory/result-analysis?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '載入盤點計算結果失敗');
+      }
+
+      const detail: InventoryAnalysisBatchDetail = {
+        items: json.items || [],
+        category_summary: json.category_summary || [],
+        non_excluded_summary: json.non_excluded_summary || null,
+      };
+
+      if (requestSeq !== analysisDetailRequestSeq.current) return;
+
+      setAnalysisBatches(json.batches || analysisBatches);
+      setAnalysisItems(detail.items);
+      setAnalysisCategorySummary(detail.category_summary);
+      setAnalysisNonExcludedSummary(detail.non_excluded_summary);
+      setAnalysisBatchDetailCache((cache) => ({
+        ...cache,
+        [cacheKey]: detail,
+      }));
+    } catch (error: any) {
+      if (requestSeq !== analysisDetailRequestSeq.current) return;
+      alert(`❌ ${error.message || '載入盤點計算結果失敗'}`);
     } finally {
       if (requestSeq === analysisDetailRequestSeq.current) {
         setAnalysisDetailLoading(false);
@@ -541,12 +637,13 @@ export default function InventoryManagement() {
       item.id === itemId ? { ...item, difference_reason: reason } : item
     )));
     if (selectedAnalysisBatchId) {
+      const cacheKey = getAnalysisDetailCacheKey(selectedAnalysisBatchId, selectedAnalysisReportView);
       setAnalysisBatchDetailCache((cache) => {
-        const detail = cache[selectedAnalysisBatchId];
+        const detail = cache[cacheKey];
         if (!detail) return cache;
         return {
           ...cache,
-          [selectedAnalysisBatchId]: {
+          [cacheKey]: {
             ...detail,
             items: detail.items.map((item) => (
               item.id === itemId ? { ...item, difference_reason: reason } : item
@@ -1417,6 +1514,17 @@ export default function InventoryManagement() {
   const selectedAnalysisReportVersions = selectedAnalysisBatch
     ? sortedAnalysisBatches.filter((batch) => getAnalysisBatchRootId(batch) === getAnalysisBatchRootId(selectedAnalysisBatch))
     : [];
+  const hasSelectedAnalysisRecountVersions = selectedAnalysisReportVersions.some((batch) => (Number(batch.report_round) || 1) > 1);
+  const selectedAnalysisReportLabel = selectedAnalysisReportView === 'merged'
+    ? '整合結果'
+    : selectedAnalysisReportView === 'recount_changes'
+      ? '爭議異動明細'
+    : selectedAnalysisBatch
+      ? getAnalysisBatchReportLabel(selectedAnalysisBatch)
+      : '';
+  const isMergedAnalysisView = selectedAnalysisReportView === 'merged';
+  const isRecountChangeAnalysisView = selectedAnalysisReportView === 'recount_changes';
+  const isComputedAnalysisView = isMergedAnalysisView || isRecountChangeAnalysisView;
   const selectedAnalysisCategory = analysisCategorySummary.find((category) => category.category_code === selectedAnalysisCategoryCode) || null;
   const sortedAnalysisCategorySummary = [...analysisCategorySummary].sort((a, b) => {
     const aCode = String(a.category_code || '');
@@ -1486,20 +1594,38 @@ export default function InventoryManagement() {
       return;
     }
 
-    const rows = sortedFilteredAnalysisItems.map((item) => ({
-      品號: normalizeAnalysisProductCode(item.product_code),
-      品名: item.product_name || '',
-      盤差量: Number(item.difference_qty) || 0,
-      盤差原因: item.difference_reason || '',
-    }));
+    const rows = isRecountChangeAnalysisView
+      ? sortedFilteredAnalysisItems.map((item) => ({
+        品號: normalizeAnalysisProductCode(item.product_code),
+        品名: item.product_name || '',
+        異動類型: item.change_type === 'RECOUNT_ONLY' ? '再次盤點新增' : '再次盤點修正',
+        第一次實際量: item.initial_actual_qty ?? '',
+        再次實際量: item.recount_actual_qty ?? '',
+        實際量異動: item.actual_qty_delta ?? '新增',
+        第一次盤差量: item.initial_difference_qty ?? '',
+        再次盤差量: item.recount_difference_qty ?? '',
+        盤差量異動: item.difference_qty_delta ?? '新增',
+        第一次成本: item.initial_cost ?? '',
+        再次成本: item.recount_cost ?? '',
+        成本異動: item.cost_delta ?? '新增',
+        第一次盤差原因: item.difference_reason || '',
+      }))
+      : sortedFilteredAnalysisItems.map((item) => ({
+        品號: normalizeAnalysisProductCode(item.product_code),
+        品名: item.product_name || '',
+        盤差量: Number(item.difference_qty) || 0,
+        盤差原因: item.difference_reason || '',
+      }));
     const worksheet = XLSX.utils.json_to_sheet(rows, {
-      header: ['品號', '品名', '盤差量', '盤差原因'],
+      header: isRecountChangeAnalysisView
+        ? ['品號', '品名', '異動類型', '第一次實際量', '再次實際量', '實際量異動', '第一次盤差量', '再次盤差量', '盤差量異動', '第一次成本', '再次成本', '成本異動', '第一次盤差原因']
+        : ['品號', '品名', '盤差量', '盤差原因'],
     });
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '盤差原因');
+    XLSX.utils.book_append_sheet(workbook, worksheet, isRecountChangeAnalysisView ? '爭議異動明細' : '盤差原因');
     const storeCode = selectedAnalysisBatch.store_code || '門市';
     const yearMonth = selectedAnalysisBatch.year_month || analysisYearMonth || '年月';
-    XLSX.writeFile(workbook, `盤差原因匯入_${storeCode}_${yearMonth}.xlsx`);
+    XLSX.writeFile(workbook, `${isRecountChangeAnalysisView ? '爭議異動明細' : '盤差原因匯入'}_${storeCode}_${yearMonth}.xlsx`);
   };
 
   const importDifferenceReasonXlsx = async (file: File) => {
@@ -2250,7 +2376,7 @@ export default function InventoryManagement() {
                           }
                         }}
                         className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                          selectedAnalysisBatchId === batch.id
+                          selectedAnalysisReportView === 'batch' && selectedAnalysisBatchId === batch.id
                             ? 'border-indigo-400 bg-indigo-50'
                             : 'border-gray-200 bg-white hover:bg-gray-50'
                         }`}
@@ -2323,7 +2449,7 @@ export default function InventoryManagement() {
                           <div>
                             <h4 className="font-bold text-gray-800">報表版本</h4>
                             <p className="mt-1 text-xs text-gray-500">
-                              第一次盤點會完整保留，爭議再次盤點會新增為下一個 TAB，不覆蓋已填寫的盤差說明。
+                              第一次盤點會完整保留，爭議再次盤點會新增為下一個 TAB；整合結果會把再次盤點品項併回第一次盤點，爭議異動明細可對照異動前後。
                             </p>
                           </div>
                           {canImportInventoryResultAnalysis && (
@@ -2354,7 +2480,7 @@ export default function InventoryManagement() {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {selectedAnalysisReportVersions.map((batch) => {
-                            const isActive = selectedAnalysisBatchId === batch.id;
+                            const isActive = selectedAnalysisReportView === 'batch' && selectedAnalysisBatchId === batch.id;
                             return (
                               <button
                                 key={batch.id}
@@ -2373,6 +2499,38 @@ export default function InventoryManagement() {
                               </button>
                             );
                           })}
+                          {hasSelectedAnalysisRecountVersions && (
+                            <button
+                              type="button"
+                              onClick={() => void selectInventoryResultAnalysisComputedReport('merged')}
+                              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                                selectedAnalysisReportView === 'merged'
+                                  ? 'border-emerald-400 bg-emerald-50 text-emerald-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              整合結果
+                              <span className="ml-2 text-xs font-normal text-gray-400">
+                                第一次 + 再次盤點
+                              </span>
+                            </button>
+                          )}
+                          {hasSelectedAnalysisRecountVersions && (
+                            <button
+                              type="button"
+                              onClick={() => void selectInventoryResultAnalysisComputedReport('recount_changes')}
+                              className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                                selectedAnalysisReportView === 'recount_changes'
+                                  ? 'border-amber-400 bg-amber-50 text-amber-800'
+                                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                            >
+                              爭議異動明細
+                              <span className="ml-2 text-xs font-normal text-gray-400">
+                                異動前 / 異動後
+                              </span>
+                            </button>
+                          )}
                         </div>
                       </div>
 
@@ -2380,7 +2538,7 @@ export default function InventoryManagement() {
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <div>
                             <h4 className="font-bold text-gray-800">
-                              目前統計：{getAnalysisBatchReportLabel(selectedAnalysisBatch)} / {dashboardSummary.label}
+                              目前統計：{selectedAnalysisReportLabel} / {dashboardSummary.label}
                             </h4>
                             {analysisDetailLoading && (
                               <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">
@@ -2535,6 +2693,8 @@ export default function InventoryManagement() {
                             </h4>
                             <p className="mt-1 text-xs text-gray-500">
                               成本 &gt; {formatSummaryNumber(differenceReasonCostThreshold)} 或 &lt; -{formatSummaryNumber(differenceReasonCostThreshold)} 需填寫盤差原因；未填 {differenceReasonMissingCount} 筆
+                              {isMergedAnalysisView && '。整合結果為只讀視圖，盤差原因請回第一次盤點 TAB 編輯。'}
+                              {isRecountChangeAnalysisView && '。爭議異動明細為只讀對照，盤差原因請回第一次盤點 TAB 編輯。'}
                             </p>
                             <div className="mt-2 flex flex-wrap items-center gap-2">
                               <button
@@ -2548,7 +2708,9 @@ export default function InventoryManagement() {
                               <button
                                 type="button"
                                 onClick={() => differenceReasonImportRef.current?.click()}
+                                disabled={isComputedAnalysisView}
                                 className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                                title={isComputedAnalysisView ? '計算視圖為只讀，請回第一次盤點 TAB 匯入盤差原因' : undefined}
                               >
                                 <Upload size={14} />
                                 匯入
@@ -2631,11 +2793,27 @@ export default function InventoryManagement() {
                                 <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('分類', 'category')}</th>
                                 <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('品名', 'product_name')}</th>
                                 <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('儲位', 'storage')}</th>
-                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差量', 'difference_qty')}</th>
-                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('成本', 'cost')}</th>
-                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差額(會員)', 'difference_amount_member')}</th>
-                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存量', 'stock_qty')}</th>
-                                <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存額', 'stock_amount')}</th>
+                                {isRecountChangeAnalysisView ? (
+                                  <>
+                                    <th className="px-3 py-2 text-right">第一次實際量</th>
+                                    <th className="px-3 py-2 text-right">再次實際量</th>
+                                    <th className="px-3 py-2 text-right">實際量異動</th>
+                                    <th className="px-3 py-2 text-right">第一次盤差量</th>
+                                    <th className="px-3 py-2 text-right">再次盤差量</th>
+                                    <th className="px-3 py-2 text-right">盤差量異動</th>
+                                    <th className="px-3 py-2 text-right">第一次成本</th>
+                                    <th className="px-3 py-2 text-right">再次成本</th>
+                                    <th className="px-3 py-2 text-right">成本異動</th>
+                                  </>
+                                ) : (
+                                  <>
+                                    <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差量', 'difference_qty')}</th>
+                                    <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('成本', 'cost')}</th>
+                                    <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('盤差額(會員)', 'difference_amount_member')}</th>
+                                    <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存量', 'stock_qty')}</th>
+                                    <th className="px-3 py-2 text-right">{renderAnalysisSortLabel('庫存額', 'stock_amount')}</th>
+                                  </>
+                                )}
                                 <th className="min-w-[240px] px-3 py-2 text-left">盤差原因</th>
                               </tr>
                             </thead>
@@ -2650,26 +2828,64 @@ export default function InventoryManagement() {
                                     <td className="px-3 py-2 whitespace-nowrap">{getItemCategoryCode(item)} {getItemCategoryName(item)}</td>
                                     <td className="px-3 py-2">{item.product_name}</td>
                                     <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
-                                    <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {formatMoney(item.difference_qty)}
-                                    </td>
-                                    <td className={`px-3 py-2 text-right font-semibold ${Number(item.cost) < 0 ? 'text-red-600' : Number(item.cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {formatMoney(item.cost)}
-                                    </td>
-                                    <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_amount_member) < 0 ? 'text-red-600' : Number(item.difference_amount_member) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                      {formatMoney(item.difference_amount_member)}
-                                    </td>
-                                    <td className="px-3 py-2 text-right">{formatMoney(item.stock_qty)}</td>
-                                    <td className="px-3 py-2 text-right">{formatMoney(item.stock_amount)}</td>
+                                    {isRecountChangeAnalysisView ? (
+                                      <>
+                                        <td className="px-3 py-2 text-right">{item.initial_actual_qty === null || item.initial_actual_qty === undefined ? '-' : formatMoney(item.initial_actual_qty)}</td>
+                                        <td className="px-3 py-2 text-right font-semibold text-amber-700">{formatMoney(item.recount_actual_qty)}</td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.actual_qty_delta) < 0 ? 'text-red-600' : Number(item.actual_qty_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {item.actual_qty_delta === null || item.actual_qty_delta === undefined ? '新增' : formatMoney(item.actual_qty_delta)}
+                                        </td>
+                                        <td className="px-3 py-2 text-right">{item.initial_difference_qty === null || item.initial_difference_qty === undefined ? '-' : formatMoney(item.initial_difference_qty)}</td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.recount_difference_qty) < 0 ? 'text-red-600' : Number(item.recount_difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {formatMoney(item.recount_difference_qty)}
+                                        </td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty_delta) < 0 ? 'text-red-600' : Number(item.difference_qty_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {item.difference_qty_delta === null || item.difference_qty_delta === undefined ? '新增' : formatMoney(item.difference_qty_delta)}
+                                        </td>
+                                        <td className="px-3 py-2 text-right">{item.initial_cost === null || item.initial_cost === undefined ? '-' : formatMoney(item.initial_cost)}</td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.recount_cost) < 0 ? 'text-red-600' : Number(item.recount_cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {formatMoney(item.recount_cost)}
+                                        </td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.cost_delta) < 0 ? 'text-red-600' : Number(item.cost_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {item.cost_delta === null || item.cost_delta === undefined ? '新增' : formatMoney(item.cost_delta)}
+                                        </td>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty) < 0 ? 'text-red-600' : Number(item.difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {formatMoney(item.difference_qty)}
+                                        </td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.cost) < 0 ? 'text-red-600' : Number(item.cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {formatMoney(item.cost)}
+                                        </td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_amount_member) < 0 ? 'text-red-600' : Number(item.difference_amount_member) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {formatMoney(item.difference_amount_member)}
+                                        </td>
+                                        <td className="px-3 py-2 text-right">{formatMoney(item.stock_qty)}</td>
+                                        <td className="px-3 py-2 text-right">{formatMoney(item.stock_amount)}</td>
+                                      </>
+                                    )}
                                     <td className="px-3 py-2">
                                       <div className="space-y-1">
                                         <input
                                           value={item.difference_reason || ''}
-                                          onChange={(e) => updateDifferenceReasonLocal(item.id, e.target.value)}
-                                          onBlur={(e) => saveDifferenceReason(item, e.target.value)}
+                                          onChange={(e) => {
+                                            if (!isComputedAnalysisView) {
+                                              updateDifferenceReasonLocal(item.id, e.target.value);
+                                            }
+                                          }}
+                                          onBlur={(e) => {
+                                            if (!isComputedAnalysisView) {
+                                              saveDifferenceReason(item, e.target.value);
+                                            }
+                                          }}
                                           placeholder={reasonRequired ? '請填寫盤差原因' : '選填'}
+                                          readOnly={isComputedAnalysisView}
+                                          title={isComputedAnalysisView ? '計算視圖沿用第一次盤點原因，請回第一次盤點 TAB 編輯' : undefined}
                                           className={`w-full rounded-lg border px-2 py-1.5 text-xs focus:outline-none focus:ring-2 ${
-                                            reasonMissing
+                                            isComputedAnalysisView
+                                              ? 'border-gray-200 bg-gray-50 text-gray-600'
+                                              : reasonMissing
                                               ? 'border-red-300 bg-white text-red-900 focus:border-red-500 focus:ring-red-100'
                                               : 'border-gray-300 focus:border-indigo-500 focus:ring-indigo-100'
                                           }`}
