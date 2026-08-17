@@ -414,11 +414,14 @@ function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
     if (!productCode) return;
 
     const existing = mergedByProductCode.get(productCode);
+    const initialDifferenceQty = existing ? Number(existing.difference_qty) || 0 : 0;
+    const initialCost = existing ? Number(existing.cost) || 0 : 0;
+    const recountDifferenceQty = Number(item.difference_qty) || 0;
+    const recountCost = Number(item.cost) || 0;
+    const differenceQty = initialDifferenceQty + recountDifferenceQty;
+    const cost = initialCost + recountCost;
     const stockQty = existing ? Number(existing.stock_qty) || 0 : Number(item.stock_qty) || 0;
     const unitCost = Number(item.unit_cost) || Number(existing?.unit_cost) || 0;
-    const actualQty = Number(item.stock_qty || 0) + Number(item.difference_qty || 0);
-    const differenceQty = actualQty - stockQty;
-    const cost = differenceQty * unitCost;
     const category = getProductCategory(productCode);
 
     mergedByProductCode.set(productCode, {
@@ -436,7 +439,7 @@ function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
       storage_location_1: item.storage_location_1 || existing?.storage_location_1 || null,
       storage_location_2: item.storage_location_2 || existing?.storage_location_2 || null,
       difference_qty: differenceQty,
-      difference_amount_member: item.difference_amount_member,
+      difference_amount_member: (Number(existing?.difference_amount_member) || 0) + (Number(item.difference_amount_member) || 0),
       cost,
       unit_cost: unitCost,
       stock_qty: stockQty,
