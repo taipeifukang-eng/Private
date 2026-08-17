@@ -217,6 +217,10 @@ export default function InventoryManagement() {
     const n = Number(value) || 0;
     return Math.round(n).toLocaleString('zh-TW');
   };
+  const formatOptionalSummaryNumber = (value: unknown): string => {
+    if (value === null || value === undefined || value === '') return '-';
+    return formatSummaryNumber(value);
+  };
   const formatPercent = (numerator: unknown, denominator: unknown): string => {
     const top = Number(numerator) || 0;
     const bottom = Number(denominator) || 0;
@@ -314,12 +318,13 @@ export default function InventoryManagement() {
         throw new Error(json.error || '載入盤點結果分析報表失敗');
       }
 
+      const nextBatches = json.batches || [];
       const nextSelectedBatchId = json.selected_batch_id || '';
       const nextItems = json.items || [];
       const nextCategorySummary = json.category_summary || [];
       const nextNonExcludedSummary = json.non_excluded_summary || null;
 
-      setAnalysisBatches(json.batches || []);
+      setAnalysisBatches(nextBatches);
       setAnalysisItems(nextItems);
       setAnalysisCategorySummary(nextCategorySummary);
       setAnalysisNonExcludedSummary(nextNonExcludedSummary);
@@ -337,6 +342,10 @@ export default function InventoryManagement() {
       setDifferenceReasonCostThreshold(normalizedThreshold);
       setDifferenceReasonThresholdInput(String(normalizedThreshold));
       setCanManageDifferenceReasonThreshold(Boolean(json.can_manage_difference_reason_threshold));
+
+      if (!batchId && nextBatches[0]?.id) {
+        void selectInventoryResultAnalysisBatch(nextBatches[0].id);
+      }
     } catch (error: any) {
       alert(`❌ ${error.message || '載入盤點結果分析報表失敗'}`);
     } finally {
@@ -1397,7 +1406,7 @@ export default function InventoryManagement() {
     alert(`✅ 已產生 ${result.length} 筆盤點結果檔\n\n其中：\n• 盤差為0：${result.filter(r => r.盤差量 === 0).length} 筆\n• 有盤差：${result.filter(r => r.盤差量 !== 0).length} 筆`);
   };
 
-  const selectedAnalysisBatch = analysisBatches.find((batch) => batch.id === selectedAnalysisBatchId) || analysisBatches[0];
+  const selectedAnalysisBatch = analysisBatches.find((batch) => batch.id === selectedAnalysisBatchId) || null;
   const sortedAnalysisBatches = [...analysisBatches].sort((a, b) => {
     const storeCompare = String(a.store_code || '').localeCompare(String(b.store_code || ''), 'zh-TW', { numeric: true });
     if (storeCompare !== 0) return storeCompare;
@@ -2287,14 +2296,14 @@ export default function InventoryManagement() {
                           <div className="mb-2 font-semibold text-emerald-900">排除 01 / 97 / 98 / 99 且有盤差量</div>
                           <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
                             <span className="text-gray-600">統計筆數</span>
-                            <span className="text-right font-semibold text-gray-900">{batch.non_excluded_diff_count || 0}</span>
+                            <span className="text-right font-semibold text-gray-900">{formatOptionalSummaryNumber(batch.non_excluded_diff_count)}</span>
                             <span className="text-green-700">正盤差成本</span>
-                            <span className="text-right font-semibold text-green-700">{formatSummaryNumber(batch.non_excluded_diff_positive_cost_total)}</span>
+                            <span className="text-right font-semibold text-green-700">{formatOptionalSummaryNumber(batch.non_excluded_diff_positive_cost_total)}</span>
                             <span className="text-red-700">負盤差成本</span>
-                            <span className="text-right font-semibold text-red-700">{formatSummaryNumber(batch.non_excluded_diff_negative_cost_total)}</span>
+                            <span className="text-right font-semibold text-red-700">{formatOptionalSummaryNumber(batch.non_excluded_diff_negative_cost_total)}</span>
                             <span className="text-emerald-700">正負加總成本</span>
                             <span className={`text-right font-semibold ${Number(batch.non_excluded_diff_net_cost_total || 0) < 0 ? 'text-red-700' : Number(batch.non_excluded_diff_net_cost_total || 0) > 0 ? 'text-green-700' : 'text-gray-700'}`}>
-                              {formatSummaryNumber(batch.non_excluded_diff_net_cost_total)}
+                              {formatOptionalSummaryNumber(batch.non_excluded_diff_net_cost_total)}
                             </span>
                           </div>
                         </div>

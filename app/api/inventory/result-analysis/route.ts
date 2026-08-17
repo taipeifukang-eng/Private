@@ -431,22 +431,25 @@ export async function GET(request: NextRequest) {
         }
       }
     }
+    const shouldLoadBatchDetails = Boolean(batchId);
     const batchSummaries = new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
     const batchItemCache = new Map<string, any[]>();
-    await Promise.all(batchRows.map(async (batch: any) => {
-      const batchItems = await fetchInventoryResultItems(admin, batch.id);
-      batchItemCache.set(batch.id, batchItems);
-      batchSummaries.set(batch.id, getNonExcludedDiffSummary(batchItems));
-    }));
+    if (shouldLoadBatchDetails) {
+      await Promise.all(batchRows.map(async (batch: any) => {
+        const batchItems = await fetchInventoryResultItems(admin, batch.id);
+        batchItemCache.set(batch.id, batchItems);
+        batchSummaries.set(batch.id, getNonExcludedDiffSummary(batchItems));
+      }));
+    }
     const enrichedBatches = batchRows.map((batch: any) => ({
       ...batch,
-      ...(batchSummaries.get(batch.id) || getNonExcludedDiffSummary([])),
+      ...(batchSummaries.get(batch.id) || {}),
     }));
 
     const selectedBatchId =
       batchId && enrichedBatches.some((batch: any) => batch.id === batchId)
         ? batchId
-        : enrichedBatches?.[0]?.id || '';
+        : '';
     let items: any[] = [];
     let allItemsForAnalysis: any[] = [];
 
