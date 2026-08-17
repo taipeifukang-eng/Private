@@ -361,17 +361,24 @@ async function fetchNonExcludedDiffSummariesForBatches(
   if (uniqueBatchIds.length === 0) return summaries;
 
   const pageSize = 1000;
+  const seenItemIds = new Set<string>();
   for (let from = 0; ; from += pageSize) {
     const to = from + pageSize - 1;
     const { data, error } = await admin
       .from('inventory_result_items')
-      .select('batch_id, product_code, difference_qty, cost')
+      .select('id, batch_id, product_code, difference_qty, cost')
       .in('batch_id', uniqueBatchIds)
+      .order('batch_id', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, to);
 
     if (error) throw error;
 
     (data || []).forEach((item: any) => {
+      const itemId = String(item.id || '');
+      if (itemId && seenItemIds.has(itemId)) return;
+      if (itemId) seenItemIds.add(itemId);
+
       const batchId = String(item.batch_id || '');
       const summary = summaries.get(batchId);
       if (!summary) return;
