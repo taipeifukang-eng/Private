@@ -344,6 +344,55 @@ function getNonExcludedDiffSummary(items: any[]) {
   });
 }
 
+async function fetchNonExcludedDiffSummariesForBatches(
+  admin: ReturnType<typeof createAdminClient>,
+  batchIds: string[]
+): Promise<Map<string, ReturnType<typeof getNonExcludedDiffSummary>>> {
+  const summaries = new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
+  const uniqueBatchIds = Array.from(new Set(batchIds.filter(Boolean)));
+  uniqueBatchIds.forEach((batchId) => {
+    summaries.set(batchId, {
+      non_excluded_diff_count: 0,
+      non_excluded_diff_positive_cost_total: 0,
+      non_excluded_diff_negative_cost_total: 0,
+      non_excluded_diff_net_cost_total: 0,
+    });
+  });
+  if (uniqueBatchIds.length === 0) return summaries;
+
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const to = from + pageSize - 1;
+    const { data, error } = await admin
+      .from('inventory_result_items')
+      .select('batch_id, product_code, difference_qty, cost')
+      .in('batch_id', uniqueBatchIds)
+      .range(from, to);
+
+    if (error) throw error;
+
+    (data || []).forEach((item: any) => {
+      const batchId = String(item.batch_id || '');
+      const summary = summaries.get(batchId);
+      if (!summary) return;
+
+      const { code } = getItemCategory(item);
+      const differenceQty = Number(item.difference_qty) || 0;
+      if (EXCLUDED_CATEGORY_CODES.has(code) || differenceQty === 0) return;
+
+      const cost = Number(item.cost) || 0;
+      summary.non_excluded_diff_count += 1;
+      summary.non_excluded_diff_net_cost_total += cost;
+      if (differenceQty > 0) summary.non_excluded_diff_positive_cost_total += cost;
+      if (differenceQty < 0) summary.non_excluded_diff_negative_cost_total += cost;
+    });
+
+    if (!data || data.length < pageSize) break;
+  }
+
+  return summaries;
+}
+
 function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
   const mergedByProductCode = new Map<string, any>();
 
@@ -571,13 +620,15 @@ export async function GET(request: NextRequest) {
       }
     }
     const shouldLoadBatchDetails = Boolean(batchId);
-    const batchSummaries = new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
+    const batchSummaries = await fetchNonExcludedDiffSummariesForBatches(
+      admin,
+      batchRows.map((batch: any) => batch.id)
+    );
     const batchItemCache = new Map<string, any[]>();
     if (shouldLoadBatchDetails) {
       await Promise.all(batchRows.map(async (batch: any) => {
         const batchItems = await fetchInventoryResultItems(admin, batch.id);
         batchItemCache.set(batch.id, batchItems);
-        batchSummaries.set(batch.id, getNonExcludedDiffSummary(batchItems));
       }));
     }
     const enrichedBatches = batchRows.map((batch: any) => ({

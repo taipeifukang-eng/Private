@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, Download, FileSpreadsheet, AlertCircle, BarChart3, RefreshCw, Search, ChevronDown, ArrowUpDown, Trash2 } from 'lucide-react';
 import { useUserPermissions } from '@/lib/permissions/hooks';
@@ -127,6 +127,7 @@ type InventoryAnalysisBatchDetail = {
 };
 
 type AnalysisReportView = 'batch' | 'merged' | 'recount_changes';
+const ANALYSIS_DETAIL_PAGE_SIZE = 200;
 
 type AnalysisDetailSortKey =
   | 'product_code'
@@ -219,6 +220,7 @@ export default function InventoryManagement() {
     key: 'product_code',
     direction: 'asc',
   });
+  const [analysisDetailPage, setAnalysisDetailPage] = useState(1);
 
   useEffect(() => {
     setAnalysisShowReasonRequiredOnly(false);
@@ -230,6 +232,20 @@ export default function InventoryManagement() {
     analysisExcludeSpecialCategories,
     selectedAnalysisReportView,
     differenceReasonCostThreshold,
+  ]);
+
+  useEffect(() => {
+    setAnalysisDetailPage(1);
+  }, [
+    analysisItems,
+    selectedAnalysisBatchId,
+    selectedAnalysisCategoryCode,
+    selectedAnalysisReportView,
+    analysisShowDiffOnly,
+    analysisExcludeSpecialCategories,
+    analysisShowReasonRequiredOnly,
+    analysisReasonFilterItemIds,
+    analysisDetailSort,
   ]);
 
   const formatMoney = (value: unknown): string => {
@@ -1546,32 +1562,42 @@ export default function InventoryManagement() {
   const isRecountChangeAnalysisView = selectedAnalysisReportView === 'recount_changes';
   const isComputedAnalysisView = isMergedAnalysisView || isRecountChangeAnalysisView;
   const selectedAnalysisCategory = analysisCategorySummary.find((category) => category.category_code === selectedAnalysisCategoryCode) || null;
-  const sortedAnalysisCategorySummary = [...analysisCategorySummary].sort((a, b) => {
+  const sortedAnalysisCategorySummary = useMemo(() => [...analysisCategorySummary].sort((a, b) => {
     const aCode = String(a.category_code || '');
     const bCode = String(b.category_code || '');
     const aNum = Number(aCode);
     const bNum = Number(bCode);
     if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum - bNum;
     return aCode.localeCompare(bCode, 'zh-TW');
-  });
-  const categoryFilteredAnalysisItems = selectedAnalysisCategoryCode
-    ? analysisItems.filter((item) => getItemCategoryCode(item) === selectedAnalysisCategoryCode)
-    : analysisItems;
-  const excludedAnalysisCategoryCodes = new Set(['01', '97', '98', '99']);
-  const specialCategoryFilteredAnalysisItems = analysisExcludeSpecialCategories
-    ? categoryFilteredAnalysisItems.filter((item) => !excludedAnalysisCategoryCodes.has(getItemCategoryCode(item)))
-    : categoryFilteredAnalysisItems;
-  const diffFilteredAnalysisItems = analysisShowDiffOnly
-    ? specialCategoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
-    : specialCategoryFilteredAnalysisItems;
-  const filteredAnalysisItems = analysisShowReasonRequiredOnly
-    ? diffFilteredAnalysisItems.filter((item) => (
-      analysisReasonFilterItemIds
-        ? analysisReasonFilterItemIds.has(item.id)
-        : isDifferenceReasonRequired(item)
-    ))
-    : diffFilteredAnalysisItems;
-  const differenceReasonRequiredItems = diffFilteredAnalysisItems.filter(isDifferenceReasonRequired);
+  }), [analysisCategorySummary]);
+  const categoryFilteredAnalysisItems = useMemo(() => (
+    selectedAnalysisCategoryCode
+      ? analysisItems.filter((item) => getItemCategoryCode(item) === selectedAnalysisCategoryCode)
+      : analysisItems
+  ), [analysisItems, selectedAnalysisCategoryCode]);
+  const excludedAnalysisCategoryCodes = useMemo(() => new Set(['01', '97', '98', '99']), []);
+  const specialCategoryFilteredAnalysisItems = useMemo(() => (
+    analysisExcludeSpecialCategories
+      ? categoryFilteredAnalysisItems.filter((item) => !excludedAnalysisCategoryCodes.has(getItemCategoryCode(item)))
+      : categoryFilteredAnalysisItems
+  ), [analysisExcludeSpecialCategories, categoryFilteredAnalysisItems, excludedAnalysisCategoryCodes]);
+  const diffFilteredAnalysisItems = useMemo(() => (
+    analysisShowDiffOnly
+      ? specialCategoryFilteredAnalysisItems.filter((item) => Number(item.difference_qty) !== 0)
+      : specialCategoryFilteredAnalysisItems
+  ), [analysisShowDiffOnly, specialCategoryFilteredAnalysisItems]);
+  const filteredAnalysisItems = useMemo(() => (
+    analysisShowReasonRequiredOnly
+      ? diffFilteredAnalysisItems.filter((item) => (
+        analysisReasonFilterItemIds
+          ? analysisReasonFilterItemIds.has(item.id)
+          : isDifferenceReasonRequired(item)
+      ))
+      : diffFilteredAnalysisItems
+  ), [analysisShowReasonRequiredOnly, diffFilteredAnalysisItems, analysisReasonFilterItemIds, differenceReasonCostThreshold]);
+  const differenceReasonRequiredItems = useMemo(() => (
+    diffFilteredAnalysisItems.filter(isDifferenceReasonRequired)
+  ), [diffFilteredAnalysisItems, differenceReasonCostThreshold]);
   const differenceReasonRequiredCount = differenceReasonRequiredItems.length;
   const differenceReasonMissingCount = differenceReasonRequiredItems.filter(isDifferenceReasonMissing).length;
   const toggleAnalysisReasonRequiredFilter = () => {
@@ -1595,7 +1621,7 @@ export default function InventoryManagement() {
     if (key === 'storage') return [item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ');
     return Number(item[key]) || 0;
   };
-  const sortedFilteredAnalysisItems = [...filteredAnalysisItems].sort((a, b) => {
+  const sortedFilteredAnalysisItems = useMemo(() => [...filteredAnalysisItems].sort((a, b) => {
     const aValue = getAnalysisSortValue(a, analysisDetailSort.key);
     const bValue = getAnalysisSortValue(b, analysisDetailSort.key);
     const direction = analysisDetailSort.direction === 'asc' ? 1 : -1;
@@ -1603,7 +1629,13 @@ export default function InventoryManagement() {
       return (aValue - bValue) * direction;
     }
     return String(aValue).localeCompare(String(bValue), 'zh-TW', { numeric: true }) * direction;
-  });
+  }), [filteredAnalysisItems, analysisDetailSort]);
+  const analysisDetailTotalPages = Math.max(1, Math.ceil(sortedFilteredAnalysisItems.length / ANALYSIS_DETAIL_PAGE_SIZE));
+  const normalizedAnalysisDetailPage = Math.min(analysisDetailPage, analysisDetailTotalPages);
+  const pagedAnalysisItems = sortedFilteredAnalysisItems.slice(
+    (normalizedAnalysisDetailPage - 1) * ANALYSIS_DETAIL_PAGE_SIZE,
+    normalizedAnalysisDetailPage * ANALYSIS_DETAIL_PAGE_SIZE
+  );
   const exportDifferenceReasonXlsx = () => {
     if (!selectedAnalysisBatch) {
       alert('❌ 請先選擇盤點批次');
@@ -1705,26 +1737,23 @@ export default function InventoryManagement() {
           : item;
       }));
       if (selectedAnalysisBatchId) {
-        setAnalysisBatchDetailCache((cache) => {
-          const detail = cache[selectedAnalysisBatchId];
-          if (!detail) return cache;
-          return {
-            ...cache,
-            [selectedAnalysisBatchId]: {
-              ...detail,
-              items: detail.items.map((item) => {
-                const updated = updatedById.get(item.id);
-                return updated
-                  ? {
-                    ...item,
-                    difference_reason: updated.difference_reason || '',
-                    difference_reason_updated_at: updated.difference_reason_updated_at || item.difference_reason_updated_at,
-                  }
-                  : item;
-              }),
-            },
-          };
-        });
+        const cacheKey = getAnalysisDetailCacheKey(selectedAnalysisBatchId, selectedAnalysisReportView);
+        const detail = analysisBatchDetailCacheRef.current[cacheKey];
+        if (detail) {
+          writeAnalysisDetailCache(cacheKey, {
+            ...detail,
+            items: detail.items.map((item) => {
+              const updated = updatedById.get(item.id);
+              return updated
+                ? {
+                  ...item,
+                  difference_reason: updated.difference_reason || '',
+                  difference_reason_updated_at: updated.difference_reason_updated_at || item.difference_reason_updated_at,
+                }
+                : item;
+            }),
+          });
+        }
       }
       alert(`✅ 已匯入盤差原因：更新 ${Number(json.updated_count) || 0} 筆明細`);
     } catch (error: any) {
@@ -2706,6 +2735,14 @@ export default function InventoryManagement() {
                           <div>
                             <h4 className="font-bold text-gray-800">
                               明細資料（{selectedAnalysisCategory ? `${selectedAnalysisCategory.category_code} ${selectedAnalysisCategory.category_name}` : '全部分類'}，共 {filteredAnalysisItems.length} 筆）
+                              {filteredAnalysisItems.length > ANALYSIS_DETAIL_PAGE_SIZE && (
+                                <span className="ml-2 text-xs font-normal text-gray-500">
+                                  目前顯示 {(normalizedAnalysisDetailPage - 1) * ANALYSIS_DETAIL_PAGE_SIZE + 1}
+                                  -
+                                  {Math.min(normalizedAnalysisDetailPage * ANALYSIS_DETAIL_PAGE_SIZE, filteredAnalysisItems.length)}
+                                  筆
+                                </span>
+                              )}
                             </h4>
                             <p className="mt-1 text-xs text-gray-500">
                               成本 &gt; {formatSummaryNumber(differenceReasonCostThreshold)} 或 &lt; -{formatSummaryNumber(differenceReasonCostThreshold)} 需填寫盤差原因；未填 {differenceReasonMissingCount} 筆
@@ -2831,7 +2868,7 @@ export default function InventoryManagement() {
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                              {sortedFilteredAnalysisItems.map((item) => {
+                              {pagedAnalysisItems.map((item) => {
                                 const reasonRequired = isDifferenceReasonRequired(item);
                                 const reasonMissing = isDifferenceReasonMissing(item);
                                 const isSavingReason = savingDifferenceReasonIds.has(item.id);
@@ -2916,6 +2953,34 @@ export default function InventoryManagement() {
                             </tbody>
                           </table>
                         </div>
+                        {filteredAnalysisItems.length > ANALYSIS_DETAIL_PAGE_SIZE && (
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-4 py-3 text-xs text-gray-600">
+                            <div>
+                              每頁 {ANALYSIS_DETAIL_PAGE_SIZE} 筆，共 {filteredAnalysisItems.length} 筆
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setAnalysisDetailPage((page) => Math.max(1, page - 1))}
+                                disabled={normalizedAnalysisDetailPage <= 1}
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                上一頁
+                              </button>
+                              <span className="font-semibold text-gray-800">
+                                {normalizedAnalysisDetailPage} / {analysisDetailTotalPages}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAnalysisDetailPage((page) => Math.min(analysisDetailTotalPages, page + 1))}
+                                disabled={normalizedAnalysisDetailPage >= analysisDetailTotalPages}
+                                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 font-semibold text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                              >
+                                下一頁
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
