@@ -185,6 +185,7 @@ export default function InventoryManagement() {
   const [analysisItems, setAnalysisItems] = useState<InventoryResultItem[]>([]);
   const [analysisCategorySummary, setAnalysisCategorySummary] = useState<InventoryCategorySummary[]>([]);
   const [analysisNonExcludedSummary, setAnalysisNonExcludedSummary] = useState<InventoryNonExcludedSummary | null>(null);
+  const [analysisReportVersionBatches, setAnalysisReportVersionBatches] = useState<InventoryResultBatch[]>([]);
   const [analysisBatchDetailCache, setAnalysisBatchDetailCache] = useState<Record<string, InventoryAnalysisBatchDetail>>({});
   const [selectedAnalysisBatchId, setSelectedAnalysisBatchId] = useState('');
   const [selectedAnalysisReportView, setSelectedAnalysisReportView] = useState<AnalysisReportView>('batch');
@@ -354,7 +355,12 @@ export default function InventoryManagement() {
       const nextNonExcludedSummary = json.non_excluded_summary || null;
       const nextCacheKey = nextSelectedBatchId ? getAnalysisDetailCacheKey(nextSelectedBatchId, nextReportView) : '';
 
-      setAnalysisBatches(nextBatches);
+      if (batchId) {
+        setAnalysisReportVersionBatches(nextBatches);
+      } else {
+        setAnalysisBatches(nextBatches);
+        setAnalysisReportVersionBatches([]);
+      }
       setAnalysisItems(nextItems);
       setAnalysisCategorySummary(nextCategorySummary);
       setAnalysisNonExcludedSummary(nextNonExcludedSummary);
@@ -428,6 +434,7 @@ export default function InventoryManagement() {
       setAnalysisItems(detail.items);
       setAnalysisCategorySummary(detail.category_summary);
       setAnalysisNonExcludedSummary(detail.non_excluded_summary);
+      setAnalysisReportVersionBatches(json.batches || []);
       setAnalysisBatchDetailCache((cache) => ({
         ...cache,
         [cacheKey]: detail,
@@ -487,7 +494,7 @@ export default function InventoryManagement() {
 
       if (requestSeq !== analysisDetailRequestSeq.current) return;
 
-      setAnalysisBatches(json.batches || analysisBatches);
+      setAnalysisReportVersionBatches(json.batches || []);
       setAnalysisItems(detail.items);
       setAnalysisCategorySummary(detail.category_summary);
       setAnalysisNonExcludedSummary(detail.non_excluded_summary);
@@ -1512,7 +1519,13 @@ export default function InventoryManagement() {
     return (Number(a.report_round) || 1) - (Number(b.report_round) || 1);
   });
   const selectedAnalysisReportVersions = selectedAnalysisBatch
-    ? sortedAnalysisBatches.filter((batch) => getAnalysisBatchRootId(batch) === getAnalysisBatchRootId(selectedAnalysisBatch))
+    ? (analysisReportVersionBatches.length > 0 ? analysisReportVersionBatches : sortedAnalysisBatches)
+      .filter((batch) => getAnalysisBatchRootId(batch) === getAnalysisBatchRootId(selectedAnalysisBatch))
+      .sort((a, b) => {
+        const roundCompare = (Number(a.report_round) || 1) - (Number(b.report_round) || 1);
+        if (roundCompare !== 0) return roundCompare;
+        return String(a.imported_at || '').localeCompare(String(b.imported_at || ''));
+      })
     : [];
   const hasSelectedAnalysisRecountVersions = selectedAnalysisReportVersions.some((batch) => (Number(batch.report_round) || 1) > 1);
   const selectedAnalysisReportLabel = selectedAnalysisReportView === 'merged'
@@ -1598,14 +1611,9 @@ export default function InventoryManagement() {
       ? sortedFilteredAnalysisItems.map((item) => ({
         品號: normalizeAnalysisProductCode(item.product_code),
         品名: item.product_name || '',
-        異動類型: item.change_type === 'RECOUNT_ONLY' ? '再次盤點新增' : '再次盤點修正',
-        第一次實際量: item.initial_actual_qty ?? '',
-        再次實際量: item.recount_actual_qty ?? '',
-        實際量異動: item.actual_qty_delta ?? '新增',
         第一次盤差量: item.initial_difference_qty ?? '',
-        再次盤差量: item.recount_difference_qty ?? '',
-        盤差量異動: item.difference_qty_delta ?? '新增',
         第一次成本: item.initial_cost ?? '',
+        再次盤差量: item.recount_difference_qty ?? '',
         再次成本: item.recount_cost ?? '',
         成本異動: item.cost_delta ?? '新增',
         第一次盤差原因: item.difference_reason || '',
@@ -1618,7 +1626,7 @@ export default function InventoryManagement() {
       }));
     const worksheet = XLSX.utils.json_to_sheet(rows, {
       header: isRecountChangeAnalysisView
-        ? ['品號', '品名', '異動類型', '第一次實際量', '再次實際量', '實際量異動', '第一次盤差量', '再次盤差量', '盤差量異動', '第一次成本', '再次成本', '成本異動', '第一次盤差原因']
+        ? ['品號', '品名', '第一次盤差量', '第一次成本', '再次盤差量', '再次成本', '成本異動', '第一次盤差原因']
         : ['品號', '品名', '盤差量', '盤差原因'],
     });
     const workbook = XLSX.utils.book_new();
@@ -2795,13 +2803,9 @@ export default function InventoryManagement() {
                                 <th className="px-3 py-2 text-left">{renderAnalysisSortLabel('儲位', 'storage')}</th>
                                 {isRecountChangeAnalysisView ? (
                                   <>
-                                    <th className="px-3 py-2 text-right">第一次實際量</th>
-                                    <th className="px-3 py-2 text-right">再次實際量</th>
-                                    <th className="px-3 py-2 text-right">實際量異動</th>
                                     <th className="px-3 py-2 text-right">第一次盤差量</th>
-                                    <th className="px-3 py-2 text-right">再次盤差量</th>
-                                    <th className="px-3 py-2 text-right">盤差量異動</th>
                                     <th className="px-3 py-2 text-right">第一次成本</th>
+                                    <th className="px-3 py-2 text-right">再次盤差量</th>
                                     <th className="px-3 py-2 text-right">再次成本</th>
                                     <th className="px-3 py-2 text-right">成本異動</th>
                                   </>
@@ -2830,19 +2834,11 @@ export default function InventoryManagement() {
                                     <td className="px-3 py-2">{[item.storage_location_1, item.storage_location_2].filter(Boolean).join(' / ') || '-'}</td>
                                     {isRecountChangeAnalysisView ? (
                                       <>
-                                        <td className="px-3 py-2 text-right">{item.initial_actual_qty === null || item.initial_actual_qty === undefined ? '-' : formatMoney(item.initial_actual_qty)}</td>
-                                        <td className="px-3 py-2 text-right font-semibold text-amber-700">{formatMoney(item.recount_actual_qty)}</td>
-                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.actual_qty_delta) < 0 ? 'text-red-600' : Number(item.actual_qty_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                          {item.actual_qty_delta === null || item.actual_qty_delta === undefined ? '新增' : formatMoney(item.actual_qty_delta)}
-                                        </td>
                                         <td className="px-3 py-2 text-right">{item.initial_difference_qty === null || item.initial_difference_qty === undefined ? '-' : formatMoney(item.initial_difference_qty)}</td>
+                                        <td className="px-3 py-2 text-right">{item.initial_cost === null || item.initial_cost === undefined ? '-' : formatMoney(item.initial_cost)}</td>
                                         <td className={`px-3 py-2 text-right font-semibold ${Number(item.recount_difference_qty) < 0 ? 'text-red-600' : Number(item.recount_difference_qty) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                                           {formatMoney(item.recount_difference_qty)}
                                         </td>
-                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty_delta) < 0 ? 'text-red-600' : Number(item.difference_qty_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
-                                          {item.difference_qty_delta === null || item.difference_qty_delta === undefined ? '新增' : formatMoney(item.difference_qty_delta)}
-                                        </td>
-                                        <td className="px-3 py-2 text-right">{item.initial_cost === null || item.initial_cost === undefined ? '-' : formatMoney(item.initial_cost)}</td>
                                         <td className={`px-3 py-2 text-right font-semibold ${Number(item.recount_cost) < 0 ? 'text-red-600' : Number(item.recount_cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                                           {formatMoney(item.recount_cost)}
                                         </td>
