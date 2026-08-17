@@ -186,7 +186,8 @@ export default function InventoryManagement() {
   const [analysisCategorySummary, setAnalysisCategorySummary] = useState<InventoryCategorySummary[]>([]);
   const [analysisNonExcludedSummary, setAnalysisNonExcludedSummary] = useState<InventoryNonExcludedSummary | null>(null);
   const [analysisReportVersionBatches, setAnalysisReportVersionBatches] = useState<InventoryResultBatch[]>([]);
-  const [analysisBatchDetailCache, setAnalysisBatchDetailCache] = useState<Record<string, InventoryAnalysisBatchDetail>>({});
+  const [, setAnalysisBatchDetailCache] = useState<Record<string, InventoryAnalysisBatchDetail>>({});
+  const analysisBatchDetailCacheRef = useRef<Record<string, InventoryAnalysisBatchDetail>>({});
   const [selectedAnalysisBatchId, setSelectedAnalysisBatchId] = useState('');
   const [selectedAnalysisReportView, setSelectedAnalysisReportView] = useState<AnalysisReportView>('batch');
   const [selectedAnalysisCategoryCode, setSelectedAnalysisCategoryCode] = useState('');
@@ -283,6 +284,18 @@ export default function InventoryManagement() {
   const getAnalysisDetailCacheKey = (batchId: string, view: AnalysisReportView = 'batch') => (
     view === 'batch' ? batchId : `${batchId}:${view}`
   );
+  const replaceAnalysisDetailCache = (cache: Record<string, InventoryAnalysisBatchDetail>) => {
+    analysisBatchDetailCacheRef.current = cache;
+    setAnalysisBatchDetailCache(cache);
+  };
+  const writeAnalysisDetailCache = (cacheKey: string, detail: InventoryAnalysisBatchDetail) => {
+    const nextCache = {
+      ...analysisBatchDetailCacheRef.current,
+      [cacheKey]: detail,
+    };
+    analysisBatchDetailCacheRef.current = nextCache;
+    setAnalysisBatchDetailCache(nextCache);
+  };
   const getItemCategoryCode = (item: InventoryResultItem): string => {
     const productCode = normalizeAnalysisProductCode(item.product_code);
     return productCode ? productCode.slice(0, 2) : item.category_code || 'NA';
@@ -366,7 +379,7 @@ export default function InventoryManagement() {
       setAnalysisNonExcludedSummary(nextNonExcludedSummary);
       setSelectedAnalysisBatchId(nextSelectedBatchId);
       setSelectedAnalysisReportView(nextReportView);
-      setAnalysisBatchDetailCache(nextCacheKey ? {
+      replaceAnalysisDetailCache(nextCacheKey ? {
         [nextCacheKey]: {
           items: nextItems,
           category_summary: nextCategorySummary,
@@ -398,8 +411,10 @@ export default function InventoryManagement() {
     setSelectedAnalysisCategoryCode('');
 
     const cacheKey = getAnalysisDetailCacheKey(batchId, 'batch');
-    const cached = analysisBatchDetailCache[cacheKey];
+    const cached = analysisBatchDetailCacheRef.current[cacheKey];
     if (cached) {
+      analysisDetailRequestSeq.current += 1;
+      setAnalysisDetailLoading(false);
       setAnalysisItems(cached.items);
       setAnalysisCategorySummary(cached.category_summary);
       setAnalysisNonExcludedSummary(cached.non_excluded_summary);
@@ -435,10 +450,7 @@ export default function InventoryManagement() {
       setAnalysisCategorySummary(detail.category_summary);
       setAnalysisNonExcludedSummary(detail.non_excluded_summary);
       setAnalysisReportVersionBatches(json.batches || []);
-      setAnalysisBatchDetailCache((cache) => ({
-        ...cache,
-        [cacheKey]: detail,
-      }));
+      writeAnalysisDetailCache(cacheKey, detail);
     } catch (error: any) {
       if (requestSeq !== analysisDetailRequestSeq.current) return;
       alert(`❌ ${error.message || '載入盤點結果明細失敗'}`);
@@ -460,8 +472,10 @@ export default function InventoryManagement() {
     setSelectedAnalysisCategoryCode('');
 
     const cacheKey = getAnalysisDetailCacheKey(rootBatchId, view);
-    const cached = analysisBatchDetailCache[cacheKey];
+    const cached = analysisBatchDetailCacheRef.current[cacheKey];
     if (cached) {
+      analysisDetailRequestSeq.current += 1;
+      setAnalysisDetailLoading(false);
       setAnalysisItems(cached.items);
       setAnalysisCategorySummary(cached.category_summary);
       setAnalysisNonExcludedSummary(cached.non_excluded_summary);
@@ -498,10 +512,7 @@ export default function InventoryManagement() {
       setAnalysisItems(detail.items);
       setAnalysisCategorySummary(detail.category_summary);
       setAnalysisNonExcludedSummary(detail.non_excluded_summary);
-      setAnalysisBatchDetailCache((cache) => ({
-        ...cache,
-        [cacheKey]: detail,
-      }));
+      writeAnalysisDetailCache(cacheKey, detail);
     } catch (error: any) {
       if (requestSeq !== analysisDetailRequestSeq.current) return;
       alert(`❌ ${error.message || '載入盤點計算結果失敗'}`);
@@ -645,19 +656,15 @@ export default function InventoryManagement() {
     )));
     if (selectedAnalysisBatchId) {
       const cacheKey = getAnalysisDetailCacheKey(selectedAnalysisBatchId, selectedAnalysisReportView);
-      setAnalysisBatchDetailCache((cache) => {
-        const detail = cache[cacheKey];
-        if (!detail) return cache;
-        return {
-          ...cache,
-          [cacheKey]: {
-            ...detail,
-            items: detail.items.map((item) => (
-              item.id === itemId ? { ...item, difference_reason: reason } : item
-            )),
-          },
-        };
-      });
+      const detail = analysisBatchDetailCacheRef.current[cacheKey];
+      if (detail) {
+        writeAnalysisDetailCache(cacheKey, {
+          ...detail,
+          items: detail.items.map((item) => (
+            item.id === itemId ? { ...item, difference_reason: reason } : item
+          )),
+        });
+      }
     }
   };
 
@@ -1615,6 +1622,7 @@ export default function InventoryManagement() {
         第一次成本: item.initial_cost ?? '',
         再次盤差量: item.recount_difference_qty ?? '',
         再次成本: item.recount_cost ?? '',
+        盤差量加總: item.difference_qty_delta ?? '新增',
         成本異動: item.cost_delta ?? '新增',
         第一次盤差原因: item.difference_reason || '',
       }))
@@ -1626,7 +1634,7 @@ export default function InventoryManagement() {
       }));
     const worksheet = XLSX.utils.json_to_sheet(rows, {
       header: isRecountChangeAnalysisView
-        ? ['品號', '品名', '第一次盤差量', '第一次成本', '再次盤差量', '再次成本', '成本異動', '第一次盤差原因']
+        ? ['品號', '品名', '第一次盤差量', '第一次成本', '再次盤差量', '再次成本', '盤差量加總', '成本異動', '第一次盤差原因']
         : ['品號', '品名', '盤差量', '盤差原因'],
     });
     const workbook = XLSX.utils.book_new();
@@ -2807,6 +2815,7 @@ export default function InventoryManagement() {
                                     <th className="px-3 py-2 text-right">第一次成本</th>
                                     <th className="px-3 py-2 text-right">再次盤差量</th>
                                     <th className="px-3 py-2 text-right">再次成本</th>
+                                    <th className="px-3 py-2 text-right">盤差量加總</th>
                                     <th className="px-3 py-2 text-right">成本異動</th>
                                   </>
                                 ) : (
@@ -2841,6 +2850,9 @@ export default function InventoryManagement() {
                                         </td>
                                         <td className={`px-3 py-2 text-right font-semibold ${Number(item.recount_cost) < 0 ? 'text-red-600' : Number(item.recount_cost) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                                           {formatMoney(item.recount_cost)}
+                                        </td>
+                                        <td className={`px-3 py-2 text-right font-semibold ${Number(item.difference_qty_delta) < 0 ? 'text-red-600' : Number(item.difference_qty_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
+                                          {item.difference_qty_delta === null || item.difference_qty_delta === undefined ? '新增' : formatMoney(item.difference_qty_delta)}
                                         </td>
                                         <td className={`px-3 py-2 text-right font-semibold ${Number(item.cost_delta) < 0 ? 'text-red-600' : Number(item.cost_delta) > 0 ? 'text-green-600' : 'text-gray-400'}`}>
                                           {item.cost_delta === null || item.cost_delta === undefined ? '新增' : formatMoney(item.cost_delta)}
