@@ -121,6 +121,10 @@ function getFileBaseName(fileName: string): string {
   return fileName.replace(/\.[^.]+$/, '').trim() || '未命名盤點結果';
 }
 
+function getReportRootBatchId(batch: any): string {
+  return batch?.parent_batch_id || batch?.id || '';
+}
+
 function parseWorksheetRows(sheet: XLSX.WorkSheet): { rows: Record<string, unknown>[]; actualColumns: string[]; headerRowIndex: number } {
   const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
   const normalizedRequired = REQUIRED_COLUMNS.map((col) => String(col).trim());
@@ -403,7 +407,30 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: batchError.message }, { status: 500 });
     }
 
-    const batchRows = batches || [];
+    let batchRows = batches || [];
+
+    if (batchId && batchRows.length === 1) {
+      const selected = batchRows[0] as any;
+      const rootBatchId = getReportRootBatchId(selected);
+      if (rootBatchId) {
+        const { data: relatedBatches, error: relatedError } = await admin
+          .from('inventory_result_batches')
+          .select(`
+            *,
+            store:stores(id, store_code, store_name)
+          `)
+          .or(`id.eq.${rootBatchId},parent_batch_id.eq.${rootBatchId}`)
+          .order('report_round', { ascending: true })
+          .order('imported_at', { ascending: true });
+
+        if (relatedError) {
+          return NextResponse.json({ success: false, error: relatedError.message }, { status: 500 });
+        }
+        if (relatedBatches && relatedBatches.length > 0) {
+          batchRows = relatedBatches;
+        }
+      }
+    }
     const batchSummaries = new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
     const batchItemCache = new Map<string, any[]>();
     await Promise.all(batchRows.map(async (batch: any) => {
@@ -662,6 +689,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File | null;
     const yearMonth = String(formData.get('year_month') || '').trim();
     const requestedOrderNo = String(formData.get('inventory_order_no') || '').trim();
+    const recountParentBatchId = String(formData.get('recount_parent_batch_id') || '').trim();
     if (!file) return NextResponse.json({ success: false, error: '缺少匯入檔案' }, { status: 400 });
     const sourceFileName = file.name.trim();
     if (!sourceFileName) {
@@ -689,6 +717,46 @@ export async function POST(request: NextRequest) {
     }
 
     const admin = createAdminClient();
+    let recountParentBatch: any = null;
+    let recountRootBatchId = '';
+    let recountNextRound = 1;
+    let effectiveYearMonth = yearMonth;
+    if (recountParentBatchId) {
+      const access = await getInventoryResultAnalysisAccess(admin, user.id);
+      if (!access.allowed) {
+        return NextResponse.json({ success: false, error: '無匯入爭議再次盤點權限' }, { status: 403 });
+      }
+
+      const { data: parentBatch, error: parentBatchError } = await admin
+        .from('inventory_result_batches')
+        .select('id, parent_batch_id, store_id, store_code, store_name, year_month, inventory_order_no, report_round')
+        .eq('id', recountParentBatchId)
+        .single();
+
+      if (parentBatchError || !parentBatch) {
+        return NextResponse.json({ success: false, error: '找不到第一次盤點批次' }, { status: 404 });
+      }
+
+      if (access.scope === 'own' && !access.storeIds.includes(parentBatch.store_id)) {
+        return NextResponse.json({ success: false, error: '無此門市爭議再次盤點匯入權限' }, { status: 403 });
+      }
+
+      recountParentBatch = parentBatch;
+      recountRootBatchId = getReportRootBatchId(parentBatch);
+      effectiveYearMonth = parentBatch.year_month;
+
+      const { data: relatedRounds, error: relatedRoundsError } = await admin
+        .from('inventory_result_batches')
+        .select('report_round')
+        .or(`id.eq.${recountRootBatchId},parent_batch_id.eq.${recountRootBatchId}`);
+
+      if (relatedRoundsError) {
+        return NextResponse.json({ success: false, error: relatedRoundsError.message }, { status: 500 });
+      }
+
+      recountNextRound = Math.max(1, ...(relatedRounds || []).map((row: any) => Number(row.report_round) || 1)) + 1;
+    }
+
     const { data: stores, error: storesError } = await admin
       .from('stores')
       .select('id, store_code, store_name')
@@ -737,7 +805,9 @@ export async function POST(request: NextRequest) {
       }
 
       const rawStoreCode = getStr(row, '店號') || lastStoreCode;
-      const orderNo = getStr(row, '盤點單號') || lastOrderNo || fallbackOrderNo;
+      const orderNo = recountParentBatch
+        ? recountParentBatch.inventory_order_no
+        : getStr(row, '盤點單號') || lastOrderNo || fallbackOrderNo;
 
       if (!rawStoreCode) {
         errors.push(`${rowLabel}：缺少店號`);
@@ -750,11 +820,16 @@ export async function POST(request: NextRequest) {
         return;
       }
 
+      if (recountParentBatch && store.id !== recountParentBatch.store_id) {
+        errors.push(`${rowLabel}：再次盤點只能匯入原門市 ${recountParentBatch.store_code} 的資料`);
+        return;
+      }
+
       lastStoreCode = rawStoreCode;
       lastOrderNo = orderNo;
 
       const key = `${store.id}|${orderNo}`;
-      const group = groups.get(key) || { store, orderNo, rows: [] };
+      const group = groups.get(key) || { store, orderNo, rows: [] as Record<string, unknown>[] };
       group.rows.push(row);
       groups.set(key, group);
     });
@@ -765,11 +840,13 @@ export async function POST(request: NextRequest) {
 
     const importedBatches: any[] = [];
 
-    const { data: replacedBatches, error: existingBatchError } = await admin
-      .from('inventory_result_batches')
-      .select('id')
-      .eq('year_month', yearMonth)
-      .eq('source_file_name', sourceFileName);
+    const { data: replacedBatches, error: existingBatchError } = recountParentBatch
+      ? { data: [], error: null }
+      : await admin
+        .from('inventory_result_batches')
+        .select('id')
+        .eq('year_month', yearMonth)
+        .eq('source_file_name', sourceFileName);
 
     if (existingBatchError) {
       return NextResponse.json({ success: false, error: existingBatchError.message }, { status: 500 });
@@ -801,7 +878,7 @@ export async function POST(request: NextRequest) {
         .from('inventory_result_batches')
         .insert({
           store_id: group.store.id,
-          year_month: yearMonth,
+          year_month: effectiveYearMonth,
           store_code: group.store.store_code,
           store_name: getStr(group.rows[0], '店名') || group.store.store_name,
           inventory_order_no: group.orderNo,
@@ -809,6 +886,10 @@ export async function POST(request: NextRequest) {
           source_file_name: sourceFileName,
           imported_by: user.id,
           imported_at: new Date().toISOString(),
+          parent_batch_id: recountParentBatch ? recountRootBatchId : null,
+          report_round: recountParentBatch ? recountNextRound : 1,
+          report_kind: recountParentBatch ? 'RECOUNT' : 'INITIAL',
+          report_label: recountParentBatch ? `爭議再次盤點 ${recountNextRound - 1}` : '第一次盤點',
           row_count: rowCount,
           total_difference_qty: totalDifferenceQty,
           total_difference_amount_member: totalDifferenceAmount,

@@ -45,6 +45,10 @@ type InventoryResultBatch = {
   closed_text: string | null;
   source_file_name: string | null;
   imported_at: string;
+  parent_batch_id?: string | null;
+  report_round?: number | null;
+  report_kind?: 'INITIAL' | 'RECOUNT' | string | null;
+  report_label?: string | null;
   row_count: number;
   total_difference_qty: number;
   total_difference_amount_member: number;
@@ -187,6 +191,7 @@ export default function InventoryManagement() {
   const [savingDifferenceReasonIds, setSavingDifferenceReasonIds] = useState<Set<string>>(new Set());
   const [savingDifferenceReasonThreshold, setSavingDifferenceReasonThreshold] = useState(false);
   const differenceReasonImportRef = useRef<HTMLInputElement>(null);
+  const analysisRecountImportRef = useRef<HTMLInputElement>(null);
   const analysisDetailRequestSeq = useRef(0);
   const [analysisDetailSort, setAnalysisDetailSort] = useState<{ key: AnalysisDetailSortKey; direction: 'asc' | 'desc' }>({
     key: 'product_code',
@@ -408,6 +413,14 @@ export default function InventoryManagement() {
     }
   }, [canUseInventoryTools, canViewInventoryResultAnalysis]);
 
+  const getAnalysisBatchRootId = (batch: InventoryResultBatch) => batch.parent_batch_id || batch.id;
+
+  const getAnalysisBatchReportLabel = (batch: InventoryResultBatch) => {
+    if (batch.report_label) return batch.report_label;
+    const round = Number(batch.report_round) || 1;
+    return round <= 1 ? '第一次盤點' : `爭議再次盤點 ${round - 1}`;
+  };
+
   const handleInventoryResultAnalysisUpload = async (file: File) => {
     setAnalysisImporting(true);
     try {
@@ -439,6 +452,45 @@ export default function InventoryManagement() {
       alert(`❌ ${error.message || '匯入盤點結果分析報表失敗'}`);
     } finally {
       setAnalysisImporting(false);
+    }
+  };
+
+  const handleInventoryResultAnalysisRecountUpload = async (file: File) => {
+    if (!selectedAnalysisBatch) {
+      alert('❌ 請先選擇要再次盤點的門市報表');
+      return;
+    }
+
+    setAnalysisImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('year_month', selectedAnalysisBatch.year_month || analysisYearMonth);
+      formData.append('recount_parent_batch_id', getAnalysisBatchRootId(selectedAnalysisBatch));
+
+      const res = await fetch('/api/inventory/result-analysis', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || '匯入爭議再次盤點失敗');
+      }
+
+      const newBatchId = json.batches?.[0]?.id || '';
+      alert(`✅ 爭議再次盤點匯入完成：${json.imported_batches} 個批次、${json.imported_rows} 筆明細`);
+      if (newBatchId) {
+        await loadInventoryResultAnalysis(newBatchId);
+      } else {
+        await loadInventoryResultAnalysis(selectedAnalysisBatchId);
+      }
+    } catch (error: any) {
+      alert(`❌ ${error.message || '匯入爭議再次盤點失敗'}`);
+    } finally {
+      setAnalysisImporting(false);
+      if (analysisRecountImportRef.current) {
+        analysisRecountImportRef.current.value = '';
+      }
     }
   };
 
@@ -1349,8 +1401,13 @@ export default function InventoryManagement() {
   const sortedAnalysisBatches = [...analysisBatches].sort((a, b) => {
     const storeCompare = String(a.store_code || '').localeCompare(String(b.store_code || ''), 'zh-TW', { numeric: true });
     if (storeCompare !== 0) return storeCompare;
-    return String(a.inventory_order_no || '').localeCompare(String(b.inventory_order_no || ''), 'zh-TW', { numeric: true });
+    const orderCompare = String(a.inventory_order_no || '').localeCompare(String(b.inventory_order_no || ''), 'zh-TW', { numeric: true });
+    if (orderCompare !== 0) return orderCompare;
+    return (Number(a.report_round) || 1) - (Number(b.report_round) || 1);
   });
+  const selectedAnalysisReportVersions = selectedAnalysisBatch
+    ? sortedAnalysisBatches.filter((batch) => getAnalysisBatchRootId(batch) === getAnalysisBatchRootId(selectedAnalysisBatch))
+    : [];
   const selectedAnalysisCategory = analysisCategorySummary.find((category) => category.category_code === selectedAnalysisCategoryCode) || null;
   const sortedAnalysisCategorySummary = [...analysisCategorySummary].sort((a, b) => {
     const aCode = String(a.category_code || '');
@@ -2194,6 +2251,13 @@ export default function InventoryManagement() {
                             <div className="font-semibold text-gray-900">{batch.store_code} {batch.store_name}</div>
                             <div className="mt-1 text-xs font-semibold text-indigo-700">年月：{batch.year_month}</div>
                             <div className="mt-1 text-xs text-gray-500">單號：{batch.inventory_order_no}</div>
+                            <div className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              (Number(batch.report_round) || 1) <= 1
+                                ? 'bg-slate-100 text-slate-700'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {getAnalysisBatchReportLabel(batch)}
+                            </div>
                           </div>
                           <div className="flex flex-col items-end gap-2">
                             <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-indigo-700">
@@ -2246,9 +2310,69 @@ export default function InventoryManagement() {
                   {selectedAnalysisBatch && (
                     <>
                       <div className="rounded-xl border border-gray-200 bg-white p-4">
+                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-gray-800">報表版本</h4>
+                            <p className="mt-1 text-xs text-gray-500">
+                              第一次盤點會完整保留，爭議再次盤點會新增為下一個 TAB，不覆蓋已填寫的盤差說明。
+                            </p>
+                          </div>
+                          {canImportInventoryResultAnalysis && (
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => analysisRecountImportRef.current?.click()}
+                                disabled={analysisImporting}
+                                className="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50"
+                              >
+                                <Upload size={16} />
+                                {analysisImporting ? '匯入中...' : '匯入爭議再次盤點'}
+                              </button>
+                              <input
+                                ref={analysisRecountImportRef}
+                                type="file"
+                                accept=".xlsx,.xls"
+                                className="hidden"
+                                onChange={(event) => {
+                                  const file = event.target.files?.[0];
+                                  if (file) {
+                                    void handleInventoryResultAnalysisRecountUpload(file);
+                                  }
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedAnalysisReportVersions.map((batch) => {
+                            const isActive = selectedAnalysisBatchId === batch.id;
+                            return (
+                              <button
+                                key={batch.id}
+                                type="button"
+                                onClick={() => selectInventoryResultAnalysisBatch(batch.id)}
+                                className={`rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                                  isActive
+                                    ? 'border-indigo-400 bg-indigo-50 text-indigo-800'
+                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >
+                                {getAnalysisBatchReportLabel(batch)}
+                                <span className="ml-2 text-xs font-normal text-gray-400">
+                                  {batch.row_count} 筆
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-gray-200 bg-white p-4">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <div>
-                            <h4 className="font-bold text-gray-800">目前統計：{dashboardSummary.label}</h4>
+                            <h4 className="font-bold text-gray-800">
+                              目前統計：{getAnalysisBatchReportLabel(selectedAnalysisBatch)} / {dashboardSummary.label}
+                            </h4>
                             {analysisDetailLoading && (
                               <div className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-indigo-600">
                                 <RefreshCw size={12} className="animate-spin" />
