@@ -23,7 +23,7 @@ export async function GET() {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from('relationship_members')
-    .select('id, member_name, phone, relationship, member_number, is_approved, approved_at, approved_by, created_by, created_at, updated_at')
+    .select('id, member_name, phone, relationship, member_number, is_approved, approved_at, approved_by, rejected_at, rejected_by, rejection_reason, created_by, created_at, updated_at')
     .order('member_number', { ascending: true, nullsFirst: true })
     .order('created_at', { ascending: true });
 
@@ -31,7 +31,7 @@ export async function GET() {
 
   const profileIds = Array.from(new Set(
     (data || [])
-      .flatMap((member) => [member.created_by, member.approved_by])
+      .flatMap((member) => [member.created_by, member.approved_by, member.rejected_by])
       .filter((id): id is string => Boolean(id))
   ));
   const { data: profiles, error: profilesError } = profileIds.length > 0
@@ -48,6 +48,7 @@ export async function GET() {
     ...member,
     creator: member.created_by ? profileById.get(member.created_by) || null : null,
     approver: member.approved_by ? profileById.get(member.approved_by) || null : null,
+    rejecter: member.rejected_by ? profileById.get(member.rejected_by) || null : null,
   }));
 
   const members = membersWithProfiles.sort((a, b) => {

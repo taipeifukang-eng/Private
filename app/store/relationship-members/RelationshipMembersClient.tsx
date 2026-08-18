@@ -16,6 +16,7 @@ import {
   UserRound,
   UsersRound,
   X,
+  XCircle,
 } from 'lucide-react';
 
 type Member = {
@@ -26,10 +27,14 @@ type Member = {
   member_number: string | null;
   is_approved: boolean;
   approved_at: string | null;
+  rejected_at: string | null;
+  rejected_by?: string | null;
+  rejection_reason?: string | null;
   created_at: string;
   updated_at: string;
   creator?: { full_name?: string | null; email?: string | null } | null;
   approver?: { full_name?: string | null; email?: string | null } | null;
+  rejecter?: { full_name?: string | null; email?: string | null } | null;
 };
 
 type Sale = {
@@ -53,7 +58,7 @@ type MemberForm = {
   member_number: string;
 };
 
-type MemberFilterTab = 'all' | 'approved_missing_number' | 'unapproved';
+type MemberFilterTab = 'all' | 'approved_missing_number' | 'pending' | 'rejected';
 
 const EMPTY_FORM: MemberForm = {
   member_name: '',
@@ -68,6 +73,10 @@ function creatorName(member: Member) {
 
 function approverName(member: Member) {
   return member.approver?.full_name || member.approver?.email || '-';
+}
+
+function rejecterName(member: Member) {
+  return member.rejecter?.full_name || member.rejecter?.email || '-';
 }
 
 function formatDateTime(value: string | null) {
@@ -111,6 +120,7 @@ export default function RelationshipMembersClient({
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [memberFilterTab, setMemberFilterTab] = useState<MemberFilterTab>('all');
@@ -216,6 +226,32 @@ export default function RelationshipMembersClient({
     setApprovingId(null);
   }
 
+  async function rejectMember(member: Member) {
+    const reason = window.prompt(`請填寫駁回「${member.member_name}」的原因`);
+    if (reason === null) return;
+
+    const rejectionReason = reason.trim();
+    if (!rejectionReason) {
+      setMessage({ type: 'error', text: '駁回原因為必填' });
+      return;
+    }
+
+    setRejectingId(member.id);
+    setMessage(null);
+    const response = await fetch(`/api/relationship-members/${member.id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rejection_reason: rejectionReason }),
+    });
+    if (response.ok) {
+      setMessage({ type: 'success', text: `已駁回關係會員「${member.member_name}」` });
+      await loadMembers();
+    } else {
+      setMessage({ type: 'error', text: await readError(response) });
+    }
+    setRejectingId(null);
+  }
+
   function downloadTemplate() {
     const sheet = XLSX.utils.json_to_sheet([
       { 門市代號: 'FK001', 銷售日期: '2026/06/12 14:30', 會員編號: 'M00001', 品號: 'P001', 品名: '範例商品', 數量: 1, 金額: 100 },
@@ -250,7 +286,8 @@ export default function RelationshipMembersClient({
   const memberFilterCounts = useMemo(() => ({
     all: members.length,
     approved_missing_number: members.filter((member) => member.is_approved && !String(member.member_number || '').trim()).length,
-    unapproved: members.filter((member) => !member.is_approved).length,
+    pending: members.filter((member) => !member.is_approved && !member.rejected_at).length,
+    rejected: members.filter((member) => Boolean(member.rejected_at)).length,
   }), [members]);
   const latestFkrsMemberNumber = useMemo(() => {
     let latestSerial = -1;
@@ -274,15 +311,19 @@ export default function RelationshipMembersClient({
     if (memberFilterTab === 'approved_missing_number') {
       return members.filter((member) => member.is_approved && !String(member.member_number || '').trim());
     }
-    if (memberFilterTab === 'unapproved') {
-      return members.filter((member) => !member.is_approved);
+    if (memberFilterTab === 'pending') {
+      return members.filter((member) => !member.is_approved && !member.rejected_at);
+    }
+    if (memberFilterTab === 'rejected') {
+      return members.filter((member) => Boolean(member.rejected_at));
     }
     return members;
   }, [memberFilterTab, members]);
   const memberFilterTabs: { key: MemberFilterTab; label: string }[] = [
     { key: 'all', label: '全部' },
     { key: 'approved_missing_number', label: '待填寫(已核可)' },
-    { key: 'unapproved', label: '未核可' },
+    { key: 'pending', label: '待核可' },
+    { key: 'rejected', label: '已駁回' },
   ];
   const isMemberNumberLocked = Boolean(editing?.member_number?.trim());
 
@@ -437,6 +478,18 @@ export default function RelationshipMembersClient({
                                 {approverName(member)} {formatDateTime(member.approved_at)}
                               </div>
                             </div>
+                          ) : member.rejected_at ? (
+                            <div className="space-y-1">
+                              <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700">
+                                <XCircle size={14} />已駁回
+                              </span>
+                              <div className="text-xs text-slate-500">
+                                {rejecterName(member)} {formatDateTime(member.rejected_at)}
+                              </div>
+                              <div className="max-w-[260px] whitespace-pre-wrap text-xs text-red-700">
+                                原因：{member.rejection_reason || '-'}
+                              </div>
+                            </div>
                           ) : (
                             <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                               待核可
@@ -447,14 +500,24 @@ export default function RelationshipMembersClient({
                           <td className="px-4 py-3 text-center">
                             <div className="flex justify-center gap-2">
                               {canApprove && !member.is_approved && (
-                                <button
-                                  disabled={approvingId === member.id}
-                                  onClick={() => approveMember(member)}
-                                  className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
-                                >
-                                  {approvingId === member.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                                  核可
-                                </button>
+                                <>
+                                  <button
+                                    disabled={approvingId === member.id || rejectingId === member.id}
+                                    onClick={() => approveMember(member)}
+                                    className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-60"
+                                  >
+                                    {approvingId === member.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+                                    核可
+                                  </button>
+                                  <button
+                                    disabled={approvingId === member.id || rejectingId === member.id}
+                                    onClick={() => rejectMember(member)}
+                                    className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 font-medium text-red-700 hover:bg-red-100 disabled:opacity-60"
+                                  >
+                                    {rejectingId === member.id ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
+                                    駁回
+                                  </button>
+                                </>
                               )}
                               {canEdit && (
                                 <button onClick={() => beginEdit(member)} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-3 py-1.5 font-medium text-slate-700 hover:bg-slate-200">
