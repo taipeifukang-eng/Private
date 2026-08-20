@@ -519,7 +519,14 @@ function UnitDialog({ unit, parents, saving, onClose, onSave }: {
           <input type="hidden" name="id" value={unit.id} />
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">代碼</span>
-            <input name="code" defaultValue={unit.code} disabled={Boolean(unit.id)} className="w-full px-4 py-2 border border-gray-300 rounded-lg disabled:bg-gray-100" />
+            <input
+              name="code"
+              defaultValue={unit.code}
+              required
+              pattern="[A-Za-z0-9_-]{2,30}"
+              title="代碼只能包含英文、數字、底線或連字號，長度 2-30"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg uppercase"
+            />
           </label>
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">部門名稱</span>

@@ -257,6 +257,8 @@ export async function PATCH(request: NextRequest) {
     if (!canEdit) return NextResponse.json({ error: '權限不足' }, { status: 403 });
 
     const id = normalizeText(body.id);
+    const hasCode = Object.prototype.hasOwnProperty.call(body, 'code');
+    const code = normalizeText(body.code).toUpperCase();
     const name = normalizeText(body.name);
     const shortName = normalizeText(body.short_name);
     const parentId = normalizeText(body.parent_id) || null;
@@ -265,24 +267,34 @@ export async function PATCH(request: NextRequest) {
     const sortOrder = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0;
 
     if (!id || !name) return NextResponse.json({ error: '缺少部門 ID 或名稱' }, { status: 400 });
+    if (hasCode && !code) return NextResponse.json({ error: '代碼為必填' }, { status: 400 });
+    if (hasCode && !/^[A-Z0-9_-]{2,30}$/.test(code)) {
+      return NextResponse.json({ error: '代碼只能包含英文大寫、數字、底線或連字號，長度 2-30' }, { status: 400 });
+    }
     if (!STATUSES.has(status)) return NextResponse.json({ error: '狀態格式錯誤' }, { status: 400 });
+
+    const updatePayload = {
+      ...(hasCode ? { code } : {}),
+      name,
+      short_name: shortName || null,
+      parent_id: parentId,
+      status,
+      description: description || null,
+      sort_order: sortOrder,
+      updated_by: user.id,
+    };
 
     const { data, error } = await adminSupabase
       .from('organization_units')
-      .update({
-        name,
-        short_name: shortName || null,
-        parent_id: parentId,
-        status,
-        description: description || null,
-        sort_order: sortOrder,
-        updated_by: user.id,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      if (error.code === '23505') return NextResponse.json({ error: '組織代碼已存在' }, { status: 409 });
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return NextResponse.json({ unit: data });
   } catch (error: any) {
     console.error('更新組織資料失敗:', error);
