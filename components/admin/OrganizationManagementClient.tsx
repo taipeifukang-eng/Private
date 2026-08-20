@@ -83,6 +83,17 @@ function buildUnitPath(unit: OrganizationUnit, unitById: Map<string, Organizatio
   return names.join(' / ');
 }
 
+function isDescendantOf(unit: OrganizationUnit, ancestorId: string, unitById: Map<string, OrganizationUnit>) {
+  let currentParentId = unit.parent_id;
+  const visited = new Set<string>();
+  while (currentParentId && !visited.has(currentParentId)) {
+    if (currentParentId === ancestorId) return true;
+    visited.add(currentParentId);
+    currentParentId = unitById.get(currentParentId)?.parent_id || null;
+  }
+  return false;
+}
+
 export default function OrganizationManagementClient({
   mode,
   canCreateDepartment = false,
@@ -103,8 +114,13 @@ export default function OrganizationManagementClient({
 
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
   const rootUnits = useMemo(() => units.filter(unit => !unit.parent_id), [units]);
-  const departments = useMemo(() => units.filter(unit => unit.type === 'department'), [units]);
-  const selectableParents = useMemo(() => units.filter(unit => unit.type !== 'department' || unit.id !== editingUnit?.id), [units, editingUnit]);
+  const organizationUnits = useMemo(() => units, [units]);
+  const selectableParents = useMemo(() => (
+    units.filter(unit => (
+      !editingUnit?.id ||
+      (unit.id !== editingUnit.id && !isDescendantOf(unit, editingUnit.id, unitById))
+    ))
+  ), [units, editingUnit, unitById]);
   const selectedUnit = useMemo(() => {
     if (selectedUnitId) return unitById.get(selectedUnitId) || null;
     return rootUnits[0] || null;
@@ -364,9 +380,9 @@ export default function OrganizationManagementClient({
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
                 <Users className="text-blue-600" size={40} />
-                部門管理
+                組織單位管理
               </h1>
-              <p className="text-gray-600">管理總部部門、主管及部門成員</p>
+              <p className="text-gray-600">管理公司、總部、部門、主管及組織成員</p>
             </div>
             <div className="flex items-center gap-3">
               <ShowInactiveToggle showInactive={showInactive} onToggle={() => setShowInactive(value => !value)} />
@@ -386,24 +402,29 @@ export default function OrganizationManagementClient({
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="grid grid-cols-12 gap-4 px-6 py-3 text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200">
               <div className="col-span-1">代碼</div>
-              <div className="col-span-2">部門名稱</div>
+              <div className="col-span-2">名稱</div>
+              <div className="col-span-1">類型</div>
               <div className="col-span-1">簡稱</div>
               <div className="col-span-2">上層組織</div>
-              <div className="col-span-2">主管</div>
+              <div className="col-span-1">主管</div>
               <div className="col-span-1 text-right">人員</div>
               <div className="col-span-1">狀態</div>
               <div className="col-span-2 text-center">操作</div>
             </div>
             <div className="divide-y divide-gray-200">
-              {departments.map(department => {
+              {organizationUnits.length === 0 && (
+                <div className="px-6 py-12 text-center text-gray-500">尚未建立組織單位</div>
+              )}
+              {organizationUnits.map(department => {
                 const managers = department.managers.filter(manager => manager.manager_role === 'manager');
                 return (
                   <div key={department.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors">
                     <div className="col-span-1 font-mono text-blue-600 font-medium">{department.code}</div>
                     <div className="col-span-2 font-semibold text-gray-900">{department.name}</div>
+                    <div className="col-span-1 text-sm text-gray-600">{UNIT_TYPE_LABEL[department.type]}</div>
                     <div className="col-span-1 text-sm text-gray-600">{department.short_name || '-'}</div>
                     <div className="col-span-2 text-sm text-gray-600">{department.parent_id ? unitById.get(department.parent_id)?.name || '-' : '-'}</div>
-                    <div className="col-span-2 text-sm text-gray-700">{managers.map(manager => userLabel(manager.user)).join('、') || '-'}</div>
+                    <div className="col-span-1 text-sm text-gray-700 truncate">{managers.map(manager => userLabel(manager.user)).join('、') || '-'}</div>
                     <div className="col-span-1 text-right text-sm text-gray-700">{department.members.length}</div>
                     <div className="col-span-1"><StatusBadge status={department.status} /></div>
                     <div className="col-span-2 flex gap-1 justify-center flex-wrap">
@@ -512,11 +533,12 @@ function UnitDialog({ unit, parents, saving, onClose, onSave }: {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <form action={onSave} className="bg-white rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900">{unit.id ? '編輯部門' : '新增部門'}</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{unit.id ? '編輯組織單位' : '新增部門'}</h3>
           <button type="button" onClick={onClose} className="p-2 text-gray-500 hover:bg-gray-100 rounded"><X size={20} /></button>
         </div>
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <input type="hidden" name="id" value={unit.id} />
+          <input type="hidden" name="type" value={unit.type || 'department'} />
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">代碼</span>
             <input
@@ -529,8 +551,12 @@ function UnitDialog({ unit, parents, saving, onClose, onSave }: {
             />
           </label>
           <label className="block">
-            <span className="block text-sm font-medium text-gray-700 mb-2">部門名稱</span>
+            <span className="block text-sm font-medium text-gray-700 mb-2">名稱</span>
             <input name="name" defaultValue={unit.name} required className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
+          </label>
+          <label className="block">
+            <span className="block text-sm font-medium text-gray-700 mb-2">類型</span>
+            <input value={UNIT_TYPE_LABEL[unit.type]} readOnly className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-100" />
           </label>
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">簡稱</span>
@@ -543,7 +569,6 @@ function UnitDialog({ unit, parents, saving, onClose, onSave }: {
               {parents.map(parent => <option key={parent.id} value={parent.id}>{parent.name}</option>)}
             </select>
           </label>
-          <input type="hidden" name="type" value={unit.type || 'department'} />
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">排序</span>
             <input name="sort_order" type="number" defaultValue={unit.sort_order || 0} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
