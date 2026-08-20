@@ -48,7 +48,7 @@ async function formatUnits(adminSupabase: ReturnType<typeof createAdminClient>, 
     unitIds.length
       ? adminSupabase
           .from('organization_memberships')
-          .select('*, user:profiles(id, email, full_name, employee_code, job_title)')
+          .select('*, user:profiles!organization_memberships_user_id_fkey(id, email, full_name, employee_code, job_title)')
           .in('organization_unit_id', unitIds)
           .eq('status', 'active')
           .is('effective_to', null)
@@ -56,7 +56,7 @@ async function formatUnits(adminSupabase: ReturnType<typeof createAdminClient>, 
     unitIds.length
       ? adminSupabase
           .from('organization_manager_assignments')
-          .select('*, user:profiles(id, email, full_name, employee_code, job_title)')
+          .select('*, user:profiles!organization_manager_assignments_user_id_fkey(id, email, full_name, employee_code, job_title)')
           .in('organization_unit_id', unitIds)
           .eq('status', 'active')
           .is('effective_to', null)
