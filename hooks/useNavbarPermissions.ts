@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { ORGANIZATION_NAV_PERMISSION_CODES } from '@/lib/admin/organization-management';
 
 /**
  * 導航欄權限介面
@@ -15,6 +16,9 @@ interface NavbarPermissions {
   canViewArchivedTasks: boolean;
   
   // 門市管理
+  canViewOrganization: boolean;
+  canViewDepartments: boolean;
+  canManageDepartments: boolean;
   canAssignStoreManager: boolean;
   canAssignSupervisor: boolean;
   canManageStores: boolean;
@@ -72,6 +76,9 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
     canViewDashboard: false,
     canManageTasks: false,
     canViewArchivedTasks: false,
+    canViewOrganization: false,
+    canViewDepartments: false,
+    canManageDepartments: false,
     canAssignStoreManager: false,
     canAssignSupervisor: false,
     canManageStores: false,
@@ -165,6 +172,20 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canViewArchivedTasks: permissionSet.has('task.view_archived'),
           
           // 門市管理
+          canViewOrganization: ORGANIZATION_NAV_PERMISSION_CODES.some(code => permissionSet.has(code)),
+          canViewDepartments:
+            permissionSet.has('organization.department.view') ||
+            permissionSet.has('organization.department.create') ||
+            permissionSet.has('organization.department.edit') ||
+            permissionSet.has('organization.member.view') ||
+            permissionSet.has('organization.member.manage') ||
+            permissionSet.has('organization.manager.view') ||
+            permissionSet.has('organization.manager.manage'),
+          canManageDepartments:
+            permissionSet.has('organization.department.create') ||
+            permissionSet.has('organization.department.edit') ||
+            permissionSet.has('organization.member.manage') ||
+            permissionSet.has('organization.manager.manage'),
           canAssignStoreManager: permissionSet.has('store.manager.assign'),
           canAssignSupervisor: permissionSet.has('store.supervisor.assign'),
           canManageStores: permissionSet.has('store.manage'),
@@ -269,6 +290,13 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canViewPharmacistManagement ||
          permissions.canUseClinicSelfpayMargin ||
          permissions.canViewRelationshipMembers;
+}
+
+export function hasAnyOrganizationPermission(permissions: NavbarPermissions): boolean {
+  return permissions.canViewOrganization ||
+         permissions.canViewDepartments ||
+         permissions.canManageDepartments ||
+         hasAnyStorePermission(permissions);
 }
 
 /**

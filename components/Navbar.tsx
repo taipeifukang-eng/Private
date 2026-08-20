@@ -18,6 +18,7 @@ import {
   Archive,
   CalendarCheck,
   Store,
+  Building2,
   ChevronDown,
   Send,
   Upload,
@@ -35,7 +36,14 @@ import {
   UserPlus
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
-import { useNavbarPermissions, hasAnyTaskPermission, hasAnyStorePermission, hasAnyMonthlyStatusPermission, hasAnyInspectionPermission, hasAnyCrossDeptPermission } from '@/hooks/useNavbarPermissions';
+import {
+  useNavbarPermissions,
+  hasAnyTaskPermission,
+  hasAnyOrganizationPermission,
+  hasAnyMonthlyStatusPermission,
+  hasAnyInspectionPermission,
+  hasAnyCrossDeptPermission,
+} from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
   user: {
@@ -128,7 +136,12 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/archived', label: '已封存任務', icon: Archive, show: permissions.canViewArchivedTasks },
   ].filter(item => item.show);
 
-  // 門市管理相關的子選單項目（使用 RBAC 權限）
+  // 組織管理相關的子選單項目（使用 RBAC 權限）
+  const organizationSubItems = [
+    { href: '/admin/organization', label: '公司組織', icon: Building2, show: permissions.canViewOrganization },
+    { href: '/admin/departments', label: '部門管理', icon: Users, show: permissions.canViewDepartments || permissions.canManageDepartments },
+  ];
+
   const storeSubItems = [
     { href: '/admin/store-managers', label: '店長指派', icon: Users, show: permissions.canAssignStoreManager },
     { href: '/admin/supervisors', label: '經理/督導管理', icon: Users, show: permissions.canAssignSupervisor },
@@ -162,13 +175,18 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/cross-dept/merchandise', label: '商品部', icon: ShoppingCart, show: permissions.canAccessCrossDeptMerchandise },
     { href: '/cross-dept/maintenance', label: '總務組', icon: Wrench, show: permissions.canAccessMaintenance },
   ].filter(item => item.show);
+
+  const organizationMenuItems = [
+    ...organizationSubItems,
+    ...storeSubItems,
+  ].filter(item => item.show);
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
-  // 判斷是否在門市管理相關頁面
-  const isInStoreSection = ['/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
+  // 判斷是否在組織管理相關頁面
+  const isInOrganizationSection = ['/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
@@ -276,25 +294,25 @@ export default function Navbar({ user }: NavbarProps) {
               </div>
 
               {/* 門市管理下拉選單 - 使用 RBAC 權限 */}
-              {hasAnyStorePermission(permissions) && (
+              {hasAnyOrganizationPermission(permissions) && (
                 <div className="relative" ref={storeMenuRef}>
                   <button
                     onClick={() => setIsStoreMenuOpen(!isStoreMenuOpen)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      isInStoreSection
+                      isInOrganizationSection
                         ? 'bg-blue-50 text-blue-700'
                         : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`}
                   >
-                    <Store size={18} />
-                    門市管理
+                    <Building2 size={18} />
+                    組織管理
                     <ChevronDown size={16} className={`transition-transform ${isStoreMenuOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {/* 下拉選單內容 */}
                   {isStoreMenuOpen && (
                     <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
-                      {storeSubItems.map((item) => {
+                      {organizationMenuItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                         return (
@@ -585,14 +603,14 @@ export default function Navbar({ user }: NavbarProps) {
             </div>
 
             {/* 門市管理區塊 - 使用 RBAC 權限 */}
-            {hasAnyStorePermission(permissions) && (
+            {hasAnyOrganizationPermission(permissions) && (
               <div className="mt-1">
                 <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
-                  <Store size={14} />
-                  門市管理
+                  <Building2 size={14} />
+                  組織管理
                 </div>
                 <div className="ml-4 space-y-0.5">
-                  {storeSubItems.map((item) => {
+                  {organizationMenuItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
                     return (
