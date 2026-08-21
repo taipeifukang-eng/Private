@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import { Building2, ChevronDown, ChevronRight, Edit2, Eye, EyeOff, GripVertical, Loader2, Plus, Save, Search, UserCog, Users, X } from 'lucide-react';
 
@@ -125,6 +125,7 @@ export default function OrganizationManagementClient({
 }: Props) {
   const [units, setUnits] = useState<OrganizationUnit[]>([]);
   const [users, setUsers] = useState<OrganizationUser[]>([]);
+  const [hierarchyDraftUnits, setHierarchyDraftUnits] = useState<OrganizationUnit[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
@@ -137,13 +138,16 @@ export default function OrganizationManagementClient({
   const [draggingUnitId, setDraggingUnitId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
-  const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
-  const childrenByParent = useMemo(() => buildChildrenByParent(units), [units]);
-  const companyUnits = useMemo(() => sortUnits(units.filter(unit => unit.type === 'company')), [units]);
-  const rootUnits = useMemo(() => sortUnits(units.filter(unit => !unit.parent_id)), [units]);
+  const workingUnits = hierarchyDraftUnits || units;
+  const hasHierarchyChanges = Boolean(hierarchyDraftUnits);
+  const unitById = useMemo(() => new Map(workingUnits.map(unit => [unit.id, unit])), [workingUnits]);
+  const persistedUnitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
+  const childrenByParent = useMemo(() => buildChildrenByParent(workingUnits), [workingUnits]);
+  const companyUnits = useMemo(() => sortUnits(workingUnits.filter(unit => unit.type === 'company')), [workingUnits]);
+  const rootUnits = useMemo(() => sortUnits(workingUnits.filter(unit => !unit.parent_id)), [workingUnits]);
   const organizationRoots = useMemo(() => companyUnits.length ? companyUnits : rootUnits, [companyUnits, rootUnits]);
-  const unassignedUnits = useMemo(() => sortUnits(units.filter(unit => !unit.parent_id && unit.type !== 'company')), [units]);
-  const organizationUnits = useMemo(() => sortUnits(units), [units]);
+  const unassignedUnits = useMemo(() => sortUnits(workingUnits.filter(unit => !unit.parent_id && unit.type !== 'company')), [workingUnits]);
+  const organizationUnits = useMemo(() => sortUnits(workingUnits), [workingUnits]);
   const selectedUnit = useMemo(() => {
     if (selectedUnitId) return unitById.get(selectedUnitId) || null;
     return organizationRoots[0] || rootUnits[0] || null;
@@ -184,6 +188,7 @@ export default function OrganizationManagementClient({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '載入組織資料失敗');
       setUnits(result.units || []);
+      setHierarchyDraftUnits(null);
       if (!selectedUnitId && result.units?.[0]) setSelectedUnitId(result.units[0].id);
     } catch (error) {
       alert(error instanceof Error ? error.message : '載入組織資料失敗');
@@ -330,37 +335,114 @@ export default function OrganizationManagementClient({
     return !isDescendantOf(parentUnit, draggedUnit.id, unitById);
   }
 
-  async function moveUnit(unitId: string, parentId: string | null) {
+  function moveUnit(unitId: string, parentId: string | null) {
     const draggedUnit = unitById.get(unitId);
     if (!draggedUnit || !canDropOn(draggedUnit, parentId)) return;
     if (draggedUnit.parent_id === parentId) return;
 
+    const siblingCount = workingUnits.filter(unit => (unit.parent_id || null) === parentId && unit.id !== unitId).length;
+    const nextSortOrder = (siblingCount + 1) * 10;
+
+    setHierarchyDraftUnits(previous => {
+      const source = previous || units;
+      return source.map(unit => (
+        unit.id === unitId
+          ? { ...unit, parent_id: parentId, sort_order: nextSortOrder }
+          : unit
+      ));
+    });
+    if (parentId) setExpandedIds(previous => new Set(previous).add(parentId));
+    setSelectedUnitId(unitId);
+    setDraggingUnitId(null);
+    setDropTargetId(null);
+  }
+
+  const saveHierarchyChanges = useCallback(async () => {
+    if (!hierarchyDraftUnits) return true;
+
+    const updates = hierarchyDraftUnits
+      .map(unit => {
+        const original = persistedUnitById.get(unit.id);
+        if (!original) return null;
+        const parentChanged = (original.parent_id || null) !== (unit.parent_id || null);
+        const sortChanged = (original.sort_order || 0) !== (unit.sort_order || 0);
+        if (!parentChanged && !sortChanged) return null;
+        return {
+          id: unit.id,
+          parent_id: unit.parent_id || '',
+          sort_order: unit.sort_order || 0,
+        };
+      })
+      .filter(Boolean);
+
+    if (updates.length === 0) {
+      setHierarchyDraftUnits(null);
+      return true;
+    }
+
     setSaving(true);
     try {
-      const siblingCount = units.filter(unit => (unit.parent_id || null) === parentId && unit.id !== unitId).length;
       const response = await fetch('/api/organization/units', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'move_unit',
-          id: unitId,
-          parent_id: parentId || '',
-          sort_order: (siblingCount + 1) * 10,
-        }),
+        body: JSON.stringify({ action: 'save_hierarchy', updates }),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || '移動組織失敗');
-      if (parentId) setExpandedIds(previous => new Set(previous).add(parentId));
-      setSelectedUnitId(unitId);
+      if (!response.ok) throw new Error(result.error || '儲存組織調整失敗');
+      setHierarchyDraftUnits(null);
       await loadData();
+      return true;
     } catch (error) {
-      alert(error instanceof Error ? error.message : '移動組織失敗');
+      alert(error instanceof Error ? error.message : '儲存組織調整失敗');
+      return false;
     } finally {
       setSaving(false);
-      setDraggingUnitId(null);
-      setDropTargetId(null);
     }
+  }, [hierarchyDraftUnits, persistedUnitById]);
+
+  function discardHierarchyChanges() {
+    if (!hasHierarchyChanges) return;
+    if (!confirm('確定要放棄尚未儲存的組織調整嗎？')) return;
+    setHierarchyDraftUnits(null);
+    setDropTargetId(null);
+    setDraggingUnitId(null);
   }
+
+  useEffect(() => {
+    if (!hasHierarchyChanges) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasHierarchyChanges]);
+
+  useEffect(() => {
+    if (!hasHierarchyChanges) return;
+
+    const handleDocumentClick = async (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === '_blank' || anchor.hasAttribute('download')) return;
+      if (!anchor.href || anchor.href === window.location.href) return;
+      if (new URL(anchor.href).origin !== window.location.origin) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const shouldSave = confirm('公司組織有尚未儲存的拖曳調整。按「確定」儲存後離開，按「取消」留在此頁。');
+      if (!shouldSave) return;
+
+      const saved = await saveHierarchyChanges();
+      if (saved) window.location.href = anchor.href;
+    };
+
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => document.removeEventListener('click', handleDocumentClick, true);
+  }, [hasHierarchyChanges, saveHierarchyChanges]);
 
   function renderCompactTree(nodes: OrganizationUnit[], depth = 0) {
     return nodes.map(unit => {
@@ -578,9 +660,28 @@ export default function OrganizationManagementClient({
             </div>
 
             <section className="xl:col-span-5 bg-white rounded-lg shadow-lg p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">組織樹</h2>
-                {saving && <span className="text-sm text-blue-600">儲存中...</span>}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900">組織樹</h2>
+                  {hasHierarchyChanges && <p className="text-sm text-amber-700 mt-1">拖曳調整尚未儲存</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {hasHierarchyChanges && (
+                    <button type="button" onClick={discardHierarchyChanges} disabled={saving} className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm">
+                      放棄變更
+                    </button>
+                  )}
+                  {canEditDepartment && (
+                    <button
+                      type="button"
+                      onClick={saveHierarchyChanges}
+                      disabled={!hasHierarchyChanges || saving}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-sm font-semibold"
+                    >
+                      <Save size={16} />{saving ? '儲存中...' : '儲存組織調整'}
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="space-y-2 min-h-96 overflow-x-auto pb-2">
                 {organizationRoots.length === 0 ? (

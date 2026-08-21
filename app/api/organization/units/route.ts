@@ -197,6 +197,36 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ unit: data });
     }
 
+    if (action === 'save_hierarchy') {
+      const canEdit = await hasAnyPermission(user.id, ORGANIZATION_DEPARTMENT_EDIT_PERMISSION_CODES);
+      if (!canEdit) return NextResponse.json({ error: '權限不足' }, { status: 403 });
+
+      const updates = Array.isArray(body.updates) ? body.updates : [];
+      if (updates.length === 0) return NextResponse.json({ success: true, updated: 0 });
+
+      const rows: Array<{ id: string; parent_id: string | null; sort_order: number }> = updates.map((update: any) => ({
+        id: normalizeText(update.id),
+        parent_id: normalizeText(update.parent_id) || null,
+        sort_order: Number.isFinite(Number(update.sort_order)) ? Number(update.sort_order) : 0,
+      }));
+
+      if (rows.some(row => !row.id)) return NextResponse.json({ error: '缺少組織單位 ID' }, { status: 400 });
+      if (rows.some(row => row.parent_id && row.parent_id === row.id)) {
+        return NextResponse.json({ error: '上層組織不可選擇自己' }, { status: 400 });
+      }
+
+      const updateResults = await Promise.all(rows.map(row => (
+        adminSupabase
+          .from('organization_units')
+          .update({ parent_id: row.parent_id, sort_order: row.sort_order, updated_by: user.id })
+          .eq('id', row.id)
+      )));
+
+      const updateError = updateResults.find(result => result.error)?.error;
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return NextResponse.json({ success: true, updated: rows.length });
+    }
+
     if (action === 'set_members') {
       const canManageMembers = await hasAnyPermission(user.id, ORGANIZATION_MEMBER_MANAGE_PERMISSION_CODES);
       if (!canManageMembers) return NextResponse.json({ error: '權限不足' }, { status: 403 });
