@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type React from 'react';
-import { Building2, ChevronRight, Edit2, Eye, EyeOff, Loader2, Plus, Save, Search, Users, X } from 'lucide-react';
+import { Building2, ChevronDown, ChevronRight, Edit2, Eye, EyeOff, GripVertical, Loader2, Plus, Save, Search, UserCog, Users, X } from 'lucide-react';
 
 type OrganizationUnit = {
   id: string;
@@ -94,6 +94,28 @@ function isDescendantOf(unit: OrganizationUnit, ancestorId: string, unitById: Ma
   return false;
 }
 
+function sortUnits(units: OrganizationUnit[]) {
+  return [...units].sort((a, b) => {
+    const sortDiff = (a.sort_order || 0) - (b.sort_order || 0);
+    if (sortDiff !== 0) return sortDiff;
+    return a.code.localeCompare(b.code);
+  });
+}
+
+function buildChildrenByParent(units: OrganizationUnit[]) {
+  const childrenByParent = new Map<string | null, OrganizationUnit[]>();
+  units.forEach(unit => {
+    const parentKey = unit.parent_id || null;
+    const list = childrenByParent.get(parentKey) || [];
+    list.push(unit);
+    childrenByParent.set(parentKey, list);
+  });
+  childrenByParent.forEach((children, parentKey) => {
+    childrenByParent.set(parentKey, sortUnits(children));
+  });
+  return childrenByParent;
+}
+
 export default function OrganizationManagementClient({
   mode,
   canCreateDepartment = false,
@@ -111,20 +133,21 @@ export default function OrganizationManagementClient({
   const [memberUnit, setMemberUnit] = useState<OrganizationUnit | null>(null);
   const [managerUnit, setManagerUnit] = useState<OrganizationUnit | null>(null);
   const [userSearch, setUserSearch] = useState('');
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [draggingUnitId, setDraggingUnitId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
   const unitById = useMemo(() => new Map(units.map(unit => [unit.id, unit])), [units]);
-  const rootUnits = useMemo(() => units.filter(unit => !unit.parent_id), [units]);
-  const organizationUnits = useMemo(() => units, [units]);
-  const selectableParents = useMemo(() => (
-    units.filter(unit => (
-      !editingUnit?.id ||
-      (unit.id !== editingUnit.id && !isDescendantOf(unit, editingUnit.id, unitById))
-    ))
-  ), [units, editingUnit, unitById]);
+  const childrenByParent = useMemo(() => buildChildrenByParent(units), [units]);
+  const companyUnits = useMemo(() => sortUnits(units.filter(unit => unit.type === 'company')), [units]);
+  const rootUnits = useMemo(() => sortUnits(units.filter(unit => !unit.parent_id)), [units]);
+  const organizationRoots = useMemo(() => companyUnits.length ? companyUnits : rootUnits, [companyUnits, rootUnits]);
+  const unassignedUnits = useMemo(() => sortUnits(units.filter(unit => !unit.parent_id && unit.type !== 'company')), [units]);
+  const organizationUnits = useMemo(() => sortUnits(units), [units]);
   const selectedUnit = useMemo(() => {
     if (selectedUnitId) return unitById.get(selectedUnitId) || null;
-    return rootUnits[0] || null;
-  }, [rootUnits, selectedUnitId, unitById]);
+    return organizationRoots[0] || rootUnits[0] || null;
+  }, [organizationRoots, rootUnits, selectedUnitId, unitById]);
 
   const filteredUsers = useMemo(() => {
     const term = userSearch.trim().toLowerCase();
@@ -145,6 +168,14 @@ export default function OrganizationManagementClient({
   useEffect(() => {
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    setExpandedIds(previous => {
+      const next = new Set(previous);
+      organizationRoots.forEach(unit => next.add(unit.id));
+      return next;
+    });
+  }, [organizationRoots]);
 
   async function loadData() {
     setLoading(true);
@@ -266,9 +297,74 @@ export default function OrganizationManagementClient({
     }
   }
 
-  function renderTree(nodes: OrganizationUnit[], depth = 0) {
+  function createDepartment(parentId?: string | null) {
+    const fallbackParent = selectedUnit?.id || organizationRoots[0]?.id || null;
+    setEditingUnit({
+      id: '',
+      code: '',
+      name: '',
+      short_name: '',
+      type: 'department',
+      parent_id: parentId !== undefined ? parentId : fallbackParent,
+      status: 'active',
+      description: '',
+      sort_order: 0,
+      members: [],
+      managers: [],
+    });
+  }
+
+  function toggleExpanded(unitId: string) {
+    setExpandedIds(previous => {
+      const next = new Set(previous);
+      next.has(unitId) ? next.delete(unitId) : next.add(unitId);
+      return next;
+    });
+  }
+
+  function canDropOn(draggedUnit: OrganizationUnit, parentId: string | null) {
+    if (!parentId) return draggedUnit.type !== 'company';
+    if (draggedUnit.id === parentId) return false;
+    const parentUnit = unitById.get(parentId);
+    if (!parentUnit) return false;
+    return !isDescendantOf(parentUnit, draggedUnit.id, unitById);
+  }
+
+  async function moveUnit(unitId: string, parentId: string | null) {
+    const draggedUnit = unitById.get(unitId);
+    if (!draggedUnit || !canDropOn(draggedUnit, parentId)) return;
+    if (draggedUnit.parent_id === parentId) return;
+
+    setSaving(true);
+    try {
+      const siblingCount = units.filter(unit => (unit.parent_id || null) === parentId && unit.id !== unitId).length;
+      const response = await fetch('/api/organization/units', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'move_unit',
+          id: unitId,
+          parent_id: parentId || '',
+          sort_order: (siblingCount + 1) * 10,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '移動組織失敗');
+      if (parentId) setExpandedIds(previous => new Set(previous).add(parentId));
+      setSelectedUnitId(unitId);
+      await loadData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '移動組織失敗');
+    } finally {
+      setSaving(false);
+      setDraggingUnitId(null);
+      setDropTargetId(null);
+    }
+  }
+
+  function renderCompactTree(nodes: OrganizationUnit[], depth = 0) {
     return nodes.map(unit => {
-      const children = units.filter(child => child.parent_id === unit.id);
+      const children = childrenByParent.get(unit.id) || [];
       const active = selectedUnit?.id === unit.id;
       return (
         <div key={unit.id}>
@@ -285,10 +381,156 @@ export default function OrganizationManagementClient({
             <span className="font-medium truncate">{unit.name}</span>
             {unit.status === 'inactive' && <span className="ml-auto text-xs text-gray-500">停用</span>}
           </button>
-          {children.length > 0 && renderTree(children, depth + 1)}
+          {children.length > 0 && renderCompactTree(children, depth + 1)}
         </div>
       );
     });
+  }
+
+  function renderDraggableNode(unit: OrganizationUnit, depth = 0) {
+    const children = childrenByParent.get(unit.id) || [];
+    const active = selectedUnit?.id === unit.id;
+    const expanded = expandedIds.has(unit.id);
+    const canDragUnit = canEditDepartment && unit.type !== 'company';
+    const draggedUnit = draggingUnitId ? unitById.get(draggingUnitId) : null;
+    const canDrop = draggedUnit ? canDropOn(draggedUnit, unit.id) : false;
+
+    return (
+      <div key={unit.id} className="relative">
+        <div
+          draggable={canDragUnit}
+          onDragStart={(event) => {
+            if (!canDragUnit) return;
+            event.dataTransfer.setData('text/plain', unit.id);
+            event.dataTransfer.effectAllowed = 'move';
+            setDraggingUnitId(unit.id);
+          }}
+          onDragEnd={() => {
+            setDraggingUnitId(null);
+            setDropTargetId(null);
+          }}
+          onDragOver={(event) => {
+            if (!canDrop) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            setDropTargetId(unit.id);
+          }}
+          onDragLeave={() => setDropTargetId(current => current === unit.id ? null : current)}
+          onDrop={(event) => {
+            event.preventDefault();
+            const draggedId = event.dataTransfer.getData('text/plain') || draggingUnitId;
+            if (draggedId) moveUnit(draggedId, unit.id);
+          }}
+          className={`flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors ${
+            active ? 'border-blue-300 bg-blue-50 text-blue-800' : 'border-gray-200 bg-white text-gray-800 hover:bg-gray-50'
+          } ${dropTargetId === unit.id ? 'ring-2 ring-blue-400' : ''}`}
+          style={{ marginLeft: `${depth * 24}px` }}
+        >
+          <button type="button" onClick={() => toggleExpanded(unit.id)} className="p-1 text-gray-500 hover:bg-gray-100 rounded">
+            {children.length ? (expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <ChevronRight size={16} className="text-transparent" />}
+          </button>
+          {canDragUnit ? <GripVertical size={16} className="text-gray-400 cursor-grab" /> : <Building2 size={16} className="text-gray-400" />}
+          <button type="button" onClick={() => setSelectedUnitId(unit.id)} className="min-w-0 flex-1 text-left">
+            <span className="block truncate font-semibold">{unit.name}</span>
+            <span className="block text-xs text-gray-500">{unit.code} · {UNIT_TYPE_LABEL[unit.type]}</span>
+          </button>
+          {unit.status === 'inactive' && <StatusBadge status={unit.status} />}
+          {canEditDepartment && (
+            <button type="button" onClick={() => setEditingUnit(unit)} className="p-1.5 text-gray-500 hover:bg-gray-100 rounded">
+              <Edit2 size={16} />
+            </button>
+          )}
+        </div>
+        {expanded && children.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {children.map(child => renderDraggableNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  function renderUnassignedBlock() {
+    return (
+      <section
+        onDragOver={(event) => {
+          const draggedUnit = draggingUnitId ? unitById.get(draggingUnitId) : null;
+          if (!draggedUnit || !canDropOn(draggedUnit, null)) return;
+          event.preventDefault();
+          setDropTargetId('unassigned');
+        }}
+        onDragLeave={() => setDropTargetId(current => current === 'unassigned' ? null : current)}
+        onDrop={(event) => {
+          event.preventDefault();
+          const draggedId = event.dataTransfer.getData('text/plain') || draggingUnitId;
+          if (draggedId) moveUnit(draggedId, null);
+        }}
+        className={`bg-white rounded-lg shadow-lg p-4 border ${dropTargetId === 'unassigned' ? 'border-blue-400 ring-2 ring-blue-200' : 'border-transparent'}`}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-semibold text-gray-900">未編輯上下層</h2>
+          {canCreateDepartment && (
+            <button type="button" onClick={() => createDepartment(null)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+              <Plus size={16} />新增
+            </button>
+          )}
+        </div>
+        <div className="space-y-2">
+          {unassignedUnits.length === 0 && <p className="text-sm text-gray-500 py-4">沒有未整理的組織單位</p>}
+          {unassignedUnits.map(unit => renderDraggableNode(unit))}
+        </div>
+      </section>
+    );
+  }
+
+  function renderManagementRow(unit: OrganizationUnit, depth = 0) {
+    const children = childrenByParent.get(unit.id) || [];
+    const expanded = expandedIds.has(unit.id);
+    const managers = unit.managers.filter(manager => manager.manager_role === 'manager');
+
+    return (
+      <div key={unit.id}>
+        <div className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors border-b border-gray-100">
+          <div className="col-span-4 min-w-0 flex items-center gap-2" style={{ paddingLeft: `${depth * 24}px` }}>
+            <button type="button" onClick={() => toggleExpanded(unit.id)} className="p-1 text-gray-500 hover:bg-gray-100 rounded">
+              {children.length ? (expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />) : <ChevronRight size={16} className="text-transparent" />}
+            </button>
+            <div className="min-w-0">
+              <div className="font-semibold text-gray-900 truncate">{unit.name}</div>
+              <div className="text-xs text-gray-500 font-mono">{unit.code}</div>
+            </div>
+          </div>
+          <div className="col-span-1 text-sm text-gray-600">{UNIT_TYPE_LABEL[unit.type]}</div>
+          <div className="col-span-2 text-sm text-gray-600 truncate">{unit.parent_id ? unitById.get(unit.parent_id)?.name || '-' : '-'}</div>
+          <div className="col-span-1 text-sm text-gray-700 truncate">{managers.map(manager => userLabel(manager.user)).join('、') || '-'}</div>
+          <div className="col-span-1 text-right text-sm text-gray-700">{unit.members.length}</div>
+          <div className="col-span-1"><StatusBadge status={unit.status} /></div>
+          <div className="col-span-2 flex gap-1 justify-center flex-wrap">
+            {canEditDepartment && (
+              <button type="button" onClick={() => setEditingUnit(unit)} className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium">
+                <Edit2 size={12} className="inline mr-1" />編輯
+              </button>
+            )}
+            {canManageMembers && (
+              <button type="button" onClick={() => setMemberUnit(unit)} className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium">
+                <Users size={12} className="inline mr-1" />人員
+              </button>
+            )}
+            {canManageManagers && (
+              <button type="button" onClick={() => setManagerUnit(unit)} className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-xs font-medium">
+                <UserCog size={12} className="inline mr-1" />主管
+              </button>
+            )}
+            {canEditDepartment && (
+              <button type="button" onClick={() => updateStatus(unit, unit.status === 'active' ? 'inactive' : 'active')} className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium">
+                {unit.status === 'active' ? '停用' : '啟用'}
+              </button>
+            )}
+          </div>
+        </div>
+        {expanded && children.map(child => renderManagementRow(child, depth + 1))}
+      </div>
+    );
   }
 
   if (loading) {
@@ -309,18 +551,47 @@ export default function OrganizationManagementClient({
                 <Building2 className="text-blue-600" size={40} />
                 公司組織
               </h1>
-              <p className="text-gray-600">查看公司、總部與部門組織架構</p>
+              <p className="text-gray-600">新增部門、整理組織上下層，並用拖曳調整樹狀結構</p>
             </div>
-            <ShowInactiveToggle showInactive={showInactive} onToggle={() => setShowInactive(value => !value)} />
+            <div className="flex items-center gap-3">
+              <ShowInactiveToggle showInactive={showInactive} onToggle={() => setShowInactive(value => !value)} />
+              {canCreateDepartment && (
+                <button
+                  type="button"
+                  onClick={() => createDepartment(selectedUnit?.id || organizationRoots[0]?.id || null)}
+                  className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+                >
+                  <Plus size={20} />
+                  新增部門
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            <section className="xl:col-span-4 bg-white rounded-lg shadow-lg p-4">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">組織樹</h2>
-              <div className="space-y-1">{renderTree(rootUnits)}</div>
+            <div className="xl:col-span-3 space-y-6">
+              {renderUnassignedBlock()}
+              <section className="bg-white rounded-lg shadow-lg p-4">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">快速定位</h2>
+                <div className="space-y-1">{renderCompactTree(organizationRoots)}</div>
+              </section>
+            </div>
+
+            <section className="xl:col-span-5 bg-white rounded-lg shadow-lg p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold text-gray-900">組織樹</h2>
+                {saving && <span className="text-sm text-blue-600">儲存中...</span>}
+              </div>
+              <div className="space-y-2 min-h-96 overflow-x-auto pb-2">
+                {organizationRoots.length === 0 ? (
+                  <div className="text-center text-gray-500 py-16">尚未建立公司組織</div>
+                ) : (
+                  organizationRoots.map(unit => renderDraggableNode(unit))
+                )}
+              </div>
             </section>
 
-            <section className="xl:col-span-8 bg-white rounded-lg shadow-lg p-6">
+            <section className="xl:col-span-4 bg-white rounded-lg shadow-lg p-6">
               {selectedUnit ? (
                 <div>
                   <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-5 mb-5">
@@ -328,19 +599,31 @@ export default function OrganizationManagementClient({
                       <h2 className="text-2xl font-bold text-gray-900">{selectedUnit.name}</h2>
                       <p className="text-sm text-gray-500 mt-1">{buildUnitPath(selectedUnit, unitById)}</p>
                     </div>
-                    <StatusBadge status={selectedUnit.status} />
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={selectedUnit.status} />
+                      {canEditDepartment && (
+                        <button type="button" onClick={() => setEditingUnit(selectedUnit)} className="p-2 text-gray-600 hover:bg-gray-100 rounded">
+                          <Edit2 size={18} />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <InfoCard label="代碼" value={selectedUnit.code} />
                     <InfoCard label="類型" value={UNIT_TYPE_LABEL[selectedUnit.type]} />
                     <InfoCard label="上層組織" value={selectedUnit.parent_id ? unitById.get(selectedUnit.parent_id)?.name || '-' : '-'} />
-                    <InfoCard label="部門人數" value={String(selectedUnit.members.length)} />
+                    <InfoCard label="人數" value={String(selectedUnit.members.length)} />
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 gap-6">
                     <div className="border border-gray-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">主管</h3>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-gray-900">主管</h3>
+                        {canManageManagers && (
+                          <button type="button" onClick={() => setManagerUnit(selectedUnit)} className="text-sm text-indigo-700 hover:text-indigo-900">編輯</button>
+                        )}
+                      </div>
                       <div className="space-y-2">
                         {selectedUnit.managers.length === 0 && <p className="text-sm text-gray-500">尚未設定主管</p>}
                         {selectedUnit.managers.map(manager => (
@@ -355,7 +638,12 @@ export default function OrganizationManagementClient({
                     </div>
 
                     <div className="border border-gray-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">部門成員</h3>
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="font-semibold text-gray-900">成員</h3>
+                        {canManageMembers && (
+                          <button type="button" onClick={() => setMemberUnit(selectedUnit)} className="text-sm text-blue-700 hover:text-blue-900">編輯</button>
+                        )}
+                      </div>
                       <div className="space-y-2 max-h-72 overflow-y-auto">
                         {selectedUnit.members.length === 0 && <p className="text-sm text-gray-500">尚未設定成員</p>}
                         {selectedUnit.members.map(member => (
@@ -389,7 +677,7 @@ export default function OrganizationManagementClient({
               {canCreateDepartment && (
                 <button
                   type="button"
-                  onClick={() => setEditingUnit({ id: '', code: '', name: '', short_name: '', type: 'department', parent_id: units.find(unit => unit.type === 'headquarters')?.id || null, status: 'active', description: '', sort_order: 0, members: [], managers: [] })}
+                  onClick={() => createDepartment(selectedUnit?.id || organizationRoots[0]?.id || null)}
                   className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                 >
                   <Plus size={20} />
@@ -401,10 +689,8 @@ export default function OrganizationManagementClient({
 
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="grid grid-cols-12 gap-4 px-6 py-3 text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200">
-              <div className="col-span-1">代碼</div>
-              <div className="col-span-2">名稱</div>
+              <div className="col-span-4">組織單位</div>
               <div className="col-span-1">類型</div>
-              <div className="col-span-1">簡稱</div>
               <div className="col-span-2">上層組織</div>
               <div className="col-span-1">主管</div>
               <div className="col-span-1 text-right">人員</div>
@@ -415,43 +701,13 @@ export default function OrganizationManagementClient({
               {organizationUnits.length === 0 && (
                 <div className="px-6 py-12 text-center text-gray-500">尚未建立組織單位</div>
               )}
-              {organizationUnits.map(department => {
-                const managers = department.managers.filter(manager => manager.manager_role === 'manager');
-                return (
-                  <div key={department.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-gray-50 transition-colors">
-                    <div className="col-span-1 font-mono text-blue-600 font-medium">{department.code}</div>
-                    <div className="col-span-2 font-semibold text-gray-900">{department.name}</div>
-                    <div className="col-span-1 text-sm text-gray-600">{UNIT_TYPE_LABEL[department.type]}</div>
-                    <div className="col-span-1 text-sm text-gray-600">{department.short_name || '-'}</div>
-                    <div className="col-span-2 text-sm text-gray-600">{department.parent_id ? unitById.get(department.parent_id)?.name || '-' : '-'}</div>
-                    <div className="col-span-1 text-sm text-gray-700 truncate">{managers.map(manager => userLabel(manager.user)).join('、') || '-'}</div>
-                    <div className="col-span-1 text-right text-sm text-gray-700">{department.members.length}</div>
-                    <div className="col-span-1"><StatusBadge status={department.status} /></div>
-                    <div className="col-span-2 flex gap-1 justify-center flex-wrap">
-                      {canEditDepartment && (
-                        <button type="button" onClick={() => setEditingUnit(department)} className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium">
-                          <Edit2 size={12} className="inline mr-1" />編輯
-                        </button>
-                      )}
-                      {canManageMembers && (
-                        <button type="button" onClick={() => setMemberUnit(department)} className="px-2 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-xs font-medium">
-                          <Users size={12} className="inline mr-1" />人員
-                        </button>
-                      )}
-                      {canManageManagers && (
-                        <button type="button" onClick={() => setManagerUnit(department)} className="px-2 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors text-xs font-medium">
-                          <Users size={12} className="inline mr-1" />主管
-                        </button>
-                      )}
-                      {canEditDepartment && (
-                        <button type="button" onClick={() => updateStatus(department, department.status === 'active' ? 'inactive' : 'active')} className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium">
-                          {department.status === 'active' ? '停用' : '啟用'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              {organizationRoots.map(unit => renderManagementRow(unit))}
+              {companyUnits.length > 0 && unassignedUnits.length > 0 && (
+                <div className="bg-amber-50">
+                  <div className="px-6 py-3 text-sm font-semibold text-amber-900 border-b border-amber-100">未編輯上下層</div>
+                  {unassignedUnits.map(unit => renderManagementRow(unit))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -460,7 +716,6 @@ export default function OrganizationManagementClient({
       {editingUnit && (
         <UnitDialog
           unit={editingUnit}
-          parents={selectableParents}
           saving={saving}
           onClose={() => setEditingUnit(null)}
           onSave={saveUnit}
@@ -522,9 +777,8 @@ function ShowInactiveToggle({ showInactive, onToggle }: { showInactive: boolean;
   );
 }
 
-function UnitDialog({ unit, parents, saving, onClose, onSave }: {
+function UnitDialog({ unit, saving, onClose, onSave }: {
   unit: OrganizationUnit;
-  parents: OrganizationUnit[];
   saving: boolean;
   onClose: () => void;
   onSave: (formData: FormData) => void;
@@ -539,6 +793,8 @@ function UnitDialog({ unit, parents, saving, onClose, onSave }: {
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <input type="hidden" name="id" value={unit.id} />
           <input type="hidden" name="type" value={unit.type || 'department'} />
+          <input type="hidden" name="parent_id" value={unit.parent_id || ''} />
+          <input type="hidden" name="sort_order" value={unit.sort_order || 0} />
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">代碼</span>
             <input
@@ -561,17 +817,6 @@ function UnitDialog({ unit, parents, saving, onClose, onSave }: {
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">簡稱</span>
             <input name="short_name" defaultValue={unit.short_name || ''} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
-          </label>
-          <label className="block">
-            <span className="block text-sm font-medium text-gray-700 mb-2">上層組織</span>
-            <select name="parent_id" defaultValue={unit.parent_id || ''} className="w-full px-4 py-2 border border-gray-300 rounded-lg">
-              <option value="">無</option>
-              {parents.map(parent => <option key={parent.id} value={parent.id}>{parent.name}</option>)}
-            </select>
-          </label>
-          <label className="block">
-            <span className="block text-sm font-medium text-gray-700 mb-2">排序</span>
-            <input name="sort_order" type="number" defaultValue={unit.sort_order || 0} className="w-full px-4 py-2 border border-gray-300 rounded-lg" />
           </label>
           <label className="block">
             <span className="block text-sm font-medium text-gray-700 mb-2">狀態</span>

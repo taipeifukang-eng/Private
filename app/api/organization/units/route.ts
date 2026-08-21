@@ -176,6 +176,27 @@ export async function PATCH(request: NextRequest) {
     const action = normalizeText(body.action) || 'update_unit';
     const adminSupabase = createAdminClient();
 
+    if (action === 'move_unit') {
+      const canEdit = await hasAnyPermission(user.id, ORGANIZATION_DEPARTMENT_EDIT_PERMISSION_CODES);
+      if (!canEdit) return NextResponse.json({ error: '權限不足' }, { status: 403 });
+
+      const unitId = normalizeText(body.id);
+      const parentId = normalizeText(body.parent_id) || null;
+      const sortOrder = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0;
+      if (!unitId) return NextResponse.json({ error: '缺少組織單位 ID' }, { status: 400 });
+      if (unitId === parentId) return NextResponse.json({ error: '上層組織不可選擇自己' }, { status: 400 });
+
+      const { data, error } = await adminSupabase
+        .from('organization_units')
+        .update({ parent_id: parentId, sort_order: sortOrder, updated_by: user.id })
+        .eq('id', unitId)
+        .select()
+        .single();
+
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ unit: data });
+    }
+
     if (action === 'set_members') {
       const canManageMembers = await hasAnyPermission(user.id, ORGANIZATION_MEMBER_MANAGE_PERMISSION_CODES);
       if (!canManageMembers) return NextResponse.json({ error: '權限不足' }, { status: 403 });
