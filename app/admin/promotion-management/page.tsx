@@ -792,6 +792,83 @@ export default function EmployeeMovementManagementPage() {
     XLSX.writeFile(wb, `人員異動管理_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleDownloadImportTemplate = () => {
+    const sampleStoreCode = stores[0]?.store_code || '0058';
+    const secondStoreCode = stores.find(store => store.store_code !== sampleStoreCode)?.store_code || '0060';
+    const templateRows = [
+      {
+        '員編': 'FK00001',
+        '姓名': '王小明',
+        '異動類型': '入職',
+        '任職門市ID': sampleStoreCode,
+        '是否為藥師': '否',
+        '生日': '1990-01-15',
+        '職位': '',
+        '新人/行政等級': '',
+        '原任職門市ID': '',
+        '新任職門市ID': '',
+        '生效日期': '2026-08-01',
+        '備註': '入職範例'
+      },
+      {
+        '員編': 'FK00002',
+        '姓名': '陳美華',
+        '異動類型': '升職',
+        '任職門市ID': '',
+        '是否為藥師': '',
+        '生日': '',
+        '職位': '副店長',
+        '新人/行政等級': '',
+        '原任職門市ID': '',
+        '新任職門市ID': '',
+        '生效日期': '2026-08-01',
+        '備註': '升職範例'
+      },
+      {
+        '員編': 'FK00003',
+        '姓名': '林大仁',
+        '異動類型': '調店',
+        '任職門市ID': '',
+        '是否為藥師': '',
+        '生日': '',
+        '職位': '',
+        '新人/行政等級': '',
+        '原任職門市ID': sampleStoreCode,
+        '新任職門市ID': secondStoreCode,
+        '生效日期': '2026-08-01',
+        '備註': '調店範例'
+      }
+    ];
+
+    const instructions = [
+      { '欄位': '員編', '是否必填': '必填', '說明': '員工編號，匯入時會自動轉大寫。' },
+      { '欄位': '姓名', '是否必填': '必填', '說明': '員工姓名。' },
+      { '欄位': '異動類型', '是否必填': '必填', '說明': '可填：入職、升職、留職停薪、復職、過試用期、離職、調店。' },
+      { '欄位': '生效日期', '是否必填': '必填', '說明': '建議格式 YYYY-MM-DD，例如 2026-08-01。' },
+      { '欄位': '任職門市ID', '是否必填': '入職必填', '說明': '可填門市代號，例如 0058；若使用 UUID 也可匯入。' },
+      { '欄位': '是否為藥師', '是否必填': '入職建議填寫', '說明': '可填 是/否 或 TRUE/FALSE。' },
+      { '欄位': '生日', '是否必填': '入職必填', '說明': '必須為 YYYY-MM-DD，例如 1990-01-15。' },
+      { '欄位': '職位', '是否必填': '升職必填', '說明': `可參考系統職位選項：${PROMOTION_POSITION_OPTIONS.join('、')}。` },
+      { '欄位': '新人/行政等級', '是否必填': '升職為新人或行政時必填', '說明': `新人等級可填：${NEWBIE_LEVEL_OPTIONS.join('、')}；行政可填：未過階行政、過階行政。` },
+      { '欄位': '原任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號，例如 0058。' },
+      { '欄位': '新任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號，且不可與原任職門市相同。' },
+      { '欄位': '備註', '是否必填': '選填', '說明': '補充說明。' }
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(templateRows);
+    const instructionSheet = XLSX.utils.json_to_sheet(instructions);
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 12 }, { wch: 14 },
+      { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 24 }
+    ];
+    instructionSheet['!cols'] = [{ wch: 18 }, { wch: 18 }, { wch: 80 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '匯入範例');
+    XLSX.utils.book_append_sheet(wb, instructionSheet, '欄位說明');
+    XLSX.writeFile(wb, `人員異動匯入範例_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -883,6 +960,14 @@ export default function EmployeeMovementManagementPage() {
                   className="hidden"
                 />
               </label>
+              <button
+                type="button"
+                onClick={handleDownloadImportTemplate}
+                className="px-3 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-colors text-sm font-medium"
+              >
+                <Download size={16} className="inline mr-1" />
+                下載匯入範例
+              </button>
               <button
                 onClick={handleExcelExport}
                 className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
