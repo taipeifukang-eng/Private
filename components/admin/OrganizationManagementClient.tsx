@@ -272,6 +272,7 @@ export default function OrganizationManagementClient({
   const [workStatusFilter, setWorkStatusFilter] = useState<'all' | 'normal' | 'missing_primary' | 'missing_backup'>('all');
   const [responsibilityView, setResponsibilityView] = useState<ResponsibilityView>('work');
   const [workDrawerOpen, setWorkDrawerOpen] = useState(false);
+  const [editingWorkItem, setEditingWorkItem] = useState<WorkItem | null>(null);
   const [personDrawerUser, setPersonDrawerUser] = useState<OrganizationUser | null>(null);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
@@ -431,6 +432,7 @@ export default function OrganizationManagementClient({
         ...Array.from(formData.getAll('backup_user_ids')).map(userId => ({ user_id: String(userId), assignment_type: 'BACKUP' })),
       ].filter(assignment => assignment.user_id);
       const payload = {
+        id: String(formData.get('id') || editingWorkItem?.id || ''),
         organization_unit_id: selectedUnit.id,
         title: String(formData.get('title') || ''),
         category_id: String(formData.get('category_id') || ''),
@@ -449,16 +451,17 @@ export default function OrganizationManagementClient({
         assignments,
       };
       const response = await fetch('/api/department-workspace/work-items', {
-        method: 'POST',
+        method: editingWorkItem?.id ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || '建立工作職掌失敗');
+      if (!response.ok) throw new Error(result.error || '儲存工作職掌失敗');
       setWorkDrawerOpen(false);
+      setEditingWorkItem(null);
       await loadWorkItems(selectedUnit.id);
     } catch (error) {
-      alert(error instanceof Error ? error.message : '建立工作職掌失敗');
+      alert(error instanceof Error ? error.message : '儲存工作職掌失敗');
     } finally {
       setSaving(false);
     }
@@ -1195,7 +1198,7 @@ export default function OrganizationManagementClient({
             <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
               <p className="font-semibold text-gray-900">目前尚未建立工作職掌</p>
               <p className="mt-2 text-sm text-gray-500">建立部門工作職掌後，可以在這裡快速掌握工作分配與人員責任狀況。</p>
-              <button type="button" onClick={() => { setDepartmentTab('responsibilities'); setWorkDrawerOpen(true); }} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">前往建立工作職掌</button>
+              <button type="button" onClick={() => { setDepartmentTab('responsibilities'); setEditingWorkItem(null); setWorkDrawerOpen(true); }} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">前往建立工作職掌</button>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -1253,7 +1256,7 @@ export default function OrganizationManagementClient({
             <h3 className="text-xl font-semibold text-gray-900">工作職掌</h3>
             <p className="mt-1 text-sm text-gray-500">管理{selectedUnit?.name}長期負責的工作，以及主責、協作與代理關係。</p>
           </div>
-          <button type="button" onClick={() => setWorkDrawerOpen(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+          <button type="button" onClick={() => { setEditingWorkItem(null); setWorkDrawerOpen(true); }} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
             <Plus size={16} className="mr-1 inline" />新增工作職掌
           </button>
         </div>
@@ -1302,7 +1305,7 @@ export default function OrganizationManagementClient({
           const backups = getActiveAssignments(item, 'BACKUP');
           return (
             <div key={item.id} className="grid grid-cols-12 gap-3 border-t border-gray-100 px-4 py-3 text-sm">
-              <div className="col-span-3 font-medium text-gray-900">{item.title}</div>
+              <button type="button" onClick={() => { setEditingWorkItem(item); setWorkDrawerOpen(true); }} className="col-span-3 text-left font-medium text-blue-700 hover:underline">{item.title}</button>
               <div className="col-span-2 text-gray-600">{item.category?.name || '-'}</div>
               <div className="col-span-2 text-gray-700">{primary.map(assignment => userLabel(assignment.user)).join('、') || '-'}</div>
               <div className="col-span-1 text-gray-700">{collaborators.length ? `${collaborators.length}人` : '-'}</div>
@@ -1618,11 +1621,12 @@ export default function OrganizationManagementClient({
       )}
       {mode === 'departments' && workDrawerOpen && selectedUnit?.type === 'department' && (
         <WorkItemDrawer
+          item={editingWorkItem}
           department={selectedUnit}
           categories={workCategories}
           members={departmentMembers}
           saving={saving}
-          onClose={() => setWorkDrawerOpen(false)}
+          onClose={() => { setWorkDrawerOpen(false); setEditingWorkItem(null); }}
           onSave={saveWorkItem}
         />
       )}
@@ -1665,7 +1669,8 @@ function DrawerShell({ title, widthClass = 'max-w-xl', children, onClose }: {
   );
 }
 
-function WorkItemDrawer({ department, categories, members, saving, onClose, onSave }: {
+function WorkItemDrawer({ item, department, categories, members, saving, onClose, onSave }: {
+  item: WorkItem | null;
   department: OrganizationUnit;
   categories: WorkCategory[];
   members: OrganizationUser[];
@@ -1673,15 +1678,22 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
   onClose: () => void;
   onSave: (formData: FormData) => void;
 }) {
+  const selectedUserIds = (type: AssignmentType) => new Set(
+    (item?.assignments || [])
+      .filter(assignment => assignment.assignment_type === type && assignment.status === 'active' && !assignment.effective_to)
+      .map(assignment => assignment.user_id)
+  );
+
   return (
-    <DrawerShell title="新增工作職掌" widthClass="max-w-5xl" onClose={onClose}>
+    <DrawerShell title={item ? '編輯工作職掌' : '新增工作職掌'} widthClass="max-w-5xl" onClose={onClose}>
       <form action={onSave} className="space-y-6 p-6">
+        <input type="hidden" name="id" value={item?.id || ''} />
         <section className="rounded-lg border border-gray-200 p-5">
           <h4 className="mb-4 font-semibold text-gray-900">基本資料</h4>
           <div className="grid gap-4 md:grid-cols-2">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">工作名稱 *</span>
-              <input name="title" required placeholder="例如：門市盤點管理" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              <input name="title" required defaultValue={item?.title || ''} placeholder="例如：門市盤點管理" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">所屬部門 *</span>
@@ -1689,7 +1701,7 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">工作分類 *</span>
-              <select name="category_id" defaultValue="" className="w-full rounded-lg border border-gray-300 px-4 py-2">
+              <select name="category_id" defaultValue={item?.category_id || ''} className="w-full rounded-lg border border-gray-300 px-4 py-2">
                 <option value="">使用下方新增分類</option>
                 {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
               </select>
@@ -1700,13 +1712,13 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">工作性質</span>
-              <select name="work_type" defaultValue="fixed" className="w-full rounded-lg border border-gray-300 px-4 py-2">
+              <select name="work_type" defaultValue={item?.work_type || 'fixed'} className="w-full rounded-lg border border-gray-300 px-4 py-2">
                 {Object.entries(WORK_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-gray-700">重要程度</span>
-              <select name="importance" defaultValue="normal" className="w-full rounded-lg border border-gray-300 px-4 py-2">
+              <select name="importance" defaultValue={item?.importance || 'normal'} className="w-full rounded-lg border border-gray-300 px-4 py-2">
                 {Object.entries(IMPORTANCE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </select>
             </label>
@@ -1719,9 +1731,9 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">此部門尚未設定有效成員，建立職掌前建議先設定部門成員。</div>
           ) : (
             <div className="grid gap-4 md:grid-cols-3">
-              <MemberMultiSelect name="primary_user_ids" label="主責人" members={members} />
-              <MemberMultiSelect name="collaborator_user_ids" label="協作人員" members={members} />
-              <MemberMultiSelect name="backup_user_ids" label="代理人" members={members} />
+              <MemberMultiSelect name="primary_user_ids" label="主責人" members={members} selectedUserIds={selectedUserIds('PRIMARY')} />
+              <MemberMultiSelect name="collaborator_user_ids" label="協作人員" members={members} selectedUserIds={selectedUserIds('COLLABORATOR')} />
+              <MemberMultiSelect name="backup_user_ids" label="代理人" members={members} selectedUserIds={selectedUserIds('BACKUP')} />
             </div>
           )}
         </section>
@@ -1729,13 +1741,13 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
         <section className="rounded-lg border border-gray-200 p-5">
           <h4 className="mb-4 font-semibold text-gray-900">工作內容</h4>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextAreaField name="purpose" label="工作目的／主要負責內容" placeholder="這項工作主要負責什麼？" />
-            <TextAreaField name="execution_context" label="執行情境" placeholder="通常什麼情況或時間需要執行？" />
-            <TextAreaField name="completion_standard" label="完成標準" placeholder="做到什麼程度代表這項工作已完成？" />
-            <TextAreaField name="notes" label="注意事項" placeholder="有哪些容易忽略或需要特別注意的事情？" />
+            <TextAreaField name="purpose" label="工作目的／主要負責內容" defaultValue={item?.purpose || ''} placeholder="這項工作主要負責什麼？" />
+            <TextAreaField name="execution_context" label="執行情境" defaultValue={item?.execution_context || ''} placeholder="通常什麼情況或時間需要執行？" />
+            <TextAreaField name="completion_standard" label="完成標準" defaultValue={item?.completion_standard || ''} placeholder="做到什麼程度代表這項工作已完成？" />
+            <TextAreaField name="notes" label="注意事項" defaultValue={item?.notes || ''} placeholder="有哪些容易忽略或需要特別注意的事情？" />
             <label className="block md:col-span-2">
               <span className="mb-2 block text-sm font-medium text-gray-700">相關系統／文件</span>
-              <textarea name="related_resources" rows={3} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+              <textarea name="related_resources" rows={3} defaultValue={item?.related_resources || ''} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
             </label>
           </div>
         </section>
@@ -1743,17 +1755,17 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
         <section className="rounded-lg border border-gray-200 p-5">
           <h4 className="mb-4 font-semibold text-gray-900">交接資訊</h4>
           <div className="grid gap-4 md:grid-cols-2">
-            <TextAreaField name="handover_focus" label="接手重點" placeholder="如果明天換人負責，接手者最需要知道什麼？" />
-            <TextAreaField name="required_systems" label="必要系統／權限" />
-            <TextAreaField name="important_contacts" label="重要聯絡窗口" />
-            <TextAreaField name="handover_notes" label="特殊注意事項" />
+            <TextAreaField name="handover_focus" label="接手重點" defaultValue={item?.handover_focus || ''} placeholder="如果明天換人負責，接手者最需要知道什麼？" />
+            <TextAreaField name="required_systems" label="必要系統／權限" defaultValue={item?.required_systems || ''} />
+            <TextAreaField name="important_contacts" label="重要聯絡窗口" defaultValue={item?.important_contacts || ''} />
+            <TextAreaField name="handover_notes" label="特殊注意事項" defaultValue={item?.handover_notes || ''} />
           </div>
         </section>
 
         <div className="sticky bottom-0 -mx-6 -mb-6 flex justify-end gap-3 border-t border-gray-200 bg-white px-6 py-4">
           <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-50">取消</button>
           <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
-            <Save size={18} />{saving ? '儲存中...' : '建立工作職掌'}
+            <Save size={18} />{saving ? '儲存中...' : item ? '儲存變更' : '建立工作職掌'}
           </button>
         </div>
       </form>
@@ -1761,11 +1773,11 @@ function WorkItemDrawer({ department, categories, members, saving, onClose, onSa
   );
 }
 
-function MemberMultiSelect({ name, label, members }: { name: string; label: string; members: OrganizationUser[] }) {
+function MemberMultiSelect({ name, label, members, selectedUserIds = new Set<string>() }: { name: string; label: string; members: OrganizationUser[]; selectedUserIds?: Set<string> }) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
-      <select name={name} multiple size={Math.min(8, Math.max(4, members.length))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+      <select name={name} multiple defaultValue={Array.from(selectedUserIds)} size={Math.min(8, Math.max(4, members.length))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
         {members.map(member => <option key={member.id} value={member.id}>{userLabel(member)} {member.job_title ? `｜${member.job_title}` : ''}</option>)}
       </select>
       <span className="mt-1 block text-xs text-gray-500">可按 Ctrl / Shift 多選</span>
@@ -1773,11 +1785,11 @@ function MemberMultiSelect({ name, label, members }: { name: string; label: stri
   );
 }
 
-function TextAreaField({ name, label, placeholder = '' }: { name: string; label: string; placeholder?: string }) {
+function TextAreaField({ name, label, placeholder = '', defaultValue = '' }: { name: string; label: string; placeholder?: string; defaultValue?: string }) {
   return (
     <label className="block">
       <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
-      <textarea name={name} rows={4} placeholder={placeholder} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+      <textarea name={name} rows={4} placeholder={placeholder} defaultValue={defaultValue} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
     </label>
   );
 }
