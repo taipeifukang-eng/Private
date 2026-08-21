@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
-import { syncPromotionPositionToMonthlyStaffStatus } from '@/lib/monthly-staff/promotion-position-sync';
+import {
+  syncOnboardingPharmacistToMonthlyStaffStatus,
+  syncPromotionPositionToMonthlyStaffStatus,
+} from '@/lib/monthly-staff/promotion-position-sync';
 
 type MovementType = 'onboarding' | 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
 
@@ -42,6 +45,14 @@ function getYearMonth(date: string) {
 function getDaysInMonth(yearMonth: string) {
   const [year, month] = yearMonth.split('-').map(Number);
   return new Date(year, month, 0).getDate();
+}
+
+function getOnboardingOrganizationUnitId(movement: MovementInput) {
+  const rawStoreId = String(movement.store_id || '').trim();
+  if (movement.movement_type !== 'onboarding' || !rawStoreId.startsWith('org:')) {
+    return null;
+  }
+  return rawStoreId.slice(4);
 }
 
 async function syncStoreTransferMonthlyStatus(
@@ -222,6 +233,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少異動資料' }, { status: 400 });
     }
 
+    const onboardingOrganizationUnitIds = Array.from(
+      new Set(
+        movements
+          .map(getOnboardingOrganizationUnitId)
+          .filter((id): id is string => Boolean(id))
+      )
+    );
+    const organizationUnitById = new Map<string, any>();
+
+    if (onboardingOrganizationUnitIds.length > 0) {
+      const { data: organizationUnits, error: organizationUnitError } = await adminSupabase
+        .from('organization_units')
+        .select('id, code, name, type, status')
+        .in('id', onboardingOrganizationUnitIds);
+
+      if (organizationUnitError) {
+        return NextResponse.json({
+          success: false,
+          error: organizationUnitError.message
+        }, { status: 500 });
+      }
+
+      (organizationUnits || []).forEach((unit: any) => organizationUnitById.set(unit.id, unit));
+
+      const missingUnitId = onboardingOrganizationUnitIds.find(id => !organizationUnitById.has(id));
+      if (missingUnitId) {
+        return NextResponse.json({
+          success: false,
+          error: `找不到入職任職組織單位：${missingUnitId}`
+        }, { status: 400 });
+      }
+
+      const inactiveUnit = (organizationUnits || []).find((unit: any) => unit.status !== 'active');
+      if (inactiveUnit) {
+        return NextResponse.json({
+          success: false,
+          error: `入職任職組織單位 ${inactiveUnit.code || inactiveUnit.name} 已停用`
+        }, { status: 400 });
+      }
+    }
+
     // 驗證所有資料
     for (const movement of movements) {
       if (!movement.employee_code || !movement.employee_name || !movement.movement_type || !movement.effective_date) {
@@ -304,6 +356,11 @@ export async function POST(request: NextRequest) {
     const promotionPositionSyncInputs = [];
     
     for (const movement of movements) {
+      const onboardingOrganizationUnitId = getOnboardingOrganizationUnitId(movement);
+      const onboardingOrganizationUnit = onboardingOrganizationUnitId
+        ? organizationUnitById.get(onboardingOrganizationUnitId)
+        : null;
+
       // 檢查是否已存在相同的異動記錄（同員工、同日期、同異動類型）
       const { data: existingRecord } = await supabase
         .from('employee_movement_history')
@@ -352,7 +409,9 @@ export async function POST(request: NextRequest) {
         newValue = toStore?.store_name || movement.to_store_id || null;
       } else if (movement.movement_type === 'onboarding') {
         oldValue = null;
-        newValue = 'active';
+        newValue = onboardingOrganizationUnit
+          ? `${onboardingOrganizationUnit.code} ${onboardingOrganizationUnit.name}`
+          : 'active';
       } else if (movement.movement_type === 'leave_without_pay') {
         oldValue = empData?.employment_status || 'active';
         newValue = 'leave_without_pay';
@@ -369,7 +428,7 @@ export async function POST(request: NextRequest) {
 
       // 入職時使用前端傳入的 store_id，因為新員工尚未存在於 store_employees
       const recordStoreId = movement.movement_type === 'onboarding'
-        ? (movement.store_id || null)
+        ? (onboardingOrganizationUnitId ? null : (movement.store_id || null))
         : movement.movement_type === 'store_transfer'
           ? (movement.to_store_id || empData?.store_id || null)
           : (empData?.store_id || movement.store_id || null);
@@ -382,7 +441,11 @@ export async function POST(request: NextRequest) {
         ? `行政階級:${movement.newbie_level}`
         : '';
       const normalizedNotes = movement.movement_type === 'onboarding'
-        ? `${movement.notes || ''}${movement.notes ? '；' : ''}是否藥師:${onboardingIsPharmacist ? '是' : '否'}`
+        ? [
+            movement.notes || '',
+            `是否藥師:${onboardingIsPharmacist ? '是' : '否'}`,
+            onboardingOrganizationUnit ? `任職組織:${onboardingOrganizationUnit.code} ${onboardingOrganizationUnit.name}` : '',
+          ].filter(Boolean).join('；')
         : promotionLevelNote
           ? `${movement.notes || ''}${movement.notes ? '；' : ''}${promotionLevelNote}`
           : (movement.notes || null);
@@ -455,6 +518,7 @@ export async function POST(request: NextRequest) {
         const employeeCode = movement.employee_code.toUpperCase();
         const isPartTime = employeeCode.startsWith('FKPT');
         const birthday = String(movement.birthday || '').trim();
+        const onboardingOrganizationUnitId = getOnboardingOrganizationUnitId(movement);
 
         if (existingCodeSet.has(employeeCode)) {
           // 已存在時只更新必要欄位，避免覆蓋既有資料
@@ -468,7 +532,7 @@ export async function POST(request: NextRequest) {
               updated_at: new Date().toISOString(),
             })
             .eq('employee_code', employeeCode);
-        } else {
+        } else if (!onboardingOrganizationUnitId) {
           // 不存在時補建主檔，讓員工管理可直接看到生日
           await adminSupabase
             .from('store_employees')
@@ -486,6 +550,107 @@ export async function POST(request: NextRequest) {
             });
         }
       }
+    }
+
+    const organizationOnboardingMovements = movements.filter(
+      (m) => m.movement_type === 'onboarding' && !!getOnboardingOrganizationUnitId(m)
+    );
+
+    if (organizationOnboardingMovements.length > 0) {
+      const employeeCodes = Array.from(
+        new Set(organizationOnboardingMovements.map((m) => m.employee_code.toUpperCase()))
+      );
+      const { data: profiles } = await adminSupabase
+        .from('profiles')
+        .select('id, employee_code')
+        .in('employee_code', employeeCodes);
+      const profileByCode = new Map(
+        (profiles || []).map((profile: any) => [String(profile.employee_code || '').toUpperCase(), profile])
+      );
+
+      for (const movement of organizationOnboardingMovements) {
+        const employeeCode = movement.employee_code.toUpperCase();
+        const profile = profileByCode.get(employeeCode);
+        const organizationUnitId = getOnboardingOrganizationUnitId(movement);
+        if (!profile?.id || !organizationUnitId) {
+          continue;
+        }
+
+        const effectiveFrom = movement.effective_date || new Date().toISOString().slice(0, 10);
+
+        await adminSupabase
+          .from('organization_memberships')
+          .update({
+            status: 'inactive',
+            effective_to: effectiveFrom,
+            is_primary: false,
+            updated_by: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('user_id', profile.id)
+          .eq('membership_type', 'primary_department')
+          .eq('status', 'active')
+          .is('effective_to', null);
+
+        const { data: existingMembership } = await adminSupabase
+          .from('organization_memberships')
+          .select('id')
+          .eq('user_id', profile.id)
+          .eq('organization_unit_id', organizationUnitId)
+          .eq('membership_type', 'primary_department')
+          .maybeSingle();
+
+        if (existingMembership?.id) {
+          await adminSupabase
+            .from('organization_memberships')
+            .update({
+              status: 'active',
+              effective_from: effectiveFrom,
+              effective_to: null,
+              is_primary: true,
+              membership_role: 'member',
+              updated_by: user.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingMembership.id);
+        } else {
+          await adminSupabase
+            .from('organization_memberships')
+            .insert({
+              organization_unit_id: organizationUnitId,
+              user_id: profile.id,
+              membership_role: 'member',
+              membership_type: 'primary_department',
+              effective_from: effectiveFrom,
+              effective_to: null,
+              status: 'active',
+              is_primary: true,
+              created_by: user.id,
+              updated_by: user.id,
+            });
+        }
+      }
+    }
+
+    const onboardingPharmacistSyncInputs = movements
+      .filter((m) => m.movement_type === 'onboarding')
+      .map((movement) => ({
+        employee_code: movement.employee_code,
+        effective_date: movement.effective_date,
+        is_pharmacist: Boolean(movement.onboarding_is_pharmacist),
+      }));
+
+    try {
+      await syncOnboardingPharmacistToMonthlyStaffStatus(
+        adminSupabase,
+        onboardingPharmacistSyncInputs
+      );
+    } catch (syncError) {
+      console.error('Onboarding pharmacist monthly status sync warning:', syncError);
+      return NextResponse.json({
+        success: false,
+        error: syncError instanceof Error ? syncError.message : '同步入職藥師身分失敗'
+      }, { status: 500 });
     }
 
     // DB trigger should handle the same update, but this app-level sync keeps

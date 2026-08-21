@@ -63,6 +63,15 @@ interface Store {
   store_code: string;
 }
 
+interface OrganizationPlacementOption {
+  id: string;
+  name: string;
+  code: string;
+  type: string;
+  parent_id: string | null;
+  path: string;
+}
+
 interface Employee {
   employee_code: string;
   employee_name: string;
@@ -115,6 +124,7 @@ export default function EmployeeMovementManagementPage() {
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<MovementHistory[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [organizationPlacementOptions, setOrganizationPlacementOptions] = useState<OrganizationPlacementOption[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState<{[key: number]: string}>({});
   const [showDropdown, setShowDropdown] = useState<{[key: number]: boolean}>({});
@@ -198,6 +208,7 @@ export default function EmployeeMovementManagementPage() {
     if (canBatch) {
       loadMovementHistory();
       loadEmployees();
+      loadOrganizationPlacementOptions();
     }
     loadStores();
     loadTransferRequests();
@@ -325,6 +336,95 @@ export default function EmployeeMovementManagementPage() {
     }
   };
 
+  const loadOrganizationPlacementOptions = async () => {
+    const supabase = (await import('@/lib/supabase/client')).createClient();
+
+    const { data } = await supabase
+      .from('organization_units')
+      .select('id, code, name, type, parent_id, sort_order')
+      .eq('status', 'active')
+      .order('sort_order', { ascending: true })
+      .order('code', { ascending: true });
+
+    if (!data) return;
+
+    const unitById = new Map<string, any>();
+    const childrenByParent = new Map<string | null, any[]>();
+
+    data.forEach((unit: any) => {
+      unitById.set(unit.id, unit);
+      const parentKey = unit.parent_id || null;
+      childrenByParent.set(parentKey, [...(childrenByParent.get(parentKey) || []), unit]);
+    });
+
+    const hasHeadquarters = data.some((unit: any) => unit.type === 'headquarters');
+    const isDescendantOfHeadquarters = (unit: any) => {
+      let current = unit.parent_id ? unitById.get(unit.parent_id) : null;
+      while (current) {
+        if (current.type === 'headquarters') return true;
+        current = current.parent_id ? unitById.get(current.parent_id) : null;
+      }
+      return false;
+    };
+    const buildPath = (unit: any) => {
+      const names = [unit.name];
+      let current = unit.parent_id ? unitById.get(unit.parent_id) : null;
+      while (current) {
+        names.unshift(current.name);
+        current = current.parent_id ? unitById.get(current.parent_id) : null;
+      }
+      return names.join(' / ');
+    };
+
+    const leafUnits = data
+      .filter((unit: any) => unit.type !== 'company')
+      .filter((unit: any) => (childrenByParent.get(unit.id) || []).length === 0)
+      .filter((unit: any) => !hasHeadquarters || isDescendantOfHeadquarters(unit))
+      .map((unit: any) => ({
+        id: unit.id,
+        name: unit.name,
+        code: unit.code,
+        type: unit.type,
+        parent_id: unit.parent_id || null,
+        path: buildPath(unit),
+      }));
+
+    setOrganizationPlacementOptions(leafUnits);
+  };
+
+  const toOrganizationSelectionValue = (unitId: string) => `org:${unitId}`;
+
+  const getWorkLocationLabel = (locationId: string) => {
+    if (!locationId) return '';
+    if (locationId.startsWith('org:')) {
+      const orgUnitId = locationId.slice(4);
+      const unit = organizationPlacementOptions.find(option => option.id === orgUnitId);
+      return unit ? `${unit.code} ${unit.name}` : locationId;
+    }
+    const store = stores.find(s => s.id === locationId);
+    return store ? `${store.store_code} ${store.name}` : locationId;
+  };
+
+  const renderOnboardingLocationOptions = () => (
+    <>
+      <option value="">請選擇門市或總部部門</option>
+      <optgroup label="門市">
+        {stores.map(store => (
+          <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
+        ))}
+      </optgroup>
+      {organizationPlacementOptions.length > 0 && (
+        <optgroup label="總部最下層部門">
+          {organizationPlacementOptions.map(unit => (
+            <option key={unit.id} value={toOrganizationSelectionValue(unit.id)}>
+              {unit.code} {unit.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+
   const loadEmployees = async () => {
     const supabase = (await import('@/lib/supabase/client')).createClient();
     
@@ -350,7 +450,6 @@ export default function EmployeeMovementManagementPage() {
           store_name
         )
       `)
-      .not('store_id', 'is', null)
       .order('movement_date', { ascending: true })
       .limit(500);
 
@@ -728,10 +827,17 @@ export default function EmployeeMovementManagementPage() {
           const rawMovementType = (row['異動類型'] || row['movement_type'] || '').toString().trim();
           const movement_type = (movementTypeLabelMap[rawMovementType] || rawMovementType) as MovementType | '';
 
-          // 任職門市：支援門市代號（如 0058）或 UUID，優先用代號對應
+          // 任職門市：支援門市代號、總部部門代碼或 UUID，優先用代號對應
           const rawStoreCode = (row['任職門市ID'] || row['store_id'] || '').toString().trim();
           const storeByCode = stores.find(s => s.store_code === rawStoreCode);
-          const store_id = storeByCode ? storeByCode.id : rawStoreCode;
+          const organizationByCode = organizationPlacementOptions.find(
+            unit => unit.code === rawStoreCode || unit.name === rawStoreCode
+          );
+          const store_id = storeByCode
+            ? storeByCode.id
+            : organizationByCode
+              ? toOrganizationSelectionValue(organizationByCode.id)
+              : rawStoreCode;
 
           // 模糊查找生日欄位：只要 key 包含「生日」或「出生年月日」即命中（容忍全形斜線/空格差異）
           const birthdayKey = Object.keys(row).find(k => k.includes('生日') || k.includes('出生年月日'));
@@ -767,7 +873,7 @@ export default function EmployeeMovementManagementPage() {
   const handleExcelExport = () => {
     const exportData = movements.map(m => {
       const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
-      const storeName = stores.find(s => s.id === m.store_id)?.name || '';
+      const storeName = getWorkLocationLabel(m.store_id);
       const fromStoreName = stores.find(s => s.id === m.from_store_id)?.name || '';
       const toStoreName = stores.find(s => s.id === m.to_store_id)?.name || '';
       return {
@@ -845,7 +951,7 @@ export default function EmployeeMovementManagementPage() {
       { '欄位': '姓名', '是否必填': '必填', '說明': '員工姓名。' },
       { '欄位': '異動類型', '是否必填': '必填', '說明': '可填：入職、升職、留職停薪、復職、過試用期、離職、調店。' },
       { '欄位': '生效日期', '是否必填': '必填', '說明': '建議格式 YYYY-MM-DD，例如 2026-08-01。' },
-      { '欄位': '任職門市ID', '是否必填': '入職必填', '說明': '可填門市代號，例如 0058；若使用 UUID 也可匯入。' },
+      { '欄位': '任職門市ID', '是否必填': '入職必填', '說明': '可填門市代號，例如 0058；總部人員可填公司組織最下層部門代碼。若使用 UUID 也可匯入。' },
       { '欄位': '是否為藥師', '是否必填': '入職建議填寫', '說明': '可填 是/否 或 TRUE/FALSE。' },
       { '欄位': '生日', '是否必填': '入職必填', '說明': '必須為 YYYY-MM-DD，例如 1990-01-15。' },
       { '欄位': '職位', '是否必填': '升職必填', '說明': `可參考系統職位選項：${PROMOTION_POSITION_OPTIONS.join('、')}。` },
@@ -1099,10 +1205,14 @@ export default function EmployeeMovementManagementPage() {
                           onChange={(e) => updateRow(index, 'store_id', e.target.value)}
                           className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
                         >
-                          <option value="">請選擇門市</option>
-                          {stores.map(store => (
-                            <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
-                          ))}
+                          {movement.movement_type === 'onboarding' ? renderOnboardingLocationOptions() : (
+                            <>
+                              <option value="">請選擇門市</option>
+                              {stores.map(store => (
+                                <option key={store.id} value={store.id}>{store.store_code} {store.name}</option>
+                              ))}
+                            </>
+                          )}
                         </select>
                       )}
                     </td>
