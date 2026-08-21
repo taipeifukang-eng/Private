@@ -45,6 +45,46 @@ type OrganizationManagerAssignment = {
 type Mode = 'overview' | 'departments';
 type DrawerMode = 'summary' | 'edit';
 type EditorTab = 'basic' | 'managers' | 'members';
+type DepartmentWorkspaceTab = 'overview' | 'members' | 'responsibilities' | 'handover';
+type ResponsibilityView = 'work' | 'person';
+type AssignmentType = 'PRIMARY' | 'COLLABORATOR' | 'BACKUP';
+
+type WorkCategory = {
+  id: string;
+  name: string;
+  status: 'active' | 'inactive';
+};
+
+type WorkAssignment = {
+  id: string;
+  user_id: string;
+  assignment_type: AssignmentType;
+  effective_from: string;
+  effective_to: string | null;
+  status: 'active' | 'inactive';
+  user: OrganizationUser | null;
+};
+
+type WorkItem = {
+  id: string;
+  organization_unit_id: string;
+  category_id: string | null;
+  title: string;
+  work_type: 'fixed' | 'recurring' | 'project';
+  importance: 'normal' | 'important' | 'critical';
+  status: 'active' | 'inactive';
+  purpose: string | null;
+  execution_context: string | null;
+  completion_standard: string | null;
+  notes: string | null;
+  related_resources: string | null;
+  handover_focus: string | null;
+  required_systems: string | null;
+  important_contacts: string | null;
+  handover_notes: string | null;
+  category: WorkCategory | null;
+  assignments: WorkAssignment[];
+};
 
 type Props = {
   mode: Mode;
@@ -71,6 +111,31 @@ const EDITOR_TAB_LABEL: Record<EditorTab, string> = {
   basic: '基本資料',
   managers: '主管設定',
   members: '組織成員',
+};
+
+const DEPARTMENT_TAB_LABEL: Record<DepartmentWorkspaceTab, string> = {
+  overview: '部門概況',
+  members: '部門成員',
+  responsibilities: '工作職掌',
+  handover: '工作交接',
+};
+
+const ASSIGNMENT_TYPE_LABEL: Record<AssignmentType, string> = {
+  PRIMARY: '主責',
+  COLLABORATOR: '協作',
+  BACKUP: '代理',
+};
+
+const WORK_TYPE_LABEL: Record<WorkItem['work_type'], string> = {
+  fixed: '固定職掌',
+  recurring: '週期工作',
+  project: '專案工作',
+};
+
+const IMPORTANCE_LABEL: Record<WorkItem['importance'], string> = {
+  normal: '一般',
+  important: '重要',
+  critical: '關鍵',
 };
 
 function userLabel(user: OrganizationUser | null | undefined) {
@@ -198,6 +263,16 @@ export default function OrganizationManagementClient({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [departmentTab, setDepartmentTab] = useState<DepartmentWorkspaceTab>('overview');
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
+  const [workCategories, setWorkCategories] = useState<WorkCategory[]>([]);
+  const [workLoading, setWorkLoading] = useState(false);
+  const [workSearch, setWorkSearch] = useState('');
+  const [workCategoryFilter, setWorkCategoryFilter] = useState('all');
+  const [workStatusFilter, setWorkStatusFilter] = useState<'all' | 'normal' | 'missing_primary' | 'missing_backup'>('all');
+  const [responsibilityView, setResponsibilityView] = useState<ResponsibilityView>('work');
+  const [workDrawerOpen, setWorkDrawerOpen] = useState(false);
+  const [personDrawerUser, setPersonDrawerUser] = useState<OrganizationUser | null>(null);
   const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
   const workingUnits = hierarchyDraftUnits || units;
@@ -214,6 +289,8 @@ export default function OrganizationManagementClient({
     if (selectedUnitId) return unitById.get(selectedUnitId) || null;
     return organizationRoots[0] || rootUnits[0] || null;
   }, [organizationRoots, rootUnits, selectedUnitId, unitById]);
+  const selectedChildren = useMemo(() => selectedUnit ? childrenByParent.get(selectedUnit.id) || [] : [], [childrenByParent, selectedUnit]);
+  const selectedParent = useMemo(() => selectedUnit?.parent_id ? unitById.get(selectedUnit.parent_id) || null : null, [selectedUnit, unitById]);
   const drawerUnit = useMemo(() => drawerUnitId ? unitById.get(drawerUnitId) || null : null, [drawerUnitId, unitById]);
   const hierarchyChangeCount = useMemo(() => {
     if (!hierarchyDraftUnits) return 0;
@@ -248,6 +325,29 @@ export default function OrganizationManagementClient({
       user.job_title,
     ].some(value => String(value || '').toLowerCase().includes(term)));
   }, [userSearch, users]);
+  const departmentMembers = useMemo(() => selectedUnit?.members.map(member => member.user).filter(Boolean) as OrganizationUser[] || [], [selectedUnit]);
+  const filteredWorkItems = useMemo(() => {
+    const term = workSearch.trim().toLowerCase();
+    return workItems.filter(item => {
+      const primary = item.assignments.filter(assignment => assignment.assignment_type === 'PRIMARY' && assignment.status === 'active' && !assignment.effective_to);
+      const backup = item.assignments.filter(assignment => assignment.assignment_type === 'BACKUP' && assignment.status === 'active' && !assignment.effective_to);
+      const responsibilityStatus = primary.length === 0 ? 'missing_primary' : backup.length === 0 ? 'missing_backup' : 'normal';
+      const categoryMatches = workCategoryFilter === 'all' || item.category_id === workCategoryFilter;
+      const statusMatches = workStatusFilter === 'all' || responsibilityStatus === workStatusFilter;
+      const textMatches = !term || [
+        item.title,
+        item.category?.name,
+        item.purpose,
+        ...item.assignments.map(assignment => userLabel(assignment.user)),
+      ].some(value => String(value || '').toLowerCase().includes(term));
+      return categoryMatches && statusMatches && textMatches;
+    });
+  }, [workCategoryFilter, workItems, workSearch, workStatusFilter]);
+  const workSummary = useMemo(() => {
+    const missingPrimary = workItems.filter(item => !item.assignments.some(assignment => assignment.assignment_type === 'PRIMARY' && assignment.status === 'active' && !assignment.effective_to)).length;
+    const missingBackup = workItems.filter(item => !item.assignments.some(assignment => assignment.assignment_type === 'BACKUP' && assignment.status === 'active' && !assignment.effective_to)).length;
+    return { total: workItems.length, missingPrimary, missingBackup, handovers: 0 };
+  }, [workItems]);
 
   useEffect(() => {
     loadData();
@@ -256,6 +356,15 @@ export default function OrganizationManagementClient({
   useEffect(() => {
     loadUsers();
   }, []);
+
+  useEffect(() => {
+    if (mode !== 'departments') return;
+    const params = new URLSearchParams(window.location.search);
+    const unitId = params.get('unit');
+    const tab = params.get('tab') as DepartmentWorkspaceTab | null;
+    if (unitId) setSelectedUnitId(unitId);
+    if (tab && tab in DEPARTMENT_TAB_LABEL) setDepartmentTab(tab);
+  }, [mode]);
 
   useEffect(() => {
     setExpandedIds(previous => {
@@ -273,7 +382,13 @@ export default function OrganizationManagementClient({
       if (!response.ok) throw new Error(result.error || '載入組織資料失敗');
       setUnits(result.units || []);
       setHierarchyDraftUnits(null);
-      if (!selectedUnitId && result.units?.[0]) setSelectedUnitId(result.units[0].id);
+      if (!selectedUnitId && result.units?.[0]) {
+        const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const preferredUnitId = params?.get('unit');
+        const preferredUnit = preferredUnitId ? result.units.find((unit: OrganizationUnit) => unit.id === preferredUnitId) : null;
+        const firstDepartment = result.units.find((unit: OrganizationUnit) => unit.type === 'department');
+        setSelectedUnitId(preferredUnit?.id || (mode === 'departments' ? firstDepartment?.id : result.units[0].id) || result.units[0].id);
+      }
     } catch (error) {
       alert(error instanceof Error ? error.message : '載入組織資料失敗');
     } finally {
@@ -288,6 +403,64 @@ export default function OrganizationManagementClient({
       if (response.ok) setUsers(result.users || []);
     } catch (error) {
       console.error('載入人員失敗:', error);
+    }
+  }
+
+  async function loadWorkItems(departmentId: string) {
+    setWorkLoading(true);
+    try {
+      const response = await fetch(`/api/department-workspace/work-items?department_id=${departmentId}`, { cache: 'no-store' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '載入工作職掌失敗');
+      setWorkItems(result.items || []);
+      setWorkCategories(result.categories || []);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '載入工作職掌失敗');
+    } finally {
+      setWorkLoading(false);
+    }
+  }
+
+  async function saveWorkItem(formData: FormData) {
+    if (!selectedUnit || selectedUnit.type !== 'department') return;
+    setSaving(true);
+    try {
+      const assignments = [
+        ...Array.from(formData.getAll('primary_user_ids')).map(userId => ({ user_id: String(userId), assignment_type: 'PRIMARY' })),
+        ...Array.from(formData.getAll('collaborator_user_ids')).map(userId => ({ user_id: String(userId), assignment_type: 'COLLABORATOR' })),
+        ...Array.from(formData.getAll('backup_user_ids')).map(userId => ({ user_id: String(userId), assignment_type: 'BACKUP' })),
+      ].filter(assignment => assignment.user_id);
+      const payload = {
+        organization_unit_id: selectedUnit.id,
+        title: String(formData.get('title') || ''),
+        category_id: String(formData.get('category_id') || ''),
+        category_name: String(formData.get('category_name') || ''),
+        work_type: String(formData.get('work_type') || 'fixed'),
+        importance: String(formData.get('importance') || 'normal'),
+        purpose: String(formData.get('purpose') || ''),
+        execution_context: String(formData.get('execution_context') || ''),
+        completion_standard: String(formData.get('completion_standard') || ''),
+        notes: String(formData.get('notes') || ''),
+        related_resources: String(formData.get('related_resources') || ''),
+        handover_focus: String(formData.get('handover_focus') || ''),
+        required_systems: String(formData.get('required_systems') || ''),
+        important_contacts: String(formData.get('important_contacts') || ''),
+        handover_notes: String(formData.get('handover_notes') || ''),
+        assignments,
+      };
+      const response = await fetch('/api/department-workspace/work-items', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || '建立工作職掌失敗');
+      setWorkDrawerOpen(false);
+      await loadWorkItems(selectedUnit.id);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : '建立工作職掌失敗');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -598,6 +771,25 @@ export default function OrganizationManagementClient({
     return () => document.removeEventListener('click', handleDocumentClick, true);
   }, [hasHierarchyChanges, saveHierarchyChanges]);
 
+  useEffect(() => {
+    if (mode !== 'departments') return;
+    if (!selectedUnitId) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('unit', selectedUnitId);
+    params.set('tab', departmentTab);
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+  }, [departmentTab, mode, selectedUnitId]);
+
+  useEffect(() => {
+    if (mode !== 'departments') return;
+    if (selectedUnit?.type === 'department') {
+      loadWorkItems(selectedUnit.id);
+      return;
+    }
+    setWorkItems([]);
+    setWorkCategories([]);
+  }, [mode, selectedUnit?.id, selectedUnit?.type]);
+
   function renderCompactTree(nodes: OrganizationUnit[], depth = 0) {
     return nodes.map(unit => {
       const children = childrenByParent.get(unit.id) || [];
@@ -857,6 +1049,307 @@ export default function OrganizationManagementClient({
     );
   }
 
+  function getActiveAssignments(item: WorkItem, type: AssignmentType) {
+    return item.assignments.filter(assignment => assignment.assignment_type === type && assignment.status === 'active' && !assignment.effective_to);
+  }
+
+  function getResponsibilityStatus(item: WorkItem) {
+    const primaryCount = getActiveAssignments(item, 'PRIMARY').length;
+    const backupCount = getActiveAssignments(item, 'BACKUP').length;
+    if (primaryCount === 0) return { label: '無主責', className: 'bg-red-50 text-red-700 border-red-200' };
+    if (backupCount === 0) return { label: '無代理', className: 'bg-amber-50 text-amber-700 border-amber-200' };
+    return { label: '正常', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  }
+
+  function countUserAssignments(userId: string, type: AssignmentType) {
+    return workItems.reduce((count, item) => count + (item.assignments.some(assignment => assignment.user_id === userId && assignment.assignment_type === type && assignment.status === 'active' && !assignment.effective_to) ? 1 : 0), 0);
+  }
+
+  function renderWorkspaceTree(nodes: OrganizationUnit[], depth = 0): React.ReactNode {
+    return nodes.map(unit => {
+      const children = childrenByParent.get(unit.id) || [];
+      const active = selectedUnit?.id === unit.id;
+      const expanded = expandedIds.has(unit.id);
+      return (
+        <div key={unit.id}>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedUnitId(unit.id);
+              if (children.length > 0) setExpandedIds(previous => new Set(previous).add(unit.id));
+            }}
+            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors ${active ? 'bg-blue-50 text-blue-800 ring-1 ring-blue-200' : 'text-gray-700 hover:bg-gray-50'}`}
+            style={{ paddingLeft: `${12 + depth * 18}px` }}
+          >
+            <span onClick={(event) => { event.stopPropagation(); toggleExpanded(unit.id); }} className="rounded p-0.5 text-gray-400 hover:bg-gray-100">
+              {children.length ? (expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />) : <ChevronRight size={15} className="text-transparent" />}
+            </span>
+            <Building2 size={15} className={active ? 'text-blue-600' : 'text-gray-400'} />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-medium">{unit.name}</span>
+              <span className="block truncate font-mono text-xs text-gray-500">{unit.code}</span>
+            </span>
+          </button>
+          {expanded && children.length > 0 && <div className="mt-1 space-y-1">{renderWorkspaceTree(children, depth + 1)}</div>}
+        </div>
+      );
+    });
+  }
+
+  function renderSelectedUnitDetail() {
+    if (!selectedUnit) return <div className="rounded-lg border border-gray-200 bg-white p-10 text-center text-gray-500">請先選擇組織單位</div>;
+
+    const managerText = selectedUnit.managers.filter(manager => manager.manager_role === 'manager').map(manager => userLabel(manager.user)).join('、') || '尚未設定';
+    const deputyText = selectedUnit.managers.filter(manager => manager.manager_role !== 'manager').map(manager => `${MANAGER_ROLE_LABEL[manager.manager_role]}：${userLabel(manager.user)}`).join('、') || '尚未設定';
+
+    if (selectedUnit.type !== 'department') {
+      return (
+        <section className="rounded-lg border border-gray-200 bg-white">
+          <div className="border-b border-gray-200 px-6 py-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 text-sm font-medium text-gray-500">{UNIT_TYPE_LABEL[selectedUnit.type]}</div>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedUnit.name}</h2>
+                <p className="mt-1 text-sm text-gray-500">上層：{selectedParent?.name || '無'} · 代碼：{selectedUnit.code}</p>
+              </div>
+              {canEditDepartment && <button type="button" onClick={() => setEditingUnit(selectedUnit)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"><Edit2 size={16} className="mr-1 inline" />編輯</button>}
+            </div>
+          </div>
+          <div className="grid gap-4 p-6 md:grid-cols-3">
+            <InfoCard label="下層組織" value={`${selectedChildren.length} 個`} />
+            <InfoCard label="直屬成員" value={`${selectedUnit.members.length} 人`} />
+            <InfoCard label="狀態" value={selectedUnit.status === 'active' ? '啟用' : '停用'} />
+          </div>
+          <div className="border-t border-gray-100 p-6">
+            <h3 className="mb-3 font-semibold text-gray-900">下層組織</h3>
+            {selectedChildren.length === 0 ? <p className="text-sm text-gray-500">目前沒有下層組織。</p> : (
+              <div className="grid gap-3 md:grid-cols-2">
+                {selectedChildren.map(child => (
+                  <button key={child.id} type="button" onClick={() => setSelectedUnitId(child.id)} className="rounded-lg border border-gray-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
+                    <div className="font-semibold text-gray-900">{child.name}</div>
+                    <div className="mt-1 text-xs text-gray-500">{child.code} · {UNIT_TYPE_LABEL[child.type]}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      );
+    }
+
+    return (
+      <section className="rounded-lg border border-gray-200 bg-white">
+        <div className="border-b border-gray-200 px-6 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">{selectedUnit.name}</h2>
+              <p className="mt-1 text-sm text-gray-500">上層組織：{selectedParent?.name || '未設定'} · 主管：{managerText}</p>
+              <p className="mt-3 text-sm font-medium text-gray-700">{selectedUnit.members.length} 位成員 ｜ {workSummary.total} 項工作職掌 ｜ {workSummary.handovers} 項交接中</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {canEditDepartment && <button type="button" onClick={() => setEditingUnit(selectedUnit)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"><Edit2 size={16} className="mr-1 inline" />編輯部門</button>}
+              {canManageMembers && <button type="button" onClick={() => setMemberUnit(selectedUnit)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"><Users size={16} className="mr-1 inline" />成員</button>}
+              {canManageManagers && <button type="button" onClick={() => setManagerUnit(selectedUnit)} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"><UserCog size={16} className="mr-1 inline" />主管</button>}
+            </div>
+          </div>
+        </div>
+        <div className="border-b border-gray-200 px-6">
+          <div className="flex gap-1 overflow-x-auto">
+            {(Object.keys(DEPARTMENT_TAB_LABEL) as DepartmentWorkspaceTab[]).map(tab => (
+              <button key={tab} type="button" onClick={() => setDepartmentTab(tab)} className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-semibold ${departmentTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900'}`}>
+                {DEPARTMENT_TAB_LABEL[tab]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="p-6">
+          {departmentTab === 'overview' && renderDepartmentOverview(managerText, deputyText)}
+          {departmentTab === 'members' && renderDepartmentMembers()}
+          {departmentTab === 'responsibilities' && renderResponsibilitiesTab()}
+          {departmentTab === 'handover' && renderHandoverTab()}
+        </div>
+      </section>
+    );
+  }
+
+  function renderDepartmentOverview(managerText: string, deputyText: string) {
+    if (!selectedUnit) return null;
+    return (
+      <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+        <section className="rounded-lg border border-gray-200 p-5">
+          <h3 className="mb-4 font-semibold text-gray-900">基本資訊</h3>
+          <dl className="grid gap-4 md:grid-cols-2">
+            <InfoCard label="部門名稱" value={selectedUnit.name} />
+            <InfoCard label="部門代碼" value={selectedUnit.code} />
+            <InfoCard label="上層組織" value={selectedParent?.name || '未設定'} />
+            <InfoCard label="部門主管" value={managerText} />
+            <InfoCard label="副主管／代理主管" value={deputyText} />
+            <InfoCard label="部門人數" value={`${selectedUnit.members.length} 人`} />
+            <InfoCard label="狀態" value={selectedUnit.status === 'active' ? '啟用' : '停用'} />
+            <InfoCard label="部門說明" value={selectedUnit.description || '未填寫'} />
+          </dl>
+        </section>
+        <section className="rounded-lg border border-gray-200 p-5">
+          <h3 className="mb-4 font-semibold text-gray-900">工作責任概況</h3>
+          {workLoading ? <p className="text-sm text-gray-500">載入工作職掌中...</p> : workItems.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center">
+              <p className="font-semibold text-gray-900">目前尚未建立工作職掌</p>
+              <p className="mt-2 text-sm text-gray-500">建立部門工作職掌後，可以在這裡快速掌握工作分配與人員責任狀況。</p>
+              <button type="button" onClick={() => { setDepartmentTab('responsibilities'); setWorkDrawerOpen(true); }} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">前往建立工作職掌</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <InfoCard label="工作職掌" value={`${workSummary.total}`} />
+              <InfoCard label="無主責" value={`${workSummary.missingPrimary}`} />
+              <InfoCard label="無代理" value={`${workSummary.missingBackup}`} />
+              <InfoCard label="交接中" value={`${workSummary.handovers}`} />
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  function renderDepartmentMembers() {
+    if (!selectedUnit) return null;
+    return (
+      <div className="overflow-hidden rounded-lg border border-gray-200">
+        <div className="grid grid-cols-12 gap-3 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
+          <div className="col-span-3">人員</div>
+          <div className="col-span-2">職稱</div>
+          <div className="col-span-2">組織角色</div>
+          <div className="col-span-1 text-right">主責</div>
+          <div className="col-span-1 text-right">協作</div>
+          <div className="col-span-1 text-right">代理</div>
+          <div className="col-span-2">狀態</div>
+        </div>
+        {selectedUnit.members.length === 0 ? <div className="px-4 py-10 text-center text-sm text-gray-500">此部門目前尚未設定成員。</div> : selectedUnit.members.map(member => {
+          const user = member.user;
+          const manager = selectedUnit.managers.find(item => item.user_id === member.user_id);
+          return (
+            <button key={member.id} type="button" onClick={() => user && setPersonDrawerUser(user)} className="grid w-full grid-cols-12 gap-3 border-t border-gray-100 px-4 py-3 text-left text-sm hover:bg-blue-50">
+              <div className="col-span-3 min-w-0">
+                <div className="truncate font-medium text-gray-900">{userLabel(user)}</div>
+                <div className="truncate text-xs text-gray-500">{user?.email || '-'}</div>
+              </div>
+              <div className="col-span-2 text-gray-600">{user?.job_title || '-'}</div>
+              <div className="col-span-2 text-gray-600">{manager ? MANAGER_ROLE_LABEL[manager.manager_role] : '部門成員'}</div>
+              <div className="col-span-1 text-right text-gray-900">{countUserAssignments(member.user_id, 'PRIMARY')}</div>
+              <div className="col-span-1 text-right text-gray-900">{countUserAssignments(member.user_id, 'COLLABORATOR')}</div>
+              <div className="col-span-1 text-right text-gray-900">{countUserAssignments(member.user_id, 'BACKUP')}</div>
+              <div className="col-span-2 text-gray-600">在職</div>
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderResponsibilitiesTab() {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold text-gray-900">工作職掌</h3>
+            <p className="mt-1 text-sm text-gray-500">管理{selectedUnit?.name}長期負責的工作，以及主責、協作與代理關係。</p>
+          </div>
+          <button type="button" onClick={() => setWorkDrawerOpen(true)} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+            <Plus size={16} className="mr-1 inline" />新增工作職掌
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative min-w-64 flex-1">
+            <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+            <input value={workSearch} onChange={(event) => setWorkSearch(event.target.value)} className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm" placeholder="搜尋工作" />
+          </div>
+          <select value={workCategoryFilter} onChange={(event) => setWorkCategoryFilter(event.target.value)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <option value="all">全部分類</option>
+            {workCategories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <select value={workStatusFilter} onChange={(event) => setWorkStatusFilter(event.target.value as typeof workStatusFilter)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <option value="all">全部責任狀態</option>
+            <option value="normal">正常</option>
+            <option value="missing_primary">無主責</option>
+            <option value="missing_backup">無代理</option>
+          </select>
+          <div className="rounded-lg border border-gray-300 p-1">
+            <button type="button" onClick={() => setResponsibilityView('work')} className={`rounded-md px-3 py-1.5 text-sm ${responsibilityView === 'work' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>工作視角</button>
+            <button type="button" onClick={() => setResponsibilityView('person')} className={`rounded-md px-3 py-1.5 text-sm ${responsibilityView === 'person' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}>人員視角</button>
+          </div>
+        </div>
+        {workLoading ? <div className="rounded-lg border border-gray-200 p-10 text-center text-gray-500">載入工作職掌中...</div> : responsibilityView === 'work' ? renderWorkView() : renderPersonResponsibilityView()}
+      </div>
+    );
+  }
+
+  function renderWorkView() {
+    if (filteredWorkItems.length === 0) return <div className="rounded-lg border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">目前尚未建立符合條件的工作職掌。</div>;
+    return (
+      <div className="overflow-hidden rounded-lg border border-gray-200">
+        <div className="grid grid-cols-12 gap-3 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600">
+          <div className="col-span-3">工作職掌</div>
+          <div className="col-span-2">分類</div>
+          <div className="col-span-2">主責</div>
+          <div className="col-span-1">協作</div>
+          <div className="col-span-1">代理</div>
+          <div className="col-span-1">重要程度</div>
+          <div className="col-span-2">責任狀態</div>
+        </div>
+        {filteredWorkItems.map(item => {
+          const status = getResponsibilityStatus(item);
+          const primary = getActiveAssignments(item, 'PRIMARY');
+          const collaborators = getActiveAssignments(item, 'COLLABORATOR');
+          const backups = getActiveAssignments(item, 'BACKUP');
+          return (
+            <div key={item.id} className="grid grid-cols-12 gap-3 border-t border-gray-100 px-4 py-3 text-sm">
+              <div className="col-span-3 font-medium text-gray-900">{item.title}</div>
+              <div className="col-span-2 text-gray-600">{item.category?.name || '-'}</div>
+              <div className="col-span-2 text-gray-700">{primary.map(assignment => userLabel(assignment.user)).join('、') || '-'}</div>
+              <div className="col-span-1 text-gray-700">{collaborators.length ? `${collaborators.length}人` : '-'}</div>
+              <div className="col-span-1 text-gray-700">{backups.map(assignment => userLabel(assignment.user)).join('、') || '-'}</div>
+              <div className="col-span-1 text-gray-700">{IMPORTANCE_LABEL[item.importance]}</div>
+              <div className="col-span-2"><span className={`rounded-full border px-2 py-1 text-xs font-medium ${status.className}`}>{status.label}</span></div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  function renderPersonResponsibilityView() {
+    if (departmentMembers.length === 0) return <div className="rounded-lg border border-dashed border-gray-300 p-10 text-center text-sm text-gray-500">此部門目前尚未設定成員。</div>;
+    return (
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {departmentMembers.map(user => (
+          <button key={user.id} type="button" onClick={() => setPersonDrawerUser(user)} className="rounded-lg border border-gray-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
+            <div className="font-semibold text-gray-900">{userLabel(user)}</div>
+            <div className="mt-1 text-sm text-gray-500">{user.job_title || '未填職稱'}</div>
+            <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+              <div><div className="font-semibold text-gray-900">{countUserAssignments(user.id, 'PRIMARY')}</div><div className="text-xs text-gray-500">主責</div></div>
+              <div><div className="font-semibold text-gray-900">{countUserAssignments(user.id, 'COLLABORATOR')}</div><div className="text-xs text-gray-500">協作</div></div>
+              <div><div className="font-semibold text-gray-900">{countUserAssignments(user.id, 'BACKUP')}</div><div className="text-xs text-gray-500">代理</div></div>
+            </div>
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  function renderHandoverTab() {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-xl font-semibold text-gray-900">工作交接</h3>
+          <p className="mt-1 text-sm text-gray-500">管理因調職、離職或責任調整產生的工作交接。</p>
+        </div>
+        <div className="flex gap-2">
+          {['進行中', '待確認', '已完成'].map(label => <button key={label} type="button" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{label}</button>)}
+        </div>
+        <div className="rounded-lg border border-dashed border-gray-300 p-12 text-center text-sm text-gray-500">目前沒有進行中的工作交接。</div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6 lg:p-8 flex items-center justify-center">
@@ -994,13 +1487,13 @@ export default function OrganizationManagementClient({
         </div>
       ) : (
         <div className="w-full">
-          <div className="flex items-center justify-between mb-8">
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
                 <Users className="text-blue-600" size={40} />
-                組織單位管理
+                部門工作台
               </h1>
-              <p className="text-gray-600">管理公司、總部、部門、主管及組織成員</p>
+              <p className="text-gray-600">管理公司、總部、部門、主管、組織成員與部門工作職掌</p>
             </div>
             <div className="flex items-center gap-3">
               <ShowInactiveToggle showInactive={showInactive} onToggle={() => setShowInactive(value => !value)} />
@@ -1017,28 +1510,30 @@ export default function OrganizationManagementClient({
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-            <div className="grid grid-cols-12 gap-4 px-6 py-3 text-sm font-semibold text-gray-700 bg-gray-50 border-b border-gray-200">
-              <div className="col-span-4">組織單位</div>
-              <div className="col-span-1">類型</div>
-              <div className="col-span-2">上層組織</div>
-              <div className="col-span-1">主管</div>
-              <div className="col-span-1 text-right">人員</div>
-              <div className="col-span-1">狀態</div>
-              <div className="col-span-2 text-center">操作</div>
-            </div>
-            <div className="divide-y divide-gray-200">
-              {organizationUnits.length === 0 && (
-                <div className="px-6 py-12 text-center text-gray-500">尚未建立組織單位</div>
-              )}
-              {organizationRoots.map(unit => renderManagementRow(unit))}
-              {companyUnits.length > 0 && unassignedUnits.length > 0 && (
-                <div className="bg-amber-50">
-                  <div className="px-6 py-3 text-sm font-semibold text-amber-900 border-b border-amber-100">未編輯上下層</div>
-                  {unassignedUnits.map(unit => renderManagementRow(unit))}
+          <div className="grid gap-6 xl:grid-cols-[minmax(260px,28%)_1fr]">
+            <aside className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="font-semibold text-gray-900">組織架構</h2>
+                  <p className="text-xs text-gray-500">選擇要管理的組織單位</p>
                 </div>
-              )}
-            </div>
+                <button type="button" onClick={expandAll} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50">展開</button>
+              </div>
+              <div className="max-h-[calc(100vh-260px)] space-y-1 overflow-auto pr-1">
+                {organizationRoots.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500">尚未建立組織單位</div>
+                ) : (
+                  renderWorkspaceTree(organizationRoots)
+                )}
+                {companyUnits.length > 0 && unassignedUnits.length > 0 && (
+                  <div className="mt-4 border-t border-amber-100 pt-3">
+                    <div className="mb-2 px-3 text-xs font-semibold text-amber-800">未編輯上下層</div>
+                    {renderWorkspaceTree(unassignedUnits)}
+                  </div>
+                )}
+              </div>
+            </aside>
+            <main className="min-w-0">{renderSelectedUnitDetail()}</main>
           </div>
         </div>
       )}
@@ -1121,6 +1616,24 @@ export default function OrganizationManagementClient({
           onSave={saveManagers}
         />
       )}
+      {mode === 'departments' && workDrawerOpen && selectedUnit?.type === 'department' && (
+        <WorkItemDrawer
+          department={selectedUnit}
+          categories={workCategories}
+          members={departmentMembers}
+          saving={saving}
+          onClose={() => setWorkDrawerOpen(false)}
+          onSave={saveWorkItem}
+        />
+      )}
+      {mode === 'departments' && personDrawerUser && selectedUnit?.type === 'department' && (
+        <PersonResponsibilityDrawer
+          user={personDrawerUser}
+          department={selectedUnit}
+          workItems={workItems}
+          onClose={() => setPersonDrawerUser(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1149,6 +1662,167 @@ function DrawerShell({ title, widthClass = 'max-w-xl', children, onClose }: {
         {children}
       </aside>
     </div>
+  );
+}
+
+function WorkItemDrawer({ department, categories, members, saving, onClose, onSave }: {
+  department: OrganizationUnit;
+  categories: WorkCategory[];
+  members: OrganizationUser[];
+  saving: boolean;
+  onClose: () => void;
+  onSave: (formData: FormData) => void;
+}) {
+  return (
+    <DrawerShell title="新增工作職掌" widthClass="max-w-5xl" onClose={onClose}>
+      <form action={onSave} className="space-y-6 p-6">
+        <section className="rounded-lg border border-gray-200 p-5">
+          <h4 className="mb-4 font-semibold text-gray-900">基本資料</h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">工作名稱 *</span>
+              <input name="title" required placeholder="例如：門市盤點管理" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">所屬部門 *</span>
+              <input value={department.name} readOnly className="w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-2" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">工作分類 *</span>
+              <select name="category_id" defaultValue="" className="w-full rounded-lg border border-gray-300 px-4 py-2">
+                <option value="">使用下方新增分類</option>
+                {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">新增分類</span>
+              <input name="category_name" placeholder="例如：庫存管理" className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">工作性質</span>
+              <select name="work_type" defaultValue="fixed" className="w-full rounded-lg border border-gray-300 px-4 py-2">
+                {Object.entries(WORK_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">重要程度</span>
+              <select name="importance" defaultValue="normal" className="w-full rounded-lg border border-gray-300 px-4 py-2">
+                {Object.entries(IMPORTANCE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-gray-200 p-5">
+          <h4 className="mb-4 font-semibold text-gray-900">責任分配</h4>
+          {members.length === 0 ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">此部門尚未設定有效成員，建立職掌前建議先設定部門成員。</div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <MemberMultiSelect name="primary_user_ids" label="主責人" members={members} />
+              <MemberMultiSelect name="collaborator_user_ids" label="協作人員" members={members} />
+              <MemberMultiSelect name="backup_user_ids" label="代理人" members={members} />
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-gray-200 p-5">
+          <h4 className="mb-4 font-semibold text-gray-900">工作內容</h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextAreaField name="purpose" label="工作目的／主要負責內容" placeholder="這項工作主要負責什麼？" />
+            <TextAreaField name="execution_context" label="執行情境" placeholder="通常什麼情況或時間需要執行？" />
+            <TextAreaField name="completion_standard" label="完成標準" placeholder="做到什麼程度代表這項工作已完成？" />
+            <TextAreaField name="notes" label="注意事項" placeholder="有哪些容易忽略或需要特別注意的事情？" />
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-sm font-medium text-gray-700">相關系統／文件</span>
+              <textarea name="related_resources" rows={3} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-gray-200 p-5">
+          <h4 className="mb-4 font-semibold text-gray-900">交接資訊</h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            <TextAreaField name="handover_focus" label="接手重點" placeholder="如果明天換人負責，接手者最需要知道什麼？" />
+            <TextAreaField name="required_systems" label="必要系統／權限" />
+            <TextAreaField name="important_contacts" label="重要聯絡窗口" />
+            <TextAreaField name="handover_notes" label="特殊注意事項" />
+          </div>
+        </section>
+
+        <div className="sticky bottom-0 -mx-6 -mb-6 flex justify-end gap-3 border-t border-gray-200 bg-white px-6 py-4">
+          <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-50">取消</button>
+          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
+            <Save size={18} />{saving ? '儲存中...' : '建立工作職掌'}
+          </button>
+        </div>
+      </form>
+    </DrawerShell>
+  );
+}
+
+function MemberMultiSelect({ name, label, members }: { name: string; label: string; members: OrganizationUser[] }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
+      <select name={name} multiple size={Math.min(8, Math.max(4, members.length))} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        {members.map(member => <option key={member.id} value={member.id}>{userLabel(member)} {member.job_title ? `｜${member.job_title}` : ''}</option>)}
+      </select>
+      <span className="mt-1 block text-xs text-gray-500">可按 Ctrl / Shift 多選</span>
+    </label>
+  );
+}
+
+function TextAreaField({ name, label, placeholder = '' }: { name: string; label: string; placeholder?: string }) {
+  return (
+    <label className="block">
+      <span className="mb-2 block text-sm font-medium text-gray-700">{label}</span>
+      <textarea name={name} rows={4} placeholder={placeholder} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+    </label>
+  );
+}
+
+function PersonResponsibilityDrawer({ user, department, workItems, onClose }: {
+  user: OrganizationUser;
+  department: OrganizationUnit;
+  workItems: WorkItem[];
+  onClose: () => void;
+}) {
+  const grouped = (['PRIMARY', 'COLLABORATOR', 'BACKUP'] as AssignmentType[]).reduce((result, type) => {
+    result[type] = workItems.filter(item => item.assignments.some(assignment => assignment.user_id === user.id && assignment.assignment_type === type && assignment.status === 'active' && !assignment.effective_to));
+    return result;
+  }, {} as Record<AssignmentType, WorkItem[]>);
+  const total = grouped.PRIMARY.length + grouped.COLLABORATOR.length + grouped.BACKUP.length;
+
+  return (
+    <DrawerShell title="人員職掌" widthClass="max-w-xl" onClose={onClose}>
+      <div className="space-y-6 p-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">{userLabel(user)}</h2>
+          <p className="mt-1 text-sm text-gray-500">{user.job_title || '未填職稱'}｜{department.name}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-3 text-center">
+          <InfoCard label="主責" value={`${grouped.PRIMARY.length}`} />
+          <InfoCard label="協作" value={`${grouped.COLLABORATOR.length}`} />
+          <InfoCard label="代理" value={`${grouped.BACKUP.length}`} />
+        </div>
+        {total === 0 ? (
+          <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm text-gray-500">此人員目前尚未被指派工作職掌。</div>
+        ) : (
+          (['PRIMARY', 'COLLABORATOR', 'BACKUP'] as AssignmentType[]).map(type => (
+            <section key={type} className="rounded-lg border border-gray-200 p-4">
+              <h4 className="mb-3 font-semibold text-gray-900">{ASSIGNMENT_TYPE_LABEL[type]}工作</h4>
+              {grouped[type].length === 0 ? <p className="text-sm text-gray-500">無</p> : grouped[type].map(item => (
+                <div key={item.id} className="border-t border-gray-100 py-2 first:border-t-0">
+                  <div className="font-medium text-gray-900">{item.title}</div>
+                  <div className="text-xs text-gray-500">{item.category?.name || '未分類'} · {IMPORTANCE_LABEL[item.importance]}</div>
+                </div>
+              ))}
+            </section>
+          ))
+        )}
+      </div>
+    </DrawerShell>
   );
 }
 
