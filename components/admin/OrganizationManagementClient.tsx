@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
-import { Building2, ChevronDown, ChevronRight, Edit2, Eye, EyeOff, GripVertical, Loader2, Plus, Save, Search, UserCog, Users, X } from 'lucide-react';
+import { AlertTriangle, Building2, ChevronDown, ChevronRight, Edit2, Eye, EyeOff, GripVertical, Home, Loader2, Maximize2, Navigation, Plus, Save, Search, SlidersHorizontal, UserCog, Users, X, ZoomIn, ZoomOut } from 'lucide-react';
 
 type OrganizationUnit = {
   id: string;
@@ -43,6 +43,8 @@ type OrganizationManagerAssignment = {
 };
 
 type Mode = 'overview' | 'departments';
+type DrawerMode = 'summary' | 'edit';
+type EditorTab = 'basic' | 'managers' | 'members';
 
 type Props = {
   mode: Mode;
@@ -63,6 +65,12 @@ const MANAGER_ROLE_LABEL: Record<OrganizationManagerAssignment['manager_role'], 
   manager: '主管',
   deputy_manager: '副主管',
   acting_manager: '代理主管',
+};
+
+const EDITOR_TAB_LABEL: Record<EditorTab, string> = {
+  basic: '基本資料',
+  managers: '主管設定',
+  members: '組織成員',
 };
 
 function userLabel(user: OrganizationUser | null | undefined) {
@@ -117,10 +125,46 @@ function buildChildrenByParent(units: OrganizationUnit[]) {
 }
 
 function orgChartNodeClass(unit: OrganizationUnit, depth: number) {
-  if (unit.type === 'company') return 'bg-orange-500 text-white border-orange-600';
-  if (depth === 1) return 'bg-slate-800 text-white border-slate-900';
-  if (unit.type === 'team') return 'bg-green-600 text-white border-green-700';
-  return 'bg-blue-600 text-white border-blue-700';
+  if (unit.status === 'inactive') return 'bg-gray-100 text-gray-500 border-gray-300 opacity-70';
+  if (unit.type === 'company') return 'bg-slate-900 text-white border-slate-950';
+  if (depth === 1) return 'bg-blue-900 text-white border-blue-950';
+  if (unit.type === 'team') return 'bg-white text-blue-800 border-blue-300';
+  return 'bg-indigo-700 text-white border-indigo-800';
+}
+
+function countDescendantMembers(unit: OrganizationUnit, childrenByParent: Map<string | null, OrganizationUnit[]>) {
+  const counted = new Set<string>();
+  const walk = (current: OrganizationUnit) => {
+    current.members.forEach(member => counted.add(member.user_id));
+    (childrenByParent.get(current.id) || []).forEach(walk);
+  };
+  walk(unit);
+  return counted.size;
+}
+
+function directChildrenCount(unit: OrganizationUnit, childrenByParent: Map<string | null, OrganizationUnit[]>) {
+  return (childrenByParent.get(unit.id) || []).length;
+}
+
+function isLegalParentFor(unit: OrganizationUnit, parent: OrganizationUnit | null, unitById: Map<string, OrganizationUnit>) {
+  if (unit.type === 'company') return parent === null;
+  if (!parent) return true;
+  if (parent.id === unit.id) return false;
+  if (parent.status === 'inactive') return false;
+  return !isDescendantOf(parent, unit.id, unitById);
+}
+
+function expandAncestors(unit: OrganizationUnit, unitById: Map<string, OrganizationUnit>) {
+  const ids = new Set<string>();
+  let current = unit.parent_id ? unitById.get(unit.parent_id) : undefined;
+  const visited = new Set<string>();
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    ids.add(current.id);
+    current = current.parent_id ? unitById.get(current.parent_id) : undefined;
+  }
+  ids.add(unit.id);
+  return ids;
 }
 
 export default function OrganizationManagementClient({
@@ -141,9 +185,20 @@ export default function OrganizationManagementClient({
   const [memberUnit, setMemberUnit] = useState<OrganizationUnit | null>(null);
   const [managerUnit, setManagerUnit] = useState<OrganizationUnit | null>(null);
   const [userSearch, setUserSearch] = useState('');
+  const [organizationSearch, setOrganizationSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | OrganizationUnit['type']>('all');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [draggingUnitId, setDraggingUnitId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [navigatorOpen, setNavigatorOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<DrawerMode | null>(null);
+  const [drawerUnitId, setDrawerUnitId] = useState<string | null>(null);
+  const [editorTab, setEditorTab] = useState<EditorTab>('basic');
+  const [adjustMode, setAdjustMode] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
 
   const workingUnits = hierarchyDraftUnits || units;
   const hasHierarchyChanges = Boolean(hierarchyDraftUnits);
@@ -159,6 +214,28 @@ export default function OrganizationManagementClient({
     if (selectedUnitId) return unitById.get(selectedUnitId) || null;
     return organizationRoots[0] || rootUnits[0] || null;
   }, [organizationRoots, rootUnits, selectedUnitId, unitById]);
+  const drawerUnit = useMemo(() => drawerUnitId ? unitById.get(drawerUnitId) || null : null, [drawerUnitId, unitById]);
+  const hierarchyChangeCount = useMemo(() => {
+    if (!hierarchyDraftUnits) return 0;
+    return hierarchyDraftUnits.filter(unit => {
+      const original = persistedUnitById.get(unit.id);
+      return original && ((original.parent_id || null) !== (unit.parent_id || null) || (original.sort_order || 0) !== (unit.sort_order || 0));
+    }).length;
+  }, [hierarchyDraftUnits, persistedUnitById]);
+  const filteredOrganizationUnits = useMemo(() => {
+    const term = organizationSearch.trim().toLowerCase();
+    return organizationUnits.filter(unit => {
+      const typeMatches = typeFilter === 'all' || unit.type === typeFilter;
+      if (!typeMatches) return false;
+      if (!term) return true;
+      return [
+        unit.name,
+        unit.code,
+        UNIT_TYPE_LABEL[unit.type],
+        buildUnitPath(unit, unitById),
+      ].some(value => value.toLowerCase().includes(term));
+    });
+  }, [organizationSearch, organizationUnits, typeFilter, unitById]);
 
   const filteredUsers = useMemo(() => {
     const term = userSearch.trim().toLowerCase();
@@ -236,6 +313,8 @@ export default function OrganizationManagementClient({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || '儲存失敗');
       setEditingUnit(null);
+      setDrawerMode(null);
+      setDrawerUnitId(null);
       await loadData();
     } catch (error) {
       alert(error instanceof Error ? error.message : '儲存失敗');
@@ -324,6 +403,59 @@ export default function OrganizationManagementClient({
       members: [],
       managers: [],
     });
+    setDrawerMode('edit');
+    setDrawerUnitId(null);
+    setEditorTab('basic');
+  }
+
+  function openSummary(unitId: string) {
+    const unit = unitById.get(unitId);
+    if (!unit) return;
+    setSelectedUnitId(unitId);
+    setDrawerUnitId(unitId);
+    setDrawerMode('summary');
+    setExpandedIds(previous => new Set([...Array.from(previous), ...Array.from(expandAncestors(unit, unitById))]));
+  }
+
+  function openEditor(unit: OrganizationUnit, tab: EditorTab = 'basic') {
+    setEditingUnit(unit);
+    setDrawerUnitId(unit.id);
+    setDrawerMode('edit');
+    setEditorTab(tab);
+  }
+
+  function locateUnit(unitId: string) {
+    const unit = unitById.get(unitId);
+    if (!unit) return;
+    setSelectedUnitId(unitId);
+    setExpandedIds(previous => new Set([...Array.from(previous), ...Array.from(expandAncestors(unit, unitById))]));
+    setDrawerUnitId(unitId);
+    setDrawerMode('summary');
+    setNavigatorOpen(false);
+  }
+
+  function expandAll() {
+    setExpandedIds(new Set(organizationUnits.map(unit => unit.id)));
+  }
+
+  function collapseToSecondLevel() {
+    const next = new Set<string>();
+    organizationRoots.forEach(root => {
+      next.add(root.id);
+      (childrenByParent.get(root.id) || []).forEach(child => next.add(child.id));
+    });
+    setExpandedIds(next);
+  }
+
+  function resetViewport() {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }
+
+  function enterAdjustMode() {
+    setAdjustMode(true);
+    setDrawerMode(null);
+    setNavigatorOpen(false);
   }
 
   function toggleExpanded(unitId: string) {
@@ -339,6 +471,7 @@ export default function OrganizationManagementClient({
     if (draggedUnit.id === parentId) return false;
     const parentUnit = unitById.get(parentId);
     if (!parentUnit) return false;
+    if (parentUnit.status === 'inactive') return false;
     return !isDescendantOf(parentUnit, draggedUnit.id, unitById);
   }
 
@@ -386,6 +519,20 @@ export default function OrganizationManagementClient({
       setHierarchyDraftUnits(null);
       return true;
     }
+
+    const summary = hierarchyDraftUnits
+      .map(unit => {
+        const original = persistedUnitById.get(unit.id);
+        if (!original || (original.parent_id || null) === (unit.parent_id || null)) return null;
+        const from = original.parent_id ? persistedUnitById.get(original.parent_id)?.name || '未設定上層' : '未設定上層';
+        const to = unit.parent_id ? (hierarchyDraftUnits.find(item => item.id === unit.parent_id)?.name || '未設定上層') : '未設定上層';
+        return `${unit.name}\n${from} → ${to}`;
+      })
+      .filter(Boolean)
+      .join('\n\n');
+
+    const confirmed = confirm(`即將儲存以下組織調整：\n\n${summary || `共 ${updates.length} 項排序調整`}\n\n組織調整可能影響主管的資料查看範圍、任務派發範圍及後續工作交接範圍。`);
+    if (!confirmed) return false;
 
     setSaving(true);
     try {
@@ -480,7 +627,7 @@ export default function OrganizationManagementClient({
     const children = childrenByParent.get(unit.id) || [];
     const active = selectedUnit?.id === unit.id;
     const expanded = expandedIds.has(unit.id);
-    const canDragUnit = canEditDepartment && unit.type !== 'company';
+    const canDragUnit = adjustMode && canEditDepartment && unit.type !== 'company';
     const draggedUnit = draggingUnitId ? unitById.get(draggingUnitId) : null;
     const canDrop = draggedUnit ? canDropOn(draggedUnit, unit.id) : false;
 
@@ -573,26 +720,46 @@ export default function OrganizationManagementClient({
             const draggedId = event.dataTransfer.getData('text/plain') || draggingUnitId;
             if (draggedId) moveUnit(draggedId, unit.id);
           }}
-          className={`group min-w-36 max-w-44 border px-3 py-2 text-center shadow-sm transition-all ${orgChartNodeClass(unit, depth)} ${
+          className={`group relative h-20 w-44 border px-3 py-2 text-center shadow-sm transition-all ${orgChartNodeClass(unit, depth)} ${
             canDragUnit ? 'cursor-grab active:cursor-grabbing' : ''
           } ${active ? 'ring-4 ring-blue-200' : ''} ${dropTargetId === unit.id ? 'ring-4 ring-amber-300 scale-105' : ''}`}
         >
-          <button type="button" onClick={() => setSelectedUnitId(unit.id)} className="block w-full min-w-0 text-center">
+          {unit.managers.length === 0 && (
+            <span title="尚未設定主管" className="absolute right-1.5 top-1.5 text-amber-300">
+              <AlertTriangle size={14} />
+            </span>
+          )}
+          {unit.status === 'inactive' && (
+            <span className="absolute left-1.5 top-1.5 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-600">停用</span>
+          )}
+          <button type="button" onClick={() => openSummary(unit.id)} title={unit.name} className="block w-full min-w-0 text-center">
             <span className="block truncate text-sm font-semibold leading-tight">{unit.name}</span>
             <span className="block truncate text-[11px] opacity-85">{unit.code}</span>
+            <span className="mt-1 block truncate text-[11px] opacity-85">
+              {directChildrenCount(unit, childrenByParent)} 個下層 | {countDescendantMembers(unit, childrenByParent)} 人
+            </span>
           </button>
           <div className="mt-1 flex items-center justify-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
             {canDragUnit && <GripVertical size={14} />}
             {canEditDepartment && (
-              <button type="button" onClick={() => setEditingUnit(unit)} className="rounded bg-white/15 p-1 hover:bg-white/25">
+              <button type="button" onClick={() => openEditor(unit)} className="rounded bg-white/15 p-1 hover:bg-white/25">
                 <Edit2 size={13} />
               </button>
             )}
           </div>
         </div>
 
-        {hasChildren && <div className="h-6 border-l border-blue-400" />}
         {hasChildren && (
+          <button
+            type="button"
+            onClick={() => toggleExpanded(unit.id)}
+            className="mt-1 rounded-full border border-blue-200 bg-white px-2 py-0.5 text-xs text-blue-700 shadow-sm hover:bg-blue-50"
+          >
+            {expandedIds.has(unit.id) ? '-' : `+${children.length}`}
+          </button>
+        )}
+        {hasChildren && expandedIds.has(unit.id) && <div className="h-5 border-l border-blue-400" />}
+        {hasChildren && expandedIds.has(unit.id) && (
           <div className="relative flex items-start gap-5 pt-6">
             <div className="absolute left-0 right-0 top-0 border-t border-blue-400" />
             {children.map(child => (
@@ -702,16 +869,22 @@ export default function OrganizationManagementClient({
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
       {mode === 'overview' ? (
         <div className="w-full">
-          <div className="flex items-center justify-between mb-8">
+          {unassignedUnits.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span>有 {unassignedUnits.length} 個組織單位尚未設定上層組織</span>
+              <button type="button" onClick={() => setNavigatorOpen(true)} className="font-semibold text-amber-900 underline">查看並處理</button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-4xl font-bold text-gray-900 mb-2 flex items-center gap-3">
                 <Building2 className="text-blue-600" size={40} />
                 公司組織
               </h1>
-              <p className="text-gray-600">新增部門、整理組織上下層，並用拖曳調整樹狀結構</p>
+              <p className="text-gray-600">查看及維護公司的部門、營業區、門市與上下層組織關係</p>
             </div>
             <div className="flex items-center gap-3">
-              <ShowInactiveToggle showInactive={showInactive} onToggle={() => setShowInactive(value => !value)} />
               {canCreateDepartment && (
                 <button
                   type="button"
@@ -719,126 +892,105 @@ export default function OrganizationManagementClient({
                   className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                 >
                   <Plus size={20} />
-                  新增部門
+                  新增組織單位
                 </button>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-            <div className="xl:col-span-3 space-y-6">
-              {renderUnassignedBlock()}
-              <section className="bg-white rounded-lg shadow-lg p-4">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">快速定位</h2>
-                <div className="space-y-1">{renderCompactTree(organizationRoots)}</div>
-              </section>
-            </div>
-
-            <section className="xl:col-span-6 bg-white rounded-lg shadow-lg p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900">組織樹</h2>
-                  {hasHierarchyChanges && <p className="text-sm text-amber-700 mt-1">拖曳調整尚未儲存</p>}
+          <section className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="border-b border-gray-200 p-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => setNavigatorOpen(true)} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <Navigation size={16} />組織導覽
+                </button>
+                <div className="relative min-w-64 flex-1">
+                  <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                  <input value={organizationSearch} onChange={(event) => setOrganizationSearch(event.target.value)} className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm" placeholder="搜尋組織單位..." />
                 </div>
-                <div className="flex items-center gap-2">
-                  {hasHierarchyChanges && (
-                    <button type="button" onClick={discardHierarchyChanges} disabled={saving} className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm">
-                      放棄變更
-                    </button>
-                  )}
-                  {canEditDepartment && (
-                    <button
-                      type="button"
-                      onClick={saveHierarchyChanges}
-                      disabled={!hasHierarchyChanges || saving}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:hover:bg-blue-600 text-sm font-semibold"
-                    >
-                      <Save size={16} />{saving ? '儲存中...' : '儲存組織調整'}
-                    </button>
-                  )}
-                </div>
+                <select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700">
+                  <option value="all">全部類型</option>
+                  {Object.entries(UNIT_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+                <ShowInactiveToggle showInactive={showInactive} onToggle={() => setShowInactive(value => !value)} />
               </div>
-              <div className="min-h-96 overflow-auto pb-4">
-                {organizationRoots.length === 0 ? (
-                  <div className="text-center text-gray-500 py-16">尚未建立公司組織</div>
-                ) : (
-                  <div className="flex min-w-max items-start justify-center gap-10 px-6 py-4">
-                    {organizationRoots.map(unit => renderChartNode(unit))}
-                  </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button type="button" onClick={expandAll} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">展開全部</button>
+                  <button type="button" onClick={collapseToSecondLevel} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50">收合至第二層</button>
+                  <button type="button" onClick={resetViewport} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><Maximize2 size={16} />適應畫面</button>
+                  <button type="button" onClick={() => { setSelectedUnitId(organizationRoots[0]?.id || null); resetViewport(); }} className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"><Home size={16} />回到公司</button>
+                  <button type="button" onClick={() => setZoom(value => Math.min(1.8, value + 0.1))} className="rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"><ZoomIn size={16} /></button>
+                  <button type="button" onClick={() => setZoom(value => Math.max(0.5, value - 0.1))} className="rounded-lg border border-gray-300 p-2 text-gray-700 hover:bg-gray-50"><ZoomOut size={16} /></button>
+                </div>
+                {canEditDepartment && (
+                  <button type="button" onClick={adjustMode ? () => setAdjustMode(false) : enterAdjustMode} className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${adjustMode ? 'bg-amber-600 text-white hover:bg-amber-700' : 'bg-blue-600 text-white hover:bg-blue-700'}`}>
+                    <SlidersHorizontal size={16} />{adjustMode ? '結束調整模式' : '組織調整'}
+                  </button>
                 )}
               </div>
-            </section>
-
-            <section className="xl:col-span-3 bg-white rounded-lg shadow-lg p-6">
-              {selectedUnit ? (
-                <div>
-                  <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-5 mb-5">
+              {adjustMode && (
+                <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900">{selectedUnit.name}</h2>
-                      <p className="text-sm text-gray-500 mt-1">{buildUnitPath(selectedUnit, unitById)}</p>
+                      <div className="font-semibold">組織調整模式</div>
+                      <div>拖曳組織單位至新的上層，所有變更尚未儲存。已變更 {hierarchyChangeCount} 項</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <StatusBadge status={selectedUnit.status} />
-                      {canEditDepartment && (
-                        <button type="button" onClick={() => setEditingUnit(selectedUnit)} className="p-2 text-gray-600 hover:bg-gray-100 rounded">
-                          <Edit2 size={18} />
-                        </button>
-                      )}
+                      {hasHierarchyChanges && <button type="button" onClick={discardHierarchyChanges} disabled={saving} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm text-amber-900 hover:bg-amber-100">放棄變更</button>}
+                      <button type="button" onClick={saveHierarchyChanges} disabled={!hasHierarchyChanges || saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+                        <Save size={16} />{saving ? '儲存中...' : '儲存組織調整'}
+                      </button>
                     </div>
                   </div>
+                </div>
+              )}
+            </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                    <InfoCard label="代碼" value={selectedUnit.code} />
-                    <InfoCard label="類型" value={UNIT_TYPE_LABEL[selectedUnit.type]} />
-                    <InfoCard label="上層組織" value={selectedUnit.parent_id ? unitById.get(selectedUnit.parent_id)?.name || '-' : '-'} />
-                    <InfoCard label="人數" value={String(selectedUnit.members.length)} />
+            <div
+              className={`h-[calc(100vh-260px)] min-h-[520px] overflow-auto bg-slate-50 ${isPanning ? 'cursor-grabbing' : 'cursor-grab'}`}
+              onMouseDown={(event) => {
+                if ((event.target as HTMLElement).closest('button,[draggable="true"],input,select')) return;
+                setIsPanning(true);
+                panStartRef.current = { x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y };
+              }}
+              onMouseMove={(event) => {
+                if (!isPanning || !panStartRef.current) return;
+                setPan({ x: panStartRef.current.panX + event.clientX - panStartRef.current.x, y: panStartRef.current.panY + event.clientY - panStartRef.current.y });
+              }}
+              onMouseUp={() => setIsPanning(false)}
+              onMouseLeave={() => setIsPanning(false)}
+              onWheel={(event) => {
+                if (event.ctrlKey) {
+                  event.preventDefault();
+                  setZoom(value => Math.max(0.5, Math.min(1.8, value - event.deltaY * 0.001)));
+                  return;
+                }
+                if (event.shiftKey) setPan(value => ({ ...value, x: value.x - event.deltaY }));
+              }}
+            >
+              {organizationRoots.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-center text-gray-500">
+                  <div>
+                    <div className="text-xl font-semibold text-gray-900">尚未建立公司組織</div>
+                    <p className="mt-2">請先建立公司，再新增部門、營業區及門市。</p>
+                    {canCreateDepartment && <button type="button" onClick={() => createDepartment(null)} className="mt-4 rounded-lg bg-blue-600 px-4 py-2 font-semibold text-white hover:bg-blue-700">建立公司</button>}
                   </div>
-
-                  <div className="grid grid-cols-1 gap-6">
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-gray-900">主管</h3>
-                        {canManageManagers && (
-                          <button type="button" onClick={() => setManagerUnit(selectedUnit)} className="text-sm text-indigo-700 hover:text-indigo-900">編輯</button>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        {selectedUnit.managers.length === 0 && <p className="text-sm text-gray-500">尚未設定主管</p>}
-                        {selectedUnit.managers.map(manager => (
-                          <div key={manager.id} className="flex items-center justify-between text-sm border border-gray-100 rounded p-2">
-                            <span className="font-medium text-gray-900">{userLabel(manager.user)}</span>
-                            <span className="text-xs text-blue-700 bg-blue-50 rounded px-2 py-1">
-                              {MANAGER_ROLE_LABEL[manager.manager_role]}{manager.is_primary ? ' / 主要' : ''}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="font-semibold text-gray-900">成員</h3>
-                        {canManageMembers && (
-                          <button type="button" onClick={() => setMemberUnit(selectedUnit)} className="text-sm text-blue-700 hover:text-blue-900">編輯</button>
-                        )}
-                      </div>
-                      <div className="space-y-2 max-h-72 overflow-y-auto">
-                        {selectedUnit.members.length === 0 && <p className="text-sm text-gray-500">尚未設定成員</p>}
-                        {selectedUnit.members.map(member => (
-                          <div key={member.id} className="grid grid-cols-2 gap-3 text-sm border border-gray-100 rounded p-2">
-                            <span className="font-medium text-gray-900">{userLabel(member.user)}</span>
-                            <span className="text-gray-600">{member.user?.job_title || '-'}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                </div>
+              ) : filteredOrganizationUnits.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-center text-gray-500">
+                  <div>
+                    <div className="text-xl font-semibold text-gray-900">找不到符合條件的組織單位</div>
+                    <p className="mt-2">請調整名稱、代碼或類型條件。</p>
                   </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-500 py-16">尚未建立組織資料</div>
+                <div className="flex min-h-full min-w-max items-start justify-center gap-10 p-10" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'top center' }}>
+                  {organizationRoots.map(unit => renderChartNode(unit))}
+                </div>
               )}
-            </section>
-          </div>
+            </div>
+          </section>
         </div>
       ) : (
         <div className="w-full">
@@ -891,12 +1043,60 @@ export default function OrganizationManagementClient({
         </div>
       )}
 
-      {editingUnit && (
+      {mode === 'departments' && editingUnit && (
         <UnitDialog
           unit={editingUnit}
           saving={saving}
           onClose={() => setEditingUnit(null)}
           onSave={saveUnit}
+        />
+      )}
+      {mode === 'overview' && drawerMode === 'summary' && drawerUnit && (
+        <OrganizationSummaryDrawer
+          unit={drawerUnit}
+          parent={drawerUnit.parent_id ? unitById.get(drawerUnit.parent_id) || null : null}
+          children={childrenByParent.get(drawerUnit.id) || []}
+          totalMembers={countDescendantMembers(drawerUnit, childrenByParent)}
+          canEdit={canEditDepartment}
+          onClose={() => setDrawerMode(null)}
+          onEdit={() => openEditor(drawerUnit)}
+        />
+      )}
+      {mode === 'overview' && drawerMode === 'edit' && editingUnit && (
+        <OrganizationEditorDrawer
+          unit={editingUnit}
+          units={organizationUnits}
+          unitById={unitById}
+          users={filteredUsers}
+          userSearch={userSearch}
+          activeTab={editorTab}
+          saving={saving}
+          canManageMembers={canManageMembers}
+          canManageManagers={canManageManagers}
+          onTabChange={setEditorTab}
+          onSearch={setUserSearch}
+          onClose={() => {
+            setEditingUnit(null);
+            setDrawerMode(drawerUnitId ? 'summary' : null);
+          }}
+          onSaveBasic={saveUnit}
+          onSaveMembers={saveMembers}
+          onSaveManagers={saveManagers}
+        />
+      )}
+      {navigatorOpen && (
+        <OrganizationNavigatorDrawer
+          units={filteredOrganizationUnits}
+          unitById={unitById}
+          selectedUnitId={selectedUnit?.id || null}
+          showInactive={showInactive}
+          search={organizationSearch}
+          typeFilter={typeFilter}
+          onSearch={setOrganizationSearch}
+          onTypeFilter={setTypeFilter}
+          onShowInactive={setShowInactive}
+          onClose={() => setNavigatorOpen(false)}
+          onSelect={locateUnit}
         />
       )}
       {memberUnit && (
@@ -930,6 +1130,320 @@ function StatusBadge({ status }: { status: OrganizationUnit['status'] }) {
     <span className={`inline-flex px-2 py-1 text-xs rounded-full ${status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
       {status === 'active' ? '啟用' : '停用'}
     </span>
+  );
+}
+
+function DrawerShell({ title, widthClass = 'max-w-xl', children, onClose }: {
+  title: string;
+  widthClass?: string;
+  children: React.ReactNode;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30">
+      <aside className={`h-full w-full ${widthClass} overflow-y-auto bg-white shadow-2xl`}>
+        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
+          <button type="button" onClick={onClose} className="rounded p-2 text-gray-500 hover:bg-gray-100"><X size={20} /></button>
+        </div>
+        {children}
+      </aside>
+    </div>
+  );
+}
+
+function OrganizationNavigatorDrawer({ units, unitById, selectedUnitId, showInactive, search, typeFilter, onSearch, onTypeFilter, onShowInactive, onClose, onSelect }: {
+  units: OrganizationUnit[];
+  unitById: Map<string, OrganizationUnit>;
+  selectedUnitId: string | null;
+  showInactive: boolean;
+  search: string;
+  typeFilter: 'all' | OrganizationUnit['type'];
+  onSearch: (value: string) => void;
+  onTypeFilter: (value: 'all' | OrganizationUnit['type']) => void;
+  onShowInactive: (value: boolean) => void;
+  onClose: () => void;
+  onSelect: (unitId: string) => void;
+}) {
+  return (
+    <DrawerShell title="組織導覽" widthClass="max-w-md" onClose={onClose}>
+      <div className="space-y-4 p-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+          <input value={search} onChange={(event) => onSearch(event.target.value)} className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3" placeholder="搜尋名稱、代碼或路徑" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <select value={typeFilter} onChange={(event) => onTypeFilter(event.target.value as 'all' | OrganizationUnit['type'])} className="rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <option value="all">全部類型</option>
+            {Object.entries(UNIT_TYPE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <label className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+            <input type="checkbox" checked={showInactive} onChange={(event) => onShowInactive(event.target.checked)} />
+            顯示停用
+          </label>
+        </div>
+        <div className="space-y-2">
+          {units.length === 0 && <div className="rounded-lg border border-gray-200 p-6 text-center text-sm text-gray-500">找不到符合條件的組織單位</div>}
+          {units.map(unit => (
+            <button
+              key={unit.id}
+              type="button"
+              onClick={() => onSelect(unit.id)}
+              className={`w-full rounded-lg border p-3 text-left hover:bg-blue-50 ${selectedUnitId === unit.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'}`}
+            >
+              <div className="font-semibold text-gray-900">{unit.name}</div>
+              <div className="mt-1 text-xs text-gray-500">{unit.code} | {UNIT_TYPE_LABEL[unit.type]}</div>
+              <div className="mt-1 text-xs text-gray-500">{buildUnitPath(unit, unitById).replaceAll(' / ', ' > ')}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </DrawerShell>
+  );
+}
+
+function OrganizationSummaryDrawer({ unit, parent, children, totalMembers, canEdit, onClose, onEdit }: {
+  unit: OrganizationUnit;
+  parent: OrganizationUnit | null;
+  children: OrganizationUnit[];
+  totalMembers: number;
+  canEdit: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const mainManagers = unit.managers.filter(manager => manager.manager_role === 'manager');
+  return (
+    <DrawerShell title="組織單位摘要" widthClass="max-w-lg" onClose={onClose}>
+      <div className="space-y-6 p-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">{unit.name}</h2>
+          <p className="mt-1 text-sm text-gray-500">{unit.code} | {UNIT_TYPE_LABEL[unit.type]}</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <InfoCard label="狀態" value={unit.status === 'active' ? '啟用' : '停用'} />
+          <InfoCard label="上層組織" value={parent?.name || '未設定'} />
+          <InfoCard label="直屬成員" value={`${unit.members.length} 人`} />
+          <InfoCard label="合計人數" value={`${totalMembers} 人`} />
+          <InfoCard label="下層組織" value={`${children.length} 個`} />
+          <InfoCard label="主管數" value={`${unit.managers.length} 人`} />
+        </div>
+        <section className="rounded-lg border border-gray-200 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">主管</h4>
+          {mainManagers.length === 0 ? <p className="text-sm text-amber-700">尚未設定主管</p> : mainManagers.map(manager => <p key={manager.id} className="text-sm text-gray-700">{userLabel(manager.user)}</p>)}
+        </section>
+        <section className="rounded-lg border border-gray-200 p-4">
+          <h4 className="mb-3 font-semibold text-gray-900">下層組織</h4>
+          {children.length === 0 ? <p className="text-sm text-gray-500">無</p> : children.map(child => <p key={child.id} className="text-sm text-gray-700">{child.name}</p>)}
+        </section>
+        {canEdit && <button type="button" onClick={onEdit} className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white hover:bg-blue-700">編輯組織單位</button>}
+      </div>
+    </DrawerShell>
+  );
+}
+
+function OrganizationEditorDrawer({ unit, units, unitById, users, userSearch, activeTab, saving, canManageMembers, canManageManagers, onTabChange, onSearch, onClose, onSaveBasic, onSaveMembers, onSaveManagers }: {
+  unit: OrganizationUnit;
+  units: OrganizationUnit[];
+  unitById: Map<string, OrganizationUnit>;
+  users: OrganizationUser[];
+  userSearch: string;
+  activeTab: EditorTab;
+  saving: boolean;
+  canManageMembers: boolean;
+  canManageManagers: boolean;
+  onTabChange: (tab: EditorTab) => void;
+  onSearch: (value: string) => void;
+  onClose: () => void;
+  onSaveBasic: (formData: FormData) => void;
+  onSaveMembers: (unit: OrganizationUnit, selectedUserIds: string[]) => void;
+  onSaveManagers: (unit: OrganizationUnit, assignments: Array<{ user_id: string; manager_role: string; is_primary: boolean }>) => void;
+}) {
+  const [selectedMembers, setSelectedMembers] = useState(() => new Set(unit.members.map(member => member.user_id)));
+  const [selectedManagers, setSelectedManagers] = useState(() => new Map(unit.managers.map(manager => [manager.user_id, manager.manager_role])));
+  const parentOptions = units.filter(candidate => candidate.id !== unit.id && isLegalParentFor(unit, candidate, unitById));
+
+  return (
+    <DrawerShell title={unit.id ? '編輯組織單位' : '新增組織單位'} widthClass="max-w-4xl" onClose={onClose}>
+      <div className="border-b border-gray-200 px-6 pt-4">
+        <div className="flex gap-2">
+          {(Object.keys(EDITOR_TAB_LABEL) as EditorTab[]).map(tab => (
+            <button key={tab} type="button" onClick={() => onTabChange(tab)} className={`border-b-2 px-4 py-3 text-sm font-semibold ${activeTab === tab ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900'}`}>
+              {EDITOR_TAB_LABEL[tab]}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="p-6">
+        {activeTab === 'basic' && (
+          <form action={onSaveBasic} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <input type="hidden" name="id" value={unit.id} />
+            <input type="hidden" name="type" value={unit.type || 'department'} />
+            <input type="hidden" name="sort_order" value={unit.sort_order || 0} />
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">組織名稱</span>
+              <input name="name" defaultValue={unit.name} required className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">組織代碼</span>
+              <input name="code" defaultValue={unit.code} required pattern="[A-Za-z0-9_-]{2,30}" className="w-full rounded-lg border border-gray-300 px-4 py-2 uppercase" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">組織類型</span>
+              <input value={UNIT_TYPE_LABEL[unit.type]} readOnly className="w-full rounded-lg border border-gray-300 bg-gray-100 px-4 py-2" />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">上層組織</span>
+              <select name="parent_id" defaultValue={unit.parent_id || ''} className="w-full rounded-lg border border-gray-300 px-4 py-2">
+                <option value="">未設定</option>
+                {parentOptions.map(parent => <option key={parent.id} value={parent.id}>{parent.name}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-medium text-gray-700">啟用狀態</span>
+              <select name="status" defaultValue={unit.status || 'active'} className="w-full rounded-lg border border-gray-300 px-4 py-2">
+                <option value="active">啟用</option>
+                <option value="inactive">停用</option>
+              </select>
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-2 block text-sm font-medium text-gray-700">組織說明</span>
+              <textarea name="description" defaultValue={unit.description || ''} rows={4} className="w-full rounded-lg border border-gray-300 px-4 py-2" />
+            </label>
+            <div className="md:col-span-2 flex justify-end gap-3 border-t border-gray-200 pt-4">
+              <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-6 py-2 text-gray-700 hover:bg-gray-50">取消</button>
+              <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50"><Save size={18} />{saving ? '儲存中...' : '儲存'}</button>
+            </div>
+          </form>
+        )}
+        {activeTab === 'managers' && (
+          <PickerPanel
+            users={users}
+            userSearch={userSearch}
+            saving={saving}
+            selected={selectedManagers}
+            mode="managers"
+            disabled={!canManageManagers}
+            onSearch={onSearch}
+            onManagerChange={setSelectedManagers}
+            onSave={() => onSaveManagers(unit, Array.from(selectedManagers.entries()).map(([user_id, manager_role], index) => ({ user_id, manager_role, is_primary: index === 0 })))}
+          />
+        )}
+        {activeTab === 'members' && (
+          <PickerPanel
+            users={users}
+            userSearch={userSearch}
+            saving={saving}
+            selected={selectedMembers}
+            mode="members"
+            disabled={!canManageMembers}
+            onSearch={onSearch}
+            onMemberChange={setSelectedMembers}
+            onSave={() => onSaveMembers(unit, Array.from(selectedMembers))}
+          />
+        )}
+      </div>
+    </DrawerShell>
+  );
+}
+
+function PickerPanel({ users, userSearch, saving, selected, mode, disabled, onSearch, onMemberChange, onManagerChange, onSave }: {
+  users: OrganizationUser[];
+  userSearch: string;
+  saving: boolean;
+  selected: Set<string> | Map<string, OrganizationManagerAssignment['manager_role']>;
+  mode: 'members' | 'managers';
+  disabled: boolean;
+  onSearch: (value: string) => void;
+  onMemberChange?: (value: Set<string>) => void;
+  onManagerChange?: (value: Map<string, OrganizationManagerAssignment['manager_role']>) => void;
+  onSave: () => void;
+}) {
+  const isManagers = mode === 'managers';
+
+  return (
+    <div className="space-y-4">
+      {disabled && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          目前帳號沒有{isManagers ? '主管設定' : '成員設定'}權限，僅能檢視。
+        </div>
+      )}
+      <div className="relative">
+        <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+        <input
+          value={userSearch}
+          onChange={(event) => onSearch(event.target.value)}
+          className="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4"
+          placeholder="搜尋姓名、員編、Email、部門或職稱"
+        />
+      </div>
+      <div className="max-h-[56vh] overflow-auto rounded-lg border border-gray-200">
+        <div className={`grid ${isManagers ? 'grid-cols-[minmax(220px,1.5fr)_150px_150px_120px]' : 'grid-cols-[minmax(220px,1.5fr)_150px_180px_90px]'} gap-3 border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold text-gray-600`}>
+          <span>人員</span>
+          <span>員工編號</span>
+          <span>{isManagers ? '主管角色' : '目前所屬組織'}</span>
+          <span className="text-right">選取</span>
+        </div>
+        {users.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-500">沒有符合條件的人員</div>
+        ) : users.map(user => {
+          const checked = isManagers ? selected instanceof Map && selected.has(user.id) : selected instanceof Set && selected.has(user.id);
+          return (
+            <div key={user.id} className="grid grid-cols-1 gap-3 border-b border-gray-100 px-4 py-3 text-sm last:border-b-0 md:grid-cols-[minmax(220px,1.5fr)_150px_180px_90px]">
+              <div className="min-w-0">
+                <p className="truncate font-medium text-gray-900">{userLabel(user)}</p>
+                <p className="truncate text-xs text-gray-500">{user.email || user.job_title || '-'}</p>
+              </div>
+              <div className="text-gray-600">{user.employee_code || '-'}</div>
+              {isManagers ? (
+                <select
+                  disabled={disabled || !checked}
+                  value={selected instanceof Map ? selected.get(user.id) || 'manager' : 'manager'}
+                  onChange={(event) => {
+                    if (!(selected instanceof Map) || !onManagerChange) return;
+                    const next = new Map(selected);
+                    next.set(user.id, event.target.value as OrganizationManagerAssignment['manager_role']);
+                    onManagerChange(next);
+                  }}
+                  className="rounded-lg border border-gray-300 px-3 py-2 disabled:bg-gray-100"
+                >
+                  <option value="manager">主管</option>
+                  <option value="deputy_manager">副主管</option>
+                  <option value="acting_manager">代理主管</option>
+                </select>
+              ) : (
+                <div className="text-gray-600">{user.department || '-'}</div>
+              )}
+              <label className="flex justify-end">
+                <input
+                  type="checkbox"
+                  disabled={disabled}
+                  checked={checked}
+                  onChange={(event) => {
+                    if (isManagers) {
+                      if (!(selected instanceof Map) || !onManagerChange) return;
+                      const next = new Map(selected);
+                      event.target.checked ? next.set(user.id, 'manager') : next.delete(user.id);
+                      onManagerChange(next);
+                    } else {
+                      if (!(selected instanceof Set) || !onMemberChange) return;
+                      const next = new Set(selected);
+                      event.target.checked ? next.add(user.id) : next.delete(user.id);
+                      onMemberChange(next);
+                    }
+                  }}
+                  className="h-5 w-5 rounded border-gray-300"
+                />
+              </label>
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
+        <button type="button" onClick={onSave} disabled={saving || disabled} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
+          <Save size={18} />{saving ? '儲存中...' : '儲存'}
+        </button>
+      </div>
+    </div>
   );
 }
 
