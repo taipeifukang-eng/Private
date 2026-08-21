@@ -1104,6 +1104,7 @@ export default function OrganizationManagementClient({
 
     const managerText = selectedUnit.managers.filter(manager => manager.manager_role === 'manager').map(manager => userLabel(manager.user)).join('、') || '尚未設定';
     const deputyText = selectedUnit.managers.filter(manager => manager.manager_role !== 'manager').map(manager => `${MANAGER_ROLE_LABEL[manager.manager_role]}：${userLabel(manager.user)}`).join('、') || '尚未設定';
+    const totalMemberCount = countDescendantMembers(selectedUnit, childrenByParent);
 
     if (selectedUnit.type !== 'department') {
       return (
@@ -1121,6 +1122,7 @@ export default function OrganizationManagementClient({
           <div className="grid gap-4 p-6 md:grid-cols-3">
             <InfoCard label="下層組織" value={`${selectedChildren.length} 個`} />
             <InfoCard label="直屬成員" value={`${selectedUnit.members.length} 人`} />
+            <InfoCard label="組織總人數" value={`${totalMemberCount} 人`} />
             <InfoCard label="狀態" value={selectedUnit.status === 'active' ? '啟用' : '停用'} />
           </div>
           <div className="border-t border-gray-100 p-6">
@@ -1131,6 +1133,7 @@ export default function OrganizationManagementClient({
                   <button key={child.id} type="button" onClick={() => setSelectedUnitId(child.id)} className="rounded-lg border border-gray-200 p-4 text-left hover:border-blue-300 hover:bg-blue-50">
                     <div className="font-semibold text-gray-900">{child.name}</div>
                     <div className="mt-1 text-xs text-gray-500">{child.code} · {UNIT_TYPE_LABEL[child.type]}</div>
+                    <div className="mt-2 text-xs text-gray-500">合計 {countDescendantMembers(child, childrenByParent)} 人</div>
                   </button>
                 ))}
               </div>
@@ -1147,7 +1150,10 @@ export default function OrganizationManagementClient({
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{selectedUnit.name}</h2>
               <p className="mt-1 text-sm text-gray-500">上層組織：{selectedParent?.name || '未設定'} · 主管：{managerText}</p>
-              <p className="mt-3 text-sm font-medium text-gray-700">{selectedUnit.members.length} 位成員 ｜ {workSummary.total} 項工作職掌 ｜ {workSummary.handovers} 項交接中</p>
+              <p className="mt-3 text-sm font-medium text-gray-700">{totalMemberCount} 位成員 ｜ {workSummary.total} 項工作職掌 ｜ {workSummary.handovers} 項交接中</p>
+              {totalMemberCount !== selectedUnit.members.length && (
+                <p className="mt-1 text-xs text-gray-500">直屬 {selectedUnit.members.length} 人，已包含下層組織成員</p>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               {canEditDepartment && <button type="button" onClick={() => setEditingUnit(selectedUnit)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"><Edit2 size={16} className="mr-1 inline" />編輯部門</button>}
@@ -1187,7 +1193,8 @@ export default function OrganizationManagementClient({
             <InfoCard label="上層組織" value={selectedParent?.name || '未設定'} />
             <InfoCard label="部門主管" value={managerText} />
             <InfoCard label="副主管／代理主管" value={deputyText} />
-            <InfoCard label="部門人數" value={`${selectedUnit.members.length} 人`} />
+            <InfoCard label="部門總人數" value={`${countDescendantMembers(selectedUnit, childrenByParent)} 人`} />
+            <InfoCard label="直屬成員" value={`${selectedUnit.members.length} 人`} />
             <InfoCard label="狀態" value={selectedUnit.status === 'active' ? '啟用' : '停用'} />
             <InfoCard label="部門說明" value={selectedUnit.description || '未填寫'} />
           </dl>
