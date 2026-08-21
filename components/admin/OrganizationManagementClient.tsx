@@ -116,6 +116,13 @@ function buildChildrenByParent(units: OrganizationUnit[]) {
   return childrenByParent;
 }
 
+function orgChartNodeClass(unit: OrganizationUnit, depth: number) {
+  if (unit.type === 'company') return 'bg-orange-500 text-white border-orange-600';
+  if (depth === 1) return 'bg-slate-800 text-white border-slate-900';
+  if (unit.type === 'team') return 'bg-green-600 text-white border-green-700';
+  return 'bg-blue-600 text-white border-blue-700';
+}
+
 export default function OrganizationManagementClient({
   mode,
   canCreateDepartment = false,
@@ -532,6 +539,74 @@ export default function OrganizationManagementClient({
     );
   }
 
+  function renderChartNode(unit: OrganizationUnit, depth = 0) {
+    const children = childrenByParent.get(unit.id) || [];
+    const active = selectedUnit?.id === unit.id;
+    const canDragUnit = canEditDepartment && unit.type !== 'company';
+    const draggedUnit = draggingUnitId ? unitById.get(draggingUnitId) : null;
+    const canDrop = draggedUnit ? canDropOn(draggedUnit, unit.id) : false;
+    const hasChildren = children.length > 0;
+
+    return (
+      <div key={unit.id} className="flex flex-col items-center">
+        <div
+          draggable={canDragUnit}
+          onDragStart={(event) => {
+            if (!canDragUnit) return;
+            event.dataTransfer.setData('text/plain', unit.id);
+            event.dataTransfer.effectAllowed = 'move';
+            setDraggingUnitId(unit.id);
+          }}
+          onDragEnd={() => {
+            setDraggingUnitId(null);
+            setDropTargetId(null);
+          }}
+          onDragOver={(event) => {
+            if (!canDrop) return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            setDropTargetId(unit.id);
+          }}
+          onDragLeave={() => setDropTargetId(current => current === unit.id ? null : current)}
+          onDrop={(event) => {
+            event.preventDefault();
+            const draggedId = event.dataTransfer.getData('text/plain') || draggingUnitId;
+            if (draggedId) moveUnit(draggedId, unit.id);
+          }}
+          className={`group min-w-36 max-w-44 border px-3 py-2 text-center shadow-sm transition-all ${orgChartNodeClass(unit, depth)} ${
+            canDragUnit ? 'cursor-grab active:cursor-grabbing' : ''
+          } ${active ? 'ring-4 ring-blue-200' : ''} ${dropTargetId === unit.id ? 'ring-4 ring-amber-300 scale-105' : ''}`}
+        >
+          <button type="button" onClick={() => setSelectedUnitId(unit.id)} className="block w-full min-w-0 text-center">
+            <span className="block truncate text-sm font-semibold leading-tight">{unit.name}</span>
+            <span className="block truncate text-[11px] opacity-85">{unit.code}</span>
+          </button>
+          <div className="mt-1 flex items-center justify-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            {canDragUnit && <GripVertical size={14} />}
+            {canEditDepartment && (
+              <button type="button" onClick={() => setEditingUnit(unit)} className="rounded bg-white/15 p-1 hover:bg-white/25">
+                <Edit2 size={13} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {hasChildren && <div className="h-6 border-l border-blue-400" />}
+        {hasChildren && (
+          <div className="relative flex items-start gap-5 pt-6">
+            <div className="absolute left-0 right-0 top-0 border-t border-blue-400" />
+            {children.map(child => (
+              <div key={child.id} className="relative flex flex-col items-center">
+                <div className="absolute -top-6 h-6 border-l border-blue-400" />
+                {renderChartNode(child, depth + 1)}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderUnassignedBlock() {
     return (
       <section
@@ -659,7 +734,7 @@ export default function OrganizationManagementClient({
               </section>
             </div>
 
-            <section className="xl:col-span-5 bg-white rounded-lg shadow-lg p-4">
+            <section className="xl:col-span-6 bg-white rounded-lg shadow-lg p-4">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900">組織樹</h2>
@@ -683,16 +758,18 @@ export default function OrganizationManagementClient({
                   )}
                 </div>
               </div>
-              <div className="space-y-2 min-h-96 overflow-x-auto pb-2">
+              <div className="min-h-96 overflow-auto pb-4">
                 {organizationRoots.length === 0 ? (
                   <div className="text-center text-gray-500 py-16">尚未建立公司組織</div>
                 ) : (
-                  organizationRoots.map(unit => renderDraggableNode(unit))
+                  <div className="flex min-w-max items-start justify-center gap-10 px-6 py-4">
+                    {organizationRoots.map(unit => renderChartNode(unit))}
+                  </div>
                 )}
               </div>
             </section>
 
-            <section className="xl:col-span-4 bg-white rounded-lg shadow-lg p-6">
+            <section className="xl:col-span-3 bg-white rounded-lg shadow-lg p-6">
               {selectedUnit ? (
                 <div>
                   <div className="flex flex-wrap items-start justify-between gap-4 border-b border-gray-200 pb-5 mb-5">
