@@ -5,6 +5,12 @@ interface PromotionPositionSyncInput {
   newbie_level?: string | null;
 }
 
+interface OnboardingPharmacistSyncInput {
+  employee_code: string;
+  effective_date: string;
+  is_pharmacist: boolean;
+}
+
 type SupabaseLikeClient = {
   from: (table: string) => any;
 };
@@ -225,5 +231,45 @@ export async function syncMovementEmployeeNameToMonthlyStaffStatus(
 
   if (error) {
     throw new Error(`同步月度人員姓名失敗：${error.message}`);
+  }
+}
+
+export async function syncOnboardingPharmacistToMonthlyStaffStatus(
+  supabase: SupabaseLikeClient,
+  inputs: OnboardingPharmacistSyncInput[]
+) {
+  const normalizedInputs = inputs
+    .map((input) => ({
+      employeeCode: normalizeEmployeeCode(input.employee_code),
+      targetYearMonth: getYearMonth(input.effective_date),
+      isPharmacist: Boolean(input.is_pharmacist),
+    }))
+    .filter((input) => input.employeeCode && /^\d{4}-\d{2}$/.test(input.targetYearMonth));
+
+  for (const input of normalizedInputs) {
+    const { error: employeeError } = await supabase
+      .from('store_employees')
+      .update({
+        is_pharmacist: input.isPharmacist,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('employee_code', input.employeeCode);
+
+    if (employeeError) {
+      throw new Error(`同步員工主檔藥師身分失敗：${employeeError.message}`);
+    }
+
+    const { error: monthlyError } = await supabase
+      .from('monthly_staff_status')
+      .update({
+        is_pharmacist: input.isPharmacist,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('employee_code', input.employeeCode)
+      .gte('year_month', input.targetYearMonth);
+
+    if (monthlyError) {
+      throw new Error(`同步月度人員藥師身分失敗：${monthlyError.message}`);
+    }
   }
 }
