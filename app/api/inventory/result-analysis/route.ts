@@ -412,6 +412,10 @@ function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
       source_item_id: item.id,
       recount_item_id: null,
       product_code: productCode,
+      initial_difference_qty: Number(item.difference_qty) || 0,
+      initial_cost: Number(item.cost) || 0,
+      recount_difference_qty: 0,
+      recount_cost: 0,
       report_kind: 'MERGED',
     });
   });
@@ -451,6 +455,10 @@ function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
       unit_cost: unitCost,
       stock_qty: stockQty,
       stock_amount: stockQty * unitCost,
+      initial_difference_qty: Number(existing?.initial_difference_qty ?? existing?.difference_qty) || 0,
+      initial_cost: Number(existing?.initial_cost ?? existing?.cost) || 0,
+      recount_difference_qty: (Number(existing?.recount_difference_qty) || 0) + recountDifferenceQty,
+      recount_cost: (Number(existing?.recount_cost) || 0) + recountCost,
       raw_data: {
         ...(existing?.raw_data || {}),
         recount_raw_data: item.raw_data || {},
@@ -467,6 +475,27 @@ function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
 
   return Array.from(mergedByProductCode.values())
     .sort((a, b) => String(a.product_code || '').localeCompare(String(b.product_code || ''), 'zh-TW', { numeric: true }));
+}
+
+function getInventoryResultCostBuckets(item: any) {
+  if (item?.report_kind === 'MERGED') {
+    const buckets = [
+      {
+        differenceQty: Number(item.initial_difference_qty) || 0,
+        cost: Number(item.initial_cost) || 0,
+      },
+      {
+        differenceQty: Number(item.recount_difference_qty) || 0,
+        cost: Number(item.recount_cost) || 0,
+      },
+    ];
+    return buckets.filter((bucket) => bucket.differenceQty !== 0 || bucket.cost !== 0);
+  }
+
+  return [{
+    differenceQty: Number(item?.difference_qty) || 0,
+    cost: Number(item?.cost) || 0,
+  }];
 }
 
 function getInventoryResultActualQty(item: any) {
@@ -700,6 +729,7 @@ export async function GET(request: NextRequest) {
       const code = category.code || 'NA';
       const differenceQty = Number(item.difference_qty) || 0;
       const cost = Number(item.cost) || 0;
+      const costBuckets = getInventoryResultCostBuckets(item);
       const stockAmount = Number(item.stock_amount) || 0;
       const current = categorySummaryMap.get(code) || {
         category_code: code,
@@ -718,8 +748,10 @@ export async function GET(request: NextRequest) {
       current.total_difference_qty += differenceQty;
       current.net_cost_total += cost;
       current.stock_amount_total += stockAmount;
-      if (differenceQty > 0) current.positive_cost_total += cost;
-      if (differenceQty < 0) current.negative_cost_total += cost;
+      costBuckets.forEach((bucket) => {
+        if (bucket.differenceQty > 0) current.positive_cost_total += bucket.cost;
+        if (bucket.differenceQty < 0) current.negative_cost_total += bucket.cost;
+      });
       current.total_difference_amount_member += Number(item.difference_amount_member) || 0;
       if (differenceQty < 0) current.shortage_count += 1;
       if (differenceQty > 0) current.surplus_count += 1;
@@ -729,8 +761,10 @@ export async function GET(request: NextRequest) {
         nonExcludedSummary.row_count += 1;
         nonExcludedSummary.net_cost_total += cost;
         nonExcludedSummary.stock_amount_total += stockAmount;
-        if (differenceQty > 0) nonExcludedSummary.positive_cost_total += cost;
-        if (differenceQty < 0) nonExcludedSummary.negative_cost_total += cost;
+        costBuckets.forEach((bucket) => {
+          if (bucket.differenceQty > 0) nonExcludedSummary.positive_cost_total += bucket.cost;
+          if (bucket.differenceQty < 0) nonExcludedSummary.negative_cost_total += bucket.cost;
+        });
       }
     });
 
