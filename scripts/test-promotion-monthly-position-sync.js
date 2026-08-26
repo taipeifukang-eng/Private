@@ -19,6 +19,12 @@ function assertNotIncludes(content, unexpected, label) {
   }
 }
 
+function assertMatches(content, pattern, label) {
+  if (!pattern.test(content)) {
+    throw new Error(`${label}: pattern not found`);
+  }
+}
+
 function run() {
   const helper = read('lib/monthly-staff/promotion-position-sync.ts');
   const employeeMovementsRoute = read('app/api/employee-movements/batch/route.ts');
@@ -35,6 +41,9 @@ function run() {
   assertIncludes(helper, ".eq('movement_type', 'promotion')", 'helper only considers promotion history');
   assertIncludes(helper, 'syncEmployeePromotionTimelineToMonthlyStaffStatus', 'helper can rebuild promotion timeline after edit');
   assertIncludes(helper, 'syncMovementEmployeeNameToMonthlyStaffStatus', 'helper can sync corrected movement names to monthly status');
+  assertIncludes(helper, 'syncOnboardingPharmacistToMonthlyStaffStatus', 'helper can sync onboarding pharmacist flag to monthly status');
+  assertIncludes(helper, 'is_pharmacist: input.isPharmacist', 'helper updates monthly pharmacist flag');
+  assertIncludes(helper, ".gte('year_month', input.targetYearMonth)", 'pharmacist sync starts at onboarding month');
   assertIncludes(helper, ".gte('year_month', affectedYearMonth)", 'timeline sync starts from affected month');
   assertIncludes(helper, "promotion.oldPosition", 'timeline sync can restore months before edited first promotion');
 
@@ -51,11 +60,16 @@ function run() {
   }
 
   assertIncludes(employeeMovementsRoute, 'promotionPositionSyncInputs.push', 'main route tracks promotion sync inputs');
+  assertIncludes(employeeMovementsRoute, 'onboardingPharmacistSyncInputs', 'main route tracks onboarding pharmacist sync inputs');
+  assertIncludes(employeeMovementsRoute, 'syncOnboardingPharmacistToMonthlyStaffStatus', 'main route calls onboarding pharmacist monthly sync');
   assertIncludes(employeeMovementsRoute, 'new_value: newValue', 'main route writes current movement schema');
   assertIncludes(employeeMovementsRoute, 'movement_date: movement.effective_date', 'main route writes movement_date');
+  assertMatches(employeeMovementsRoute, /adminSupabase\s*\n\s*\.from\('employee_movement_history'\)\s*\n\s*\.insert\(movementRecords\)/, 'main route inserts movement history through admin client after RBAC');
+  assertMatches(employeeMovementsRoute, /adminSupabase\s*\n\s*\.from\('store_employees'\)\s*\n\s*\.select\('position, current_position, store_id, employment_status'\)/, 'main route reads employee master through admin client after RBAC');
   assertIncludes(employeeMovementSingleRoute, 'export async function PATCH', 'single route supports movement editing');
   assertIncludes(employeeMovementSingleRoute, 'syncEmployeePromotionTimelineToMonthlyStaffStatus', 'single route rebuilds timeline after promotion edits');
   assertIncludes(employeeMovementSingleRoute, 'syncMovementEmployeeNameToMonthlyStaffStatus', 'single route syncs corrected names to monthly status');
+  assertIncludes(employeeMovementSingleRoute, 'syncOnboardingPharmacistToMonthlyStaffStatus', 'single route syncs corrected onboarding pharmacist flag');
   assertIncludes(employeeMovementSingleRoute, 'employee.movement.manage', 'single route accepts formal movement manage permission');
   assertIncludes(employeeMovementSingleRoute, 'employee.promotion.batch', 'single route preserves legacy promotion management access');
   assertIncludes(employeeMovementSingleRoute, '.neq(\'id\', params.id)', 'single route excludes current row in duplicate check');
@@ -79,6 +93,7 @@ function run() {
   console.log('PASS promotion sync stops before a later promotion month');
   console.log('PASS promotion edit rebuilds affected monthly position timeline');
   console.log('PASS movement edit syncs corrected names to monthly status');
+  console.log('PASS onboarding pharmacist flag syncs to employee master and monthly status');
   console.log('PASS employee movement batch route calls promotion sync');
   console.log('PASS employee movement single route supports edit and sync');
   console.log('PASS promotion management history exposes edit action');

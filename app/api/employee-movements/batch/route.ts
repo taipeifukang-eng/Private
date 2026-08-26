@@ -362,7 +362,7 @@ export async function POST(request: NextRequest) {
         : null;
 
       // 檢查是否已存在相同的異動記錄（同員工、同日期、同異動類型）
-      const { data: existingRecord } = await supabase
+      const { data: existingRecord } = await adminSupabase
         .from('employee_movement_history')
         .select('id')
         .eq('employee_code', movement.employee_code.toUpperCase())
@@ -376,7 +376,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 查詢員工的當前資料
-      const { data: empData } = await supabase
+      const { data: empData } = await adminSupabase
         .from('store_employees')
         .select('position, current_position, store_id, employment_status')
         .eq('employee_code', movement.employee_code.toUpperCase())
@@ -395,12 +395,12 @@ export async function POST(request: NextRequest) {
         movement.newbie_level = normalizedPromotion.newbie_level;
       } else if (movement.movement_type === 'store_transfer') {
         // 調店：查詢原門市名稱和新門市名稱
-        const { data: fromStore } = await supabase
+        const { data: fromStore } = await adminSupabase
           .from('stores')
           .select('store_name')
           .eq('id', movement.from_store_id)
           .single();
-        const { data: toStore } = await supabase
+        const { data: toStore } = await adminSupabase
           .from('stores')
           .select('store_name')
           .eq('id', movement.to_store_id)
@@ -482,7 +482,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 批次插入異動記錄
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('employee_movement_history')
       .insert(movementRecords)
       .select();
