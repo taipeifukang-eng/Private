@@ -42,6 +42,10 @@ function extractNewbieLevelFromNotes(notes: string | null | undefined) {
   return match?.[1]?.trim() || null;
 }
 
+function isActingManagerPromotion(position: string | null | undefined) {
+  return String(position || '').trim() === '代理店長';
+}
+
 async function getNextPromotionYearMonth(
   supabase: SupabaseLikeClient,
   employeeCode: string,
@@ -89,11 +93,17 @@ export async function syncPromotionPositionToMonthlyStaffStatus(
       promotion.effectiveDate
     );
 
-    const updatePayload: Record<string, string | null> = {
-      position: promotion.position,
-      updated_at: new Date().toISOString(),
-      newbie_level: ['新人', '行政'].includes(promotion.position) ? promotion.newbieLevel : null,
-    };
+    const updatePayload: Record<string, string | boolean | null> = isActingManagerPromotion(promotion.position)
+      ? {
+          is_acting_manager: true,
+          updated_at: new Date().toISOString(),
+        }
+      : {
+          position: promotion.position,
+          is_acting_manager: false,
+          updated_at: new Date().toISOString(),
+          newbie_level: ['新人', '行政'].includes(promotion.position) ? promotion.newbieLevel : null,
+        };
 
     let updateQuery = supabase
       .from('monthly_staff_status')
@@ -144,6 +154,7 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
       position: String(row.new_value || '').trim(),
       oldPosition: normalizeOptionalText(row.old_value),
       newbieLevel: extractNewbieLevelFromNotes(row.notes),
+      isActingManager: isActingManagerPromotion(row.new_value),
     }))
     .filter((row) => /^\d{4}-\d{2}$/.test(row.yearMonth) && row.position);
 
@@ -153,12 +164,19 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
 
   let currentPosition: string | null = null;
   let currentNewbieLevel: string | null = null;
+  let currentIsActingManager = false;
   let intervalStartYearMonth = affectedYearMonth;
 
   for (const promotion of rows) {
     if (promotion.movementDate < affectedDate) {
-      currentPosition = promotion.position;
-      currentNewbieLevel = promotion.newbieLevel;
+      if (promotion.isActingManager) {
+        currentPosition = currentPosition || promotion.oldPosition;
+        currentIsActingManager = true;
+      } else {
+        currentPosition = promotion.position;
+        currentNewbieLevel = promotion.newbieLevel;
+        currentIsActingManager = false;
+      }
       continue;
     }
 
@@ -173,6 +191,7 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
         .update({
           position: currentPosition,
           newbie_level: ['新人', '行政'].includes(currentPosition) ? currentNewbieLevel : null,
+          is_acting_manager: currentIsActingManager,
           updated_at: new Date().toISOString(),
         })
         .eq('employee_code', employeeCode)
@@ -184,8 +203,14 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
       }
     }
 
-    currentPosition = promotion.position;
-    currentNewbieLevel = promotion.newbieLevel;
+    if (promotion.isActingManager) {
+      currentPosition = currentPosition || promotion.oldPosition;
+      currentIsActingManager = true;
+    } else {
+      currentPosition = promotion.position;
+      currentNewbieLevel = promotion.newbieLevel;
+      currentIsActingManager = false;
+    }
     intervalStartYearMonth = promotion.yearMonth;
   }
 
@@ -195,6 +220,7 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
       .update({
         position: currentPosition,
         newbie_level: ['新人', '行政'].includes(currentPosition) ? currentNewbieLevel : null,
+        is_acting_manager: currentIsActingManager,
         updated_at: new Date().toISOString(),
       })
       .eq('employee_code', employeeCode)

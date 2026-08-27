@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
           '月份': year_month,
           '營業天數': getBusinessDays(store.id),
           '人員筆數': total.staffCount,
-          '實際人力點值合計': Math.round(total.pointTotal * 10000) / 10000,
+          '實際人力點值合計': Math.round(total.pointTotal * 10) / 10,
           '需確認筆數': total.reviewCount,
           '門市狀態': summary?.store_status || '',
           '需確認摘要': Array.from(total.reviewNotes).join('；'),

@@ -6,9 +6,11 @@ import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS, NEWBIE_LEVEL_OPTIONS } from '@/types/workflow';
 
-const PROMOTION_POSITION_OPTIONS = POSITION_OPTIONS.flatMap((pos) =>
-  pos === '行政' ? ['行政(未過階)', '行政(過階)'] : [pos]
-);
+const PROMOTION_POSITION_OPTIONS = Array.from(new Set(
+  POSITION_OPTIONS.flatMap((pos) =>
+    pos === '行政' ? ['行政(未過階)', '行政(過階)'] : [pos]
+  ).concat('代理店長')
+));
 
 const ADMIN_PROMOTION_LEVEL: Record<string, string> = {
   '行政(未過階)': '未過階行政',
@@ -954,7 +956,7 @@ export default function EmployeeMovementManagementPage() {
       { '欄位': '任職門市ID', '是否必填': '入職必填', '說明': '可填門市代號，例如 0058；總部人員可填公司組織最下層部門代碼。若使用 UUID 也可匯入。' },
       { '欄位': '是否為藥師', '是否必填': '入職建議填寫', '說明': '可填 是/否 或 TRUE/FALSE。' },
       { '欄位': '生日', '是否必填': '入職必填', '說明': '必須為 YYYY-MM-DD，例如 1990-01-15。' },
-      { '欄位': '職位', '是否必填': '升職必填', '說明': `可參考系統職位選項：${PROMOTION_POSITION_OPTIONS.join('、')}。` },
+      { '欄位': '職位', '是否必填': '升職必填', '說明': `可參考系統升職選項：${PROMOTION_POSITION_OPTIONS.join('、')}。代理店長只會標註每月人員狀態的「是否擔任代理店長」，不會覆蓋實際職位。` },
       { '欄位': '新人/行政等級', '是否必填': '升職為新人或行政時必填', '說明': `新人等級可填：${NEWBIE_LEVEL_OPTIONS.join('、')}；行政可填：未過階行政、過階行政。` },
       { '欄位': '原任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號，例如 0058。' },
       { '欄位': '新任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號，且不可與原任職門市相同。' },
@@ -1952,7 +1954,7 @@ export default function EmployeeMovementManagementPage() {
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                         >
                           <option value="">請選擇</option>
-                          {POSITION_OPTIONS.map(pos => (
+                          {PROMOTION_POSITION_OPTIONS.map(pos => (
                             <option key={pos} value={pos}>{pos}</option>
                           ))}
                         </select>
