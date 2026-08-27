@@ -24,6 +24,7 @@ export default function ExportMonthlyStatusPage() {
   const [downloadingMealAllowance, setDownloadingMealAllowance] = useState(false);
   const [downloadingSupportHours, setDownloadingSupportHours] = useState(false);
   const [downloadingSpringFestival, setDownloadingSpringFestival] = useState(false);
+  const [downloadingActualStaffPoints, setDownloadingActualStaffPoints] = useState(false);
   
   // 年月選擇
   const now = new Date();
@@ -162,6 +163,47 @@ export default function ExportMonthlyStatusPage() {
       alert(error instanceof Error ? error.message : '下載失敗');
     } finally {
       setDownloadingTransport(false);
+    }
+  };
+
+  const handleDownloadActualStaffPoints = async () => {
+    if (selectedStoreIds.size === 0) {
+      alert('請至少選擇一間門市');
+      return;
+    }
+
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingActualStaffPoints(true);
+
+    try {
+      const response = await fetch('/api/export-monthly-status/actual-staff-points', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `實際人力點值_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading actual staff points:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingActualStaffPoints(false);
     }
   };
 
@@ -467,6 +509,15 @@ export default function ExportMonthlyStatusPage() {
             >
               <FileSpreadsheet size={20} />
               {downloading ? '下載中...' : `下載 Excel (${selectedStoreIds.size} 間門市)`}
+            </button>
+
+            <button
+              onClick={handleDownloadActualStaffPoints}
+              disabled={downloadingActualStaffPoints || selectedStoreIds.size === 0}
+              className="w-full px-6 py-3 bg-sky-700 text-white rounded-lg hover:bg-sky-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+            >
+              <FileSpreadsheet size={20} />
+              {downloadingActualStaffPoints ? '匯出中...' : `匯出實際人力點值 (${selectedStoreIds.size} 間門市)`}
             </button>
 
             {/* 匯出交通費用、單品獎金、育才獎金 */}
