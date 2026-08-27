@@ -139,7 +139,7 @@ function fullMonthBasePoint(position: string, stage: string, hours: number): { p
   if (position === '新人') {
     if (stage === '二階') return { point: 0.7, rule: '整月在職：新人(二階) = 0.7', needsReview: '' };
     if (stage === '一階') return { point: 0.5, rule: '整月在職：新人(一階) = 0.5', needsReview: '' };
-    return { point: 0, rule: '整月在職：新人(未過一階) = 0', needsReview: '' };
+    return { point: 0.5, rule: '整月在職：新人(未過一階) = 0.5', needsReview: '' };
   }
 
   if (position === '兼職助理') {
