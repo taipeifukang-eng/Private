@@ -26,6 +26,7 @@ assertContains(pagePath, '/api/export-monthly-status/actual-staff-points', 'expo
 assertContains(pagePath, '匯出實際人力點值', 'export page should render the actual staff points button');
 
 assertContains(routePath, "requirePermission(user.id, 'monthly.export.download')", 'API should enforce monthly export permission');
+assertContains(routePath, 'store_status', 'API should use monthly_store_summary.store_status');
 assertContains(routePath, '門市人力點值加總', 'workbook should include store summary sheet');
 assertContains(routePath, '人員明細', 'workbook should include staff detail sheet');
 assertContains(routePath, '規則待確認', 'workbook should include review sheet for omitted/inferred rules');

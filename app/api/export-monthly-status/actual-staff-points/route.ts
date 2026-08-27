@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const { data: summaries, error: summariesError } = await supabase
       .from('monthly_store_summary')
-      .select('store_id, year_month, business_days, total_employees, status')
+      .select('store_id, year_month, business_days, total_employees, store_status')
       .eq('year_month', year_month)
       .in('store_id', store_ids);
 
@@ -214,7 +214,7 @@ export async function POST(request: NextRequest) {
           '人員筆數': total.staffCount,
           '實際人力點值合計': Math.round(total.pointTotal * 10000) / 10000,
           '需確認筆數': total.reviewCount,
-          '門市狀態': summary?.status || '',
+          '門市狀態': summary?.store_status || '',
           '需確認摘要': Array.from(total.reviewNotes).join('；'),
         };
       });
