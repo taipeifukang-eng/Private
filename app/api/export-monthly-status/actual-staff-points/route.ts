@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const { data: summaries, error: summariesError } = await supabase
       .from('monthly_store_summary')
-      .select('store_id, year_month, business_days, total_employees, store_status')
+      .select('store_id, year_month, business_days, total_employees, store_status, support_to_other_stores_hours, support_from_other_stores_hours')
       .eq('year_month', year_month)
       .in('store_id', store_ids);
 
@@ -205,6 +205,11 @@ export async function POST(request: NextRequest) {
           reviewNotes: new Set<string>(),
         };
         const summary = summaryByStoreId.get(store.id);
+        const supportToOtherStoresHours = Number(summary?.support_to_other_stores_hours || 0);
+        const supportFromOtherStoresHours = Number(summary?.support_from_other_stores_hours || 0);
+        const supportToOtherStoresPoint = supportToOtherStoresHours / 160;
+        const supportFromOtherStoresPoint = supportFromOtherStoresHours / 160;
+        const adjustedPointTotal = total.pointTotal - supportToOtherStoresPoint + supportFromOtherStoresPoint;
 
         return {
           '門市代碼': codeMap[store.id] || store.store_code || '',
@@ -212,7 +217,12 @@ export async function POST(request: NextRequest) {
           '月份': year_month,
           '營業天數': getBusinessDays(store.id),
           '人員筆數': total.staffCount,
-          '實際人力點值合計': Math.round(total.pointTotal * 10) / 10,
+          '人員點值小計': Math.round(total.pointTotal * 10) / 10,
+          '支援分店時數': supportToOtherStoresHours,
+          '支援分店扣減點值': Math.round(supportToOtherStoresPoint * 10) / 10,
+          '分店支援時數': supportFromOtherStoresHours,
+          '分店支援增加點值': Math.round(supportFromOtherStoresPoint * 10) / 10,
+          '實際人力點值合計': Math.round(adjustedPointTotal * 10) / 10,
           '需確認筆數': total.reviewCount,
           '門市狀態': summary?.store_status || '',
           '需確認摘要': Array.from(total.reviewNotes).join('；'),
@@ -251,6 +261,11 @@ export async function POST(request: NextRequest) {
       { wch: 10 },
       { wch: 10 },
       { wch: 10 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 16 },
       { wch: 16 },
       { wch: 12 },
       { wch: 12 },
@@ -304,6 +319,7 @@ export async function POST(request: NextRequest) {
       { '類別': '未整月在職', '規則': '新人(未過一階) = 0；行政(未過階) = 0' },
       { '類別': '系統推定', '規則': '未整月新人一階/二階、行政過階：依整月基準點值 × 天數 / 營業天數計算' },
       { '類別': '系統推定', '規則': '未整月兼職人員：沿用實際時數制；兼職藥師專員依時數 / 160 計算' },
+      { '類別': '門市合計調整', '規則': '實際人力點值合計 = 人員點值小計 - (支援分店時數 / 160) + (分店支援時數 / 160)，合計四捨五入到小數點以下第一位' },
       { '類別': '系統月狀態', '規則': Object.entries(MONTHLY_STATUS_LABELS).map(([value, label]) => `${value}=${label}`).join('；') },
     ];
     const ruleWorksheet = XLSX.utils.json_to_sheet(ruleRows);
