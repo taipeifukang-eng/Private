@@ -76,6 +76,15 @@ function run() {
   assertIncludes(promotionManagementPage, 'openEditMovement(record)', 'promotion management history has edit action');
   assertIncludes(promotionManagementPage, '儲存並同步', 'promotion management edit modal saves and syncs');
   assertIncludes(promotionManagementPage, 'handleUpdateMovement', 'promotion management edit modal calls PATCH handler');
+  assertIncludes(promotionManagementPage, 'historyPageSize', 'promotion management has paginated history page size state');
+  assertIncludes(promotionManagementPage, 'historyTotalCount', 'promotion management tracks total movement history count');
+  assertIncludes(promotionManagementPage, "count: 'exact'", 'promotion management asks database for exact history count');
+  assertIncludes(promotionManagementPage, 'query.range(from, to)', 'promotion management loads movement history through backend pagination');
+  assertIncludes(promotionManagementPage, ".gte('movement_date', `${yearMonth}-01`)", 'promotion management applies month filter at DB query level');
+  assertIncludes(promotionManagementPage, ".lt('movement_date', getNextYearMonth(yearMonth))", 'promotion management uses next month exclusive upper bound');
+  assertIncludes(promotionManagementPage, "query = query.eq('movement_type', movementType)", 'promotion management applies movement type filter at DB query level');
+  assertNotIncludes(promotionManagementPage, ".limit(500)", 'promotion management must not load oldest 500 rows before filtering');
+  assertIncludes(promotionManagementPage, '匯出本頁 Excel', 'promotion management export label must match paginated data');
   assertIncludes(promotionBatchRoute, "movement_type: 'promotion'", 'legacy store batch writes movement_type');
   assertIncludes(promotionBatchRoute, 'movement_date: promo.effective_date', 'legacy store batch writes movement_date');
   assertIncludes(promotionBatchRoute, 'new_value: promo.position', 'legacy store batch writes new_value');

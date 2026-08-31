@@ -107,6 +107,7 @@ export default function EmployeeMovementManagementPage() {
   const [activeTab, setActiveTab] = useState<'batch' | 'history' | 'transfer_requests'>('batch');
   const [isSupervisor, setIsSupervisor] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canAccessBatchMovements, setCanAccessBatchMovements] = useState(false);
   const [canCreateTransfer, setCanCreateTransfer] = useState(false);
   const [transferRequestsError, setTransferRequestsError] = useState<string | null>(null);
   // 調店申請
@@ -125,6 +126,10 @@ export default function EmployeeMovementManagementPage() {
   ]);
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [filteredHistory, setFilteredHistory] = useState<MovementHistory[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPageSize, setHistoryPageSize] = useState(100);
+  const [historyTotalCount, setHistoryTotalCount] = useState(0);
   const [stores, setStores] = useState<Store[]>([]);
   const [organizationPlacementOptions, setOrganizationPlacementOptions] = useState<OrganizationPlacementOption[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -188,6 +193,7 @@ export default function EmployeeMovementManagementPage() {
 
     setIsSupervisor(canConfirm && !canCreate);
     setIsAdmin(adminRole);
+    setCanAccessBatchMovements(canBatch);
     setCanCreateTransfer(canCreate);
 
     // 督導只看調店登記確認 tab
@@ -207,18 +213,17 @@ export default function EmployeeMovementManagementPage() {
       }
     }
 
+    // 設定當前月份為預設篩選
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    setHistoryYearMonth(currentYearMonth);
+
     if (canBatch) {
-      loadMovementHistory();
       loadEmployees();
       loadOrganizationPlacementOptions();
     }
     loadStores();
     loadTransferRequests();
-    
-    // 設定當前月份為預設篩選
-    const now = new Date();
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    setHistoryYearMonth(currentYearMonth);
     
     setLoading(false);
   };
@@ -441,22 +446,46 @@ export default function EmployeeMovementManagementPage() {
     }
   };
 
-  const loadMovementHistory = async () => {
+  const loadMovementHistory = async (
+    yearMonth: string = historyYearMonth,
+    movementType: string = historyMovementType,
+    page: number = historyPage,
+    pageSize: number = historyPageSize
+  ) => {
+    setHistoryLoading(true);
     const supabase = (await import('@/lib/supabase/client')).createClient();
-    
-    const { data, error } = await supabase
+
+    let query = supabase
       .from('employee_movement_history')
       .select(`
         *,
         stores:store_id (
           store_name
         )
-      `)
+      `, { count: 'exact' })
       .order('movement_date', { ascending: true })
-      .limit(500);
+      .order('created_at', { ascending: true });
+
+    if (yearMonth) {
+      query = query
+        .gte('movement_date', `${yearMonth}-01`)
+        .lt('movement_date', getNextYearMonth(yearMonth));
+    }
+
+    if (movementType !== 'all') {
+      query = query.eq('movement_type', movementType);
+    }
+
+    const safePage = Math.max(page, 1);
+    const safePageSize = Math.max(pageSize, 1);
+    const from = (safePage - 1) * safePageSize;
+    const to = from + safePageSize - 1;
+
+    const { data, error, count } = await query.range(from, to);
 
     if (error) {
       console.error('Error loading movement history:', error);
+      setHistoryLoading(false);
       return;
     }
 
@@ -467,28 +496,26 @@ export default function EmployeeMovementManagementPage() {
       }));
       setMovementHistory(formattedData as any);
       setFilteredHistory(formattedData as any);
+      setHistoryTotalCount(count || 0);
     }
+    setHistoryLoading(false);
   };
 
-  // 篩選歷史記錄
+  const getNextYearMonth = (yearMonth: string) => {
+    const [year, month] = yearMonth.split('-').map(Number);
+    if (!year || !month) return `${yearMonth}-32`;
+    const date = new Date(year, month, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-01`;
+  };
+
   useEffect(() => {
-    let filtered = [...movementHistory];
-    
-    // 按月份篩選
-    if (historyYearMonth) {
-      filtered = filtered.filter(m => m.movement_date.startsWith(historyYearMonth));
-    }
-    
-    // 按異動類型篩選
-    if (historyMovementType !== 'all') {
-      filtered = filtered.filter(m => m.movement_type === historyMovementType);
-    }
-    
-    // 依生效日期排序（舊→新，由遠到近）
-    filtered.sort((a, b) => a.movement_date.localeCompare(b.movement_date));
-    
-    setFilteredHistory(filtered);
-  }, [historyYearMonth, historyMovementType, movementHistory]);
+    if (loading || !canAccessBatchMovements) return;
+    loadMovementHistory(historyYearMonth, historyMovementType, historyPage, historyPageSize);
+  }, [historyYearMonth, historyMovementType, historyPage, historyPageSize, loading, canAccessBatchMovements]);
+
+  const historyTotalPages = Math.max(Math.ceil(historyTotalCount / historyPageSize), 1);
+  const historyRangeStart = historyTotalCount === 0 ? 0 : (historyPage - 1) * historyPageSize + 1;
+  const historyRangeEnd = Math.min(historyPage * historyPageSize, historyTotalCount);
 
   const handleDeleteMovement = async (record: MovementHistory) => {
     const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
@@ -1389,7 +1416,10 @@ export default function EmployeeMovementManagementPage() {
                   <input
                     type="month"
                     value={historyYearMonth}
-                    onChange={(e) => setHistoryYearMonth(e.target.value)}
+                    onChange={(e) => {
+                      setHistoryYearMonth(e.target.value);
+                      setHistoryPage(1);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   />
                 </div>
@@ -1399,7 +1429,10 @@ export default function EmployeeMovementManagementPage() {
                   </label>
                   <select
                     value={historyMovementType}
-                    onChange={(e) => setHistoryMovementType(e.target.value)}
+                    onChange={(e) => {
+                      setHistoryMovementType(e.target.value);
+                      setHistoryPage(1);
+                    }}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
                   >
                     <option value="all">全部</option>
@@ -1413,6 +1446,7 @@ export default function EmployeeMovementManagementPage() {
                     onClick={() => {
                       setHistoryYearMonth('');
                       setHistoryMovementType('all');
+                      setHistoryPage(1);
                     }}
                     className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                   >
@@ -1428,41 +1462,63 @@ export default function EmployeeMovementManagementPage() {
                 <h2 className="text-lg font-semibold text-gray-900">
                   異動記錄
                   <span className="ml-2 text-sm font-normal text-gray-500">
-                    (共 {filteredHistory.length} 筆)
+                    (共 {historyTotalCount} 筆，顯示 {historyRangeStart}-{historyRangeEnd})
                   </span>
                 </h2>
-                <button
-                  onClick={() => {
-                    const exportData = filteredHistory.map(m => {
-                      const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
-                      const onboardingPharmacistText = m.movement_type === 'onboarding'
-                        ? (m.onboarding_is_pharmacist ? '是' : '否')
-                        : '-';
-                      return {
-                        '員編': m.employee_code,
-                        '姓名': m.employee_name,
-                        '任職門市': (m as any).store_name || '-',
-                        '異動類型': movementTypeLabel,
-                        '是否藥師(入職)': onboardingPharmacistText,
-                        '舊值': m.old_value || '-',
-                        '新值': m.new_value || '-',
-                        '生效日期': m.movement_date,
-                        '備註': m.notes || '-'
-                      };
-                    });
-                    const ws = XLSX.utils.json_to_sheet(exportData);
-                    const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, ws, '異動記錄');
-                    XLSX.writeFile(wb, `人員異動記錄_${historyYearMonth || '全部'}_${new Date().toISOString().split('T')[0]}.xlsx`);
-                  }}
-                  className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
-                >
-                  <Download size={16} className="inline mr-1" />
-                  匯出 Excel
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    每頁
+                    <select
+                      value={historyPageSize}
+                      onChange={(e) => {
+                        setHistoryPageSize(Number(e.target.value));
+                        setHistoryPage(1);
+                      }}
+                      className="rounded-lg border border-gray-300 px-2 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500"
+                    >
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    筆
+                  </label>
+                  <button
+                    onClick={() => {
+                      const exportData = filteredHistory.map(m => {
+                        const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+                        const onboardingPharmacistText = m.movement_type === 'onboarding'
+                          ? (m.onboarding_is_pharmacist ? '是' : '否')
+                          : '-';
+                        return {
+                          '員編': m.employee_code,
+                          '姓名': m.employee_name,
+                          '任職門市': (m as any).store_name || '-',
+                          '異動類型': movementTypeLabel,
+                          '是否藥師(入職)': onboardingPharmacistText,
+                          '舊值': m.old_value || '-',
+                          '新值': m.new_value || '-',
+                          '生效日期': m.movement_date,
+                          '備註': m.notes || '-'
+                        };
+                      });
+                      const ws = XLSX.utils.json_to_sheet(exportData);
+                      const wb = XLSX.utils.book_new();
+                      XLSX.utils.book_append_sheet(wb, ws, '異動記錄');
+                      XLSX.writeFile(wb, `人員異動記錄_${historyYearMonth || '全部'}_第${historyPage}頁_${new Date().toISOString().split('T')[0]}.xlsx`);
+                    }}
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
+                  >
+                    <Download size={16} className="inline mr-1" />
+                    匯出本頁 Excel
+                  </button>
+                </div>
               </div>
 
-              {filteredHistory.length === 0 ? (
+              {historyLoading ? (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600 mx-auto mb-3" />
+                  <p className="text-gray-500 text-sm">載入異動紀錄中...</p>
+                </div>
+              ) : filteredHistory.length === 0 ? (
                 <div className="text-center py-12">
                   <Calendar className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                   <p className="text-gray-500">查無異動記錄</p>
@@ -1544,6 +1600,31 @@ export default function EmployeeMovementManagementPage() {
                       })}
                     </tbody>
                   </table>
+                </div>
+              )}
+              {historyTotalCount > 0 && (
+                <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    第 {historyPage} / {historyTotalPages} 頁，總共 {historyTotalCount} 筆
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPage((page) => Math.max(page - 1, 1))}
+                      disabled={historyPage <= 1 || historyLoading}
+                      className="rounded-lg border border-gray-300 px-3 py-2 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      上一頁
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHistoryPage((page) => Math.min(page + 1, historyTotalPages))}
+                      disabled={historyPage >= historyTotalPages || historyLoading}
+                      className="rounded-lg border border-gray-300 px-3 py-2 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      下一頁
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
