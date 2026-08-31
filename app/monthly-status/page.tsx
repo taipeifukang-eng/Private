@@ -71,6 +71,9 @@ function MonthlyStatusContent() {
   const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
   const [canViewPerformance, setCanViewPerformance] = useState(false);
   const [canViewMonthlyBonusDetail, setCanViewMonthlyBonusDetail] = useState(false);
+  const [canConfirmStatus, setCanConfirmStatus] = useState(false);
+  const [canRevertStatus, setCanRevertStatus] = useState(false);
+  const [canUnconfirmStatus, setCanUnconfirmStatus] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
   const [allManagedStores, setAllManagedStores] = useState<Store[]>([]); // 含已停止門市
   const [showInactiveStores, setShowInactiveStores] = useState(false);
@@ -162,6 +165,9 @@ function MonthlyStatusContent() {
           setCanAccessActivityManagement(permissionsResult.canAccessActivityManagement || false);
           setCanViewPerformance(permissionsResult.canViewPerformance || false);
           setCanViewMonthlyBonusDetail(permissionsResult.canViewMonthlyBonusDetail || false);
+          setCanConfirmStatus(permissionsResult.canConfirmStatus || false);
+          setCanRevertStatus(permissionsResult.canRevertStatus || false);
+          setCanUnconfirmStatus(permissionsResult.canUnconfirmStatus || false);
         }
         
         // 檢查 URL 參數中是否有指定門市
@@ -504,6 +510,9 @@ function MonthlyStatusContent() {
               canEditSupportHours={canEditSupportHours}
               canViewPerformance={canViewPerformance}
               canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
+              canConfirmStatus={canConfirmStatus}
+              canRevertStatus={canRevertStatus}
+              canUnconfirmStatus={canUnconfirmStatus}
               onRefresh={loadStoreSummaries}
             />
           </>
@@ -587,6 +596,9 @@ function MonthlyStatusContent() {
                     canEditSupportHours={canEditSupportHours}
                     canViewPerformance={canViewPerformance}
                     canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
+                    canConfirmStatus={canConfirmStatus}
+                    canRevertStatus={canRevertStatus}
+                    canUnconfirmStatus={canUnconfirmStatus}
                     onRefresh={(moveToNext?: boolean) => loadStoreSummaries(moveToNext || false)}
                   />
                 </div>
@@ -797,6 +809,9 @@ function StoreStatusDetail({
   canEditSupportHours,
   canViewPerformance,
   canViewMonthlyBonusDetail,
+  canConfirmStatus,
+  canRevertStatus,
+  canUnconfirmStatus,
   onRefresh
 }: {
   store: Store;
@@ -810,6 +825,9 @@ function StoreStatusDetail({
   canEditSupportHours: boolean;
   canViewPerformance: boolean;
   canViewMonthlyBonusDetail: boolean;
+  canConfirmStatus: boolean;
+  canRevertStatus: boolean;
+  canUnconfirmStatus: boolean;
   onRefresh: (moveToNext?: boolean) => void;
 }) {
   const router = useRouter();
@@ -2531,7 +2549,7 @@ function StoreStatusDetail({
         )}
         {storeStatus === 'submitted' && (
           <>
-            {(userRole === 'admin' || userRole === 'area_manager' || userRole === 'store_manager' || userRole === 'supervisor') && (
+            {canRevertStatus && (
               <button
                 onClick={handleRevert}
                 disabled={isConfirming}
@@ -2541,7 +2559,7 @@ function StoreStatusDetail({
                 {isConfirming ? '處理中...' : '恢復至待填寫'}
               </button>
             )}
-            {(userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager') && (
+            {canConfirmStatus && (
               <div className="flex flex-col gap-2">
                 <button
                   onClick={handleConfirm}
@@ -2560,7 +2578,7 @@ function StoreStatusDetail({
         )}
         {storeStatus === 'confirmed' && (
           <>
-            {(userRole === 'admin' || userRole === 'area_manager' || (userDepartment === '營業部' && userJobTitle === '助理' && userRole === 'manager')) && (
+            {canUnconfirmStatus && (
               <button
                 onClick={handleUnconfirm}
                 disabled={isConfirming}

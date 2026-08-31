@@ -2834,17 +2834,33 @@ export async function checkMonthlyStatusPermissions() {
         canEditSupportHours: false,
         canAccessActivityManagement: false,
         canViewPerformance: false,
-        canViewMonthlyBonusDetail: false
+        canViewMonthlyBonusDetail: false,
+        canConfirmStatus: false,
+        canRevertStatus: false,
+        canUnconfirmStatus: false
       };
     }
 
-    const [canViewStats, canViewSupportHours, canEditSupportHours, canAccessActivityManagement, canViewPerformance, canViewMonthlyBonusDetail] = await Promise.all([
+    const [
+      canViewStats,
+      canViewSupportHours,
+      canEditSupportHours,
+      canAccessActivityManagement,
+      canViewPerformance,
+      canViewMonthlyBonusDetail,
+      canConfirmStatus,
+      canRevertStatus,
+      canUnconfirmStatus
+    ] = await Promise.all([
       hasPermission(user.id, 'monthly.status.view_stats'),
       hasPermission(user.id, 'monthly.allowance.view_support_hours'),
       hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
       hasPermission(user.id, 'activity.management.access'),
       hasPermission(user.id, 'monthly.status.view_performance'),
-      hasPermission(user.id, 'monthly.status.bonus_detail.view')
+      hasPermission(user.id, 'monthly.status.bonus_detail.view'),
+      hasPermission(user.id, 'monthly.status.confirm'),
+      hasPermission(user.id, 'monthly.status.revert'),
+      hasPermission(user.id, 'monthly.status.unconfirm')
     ]);
 
     return {
@@ -2854,7 +2870,10 @@ export async function checkMonthlyStatusPermissions() {
       canEditSupportHours,
       canAccessActivityManagement,
       canViewPerformance,
-      canViewMonthlyBonusDetail
+      canViewMonthlyBonusDetail,
+      canConfirmStatus,
+      canRevertStatus,
+      canUnconfirmStatus
     };
   } catch (error: any) {
     console.error('檢查每月狀態權限錯誤:', error);
@@ -2866,7 +2885,10 @@ export async function checkMonthlyStatusPermissions() {
       canEditSupportHours: false,
       canAccessActivityManagement: false,
       canViewPerformance: false,
-      canViewMonthlyBonusDetail: false
+      canViewMonthlyBonusDetail: false,
+      canConfirmStatus: false,
+      canRevertStatus: false,
+      canUnconfirmStatus: false
     };
   }
 }
