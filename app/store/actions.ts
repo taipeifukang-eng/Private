@@ -2837,7 +2837,8 @@ export async function checkMonthlyStatusPermissions() {
         canViewMonthlyBonusDetail: false,
         canConfirmStatus: false,
         canRevertStatus: false,
-        canUnconfirmStatus: false
+        canUnconfirmStatus: false,
+        canExportMonthlyDownload: false
       };
     }
 
@@ -2850,7 +2851,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewMonthlyBonusDetail,
       canConfirmStatus,
       canRevertStatus,
-      canUnconfirmStatus
+      canUnconfirmStatus,
+      canExportMonthlyDownload
     ] = await Promise.all([
       hasPermission(user.id, 'monthly.status.view_stats'),
       hasPermission(user.id, 'monthly.allowance.view_support_hours'),
@@ -2860,7 +2862,8 @@ export async function checkMonthlyStatusPermissions() {
       hasPermission(user.id, 'monthly.status.bonus_detail.view'),
       hasPermission(user.id, 'monthly.status.confirm'),
       hasPermission(user.id, 'monthly.status.revert'),
-      hasPermission(user.id, 'monthly.status.unconfirm')
+      hasPermission(user.id, 'monthly.status.unconfirm'),
+      hasPermission(user.id, 'monthly.export.download')
     ]);
 
     return {
@@ -2873,7 +2876,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewMonthlyBonusDetail,
       canConfirmStatus,
       canRevertStatus,
-      canUnconfirmStatus
+      canUnconfirmStatus,
+      canExportMonthlyDownload
     };
   } catch (error: any) {
     console.error('檢查每月狀態權限錯誤:', error);
@@ -2888,7 +2892,8 @@ export async function checkMonthlyStatusPermissions() {
       canViewMonthlyBonusDetail: false,
       canConfirmStatus: false,
       canRevertStatus: false,
-      canUnconfirmStatus: false
+      canUnconfirmStatus: false,
+      canExportMonthlyDownload: false
     };
   }
 }

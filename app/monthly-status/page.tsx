@@ -74,6 +74,7 @@ function MonthlyStatusContent() {
   const [canConfirmStatus, setCanConfirmStatus] = useState(false);
   const [canRevertStatus, setCanRevertStatus] = useState(false);
   const [canUnconfirmStatus, setCanUnconfirmStatus] = useState(false);
+  const [canExportMonthlyDownload, setCanExportMonthlyDownload] = useState(false);
   const [managedStores, setManagedStores] = useState<Store[]>([]);
   const [allManagedStores, setAllManagedStores] = useState<Store[]>([]); // 含已停止門市
   const [showInactiveStores, setShowInactiveStores] = useState(false);
@@ -168,6 +169,7 @@ function MonthlyStatusContent() {
           setCanConfirmStatus(permissionsResult.canConfirmStatus || false);
           setCanRevertStatus(permissionsResult.canRevertStatus || false);
           setCanUnconfirmStatus(permissionsResult.canUnconfirmStatus || false);
+          setCanExportMonthlyDownload(permissionsResult.canExportMonthlyDownload || false);
         }
         
         // 檢查 URL 參數中是否有指定門市
@@ -513,6 +515,7 @@ function MonthlyStatusContent() {
               canConfirmStatus={canConfirmStatus}
               canRevertStatus={canRevertStatus}
               canUnconfirmStatus={canUnconfirmStatus}
+              canExportMonthlyDownload={canExportMonthlyDownload}
               onRefresh={loadStoreSummaries}
             />
           </>
@@ -599,6 +602,7 @@ function MonthlyStatusContent() {
                     canConfirmStatus={canConfirmStatus}
                     canRevertStatus={canRevertStatus}
                     canUnconfirmStatus={canUnconfirmStatus}
+                    canExportMonthlyDownload={canExportMonthlyDownload}
                     onRefresh={(moveToNext?: boolean) => loadStoreSummaries(moveToNext || false)}
                   />
                 </div>
@@ -812,6 +816,7 @@ function StoreStatusDetail({
   canConfirmStatus,
   canRevertStatus,
   canUnconfirmStatus,
+  canExportMonthlyDownload,
   onRefresh
 }: {
   store: Store;
@@ -828,6 +833,7 @@ function StoreStatusDetail({
   canConfirmStatus: boolean;
   canRevertStatus: boolean;
   canUnconfirmStatus: boolean;
+  canExportMonthlyDownload: boolean;
   onRefresh: (moveToNext?: boolean) => void;
 }) {
   const router = useRouter();
@@ -2526,9 +2532,8 @@ function StoreStatusDetail({
 
       {/* 底部操作按鈕 */}
       <div className="mt-6 flex justify-end gap-4">
-        {/* 匯出當月獎金／津貼 PDF 按鈕（店長以上可見） */}
-        {(userRole === 'store_manager' || userRole === 'admin' || userRole === 'supervisor' || userRole === 'area_manager' || 
-          ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle)) && (
+        {/* 匯出當月獎金／津貼 PDF 按鈕 */}
+        {canExportMonthlyDownload && (
           <button
             onClick={handleExportBonusPDF}
             className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold flex items-center gap-2"

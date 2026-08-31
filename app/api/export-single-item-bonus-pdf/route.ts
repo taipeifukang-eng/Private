@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { requirePermission } from '@/lib/permissions/check';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 
 interface PdfReportRow {
@@ -31,17 +32,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '未登入' }, { status: 401 });
     }
 
-    // 檢查權限（店長以上）
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, job_title')
-      .eq('id', user.id)
-      .single();
-
-    const isStoreManager = ['店長', '代理店長', '督導', '督導(代理店長)'].includes(profile?.job_title || '');
-    const hasPermission = ['admin', 'supervisor', 'area_manager'].includes(profile?.role || '') || isStoreManager;
-
-    if (!hasPermission) {
+    const permission = await requirePermission(user.id, 'monthly.export.download');
+    if (!permission.allowed) {
       return NextResponse.json({ error: '權限不足' }, { status: 403 });
     }
 
