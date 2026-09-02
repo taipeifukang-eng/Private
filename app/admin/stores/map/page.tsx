@@ -25,6 +25,11 @@ export default async function StoreGoogleMapPage() {
     .select('id, store_code, store_name, short_name, address, phone, is_active, gps_latitude, gps_longitude')
     .order('store_code');
 
+  const googleMapsApiKey =
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
+    process.env.VITE_GOOGLE_MAPS_API_KEY ||
+    '';
+
   return (
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
       <div className="w-full">
@@ -55,7 +60,7 @@ export default async function StoreGoogleMapPage() {
 
         <StoreGoogleMapClient
           stores={(stores || []) as any}
-          googleMapsApiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}
+          googleMapsApiKey={googleMapsApiKey}
         />
       </div>
     </div>

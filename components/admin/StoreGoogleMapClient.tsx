@@ -90,7 +90,7 @@ export default function StoreGoogleMapClient({ stores, googleMapsApiKey }: Props
 
   useEffect(() => {
     if (!googleMapsApiKey) {
-      setMapError('尚未設定 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY，無法載入 Google 地圖。');
+      setMapError('尚未設定 Google Maps API Key，請設定 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY 或 VITE_GOOGLE_MAPS_API_KEY。');
       return;
     }
     if (!mapRef.current || storesWithGps.length === 0) return;
