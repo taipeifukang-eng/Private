@@ -22,6 +22,32 @@ const STORE_CREATE_PERMISSION_CODES = ['store.store.create', 'store.manage'] as 
 const STORE_EDIT_PERMISSION_CODES = ['store.store.edit', 'store.manage'] as const;
 const STORE_VIEW_PERMISSION_CODES = ['store.store.view', 'store.store.view_inactive', 'store.manage'] as const;
 
+function normalizeGpsCoordinates(latitude?: number | null, longitude?: number | null) {
+  const lat = latitude ?? null;
+  const lng = longitude ?? null;
+
+  if ((lat === null) !== (lng === null)) {
+    return { valid: false as const, error: 'GPS 緯度與經度需同時填寫' };
+  }
+  if (lat === null && lng === null) {
+    return { valid: true as const, latitude: null, longitude: null };
+  }
+  if (
+    typeof lat !== 'number' ||
+    typeof lng !== 'number' ||
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    return { valid: false as const, error: 'GPS 座標格式不正確' };
+  }
+
+  return { valid: true as const, latitude: lat, longitude: lng };
+}
+
 /**
  * 獲取所有門市
  */
@@ -109,6 +135,8 @@ export async function createStore(data: {
   manager_name?: string;
   address?: string;
   phone?: string;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
 }) {
   try {
     const supabase = await createClient();
@@ -124,6 +152,11 @@ export async function createStore(data: {
       return { success: false, error: '權限不足' };
     }
 
+    const gps = normalizeGpsCoordinates(data.gps_latitude, data.gps_longitude);
+    if (!gps.valid) {
+      return { success: false, error: gps.error };
+    }
+
     const adminSupabase = createAdminClient();
     const { data: adminStore, error: adminError } = await adminSupabase
       .from('stores')
@@ -135,7 +168,9 @@ export async function createStore(data: {
         hr_store_code: data.hr_store_code || null,
         manager_name: data.manager_name || null,
         address: data.address || null,
-        phone: data.phone || null
+        phone: data.phone || null,
+        gps_latitude: gps.latitude,
+        gps_longitude: gps.longitude
       })
       .select()
       .single();
@@ -165,6 +200,8 @@ export async function updateStore(data: {
   manager_name?: string | null;
   address?: string | null;
   phone?: string | null;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
   is_active?: boolean;
 }) {
   try {
@@ -188,6 +225,11 @@ export async function updateStore(data: {
       return { success: false, error: '權限不足' };
     }
 
+    const gps = normalizeGpsCoordinates(data.gps_latitude, data.gps_longitude);
+    if (!gps.valid) {
+      return { success: false, error: gps.error };
+    }
+
     const adminSupabase = createAdminClient();
     const updatePayload = {
       store_name: data.store_name.trim(),
@@ -197,6 +239,8 @@ export async function updateStore(data: {
       manager_name: data.manager_name?.trim() || null,
       address: data.address?.trim() || null,
       phone: data.phone?.trim() || null,
+      gps_latitude: gps.latitude,
+      gps_longitude: gps.longitude,
       is_active: data.is_active ?? true,
       updated_at: new Date().toISOString(),
     };
@@ -273,6 +317,8 @@ export async function cloneStore(data: {
         manager_name: data.new_manager_name || sourceStore.manager_name,
         address: data.new_address || sourceStore.address,
         phone: data.new_phone || sourceStore.phone,
+        gps_latitude: sourceStore.gps_latitude ?? null,
+        gps_longitude: sourceStore.gps_longitude ?? null,
         is_active: true,
         // 記錄搬遷來源門市，供月人員狀態初始化繼承歷史資料
         source_store_id: data.deactivate_source ? data.source_store_id : null

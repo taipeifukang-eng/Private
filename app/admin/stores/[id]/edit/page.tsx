@@ -4,6 +4,14 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Save, Store, MapPin, Phone, Hash, Tag, Building2, Loader2, User } from 'lucide-react';
+import StoreGpsFields from '@/components/admin/StoreGpsFields';
+
+function parseGpsNumber(value: string, min: number, max: number) {
+  if (!value.trim()) return null;
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < min || numberValue > max) return undefined;
+  return numberValue;
+}
 
 export default function EditStorePage() {
   const router = useRouter();
@@ -21,6 +29,10 @@ export default function EditStorePage() {
   const [managerName, setManagerName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [gpsLatitude, setGpsLatitude] = useState('');
+  const [gpsLongitude, setGpsLongitude] = useState('');
+  const [locatingGps, setLocatingGps] = useState(false);
+  const [gpsMessage, setGpsMessage] = useState('');
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
@@ -52,6 +64,8 @@ export default function EditStorePage() {
       setManagerName(data.manager_name || '');
       setAddress(data.address || '');
       setPhone(data.phone || '');
+      setGpsLatitude(data.gps_latitude != null ? String(data.gps_latitude) : '');
+      setGpsLongitude(data.gps_longitude != null ? String(data.gps_longitude) : '');
       setIsActive(data.is_active ?? true);
     } catch (error) {
       console.error('Error loading store:', error);
@@ -64,6 +78,16 @@ export default function EditStorePage() {
   const handleSave = async () => {
     if (!storeName.trim()) {
       alert('請填寫門市名稱');
+      return;
+    }
+    const latitude = parseGpsNumber(gpsLatitude, -90, 90);
+    const longitude = parseGpsNumber(gpsLongitude, -180, 180);
+    if (latitude === undefined || longitude === undefined) {
+      alert('GPS 座標格式不正確，請確認緯度介於 -90~90、經度介於 -180~180。');
+      return;
+    }
+    if ((latitude === null) !== (longitude === null)) {
+      alert('GPS 緯度與經度需同時填寫，或同時留空。');
       return;
     }
 
@@ -83,6 +107,8 @@ export default function EditStorePage() {
           address: address.trim() || null,
           phone: phone.trim() || null,
           is_active: isActive,
+          gps_latitude: latitude,
+          gps_longitude: longitude,
           updated_at: new Date().toISOString()
         })
         .eq('id', storeId);
@@ -266,6 +292,17 @@ export default function EditStorePage() {
               placeholder="門市電話（選填）"
             />
           </div>
+
+          <StoreGpsFields
+            latitude={gpsLatitude}
+            longitude={gpsLongitude}
+            onLatitudeChange={setGpsLatitude}
+            onLongitudeChange={setGpsLongitude}
+            locating={locatingGps}
+            locateMessage={gpsMessage}
+            onLocatingChange={setLocatingGps}
+            onLocateMessageChange={setGpsMessage}
+          />
 
           {/* 營運狀態 */}
           <div>

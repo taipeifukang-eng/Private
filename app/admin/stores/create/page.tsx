@@ -4,6 +4,14 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft, Save, Store, MapPin, Phone, Hash, Tag, Building2, User } from 'lucide-react';
+import StoreGpsFields from '@/components/admin/StoreGpsFields';
+
+function parseGpsNumber(value: string, min: number, max: number) {
+  if (!value.trim()) return null;
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue < min || numberValue > max) return undefined;
+  return numberValue;
+}
 
 export default function CreateStorePage() {
   const router = useRouter();
@@ -17,10 +25,25 @@ export default function CreateStorePage() {
   const [managerName, setManagerName] = useState('');
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
+  const [gpsLatitude, setGpsLatitude] = useState('');
+  const [gpsLongitude, setGpsLongitude] = useState('');
+  const [locatingGps, setLocatingGps] = useState(false);
+  const [gpsMessage, setGpsMessage] = useState('');
 
   const handleSave = async () => {
     if (!storeCode.trim() || !storeName.trim()) {
       alert('請填寫門市代碼和名稱');
+      return;
+    }
+
+    const latitude = parseGpsNumber(gpsLatitude, -90, 90);
+    const longitude = parseGpsNumber(gpsLongitude, -180, 180);
+    if (latitude === undefined || longitude === undefined) {
+      alert('GPS 座標格式不正確，請確認緯度介於 -90~90、經度介於 -180~180。');
+      return;
+    }
+    if ((latitude === null) !== (longitude === null)) {
+      alert('GPS 緯度與經度需同時填寫，或同時留空。');
       return;
     }
 
@@ -35,7 +58,9 @@ export default function CreateStorePage() {
         hr_store_code: hrStoreCode.trim() || undefined,
         manager_name: managerName.trim() || undefined,
         address: address.trim() || undefined,
-        phone: phone.trim() || undefined
+        phone: phone.trim() || undefined,
+        gps_latitude: latitude,
+        gps_longitude: longitude
       });
 
       if (result.success) {
@@ -205,6 +230,17 @@ export default function CreateStorePage() {
               placeholder="門市電話（選填）"
             />
           </div>
+
+          <StoreGpsFields
+            latitude={gpsLatitude}
+            longitude={gpsLongitude}
+            onLatitudeChange={setGpsLatitude}
+            onLongitudeChange={setGpsLongitude}
+            locating={locatingGps}
+            locateMessage={gpsMessage}
+            onLocatingChange={setLocatingGps}
+            onLocateMessageChange={setGpsMessage}
+          />
 
           {/* 操作按鈕 */}
           <div className="flex justify-end gap-4 pt-4 border-t">

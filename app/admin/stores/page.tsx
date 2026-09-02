@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus, Building2, Hash, User, Copy, Eye, EyeOff } from 'lucide-react';
+import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus, Building2, Hash, User, Copy, Eye, EyeOff, MapPinned } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -126,6 +126,13 @@ export default async function StoresPage({
                 )}
               </Link>
             )}
+            <Link
+              href="/admin/stores/map"
+              className="flex items-center gap-2 px-5 py-3 bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors font-semibold"
+            >
+              <MapPinned size={20} />
+              Google 地圖
+            </Link>
             {/* 只有 admin 和營業部主管可以新增門市 */}
             {(profile?.role === 'admin' || isBusinessSupervisor) && (
               <Link

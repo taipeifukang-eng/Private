@@ -15,8 +15,12 @@ CREATE TABLE IF NOT EXISTS public.stores (
   manager_name TEXT,
   is_franchise BOOLEAN NOT NULL DEFAULT false,
   source_store_id UUID REFERENCES public.stores(id) ON DELETE SET NULL,
+  gps_latitude NUMERIC(10, 7),
+  gps_longitude NUMERIC(11, 7),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT stores_gps_latitude_range CHECK (gps_latitude IS NULL OR (gps_latitude >= -90 AND gps_latitude <= 90)),
+  CONSTRAINT stores_gps_longitude_range CHECK (gps_longitude IS NULL OR (gps_longitude >= -180 AND gps_longitude <= 180))
 );
 
 CREATE INDEX IF NOT EXISTS idx_stores_active_code ON public.stores(is_active, store_code);
@@ -25,6 +29,9 @@ CREATE INDEX IF NOT EXISTS idx_stores_hr_store_code
 CREATE INDEX IF NOT EXISTS idx_stores_manager_name ON public.stores(manager_name);
 CREATE INDEX IF NOT EXISTS idx_stores_is_franchise ON public.stores(is_franchise);
 CREATE INDEX IF NOT EXISTS idx_stores_source_store_id ON public.stores(source_store_id);
+CREATE INDEX IF NOT EXISTS idx_stores_gps_coordinates
+  ON public.stores(gps_latitude, gps_longitude)
+  WHERE gps_latitude IS NOT NULL AND gps_longitude IS NOT NULL;
 
 DROP TRIGGER IF EXISTS trg_stores_updated_at ON public.stores;
 CREATE TRIGGER trg_stores_updated_at

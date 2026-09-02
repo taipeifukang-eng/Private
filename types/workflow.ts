@@ -102,6 +102,8 @@ export interface Store {
   manager_name: string | null;  // 負責人姓名
   address: string | null;
   phone: string | null;
+  gps_latitude: number | null;  // Google 地圖緯度
+  gps_longitude: number | null;  // Google 地圖經度
   is_active: boolean;
   created_at: string;
   updated_at: string;
