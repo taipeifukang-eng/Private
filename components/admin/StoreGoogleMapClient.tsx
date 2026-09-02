@@ -138,9 +138,6 @@ export default function StoreGoogleMapClient({ stores, googleMapsApiKey }: Props
         googleMapRef.current.fitBounds(bounds);
         if (storesWithGps.length === 1) googleMapRef.current.setZoom(16);
         setMapStatus('');
-
-        const targetId = selectedStoreId || storesWithGps[0]?.id;
-        if (targetId) focusStore(targetId, false);
       } catch (error) {
         setMapStatus('');
         setMapError(error instanceof Error ? error.message : 'Google Maps 載入失敗。');
