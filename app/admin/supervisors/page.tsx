@@ -17,6 +17,7 @@ interface StoreData {
   id: string;
   store_code: string;
   store_name: string;
+  short_name?: string | null;
   is_active: boolean;
 }
 
@@ -24,6 +25,13 @@ interface Assignment {
   user_id: string;
   store_id: string;
   role_type: 'supervisor' | 'store_manager';
+}
+
+function isHeadquartersStore(store: StoreData) {
+  const label = [store.store_code, store.store_name, store.short_name]
+    .filter(Boolean)
+    .join(' ');
+  return store.store_code === '0000' || /總部|总部|HQ/i.test(label);
 }
 
 export default function SupervisorsManagementPage() {
@@ -59,7 +67,7 @@ export default function SupervisorsManagementPage() {
       const storesRes = await fetch('/api/supervisors/stores');
       if (!storesRes.ok) throw new Error('Failed to load stores');
       const storesData = await storesRes.json();
-      setStores(storesData.stores || []);
+      setStores((storesData.stores || []).filter((store: StoreData) => !isHeadquartersStore(store)));
 
       // 載入現有分配
       const assignmentsRes = await fetch('/api/supervisors/assignments');
@@ -261,6 +269,18 @@ export default function SupervisorsManagementPage() {
   }
 
   const userStores = selectedSupervisor ? (assignments.get(selectedSupervisor.id) || new Set()) : new Set();
+  const branchStoreIds = new Set(stores.map((store) => store.id));
+  const supervisorRoleUserIds = Array.from(assignmentTypes.entries())
+    .filter(([, userTypes]) => Array.from(userTypes.entries()).some(([storeId, type]) => branchStoreIds.has(storeId) && type === 'supervisor'))
+    .map(([userId]) => userId);
+  const assignedManagerCount = supervisorRoleUserIds.filter((userId) => {
+    const person = supervisors.find((item) => item.id === userId);
+    return person?.job_title?.includes('經理') ?? false;
+  }).length;
+  const assignedSupervisorCount = supervisorRoleUserIds.filter((userId) => {
+    const person = supervisors.find((item) => item.id === userId);
+    return person?.job_title?.includes('督導') ?? false;
+  }).length;
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 lg:p-8">
@@ -294,8 +314,8 @@ export default function SupervisorsManagementPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">經理/督導人數</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{supervisors.length}</p>
+                <p className="text-gray-600 text-sm">經理人數</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{assignedManagerCount}</p>
               </div>
               <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
                 <Users className="w-6 h-6 text-blue-600" />
@@ -306,11 +326,11 @@ export default function SupervisorsManagementPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">門市總數</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stores.length}</p>
+                <p className="text-gray-600 text-sm">督導人數</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{assignedSupervisorCount}</p>
               </div>
               <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <Store className="w-6 h-6 text-green-600" />
+                <Shield className="w-6 h-6 text-green-600" />
               </div>
             </div>
           </div>
@@ -318,13 +338,11 @@ export default function SupervisorsManagementPage() {
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-600 text-sm">已分配管理者</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">
-                  {Array.from(assignments.values()).filter(s => s.size > 0).length}
-                </p>
+                <p className="text-gray-600 text-sm">門市總數</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stores.length}</p>
               </div>
               <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Shield className="w-6 h-6 text-purple-600" />
+                <Store className="w-6 h-6 text-purple-600" />
               </div>
             </div>
           </div>

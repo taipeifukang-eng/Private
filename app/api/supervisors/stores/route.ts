@@ -21,10 +21,10 @@ export async function GET() {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
     }
 
-    // 獲取所有門市
+    // 獲取所有營運門市，總部不列入經理/督導門市分配統計
     const { data: stores, error } = await supabase
       .from('stores')
-      .select('id, store_code, store_name')
+      .select('id, store_code, store_name, short_name')
       .eq('is_active', true)
       .order('store_code');
 
@@ -32,7 +32,14 @@ export async function GET() {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, stores: stores || [] });
+    const branchStores = (stores || []).filter((store) => {
+      const label = [store.store_code, store.store_name, store.short_name]
+        .filter(Boolean)
+        .join(' ');
+      return store.store_code !== '0000' && !/總部|总部|HQ/i.test(label);
+    });
+
+    return NextResponse.json({ success: true, stores: branchStores });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
