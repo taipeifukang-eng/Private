@@ -36,6 +36,21 @@ assertIncludes(
   '避免前端 RLS 對 inspection_improvements 回傳假空白',
   'improvements page should document why it uses the server API'
 );
+assertIncludes(
+  page,
+  'setImprovementsMeta(payload.meta || null)',
+  'improvements page should keep API visibility diagnostics'
+);
+assertIncludes(
+  page,
+  '目前帳號可見範圍是 0 筆',
+  'improvements page should explain scoped-empty results'
+);
+assertIncludes(
+  page,
+  'setErrorMessage(payload.error ||',
+  'improvements page should show API errors instead of silent zero counts'
+);
 assertNotIncludes(
   page,
   ".from('inspection_improvements')\n        .select(`",
@@ -91,6 +106,26 @@ assertIncludes(
   route,
   '避免 stores / inspection_masters inner join 被關聯表 RLS 連帶過濾成空資料',
   'improvements API should document why it avoids inner joins'
+);
+assertIncludes(
+  route,
+  'totalCount: rawImprovements?.length || 0',
+  'improvements API should return total row count diagnostics'
+);
+assertIncludes(
+  route,
+  'visibleCount: improvements.length',
+  'improvements API should return visible row count diagnostics'
+);
+assertIncludes(
+  route,
+  'managedStoreCount',
+  'improvements API should return own-store scope diagnostics'
+);
+assertIncludes(
+  route,
+  'ownInspectionCount',
+  'improvements API should return own-inspection scope diagnostics'
 );
 assertIncludes(
   navbarPermissions,

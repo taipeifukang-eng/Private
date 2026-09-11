@@ -54,6 +54,8 @@ export async function GET() {
     }
 
     let visibleImprovements = rawImprovements || [];
+    let managedStoreCount = 0;
+    let ownInspectionCount = 0;
 
     if (!canViewAll) {
       const [storeManagerResult, ownInspectionResult] = await Promise.all([
@@ -80,6 +82,8 @@ export async function GET() {
       const inspectionIds = new Set(
         (ownInspectionResult.data || []).map((row: any) => row.id).filter(Boolean)
       );
+      managedStoreCount = storeIds.size;
+      ownInspectionCount = inspectionIds.size;
 
       visibleImprovements = visibleImprovements.filter((item: any) =>
         storeIds.has(item.store_id) || inspectionIds.has(item.inspection_id)
@@ -167,7 +171,17 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json({ improvements });
+    return NextResponse.json({
+      improvements,
+      meta: {
+        totalCount: rawImprovements?.length || 0,
+        visibleCount: improvements.length,
+        canViewAll,
+        canViewOwnScope,
+        managedStoreCount,
+        ownInspectionCount,
+      },
+    });
   } catch (error: any) {
     console.error('載入待改善事項失敗:', error);
     return NextResponse.json(

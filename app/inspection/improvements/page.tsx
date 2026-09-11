@@ -39,6 +39,15 @@ interface Improvement {
   inspector_name: string;
 }
 
+interface ImprovementsMeta {
+  totalCount: number;
+  visibleCount: number;
+  canViewAll: boolean;
+  canViewOwnScope: boolean;
+  managedStoreCount: number;
+  ownInspectionCount: number;
+}
+
 type FilterStatus = 'all' | 'pending' | 'improved' | 'overdue';
 
 function ImprovementsContent() {
@@ -50,11 +59,14 @@ function ImprovementsContent() {
   const [improvements, setImprovements] = useState<Improvement[]>([]);
   const [filter, setFilter] = useState<FilterStatus>(initialFilter);
   const [noPermission, setNoPermission] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [improvementsMeta, setImprovementsMeta] = useState<ImprovementsMeta | null>(null);
 
   const fetchImprovements = useCallback(async () => {
     try {
       setLoading(true);
       setNoPermission(false);
+      setErrorMessage('');
 
       // 透過伺服器 API 讀取，避免前端 RLS 對 inspection_improvements 回傳假空白。
       const response = await fetch('/api/inspection/improvements', {
@@ -74,12 +86,15 @@ function ImprovementsContent() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         console.error('載入待改善事項失敗:', payload);
+        setErrorMessage(payload.error || '載入待改善事項失敗，請稍後再試。');
         return;
       }
 
       setImprovements(payload.improvements || []);
+      setImprovementsMeta(payload.meta || null);
     } catch (error) {
       console.error('載入失敗:', error);
+      setErrorMessage('載入待改善事項失敗，請確認網路或稍後再試。');
     } finally {
       setLoading(false);
     }
@@ -205,6 +220,23 @@ function ImprovementsContent() {
             <h3 className="text-gray-600 font-medium">
               {filter === 'all' ? '目前沒有待改善事項' : `沒有${filter === 'pending' ? '待改善' : filter === 'improved' ? '已改善' : '逾期'}的事項`}
             </h3>
+            {errorMessage && (
+              <p className="mt-3 text-sm text-red-600">{errorMessage}</p>
+            )}
+            {!errorMessage && stats.all === 0 && improvementsMeta && improvementsMeta.totalCount > 0 && (
+              <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-800">
+                <p className="font-medium">系統有待改善資料，但目前帳號可見範圍是 0 筆。</p>
+                <p className="mt-1">
+                  系統總數 {improvementsMeta.totalCount} 筆，帳號可見 {improvementsMeta.visibleCount} 筆。
+                  全域查看：{improvementsMeta.canViewAll ? '是' : '否'}，
+                  管理門市：{improvementsMeta.managedStoreCount} 間，
+                  自己巡店：{improvementsMeta.ownInspectionCount} 張。
+                </p>
+                <p className="mt-1">
+                  若要看全部待改善，需開啟 inspection.improvement.view_all；若只看自己巡店，請確認巡店紀錄的督導人員是目前登入帳號。
+                </p>
+              </div>
+            )}
           </div>
         )}
 
