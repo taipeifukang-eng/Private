@@ -92,108 +92,55 @@ function ImprovementsContent() {
         }
       }
 
-      // 查詢待改善事項（RLS 會自動過濾）
-      const { data, error } = await supabase
+      // 先查主表，避免 stores / inspection_masters inner join 被關聯表 RLS 連帶過濾成空資料
+      const { data: simpleData, error: simpleError } = await supabase
         .from('inspection_improvements')
         .select(`
           id, inspection_id, store_id,
           section_name, item_name, deduction_amount,
           issue_description, issue_photo_urls, selected_items,
           status, deadline, days_taken, bonus_score,
-          improved_at, created_at,
-          stores!inner(store_name, store_code),
-          inspection_masters!inner(inspection_date, inspector_id)
+          improved_at, created_at
         `)
         .order('deadline', { ascending: true })
         .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error('查詢失敗:', error);
-        // 如果 join 失敗，嘗試不帶 join 的查詢
-        const { data: simpleData, error: simpleError } = await supabase
-          .from('inspection_improvements')
-          .select('*')
-          .order('deadline', { ascending: true });
-
-        if (simpleError) {
-          console.error('簡單查詢也失敗:', simpleError);
-          return;
-        }
-
-        // 手動取得關聯資料
-        if (simpleData && simpleData.length > 0) {
-          const storeIds = Array.from(new Set(simpleData.map((d: any) => d.store_id)));
-          const inspectionIds = Array.from(new Set(simpleData.map((d: any) => d.inspection_id)));
-
-          const [storesResult, inspectionsResult] = await Promise.all([
-            supabase.from('stores').select('id, store_name, store_code').in('id', storeIds),
-            supabase
-              .from('inspection_masters')
-              .select('id, inspection_date, inspector_id')
-              .in('id', inspectionIds),
-          ]);
-
-          const storeMap = new Map(
-            (storesResult.data || []).map((s: any) => [s.id, s])
-          );
-          const inspectionMap = new Map(
-            (inspectionsResult.data || []).map((i: any) => [i.id, i])
-          );
-
-          // 批量查詢督導名稱
-          const fallbackInspectorIds = Array.from(new Set(
-            (inspectionsResult.data || []).map((i: any) => i.inspector_id).filter(Boolean)
-          ));
-          let fallbackInspectorMap = new Map<string, string>();
-          if (fallbackInspectorIds.length > 0) {
-            const { data: inspectorProfiles } = await supabase
-              .from('profiles')
-              .select('id, full_name')
-              .in('id', fallbackInspectorIds);
-            if (inspectorProfiles) {
-              fallbackInspectorMap = new Map(inspectorProfiles.map((p: any) => [p.id, p.full_name]));
-            }
-          }
-
-          const mapped: Improvement[] = simpleData.map((item: any) => {
-            const store = storeMap.get(item.store_id) || {};
-            const inspection = inspectionMap.get(item.inspection_id) || {};
-            const inspectorId = (inspection as any).inspector_id;
-            return {
-              ...item,
-              store_name: (store as any).store_name || '未知門市',
-              store_code: (store as any).store_code || '',
-              inspection_date: (inspection as any).inspection_date || '',
-              inspector_name: (inspectorId && fallbackInspectorMap.get(inspectorId)) || '未知',
-            };
-          });
-
-          // 動態更新逾期狀態
-          const today = new Date().toISOString().split('T')[0];
-          const overdueItems = mapped.filter(
-            (item) => item.status === 'pending' && item.deadline < today
-          );
-          if (overdueItems.length > 0) {
-            await Promise.all(
-              overdueItems.map((item) =>
-                supabase
-                  .from('inspection_improvements')
-                  .update({ status: 'overdue', updated_at: new Date().toISOString() })
-                  .eq('id', item.id)
-              )
-            );
-            overdueItems.forEach((item) => (item.status = 'overdue'));
-          }
-
-          setImprovements(mapped);
-        }
+      if (simpleError) {
+        console.error('查詢待改善事項失敗:', simpleError);
         return;
       }
 
-      // 正常帶 join 的結果 - 先收集 inspector_id
-      const rawData = data || [];
+      const rawData = simpleData || [];
+      const storeIds = Array.from(new Set(rawData.map((item: any) => item.store_id).filter(Boolean)));
+      const inspectionIds = Array.from(new Set(rawData.map((item: any) => item.inspection_id).filter(Boolean)));
+
+      const [storesResult, inspectionsResult] = await Promise.all([
+        storeIds.length > 0
+          ? supabase.from('stores').select('id, store_name, store_code').in('id', storeIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
+        inspectionIds.length > 0
+          ? supabase
+              .from('inspection_masters')
+              .select('id, inspection_date, inspector_id')
+              .in('id', inspectionIds)
+          : Promise.resolve({ data: [] as any[], error: null }),
+      ]);
+
+      if (storesResult.error) {
+        console.warn('查詢待改善門市資料失敗，將以未知門市顯示:', storesResult.error);
+      }
+      if (inspectionsResult.error) {
+        console.warn('查詢待改善巡店主檔失敗，將略過巡店日期與督導:', inspectionsResult.error);
+      }
+
+      const storeMap = new Map(
+        (storesResult.data || []).map((store: any) => [store.id, store])
+      );
+      const inspectionMap = new Map(
+        (inspectionsResult.data || []).map((inspection: any) => [inspection.id, inspection])
+      );
       const inspectorIds = Array.from(new Set(
-        rawData.map((item: any) => item.inspection_masters?.inspector_id).filter(Boolean)
+        (inspectionsResult.data || []).map((inspection: any) => inspection.inspector_id).filter(Boolean)
       ));
 
       // 批量查詢督導名稱
@@ -209,12 +156,14 @@ function ImprovementsContent() {
       }
 
       const mapped: Improvement[] = rawData.map((item: any) => {
-        const inspId = item.inspection_masters?.inspector_id;
+        const store = storeMap.get(item.store_id) || {};
+        const inspection = inspectionMap.get(item.inspection_id) || {};
+        const inspId = (inspection as any).inspector_id;
         return {
           ...item,
-          store_name: item.stores?.store_name || '未知門市',
-          store_code: item.stores?.store_code || '',
-          inspection_date: item.inspection_masters?.inspection_date || '',
+          store_name: (store as any).store_name || '未知門市',
+          store_code: (store as any).store_code || '',
+          inspection_date: (inspection as any).inspection_date || '',
           inspector_name: (inspId && inspectorNameMap.get(inspId)) || '未知',
         };
       });
