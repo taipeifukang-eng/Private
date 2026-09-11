@@ -79,8 +79,8 @@ assertIncludes(
 );
 assertIncludes(
   route,
-  'const [canViewAll, canViewOwnScope]',
-  'improvements API should separate global visibility from scoped visibility'
+  'getImprovementAccess(adminClient, user.id)',
+  'improvements API should read RBAC through the admin client instead of slow permission RPC loops'
 );
 assertIncludes(
   route,
@@ -104,12 +104,22 @@ assertIncludes(
 );
 assertIncludes(
   route,
+  ".in('inspection_id', Array.from(inspectionIds))",
+  'improvements API should query only own-inspection scoped improvements'
+);
+assertIncludes(
+  route,
+  ".in('store_id', Array.from(storeIds))",
+  'improvements API should query only own-store scoped improvements'
+);
+assertIncludes(
+  route,
   '避免 stores / inspection_masters inner join 被關聯表 RLS 連帶過濾成空資料',
   'improvements API should document why it avoids inner joins'
 );
 assertIncludes(
   route,
-  'totalCount: rawImprovements?.length || 0',
+  'totalCount = count ?? visibleImprovements.length',
   'improvements API should return total row count diagnostics'
 );
 assertIncludes(
