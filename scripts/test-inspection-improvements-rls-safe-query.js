@@ -82,6 +82,21 @@ assertIncludes(
   'getImprovementAccess(adminClient, user.id)',
   'improvements API should read RBAC through the admin client instead of slow permission RPC loops'
 );
+assertNotIncludes(
+  route,
+  'role_permissions!inner',
+  'improvements API should avoid nested RBAC joins that can timeout in production'
+);
+assertNotIncludes(
+  route,
+  "count: 'exact'",
+  'improvements API should avoid exact counts on the listing request'
+);
+assertNotIncludes(
+  route,
+  '.update({ status:',
+  'improvements API should not update rows during the listing request'
+);
 assertIncludes(
   route,
   "'inspection.improvement.view_own_store'",
@@ -119,8 +134,8 @@ assertIncludes(
 );
 assertIncludes(
   route,
-  'totalCount = count ?? visibleImprovements.length',
-  'improvements API should return total row count diagnostics'
+  'totalCount: visibleImprovements.length',
+  'improvements API should return lightweight visible count diagnostics'
 );
 assertIncludes(
   route,

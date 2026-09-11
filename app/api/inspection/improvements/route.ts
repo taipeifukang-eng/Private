@@ -43,56 +43,100 @@ async function getImprovementAccess(adminClient: any, userId: string) {
     return { canViewAll: true, canViewOwnScope: true };
   }
 
-  const { data: roleRows, error: roleError } = await adminClient
+  const { data: userRoles, error: userRolesError } = await adminClient
     .from('user_roles')
-    .select(`
-      expires_at,
-      role:roles!inner (
-        code,
-        is_active,
-        role_permissions!inner (
-          is_allowed,
-          permission:permissions!inner (code, is_active)
-        )
-      )
-    `)
+    .select('role_id, expires_at')
     .eq('user_id', userId)
     .eq('is_active', true);
 
-  if (roleError) {
-    console.error('查詢待改善權限失敗:', roleError);
+  if (userRolesError) {
+    console.error('查詢使用者角色失敗:', userRolesError);
     return { canViewAll: false, canViewOwnScope: false };
   }
 
-  const permissionCodes = new Set<string>();
   const now = Date.now();
+  const activeRoleIds = Array.from(new Set(
+    (userRoles || [])
+      .filter((row: any) => {
+        const expiresAt = row.expires_at ? new Date(row.expires_at).getTime() : null;
+        return expiresAt === null || expiresAt > now;
+      })
+      .map((row: any) => row.role_id)
+      .filter(Boolean)
+  ));
+
+  if (activeRoleIds.length === 0) {
+    return { canViewAll: false, canViewOwnScope: false };
+  }
+
+  const { data: roles, error: rolesError } = await adminClient
+    .from('roles')
+    .select('id, code, is_active')
+    .in('id', activeRoleIds);
+
+  if (rolesError) {
+    console.error('查詢角色資料失敗:', rolesError);
+    return { canViewAll: false, canViewOwnScope: false };
+  }
+
+  const enabledRoleIds = new Set<string>();
   let isAdminLike = false;
-
-  (roleRows || []).forEach((userRole: any) => {
-    const expiresAt = userRole.expires_at ? new Date(userRole.expires_at).getTime() : null;
-    if (expiresAt !== null && expiresAt <= now) return;
-    if (userRole.role?.is_active === false) return;
-
-    if (ADMIN_ROLE_CODES.has(userRole.role?.code)) {
+  (roles || []).forEach((role: any) => {
+    if (role?.is_active === false) return;
+    enabledRoleIds.add(role.id);
+    if (ADMIN_ROLE_CODES.has(role.code)) {
       isAdminLike = true;
     }
-
-    (userRole.role?.role_permissions || []).forEach((rolePermission: any) => {
-      const code = rolePermission.permission?.code;
-      if (
-        rolePermission.is_allowed &&
-        rolePermission.permission?.is_active !== false &&
-        typeof code === 'string' &&
-        code.trim()
-      ) {
-        permissionCodes.add(code.trim());
-      }
-    });
   });
 
+  if (isAdminLike) {
+    return { canViewAll: true, canViewOwnScope: true };
+  }
+
+  const scopedPermissionCodes = [VIEW_ALL_PERMISSION, ...SCOPED_PERMISSIONS];
+  const { data: permissions, error: permissionsError } = await adminClient
+    .from('permissions')
+    .select('id, code, is_active')
+    .in('code', scopedPermissionCodes);
+
+  if (permissionsError) {
+    console.error('查詢待改善權限定義失敗:', permissionsError);
+    return { canViewAll: false, canViewOwnScope: false };
+  }
+
+  const permissionById = new Map(
+    (permissions || [])
+      .filter((permission: any) => permission?.is_active !== false)
+      .map((permission: any) => [permission.id, permission.code])
+  );
+  const permissionIds = Array.from(permissionById.keys());
+  const allowedRoleIds = Array.from(enabledRoleIds);
+
+  if (permissionIds.length === 0 || allowedRoleIds.length === 0) {
+    return { canViewAll: false, canViewOwnScope: false };
+  }
+
+  const { data: rolePermissions, error: rolePermissionsError } = await adminClient
+    .from('role_permissions')
+    .select('permission_id')
+    .in('role_id', allowedRoleIds)
+    .in('permission_id', permissionIds)
+    .eq('is_allowed', true);
+
+  if (rolePermissionsError) {
+    console.error('查詢角色待改善權限失敗:', rolePermissionsError);
+    return { canViewAll: false, canViewOwnScope: false };
+  }
+
+  const permissionCodes = new Set(
+    (rolePermissions || [])
+      .map((rolePermission: any) => permissionById.get(rolePermission.permission_id))
+      .filter(Boolean)
+  );
+
   return {
-    canViewAll: isAdminLike || permissionCodes.has(VIEW_ALL_PERMISSION),
-    canViewOwnScope: isAdminLike || SCOPED_PERMISSIONS.some((code) => permissionCodes.has(code)),
+    canViewAll: permissionCodes.has(VIEW_ALL_PERMISSION),
+    canViewOwnScope: SCOPED_PERMISSIONS.some((code) => permissionCodes.has(code)),
   };
 }
 
@@ -122,14 +166,9 @@ export async function GET() {
       return NextResponse.json({ error: '權限不足' }, { status: 403 });
     }
 
-    let totalCount = 0;
     let visibleImprovements: any[] = [];
     let managedStoreCount = 0;
     let ownInspectionCount = 0;
-
-    const totalCountPromise = adminClient
-      .from('inspection_improvements')
-      .select('id', { count: 'exact', head: true });
 
     if (canViewAll) {
       const { data, error } = await adminClient
@@ -214,12 +253,6 @@ export async function GET() {
       visibleImprovements = sortImprovements(Array.from(merged.values()));
     }
 
-    const { count, error: totalCountError } = await totalCountPromise;
-    if (totalCountError) {
-      console.warn('查詢待改善總數失敗:', totalCountError);
-    }
-    totalCount = count ?? visibleImprovements.length;
-
     // 分開補關聯資料，避免 stores / inspection_masters inner join 被關聯表 RLS 連帶過濾成空資料。
     const storeIds = Array.from(new Set(visibleImprovements.map((item: any) => item.store_id).filter(Boolean)));
     const inspectionIds = Array.from(new Set(visibleImprovements.map((item: any) => item.inspection_id).filter(Boolean)));
@@ -273,19 +306,10 @@ export async function GET() {
       (item: any) => item.status === 'pending' && item.deadline < today
     );
 
-    if (overdueItems.length > 0) {
-      await Promise.all(
-        overdueItems.map((item: any) =>
-          adminClient
-            .from('inspection_improvements')
-            .update({ status: 'overdue', updated_at: new Date().toISOString() })
-            .eq('id', item.id)
-        )
-      );
-      overdueItems.forEach((item: any) => {
-        item.status = 'overdue';
-      });
-    }
+    // 列表頁只負責呈現，避免 GET 請求更新資料時觸發正式區 statement timeout。
+    overdueItems.forEach((item: any) => {
+      item.status = 'overdue';
+    });
 
     const improvements = visibleImprovements.map((item: any) => {
       const store = storeMap.get(item.store_id) || {};
@@ -304,7 +328,7 @@ export async function GET() {
     return NextResponse.json({
       improvements,
       meta: {
-        totalCount,
+        totalCount: visibleImprovements.length,
         visibleCount: improvements.length,
         canViewAll,
         canViewOwnScope,
