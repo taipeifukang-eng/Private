@@ -192,8 +192,6 @@ async function fetchImprovementsByStatus(adminClient: any, baseQuery: (status: s
     runQuery(
       `${stagePrefix}.${status}`,
       baseQuery(status)
-        .order('deadline', { ascending: true })
-        .order('created_at', { ascending: false })
         .limit(LIST_LIMIT),
       `查詢${status}待改善事項失敗`
     )

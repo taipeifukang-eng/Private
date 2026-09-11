@@ -13,6 +13,10 @@ const permissionMigration = fs.readFileSync(
   path.join(process.cwd(), 'supabase/migrations/20260911093000_grant_inspection_improvement_permissions.sql'),
   'utf8'
 );
+const lookupIndexMigration = fs.readFileSync(
+  path.join(process.cwd(), 'supabase/migrations/20260911100000_optimize_inspection_improvements_lookup.sql'),
+  'utf8'
+);
 const navbarPermissions = fs.readFileSync(
   path.join(process.cwd(), 'hooks/useNavbarPermissions.ts'),
   'utf8'
@@ -151,6 +155,11 @@ assertIncludes(
   'const LIST_LIMIT = 200',
   'improvements API should limit each listing query to avoid production timeouts'
 );
+assertNotIncludes(
+  route,
+  ".order('deadline'",
+  'improvements API should sort in memory instead of ordering listing queries in SQL'
+);
 assertIncludes(
   route,
   'fetchImprovementsByStatus',
@@ -215,6 +224,21 @@ assertIncludes(
   permissionMigration,
   "'admin_role'",
   'migration should grant improvement permissions to admin-like roles'
+);
+assertIncludes(
+  lookupIndexMigration,
+  'idx_inspection_improvements_status_id',
+  'lookup index migration should add status lookup index'
+);
+assertIncludes(
+  lookupIndexMigration,
+  'idx_inspection_improvements_store_status_id',
+  'lookup index migration should add store scoped status index'
+);
+assertIncludes(
+  lookupIndexMigration,
+  'idx_inspection_improvements_inspection_status_id',
+  'lookup index migration should add inspection scoped status index'
 );
 
 console.log('inspection improvements RLS-safe query checks passed');
