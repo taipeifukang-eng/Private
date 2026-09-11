@@ -74,8 +74,11 @@ interface OnDutyStaff {
 type InspectionDraft = {
   id: string;
   inspectionType: 'supervisor' | 'manager';
+  draftStatus?: 'editing' | 'submitted';
   clientRequestId: string;
   inspectionNo: string;
+  submittedInspectionId?: string;
+  submittedAt?: string;
   updatedAt: string;
   selectedStoreId: string;
   inspectionDate: string;
@@ -260,6 +263,34 @@ function NewInspectionPage() {
     );
   };
 
+  const buildInspectionDraft = (
+    draftStatus: InspectionDraft['draftStatus'] = 'editing',
+    submittedInspectionId?: string
+  ): InspectionDraft => ({
+    id: draftId,
+    inspectionType,
+    draftStatus,
+    clientRequestId,
+    inspectionNo,
+    submittedInspectionId,
+    submittedAt: draftStatus === 'submitted' ? new Date().toISOString() : undefined,
+    updatedAt: new Date().toISOString(),
+    selectedStoreId,
+    inspectionDate,
+    expandedSections: Array.from(expandedSections),
+    itemScores: Array.from(itemScores.values()),
+    signaturePhoto,
+    supervisorSignature,
+    gpsLocation,
+    supervisorNotes,
+    indoorTemperature,
+    onDutyStaff,
+  });
+
+  const markDraftSubmitted = async (inspectionId: string) => {
+    await writeInspectionDraft(buildInspectionDraft('submitted', inspectionId));
+  };
+
   useEffect(() => {
     loadData();
     requestGPSLocation();
@@ -296,23 +327,7 @@ function NewInspectionPage() {
     const timer = window.setTimeout(() => {
       if (!hasDraftContent()) return;
 
-      const draft: InspectionDraft = {
-        id: draftId,
-        inspectionType,
-        clientRequestId,
-        inspectionNo,
-        updatedAt: new Date().toISOString(),
-        selectedStoreId,
-        inspectionDate,
-        expandedSections: Array.from(expandedSections),
-        itemScores: Array.from(itemScores.values()),
-        signaturePhoto,
-        supervisorSignature,
-        gpsLocation,
-        supervisorNotes,
-        indoorTemperature,
-        onDutyStaff,
-      };
+      const draft = buildInspectionDraft('editing');
 
       writeInspectionDraft(draft)
         .then(() => setDraftSavedAt(draft.updatedAt))
@@ -473,7 +488,46 @@ function NewInspectionPage() {
 
       if (draft) {
         const updatedAtLabel = new Date(draft.updatedAt).toLocaleString('zh-TW');
-        const shouldRestore = window.confirm(`偵測到尚未送出的巡店暫存資料（${updatedAtLabel}）。是否恢復？`);
+        if (draft.draftStatus === 'submitted' || draft.submittedInspectionId) {
+          const submittedQuery = draft.submittedInspectionId
+            ? supabase
+                .from('inspection_masters')
+                .select('id, status')
+                .eq('id', draft.submittedInspectionId)
+                .maybeSingle()
+            : supabase
+                .from('inspection_masters')
+                .select('id, status')
+                .eq('client_request_id', draft.clientRequestId)
+                .maybeSingle();
+
+          const { data: submittedInspection, error: submittedLookupError } = await submittedQuery;
+
+          if (submittedLookupError) {
+            console.warn('查詢已送出巡店暫存失敗:', submittedLookupError);
+          }
+
+          if (submittedInspection) {
+            await deleteInspectionDraft(draftId).catch((error) => console.warn('清除已送出巡店暫存失敗:', error));
+            alert('這張巡店表單已經送出過，系統將開啟既有紀錄。');
+            router.push(submittedInspection.status === 'draft' || submittedInspection.status === 'in_progress'
+              ? `/inspection/${submittedInspection.id}/edit`
+              : `/inspection/${submittedInspection.id}`);
+            return;
+          }
+
+          await deleteInspectionDraft(draftId).catch((error) => console.warn('清除已送出巡店暫存失敗:', error));
+          setClientRequestId(createInspectionClientRequestId());
+          setInspectionNo(createInspectionNo(inspectionType));
+          setItemScores(initialScores);
+          draftReadyRef.current = true;
+          setLoading(false);
+          return;
+        }
+
+        const shouldRestore = window.confirm(
+          `偵測到尚未送出的巡店暫存資料（${updatedAtLabel}）。\n\n如果這張表已送出，系統會開啟既有紀錄並避免重複新增。\n\n是否恢復暫存資料？`
+        );
 
         if (shouldRestore) {
           const restoredClientRequestId = draft.clientRequestId || createInspectionClientRequestId();
@@ -874,6 +928,7 @@ function NewInspectionPage() {
       }
 
       if (existingByRequestId) {
+        await markDraftSubmitted(existingByRequestId.id).catch((error) => console.warn('標記已送出巡店暫存失敗:', error));
         await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
         alert('這張巡店表單已經送出過，系統將開啟既有紀錄。');
         router.push(existingByRequestId.status === 'draft' || existingByRequestId.status === 'in_progress'
@@ -905,6 +960,7 @@ function NewInspectionPage() {
 
       const existingInspection = existingInspections?.[0];
       if (existingInspection) {
+        await markDraftSubmitted(existingInspection.id).catch((error) => console.warn('標記已送出巡店暫存失敗:', error));
         await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
         alert('此門市在同一天已經有巡店紀錄，系統將開啟既有紀錄，避免重複建立。');
         router.push(existingInspection.status === 'draft' || existingInspection.status === 'in_progress'
@@ -949,6 +1005,7 @@ function NewInspectionPage() {
             .maybeSingle();
 
           if (existingAfterConflict) {
+            await markDraftSubmitted(existingAfterConflict.id).catch((error) => console.warn('標記已送出巡店暫存失敗:', error));
             await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
             alert('這張巡店表單已經送出過，系統將開啟既有紀錄。');
             router.push(existingAfterConflict.status === 'draft' || existingAfterConflict.status === 'in_progress'
@@ -1014,6 +1071,7 @@ function NewInspectionPage() {
       }
 
       console.log('🎯 送出完成，記錄 ID:', masterData.id);
+      await markDraftSubmitted(masterData.id).catch((error) => console.warn('標記已送出巡店暫存失敗:', error));
       await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
 
       if (isDraft) {

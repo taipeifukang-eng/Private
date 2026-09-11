@@ -34,7 +34,13 @@ assertIncludes(
   'migration should enforce unique client_request_id'
 );
 
-for (const field of ['clientRequestId: string', 'inspectionNo: string']) {
+for (const field of [
+  "draftStatus?: 'editing' | 'submitted'",
+  'clientRequestId: string',
+  'inspectionNo: string',
+  'submittedInspectionId?: string',
+  'submittedAt?: string',
+]) {
   assertIncludes(newPage, field, `inspection draft should include ${field}`);
 }
 
@@ -62,6 +68,21 @@ assertIncludes(
   newPage,
   'client_request_id: clientRequestId',
   'new inspection insert should persist client_request_id'
+);
+assertIncludes(
+  newPage,
+  "writeInspectionDraft(buildInspectionDraft('submitted', inspectionId))",
+  'new inspection page should mark local draft as submitted before deleting it'
+);
+assertIncludes(
+  newPage,
+  "draft.draftStatus === 'submitted' || draft.submittedInspectionId",
+  'new inspection page should detect submitted local drafts'
+);
+assertIncludes(
+  newPage,
+  '這張巡店表單已經送出過，系統將開啟既有紀錄。',
+  'new inspection page should explain submitted draft recovery'
 );
 
 assertIncludes(
