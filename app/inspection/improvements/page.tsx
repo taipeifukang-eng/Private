@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -55,137 +54,30 @@ function ImprovementsContent() {
   const fetchImprovements = useCallback(async () => {
     try {
       setLoading(true);
-      const supabase = createClient();
+      setNoPermission(false);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
+      // 透過伺服器 API 讀取，避免前端 RLS 對 inspection_improvements 回傳假空白。
+      const response = await fetch('/api/inspection/improvements', {
+        cache: 'no-store',
+      });
+
+      if (response.status === 401) {
         router.push('/login');
         return;
       }
 
-      // 檢查權限
-      const [viewAll, viewOwn] = await Promise.all([
-        supabase.rpc('has_permission', {
-          p_user_id: user.id,
-          p_permission_code: 'inspection.improvement.view_all',
-        }),
-        supabase.rpc('has_permission', {
-          p_user_id: user.id,
-          p_permission_code: 'inspection.improvement.view_own_store',
-        }),
-      ]);
-
-      if (!viewAll.data && !viewOwn.data) {
-        // 也檢查 profiles.role 作為兜底
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        if (profile?.role !== 'admin') {
-          setNoPermission(true);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // 先查主表，避免 stores / inspection_masters inner join 被關聯表 RLS 連帶過濾成空資料
-      const { data: simpleData, error: simpleError } = await supabase
-        .from('inspection_improvements')
-        .select(`
-          id, inspection_id, store_id,
-          section_name, item_name, deduction_amount,
-          issue_description, issue_photo_urls, selected_items,
-          status, deadline, days_taken, bonus_score,
-          improved_at, created_at
-        `)
-        .order('deadline', { ascending: true })
-        .order('created_at', { ascending: false });
-
-      if (simpleError) {
-        console.error('查詢待改善事項失敗:', simpleError);
+      if (response.status === 403) {
+        setNoPermission(true);
         return;
       }
 
-      const rawData = simpleData || [];
-      const storeIds = Array.from(new Set(rawData.map((item: any) => item.store_id).filter(Boolean)));
-      const inspectionIds = Array.from(new Set(rawData.map((item: any) => item.inspection_id).filter(Boolean)));
-
-      const [storesResult, inspectionsResult] = await Promise.all([
-        storeIds.length > 0
-          ? supabase.from('stores').select('id, store_name, store_code').in('id', storeIds)
-          : Promise.resolve({ data: [] as any[], error: null }),
-        inspectionIds.length > 0
-          ? supabase
-              .from('inspection_masters')
-              .select('id, inspection_date, inspector_id')
-              .in('id', inspectionIds)
-          : Promise.resolve({ data: [] as any[], error: null }),
-      ]);
-
-      if (storesResult.error) {
-        console.warn('查詢待改善門市資料失敗，將以未知門市顯示:', storesResult.error);
-      }
-      if (inspectionsResult.error) {
-        console.warn('查詢待改善巡店主檔失敗，將略過巡店日期與督導:', inspectionsResult.error);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        console.error('載入待改善事項失敗:', payload);
+        return;
       }
 
-      const storeMap = new Map(
-        (storesResult.data || []).map((store: any) => [store.id, store])
-      );
-      const inspectionMap = new Map(
-        (inspectionsResult.data || []).map((inspection: any) => [inspection.id, inspection])
-      );
-      const inspectorIds = Array.from(new Set(
-        (inspectionsResult.data || []).map((inspection: any) => inspection.inspector_id).filter(Boolean)
-      ));
-
-      // 批量查詢督導名稱
-      let inspectorNameMap = new Map<string, string>();
-      if (inspectorIds.length > 0) {
-        const { data: inspectorProfiles } = await supabase
-          .from('profiles')
-          .select('id, full_name')
-          .in('id', inspectorIds);
-        if (inspectorProfiles) {
-          inspectorNameMap = new Map(inspectorProfiles.map((p: any) => [p.id, p.full_name]));
-        }
-      }
-
-      const mapped: Improvement[] = rawData.map((item: any) => {
-        const store = storeMap.get(item.store_id) || {};
-        const inspection = inspectionMap.get(item.inspection_id) || {};
-        const inspId = (inspection as any).inspector_id;
-        return {
-          ...item,
-          store_name: (store as any).store_name || '未知門市',
-          store_code: (store as any).store_code || '',
-          inspection_date: (inspection as any).inspection_date || '',
-          inspector_name: (inspId && inspectorNameMap.get(inspId)) || '未知',
-        };
-      });
-
-      // 動態更新逾期狀態
-      const today = new Date().toISOString().split('T')[0];
-      const overdueItems = mapped.filter(
-        (item) => item.status === 'pending' && item.deadline < today
-      );
-      if (overdueItems.length > 0) {
-        await Promise.all(
-          overdueItems.map((item) =>
-            supabase
-              .from('inspection_improvements')
-              .update({ status: 'overdue', updated_at: new Date().toISOString() })
-              .eq('id', item.id)
-          )
-        );
-        overdueItems.forEach((item) => (item.status = 'overdue'));
-      }
-
-      setImprovements(mapped);
+      setImprovements(payload.improvements || []);
     } catch (error) {
       console.error('載入失敗:', error);
     } finally {

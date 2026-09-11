@@ -232,7 +232,10 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canManageInspectionTemplates: permissionSet.has('inspection.template.manage'),
           canViewImprovements:
             permissionSet.has('inspection.improvement.view_all') ||
-            permissionSet.has('inspection.improvement.view_own_store'),
+            permissionSet.has('inspection.improvement.view_own') ||
+            permissionSet.has('inspection.improvement.view_own_store') ||
+            permissionSet.has('inspection.improvement.manage') ||
+            permissionSet.has('inspection.improvement.submit'),
 
           // 跨部門管理
           canAccessCrossDeptMerchandise:
