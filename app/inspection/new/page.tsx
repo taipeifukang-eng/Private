@@ -81,7 +81,7 @@ type InspectionDraft = {
   itemScores: ItemScore[];
   signaturePhoto: string;
   supervisorSignature: string;
-  gpsLocation: { latitude: number; longitude: number; accuracy?: number } | null;
+  gpsLocation: { latitude: number; longitude: number; accuracy?: number; capturedAt?: string } | null;
   supervisorNotes: string;
   indoorTemperature: string;
   onDutyStaff: OnDutyStaff[];
@@ -92,6 +92,13 @@ const INSPECTION_DRAFT_STORE = 'drafts';
 
 function getInspectionDraftId(inspectionType: 'supervisor' | 'manager') {
   return `inspection-new-${inspectionType}`;
+}
+
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function openInspectionDraftDb(): Promise<IDBDatabase> {
@@ -183,7 +190,7 @@ function NewInspectionPage() {
   const [templates, setTemplates] = useState<InspectionTemplate[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
   const [inspectionDate, setInspectionDate] = useState(
-    new Date().toISOString().split('T')[0]
+    formatDateInputValue(new Date())
   );
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
   const [itemScores, setItemScores] = useState<Map<string, ItemScore>>(new Map());
@@ -192,7 +199,7 @@ function NewInspectionPage() {
   
   // GPS 定位狀態
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number; capturedAt?: string } | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [indoorTemperature, setIndoorTemperature] = useState('');
@@ -510,7 +517,9 @@ function NewInspectionPage() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: accuracy,
+          capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
         });
+        setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())));
         setGpsStatus('success');
         setGpsError('');
       },
@@ -541,7 +550,9 @@ function NewInspectionPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: accuracy,
+            capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
           });
+          setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())));
           setGpsStatus('success');
           setGpsError('');
         },
@@ -798,10 +809,13 @@ function NewInspectionPage() {
       if (!user) throw new Error('未登入');
 
       const totals = calculateTotals();
+      const gpsInspectionDate = gpsLocation?.capturedAt
+        ? formatDateInputValue(new Date(gpsLocation.capturedAt))
+        : inspectionDate;
 
       console.log('📊 準備送出巡店記錄:', {
         selectedStoreId,
-        inspectionDate,
+        inspectionDate: gpsInspectionDate,
         totals,
         itemScoresCount: itemScores.size,
         hasGPS: !!gpsLocation,
@@ -813,7 +827,7 @@ function NewInspectionPage() {
         .insert({
           store_id: selectedStoreId,
           inspector_id: user.id,
-          inspection_date: inspectionDate,
+          inspection_date: gpsInspectionDate,
           inspection_type: inspectionType,
           status: isDraft ? 'draft' : 'completed',
           max_possible_score: totals.initialScore,
@@ -825,6 +839,8 @@ function NewInspectionPage() {
           indoor_temperature: indoorTemperature ? parseFloat(indoorTemperature) : null,
           gps_latitude: gpsLocation?.latitude || null,
           gps_longitude: gpsLocation?.longitude || null,
+          gps_accuracy: gpsLocation?.accuracy || null,
+          gps_timestamp: gpsLocation?.capturedAt || null,
         })
         .select()
         .single();

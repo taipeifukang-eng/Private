@@ -104,6 +104,8 @@ export default async function InspectionDetailPage({
         supervisor_signature_url,
         gps_latitude,
         gps_longitude,
+        gps_accuracy,
+        gps_timestamp,
         created_at,
         updated_at
       `)
@@ -271,6 +273,9 @@ export default async function InspectionDetailPage({
     // 11. 檢查是否有刪除巡店記錄的權限（使用 RBAC）
     const canDelete = await hasPermission(user.id, 'inspection.delete');
     const roundedTotalDeduction = Math.round(((inspection.max_possible_score || 0) - (inspection.total_score || 0)) * 10) / 10;
+    const primaryRecordTime = inspection.gps_timestamp || inspection.created_at;
+    const primaryRecordTimeLabel = inspection.gps_timestamp ? 'GPS定位於' : '建立於';
+    const primaryInspectionDate = inspection.gps_timestamp || inspection.inspection_date;
 
     console.log('✅ 所有資料載入完成，開始渲染頁面');
 
@@ -290,7 +295,7 @@ export default async function InspectionDetailPage({
             <div>
               <h1 className="text-3xl font-bold text-gray-900">巡店記錄詳情</h1>
               <p className="mt-2 text-sm text-gray-600">
-                建立於 {new Date(inspection.created_at).toLocaleString('zh-TW')}
+                {primaryRecordTimeLabel} {new Date(primaryRecordTime).toLocaleString('zh-TW')}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -333,8 +338,13 @@ export default async function InspectionDetailPage({
               <div>
                 <p className="text-sm text-gray-600">巡店日期</p>
                 <p className="text-lg font-semibold text-gray-900 mt-0.5">
-                  {new Date(inspection.inspection_date).toLocaleDateString('zh-TW')}
+                  {new Date(primaryInspectionDate).toLocaleDateString('zh-TW')}
                 </p>
+                {inspection.gps_timestamp && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(inspection.gps_timestamp).toLocaleTimeString('zh-TW')}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -382,6 +392,16 @@ export default async function InspectionDetailPage({
                     >
                       {Number(inspection.gps_latitude).toFixed(6)}, {Number(inspection.gps_longitude).toFixed(6)}
                     </a>
+                    {inspection.gps_timestamp && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        定位時間：{new Date(inspection.gps_timestamp).toLocaleString('zh-TW')}
+                      </p>
+                    )}
+                    {inspection.gps_accuracy && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        精度：±{Number(inspection.gps_accuracy).toFixed(0)}m
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <p className="text-sm text-gray-400 mt-0.5">未記錄</p>

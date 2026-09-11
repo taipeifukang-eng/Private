@@ -75,6 +75,13 @@ interface OnDutyStaff {
   is_manually_added: boolean;
 }
 
+function formatDateInputValue(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export default function EditInspectionPage() {
   const router = useRouter();
   const params = useParams();
@@ -95,7 +102,7 @@ export default function EditInspectionPage() {
 
   // GPS 定位狀態
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number; capturedAt?: string } | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [indoorTemperature, setIndoorTemperature] = useState('');
@@ -157,7 +164,7 @@ export default function EditInspectionPage() {
           id, store_id, inspector_id, inspection_date, status,
           total_score, max_possible_score, grade,
           supervisor_notes, indoor_temperature,
-          signature_photo_url, supervisor_signature_url, gps_latitude, gps_longitude,
+          signature_photo_url, supervisor_signature_url, gps_latitude, gps_longitude, gps_accuracy, gps_timestamp,
           inspection_type
         `)
         .eq('id', inspectionId)
@@ -193,10 +200,16 @@ export default function EditInspectionPage() {
       setSupervisorSignature((inspection as any).supervisor_signature_url || '');
 
       if (inspection.gps_latitude && inspection.gps_longitude) {
+        const gpsCapturedAt = (inspection as any).gps_timestamp || undefined;
         setGpsLocation({
           latitude: Number(inspection.gps_latitude),
           longitude: Number(inspection.gps_longitude),
+          accuracy: inspection.gps_accuracy != null ? Number(inspection.gps_accuracy) : undefined,
+          capturedAt: gpsCapturedAt,
         });
+        if (gpsCapturedAt) {
+          setInspectionDate(formatDateInputValue(new Date(gpsCapturedAt)));
+        }
         setGpsStatus('success');
       }
 
@@ -407,7 +420,9 @@ export default function EditInspectionPage() {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
+          capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
         });
+        setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())));
         setGpsStatus('success');
         setGpsError('');
       },
@@ -425,7 +440,9 @@ export default function EditInspectionPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
+            capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
           });
+          setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())));
           setGpsStatus('success');
           setGpsError('');
         },
@@ -639,11 +656,14 @@ export default function EditInspectionPage() {
       if (!user) throw new Error('未登入');
 
       const totals = calculateTotals();
+      const gpsInspectionDate = gpsLocation?.capturedAt
+        ? formatDateInputValue(new Date(gpsLocation.capturedAt))
+        : inspectionDate;
 
       console.log('📊 準備更新巡店記錄:', {
         inspectionId,
         selectedStoreId,
-        inspectionDate,
+        inspectionDate: gpsInspectionDate,
         totals,
       });
 
@@ -652,7 +672,7 @@ export default function EditInspectionPage() {
         .from('inspection_masters')
         .update({
           store_id: selectedStoreId,
-          inspection_date: inspectionDate,
+          inspection_date: gpsInspectionDate,
           inspection_type: originalInspectionType,
           status: isDraft ? 'draft' : 'completed',
           max_possible_score: totals.initialScore,
@@ -664,6 +684,8 @@ export default function EditInspectionPage() {
           indoor_temperature: indoorTemperature ? parseFloat(indoorTemperature) : null,
           gps_latitude: gpsLocation?.latitude || null,
           gps_longitude: gpsLocation?.longitude || null,
+          gps_accuracy: gpsLocation?.accuracy || null,
+          gps_timestamp: gpsLocation?.capturedAt || null,
         })
         .eq('id', inspectionId);
 
