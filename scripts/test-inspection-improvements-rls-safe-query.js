@@ -9,6 +9,10 @@ const route = fs.readFileSync(
   path.join(process.cwd(), 'app/api/inspection/improvements/route.ts'),
   'utf8'
 );
+const permissionMigration = fs.readFileSync(
+  path.join(process.cwd(), 'supabase/migrations/20260911093000_grant_inspection_improvement_permissions.sql'),
+  'utf8'
+);
 const navbarPermissions = fs.readFileSync(
   path.join(process.cwd(), 'hooks/useNavbarPermissions.ts'),
   'utf8'
@@ -104,13 +108,33 @@ assertIncludes(
 );
 assertIncludes(
   route,
+  "PROFILE_SCOPED_ROLES.has(profileRole)",
+  'improvements API should allow supervisor and manager profiles into scoped visibility'
+);
+assertIncludes(
+  route,
+  'profileAllowsScopedAccess || SCOPED_PERMISSIONS.some',
+  'profile scoped access should not grant global visibility'
+);
+assertIncludes(
+  route,
+  'LEGACY_INSPECTION_VIEW_ALL_PERMISSION',
+  'global inspection access should be considered for admin-like fallback'
+);
+assertIncludes(
+  route,
+  'permissionCodes.has(VIEW_ALL_PERMISSION) || hasLegacyGlobalInspectionAccess',
+  'admin-like all-permission roles should be able to see all improvements'
+);
+assertIncludes(
+  route,
   "'inspection.improvement.manage'",
   'improvements API should allow manage permission within scoped visibility'
 );
-assertNotIncludes(
+assertIncludes(
   route,
-  "'inspection.view_all'",
-  'inspection.view_all should not grant global visibility for improvement tracking'
+  'permissionCodes.has(LEGACY_INSPECTION_VIEW_ALL_PERMISSION) && hasAdminCapability',
+  'legacy inspection.view_all should require an admin capability before granting global improvements'
 );
 assertIncludes(
   route,
@@ -121,6 +145,21 @@ assertIncludes(
   route,
   ".in('inspection_id', Array.from(inspectionIds))",
   'improvements API should query only own-inspection scoped improvements'
+);
+assertIncludes(
+  route,
+  'const LIST_LIMIT = 200',
+  'improvements API should limit each listing query to avoid production timeouts'
+);
+assertIncludes(
+  route,
+  'fetchImprovementsByStatus',
+  'improvements API should split listing queries by status'
+);
+assertIncludes(
+  route,
+  'ImprovementQueryError',
+  'improvements API should return a diagnostic stage for query failures'
 );
 assertIncludes(
   route,
@@ -161,6 +200,21 @@ assertIncludes(
   navbarPermissions,
   "'inspection.improvement.submit'",
   'navbar should show improvement tracking for submit permission'
+);
+assertIncludes(
+  permissionMigration,
+  "'inspection.improvement.view_all'",
+  'migration should ensure improvement view_all permission exists'
+);
+assertIncludes(
+  permissionMigration,
+  "'inspection.improvement.manage'",
+  'migration should ensure improvement manage permission exists'
+);
+assertIncludes(
+  permissionMigration,
+  "'admin_role'",
+  'migration should grant improvement permissions to admin-like roles'
 );
 
 console.log('inspection improvements RLS-safe query checks passed');

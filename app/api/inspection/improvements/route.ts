@@ -4,6 +4,13 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 
 const VIEW_ALL_PERMISSION = 'inspection.improvement.view_all';
+const LEGACY_INSPECTION_VIEW_ALL_PERMISSION = 'inspection.view_all';
+const ADMIN_CAPABILITY_PERMISSIONS = [
+  'role.permission.assign',
+  'role.role.view',
+  'user.user.view',
+  'user.user.manage',
+] as const;
 const SCOPED_PERMISSIONS = [
   'inspection.improvement.view_own',
   'inspection.improvement.view_own_store',
@@ -20,6 +27,7 @@ const ADMIN_ROLE_CODES = new Set([
   'owner',
   'owner_role',
 ]);
+const PROFILE_SCOPED_ROLES = new Set(['supervisor', 'manager', 'area_manager']);
 const IMPROVEMENT_SELECT = `
   id, inspection_id, store_id,
   section_name, item_name, deduction_amount,
@@ -27,32 +35,57 @@ const IMPROVEMENT_SELECT = `
   status, deadline, days_taken, bonus_score,
   improved_at, created_at
 `;
+const LIST_LIMIT = 200;
+
+class ImprovementQueryError extends Error {
+  stage: string;
+
+  constructor(stage: string, message: string) {
+    super(message);
+    this.stage = stage;
+  }
+}
+
+function throwQueryError(stage: string, error: any, fallback: string): never {
+  const message = error?.message || fallback;
+  console.error(`${stage}:`, error);
+  throw new ImprovementQueryError(stage, message);
+}
+
+async function runQuery<T>(stage: string, query: PromiseLike<{ data: T; error: any }>, fallback: string) {
+  const result = await query;
+  if (result.error) {
+    throwQueryError(stage, result.error, fallback);
+  }
+  return result.data;
+}
 
 async function getImprovementAccess(adminClient: any, userId: string) {
-  const { data: profile, error: profileError } = await adminClient
-    .from('profiles')
-    .select('role')
-    .eq('id', userId)
-    .maybeSingle();
+  const profile = await runQuery(
+    'access.profile',
+    adminClient
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle(),
+    '查詢使用者身份失敗'
+  ) as any;
 
-  if (profileError) {
-    console.warn('查詢使用者身份失敗:', profileError);
-  }
-
-  if (profile?.role === 'admin') {
+  const profileRole = String(profile?.role || '');
+  if (profileRole === 'admin') {
     return { canViewAll: true, canViewOwnScope: true };
   }
+  const profileAllowsScopedAccess = PROFILE_SCOPED_ROLES.has(profileRole);
 
-  const { data: userRoles, error: userRolesError } = await adminClient
-    .from('user_roles')
-    .select('role_id, expires_at')
-    .eq('user_id', userId)
-    .eq('is_active', true);
-
-  if (userRolesError) {
-    console.error('查詢使用者角色失敗:', userRolesError);
-    return { canViewAll: false, canViewOwnScope: false };
-  }
+  const userRoles = await runQuery(
+    'access.user_roles',
+    adminClient
+      .from('user_roles')
+      .select('role_id, expires_at')
+      .eq('user_id', userId)
+      .eq('is_active', true),
+    '查詢使用者角色失敗'
+  ) as any[];
 
   const now = Date.now();
   const activeRoleIds = Array.from(new Set(
@@ -66,18 +99,17 @@ async function getImprovementAccess(adminClient: any, userId: string) {
   ));
 
   if (activeRoleIds.length === 0) {
-    return { canViewAll: false, canViewOwnScope: false };
+    return { canViewAll: false, canViewOwnScope: profileAllowsScopedAccess };
   }
 
-  const { data: roles, error: rolesError } = await adminClient
-    .from('roles')
-    .select('id, code, is_active')
-    .in('id', activeRoleIds);
-
-  if (rolesError) {
-    console.error('查詢角色資料失敗:', rolesError);
-    return { canViewAll: false, canViewOwnScope: false };
-  }
+  const roles = await runQuery(
+    'access.roles',
+    adminClient
+      .from('roles')
+      .select('id, code, is_active')
+      .in('id', activeRoleIds),
+    '查詢角色資料失敗'
+  ) as any[];
 
   const enabledRoleIds = new Set<string>();
   let isAdminLike = false;
@@ -93,16 +125,20 @@ async function getImprovementAccess(adminClient: any, userId: string) {
     return { canViewAll: true, canViewOwnScope: true };
   }
 
-  const scopedPermissionCodes = [VIEW_ALL_PERMISSION, ...SCOPED_PERMISSIONS];
-  const { data: permissions, error: permissionsError } = await adminClient
-    .from('permissions')
-    .select('id, code, is_active')
-    .in('code', scopedPermissionCodes);
-
-  if (permissionsError) {
-    console.error('查詢待改善權限定義失敗:', permissionsError);
-    return { canViewAll: false, canViewOwnScope: false };
-  }
+  const scopedPermissionCodes = [
+    VIEW_ALL_PERMISSION,
+    LEGACY_INSPECTION_VIEW_ALL_PERMISSION,
+    ...ADMIN_CAPABILITY_PERMISSIONS,
+    ...SCOPED_PERMISSIONS,
+  ];
+  const permissions = await runQuery(
+    'access.permissions',
+    adminClient
+      .from('permissions')
+      .select('id, code, is_active')
+      .in('code', scopedPermissionCodes),
+    '查詢待改善權限定義失敗'
+  ) as any[];
 
   const permissionById = new Map(
     (permissions || [])
@@ -113,30 +149,32 @@ async function getImprovementAccess(adminClient: any, userId: string) {
   const allowedRoleIds = Array.from(enabledRoleIds);
 
   if (permissionIds.length === 0 || allowedRoleIds.length === 0) {
-    return { canViewAll: false, canViewOwnScope: false };
+    return { canViewAll: false, canViewOwnScope: profileAllowsScopedAccess };
   }
 
-  const { data: rolePermissions, error: rolePermissionsError } = await adminClient
-    .from('role_permissions')
-    .select('permission_id')
-    .in('role_id', allowedRoleIds)
-    .in('permission_id', permissionIds)
-    .eq('is_allowed', true);
-
-  if (rolePermissionsError) {
-    console.error('查詢角色待改善權限失敗:', rolePermissionsError);
-    return { canViewAll: false, canViewOwnScope: false };
-  }
+  const rolePermissions = await runQuery(
+    'access.role_permissions',
+    adminClient
+      .from('role_permissions')
+      .select('permission_id')
+      .in('role_id', allowedRoleIds)
+      .in('permission_id', permissionIds)
+      .eq('is_allowed', true),
+    '查詢角色待改善權限失敗'
+  ) as any[];
 
   const permissionCodes = new Set(
     (rolePermissions || [])
       .map((rolePermission: any) => permissionById.get(rolePermission.permission_id))
       .filter(Boolean)
   );
+  const hasAdminCapability = ADMIN_CAPABILITY_PERMISSIONS.some((code) => permissionCodes.has(code));
+  const hasLegacyGlobalInspectionAccess =
+    permissionCodes.has(LEGACY_INSPECTION_VIEW_ALL_PERMISSION) && hasAdminCapability;
 
   return {
-    canViewAll: permissionCodes.has(VIEW_ALL_PERMISSION),
-    canViewOwnScope: SCOPED_PERMISSIONS.some((code) => permissionCodes.has(code)),
+    canViewAll: permissionCodes.has(VIEW_ALL_PERMISSION) || hasLegacyGlobalInspectionAccess,
+    canViewOwnScope: profileAllowsScopedAccess || SCOPED_PERMISSIONS.some((code) => permissionCodes.has(code)),
   };
 }
 
@@ -146,6 +184,28 @@ function sortImprovements(items: any[]) {
     if (deadlineCompare !== 0) return deadlineCompare;
     return String(b.created_at || '').localeCompare(String(a.created_at || ''));
   });
+}
+
+async function fetchImprovementsByStatus(adminClient: any, baseQuery: (status: string) => any, stagePrefix: string) {
+  const statuses = ['pending', 'overdue', 'improved'];
+  const results = await Promise.all(statuses.map((status) =>
+    runQuery(
+      `${stagePrefix}.${status}`,
+      baseQuery(status)
+        .order('deadline', { ascending: true })
+        .order('created_at', { ascending: false })
+        .limit(LIST_LIMIT),
+      `查詢${status}待改善事項失敗`
+    )
+  ));
+
+  const merged = new Map<string, any>();
+  results.flat().forEach((item: any) => {
+    if (item?.id) {
+      merged.set(item.id, item);
+    }
+  });
+  return sortImprovements(Array.from(merged.values()));
 }
 
 export async function GET() {
@@ -171,81 +231,72 @@ export async function GET() {
     let ownInspectionCount = 0;
 
     if (canViewAll) {
-      const { data, error } = await adminClient
-        .from('inspection_improvements')
-        .select(IMPROVEMENT_SELECT)
-        .order('deadline', { ascending: true })
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('查詢待改善事項失敗:', error);
-        return NextResponse.json(
-          { error: error.message || '查詢待改善事項失敗' },
-          { status: 500 }
-        );
-      }
-
-      visibleImprovements = data || [];
+      visibleImprovements = await fetchImprovementsByStatus(
+        adminClient,
+        (status) => adminClient
+          .from('inspection_improvements')
+          .select(IMPROVEMENT_SELECT)
+          .eq('status', status),
+        'improvements.all'
+      );
     } else {
-      const [storeManagerResult, ownInspectionResult] = await Promise.all([
-        adminClient
-          .from('store_managers')
-          .select('store_id')
-          .eq('user_id', user.id),
-        adminClient
-          .from('inspection_masters')
-          .select('id')
-          .eq('inspector_id', user.id),
-      ]);
-
-      if (storeManagerResult.error) {
-        console.warn('查詢使用者管理門市失敗:', storeManagerResult.error);
-      }
-      if (ownInspectionResult.error) {
-        console.warn('查詢使用者巡店紀錄失敗:', ownInspectionResult.error);
-      }
+      const [storeManagerRows, ownInspectionRows] = await Promise.all([
+        runQuery(
+          'scope.store_managers',
+          adminClient
+            .from('store_managers')
+            .select('store_id')
+            .eq('user_id', user.id),
+          '查詢使用者管理門市失敗'
+        ),
+        runQuery(
+          'scope.inspection_masters',
+          adminClient
+            .from('inspection_masters')
+            .select('id')
+            .eq('inspector_id', user.id),
+          '查詢使用者巡店紀錄失敗'
+        ),
+      ]) as [any[], any[]];
 
       const storeIds = new Set(
-        (storeManagerResult.data || []).map((row: any) => row.store_id).filter(Boolean)
+        (storeManagerRows || []).map((row: any) => row.store_id).filter(Boolean)
       );
       const inspectionIds = new Set(
-        (ownInspectionResult.data || []).map((row: any) => row.id).filter(Boolean)
+        (ownInspectionRows || []).map((row: any) => row.id).filter(Boolean)
       );
       managedStoreCount = storeIds.size;
       ownInspectionCount = inspectionIds.size;
 
       const scopedQueries = [
         storeIds.size > 0
-          ? adminClient
-              .from('inspection_improvements')
-              .select(IMPROVEMENT_SELECT)
-              .in('store_id', Array.from(storeIds))
-              .order('deadline', { ascending: true })
-              .order('created_at', { ascending: false })
-          : Promise.resolve({ data: [] as any[], error: null }),
+          ? fetchImprovementsByStatus(
+              adminClient,
+              (status) => adminClient
+                .from('inspection_improvements')
+                .select(IMPROVEMENT_SELECT)
+                .in('store_id', Array.from(storeIds))
+                .eq('status', status),
+              'improvements.store_scope'
+            )
+          : Promise.resolve([] as any[]),
         inspectionIds.size > 0
-          ? adminClient
-              .from('inspection_improvements')
-              .select(IMPROVEMENT_SELECT)
-              .in('inspection_id', Array.from(inspectionIds))
-              .order('deadline', { ascending: true })
-              .order('created_at', { ascending: false })
-          : Promise.resolve({ data: [] as any[], error: null }),
+          ? fetchImprovementsByStatus(
+              adminClient,
+              (status) => adminClient
+                .from('inspection_improvements')
+                .select(IMPROVEMENT_SELECT)
+                .in('inspection_id', Array.from(inspectionIds))
+                .eq('status', status),
+              'improvements.inspection_scope'
+            )
+          : Promise.resolve([] as any[]),
       ];
 
-      const [storeScopedResult, inspectionScopedResult] = await Promise.all(scopedQueries);
-
-      if (storeScopedResult.error || inspectionScopedResult.error) {
-        const scopedError = storeScopedResult.error || inspectionScopedResult.error;
-        console.error('查詢可見待改善事項失敗:', scopedError);
-        return NextResponse.json(
-          { error: scopedError?.message || '查詢可見待改善事項失敗' },
-          { status: 500 }
-        );
-      }
+      const [storeScopedRows, inspectionScopedRows] = await Promise.all(scopedQueries);
 
       const merged = new Map<string, any>();
-      [...(storeScopedResult.data || []), ...(inspectionScopedResult.data || [])].forEach((item) => {
+      [...storeScopedRows, ...inspectionScopedRows].forEach((item) => {
         if (item?.id) {
           merged.set(item.id, item);
         }
@@ -259,43 +310,44 @@ export async function GET() {
 
     const [storesResult, inspectionsResult] = await Promise.all([
       storeIds.length > 0
-        ? adminClient.from('stores').select('id, store_name, store_code').in('id', storeIds)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        ? runQuery(
+            'hydrate.stores',
+            adminClient.from('stores').select('id, store_name, store_code').in('id', storeIds),
+            '查詢待改善門市資料失敗'
+          )
+        : Promise.resolve([] as any[]),
       inspectionIds.length > 0
-        ? adminClient
-            .from('inspection_masters')
-            .select('id, inspection_date, inspector_id')
-            .in('id', inspectionIds)
-        : Promise.resolve({ data: [] as any[], error: null }),
+        ? runQuery(
+            'hydrate.inspection_masters',
+            adminClient
+              .from('inspection_masters')
+              .select('id, inspection_date, inspector_id')
+              .in('id', inspectionIds),
+            '查詢待改善巡店主檔失敗'
+          )
+        : Promise.resolve([] as any[]),
     ]);
 
-    if (storesResult.error) {
-      console.warn('查詢待改善門市資料失敗:', storesResult.error);
-    }
-    if (inspectionsResult.error) {
-      console.warn('查詢待改善巡店主檔失敗:', inspectionsResult.error);
-    }
-
     const storeMap = new Map(
-      (storesResult.data || []).map((store: any) => [store.id, store])
+      (storesResult || []).map((store: any) => [store.id, store])
     );
     const inspectionMap = new Map(
-      (inspectionsResult.data || []).map((inspection: any) => [inspection.id, inspection])
+      (inspectionsResult || []).map((inspection: any) => [inspection.id, inspection])
     );
     const inspectorIds = Array.from(new Set(
-      (inspectionsResult.data || []).map((inspection: any) => inspection.inspector_id).filter(Boolean)
+      (inspectionsResult || []).map((inspection: any) => inspection.inspector_id).filter(Boolean)
     ));
 
     let inspectorNameMap = new Map<string, string>();
     if (inspectorIds.length > 0) {
-      const { data: inspectorProfiles, error: inspectorError } = await adminClient
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', inspectorIds);
-
-      if (inspectorError) {
-        console.warn('查詢督導名稱失敗:', inspectorError);
-      }
+      const inspectorProfiles = await runQuery(
+        'hydrate.profiles',
+        adminClient
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', inspectorIds),
+        '查詢督導名稱失敗'
+      ) as any[];
       inspectorNameMap = new Map(
         (inspectorProfiles || []).map((profile: any) => [profile.id, profile.full_name || '未知'])
       );
@@ -338,8 +390,9 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error('載入待改善事項失敗:', error);
+    const stage = error instanceof ImprovementQueryError ? error.stage : 'unknown';
     return NextResponse.json(
-      { error: error.message || '載入待改善事項失敗' },
+      { error: `${stage}: ${error.message || '載入待改善事項失敗'}` },
       { status: 500 }
     );
   }
