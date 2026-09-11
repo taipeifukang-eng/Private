@@ -479,17 +479,10 @@ function mergeInventoryResultItems(initialItems: any[], recountItems: any[]) {
 
 function getInventoryResultCostBuckets(item: any) {
   if (item?.report_kind === 'MERGED') {
-    const buckets = [
-      {
-        differenceQty: Number(item.initial_difference_qty) || 0,
-        cost: Number(item.initial_cost) || 0,
-      },
-      {
-        differenceQty: Number(item.recount_difference_qty) || 0,
-        cost: Number(item.recount_cost) || 0,
-      },
-    ];
-    return buckets.filter((bucket) => bucket.differenceQty !== 0 || bucket.cost !== 0);
+    return [{
+      differenceQty: Number(item?.difference_qty) || 0,
+      cost: Number(item?.cost) || 0,
+    }];
   }
 
   return [{
