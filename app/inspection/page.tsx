@@ -115,7 +115,7 @@ export default async function InspectionListPage({
     // 第一步：獲取基本巡店記錄（根據分頁篩選類型）
     const { data: rawInspections, error: inspectionError } = await supabase
       .from('inspection_masters')
-      .select('id, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type, improvement_bonus')
+      .select('id, inspection_no, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type, improvement_bonus')
       .gte('inspection_date', sixMonthsAgo.toISOString())
       .or(isManagerTab
         ? 'inspection_type.eq.manager'
@@ -409,6 +409,7 @@ export default async function InspectionListPage({
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">門市</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">巡店單號</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">巡店日期</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{isManagerTab ? '巡店人員' : '督導'}</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分數</th>
@@ -431,6 +432,11 @@ export default async function InspectionListPage({
                                 {inspection.store?.store_code || ''}
                               </div>
                             </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-700">
+                            {inspection.inspection_no || '-'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">

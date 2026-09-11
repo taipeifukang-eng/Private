@@ -74,6 +74,8 @@ interface OnDutyStaff {
 type InspectionDraft = {
   id: string;
   inspectionType: 'supervisor' | 'manager';
+  clientRequestId: string;
+  inspectionNo: string;
   updatedAt: string;
   selectedStoreId: string;
   inspectionDate: string;
@@ -99,6 +101,26 @@ function formatDateInputValue(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function createInspectionClientRequestId() {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = char === 'x' ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
+}
+
+function createInspectionNo(inspectionType: 'supervisor' | 'manager') {
+  const now = new Date();
+  const datePart = formatDateInputValue(now).replace(/-/g, '');
+  const prefix = inspectionType === 'manager' ? 'MINSP' : 'SINSP';
+  const randomPart = createInspectionClientRequestId().replace(/-/g, '').slice(0, 8).toUpperCase();
+  return `${prefix}-${datePart}-${randomPart}`;
 }
 
 function openInspectionDraftDb(): Promise<IDBDatabase> {
@@ -189,6 +211,8 @@ function NewInspectionPage() {
   const [stores, setStores] = useState<Store[]>([]);
   const [templates, setTemplates] = useState<InspectionTemplate[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState('');
+  const [clientRequestId, setClientRequestId] = useState(() => createInspectionClientRequestId());
+  const [inspectionNo, setInspectionNo] = useState(() => createInspectionNo(inspectionType));
   const [inspectionDate, setInspectionDate] = useState(
     formatDateInputValue(new Date())
   );
@@ -215,6 +239,7 @@ function NewInspectionPage() {
   const draftReadyRef = useRef(false);
   const hasDraftContentRef = useRef(false);
   const skipNextStaffFetchForStoreRef = useRef<string | null>(null);
+  const submitInFlightRef = useRef(false);
 
   const hasDraftContent = () => {
     const hasScoreContent = Array.from(itemScores.values()).some((score) =>
@@ -274,6 +299,8 @@ function NewInspectionPage() {
       const draft: InspectionDraft = {
         id: draftId,
         inspectionType,
+        clientRequestId,
+        inspectionNo,
         updatedAt: new Date().toISOString(),
         selectedStoreId,
         inspectionDate,
@@ -298,6 +325,8 @@ function NewInspectionPage() {
   }, [
     draftId,
     inspectionType,
+    clientRequestId,
+    inspectionNo,
     loading,
     submitting,
     selectedStoreId,
@@ -447,6 +476,8 @@ function NewInspectionPage() {
         const shouldRestore = window.confirm(`偵測到尚未送出的巡店暫存資料（${updatedAtLabel}）。是否恢復？`);
 
         if (shouldRestore) {
+          const restoredClientRequestId = draft.clientRequestId || createInspectionClientRequestId();
+          const restoredInspectionNo = draft.inspectionNo || createInspectionNo(inspectionType);
           const restoredScores = new Map(initialScores);
           draft.itemScores.forEach((score) => {
             if (restoredScores.has(score.template_id)) {
@@ -454,9 +485,11 @@ function NewInspectionPage() {
             }
           });
 
+          setClientRequestId(restoredClientRequestId);
+          setInspectionNo(restoredInspectionNo);
           skipNextStaffFetchForStoreRef.current = draft.selectedStoreId || null;
           setSelectedStoreId(draft.selectedStoreId || '');
-          setInspectionDate(draft.inspectionDate || new Date().toISOString().split('T')[0]);
+          setInspectionDate(draft.inspectionDate || formatDateInputValue(new Date()));
           setExpandedSections(new Set(draft.expandedSections || []));
           setItemScores(restoredScores);
           setSignaturePhoto(draft.signaturePhoto || '');
@@ -472,6 +505,8 @@ function NewInspectionPage() {
           setDraftSavedAt(draft.updatedAt);
         } else {
           await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
+          setClientRequestId(createInspectionClientRequestId());
+          setInspectionNo(createInspectionNo(inspectionType));
           setItemScores(initialScores);
         }
       } else {
@@ -789,6 +824,9 @@ function NewInspectionPage() {
 
   // 保存巡店記錄
   const handleSubmit = async (isDraft: boolean) => {
+    if (submitInFlightRef.current) {
+      return;
+    }
     if (!selectedStoreId) {
       alert('請選擇門市');
       return;
@@ -799,6 +837,7 @@ function NewInspectionPage() {
     }
 
     try {
+      submitInFlightRef.current = true;
       setSubmitting(true);
       const supabase = createClient();
 
@@ -814,6 +853,8 @@ function NewInspectionPage() {
         : inspectionDate;
 
       console.log('📊 準備送出巡店記錄:', {
+        inspectionNo,
+        clientRequestId,
         selectedStoreId,
         inspectionDate: gpsInspectionDate,
         totals,
@@ -821,10 +862,63 @@ function NewInspectionPage() {
         hasGPS: !!gpsLocation,
       });
 
+      const { data: existingByRequestId, error: requestDuplicateError } = await supabase
+        .from('inspection_masters')
+        .select('id, status')
+        .eq('client_request_id', clientRequestId)
+        .maybeSingle();
+
+      if (requestDuplicateError) {
+        console.error('❌ 巡店流水單號檢查失敗:', requestDuplicateError);
+        throw requestDuplicateError;
+      }
+
+      if (existingByRequestId) {
+        await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
+        alert('這張巡店表單已經送出過，系統將開啟既有紀錄。');
+        router.push(existingByRequestId.status === 'draft' || existingByRequestId.status === 'in_progress'
+          ? `/inspection/${existingByRequestId.id}/edit`
+          : `/inspection/${existingByRequestId.id}`);
+        return;
+      }
+
+      let duplicateQuery = supabase
+        .from('inspection_masters')
+        .select('id, status, created_at')
+        .eq('store_id', selectedStoreId)
+        .eq('inspector_id', user.id)
+        .eq('inspection_date', gpsInspectionDate)
+        .in('status', ['draft', 'in_progress', 'completed', 'closed'])
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      duplicateQuery = inspectionType === 'manager'
+        ? duplicateQuery.eq('inspection_type', 'manager')
+        : duplicateQuery.or('inspection_type.eq.supervisor,inspection_type.is.null');
+
+      const { data: existingInspections, error: duplicateCheckError } = await duplicateQuery;
+
+      if (duplicateCheckError) {
+        console.error('❌ 巡店重複檢查失敗:', duplicateCheckError);
+        throw duplicateCheckError;
+      }
+
+      const existingInspection = existingInspections?.[0];
+      if (existingInspection) {
+        await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
+        alert('此門市在同一天已經有巡店紀錄，系統將開啟既有紀錄，避免重複建立。');
+        router.push(existingInspection.status === 'draft' || existingInspection.status === 'in_progress'
+          ? `/inspection/${existingInspection.id}/edit`
+          : `/inspection/${existingInspection.id}`);
+        return;
+      }
+
       // 1. 建立主記錄
       const { data: masterData, error: masterError } = await supabase
         .from('inspection_masters')
         .insert({
+          inspection_no: inspectionNo,
+          client_request_id: clientRequestId,
           store_id: selectedStoreId,
           inspector_id: user.id,
           inspection_date: gpsInspectionDate,
@@ -847,6 +941,22 @@ function NewInspectionPage() {
 
       if (masterError) {
         console.error('❌ 主記錄建立失敗:', masterError);
+        if (masterError.code === '23505') {
+          const { data: existingAfterConflict } = await supabase
+            .from('inspection_masters')
+            .select('id, status')
+            .eq('client_request_id', clientRequestId)
+            .maybeSingle();
+
+          if (existingAfterConflict) {
+            await deleteInspectionDraft(draftId).catch((error) => console.warn('清除巡店暫存失敗:', error));
+            alert('這張巡店表單已經送出過，系統將開啟既有紀錄。');
+            router.push(existingAfterConflict.status === 'draft' || existingAfterConflict.status === 'in_progress'
+              ? `/inspection/${existingAfterConflict.id}/edit`
+              : `/inspection/${existingAfterConflict.id}`);
+            return;
+          }
+        }
         throw masterError;
       }
 
@@ -941,6 +1051,7 @@ function NewInspectionPage() {
       
       alert(errorMessage);
     } finally {
+      submitInFlightRef.current = false;
       setSubmitting(false);
     }
   };
@@ -1589,7 +1700,7 @@ function NewInspectionPage() {
             className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 active:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm sm:text-base shadow-sm"
           >
             <Save className="w-4 h-4 sm:w-5 sm:h-5" />
-            儲存草稿
+            {submitting ? '儲存中...' : '儲存草稿'}
           </button>
           <button
             onClick={() => handleSubmit(false)}
@@ -1597,7 +1708,7 @@ function NewInspectionPage() {
             className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-4 sm:px-6 py-3 sm:py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-medium rounded-lg hover:from-blue-600 hover:to-indigo-700 active:from-blue-700 active:to-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg text-sm sm:text-base"
           >
             <Send className="w-4 h-4 sm:w-5 sm:h-5" />
-            {!signaturePhoto || !supervisorSignature ? '請完成兩個簽名' : '送出記錄'}
+            {submitting ? '送出中...' : (!signaturePhoto || !supervisorSignature ? '請完成兩個簽名' : '送出記錄')}
           </button>
         </div>
       </div>

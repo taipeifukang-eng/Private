@@ -90,6 +90,8 @@ export default async function InspectionDetailPage({
       .from('inspection_masters')
       .select(`
         id,
+        inspection_no,
+        client_request_id,
         store_id,
         inspector_id,
         inspection_date,
@@ -317,7 +319,19 @@ export default async function InspectionDetailPage({
 
         {/* 基本資訊卡片 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <FileCheck className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">巡店單號</p>
+                <p className="text-sm font-semibold text-gray-900 mt-1 break-all">
+                  {inspection.inspection_no || '-'}
+                </p>
+              </div>
+            </div>
+
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                 <Store className="w-5 h-5 text-blue-600" />
