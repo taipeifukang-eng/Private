@@ -28,10 +28,10 @@ const ADMIN_ROLE_CODES = new Set([
   'owner_role',
 ]);
 const PROFILE_SCOPED_ROLES = new Set(['supervisor', 'manager', 'area_manager']);
-const IMPROVEMENT_SELECT = `
+const IMPROVEMENT_LIST_SELECT = `
   id, inspection_id, store_id,
   section_name, item_name, deduction_amount,
-  issue_description, issue_photo_urls, selected_items,
+  selected_items,
   status, deadline, days_taken, bonus_score,
   improved_at, created_at
 `;
@@ -186,16 +186,30 @@ function sortImprovements(items: any[]) {
   });
 }
 
-async function fetchImprovementsByStatus(adminClient: any, baseQuery: (status: string) => any, stagePrefix: string) {
+async function fetchImprovementsByStatus(adminClient: any, baseIdQuery: (status: string) => any, stagePrefix: string) {
   const statuses = ['pending', 'overdue', 'improved'];
-  const results = await Promise.all(statuses.map((status) =>
-    runQuery(
-      `${stagePrefix}.${status}`,
-      baseQuery(status)
+  const results = await Promise.all(statuses.map(async (status) => {
+    const idRows = await runQuery(
+      `${stagePrefix}.${status}.ids`,
+      baseIdQuery(status)
         .limit(LIST_LIMIT),
       `查詢${status}待改善事項失敗`
-    )
-  ));
+    ) as any[];
+    const ids = (idRows || []).map((item: any) => item.id).filter(Boolean);
+
+    if (ids.length === 0) {
+      return [];
+    }
+
+    return runQuery(
+      `${stagePrefix}.${status}.rows`,
+      adminClient
+        .from('inspection_improvements')
+        .select(IMPROVEMENT_LIST_SELECT)
+        .in('id', ids),
+      `載入${status}待改善事項資料失敗`
+    ) as Promise<any[]>;
+  }));
 
   const merged = new Map<string, any>();
   results.flat().forEach((item: any) => {
@@ -233,7 +247,7 @@ export async function GET() {
         adminClient,
         (status) => adminClient
           .from('inspection_improvements')
-          .select(IMPROVEMENT_SELECT)
+          .select('id')
           .eq('status', status),
         'improvements.all'
       );
@@ -272,7 +286,7 @@ export async function GET() {
               adminClient,
               (status) => adminClient
                 .from('inspection_improvements')
-                .select(IMPROVEMENT_SELECT)
+                .select('id')
                 .in('store_id', Array.from(storeIds))
                 .eq('status', status),
               'improvements.store_scope'
@@ -283,7 +297,7 @@ export async function GET() {
               adminClient,
               (status) => adminClient
                 .from('inspection_improvements')
-                .select(IMPROVEMENT_SELECT)
+                .select('id')
                 .in('inspection_id', Array.from(inspectionIds))
                 .eq('status', status),
               'improvements.inspection_scope'

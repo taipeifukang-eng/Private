@@ -167,6 +167,21 @@ assertIncludes(
 );
 assertIncludes(
   route,
+  '.select(\'id\')',
+  'improvements API should fetch ids before loading list rows'
+);
+assertIncludes(
+  route,
+  'IMPROVEMENT_LIST_SELECT',
+  'improvements API should use a minimal list select'
+);
+assertNotIncludes(
+  route,
+  'issue_photo_urls',
+  'improvements list API should not load photo URLs'
+);
+assertIncludes(
+  route,
   'ImprovementQueryError',
   'improvements API should return a diagnostic stage for query failures'
 );
