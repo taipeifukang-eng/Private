@@ -48,6 +48,21 @@ assertIncludes(
 );
 assertIncludes(
   page,
+  'rosterLoaded',
+  'roster preview should show a loaded empty state instead of appearing unchanged'
+);
+assertIncludes(
+  page,
+  '正在載入每月門市人員名冊',
+  'roster preview should show loading feedback'
+);
+assertIncludes(
+  page,
+  '查無 ${yearMonth}',
+  'roster preview should show a no-data message'
+);
+assertIncludes(
+  page,
   '匯出每月門市人員名冊',
   'export page should expose roster download'
 );

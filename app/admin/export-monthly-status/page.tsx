@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Download, Calendar, Store, CheckSquare, Square, ChevronLeft, FileSpreadsheet } from 'lucide-react';
 
@@ -38,6 +38,9 @@ export default function ExportMonthlyStatusPage() {
   const [loadingRoster, setLoadingRoster] = useState(false);
   const [downloadingRoster, setDownloadingRoster] = useState(false);
   const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
+  const [rosterLoaded, setRosterLoaded] = useState(false);
+  const [rosterMessage, setRosterMessage] = useState('選擇門市後按「預覽每月門市人員名冊」即可查看資料。');
+  const rosterSectionRef = useRef<HTMLDivElement>(null);
   
   // 年月選擇
   const now = new Date();
@@ -55,6 +58,9 @@ export default function ExportMonthlyStatusPage() {
 
   const loadStores = async () => {
     setLoading(true);
+    setRosterRows([]);
+    setRosterLoaded(false);
+    setRosterMessage('選擇門市後按「預覽每月門市人員名冊」即可查看資料。');
     const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
     
     try {
@@ -232,6 +238,10 @@ export default function ExportMonthlyStatusPage() {
       store_ids: Array.from(selectedStoreIds).join(','),
     });
     setLoadingRoster(true);
+    setRosterRows([]);
+    setRosterLoaded(false);
+    setRosterMessage('正在載入每月門市人員名冊...');
+    rosterSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
       const response = await fetch(`/api/export-monthly-status/roster?${params.toString()}`, {
@@ -243,10 +253,19 @@ export default function ExportMonthlyStatusPage() {
         throw new Error(data.error || '載入名冊失敗');
       }
 
-      setRosterRows(data.rows || []);
+      const rows = data.rows || [];
+      setRosterRows(rows);
+      setRosterLoaded(true);
+      setRosterMessage(rows.length > 0 ? '' : `查無 ${yearMonth}、目前所選門市的人員名冊資料。`);
+      setTimeout(() => {
+        rosterSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 0);
     } catch (error) {
       console.error('Error loading roster:', error);
-      alert(error instanceof Error ? error.message : '載入名冊失敗');
+      const message = error instanceof Error ? error.message : '載入名冊失敗';
+      setRosterLoaded(true);
+      setRosterMessage(message);
+      alert(message);
     } finally {
       setLoadingRoster(false);
     }
@@ -608,6 +627,7 @@ export default function ExportMonthlyStatusPage() {
 
             <div className="grid grid-cols-1 gap-3">
               <button
+                type="button"
                 onClick={handleLoadRoster}
                 disabled={loadingRoster || selectedStoreIds.size === 0}
                 className="w-full px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
@@ -617,6 +637,7 @@ export default function ExportMonthlyStatusPage() {
               </button>
 
               <button
+                type="button"
                 onClick={handleDownloadRoster}
                 disabled={downloadingRoster || selectedStoreIds.size === 0}
                 className="w-full px-6 py-3 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
@@ -782,7 +803,7 @@ export default function ExportMonthlyStatusPage() {
           </div>
         </div>
 
-        <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
+        <div ref={rosterSectionRef} className="mt-6 bg-white rounded-lg shadow-lg p-6 scroll-mt-24">
           <div className="flex items-center justify-between gap-4 mb-4">
             <div>
               <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -794,13 +815,17 @@ export default function ExportMonthlyStatusPage() {
               </p>
             </div>
             <div className="text-sm text-gray-500">
-              {rosterRows.length > 0 ? `${rosterRows.length} 筆` : '尚未載入'}
+              {loadingRoster ? '載入中' : rosterRows.length > 0 ? `${rosterRows.length} 筆` : rosterLoaded ? '0 筆' : '尚未載入'}
             </div>
           </div>
 
-          {rosterRows.length === 0 ? (
+          {loadingRoster ? (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 py-10 text-center text-blue-700">
+              正在載入每月門市人員名冊...
+            </div>
+          ) : rosterRows.length === 0 ? (
             <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-gray-500">
-              選擇門市後按「預覽每月門市人員名冊」即可查看資料。
+              {rosterMessage}
             </div>
           ) : (
             <div className="overflow-auto max-h-[520px] border border-gray-200 rounded-lg">
