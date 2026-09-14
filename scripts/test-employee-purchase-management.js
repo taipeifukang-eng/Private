@@ -62,6 +62,7 @@ assertIncludes(migration, 'employee_purchase_sales', 'migration should create sa
 assertIncludes(migration, 'employee_purchase.view', 'migration should create view permission');
 assertIncludes(migration, 'employee_purchase.import', 'migration should create import permission');
 assertIncludes(summaryMigration, 'employee_purchase_position_summary', 'summary migration should create position summary RPC');
+assertIncludes(summaryMigration, 'position_name text', 'summary RPC should avoid reserved output name position');
 assertIncludes(summaryMigration, 'employee_purchase_month_stats', 'summary migration should create month stats RPC');
 assertIncludes(summaryMigration, "public.has_permission(auth.uid(), 'employee_purchase.view')", 'summary RPC should enforce view permission');
 

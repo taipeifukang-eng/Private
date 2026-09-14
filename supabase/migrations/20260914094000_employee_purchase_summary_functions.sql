@@ -18,7 +18,7 @@ CREATE OR REPLACE FUNCTION public.employee_purchase_position_summary(
   p_year_month text
 )
 RETURNS TABLE (
-  position text,
+  position_name text,
   sales_count bigint,
   employee_count bigint,
   total_quantity numeric,
@@ -30,7 +30,7 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
   SELECT
-    COALESCE(NULLIF(employee_position, ''), '未比對職稱') AS position,
+    COALESCE(NULLIF(employee_position, ''), '未比對職稱') AS position_name,
     COUNT(*) AS sales_count,
     COUNT(DISTINCT COALESCE(NULLIF(employee_code, ''), NULLIF(employee_name, ''))) AS employee_count,
     COALESCE(SUM(quantity), 0) AS total_quantity,

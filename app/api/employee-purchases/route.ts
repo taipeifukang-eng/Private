@@ -54,7 +54,7 @@ async function requireAccess(userId: string) {
 
 function normalizeSummaryRows(rows: any[]): PositionSummaryRow[] {
   return (rows || []).map((row: any) => ({
-    position: row.position || '未比對職稱',
+    position: row.position_name || row.position || '未比對職稱',
     sales_count: toNumber(row.sales_count),
     employee_count: toNumber(row.employee_count),
     total_quantity: toNumber(row.total_quantity),
