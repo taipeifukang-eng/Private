@@ -60,29 +60,29 @@ BEGIN
 
   RETURN QUERY
   WITH latest_promotion AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      NULLIF(BTRIM(new_value::text), '') AS promotion_position
-    FROM public.employee_movement_history
-    WHERE movement_type = 'promotion'
-      AND NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
-      AND NULLIF(BTRIM(new_value::text), '') IS NOT NULL
-    ORDER BY UPPER(BTRIM(employee_code::text)), movement_date DESC, created_at DESC
+    SELECT DISTINCT ON (UPPER(BTRIM(emh.employee_code::text)))
+      UPPER(BTRIM(emh.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(emh.new_value::text), '') AS promotion_position
+    FROM public.employee_movement_history emh
+    WHERE emh.movement_type = 'promotion'
+      AND NULLIF(BTRIM(emh.employee_code::text), '') IS NOT NULL
+      AND NULLIF(BTRIM(emh.new_value::text), '') IS NOT NULL
+    ORDER BY UPPER(BTRIM(emh.employee_code::text)), emh.movement_date DESC, emh.created_at DESC
   ),
   employee_source AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(current_position::text), ''), NULLIF(BTRIM(position::text), '')) AS master_position
-    FROM public.store_employees
+    SELECT DISTINCT ON (UPPER(BTRIM(se.employee_code::text)))
+      UPPER(BTRIM(se.employee_code::text)) AS normalized_employee_code,
+      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
+    FROM public.store_employees se
     LEFT JOIN latest_promotion
-      ON latest_promotion.normalized_employee_code = UPPER(BTRIM(store_employees.employee_code::text))
-    WHERE NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
-      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(current_position::text), ''), NULLIF(BTRIM(position::text), '')) IS NOT NULL
+      ON latest_promotion.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
+    WHERE NULLIF(BTRIM(se.employee_code::text), '') IS NOT NULL
+      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
     ORDER BY
-      UPPER(BTRIM(employee_code::text)),
-      CASE WHEN employment_status = 'active' THEN 0 ELSE 1 END,
-      CASE WHEN is_active THEN 0 ELSE 1 END,
-      updated_at DESC NULLS LAST
+      UPPER(BTRIM(se.employee_code::text)),
+      CASE WHEN se.employment_status = 'active' THEN 0 ELSE 1 END,
+      CASE WHEN se.is_active THEN 0 ELSE 1 END,
+      se.updated_at DESC NULLS LAST
   ),
   resolved_sales AS (
     SELECT
@@ -135,29 +135,29 @@ BEGIN
 
   RETURN QUERY
   WITH latest_promotion AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      NULLIF(BTRIM(new_value::text), '') AS promotion_position
-    FROM public.employee_movement_history
-    WHERE movement_type = 'promotion'
-      AND NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
-      AND NULLIF(BTRIM(new_value::text), '') IS NOT NULL
-    ORDER BY UPPER(BTRIM(employee_code::text)), movement_date DESC, created_at DESC
+    SELECT DISTINCT ON (UPPER(BTRIM(emh.employee_code::text)))
+      UPPER(BTRIM(emh.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(emh.new_value::text), '') AS promotion_position
+    FROM public.employee_movement_history emh
+    WHERE emh.movement_type = 'promotion'
+      AND NULLIF(BTRIM(emh.employee_code::text), '') IS NOT NULL
+      AND NULLIF(BTRIM(emh.new_value::text), '') IS NOT NULL
+    ORDER BY UPPER(BTRIM(emh.employee_code::text)), emh.movement_date DESC, emh.created_at DESC
   ),
   employee_source AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(current_position::text), ''), NULLIF(BTRIM(position::text), '')) AS master_position
-    FROM public.store_employees
+    SELECT DISTINCT ON (UPPER(BTRIM(se.employee_code::text)))
+      UPPER(BTRIM(se.employee_code::text)) AS normalized_employee_code,
+      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
+    FROM public.store_employees se
     LEFT JOIN latest_promotion
-      ON latest_promotion.normalized_employee_code = UPPER(BTRIM(store_employees.employee_code::text))
-    WHERE NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
-      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(current_position::text), ''), NULLIF(BTRIM(position::text), '')) IS NOT NULL
+      ON latest_promotion.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
+    WHERE NULLIF(BTRIM(se.employee_code::text), '') IS NOT NULL
+      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
     ORDER BY
-      UPPER(BTRIM(employee_code::text)),
-      CASE WHEN employment_status = 'active' THEN 0 ELSE 1 END,
-      CASE WHEN is_active THEN 0 ELSE 1 END,
-      updated_at DESC NULLS LAST
+      UPPER(BTRIM(se.employee_code::text)),
+      CASE WHEN se.employment_status = 'active' THEN 0 ELSE 1 END,
+      CASE WHEN se.is_active THEN 0 ELSE 1 END,
+      se.updated_at DESC NULLS LAST
   ),
   resolved_sales AS (
     SELECT
@@ -211,59 +211,59 @@ BEGIN
 
   RETURN QUERY
   WITH latest_promotion AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      NULLIF(BTRIM(new_value::text), '') AS promotion_position
-    FROM public.employee_movement_history
-    WHERE movement_type = 'promotion'
-      AND NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
-      AND NULLIF(BTRIM(new_value::text), '') IS NOT NULL
-    ORDER BY UPPER(BTRIM(employee_code::text)), movement_date DESC, created_at DESC
+    SELECT DISTINCT ON (UPPER(BTRIM(emh.employee_code::text)))
+      UPPER(BTRIM(emh.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(emh.new_value::text), '') AS promotion_position
+    FROM public.employee_movement_history emh
+    WHERE emh.movement_type = 'promotion'
+      AND NULLIF(BTRIM(emh.employee_code::text), '') IS NOT NULL
+      AND NULLIF(BTRIM(emh.new_value::text), '') IS NOT NULL
+    ORDER BY UPPER(BTRIM(emh.employee_code::text)), emh.movement_date DESC, emh.created_at DESC
   ),
   employee_source AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      NULLIF(BTRIM(employee_code::text), '') AS master_employee_code,
-      NULLIF(BTRIM(employee_name::text), '') AS master_employee_name,
-      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(current_position::text), ''), NULLIF(BTRIM(position::text), '')) AS master_position
-    FROM public.store_employees
+    SELECT DISTINCT ON (UPPER(BTRIM(se.employee_code::text)))
+      UPPER(BTRIM(se.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(se.employee_code::text), '') AS master_employee_code,
+      NULLIF(BTRIM(se.employee_name::text), '') AS master_employee_name,
+      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
+    FROM public.store_employees se
     LEFT JOIN latest_promotion
-      ON latest_promotion.normalized_employee_code = UPPER(BTRIM(store_employees.employee_code::text))
-    WHERE NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
-      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(current_position::text), ''), NULLIF(BTRIM(position::text), '')) IS NOT NULL
+      ON latest_promotion.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
+    WHERE NULLIF(BTRIM(se.employee_code::text), '') IS NOT NULL
+      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
     ORDER BY
-      UPPER(BTRIM(employee_code::text)),
-      CASE WHEN employment_status = 'active' THEN 0 ELSE 1 END,
-      CASE WHEN is_active THEN 0 ELSE 1 END,
-      updated_at DESC NULLS LAST
+      UPPER(BTRIM(se.employee_code::text)),
+      CASE WHEN se.employment_status = 'active' THEN 0 ELSE 1 END,
+      CASE WHEN se.is_active THEN 0 ELSE 1 END,
+      se.updated_at DESC NULLS LAST
   ),
   monthly_staff_store AS (
-    SELECT DISTINCT ON (UPPER(BTRIM(employee_code::text)))
-      UPPER(BTRIM(employee_code::text)) AS normalized_employee_code,
-      store_id
-    FROM public.monthly_staff_status
-    WHERE year_month = p_year_month
-      AND NULLIF(BTRIM(employee_code::text), '') IS NOT NULL
+    SELECT DISTINCT ON (UPPER(BTRIM(mss.employee_code::text)))
+      UPPER(BTRIM(mss.employee_code::text)) AS normalized_employee_code,
+      mss.store_id
+    FROM public.monthly_staff_status mss
+    WHERE mss.year_month = p_year_month
+      AND NULLIF(BTRIM(mss.employee_code::text), '') IS NOT NULL
     ORDER BY
-      UPPER(BTRIM(employee_code::text)),
+      UPPER(BTRIM(mss.employee_code::text)),
       CASE
-        WHEN monthly_status = 'transferred_out' THEN 0
-        WHEN monthly_status = 'transferred_in' THEN 2
+        WHEN mss.monthly_status = 'transferred_out' THEN 0
+        WHEN mss.monthly_status = 'transferred_in' THEN 2
         ELSE 1
       END,
-      updated_at DESC NULLS LAST,
-      created_at DESC NULLS LAST
+      mss.updated_at DESC NULLS LAST,
+      mss.created_at DESC NULLS LAST
   ),
   headquarters_store AS (
-    SELECT id, store_code, store_name
-    FROM public.stores
-    WHERE store_code = '0000'
-       OR store_name ILIKE '%總部%'
-       OR store_name ILIKE '%总部%'
-       OR store_code ILIKE '%HQ%'
+    SELECT hq.id, hq.store_code, hq.store_name
+    FROM public.stores hq
+    WHERE hq.store_code = '0000'
+       OR hq.store_name ILIKE '%總部%'
+       OR hq.store_name ILIKE '%总部%'
+       OR hq.store_code ILIKE '%HQ%'
     ORDER BY
-      CASE WHEN store_code = '0000' THEN 0 ELSE 1 END,
-      store_code
+      CASE WHEN hq.store_code = '0000' THEN 0 ELSE 1 END,
+      hq.store_code
     LIMIT 1
   ),
   resolved_sales AS (
