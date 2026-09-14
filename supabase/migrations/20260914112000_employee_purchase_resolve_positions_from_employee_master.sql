@@ -69,15 +69,26 @@ BEGIN
       AND NULLIF(BTRIM(emh.new_value::text), '') IS NOT NULL
     ORDER BY UPPER(BTRIM(emh.employee_code::text)), emh.movement_date DESC, emh.created_at DESC
   ),
+  latest_monthly_position AS (
+    SELECT DISTINCT ON (UPPER(BTRIM(mss.employee_code::text)))
+      UPPER(BTRIM(mss.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(mss.position::text), '') AS monthly_position
+    FROM public.monthly_staff_status mss
+    WHERE NULLIF(BTRIM(mss.employee_code::text), '') IS NOT NULL
+      AND NULLIF(BTRIM(mss.position::text), '') IS NOT NULL
+    ORDER BY UPPER(BTRIM(mss.employee_code::text)), mss.year_month DESC, mss.updated_at DESC NULLS LAST
+  ),
   employee_source AS (
     SELECT DISTINCT ON (UPPER(BTRIM(se.employee_code::text)))
       UPPER(BTRIM(se.employee_code::text)) AS normalized_employee_code,
-      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
+      COALESCE(latest_promotion.promotion_position, latest_monthly_position.monthly_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
     FROM public.store_employees se
     LEFT JOIN latest_promotion
       ON latest_promotion.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
+    LEFT JOIN latest_monthly_position
+      ON latest_monthly_position.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
     WHERE NULLIF(BTRIM(se.employee_code::text), '') IS NOT NULL
-      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
+      AND COALESCE(latest_promotion.promotion_position, latest_monthly_position.monthly_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
     ORDER BY
       UPPER(BTRIM(se.employee_code::text)),
       CASE WHEN se.employment_status = 'active' THEN 0 ELSE 1 END,
@@ -144,15 +155,26 @@ BEGIN
       AND NULLIF(BTRIM(emh.new_value::text), '') IS NOT NULL
     ORDER BY UPPER(BTRIM(emh.employee_code::text)), emh.movement_date DESC, emh.created_at DESC
   ),
+  latest_monthly_position AS (
+    SELECT DISTINCT ON (UPPER(BTRIM(mss.employee_code::text)))
+      UPPER(BTRIM(mss.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(mss.position::text), '') AS monthly_position
+    FROM public.monthly_staff_status mss
+    WHERE NULLIF(BTRIM(mss.employee_code::text), '') IS NOT NULL
+      AND NULLIF(BTRIM(mss.position::text), '') IS NOT NULL
+    ORDER BY UPPER(BTRIM(mss.employee_code::text)), mss.year_month DESC, mss.updated_at DESC NULLS LAST
+  ),
   employee_source AS (
     SELECT DISTINCT ON (UPPER(BTRIM(se.employee_code::text)))
       UPPER(BTRIM(se.employee_code::text)) AS normalized_employee_code,
-      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
+      COALESCE(latest_promotion.promotion_position, latest_monthly_position.monthly_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
     FROM public.store_employees se
     LEFT JOIN latest_promotion
       ON latest_promotion.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
+    LEFT JOIN latest_monthly_position
+      ON latest_monthly_position.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
     WHERE NULLIF(BTRIM(se.employee_code::text), '') IS NOT NULL
-      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
+      AND COALESCE(latest_promotion.promotion_position, latest_monthly_position.monthly_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
     ORDER BY
       UPPER(BTRIM(se.employee_code::text)),
       CASE WHEN se.employment_status = 'active' THEN 0 ELSE 1 END,
@@ -220,17 +242,28 @@ BEGIN
       AND NULLIF(BTRIM(emh.new_value::text), '') IS NOT NULL
     ORDER BY UPPER(BTRIM(emh.employee_code::text)), emh.movement_date DESC, emh.created_at DESC
   ),
+  latest_monthly_position AS (
+    SELECT DISTINCT ON (UPPER(BTRIM(mss.employee_code::text)))
+      UPPER(BTRIM(mss.employee_code::text)) AS normalized_employee_code,
+      NULLIF(BTRIM(mss.position::text), '') AS monthly_position
+    FROM public.monthly_staff_status mss
+    WHERE NULLIF(BTRIM(mss.employee_code::text), '') IS NOT NULL
+      AND NULLIF(BTRIM(mss.position::text), '') IS NOT NULL
+    ORDER BY UPPER(BTRIM(mss.employee_code::text)), mss.year_month DESC, mss.updated_at DESC NULLS LAST
+  ),
   employee_source AS (
     SELECT DISTINCT ON (UPPER(BTRIM(se.employee_code::text)))
       UPPER(BTRIM(se.employee_code::text)) AS normalized_employee_code,
       NULLIF(BTRIM(se.employee_code::text), '') AS master_employee_code,
       NULLIF(BTRIM(se.employee_name::text), '') AS master_employee_name,
-      COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
+      COALESCE(latest_promotion.promotion_position, latest_monthly_position.monthly_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) AS master_position
     FROM public.store_employees se
     LEFT JOIN latest_promotion
       ON latest_promotion.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
+    LEFT JOIN latest_monthly_position
+      ON latest_monthly_position.normalized_employee_code = UPPER(BTRIM(se.employee_code::text))
     WHERE NULLIF(BTRIM(se.employee_code::text), '') IS NOT NULL
-      AND COALESCE(latest_promotion.promotion_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
+      AND COALESCE(latest_promotion.promotion_position, latest_monthly_position.monthly_position, NULLIF(BTRIM(se.current_position::text), ''), NULLIF(BTRIM(se.position::text), '')) IS NOT NULL
     ORDER BY
       UPPER(BTRIM(se.employee_code::text)),
       CASE WHEN se.employment_status = 'active' THEN 0 ELSE 1 END,

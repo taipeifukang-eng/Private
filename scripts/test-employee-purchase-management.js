@@ -101,6 +101,7 @@ assertIncludes(importApi, 'monthly_staff_status', 'import API should match month
 assertIncludes(importApi, 'store_employees', 'import API should match employee management master');
 assertIncludes(importApi, 'employee_movement_history', 'import API should read latest promotion movements');
 assertIncludes(importApi, 'latestPromotionByCode', 'import API should prefer latest promotion positions');
+assertIncludes(importApi, 'latestMonthlyPositionByCode', 'import API should use latest monthly staff position before employee master fallback');
 assertIncludes(importApi, 'matchedEmployee?.current_position', 'import API should prefer current employee management position');
 assertIncludes(importApi, 'employee_purchase.import', 'import API should require import permission');
 assertIncludes(importApi, 'getYearMonthFromSaleDate', 'import API should infer year month from sale date');
@@ -139,6 +140,7 @@ assertIncludes(positionFilterOptimizationMigration, "NOTIFY pgrst, 'reload schem
 assertIncludes(positionMasterMigration, 'employee_purchase_position_summary', 'position master migration should replace position summary RPC');
 assertIncludes(positionMasterMigration, 'public.store_employees', 'position master migration should resolve positions from employee management');
 assertIncludes(positionMasterMigration, 'employee_movement_history', 'position master migration should resolve latest promotion positions');
+assertIncludes(positionMasterMigration, 'latest_monthly_position', 'position master migration should use latest monthly staff position before employee master fallback');
 assertIncludes(positionMasterMigration, 'master_position', 'position master migration should prefer master employee position');
 assertIncludes(positionMasterMigration, 'resolved_position', 'position master migration should filter and group by resolved position');
 assertIncludes(positionMasterMigration, 'monthly_staff_store', 'position master migration should assign one monthly staff store per employee');
@@ -156,11 +158,13 @@ assertIncludes(positionRepairSql, "match_status = resolved.match_status", 'posit
 assertIncludes(positionRepairSql, 'remaining_unmatched_position_rows', 'position repair SQL should report remaining unmatched rows');
 assertIncludes(positionMasterRepairSql, 'public.store_employees', 'position master repair SQL should use employee management source table');
 assertIncludes(positionMasterRepairSql, 'latest_promotion', 'position master repair SQL should prefer latest promotion movement');
+assertIncludes(positionMasterRepairSql, 'latest_monthly_position', 'position master repair SQL should use latest monthly staff position');
 assertIncludes(positionMasterRepairSql, 'FK0385', 'position master repair SQL should include FK0385 spot check');
 assertIncludes(positionMasterRepairSql, 'FK0195', 'position master repair SQL should include FK0195 spot check');
 assertIncludes(positionMasterRepairSql, 'employee_position = changes.employee_position', 'position master repair SQL should update stored employee purchase position');
 assertIncludes(positionMismatchCheckSql, 'This SQL does not update data', 'position mismatch check SQL should be read-only');
 assertIncludes(positionMismatchCheckSql, 'latest_promotion', 'position mismatch check SQL should prefer latest promotion movement');
+assertIncludes(positionMismatchCheckSql, 'latest_monthly_position', 'position mismatch check SQL should use latest monthly staff position');
 assertIncludes(positionMismatchCheckSql, 'purchase_position IS DISTINCT FROM master_position', 'position mismatch check SQL should find mismatched positions');
 assertIncludes(positionMismatchCheckSql, 'Employee-level mismatch detail', 'position mismatch check SQL should include employee detail');
 assertIncludes(positionMismatchCheckSql, 'still cannot be matched to employee management', 'position mismatch check SQL should report unmatched rows');

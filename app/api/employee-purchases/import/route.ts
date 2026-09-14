@@ -204,6 +204,21 @@ export async function POST(request: NextRequest) {
       if (code && !latestPromotionByCode.has(code)) latestPromotionByCode.set(code, promotion);
     });
 
+    const { data: latestStaffRows, error: latestStaffError } = await admin
+      .from('monthly_staff_status')
+      .select('employee_code, position, year_month, updated_at')
+      .not('employee_code', 'is', null)
+      .not('position', 'is', null)
+      .order('year_month', { ascending: false })
+      .order('updated_at', { ascending: false });
+    if (latestStaffError) throw latestStaffError;
+
+    const latestMonthlyPositionByCode = new Map<string, any>();
+    (latestStaffRows || []).forEach((staff: any) => {
+      const code = normalizeCode(staff.employee_code);
+      if (code && !latestMonthlyPositionByCode.has(code)) latestMonthlyPositionByCode.set(code, staff);
+    });
+
     const employeeByCode = new Map<string, any>();
     const employeeByName = new Map<string, any[]>();
     (employeeRows || []).forEach((employee: any) => {
@@ -271,6 +286,7 @@ export async function POST(request: NextRequest) {
 
       const employeePosition =
         normalizeText(latestPromotionByCode.get(normalizeCode(matchedEmployee?.employee_code || matchedStaff?.employee_code || memberCode))?.new_value) ||
+        normalizeText(latestMonthlyPositionByCode.get(normalizeCode(matchedEmployee?.employee_code || matchedStaff?.employee_code || memberCode))?.position) ||
         normalizeText(matchedEmployee?.current_position) ||
         normalizeText(matchedEmployee?.position) ||
         normalizeText(matchedStaff?.position) ||
