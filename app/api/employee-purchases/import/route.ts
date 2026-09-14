@@ -65,6 +65,29 @@ function getCell(row: Record<string, unknown>, header: string) {
   return row[header] ?? null;
 }
 
+function isTotalRow(row: Record<string, unknown>) {
+  const markerFields = ['門市代號', '銷售日期', '銷售序號', '發票編號', '會員編號', '會員名稱', '品號', '品名'];
+  const markerText = markerFields
+    .map((field) => normalizeText(row[field]))
+    .filter(Boolean)
+    .join(' ')
+    .toUpperCase();
+  if (['合計', '總計', '小計', 'TOTAL', 'SUM'].some((marker) => markerText.includes(marker))) {
+    return true;
+  }
+
+  const hasAmountValue = ['總金額', '毛利', '總成本', '數量'].some((field) => normalizeText(row[field]) !== '');
+  const hasRequiredDetail =
+    normalizeText(row['門市代號']) !== '' ||
+    normalizeText(row['銷售日期']) !== '' ||
+    normalizeText(row['會員編號']) !== '' ||
+    normalizeText(row['會員名稱']) !== '' ||
+    normalizeText(row['品號']) !== '' ||
+    normalizeText(row['品名']) !== '';
+
+  return hasAmountValue && !hasRequiredDetail;
+}
+
 function buildRowsFromWorksheet(sheet: XLSX.WorkSheet) {
   const rawRows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: null });
   if (rawRows.length < 3) {
@@ -85,7 +108,8 @@ function buildRowsFromWorksheet(sheet: XLSX.WorkSheet) {
       });
       return { rowNumber: index + 3, row };
     })
-    .filter(({ row }) => Object.values(row).some((value) => value !== null && value !== ''));
+    .filter(({ row }) => Object.values(row).some((value) => value !== null && value !== ''))
+    .filter(({ row }) => !isTotalRow(row));
 }
 
 function chunk<T>(items: T[], size: number) {

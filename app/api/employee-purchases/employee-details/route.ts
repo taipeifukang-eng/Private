@@ -8,6 +8,7 @@ type SaleRow = {
   product_code: string | null;
   product_name: string | null;
   quantity: number | null;
+  gross_profit: number | null;
   total_amount: number | null;
   employee_code: string | null;
   employee_name: string | null;
@@ -43,6 +44,7 @@ async function loadRowsByField(yearMonth: string, field: 'employee_code' | 'memb
       product_code,
       product_name,
       quantity,
+      gross_profit,
       total_amount,
       employee_code,
       employee_name,
@@ -106,6 +108,7 @@ export async function GET(request: NextRequest) {
       product_name: string;
       purchase_count: number;
       quantity: number;
+      gross_profit: number;
       total_amount: number;
     }>();
 
@@ -121,10 +124,12 @@ export async function GET(request: NextRequest) {
         product_name: productName,
         purchase_count: 0,
         quantity: 0,
+        gross_profit: 0,
         total_amount: 0,
       };
       detail.purchase_count += 1;
       detail.quantity += toNumber(row.quantity);
+      detail.gross_profit += toNumber(row.gross_profit);
       detail.total_amount += toNumber(row.total_amount);
       detailMap.set(key, detail);
     });
@@ -140,6 +145,7 @@ export async function GET(request: NextRequest) {
       success: true,
       details,
       total_amount: details.reduce((sum, row) => sum + row.total_amount, 0),
+      total_gross_profit: details.reduce((sum, row) => sum + row.gross_profit, 0),
       total_quantity: details.reduce((sum, row) => sum + row.quantity, 0),
       purchase_count: uniqueRows.length,
     });

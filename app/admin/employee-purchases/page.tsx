@@ -3,6 +3,9 @@
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  ArrowDown,
+  ArrowDownUp,
+  ArrowUp,
   Calendar,
   CheckCircle2,
   Filter,
@@ -32,6 +35,16 @@ type PurchaseRow = {
   total_amount: number;
 };
 
+type EmployeeSummarySortKey =
+  | 'recognized_store'
+  | 'employee_code'
+  | 'employee_name'
+  | 'employee_position'
+  | 'purchase_count'
+  | 'total_amount';
+
+type EmployeeSummarySortDirection = 'desc' | 'asc' | null;
+
 type EmployeePurchaseDetail = {
   purchase_store_code: string;
   purchase_store_name: string;
@@ -39,6 +52,7 @@ type EmployeePurchaseDetail = {
   product_name: string;
   purchase_count: number;
   quantity: number;
+  gross_profit: number;
   total_amount: number;
 };
 
@@ -66,6 +80,7 @@ function formatDecimal(value: number | null | undefined) {
 
 export default function EmployeePurchasesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const detailSectionRef = useRef<HTMLElement>(null);
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [selectedPosition, setSelectedPosition] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -83,11 +98,76 @@ export default function EmployeePurchasesPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<PurchaseRow | null>(null);
   const [employeeDetails, setEmployeeDetails] = useState<EmployeePurchaseDetail[]>([]);
   const [loadingEmployeeDetails, setLoadingEmployeeDetails] = useState(false);
+  const [isEmployeeSummaryCollapsed, setIsEmployeeSummaryCollapsed] = useState(false);
+  const [employeeSummarySort, setEmployeeSummarySort] = useState<{
+    key: EmployeeSummarySortKey | null;
+    direction: EmployeeSummarySortDirection;
+  }>({ key: null, direction: null });
 
   const selectedPositionAmount = useMemo(() => {
     if (!selectedPosition) return totalAmount;
     return summary.find((item) => item.position === selectedPosition)?.total_amount || 0;
   }, [selectedPosition, summary, totalAmount]);
+
+  const employeeDetailTotals = useMemo(() => ({
+    purchaseCount: employeeDetails.reduce((sum, row) => sum + row.purchase_count, 0),
+    quantity: employeeDetails.reduce((sum, row) => sum + Number(row.quantity || 0), 0),
+    grossProfit: employeeDetails.reduce((sum, row) => sum + Number(row.gross_profit || 0), 0),
+    totalAmount: employeeDetails.reduce((sum, row) => sum + Number(row.total_amount || 0), 0),
+  }), [employeeDetails]);
+
+  const sortedRows = useMemo(() => {
+    if (!employeeSummarySort.key || !employeeSummarySort.direction) return rows;
+    const sortKey = employeeSummarySort.key;
+    const sortDirection = employeeSummarySort.direction;
+
+    const getValue = (row: PurchaseRow) => {
+      if (sortKey === 'recognized_store') {
+        return `${row.recognized_store_code || ''} ${row.recognized_store_name || ''}`.trim();
+      }
+      return row[sortKey];
+    };
+
+    return [...rows].sort((left, right) => {
+      const leftValue = getValue(left);
+      const rightValue = getValue(right);
+      let compare = 0;
+
+      if (typeof leftValue === 'number' && typeof rightValue === 'number') {
+        compare = leftValue - rightValue;
+      } else {
+        compare = String(leftValue || '').localeCompare(String(rightValue || ''), 'zh-Hant-TW', { numeric: true });
+      }
+
+      return sortDirection === 'desc' ? -compare : compare;
+    });
+  }, [employeeSummarySort, rows]);
+
+  function toggleEmployeeSummarySort(key: EmployeeSummarySortKey) {
+    setEmployeeSummarySort((current) => {
+      if (current.key !== key) return { key, direction: 'desc' };
+      if (current.direction === 'desc') return { key, direction: 'asc' };
+      return { key: null, direction: null };
+    });
+  }
+
+  function renderSortHeader(label: string, key: EmployeeSummarySortKey, align: 'left' | 'right' = 'left') {
+    const active = employeeSummarySort.key === key && employeeSummarySort.direction;
+    const Icon = active === 'desc' ? ArrowDown : active === 'asc' ? ArrowUp : ArrowDownUp;
+
+    return (
+      <button
+        type="button"
+        onClick={() => toggleEmployeeSummarySort(key)}
+        className={`inline-flex w-full items-center gap-1 text-xs font-medium text-gray-600 hover:text-blue-700 ${
+          align === 'right' ? 'justify-end' : 'justify-start'
+        }`}
+      >
+        <span>{label}</span>
+        <Icon size={14} className={active ? 'text-blue-700' : 'text-gray-400'} />
+      </button>
+    );
+  }
 
   async function loadData() {
     setLoading(true);
@@ -109,6 +189,7 @@ export default function EmployeePurchasesPage() {
       setRows(data.rows || []);
       setSelectedEmployee(null);
       setEmployeeDetails([]);
+      setIsEmployeeSummaryCollapsed(false);
       setTotalCount(data.total_count || 0);
       setTotalAmount(data.total_amount || 0);
       setMatchedCount(data.matched_count || 0);
@@ -134,8 +215,12 @@ export default function EmployeePurchasesPage() {
   async function loadEmployeeDetails(row: PurchaseRow) {
     setSelectedEmployee(row);
     setEmployeeDetails([]);
+    setIsEmployeeSummaryCollapsed(true);
     setLoadingEmployeeDetails(true);
     setMessage(null);
+    window.requestAnimationFrame(() => {
+      detailSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
     try {
       const params = new URLSearchParams({
@@ -364,22 +449,46 @@ export default function EmployeePurchasesPage() {
         </section>
 
         <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-200 p-5">
-            <h2 className="text-lg font-semibold text-gray-900">員工消費彙總</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              {selectedPosition ? `目前篩選職稱：${selectedPosition}` : '目前顯示全部職稱'}，依認列門市與員工彙總消費總額。
-            </p>
+          <div className="flex flex-col gap-3 border-b border-gray-200 p-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900">員工消費彙總</h2>
+              <p className="mt-1 text-sm text-gray-600">
+                {selectedPosition ? `目前篩選職稱：${selectedPosition}` : '目前顯示全部職稱'}，依認列門市與員工彙總消費總額。
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsEmployeeSummaryCollapsed((value) => !value)}
+              className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              {isEmployeeSummaryCollapsed ? '展開彙總' : '收合彙總'}
+            </button>
           </div>
+          {isEmployeeSummaryCollapsed && selectedEmployee ? (
+            <div className="flex flex-col gap-2 p-5 text-sm text-gray-600 md:flex-row md:items-center md:justify-between">
+              <div>
+                已選取 <span className="font-semibold text-gray-900">{selectedEmployee.employee_code || '-'} / {selectedEmployee.employee_name || '-'}</span>
+                ，彙總表已收合。
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEmployeeSummaryCollapsed(false)}
+                className="text-left font-medium text-blue-700 hover:text-blue-800"
+              >
+                回到員工列表選擇其他人
+              </button>
+            </div>
+          ) : (
           <div className="overflow-auto">
             <table className="min-w-full divide-y divide-gray-200 text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">認列門市</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">員編</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">姓名</th>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">職稱</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-600">消費筆數</th>
-                  <th className="px-3 py-2 text-right font-medium text-gray-600">消費總額</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">{renderSortHeader('認列門市', 'recognized_store')}</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">{renderSortHeader('員編', 'employee_code')}</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">{renderSortHeader('姓名', 'employee_name')}</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">{renderSortHeader('職稱', 'employee_position')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600">{renderSortHeader('消費筆數', 'purchase_count', 'right')}</th>
+                  <th className="px-3 py-2 text-right font-medium text-gray-600">{renderSortHeader('消費總額', 'total_amount', 'right')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white">
@@ -389,7 +498,7 @@ export default function EmployeePurchasesPage() {
                       {loading ? '載入中...' : '沒有員工消費彙總資料'}
                     </td>
                   </tr>
-                ) : rows.map((row) => (
+                ) : sortedRows.map((row) => (
                   <tr
                     key={row.id}
                     onClick={() => loadEmployeeDetails(row)}
@@ -406,10 +515,11 @@ export default function EmployeePurchasesPage() {
               </tbody>
             </table>
           </div>
+          )}
         </section>
 
         {selectedEmployee && (
-          <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+          <section ref={detailSectionRef} className="rounded-lg border border-gray-200 bg-white shadow-sm">
             <div className="flex flex-col gap-2 border-b border-gray-200 p-5 md:flex-row md:items-center md:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">購買商品明細</h2>
@@ -423,11 +533,31 @@ export default function EmployeePurchasesPage() {
                 onClick={() => {
                   setSelectedEmployee(null);
                   setEmployeeDetails([]);
+                  setIsEmployeeSummaryCollapsed(false);
                 }}
                 className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 關閉明細
               </button>
+            </div>
+
+            <div className="grid gap-3 border-b border-gray-100 p-5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-lg bg-gray-50 p-3">
+                <div className="text-xs text-gray-500">購買筆數</div>
+                <div className="mt-1 text-lg font-semibold text-gray-900">{employeeDetailTotals.purchaseCount.toLocaleString('zh-TW')}</div>
+              </div>
+              <div className="rounded-lg bg-gray-50 p-3">
+                <div className="text-xs text-gray-500">數量加總</div>
+                <div className="mt-1 text-lg font-semibold text-gray-900">{formatDecimal(employeeDetailTotals.quantity)}</div>
+              </div>
+              <div className="rounded-lg bg-emerald-50 p-3">
+                <div className="text-xs text-emerald-700">金額加總</div>
+                <div className="mt-1 text-lg font-semibold text-emerald-800">{formatMoney(employeeDetailTotals.totalAmount)}</div>
+              </div>
+              <div className="rounded-lg bg-blue-50 p-3">
+                <div className="text-xs text-blue-700">毛利加總</div>
+                <div className="mt-1 text-lg font-semibold text-blue-800">{formatMoney(employeeDetailTotals.grossProfit)}</div>
+              </div>
             </div>
 
             <div className="overflow-auto">
@@ -439,17 +569,18 @@ export default function EmployeePurchasesPage() {
                     <th className="px-3 py-2 text-left font-medium text-gray-600">品名</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600">購買筆數</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600">數量</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600">毛利</th>
                     <th className="px-3 py-2 text-right font-medium text-gray-600">金額</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white">
                   {loadingEmployeeDetails ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-gray-500">載入中...</td>
+                      <td colSpan={7} className="px-3 py-10 text-center text-gray-500">載入中...</td>
                     </tr>
                   ) : employeeDetails.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-3 py-10 text-center text-gray-500">沒有購買商品明細</td>
+                      <td colSpan={7} className="px-3 py-10 text-center text-gray-500">沒有購買商品明細</td>
                     </tr>
                   ) : employeeDetails.map((detail, index) => (
                     <tr key={`${detail.purchase_store_code}-${detail.product_code}-${index}`} className="hover:bg-gray-50">
@@ -458,6 +589,7 @@ export default function EmployeePurchasesPage() {
                       <td className="min-w-[260px] px-3 py-2 text-gray-900">{detail.product_name || '-'}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right text-gray-700">{detail.purchase_count.toLocaleString('zh-TW')}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right text-gray-700">{formatDecimal(detail.quantity)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-blue-700">{formatMoney(detail.gross_profit)}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-900">{formatMoney(detail.total_amount)}</td>
                     </tr>
                   ))}
