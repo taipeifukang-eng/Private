@@ -14,6 +14,16 @@ interface StoreWithStatus {
   store_status: 'pending' | 'submitted' | 'confirmed';
 }
 
+interface RosterRow {
+  year_month: string;
+  store_code: string;
+  store_name: string;
+  employee_code: string;
+  employee_name: string;
+  position: string;
+  monthly_status: string;
+}
+
 export default function ExportMonthlyStatusPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -25,6 +35,9 @@ export default function ExportMonthlyStatusPage() {
   const [downloadingSupportHours, setDownloadingSupportHours] = useState(false);
   const [downloadingSpringFestival, setDownloadingSpringFestival] = useState(false);
   const [downloadingActualStaffPoints, setDownloadingActualStaffPoints] = useState(false);
+  const [loadingRoster, setLoadingRoster] = useState(false);
+  const [downloadingRoster, setDownloadingRoster] = useState(false);
+  const [rosterRows, setRosterRows] = useState<RosterRow[]>([]);
   
   // 年月選擇
   const now = new Date();
@@ -204,6 +217,79 @@ export default function ExportMonthlyStatusPage() {
       alert(error instanceof Error ? error.message : '下載失敗');
     } finally {
       setDownloadingActualStaffPoints(false);
+    }
+  };
+
+  const handleLoadRoster = async () => {
+    if (selectedStoreIds.size === 0) {
+      alert('請至少選擇一間門市');
+      return;
+    }
+
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    const params = new URLSearchParams({
+      year_month: yearMonth,
+      store_ids: Array.from(selectedStoreIds).join(','),
+    });
+    setLoadingRoster(true);
+
+    try {
+      const response = await fetch(`/api/export-monthly-status/roster?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '載入名冊失敗');
+      }
+
+      setRosterRows(data.rows || []);
+    } catch (error) {
+      console.error('Error loading roster:', error);
+      alert(error instanceof Error ? error.message : '載入名冊失敗');
+    } finally {
+      setLoadingRoster(false);
+    }
+  };
+
+  const handleDownloadRoster = async () => {
+    if (selectedStoreIds.size === 0) {
+      alert('請至少選擇一間門市');
+      return;
+    }
+
+    const yearMonth = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}`;
+    setDownloadingRoster(true);
+
+    try {
+      const response = await fetch('/api/export-monthly-status/roster', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          year_month: yearMonth,
+          store_ids: Array.from(selectedStoreIds)
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || '下載失敗');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `每月門市人員名冊_${yearMonth}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading roster:', error);
+      alert(error instanceof Error ? error.message : '下載失敗');
+    } finally {
+      setDownloadingRoster(false);
     }
   };
 
@@ -520,6 +606,26 @@ export default function ExportMonthlyStatusPage() {
               {downloadingActualStaffPoints ? '匯出中...' : `匯出實際人力點值 (${selectedStoreIds.size} 間門市)`}
             </button>
 
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={handleLoadRoster}
+                disabled={loadingRoster || selectedStoreIds.size === 0}
+                className="w-full px-6 py-3 bg-slate-700 text-white rounded-lg hover:bg-slate-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <FileSpreadsheet size={20} />
+                {loadingRoster ? '載入中...' : `預覽每月門市人員名冊 (${selectedStoreIds.size} 間門市)`}
+              </button>
+
+              <button
+                onClick={handleDownloadRoster}
+                disabled={downloadingRoster || selectedStoreIds.size === 0}
+                className="w-full px-6 py-3 bg-cyan-700 text-white rounded-lg hover:bg-cyan-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 font-medium"
+              >
+                <Download size={20} />
+                {downloadingRoster ? '匯出中...' : `匯出每月門市人員名冊 (${selectedStoreIds.size} 間門市)`}
+              </button>
+            </div>
+
             {/* 匯出交通費用、單品獎金、育才獎金 */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-700 pt-4 border-t">匯出交通費用、單品獎金、育才獎金 Excel</h3>
@@ -674,6 +780,56 @@ export default function ExportMonthlyStatusPage() {
               </div>
             )}
           </div>
+        </div>
+
+        <div className="mt-6 bg-white rounded-lg shadow-lg p-6">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <FileSpreadsheet size={20} />
+                每月門市人員名冊
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                依照該月份快照列出所有選取門市的人員員編、姓名與職稱。
+              </p>
+            </div>
+            <div className="text-sm text-gray-500">
+              {rosterRows.length > 0 ? `${rosterRows.length} 筆` : '尚未載入'}
+            </div>
+          </div>
+
+          {rosterRows.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 py-10 text-center text-gray-500">
+              選擇門市後按「預覽每月門市人員名冊」即可查看資料。
+            </div>
+          ) : (
+            <div className="overflow-auto max-h-[520px] border border-gray-200 rounded-lg">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50 sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">月份</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">門市代號</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">門市名稱</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">員編</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">姓名</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">職稱</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {rosterRows.map((row, index) => (
+                    <tr key={`${row.year_month}-${row.store_code}-${row.employee_code}-${index}`} className="hover:bg-gray-50">
+                      <td className="px-3 py-2 text-gray-700">{row.year_month}</td>
+                      <td className="px-3 py-2 text-gray-700">{row.store_code}</td>
+                      <td className="px-3 py-2 text-gray-900">{row.store_name}</td>
+                      <td className="px-3 py-2 font-mono text-gray-700">{row.employee_code}</td>
+                      <td className="px-3 py-2 text-gray-900">{row.employee_name}</td>
+                      <td className="px-3 py-2 text-gray-700">{row.position}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>
