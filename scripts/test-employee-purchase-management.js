@@ -35,15 +35,20 @@ assertIncludes(page, 'type="month"', 'page should provide month selector');
 assertIncludes(page, '/api/employee-purchases/import', 'page should call import API');
 assertIncludes(page, '職稱金額彙總', 'page should show position summary');
 assertIncludes(page, 'employee_position', 'page should display employee position');
+assertIncludes(page, '員工消費彙總', 'page should show employee-level purchase summary');
+assertIncludes(page, 'recognized_store_code', 'page should display recognized employee store');
+assertIncludes(page, 'purchase_count', 'page should display purchase count per employee');
 
-assertIncludes(api, ".from('employee_purchase_sales')", 'query API should read employee purchase sales');
 assertIncludes(api, 'summary_by_position', 'query API should return position summary');
 assertIncludes(api, 'employee_purchase.view', 'query API should require employee purchase view/import permission');
 assertIncludes(api, "rpc('employee_purchase_position_summary'", 'query API should use DB-side position summary');
 assertIncludes(api, "rpc('employee_purchase_month_stats'", 'query API should use DB-side monthly stats');
-assertIncludes(api, '.limit(500)', 'query API should limit detail rows');
+assertIncludes(api, "rpc('employee_purchase_employee_summary'", 'query API should use DB-side employee summary rows');
 if (api.includes('function fetchAllPurchases') || api.includes('while (true)')) {
   throw new Error('query API must not fetch all purchase rows in Node');
+}
+if (api.includes('product_name') || api.includes('sale_sequence')) {
+  throw new Error('query API should not return product or invoice-level detail rows');
 }
 
 assertIncludes(importApi, 'GridBand1', 'import API should document first invalid GridBand row behavior');
@@ -64,6 +69,9 @@ assertIncludes(migration, 'employee_purchase.import', 'migration should create i
 assertIncludes(summaryMigration, 'employee_purchase_position_summary', 'summary migration should create position summary RPC');
 assertIncludes(summaryMigration, 'position_name text', 'summary RPC should avoid reserved output name position');
 assertIncludes(summaryMigration, 'employee_purchase_month_stats', 'summary migration should create month stats RPC');
+assertIncludes(summaryMigration, 'employee_purchase_employee_summary', 'summary migration should create employee summary RPC');
+assertIncludes(summaryMigration, 'recognized_store_code', 'employee summary should include recognized employee store');
+assertIncludes(summaryMigration, 'matched_staff_status_id', 'employee summary should use matched monthly staff status for recognized store');
 assertIncludes(summaryMigration, "public.has_permission(auth.uid(), 'employee_purchase.view')", 'summary RPC should enforce view permission');
 
 console.log('employee purchase management checks passed');

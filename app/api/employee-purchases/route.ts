@@ -2,26 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 
-type PurchaseRow = {
-  id: string;
-  year_month: string;
-  store_code: string | null;
-  sale_date: string | null;
-  sale_sequence: string | null;
-  member_code: string | null;
-  member_name: string | null;
-  product_code: string | null;
-  product_name: string | null;
-  quantity: number;
-  total_amount: number;
-  gross_profit: number;
-  employee_code: string | null;
-  employee_name: string | null;
-  employee_position: string | null;
-  match_status: string;
-  stores?: { store_name?: string | null } | { store_name?: string | null }[] | null;
-};
-
 type PositionSummaryRow = {
   position: string;
   sales_count: number;
@@ -37,11 +17,6 @@ type MonthStatsRow = {
   matched_count: number;
   unmatched_count: number;
 };
-
-function getStoreName(row: PurchaseRow) {
-  const store = Array.isArray(row.stores) ? row.stores[0] : row.stores;
-  return store?.store_name || '';
-}
 
 function toNumber(value: unknown) {
   const parsed = Number(value || 0);
@@ -110,41 +85,12 @@ export async function GET(request: NextRequest) {
     if (statsError) throw statsError;
     const stats = normalizeStats(Array.isArray(statsData) ? statsData[0] : statsData);
 
-    let detailQuery = admin
-      .from('employee_purchase_sales')
-      .select(`
-        id,
-        year_month,
-        store_code,
-        sale_date,
-        sale_sequence,
-        member_code,
-        member_name,
-        product_code,
-        product_name,
-        quantity,
-        total_amount,
-        gross_profit,
-        employee_code,
-        employee_name,
-        employee_position,
-        match_status,
-        stores:store_id (store_name)
-      `)
-      .eq('year_month', yearMonth)
-      .order('sale_date', { ascending: false })
-      .order('sale_sequence', { ascending: false })
-      .limit(500);
-
-    if (position && position !== '未比對職稱') {
-      detailQuery = detailQuery.eq('employee_position', position);
-    } else if (position === '未比對職稱') {
-      detailQuery = detailQuery.or('employee_position.is.null,employee_position.eq.');
-    }
-
-    const { data: detailData, error: detailError } = await detailQuery;
-    if (detailError) throw detailError;
-    const rows = (detailData || []) as PurchaseRow[];
+    const { data: employeeSummaryData, error: employeeSummaryError } = await supabase
+      .rpc('employee_purchase_employee_summary', {
+        p_year_month: yearMonth,
+        p_position: position || null,
+      });
+    if (employeeSummaryError) throw employeeSummaryError;
 
     const { data: latestBatch } = await admin
       .from('employee_purchase_import_batches')
@@ -154,31 +100,22 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    const detailRows = rows.slice(0, 500).map((row) => ({
-      id: row.id,
-      year_month: row.year_month,
-      store_code: row.store_code || '',
-      store_name: getStoreName(row),
-      sale_date: row.sale_date,
-      sale_sequence: row.sale_sequence || '',
-      member_code: row.member_code || '',
-      member_name: row.member_name || '',
-      product_code: row.product_code || '',
-      product_name: row.product_name || '',
-      quantity: toNumber(row.quantity),
-      total_amount: toNumber(row.total_amount),
-      gross_profit: toNumber(row.gross_profit),
+    const employeeRows = (employeeSummaryData || []).map((row: any, index: number) => ({
+      id: `${row.recognized_store_code || 'store'}-${row.employee_code || row.employee_name || 'employee'}-${index}`,
+      recognized_store_code: row.recognized_store_code || '',
+      recognized_store_name: row.recognized_store_name || '',
       employee_code: row.employee_code || '',
       employee_name: row.employee_name || '',
       employee_position: row.employee_position || '',
-      match_status: row.match_status,
+      purchase_count: toNumber(row.purchase_count),
+      total_amount: toNumber(row.total_amount),
     }));
 
     return NextResponse.json({
       success: true,
       positions,
       summary_by_position: summaryByPosition,
-      rows: detailRows,
+      rows: employeeRows,
       total_count: stats.total_count,
       total_amount: stats.total_amount,
       matched_count: stats.matched_count,
