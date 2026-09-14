@@ -13,8 +13,11 @@ const files = {
   summaryMigration: 'supabase/migrations/20260914094000_employee_purchase_summary_functions.sql',
   employeeSummaryRepairMigration: 'supabase/migrations/20260914095000_employee_purchase_employee_summary_rpc.sql',
   positionFilterOptimizationMigration: 'supabase/migrations/20260914103000_optimize_employee_purchase_position_filter.sql',
+  positionMasterMigration: 'supabase/migrations/20260914112000_employee_purchase_resolve_positions_from_employee_master.sql',
   yearMonthRepairSql: 'supabase/repair_employee_purchase_year_month_from_sale_date.sql',
   positionRepairSql: 'supabase/repair_employee_purchase_positions_from_store_employees_2026_01_08.sql',
+  positionMasterRepairSql: 'supabase/repair_employee_purchase_positions_from_employee_master.sql',
+  positionMismatchCheckSql: 'supabase/check_employee_purchase_position_mismatches.sql',
 };
 
 function read(relativePath) {
@@ -37,8 +40,11 @@ const migration = read(files.migration);
 const summaryMigration = read(files.summaryMigration);
 const employeeSummaryRepairMigration = read(files.employeeSummaryRepairMigration);
 const positionFilterOptimizationMigration = read(files.positionFilterOptimizationMigration);
+const positionMasterMigration = read(files.positionMasterMigration);
 const yearMonthRepairSql = read(files.yearMonthRepairSql);
 const positionRepairSql = read(files.positionRepairSql);
+const positionMasterRepairSql = read(files.positionMasterRepairSql);
+const positionMismatchCheckSql = read(files.positionMismatchCheckSql);
 
 assertIncludes(page, '員工購物管理', 'page should render employee purchase management title');
 assertIncludes(page, 'type="month"', 'page should provide month selector');
@@ -92,6 +98,10 @@ assertIncludes(detailApi, 'employee_purchase.view', 'detail API should require e
 assertIncludes(importApi, 'GridBand1', 'import API should document first invalid GridBand row behavior');
 assertIncludes(importApi, 'rawRows[1]', 'import API should use second row as headers');
 assertIncludes(importApi, 'monthly_staff_status', 'import API should match monthly staff status');
+assertIncludes(importApi, 'store_employees', 'import API should match employee management master');
+assertIncludes(importApi, 'employee_movement_history', 'import API should read latest promotion movements');
+assertIncludes(importApi, 'latestPromotionByCode', 'import API should prefer latest promotion positions');
+assertIncludes(importApi, 'matchedEmployee?.current_position', 'import API should prefer current employee management position');
 assertIncludes(importApi, 'employee_purchase.import', 'import API should require import permission');
 assertIncludes(importApi, 'getYearMonthFromSaleDate', 'import API should infer year month from sale date');
 assertIncludes(importApi, '銷售日期包含多個月份', 'import API should reject files with multiple sale months');
@@ -126,6 +136,16 @@ assertIncludes(positionFilterOptimizationMigration, 'v_allowed boolean', 'positi
 assertIncludes(positionFilterOptimizationMigration, 'LANGUAGE plpgsql', 'position filter optimization should use plpgsql branch queries');
 assertIncludes(positionFilterOptimizationMigration, "sales.employee_position = v_position", 'position filter optimization should use direct position predicate');
 assertIncludes(positionFilterOptimizationMigration, "NOTIFY pgrst, 'reload schema'", 'position filter optimization should reload PostgREST schema cache');
+assertIncludes(positionMasterMigration, 'employee_purchase_position_summary', 'position master migration should replace position summary RPC');
+assertIncludes(positionMasterMigration, 'public.store_employees', 'position master migration should resolve positions from employee management');
+assertIncludes(positionMasterMigration, 'employee_movement_history', 'position master migration should resolve latest promotion positions');
+assertIncludes(positionMasterMigration, 'master_position', 'position master migration should prefer master employee position');
+assertIncludes(positionMasterMigration, 'resolved_position', 'position master migration should filter and group by resolved position');
+assertIncludes(positionMasterMigration, 'monthly_staff_store', 'position master migration should assign one monthly staff store per employee');
+assertIncludes(positionMasterMigration, "monthly_status = 'transferred_out'", 'employee summary should prefer the pre-transfer store for mid-month transfers');
+assertIncludes(positionMasterMigration, 'headquarters_store', 'employee summary should fall back to headquarters when no monthly staff store matches');
+assertIncludes(positionMasterMigration, "COALESCE(recognized_store.store_code, '0000')", 'employee summary should display headquarters code when no store matches');
+assertIncludes(positionMasterMigration, "NOTIFY pgrst, 'reload schema'", 'position master migration should reload PostgREST schema cache');
 assertIncludes(yearMonthRepairSql, "year_month <> to_char(sale_date, 'YYYY-MM')", 'year-month repair SQL should detect mismatched sale months');
 assertIncludes(yearMonthRepairSql, "SET year_month = to_char(sale_date, 'YYYY-MM')", 'year-month repair SQL should move rows to sale month');
 assertIncludes(yearMonthRepairSql, 'employee_purchase_import_batches', 'year-month repair SQL should move import batches to sale month');
@@ -134,5 +154,15 @@ assertIncludes(positionRepairSql, "sales.year_month BETWEEN '2026-01' AND '2026-
 assertIncludes(positionRepairSql, 'current_position', 'position repair SQL should prefer current employee position');
 assertIncludes(positionRepairSql, "match_status = resolved.match_status", 'position repair SQL should mark repaired employee purchase match status');
 assertIncludes(positionRepairSql, 'remaining_unmatched_position_rows', 'position repair SQL should report remaining unmatched rows');
+assertIncludes(positionMasterRepairSql, 'public.store_employees', 'position master repair SQL should use employee management source table');
+assertIncludes(positionMasterRepairSql, 'latest_promotion', 'position master repair SQL should prefer latest promotion movement');
+assertIncludes(positionMasterRepairSql, 'FK0385', 'position master repair SQL should include FK0385 spot check');
+assertIncludes(positionMasterRepairSql, 'FK0195', 'position master repair SQL should include FK0195 spot check');
+assertIncludes(positionMasterRepairSql, 'employee_position = changes.employee_position', 'position master repair SQL should update stored employee purchase position');
+assertIncludes(positionMismatchCheckSql, 'This SQL does not update data', 'position mismatch check SQL should be read-only');
+assertIncludes(positionMismatchCheckSql, 'latest_promotion', 'position mismatch check SQL should prefer latest promotion movement');
+assertIncludes(positionMismatchCheckSql, 'purchase_position IS DISTINCT FROM master_position', 'position mismatch check SQL should find mismatched positions');
+assertIncludes(positionMismatchCheckSql, 'Employee-level mismatch detail', 'position mismatch check SQL should include employee detail');
+assertIncludes(positionMismatchCheckSql, 'still cannot be matched to employee management', 'position mismatch check SQL should report unmatched rows');
 
 console.log('employee purchase management checks passed');

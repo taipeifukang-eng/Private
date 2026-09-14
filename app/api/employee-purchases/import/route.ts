@@ -184,6 +184,39 @@ export async function POST(request: NextRequest) {
       .eq('year_month', yearMonth);
     if (staffError) throw staffError;
 
+    const { data: employeeRows, error: employeeError } = await admin
+      .from('store_employees')
+      .select('employee_code, employee_name, current_position, position, employment_status, is_active, updated_at');
+    if (employeeError) throw employeeError;
+
+    const { data: promotionRows, error: promotionError } = await admin
+      .from('employee_movement_history')
+      .select('employee_code, new_value, movement_date, created_at')
+      .eq('movement_type', 'promotion')
+      .not('new_value', 'is', null)
+      .order('movement_date', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (promotionError) throw promotionError;
+
+    const latestPromotionByCode = new Map<string, any>();
+    (promotionRows || []).forEach((promotion: any) => {
+      const code = normalizeCode(promotion.employee_code);
+      if (code && !latestPromotionByCode.has(code)) latestPromotionByCode.set(code, promotion);
+    });
+
+    const employeeByCode = new Map<string, any>();
+    const employeeByName = new Map<string, any[]>();
+    (employeeRows || []).forEach((employee: any) => {
+      const code = normalizeCode(employee.employee_code);
+      const name = normalizeName(employee.employee_name);
+      if (code && !employeeByCode.has(code)) employeeByCode.set(code, employee);
+      if (name) {
+        const list = employeeByName.get(name) || [];
+        list.push(employee);
+        employeeByName.set(name, list);
+      }
+    });
+
     const staffByCode = new Map<string, any>();
     const staffByName = new Map<string, any[]>();
     (staffRows || []).forEach((staff: any) => {
@@ -210,6 +243,7 @@ export async function POST(request: NextRequest) {
 
       let matchedStaff = memberCode ? staffByCode.get(memberCode) : null;
       let matchStatus: 'employee_code' | 'employee_name' | 'ambiguous' | 'unmatched' = matchedStaff ? 'employee_code' : 'unmatched';
+      let matchedEmployee = memberCode ? employeeByCode.get(memberCode) : null;
 
       if (!matchedStaff && memberName) {
         const nameMatches = staffByName.get(normalizeName(memberName)) || [];
@@ -220,6 +254,27 @@ export async function POST(request: NextRequest) {
           matchStatus = 'ambiguous';
         }
       }
+
+      if (!matchedEmployee && memberName) {
+        const employeeNameMatches = employeeByName.get(normalizeName(memberName)) || [];
+        if (employeeNameMatches.length === 1) {
+          matchedEmployee = employeeNameMatches[0];
+          if (!matchedStaff && matchStatus !== 'ambiguous') {
+            matchStatus = 'employee_name';
+          }
+        }
+      }
+
+      if (matchedEmployee && !matchedStaff && memberCode && normalizeCode(matchedEmployee.employee_code) === memberCode) {
+        matchStatus = 'employee_code';
+      }
+
+      const employeePosition =
+        normalizeText(latestPromotionByCode.get(normalizeCode(matchedEmployee?.employee_code || matchedStaff?.employee_code || memberCode))?.new_value) ||
+        normalizeText(matchedEmployee?.current_position) ||
+        normalizeText(matchedEmployee?.position) ||
+        normalizeText(matchedStaff?.position) ||
+        null;
 
       return {
         batch_id: null as string | null,
@@ -249,9 +304,9 @@ export async function POST(request: NextRequest) {
         cashier: normalizeText(getCell(row, '收銀')) || null,
         total_cost: parseNumber(getCell(row, '總成本')),
         price_discount_amount: parseNumber(getCell(row, '變價折讓金額')),
-        employee_code: matchedStaff?.employee_code || null,
-        employee_name: matchedStaff?.employee_name || null,
-        employee_position: matchedStaff?.position || null,
+        employee_code: matchedEmployee?.employee_code || matchedStaff?.employee_code || null,
+        employee_name: matchedEmployee?.employee_name || matchedStaff?.employee_name || null,
+        employee_position: employeePosition,
         matched_staff_status_id: matchedStaff?.id || null,
         match_status: matchStatus,
         raw_row: row,
