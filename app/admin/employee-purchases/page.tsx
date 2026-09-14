@@ -32,6 +32,16 @@ type PurchaseRow = {
   total_amount: number;
 };
 
+type EmployeePurchaseDetail = {
+  purchase_store_code: string;
+  purchase_store_name: string;
+  product_code: string;
+  product_name: string;
+  purchase_count: number;
+  quantity: number;
+  total_amount: number;
+};
+
 type LatestBatch = {
   file_name: string;
   imported_at: string;
@@ -50,6 +60,10 @@ function formatMoney(value: number | null | undefined) {
   return Math.round(Number(value || 0)).toLocaleString('zh-TW');
 }
 
+function formatDecimal(value: number | null | undefined) {
+  return Number(value || 0).toLocaleString('zh-TW', { maximumFractionDigits: 2 });
+}
+
 export default function EmployeePurchasesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
@@ -66,6 +80,9 @@ export default function EmployeePurchasesPage() {
   const [matchedCount, setMatchedCount] = useState(0);
   const [unmatchedCount, setUnmatchedCount] = useState(0);
   const [latestBatch, setLatestBatch] = useState<LatestBatch>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<PurchaseRow | null>(null);
+  const [employeeDetails, setEmployeeDetails] = useState<EmployeePurchaseDetail[]>([]);
+  const [loadingEmployeeDetails, setLoadingEmployeeDetails] = useState(false);
 
   const selectedPositionAmount = useMemo(() => {
     if (!selectedPosition) return totalAmount;
@@ -78,7 +95,10 @@ export default function EmployeePurchasesPage() {
     try {
       const params = new URLSearchParams({ year_month: yearMonth });
       if (selectedPosition) params.set('position', selectedPosition);
-      const response = await fetch(`/api/employee-purchases?${params.toString()}`, { cache: 'no-store' });
+      const response = await fetch(`/api/employee-purchases?${params.toString()}`, {
+        cache: 'no-store',
+        credentials: 'include',
+      });
       const data = await response.json();
       if (!response.ok || !data.success) {
         throw new Error(data.error || '載入失敗');
@@ -87,6 +107,8 @@ export default function EmployeePurchasesPage() {
       setPositions(data.positions || []);
       setSummary(data.summary_by_position || []);
       setRows(data.rows || []);
+      setSelectedEmployee(null);
+      setEmployeeDetails([]);
       setTotalCount(data.total_count || 0);
       setTotalAmount(data.total_amount || 0);
       setMatchedCount(data.matched_count || 0);
@@ -95,14 +117,6 @@ export default function EmployeePurchasesPage() {
     } catch (error) {
       const text = error instanceof Error ? error.message : '載入失敗';
       setMessage({ type: 'error', text });
-      setPositions([]);
-      setSummary([]);
-      setRows([]);
-      setTotalCount(0);
-      setTotalAmount(0);
-      setMatchedCount(0);
-      setUnmatchedCount(0);
-      setLatestBatch(null);
     } finally {
       setLoading(false);
     }
@@ -115,6 +129,34 @@ export default function EmployeePurchasesPage() {
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     setFile(event.target.files?.[0] || null);
+  }
+
+  async function loadEmployeeDetails(row: PurchaseRow) {
+    setSelectedEmployee(row);
+    setEmployeeDetails([]);
+    setLoadingEmployeeDetails(true);
+    setMessage(null);
+
+    try {
+      const params = new URLSearchParams({
+        year_month: yearMonth,
+        employee_code: row.employee_code || '',
+        employee_name: row.employee_name || '',
+      });
+      const response = await fetch(`/api/employee-purchases/employee-details?${params.toString()}`, {
+        cache: 'no-store',
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || '載入員工購買明細失敗');
+      }
+      setEmployeeDetails(data.details || []);
+    } catch (error) {
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : '載入員工購買明細失敗' });
+    } finally {
+      setLoadingEmployeeDetails(false);
+    }
   }
 
   async function handleImport() {
@@ -132,6 +174,7 @@ export default function EmployeePurchasesPage() {
 
       const response = await fetch('/api/employee-purchases/import', {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       });
       const data = await response.json();
@@ -347,7 +390,11 @@ export default function EmployeePurchasesPage() {
                     </td>
                   </tr>
                 ) : rows.map((row) => (
-                  <tr key={row.id} className="hover:bg-gray-50">
+                  <tr
+                    key={row.id}
+                    onClick={() => loadEmployeeDetails(row)}
+                    className={`cursor-pointer hover:bg-blue-50 ${selectedEmployee?.id === row.id ? 'bg-blue-50' : ''}`}
+                  >
                     <td className="whitespace-nowrap px-3 py-2 text-gray-700">{row.recognized_store_code} {row.recognized_store_name}</td>
                     <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-700">{row.employee_code || '-'}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-gray-900">{row.employee_name || '-'}</td>
@@ -360,6 +407,65 @@ export default function EmployeePurchasesPage() {
             </table>
           </div>
         </section>
+
+        {selectedEmployee && (
+          <section className="rounded-lg border border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-col gap-2 border-b border-gray-200 p-5 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">購買商品明細</h2>
+                <p className="mt-1 text-sm text-gray-600">
+                  {selectedEmployee.employee_code || '-'} / {selectedEmployee.employee_name || '-'}，
+                  認列門市 {selectedEmployee.recognized_store_code} {selectedEmployee.recognized_store_name}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedEmployee(null);
+                  setEmployeeDetails([]);
+                }}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                關閉明細
+              </button>
+            </div>
+
+            <div className="overflow-auto">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">購買門市</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">品號</th>
+                    <th className="px-3 py-2 text-left font-medium text-gray-600">品名</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600">購買筆數</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600">數量</th>
+                    <th className="px-3 py-2 text-right font-medium text-gray-600">金額</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {loadingEmployeeDetails ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-10 text-center text-gray-500">載入中...</td>
+                    </tr>
+                  ) : employeeDetails.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="px-3 py-10 text-center text-gray-500">沒有購買商品明細</td>
+                    </tr>
+                  ) : employeeDetails.map((detail, index) => (
+                    <tr key={`${detail.purchase_store_code}-${detail.product_code}-${index}`} className="hover:bg-gray-50">
+                      <td className="whitespace-nowrap px-3 py-2 text-gray-700">{detail.purchase_store_code} {detail.purchase_store_name}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono text-gray-700">{detail.product_code || '-'}</td>
+                      <td className="min-w-[260px] px-3 py-2 text-gray-900">{detail.product_name || '-'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-gray-700">{detail.purchase_count.toLocaleString('zh-TW')}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right text-gray-700">{formatDecimal(detail.quantity)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-right font-semibold text-gray-900">{formatMoney(detail.total_amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ const root = process.cwd();
 const files = {
   page: 'app/admin/employee-purchases/page.tsx',
   api: 'app/api/employee-purchases/route.ts',
+  detailApi: 'app/api/employee-purchases/employee-details/route.ts',
   importApi: 'app/api/employee-purchases/import/route.ts',
   navbar: 'components/Navbar.tsx',
   permissions: 'hooks/useNavbarPermissions.ts',
@@ -25,6 +26,7 @@ function assertIncludes(content, needle, message) {
 
 const page = read(files.page);
 const api = read(files.api);
+const detailApi = read(files.detailApi);
 const importApi = read(files.importApi);
 const navbar = read(files.navbar);
 const permissions = read(files.permissions);
@@ -40,6 +42,12 @@ assertIncludes(page, 'employee_position', 'page should display employee position
 assertIncludes(page, '員工消費彙總', 'page should show employee-level purchase summary');
 assertIncludes(page, 'recognized_store_code', 'page should display recognized employee store');
 assertIncludes(page, 'purchase_count', 'page should display purchase count per employee');
+assertIncludes(page, 'loadEmployeeDetails(row)', 'page should load details when clicking employee row');
+assertIncludes(page, '/api/employee-purchases/employee-details', 'page should call employee detail API');
+assertIncludes(page, "credentials: 'include'", 'page fetches should explicitly include auth cookies');
+assertIncludes(page, '購買商品明細', 'page should render employee purchase detail panel');
+assertIncludes(page, 'purchase_store_code', 'page should display purchase store in details');
+assertIncludes(page, 'product_name', 'page should display purchased product name in details');
 
 assertIncludes(api, 'summary_by_position', 'query API should return position summary');
 assertIncludes(api, 'employee_purchase.view', 'query API should require employee purchase view/import permission');
@@ -52,6 +60,16 @@ if (api.includes('function fetchAllPurchases') || api.includes('while (true)')) 
 if (api.includes('product_name') || api.includes('sale_sequence')) {
   throw new Error('query API should not return product or invoice-level detail rows');
 }
+if (page.includes('setRows([]);') && page.includes("setMessage({ type: 'error', text });")) {
+  throw new Error('page should not clear existing purchase rows when a filtered refresh fails');
+}
+
+assertIncludes(detailApi, ".from('employee_purchase_sales')", 'detail API should read purchase sales rows');
+assertIncludes(detailApi, 'product_name', 'detail API should return product names');
+assertIncludes(detailApi, 'purchase_store_code', 'detail API should aggregate by purchase store');
+assertIncludes(detailApi, 'quantity', 'detail API should return purchased quantity');
+assertIncludes(detailApi, 'total_amount', 'detail API should return purchased amount');
+assertIncludes(detailApi, 'employee_purchase.view', 'detail API should require employee purchase permission');
 
 assertIncludes(importApi, 'GridBand1', 'import API should document first invalid GridBand row behavior');
 assertIncludes(importApi, 'rawRows[1]', 'import API should use second row as headers');
