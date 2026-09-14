@@ -22,6 +22,22 @@ type PurchaseRow = {
   stores?: { store_name?: string | null } | { store_name?: string | null }[] | null;
 };
 
+type PositionSummaryRow = {
+  position: string;
+  sales_count: number;
+  employee_count: number;
+  total_quantity: number;
+  total_amount: number;
+  gross_profit: number;
+};
+
+type MonthStatsRow = {
+  total_count: number;
+  total_amount: number;
+  matched_count: number;
+  unmatched_count: number;
+};
+
 function getStoreName(row: PurchaseRow) {
   const store = Array.isArray(row.stores) ? row.stores[0] : row.stores;
   return store?.store_name || '';
@@ -36,14 +52,65 @@ async function requireAccess(userId: string) {
   return hasAnyPermission(userId, ['employee_purchase.view', 'employee_purchase.import']);
 }
 
-async function fetchAllPurchases(yearMonth: string, position: string) {
-  const admin = createAdminClient();
-  const pageSize = 1000;
-  let from = 0;
-  const rows: PurchaseRow[] = [];
+function normalizeSummaryRows(rows: any[]): PositionSummaryRow[] {
+  return (rows || []).map((row: any) => ({
+    position: row.position || '未比對職稱',
+    sales_count: toNumber(row.sales_count),
+    employee_count: toNumber(row.employee_count),
+    total_quantity: toNumber(row.total_quantity),
+    total_amount: toNumber(row.total_amount),
+    gross_profit: toNumber(row.gross_profit),
+  }));
+}
 
-  while (true) {
-    let query = admin
+function normalizeStats(row: any): MonthStatsRow {
+  return {
+    total_count: toNumber(row?.total_count),
+    total_amount: toNumber(row?.total_amount),
+    matched_count: toNumber(row?.matched_count),
+    unmatched_count: toNumber(row?.unmatched_count),
+  };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+
+    const allowed = await requireAccess(user.id);
+    if (!allowed) {
+      return NextResponse.json({ success: false, error: '無員工購物管理權限' }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const yearMonth = searchParams.get('year_month') || '';
+    const position = (searchParams.get('position') || '').trim();
+
+    if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
+      return NextResponse.json({ success: false, error: '月份格式錯誤' }, { status: 400 });
+    }
+
+    const admin = createAdminClient();
+    const { data: summaryData, error: summaryError } = await supabase
+      .rpc('employee_purchase_position_summary', { p_year_month: yearMonth });
+    if (summaryError) throw summaryError;
+
+    const summaryByPosition = normalizeSummaryRows(summaryData || []);
+    const positions = summaryByPosition
+      .map((row) => row.position)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'zh-Hant-TW'));
+
+    const { data: statsData, error: statsError } = await supabase
+      .rpc('employee_purchase_month_stats', {
+        p_year_month: yearMonth,
+        p_position: position || null,
+      });
+    if (statsError) throw statsError;
+    const stats = normalizeStats(Array.isArray(statsData) ? statsData[0] : statsData);
+
+    let detailQuery = admin
       .from('employee_purchase_sales')
       .select(`
         id,
@@ -67,96 +134,17 @@ async function fetchAllPurchases(yearMonth: string, position: string) {
       .eq('year_month', yearMonth)
       .order('sale_date', { ascending: false })
       .order('sale_sequence', { ascending: false })
-      .range(from, from + pageSize - 1);
+      .limit(500);
 
-    if (position) {
-      query = query.eq('employee_position', position);
+    if (position && position !== '未比對職稱') {
+      detailQuery = detailQuery.eq('employee_position', position);
+    } else if (position === '未比對職稱') {
+      detailQuery = detailQuery.or('employee_position.is.null,employee_position.eq.');
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
-
-    rows.push(...((data || []) as PurchaseRow[]));
-    if (!data || data.length < pageSize) break;
-    from += pageSize;
-  }
-
-  return rows;
-}
-
-export async function GET(request: NextRequest) {
-  try {
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
-
-    const allowed = await requireAccess(user.id);
-    if (!allowed) {
-      return NextResponse.json({ success: false, error: '無員工購物管理權限' }, { status: 403 });
-    }
-
-    const { searchParams } = new URL(request.url);
-    const yearMonth = searchParams.get('year_month') || '';
-    const position = (searchParams.get('position') || '').trim();
-
-    if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
-      return NextResponse.json({ success: false, error: '月份格式錯誤' }, { status: 400 });
-    }
-
-    const admin = createAdminClient();
-    const rows = await fetchAllPurchases(yearMonth, position);
-
-    const { data: allPositionRows, error: positionError } = await admin
-      .from('employee_purchase_sales')
-      .select('employee_position')
-      .eq('year_month', yearMonth);
-    if (positionError) throw positionError;
-
-    const positions = Array.from(
-      new Set((allPositionRows || [])
-        .map((row: any) => String(row.employee_position || '').trim())
-        .filter(Boolean))
-    ).sort((a, b) => a.localeCompare(b, 'zh-Hant-TW'));
-
-    const summaryMap = new Map<string, {
-      position: string;
-      sales_count: number;
-      employee_count: Set<string>;
-      total_quantity: number;
-      total_amount: number;
-      gross_profit: number;
-    }>();
-
-    rows.forEach((row) => {
-      const key = row.employee_position || '未比對職稱';
-      const summary = summaryMap.get(key) || {
-        position: key,
-        sales_count: 0,
-        employee_count: new Set<string>(),
-        total_quantity: 0,
-        total_amount: 0,
-        gross_profit: 0,
-      };
-      summary.sales_count += 1;
-      if (row.employee_code || row.employee_name) {
-        summary.employee_count.add(row.employee_code || row.employee_name || '');
-      }
-      summary.total_quantity += toNumber(row.quantity);
-      summary.total_amount += toNumber(row.total_amount);
-      summary.gross_profit += toNumber(row.gross_profit);
-      summaryMap.set(key, summary);
-    });
-
-    const summaryByPosition = Array.from(summaryMap.values())
-      .map((summary) => ({
-        position: summary.position,
-        sales_count: summary.sales_count,
-        employee_count: summary.employee_count.size,
-        total_quantity: summary.total_quantity,
-        total_amount: summary.total_amount,
-        gross_profit: summary.gross_profit,
-      }))
-      .sort((a, b) => b.total_amount - a.total_amount);
+    const { data: detailData, error: detailError } = await detailQuery;
+    if (detailError) throw detailError;
+    const rows = (detailData || []) as PurchaseRow[];
 
     const { data: latestBatch } = await admin
       .from('employee_purchase_import_batches')
@@ -191,10 +179,10 @@ export async function GET(request: NextRequest) {
       positions,
       summary_by_position: summaryByPosition,
       rows: detailRows,
-      total_count: rows.length,
-      total_amount: rows.reduce((sum, row) => sum + toNumber(row.total_amount), 0),
-      matched_count: rows.filter((row) => row.match_status === 'employee_code' || row.match_status === 'employee_name').length,
-      unmatched_count: rows.filter((row) => row.match_status !== 'employee_code' && row.match_status !== 'employee_name').length,
+      total_count: stats.total_count,
+      total_amount: stats.total_amount,
+      matched_count: stats.matched_count,
+      unmatched_count: stats.unmatched_count,
       latest_batch: latestBatch || null,
     });
   } catch (error: any) {
