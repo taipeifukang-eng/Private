@@ -495,6 +495,40 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
+    const employmentStatusMovements = movementRecords.filter((movement) =>
+      ['resignation', 'leave_without_pay', 'return_to_work', 'onboarding'].includes(movement.movement_type)
+    );
+
+    for (const movement of employmentStatusMovements) {
+      const employeeCode = movement.employee_code.toUpperCase();
+      const nextStatus =
+        movement.movement_type === 'resignation'
+          ? 'resigned'
+          : movement.movement_type === 'leave_without_pay'
+            ? 'leave_without_pay'
+            : 'active';
+
+      const { error: statusSyncError } = await adminSupabase
+        .from('store_employees')
+        .update({
+          employee_name: movement.employee_name,
+          is_active: nextStatus !== 'resigned',
+          employment_status: nextStatus,
+          last_movement_date: movement.movement_date,
+          last_movement_type: movement.movement_type,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('employee_code', employeeCode);
+
+      if (statusSyncError) {
+        console.error('Store employee status sync warning:', statusSyncError);
+        return NextResponse.json({
+          success: false,
+          error: `同步員工主檔狀態失敗：${statusSyncError.message}`,
+        }, { status: 500 });
+      }
+    }
+
     // 入職異動補寫生日到員工主檔（員工管理頁來源）
     const onboardingWithBirthday = movements.filter(
       (m) => m.movement_type === 'onboarding' && !!m.birthday

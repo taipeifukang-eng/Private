@@ -221,16 +221,13 @@ export default async function EmployeeManagementPage() {
       currentPosition = latestStatus.position;
     }
 
-    const statusDate = latestStatus ? `${latestStatus.year_month}-01` : null;
-    const latestMovementIsNewerOrSame =
-      latestMovement && (!statusDate || latestMovement.movement_date >= statusDate);
     const latestMovementIsResignation =
       latestMovement?.movement_type === 'resignation' &&
       latestMovement.new_value === 'resigned';
     const hasResignedInMasterFallback =
       !latestMovement && (emp.is_active === false || emp.employment_status === 'resigned');
 
-    if (latestMovementIsNewerOrSame && latestMovementIsResignation) {
+    if (latestMovementIsResignation) {
       currentStatus = 'resigned';
     } else if (hasResignedInMasterFallback) {
       currentStatus = 'resigned';
