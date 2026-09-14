@@ -13,6 +13,8 @@ const files = {
   summaryMigration: 'supabase/migrations/20260914094000_employee_purchase_summary_functions.sql',
   employeeSummaryRepairMigration: 'supabase/migrations/20260914095000_employee_purchase_employee_summary_rpc.sql',
   positionFilterOptimizationMigration: 'supabase/migrations/20260914103000_optimize_employee_purchase_position_filter.sql',
+  yearMonthRepairSql: 'supabase/repair_employee_purchase_year_month_from_sale_date.sql',
+  positionRepairSql: 'supabase/repair_employee_purchase_positions_from_store_employees_2026_01_08.sql',
 };
 
 function read(relativePath) {
@@ -35,6 +37,8 @@ const migration = read(files.migration);
 const summaryMigration = read(files.summaryMigration);
 const employeeSummaryRepairMigration = read(files.employeeSummaryRepairMigration);
 const positionFilterOptimizationMigration = read(files.positionFilterOptimizationMigration);
+const yearMonthRepairSql = read(files.yearMonthRepairSql);
+const positionRepairSql = read(files.positionRepairSql);
 
 assertIncludes(page, '員工購物管理', 'page should render employee purchase management title');
 assertIncludes(page, 'type="month"', 'page should provide month selector');
@@ -91,6 +95,7 @@ assertIncludes(importApi, 'monthly_staff_status', 'import API should match month
 assertIncludes(importApi, 'employee_purchase.import', 'import API should require import permission');
 assertIncludes(importApi, 'getYearMonthFromSaleDate', 'import API should infer year month from sale date');
 assertIncludes(importApi, '銷售日期包含多個月份', 'import API should reject files with multiple sale months');
+assertIncludes(importApi, 'mismatchedMonthRecords', 'import API should guard against mismatched sale month records');
 assertIncludes(importApi, 'year_month: yearMonth', 'import API should return inferred year month');
 assertIncludes(importApi, ".delete()", 'import API should replace same-month detail rows');
 assertIncludes(importApi, 'isTotalRow', 'import API should exclude POS total rows');
@@ -121,5 +126,13 @@ assertIncludes(positionFilterOptimizationMigration, 'v_allowed boolean', 'positi
 assertIncludes(positionFilterOptimizationMigration, 'LANGUAGE plpgsql', 'position filter optimization should use plpgsql branch queries');
 assertIncludes(positionFilterOptimizationMigration, "sales.employee_position = v_position", 'position filter optimization should use direct position predicate');
 assertIncludes(positionFilterOptimizationMigration, "NOTIFY pgrst, 'reload schema'", 'position filter optimization should reload PostgREST schema cache');
+assertIncludes(yearMonthRepairSql, "year_month <> to_char(sale_date, 'YYYY-MM')", 'year-month repair SQL should detect mismatched sale months');
+assertIncludes(yearMonthRepairSql, "SET year_month = to_char(sale_date, 'YYYY-MM')", 'year-month repair SQL should move rows to sale month');
+assertIncludes(yearMonthRepairSql, 'employee_purchase_import_batches', 'year-month repair SQL should move import batches to sale month');
+assertIncludes(positionRepairSql, 'public.store_employees', 'position repair SQL should use employee management source table');
+assertIncludes(positionRepairSql, "sales.year_month BETWEEN '2026-01' AND '2026-08'", 'position repair SQL should target 115/01-115/08');
+assertIncludes(positionRepairSql, 'current_position', 'position repair SQL should prefer current employee position');
+assertIncludes(positionRepairSql, "match_status = resolved.match_status", 'position repair SQL should mark repaired employee purchase match status');
+assertIncludes(positionRepairSql, 'remaining_unmatched_position_rows', 'position repair SQL should report remaining unmatched rows');
 
 console.log('employee purchase management checks passed');

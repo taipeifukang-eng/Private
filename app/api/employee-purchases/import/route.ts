@@ -263,6 +263,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: `沒有可匯入資料。${errors.slice(0, 5).join('；')}`, errors }, { status: 400 });
     }
 
+    const mismatchedMonthRecords = validRecords.filter((record) => record.sale_date?.slice(0, 7) !== yearMonth);
+    if (mismatchedMonthRecords.length > 0) {
+      return NextResponse.json({
+        success: false,
+        error: '銷售日期月份與系統判定月份不一致，已取消匯入，請重新檢查 Excel 銷售日期',
+      }, { status: 400 });
+    }
+
     const matchedCount = validRecords.filter((record) => record.match_status === 'employee_code' || record.match_status === 'employee_name').length;
     const totalAmount = validRecords.reduce((sum, record) => sum + Number(record.total_amount || 0), 0);
 

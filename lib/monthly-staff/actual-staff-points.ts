@@ -1,6 +1,7 @@
 export const SENIOR_OR_SPECIALIST_POSITIONS = [
   '總經理',
   '副總經理',
+  '資深經理',
   '經理',
   '督導',
   '店長',
@@ -8,8 +9,14 @@ export const SENIOR_OR_SPECIALIST_POSITIONS = [
   '督導(代理店長)',
   '副店長',
   '主任',
+  '資深副理',
+  '副理',
   '組長',
+  '資深專員',
+  '高級專員',
   '專員',
+  '出納專員',
+  '助理',
 ];
 
 export const MONTHLY_STATUS_LABELS: Record<string, string> = {
