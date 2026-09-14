@@ -10,6 +10,7 @@ const files = {
   permissions: 'hooks/useNavbarPermissions.ts',
   migration: 'supabase/migrations/20260914093000_employee_purchase_management.sql',
   summaryMigration: 'supabase/migrations/20260914094000_employee_purchase_summary_functions.sql',
+  employeeSummaryRepairMigration: 'supabase/migrations/20260914095000_employee_purchase_employee_summary_rpc.sql',
 };
 
 function read(relativePath) {
@@ -29,6 +30,7 @@ const navbar = read(files.navbar);
 const permissions = read(files.permissions);
 const migration = read(files.migration);
 const summaryMigration = read(files.summaryMigration);
+const employeeSummaryRepairMigration = read(files.employeeSummaryRepairMigration);
 
 assertIncludes(page, '員工購物管理', 'page should render employee purchase management title');
 assertIncludes(page, 'type="month"', 'page should provide month selector');
@@ -73,5 +75,8 @@ assertIncludes(summaryMigration, 'employee_purchase_employee_summary', 'summary 
 assertIncludes(summaryMigration, 'recognized_store_code', 'employee summary should include recognized employee store');
 assertIncludes(summaryMigration, 'matched_staff_status_id', 'employee summary should use matched monthly staff status for recognized store');
 assertIncludes(summaryMigration, "public.has_permission(auth.uid(), 'employee_purchase.view')", 'summary RPC should enforce view permission');
+assertIncludes(employeeSummaryRepairMigration, 'employee_purchase_employee_summary', 'repair migration should create employee summary RPC');
+assertIncludes(employeeSummaryRepairMigration, "GRANT EXECUTE ON FUNCTION public.employee_purchase_employee_summary(text, text)", 'repair migration should grant employee summary RPC');
+assertIncludes(employeeSummaryRepairMigration, "NOTIFY pgrst, 'reload schema'", 'repair migration should reload PostgREST schema cache');
 
 console.log('employee purchase management checks passed');
