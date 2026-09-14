@@ -153,6 +153,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
     { href: '/admin/performance', label: '業績管理', icon: TrendingUp, show: permissions.canManagePerformance },
     { href: '/admin/pharmacist-management', label: '藥師管理', icon: UserCog, show: permissions.canViewPharmacistManagement },
+    { href: '/admin/employee-purchases', label: '員工購物管理', icon: ShoppingCart, show: permissions.canManageEmployeePurchases },
     { href: '/store/clinic-selfpay-margin', label: '診所自費藥毛利計算', icon: Calculator, show: permissions.canUseClinicSelfpayMargin },
     { href: '/store/relationship-members', label: '關係會員', icon: UserPlus, show: permissions.canViewRelationshipMembers },
     { href: '/cross-dept/products-master', label: '商品主檔', icon: Package, show: permissions.canManageProductsMaster },
@@ -186,7 +187,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在組織管理相關頁面
-  const isInOrganizationSection = ['/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
+  const isInOrganizationSection = ['/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/admin/employee-purchases', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
