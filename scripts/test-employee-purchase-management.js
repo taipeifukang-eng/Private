@@ -39,6 +39,9 @@ const positionFilterOptimizationMigration = read(files.positionFilterOptimizatio
 assertIncludes(page, '員工購物管理', 'page should render employee purchase management title');
 assertIncludes(page, 'type="month"', 'page should provide month selector');
 assertIncludes(page, '/api/employee-purchases/import', 'page should call import API');
+assertIncludes(page, '歸屬月份', 'page should show the inferred import month after upload');
+assertIncludes(page, 'setYearMonth(importedYearMonth)', 'page should switch to inferred import month after upload');
+assertIncludes(page, '匯入並覆蓋銷售月份資料', 'page should clarify imports are grouped by sale month');
 assertIncludes(page, '職稱金額彙總', 'page should show position summary');
 assertIncludes(page, 'employee_position', 'page should display employee position');
 assertIncludes(page, '員工消費彙總', 'page should show employee-level purchase summary');
@@ -86,6 +89,9 @@ assertIncludes(importApi, 'GridBand1', 'import API should document first invalid
 assertIncludes(importApi, 'rawRows[1]', 'import API should use second row as headers');
 assertIncludes(importApi, 'monthly_staff_status', 'import API should match monthly staff status');
 assertIncludes(importApi, 'employee_purchase.import', 'import API should require import permission');
+assertIncludes(importApi, 'getYearMonthFromSaleDate', 'import API should infer year month from sale date');
+assertIncludes(importApi, '銷售日期包含多個月份', 'import API should reject files with multiple sale months');
+assertIncludes(importApi, 'year_month: yearMonth', 'import API should return inferred year month');
 assertIncludes(importApi, ".delete()", 'import API should replace same-month detail rows');
 assertIncludes(importApi, 'isTotalRow', 'import API should exclude POS total rows');
 assertIncludes(importApi, '合計', 'import API should recognize POS total row labels');

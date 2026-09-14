@@ -61,6 +61,11 @@ function parseDate(value: unknown): string | null {
   return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
 }
 
+function getYearMonthFromSaleDate(value: unknown) {
+  const saleDate = parseDate(value);
+  return saleDate ? saleDate.slice(0, 7) : null;
+}
+
 function getCell(row: Record<string, unknown>, header: string) {
   return row[header] ?? null;
 }
@@ -133,12 +138,8 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const yearMonth = normalizeText(formData.get('year_month'));
 
     if (!file) return NextResponse.json({ success: false, error: '請選擇 Excel 檔案' }, { status: 400 });
-    if (!/^\d{4}-\d{2}$/.test(yearMonth)) {
-      return NextResponse.json({ success: false, error: '請選擇匯入月份' }, { status: 400 });
-    }
     if (!/\.(xlsx|xls)$/i.test(file.name)) {
       return NextResponse.json({ success: false, error: '僅支援 .xlsx 或 .xls 檔案' }, { status: 400 });
     }
@@ -146,6 +147,24 @@ export async function POST(request: NextRequest) {
     const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer', cellDates: false });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const parsedRows = buildRowsFromWorksheet(sheet);
+    const saleMonthCounts = new Map<string, number>();
+    parsedRows.forEach(({ row }) => {
+      const saleMonth = getYearMonthFromSaleDate(getCell(row, '銷售日期'));
+      if (saleMonth) saleMonthCounts.set(saleMonth, (saleMonthCounts.get(saleMonth) || 0) + 1);
+    });
+
+    const saleMonths = Array.from(saleMonthCounts.keys()).sort();
+    if (saleMonths.length === 0) {
+      return NextResponse.json({ success: false, error: '無法從銷售日期判定匯入月份，請確認銷售日期格式為 YYYY/MM/DD HH:MM' }, { status: 400 });
+    }
+    if (saleMonths.length > 1) {
+      return NextResponse.json({
+        success: false,
+        error: `Excel 銷售日期包含多個月份：${saleMonths.join('、')}，請拆成單一月份後再匯入`,
+      }, { status: 400 });
+    }
+
+    const yearMonth = saleMonths[0];
 
     const admin = createAdminClient();
     const { data: stores, error: storesError } = await admin
@@ -282,6 +301,7 @@ export async function POST(request: NextRequest) {
       matched: matchedCount,
       unmatched: validRecords.length - matchedCount,
       total_amount: totalAmount,
+      year_month: yearMonth,
       errors,
     });
   } catch (error: any) {

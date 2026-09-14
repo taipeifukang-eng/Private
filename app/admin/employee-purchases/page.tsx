@@ -169,11 +169,11 @@ export default function EmployeePurchasesPage() {
     );
   }
 
-  async function loadData() {
+  async function loadData(targetYearMonth = yearMonth) {
     setLoading(true);
     setMessage(null);
     try {
-      const params = new URLSearchParams({ year_month: yearMonth });
+      const params = new URLSearchParams({ year_month: targetYearMonth });
       if (selectedPosition) params.set('position', selectedPosition);
       const response = await fetch(`/api/employee-purchases?${params.toString()}`, {
         cache: 'no-store',
@@ -254,7 +254,6 @@ export default function EmployeePurchasesPage() {
     setMessage(null);
     try {
       const formData = new FormData();
-      formData.set('year_month', yearMonth);
       formData.set('file', file);
 
       const response = await fetch('/api/employee-purchases/import', {
@@ -268,13 +267,18 @@ export default function EmployeePurchasesPage() {
       }
 
       const warningText = data.errors?.length ? `，另有 ${data.errors.length} 筆提醒` : '';
+      const importedYearMonth = data.year_month || yearMonth;
       setMessage({
         type: 'success',
-        text: `匯入完成：${data.imported} 筆，已比對 ${data.matched} 筆，未比對 ${data.unmatched} 筆，總金額 ${formatMoney(data.total_amount)}${warningText}`,
+        text: `匯入完成：歸屬月份 ${importedYearMonth}，${data.imported} 筆，已比對 ${data.matched} 筆，未比對 ${data.unmatched} 筆，總金額 ${formatMoney(data.total_amount)}${warningText}`,
       });
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      await loadData();
+      if (importedYearMonth !== yearMonth) {
+        setYearMonth(importedYearMonth);
+      } else {
+        await loadData(importedYearMonth);
+      }
     } catch (error) {
       setMessage({ type: 'error', text: error instanceof Error ? error.message : '匯入失敗' });
     } finally {
@@ -298,7 +302,7 @@ export default function EmployeePurchasesPage() {
           </div>
           <button
             type="button"
-            onClick={loadData}
+            onClick={() => loadData()}
             disabled={loading}
             className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
           >
@@ -326,7 +330,7 @@ export default function EmployeePurchasesPage() {
             </h2>
             <div className="space-y-4">
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-gray-700">匯入月份</span>
+                <span className="mb-1 block text-sm font-medium text-gray-700">查詢月份</span>
                 <input
                   type="month"
                   value={yearMonth}
@@ -353,11 +357,11 @@ export default function EmployeePurchasesPage() {
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
               >
                 <Upload size={18} />
-                {importing ? '匯入中...' : '匯入並覆蓋此月份資料'}
+                {importing ? '匯入中...' : '匯入並覆蓋銷售月份資料'}
               </button>
 
               <div className="rounded-lg bg-amber-50 p-3 text-xs leading-5 text-amber-800">
-                POS 檔第一列會視為無效列，第二列需包含門市代號、銷售日期、銷售序號、會員編號、會員名稱、品號、品名、數量、總金額等欄位。
+                POS 檔第一列會視為無效列，第二列需包含門市代號、銷售日期、銷售序號、會員編號、會員名稱、品號、品名、數量、總金額等欄位。系統會依銷售日期自動判定匯入月份。
               </div>
             </div>
           </section>
