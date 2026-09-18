@@ -28,6 +28,20 @@ import {
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const TAIPEI_TIME_ZONE = 'Asia/Taipei';
+
+function formatTaipeiDateTime(value: string | Date) {
+  return new Date(value).toLocaleString('zh-TW', { timeZone: TAIPEI_TIME_ZONE });
+}
+
+function formatTaipeiDate(value: string | Date) {
+  return new Date(value).toLocaleDateString('zh-TW', { timeZone: TAIPEI_TIME_ZONE });
+}
+
+function formatTaipeiTime(value: string | Date) {
+  return new Date(value).toLocaleTimeString('zh-TW', { timeZone: TAIPEI_TIME_ZONE });
+}
+
 // 評級顏色配置 (0-10 分數系統)
 const getGradeBadgeStyle = (grade: string) => {
   const score = parseInt(grade);
@@ -297,7 +311,7 @@ export default async function InspectionDetailPage({
             <div>
               <h1 className="text-3xl font-bold text-gray-900">巡店記錄詳情</h1>
               <p className="mt-2 text-sm text-gray-600">
-                {primaryRecordTimeLabel} {new Date(primaryRecordTime).toLocaleString('zh-TW')}
+                {primaryRecordTimeLabel} {formatTaipeiDateTime(primaryRecordTime)}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -352,11 +366,11 @@ export default async function InspectionDetailPage({
               <div>
                 <p className="text-sm text-gray-600">巡店日期</p>
                 <p className="text-lg font-semibold text-gray-900 mt-0.5">
-                  {new Date(primaryInspectionDate).toLocaleDateString('zh-TW')}
+                  {formatTaipeiDate(primaryInspectionDate)}
                 </p>
                 {inspection.gps_timestamp && (
                   <p className="text-xs text-gray-500 mt-1">
-                    {new Date(inspection.gps_timestamp).toLocaleTimeString('zh-TW')}
+                    {formatTaipeiTime(inspection.gps_timestamp)}
                   </p>
                 )}
               </div>
@@ -408,7 +422,7 @@ export default async function InspectionDetailPage({
                     </a>
                     {inspection.gps_timestamp && (
                       <p className="text-xs text-gray-500 mt-1">
-                        定位時間：{new Date(inspection.gps_timestamp).toLocaleString('zh-TW')}
+                        定位時間：{formatTaipeiDateTime(inspection.gps_timestamp)}
                       </p>
                     )}
                     {inspection.gps_accuracy && (
@@ -600,7 +614,7 @@ export default async function InspectionDetailPage({
                                 <p className="mt-1 text-sm">
                                   回報人：{improvedByName}
                                   {improvement.improved_at
-                                    ? `（${new Date(improvement.improved_at).toLocaleString('zh-TW')}）`
+                                    ? `（${formatTaipeiDateTime(improvement.improved_at)}）`
                                     : ''}
                                 </p>
                                 {improvement.days_taken !== null && (
