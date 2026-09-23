@@ -98,6 +98,9 @@ interface StoreTransferRequest {
   to_store: { store_name: string; store_code: string } | null;
   creator: { full_name: string } | null;
   confirmer: { full_name: string } | null;
+  corrected_at?: string | null;
+  correction_reason?: string | null;
+  corrector?: { full_name: string } | null;
 }
 
 export default function EmployeeMovementManagementPage() {
@@ -109,6 +112,7 @@ export default function EmployeeMovementManagementPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [canAccessBatchMovements, setCanAccessBatchMovements] = useState(false);
   const [canCreateTransfer, setCanCreateTransfer] = useState(false);
+  const [canConfirmTransfer, setCanConfirmTransfer] = useState(false);
   const [transferRequestsError, setTransferRequestsError] = useState<string | null>(null);
   // 調店申請
   const [transferRequests, setTransferRequests] = useState<StoreTransferRequest[]>([]);
@@ -120,6 +124,10 @@ export default function EmployeeMovementManagementPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [confirmEffectiveDate, setConfirmEffectiveDate] = useState<{[key: string]: string}>({});
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [correctingTransfer, setCorrectingTransfer] = useState<StoreTransferRequest | null>(null);
+  const [correctionDate, setCorrectionDate] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionSaving, setCorrectionSaving] = useState(false);
   const [transferStatusFilter, setTransferStatusFilter] = useState<'all' | 'pending' | 'confirmed' | 'rejected'>('pending');
   const [movements, setMovements] = useState<MovementInput[]>([
     { employee_code: '', employee_name: '', store_id: '', movement_type: '', onboarding_is_pharmacist: false, birthday: '', position: '', newbie_level: '', effective_date: '', notes: '', from_store_id: '', to_store_id: '' }
@@ -195,6 +203,7 @@ export default function EmployeeMovementManagementPage() {
     setIsAdmin(adminRole);
     setCanAccessBatchMovements(canBatch);
     setCanCreateTransfer(canCreate);
+    setCanConfirmTransfer(canConfirm);
 
     // 督導只看調店登記確認 tab
     if (supervisorRole && !adminRole) {
@@ -340,6 +349,36 @@ export default function EmployeeMovementManagementPage() {
     if (data) {
       // 將 store_name 對應到 name 欄位以符合介面定義
       setStores(data.map(store => ({ id: store.id, name: store.store_name, store_code: store.store_code || '' })));
+    }
+  };
+
+  const openTransferCorrection = (transfer: StoreTransferRequest) => {
+    setCorrectingTransfer(transfer);
+    setCorrectionDate(transfer.effective_date || '');
+    setCorrectionReason('');
+  };
+
+  const handleCorrectTransferDate = async () => {
+    if (!correctingTransfer || !correctionDate || !correctionReason.trim()) return;
+    setCorrectionSaving(true);
+    try {
+      const res = await fetch(`/api/store-transfer-requests/${correctingTransfer.id}/effective-date`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effective_date: correctionDate, reason: correctionReason.trim() }),
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        alert(`❌ ${result.error || '更正失敗'}`);
+        return;
+      }
+      alert(result.message);
+      setCorrectingTransfer(null);
+      await loadTransferRequests();
+    } catch (err: any) {
+      alert(`❌ 更正失敗：${err.message}`);
+    } finally {
+      setCorrectionSaving(false);
     }
   };
 
@@ -1886,6 +1925,20 @@ export default function EmployeeMovementManagementPage() {
                               </span>
                               <p className="text-xs text-gray-500 mt-1">生效日期：{req.effective_date}</p>
                               <p className="text-xs text-gray-400">確認者：{req.confirmer?.full_name}</p>
+                              {(canConfirmTransfer || isAdmin) && (
+                                <button
+                                  type="button"
+                                  onClick={() => openTransferCorrection(req)}
+                                  className="mt-2 inline-flex items-center gap-1 rounded border border-emerald-300 bg-white px-2 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                                >
+                                  <Edit2 size={12} /> 更正生效日
+                                </button>
+                              )}
+                              {req.corrected_at && (
+                                <p className="mt-1 text-xs text-amber-700" title={req.correction_reason || ''}>
+                                  已由 {req.corrector?.full_name || '有權限人員'} 更正
+                                </p>
+                              )}
                             </div>
                           )}
                           {req.status === 'rejected' && (
@@ -1898,7 +1951,7 @@ export default function EmployeeMovementManagementPage() {
                           )}
 
                           {/* 督導確認操作 */}
-                          {req.status === 'pending' && (isSupervisor || isAdmin) && (
+                          {req.status === 'pending' && (canConfirmTransfer || isAdmin) && (
                             <div className="flex flex-col gap-2 w-full">
                               <div className="flex items-center gap-2">
                                 <label className="text-xs text-gray-600 whitespace-nowrap">生效日期 *</label>
@@ -1945,6 +1998,62 @@ export default function EmployeeMovementManagementPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {correctingTransfer && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-lg bg-white shadow-xl">
+              <div className="flex items-start justify-between border-b border-gray-200 p-5">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">更正調店生效日</h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    {correctingTransfer.employee_code} {correctingTransfer.employee_name}
+                  </p>
+                </div>
+                <button type="button" onClick={() => setCorrectingTransfer(null)} className="text-gray-400 hover:text-gray-600" title="關閉">
+                  <XCircle size={20} />
+                </button>
+              </div>
+              <div className="space-y-4 p-5">
+                <div className="rounded-md bg-gray-50 px-3 py-2 text-sm text-gray-600">
+                  原生效日期：<strong className="text-gray-900">{correctingTransfer.effective_date}</strong>
+                </div>
+                <label className="block">
+                  <span className="text-sm font-medium text-gray-700">正確生效日期 *</span>
+                  <input
+                    type="date"
+                    min="2000-01-01"
+                    max="2100-12-31"
+                    value={correctionDate}
+                    onChange={(event) => setCorrectionDate(event.target.value)}
+                    className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-medium text-gray-700">更正原因 *</span>
+                  <input
+                    value={correctionReason}
+                    onChange={(event) => setCorrectionReason(event.target.value)}
+                    placeholder="例如：登記時年份輸入錯誤"
+                    maxLength={200}
+                    className="mt-1 h-10 w-full rounded-md border border-gray-300 px-3 text-sm focus:border-cyan-500 focus:ring-2 focus:ring-cyan-200"
+                  />
+                </label>
+              </div>
+              <div className="flex justify-end gap-2 border-t border-gray-200 p-5">
+                <button type="button" onClick={() => setCorrectingTransfer(null)} className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">取消</button>
+                <button
+                  type="button"
+                  onClick={handleCorrectTransferDate}
+                  disabled={correctionSaving || !correctionDate || !correctionReason.trim() || correctionDate === correctingTransfer.effective_date}
+                  className="inline-flex items-center gap-2 rounded-md bg-cyan-700 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+                >
+                  {correctionSaving ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <Save size={15} />}
+                  確認更正
+                </button>
+              </div>
             </div>
           </div>
         )}

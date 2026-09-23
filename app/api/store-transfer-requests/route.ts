@@ -62,6 +62,7 @@ export async function GET(request: NextRequest) {
     const userIds = Array.from(new Set([
       ...(data || []).map((r: any) => r.created_by).filter(Boolean),
       ...(data || []).map((r: any) => r.confirmed_by).filter(Boolean),
+      ...(data || []).map((r: any) => r.corrected_by).filter(Boolean),
     ]));
 
     let profileMap: Record<string, string> = {};
@@ -77,6 +78,7 @@ export async function GET(request: NextRequest) {
       ...r,
       creator: r.created_by ? { full_name: profileMap[r.created_by] || null } : null,
       confirmer: r.confirmed_by ? { full_name: profileMap[r.confirmed_by] || null } : null,
+      corrector: r.corrected_by ? { full_name: profileMap[r.corrected_by] || null } : null,
     }));
 
     return NextResponse.json({ success: true, data: result });
