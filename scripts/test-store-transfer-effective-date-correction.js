@@ -20,6 +20,7 @@ assertIncludes(page, "method: 'PATCH'", 'correction uses dedicated PATCH endpoin
 assertIncludes(api, 'year < 2000 || year > 2100', 'invalid historical year is rejected');
 assertIncludes(api, "transfer.status !== 'confirmed'", 'only confirmed transfers can be corrected');
 assertIncludes(api, ".eq('status', 'confirmed')", 'confirmed monthly status blocks correction');
+assertIncludes(api, ".in('year_month', Array.from(new Set([oldYearMonth, newYearMonth])))", 'lock check only covers the old and new effective months');
 assertIncludes(api, "movement_type', 'store_transfer'", 'duplicate transfer movement is rejected');
 assertIncludes(api, 'movement_date: effectiveDate', 'movement history date is synchronized');
 assertIncludes(api, 'monthly_status: \'transferred_out\'', 'source monthly status is recalculated');

@@ -65,8 +65,6 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const oldYearMonth = String(transfer.effective_date).slice(0, 7);
     const newYearMonth = effectiveDate.slice(0, 7);
-    const affectedStart = oldYearMonth < newYearMonth ? oldYearMonth : newYearMonth;
-    const affectedEnd = oldYearMonth > newYearMonth ? oldYearMonth : newYearMonth;
     const employeeCode = String(transfer.employee_code).toUpperCase();
 
     const { data: lockedRows } = await admin
@@ -74,8 +72,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .select('id')
       .eq('employee_code', employeeCode)
       .in('store_id', [transfer.from_store_id, transfer.to_store_id])
-      .gte('year_month', affectedStart)
-      .lte('year_month', affectedEnd)
+      .in('year_month', Array.from(new Set([oldYearMonth, newYearMonth])))
       .eq('status', 'confirmed')
       .limit(1);
     if (lockedRows?.length) {
