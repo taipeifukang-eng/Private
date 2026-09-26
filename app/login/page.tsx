@@ -39,7 +39,11 @@ export default function LoginPage() {
       if (result.success) {
         // Redirect based on user role
         // The signIn action returns user data if successful
-        router.push('/');
+        const redirectPath = new URLSearchParams(window.location.search).get('redirect');
+        const safeRedirectPath = redirectPath?.startsWith('/') && !redirectPath.startsWith('//')
+          ? redirectPath
+          : '/';
+        router.push(safeRedirectPath);
         router.refresh();
       } else {
         setError(result.error || '登入失敗');

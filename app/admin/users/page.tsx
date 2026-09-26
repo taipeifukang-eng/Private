@@ -1,11 +1,26 @@
 import { getAllUsers } from '@/app/auth/actions';
 import { Users, UserPlus, Shield, User as UserIcon, KeyRound } from 'lucide-react';
-import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import UserManagementTable from '@/components/admin/UserManagementTable';
+import { createClient } from '@/lib/supabase/server';
+import { hasAnyPermission } from '@/lib/permissions/check';
+import { USER_MANAGEMENT_NAV_PERMISSION_CODES } from '@/lib/permissions/rbac-management';
 
 export const dynamic = 'force-dynamic';
 
 export default async function UsersManagementPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const canViewUsers = await hasAnyPermission(user.id, USER_MANAGEMENT_NAV_PERMISSION_CODES);
+  if (!canViewUsers) {
+    redirect('/dashboard');
+  }
+
   const result = await getAllUsers();
   const users = result.success ? result.data : [];
 
@@ -16,12 +31,12 @@ export default async function UsersManagementPage() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <h2 className="text-2xl font-bold text-red-900 mb-2">權限不足</h2>
             <p className="text-red-700 mb-4">只有管理員可以訪問使用者管理頁面</p>
-            <Link
+            <a
               href="/dashboard"
               className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
             >
               返回儀表板
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -42,20 +57,20 @@ export default async function UsersManagementPage() {
             <p className="text-gray-600">管理系統所有使用者與權限</p>
           </div>
           <div className="flex items-center gap-3">
-            <Link
+            <a
               href="/admin/roles"
               className="flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-semibold"
             >
               <KeyRound size={20} />
               角色權限管理
-            </Link>
-            <Link
+            </a>
+            <a
               href="/register"
               className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
             >
               <UserPlus size={20} />
               新增使用者
-            </Link>
+            </a>
           </div>
         </div>
 

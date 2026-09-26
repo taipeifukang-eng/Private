@@ -3,14 +3,37 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
+
+export const dynamic = 'force-dynamic';
 
 // 定義員工資料型別
 interface Employee {
   user_id: string;
   employee_code: string;
   employee_name: string;
+}
+
+function normalizeEmployeeCodes(codes: unknown[]): string[] {
+  return Array.from(
+    new Set(
+      codes
+        .map(code => String(code || '').trim().toUpperCase())
+        .filter(Boolean)
+    )
+  );
+}
+
+function isMissingOptionalTable(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const message = error.message || '';
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    message.includes('schema cache') ||
+    message.includes('Could not find the table')
+  );
 }
 
 // 取得角色的所有使用者
@@ -36,9 +59,10 @@ export async function GET(
     }
 
     const { id } = params;
+    const adminSupabase = createAdminClient();
 
     // 取得角色的所有使用者
-    const { data: userRoles, error } = await supabase
+    const { data: userRoles, error } = await adminSupabase
       .from('user_roles')
       .select('id, user_id, is_active, assigned_at, expires_at, assigned_by')
       .eq('role_id', id)
@@ -56,31 +80,47 @@ export async function GET(
     const userIds = userRoles?.map(ur => ur.user_id) || [];
     
     if (userIds.length === 0) {
-      return NextResponse.json({ users: [] });
+      return NextResponse.json(
+        { users: [] },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     }
 
-    // 取得 profiles（包含員工編號）
-    const { data: profiles } = await supabase
+    // 取得 profiles（包含使用者管理中維護的基本資料）
+    const { data: profiles } = await adminSupabase
       .from('profiles')
-      .select('id, email, full_name, employee_code')
+      .select('id, email, full_name, employee_code, department, job_title, role')
       .in('id', userIds);
 
-    // 取得 employees
-    const { data: employees } = await supabase
+    // 取得正式區 store_employees。DEV baseline 可能尚未建置此表；
+    // 角色指派仍應可透過 profiles.employee_code 完成。
+    const { data: employees, error: employeesError } = await adminSupabase
       .from('store_employees')
       .select('user_id, employee_code, employee_name')
       .in('user_id', userIds);
 
-    // 合併資料（優先使用 profiles 的員工編號）
+    if (employeesError && !isMissingOptionalTable(employeesError)) {
+      console.error('取得 store_employees 摘要錯誤:', employeesError);
+      return NextResponse.json(
+        { error: '取得使用者列表失敗' },
+        { status: 500 }
+      );
+    }
+
+    // 合併資料。使用者管理維護的 profiles 是正式 RBAC 顯示來源；
+    // store_employees 僅作為舊正式資料或相容表的備援。
     const users = (userRoles?.map(ur => {
       const profile = profiles?.find(p => p.id === ur.user_id);
-      const employee = employees?.find(e => e.user_id === ur.user_id);
+      const employee = employeesError ? null : employees?.find(e => e.user_id === ur.user_id);
       
       return {
         id: ur.user_id,
         email: profile?.email || '',
-        name: employee?.employee_name || profile?.full_name || '',
+        name: profile?.full_name || employee?.employee_name || '',
         employee_code: profile?.employee_code || employee?.employee_code || '',
+        department: profile?.department || '',
+        job_title: profile?.job_title || '',
+        profile_role: profile?.role || 'member',
         is_active: ur.is_active,
         assigned_at: ur.assigned_at,
         expires_at: ur.expires_at
@@ -93,7 +133,10 @@ export async function GET(
       return a.employee_code.localeCompare(b.employee_code);
     });
 
-    return NextResponse.json({ users });
+    return NextResponse.json(
+      { users },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     console.error('取得角色使用者異常:', error);
     return NextResponse.json(
@@ -136,8 +179,18 @@ export async function POST(
       );
     }
 
+    const employeeCodes = normalizeEmployeeCodes(employee_codes);
+    if (employeeCodes.length === 0) {
+      return NextResponse.json(
+        { error: '請提供有效的員工編號' },
+        { status: 400 }
+      );
+    }
+
+    const adminSupabase = createAdminClient();
+
     // 檢查角色是否存在
-    const { data: role, error: roleError } = await supabase
+    const { data: role, error: roleError } = await adminSupabase
       .from('roles')
       .select('id, code, name')
       .eq('id', roleId)
@@ -150,17 +203,59 @@ export async function POST(
       );
     }
 
-    // 查詢所有員工編號對應的 user_id（使用 RPC 函數繞過 RLS）
-    const { data: employees, error: empError } = await supabase
-      .rpc('get_employees_by_codes', { codes: employee_codes });
+    // 查詢所有員工編號對應的 user_id。
+    // 正式資料優先支援 store_employees；DEV / RBAC 測試使用者則可只存在 profiles。
+    const { data: profileRows, error: profileError } = await adminSupabase
+      .from('profiles')
+      .select('id, employee_code, full_name, email')
+      .in('employee_code', employeeCodes);
 
-    if (empError) {
-      console.error('查詢員工錯誤:', empError);
+    if (profileError) {
+      console.error('查詢 profiles 員工錯誤:', profileError);
       return NextResponse.json(
         { error: '查詢員工資料失敗' },
         { status: 500 }
       );
     }
+
+    const { data: storeEmployeeRows, error: storeEmployeeError } = await adminSupabase
+      .from('store_employees')
+      .select('user_id, employee_code, employee_name')
+      .in('employee_code', employeeCodes)
+      .not('user_id', 'is', null);
+
+    if (storeEmployeeError && !isMissingOptionalTable(storeEmployeeError)) {
+      console.error('查詢 store_employees 員工錯誤:', storeEmployeeError);
+      return NextResponse.json(
+        { error: '查詢員工資料失敗' },
+        { status: 500 }
+      );
+    }
+
+    const employeeByUserId = new Map<string, Employee>();
+
+    (storeEmployeeError ? [] : storeEmployeeRows || []).forEach((row: any) => {
+      if (!row.user_id || !row.employee_code) return;
+      employeeByUserId.set(row.user_id, {
+        user_id: row.user_id,
+        employee_code: String(row.employee_code).trim().toUpperCase(),
+        employee_name: row.employee_name || row.employee_code,
+      });
+    });
+
+    (profileRows || []).forEach((row: any) => {
+      if (!row.id || !row.employee_code) return;
+      const normalizedCode = String(row.employee_code).trim().toUpperCase();
+      const existing = employeeByUserId.get(row.id);
+      employeeByUserId.set(row.id, {
+        user_id: row.id,
+        employee_code: normalizedCode || existing?.employee_code || '',
+        employee_name: row.full_name || existing?.employee_name || row.email || normalizedCode,
+      });
+    });
+
+    const employees = Array.from(employeeByUserId.values())
+      .filter(employee => employeeCodes.includes(employee.employee_code));
 
     if (!employees || employees.length === 0) {
       return NextResponse.json(
@@ -170,8 +265,8 @@ export async function POST(
     }
 
     // 檢查已指派的使用者
-    const userIds = (employees as Employee[]).map((e: Employee) => e.user_id);
-    const { data: existingRoles } = await supabase
+    const userIds = employees.map((e: Employee) => e.user_id);
+    const { data: existingRoles } = await adminSupabase
       .from('user_roles')
       .select('user_id')
       .eq('role_id', roleId)
@@ -180,7 +275,7 @@ export async function POST(
     const existingUserIds = new Set(existingRoles?.map((er: any) => er.user_id) || []);
 
     // 過濾出需要新增的使用者
-    const toInsert = (employees as Employee[])
+    const toInsert = employees
       .filter((emp: Employee) => !existingUserIds.has(emp.user_id))
       .map((emp: Employee) => ({
         user_id: emp.user_id,
@@ -191,7 +286,7 @@ export async function POST(
       }));
 
     if (toInsert.length === 0) {
-      const skippedNames = (employees as Employee[])
+      const skippedNames = employees
         .filter((emp: Employee) => existingUserIds.has(emp.user_id))
         .map((emp: Employee) => `${emp.employee_name}(${emp.employee_code})`)
         .join('、');
@@ -208,7 +303,7 @@ export async function POST(
     }
 
     // 批次插入
-    const { error: insertError } = await supabase
+    const { error: insertError } = await adminSupabase
       .from('user_roles')
       .insert(toInsert);
 
@@ -220,12 +315,12 @@ export async function POST(
       );
     }
 
-    const addedNames = (employees as Employee[])
+    const addedNames = employees
       .filter((emp: Employee) => !existingUserIds.has(emp.user_id))
       .map((emp: Employee) => `${emp.employee_name}(${emp.employee_code})`)
       .join('、');
 
-    const skippedNames = (employees as Employee[])
+    const skippedNames = employees
       .filter((emp: Employee) => existingUserIds.has(emp.user_id))
       .map((emp: Employee) => `${emp.employee_name}(${emp.employee_code})`)
       .join('、');

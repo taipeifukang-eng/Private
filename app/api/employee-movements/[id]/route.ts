@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission, requirePermission } from '@/lib/permissions/check';
 import {
+  syncOnboardingPharmacistToMonthlyStaffStatus,
   syncEmployeePromotionTimelineToMonthlyStaffStatus,
   syncMovementEmployeeNameToMonthlyStaffStatus,
 } from '@/lib/monthly-staff/promotion-position-sync';
@@ -222,11 +223,30 @@ export async function PATCH(
       );
     }
 
+    if (
+      movement.movement_type === 'onboarding' &&
+      (
+        movementDate !== movement.movement_date ||
+        (
+          typeof body.onboarding_is_pharmacist === 'boolean' &&
+          body.onboarding_is_pharmacist !== movement.onboarding_is_pharmacist
+        )
+      )
+    ) {
+      await syncOnboardingPharmacistToMonthlyStaffStatus(adminSupabase, [{
+        employee_code: movement.employee_code,
+        effective_date: affectedFromDate,
+        is_pharmacist: Boolean(updated.onboarding_is_pharmacist),
+      }]);
+    }
+
     return NextResponse.json({
       success: true,
       data: updated,
       message: movement.movement_type === 'promotion'
         ? '已更新升職異動，並同步重算生效月份後的月度職位'
+        : movement.movement_type === 'onboarding'
+          ? '已更新入職異動，並同步生效月份後的藥師身分'
         : '已更新人員異動記錄'
     });
   } catch (error: any) {

@@ -3,8 +3,11 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { requirePermission } from '@/lib/permissions/check';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { hasAnyPermission, requirePermission } from '@/lib/permissions/check';
+import { ROLE_LIST_PAGE_PERMISSION_CODES } from '@/lib/permissions/rbac-management';
+
+export const dynamic = 'force-dynamic';
 
 // 取得單一角色詳情
 export async function GET(
@@ -20,18 +23,20 @@ export async function GET(
     }
 
     // 檢查查看權限
-    const permission = await requirePermission(user.id, 'role.role.view');
-    if (!permission.allowed) {
+    const canViewRole = await hasAnyPermission(user.id, ROLE_LIST_PAGE_PERMISSION_CODES);
+    if (!canViewRole) {
       return NextResponse.json(
-        { error: permission.message },
+        { error: `權限不足: 需要 ${ROLE_LIST_PAGE_PERMISSION_CODES.join(' 或 ')} 權限` },
         { status: 403 }
       );
     }
 
     const { id } = params;
 
+    const adminSupabase = createAdminClient();
+
     // 取得角色資料
-    const { data: role, error } = await supabase
+    const { data: role, error } = await adminSupabase
       .from('roles')
       .select('*')
       .eq('id', id)
@@ -44,7 +49,10 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ role });
+    return NextResponse.json(
+      { role },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     console.error('取得角色詳情異常:', error);
     return NextResponse.json(
@@ -80,8 +88,10 @@ export async function PATCH(
     const body = await request.json();
     const { name, description, is_active } = body;
 
+    const adminSupabase = createAdminClient();
+
     // 檢查角色是否存在
-    const { data: existingRole, error: fetchError } = await supabase
+    const { data: existingRole, error: fetchError } = await adminSupabase
       .from('roles')
       .select('is_system')
       .eq('id', id)
@@ -108,7 +118,7 @@ export async function PATCH(
     if (description !== undefined) updateData.description = description;
     if (is_active !== undefined) updateData.is_active = is_active;
 
-    const { data: updatedRole, error } = await supabase
+    const { data: updatedRole, error } = await adminSupabase
       .from('roles')
       .update(updateData)
       .eq('id', id)
@@ -157,8 +167,10 @@ export async function DELETE(
 
     const { id } = params;
 
+    const adminSupabase = createAdminClient();
+
     // 檢查角色是否存在且是否為系統角色
-    const { data: existingRole, error: fetchError } = await supabase
+    const { data: existingRole, error: fetchError } = await adminSupabase
       .from('roles')
       .select('is_system, code')
       .eq('id', id)
@@ -179,7 +191,7 @@ export async function DELETE(
     }
 
     // 刪除角色
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('roles')
       .delete()
       .eq('id', id);

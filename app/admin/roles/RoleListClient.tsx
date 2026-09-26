@@ -11,14 +11,25 @@ import { Role } from '@/types/rbac';
 interface RoleWithCounts extends Role {
   permission_count: number;
   user_count: number;
+  is_dev_verification_role?: boolean;
+  assigned_users?: Array<{
+    id: string;
+    email: string;
+    name: string;
+    employee_code: string;
+  }>;
 }
 
 interface Props {
   canCreate: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
 }
 
-export default function RoleListClient({ canCreate }: Props) {
+export default function RoleListClient({ canCreate, canEdit, canDelete }: Props) {
   const [roles, setRoles] = useState<RoleWithCounts[]>([]);
+  const [hiddenDevRoleCount, setHiddenDevRoleCount] = useState(0);
+  const [showDevRoles, setShowDevRoles] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -27,15 +38,18 @@ export default function RoleListClient({ canCreate }: Props) {
 
   useEffect(() => {
     fetchRoles();
-  }, []);
+  }, [showDevRoles]);
 
   async function fetchRoles() {
     try {
-      const response = await fetch('/api/roles');
+      const params = new URLSearchParams();
+      if (showDevRoles) params.set('includeDevRoles', 'true');
+      const response = await fetch(`/api/roles${params.size ? `?${params}` : ''}`, { cache: 'no-store' });
       const data = await response.json();
 
       if (response.ok) {
         setRoles(data.roles || []);
+        setHiddenDevRoleCount(data.meta?.hidden_dev_role_count || 0);
       } else {
         setError(data.error || '取得角色列表失敗');
       }
@@ -90,7 +104,7 @@ export default function RoleListClient({ canCreate }: Props) {
       });
 
       if (response.ok) {
-        fetchRoles();
+        await fetchRoles();
       } else {
         const data = await response.json();
         alert(data.error || '操作失敗');
@@ -112,7 +126,7 @@ export default function RoleListClient({ canCreate }: Props) {
 
       if (response.ok) {
         alert('角色已刪除');
-        fetchRoles();
+        await fetchRoles();
       } else {
         const data = await response.json();
         alert(data.error || '刪除失敗');
@@ -142,8 +156,26 @@ export default function RoleListClient({ canCreate }: Props) {
     <div>
       {/* 操作按鈕 */}
       <div className="mb-6 flex justify-between items-center">
-        <div className="text-sm text-gray-600">
-          共 {roles.length} 個角色
+        <div className="space-y-2 text-sm text-gray-600">
+          <div>
+            共 {roles.length} 個角色
+            {!showDevRoles && hiddenDevRoleCount > 0 && (
+              <span className="ml-2 text-gray-500">
+                已隱藏 {hiddenDevRoleCount} 個 DEV 測試角色
+              </span>
+            )}
+          </div>
+          {hiddenDevRoleCount > 0 && (
+            <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={showDevRoles}
+                onChange={(event) => setShowDevRoles(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              顯示 DEV 測試角色
+            </label>
+          )}
         </div>
         {canCreate && (
           <button
@@ -173,7 +205,7 @@ export default function RoleListClient({ canCreate }: Props) {
                 權限數
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                使用者數
+                使用者
               </th>
               <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                 狀態
@@ -192,9 +224,16 @@ export default function RoleListClient({ canCreate }: Props) {
                       <div className="text-sm font-medium text-gray-900">
                         {role.name}
                       </div>
-                      {role.is_system && (
-                        <span className="text-xs text-blue-600">系統角色</span>
-                      )}
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {role.is_system && (
+                          <span className="text-xs text-blue-600">系統角色</span>
+                        )}
+                        {role.is_dev_verification_role && (
+                          <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs text-amber-700">
+                            DEV測試
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -214,9 +253,21 @@ export default function RoleListClient({ canCreate }: Props) {
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
-                  <span className="text-sm text-gray-900">
-                    {role.user_count}
-                  </span>
+                  {role.user_count > 0 ? (
+                    <div>
+                      <Link
+                        href={`/admin/roles/${role.id}`}
+                        className="text-sm text-blue-600 hover:text-blue-900"
+                        title={(role.assigned_users || [])
+                          .map(user => `${user.employee_code ? `${user.employee_code} ` : ''}${user.name || user.email || '未命名使用者'}`)
+                          .join('\n')}
+                      >
+                        {role.user_count}
+                      </Link>
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-900">0</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-center">
                   {role.is_active ? (
@@ -235,22 +286,26 @@ export default function RoleListClient({ canCreate }: Props) {
                       href={`/admin/roles/${role.id}`}
                       className="text-blue-600 hover:text-blue-900"
                     >
-                      編輯
+                      {canEdit ? '編輯' : '查看'}
                     </Link>
-                    {!role.is_system && (
+                    {!role.is_system && (canEdit || canDelete) && (
                       <>
-                        <button
-                          onClick={() => handleToggleActive(role.id, role.is_active)}
-                          className="text-yellow-600 hover:text-yellow-900"
-                        >
-                          {role.is_active ? '停用' : '啟用'}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(role.id, role.name)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          刪除
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => handleToggleActive(role.id, role.is_active)}
+                            className="text-yellow-600 hover:text-yellow-900"
+                          >
+                            {role.is_active ? '停用' : '啟用'}
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button
+                            onClick={() => handleDelete(role.id, role.name)}
+                            className="text-red-600 hover:text-red-900"
+                          >
+                            刪除
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

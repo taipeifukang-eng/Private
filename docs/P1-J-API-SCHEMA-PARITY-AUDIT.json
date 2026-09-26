@@ -1,0 +1,2208 @@
+{
+  "scanned": {
+    "files": 304,
+    "directories": [
+      "app",
+      "components",
+      "lib"
+    ]
+  },
+  "counts": {
+    "codeTables": 89,
+    "codeRpcs": 15,
+    "devTables": 93,
+    "devFunctions": 47,
+    "productionTables": 83,
+    "productionFunctions": 33
+  },
+  "missingInDev": {
+    "tables": [],
+    "rpcs": []
+  },
+  "codeReferences": {
+    "tables": [
+      {
+        "name": "acquisition_scans",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 183
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 635
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 739
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 755
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 776
+          }
+        ]
+      },
+      {
+        "name": "acquisition_unmatched",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 182
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 797
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 1050
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 1087
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 1096
+          }
+        ]
+      },
+      {
+        "name": "assignment_collaborators",
+        "referenceCount": 15,
+        "firstRefs": [
+          {
+            "file": "app\\actions.ts",
+            "line": 106
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 351
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 398
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 470
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 635
+          }
+        ]
+      },
+      {
+        "name": "assignments",
+        "referenceCount": 24,
+        "firstRefs": [
+          {
+            "file": "app\\actions.ts",
+            "line": 85
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 172
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 320
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 335
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 366
+          }
+        ]
+      },
+      {
+        "name": "campaign_checklist_completions",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-checklist-completions\\route.ts",
+            "line": 81
+          },
+          {
+            "file": "app\\api\\campaign-checklist-completions\\route.ts",
+            "line": 149
+          },
+          {
+            "file": "app\\api\\campaign-checklist-completions\\route.ts",
+            "line": 180
+          }
+        ]
+      },
+      {
+        "name": "campaign_checklist_items",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-checklist-completions\\route.ts",
+            "line": 57
+          },
+          {
+            "file": "app\\api\\campaign-checklist-items\\route.ts",
+            "line": 55
+          },
+          {
+            "file": "app\\api\\campaign-checklist-items\\route.ts",
+            "line": 122
+          },
+          {
+            "file": "app\\api\\campaign-checklist-items\\route.ts",
+            "line": 134
+          },
+          {
+            "file": "app\\api\\campaign-checklist-items\\route.ts",
+            "line": 213
+          }
+        ]
+      },
+      {
+        "name": "campaign_department_publish",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-department-publish\\route.ts",
+            "line": 64
+          },
+          {
+            "file": "app\\api\\campaign-department-publish\\route.ts",
+            "line": 165
+          }
+        ]
+      },
+      {
+        "name": "campaign_equipment_trips",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-equipment-trips\\route.ts",
+            "line": 44
+          },
+          {
+            "file": "app\\api\\campaign-equipment-trips\\route.ts",
+            "line": 109
+          },
+          {
+            "file": "app\\api\\campaign-equipment-trips\\route.ts",
+            "line": 150
+          },
+          {
+            "file": "app\\api\\campaign-equipment-trips\\route.ts",
+            "line": 177
+          }
+        ]
+      },
+      {
+        "name": "campaign_schedules",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-schedules\\route.ts",
+            "line": 45
+          },
+          {
+            "file": "app\\api\\campaign-schedules\\route.ts",
+            "line": 103
+          },
+          {
+            "file": "app\\api\\campaign-schedules\\route.ts",
+            "line": 156
+          },
+          {
+            "file": "app\\api\\campaign-schedules\\route.ts",
+            "line": 168
+          },
+          {
+            "file": "app\\api\\campaign-schedules\\route.ts",
+            "line": 212
+          }
+        ]
+      },
+      {
+        "name": "campaign_store_details",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-store-details\\route.ts",
+            "line": 50
+          },
+          {
+            "file": "app\\api\\campaign-store-details\\route.ts",
+            "line": 151
+          }
+        ]
+      },
+      {
+        "name": "campaign_store_headcount",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-store-headcount\\route.ts",
+            "line": 65
+          },
+          {
+            "file": "app\\api\\campaign-store-headcount\\route.ts",
+            "line": 133
+          }
+        ]
+      },
+      {
+        "name": "campaign_store_own_staff",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-store-headcount\\route.ts",
+            "line": 85
+          },
+          {
+            "file": "app\\api\\campaign-store-headcount\\route.ts",
+            "line": 153
+          },
+          {
+            "file": "app\\api\\campaign-store-own-staff\\route.ts",
+            "line": 59
+          },
+          {
+            "file": "app\\api\\campaign-store-own-staff\\route.ts",
+            "line": 107
+          },
+          {
+            "file": "app\\api\\campaign-store-own-staff\\route.ts",
+            "line": 128
+          }
+        ]
+      },
+      {
+        "name": "campaign_support_requests",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-support-requests\\route.ts",
+            "line": 27
+          },
+          {
+            "file": "app\\api\\campaign-support-requests\\route.ts",
+            "line": 79
+          },
+          {
+            "file": "app\\api\\campaign-support-requests\\route.ts",
+            "line": 132
+          }
+        ]
+      },
+      {
+        "name": "campaign_support_staff",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-support-requests\\route.ts",
+            "line": 127
+          },
+          {
+            "file": "app\\api\\campaign-support-staff\\route.ts",
+            "line": 27
+          },
+          {
+            "file": "app\\api\\campaign-support-staff\\route.ts",
+            "line": 79
+          },
+          {
+            "file": "app\\api\\campaign-support-staff\\route.ts",
+            "line": 100
+          },
+          {
+            "file": "app\\api\\campaign-support-staff\\route.ts",
+            "line": 119
+          }
+        ]
+      },
+      {
+        "name": "campaigns",
+        "referenceCount": 16,
+        "firstRefs": [
+          {
+            "file": "app\\api\\campaign-checklist-completions\\route.ts",
+            "line": 37
+          },
+          {
+            "file": "app\\api\\campaign-checklist-items\\route.ts",
+            "line": 36
+          },
+          {
+            "file": "app\\api\\campaign-department-publish\\route.ts",
+            "line": 41
+          },
+          {
+            "file": "app\\api\\campaign-equipment-trips\\route.ts",
+            "line": 24
+          },
+          {
+            "file": "app\\api\\campaign-schedules\\route.ts",
+            "line": 27
+          }
+        ]
+      },
+      {
+        "name": "clinic_selfpay_claim_batches",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\[id]\\route.ts",
+            "line": 40
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\[id]\\route.ts",
+            "line": 119
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\[id]\\route.ts",
+            "line": 139
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\import\\route.ts",
+            "line": 414
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\import\\route.ts",
+            "line": 490
+          }
+        ]
+      },
+      {
+        "name": "clinic_selfpay_claim_items",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\[id]\\route.ts",
+            "line": 55
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\import\\route.ts",
+            "line": 459
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\route.ts",
+            "line": 94
+          }
+        ]
+      },
+      {
+        "name": "clinic_selfpay_price_entries",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\clinic-selfpay\\batches\\import\\route.ts",
+            "line": 326
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\close\\route.ts",
+            "line": 37
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\history\\route.ts",
+            "line": 31
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\route.ts",
+            "line": 44
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\route.ts",
+            "line": 61
+          }
+        ]
+      },
+      {
+        "name": "clinic_selfpay_price_month_closures",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\close\\route.ts",
+            "line": 52
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\close\\route.ts",
+            "line": 72
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\close\\route.ts",
+            "line": 85
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\mappings\\route.ts",
+            "line": 120
+          },
+          {
+            "file": "app\\api\\clinic-selfpay\\prices\\import\\route.ts",
+            "line": 112
+          }
+        ]
+      },
+      {
+        "name": "employee_movement_history",
+        "referenceCount": 38,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\employee-management\\EmployeeManagementClient.tsx",
+            "line": 200
+          },
+          {
+            "file": "app\\admin\\employee-management\\page.tsx",
+            "line": 90
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 188
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 304
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 373
+          }
+        ]
+      },
+      {
+        "name": "event_dates",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\event-dates\\route.ts",
+            "line": 15
+          },
+          {
+            "file": "app\\api\\event-dates\\route.ts",
+            "line": 60
+          },
+          {
+            "file": "app\\api\\event-dates\\route.ts",
+            "line": 113
+          }
+        ]
+      },
+      {
+        "name": "ga_equipment",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\equipment\\[id]\\route.ts",
+            "line": 38
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\[id]\\route.ts",
+            "line": 66
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\[id]\\route.ts",
+            "line": 102
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\route.ts",
+            "line": 44
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\route.ts",
+            "line": 78
+          }
+        ]
+      },
+      {
+        "name": "ga_equipment_templates",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\equipment\\templates\\[id]\\route.ts",
+            "line": 38
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\templates\\[id]\\route.ts",
+            "line": 66
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\templates\\route.ts",
+            "line": 50
+          },
+          {
+            "file": "app\\api\\general-affairs\\equipment\\templates\\route.ts",
+            "line": 117
+          }
+        ]
+      },
+      {
+        "name": "ga_facilities",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\facilities\\[id]\\route.ts",
+            "line": 38
+          },
+          {
+            "file": "app\\api\\general-affairs\\facilities\\[id]\\route.ts",
+            "line": 70
+          },
+          {
+            "file": "app\\api\\general-affairs\\facilities\\[id]\\route.ts",
+            "line": 100
+          },
+          {
+            "file": "app\\api\\general-affairs\\facilities\\route.ts",
+            "line": 57
+          },
+          {
+            "file": "app\\api\\general-affairs\\facilities\\route.ts",
+            "line": 95
+          }
+        ]
+      },
+      {
+        "name": "ga_inventory_balances",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\balances\\route.ts",
+            "line": 33
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\options\\route.ts",
+            "line": 86
+          }
+        ]
+      },
+      {
+        "name": "ga_inventory_location_parts",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\parts\\[locationPartId]\\route.ts",
+            "line": 47
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\parts\\route.ts",
+            "line": 58
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\parts\\route.ts",
+            "line": 144
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\options\\route.ts",
+            "line": 56
+          }
+        ]
+      },
+      {
+        "name": "ga_inventory_locations",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\balances\\route.ts",
+            "line": 77
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\route.ts",
+            "line": 36
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\route.ts",
+            "line": 64
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\route.ts",
+            "line": 58
+          },
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\route.ts",
+            "line": 122
+          }
+        ]
+      },
+      {
+        "name": "ga_inventory_transactions",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\transactions\\route.ts",
+            "line": 36
+          }
+        ]
+      },
+      {
+        "name": "ga_part_compatibilities",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\compatibilities\\[compatibilityId]\\route.ts",
+            "line": 42
+          },
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\compatibilities\\route.ts",
+            "line": 33
+          },
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\compatibilities\\route.ts",
+            "line": 72
+          }
+        ]
+      },
+      {
+        "name": "ga_parts",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\balances\\route.ts",
+            "line": 84
+          },
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\route.ts",
+            "line": 40
+          },
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\route.ts",
+            "line": 69
+          },
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\route.ts",
+            "line": 111
+          },
+          {
+            "file": "app\\api\\general-affairs\\parts\\route.ts",
+            "line": 53
+          }
+        ]
+      },
+      {
+        "name": "ga_service_categories",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 809
+          },
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 916
+          },
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 917
+          }
+        ]
+      },
+      {
+        "name": "ga_service_regions",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 810
+          },
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 937
+          }
+        ]
+      },
+      {
+        "name": "ga_vendors",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 808
+          },
+          {
+            "file": "app\\general-affairs\\page.tsx",
+            "line": 885
+          }
+        ]
+      },
+      {
+        "name": "inspection_bonus_config",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\inspection-templates\\page.tsx",
+            "line": 122
+          },
+          {
+            "file": "app\\admin\\inspection-templates\\page.tsx",
+            "line": 138
+          },
+          {
+            "file": "app\\admin\\inspection-templates\\page.tsx",
+            "line": 153
+          },
+          {
+            "file": "app\\admin\\inspection-templates\\page.tsx",
+            "line": 181
+          },
+          {
+            "file": "app\\inspection\\improvements\\[id]\\page.tsx",
+            "line": 118
+          }
+        ]
+      },
+      {
+        "name": "inspection_grade_mapping",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inspection-grade-mapping\\route.ts",
+            "line": 22
+          },
+          {
+            "file": "app\\api\\inspection-grade-mapping\\route.ts",
+            "line": 65
+          },
+          {
+            "file": "app\\api\\inspection-grade-mapping\\route.ts",
+            "line": 74
+          }
+        ]
+      },
+      {
+        "name": "inspection_improvements",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\inspection\\[id]\\page.tsx",
+            "line": 224
+          },
+          {
+            "file": "app\\inspection\\improvements\\[id]\\page.tsx",
+            "line": 93
+          },
+          {
+            "file": "app\\inspection\\improvements\\[id]\\page.tsx",
+            "line": 305
+          },
+          {
+            "file": "app\\inspection\\improvements\\page.tsx",
+            "line": 97
+          },
+          {
+            "file": "app\\inspection\\improvements\\page.tsx",
+            "line": 114
+          }
+        ]
+      },
+      {
+        "name": "inspection_masters",
+        "referenceCount": 26,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inspection-debug\\route.ts",
+            "line": 38
+          },
+          {
+            "file": "app\\api\\inspection-debug\\route.ts",
+            "line": 94
+          },
+          {
+            "file": "app\\api\\inspection\\[id]\\route.ts",
+            "line": 42
+          },
+          {
+            "file": "app\\api\\inspection\\export-monthly-score\\route.ts",
+            "line": 100
+          },
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 155
+          }
+        ]
+      },
+      {
+        "name": "inspection_on_duty_staff",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 283
+          },
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 713
+          },
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 732
+          },
+          {
+            "file": "app\\inspection\\[id]\\page.tsx",
+            "line": 261
+          },
+          {
+            "file": "app\\inspection\\new\\page.tsx",
+            "line": 880
+          }
+        ]
+      },
+      {
+        "name": "inspection_results",
+        "referenceCount": 9,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inspection-debug\\route.ts",
+            "line": 69
+          },
+          {
+            "file": "app\\api\\inspection\\[id]\\route.ts",
+            "line": 28
+          },
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 205
+          },
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 678
+          },
+          {
+            "file": "app\\inspection\\[id]\\edit\\page.tsx",
+            "line": 702
+          }
+        ]
+      },
+      {
+        "name": "inspection_templates",
+        "referenceCount": 9,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inspection-debug\\route.ts",
+            "line": 80
+          },
+          {
+            "file": "app\\api\\inspection-templates\\[id]\\route.ts",
+            "line": 51
+          },
+          {
+            "file": "app\\api\\inspection-templates\\[id]\\route.ts",
+            "line": 86
+          },
+          {
+            "file": "app\\api\\inspection-templates\\route.ts",
+            "line": 22
+          },
+          {
+            "file": "app\\api\\inspection-templates\\route.ts",
+            "line": 64
+          }
+        ]
+      },
+      {
+        "name": "inventory_result_batches",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 363
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 593
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 767
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 778
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 799
+          }
+        ]
+      },
+      {
+        "name": "inventory_result_items",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 307
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 546
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 560
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 620
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 851
+          }
+        ]
+      },
+      {
+        "name": "inventory_result_settings",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 283
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 518
+          }
+        ]
+      },
+      {
+        "name": "logs",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\actions.ts",
+            "line": 519
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 597
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 695
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 840
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 1135
+          }
+        ]
+      },
+      {
+        "name": "maintenance_categories",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-categories\\route.ts",
+            "line": 48
+          },
+          {
+            "file": "app\\api\\maintenance-categories\\route.ts",
+            "line": 85
+          },
+          {
+            "file": "app\\api\\maintenance-categories\\route.ts",
+            "line": 94
+          },
+          {
+            "file": "app\\api\\maintenance-categories\\route.ts",
+            "line": 141
+          },
+          {
+            "file": "app\\api\\maintenance-categories\\route.ts",
+            "line": 171
+          }
+        ]
+      },
+      {
+        "name": "maintenance_photos",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-photos\\route.ts",
+            "line": 108
+          },
+          {
+            "file": "app\\api\\maintenance-photos\\route.ts",
+            "line": 156
+          },
+          {
+            "file": "app\\api\\maintenance-requests\\route.ts",
+            "line": 360
+          }
+        ]
+      },
+      {
+        "name": "maintenance_progress_stages",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-progress-stages\\route.ts",
+            "line": 25
+          },
+          {
+            "file": "app\\api\\maintenance-progress-stages\\route.ts",
+            "line": 65
+          },
+          {
+            "file": "app\\api\\maintenance-progress-stages\\route.ts",
+            "line": 102
+          },
+          {
+            "file": "app\\api\\maintenance-progress-stages\\route.ts",
+            "line": 127
+          }
+        ]
+      },
+      {
+        "name": "maintenance_requests",
+        "referenceCount": 12,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-photos\\route.ts",
+            "line": 64
+          },
+          {
+            "file": "app\\api\\maintenance-requests\\route.ts",
+            "line": 92
+          },
+          {
+            "file": "app\\api\\maintenance-requests\\route.ts",
+            "line": 210
+          },
+          {
+            "file": "app\\api\\maintenance-requests\\route.ts",
+            "line": 236
+          },
+          {
+            "file": "app\\api\\maintenance-requests\\route.ts",
+            "line": 308
+          }
+        ]
+      },
+      {
+        "name": "maintenance_ticket_events",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-requests\\route.ts",
+            "line": 246
+          },
+          {
+            "file": "app\\api\\maintenance-ticket-events\\route.ts",
+            "line": 52
+          },
+          {
+            "file": "lib\\maintenance\\status-service.ts",
+            "line": 158
+          }
+        ]
+      },
+      {
+        "name": "maintenance_update_photos",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-update-photos\\route.ts",
+            "line": 85
+          },
+          {
+            "file": "app\\api\\maintenance-updates\\route.ts",
+            "line": 74
+          }
+        ]
+      },
+      {
+        "name": "maintenance_updates",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\maintenance-update-photos\\route.ts",
+            "line": 51
+          },
+          {
+            "file": "app\\api\\maintenance-updates\\route.ts",
+            "line": 55
+          },
+          {
+            "file": "lib\\maintenance\\status-service.ts",
+            "line": 252
+          }
+        ]
+      },
+      {
+        "name": "meal_allowance_records",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\export-monthly-status\\meal-allowance\\route.ts",
+            "line": 94
+          },
+          {
+            "file": "app\\api\\export-single-item-bonus-pdf\\route.ts",
+            "line": 228
+          },
+          {
+            "file": "app\\api\\meal-allowance\\route.ts",
+            "line": 31
+          },
+          {
+            "file": "app\\api\\meal-allowance\\route.ts",
+            "line": 94
+          },
+          {
+            "file": "app\\api\\meal-allowance\\route.ts",
+            "line": 154
+          }
+        ]
+      },
+      {
+        "name": "monthly_bonus_records",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\monthly-status\\bonus-details\\route.ts",
+            "line": 102
+          },
+          {
+            "file": "app\\api\\monthly-status\\bonus-quarter-summary\\route.ts",
+            "line": 137
+          },
+          {
+            "file": "app\\api\\performance-bonus\\averages\\route.ts",
+            "line": 336
+          },
+          {
+            "file": "app\\api\\performance-bonus\\import\\route.ts",
+            "line": 507
+          },
+          {
+            "file": "app\\api\\performance-bonus\\import\\route.ts",
+            "line": 584
+          }
+        ]
+      },
+      {
+        "name": "monthly_performance_details",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\export-monthly-status\\download\\route.ts",
+            "line": 166
+          },
+          {
+            "file": "app\\api\\import-performance\\route.ts",
+            "line": 356
+          },
+          {
+            "file": "app\\api\\import-performance\\route.ts",
+            "line": 368
+          },
+          {
+            "file": "app\\api\\staff-performance-details\\route.ts",
+            "line": 61
+          },
+          {
+            "file": "app\\store\\actions.ts",
+            "line": 804
+          }
+        ]
+      },
+      {
+        "name": "monthly_staff_status",
+        "referenceCount": 65,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\employee-management\\page.tsx",
+            "line": 84
+          },
+          {
+            "file": "app\\admin\\stores\\[id]\\employees\\page.tsx",
+            "line": 117
+          },
+          {
+            "file": "app\\admin\\stores\\[id]\\employees\\page.tsx",
+            "line": 145
+          },
+          {
+            "file": "app\\admin\\stores\\page.tsx",
+            "line": 68
+          },
+          {
+            "file": "app\\api\\employee-movements\\batch\\route.ts",
+            "line": 66
+          }
+        ]
+      },
+      {
+        "name": "monthly_store_summary",
+        "referenceCount": 15,
+        "firstRefs": [
+          {
+            "file": "app\\api\\export-monthly-status\\stores\\route.ts",
+            "line": 57
+          },
+          {
+            "file": "app\\api\\export-monthly-status\\support-hours\\route.ts",
+            "line": 74
+          },
+          {
+            "file": "app\\api\\import-store-stats\\route.ts",
+            "line": 132
+          },
+          {
+            "file": "app\\api\\import-store-stats\\route.ts",
+            "line": 214
+          },
+          {
+            "file": "app\\api\\import-store-stats\\route.ts",
+            "line": 234
+          }
+        ]
+      },
+      {
+        "name": "permissions",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\roles\\[id]\\permissions\\route.ts",
+            "line": 38
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_annual_fees",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\pharmacist-annual-fees\\route.ts",
+            "line": 43
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-fees\\route.ts",
+            "line": 129
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-fees\\route.ts",
+            "line": 178
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-fees\\route.ts",
+            "line": 202
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-fees\\route.ts",
+            "line": 209
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_annual_master",
+        "referenceCount": 10,
+        "firstRefs": [
+          {
+            "file": "app\\api\\pharmacist-annual-master\\lock\\route.ts",
+            "line": 79
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\manual-add\\route.ts",
+            "line": 69
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\manual-add\\route.ts",
+            "line": 81
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\manual-add\\route.ts",
+            "line": 157
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\manual-add\\route.ts",
+            "line": 172
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_annual_master_locks",
+        "referenceCount": 7,
+        "firstRefs": [
+          {
+            "file": "app\\api\\pharmacist-annual-master\\lock\\route.ts",
+            "line": 23
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\lock\\route.ts",
+            "line": 91
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\lock\\route.ts",
+            "line": 139
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\lock\\route.ts",
+            "line": 150
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\manual-add\\route.ts",
+            "line": 59
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_annual_master_sync_log",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\pharmacist-annual-master\\sync\\route.ts",
+            "line": 48
+          },
+          {
+            "file": "app\\api\\pharmacist-annual-master\\sync\\route.ts",
+            "line": 73
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_monthly_snapshot",
+        "referenceCount": 15,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 132
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 172
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 214
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 247
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 266
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_monthly_snapshot_sync_log",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 177
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 464
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_profiles",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "app\\api\\pharmacist-annual-master\\sync\\route.ts",
+            "line": 118
+          },
+          {
+            "file": "app\\api\\pharmacist-profiles\\route.ts",
+            "line": 51
+          },
+          {
+            "file": "app\\api\\pharmacist-profiles\\route.ts",
+            "line": 94
+          },
+          {
+            "file": "app\\page.tsx",
+            "line": 772
+          }
+        ]
+      },
+      {
+        "name": "pharmacist_snapshot_locks",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 144
+          },
+          {
+            "file": "app\\api\\pharmacist-snapshot-lock\\route.ts",
+            "line": 17
+          },
+          {
+            "file": "app\\api\\pharmacist-snapshot-lock\\route.ts",
+            "line": 58
+          },
+          {
+            "file": "app\\api\\pharmacist-snapshot-lock\\route.ts",
+            "line": 91
+          },
+          {
+            "file": "app\\api\\pharmacist-snapshot-lock\\route.ts",
+            "line": 109
+          }
+        ]
+      },
+      {
+        "name": "product_barcodes",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 181
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 430
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 672
+          },
+          {
+            "file": "components\\products-master\\AcquisitionProductsTab.tsx",
+            "line": 691
+          }
+        ]
+      },
+      {
+        "name": "products_master",
+        "referenceCount": 9,
+        "firstRefs": [
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 22
+          },
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 38
+          },
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 46
+          },
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 135
+          },
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 157
+          }
+        ]
+      },
+      {
+        "name": "profiles",
+        "referenceCount": 109,
+        "firstRefs": [
+          {
+            "file": "app\\actions.ts",
+            "line": 45
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 145
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 223
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 287
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 682
+          }
+        ]
+      },
+      {
+        "name": "relationship_members",
+        "referenceCount": 8,
+        "firstRefs": [
+          {
+            "file": "app\\api\\relationship-members\\[id]\\approve\\route.ts",
+            "line": 15
+          },
+          {
+            "file": "app\\api\\relationship-members\\[id]\\route.ts",
+            "line": 24
+          },
+          {
+            "file": "app\\api\\relationship-members\\[id]\\route.ts",
+            "line": 38
+          },
+          {
+            "file": "app\\api\\relationship-members\\[id]\\route.ts",
+            "line": 65
+          },
+          {
+            "file": "app\\api\\relationship-members\\route.ts",
+            "line": 25
+          }
+        ]
+      },
+      {
+        "name": "relationship_sales_details",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\relationship-sales\\import\\route.ts",
+            "line": 119
+          },
+          {
+            "file": "app\\api\\relationship-sales\\route.ts",
+            "line": 33
+          }
+        ]
+      },
+      {
+        "name": "relationship_sales_imports",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\relationship-sales\\import\\route.ts",
+            "line": 100
+          },
+          {
+            "file": "app\\api\\relationship-sales\\import\\route.ts",
+            "line": 121
+          }
+        ]
+      },
+      {
+        "name": "role_permissions",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\roles\\[id]\\permissions\\route.ts",
+            "line": 55
+          },
+          {
+            "file": "app\\api\\roles\\[id]\\permissions\\route.ts",
+            "line": 142
+          },
+          {
+            "file": "app\\api\\roles\\[id]\\permissions\\route.ts",
+            "line": 164
+          },
+          {
+            "file": "lib\\admin\\user-rbac-view.ts",
+            "line": 176
+          },
+          {
+            "file": "lib\\admin\\user-rbac-view.ts",
+            "line": 272
+          }
+        ]
+      },
+      {
+        "name": "roles",
+        "referenceCount": 9,
+        "firstRefs": [
+          {
+            "file": "app\\api\\roles\\[id]\\permissions\\route.ts",
+            "line": 128
+          },
+          {
+            "file": "app\\api\\roles\\[id]\\route.ts",
+            "line": 40
+          },
+          {
+            "file": "app\\api\\roles\\[id]\\route.ts",
+            "line": 95
+          },
+          {
+            "file": "app\\api\\roles\\[id]\\route.ts",
+            "line": 122
+          },
+          {
+            "file": "app\\api\\roles\\[id]\\route.ts",
+            "line": 174
+          }
+        ]
+      },
+      {
+        "name": "spring_festival_bonus",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\export-monthly-status\\spring-festival-bonus\\route.ts",
+            "line": 40
+          },
+          {
+            "file": "app\\api\\export-single-item-bonus-pdf\\route.ts",
+            "line": 209
+          },
+          {
+            "file": "app\\api\\spring-festival-bonus\\route.ts",
+            "line": 25
+          },
+          {
+            "file": "app\\api\\spring-festival-bonus\\save\\route.ts",
+            "line": 49
+          },
+          {
+            "file": "app\\api\\spring-festival-bonus\\save\\route.ts",
+            "line": 97
+          }
+        ]
+      },
+      {
+        "name": "stockout_product_response_history",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\stockout-responses\\route.ts",
+            "line": 39
+          },
+          {
+            "file": "app\\api\\stockout-responses\\route.ts",
+            "line": 121
+          }
+        ]
+      },
+      {
+        "name": "stockout_product_responses",
+        "referenceCount": 5,
+        "firstRefs": [
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 166
+          },
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 255
+          },
+          {
+            "file": "app\\api\\stockout-responses\\route.ts",
+            "line": 60
+          },
+          {
+            "file": "app\\api\\stockout-responses\\route.ts",
+            "line": 103
+          },
+          {
+            "file": "app\\api\\stockout-responses\\route.ts",
+            "line": 160
+          }
+        ]
+      },
+      {
+        "name": "stockout_reports",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 54
+          },
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 94
+          },
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 181
+          },
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 221
+          },
+          {
+            "file": "app\\api\\stockout-reports\\route.ts",
+            "line": 236
+          }
+        ]
+      },
+      {
+        "name": "store_activity_settings",
+        "referenceCount": 3,
+        "firstRefs": [
+          {
+            "file": "app\\api\\store-activity-settings\\route.ts",
+            "line": 15
+          },
+          {
+            "file": "app\\api\\store-activity-settings\\route.ts",
+            "line": 63
+          },
+          {
+            "file": "app\\api\\store-activity-settings\\route.ts",
+            "line": 119
+          }
+        ]
+      },
+      {
+        "name": "store_employees",
+        "referenceCount": 41,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\employee-management\\page.tsx",
+            "line": 79
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 200
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 222
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 275
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 562
+          }
+        ]
+      },
+      {
+        "name": "store_managers",
+        "referenceCount": 58,
+        "firstRefs": [
+          {
+            "file": "app\\activity-view\\[id]\\page.tsx",
+            "line": 267
+          },
+          {
+            "file": "app\\activity-view\\[id]\\page.tsx",
+            "line": 358
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 101
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 679
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 693
+          }
+        ]
+      },
+      {
+        "name": "store_performance",
+        "referenceCount": 4,
+        "firstRefs": [
+          {
+            "file": "app\\api\\performance-data\\import\\route.ts",
+            "line": 268
+          },
+          {
+            "file": "app\\api\\performance-data\\import\\route.ts",
+            "line": 308
+          },
+          {
+            "file": "app\\api\\performance-data\\route.ts",
+            "line": 22
+          },
+          {
+            "file": "app\\api\\performance-data\\route.ts",
+            "line": 86
+          }
+        ]
+      },
+      {
+        "name": "store_performance_thresholds",
+        "referenceCount": 2,
+        "firstRefs": [
+          {
+            "file": "app\\api\\performance-thresholds\\route.ts",
+            "line": 20
+          },
+          {
+            "file": "app\\api\\performance-thresholds\\route.ts",
+            "line": 100
+          }
+        ]
+      },
+      {
+        "name": "store_relocation_history",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\store\\actions.ts",
+            "line": 321
+          },
+          {
+            "file": "app\\store\\actions.ts",
+            "line": 357
+          },
+          {
+            "file": "app\\store\\actions.ts",
+            "line": 385
+          },
+          {
+            "file": "app\\store\\actions.ts",
+            "line": 394
+          },
+          {
+            "file": "app\\store\\actions.ts",
+            "line": 447
+          }
+        ]
+      },
+      {
+        "name": "store_transfer_requests",
+        "referenceCount": 8,
+        "firstRefs": [
+          {
+            "file": "app\\api\\store-transfer-requests\\[id]\\confirm\\route.ts",
+            "line": 44
+          },
+          {
+            "file": "app\\api\\store-transfer-requests\\[id]\\confirm\\route.ts",
+            "line": 124
+          },
+          {
+            "file": "app\\api\\store-transfer-requests\\[id]\\reject\\route.ts",
+            "line": 29
+          },
+          {
+            "file": "app\\api\\store-transfer-requests\\[id]\\reject\\route.ts",
+            "line": 56
+          },
+          {
+            "file": "app\\api\\store-transfer-requests\\route.ts",
+            "line": 39
+          }
+        ]
+      },
+      {
+        "name": "stores",
+        "referenceCount": 72,
+        "firstRefs": [
+          {
+            "file": "app\\activity-view\\[id]\\page.tsx",
+            "line": 259
+          },
+          {
+            "file": "app\\activity-view\\[id]\\page.tsx",
+            "line": 354
+          },
+          {
+            "file": "app\\admin\\performance\\page.tsx",
+            "line": 169
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 95
+          },
+          {
+            "file": "app\\admin\\pharmacist-management\\page.tsx",
+            "line": 120
+          }
+        ]
+      },
+      {
+        "name": "support_staff_bonus",
+        "referenceCount": 8,
+        "firstRefs": [
+          {
+            "file": "app\\api\\export-monthly-status\\single-item-bonus\\route.ts",
+            "line": 63
+          },
+          {
+            "file": "app\\api\\export-single-item-bonus-pdf\\route.ts",
+            "line": 109
+          },
+          {
+            "file": "app\\api\\export-single-item-bonus-pdf\\route.ts",
+            "line": 145
+          },
+          {
+            "file": "app\\api\\support-bonus\\route.ts",
+            "line": 26
+          },
+          {
+            "file": "app\\api\\support-bonus\\save\\route.ts",
+            "line": 58
+          }
+        ]
+      },
+      {
+        "name": "talent_cultivation_bonus",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "app\\api\\export-monthly-status\\talent-cultivation-bonus\\route.ts",
+            "line": 28
+          },
+          {
+            "file": "app\\api\\export-single-item-bonus-pdf\\route.ts",
+            "line": 194
+          },
+          {
+            "file": "app\\api\\talent-cultivation\\route.ts",
+            "line": 26
+          },
+          {
+            "file": "app\\api\\talent-cultivation\\save\\route.ts",
+            "line": 59
+          },
+          {
+            "file": "app\\api\\talent-cultivation\\save\\route.ts",
+            "line": 68
+          }
+        ]
+      },
+      {
+        "name": "templates",
+        "referenceCount": 10,
+        "firstRefs": [
+          {
+            "file": "app\\actions.ts",
+            "line": 59
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 152
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 183
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 230
+          },
+          {
+            "file": "app\\actions.ts",
+            "line": 1280
+          }
+        ]
+      },
+      {
+        "name": "user_roles",
+        "referenceCount": 16,
+        "firstRefs": [
+          {
+            "file": "app\\activity-view\\[id]\\page.tsx",
+            "line": 331
+          },
+          {
+            "file": "app\\admin\\activity-management\\page.tsx",
+            "line": 15
+          },
+          {
+            "file": "app\\admin\\activity-management\\schedule\\[id]\\page.tsx",
+            "line": 491
+          },
+          {
+            "file": "app\\api\\inventory\\result-analysis\\route.ts",
+            "line": 181
+          },
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 85
+          }
+        ]
+      }
+    ],
+    "rpcs": [
+      {
+        "name": "check_user_permission",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\products-master\\route.ts",
+            "line": 79
+          }
+        ]
+      },
+      {
+        "name": "current_user_has_permission",
+        "referenceCount": 6,
+        "firstRefs": [
+          {
+            "file": "lib\\general-affairs\\categories\\access.ts",
+            "line": 34
+          },
+          {
+            "file": "lib\\general-affairs\\equipment\\access.ts",
+            "line": 10
+          },
+          {
+            "file": "lib\\general-affairs\\facilities\\access.ts",
+            "line": 8
+          },
+          {
+            "file": "lib\\general-affairs\\inventory\\locations\\access.ts",
+            "line": 8
+          },
+          {
+            "file": "lib\\general-affairs\\inventory\\transactions\\access.ts",
+            "line": 11
+          }
+        ]
+      },
+      {
+        "name": "current_user_is_store_manager",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "lib\\general-affairs\\parts\\access.ts",
+            "line": 35
+          }
+        ]
+      },
+      {
+        "name": "ga_post_inventory_transaction",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\transactions\\post\\route.ts",
+            "line": 30
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_category",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\categories\\[id]\\route.ts",
+            "line": 94
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_equipment",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\equipment\\[id]\\route.ts",
+            "line": 128
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_equipment_template",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\equipment\\templates\\[id]\\route.ts",
+            "line": 90
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_facility",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\facilities\\[id]\\route.ts",
+            "line": 127
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_inventory_location",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\route.ts",
+            "line": 89
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_inventory_location_part",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\inventory\\locations\\[id]\\parts\\[locationPartId]\\route.ts",
+            "line": 77
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_part",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\route.ts",
+            "line": 138
+          }
+        ]
+      },
+      {
+        "name": "ga_soft_delete_part_compatibility",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\general-affairs\\parts\\[id]\\compatibilities\\[compatibilityId]\\route.ts",
+            "line": 72
+          }
+        ]
+      },
+      {
+        "name": "get_all_employees_for_rbac",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "app\\api\\users\\search\\route.ts",
+            "line": 26
+          }
+        ]
+      },
+      {
+        "name": "get_user_permissions",
+        "referenceCount": 1,
+        "firstRefs": [
+          {
+            "file": "lib\\permissions\\check.ts",
+            "line": 133
+          }
+        ]
+      },
+      {
+        "name": "has_permission",
+        "referenceCount": 8,
+        "firstRefs": [
+          {
+            "file": "app\\admin\\promotion-management\\page.tsx",
+            "line": 149
+          },
+          {
+            "file": "app\\admin\\promotion-management\\page.tsx",
+            "line": 150
+          },
+          {
+            "file": "app\\admin\\promotion-management\\page.tsx",
+            "line": 158
+          },
+          {
+            "file": "app\\inspection\\compare\\page.tsx",
+            "line": 112
+          },
+          {
+            "file": "app\\inspection\\improvements\\[id]\\page.tsx",
+            "line": 122
+          }
+        ]
+      }
+    ]
+  }
+}

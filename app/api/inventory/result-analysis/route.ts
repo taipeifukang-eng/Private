@@ -652,10 +652,12 @@ export async function GET(request: NextRequest) {
       }
     }
     const shouldLoadBatchDetails = Boolean(batchId);
-    const batchSummaries = await fetchNonExcludedDiffSummariesForBatches(
-      admin,
-      batchRows.map((batch: any) => batch.id)
-    );
+    const batchSummaries = shouldLoadBatchDetails
+      ? await fetchNonExcludedDiffSummariesForBatches(
+        admin,
+        batchRows.map((batch: any) => batch.id)
+      )
+      : new Map<string, ReturnType<typeof getNonExcludedDiffSummary>>();
     const batchItemCache = new Map<string, any[]>();
     if (shouldLoadBatchDetails) {
       await Promise.all(batchRows.map(async (batch: any) => {

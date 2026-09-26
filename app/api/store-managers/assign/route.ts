@@ -1,9 +1,23 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import {
+  requireAuthenticatedUser,
+  requireStoreScopePermission,
+  STORE_MANAGER_ASSIGN_PERMISSION_CODES,
+} from '@/lib/admin/store-management-access';
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
+    const auth = await requireAuthenticatedUser(supabase);
+    if (auth.response) return auth.response;
+
+    const permissionDenied = await requireStoreScopePermission(
+      auth.user.id,
+      STORE_MANAGER_ASSIGN_PERMISSION_CODES,
+    );
+    if (permissionDenied) return permissionDenied;
+
     const { userId, storeIds } = await request.json();
 
     if (!userId) {
@@ -57,6 +71,15 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const supabase = await createClient();
+    const auth = await requireAuthenticatedUser(supabase);
+    if (auth.response) return auth.response;
+
+    const permissionDenied = await requireStoreScopePermission(
+      auth.user.id,
+      STORE_MANAGER_ASSIGN_PERMISSION_CODES,
+    );
+    if (permissionDenied) return permissionDenied;
+
     const { userId, storeId } = await request.json();
 
     if (!userId) {

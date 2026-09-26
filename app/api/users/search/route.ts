@@ -3,7 +3,12 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { hasAnyPermission } from '@/lib/permissions/check';
+import {
+  ROLE_LIST_PAGE_PERMISSION_CODES,
+  USER_MANAGEMENT_NAV_PERMISSION_CODES,
+} from '@/lib/permissions/rbac-management';
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,6 +17,18 @@ export async function GET(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json({ error: '未登入' }, { status: 401 });
+    }
+
+    const canSearchUsers = await hasAnyPermission(user.id, [
+      ...USER_MANAGEMENT_NAV_PERMISSION_CODES,
+      ...ROLE_LIST_PAGE_PERMISSION_CODES,
+    ]);
+
+    if (!canSearchUsers) {
+      return NextResponse.json(
+        { error: '沒有搜尋使用者的權限' },
+        { status: 403 }
+      );
     }
 
     const searchParams = request.nextUrl.searchParams;
@@ -41,11 +58,40 @@ export async function GET(request: NextRequest) {
       emp.email?.toLowerCase().includes(lowerQuery)
     ).slice(0, 20);
 
-    // 格式化結果
+    const filteredUserIds = filteredEmployees
+      .map((emp: any) => emp.user_id)
+      .filter(Boolean);
+    const profileNameById = new Map<string, string>();
+
+    if (filteredUserIds.length > 0) {
+      const adminSupabase = createAdminClient();
+      const { data: profiles, error: profileError } = await adminSupabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', filteredUserIds);
+
+      if (profileError) {
+        console.error('查詢使用者姓名錯誤:', profileError);
+        return NextResponse.json(
+          { error: '搜尋使用者失敗' },
+          { status: 500 }
+        );
+      }
+
+      (profiles || []).forEach((profile: any) => {
+        const fullName = String(profile.full_name || '').trim();
+        if (profile.id && fullName) {
+          profileNameById.set(profile.id, fullName);
+        }
+      });
+    }
+
+    // 格式化結果。使用者管理維護的 profiles.full_name 是姓名第一順位；
+    // RPC 回傳的 employee_name 僅作為相容備援。
     const users = filteredEmployees.map((emp: any) => ({
       id: emp.user_id,
       email: emp.email || '',
-      name: emp.employee_name || '',
+      name: profileNameById.get(emp.user_id) || emp.employee_name || '',
       employee_code: emp.employee_code || ''
     }));
 

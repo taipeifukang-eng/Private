@@ -28,7 +28,8 @@ Run these in Supabase SQL Editor against the new DEV project:
 8. Update fake emails in `007_dev_user_role_mapping.sql` if needed, then run it.
 9. Run `../migration_general_affairs_category_foundation.sql`.
 10. Run `008_task1a_test_role_permissions.sql`.
-11. Run `../test_general_affairs_category_foundation.sql`.
+11. Optional: create `dev-full-admin@example.test`, then run `009_dev_full_admin_seed.sql` for broad manual UI testing.
+12. Run `../test_general_affairs_category_foundation.sql`.
 
 ## Create Auth Test Users
 
@@ -38,10 +39,13 @@ Create these users manually in the DEV Supabase Dashboard under Authentication:
 - `dev-ga-access@example.test`
 - `dev-ga-view@example.test`
 - `dev-ga-manage@example.test`
+- Optional full UI test user: `dev-full-admin@example.test`
 
 Use DEV-only passwords. Do not commit passwords, service role keys, or generated sessions to Git.
 
 If you prefer different fake emails, update `007_dev_user_role_mapping.sql` before running it. The script intentionally fails when any listed email does not exist in `auth.users`.
+
+`dev-full-admin@example.test` is intentionally not part of `007` or Task 1A RLS/API verification. Create it only when you want a broad DEV UI account, then run `009_dev_full_admin_seed.sql`.
 
 ## Task 1A Insertion Point
 
@@ -73,6 +77,8 @@ The seed creates four DEV roles:
 - `dev_ga_category_view`: service center access plus the three `category.view` permissions after `008`.
 - `dev_ga_category_manage`: service center access plus the three `category.manage` permissions after `008`.
 
+`009_dev_full_admin_seed.sql` maps `dev-full-admin@example.test` to the DEV `admin` role, sets `profiles.role = 'admin'` for legacy UI compatibility, and grants all currently active permissions to the `admin` role. Re-run `009` after adding more DEV migrations or permissions. Do not use this account for least-privilege RLS validation.
+
 Use each Auth user to sign in and directly query Supabase tables with that user's JWT.
 
 Expected behavior after Task 1A:
@@ -103,7 +109,8 @@ DELETE FROM public.store_managers WHERE user_id IN (
     'dev-no-ga@example.test',
     'dev-ga-access@example.test',
     'dev-ga-view@example.test',
-    'dev-ga-manage@example.test'
+    'dev-ga-manage@example.test',
+    'dev-full-admin@example.test'
   )
 );
 
@@ -112,7 +119,8 @@ DELETE FROM public.user_roles WHERE user_id IN (
     'dev-no-ga@example.test',
     'dev-ga-access@example.test',
     'dev-ga-view@example.test',
-    'dev-ga-manage@example.test'
+    'dev-ga-manage@example.test',
+    'dev-full-admin@example.test'
   )
 );
 
@@ -120,7 +128,8 @@ DELETE FROM public.profiles WHERE email IN (
   'dev-no-ga@example.test',
   'dev-ga-access@example.test',
   'dev-ga-view@example.test',
-  'dev-ga-manage@example.test'
+  'dev-ga-manage@example.test',
+  'dev-full-admin@example.test'
 );
 
 DELETE FROM public.stores WHERE store_code IN ('DEV001', 'DEV002');
@@ -130,4 +139,4 @@ Delete Auth users separately from the Supabase Dashboard.
 
 ## Production Warning
 
-Do not run `006_dev_base_seed.sql`, `007_dev_user_role_mapping.sql`, or `008_task1a_test_role_permissions.sql` in Production. These files create DEV-only roles, fake stores, and test mappings.
+Do not run `006_dev_base_seed.sql`, `007_dev_user_role_mapping.sql`, `008_task1a_test_role_permissions.sql`, or `009_dev_full_admin_seed.sql` in Production. These files create DEV-only roles, fake stores, broad admin permissions, and test mappings.

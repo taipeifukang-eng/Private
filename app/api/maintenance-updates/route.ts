@@ -6,6 +6,7 @@ import {
   transitionMaintenanceTicket,
 } from '@/lib/maintenance/status-service';
 import { normalizeProgressStage } from '@/lib/maintenance/status';
+import { SHARED_MAINTENANCE_REQUEST_UPDATE_CODES } from '@/lib/general-affairs/maintenance-permissions';
 
 const STORAGE_BUCKET = 'maintenance-photos';
 
@@ -47,8 +48,7 @@ export async function GET(request: NextRequest) {
     }
 
     const canManage = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.update',
-      'cross_dept.maintenance.view_all',
+      ...SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
     ]);
 
     let query = supabase

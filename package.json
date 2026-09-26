@@ -5,6 +5,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "test:rbac-local-ready": "npm run test:rbac-user-management-cases && npm run test:rbac-safe-preflight",
+    "test:rbac-safe-preflight": "node scripts/test-rbac-safe-preflight.js",
+    "test:rbac-user-management-cases": "node scripts/test-rbac-user-management-dev.js --list-cases",
+    "test:rbac-user-management-dev": "node scripts/test-rbac-user-management-dev.js",
+    "test:general-affairs-inventory-ui": "node scripts/test-general-affairs-inventory-ui.js",
+    "test:general-affairs-production-isolation": "node scripts/test-general-affairs-production-isolation.js",
     "start": "next start",
     "lint": "next lint"
   },
@@ -15,12 +21,14 @@
     "jspdf": "^4.1.0",
     "lucide-react": "^0.454.0",
     "next": "14.2.18",
+    "qrcode": "^1.5.4",
     "react": "^18",
     "react-dom": "^18",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "autoprefixer": "^10.4.20",

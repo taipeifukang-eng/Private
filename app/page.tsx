@@ -1,7 +1,6 @@
 import { getCurrentUser } from '@/app/auth/actions';
 import { getAssignments } from '@/app/actions';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { ClipboardList, ArrowRight, Activity, Cake, ArrowRightLeft, FileText, BellRing, UserPlus } from 'lucide-react';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
@@ -160,18 +159,18 @@ export default async function HomePage() {
           </div>
 
           <div className="flex flex-wrap gap-4 justify-center">
-            <Link
+            <a
               href="/login"
               className="px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 rounded-xl hover:from-amber-400 hover:to-amber-500 transition-all font-bold shadow-lg tracking-wider"
             >
               登入
-            </Link>
-            <Link
+            </a>
+            <a
               href="/register"
               className="px-8 py-3 bg-transparent text-white border-2 border-slate-500 rounded-xl hover:border-amber-500 hover:text-amber-400 transition-all font-semibold"
             >
               註冊帳號
-            </Link>
+            </a>
           </div>
         </div>
       </div>
@@ -883,7 +882,7 @@ export default async function HomePage() {
         {/* 調店登記確認 快捷入口（督導 / 管理員） */}
         {canConfirmTransfer && pendingTransferCount > 0 && (
           <div className="mb-4 sm:mb-5">
-            <Link
+            <a
               href="/admin/promotion-management?tab=transfer_requests"
               className="group flex items-center justify-between p-4 sm:p-5 bg-gradient-to-r from-orange-500 to-amber-500 rounded-2xl shadow-lg hover:from-orange-600 hover:to-amber-600 active:scale-[0.98] transition-all duration-150"
             >
@@ -907,12 +906,12 @@ export default async function HomePage() {
               </div>
               {/* Arrow */}
               <ArrowRight className="w-5 h-5 sm:w-6 sm:h-6 text-white/80 flex-shrink-0 group-hover:translate-x-1 transition-transform" />
-            </Link>
+            </a>
           </div>
         )}
 
         <div className="mb-4 sm:mb-5">
-          <Link
+          <a
             href="/monthly-release"
             className="group flex items-center justify-between rounded-2xl border border-amber-200 bg-white p-4 shadow-sm transition-all duration-150 hover:border-amber-300 hover:bg-amber-50/60 hover:shadow-md active:scale-[0.98] sm:p-5"
           >
@@ -926,7 +925,7 @@ export default async function HomePage() {
               </div>
             </div>
             <ArrowRight className="h-5 w-5 flex-shrink-0 text-amber-600 transition-transform group-hover:translate-x-1 sm:h-6 sm:w-6" />
-          </Link>
+          </a>
         </div>
 
         {canViewOwnBonusOnHome && (
@@ -942,13 +941,13 @@ export default async function HomePage() {
                     <p className="text-xs text-gray-500">員編：{employeeCode}</p>
                   </div>
                 </div>
-                <Link
+                <a
                   href="/monthly-status"
                   className="inline-flex items-center gap-1 rounded-lg border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700 hover:bg-violet-100"
                 >
                   前往月狀態
                   <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
+                </a>
               </div>
 
               {ownMonthlyBonusSummaries.length === 0 ? (
@@ -1032,13 +1031,13 @@ export default async function HomePage() {
           <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 lg:p-6 w-full">
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-900">我的任務</h2>
-              <Link
+              <a
                 href="/my-tasks"
                 className="text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 text-xs sm:text-sm whitespace-nowrap"
               >
                 查看全部
                 <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
-              </Link>
+              </a>
             </div>
 
             {myAssignments.length === 0 ? (
@@ -1046,7 +1045,7 @@ export default async function HomePage() {
             ) : (
               <div className="space-y-2 sm:space-y-3">
                 {myAssignments.slice(0, 3).map((assignment) => (
-                  <Link
+                  <a
                     key={assignment.id}
                     href={`/assignment/${assignment.id}`}
                     className="block p-2 sm:p-3 lg:p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all"
@@ -1064,7 +1063,7 @@ export default async function HomePage() {
                       </div>
                       <ArrowRight className="text-gray-400 flex-shrink-0 w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
-                  </Link>
+                  </a>
                 ))}
               </div>
             )}

@@ -1,5 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import {
+  requireAuthenticatedUser,
+  requireStoreScopePermission,
+  STORE_MANAGER_ASSIGN_PERMISSION_CODES,
+  STORE_SUPERVISOR_ASSIGN_PERMISSION_CODES,
+} from '@/lib/admin/store-management-access';
 
 type SupervisorAssignmentRow = {
   id: number;
@@ -86,25 +92,17 @@ async function normalizePrimarySupervisors(supabase: any, storeIds: string[]) {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
-    }
-
-    // 檢查是否為管理員
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
-    }
-
     const { userId, storeIds, roleType = 'supervisor', proxyStoreIds = [] } = await request.json();
-  console.log('[DEBUG assign] 收到參數 userId:', userId, '| roleType:', roleType, '| storeIds:', storeIds, '| proxyStoreIds:', proxyStoreIds);
+    const auth = await requireAuthenticatedUser(supabase);
+    if (auth.response) return auth.response;
+
+    const permissionDenied = await requireStoreScopePermission(
+      auth.user.id,
+      roleType === 'store_manager'
+        ? STORE_MANAGER_ASSIGN_PERMISSION_CODES
+        : STORE_SUPERVISOR_ASSIGN_PERMISSION_CODES,
+    );
+    if (permissionDenied) return permissionDenied;
 
     if (!userId || !Array.isArray(storeIds)) {
       return NextResponse.json({ success: false, error: '參數錯誤' }, { status: 400 });
@@ -196,7 +194,6 @@ export async function POST(request: Request) {
     }
 
     const proxyStoreIdsParsed = normalizeStoreIds(proxyStoreIds as unknown[]);
-  console.log('[DEBUG assign] proxyStoreIdsParsed:', proxyStoreIdsParsed);
 
     // 代理門市：不走 normalizePrimary，改用獨立邏輯
     // 讓自己 is_primary=false，再確保「其他督導」中有一位是主責
@@ -216,7 +213,6 @@ export async function POST(request: Request) {
       }
 
       // 對每個代理門市：若其他督導都沒有主責，選最舊的補為主責
-      console.log('[DEBUG assign] 代理 is_primary=false update 完成，正在查詢其他督導行...');
       const { data: otherRows } = await supabase
         .from('store_managers')
         .select('id, store_id, is_primary, created_at, profiles(job_title)')
@@ -224,7 +220,6 @@ export async function POST(request: Request) {
         .neq('user_id', userId)
         .in('store_id', proxyStoreIdsParsed);
 
-      console.log('[DEBUG assign] otherRows (proxy 門市的其他督導):', JSON.stringify(otherRows));
       const otherByStore = new Map<string, any[]>();
       // 只計算職稱含「督導」的人，排除經理等全門市管理者
       (otherRows || [])

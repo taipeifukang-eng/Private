@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 import { normalizeMaintenanceStatus } from '@/lib/maintenance/status';
+import {
+  SHARED_MAINTENANCE_REQUEST_CREATE_CODES,
+  SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
+  SHARED_MAINTENANCE_REQUEST_VIEW_ALL_CODES,
+} from '@/lib/general-affairs/maintenance-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,12 +69,13 @@ export async function GET(request: NextRequest) {
     const yearMonth = searchParams.get('year_month'); // format: YYYY-MM
     const startDate = searchParams.get('start_date'); // format: YYYY-MM-DD
     const endDate = searchParams.get('end_date'); // format: YYYY-MM-DD
+    const source = searchParams.get('source');
 
     const canViewAll = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.view_all',
+      ...SHARED_MAINTENANCE_REQUEST_VIEW_ALL_CODES,
     ]);
     const canSubmit = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.submit',
+      ...SHARED_MAINTENANCE_REQUEST_CREATE_CODES,
     ]);
 
     // 無店舖條件表示查看全域，需要 view_all
@@ -96,6 +102,12 @@ export async function GET(request: NextRequest) {
         category:maintenance_categories(id, name, sort_order, is_active)
       `, { count: 'exact' })
       .order('created_at', { ascending: false });
+
+    // The new General Affairs service center shares the maintenance workflow
+    // tables, but it must never surface legacy cross-department tickets.
+    if (source === 'general_affairs') {
+      query = query.not('ga_service_request_id', 'is', null);
+    }
 
     if (storeId) {
       query = query.eq('store_id', storeId);
@@ -159,8 +171,8 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     const [canSubmit, canViewAll] = await Promise.all([
-      hasAnyPermission(user.id, ['cross_dept.maintenance.submit']),
-      hasAnyPermission(user.id, ['cross_dept.maintenance.view_all']),
+      hasAnyPermission(user.id, SHARED_MAINTENANCE_REQUEST_CREATE_CODES),
+      hasAnyPermission(user.id, SHARED_MAINTENANCE_REQUEST_VIEW_ALL_CODES),
     ]);
     if (!canSubmit && !canViewAll) {
       return NextResponse.json({ success: false, error: '沒有提交維修回報的權限' }, { status: 403 });
@@ -273,8 +285,7 @@ export async function PATCH(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     const canManage = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.update',
-      'cross_dept.maintenance.view_all',
+      ...SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
     ]);
     if (!canManage) {
       return NextResponse.json({ success: false, error: '沒有更新維修回報的權限' }, { status: 403 });
@@ -347,8 +358,7 @@ export async function DELETE(request: NextRequest) {
     if (!req) return NextResponse.json({ success: false, error: '維修回報不存在' }, { status: 404 });
 
     const canManage = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.view_all',
-      'cross_dept.maintenance.update',
+      ...SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
     ]);
     const canDeleteOwn = req.reported_by === user.id;
 

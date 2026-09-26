@@ -1,7 +1,8 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import Link from 'next/link';
-import { Store, Plus, Users, MapPin, Phone, Edit, UserPlus, Building2, Hash, User, Copy, Eye, EyeOff, MapPinned } from 'lucide-react';
+import { Store, Plus, Users, Edit, UserPlus, Copy, Eye, EyeOff, MapPinned } from 'lucide-react';
+import { hasAnyPermission } from '@/lib/permissions/check';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,22 +20,25 @@ export default async function StoresPage({
     redirect('/login');
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, department, job_title')
-    .eq('id', user.id)
-    .single();
+  const [
+    canViewStores,
+    canViewInactiveStores,
+    canCreateStore,
+    canEditStore,
+    canCloneStore,
+  ] = await Promise.all([
+    hasAnyPermission(user.id, ['store.store.view', 'store.manage']),
+    hasAnyPermission(user.id, ['store.store.view_inactive', 'store.manage']),
+    hasAnyPermission(user.id, ['store.store.create', 'store.manage']),
+    hasAnyPermission(user.id, ['store.store.edit', 'store.manage']),
+    hasAnyPermission(user.id, ['store.store.clone', 'store.manage']),
+  ]);
 
-  // 檢查是否為需要指派的職位
-  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-
-  // 檢查權限：admin、營業部主管（manager 但不是需要指派的職位）或營業部助理（member 但不是需要指派的職位）
-  const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-  const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-  
-  if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
+  if (!canViewStores && !canCreateStore && !canEditStore && !canCloneStore) {
     redirect('/dashboard');
   }
+
+  const effectiveShowInactive = showInactive && canViewInactiveStores;
 
   // 獲取所有門市（根據參數決定是否包含已停止的）
   const storesQuery = supabase
@@ -43,7 +47,7 @@ export default async function StoresPage({
     .order('store_code');
   
   // 如果不顯示已停止的，則只取營運中的門市
-  if (!showInactive) {
+  if (!effectiveShowInactive) {
     storesQuery.eq('is_active', true);
   }
   
@@ -104,16 +108,16 @@ export default async function StoresPage({
           </div>
           <div className="flex items-center gap-3">
             {/* 顯示/隱藏已停止門市按鈕 */}
-            {(inactiveCount ?? 0) > 0 && (
+            {(inactiveCount ?? 0) > 0 && canViewInactiveStores && (
               <Link
-                href={showInactive ? '/admin/stores' : '/admin/stores?showInactive=true'}
+                href={effectiveShowInactive ? '/admin/stores' : '/admin/stores?showInactive=true'}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors text-sm font-medium ${
-                  showInactive 
+                  effectiveShowInactive
                     ? 'bg-gray-200 text-gray-700 hover:bg-gray-300' 
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {showInactive ? (
+                {effectiveShowInactive ? (
                   <>
                     <EyeOff size={18} />
                     隱藏已停止 ({inactiveCount})
@@ -133,8 +137,7 @@ export default async function StoresPage({
               <MapPinned size={20} />
               Google 地圖
             </Link>
-            {/* 只有 admin 和營業部主管可以新增門市 */}
-            {(profile?.role === 'admin' || isBusinessSupervisor) && (
+            {canCreateStore && (
               <Link
                 href="/admin/stores/create"
                 className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
@@ -244,8 +247,7 @@ export default async function StoresPage({
                     
                     {/* 操作按鈕 */}
                     <div className="col-span-2 flex gap-1 justify-center flex-wrap">
-                      {/* admin 和營業部主管可以編輯門市 */}
-                      {(profile?.role === 'admin' || isBusinessSupervisor) && (
+                      {canEditStore && (
                         <Link
                           href={`/admin/stores/${store.id}/edit`}
                           className="px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-xs font-medium"
@@ -263,8 +265,7 @@ export default async function StoresPage({
                         <UserPlus size={12} className="inline mr-1" />
                         員工
                       </Link>
-                      {/* admin 和營業部主管可以搬遷門市 */}
-                      {store.is_active && (profile?.role === 'admin' || isBusinessSupervisor) && (
+                      {store.is_active && canCloneStore && (
                         <Link
                           href={`/admin/stores/${store.id}/clone`}
                           className="px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors text-xs font-medium"
@@ -285,7 +286,7 @@ export default async function StoresPage({
               <div className="text-sm text-gray-600 flex items-center gap-4">
                 <span>
                   共 <span className="font-semibold text-gray-900">{stores.length}</span> 間門市
-                  {showInactive && (inactiveCount ?? 0) > 0 && (
+                  {effectiveShowInactive && (inactiveCount ?? 0) > 0 && (
                     <span className="text-gray-500 ml-2">
                       （含 <span className="text-orange-600">{inactiveCount}</span> 間已停止）
                     </span>

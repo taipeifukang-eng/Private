@@ -5,12 +5,15 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { hasPermission } from '@/lib/permissions/check';
+import { hasAnyPermission, hasPermission } from '@/lib/permissions/check';
+import { ROLE_EDIT_PAGE_PERMISSION_CODES } from '@/lib/permissions/rbac-management';
 import RoleEditClient from './RoleEditClient';
 
 export const metadata = {
   title: '編輯角色 | 流程審核系統'
 };
+
+export const dynamic = 'force-dynamic';
 
 export default async function RoleEditPage({ params }: { params: { id: string } }) {
   const supabase = await createClient();
@@ -21,9 +24,13 @@ export default async function RoleEditPage({ params }: { params: { id: string } 
   }
 
   // 檢查權限
-  const canView = await hasPermission(user.id, 'role.role.view');
+  const canView = await hasAnyPermission(user.id, ROLE_EDIT_PAGE_PERMISSION_CODES);
   const canEdit = await hasPermission(user.id, 'role.role.edit');
+  const canViewPermissions = await hasPermission(user.id, 'role.permission.view');
   const canAssignPermissions = await hasPermission(user.id, 'role.permission.assign');
+  const canViewUsers = await hasPermission(user.id, 'role.user_role.view');
+  const canAssignUsers = await hasPermission(user.id, 'role.user_role.assign');
+  const canRevokeUsers = await hasPermission(user.id, 'role.user_role.revoke');
 
   if (!canView) {
     redirect('/dashboard');
@@ -40,7 +47,11 @@ export default async function RoleEditPage({ params }: { params: { id: string } 
           <RoleEditClient 
             roleId={params.id}
             canEdit={canEdit}
+            canViewPermissions={canViewPermissions}
             canAssignPermissions={canAssignPermissions}
+            canViewUsers={canViewUsers}
+            canAssignUsers={canAssignUsers}
+            canRevokeUsers={canRevokeUsers}
           />
         </Suspense>
       </div>

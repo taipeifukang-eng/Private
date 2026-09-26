@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+import { SHARED_MAINTENANCE_REQUEST_VIEW_ALL_CODES } from '@/lib/general-affairs/maintenance-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,8 +25,7 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     const canViewAll = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.view_all',
-      'cross_dept.maintenance.update',
+      ...SHARED_MAINTENANCE_REQUEST_VIEW_ALL_CODES,
     ]);
 
     if (!canViewAll) {
@@ -34,10 +34,15 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const yearMonth = searchParams.get('year_month');
+    const source = searchParams.get('source');
 
     let query = supabase
       .from('maintenance_requests')
       .select('store_id, status, store:stores(id, store_code, store_name)');
+
+    if (source === 'general_affairs') {
+      query = query.not('ga_service_request_id', 'is', null);
+    }
 
     if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
       const [yr, mo] = yearMonth.split('-').map(Number);

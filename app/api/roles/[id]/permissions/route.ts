@@ -3,8 +3,10 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
+
+export const dynamic = 'force-dynamic';
 
 // 取得角色的所有權限
 export async function GET(
@@ -29,9 +31,10 @@ export async function GET(
     }
 
     const { id } = params;
+    const adminSupabase = createAdminClient();
 
     // 取得所有權限
-    const { data: allPermissions, error: permError } = await supabase
+    const { data: allPermissions, error: permError } = await adminSupabase
       .from('permissions')
       .select('*')
       .eq('is_active', true)
@@ -48,7 +51,7 @@ export async function GET(
     }
 
     // 取得角色已有的權限
-    const { data: rolePermissions, error: rpError } = await supabase
+    const { data: rolePermissions, error: rpError } = await adminSupabase
       .from('role_permissions')
       .select('permission_id, is_allowed')
       .eq('role_id', id);
@@ -72,7 +75,10 @@ export async function GET(
       granted: permissionMap.get(perm.id) || false
     }));
 
-    return NextResponse.json({ permissions });
+    return NextResponse.json(
+      { permissions },
+      { headers: { 'Cache-Control': 'no-store' } }
+    );
   } catch (error) {
     console.error('取得角色權限異常:', error);
     return NextResponse.json(
@@ -115,8 +121,10 @@ export async function POST(
       );
     }
 
+    const adminSupabase = createAdminClient();
+
     // 檢查角色是否存在
-    const { data: role, error: roleError } = await supabase
+    const { data: role, error: roleError } = await adminSupabase
       .from('roles')
       .select('id, is_system')
       .eq('id', id)
@@ -130,7 +138,7 @@ export async function POST(
     }
 
     // 先刪除現有權限
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await adminSupabase
       .from('role_permissions')
       .delete()
       .eq('role_id', id);
@@ -152,7 +160,7 @@ export async function POST(
         created_by: user.id
       }));
 
-      const { error: insertError } = await supabase
+      const { error: insertError } = await adminSupabase
         .from('role_permissions')
         .insert(newPermissions);
 

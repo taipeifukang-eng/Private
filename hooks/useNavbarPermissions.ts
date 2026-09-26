@@ -3,12 +3,29 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ORGANIZATION_NAV_PERMISSION_CODES } from '@/lib/admin/organization-management';
+import {
+  ROLE_MANAGEMENT_MUTATION_PERMISSION_CODES,
+  ROLE_MANAGEMENT_NAV_PERMISSION_CODES,
+  USER_MANAGEMENT_MUTATION_PERMISSION_CODES,
+  USER_MANAGEMENT_NAV_PERMISSION_CODES,
+  hasAnyCode,
+} from '@/lib/permissions/rbac-management';
+import {
+  GA_MAINTENANCE_MODULE_CODES,
+  GA_WORK_ORDER_MODULE_CODES,
+} from '@/lib/general-affairs/maintenance-permissions';
 
 /**
  * 導航欄權限介面
  * 包含所有導航選單項目的權限檢查
  */
-interface NavbarPermissions {
+export interface NavbarPermissions {
+  // 系統管理
+  canViewUsers: boolean;
+  canManageUsers: boolean;
+  canViewRoles: boolean;
+  canManageRoles: boolean;
+
   // 任務管理
   canViewOwnTasks: boolean;
   canViewDashboard: boolean;
@@ -45,6 +62,8 @@ interface NavbarPermissions {
   canCreateInspection: boolean;
   canManageInspectionTemplates: boolean;
   canViewImprovements: boolean;
+  // 督導管理日誌
+  canAccessSupervisorManagementLog: boolean;
   // 跨部門管理
   canAccessCrossDeptMerchandise: boolean;  // 商品部頁面入口
   canManageProductsMaster: boolean;        // 商品主檔管理
@@ -52,7 +71,68 @@ interface NavbarPermissions {
   // 總務組管理
   canAccessMaintenance: boolean;           // 總務組維修回報頁面入口
   canAccessGeneralAffairsService: boolean; // 新版總務服務中心入口
+  canAccessGeneralAffairsMaintenance: boolean; // 總務服務中心維修回報入口
+  canAccessGeneralAffairsWorkOrders: boolean; // 總務服務中心工單中心入口
+  canAccessGeneralAffairsInventory: boolean; // 總務服務中心庫存管理入口
+  canAccessGeneralAffairsEquipment: boolean; // 總務設備管理入口
+  canAccessGeneralAffairsFacilities: boolean; // 總務設施管理入口
+  canAccessGeneralAffairsParts: boolean; // 總務料件中心入口
+  canAccessGeneralAffairsVendors: boolean; // 總務廠商管理入口
+  canAccessGeneralAffairsUtilities: boolean; // 總務費用紀錄入口
 }
+
+const DEFAULT_NAVBAR_PERMISSIONS: NavbarPermissions = {
+  canViewUsers: false,
+  canManageUsers: false,
+  canViewRoles: false,
+  canManageRoles: false,
+  canViewOwnTasks: false,
+  canViewDashboard: false,
+  canManageTasks: false,
+  canViewArchivedTasks: false,
+  canViewOrganization: false,
+  canViewDepartments: false,
+  canManageDepartments: false,
+  canAssignStoreManager: false,
+  canAssignSupervisor: false,
+  canManageStores: false,
+  canManageEmployees: false,
+  canManageMovements: false,
+  canImportEmployees: false,
+  canManageActivities: false,
+  canAccessActivitySchedule: false,
+  canManageInventory: false,
+  canManagePerformance: false,
+  canViewPharmacistManagement: false,
+  canEditPharmacistManagement: false,
+  canUseClinicSelfpayMargin: false,
+  canViewRelationshipMembers: false,
+  canManageEmployeePurchases: false,
+  canViewMonthlyStatus: false,
+  canExportMonthlyStatus: false,
+  canViewInspections: false,
+  canCreateInspection: false,
+  canManageInspectionTemplates: false,
+  canViewImprovements: false,
+  canAccessSupervisorManagementLog: false,
+  canAccessCrossDeptMerchandise: false,
+  canManageProductsMaster: false,
+  canAccessMaintenance: false,
+  canAccessGeneralAffairsService: false,
+  canAccessGeneralAffairsMaintenance: false,
+  canAccessGeneralAffairsWorkOrders: false,
+  canAccessGeneralAffairsInventory: false,
+  canAccessGeneralAffairsEquipment: false,
+  canAccessGeneralAffairsFacilities: false,
+  canAccessGeneralAffairsParts: false,
+  canAccessGeneralAffairsVendors: false,
+  canAccessGeneralAffairsUtilities: false,
+};
+
+const navbarPermissionsCache = new Map<string, {
+  value?: NavbarPermissions;
+  promise?: Promise<NavbarPermissions>;
+}>();
 
 /**
  * 導航欄權限 Hook
@@ -72,40 +152,7 @@ interface NavbarPermissions {
  * ```
  */
 export function useNavbarPermissions(userId: string): NavbarPermissions {
-  const [permissions, setPermissions] = useState<NavbarPermissions>({
-    canViewOwnTasks: false,
-    canViewDashboard: false,
-    canManageTasks: false,
-    canViewArchivedTasks: false,
-    canViewOrganization: false,
-    canViewDepartments: false,
-    canManageDepartments: false,
-    canAssignStoreManager: false,
-    canAssignSupervisor: false,
-    canManageStores: false,
-    canManageEmployees: false,
-    canManageMovements: false,
-    canImportEmployees: false,
-    canManageActivities: false,
-    canAccessActivitySchedule: false,
-    canManageInventory: false,
-    canManagePerformance: false,
-    canViewPharmacistManagement: false,
-    canEditPharmacistManagement: false,
-    canUseClinicSelfpayMargin: false,
-    canViewRelationshipMembers: false,
-    canManageEmployeePurchases: false,
-    canViewMonthlyStatus: false,
-    canExportMonthlyStatus: false,
-    canViewInspections: false,
-    canCreateInspection: false,
-    canManageInspectionTemplates: false,
-    canViewImprovements: false,
-    canAccessCrossDeptMerchandise: false,
-    canManageProductsMaster: false,
-    canAccessMaintenance: false,
-    canAccessGeneralAffairsService: false,
-  });
+  const [permissions, setPermissions] = useState<NavbarPermissions>(DEFAULT_NAVBAR_PERMISSIONS);
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -115,12 +162,48 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
       return;
     }
 
-    async function checkPermissions() {
+    let cancelled = false;
+    const cached = navbarPermissionsCache.get(userId);
+    if (cached?.value) {
+      setPermissions(cached.value);
+      setIsLoading(false);
+      return;
+    }
+    if (cached?.promise) {
+      cached.promise
+        .then((resolved) => {
+          if (!cancelled) setPermissions(resolved);
+        })
+        .catch((error) => {
+          console.error('❌ 載入導航欄權限失敗:', error);
+          if (!cancelled) setPermissions(DEFAULT_NAVBAR_PERMISSIONS);
+        })
+        .finally(() => {
+          if (!cancelled) setIsLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function checkPermissions(): Promise<NavbarPermissions> {
       try {
         const supabase = createClient();
         
+        let profileRole: string | null = null;
+        try {
+          const profileRes = await fetch('/api/user/profile', { cache: 'no-store' });
+          if (profileRes.ok) {
+            const profileJson = await profileRes.json();
+            profileRole = profileJson.profile?.role || null;
+          }
+        } catch (profileError) {
+          console.error('❌ 載入使用者 Profile 權限相容資訊失敗:', profileError);
+        }
+
         // 批次查詢用戶的所有權限
-        // 透過 user_roles -> roles -> role_permissions -> permissions
+        // 透過 user_roles -> roles -> role_permissions -> permissions。
+        // DEV baseline 不開放 RBAC 表直接 SELECT；若被 RLS 擋住，仍保留 profile admin compatibility。
         const { data: userRoles } = await supabase
           .from('user_roles')
           .select(`
@@ -136,15 +219,14 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           .eq('user_id', userId)
           .eq('is_active', true);
 
-        if (!userRoles || userRoles.length === 0) {
-          setIsLoading(false);
-          return;
-        }
-
         // 整理權限集合（Set 確保不重複）
         const permissionSet = new Set<string>();
+        const roleCodeSet = new Set<string>();
         
-        userRoles.forEach((ur: any) => {
+        (userRoles || []).forEach((ur: any) => {
+          if (ur.role?.code) {
+            roleCodeSet.add(ur.role.code);
+          }
           if (ur.role?.role_permissions) {
             ur.role.role_permissions.forEach((rp: any) => {
               if (rp.is_allowed && rp.permission?.code) {
@@ -153,6 +235,23 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
             });
           }
         });
+
+        // Navbar 顯示應使用 server-side effective permissions 作為正式來源。
+        // 直接查 user_roles 只保留作為相容與 role code 判斷，避免瀏覽器端 RLS
+        // 或 join 形狀差異造成已指派權限沒有出現在導覽列。
+        try {
+          const permissionsRes = await fetch('/api/permissions/user', { cache: 'no-store' });
+          if (permissionsRes.ok) {
+            const permissionsJson = await permissionsRes.json();
+            (permissionsJson.permissions || []).forEach((code: unknown) => {
+              if (typeof code === 'string' && code.trim()) {
+                permissionSet.add(code.trim());
+              }
+            });
+          }
+        } catch (permissionsError) {
+          console.error('❌ 載入使用者有效權限失敗:', permissionsError);
+        }
 
         let canAccessGeneralAffairsService = false;
         try {
@@ -165,106 +264,230 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           console.error('❌ 載入總務服務中心入口權限失敗:', accessError);
         }
 
-        // 更新權限狀態
-        setPermissions({
+        const isAdminLike =
+          profileRole === 'admin' ||
+          roleCodeSet.has('admin') ||
+          roleCodeSet.has('system_admin') ||
+          roleCodeSet.has('admin_role') ||
+          roleCodeSet.has('full_admin') ||
+          roleCodeSet.has('full_admin_role') ||
+          roleCodeSet.has('dev_full_admin') ||
+          roleCodeSet.has('owner') ||
+          roleCodeSet.has('owner_role');
+
+        const isStoreManager =
+          roleCodeSet.has('store_manager_role') ||
+          roleCodeSet.has('store_manager');
+
+        const canAccessGeneralAffairsInventory =
+          isAdminLike ||
+          isStoreManager ||
+          permissionSet.has('general_affairs.inventory_balance.view') ||
+          permissionSet.has('general_affairs.inventory_transaction.view') ||
+          permissionSet.has('general_affairs.inventory_transaction.manage') ||
+          permissionSet.has('general_affairs.inventory_transfer.view') ||
+          permissionSet.has('general_affairs.inventory_transfer.manage');
+        const canAccessGeneralAffairsMaintenance =
+          isAdminLike ||
+          hasAnyCode(permissionSet, GA_MAINTENANCE_MODULE_CODES);
+        const canAccessGeneralAffairsWorkOrders =
+          isAdminLike ||
+          hasAnyCode(permissionSet, GA_WORK_ORDER_MODULE_CODES);
+        const canAccessGeneralAffairsEquipment =
+          isAdminLike ||
+          isStoreManager ||
+          permissionSet.has('general_affairs.equipment.view') ||
+          permissionSet.has('general_affairs.equipment.manage');
+        const canAccessGeneralAffairsFacilities =
+          isAdminLike ||
+          isStoreManager ||
+          permissionSet.has('general_affairs.facility.view') ||
+          permissionSet.has('general_affairs.facility.manage');
+        const canAccessGeneralAffairsParts =
+          isAdminLike ||
+          isStoreManager ||
+          permissionSet.has('general_affairs.part.view') ||
+          permissionSet.has('general_affairs.part.manage');
+        const canAccessGeneralAffairsVendors =
+          isAdminLike ||
+          permissionSet.has('general_affairs.vendor.view') ||
+          permissionSet.has('general_affairs.vendor.manage') ||
+          permissionSet.has('general_affairs.service_category.view') ||
+          permissionSet.has('general_affairs.service_category.manage') ||
+          permissionSet.has('general_affairs.service_region.view') ||
+          permissionSet.has('general_affairs.service_region.manage') ||
+          permissionSet.has('general_affairs.cooperation_record.view');
+        const canAccessGeneralAffairsUtilities =
+          isAdminLike ||
+          permissionSet.has('general_affairs.utility_bill.view') ||
+          permissionSet.has('general_affairs.utility_bill.manage');
+
+        const canViewUsers =
+          isAdminLike ||
+          hasAnyCode(permissionSet, USER_MANAGEMENT_NAV_PERMISSION_CODES);
+        const canManageUsers =
+          isAdminLike ||
+          hasAnyCode(permissionSet, USER_MANAGEMENT_MUTATION_PERMISSION_CODES);
+        const canViewRoles =
+          isAdminLike ||
+          hasAnyCode(permissionSet, ROLE_MANAGEMENT_NAV_PERMISSION_CODES);
+        const canManageRoles =
+          isAdminLike ||
+          hasAnyCode(permissionSet, ROLE_MANAGEMENT_MUTATION_PERMISSION_CODES) ||
+          permissionSet.has('role.permission.assign') ||
+          permissionSet.has('role.user_role.assign') ||
+          permissionSet.has('role.user_role.revoke');
+
+        const hasPermissionCode = (code: string) => isAdminLike || permissionSet.has(code);
+        const hasAnyPermissionCode = (codes: readonly string[]) =>
+          isAdminLike || codes.some((code) => permissionSet.has(code));
+
+        const nextPermissions: NavbarPermissions = {
+          canViewUsers,
+          canManageUsers,
+          canViewRoles,
+          canManageRoles,
           // 任務管理
-          canViewOwnTasks: permissionSet.has('task.view_own'),
-          canViewDashboard: permissionSet.has('dashboard.view'),
-          canManageTasks: permissionSet.has('task.manage'),
-          canViewArchivedTasks: permissionSet.has('task.view_archived'),
+          canViewOwnTasks: hasPermissionCode('task.view_own'),
+          canViewDashboard: hasPermissionCode('dashboard.view'),
+          canManageTasks: hasPermissionCode('task.manage'),
+          canViewArchivedTasks: hasPermissionCode('task.view_archived'),
           
           // 門市管理
-          canViewOrganization: ORGANIZATION_NAV_PERMISSION_CODES.some(code => permissionSet.has(code)),
-          canViewDepartments:
-            permissionSet.has('organization.department.view') ||
-            permissionSet.has('organization.department.create') ||
-            permissionSet.has('organization.department.edit') ||
-            permissionSet.has('organization.member.view') ||
-            permissionSet.has('organization.member.manage') ||
-            permissionSet.has('organization.manager.view') ||
-            permissionSet.has('organization.manager.manage'),
-          canManageDepartments:
-            permissionSet.has('organization.department.create') ||
-            permissionSet.has('organization.department.edit') ||
-            permissionSet.has('organization.member.manage') ||
-            permissionSet.has('organization.manager.manage'),
-          canAssignStoreManager: permissionSet.has('store.manager.assign'),
-          canAssignSupervisor: permissionSet.has('store.supervisor.assign'),
-          canManageStores: permissionSet.has('store.manage'),
-          canManageEmployees: permissionSet.has('employee.manage'),
-          canManageMovements: permissionSet.has('employee.movement.manage'),
-          canImportEmployees: permissionSet.has('employee.import'),
-          canManageActivities: permissionSet.has('activity.manage'),
-          canAccessActivitySchedule:
-            permissionSet.has('activity.campaign.edit') ||
-            permissionSet.has('activity.store_detail.edit') ||
-            permissionSet.has('activity.equipment_trip.edit') ||
-            permissionSet.has('activity.checklist.edit'),
-          canManageInventory:
-            permissionSet.has('inventory.manage') ||
-            permissionSet.has('inventory.inventory.access') ||
-            permissionSet.has('inventory.inventory.view') ||
-            permissionSet.has('inventory.result_analysis.view_own'),
-          canManagePerformance: permissionSet.has('performance.view') || permissionSet.has('performance.edit'),
-          canViewPharmacistManagement: permissionSet.has('pharmacist.management.view'),
-          canEditPharmacistManagement: permissionSet.has('pharmacist.management.edit'),
-          canUseClinicSelfpayMargin:
-            permissionSet.has('monthly.status.view_own') ||
-            permissionSet.has('monthly.status.view_all') ||
-            permissionSet.has('employee.movement.manage') ||
-            permissionSet.has('store.manage'),
-          canViewRelationshipMembers:
-            permissionSet.has('relationship_member.view') ||
-            permissionSet.has('relationship_member.edit') ||
-            permissionSet.has('relationship_member.delete') ||
-            permissionSet.has('relationship_member.approve'),
-          canManageEmployeePurchases:
-            permissionSet.has('employee_purchase.view') ||
-            permissionSet.has('employee_purchase.import'),
+          canViewOrganization: hasAnyPermissionCode(ORGANIZATION_NAV_PERMISSION_CODES),
+          canViewDepartments: hasAnyPermissionCode([
+            'organization.department.view',
+            'organization.department.create',
+            'organization.department.edit',
+            'organization.member.view',
+            'organization.member.manage',
+            'organization.manager.view',
+            'organization.manager.manage',
+          ]),
+          canManageDepartments: hasAnyPermissionCode([
+            'organization.department.create',
+            'organization.department.edit',
+            'organization.member.manage',
+            'organization.manager.manage',
+          ]),
+          canAssignStoreManager: hasPermissionCode('store.manager.assign'),
+          canAssignSupervisor: hasPermissionCode('store.supervisor.assign'),
+          canManageStores: hasPermissionCode('store.manage'),
+          canManageEmployees: hasPermissionCode('employee.manage'),
+          canManageMovements: hasPermissionCode('employee.movement.manage'),
+          canImportEmployees: hasPermissionCode('employee.import'),
+          canManageActivities: hasPermissionCode('activity.manage'),
+          canAccessActivitySchedule: hasAnyPermissionCode([
+            'activity.campaign.edit',
+            'activity.store_detail.edit',
+            'activity.equipment_trip.edit',
+            'activity.checklist.edit',
+          ]),
+          canManageInventory: hasAnyPermissionCode([
+            'inventory.manage',
+            'inventory.inventory.access',
+            'inventory.inventory.view',
+            'inventory.result_analysis.view_own',
+          ]),
+          canManagePerformance: hasAnyPermissionCode(['performance.view', 'performance.edit']),
+          canViewPharmacistManagement: hasPermissionCode('pharmacist.management.view'),
+          canEditPharmacistManagement: hasPermissionCode('pharmacist.management.edit'),
+          canUseClinicSelfpayMargin: hasAnyPermissionCode([
+            'monthly.status.view_own',
+            'monthly.status.view_all',
+            'employee.movement.manage',
+            'store.manage',
+          ]),
+          canViewRelationshipMembers: hasAnyPermissionCode([
+            'relationship_member.view',
+            'relationship_member.edit',
+            'relationship_member.delete',
+            'relationship_member.approve',
+          ]),
+          canManageEmployeePurchases: hasAnyPermissionCode([
+            'employee_purchase.view',
+            'employee_purchase.import',
+          ]),
           
           // 每月人員狀態
-          canViewMonthlyStatus: 
-            permissionSet.has('monthly.status.view_own') || 
-            permissionSet.has('monthly.status.view_all'),
-          canExportMonthlyStatus: permissionSet.has('monthly.status.export'),
+          canViewMonthlyStatus: hasAnyPermissionCode([
+            'monthly.status.view_own',
+            'monthly.status.view_all',
+          ]),
+          canExportMonthlyStatus: hasPermissionCode('monthly.status.export'),
           
           // 督導巡店
-          canViewInspections:
-            permissionSet.has('inspection.view_own') ||
-            permissionSet.has('inspection.view_store') ||
-            permissionSet.has('inspection.view_all'),
-          canCreateInspection: permissionSet.has('inspection.create'),
-          canManageInspectionTemplates: permissionSet.has('inspection.template.manage'),
-          canViewImprovements:
-            permissionSet.has('inspection.improvement.view_all') ||
-            permissionSet.has('inspection.improvement.view_own') ||
-            permissionSet.has('inspection.improvement.view_own_store') ||
-            permissionSet.has('inspection.improvement.manage') ||
-            permissionSet.has('inspection.improvement.submit'),
+          canViewInspections: hasAnyPermissionCode([
+            'inspection.view_own',
+            'inspection.view_store',
+            'inspection.view_all',
+          ]),
+          canCreateInspection: hasPermissionCode('inspection.create'),
+          canManageInspectionTemplates: hasPermissionCode('inspection.template.manage'),
+          canViewImprovements: hasAnyPermissionCode([
+            'inspection.improvement.view_all',
+            'inspection.improvement.view_own',
+            'inspection.improvement.view_own_store',
+            'inspection.improvement.manage',
+            'inspection.improvement.submit',
+          ]),
+
+          // 督導管理日誌
+            canAccessSupervisorManagementLog: hasAnyPermissionCode([
+              'supervisor.management_log.view_own',
+              'supervisor.management_log.view_team',
+              'supervisor.management_log.create',
+              'supervisor.management_log.update_own',
+              'supervisor.management_log.follow_up',
+              'supervisor.management_log.manage',
+            ]),
 
           // 跨部門管理
-          canAccessCrossDeptMerchandise:
-            permissionSet.has('cross_dept.stockout.view_all') ||
-            permissionSet.has('cross_dept.stockout.respond') ||
-            permissionSet.has('cross_dept.stockout.submit'),
-          canManageProductsMaster:
-            permissionSet.has('store.products_master.manage'),
+          canAccessCrossDeptMerchandise: hasAnyPermissionCode([
+            'cross_dept.stockout.view_all',
+            'cross_dept.stockout.respond',
+            'cross_dept.stockout.submit',
+          ]),
+          canManageProductsMaster: hasPermissionCode('store.products_master.manage'),
           
           // 總務組管理
-          canAccessMaintenance:
-            permissionSet.has('cross_dept.maintenance.view_all') ||
-            permissionSet.has('cross_dept.maintenance.submit') ||
-            permissionSet.has('cross_dept.maintenance.update'),
+          canAccessMaintenance: hasAnyPermissionCode([
+            'cross_dept.maintenance.view_all',
+            'cross_dept.maintenance.submit',
+            'cross_dept.maintenance.update',
+          ]),
           canAccessGeneralAffairsService,
-        });
+          canAccessGeneralAffairsMaintenance,
+          canAccessGeneralAffairsWorkOrders,
+          canAccessGeneralAffairsInventory,
+          canAccessGeneralAffairsEquipment,
+          canAccessGeneralAffairsFacilities,
+          canAccessGeneralAffairsParts,
+          canAccessGeneralAffairsVendors,
+          canAccessGeneralAffairsUtilities,
+        };
+        navbarPermissionsCache.set(userId, { value: nextPermissions });
+        return nextPermissions;
       } catch (error) {
         console.error('❌ 載入導航欄權限失敗:', error);
-      } finally {
-        setIsLoading(false);
+        navbarPermissionsCache.delete(userId);
+        return DEFAULT_NAVBAR_PERMISSIONS;
       }
     }
 
-    checkPermissions();
+    const promise = checkPermissions();
+    navbarPermissionsCache.set(userId, { promise });
+    promise
+      .then((resolved) => {
+        if (!cancelled) setPermissions(resolved);
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [userId]);
 
   // 在載入期間返回所有權限為 false
@@ -332,5 +555,19 @@ export function hasAnyCrossDeptPermission(permissions: NavbarPermissions): boole
   return (
     permissions.canAccessCrossDeptMerchandise ||
     permissions.canAccessMaintenance
+  );
+}
+
+export function hasAnyGeneralAffairsPermission(permissions: NavbarPermissions): boolean {
+  return (
+    permissions.canAccessGeneralAffairsService ||
+    permissions.canAccessGeneralAffairsInventory ||
+    permissions.canAccessGeneralAffairsMaintenance ||
+    permissions.canAccessGeneralAffairsWorkOrders ||
+    permissions.canAccessGeneralAffairsEquipment ||
+    permissions.canAccessGeneralAffairsFacilities ||
+    permissions.canAccessGeneralAffairsParts ||
+    permissions.canAccessGeneralAffairsVendors ||
+    permissions.canAccessGeneralAffairsUtilities
   );
 }

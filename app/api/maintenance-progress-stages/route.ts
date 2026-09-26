@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
 import { MAINTENANCE_PROGRESS_STAGE_OPTIONS } from '@/lib/maintenance/status';
+import {
+  CROSS_DEPT_MAINTENANCE_CATEGORY_EDIT,
+  SHARED_MAINTENANCE_CATEGORY_VIEW_CODES,
+} from '@/lib/general-affairs/maintenance-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,10 +16,7 @@ export async function GET() {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     const canAccess = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.submit',
-      'cross_dept.maintenance.view_all',
-      'cross_dept.maintenance.update',
-      'cross_dept.maintenance.category.edit',
+      ...SHARED_MAINTENANCE_CATEGORY_VIEW_CODES,
     ]);
     if (!canAccess) {
       return NextResponse.json({ success: false, error: '沒有維修進度查看權限' }, { status: 403 });
@@ -42,7 +43,7 @@ export async function GET() {
 }
 
 async function requireStageEdit(userId: string) {
-  const allowed = await hasAnyPermission(userId, ['cross_dept.maintenance.category.edit']);
+  const allowed = await hasAnyPermission(userId, [CROSS_DEPT_MAINTENANCE_CATEGORY_EDIT]);
   if (!allowed) throw new Error('沒有維修進度階段管理權限');
 }
 

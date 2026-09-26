@@ -1,9 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import {
+  requireAuthenticatedUser,
+  requireStoreScopePermission,
+  STORE_MANAGER_ASSIGN_PERMISSION_CODES,
+} from '@/lib/admin/store-management-access';
 
 export async function GET() {
   try {
     const supabase = await createClient();
+    const auth = await requireAuthenticatedUser(supabase);
+    if (auth.response) return auth.response;
+
+    const permissionDenied = await requireStoreScopePermission(
+      auth.user.id,
+      STORE_MANAGER_ASSIGN_PERMISSION_CODES,
+    );
+    if (permissionDenied) return permissionDenied;
     
     // 獲取所有包含「店長」、「代理店長」或「督導」職稱的用戶
     // 督導也可能兼任某間門市的店長

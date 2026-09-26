@@ -107,15 +107,12 @@ export default function SupervisorsManagementPage() {
       assignmentsList.forEach((a: { user_id: string; store_id: string; role_type: string; is_primary: boolean }) => {
         if (a.role_type === 'supervisor' && !a.is_primary) {
           const primaryUserId = primaryByStore.get(a.store_id);
-          console.log(`[DEBUG loadData] supervisor is_primary=false storeId=${a.store_id} userId=${a.user_id} | primaryOwner=${primaryUserId}`);
           if (primaryUserId && primaryUserId !== a.user_id) {
             if (!proxyMap.has(a.user_id)) proxyMap.set(a.user_id, new Set());
             proxyMap.get(a.user_id)!.add(a.store_id);
           }
         }
       });
-      console.log('[DEBUG loadData] primaryByStore:', JSON.stringify(Array.from(primaryByStore.entries())));
-      console.log('[DEBUG loadData] proxyMap:', JSON.stringify(Array.from(proxyMap.entries()).map(([uid, s]) => [uid, Array.from(s)])));
 
       setAssignments(assignmentsMap);
       setAssignmentTypes(typesMap);
@@ -213,8 +210,6 @@ export default function SupervisorsManagementPage() {
           proxyStoreIds: Array.from(proxyStores.get(selectedSupervisor.id) || []),
         }),
       });
-      const _proxyDebug = Array.from(proxyStores.get(selectedSupervisor.id) || []);
-      console.log('[DEBUG save] 送出 proxyStoreIds:', _proxyDebug, '| storeIds:', storeIds, '| selectedUserId:', selectedSupervisor.id);
 
       const data = await res.json();
 
@@ -224,9 +219,7 @@ export default function SupervisorsManagementPage() {
 
       alert('儲存成功！');
       // 重新載入資料
-      console.log('[DEBUG save] 儲存後重新 loadData，目前 proxyStores:', JSON.stringify(Array.from((proxyStores.get(selectedSupervisor.id) || new Set()))));
       await loadData();
-      console.log('[DEBUG save] loadData 完成，重讀後 proxyStores:', JSON.stringify(Array.from((proxyStores.get(selectedSupervisor.id) || new Set()))));
     } catch (error: any) {
       console.error('Error saving assignments:', error);
       alert(`儲存失敗: ${error.message}`);
@@ -459,7 +452,9 @@ export default function SupervisorsManagementPage() {
             <div className="text-center py-8">
               <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">尚無經理或督導</h3>
-              <p className="text-gray-600 mb-6">請先在使用者管理中將使用者設定為「主管」角色</p>
+              <p className="text-gray-600 mb-6">
+                請先在使用者管理中設定姓名、員編、職稱，並透過角色權限管理授予門市/督導指派權限。
+              </p>
               <Link
                 href="/admin/users"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

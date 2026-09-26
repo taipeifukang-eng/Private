@@ -1,25 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import {
+  requireAuthenticatedUser,
+  requireStoreScopePermission,
+  STORE_SCOPE_MANAGEMENT_PERMISSION_CODES,
+} from '@/lib/admin/store-management-access';
 
 export async function GET() {
   try {
     const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
-    }
+    const auth = await requireAuthenticatedUser(supabase);
+    if (auth.response) return auth.response;
 
-    // 檢查是否為管理員
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single();
-
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
-    }
+    const permissionDenied = await requireStoreScopePermission(
+      auth.user.id,
+      STORE_SCOPE_MANAGEMENT_PERMISSION_CODES,
+    );
+    if (permissionDenied) return permissionDenied;
 
     // 獲取所有營運門市，總部不列入經理/督導門市分配統計
     const { data: stores, error } = await supabase

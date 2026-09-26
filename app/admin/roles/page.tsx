@@ -5,7 +5,8 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { hasPermission } from '@/lib/permissions/check';
+import { hasAnyPermission, hasPermission } from '@/lib/permissions/check';
+import { ROLE_LIST_PAGE_PERMISSION_CODES } from '@/lib/permissions/rbac-management';
 import RoleListClient from './RoleListClient';
 
 export const metadata = {
@@ -22,13 +23,15 @@ export default async function RolesPage() {
   }
 
   // 檢查權限
-  const canView = await hasPermission(user.id, 'role.role.view');
+  const canView = await hasAnyPermission(user.id, ROLE_LIST_PAGE_PERMISSION_CODES);
   if (!canView) {
     redirect('/dashboard');
   }
 
   // 檢查是否可以建立角色
   const canCreate = await hasPermission(user.id, 'role.role.create');
+  const canEdit = await hasPermission(user.id, 'role.role.edit');
+  const canDelete = await hasPermission(user.id, 'role.role.delete');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -45,7 +48,11 @@ export default async function RolesPage() {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           </div>
         }>
-          <RoleListClient canCreate={canCreate} />
+          <RoleListClient
+            canCreate={canCreate}
+            canEdit={canEdit}
+            canDelete={canDelete}
+          />
         </Suspense>
       </div>
     </div>

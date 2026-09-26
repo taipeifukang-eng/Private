@@ -1,6 +1,9 @@
 import { hasAnyPermission, hasPermission } from '@/lib/permissions/check';
+import { createAdminClient } from '@/lib/supabase/server';
 import {
   EXECUTION_PROGRESS_STAGES,
+  MAINTENANCE_PROGRESS_STAGE_LABELS,
+  MAINTENANCE_STATUS_LABELS,
   type MaintenanceEventVisibility,
   type MaintenanceProgressStage,
   type MaintenanceTicketAction,
@@ -8,6 +11,10 @@ import {
   normalizeMaintenanceStatus,
   normalizeProgressStage,
 } from '@/lib/maintenance/status';
+import {
+  SHARED_MAINTENANCE_REQUEST_CREATE_CODES,
+  SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
+} from '@/lib/general-affairs/maintenance-permissions';
 
 type SupabaseClientLike = any;
 
@@ -33,6 +40,7 @@ type MaintenanceRequestRow = {
   reported_by: string;
   status: string;
   progress_stage?: string | null;
+  ga_service_request_id?: string | null;
   category_id?: string | null;
   accepted_at?: string | null;
   accepted_by?: string | null;
@@ -48,6 +56,80 @@ export async function getProfileName(supabase: SupabaseClientLike, userId: strin
   return data?.full_name || fallback;
 }
 
+function mapMaintenanceToServiceRequestStatus(status: MaintenanceTicketStatus, progressStage: MaintenanceProgressStage | null) {
+  if (status === 'COMPLETED') return 'COMPLETED';
+  if (progressStage === 'WAITING_STORE_CONFIRMATION') return 'WAITING_STORE_CONFIRMATION';
+  if (status === 'PROCESSING') return 'IN_PROGRESS';
+  if (status === 'ACCEPTED') return 'ACCEPTED';
+  return 'ACCEPTED';
+}
+
+async function syncServiceRequestFromMaintenanceTicket(
+  ticket: MaintenanceRequestRow,
+  input: TransitionInput,
+  nextStatus: MaintenanceTicketStatus,
+  nextStage: MaintenanceProgressStage | null
+) {
+  if (!ticket.ga_service_request_id) {
+    if (input.action === 'REQUEST_COMPLETION') {
+      throw new Error('這張工單沒有連結總務需求單，無法送到門市端「我的追蹤」確認。請從總務需求工作台確認來源單是否已連結。');
+    }
+    return;
+  }
+
+  const stageLabel = nextStage ? MAINTENANCE_PROGRESS_STAGE_LABELS[nextStage] : null;
+  const statusLabel = MAINTENANCE_STATUS_LABELS[nextStatus] || nextStatus;
+  const nextServiceRequestStatus = mapMaintenanceToServiceRequestStatus(nextStatus, nextStage);
+  const progressText = input.action === 'REQUEST_COMPLETION'
+    ? `總務已將處理結果送門市確認。${input.notes.trim()}`
+    : input.visibility === 'INTERNAL'
+    ? `維修工單已更新，目前狀態：${stageLabel || statusLabel}。`
+    : `維修工單進度更新：${stageLabel || statusLabel}。${input.notes.trim()}`;
+
+  const adminSupabase = createAdminClient();
+  const { data: syncedRequest, error: updateError } = await adminSupabase
+    .from('ga_service_requests')
+    .update({
+      main_status: nextServiceRequestStatus,
+      public_progress: progressText,
+      updated_at: new Date().toISOString(),
+      ...(nextStatus === 'COMPLETED' ? { completed_at: new Date().toISOString() } : {}),
+    })
+    .eq('id', ticket.ga_service_request_id)
+    .is('deleted_at', null)
+    .select('id, request_no, main_status')
+    .maybeSingle();
+
+  if (updateError) throw updateError;
+  if (!syncedRequest) {
+    if (input.action === 'REQUEST_COMPLETION') {
+      throw new Error('已送門市確認，但找不到可同步的總務需求單。請確認來源單未被刪除，且工單仍有連結總務需求單。');
+    }
+    return;
+  }
+
+  const { error: eventError } = await adminSupabase
+    .from('ga_service_request_events')
+    .insert({
+      request_id: ticket.ga_service_request_id,
+      event_type: 'WORK_ORDER_PROGRESS_SYNCED',
+      old_status: null,
+      new_status: nextServiceRequestStatus,
+      visibility: input.action === 'REQUEST_COMPLETION' ? 'PUBLIC' : input.visibility || 'PUBLIC',
+      title: '維修工單進度同步',
+      description: progressText,
+      metadata: {
+        maintenance_request_id: ticket.id,
+        maintenance_status: nextStatus,
+        maintenance_progress_stage: nextStage,
+        action: input.action,
+      },
+      created_by: input.userId,
+    });
+
+  if (eventError) throw eventError;
+}
+
 async function getManagedStoreIds(supabase: SupabaseClientLike, userId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from('store_managers')
@@ -59,10 +141,7 @@ async function getManagedStoreIds(supabase: SupabaseClientLike, userId: string):
 }
 
 export async function canManageMaintenanceTickets(userId: string) {
-  return hasAnyPermission(userId, [
-    'cross_dept.maintenance.update',
-    'cross_dept.maintenance.view_all',
-  ]);
+  return hasAnyPermission(userId, SHARED_MAINTENANCE_REQUEST_UPDATE_CODES);
 }
 
 export async function canForceCloseMaintenanceTickets(userId: string) {
@@ -72,7 +151,7 @@ export async function canForceCloseMaintenanceTickets(userId: string) {
 async function canStoreActOnTicket(supabase: SupabaseClientLike, userId: string, ticket: MaintenanceRequestRow) {
   if (ticket.reported_by === userId) return true;
 
-  const canSubmit = await hasAnyPermission(userId, ['cross_dept.maintenance.submit']);
+  const canSubmit = await hasAnyPermission(userId, SHARED_MAINTENANCE_REQUEST_CREATE_CODES);
   if (!canSubmit) return false;
 
   const managedStoreIds = await getManagedStoreIds(supabase, userId);
@@ -185,7 +264,7 @@ export async function transitionMaintenanceTicket(supabase: SupabaseClientLike, 
 
   const { data: ticket, error: ticketError } = await supabase
     .from('maintenance_requests')
-    .select('id, store_id, reported_by, status, progress_stage, category_id, accepted_at, accepted_by')
+    .select('id, store_id, reported_by, status, progress_stage, ga_service_request_id, category_id, accepted_at, accepted_by')
     .eq('id', requestId)
     .single();
 
@@ -276,6 +355,7 @@ export async function transitionMaintenanceTicket(supabase: SupabaseClientLike, 
   if (requestUpdateError) throw requestUpdateError;
 
   await insertTicketEvent(supabase, ticket, input, nextStatus, nextStage);
+  await syncServiceRequestFromMaintenanceTicket(ticket, input, nextStatus, nextStage);
 
   return updateRecord;
 }

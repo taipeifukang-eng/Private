@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+import { SHARED_MAINTENANCE_REQUEST_UPDATE_CODES } from '@/lib/general-affairs/maintenance-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,8 +35,7 @@ export async function GET(request: NextRequest) {
     if (!ticket) return NextResponse.json({ success: false, error: '工單不存在' }, { status: 404 });
 
     const canManage = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.view_all',
-      'cross_dept.maintenance.update',
+      ...SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
     ]);
 
     let canStoreView = ticket.reported_by === user.id;

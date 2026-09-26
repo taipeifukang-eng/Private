@@ -11,6 +11,9 @@
 
 # next.js
 /.next/
+/.next-stale-*/
+/.next-build-check/
+/.next-corrupt-*/
 /out/
 
 # production
@@ -38,7 +41,15 @@ next-env.d.ts
 
 # local verification artifacts
 .tmp-check/*
+schema-intake/*
+*.schema-only.sql
+*.schema.sql
+*.schema-diff.json
 supabase/.temp/
+/tmp/
+/.vscode/
+/.tmp-*.log
+/.next-dev-*.log
 
 # dependencies
 /node_modules

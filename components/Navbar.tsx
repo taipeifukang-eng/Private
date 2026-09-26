@@ -26,6 +26,7 @@ import {
   TrendingUp,
   Package,
   CheckSquare,
+  NotebookPen,
   Plus,
   FileCheck,
   AlertTriangle,
@@ -33,7 +34,7 @@ import {
   ShoppingCart,
   Calculator,
   Wrench,
-  UserPlus
+  UserPlus,
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 import {
@@ -43,6 +44,7 @@ import {
   hasAnyMonthlyStatusPermission,
   hasAnyInspectionPermission,
   hasAnyCrossDeptPermission,
+  hasAnyGeneralAffairsPermission,
 } from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
@@ -66,11 +68,13 @@ export default function Navbar({ user }: NavbarProps) {
   const [isMonthlyStatusMenuOpen, setIsMonthlyStatusMenuOpen] = useState(false);
   const [isInspectionMenuOpen, setIsInspectionMenuOpen] = useState(false);
   const [isCrossDeptMenuOpen, setIsCrossDeptMenuOpen] = useState(false);
+  const [isGeneralAffairsMenuOpen, setIsGeneralAffairsMenuOpen] = useState(false);
   const taskMenuRef = useRef<HTMLDivElement>(null);
   const storeMenuRef = useRef<HTMLDivElement>(null);
   const monthlyStatusMenuRef = useRef<HTMLDivElement>(null);
   const inspectionMenuRef = useRef<HTMLDivElement>(null);
   const crossDeptMenuRef = useRef<HTMLDivElement>(null);
+  const generalAffairsMenuRef = useRef<HTMLDivElement>(null);
 
   // 🔐 使用 RBAC 權限系統
   const permissions = useNavbarPermissions(user?.id || '');
@@ -92,6 +96,9 @@ export default function Navbar({ user }: NavbarProps) {
       }
       if (crossDeptMenuRef.current && !crossDeptMenuRef.current.contains(event.target as Node)) {
         setIsCrossDeptMenuOpen(false);
+      }
+      if (generalAffairsMenuRef.current && !generalAffairsMenuRef.current.contains(event.target as Node)) {
+        setIsGeneralAffairsMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -175,12 +182,18 @@ export default function Navbar({ user }: NavbarProps) {
   const crossDeptSubItems = [
     { href: '/cross-dept/merchandise', label: '商品部', icon: ShoppingCart, show: permissions.canAccessCrossDeptMerchandise },
     { href: '/cross-dept/maintenance', label: '總務組', icon: Wrench, show: permissions.canAccessMaintenance },
-  ].filter(item => item.show);
+  ];
 
   const organizationMenuItems = [
     ...organizationSubItems,
     ...storeSubItems,
   ].filter(item => item.show);
+
+  const generalAffairsSubItems = [
+    { href: '/general-affairs', label: '服務中心首頁', icon: Wrench, show: hasAnyGeneralAffairsPermission(permissions) },
+    { href: '/general-affairs/inventory', label: '庫存管理', icon: Package, show: permissions.canAccessGeneralAffairsInventory },
+  ].filter(item => item.show);
+
   // 判斷是否在派發任務相關頁面
   const isInTaskSection = ['/my-tasks', '/dashboard', '/admin/templates', '/admin/archived', '/assignment', '/admin/assign', '/admin/template', '/admin/edit', '/admin/create'].some(
     path => pathname.startsWith(path) || pathname === path
@@ -200,15 +213,16 @@ export default function Navbar({ user }: NavbarProps) {
   const isInInspectionSection = ['/inspection', '/admin/inspection-templates'].some(
     path => pathname.startsWith(path) || pathname === path
   );
+  const isInSupervisorManagementLogSection = pathname.startsWith('/supervisor-management-log');
   const isInGeneralAffairsSection = pathname.startsWith('/general-affairs');
   // 判斷是否在跨部門管理相關頁面
   const isInCrossDeptSection = pathname.startsWith('/cross-dept');
   // 其他獨立的導航項目
   const navItems = [
-    { href: '/', label: '首頁', icon: Home, roles: ['admin', 'manager', 'member'] },
-    { href: '/admin/users', label: '使用者管理', icon: Users, roles: ['admin'] },
-    { href: '/admin/roles', label: '角色權限管理', icon: Shield, roles: ['admin'] },
-  ].filter(item => item.roles.includes(role));
+    { href: '/', label: '首頁', icon: Home, show: true },
+    { href: '/admin/users', label: '使用者管理', icon: Users, show: permissions.canViewUsers },
+    { href: '/admin/roles', label: '角色權限管理', icon: Shield, show: permissions.canViewRoles },
+  ].filter(item => item.show);
 
   const handleSignOut = async () => {
     await signOut();
@@ -294,7 +308,7 @@ export default function Navbar({ user }: NavbarProps) {
                 )}
               </div>
 
-              {/* 門市管理下拉選單 - 使用 RBAC 權限 */}
+              {/* 組織管理下拉選單 - 使用 RBAC 權限 */}
               {hasAnyOrganizationPermission(permissions) && (
                 <div className="relative" ref={storeMenuRef}>
                   <button
@@ -423,17 +437,66 @@ export default function Navbar({ user }: NavbarProps) {
                 </div>
               )}
 
-              {permissions.canAccessGeneralAffairsService && (
+              {hasAnyGeneralAffairsPermission(permissions) && (
+                <div className="relative" ref={generalAffairsMenuRef}>
+                  <div
+                    className={`flex items-center rounded-lg text-sm font-medium transition-colors ${
+                      isInGeneralAffairsSection
+                        ? 'bg-orange-50 text-orange-700'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    }`}
+                  >
+                    <Link href="/general-affairs" className="flex items-center gap-2 py-2 pl-4 pr-2">
+                      <Wrench size={18} />
+                      總務服務中心
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label="展開總務服務中心選單"
+                      onClick={() => setIsGeneralAffairsMenuOpen(!isGeneralAffairsMenuOpen)}
+                      className="flex h-9 items-center px-2"
+                    >
+                      <ChevronDown size={16} className={`transition-transform ${isGeneralAffairsMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  </div>
+
+                  {isGeneralAffairsMenuOpen && (
+                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                      {generalAffairsSubItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setIsGeneralAffairsMenuOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-2 text-sm font-medium transition-colors ${
+                              isActive
+                                ? 'bg-orange-50 text-orange-700'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                            }`}
+                          >
+                            <Icon size={18} />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {permissions.canAccessSupervisorManagementLog && (
                 <Link
-                  href="/general-affairs"
+                  href="/supervisor-management-log"
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isInGeneralAffairsSection
-                      ? 'bg-orange-50 text-orange-700'
+                    isInSupervisorManagementLogSection
+                      ? 'bg-emerald-50 text-emerald-700'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <Wrench size={18} />
-                  總務服務中心
+                  <NotebookPen size={18} />
+                  督導管理日誌
                 </Link>
               )}
 
@@ -603,7 +666,7 @@ export default function Navbar({ user }: NavbarProps) {
               </div>
             </div>
 
-            {/* 門市管理區塊 - 使用 RBAC 權限 */}
+            {/* 組織管理區塊 - 使用 RBAC 權限 */}
             {hasAnyOrganizationPermission(permissions) && (
               <div className="mt-1">
                 <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
@@ -696,18 +759,48 @@ export default function Navbar({ user }: NavbarProps) {
               </div>
             )}
 
-            {permissions.canAccessGeneralAffairsService && (
+            {hasAnyGeneralAffairsPermission(permissions) && (
+              <div className="mt-1">
+                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                  <Wrench size={14} />
+                  總務服務中心
+                </div>
+                <div className="ml-4 space-y-0.5">
+                  {generalAffairsSubItems.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                          isActive
+                            ? 'bg-orange-50 text-orange-700'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                        }`}
+                      >
+                        <Icon size={18} />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {permissions.canAccessSupervisorManagementLog && (
               <Link
-                href="/general-affairs"
+                href="/supervisor-management-log"
                 onClick={() => setIsMobileMenuOpen(false)}
                 className={`flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium ${
-                  isInGeneralAffairsSection
-                    ? 'bg-orange-50 text-orange-700'
+                  isInSupervisorManagementLogSection
+                    ? 'bg-emerald-50 text-emerald-700'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                 }`}
               >
-                <Wrench size={18} />
-                總務服務中心
+                <NotebookPen size={18} />
+                督導管理日誌
               </Link>
             )}
 

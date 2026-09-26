@@ -201,6 +201,7 @@ export default function InventoryManagement() {
   const [analysisOrderKeyword, setAnalysisOrderKeyword] = useState('');
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisDetailLoading, setAnalysisDetailLoading] = useState(false);
+  const [analysisHasLoaded, setAnalysisHasLoaded] = useState(false);
   const [analysisImporting, setAnalysisImporting] = useState(false);
   const [analysisCategoriesCollapsed, setAnalysisCategoriesCollapsed] = useState(false);
   const [analysisImportGuideCollapsed, setAnalysisImportGuideCollapsed] = useState(true);
@@ -300,6 +301,14 @@ export default function InventoryManagement() {
   const getAnalysisDetailCacheKey = (batchId: string, view: AnalysisReportView = 'batch') => (
     view === 'batch' ? batchId : `${batchId}:${view}`
   );
+  const upsertAnalysisBatches = (currentBatches: InventoryResultBatch[], incomingBatches: InventoryResultBatch[]) => {
+    if (incomingBatches.length === 0) return currentBatches;
+    const mergedById = new Map(currentBatches.map((batch) => [batch.id, batch]));
+    incomingBatches.forEach((batch) => {
+      if (batch.id) mergedById.set(batch.id, batch);
+    });
+    return Array.from(mergedById.values());
+  };
   const replaceAnalysisDetailCache = (cache: Record<string, InventoryAnalysisBatchDetail>) => {
     analysisBatchDetailCacheRef.current = cache;
     setAnalysisBatchDetailCache(cache);
@@ -359,6 +368,7 @@ export default function InventoryManagement() {
     analysisDetailRequestSeq.current += 1;
     setAnalysisLoading(true);
     setAnalysisDetailLoading(false);
+    setAnalysisHasLoaded(true);
     try {
       const params = new URLSearchParams();
       if (analysisYearMonth) params.set('year_month', analysisYearMonth);
@@ -386,6 +396,7 @@ export default function InventoryManagement() {
 
       if (batchId) {
         setAnalysisReportVersionBatches(nextBatches);
+        setAnalysisBatches((currentBatches) => upsertAnalysisBatches(currentBatches, nextBatches));
       } else {
         setAnalysisBatches(nextBatches);
         setAnalysisReportVersionBatches([]);
@@ -538,13 +549,6 @@ export default function InventoryManagement() {
       }
     }
   };
-
-  useEffect(() => {
-    if (activeSection === 'analysis') {
-      loadInventoryResultAnalysis('');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSection]);
 
   useEffect(() => {
     if (!canUseInventoryTools && canViewInventoryResultAnalysis) {
@@ -2386,7 +2390,15 @@ export default function InventoryManagement() {
                   setAnalysisStoreKeyword('');
                   setAnalysisOrderKeyword('');
                   setSelectedAnalysisBatchId('');
-                  loadInventoryResultAnalysis('', '', '');
+                  setSelectedAnalysisReportView('batch');
+                  setSelectedAnalysisCategoryCode('');
+                  setAnalysisBatches([]);
+                  setAnalysisItems([]);
+                  setAnalysisCategorySummary([]);
+                  setAnalysisNonExcludedSummary(null);
+                  setAnalysisReportVersionBatches([]);
+                  replaceAnalysisDetailCache({});
+                  setAnalysisHasLoaded(false);
                 }}
                 className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-600 hover:bg-gray-50"
               >
@@ -2399,9 +2411,15 @@ export default function InventoryManagement() {
                 <RefreshCw size={20} className="mr-2 inline-block animate-spin" />
                 載入盤點結果分析資料中...
               </div>
+            ) : !analysisHasLoaded ? (
+              <div className="rounded-xl border border-dashed border-indigo-200 bg-indigo-50 px-4 py-12 text-center text-indigo-700">
+                <Search size={24} className="mx-auto mb-3" />
+                <div className="font-semibold">請先選擇年月或輸入條件後查詢</div>
+                <p className="mt-1 text-sm text-indigo-600">進入報表時不會自動載入資料，可先切換月份再查詢。</p>
+              </div>
             ) : analysisBatches.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-12 text-center text-gray-500">
-                尚無盤點結果分析資料，請先匯入 .xlsx
+                查無符合條件的盤點結果分析資料，請調整年月或篩選條件。
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">

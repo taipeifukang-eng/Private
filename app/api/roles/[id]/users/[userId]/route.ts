@@ -3,7 +3,7 @@
 // ============================================
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
 
 // 移除使用者的角色
@@ -30,8 +30,10 @@ export async function DELETE(
 
     const { id: roleId, userId } = params;
 
+    const adminSupabase = createAdminClient();
+
     // 檢查 user_role 是否存在
-    const { data: existingUserRole, error: fetchError } = await supabase
+    const { data: existingUserRole, error: fetchError } = await adminSupabase
       .from('user_roles')
       .select('id, role:roles(name)')
       .eq('role_id', roleId)
@@ -46,7 +48,7 @@ export async function DELETE(
     }
 
     // 刪除角色指派
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await adminSupabase
       .from('user_roles')
       .delete()
       .eq('role_id', roleId)

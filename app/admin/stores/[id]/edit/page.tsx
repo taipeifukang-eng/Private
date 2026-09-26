@@ -41,21 +41,16 @@ export default function EditStorePage() {
 
   const loadStore = async () => {
     try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('id', storeId)
-        .single();
+      const { getStoreForAdminEdit } = await import('@/app/store/actions');
+      const result = await getStoreForAdminEdit(storeId);
 
-      if (error || !data) {
-        alert('找不到該門市');
+      if (!result.success || !result.data) {
+        alert(result.error || '找不到該門市');
         router.push('/admin/stores');
         return;
       }
 
+      const data = result.data;
       setStoreCode(data.store_code || '');
       setStoreName(data.store_name || '');
       setIsFranchise(data.is_franchise ?? false);
@@ -80,6 +75,7 @@ export default function EditStorePage() {
       alert('請填寫門市名稱');
       return;
     }
+
     const latitude = parseGpsNumber(gpsLatitude, -90, 90);
     const longitude = parseGpsNumber(gpsLongitude, -180, 180);
     if (latitude === undefined || longitude === undefined) {
@@ -93,12 +89,9 @@ export default function EditStorePage() {
 
     setSaving(true);
     try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      
-      const { error } = await supabase
-        .from('stores')
-        .update({
+      const { updateStore } = await import('@/app/store/actions');
+      const result = await updateStore({
+          store_id: storeId,
           store_name: storeName.trim(),
           is_franchise: isFranchise,
           short_name: shortName.trim() || null,
@@ -106,16 +99,13 @@ export default function EditStorePage() {
           manager_name: managerName.trim() || null,
           address: address.trim() || null,
           phone: phone.trim() || null,
-          is_active: isActive,
           gps_latitude: latitude,
           gps_longitude: longitude,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', storeId);
+          is_active: isActive,
+        });
 
-      if (error) {
-        console.error('Error updating store:', error);
-        alert(`❌ 更新失敗: ${error.message}`);
+      if (!result.success) {
+        alert(`❌ 更新失敗: ${result.error}`);
         return;
       }
 

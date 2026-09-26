@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+import { SHARED_MAINTENANCE_REQUEST_UPDATE_CODES } from '@/lib/general-affairs/maintenance-permissions';
 
 const STORAGE_BUCKET = 'maintenance-photos';
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -28,8 +29,7 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
 
     const canUpdate = await hasAnyPermission(user.id, [
-      'cross_dept.maintenance.update',
-      'cross_dept.maintenance.view_all',
+      ...SHARED_MAINTENANCE_REQUEST_UPDATE_CODES,
     ]);
     if (!canUpdate) {
       return NextResponse.json({ success: false, error: '沒有上傳進度照片的權限' }, { status: 403 });

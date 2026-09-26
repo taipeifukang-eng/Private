@@ -35,8 +35,6 @@ interface CampaignDepartmentPublish {
   merchandise_allocation_file_data?: string | null;
 }
 
-const MAX_STORES_PER_ACTIVITY_DAY = 3;
-
 export default function ScheduleEditPage() {
   const params = useParams();
   const router = useRouter();
@@ -551,7 +549,6 @@ export default function ScheduleEditPage() {
     })));
 
     const allowedDays = [3, 6, 7]; // 週三(3)、週六(6)、週日(7)
-    const maxPerDay = MAX_STORES_PER_ACTIVITY_DAY;
     
     // 按督導區分組門市
     const supervisorGroups = new Map<string, string[]>();
@@ -627,12 +624,6 @@ export default function ScheduleEditPage() {
           }
         }
 
-        // 檢查該日是否已滿
-        if ((dateCount.get(dateStr) || 0) >= maxPerDay) {
-          failReason = `${dateStr} 已滿 (${dateCount.get(dateStr)}/${maxPerDay})`;
-          continue;
-        }
-
         // 檢查同一天是否已有同督導區的門市
         if (dateSupervisors.get(dateStr)?.has(supervisorId)) {
           failReason = `${dateStr} 已有同督導區門市`;
@@ -695,9 +686,6 @@ export default function ScheduleEditPage() {
             if (storeSettings.forbidden_days?.includes(dayOfWeek)) continue;
             if (storeSettings.allowed_days && storeSettings.allowed_days.length > 0 && !storeSettings.allowed_days.includes(dayOfWeek)) continue;
           }
-
-          // 檢查該日是否已滿
-          if ((dateCount.get(dateStr) || 0) >= maxPerDay) continue;
 
           // 只檢查同一天（放寬連續限制）
           if (dateSupervisors.get(dateStr)?.has(supervisorId)) continue;
@@ -887,13 +875,6 @@ export default function ScheduleEditPage() {
   // 手動調整：將門市加到指定日期（只更新本地狀態）
   const assignStoreToDate = (storeId: string, date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-
-    // 檢查該日是否已達門市安排上限
-    const schedulesOnDate = schedules.filter(s => s.activity_date.split('T')[0] === dateStr);
-    if (schedulesOnDate.length >= MAX_STORES_PER_ACTIVITY_DAY) {
-      alert(`該日已有 ${MAX_STORES_PER_ACTIVITY_DAY} 間門市，請先移除其中一間`);
-      return;
-    }
 
     // 檢查該門市是否已有排程
     const existingSchedule = schedules.find(s => s.store_id === storeId);
@@ -1372,7 +1353,7 @@ export default function ScheduleEditPage() {
                                       );
                                     })}
 
-                                    {daySchedules.length < MAX_STORES_PER_ACTIVITY_DAY && canEditCalendar && (
+                                    {canEditCalendar && (
                                       <div className="text-xs text-gray-400 text-center py-2 border border-dashed border-gray-300 rounded">
                                         拖放門市到此
                                       </div>

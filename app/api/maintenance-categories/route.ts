@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasAnyPermission } from '@/lib/permissions/check';
+import {
+  CROSS_DEPT_MAINTENANCE_CATEGORY_EDIT,
+  SHARED_MAINTENANCE_CATEGORY_VIEW_CODES,
+} from '@/lib/general-affairs/maintenance-permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +21,11 @@ function normalizeMaintenanceError(err: any) {
 }
 
 async function requireMaintenanceAccess(userId: string) {
-  return hasAnyPermission(userId, [
-    'cross_dept.maintenance.submit',
-    'cross_dept.maintenance.view_all',
-    'cross_dept.maintenance.update',
-    'cross_dept.maintenance.category.edit',
-  ]);
+  return hasAnyPermission(userId, SHARED_MAINTENANCE_CATEGORY_VIEW_CODES);
 }
 
 async function requireCategoryEdit(userId: string) {
-  return hasAnyPermission(userId, ['cross_dept.maintenance.category.edit']);
+  return hasAnyPermission(userId, [CROSS_DEPT_MAINTENANCE_CATEGORY_EDIT]);
 }
 
 export async function GET(request: NextRequest) {

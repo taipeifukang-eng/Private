@@ -23,6 +23,9 @@ interface UserWithRole {
   email: string;
   name: string;
   employee_code: string;
+  department: string;
+  job_title: string;
+  profile_role: 'admin' | 'manager' | 'member';
   is_active: boolean;
   assigned_at: string;
   expires_at: string | null;
@@ -38,10 +41,22 @@ interface SearchUser {
 interface Props {
   roleId: string;
   canEdit: boolean;
+  canViewPermissions: boolean;
   canAssignPermissions: boolean;
+  canViewUsers: boolean;
+  canAssignUsers: boolean;
+  canRevokeUsers: boolean;
 }
 
-export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }: Props) {
+export default function RoleEditClient({
+  roleId,
+  canEdit,
+  canViewPermissions,
+  canAssignPermissions,
+  canViewUsers,
+  canAssignUsers,
+  canRevokeUsers
+}: Props) {
   const router = useRouter();
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<PermissionWithGrant[]>([]);
@@ -67,6 +82,12 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   }, [roleId]);
 
   useEffect(() => {
+    if (!canViewPermissions && canViewUsers) {
+      setActiveTab('users');
+    }
+  }, [canViewPermissions, canViewUsers]);
+
+  useEffect(() => {
     if (permissions.length > 0) {
       groupPermissions();
     }
@@ -75,7 +96,7 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   async function fetchRoleData() {
     try {
       // 取得角色資料
-      const roleResponse = await fetch(`/api/roles/${roleId}`);
+      const roleResponse = await fetch(`/api/roles/${roleId}`, { cache: 'no-store' });
       const roleData = await roleResponse.json();
 
       if (!roleResponse.ok) {
@@ -90,12 +111,14 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
         description: roleData.role.description || ''
       });
 
-      // 取得權限資料
-      const permResponse = await fetch(`/api/roles/${roleId}/permissions`);
-      const permData = await permResponse.json();
+      if (canViewPermissions) {
+        // 取得權限資料
+        const permResponse = await fetch(`/api/roles/${roleId}/permissions`, { cache: 'no-store' });
+        const permData = await permResponse.json();
 
-      if (permResponse.ok) {
-        setPermissions(permData.permissions || []);
+        if (permResponse.ok) {
+          setPermissions(permData.permissions || []);
+        }
       }
     } catch (err) {
       setError('網路錯誤，請稍後再試');
@@ -196,6 +219,7 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
 
       if (response.ok) {
         alert('權限已儲存');
+        await fetchRoleData();
       } else {
         alert(data.error || '儲存失敗');
       }
@@ -241,15 +265,15 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   // ============================================
 
   useEffect(() => {
-    if (activeTab === 'users') {
+    if (activeTab === 'users' && canViewUsers) {
       fetchUsers();
     }
-  }, [activeTab]);
+  }, [activeTab, canViewUsers]);
 
   async function fetchUsers() {
     setLoadingUsers(true);
     try {
-      const response = await fetch(`/api/roles/${roleId}/users`);
+      const response = await fetch(`/api/roles/${roleId}/users`, { cache: 'no-store' });
       const data = await response.json();
 
       if (response.ok) {
@@ -348,6 +372,11 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
   }
 
   const grantedCount = permissions.filter(p => p.granted).length;
+  const getProfileRoleLabel = (role: UserWithRole['profile_role']) => {
+    if (role === 'admin') return '管理員';
+    if (role === 'manager') return '主管';
+    return '成員';
+  };
 
   return (
     <div>
@@ -357,6 +386,33 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
           ← 返回角色列表
         </Link>
         <h1 className="text-3xl font-bold text-gray-900 mt-2">編輯角色</h1>
+        {(!canEdit || !canAssignPermissions) && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            <p className="font-medium">目前帳號缺少部分角色管理權限</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {!canEdit && (
+                <code className="rounded bg-white px-2 py-1 text-xs text-amber-900">
+                  role.role.edit
+                </code>
+              )}
+              {!canViewPermissions && (
+                <code className="rounded bg-white px-2 py-1 text-xs text-amber-900">
+                  role.permission.view
+                </code>
+              )}
+              {!canAssignPermissions && (
+                <code className="rounded bg-white px-2 py-1 text-xs text-amber-900">
+                  role.permission.assign
+                </code>
+              )}
+              {!canViewUsers && (
+                <code className="rounded bg-white px-2 py-1 text-xs text-amber-900">
+                  role.user_role.view
+                </code>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 角色資訊 */}
@@ -457,20 +513,26 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
           <div className="flex">
             <button
               onClick={() => setActiveTab('permissions')}
+              disabled={!canViewPermissions}
               className={`px-6 py-3 font-medium ${
                 activeTab === 'permissions'
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  : canViewPermissions
+                    ? 'text-gray-500 hover:text-gray-700'
+                    : 'cursor-not-allowed text-gray-300'
               }`}
             >
               權限設定
             </button>
             <button
               onClick={() => setActiveTab('users')}
+              disabled={!canViewUsers}
               className={`px-6 py-3 font-medium ${
                 activeTab === 'users'
                   ? 'text-blue-600 border-b-2 border-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
+                  : canViewUsers
+                    ? 'text-gray-500 hover:text-gray-700'
+                    : 'cursor-not-allowed text-gray-300'
               }`}
             >
               使用者管理
@@ -482,6 +544,12 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
       {/* 權限設定分頁 */}
       {activeTab === 'permissions' && (
         <div className="bg-white rounded-lg shadow p-6">
+        {!canViewPermissions ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            目前帳號缺少 <code className="rounded bg-white px-2 py-1">role.permission.view</code>，無法查看角色權限清單。
+          </div>
+        ) : (
+        <>
         <div className="flex justify-between items-center mb-6">
           <div>
             <h2 className="text-xl font-semibold">權限設定</h2>
@@ -573,6 +641,8 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
             );
           })}
         </div>
+        </>
+        )}
       </div>
       )}
 
@@ -581,15 +651,21 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-semibold">使用者管理</h2>
-            <button
-              onClick={() => setShowAddUserModal(true)}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              + 新增使用者
-            </button>
+            {canAssignUsers && (
+              <button
+                onClick={() => setShowAddUserModal(true)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                + 新增使用者
+              </button>
+            )}
           </div>
 
-          {loadingUsers ? (
+          {!canViewUsers ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              目前帳號缺少 <code className="rounded bg-white px-2 py-1">role.user_role.view</code>，無法查看此角色的使用者。
+            </div>
+          ) : loadingUsers ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
             </div>
@@ -605,7 +681,10 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">姓名</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">員工編號</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">狀態</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">部門</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">職稱</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">帳號身分</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">角色狀態</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">指派日期</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">操作</th>
                   </tr>
@@ -620,6 +699,19 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
                           {user.employee_code || '-'}
                         </code>
                       </td>
+                      <td className="px-4 py-3 text-sm">{user.department || '-'}</td>
+                      <td className="px-4 py-3 text-sm">{user.job_title || '-'}</td>
+                      <td className="px-4 py-3 text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          user.profile_role === 'admin'
+                            ? 'bg-purple-100 text-purple-800'
+                            : user.profile_role === 'manager'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {getProfileRoleLabel(user.profile_role)}
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm">
                         <span className={`px-2 py-1 rounded-full text-xs ${
                           user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
@@ -631,12 +723,16 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
                         {new Date(user.assigned_at).toLocaleDateString('zh-TW')}
                       </td>
                       <td className="px-4 py-3 text-sm text-right">
-                        <button
-                          onClick={() => handleRemoveUser(user.id, user.name || user.email)}
-                          className="text-red-600 hover:text-red-700"
-                        >
-                          移除
-                        </button>
+                        {canRevokeUsers ? (
+                          <button
+                            onClick={() => handleRemoveUser(user.id, user.name || user.email)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            移除
+                          </button>
+                        ) : (
+                          <span className="text-gray-400">無操作權限</span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -648,7 +744,7 @@ export default function RoleEditClient({ roleId, canEdit, canAssignPermissions }
       )}
 
       {/* 新增使用者 Modal */}
-      {showAddUserModal && (
+      {showAddUserModal && canAssignUsers && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
             <div className="flex justify-between items-center px-6 py-4 border-b">
