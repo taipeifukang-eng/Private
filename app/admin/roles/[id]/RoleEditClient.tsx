@@ -7,7 +7,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Role, Permission, MODULE_NAMES, ACTION_NAMES } from '@/types/rbac';
+import { Role, Permission, MODULE_NAMES, FEATURE_NAMES, ACTION_NAMES } from '@/types/rbac';
 
 interface PermissionWithGrant extends Permission {
   granted: boolean;
@@ -76,6 +76,7 @@ export default function RoleEditClient({
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [employeeCodesInput, setEmployeeCodesInput] = useState('');
   const [assigningUser, setAssigningUser] = useState(false);
+  const [permissionSearch, setPermissionSearch] = useState('');
 
   useEffect(() => {
     fetchRoleData();
@@ -195,6 +196,13 @@ export default function RoleEditClient({
         matchModules.includes(p.module) ? { ...p, granted: grant } : p
       )
     );
+  }
+
+  function togglePermissionIds(permissionIds: string[], grant: boolean) {
+    const ids = new Set(permissionIds);
+    setPermissions(prev => prev.map(permission =>
+      ids.has(permission.id) ? { ...permission, granted: grant } : permission
+    ));
   }
 
   async function handleSavePermissions() {
@@ -372,6 +380,25 @@ export default function RoleEditClient({
   }
 
   const grantedCount = permissions.filter(p => p.granted).length;
+  const normalizedPermissionSearch = permissionSearch.trim().toLowerCase();
+  const visiblePermissionGroups = groupedPermissions
+    .map(group => ({
+      ...group,
+      permissions: normalizedPermissionSearch
+        ? group.permissions.filter(permission => {
+            const moduleName = MODULE_NAMES[group.module] || group.module;
+            const featureName = FEATURE_NAMES[permission.feature] || permission.feature;
+            return [
+              moduleName,
+              featureName,
+              permission.code,
+              permission.description || '',
+              ACTION_NAMES[permission.action] || permission.action,
+            ].some(value => value.toLowerCase().includes(normalizedPermissionSearch));
+          })
+        : group.permissions,
+    }))
+    .filter(group => group.permissions.length > 0);
   const getProfileRoleLabel = (role: UserWithRole['profile_role']) => {
     if (role === 'admin') return '管理員';
     if (role === 'manager') return '主管';
@@ -568,12 +595,36 @@ export default function RoleEditClient({
           )}
         </div>
 
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <input
+            type="search"
+            value={permissionSearch}
+            onChange={event => setPermissionSearch(event.target.value)}
+            placeholder="搜尋功能或權限"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-sm"
+          />
+          {permissionSearch && (
+            <span className="text-sm text-gray-500">
+              找到 {visiblePermissionGroups.reduce((count, group) => count + group.permissions.length, 0)} 個權限
+            </span>
+          )}
+        </div>
+
         {/* 權限矩陣 */}
         <div className="space-y-6">
-          {groupedPermissions.map(group => {
-            const moduleGranted = group.permissions.filter(p => p.granted).length;
-            const moduleTotal = group.permissions.length;
+          {visiblePermissionGroups.map(group => {
+            const completeGroup = groupedPermissions.find(item => item.module === group.module) || group;
+            const moduleGranted = completeGroup.permissions.filter(p => p.granted).length;
+            const moduleTotal = completeGroup.permissions.length;
             const allGranted = moduleGranted === moduleTotal;
+            const featureGroups = Array.from(
+              group.permissions.reduce((groups, permission) => {
+                const featurePermissions = groups.get(permission.feature) || [];
+                featurePermissions.push(permission);
+                groups.set(permission.feature, featurePermissions);
+                return groups;
+              }, new Map<string, PermissionWithGrant[]>())
+            );
 
             return (
               <div key={group.module} className="border rounded-lg overflow-hidden">
@@ -591,15 +642,17 @@ export default function RoleEditClient({
                     <div className="flex gap-2">
                       <button
                         onClick={() => toggleModule(group.module, true)}
-                        className="text-sm text-blue-600 hover:text-blue-700"
+                        disabled={allGranted}
+                        className="text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-400"
                       >
-                        全選
+                        整組開啟
                       </button>
                       <button
                         onClick={() => toggleModule(group.module, false)}
-                        className="text-sm text-gray-600 hover:text-gray-700"
+                        disabled={moduleGranted === 0}
+                        className="text-sm text-gray-600 hover:text-gray-700 disabled:text-gray-400"
                       >
-                        全不選
+                        整組清除
                       </button>
                     </div>
                   )}
@@ -607,10 +660,38 @@ export default function RoleEditClient({
 
                 {/* 權限列表 */}
                 <div className="divide-y divide-gray-200">
-                  {group.permissions.map(perm => (
+                  {featureGroups.map(([feature, featurePermissions]) => {
+                    const featureGranted = featurePermissions.filter(permission => permission.granted).length;
+                    const featureAllGranted = featureGranted === featurePermissions.length;
+                    return (
+                    <section key={feature}>
+                      <div className="flex items-center justify-between bg-white px-4 py-2.5">
+                        <div>
+                          <span className="text-sm font-medium text-gray-900">
+                            {FEATURE_NAMES[feature] || feature}
+                          </span>
+                          <span className="ml-2 text-xs text-gray-500">
+                            {featureGranted}/{featurePermissions.length}
+                          </span>
+                        </div>
+                        {canAssignPermissions && (
+                          <button
+                            type="button"
+                            onClick={() => togglePermissionIds(
+                              featurePermissions.map(permission => permission.id),
+                              !featureAllGranted
+                            )}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                          >
+                            {featureAllGranted ? '清除這項功能' : '開啟這項功能'}
+                          </button>
+                        )}
+                      </div>
+                      <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/40">
+                  {featurePermissions.map(perm => (
                     <label
                       key={perm.id}
-                      className={`flex items-center px-4 py-3 hover:bg-gray-50 cursor-pointer ${
+                      className={`flex items-center px-4 py-3 pl-7 hover:bg-blue-50/40 cursor-pointer ${
                         !canAssignPermissions ? 'cursor-not-allowed opacity-60' : ''
                       }`}
                     >
@@ -623,12 +704,12 @@ export default function RoleEditClient({
                       />
                       <div className="ml-3 flex-1">
                         <div className="flex items-center gap-2">
-                          <code className="text-sm text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
-                            {perm.code}
-                          </code>
-                          <span className="text-xs text-gray-500">
+                          <span className="text-sm font-medium text-gray-800">
                             [{ACTION_NAMES[perm.action] || perm.action}]
                           </span>
+                          <code className="text-xs text-gray-400">
+                            {perm.code}
+                          </code>
                         </div>
                         <p className="text-sm text-gray-600 mt-1">
                           {perm.description}
@@ -636,10 +717,19 @@ export default function RoleEditClient({
                       </div>
                     </label>
                   ))}
+                      </div>
+                    </section>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
+          {visiblePermissionGroups.length === 0 && (
+            <div className="rounded-md border border-dashed border-gray-300 py-10 text-center text-sm text-gray-500">
+              找不到符合的權限
+            </div>
+          )}
         </div>
         </>
         )}

@@ -13,6 +13,7 @@
 /.next/
 /.next-stale-*/
 /.next-build-check/
+/.next-permission-ui-check/
 /.next-corrupt-*/
 /out/
 

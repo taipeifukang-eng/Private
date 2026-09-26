@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Copy, Edit2, Eye, Key, Search, Shield, Store, Trash2, User as UserIcon, CheckCircle, Crown, X } from 'lucide-react';
 import { updateUserProfile, deleteUser } from '@/app/auth/actions';
 import type { Profile } from '@/types/workflow';
+import { MODULE_NAMES } from '@/types/rbac';
 
 type UserRbacRoleSummary = {
   id: string;
@@ -545,7 +546,7 @@ export default function UserManagementTable({ users }: { users: UserRow[] }) {
                       {Object.entries(groupedPermissions).map(([module, permissions]) => (
                         <div key={module} className="border border-gray-100 rounded-lg overflow-hidden">
                           <div className="px-3 py-2 bg-gray-50 text-sm font-semibold text-gray-800">
-                            {module} <span className="text-gray-500 font-normal">({permissions.length})</span>
+                            {MODULE_NAMES[module] || module} <span className="text-gray-500 font-normal">({permissions.length})</span>
                           </div>
                           <div className="divide-y divide-gray-100">
                             {permissions.map(permission => (

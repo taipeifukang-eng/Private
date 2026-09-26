@@ -97,6 +97,7 @@ export const MODULE_NAMES: Record<string, string> = {
   cross_dept: '跨部門管理',
   performance: '業績管理',
   monthly_status: '每月人員狀態',
+  general_affairs: '總務服務中心',
   // 相容 navbar migration 遺留的中文 module 值
   '任務管理': '任務管理',
   '門市管理': '門市管理',
@@ -108,6 +109,32 @@ export const MODULE_NAMES: Record<string, string> = {
   '業績管理': '業績管理',
   '系統': '系統管理',
   '督導巡店': '督導巡店',
+};
+
+// 功能名稱對照（權限代碼仍保留英文，管理介面顯示白話名稱）
+export const FEATURE_NAMES: Record<string, string> = {
+  service_center: '總務服務中心',
+  request: '總務需求',
+  maintenance_request: '維修需求',
+  work_order: '工單處理',
+  equipment: '設備管理',
+  equipment_template: '公司設備型號',
+  equipment_category: '設備分類',
+  facility: '設施管理',
+  facility_category: '設施分類',
+  part: '料件管理',
+  part_category: '料件分類',
+  part_fulfillment: '料件處理',
+  inventory_balance: '庫存餘額',
+  inventory_location: '庫存位置',
+  inventory_transaction: '庫存交易',
+  inventory_transfer: '庫存調撥',
+  vendor: '合作廠商',
+  service_category: '服務分類',
+  service_region: '服務區域',
+  cooperation_record: '合作紀錄',
+  purchase_review: '採購評估',
+  utility_bill: '水電與網路費',
 };
 
 // 操作類型對照
