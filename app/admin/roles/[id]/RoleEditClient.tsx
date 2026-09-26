@@ -143,6 +143,7 @@ export default function RoleEditClient({
       '系統': 'user',
       '督導巡店': 'inspection',
       '業績管理': 'performance',
+      '組織管理': 'organization',
     };
 
     const groups = new Map<string, PermissionWithGrant[]>();
@@ -189,6 +190,7 @@ export default function RoleEditClient({
       user: ['user', '系統'],
       inspection: ['inspection', '督導巡店'],
       performance: ['performance', '業績管理'],
+      organization: ['organization', '組織管理'],
     };
     const matchModules = MODULE_REVERSE[module] || [module];
     setPermissions(prev =>

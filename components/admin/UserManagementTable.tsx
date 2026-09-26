@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Copy, Edit2, Eye, Key, Search, Shield, Store, Trash2, User as UserIcon, CheckCircle, Crown, X } from 'lucide-react';
 import { updateUserProfile, deleteUser } from '@/app/auth/actions';
 import type { Profile } from '@/types/workflow';
-import { MODULE_NAMES } from '@/types/rbac';
+import { ACTION_NAMES, FEATURE_NAMES, MODULE_NAMES } from '@/types/rbac';
 
 type UserRbacRoleSummary = {
   id: string;
@@ -553,7 +553,9 @@ export default function UserManagementTable({ users }: { users: UserRow[] }) {
                               <div key={permission.code} className="px-3 py-2">
                                 <div className="flex flex-wrap items-center gap-2">
                                   <code className="text-xs bg-gray-100 rounded px-2 py-1 text-gray-800">{permission.code}</code>
-                                  <span className="text-xs text-gray-500">{permission.feature} / {permission.action}</span>
+                                  <span className="text-xs text-gray-500">
+                                    {FEATURE_NAMES[permission.feature] || permission.feature} / {ACTION_NAMES[permission.action] || permission.action}
+                                  </span>
                                 </div>
                                 <p className="text-xs text-gray-500 mt-1">
                                   來源：{permission.source_roles.map(role => `${role.name}(${role.code})`).join('、')}
