@@ -1,0 +1,10 @@
+.git
+.next
+.next-*
+tmp
+.tmp-*
+*.log
+.vscode
+schema-intake
+node_modules
+supabase/.temp
