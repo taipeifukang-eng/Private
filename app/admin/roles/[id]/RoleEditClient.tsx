@@ -4,9 +4,10 @@
 // 角色編輯 Client Component
 // ============================================
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AlertTriangle, ChevronDown, ChevronsDown, ChevronsUp, ListChecks, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { Role, Permission, MODULE_NAMES, FEATURE_NAMES, ACTION_NAMES } from '@/types/rbac';
 
 interface PermissionWithGrant extends Permission {
@@ -29,6 +30,53 @@ interface UserWithRole {
   is_active: boolean;
   assigned_at: string;
   expires_at: string | null;
+}
+
+function getBasicViewPermissionIds(featurePermissions: PermissionWithGrant[]) {
+  const actions = new Set(featurePermissions.map(permission => permission.action));
+  const preferredAction = actions.has('view_own_store')
+    ? 'view_own_store'
+    : actions.has('view_own')
+      ? 'view_own'
+      : actions.has('view')
+        ? 'view'
+        : actions.has('view_all')
+          ? 'view_all'
+          : null;
+
+  return new Set(featurePermissions
+    .filter(permission => permission.action === 'access' || permission.action === preferredAction)
+    .map(permission => permission.id));
+}
+
+const HIGH_IMPACT_PERMISSION_ACTIONS = new Set([
+  'delete',
+  'force_close',
+  'revert',
+  'unconfirm',
+]);
+
+const VIEW_PERMISSION_ACTIONS = new Set([
+  'access',
+  'view',
+  'view_own',
+  'view_own_store',
+  'view_all',
+  'view_inactive',
+]);
+
+function isHighImpactPermission(permission: PermissionWithGrant) {
+  return HIGH_IMPACT_PERMISSION_ACTIONS.has(permission.action);
+}
+
+function getDailyPermissionIds(featurePermissions: PermissionWithGrant[]) {
+  const basicViewIds = getBasicViewPermissionIds(featurePermissions);
+  return new Set(featurePermissions
+    .filter(permission => (
+      basicViewIds.has(permission.id)
+      || (!VIEW_PERMISSION_ACTIONS.has(permission.action) && !isHighImpactPermission(permission))
+    ))
+    .map(permission => permission.id));
 }
 
 interface SearchUser {
@@ -77,6 +125,27 @@ export default function RoleEditClient({
   const [employeeCodesInput, setEmployeeCodesInput] = useState('');
   const [assigningUser, setAssigningUser] = useState(false);
   const [permissionSearch, setPermissionSearch] = useState('');
+  const [permissionView, setPermissionView] = useState<'all' | 'granted' | 'changed' | 'advanced'>('all');
+  const [showTechnicalPermissionCodes, setShowTechnicalPermissionCodes] = useState(false);
+  const [expandedPermissionModules, setExpandedPermissionModules] = useState<Set<string>>(new Set());
+  const [expandedPermissionFeatures, setExpandedPermissionFeatures] = useState<Set<string>>(new Set());
+  const [savedPermissionIds, setSavedPermissionIds] = useState<string[]>([]);
+  const [permissionConflict, setPermissionConflict] = useState<string | null>(null);
+  const [showPermissionChanges, setShowPermissionChanges] = useState(false);
+  const allowUnsavedNavigationRef = useRef(false);
+
+  const permissionChangeSummary = useMemo(() => {
+    const savedIds = new Set(savedPermissionIds);
+    const enabledPermissions = permissions.filter(permission => permission.granted && !savedIds.has(permission.id));
+    const disabledPermissions = permissions.filter(permission => !permission.granted && savedIds.has(permission.id));
+    return {
+      enabled: enabledPermissions.length,
+      disabled: disabledPermissions.length,
+      enabledPermissions,
+      disabledPermissions,
+      hasChanges: enabledPermissions.length > 0 || disabledPermissions.length > 0,
+    };
+  }, [permissions, savedPermissionIds]);
 
   useEffect(() => {
     fetchRoleData();
@@ -87,6 +156,37 @@ export default function RoleEditClient({
       setActiveTab('users');
     }
   }, [canViewPermissions, canViewUsers]);
+
+  useEffect(() => {
+    if (!permissionChangeSummary.hasChanges) return;
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      if (allowUnsavedNavigationRef.current) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeLeaving);
+    return () => window.removeEventListener('beforeunload', warnBeforeLeaving);
+  }, [permissionChangeSummary.hasChanges]);
+
+  useEffect(() => {
+    if (!permissionChangeSummary.hasChanges) return;
+
+    const confirmLinkNavigation = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor || anchor.target === '_blank' || anchor.href === window.location.href) return;
+      if (!window.confirm('權限變更尚未儲存，確定要離開嗎？')) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+      allowUnsavedNavigationRef.current = true;
+    };
+
+    document.addEventListener('click', confirmLinkNavigation, true);
+    return () => document.removeEventListener('click', confirmLinkNavigation, true);
+  }, [permissionChangeSummary.hasChanges]);
 
   useEffect(() => {
     if (permissions.length > 0) {
@@ -118,7 +218,11 @@ export default function RoleEditClient({
         const permData = await permResponse.json();
 
         if (permResponse.ok) {
-          setPermissions(permData.permissions || []);
+          const loadedPermissions: PermissionWithGrant[] = permData.permissions || [];
+          setPermissions(loadedPermissions);
+          setSavedPermissionIds(loadedPermissions.filter(permission => permission.granted).map(permission => permission.id));
+          setPermissionConflict(null);
+          setShowPermissionChanges(false);
         }
       }
     } catch (err) {
@@ -161,16 +265,29 @@ export default function RoleEditClient({
       .map(([module, perms]) => ({
         module,
         permissions: perms.sort((a, b) => {
-          if (a.feature !== b.feature) return a.feature.localeCompare(b.feature);
+          if (a.feature !== b.feature) {
+            return (FEATURE_NAMES[a.feature] || a.feature).localeCompare(
+              FEATURE_NAMES[b.feature] || b.feature,
+              'zh-TW'
+            );
+          }
           return a.action.localeCompare(b.action);
         })
       }))
-      .sort((a, b) => a.module.localeCompare(b.module));
+      .sort((a, b) => (MODULE_NAMES[a.module] || a.module).localeCompare(
+        MODULE_NAMES[b.module] || b.module,
+        'zh-TW'
+      ));
 
     setGroupedPermissions(result);
   }
 
   function togglePermission(permissionId: string) {
+    const target = permissions.find(permission => permission.id === permissionId);
+    if (target && !target.granted && isHighImpactPermission(target)) {
+      const actionName = ACTION_NAMES[target.action] || target.action;
+      if (!window.confirm(`「${actionName}」屬於進階權限，可能影響既有資料或流程，確定要開啟嗎？`)) return;
+    }
     setPermissions(prev =>
       prev.map(p =>
         p.id === permissionId ? { ...p, granted: !p.granted } : p
@@ -178,33 +295,47 @@ export default function RoleEditClient({
     );
   }
 
-  function toggleModule(module: string, grant: boolean) {
-    // module 是 normalized 英文 key，需要同時匹配英文和中文 module 值
-    const MODULE_REVERSE: Record<string, string[]> = {
-      task: ['task', '任務管理'],
-      store: ['store', '門市管理'],
-      employee: ['employee', '人事管理'],
-      activity: ['activity', '活動管理'],
-      inventory: ['inventory', '盤點管理'],
-      monthly: ['monthly', 'monthly_status', '每月狀態', '每月人員狀態'],
-      user: ['user', '系統'],
-      inspection: ['inspection', '督導巡店'],
-      performance: ['performance', '業績管理'],
-      organization: ['organization', '組織管理'],
-    };
-    const matchModules = MODULE_REVERSE[module] || [module];
-    setPermissions(prev =>
-      prev.map(p =>
-        matchModules.includes(p.module) ? { ...p, granted: grant } : p
-      )
-    );
+  function setFeaturePermissionMode(
+    featurePermissions: PermissionWithGrant[],
+    mode: 'view' | 'daily' | 'clear'
+  ) {
+    const featureIds = new Set(featurePermissions.map(permission => permission.id));
+    const basicViewIds = getBasicViewPermissionIds(featurePermissions);
+    const dailyPermissionIds = getDailyPermissionIds(featurePermissions);
+    setPermissions(current => current.map(permission => {
+      if (!featureIds.has(permission.id)) return permission;
+      if (mode === 'clear') return { ...permission, granted: false };
+      if (mode === 'daily') return { ...permission, granted: dailyPermissionIds.has(permission.id) };
+      return { ...permission, granted: basicViewIds.has(permission.id) };
+    }));
   }
 
-  function togglePermissionIds(permissionIds: string[], grant: boolean) {
-    const ids = new Set(permissionIds);
-    setPermissions(prev => prev.map(permission =>
-      ids.has(permission.id) ? { ...permission, granted: grant } : permission
-    ));
+  function togglePermissionModule(module: string) {
+    setExpandedPermissionModules(current => {
+      const next = new Set(current);
+      if (next.has(module)) next.delete(module);
+      else next.add(module);
+      return next;
+    });
+  }
+
+  function togglePermissionFeature(module: string, feature: string) {
+    const key = `${module}:${feature}`;
+    setExpandedPermissionFeatures(current => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function expandAllVisiblePermissionGroups() {
+    setExpandedPermissionModules(new Set(visiblePermissionGroups.map(group => group.module)));
+  }
+
+  function collapseAllPermissionGroups() {
+    setExpandedPermissionModules(new Set());
+    setExpandedPermissionFeatures(new Set());
   }
 
   async function handleSavePermissions() {
@@ -214,6 +345,7 @@ export default function RoleEditClient({
     }
 
     setSaving(true);
+    setPermissionConflict(null);
     try {
       const grantedPermissionIds = permissions
         .filter(p => p.granted)
@@ -222,7 +354,10 @@ export default function RoleEditClient({
       const response = await fetch(`/api/roles/${roleId}/permissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ permissionIds: grantedPermissionIds })
+        body: JSON.stringify({
+          permissionIds: grantedPermissionIds,
+          expectedPermissionIds: savedPermissionIds,
+        })
       });
 
       const data = await response.json();
@@ -231,6 +366,10 @@ export default function RoleEditClient({
         alert('權限已儲存');
         await fetchRoleData();
       } else {
+        if (response.status === 409) {
+          setPermissionConflict(data.error || '權限已被其他管理者更新');
+          return;
+        }
         alert(data.error || '儲存失敗');
       }
     } catch (err) {
@@ -238,6 +377,27 @@ export default function RoleEditClient({
     } finally {
       setSaving(false);
     }
+  }
+
+  function discardPermissionChanges() {
+    const savedIds = new Set(savedPermissionIds);
+    setPermissions(current => current.map(permission => ({
+      ...permission,
+      granted: savedIds.has(permission.id),
+    })));
+    setShowPermissionChanges(false);
+  }
+
+  async function reloadPermissionsAfterConflict() {
+    if (!window.confirm('重新載入會放棄目前尚未儲存的勾選，確定要繼續嗎？')) return;
+    await fetchRoleData();
+  }
+
+  function switchRoleTab(nextTab: 'permissions' | 'users') {
+    if (nextTab === activeTab) return;
+    if (hasUnsavedPermissionChanges && !window.confirm('權限變更尚未儲存，確定要切換分頁嗎？')) return;
+    if (hasUnsavedPermissionChanges) discardPermissionChanges();
+    setActiveTab(nextTab);
   }
 
   async function handleSaveRole() {
@@ -382,12 +542,17 @@ export default function RoleEditClient({
   }
 
   const grantedCount = permissions.filter(p => p.granted).length;
+  const hasUnsavedPermissionChanges = permissionChangeSummary.hasChanges;
   const normalizedPermissionSearch = permissionSearch.trim().toLowerCase();
+  const savedPermissionIdSet = new Set(savedPermissionIds);
   const visiblePermissionGroups = groupedPermissions
     .map(group => ({
       ...group,
-      permissions: normalizedPermissionSearch
-        ? group.permissions.filter(permission => {
+      permissions: group.permissions.filter(permission => {
+            if (permissionView === 'granted' && !permission.granted) return false;
+            if (permissionView === 'changed' && permission.granted === savedPermissionIdSet.has(permission.id)) return false;
+            if (permissionView === 'advanced' && !isHighImpactPermission(permission)) return false;
+            if (!normalizedPermissionSearch) return true;
             const moduleName = MODULE_NAMES[group.module] || group.module;
             const featureName = FEATURE_NAMES[permission.feature] || permission.feature;
             return [
@@ -397,8 +562,7 @@ export default function RoleEditClient({
               permission.description || '',
               ACTION_NAMES[permission.action] || permission.action,
             ].some(value => value.toLowerCase().includes(normalizedPermissionSearch));
-          })
-        : group.permissions,
+          }),
     }))
     .filter(group => group.permissions.length > 0);
   const getProfileRoleLabel = (role: UserWithRole['profile_role']) => {
@@ -541,7 +705,7 @@ export default function RoleEditClient({
         <div className="border-b border-gray-200">
           <div className="flex">
             <button
-              onClick={() => setActiveTab('permissions')}
+              onClick={() => switchRoleTab('permissions')}
               disabled={!canViewPermissions}
               className={`px-6 py-3 font-medium ${
                 activeTab === 'permissions'
@@ -554,7 +718,7 @@ export default function RoleEditClient({
               權限設定
             </button>
             <button
-              onClick={() => setActiveTab('users')}
+              onClick={() => switchRoleTab('users')}
               disabled={!canViewUsers}
               className={`px-6 py-3 font-medium ${
                 activeTab === 'users'
@@ -584,32 +748,105 @@ export default function RoleEditClient({
             <h2 className="text-xl font-semibold">權限設定</h2>
             <p className="text-sm text-gray-500 mt-1">
               已授予 {grantedCount} / {permissions.length} 個權限
+              {hasUnsavedPermissionChanges && <span className="ml-2 font-medium text-amber-600">尚未儲存</span>}
             </p>
           </div>
-          {canAssignPermissions && (
-            <button
-              onClick={handleSavePermissions}
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? '儲存中...' : '儲存權限'}
-            </button>
-          )}
         </div>
 
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {permissionConflict && (
+          <div className="mb-5 flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600" />
+              <div>
+                <p className="text-sm font-semibold text-amber-900">權限已被其他管理者更新</p>
+                <p className="mt-0.5 text-sm text-amber-800">{permissionConflict}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={reloadPermissionsAfterConflict}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md border border-amber-400 bg-white px-3 py-2 text-sm font-medium text-amber-900 hover:bg-amber-100"
+            >
+              <RefreshCw size={16} />
+              重新載入最新權限
+            </button>
+          </div>
+        )}
+
+        <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <input
             type="search"
             value={permissionSearch}
             onChange={event => setPermissionSearch(event.target.value)}
             placeholder="搜尋功能或權限"
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:max-w-sm"
+            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 lg:max-w-sm"
           />
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex max-w-full flex-wrap rounded-md border border-gray-300 bg-gray-50 p-1" role="group" aria-label="權限顯示範圍">
+              <button
+                type="button"
+                onClick={() => setPermissionView('all')}
+                className={`rounded px-3 py-1.5 text-sm font-medium ${permissionView === 'all' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                全部權限
+              </button>
+              <button
+                type="button"
+                onClick={() => setPermissionView('granted')}
+                className={`rounded px-3 py-1.5 text-sm font-medium ${permissionView === 'granted' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                只看已開啟 ({grantedCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPermissionView('changed')}
+                className={`rounded px-3 py-1.5 text-sm font-medium ${permissionView === 'changed' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                本次變更 ({permissionChangeSummary.enabled + permissionChangeSummary.disabled})
+              </button>
+              <button
+                type="button"
+                onClick={() => setPermissionView('advanced')}
+                className={`rounded px-3 py-1.5 text-sm font-medium ${permissionView === 'advanced' ? 'bg-white text-red-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+              >
+                進階權限
+              </button>
+            </div>
+            <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+              <input
+                type="checkbox"
+                checked={showTechnicalPermissionCodes}
+                onChange={event => setShowTechnicalPermissionCodes(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              顯示技術代碼
+            </label>
+            <div className="inline-flex items-center gap-1">
+              <button
+                type="button"
+                onClick={expandAllVisiblePermissionGroups}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                title="展開目前顯示的權限分類"
+              >
+                <ChevronsDown size={16} />
+                展開分類
+              </button>
+              <button
+                type="button"
+                onClick={collapseAllPermissionGroups}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                title="收合全部權限分類"
+              >
+                <ChevronsUp size={16} />
+                全部收合
+              </button>
+            </div>
           {permissionSearch && (
             <span className="text-sm text-gray-500">
               找到 {visiblePermissionGroups.reduce((count, group) => count + group.permissions.length, 0)} 個權限
             </span>
           )}
+          </div>
         </div>
 
         {/* 權限矩陣 */}
@@ -618,7 +855,7 @@ export default function RoleEditClient({
             const completeGroup = groupedPermissions.find(item => item.module === group.module) || group;
             const moduleGranted = completeGroup.permissions.filter(p => p.granted).length;
             const moduleTotal = completeGroup.permissions.length;
-            const allGranted = moduleGranted === moduleTotal;
+            const isExpanded = Boolean(normalizedPermissionSearch) || expandedPermissionModules.has(group.module);
             const featureGroups = Array.from(
               group.permissions.reduce((groups, permission) => {
                 const featurePermissions = groups.get(permission.feature) || [];
@@ -631,69 +868,115 @@ export default function RoleEditClient({
             return (
               <div key={group.module} className="border rounded-lg overflow-hidden">
                 {/* 模組標題 */}
-                <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                <div className="bg-gray-50 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => togglePermissionModule(group.module)}
+                    aria-expanded={isExpanded}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <ChevronDown
+                      size={18}
+                      className={`shrink-0 text-gray-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                    />
                     <h3 className="font-semibold text-gray-900">
                       {MODULE_NAMES[group.module] || group.module}
                     </h3>
                     <span className="text-sm text-gray-500">
-                      ({moduleGranted}/{moduleTotal})
+                      已開啟 {moduleGranted}/{moduleTotal}
                     </span>
-                  </div>
-                  {canAssignPermissions && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => toggleModule(group.module, true)}
-                        disabled={allGranted}
-                        className="text-sm text-blue-600 hover:text-blue-700 disabled:text-gray-400"
-                      >
-                        整組開啟
-                      </button>
-                      <button
-                        onClick={() => toggleModule(group.module, false)}
-                        disabled={moduleGranted === 0}
-                        className="text-sm text-gray-600 hover:text-gray-700 disabled:text-gray-400"
-                      >
-                        整組清除
-                      </button>
-                    </div>
-                  )}
+                    <span className="hidden text-xs text-gray-400 sm:inline">
+                      {isExpanded ? '收合' : '展開'}
+                    </span>
+                  </button>
                 </div>
 
                 {/* 權限列表 */}
-                <div className="divide-y divide-gray-200">
+                {isExpanded && <div className="divide-y divide-gray-200 border-t border-gray-200">
                   {featureGroups.map(([feature, featurePermissions]) => {
-                    const featureGranted = featurePermissions.filter(permission => permission.granted).length;
-                    const featureAllGranted = featureGranted === featurePermissions.length;
+                    const completeFeaturePermissions = completeGroup.permissions.filter(permission => permission.feature === feature);
+                    const featureGranted = completeFeaturePermissions.filter(permission => permission.granted).length;
+                    const basicViewPermissionIds = getBasicViewPermissionIds(completeFeaturePermissions);
+                    const featureViewPermissions = completeFeaturePermissions.filter(permission => basicViewPermissionIds.has(permission.id));
+                    const dailyPermissionIds = getDailyPermissionIds(completeFeaturePermissions);
+                    const isViewOnly = featureViewPermissions.length > 0
+                      && completeFeaturePermissions.every(permission => permission.granted === basicViewPermissionIds.has(permission.id));
+                    const hasDailyPermissions = dailyPermissionIds.size > basicViewPermissionIds.size;
+                    const isDailyUse = hasDailyPermissions
+                      && completeFeaturePermissions.every(permission => permission.granted === dailyPermissionIds.has(permission.id));
+                    const grantedAdvancedCount = completeFeaturePermissions.filter(permission => permission.granted && isHighImpactPermission(permission)).length;
+                    const featureStatus = featureGranted === 0
+                      ? '未開啟'
+                      : isViewOnly
+                        ? '基本查看'
+                        : isDailyUse
+                          ? '日常處理'
+                          : `自訂 ${featureGranted}/${completeFeaturePermissions.length}`;
+                    const featureKey = `${group.module}:${feature}`;
+                    const isFeatureExpanded = Boolean(normalizedPermissionSearch) || expandedPermissionFeatures.has(featureKey);
                     return (
                     <section key={feature}>
-                      <div className="flex items-center justify-between bg-white px-4 py-2.5">
-                        <div>
+                      <div className="flex flex-col gap-2 bg-white px-4 py-2.5 md:flex-row md:items-center md:justify-between">
+                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                           <span className="text-sm font-medium text-gray-900">
                             {FEATURE_NAMES[feature] || feature}
                           </span>
-                          <span className="ml-2 text-xs text-gray-500">
-                            {featureGranted}/{featurePermissions.length}
+                          <span className={`text-xs font-medium ${featureGranted === 0 ? 'text-gray-400' : 'text-blue-700'}`}>
+                            {featureStatus}
                           </span>
+                          {grantedAdvancedCount > 0 && (
+                            <span className="text-xs font-medium text-red-600">
+                              含 {grantedAdvancedCount} 項進階權限
+                            </span>
+                          )}
                         </div>
-                        {canAssignPermissions && (
+                        <div className="flex flex-wrap items-center gap-2 md:ml-3 md:shrink-0">
+                          {canAssignPermissions && (
+                          <div className="inline-flex w-fit max-w-full flex-wrap rounded-md border border-gray-200 bg-gray-50 p-0.5" role="group" aria-label={`${FEATURE_NAMES[feature] || feature} 授權模式`}>
+                            {featureViewPermissions.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setFeaturePermissionMode(completeFeaturePermissions, 'view')}
+                                className={`rounded px-2 py-1 text-xs font-medium ${isViewOnly ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                              >
+                                基本查看
+                              </button>
+                            )}
+                            {hasDailyPermissions && (
+                              <button
+                                type="button"
+                                onClick={() => setFeaturePermissionMode(completeFeaturePermissions, 'daily')}
+                                className={`rounded px-2 py-1 text-xs font-medium ${isDailyUse ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                              >
+                                日常處理
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setFeaturePermissionMode(completeFeaturePermissions, 'clear')}
+                              className={`rounded px-2 py-1 text-xs font-medium ${featureGranted === 0 ? 'bg-white text-gray-700 shadow-sm' : 'text-gray-500 hover:text-gray-900'}`}
+                            >
+                              清除
+                            </button>
+                          </div>
+                          )}
                           <button
                             type="button"
-                            onClick={() => togglePermissionIds(
-                              featurePermissions.map(permission => permission.id),
-                              !featureAllGranted
-                            )}
-                            className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            onClick={() => togglePermissionFeature(group.module, feature)}
+                            aria-expanded={isFeatureExpanded}
+                            className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-md border px-2.5 text-xs font-medium ${isFeatureExpanded ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900'}`}
+                            title={`${isFeatureExpanded ? '收合' : '展開'}${FEATURE_NAMES[feature] || feature}的個別權限`}
                           >
-                            {featureAllGranted ? '清除這項功能' : '開啟這項功能'}
+                            <SlidersHorizontal size={14} />
+                            個別設定
                           </button>
-                        )}
+                        </div>
                       </div>
-                      <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/40">
+                      {isFeatureExpanded && <div className="divide-y divide-gray-100 border-t border-gray-100 bg-gray-50/40">
                   {featurePermissions.map(perm => (
                     <label
                       key={perm.id}
-                      className={`flex items-center px-4 py-3 pl-7 hover:bg-blue-50/40 cursor-pointer ${
+                      className={`flex items-start px-4 py-3 pl-7 hover:bg-blue-50/40 cursor-pointer ${
                         !canAssignPermissions ? 'cursor-not-allowed opacity-60' : ''
                       }`}
                     >
@@ -702,16 +985,21 @@ export default function RoleEditClient({
                         checked={perm.granted}
                         onChange={() => togglePermission(perm.id)}
                         disabled={!canAssignPermissions}
-                        className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                        className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
                       />
                       <div className="ml-3 flex-1">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="text-sm font-medium text-gray-800">
                             [{ACTION_NAMES[perm.action] || perm.action}]
                           </span>
-                          <code className="text-xs text-gray-400">
-                            {perm.code}
-                          </code>
+                          {isHighImpactPermission(perm) && (
+                            <span className="text-xs font-medium text-red-600">進階權限</span>
+                          )}
+                          {showTechnicalPermissionCodes && (
+                            <code className="break-all text-xs text-gray-400">
+                              {perm.code}
+                            </code>
+                          )}
                         </div>
                         <p className="text-sm text-gray-600 mt-1">
                           {perm.description}
@@ -719,11 +1007,11 @@ export default function RoleEditClient({
                       </div>
                     </label>
                   ))}
-                      </div>
+                      </div>}
                     </section>
                     );
                   })}
-                </div>
+                </div>}
               </div>
             );
           })}
@@ -733,6 +1021,81 @@ export default function RoleEditClient({
             </div>
           )}
         </div>
+        {canAssignPermissions && hasUnsavedPermissionChanges && (
+          <div className="sticky bottom-4 z-20 mt-6 max-h-[60vh] overflow-y-auto rounded-md border border-amber-200 bg-white px-4 py-3 shadow-lg">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">權限變更尚未儲存</p>
+              <p className="text-xs text-gray-500">
+                {permissionChangeSummary.enabled > 0 && `開啟 ${permissionChangeSummary.enabled} 項`}
+                {permissionChangeSummary.enabled > 0 && permissionChangeSummary.disabled > 0 && '、'}
+                {permissionChangeSummary.disabled > 0 && `關閉 ${permissionChangeSummary.disabled} 項`}
+                ，儲存後才會套用到這個角色。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPermissionChanges(current => !current)}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 sm:flex-none"
+              >
+                <ListChecks size={16} />
+                {showPermissionChanges ? '收合明細' : '查看變更'}
+              </button>
+              <button
+                type="button"
+                onClick={discardPermissionChanges}
+                disabled={saving}
+                className="flex-1 rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 sm:flex-none"
+              >
+                放棄變更
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePermissions}
+                disabled={saving}
+                className="flex-1 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 sm:flex-none"
+              >
+                {saving ? '儲存中...' : '儲存權限'}
+              </button>
+            </div>
+            </div>
+            {showPermissionChanges && (
+              <div className="mt-3 grid gap-4 border-t border-gray-200 pt-3 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-xs font-semibold text-emerald-700">將開啟（{permissionChangeSummary.enabled}）</p>
+                  {permissionChangeSummary.enabledPermissions.length === 0 ? (
+                    <p className="text-xs text-gray-400">無</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {permissionChangeSummary.enabledPermissions.map(permission => (
+                        <li key={permission.id} className="text-xs text-gray-700">
+                          <span className="font-medium">{FEATURE_NAMES[permission.feature] || permission.feature}</span>
+                          <span className="text-gray-500"> · {ACTION_NAMES[permission.action] || permission.action}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <p className="mb-2 text-xs font-semibold text-red-700">將關閉（{permissionChangeSummary.disabled}）</p>
+                  {permissionChangeSummary.disabledPermissions.length === 0 ? (
+                    <p className="text-xs text-gray-400">無</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {permissionChangeSummary.disabledPermissions.map(permission => (
+                        <li key={permission.id} className="text-xs text-gray-700">
+                          <span className="font-medium">{FEATURE_NAMES[permission.feature] || permission.feature}</span>
+                          <span className="text-gray-500"> · {ACTION_NAMES[permission.action] || permission.action}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         </>
         )}
       </div>

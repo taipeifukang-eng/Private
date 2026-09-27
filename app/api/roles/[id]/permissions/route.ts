@@ -112,11 +112,11 @@ export async function POST(
 
     const { id } = params;
     const body = await request.json();
-    const { permissionIds } = body;
+    const { permissionIds, expectedPermissionIds } = body;
 
-    if (!Array.isArray(permissionIds)) {
+    if (!Array.isArray(permissionIds) || !Array.isArray(expectedPermissionIds)) {
       return NextResponse.json(
-        { error: 'permissionIds 必須是陣列' },
+        { error: 'permissionIds 與 expectedPermissionIds 必須是陣列' },
         { status: 400 }
       );
     }
@@ -137,45 +137,47 @@ export async function POST(
       );
     }
 
-    // 先刪除現有權限
-    const { error: deleteError } = await adminSupabase
-      .from('role_permissions')
-      .delete()
-      .eq('role_id', id);
-
-    if (deleteError) {
-      console.error('刪除舊權限錯誤:', deleteError);
+    const uniquePermissionIds = Array.from(new Set(permissionIds));
+    const uniqueExpectedPermissionIds = Array.from(new Set(expectedPermissionIds));
+    if (
+      uniquePermissionIds.some(permissionId => typeof permissionId !== 'string')
+      || uniqueExpectedPermissionIds.some(permissionId => typeof permissionId !== 'string')
+    ) {
       return NextResponse.json(
-        { error: '更新權限失敗' },
-        { status: 500 }
+        { error: 'permissionIds 格式不正確' },
+        { status: 400 }
       );
     }
 
-    // 如果有新權限，插入
-    if (permissionIds.length > 0) {
-      const newPermissions = permissionIds.map(permissionId => ({
-        role_id: id,
-        permission_id: permissionId,
-        is_allowed: true,
-        created_by: user.id
-      }));
-
-      const { error: insertError } = await adminSupabase
-        .from('role_permissions')
-        .insert(newPermissions);
-
-      if (insertError) {
-        console.error('插入新權限錯誤:', insertError);
-        return NextResponse.json(
-          { error: '更新權限失敗' },
-          { status: 500 }
-        );
+    const { data: updatedCount, error: updateError } = await adminSupabase.rpc(
+      'replace_role_permissions',
+      {
+        p_role_id: id,
+        p_permission_ids: uniquePermissionIds,
+        p_expected_permission_ids: uniqueExpectedPermissionIds,
+        p_created_by: user.id
       }
+    );
+
+    if (updateError) {
+      console.error('原子更新角色權限錯誤:', updateError);
+      const invalidPermission = updateError.message.includes('INVALID_OR_INACTIVE_PERMISSION');
+      const stalePermissions = updateError.message.includes('ROLE_PERMISSIONS_CHANGED');
+      return NextResponse.json(
+        {
+          error: stalePermissions
+            ? '這個角色的權限已被其他管理者更新，請重新載入後再調整'
+            : invalidPermission
+              ? '包含不存在或已停用的權限'
+              : '更新權限失敗，原有設定已保留'
+        },
+        { status: stalePermissions ? 409 : invalidPermission ? 400 : 500 }
+      );
     }
 
     return NextResponse.json({ 
       success: true,
-      message: `成功更新 ${permissionIds.length} 個權限`
+      message: `成功更新 ${updatedCount ?? uniquePermissionIds.length} 個權限`
     });
   } catch (error) {
     console.error('更新角色權限異常:', error);
