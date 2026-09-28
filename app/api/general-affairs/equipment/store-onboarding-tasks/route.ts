@@ -15,6 +15,18 @@ const FULL_ACCESS_PERMISSIONS = [
   'store.manage',
 ];
 
+function isMissingEquipmentOnboardingSchema(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  const message = error.message || '';
+  return (
+    (error.code === '42703' || error.code === 'PGRST204')
+      && message.includes('onboarding_')
+  ) || (
+    (error.code === '42P01' || error.code === 'PGRST205')
+      && message.includes('ga_equipment')
+  );
+}
+
 function jsonError(error: unknown, status = 500) {
   const message = error instanceof Error
     ? error.message
@@ -78,6 +90,10 @@ async function buildTasks(adminSupabase: ReturnType<typeof createAdminClient>, s
     .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .limit(100);
+  if (isMissingEquipmentOnboardingSchema(error)) {
+    console.warn('[GA store onboarding task] onboarding schema is not deployed; skipping equipment tasks');
+    return [];
+  }
   if (error) throw error;
 
   const equipmentIds = (data || []).map((item: any) => item.id);

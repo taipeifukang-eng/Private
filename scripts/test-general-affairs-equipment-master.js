@@ -61,6 +61,10 @@ const storeOnboardingAttachmentScopeMigration = read(`supabase/migrations/${stor
 const onboardingRejectScopeMigrationName = findMigration('_general_affairs_equipment_onboarding_reject_scope.sql');
 assert(onboardingRejectScopeMigrationName, 'equipment onboarding reject scope migration missing');
 const onboardingRejectScopeMigration = read(`supabase/migrations/${onboardingRejectScopeMigrationName}`);
+const onboardingRepairMigrationName = findMigration('_repair_equipment_onboarding_schema.sql');
+assert(onboardingRepairMigrationName, 'equipment onboarding production repair migration missing');
+const onboardingRepairMigration = read(`supabase/migrations/${onboardingRepairMigrationName}`);
+const storeOnboardingTasksRoute = read('app/api/general-affairs/equipment/store-onboarding-tasks/route.ts');
 const scanApiRoute = read('app/api/general-affairs/assets/scan/[token]/route.ts');
 const scanPage = read('app/general-affairs/assets/scan/[token]/page.tsx');
 const onboardingReviewRoute = read('app/api/general-affairs/equipment/[id]/onboarding-review/route.ts');
@@ -283,6 +287,17 @@ assert(onboardingRejectScopeMigration.includes('onboarding_requires_primary_phot
 assert(onboardingRejectScopeMigration.includes('onboarding_requires_label_photo'), 'reject scope migration must add label photo requirement flag');
 assert(onboardingRejectScopeMigration.includes('v_requires_primary_photo'), 'reject scope migration must prioritize primary photo requirement');
 assert(onboardingRejectScopeMigration.includes('v_requires_label_photo'), 'reject scope migration must prioritize label photo requirement');
+[
+  'ADD COLUMN IF NOT EXISTS onboarding_status',
+  'ADD COLUMN IF NOT EXISTS onboarding_requires_primary_photo',
+  'ADD COLUMN IF NOT EXISTS onboarding_requires_label_photo',
+  'ADD COLUMN IF NOT EXISTS onboarding_review_note',
+  'ga_sync_equipment_onboarding_status',
+  'trg_ga_resource_attachments_equipment_onboarding_sync',
+  "NOTIFY pgrst, 'reload schema'",
+].forEach((needle) => assert(onboardingRepairMigration.includes(needle), `equipment onboarding repair migration missing ${needle}`));
+assert(storeOnboardingTasksRoute.includes('isMissingEquipmentOnboardingSchema'), 'store onboarding tasks must tolerate a production schema deployment gap');
+assert(storeOnboardingTasksRoute.includes('skipping equipment tasks'), 'store onboarding schema fallback must remain observable in server logs');
 assert(scanPage.includes('QR Code 穩定掃描入口'), 'scan page must describe stable QR entry');
 assert(scanPage.includes("status === 403 ? '沒有查看權限'"), 'scan page must distinguish permission denial from invalid QR');
 assert(scanPage.includes('維修回報'), 'scan page must expose repair request entry');
