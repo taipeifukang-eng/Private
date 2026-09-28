@@ -1317,9 +1317,9 @@ export default function RoleEditClient({
                     const isDailyUse = hasDailyPermissions
                       && completeFeaturePermissions.every(permission => permission.granted === dailyPermissionIds.has(permission.id));
                     const grantedSensitiveCount = completeFeaturePermissions.filter(permission => permission.granted && isSensitivePermission(permission)).length;
-                    const hasViewScopeConflict = completeFeaturePermissions
-                      .filter(permission => permission.granted && isExclusiveViewScope(permission))
-                      .length > 1;
+                    const grantedViewScopes = completeFeaturePermissions
+                      .filter(permission => permission.granted && isExclusiveViewScope(permission));
+                    const hasViewScopeConflict = grantedViewScopes.length > 1;
                     const hasGrantedDependentPermission = completeFeaturePermissions.some(permission => permission.granted && permission.action !== 'access');
                     const featureStatus = featureGranted === 0
                       ? '未開啟'
@@ -1400,6 +1400,12 @@ export default function RoleEditClient({
                         </div>
                       </div>
                       {isFeatureExpanded && <div className="border-t border-gray-100 bg-gray-50/40">
+                  {hasViewScopeConflict && (
+                    <div role="alert" className="border-b border-amber-200 bg-amber-50 px-7 py-2.5 text-sm text-amber-900">
+                      <span className="font-semibold">請重新選擇一個資料查看範圍：</span>{' '}
+                      目前同時開啟 {grantedViewScopes.map(getPermissionActionLabel).join('、')}。
+                    </div>
+                  )}
                   {detailedPermissionSections.map(({ section, permissions: sectionPermissions }) => (
                     <div key={section} className="border-b border-gray-100 last:border-b-0">
                       <div className={`px-7 pb-1 pt-3 text-xs font-semibold ${section === 'advanced' ? 'text-red-700' : 'text-gray-500'}`}>
@@ -1421,13 +1427,8 @@ export default function RoleEditClient({
                           <input
                             type={isExclusiveViewScope(perm) ? 'radio' : 'checkbox'}
                             name={isExclusiveViewScope(perm) ? `permission-scope-${perm.module}-${perm.feature}` : undefined}
-                            checked={perm.granted}
+                            checked={isExclusiveViewScope(perm) && hasViewScopeConflict ? false : perm.granted}
                             onChange={() => togglePermission(perm.id)}
-                            onClick={() => {
-                              if (hasViewScopeConflict && perm.granted && isExclusiveViewScope(perm)) {
-                                togglePermission(perm.id);
-                              }
-                            }}
                             disabled={!canAssignPermissions || isAccessLocked}
                             aria-describedby={isAccessLocked ? `access-lock-${perm.id}` : undefined}
                             className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"

@@ -40,6 +40,12 @@ assert(
   'reselecting a granted view scope must clear conflicting sibling scopes'
 );
 assert(
+  source.includes('checked={isExclusiveViewScope(perm) && hasViewScopeConflict ? false : perm.granted}')
+    && source.includes('請重新選擇一個資料查看範圍')
+    && !source.includes('if (hasViewScopeConflict && perm.granted && isExclusiveViewScope(perm))'),
+  'conflicting radio scopes must not display a browser-dependent selected value or toggle twice'
+);
+assert(
   source.includes("scope: '資料查看範圍（擇一）'"),
   'exclusive view scopes must be presented as a single-choice group'
 );
