@@ -29,6 +29,12 @@ assert(
   'legacy roles with multiple view scopes must be surfaced instead of silently summarized'
 );
 assert(
+  source.includes('focusConflictingViewScope')
+    && source.includes('conflict.scopes.map(getPermissionActionLabel)')
+    && source.includes('scrollIntoView'),
+  'view-scope conflicts must identify each feature and provide direct navigation to its controls'
+);
+assert(
   source.includes('isExclusiveViewScope(target) && target.granted')
     && source.includes('grantPermissionWithFeatureAccess(current, target)'),
   'reselecting a granted view scope must clear conflicting sibling scopes'

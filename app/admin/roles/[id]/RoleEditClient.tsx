@@ -266,7 +266,12 @@ export default function RoleEditClient({
     });
     return Array.from(byFeature.entries())
       .filter(([, scopes]) => scopes.length > 1)
-      .map(([key, scopes]) => ({ key, scopes }));
+      .map(([key, scopes]) => ({
+        key,
+        module: scopes[0].module,
+        feature: scopes[0].feature,
+        scopes,
+      }));
   }, [permissions]);
 
   const filteredRoleUsers = useMemo(() => {
@@ -573,6 +578,20 @@ export default function RoleEditClient({
       else next.add(key);
       return next;
     });
+  }
+
+  function focusConflictingViewScope(module: string, feature: string) {
+    const key = `${module}:${feature}`;
+    setPermissionView('all');
+    setPermissionSearch('');
+    setExpandedPermissionModules(current => new Set(current).add(module));
+    setExpandedPermissionFeatures(current => new Set(current).add(key));
+    window.setTimeout(() => {
+      document.getElementById(`permission-feature-${module}-${feature}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 0);
   }
 
   function expandAllVisiblePermissionGroups() {
@@ -1113,11 +1132,28 @@ export default function RoleEditClient({
         {!permissionListError && conflictingViewScopes.length > 0 && (
           <div className="mb-5 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
             <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600" />
-            <div>
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-amber-900">發現重複的資料查看範圍</p>
               <p className="mt-0.5 text-sm text-amber-800">
-                有 {conflictingViewScopes.length} 個功能同時開啟多個範圍。請展開個別設定並重新選擇一個範圍後儲存。
+                請為以下功能保留一個範圍後儲存：
               </p>
+              <div className="mt-2 divide-y divide-amber-200 border-y border-amber-200">
+                {conflictingViewScopes.map(conflict => (
+                  <button
+                    key={conflict.key}
+                    type="button"
+                    onClick={() => focusConflictingViewScope(conflict.module, conflict.feature)}
+                    className="flex w-full items-center justify-between gap-3 px-1 py-2 text-left text-sm text-amber-950 hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600"
+                  >
+                    <span className="min-w-0 font-medium">
+                      {MODULE_NAMES[conflict.module] || conflict.module}／{FEATURE_NAMES[conflict.feature] || conflict.feature}
+                    </span>
+                    <span className="shrink-0 text-xs text-amber-700">
+                      {conflict.scopes.map(getPermissionActionLabel).join('、')} → 前往修正
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1303,7 +1339,7 @@ export default function RoleEditClient({
                       }))
                       .filter(section => section.permissions.length > 0);
                     return (
-                    <section key={feature}>
+                    <section key={feature} id={`permission-feature-${group.module}-${feature}`}>
                       <div className="flex flex-col gap-2 bg-white px-4 py-2.5 md:flex-row md:items-center md:justify-between">
                         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                           <span className="text-sm font-medium text-gray-900">
