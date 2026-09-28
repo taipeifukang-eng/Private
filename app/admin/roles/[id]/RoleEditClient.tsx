@@ -1414,6 +1414,7 @@ export default function RoleEditClient({
                       <div className="divide-y divide-gray-100">
                       {sectionPermissions.map(perm => {
                         const isAccessLocked = perm.action === 'access' && perm.granted && hasGrantedDependentPermission;
+                        const isConflictingViewScope = isExclusiveViewScope(perm) && hasViewScopeConflict;
                         return (
                         <label
                           key={perm.id}
@@ -1425,9 +1426,9 @@ export default function RoleEditClient({
                           title={isAccessLocked ? '請先關閉其他權限，或使用「清除」停用整個功能' : undefined}
                         >
                           <input
-                            type={isExclusiveViewScope(perm) ? 'radio' : 'checkbox'}
-                            name={isExclusiveViewScope(perm) ? `permission-scope-${perm.module}-${perm.feature}` : undefined}
-                            checked={isExclusiveViewScope(perm) && hasViewScopeConflict ? false : perm.granted}
+                            type={isExclusiveViewScope(perm) && !hasViewScopeConflict ? 'radio' : 'checkbox'}
+                            name={isExclusiveViewScope(perm) && !hasViewScopeConflict ? `permission-scope-${perm.module}-${perm.feature}` : undefined}
+                            checked={perm.granted}
                             onChange={() => togglePermission(perm.id)}
                             disabled={!canAssignPermissions || isAccessLocked}
                             aria-describedby={isAccessLocked ? `access-lock-${perm.id}` : undefined}
@@ -1438,6 +1439,9 @@ export default function RoleEditClient({
                               <span className="text-sm font-medium text-gray-800">
                                 {getPermissionActionLabel(perm)}
                               </span>
+                              {isConflictingViewScope && (
+                                <span className="text-xs font-medium text-amber-700">目前已開啟，點擊後只保留此範圍</span>
+                              )}
                               {BROAD_SCOPE_PERMISSION_ACTIONS.has(perm.action) && (
                                 <span className="text-xs font-semibold text-amber-700">範圍較廣</span>
                               )}

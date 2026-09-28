@@ -40,17 +40,18 @@ assert(
   'reselecting a granted view scope must clear conflicting sibling scopes'
 );
 assert(
-  source.includes('checked={isExclusiveViewScope(perm) && hasViewScopeConflict ? false : perm.granted}')
+  source.includes("type={isExclusiveViewScope(perm) && !hasViewScopeConflict ? 'radio' : 'checkbox'}")
+    && source.includes('checked={perm.granted}')
     && source.includes('請重新選擇一個資料查看範圍')
-    && !source.includes('if (hasViewScopeConflict && perm.granted && isExclusiveViewScope(perm))'),
-  'conflicting radio scopes must not display a browser-dependent selected value or toggle twice'
+    && source.includes('目前已開啟，點擊後只保留此範圍'),
+  'conflicting scopes must show every actual grant and let the administrator retain one scope'
 );
 assert(
   source.includes("scope: '資料查看範圍（擇一）'"),
   'exclusive view scopes must be presented as a single-choice group'
 );
 assert(
-  source.includes("type={isExclusiveViewScope(perm) ? 'radio' : 'checkbox'}"),
+  source.includes("type={isExclusiveViewScope(perm) && !hasViewScopeConflict ? 'radio' : 'checkbox'}"),
   'non-scope view capabilities such as view_performance must remain checkboxes'
 );
 assert(
