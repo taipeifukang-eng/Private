@@ -23,8 +23,26 @@ assert(
   'view scopes must remain mutually exclusive'
 );
 assert(
+  source.includes('conflictingViewScopes') && source.includes('發現重複的資料查看範圍'),
+  'legacy roles with multiple view scopes must be surfaced instead of silently summarized'
+);
+assert(
+  source.includes('EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(target.action) && target.granted')
+    && source.includes('grantPermissionWithFeatureAccess(current, target)'),
+  'reselecting a granted view scope must clear conflicting sibling scopes'
+);
+assert(
   source.includes("scope: '資料查看範圍（擇一）'"),
   'exclusive view scopes must be presented as a single-choice group'
+);
+assert(
+  source.includes("permission.code === 'monthly.status.view_own'")
+    && source.includes("return '查看管理門市'"),
+  'monthly status own scope must describe managed stores instead of the ambiguous self label'
+);
+assert(
+  source.includes('使用者同時擁有的其他角色仍會疊加'),
+  'role editor must explain additive permissions to prevent false restrictive assumptions'
 );
 assert(
   source.includes("if (permission.action === 'access') return 'entry'"),

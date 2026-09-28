@@ -92,6 +92,11 @@ function getSensitivePermissionLabel(permission: PermissionWithGrant) {
   return BROAD_SCOPE_PERMISSION_ACTIONS.has(permission.action) ? '範圍較廣' : '進階權限';
 }
 
+function getPermissionActionLabel(permission: PermissionWithGrant) {
+  if (permission.code === 'monthly.status.view_own') return '查看管理門市';
+  return ACTION_NAMES[permission.action] || permission.action;
+}
+
 function getDailyPermissionIds(featurePermissions: PermissionWithGrant[]) {
   const basicViewIds = getBasicViewPermissionIds(featurePermissions);
   return new Set(featurePermissions
@@ -108,7 +113,7 @@ function getBasicViewLabel(featurePermissions: PermissionWithGrant[]) {
     basicViewIds.has(permission.id) && permission.action !== 'access'
   ));
   if (!scopedPermission) return '進入功能';
-  return ACTION_NAMES[scopedPermission.action] || scopedPermission.action;
+  return getPermissionActionLabel(scopedPermission);
 }
 
 function getPermissionSection(permission: PermissionWithGrant) {
@@ -251,6 +256,20 @@ export default function RoleEditClient({
       hasChanges: enabledPermissions.length > 0 || disabledPermissions.length > 0,
     };
   }, [permissions, savedPermissionIds]);
+
+  const conflictingViewScopes = useMemo(() => {
+    const byFeature = new Map<string, PermissionWithGrant[]>();
+    permissions.forEach(permission => {
+      if (!permission.granted || !EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(permission.action)) return;
+      const key = `${permission.module}:${permission.feature}`;
+      const current = byFeature.get(key) || [];
+      current.push(permission);
+      byFeature.set(key, current);
+    });
+    return Array.from(byFeature.entries())
+      .filter(([, scopes]) => scopes.length > 1)
+      .map(([key, scopes]) => ({ key, scopes }));
+  }, [permissions]);
 
   const filteredRoleUsers = useMemo(() => {
     const keyword = userSearch.trim().toLowerCase();
@@ -487,6 +506,10 @@ export default function RoleEditClient({
   function togglePermission(permissionId: string) {
     const target = permissions.find(permission => permission.id === permissionId);
     if (!target) return;
+    if (EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(target.action) && target.granted) {
+      setPermissions(current => grantPermissionWithFeatureAccess(current, target));
+      return;
+    }
     if (target && !target.granted && isSensitivePermission(target)) {
       sensitivePermissionTriggerRef.current = document.activeElement as HTMLElement | null;
       setPendingHighImpactPermission(target);
@@ -846,7 +869,7 @@ export default function RoleEditClient({
               featureName,
               permission.code,
               permission.description || '',
-              ACTION_NAMES[permission.action] || permission.action,
+              getPermissionActionLabel(permission),
             ].some(value => value.toLowerCase().includes(normalizedPermissionSearch));
           }),
     }))
@@ -1045,6 +1068,11 @@ export default function RoleEditClient({
               {permissionListError ? '目前無法取得權限清單' : `已授予 ${grantedCount} / ${permissions.length} 個權限`}
               {!permissionListError && hasUnsavedPermissionChanges && <span className="ml-2 font-medium text-amber-600">尚未儲存</span>}
             </p>
+            {!permissionListError && (
+              <p className="mt-1 text-xs text-gray-500">
+                此處只設定「{role.name}」；使用者同時擁有的其他角色仍會疊加。
+              </p>
+            )}
           </div>
         </div>
 
@@ -1081,6 +1109,18 @@ export default function RoleEditClient({
           >
             {permissionSaveFeedback.type === 'success' ? <CheckCircle2 size={18} /> : <XCircle size={18} />}
             {permissionSaveFeedback.message}
+          </div>
+        )}
+
+        {!permissionListError && conflictingViewScopes.length > 0 && (
+          <div className="mb-5 flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3">
+            <AlertTriangle size={20} className="mt-0.5 shrink-0 text-amber-600" />
+            <div>
+              <p className="text-sm font-semibold text-amber-900">發現重複的資料查看範圍</p>
+              <p className="mt-0.5 text-sm text-amber-800">
+                有 {conflictingViewScopes.length} 個功能同時開啟多個範圍。請展開個別設定並重新選擇一個範圍後儲存。
+              </p>
+            </div>
           </div>
         )}
 
@@ -1243,9 +1283,14 @@ export default function RoleEditClient({
                     const isDailyUse = hasDailyPermissions
                       && completeFeaturePermissions.every(permission => permission.granted === dailyPermissionIds.has(permission.id));
                     const grantedSensitiveCount = completeFeaturePermissions.filter(permission => permission.granted && isSensitivePermission(permission)).length;
+                    const hasViewScopeConflict = completeFeaturePermissions
+                      .filter(permission => permission.granted && EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(permission.action))
+                      .length > 1;
                     const hasGrantedDependentPermission = completeFeaturePermissions.some(permission => permission.granted && permission.action !== 'access');
                     const featureStatus = featureGranted === 0
                       ? '未開啟'
+                      : hasViewScopeConflict
+                        ? '範圍衝突'
                       : isViewOnly
                         ? basicViewLabel
                         : isDailyUse
@@ -1266,7 +1311,7 @@ export default function RoleEditClient({
                           <span className="text-sm font-medium text-gray-900">
                             {FEATURE_NAMES[feature] || feature}
                           </span>
-                          <span className={`text-xs font-medium ${featureGranted === 0 ? 'text-gray-400' : 'text-blue-700'}`}>
+                          <span className={`text-xs font-medium ${featureGranted === 0 ? 'text-gray-400' : hasViewScopeConflict ? 'text-amber-700' : 'text-blue-700'}`}>
                             {featureStatus}
                           </span>
                           {grantedSensitiveCount > 0 && (
@@ -1344,6 +1389,11 @@ export default function RoleEditClient({
                             name={EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(perm.action) ? `permission-scope-${perm.module}-${perm.feature}` : undefined}
                             checked={perm.granted}
                             onChange={() => togglePermission(perm.id)}
+                            onClick={() => {
+                              if (hasViewScopeConflict && perm.granted && EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(perm.action)) {
+                                togglePermission(perm.id);
+                              }
+                            }}
                             disabled={!canAssignPermissions || isAccessLocked}
                             aria-describedby={isAccessLocked ? `access-lock-${perm.id}` : undefined}
                             className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -1351,7 +1401,7 @@ export default function RoleEditClient({
                           <div className="ml-3 min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                               <span className="text-sm font-medium text-gray-800">
-                                {ACTION_NAMES[perm.action] || perm.action}
+                                {getPermissionActionLabel(perm)}
                               </span>
                               {BROAD_SCOPE_PERMISSION_ACTIONS.has(perm.action) && (
                                 <span className="text-xs font-semibold text-amber-700">範圍較廣</span>
@@ -1670,7 +1720,7 @@ export default function RoleEditClient({
                   <ul className="space-y-3">
                     {permissionChangeSummary.enabledPermissions.map(permission => (
                       <li key={permission.id} className="text-sm text-gray-700">
-                        <p className="font-medium">{FEATURE_NAMES[permission.feature] || permission.feature} · {ACTION_NAMES[permission.action] || permission.action}</p>
+                        <p className="font-medium">{FEATURE_NAMES[permission.feature] || permission.feature} · {getPermissionActionLabel(permission)}</p>
                         <p className="mt-0.5 text-xs text-gray-500">{MODULE_NAMES[permission.module] || permission.module}</p>
                         {isSensitivePermission(permission) && <p className="mt-1 text-xs font-semibold text-red-600">{getSensitivePermissionLabel(permission)}</p>}
                       </li>
@@ -1686,7 +1736,7 @@ export default function RoleEditClient({
                   <ul className="space-y-3">
                     {permissionChangeSummary.disabledPermissions.map(permission => (
                       <li key={permission.id} className="text-sm text-gray-700">
-                        <p className="font-medium">{FEATURE_NAMES[permission.feature] || permission.feature} · {ACTION_NAMES[permission.action] || permission.action}</p>
+                        <p className="font-medium">{FEATURE_NAMES[permission.feature] || permission.feature} · {getPermissionActionLabel(permission)}</p>
                         <p className="mt-0.5 text-xs text-gray-500">{MODULE_NAMES[permission.module] || permission.module}</p>
                         {isSensitivePermission(permission) && <p className="mt-1 text-xs font-semibold text-red-600">{getSensitivePermissionLabel(permission)}</p>}
                       </li>
@@ -1746,7 +1796,7 @@ export default function RoleEditClient({
               <div>
                 <p className="text-xs text-gray-500">即將授予</p>
                 <p className={`mt-0.5 text-sm font-semibold ${BROAD_SCOPE_PERMISSION_ACTIONS.has(pendingHighImpactPermission.action) ? 'text-amber-700' : 'text-red-700'}`}>
-                  {ACTION_NAMES[pendingHighImpactPermission.action] || pendingHighImpactPermission.action}
+                  {getPermissionActionLabel(pendingHighImpactPermission)}
                 </p>
               </div>
               {pendingHighImpactPermission.description && (
