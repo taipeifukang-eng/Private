@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "test:rbac-local-ready": "npm run test:rbac-user-management-cases && npm run test:rbac-safe-preflight",
+    "test:rbac-permission-ui-safety": "node scripts/test-rbac-permission-ui-safety.js",
     "test:rbac-safe-preflight": "node scripts/test-rbac-safe-preflight.js",
     "test:rbac-user-management-cases": "node scripts/test-rbac-user-management-dev.js --list-cases",
     "test:rbac-user-management-dev": "node scripts/test-rbac-user-management-dev.js",

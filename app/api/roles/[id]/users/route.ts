@@ -61,6 +61,26 @@ export async function GET(
     const { id } = params;
     const adminSupabase = createAdminClient();
 
+    if (request.nextUrl.searchParams.get('summary') === '1') {
+      const now = new Date().toISOString();
+      const { count, error: countError } = await adminSupabase
+        .from('user_roles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role_id', id)
+        .eq('is_active', true)
+        .or(`expires_at.is.null,expires_at.gt.${now}`);
+
+      if (countError) {
+        console.error('取得角色有效使用者人數錯誤:', countError);
+        return NextResponse.json({ error: '取得影響人數失敗' }, { status: 500 });
+      }
+
+      return NextResponse.json(
+        { active_user_count: count || 0 },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
     // 取得角色的所有使用者
     const { data: userRoles, error } = await adminSupabase
       .from('user_roles')
