@@ -19,21 +19,27 @@ assert(
   'view_all must remain a broad-scope sensitive permission'
 );
 assert(
-  source.includes("const EXCLUSIVE_VIEW_SCOPE_ACTIONS = new Set(["),
-  'view scopes must remain mutually exclusive'
+  source.includes("const VIEW_SCOPE_CODE_ACTIONS = new Set([")
+    && source.includes("return permission.code.split('.').at(-1) || ''")
+    && source.includes('VIEW_SCOPE_CODE_ACTIONS.has(getPermissionCodeAction(permission))'),
+  'view scopes must be identified from the permission code instead of a reused action label'
 );
 assert(
   source.includes('conflictingViewScopes') && source.includes('發現重複的資料查看範圍'),
   'legacy roles with multiple view scopes must be surfaced instead of silently summarized'
 );
 assert(
-  source.includes('EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(target.action) && target.granted')
+  source.includes('isExclusiveViewScope(target) && target.granted')
     && source.includes('grantPermissionWithFeatureAccess(current, target)'),
   'reselecting a granted view scope must clear conflicting sibling scopes'
 );
 assert(
   source.includes("scope: '資料查看範圍（擇一）'"),
   'exclusive view scopes must be presented as a single-choice group'
+);
+assert(
+  source.includes("type={isExclusiveViewScope(perm) ? 'radio' : 'checkbox'}"),
+  'non-scope view capabilities such as view_performance must remain checkboxes'
 );
 assert(
   source.includes("permission.code === 'monthly.status.view_own'")

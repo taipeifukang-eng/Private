@@ -38,20 +38,29 @@ function getRoleAssignmentStatus(user: UserWithRole): 'current' | 'inactive' | '
   return 'current';
 }
 
+const VIEW_SCOPE_CODE_ACTIONS = new Set([
+  'view',
+  'view_own',
+  'view_own_store',
+  'view_all',
+]);
+
+function getPermissionCodeAction(permission: PermissionWithGrant) {
+  return permission.code.split('.').at(-1) || '';
+}
+
+function isExclusiveViewScope(permission: PermissionWithGrant) {
+  return VIEW_SCOPE_CODE_ACTIONS.has(getPermissionCodeAction(permission));
+}
+
 function getBasicViewPermissionIds(featurePermissions: PermissionWithGrant[]) {
-  const actions = new Set(featurePermissions.map(permission => permission.action));
-  const preferredAction = actions.has('view_own_store')
-    ? 'view_own_store'
-    : actions.has('view_own')
-      ? 'view_own'
-      : actions.has('view')
-        ? 'view'
-        : actions.has('view_all')
-          ? 'view_all'
-          : null;
+  const scopePermissions = featurePermissions.filter(isExclusiveViewScope);
+  const preferredScope = ['view_own_store', 'view_own', 'view', 'view_all']
+    .map(codeAction => scopePermissions.find(permission => getPermissionCodeAction(permission) === codeAction))
+    .find(Boolean);
 
   return new Set(featurePermissions
-    .filter(permission => permission.action === 'access' || permission.action === preferredAction)
+    .filter(permission => permission.action === 'access' || permission.id === preferredScope?.id)
     .map(permission => permission.id));
 }
 
@@ -63,22 +72,6 @@ const HIGH_IMPACT_PERMISSION_ACTIONS = new Set([
 ]);
 
 const BROAD_SCOPE_PERMISSION_ACTIONS = new Set(['view_all']);
-
-const VIEW_PERMISSION_ACTIONS = new Set([
-  'access',
-  'view',
-  'view_own',
-  'view_own_store',
-  'view_all',
-  'view_inactive',
-]);
-
-const EXCLUSIVE_VIEW_SCOPE_ACTIONS = new Set([
-  'view',
-  'view_own',
-  'view_own_store',
-  'view_all',
-]);
 
 function isHighImpactPermission(permission: PermissionWithGrant) {
   return HIGH_IMPACT_PERMISSION_ACTIONS.has(permission.action);
@@ -102,7 +95,12 @@ function getDailyPermissionIds(featurePermissions: PermissionWithGrant[]) {
   return new Set(featurePermissions
     .filter(permission => (
       basicViewIds.has(permission.id)
-      || (!VIEW_PERMISSION_ACTIONS.has(permission.action) && !isHighImpactPermission(permission))
+      || (
+        permission.action !== 'access'
+        && permission.action !== 'view_inactive'
+        && !isExclusiveViewScope(permission)
+        && !isHighImpactPermission(permission)
+      )
     ))
     .map(permission => permission.id));
 }
@@ -118,7 +116,7 @@ function getBasicViewLabel(featurePermissions: PermissionWithGrant[]) {
 
 function getPermissionSection(permission: PermissionWithGrant) {
   if (isHighImpactPermission(permission)) return 'advanced';
-  if (EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(permission.action)) return 'scope';
+  if (isExclusiveViewScope(permission)) return 'scope';
   if (permission.action === 'access') return 'entry';
   if (permission.action === 'view_inactive') return 'additional';
   return 'daily';
@@ -159,7 +157,7 @@ function grantPermissionWithFeatureAccess(
     if (target.action !== 'access' && permission.action === 'access') {
       return { ...permission, granted: true };
     }
-    if (EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(target.action) && EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(permission.action)) {
+    if (isExclusiveViewScope(target) && isExclusiveViewScope(permission)) {
       return { ...permission, granted: permission.id === target.id };
     }
     return permission.id === target.id ? { ...permission, granted: true } : permission;
@@ -260,7 +258,7 @@ export default function RoleEditClient({
   const conflictingViewScopes = useMemo(() => {
     const byFeature = new Map<string, PermissionWithGrant[]>();
     permissions.forEach(permission => {
-      if (!permission.granted || !EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(permission.action)) return;
+      if (!permission.granted || !isExclusiveViewScope(permission)) return;
       const key = `${permission.module}:${permission.feature}`;
       const current = byFeature.get(key) || [];
       current.push(permission);
@@ -506,7 +504,7 @@ export default function RoleEditClient({
   function togglePermission(permissionId: string) {
     const target = permissions.find(permission => permission.id === permissionId);
     if (!target) return;
-    if (EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(target.action) && target.granted) {
+    if (isExclusiveViewScope(target) && target.granted) {
       setPermissions(current => grantPermissionWithFeatureAccess(current, target));
       return;
     }
@@ -1284,7 +1282,7 @@ export default function RoleEditClient({
                       && completeFeaturePermissions.every(permission => permission.granted === dailyPermissionIds.has(permission.id));
                     const grantedSensitiveCount = completeFeaturePermissions.filter(permission => permission.granted && isSensitivePermission(permission)).length;
                     const hasViewScopeConflict = completeFeaturePermissions
-                      .filter(permission => permission.granted && EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(permission.action))
+                      .filter(permission => permission.granted && isExclusiveViewScope(permission))
                       .length > 1;
                     const hasGrantedDependentPermission = completeFeaturePermissions.some(permission => permission.granted && permission.action !== 'access');
                     const featureStatus = featureGranted === 0
@@ -1385,12 +1383,12 @@ export default function RoleEditClient({
                           title={isAccessLocked ? '請先關閉其他權限，或使用「清除」停用整個功能' : undefined}
                         >
                           <input
-                            type={EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(perm.action) ? 'radio' : 'checkbox'}
-                            name={EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(perm.action) ? `permission-scope-${perm.module}-${perm.feature}` : undefined}
+                            type={isExclusiveViewScope(perm) ? 'radio' : 'checkbox'}
+                            name={isExclusiveViewScope(perm) ? `permission-scope-${perm.module}-${perm.feature}` : undefined}
                             checked={perm.granted}
                             onChange={() => togglePermission(perm.id)}
                             onClick={() => {
-                              if (hasViewScopeConflict && perm.granted && EXCLUSIVE_VIEW_SCOPE_ACTIONS.has(perm.action)) {
+                              if (hasViewScopeConflict && perm.granted && isExclusiveViewScope(perm)) {
                                 togglePermission(perm.id);
                               }
                             }}
