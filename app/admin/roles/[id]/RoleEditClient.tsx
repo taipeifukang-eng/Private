@@ -871,13 +871,23 @@ export default function RoleEditClient({
   const normalizedPermissionSearch = permissionSearch.trim().toLowerCase();
   const canUseFeaturePresets = permissionView === 'all' && !normalizedPermissionSearch;
   const savedPermissionIdSet = new Set(savedPermissionIds);
+  const sensitiveScopeFeatureKeys = new Set(permissions
+    .filter(permission => isSensitivePermission(permission) && isExclusiveViewScope(permission))
+    .map(permission => `${permission.module}:${permission.feature}`));
   const visiblePermissionGroups = groupedPermissions
     .map(group => ({
       ...group,
       permissions: group.permissions.filter(permission => {
             if (permissionView === 'granted' && !permission.granted) return false;
             if (permissionView === 'changed' && permission.granted === savedPermissionIdSet.has(permission.id)) return false;
-            if (permissionView === 'advanced' && !isSensitivePermission(permission)) return false;
+            if (
+              permissionView === 'advanced'
+              && !isSensitivePermission(permission)
+              && !(
+                isExclusiveViewScope(permission)
+                && sensitiveScopeFeatureKeys.has(`${permission.module}:${permission.feature}`)
+              )
+            ) return false;
             if (!normalizedPermissionSearch) return true;
             const moduleName = MODULE_NAMES[group.module] || group.module;
             const featureName = FEATURE_NAMES[permission.feature] || permission.feature;

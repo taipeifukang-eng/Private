@@ -19,6 +19,12 @@ assert(
   'view_all must remain a broad-scope sensitive permission'
 );
 assert(
+  source.includes('sensitiveScopeFeatureKeys')
+    && source.includes('isExclusiveViewScope(permission)')
+    && source.includes('sensitiveScopeFeatureKeys.has(`${permission.module}:${permission.feature}`)'),
+  'the sensitive view must keep safe alternatives visible for mutually exclusive broad scopes'
+);
+assert(
   source.includes("const VIEW_SCOPE_CODE_ACTIONS = new Set([")
     && source.includes("return permission.code.split('.').at(-1) || ''")
     && source.includes('VIEW_SCOPE_CODE_ACTIONS.has(getPermissionCodeAction(permission))'),
