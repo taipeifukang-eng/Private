@@ -34,7 +34,14 @@ type PrintableLabel = EquipmentLabelItem & {
 async function parseResponse(response: Response, fallback: string) {
   const json = await response.json().catch(() => ({}));
   if (!response.ok || json.success === false) {
-    throw new Error(json.error || fallback);
+    const message = String(json.error || fallback);
+    if (
+      message.toLowerCase().includes('ga_equipment.qr_token')
+      && (message.toLowerCase().includes('does not exist') || message.toLowerCase().includes('schema cache'))
+    ) {
+      throw new Error('設備 QR 功能尚未完成資料庫設定，請先執行 QR 欄位修復 SQL 後再列印。');
+    }
+    throw new Error(message);
   }
   return json;
 }
@@ -139,7 +146,7 @@ export default function EquipmentQrLabelsClient() {
 
       setLabels(printable);
       if (records.length > 0 && printable.length === 0) {
-        setError('目前選取的設備尚未建立可列印的 QR 掃描入口，請先確認 QR token migration 已套用。');
+        setError('設備 QR 功能尚未完成資料庫設定，請先執行 QR 欄位修復 SQL 後再列印。');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'QR 標籤載入失敗');

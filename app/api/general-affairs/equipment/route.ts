@@ -7,6 +7,57 @@ export const dynamic = 'force-dynamic';
 
 const EQUIPMENT_SORT_COLUMNS = new Set(['name', 'asset_code', 'status', 'updated_at', 'created_at', 'warranty_end_date']);
 
+const EQUIPMENT_LIST_SELECT: string = `
+  id,
+  store_id,
+  category_id,
+  template_id,
+  name,
+  asset_code,
+  barcode,
+  brand,
+  model,
+  serial_number,
+  status,
+  criticality,
+  onboarding_status,
+  onboarding_review_note,
+  onboarding_reviewed_at,
+  onboarding_reviewed_by,
+  area,
+  location_detail,
+  purpose,
+  installed_at,
+  purchased_at,
+  activated_at,
+  purchase_amount,
+  specs,
+  tags,
+  notes,
+  has_warranty,
+  warranty_end_date,
+  image_path,
+  created_at,
+  updated_at,
+  store:stores(id, store_code, store_name, short_name),
+  category:ga_equipment_categories(id, name, code),
+  template:ga_equipment_templates(id, name, brand, model)
+`;
+
+const EQUIPMENT_QR_SELECT: string = `
+  ${EQUIPMENT_LIST_SELECT},
+  qr_token,
+  qr_token_issued_at,
+  qr_token_revoked_at
+`;
+
+function isMissingEquipmentQrSchema(error: unknown) {
+  const message = errorMessage(error).toLowerCase();
+  return message.includes('ga_equipment')
+    && ['qr_token', 'qr_token_issued_at', 'qr_token_revoked_at'].some(column => message.includes(column))
+    && (message.includes('does not exist') || message.includes('schema cache'));
+}
+
 function withQrScanPath<T extends { qr_token?: string | null }>(equipment: T) {
   return {
     ...equipment,
@@ -81,79 +132,45 @@ export async function GET(request: NextRequest) {
       : 'updated_at';
     const ascending = searchParams.get('sortDir') === 'asc';
 
-    let query = supabase
-      .from('ga_equipment')
-      .select(`
-        id,
-        store_id,
-        category_id,
-        template_id,
-        name,
-        asset_code,
-        barcode,
-        brand,
-        model,
-        serial_number,
-        status,
-        criticality,
-        onboarding_status,
-        onboarding_review_note,
-        onboarding_reviewed_at,
-        onboarding_reviewed_by,
-        area,
-        location_detail,
-        purpose,
-        installed_at,
-        purchased_at,
-        activated_at,
-        purchase_amount,
-        specs,
-        tags,
-        notes,
-        has_warranty,
-        warranty_end_date,
-        image_path,
-        qr_token,
-        qr_token_issued_at,
-        qr_token_revoked_at,
-        created_at,
-        updated_at,
-        store:stores(id, store_code, store_name, short_name),
-        category:ga_equipment_categories(id, name, code),
-        template:ga_equipment_templates(id, name, brand, model)
-      `, { count: 'exact' })
-      .is('deleted_at', null);
-
     const search = searchParams.get('search')?.trim();
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,asset_code.ilike.%${search}%,barcode.ilike.%${search}%,brand.ilike.%${search}%,model.ilike.%${search}%,serial_number.ilike.%${search}%`);
+    const storeId = searchParams.get('storeId')?.trim();
+    const templateId = searchParams.get('templateId')?.trim();
+    const categoryId = searchParams.get('categoryId')?.trim();
+    const status = searchParams.get('status')?.trim();
+    const onboardingStatus = searchParams.get('onboardingStatus')?.trim();
+
+    const runEquipmentQuery = async (includeQrFields: boolean) => {
+      let query = supabase
+        .from('ga_equipment')
+        .select(includeQrFields ? EQUIPMENT_QR_SELECT : EQUIPMENT_LIST_SELECT, { count: 'exact' })
+        .is('deleted_at', null);
+
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,asset_code.ilike.%${search}%,barcode.ilike.%${search}%,brand.ilike.%${search}%,model.ilike.%${search}%,serial_number.ilike.%${search}%`);
+      }
+      if (storeId) query = query.eq('store_id', storeId);
+      if (templateId) query = query.eq('template_id', templateId);
+      if (searchParams.get('templateStatus') === 'unlinked') query = query.is('template_id', null);
+      if (categoryId) query = query.eq('category_id', categoryId);
+      if (status) query = query.eq('status', status);
+      if (onboardingStatus) query = query.eq('onboarding_status', onboardingStatus);
+
+      return query.order(sortBy, { ascending }).range(from, to);
+    };
+
+    let result = await runEquipmentQuery(true);
+    if (result.error && isMissingEquipmentQrSchema(result.error)) {
+      result = await runEquipmentQuery(false);
     }
 
-    const storeId = searchParams.get('storeId')?.trim();
-    if (storeId) query = query.eq('store_id', storeId);
-
-    const templateId = searchParams.get('templateId')?.trim();
-    if (templateId) query = query.eq('template_id', templateId);
-    if (searchParams.get('templateStatus') === 'unlinked') query = query.is('template_id', null);
-
-    const categoryId = searchParams.get('categoryId')?.trim();
-    if (categoryId) query = query.eq('category_id', categoryId);
-
-    const status = searchParams.get('status')?.trim();
-    if (status) query = query.eq('status', status);
-
-    const onboardingStatus = searchParams.get('onboardingStatus')?.trim();
-    if (onboardingStatus) query = query.eq('onboarding_status', onboardingStatus);
-
-    const { data, error, count } = await query
-      .order(sortBy, { ascending })
-      .range(from, to);
+    const { data, error, count } = result;
 
     if (error) throw error;
+    const equipmentRows = (data || []) as unknown as Array<Record<string, unknown> & { qr_token?: string | null }>;
 
     return NextResponse.json({
       success: true,
-      data: (data || []).map(withQrScanPath),
+      data: equipmentRows.map(withQrScanPath),
       meta: {
         page,
         pageSize,

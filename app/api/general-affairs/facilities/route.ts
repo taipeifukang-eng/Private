@@ -16,6 +16,51 @@ const FACILITY_SORT_COLUMNS = new Set([
   'last_renovated_at',
 ]);
 
+const FACILITY_LIST_SELECT: string = `
+  id,
+  store_id,
+  category_id,
+  facility_template_id,
+  name,
+  facility_code,
+  status,
+  criticality,
+  area,
+  location_detail,
+  quantity,
+  unit,
+  is_fixed_asset,
+  installed_at,
+  purchased_at,
+  purchase_unit_amount,
+  purchase_amount,
+  last_renovated_at,
+  description,
+  specs,
+  tags,
+  image_path,
+  notes,
+  created_at,
+  updated_at,
+  store:stores(id, store_code, store_name, short_name),
+  category:ga_facility_categories(id, name, code),
+  template:ga_facility_templates(id, code, name, brand, model)
+`;
+
+const FACILITY_QR_SELECT: string = `
+  ${FACILITY_LIST_SELECT},
+  qr_token,
+  qr_token_issued_at,
+  qr_token_revoked_at
+`;
+
+function isMissingFacilityQrSchema(error: unknown) {
+  const message = errorMessage(error).toLowerCase();
+  return message.includes('ga_facilities')
+    && ['qr_token', 'qr_token_issued_at', 'qr_token_revoked_at'].some(column => message.includes(column))
+    && (message.includes('does not exist') || message.includes('schema cache'));
+}
+
 function withQrScanPath<T extends { qr_token?: string | null }>(facility: T) {
   return {
     ...facility,
@@ -98,72 +143,44 @@ export async function GET(request: NextRequest) {
       : 'updated_at';
     const ascending = searchParams.get('sortOrder') === 'asc';
 
-    let query = supabase
-      .from('ga_facilities')
-      .select(`
-        id,
-        store_id,
-        category_id,
-        facility_template_id,
-        name,
-        facility_code,
-        status,
-        criticality,
-        area,
-        location_detail,
-        quantity,
-        unit,
-        is_fixed_asset,
-        installed_at,
-        purchased_at,
-        purchase_unit_amount,
-        purchase_amount,
-        last_renovated_at,
-        description,
-        specs,
-        tags,
-        image_path,
-        notes,
-        qr_token,
-        qr_token_issued_at,
-        qr_token_revoked_at,
-        created_at,
-        updated_at,
-        store:stores(id, store_code, store_name, short_name),
-        category:ga_facility_categories(id, name, code),
-        template:ga_facility_templates(id, code, name, brand, model)
-      `, { count: 'exact' })
-      .is('deleted_at', null);
-
     const search = searchParams.get('search')?.trim();
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,facility_code.ilike.%${search}%,area.ilike.%${search}%,location_detail.ilike.%${search}%`);
+    const storeId = searchParams.get('storeId')?.trim();
+    const templateId = searchParams.get('templateId')?.trim();
+    const categoryId = searchParams.get('categoryId')?.trim();
+    const status = searchParams.get('status')?.trim();
+    const area = searchParams.get('area')?.trim();
+
+    const runFacilityQuery = async (includeQrFields: boolean) => {
+      let query = supabase
+        .from('ga_facilities')
+        .select(includeQrFields ? FACILITY_QR_SELECT : FACILITY_LIST_SELECT, { count: 'exact' })
+        .is('deleted_at', null);
+
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,facility_code.ilike.%${search}%,area.ilike.%${search}%,location_detail.ilike.%${search}%`);
+      }
+      if (storeId) query = query.eq('store_id', storeId);
+      if (templateId) query = query.eq('facility_template_id', templateId);
+      if (categoryId) query = query.eq('category_id', categoryId);
+      if (status) query = query.eq('status', status);
+      if (area) query = query.eq('area', area);
+
+      return query.order(sortBy, { ascending }).range(from, to);
+    };
+
+    let result = await runFacilityQuery(true);
+    if (result.error && isMissingFacilityQrSchema(result.error)) {
+      result = await runFacilityQuery(false);
     }
 
-    const storeId = searchParams.get('storeId')?.trim();
-    if (storeId) query = query.eq('store_id', storeId);
-
-    const templateId = searchParams.get('templateId')?.trim();
-    if (templateId) query = query.eq('facility_template_id', templateId);
-
-    const categoryId = searchParams.get('categoryId')?.trim();
-    if (categoryId) query = query.eq('category_id', categoryId);
-
-    const status = searchParams.get('status')?.trim();
-    if (status) query = query.eq('status', status);
-
-    const area = searchParams.get('area')?.trim();
-    if (area) query = query.eq('area', area);
-
-    const { data, error, count } = await query
-      .order(sortBy, { ascending })
-      .range(from, to);
+    const { data, error, count } = result;
 
     if (error) throw error;
+    const facilityRows = (data || []) as unknown as Array<Record<string, unknown> & { qr_token?: string | null }>;
 
     return NextResponse.json({
       success: true,
-      data: (data || []).map(withQrScanPath),
+      data: facilityRows.map(withQrScanPath),
       meta: {
         page,
         pageSize,

@@ -121,6 +121,8 @@ assert(listRoute.includes("searchParams.get('categoryId')"), 'facility API must 
 assert(listRoute.includes("searchParams.get('area')"), 'facility API must support area');
 assert(listRoute.includes('qr_token'), 'facility API must select QR token');
 assert(listRoute.includes('qr_token_issued_at'), 'facility API must select QR issue timestamp');
+assert(listRoute.includes('isMissingFacilityQrSchema'), 'facility list must tolerate production environments missing optional QR fields');
+assert(listRoute.includes('runFacilityQuery(false)'), 'facility list must retry without QR fields while the repair migration is pending');
 assert(listRoute.includes('qr_scan_path'), 'facility API must return stable QR scan path');
 assert(listRoute.includes('/general-affairs/assets/scan/'), 'facility API must use stable asset scan route');
 

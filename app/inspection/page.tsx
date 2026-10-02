@@ -137,7 +137,7 @@ export default async function InspectionListPage({
     if (storeIds.length > 0) {
       const { data: storeData } = await supabase
         .from('stores')
-        .select('id, store_name, store_code, short_name')
+        .select('id, store_name, store_code, short_name, source_store_id')
         .in('id', storeIds);
       stores = storeData || [];
     }
@@ -197,7 +197,7 @@ export default async function InspectionListPage({
         // 管理員看所有活躍門市
         const { data: allStores } = await supabase
           .from('stores')
-          .select('id, store_name, store_code, short_name')
+          .select('id, store_name, store_code, short_name, source_store_id')
           .eq('is_active', true)
           .order('store_code');
         assignedStores = allStores || [];
@@ -213,13 +213,21 @@ export default async function InspectionListPage({
         if (myStoreIds.length > 0) {
           const { data: myStores } = await supabase
             .from('stores')
-            .select('id, store_name, store_code, short_name')
+            .select('id, store_name, store_code, short_name, source_store_id')
             .in('id', myStoreIds)
             .eq('is_active', true)
             .order('store_code');
           assignedStores = myStores || [];
         }
       }
+    }
+
+    let storeLineage: any[] = [];
+    if (canViewStoreStatus) {
+      const { data: lineageStores } = await supabase
+        .from('stores')
+        .select('id, store_name, short_name, source_store_id');
+      storeLineage = lineageStores || [];
     }
 
     return (
@@ -360,6 +368,7 @@ export default async function InspectionListPage({
           <InspectionOverview
             inspections={normalizedInspections}
             assignedStores={assignedStores}
+            storeLineage={storeLineage}
             initialMonth={exportMonth}
           />
 

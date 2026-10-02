@@ -70,6 +70,7 @@ import {
   GeneralAffairsListPage,
 } from '@/components/general-affairs/GeneralAffairsPageTemplates';
 import ResourceAttachmentPanel from '@/components/general-affairs/attachments/ResourceAttachmentPanel';
+import VendorInformationPrintForm from '@/components/general-affairs/vendors/VendorInformationPrintForm';
 import {
   MAINTENANCE_STATUS_DEFINITION_BY_CODE,
   MAINTENANCE_STATUS_STEPS,
@@ -4990,7 +4991,13 @@ function GeneralAffairsServiceCenterPage({ initialView }: GeneralAffairsServiceC
     return <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${meta[status] || meta.inactive}`}>{label[status] || status}</span>;
   };
 
-  const renderVendorHeader = (title: string, description: string, actionLabel?: string, onAction?: () => void) => (
+  const renderVendorHeader = (
+    title: string,
+    description: string,
+    actionLabel?: string,
+    onAction?: () => void,
+    secondaryAction?: JSX.Element,
+  ) => (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
         <div className="text-sm text-slate-500">廠商管理 / {title}</div>
@@ -4998,6 +5005,7 @@ function GeneralAffairsServiceCenterPage({ initialView }: GeneralAffairsServiceC
         <p className="mt-1 text-sm text-slate-500">{description}</p>
       </div>
       <div className="flex gap-2">
+        {secondaryAction}
         {actionLabel && onAction && (
           <button
             type="button"
@@ -5008,13 +5016,6 @@ function GeneralAffairsServiceCenterPage({ initialView }: GeneralAffairsServiceC
             {actionLabel}
           </button>
         )}
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-        >
-          <Download size={16} />
-          匯出Excel
-        </button>
       </div>
     </div>
   );
@@ -5052,7 +5053,20 @@ function GeneralAffairsServiceCenterPage({ initialView }: GeneralAffairsServiceC
     return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="space-y-4">
-        {renderVendorHeader('廠商列表', '管理合作廠商資料、服務項目與聯絡資訊，並追蹤廠商服務績效', '新增廠商', openVendorForm)}
+        {renderVendorHeader(
+          '廠商列表',
+          '管理合作廠商資料、服務項目與聯絡資訊，並追蹤廠商服務績效',
+          '新增廠商',
+          openVendorForm,
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            <Printer size={16} />
+            匯出廠商填寫表
+          </button>,
+        )}
         {renderVendorDashboardCards()}
         <div className="rounded-lg border border-slate-200 bg-white">
           <div className="flex flex-wrap items-center gap-3 border-b border-slate-200 p-4">
@@ -5861,6 +5875,9 @@ function GeneralAffairsServiceCenterPage({ initialView }: GeneralAffairsServiceC
         </div>
       </div>
       {vendorView === 'list' && renderVendorList()}
+      {vendorView === 'list' && (
+        <VendorInformationPrintForm categories={vendorCategories} regions={vendorRegions} />
+      )}
       {vendorView === 'purchases' && renderPurchaseAnalysis()}
       {vendorView === 'categories' && renderVendorCategories()}
       {vendorView === 'regions' && renderVendorRegions()}

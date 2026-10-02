@@ -35,6 +35,7 @@ const templateItemRoute = read('app/api/general-affairs/equipment/templates/[id]
 const templateLinkAssetsRoute = read('app/api/general-affairs/equipment/templates/[id]/link-assets/route.ts');
 const catalogIdentity = read('lib/general-affairs/catalog-identity.ts');
 const equipmentClient = read('components/general-affairs/equipment/EquipmentManagementClient.tsx');
+const equipmentQrLabels = read('components/general-affairs/equipment/EquipmentQrLabelsClient.tsx');
 const templateClient = read('components/general-affairs/equipment/EquipmentTemplatesClient.tsx');
 const appliedEquipmentMigration = read('supabase/migrations/20260722030244_dev_schema_baseline.sql');
 const assetCodeMigrationName = findMigration('_generate_equipment_asset_code_sequence.sql');
@@ -43,6 +44,9 @@ const assetCodeMigration = read(`supabase/migrations/${assetCodeMigrationName}`)
 const qrMigrationName = findMigration('_general_affairs_asset_qr_scan_tokens.sql');
 assert(qrMigrationName, 'asset QR scan token migration missing');
 const qrMigration = read(`supabase/migrations/${qrMigrationName}`);
+const qrRepairMigrationName = findMigration('_repair_general_affairs_asset_qr_schema.sql');
+assert(qrRepairMigrationName, 'asset QR production repair migration missing');
+const qrRepairMigration = read(`supabase/migrations/${qrRepairMigrationName}`);
 const qrAutoRevokeMigrationName = findMigration('_general_affairs_asset_qr_auto_revoke.sql');
 assert(qrAutoRevokeMigrationName, 'asset QR auto revoke migration missing');
 const qrAutoRevokeMigration = read(`supabase/migrations/${qrAutoRevokeMigrationName}`);
@@ -254,8 +258,13 @@ assert(equipmentListRoute.includes('warnings'), 'equipment API must return warni
 assert(equipmentListRoute.includes('serial_number'), 'equipment API must check duplicate serial numbers');
 assert(equipmentListRoute.includes('qr_token'), 'equipment API must select QR token');
 assert(equipmentListRoute.includes('qr_token_issued_at'), 'equipment API must select QR issue timestamp');
+assert(equipmentListRoute.includes('isMissingEquipmentQrSchema'), 'equipment list must tolerate production environments missing optional QR fields');
+assert(equipmentListRoute.includes('runEquipmentQuery(false)'), 'equipment list must retry without QR fields while the repair migration is pending');
 assert(equipmentListRoute.includes('qr_scan_path'), 'equipment API must return stable QR scan path');
 assert(equipmentListRoute.includes('/general-affairs/assets/scan/'), 'equipment API must use stable asset scan route');
+assert(equipmentQrLabels.includes('設備 QR 功能尚未完成資料庫設定'), 'QR label page must replace raw missing-column errors with an actionable message');
+assert(qrRepairMigration.includes('ADD COLUMN IF NOT EXISTS qr_token TEXT'), 'QR repair must add missing token columns');
+assert(qrRepairMigration.includes("NOTIFY pgrst, 'reload schema'"), 'QR repair must reload the PostgREST schema cache');
 assert(equipmentListRoute.includes('onboarding_status'), 'equipment API must select onboarding status');
 assert(equipmentListRoute.includes('onboarding_review_note'), 'equipment API must select onboarding review note');
 assert(equipmentListRoute.includes('onboardingStatus'), 'equipment API must support onboarding status filter');

@@ -10,6 +10,14 @@ type StoreItem = {
   store_name: string;
   store_code: string;
   short_name?: string | null;
+  source_store_id?: string | null;
+};
+
+type StoreLineageItem = {
+  id: string;
+  store_name?: string | null;
+  short_name?: string | null;
+  source_store_id?: string | null;
 };
 
 type InspectionRecord = {
@@ -17,9 +25,11 @@ type InspectionRecord = {
   store_id: string;
   inspection_date: string;
   store: {
+    id?: string;
     store_name: string;
     store_code: string;
     short_name?: string | null;
+    source_store_id?: string | null;
   };
   grade: string;
 };
@@ -27,6 +37,7 @@ type InspectionRecord = {
 type Props = {
   inspections: InspectionRecord[];
   assignedStores: StoreItem[];
+  storeLineage: StoreLineageItem[];
   initialMonth: string;
 };
 
@@ -38,7 +49,11 @@ function parseMonthToDate(month: string) {
   return new Date(year, monthNumber - 1, 1);
 }
 
-export default function InspectionOverview({ inspections, assignedStores, initialMonth }: Props) {
+function normalizeStoreName(value?: string | null) {
+  return value?.trim().replace(/\s+/g, '').toLocaleLowerCase('zh-TW') || '';
+}
+
+export default function InspectionOverview({ inspections, assignedStores, storeLineage, initialMonth }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [currentDate, setCurrentDate] = useState(parseMonthToDate(initialMonth));
@@ -55,23 +70,70 @@ export default function InspectionOverview({ inspections, assignedStores, initia
   };
 
   const { inspectedStores, notInspectedStores } = useMemo(() => {
+    const monthKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
     const inspectedStoreIds = new Set(
       inspections
-        .filter((inspection) => {
-          const inspectionDate = new Date(inspection.inspection_date);
-          return (
-            inspectionDate.getFullYear() === currentDate.getFullYear() &&
-            inspectionDate.getMonth() === currentDate.getMonth()
-          );
-        })
+        .filter((inspection) => inspection.inspection_date.slice(0, 7) === monthKey)
         .map((inspection) => inspection.store_id)
     );
 
-    return {
-      inspectedStores: assignedStores.filter((store) => inspectedStoreIds.has(store.id)),
-      notInspectedStores: assignedStores.filter((store) => !inspectedStoreIds.has(store.id)),
+    // 搬移門市會建立新 stores.id，歷史巡店仍會保留舊 id。
+    // 以 source_store_id 往前追溯，讓同一門市沿革中的巡店紀錄可認列到目前門市。
+    const sourceStoreById = new Map<string, string | null>();
+    storeLineage.forEach((store) => sourceStoreById.set(store.id, store.source_store_id || null));
+    assignedStores.forEach((store) => sourceStoreById.set(store.id, store.source_store_id || null));
+    inspections.forEach((inspection) => {
+      if (inspection.store?.id) {
+        sourceStoreById.set(inspection.store.id, inspection.store.source_store_id || null);
+      }
+    });
+
+    const getLineageRoot = (storeId: string) => {
+      const visited = new Set<string>();
+      let currentStoreId = storeId;
+
+      while (currentStoreId && !visited.has(currentStoreId)) {
+        visited.add(currentStoreId);
+        const sourceStoreId = sourceStoreById.get(currentStoreId);
+        if (!sourceStoreId) break;
+        currentStoreId = sourceStoreId;
+      }
+
+      return currentStoreId;
     };
-  }, [assignedStores, currentDate, inspections]);
+
+    const inspectedStoreRoots = new Set(
+      Array.from(inspectedStoreIds, (storeId) => getLineageRoot(storeId))
+    );
+    const assignedStoreNameCounts = assignedStores.reduce((counts, store) => {
+      const storeName = normalizeStoreName(store.store_name);
+      if (storeName) counts.set(storeName, (counts.get(storeName) || 0) + 1);
+      return counts;
+    }, new Map<string, number>());
+    const inspectedStoreNames = new Set(
+      inspections
+        .filter((inspection) => inspection.inspection_date.slice(0, 7) === monthKey)
+        .map((inspection) => normalizeStoreName(inspection.store?.store_name))
+        .filter(Boolean)
+    );
+    const isInspected = (store: StoreItem) => {
+      if (inspectedStoreRoots.has(getLineageRoot(store.id))) return true;
+
+      // 早期搬店資料尚未回填 source_store_id。僅在目前清單中名稱唯一時備援認列，
+      // 避免同名門市被錯誤合併。
+      const storeName = normalizeStoreName(store.store_name);
+      return Boolean(
+        storeName &&
+        assignedStoreNameCounts.get(storeName) === 1 &&
+        inspectedStoreNames.has(storeName)
+      );
+    };
+
+    return {
+      inspectedStores: assignedStores.filter(isInspected),
+      notInspectedStores: assignedStores.filter((store) => !isInspected(store)),
+    };
+  }, [assignedStores, currentDate, inspections, storeLineage]);
 
   return (
     <>
