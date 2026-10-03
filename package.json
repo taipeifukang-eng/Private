@@ -13,6 +13,7 @@
     "test:general-affairs-inventory-ui": "node scripts/test-general-affairs-inventory-ui.js",
     "test:general-affairs-vendor-print-form": "node scripts/test-general-affairs-vendor-print-form.js",
     "test:inspection-monthly-store-lineage": "node scripts/test-inspection-monthly-store-lineage.js",
+    "test:monthly-support-bonus-rbac": "node scripts/test-monthly-support-bonus-rbac.js",
     "test:general-affairs-production-isolation": "node scripts/test-general-affairs-production-isolation.js",
     "start": "next start",
     "lint": "next lint"

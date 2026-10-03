@@ -68,6 +68,7 @@ function MonthlyStatusContent() {
   const [canViewStats, setCanViewStats] = useState(false);
   const [canViewSupportHours, setCanViewSupportHours] = useState(false);
   const [canEditSupportHours, setCanEditSupportHours] = useState(false);
+  const [canEditSupportBonus, setCanEditSupportBonus] = useState(false);
   const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
   const [canViewPerformance, setCanViewPerformance] = useState(false);
   const [canViewMonthlyBonusDetail, setCanViewMonthlyBonusDetail] = useState(false);
@@ -163,6 +164,7 @@ function MonthlyStatusContent() {
           setCanViewStats(permissionsResult.canViewStats || false);
           setCanViewSupportHours(permissionsResult.canViewSupportHours || false);
           setCanEditSupportHours(permissionsResult.canEditSupportHours || false);
+          setCanEditSupportBonus(permissionsResult.canEditSupportBonus || false);
           setCanAccessActivityManagement(permissionsResult.canAccessActivityManagement || false);
           setCanViewPerformance(permissionsResult.canViewPerformance || false);
           setCanViewMonthlyBonusDetail(permissionsResult.canViewMonthlyBonusDetail || false);
@@ -510,6 +512,7 @@ function MonthlyStatusContent() {
               canViewStats={canViewStats}
               canViewSupportHours={canViewSupportHours}
               canEditSupportHours={canEditSupportHours}
+              canEditSupportBonus={canEditSupportBonus}
               canViewPerformance={canViewPerformance}
               canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
               canConfirmStatus={canConfirmStatus}
@@ -597,6 +600,7 @@ function MonthlyStatusContent() {
                     canViewStats={canViewStats}
                     canViewSupportHours={canViewSupportHours}
                     canEditSupportHours={canEditSupportHours}
+                    canEditSupportBonus={canEditSupportBonus}
                     canViewPerformance={canViewPerformance}
                     canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
                     canConfirmStatus={canConfirmStatus}
@@ -811,6 +815,7 @@ function StoreStatusDetail({
   canViewStats,
   canViewSupportHours,
   canEditSupportHours,
+  canEditSupportBonus,
   canViewPerformance,
   canViewMonthlyBonusDetail,
   canConfirmStatus,
@@ -828,6 +833,7 @@ function StoreStatusDetail({
   canViewStats: boolean;
   canViewSupportHours: boolean;
   canEditSupportHours: boolean;
+  canEditSupportBonus: boolean;
   canViewPerformance: boolean;
   canViewMonthlyBonusDetail: boolean;
   canConfirmStatus: boolean;
@@ -1724,15 +1730,17 @@ function StoreStatusDetail({
                   <Plus size={16} />
                   手動新增員工
                 </button>
+                {canEditSupportBonus && (
+                  <button
+                    onClick={() => setShowSupportBonusModal(true)}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus size={16} />
+                    上個月單品獎金
+                  </button>
+                )}
                 {canManageBonusExpenseButtons && (
                   <>
-                    <button
-                      onClick={() => setShowSupportBonusModal(true)}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
-                    >
-                      <Plus size={16} />
-                      上個月單品獎金
-                    </button>
                     <button
                       onClick={() => setShowTransportExpenseModal(true)}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"

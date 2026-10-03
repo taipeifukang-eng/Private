@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
 
 interface BonusInput {
   employee_code: string;
@@ -17,17 +18,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, job_title')
-      .eq('id', user.id)
-      .single();
-
-    // 只有店長以上權限可以使用
-    const isManager = ['admin', 'manager', 'supervisor', 'area_manager'].includes(profile?.role || '');
-    const isStoreManager = ['店長', '代理店長', '督導', '督導(代理店長)'].includes(profile?.job_title || '');
-    
-    if (!profile || (!isManager && !isStoreManager)) {
+    const canEditSupportBonus = await hasPermission(user.id, 'monthly.allowance.edit_support_bonus');
+    if (!canEditSupportBonus) {
       return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
     }
 
@@ -38,8 +30,44 @@ export async function POST(request: NextRequest) {
       bonuses: BonusInput[] 
     };
 
-    if (!year_month || !store_id || !bonuses) {
+    if (!year_month || !store_id || !Array.isArray(bonuses)) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
+    }
+
+    const adminSupabase = createAdminClient();
+    const canViewAllStores = await hasPermission(user.id, 'monthly.status.view_all');
+
+    if (!canViewAllStores) {
+      const { data: assignment, error: assignmentError } = await adminSupabase
+        .from('store_managers')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('store_id', store_id)
+        .limit(1)
+        .maybeSingle();
+
+      if (assignmentError) {
+        return NextResponse.json({ success: false, error: assignmentError.message }, { status: 500 });
+      }
+
+      if (!assignment) {
+        return NextResponse.json({ success: false, error: '您未被指派管理此門市' }, { status: 403 });
+      }
+    }
+
+    const { data: storeSummary, error: summaryError } = await adminSupabase
+      .from('monthly_store_summary')
+      .select('store_status')
+      .eq('year_month', year_month)
+      .eq('store_id', store_id)
+      .maybeSingle();
+
+    if (summaryError) {
+      return NextResponse.json({ success: false, error: summaryError.message }, { status: 500 });
+    }
+
+    if (storeSummary?.store_status === 'confirmed') {
+      return NextResponse.json({ success: false, error: '此月份已確認，無法修改單品獎金' }, { status: 409 });
     }
 
     // 驗證資料
@@ -54,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     // 如果沒有新記錄（全部清除），嘗試刪舊資料後回傳成功
     if (bonuses.length === 0) {
-      await supabase
+      await adminSupabase
         .from('support_staff_bonus')
         .delete()
         .eq('year_month', year_month)
@@ -63,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 先刪除該月份該門市的所有記錄
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await adminSupabase
       .from('support_staff_bonus')
       .delete()
       .eq('year_month', year_month)
@@ -87,7 +115,7 @@ export async function POST(request: NextRequest) {
       created_by: user.id
     }));
 
-    const { data, error } = await supabase
+    const { data, error } = await adminSupabase
       .from('support_staff_bonus')
       .insert(records)
       .select();

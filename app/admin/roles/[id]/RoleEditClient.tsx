@@ -72,9 +72,13 @@ const HIGH_IMPACT_PERMISSION_ACTIONS = new Set([
 ]);
 
 const BROAD_SCOPE_PERMISSION_ACTIONS = new Set(['view_all']);
+const HIGH_IMPACT_PERMISSION_CODES = new Set([
+  'monthly.allowance.edit_support_bonus',
+]);
 
 function isHighImpactPermission(permission: PermissionWithGrant) {
-  return HIGH_IMPACT_PERMISSION_ACTIONS.has(permission.action);
+  return HIGH_IMPACT_PERMISSION_ACTIONS.has(permission.action)
+    || HIGH_IMPACT_PERMISSION_CODES.has(permission.code);
 }
 
 function isSensitivePermission(permission: PermissionWithGrant) {

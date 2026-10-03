@@ -120,7 +120,7 @@ export const FEATURE_NAMES: Record<string, string> = {
   bonus: '獎金', bonus_detail: '獎金明細', campaign: '活動專案', change_role: '變更使用者角色',
   checklist: '檢核表', clinic_selfpay_margin: '診所自費品毛利', dashboard: '工作台',
   department_marketing: '行銷部', department_merchandise: '商品部', edit_meal: '膳食費編輯',
-  edit_support_bonus: '支援獎金編輯', edit_support_hours: '支援時數編輯', edit_talent: '人才培育編輯',
+  edit_support_bonus: '單品獎金', edit_support_hours: '支援時數編輯', edit_talent: '人才培育編輯',
   edit_transport: '交通費編輯', employee: '員工資料', employee_batch: '員工批次作業',
   employee_movement: '人員異動', employee_purchase: '員工購物',
   service_center: '總務服務中心',
