@@ -78,14 +78,24 @@ export async function POST(request: NextRequest) {
       monthly_kamedis_deduction_gross_profit,
     } = body;
 
-    if (!store_id || !year || !month || !business_days) {
+    if (!store_id || !year || !month || business_days === null || business_days === undefined || business_days === '') {
       return NextResponse.json({ success: false, error: '缺少必要欄位 (store_id, year, month, business_days)' }, { status: 400 });
+    }
+
+    const businessDaysValue = Number(business_days);
+    if (
+      !Number.isFinite(businessDaysValue)
+      || businessDaysValue < 0.5
+      || businessDaysValue > 31
+      || !Number.isInteger(businessDaysValue * 2)
+    ) {
+      return NextResponse.json({ success: false, error: '營業天數需介於 0.5 至 31 天，並以 0.5 天為單位' }, { status: 400 });
     }
 
     const { data, error } = await supabase
       .from('store_performance')
       .upsert({
-        store_id, year, month, business_days,
+        store_id, year, month, business_days: businessDaysValue,
         monthly_gross_profit_target,
         monthly_revenue_target,
         monthly_customer_count_target,

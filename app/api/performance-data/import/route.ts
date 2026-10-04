@@ -283,11 +283,18 @@ export async function POST(request: NextRequest) {
     const records: Record<string, any>[] = [];
     draftRecords.forEach(record => {
       const existing = existingMap.get(`${record.store_id}-${record.year}-${record.month}`);
-      const resolvedBusinessDays = record.business_days
-        ? Math.round(record.business_days)
-        : existing?.business_days;
+      const resolvedBusinessDays = record.business_days ?? existing?.business_days;
 
-      if (!resolvedBusinessDays) {
+      if (
+        !Number.isFinite(resolvedBusinessDays)
+        || resolvedBusinessDays < 0.5
+        || resolvedBusinessDays > 31
+        || !Number.isInteger(resolvedBusinessDays * 2)
+      ) {
+        if (record.business_days !== null && record.business_days !== undefined) {
+          errors.push(`第 ${record.month} 月（${record.year}）: 營業天數需介於 0.5 至 31 天，並以 0.5 天為單位，跳過`);
+          return;
+        }
         errors.push(`第 ${record.month} 月（${record.year}）: 缺少營業天數且無既有資料可沿用，跳過`);
         return;
       }

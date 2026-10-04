@@ -214,7 +214,7 @@ export default function PerformancePage() {
         ...r,
         [field]: rawValue === '' ? null : (
           ['business_days'].includes(field)
-            ? parseInt(rawValue) || 0
+            ? parseFloat(rawValue) || 0
             : parseFloat(rawValue.replace(/,/g, '')) || null
         ),
         _edited: true,
@@ -605,7 +605,7 @@ export default function PerformancePage() {
             </div>
           </div>
           <p className="text-xs text-gray-400 mt-3">
-            月團體獎金毛利檻規則：第一檻為日毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} 元日毛利。季團體獎金毛利檻規則：第一檻為季毛利目標，第二檻起每檻固定加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} × 季營業天數。最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 慢箋10%)。毛利未達標則全部清零。
+            營業天數支援 0.5 天。月團體獎金第一檻為月毛利目標，第二至第五檻每檻增加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} × 當月營業天數；季團體獎金第一檻為季毛利目標，第二至第五檻每檻增加 {MONTHLY_DAILY_GP_STEP.toLocaleString('zh-TW')} × 季營業天數。最終獎金 = 閾值金額 × (毛利90% + 營業額5% + 來客數5% + 慢箋10%)。毛利未達標則全部清零。
             活動當日毛利有填寫時，若（整月毛利 - 活動當日毛利）÷（營業天數 - 1）低於第一檻日毛利目標，當月團體獎金 × 80%。
             {monthlyThresholds.some((t, i) => t.baseAmount !== MONTHLY_THRESHOLDS[i].baseAmount) && (
               <span className="ml-2 text-blue-500">• 此門市使用自訂閾值</span>
@@ -639,6 +639,7 @@ export default function PerformancePage() {
                     </div>
                     {isExpanded && (
                       <div className="mt-3 pt-3 border-t text-xs text-gray-500 space-y-1">
+                        <div>季營業天數：{qr.quarterlyBusinessDays.toLocaleString('zh-TW', { maximumFractionDigits: 1 })} 天</div>
                         <div>季毛利目標：{formatAmount(qr.quarterlyGpTarget ?? 0)}</div>
                         <div>季毛利實際：{formatAmount(qr.quarterlyGpActual ?? 0)}</div>
                         <div>達標門檻：{formatAmount(qr.thresholdGpAmount ?? 0)}</div>

@@ -119,12 +119,9 @@ export function calcGpThresholdLevel(
 ): number {
   if (!targetGp || targetGp <= 0 || !businessDays || businessDays <= 0) return 0;
 
-  const dailyGpTarget = targetGp / businessDays;
-  const dailyGpActual = actualGp / businessDays;
-
   for (let i = customThresholds.length - 1; i >= 0; i--) {
-    const thresholdDailyAmount = dailyGpTarget + MONTHLY_DAILY_GP_STEP * i;
-    if (dailyGpActual >= thresholdDailyAmount) return i + 1;
+    const thresholdAmount = targetGp + MONTHLY_DAILY_GP_STEP * businessDays * i;
+    if (actualGp >= thresholdAmount) return i + 1;
   }
   return 0;
 }
