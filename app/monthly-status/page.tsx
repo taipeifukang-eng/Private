@@ -1106,7 +1106,18 @@ function StoreStatusDetail({
   };
 
   const handleSubmit = async () => {
-    if (!confirm('確定要提交此門市的人員狀態？提交後店長將無法再修改。')) {
+    const partTimeHoursMissing = staffList.filter(staff => {
+      if (staff.employment_type !== 'part_time') return false;
+      const hours = Number(staff.work_hours);
+      return !Number.isFinite(hours) || hours <= 0;
+    });
+    const missingHoursMessage = partTimeHoursMissing.length > 0
+      ? `\n\n提醒：以下兼職人員尚未填寫本月工作時數（空白或 0）：\n${partTimeHoursMissing
+        .map(staff => `${staff.employee_code} ${staff.employee_name}`)
+        .join('\n')}\n\n仍要送出審核嗎？取消可返回補填。`
+      : '';
+
+    if (!confirm(`確定要提交此門市的人員狀態？提交後店長將無法再修改。${missingHoursMessage}`)) {
       return;
     }
 
