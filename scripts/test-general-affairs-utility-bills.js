@@ -10,6 +10,8 @@ const migration = read('supabase/migrations/20260925103000_general_affairs_utili
 const route = read('app/api/general-affairs/utility-bills/route.ts');
 const itemRoute = read('app/api/general-affairs/utility-bills/[id]/route.ts');
 const client = read('components/general-affairs/expenses/UtilityBillsClient.tsx');
+const reportClient = read('components/general-affairs/expenses/UtilityBillsReportClient.tsx');
+const reportRoute = read('app/api/general-affairs/utility-bills/report/route.ts');
 const navigation = read('components/general-affairs/navigation.tsx');
 const permissions = read('hooks/useNavbarPermissions.ts');
 const electricityMigration = read('supabase/migrations/20260925110000_general_affairs_utility_bill_electricity_usage.sql');
@@ -60,5 +62,9 @@ assert(client.includes('resourceType="UTILITY_BILL"') && client.includes('upload
 assert(client.includes('capture="environment"') && client.includes('直接拍照'), 'utility create form must support taking a bill photo');
 assert(client.includes('pendingFiles.forEach') && client.includes("attachments.set('resource_id', result.data.id)"), 'new utility attachments must upload after the bill record exists');
 assert(client.includes('附件尚未上傳') && client.includes('setAttachmentBill(result.data)'), 'failed create-time attachment upload must preserve the bill and offer retry');
+assert(reportRoute.includes('canViewUtilityBills()') && reportRoute.includes(".gte('billing_month', start)") && reportRoute.includes(".lt('billing_month', end)"), 'utility report API must enforce view access and query the selected period');
+assert(reportRoute.includes(".range(offset, offset + pageSize - 1)") && reportRoute.includes('totalsByLocation'), 'utility report API must aggregate all bill pages by location');
+['水費', '電費', '電話費', '網路費', '各據點費用明細', "['month', '月']", "['quarter', '季']", "['year', '年']"].forEach((needle) => assert(reportClient.includes(needle), `utility report UI missing ${needle}`));
+assert(navigation.includes("href: '/general-affairs/utility-bills/report'"), 'utility report navigation entry missing');
 
 console.log('General affairs utility bill checks passed.');

@@ -198,7 +198,7 @@ export async function POST(request: NextRequest) {
           total_staff_count: parseInt(row['門市人數']) || 0,
           admin_staff_count: parseInt(row['行政人數']) || 0,
           newbie_count: parseInt(row['新人人數']) || 0,
-          business_days: parseInt(row['營業天數']) || 0,
+          business_days: parseFloat(row['營業天數']) || 0,
           total_gross_profit: parseFloat(row['毛利']) || 0,
           total_customer_count: parseInt(row['總來客數']) || 0,
           prescription_addon_only_count: parseInt(row['單純處方加購來客數']) || 0,

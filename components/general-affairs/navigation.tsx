@@ -451,6 +451,18 @@ export const GENERAL_AFFAIRS_NAV_GROUPS: GeneralAffairsNavGroup[] = [
         requiredAnyPermissions: ['general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage'],
         requiredAnyPermissionFlags: ['canAccessGeneralAffairsUtilities'],
         activeMatch: 'prefix',
+        children: [
+          {
+            id: 'utility-bill-report',
+            label: '費用報表',
+            href: '/general-affairs/utility-bills/report',
+            icon: BarChart3,
+            featureKey: 'utility_bills',
+            requiredAnyPermissions: ['general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage'],
+            requiredAnyPermissionFlags: ['canAccessGeneralAffairsUtilities'],
+            activeMatch: 'exact',
+          },
+        ],
       },
     ],
   },

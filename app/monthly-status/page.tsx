@@ -3787,8 +3787,9 @@ function StoreMonthlyStatsForm({
                 <label className="text-xs text-gray-600">營業天數</label>
                 <input
                   type="number"
+                  step="0.5"
                   value={stats.business_days}
-                  onChange={(e) => setStats({ ...stats, business_days: parseInt(e.target.value) || 0 })}
+                  onChange={(e) => setStats({ ...stats, business_days: parseFloat(e.target.value) || 0 })}
                   disabled={isReadOnly}
                   className="w-16 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
                 />

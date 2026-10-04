@@ -1,7 +1,8 @@
 'use client';
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { Camera, CheckCircle2, Droplets, FileUp, Loader2, Phone, Plus, Router, Trash2, X, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, Camera, CheckCircle2, Droplets, FileUp, Loader2, Phone, Plus, Router, Trash2, X, Zap } from 'lucide-react';
 import GeneralAffairsPageHeader from '@/components/general-affairs/GeneralAffairsPageHeader';
 import ResourceAttachmentPanel from '@/components/general-affairs/attachments/ResourceAttachmentPanel';
 
@@ -130,7 +131,7 @@ export default function UtilityBillsClient() {
   }
 
   return <div className="mx-auto flex max-w-7xl flex-col gap-4">
-    <GeneralAffairsPageHeader eyebrow="費用管理" breadcrumbs={[{ label: '總務服務中心', href: '/general-affairs' }, { label: '水電電話網路費' }]} title="水電電話網路費" description="按月份與據點掌握帳單、繳費期限與金額" primaryAction={canManage ? <button type="button" onClick={() => { setPendingFiles([]); setDialogOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-bold text-white"><Plus className="h-4 w-4" />新增費用</button> : undefined} />
+    <GeneralAffairsPageHeader eyebrow="費用管理" breadcrumbs={[{ label: '總務服務中心', href: '/general-affairs' }, { label: '水電電話網路費' }]} title="水電電話網路費" description="按月份與據點掌握帳單、繳費期限與金額" primaryAction={<div className="flex flex-wrap gap-2"><Link href="/general-affairs/utility-bills/report" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50"><BarChart3 className="h-4 w-4" />費用報表</Link>{canManage && <button type="button" onClick={() => { setPendingFiles([]); setDialogOpen(true); }} className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-bold text-white"><Plus className="h-4 w-4" />新增費用</button>}</div>} />
 
     {message && <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{message}</div>}
     {error && <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>}
