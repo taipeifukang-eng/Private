@@ -437,8 +437,12 @@ export async function POST(request: NextRequest) {
         ? Boolean(movement.onboarding_is_pharmacist)
         : null;
 
-      const promotionLevelNote = movement.movement_type === 'promotion' && movement.position === '行政' && movement.newbie_level
-        ? `行政階級:${movement.newbie_level}`
+      const promotionLevelNote = movement.movement_type === 'promotion' && movement.newbie_level
+        ? movement.position === '新人'
+          ? `新人等級:${movement.newbie_level}`
+          : movement.position === '行政'
+            ? `行政階級:${movement.newbie_level}`
+            : ''
         : '';
       const normalizedNotes = movement.movement_type === 'onboarding'
         ? [

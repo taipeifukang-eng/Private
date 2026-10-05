@@ -8,6 +8,7 @@ interface PromotionInput {
   employee_name: string;
   position: string;
   effective_date: string;
+  newbie_level?: string;
   notes?: string;
 }
 
@@ -46,6 +47,9 @@ export async function POST(request: NextRequest) {
           error: `員工 ${promo.employee_code || promo.employee_name} 資料不完整` 
         }, { status: 400 });
       }
+      if (promo.position === '新人' && !promo.newbie_level) {
+        return NextResponse.json({ success: false, error: `員工 ${promo.employee_code} 請選擇新人階段` }, { status: 400 });
+      }
     }
 
     // 為每筆記錄查詢舊職位和門市
@@ -68,7 +72,10 @@ export async function POST(request: NextRequest) {
         movement_date: promo.effective_date,
         new_value: promo.position,
         old_value: empData?.current_position || empData?.position || null,
-        notes: promo.notes || null,
+        notes: [
+          promo.notes?.trim(),
+          promo.position === '新人' && promo.newbie_level ? `新人等級:${promo.newbie_level}` : '',
+        ].filter(Boolean).join('；') || null,
         created_by: user.id
       });
     }
@@ -90,10 +97,11 @@ export async function POST(request: NextRequest) {
     try {
       await syncPromotionPositionToMonthlyStaffStatus(
         adminSupabase,
-        promotionRecords.map((record) => ({
+        promotionRecords.map((record, index) => ({
           employee_code: record.employee_code,
           effective_date: record.movement_date,
           position: record.new_value,
+          newbie_level: promotions[index]?.newbie_level || null,
         }))
       );
     } catch (syncError) {

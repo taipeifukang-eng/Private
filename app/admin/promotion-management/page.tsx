@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar, ArrowRightLeft, CheckCircle, XCircle, Clock, Edit2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS, NEWBIE_LEVEL_OPTIONS } from '@/types/workflow';
+import { formatPromotionPosition, getMovementNotesForDisplay, getPromotionLevelFromNotes } from '@/lib/monthly-staff/promotion-level';
 
 const PROMOTION_POSITION_OPTIONS = Array.from(new Set(
   POSITION_OPTIONS.flatMap((pos) =>
@@ -594,21 +595,14 @@ export default function EmployeeMovementManagementPage() {
   };
 
   const getPromotionLevelFromRecord = (record: MovementHistory) => {
-    const notes = record.notes || '';
-    const adminMatch = notes.match(/行政階級:([^；\n]+)/);
-    if (adminMatch?.[1]) return adminMatch[1].trim();
-
-    const newbieMatch = notes.match(/新人等級:([^；\n]+)/);
-    if (newbieMatch?.[1]) return newbieMatch[1].trim();
-
-    return '';
+    return getPromotionLevelFromNotes(record.notes) || '';
   };
 
   const getEditableNotes = (record: MovementHistory) => {
     return String(record.notes || '')
       .split('；')
       .map(part => part.trim())
-      .filter(part => part && !part.startsWith('行政階級:') && !part.startsWith('新人等級:'))
+      .filter(part => part && !/^(行政階級|新人等級)[:：]/.test(part))
       .join('；');
   };
 
@@ -1534,9 +1528,9 @@ export default function EmployeeMovementManagementPage() {
                           '異動類型': movementTypeLabel,
                           '是否藥師(入職)': onboardingPharmacistText,
                           '舊值': m.old_value || '-',
-                          '新值': m.new_value || '-',
+                          '新值': m.movement_type === 'promotion' ? formatPromotionPosition(m.new_value, m.notes) : m.new_value || '-',
                           '生效日期': m.movement_date,
-                          '備註': m.notes || '-'
+                          '備註': getMovementNotesForDisplay(m.notes) || '-'
                         };
                       });
                       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -1607,9 +1601,9 @@ export default function EmployeeMovementManagementPage() {
                                 : '-'}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">{record.old_value || '-'}</td>
-                            <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.new_value || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-emerald-600 font-medium">{record.movement_type === 'promotion' ? formatPromotionPosition(record.new_value, record.notes) : record.new_value || '-'}</td>
                             <td className="px-4 py-3 text-sm text-gray-600">{record.movement_date}</td>
-                            <td className="px-4 py-3 text-sm text-gray-500">{record.notes || '-'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-500">{getMovementNotesForDisplay(record.notes) || '-'}</td>
                             <td className="px-4 py-3 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <button

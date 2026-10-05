@@ -644,5 +644,6 @@ export interface BatchPromotionInput {
   employee_name: string;
   position: string;
   effective_date: string; // YYYY-MM-DD
+  newbie_level?: string;
   notes?: string;
 }

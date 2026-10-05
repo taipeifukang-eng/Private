@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Upload, Download, Save, Trash2, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import type { BatchPromotionInput } from '@/types/workflow';
-import { POSITION_OPTIONS } from '@/types/workflow';
+import { NEWBIE_LEVEL_OPTIONS, POSITION_OPTIONS } from '@/types/workflow';
 
 export default function PromotionManagementPage() {
   const params = useParams();
@@ -16,7 +16,7 @@ export default function PromotionManagementPage() {
   const [saving, setSaving] = useState(false);
   const [storeName, setStoreName] = useState('');
   const [promotions, setPromotions] = useState<BatchPromotionInput[]>([
-    { employee_code: '', employee_name: '', position: '', effective_date: '', notes: '' }
+    { employee_code: '', employee_name: '', position: '', newbie_level: '', effective_date: '', notes: '' }
   ]);
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function PromotionManagementPage() {
   };
 
   const addRow = () => {
-    setPromotions([...promotions, { employee_code: '', employee_name: '', position: '', effective_date: '', notes: '' }]);
+    setPromotions([...promotions, { employee_code: '', employee_name: '', position: '', newbie_level: '', effective_date: '', notes: '' }]);
   };
 
   const removeRow = (index: number) => {
@@ -89,6 +89,7 @@ export default function PromotionManagementPage() {
   const updateRow = (index: number, field: keyof BatchPromotionInput, value: string) => {
     const updated = [...promotions];
     updated[index] = { ...updated[index], [field]: value };
+    if (field === 'position' && value !== '新人') updated[index].newbie_level = '';
     setPromotions(updated);
   };
 
@@ -104,6 +105,9 @@ export default function PromotionManagementPage() {
       }
       if (!promo.position) {
         errors.push(`第 ${index + 1} 列：缺少職位`);
+      }
+      if (promo.position === '新人' && !promo.newbie_level) {
+        errors.push(`第 ${index + 1} 列：請選擇新人階段`);
       }
       if (!promo.effective_date) {
         errors.push(`第 ${index + 1} 列：缺少生效日`);
@@ -141,7 +145,7 @@ export default function PromotionManagementPage() {
       if (result.success) {
         alert(`✅ 成功儲存 ${result.created} 筆升遷記錄\n已自動更新對應月份的職位資料`);
         // 重置表單
-        setPromotions([{ employee_code: '', employee_name: '', position: '', effective_date: '', notes: '' }]);
+        setPromotions([{ employee_code: '', employee_name: '', position: '', newbie_level: '', effective_date: '', notes: '' }]);
       } else {
         alert(`❌ 儲存失敗: ${result.error}`);
       }
@@ -168,6 +172,7 @@ export default function PromotionManagementPage() {
           employee_code: (row['員編'] || '').toString().toUpperCase(),
           employee_name: (row['姓名'] || '').toString(),
           position: (row['職位'] || '').toString(),
+          newbie_level: (row['新人階段'] || row['新人等級'] || row['newbie_level'] || '').toString(),
           effective_date: row['生效日'] || '',
           notes: (row['備註'] || '').toString()
         })).filter(p => p.employee_code || p.employee_name);
@@ -193,6 +198,7 @@ export default function PromotionManagementPage() {
         '員編': 'FK0001',
         '姓名': '王小明',
         '職位': '店長',
+        '新人階段': '',
         '生效日': '2026/02/01',
         '備註': '升任店長'
       }
@@ -329,6 +335,19 @@ export default function PromotionManagementPage() {
                           <option key={pos} value={pos}>{pos}</option>
                         ))}
                       </select>
+                      {promo.position === '新人' && (
+                        <select
+                          value={promo.newbie_level || ''}
+                          onChange={(e) => updateRow(index, 'newbie_level', e.target.value)}
+                          aria-label="新人階段"
+                          className="mt-2 w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        >
+                          <option value="">選擇階段 *</option>
+                          {NEWBIE_LEVEL_OPTIONS.map(option => (
+                            <option key={option.value} value={option.value}>{option.label}</option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <input

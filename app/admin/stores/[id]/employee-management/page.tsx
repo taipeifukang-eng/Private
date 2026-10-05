@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Edit2, Trash2, TrendingUp, Calendar, User, Briefcase } from 'lucide-react';
 import type { EmployeeMovementHistory } from '@/types/workflow';
+import { formatPromotionPosition, getMovementNotesForDisplay } from '@/lib/monthly-staff/promotion-level';
 
 interface StoreEmployee {
   id: string;
@@ -315,12 +316,12 @@ export default function EmployeeManagementPage() {
                                 <span className="text-gray-400">→</span>
                               </>
                             )}
-                            <span className="font-semibold text-blue-600">{translateStatus(record.new_value)}</span>
+                            <span className="font-semibold text-blue-600">{formatPromotionPosition(translateStatus(record.new_value), record.notes)}</span>
                           </div>
 
-                          {record.notes && (
+                          {getMovementNotesForDisplay(record.notes) && (
                             <p className="text-sm text-gray-600 mt-2">
-                              {record.notes}
+                              {getMovementNotesForDisplay(record.notes)}
                             </p>
                           )}
                         </div>

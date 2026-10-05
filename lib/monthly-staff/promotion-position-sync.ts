@@ -1,3 +1,5 @@
+import { getPromotionLevelFromNotes } from '@/lib/monthly-staff/promotion-level';
+
 interface PromotionPositionSyncInput {
   employee_code: string;
   effective_date: string;
@@ -34,12 +36,6 @@ function normalizeEmployeeCode(employeeCode: string) {
 function normalizeOptionalText(value: string | null | undefined) {
   const trimmed = String(value || '').trim();
   return trimmed || null;
-}
-
-function extractNewbieLevelFromNotes(notes: string | null | undefined) {
-  const value = String(notes || '');
-  const match = value.match(/(?:新人等級|行政階級):([^；\n]+)/);
-  return match?.[1]?.trim() || null;
 }
 
 function isActingManagerPromotion(position: string | null | undefined) {
@@ -153,7 +149,7 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
       yearMonth: getYearMonth(row.movement_date),
       position: String(row.new_value || '').trim(),
       oldPosition: normalizeOptionalText(row.old_value),
-      newbieLevel: extractNewbieLevelFromNotes(row.notes),
+      newbieLevel: getPromotionLevelFromNotes(row.notes),
       isActingManager: isActingManagerPromotion(row.new_value),
     }))
     .filter((row) => /^\d{4}-\d{2}$/.test(row.yearMonth) && row.position);

@@ -30,7 +30,7 @@ function mergePromotionLevelNote(notes: string | null, position: string, newbieL
   const baseNotes = String(notes || '')
     .split('；')
     .map((part) => part.trim())
-    .filter((part) => part && !part.startsWith('行政階級:') && !part.startsWith('新人等級:'));
+    .filter((part) => part && !/^(行政階級|新人等級)[:：]/.test(part));
 
   if (position === '行政' && newbieLevel) {
     baseNotes.push(`行政階級:${newbieLevel}`);

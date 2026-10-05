@@ -32,6 +32,9 @@ function run() {
   const promotionManagementPage = read('app/admin/promotion-management/page.tsx');
   const promotionBatchRoute = read('app/api/promotions/batch/route.ts');
   const promotionGlobalRoute = read('app/api/promotions/batch-global/route.ts');
+  const promotionLevelHelper = read('lib/monthly-staff/promotion-level.ts');
+  const legacyStorePromotionPage = read('app/admin/stores/[id]/promotion-management/page.tsx');
+  const promotionRepairMigration = read('supabase/migrations/20261005120000_repair_newbie_promotion_timeline.sql');
 
   assertIncludes(helper, "from('monthly_staff_status')", 'helper updates monthly_staff_status');
   assertIncludes(helper, 'position: promotion.position', 'helper updates monthly position');
@@ -85,6 +88,14 @@ function run() {
   assertIncludes(promotionManagementPage, "query = query.eq('movement_type', movementType)", 'promotion management applies movement type filter at DB query level');
   assertNotIncludes(promotionManagementPage, ".limit(500)", 'promotion management must not load oldest 500 rows before filtering');
   assertIncludes(promotionManagementPage, '匯出本頁 Excel', 'promotion management export label must match paginated data');
+  assertIncludes(promotionLevelHelper, "level.replace(/新人$/, '')", 'promotion history shortens newcomer stage label');
+  assertIncludes(promotionLevelHelper, '新人等級|行政階級', 'promotion history reads saved level metadata');
+  assertIncludes(legacyStorePromotionPage, '選擇階段 *', 'legacy store promotion form requires newcomer stage');
+  assertIncludes(legacyStorePromotionPage, "row['新人階段']", 'legacy store promotion import reads newcomer stage');
+  assertIncludes(promotionBatchRoute, '`新人等級:${promo.newbie_level}`', 'legacy store route persists newcomer stage in movement notes');
+  assertIncludes(promotionGlobalRoute, '`新人等級:${promo.newbie_level}`', 'legacy global route persists newcomer stage in movement notes');
+  assertIncludes(promotionRepairMigration, "movement.new_value = '新人'", 'repair migration targets newcomer promotions');
+  assertIncludes(promotionRepairMigration, "regular_position.new_value", 'repair migration rebuilds monthly position from promotion timeline');
   assertIncludes(promotionBatchRoute, "movement_type: 'promotion'", 'legacy store batch writes movement_type');
   assertIncludes(promotionBatchRoute, 'movement_date: promo.effective_date', 'legacy store batch writes movement_date');
   assertIncludes(promotionBatchRoute, 'new_value: promo.position', 'legacy store batch writes new_value');
@@ -106,6 +117,9 @@ function run() {
   console.log('PASS employee movement batch route calls promotion sync');
   console.log('PASS employee movement single route supports edit and sync');
   console.log('PASS promotion management history exposes edit action');
+  console.log('PASS newcomer promotion stage is persisted and displayed');
+  console.log('PASS legacy promotion entry requires newcomer stage');
+  console.log('PASS promotion repair migration restores stages and monthly positions');
   console.log('PASS legacy promotion routes use current movement schema');
 }
 

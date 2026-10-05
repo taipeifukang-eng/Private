@@ -34,6 +34,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import type { Store, MonthlyStoreSummary, MonthlyStatusType, NewbieLevel, PartialMonthReason, ExtraTask, EmployeeMovementHistory } from '@/types/workflow';
+import { formatPromotionPosition, getMovementNotesForDisplay } from '@/lib/monthly-staff/promotion-level';
 import { 
   MONTHLY_STATUS_OPTIONS, 
   POSITION_OPTIONS,
@@ -718,7 +719,7 @@ function MonthlyStatusContent() {
                           {record.movement_type === 'promotion' && record.new_value && (
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-sm text-gray-600">升至：</span>
-                              <span className="font-semibold text-emerald-600">{record.new_value}</span>
+                              <span className="font-semibold text-emerald-600">{formatPromotionPosition(record.new_value, record.notes)}</span>
                             </div>
                           )}
 
@@ -731,9 +732,9 @@ function MonthlyStatusContent() {
                             </div>
                           )}
 
-                          {record.notes && (
+                          {getMovementNotesForDisplay(record.notes) && (
                             <p className="text-sm text-gray-600 mt-2">
-                              備註：{record.notes}
+                              備註：{getMovementNotesForDisplay(record.notes)}
                             </p>
                           )}
                         </div>
@@ -2704,7 +2705,7 @@ function StoreStatusDetail({
                           {record.movement_type === 'promotion' && record.new_value && (
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-sm text-gray-600">升至：</span>
-                              <span className="font-semibold text-emerald-600">{record.new_value}</span>
+                              <span className="font-semibold text-emerald-600">{formatPromotionPosition(record.new_value, record.notes)}</span>
                             </div>
                           )}
 
@@ -2717,9 +2718,9 @@ function StoreStatusDetail({
                             </div>
                           )}
 
-                          {record.notes && (
+                          {getMovementNotesForDisplay(record.notes) && (
                             <p className="text-sm text-gray-600 mt-2">
-                              備註：{record.notes}
+                              備註：{getMovementNotesForDisplay(record.notes)}
                             </p>
                           )}
                         </div>

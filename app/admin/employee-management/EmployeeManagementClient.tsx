@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2, Upload, Download, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS } from '@/types/workflow';
+import { formatPromotionPosition, getMovementNotesForDisplay } from '@/lib/monthly-staff/promotion-level';
 
 interface Employee {
   id: string;
@@ -995,15 +996,15 @@ export default function EmployeeManagementClient({
                           <div className="flex items-center gap-2 text-sm">
                             <span className="text-gray-500">{translateStatus(record.old_value) || '無'}</span>
                             <span className="text-gray-400">→</span>
-                            <span className="font-semibold text-gray-900">{translateStatus(record.new_value)}</span>
+                            <span className="font-semibold text-gray-900">{formatPromotionPosition(translateStatus(record.new_value), record.notes)}</span>
                           </div>
                           {record.movement_type === 'onboarding' && (record.stores?.store_name || record.stores?.name) && (
                             <p className="text-sm text-blue-700 mt-2">
                               入職門市：{record.stores?.store_name || record.stores?.name}
                             </p>
                           )}
-                          {record.notes && (
-                            <p className="text-sm text-gray-600 mt-2">備註：{record.notes}</p>
+                          {getMovementNotesForDisplay(record.notes) && (
+                            <p className="text-sm text-gray-600 mt-2">備註：{getMovementNotesForDisplay(record.notes)}</p>
                           )}
                         </div>
                       </div>
