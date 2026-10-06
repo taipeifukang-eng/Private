@@ -1012,6 +1012,7 @@ interface BonusRecord {
   group_bonus: number;
   hr_subsidy_bonus: number;
   single_item_bonus: number;
+  brand_bonus: number;
   inventory_diff_penalty: number;
   talent_bonus: number;
   transport_fee: number;
@@ -1056,6 +1057,7 @@ const BONUS_COLS: { key: keyof BonusRecord; label: string }[] = [
   { key: 'group_bonus',            label: '團體獎金' },
   { key: 'hr_subsidy_bonus',       label: '人力補貼' },
   { key: 'single_item_bonus',      label: '單品獎金' },
+  { key: 'brand_bonus',            label: '品牌獎金' },
   { key: 'inventory_diff_penalty', label: '盤差承擔' },
   { key: 'talent_bonus',           label: '育才獎金' },
   { key: 'transport_fee',          label: '交通費' },
@@ -1657,12 +1659,12 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
           </div>
         </div>
         <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 shadow-sm">
-          <div className="text-xs font-medium text-blue-700">平均每人單品獎金 / 月</div>
+          <div className="text-xs font-medium text-blue-700">平均每人單品獎金（含品牌）/ 月</div>
           <div className="mt-1 text-2xl font-bold text-blue-800">
             {averageLoading ? '...' : `${fmtAmount(averageSummary?.average_single_item_bonus)} 元`}
           </div>
           <div className="mt-1 text-xs text-blue-600">
-            單品獎金合計 {fmtAmount(averageSummary?.single_item_total)} 元
+            單品＋品牌獎金合計 {fmtAmount(averageSummary?.single_item_total)} 元
           </div>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 shadow-sm">
@@ -1843,7 +1845,7 @@ function BonusImportTab({ profile, allStores }: { profile: any; allStores: Store
         <code className="bg-blue-100 px-1 rounded mx-0.5">門市代號</code>（省略時使用篩選器所選門市）
         <code className="bg-blue-100 px-1 rounded mx-0.5">姓名</code><br />
         <span className="font-medium">獎金欄位：</span>
-        團體獎金、人力補貼團體獎金、單品獎金、盤點盤差承擔金額、育才獎金、交通費、
+        團體獎金、人力補貼團體獎金、單品獎金、品牌獎金、盤點盤差承擔金額、育才獎金、交通費、
         盤點獎金、處方激勵獎金、季回補獎金、誤餐費、春節出勤獎金、藥師保證金、
         負責人處方回補獎金、銷售競賽獎金、負責人簽約金、長照獎金、經理.督導季獎金、
         開店異常責任金額、獎金差額調整、其他獎金、其他獎金備註

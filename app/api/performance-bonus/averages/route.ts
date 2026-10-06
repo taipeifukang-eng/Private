@@ -6,6 +6,7 @@ const BONUS_VALUE_FIELDS = [
   'group_bonus',
   'hr_subsidy_bonus',
   'single_item_bonus',
+  'brand_bonus',
   'inventory_diff_penalty',
   'talent_bonus',
   'transport_fee',
@@ -67,6 +68,10 @@ function currentYearMonth() {
 
 function isNonZeroBonusRecord(row: Record<string, any>) {
   return BONUS_VALUE_FIELDS.some((field) => (Number(row[field]) || 0) !== 0);
+}
+
+function getSingleItemBonusTotal(row: Record<string, any>) {
+  return (Number(row.single_item_bonus) || 0) + (Number(row.brand_bonus) || 0);
 }
 
 function normalizePosition(position: unknown) {
@@ -157,7 +162,7 @@ function summarizePersonMonthAverage(data: any[], eligiblePersonMonthKeys: Set<s
     const isManager = isStoreManagerPosition(positionByPersonMonthKey.get(personMonthKey));
 
     personMonthKeys.add(personMonthKey);
-    singleItemTotal += Number(row.single_item_bonus) || 0;
+    singleItemTotal += getSingleItemBonusTotal(row);
     groupCompositeTotal += groupCompositeBonus;
 
     if (isManager) {
@@ -242,7 +247,7 @@ function summarizeContinuousEmployeeAverage(data: any[], staffRows: any[]) {
       || positionByEmployeeMonthKey.get(getEmployeeMonthKey(row))
       || '';
 
-    singleItemTotal += Number(row.single_item_bonus) || 0;
+    singleItemTotal += getSingleItemBonusTotal(row);
     groupCompositeTotal += groupCompositeBonus;
 
     if (isStoreManagerPosition(rowPosition)) {
@@ -348,6 +353,7 @@ export async function GET(request: NextRequest) {
           group_bonus,
           hr_subsidy_bonus,
           single_item_bonus,
+          brand_bonus,
           inventory_diff_penalty,
           talent_bonus,
           transport_fee,
@@ -389,7 +395,7 @@ export async function GET(request: NextRequest) {
         denominator: averageMode === 'person_month'
           ? 'distinct store_id + year_month + employee_code with any non-zero bonus and monthly_staff_status full_time specialist-or-above'
           : 'employees who are full_time specialist-or-above in every imported month, multiplied by imported month count',
-        single_item: 'single_item_bonus',
+        single_item: 'single_item_bonus + brand_bonus',
         group: 'group_bonus + quarterly_makeup_bonus + hr_subsidy_bonus',
         manager_group: 'positions: 店長, 代理店長, 督導/區經理(店長或代理店長)',
         staff_group: 'full_time specialist-or-above positions not in manager_group',

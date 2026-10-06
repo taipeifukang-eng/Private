@@ -329,6 +329,7 @@ export interface MonthlyBonusRecord {
   group_bonus: number;                // 團體獎金
   hr_subsidy_bonus: number;           // 人力補貼團體獎金
   single_item_bonus: number;          // 單品獎金
+  brand_bonus: number;                // 品牌獎金
   inventory_diff_penalty: number;     // 盤點盤差承擔金額
   talent_bonus: number;               // 育才獎金
   transport_fee: number;              // 交通費

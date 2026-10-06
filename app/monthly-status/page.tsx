@@ -1488,6 +1488,7 @@ function StoreStatusDetail({
     { key: 'group_bonus', label: '團體獎金' },
     { key: 'hr_subsidy_bonus', label: '人力補貼' },
     { key: 'single_item_bonus', label: '單品獎金' },
+    { key: 'brand_bonus', label: '品牌獎金' },
     { key: 'inventory_diff_penalty', label: '盤差承擔' },
     { key: 'talent_bonus', label: '育才獎金' },
     { key: 'transport_fee', label: '交通費' },
