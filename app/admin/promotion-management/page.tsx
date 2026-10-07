@@ -810,6 +810,11 @@ export default function EmployeeMovementManagementPage() {
       return;
     }
 
+    if (movements.some(movement => movement.employee_code.toUpperCase().startsWith('EXAMPLE-'))) {
+      alert('請先將範例員編 EXAMPLE-xx 替換為實際員編，再儲存異動。');
+      return;
+    }
+
     if (!confirm(`確定要建立 ${movements.length} 筆異動記錄嗎？\n\n異動將自動更新員工狀態。`)) {
       return;
     }
@@ -871,6 +876,10 @@ export default function EmployeeMovementManagementPage() {
           if (isoMatch) {
             return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
           }
+          const monthFirstMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+          if (monthFirstMatch) {
+            return `${monthFirstMatch[3]}-${monthFirstMatch[1].padStart(2, '0')}-${monthFirstMatch[2].padStart(2, '0')}`;
+          }
           return str;
         };
 
@@ -882,7 +891,57 @@ export default function EmployeeMovementManagementPage() {
           '復職': 'return_to_work',
           '過試用期': 'pass_probation',
           '離職': 'resignation',
+          '調店': 'store_transfer',
         };
+
+        const findStoreByInput = (raw: any) => {
+          const value = String(raw || '').trim();
+          if (!value) return undefined;
+          return stores.find(store => {
+            const code = String(store.store_code || '').trim();
+            const codeMatches = value === code || (value.startsWith(`${code} `) && !!code);
+            const numericCodeMatches = /^\d+$/.test(value) && /^\d+$/.test(code) && Number(value) === Number(code);
+            return value === store.id || value === store.name || codeMatches || numericCodeMatches;
+          });
+        };
+
+        const findOrganizationByInput = (raw: any) => {
+          const value = String(raw || '').trim();
+          if (!value) return undefined;
+          const organizationId = value.startsWith('org:') ? value.slice(4) : value;
+          return organizationPlacementOptions.find(unit => {
+            const code = String(unit.code || '').trim();
+            return unit.id === organizationId ||
+              value === unit.name ||
+              value === code ||
+              (!!code && value.startsWith(`${code} `));
+          });
+        };
+
+        const resolveStoreLocation = (raw: any) => {
+          const value = String(raw || '').trim();
+          if (!value) return '';
+          if (value.startsWith('org:')) return value;
+          const store = findStoreByInput(value);
+          if (store) return store.id;
+          const organization = findOrganizationByInput(value);
+          return organization ? toOrganizationSelectionValue(organization.id) : value;
+        };
+
+        const resolveTransferStoreId = (raw: any) => {
+          const value = String(raw || '').trim();
+          return findStoreByInput(value)?.id || value;
+        };
+
+        const isValidDate = (value: string) => {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+          const parsed = new Date(`${value}T00:00:00Z`);
+          return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+        };
+
+        const isKnownLocation = (value: string) =>
+          stores.some(store => store.id === value) ||
+          (value.startsWith('org:') && organizationPlacementOptions.some(unit => `org:${unit.id}` === value));
 
         const imported = jsonData.map((row: any) => {
           // 異動類型：支援中文標籤或英文 value
@@ -890,16 +949,8 @@ export default function EmployeeMovementManagementPage() {
           const movement_type = (movementTypeLabelMap[rawMovementType] || rawMovementType) as MovementType | '';
 
           // 任職門市：支援門市代號、總部部門代碼或 UUID，優先用代號對應
-          const rawStoreCode = (row['任職門市ID'] || row['store_id'] || '').toString().trim();
-          const storeByCode = stores.find(s => s.store_code === rawStoreCode);
-          const organizationByCode = organizationPlacementOptions.find(
-            unit => unit.code === rawStoreCode || unit.name === rawStoreCode
-          );
-          const store_id = storeByCode
-            ? storeByCode.id
-            : organizationByCode
-              ? toOrganizationSelectionValue(organizationByCode.id)
-              : rawStoreCode;
+          const rawStoreCode = row['任職門市ID'] ?? row['任職門市'] ?? row['store_id'] ?? '';
+          const store_id = resolveStoreLocation(rawStoreCode);
 
           // 模糊查找生日欄位：只要 key 包含「生日」或「出生年月日」即命中（容忍全形斜線/空格差異）
           const birthdayKey = Object.keys(row).find(k => k.includes('生日') || k.includes('出生年月日'));
@@ -916,10 +967,58 @@ export default function EmployeeMovementManagementPage() {
             newbie_level: (row['新人/行政等級'] || row['新人等級'] || row['newbie_level'] || '').toString(),
             effective_date: normalizeDate(row['生效日期'] ?? row['effective_date'] ?? ''),
             notes: (row['備註'] || row['notes'] || '').toString(),
-            from_store_id: (row['原任職門市ID'] || row['from_store_id'] || '').toString(),
-            to_store_id: (row['新任職門市ID'] || row['to_store_id'] || '').toString(),
+            from_store_id: resolveTransferStoreId(row['原任職門市ID'] ?? row['原任職門市'] ?? row['from_store_id'] ?? ''),
+            to_store_id: resolveTransferStoreId(row['新任職門市ID'] ?? row['新任職門市'] ?? row['to_store_id'] ?? ''),
           };
         });
+
+        const importErrors: string[] = [];
+        imported.forEach((movement, index) => {
+          const rowNumber = index + 2;
+          if (!movement.employee_code || !movement.employee_name || !movement.movement_type || !movement.effective_date) {
+            importErrors.push(`第 ${rowNumber} 列：員編、姓名、異動類型、生效日期不可空白`);
+            return;
+          }
+          if (!MOVEMENT_TYPES.some(type => type.value === movement.movement_type)) {
+            importErrors.push(`第 ${rowNumber} 列：無法辨識異動類型「${movement.movement_type}」`);
+          }
+          if (!isValidDate(movement.effective_date)) {
+            importErrors.push(`第 ${rowNumber} 列：生效日期格式無法辨識`);
+          }
+          if (movement.movement_type !== 'store_transfer' && !movement.store_id) {
+            importErrors.push(`第 ${rowNumber} 列：請填任職門市或總部部門`);
+          } else if (movement.movement_type !== 'store_transfer' && !isKnownLocation(movement.store_id)) {
+            importErrors.push(`第 ${rowNumber} 列：找不到任職門市或總部部門「${movement.store_id}」`);
+          }
+          if (movement.movement_type === 'promotion' && !movement.position) {
+            importErrors.push(`第 ${rowNumber} 列：升職請填職位`);
+          }
+          if (movement.movement_type === 'promotion' && movement.position === '新人' && !movement.newbie_level) {
+            importErrors.push(`第 ${rowNumber} 列：新人升職請填新人等級`);
+          }
+          if (movement.movement_type === 'onboarding' && !movement.birthday) {
+            importErrors.push(`第 ${rowNumber} 列：入職請填生日`);
+          } else if (movement.movement_type === 'onboarding' && !isValidDate(movement.birthday)) {
+            importErrors.push(`第 ${rowNumber} 列：生日格式無法辨識`);
+          }
+          if (movement.movement_type === 'store_transfer' && (!movement.from_store_id || !movement.to_store_id)) {
+            importErrors.push(`第 ${rowNumber} 列：調店請填原任職與新任職門市`);
+          }
+          if (movement.movement_type === 'store_transfer' && movement.from_store_id && !stores.some(store => store.id === movement.from_store_id)) {
+            importErrors.push(`第 ${rowNumber} 列：找不到原任職門市「${movement.from_store_id}」`);
+          }
+          if (movement.movement_type === 'store_transfer' && movement.to_store_id && !stores.some(store => store.id === movement.to_store_id)) {
+            importErrors.push(`第 ${rowNumber} 列：找不到新任職門市「${movement.to_store_id}」`);
+          }
+          if (movement.movement_type === 'store_transfer' && movement.from_store_id === movement.to_store_id) {
+            importErrors.push(`第 ${rowNumber} 列：調店的原任職與新任職門市不可相同`);
+          }
+        });
+
+        if (importErrors.length > 0) {
+          alert(`匯入資料有 ${importErrors.length} 項需要修正，尚未載入：\n${importErrors.slice(0, 8).join('\n')}${importErrors.length > 8 ? '\n…' : ''}`);
+          return;
+        }
 
         setMovements(imported);
         alert(`✅ 成功匯入 ${imported.length} 筆資料`);
@@ -963,63 +1062,94 @@ export default function EmployeeMovementManagementPage() {
   const handleDownloadImportTemplate = () => {
     const sampleStoreCode = stores[0]?.store_code || '0058';
     const secondStoreCode = stores.find(store => store.store_code !== sampleStoreCode)?.store_code || '0060';
+    const today = new Date();
+    const sampleEffectiveDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const makeTemplateRow = (
+      employeeCode: string,
+      employeeName: string,
+      movementType: string,
+      extra: Record<string, string> = {}
+    ) => ({
+      '員編': employeeCode,
+      '姓名': employeeName,
+      '異動類型': movementType,
+      '任職門市ID': movementType === '調店' ? '' : sampleStoreCode,
+      '是否為藥師': '',
+      '生日': '',
+      '職位': '',
+      '新人/行政等級': '',
+      '原任職門市ID': '',
+      '新任職門市ID': '',
+      '生效日期': sampleEffectiveDate,
+      '備註': '',
+      ...extra,
+    });
     const templateRows = [
-      {
-        '員編': 'FK00001',
-        '姓名': '王小明',
-        '異動類型': '入職',
-        '任職門市ID': sampleStoreCode,
+      makeTemplateRow('EXAMPLE-01', '王小明', '入職', {
         '是否為藥師': '否',
         '生日': '1990-01-15',
-        '職位': '',
-        '新人/行政等級': '',
-        '原任職門市ID': '',
-        '新任職門市ID': '',
-        '生效日期': '2026-08-01',
-        '備註': '入職範例'
-      },
-      {
-        '員編': 'FK00002',
-        '姓名': '陳美華',
-        '異動類型': '升職',
-        '任職門市ID': '',
-        '是否為藥師': '',
-        '生日': '',
+        '備註': '入職範例；請填生日與藥師身分',
+      }),
+      makeTemplateRow('EXAMPLE-02', '陳美華', '升職', {
         '職位': '副店長',
-        '新人/行政等級': '',
-        '原任職門市ID': '',
-        '新任職門市ID': '',
-        '生效日期': '2026-08-01',
-        '備註': '升職範例'
-      },
-      {
-        '員編': 'FK00003',
-        '姓名': '林大仁',
-        '異動類型': '調店',
-        '任職門市ID': '',
-        '是否為藥師': '',
-        '生日': '',
-        '職位': '',
-        '新人/行政等級': '',
+        '備註': '一般職位升遷範例',
+      }),
+      makeTemplateRow('EXAMPLE-03', '林大仁', '升職', {
+        '職位': '新人',
+        '新人/行政等級': '一階新人',
+        '備註': '同日同時通過一階與二階的第一筆記錄',
+      }),
+      makeTemplateRow('EXAMPLE-03', '林大仁', '升職', {
+        '職位': '新人',
+        '新人/行政等級': '二階新人',
+        '備註': '同日同時通過一階與二階的第二筆記錄',
+      }),
+      makeTemplateRow('EXAMPLE-04', '張雅婷', '升職', {
+        '職位': '行政(未過階)',
+        '新人/行政等級': '未過階行政',
+        '備註': '行政未過階範例',
+      }),
+      makeTemplateRow('EXAMPLE-04', '張雅婷', '升職', {
+        '職位': '行政(過階)',
+        '新人/行政等級': '過階行政',
+        '備註': '行政過階範例',
+      }),
+      makeTemplateRow('EXAMPLE-05', '李俊豪', '升職', {
+        '職位': '代理店長',
+        '備註': '代理店長為暫代職務，不取代正式職稱',
+      }),
+      makeTemplateRow('EXAMPLE-06', '黃心怡', '留職停薪', {
+        '備註': '留職停薪範例',
+      }),
+      makeTemplateRow('EXAMPLE-07', '吳承恩', '復職', {
+        '備註': '復職範例',
+      }),
+      makeTemplateRow('EXAMPLE-08', '周佳蓉', '過試用期', {
+        '備註': '通過試用期範例',
+      }),
+      makeTemplateRow('EXAMPLE-09', '鄭文傑', '離職', {
+        '備註': '離職範例',
+      }),
+      makeTemplateRow('EXAMPLE-10', '蔡佩珊', '調店', {
         '原任職門市ID': sampleStoreCode,
         '新任職門市ID': secondStoreCode,
-        '生效日期': '2026-08-01',
-        '備註': '調店範例'
-      }
+        '備註': '調店範例；需選不同門市',
+      }),
     ];
 
     const instructions = [
+      { '欄位': '使用提醒', '是否必填': '匯入前', '說明': '請將 EXAMPLE-xx 員編及姓名換成實際資料，確認生效日期與門市後再儲存；系統會阻止直接儲存範例員編。' },
       { '欄位': '員編', '是否必填': '必填', '說明': '員工編號，匯入時會自動轉大寫。' },
       { '欄位': '姓名', '是否必填': '必填', '說明': '員工姓名。' },
       { '欄位': '異動類型', '是否必填': '必填', '說明': '可填：入職、升職、留職停薪、復職、過試用期、離職、調店。' },
-      { '欄位': '生效日期', '是否必填': '必填', '說明': '建議格式 YYYY-MM-DD，例如 2026-08-01。' },
-      { '欄位': '任職門市ID', '是否必填': '入職必填', '說明': '可填門市代號，例如 0058；總部人員可填公司組織最下層部門代碼。若使用 UUID 也可匯入。' },
+      { '欄位': '生效日期', '是否必填': '必填', '說明': '支援 YYYY-MM-DD、YYYY/MM/DD、MM/DD/YYYY 或 Excel 日期。' },
+      { '欄位': '任職門市ID', '是否必填': '除調店外必填', '說明': '可填門市代號、門市名稱或 UUID；總部人員可填組織單位代碼、名稱或 UUID。' },
       { '欄位': '是否為藥師', '是否必填': '入職建議填寫', '說明': '可填 是/否 或 TRUE/FALSE。' },
       { '欄位': '生日', '是否必填': '入職必填', '說明': '必須為 YYYY-MM-DD，例如 1990-01-15。' },
       { '欄位': '職位', '是否必填': '升職必填', '說明': `可參考系統升職選項：${PROMOTION_POSITION_OPTIONS.join('、')}。代理店長只會標註每月人員狀態的「是否擔任代理店長」，不會覆蓋實際職位。` },
-      { '欄位': '新人/行政等級', '是否必填': '升職為新人或行政時必填', '說明': `新人等級可填：${NEWBIE_LEVEL_OPTIONS.join('、')}；行政可填：未過階行政、過階行政。` },
-      { '欄位': '原任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號，例如 0058。' },
-      { '欄位': '新任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號，且不可與原任職門市相同。' },
+      { '欄位': '新人/行政等級', '是否必填': '升職為新人或行政時必填', '說明': `新人等級可填：${NEWBIE_LEVEL_OPTIONS.map(option => option.value).join('、')}；行政可填：未過階行政、過階行政。` },
+      { '欄位': '原任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號、門市名稱或 UUID。' },
+      { '欄位': '新任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號、門市名稱或 UUID，且不可與原任職門市相同。' },
       { '欄位': '備註', '是否必填': '選填', '說明': '補充說明。' }
     ];
 
