@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { syncPromotionPositionToMonthlyStaffStatus } from '@/lib/monthly-staff/promotion-position-sync';
+import {
+  resolveOfficialPositionBeforeDate,
+  syncPromotionPositionToMonthlyStaffStatus,
+} from '@/lib/monthly-staff/promotion-position-sync';
 import { requirePermission } from '@/lib/permissions/check';
 
 interface PromotionInput {
@@ -64,14 +67,22 @@ export async function POST(request: NextRequest) {
         .eq('is_active', true)
         .single();
 
+      const employeeCode = promo.employee_code.toUpperCase();
+      const oldPosition = await resolveOfficialPositionBeforeDate(
+        adminSupabase,
+        employeeCode,
+        promo.effective_date,
+        empData?.current_position || empData?.position || null
+      );
+
       promotionRecords.push({
-        employee_code: promo.employee_code.toUpperCase(),
+        employee_code: employeeCode,
         employee_name: promo.employee_name,
         store_id: empData?.store_id || null,
         movement_type: 'promotion',
         movement_date: promo.effective_date,
         new_value: promo.position,
-        old_value: empData?.current_position || empData?.position || null,
+        old_value: oldPosition,
         notes: [
           promo.notes?.trim(),
           promo.position === '新人' && promo.newbie_level ? `新人等級:${promo.newbie_level}` : '',

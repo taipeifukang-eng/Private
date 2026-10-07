@@ -276,10 +276,12 @@ function MonthlyStatusContent() {
   };
 
   // 獲取異動類型顯示文字
-  const getMovementTypeLabel = (type: string) => {
+  const getMovementTypeLabel = (type: string, newValue?: string | null) => {
+    if (type === 'promotion' && newValue === '代理店長') return '代理（舊紀錄）';
     switch (type) {
       case 'onboarding': return '入職';
       case 'promotion': return '升職';
+      case 'acting_manager': return '代理';
       case 'store_transfer': return '調店';
       case 'leave_without_pay': return '留職停薪';
       case 'return_to_work': return '復職';
@@ -294,6 +296,7 @@ function MonthlyStatusContent() {
     switch (type) {
       case 'onboarding': return 'bg-teal-100 text-teal-700';
       case 'promotion': return 'bg-emerald-100 text-emerald-700';
+      case 'acting_manager': return 'bg-orange-100 text-orange-700';
       case 'store_transfer': return 'bg-cyan-100 text-cyan-700';
       case 'leave_without_pay': return 'bg-yellow-100 text-yellow-700';
       case 'return_to_work': return 'bg-blue-100 text-blue-700';
@@ -700,7 +703,7 @@ function MonthlyStatusContent() {
                                 {record.movement_date}
                               </span>
                               <span className={`px-2 py-1 text-xs rounded-full ${getMovementTypeColor(record.movement_type)}`}>
-                                {getMovementTypeLabel(record.movement_type)}
+                                {getMovementTypeLabel(record.movement_type, record.new_value)}
                               </span>
                               {(record.stores?.store_name || record.stores?.name) && (
                                 <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
@@ -720,6 +723,13 @@ function MonthlyStatusContent() {
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-sm text-gray-600">升至：</span>
                               <span className="font-semibold text-emerald-600">{formatPromotionPosition(record.new_value, record.notes)}</span>
+                            </div>
+                          )}
+
+                          {record.movement_type === 'acting_manager' && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm text-gray-600">代理職位：</span>
+                              <span className="font-semibold text-orange-700">代理店長</span>
                             </div>
                           )}
 
@@ -1026,10 +1036,12 @@ function StoreStatusDetail({
   };
 
   // 獲取異動類型顯示文字
-  const getMovementTypeLabel = (type: string) => {
+  const getMovementTypeLabel = (type: string, newValue?: string | null) => {
+    if (type === 'promotion' && newValue === '代理店長') return '代理（舊紀錄）';
     switch (type) {
       case 'onboarding': return '入職';
       case 'promotion': return '升職';
+      case 'acting_manager': return '代理';
       case 'store_transfer': return '調店';
       case 'leave_without_pay': return '留職停薪';
       case 'return_to_work': return '復職';
@@ -1044,6 +1056,7 @@ function StoreStatusDetail({
     switch (type) {
       case 'onboarding': return 'bg-teal-100 text-teal-700';
       case 'promotion': return 'bg-emerald-100 text-emerald-700';
+      case 'acting_manager': return 'bg-orange-100 text-orange-700';
       case 'store_transfer': return 'bg-cyan-100 text-cyan-700';
       case 'leave_without_pay': return 'bg-yellow-100 text-yellow-700';
       case 'return_to_work': return 'bg-blue-100 text-blue-700';
@@ -2687,7 +2700,7 @@ function StoreStatusDetail({
                                 {record.movement_date}
                               </span>
                               <span className={`px-2 py-1 text-xs rounded-full ${getMovementTypeColor(record.movement_type)}`}>
-                                {getMovementTypeLabel(record.movement_type)}
+                                {getMovementTypeLabel(record.movement_type, record.new_value)}
                               </span>
                               {(record.stores?.store_name || record.stores?.name) && (
                                 <span className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded-full">
@@ -2707,6 +2720,13 @@ function StoreStatusDetail({
                             <div className="flex items-center gap-2 mb-2">
                               <span className="text-sm text-gray-600">升至：</span>
                               <span className="font-semibold text-emerald-600">{formatPromotionPosition(record.new_value, record.notes)}</span>
+                            </div>
+                          )}
+
+                          {record.movement_type === 'acting_manager' && (
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-sm text-gray-600">代理職位：</span>
+                              <span className="font-semibold text-orange-700">代理店長</span>
                             </div>
                           )}
 

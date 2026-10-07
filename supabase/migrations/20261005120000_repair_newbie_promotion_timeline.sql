@@ -1,5 +1,6 @@
--- Restore promotion stages from monthly snapshots and replay promotion history
--- into monthly staff rows. Safe to run more than once.
+-- Restore promotion stages from monthly snapshots and replay official position
+-- history into monthly staff rows. Acting-manager assignment is independent
+-- from the official position and must not be inferred from the latest promotion.
 
 WITH missing_levels AS (
   SELECT
@@ -59,7 +60,6 @@ WITH monthly_targets AS (
     target.existing_position,
     target.existing_newbie_level,
     COALESCE(regular_position.new_value, latest_movement.old_value, target.existing_position) AS resolved_position,
-    (latest_movement.new_value = '代理店長') AS is_acting_manager,
     (regexp_match(regular_position.notes, '(新人等級|行政階級)[:：]([^；\n]+)'))[2] AS history_level
   FROM monthly_targets AS target
   LEFT JOIN LATERAL (
@@ -94,7 +94,6 @@ SET position = resolved.resolved_position,
       )
       ELSE NULL
     END,
-    is_acting_manager = COALESCE(resolved.is_acting_manager, false),
     updated_at = now()
 FROM resolved_positions AS resolved
 WHERE monthly.id = resolved.id
@@ -110,5 +109,4 @@ WHERE monthly.id = resolved.id
       )
       ELSE NULL
     END
-    OR monthly.is_acting_manager IS DISTINCT FROM COALESCE(resolved.is_acting_manager, false)
   );

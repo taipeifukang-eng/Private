@@ -531,7 +531,7 @@ export interface EmployeeMovementHistory {
   employee_code: string;
   employee_name: string;
   store_id: string;
-  movement_type: 'onboarding' | 'promotion' | 'store_transfer' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
+  movement_type: 'onboarding' | 'promotion' | 'acting_manager' | 'store_transfer' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation';
   movement_date: string; // YYYY-MM-DD
   new_value: string;
   old_value: string | null;

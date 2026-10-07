@@ -10,7 +10,7 @@ import { formatPromotionPosition, getMovementNotesForDisplay, getPromotionLevelF
 const PROMOTION_POSITION_OPTIONS = Array.from(new Set(
   POSITION_OPTIONS.flatMap((pos) =>
     pos === '行政' ? ['行政(未過階)', '行政(過階)'] : [pos]
-  ).concat('代理店長')
+  )
 ));
 
 const ADMIN_PROMOTION_LEVEL: Record<string, string> = {
@@ -22,12 +22,18 @@ const ADMIN_PROMOTION_LEVEL: Record<string, string> = {
 const MOVEMENT_TYPES = [
   { value: 'onboarding', label: '入職' },
   { value: 'promotion', label: '升職' },
+  { value: 'acting_manager', label: '代理' },
   { value: 'leave_without_pay', label: '留職停薪' },
   { value: 'return_to_work', label: '復職' },
   { value: 'pass_probation', label: '過試用期' },
   { value: 'resignation', label: '離職' },
   { value: 'store_transfer', label: '調店' }
 ] as const;
+
+function getMovementTypeLabel(type: string, value?: string | null) {
+  if (type === 'promotion' && value === '代理店長') return '代理（舊紀錄）';
+  return MOVEMENT_TYPES.find(item => item.value === type)?.label || type;
+}
 
 type MovementType = typeof MOVEMENT_TYPES[number]['value'];
 
@@ -558,7 +564,7 @@ export default function EmployeeMovementManagementPage() {
   const historyRangeEnd = Math.min(historyPage * historyPageSize, historyTotalCount);
 
   const handleDeleteMovement = async (record: MovementHistory) => {
-    const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+    const typeLabel = getMovementTypeLabel(record.movement_type, record.new_value);
     const confirmMessage = `確定要刪除此異動記錄嗎？\n\n` +
       `員工：${record.employee_name} (${record.employee_code})\n` +
       `類型：${typeLabel}\n` +
@@ -664,6 +670,8 @@ export default function EmployeeMovementManagementPage() {
       `生效日期：${editMovement.movement_date}\n\n` +
       (record.movement_type === 'promotion'
         ? '升職異動更新後，系統會從受影響月份開始重算後續每月人員狀態的職位。'
+        : record.movement_type === 'acting_manager'
+          ? '代理異動更新後，系統會同步重算受影響月份的代理店長標記，不變更正式職位。'
         : '姓名或生效日期更新後，系統會同步受影響月份後的月度姓名。');
 
     if (!confirm(confirmMessage)) {
@@ -724,6 +732,13 @@ export default function EmployeeMovementManagementPage() {
         updated[index].from_store_id = updated[index].store_id;
       }
       updated[index].store_id = ''; // 調店不需要填任職門市
+    }
+    if (field === 'movement_type' && value === 'acting_manager') {
+      updated[index].position = '代理店長';
+      updated[index].newbie_level = '';
+    } else if (field === 'movement_type' && updated[index].position === '代理店長') {
+      updated[index].position = '';
+      updated[index].newbie_level = '';
     }
     // 只有入職需要「是否為藥師」，切到其他異動型態時重設
     if (field === 'movement_type' && value !== 'onboarding') {
@@ -794,6 +809,9 @@ export default function EmployeeMovementManagementPage() {
       if (m.movement_type === 'promotion' && m.position === '新人' && !m.newbie_level) {
         return true;
       }
+      if (m.movement_type === 'acting_manager' && m.position !== '代理店長') {
+        return true;
+      }
       // 如果是調店，必須填寫原任職門市和新任職門市
       if (m.movement_type === 'store_transfer' && (!m.from_store_id || !m.to_store_id)) {
         return true;
@@ -806,7 +824,7 @@ export default function EmployeeMovementManagementPage() {
     });
 
     if (emptyFields.length > 0) {
-      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期；入職需填生日；升職需填職位；升職為新人需填新人等級；調店需填原任職/新任職門市）');
+      alert('請填寫所有必填欄位（員編、姓名、任職門市、異動類型、生效日期；入職需填生日；升職需填職位；代理需選代理店長；升職為新人需填新人等級；調店需填原任職/新任職門市）');
       return;
     }
 
@@ -892,17 +910,62 @@ export default function EmployeeMovementManagementPage() {
           '過試用期': 'pass_probation',
           '離職': 'resignation',
           '調店': 'store_transfer',
+          '代理': 'acting_manager',
+        };
+
+        const normalizeStoreCode = (raw: string) => {
+          const code = raw.trim().toUpperCase();
+          return code.replace(/^(.*\d)[A-Z]+$/, '$1');
+        };
+
+        const findStoreCandidates = (raw: any) => {
+          const value = String(raw || '').trim();
+          if (!value) return [];
+          const exactMatches = stores.filter(store => {
+            const code = String(store.store_code || '').trim();
+            return value === store.id || value === store.name || value === code || (!!code && value.startsWith(`${code} `));
+          });
+          if (exactMatches.length > 0) return exactMatches;
+
+          const inputCode = value.split(/\s+/, 1)[0];
+          const normalizedInputCode = normalizeStoreCode(inputCode);
+          const codeMatches = stores.filter(store => {
+            const code = String(store.store_code || '').trim();
+            const normalizedCode = normalizeStoreCode(code);
+            const normalizedCodeMatches = normalizedInputCode === normalizedCode;
+            const numericCodeMatches = /^\d+$/.test(normalizedInputCode) && /^\d+$/.test(normalizedCode) && Number(normalizedInputCode) === Number(normalizedCode);
+            return normalizedCodeMatches || numericCodeMatches;
+          });
+          if (codeMatches.length > 0) return codeMatches;
+
+          const hrStoreMatch = value.match(/^(\d{3,4})(.+)$/);
+          if (!hrStoreMatch) return [];
+          const paddedCode = hrStoreMatch[1].padStart(4, '0');
+          const nameHint = hrStoreMatch[2].trim().toLowerCase().replace(/(門市|分店|店)$/, '').replace(/\s+/g, '');
+          if (!nameHint) return [];
+          return stores.filter(store => {
+            const normalizedCode = normalizeStoreCode(String(store.store_code || ''));
+            const storeName = String(store.name || '').trim().toLowerCase().replace(/(門市|分店|店)$/, '').replace(/\s+/g, '');
+            return !!storeName && normalizedCode === paddedCode && (storeName.includes(nameHint) || nameHint.includes(storeName));
+          });
         };
 
         const findStoreByInput = (raw: any) => {
-          const value = String(raw || '').trim();
-          if (!value) return undefined;
-          return stores.find(store => {
-            const code = String(store.store_code || '').trim();
-            const codeMatches = value === code || (value.startsWith(`${code} `) && !!code);
-            const numericCodeMatches = /^\d+$/.test(value) && /^\d+$/.test(code) && Number(value) === Number(code);
-            return value === store.id || value === store.name || codeMatches || numericCodeMatches;
-          });
+          const candidates = findStoreCandidates(raw);
+          return candidates.length === 1 ? candidates[0] : undefined;
+        };
+
+        const getAmbiguousStoreMessage = (raw: any) => {
+          const candidates = findStoreCandidates(raw);
+          if (candidates.length < 2) return '';
+          return `門市代號「${String(raw).trim()}」同時符合 ${candidates.map(store => `${store.store_code} ${store.name}`).join('、')}，請填完整門市代號。`;
+        };
+
+        const normalizeEmployeeCode = (raw: any) => {
+          const value = String(raw ?? '').trim().toUpperCase();
+          if (/^\d{4}$/.test(value)) return `FK${value}`;
+          if (/^\d{5}$/.test(value)) return `FKF${value}`;
+          return value;
         };
 
         const findOrganizationByInput = (raw: any) => {
@@ -946,7 +1009,13 @@ export default function EmployeeMovementManagementPage() {
         const imported = jsonData.map((row: any) => {
           // 異動類型：支援中文標籤或英文 value
           const rawMovementType = (row['異動類型'] || row['movement_type'] || '').toString().trim();
-          const movement_type = (movementTypeLabelMap[rawMovementType] || rawMovementType) as MovementType | '';
+          const importedPosition = (row['升任後職位'] || row['職位'] || row['position'] || '').toString();
+          const resolvedMovementType = movementTypeLabelMap[rawMovementType] || rawMovementType;
+          const movement_type = (
+            (resolvedMovementType === 'promotion' || resolvedMovementType === '升職') && importedPosition === '代理店長'
+              ? 'acting_manager'
+              : resolvedMovementType
+          ) as MovementType | '';
 
           // 任職門市：支援門市代號、總部部門代碼或 UUID，優先用代號對應
           const rawStoreCode = row['任職門市ID'] ?? row['任職門市'] ?? row['store_id'] ?? '';
@@ -957,14 +1026,14 @@ export default function EmployeeMovementManagementPage() {
           const rawBirthday = birthdayKey ? row[birthdayKey] : (row['birthday'] ?? '');
 
           return {
-            employee_code: (row['員編'] || row['employee_code'] || '').toString().toUpperCase(),
+            employee_code: normalizeEmployeeCode(row['員編'] ?? row['employee_code'] ?? ''),
             employee_name: (row['姓名'] || row['employee_name'] || '').toString(),
             store_id,
             movement_type,
             onboarding_is_pharmacist: String(row['是否為藥師'] || row['onboarding_is_pharmacist'] || '').toLowerCase() === 'true' || String(row['是否為藥師'] || '').includes('是'),
             birthday: normalizeDate(rawBirthday),
-            position: (row['職位'] || row['position'] || '').toString(),
-            newbie_level: (row['新人/行政等級'] || row['新人等級'] || row['newbie_level'] || '').toString(),
+            position: importedPosition,
+            newbie_level: (row['升任後新人/行政等級'] || row['新人/行政等級'] || row['新人等級'] || row['newbie_level'] || '').toString(),
             effective_date: normalizeDate(row['生效日期'] ?? row['effective_date'] ?? ''),
             notes: (row['備註'] || row['notes'] || '').toString(),
             from_store_id: resolveTransferStoreId(row['原任職門市ID'] ?? row['原任職門市'] ?? row['from_store_id'] ?? ''),
@@ -985,13 +1054,19 @@ export default function EmployeeMovementManagementPage() {
           if (!isValidDate(movement.effective_date)) {
             importErrors.push(`第 ${rowNumber} 列：生效日期格式無法辨識`);
           }
+          const row = jsonData[index];
           if (movement.movement_type !== 'store_transfer' && !movement.store_id) {
             importErrors.push(`第 ${rowNumber} 列：請填任職門市或總部部門`);
           } else if (movement.movement_type !== 'store_transfer' && !isKnownLocation(movement.store_id)) {
-            importErrors.push(`第 ${rowNumber} 列：找不到任職門市或總部部門「${movement.store_id}」`);
+            const rawLocation = row['任職門市ID'] ?? row['任職門市'] ?? row['store_id'] ?? '';
+            const ambiguity = getAmbiguousStoreMessage(rawLocation);
+            importErrors.push(`第 ${rowNumber} 列：${ambiguity || `找不到任職門市或總部部門「${movement.store_id}」`}`);
           }
           if (movement.movement_type === 'promotion' && !movement.position) {
             importErrors.push(`第 ${rowNumber} 列：升職請填職位`);
+          }
+          if (movement.movement_type === 'acting_manager' && movement.position !== '代理店長') {
+            importErrors.push(`第 ${rowNumber} 列：代理異動的職位必須選「代理店長」`);
           }
           if (movement.movement_type === 'promotion' && movement.position === '新人' && !movement.newbie_level) {
             importErrors.push(`第 ${rowNumber} 列：新人升職請填新人等級`);
@@ -1005,10 +1080,14 @@ export default function EmployeeMovementManagementPage() {
             importErrors.push(`第 ${rowNumber} 列：調店請填原任職與新任職門市`);
           }
           if (movement.movement_type === 'store_transfer' && movement.from_store_id && !stores.some(store => store.id === movement.from_store_id)) {
-            importErrors.push(`第 ${rowNumber} 列：找不到原任職門市「${movement.from_store_id}」`);
+            const rawFromStore = row['原任職門市ID'] ?? row['原任職門市'] ?? row['from_store_id'] ?? '';
+            const ambiguity = getAmbiguousStoreMessage(rawFromStore);
+            importErrors.push(`第 ${rowNumber} 列：${ambiguity || `找不到原任職門市「${movement.from_store_id}」`}`);
           }
           if (movement.movement_type === 'store_transfer' && movement.to_store_id && !stores.some(store => store.id === movement.to_store_id)) {
-            importErrors.push(`第 ${rowNumber} 列：找不到新任職門市「${movement.to_store_id}」`);
+            const rawToStore = row['新任職門市ID'] ?? row['新任職門市'] ?? row['to_store_id'] ?? '';
+            const ambiguity = getAmbiguousStoreMessage(rawToStore);
+            importErrors.push(`第 ${rowNumber} 列：${ambiguity || `找不到新任職門市「${movement.to_store_id}」`}`);
           }
           if (movement.movement_type === 'store_transfer' && movement.from_store_id === movement.to_store_id) {
             importErrors.push(`第 ${rowNumber} 列：調店的原任職與新任職門市不可相同`);
@@ -1033,7 +1112,7 @@ export default function EmployeeMovementManagementPage() {
 
   const handleExcelExport = () => {
     const exportData = movements.map(m => {
-      const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+      const movementTypeLabel = getMovementTypeLabel(m.movement_type, m.position);
       const storeName = getWorkLocationLabel(m.store_id);
       const fromStoreName = stores.find(s => s.id === m.from_store_id)?.name || '';
       const toStoreName = stores.find(s => s.id === m.to_store_id)?.name || '';
@@ -1044,8 +1123,8 @@ export default function EmployeeMovementManagementPage() {
         '任職門市': storeName,
         '是否為藥師': m.movement_type === 'onboarding' ? (m.onboarding_is_pharmacist ? '是' : '否') : '',
         '生日': m.movement_type === 'onboarding' ? m.birthday : '',
-        '職位': m.position,
-        '新人/行政等級': m.movement_type === 'promotion' && (m.position === '新人' || m.position in ADMIN_PROMOTION_LEVEL) ? m.newbie_level : '',
+        '升任後職位': m.position,
+        '升任後新人/行政等級': m.movement_type === 'promotion' && (m.position === '新人' || m.position in ADMIN_PROMOTION_LEVEL) ? m.newbie_level : '',
         '原任職門市': m.movement_type === 'store_transfer' ? fromStoreName : '',
         '新任職門市': m.movement_type === 'store_transfer' ? toStoreName : '',
         '生效日期': m.effective_date,
@@ -1076,8 +1155,8 @@ export default function EmployeeMovementManagementPage() {
       '任職門市ID': movementType === '調店' ? '' : sampleStoreCode,
       '是否為藥師': '',
       '生日': '',
-      '職位': '',
-      '新人/行政等級': '',
+      '升任後職位': '',
+      '升任後新人/行政等級': '',
       '原任職門市ID': '',
       '新任職門市ID': '',
       '生效日期': sampleEffectiveDate,
@@ -1091,32 +1170,27 @@ export default function EmployeeMovementManagementPage() {
         '備註': '入職範例；請填生日與藥師身分',
       }),
       makeTemplateRow('EXAMPLE-02', '陳美華', '升職', {
-        '職位': '副店長',
+        '升任後職位': '副店長',
         '備註': '一般職位升遷範例',
       }),
       makeTemplateRow('EXAMPLE-03', '林大仁', '升職', {
-        '職位': '新人',
-        '新人/行政等級': '一階新人',
+        '升任後職位': '新人',
+        '升任後新人/行政等級': '一階新人',
         '備註': '同日同時通過一階與二階的第一筆記錄',
       }),
       makeTemplateRow('EXAMPLE-03', '林大仁', '升職', {
-        '職位': '新人',
-        '新人/行政等級': '二階新人',
+        '升任後職位': '新人',
+        '升任後新人/行政等級': '二階新人',
         '備註': '同日同時通過一階與二階的第二筆記錄',
       }),
-      makeTemplateRow('EXAMPLE-04', '張雅婷', '升職', {
-        '職位': '行政(未過階)',
-        '新人/行政等級': '未過階行政',
-        '備註': '行政未過階範例',
+      makeTemplateRow('EXAMPLE-04', '李俊豪', '升職', {
+        '升任後職位': '行政(過階)',
+        '升任後新人/行政等級': '過階行政',
+        '備註': '行政入職為未過階；通過考核後升任行政(過階)',
       }),
-      makeTemplateRow('EXAMPLE-04', '張雅婷', '升職', {
-        '職位': '行政(過階)',
-        '新人/行政等級': '過階行政',
-        '備註': '行政過階範例',
-      }),
-      makeTemplateRow('EXAMPLE-05', '李俊豪', '升職', {
-        '職位': '代理店長',
-        '備註': '代理店長為暫代職務，不取代正式職稱',
+      makeTemplateRow('EXAMPLE-05', '王俊豪', '代理', {
+        '升任後職位': '代理店長',
+        '備註': '代理店長為暫代職務，不變更正式職稱',
       }),
       makeTemplateRow('EXAMPLE-06', '黃心怡', '留職停薪', {
         '備註': '留職停薪範例',
@@ -1141,13 +1215,13 @@ export default function EmployeeMovementManagementPage() {
       { '欄位': '使用提醒', '是否必填': '匯入前', '說明': '請將 EXAMPLE-xx 員編及姓名換成實際資料，確認生效日期與門市後再儲存；系統會阻止直接儲存範例員編。' },
       { '欄位': '員編', '是否必填': '必填', '說明': '員工編號，匯入時會自動轉大寫。' },
       { '欄位': '姓名', '是否必填': '必填', '說明': '員工姓名。' },
-      { '欄位': '異動類型', '是否必填': '必填', '說明': '可填：入職、升職、留職停薪、復職、過試用期、離職、調店。' },
+      { '欄位': '異動類型', '是否必填': '必填', '說明': '可填：入職、升職、代理、留職停薪、復職、過試用期、離職、調店。' },
       { '欄位': '生效日期', '是否必填': '必填', '說明': '支援 YYYY-MM-DD、YYYY/MM/DD、MM/DD/YYYY 或 Excel 日期。' },
       { '欄位': '任職門市ID', '是否必填': '除調店外必填', '說明': '可填門市代號、門市名稱或 UUID；總部人員可填組織單位代碼、名稱或 UUID。' },
       { '欄位': '是否為藥師', '是否必填': '入職建議填寫', '說明': '可填 是/否 或 TRUE/FALSE。' },
       { '欄位': '生日', '是否必填': '入職必填', '說明': '必須為 YYYY-MM-DD，例如 1990-01-15。' },
-      { '欄位': '職位', '是否必填': '升職必填', '說明': `可參考系統升職選項：${PROMOTION_POSITION_OPTIONS.join('、')}。代理店長只會標註每月人員狀態的「是否擔任代理店長」，不會覆蓋實際職位。` },
-      { '欄位': '新人/行政等級', '是否必填': '升職為新人或行政時必填', '說明': `新人等級可填：${NEWBIE_LEVEL_OPTIONS.map(option => option.value).join('、')}；行政可填：未過階行政、過階行政。` },
+      { '欄位': '升任後職位', '是否必填': '升職必填；代理必填', '說明': `升職填寫生效後的正式職位；行政入職即為未過階行政，不需另建升職紀錄，通過考核升為行政(過階)時才建立升職紀錄。代理異動請填「代理店長」，不會變更正式職位。升職選項：${PROMOTION_POSITION_OPTIONS.join('、')}。舊檔仍可使用「職位」欄名。` },
+      { '欄位': '升任後新人/行政等級', '是否必填': '升職為新人或行政時必填', '說明': `填寫生效後的目標等級，不是原等級。新人可填：${NEWBIE_LEVEL_OPTIONS.map(option => option.value).join('、')}；行政入職後為未過階，通過考核升職時填「過階行政」。匯入舊檔仍可使用「新人/行政等級」欄名。` },
       { '欄位': '原任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號、門市名稱或 UUID。' },
       { '欄位': '新任職門市ID', '是否必填': '調店必填', '說明': '可填門市代號、門市名稱或 UUID，且不可與原任職門市相同。' },
       { '欄位': '備註', '是否必填': '選填', '說明': '補充說明。' }
@@ -1301,7 +1375,7 @@ export default function EmployeeMovementManagementPage() {
                     任職門市 <span className="text-red-500">*</span>
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
-                    職位 / 調店資訊
+                    職稱／暫代職務資訊
                   </th>
                   <th className="border border-gray-300 px-3 py-2 text-left text-sm font-semibold text-gray-700 w-36">
                     生效日期 <span className="text-red-500">*</span>
@@ -1409,7 +1483,20 @@ export default function EmployeeMovementManagementPage() {
                       )}
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
-                      {movement.movement_type === 'promotion' ? (
+                      {movement.movement_type === 'acting_manager' ? (
+                        <div className="space-y-1">
+                          <label className="text-xs text-gray-500">代理職位</label>
+                          <select
+                            value={movement.position}
+                            onChange={(e) => updateRow(index, 'position', e.target.value)}
+                            className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
+                          >
+                            <option value="">請選擇</option>
+                            <option value="代理店長">代理店長</option>
+                          </select>
+                          <p className="px-2 text-xs text-blue-700">只記錄暫代職務，不變更正式職稱。</p>
+                        </div>
+                      ) : movement.movement_type === 'promotion' ? (
                         <div className="space-y-1">
                           <select
                             value={movement.position}
@@ -1553,6 +1640,7 @@ export default function EmployeeMovementManagementPage() {
             <li>• <strong>所有異動都需填寫任職門市</strong>，記錄員工在哪個門市發生異動</li>
             <li>• <strong>入職：</strong>需填生日與是否為藥師，儲存後會回填到員工管理資料</li>
             <li>• <strong>升職：</strong>需填寫新職位，系統會自動更新該員工從生效日期起的所有月份職位</li>
+            <li>• <strong>代理：</strong>選擇代理店長，記錄暫代職務；不變更正式職稱，正式職稱升遷也不會取消代理標記</li>
             <li>• <strong>調店：</strong>需選擇原任職門市和新任職門市，生效日期為新門市調入的第一天。系統會自動將員工從原門市移至新門市</li>
             <li>• <strong>留職停薪：</strong>將員工狀態設為留職停薪，不影響職位資料</li>
             <li>• <strong>復職：</strong>將留職停薪的員工狀態恢復為在職</li>
@@ -1647,7 +1735,7 @@ export default function EmployeeMovementManagementPage() {
                   <button
                     onClick={() => {
                       const exportData = filteredHistory.map(m => {
-                        const movementTypeLabel = MOVEMENT_TYPES.find(t => t.value === m.movement_type)?.label || m.movement_type;
+                        const movementTypeLabel = getMovementTypeLabel(m.movement_type, m.new_value);
                         const onboardingPharmacistText = m.movement_type === 'onboarding'
                           ? (m.onboarding_is_pharmacist ? '是' : '否')
                           : '-';
@@ -1706,7 +1794,7 @@ export default function EmployeeMovementManagementPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {filteredHistory.map((record) => {
-                        const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+                        const typeLabel = getMovementTypeLabel(record.movement_type, record.new_value);
                         return (
                           <tr key={record.id} className="hover:bg-gray-50">
                             <td className="px-4 py-3 text-sm font-medium text-gray-900">{record.employee_code}</td>
@@ -1715,6 +1803,7 @@ export default function EmployeeMovementManagementPage() {
                             <td className="px-4 py-3 text-sm">
                               <span className={`px-2 py-1 rounded text-xs font-medium ${
                                 record.movement_type === 'promotion' ? 'bg-emerald-100 text-emerald-700' :
+                                record.movement_type === 'acting_manager' ? 'bg-orange-100 text-orange-700' :
                                 record.movement_type === 'store_transfer' ? 'bg-cyan-100 text-cyan-700' :
                                 record.movement_type === 'leave_without_pay' ? 'bg-amber-100 text-amber-700' :
                                 record.movement_type === 'return_to_work' ? 'bg-blue-100 text-blue-700' :
@@ -2185,7 +2274,7 @@ export default function EmployeeMovementManagementPage() {
         {editingId && (() => {
           const record = movementHistory.find(m => m.id === editingId);
           if (!record) return null;
-          const typeLabel = MOVEMENT_TYPES.find(t => t.value === record.movement_type)?.label || record.movement_type;
+          const typeLabel = getMovementTypeLabel(record.movement_type, record.new_value);
           return (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
@@ -2207,7 +2296,11 @@ export default function EmployeeMovementManagementPage() {
                 <div className="p-6 space-y-4">
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
                     {record.movement_type === 'promotion'
-                      ? '升職異動儲存後，會從原生效月份與新生效月份中較早者開始，依該員工升職時間線重算後續每月人員狀態職位。'
+                      ? editMovement.new_value === '代理店長'
+                        ? '代理店長是暫代職務，會保留原正式職稱；職稱升遷不會自動取消代理標記。'
+                        : '升職異動儲存後，會從原生效月份與新生效月份中較早者開始重算正式職稱；代理店長標記會獨立保留。'
+                      : record.movement_type === 'acting_manager'
+                        ? '代理異動儲存後，系統會同步更新生效月份後的代理店長標記，不變更正式職位。'
                       : '姓名或生效日期儲存後，會同步受影響月份後的每月人員狀態姓名。'}
                   </div>
 
@@ -2247,7 +2340,16 @@ export default function EmployeeMovementManagementPage() {
                     </label>
                   )}
 
-                  {record.movement_type === 'promotion' && (
+                  {record.movement_type === 'promotion' && editMovement.new_value === '代理店長' ? (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                      這是舊制代理紀錄，歷程仍會保留；新建代理任用請使用「代理」異動類型。
+                    </div>
+                  ) : record.movement_type === 'acting_manager' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">代理職位</label>
+                      <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-2 text-sm">代理店長</div>
+                    </div>
+                  ) : record.movement_type === 'promotion' && (
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">

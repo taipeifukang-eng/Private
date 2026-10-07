@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission, requirePermission } from '@/lib/permissions/check';
 import {
+  resolveOfficialPositionBeforeDate,
   syncOnboardingPharmacistToMonthlyStaffStatus,
   syncEmployeePromotionTimelineToMonthlyStaffStatus,
   syncMovementEmployeeNameToMonthlyStaffStatus,
@@ -117,9 +118,17 @@ export async function PATCH(
     }
 
     let newValue = movement.new_value;
+    let oldValue = movement.old_value;
     let normalizedNotes = notes;
 
     if (movement.movement_type === 'promotion') {
+      oldValue = await resolveOfficialPositionBeforeDate(
+        adminSupabase,
+        movement.employee_code,
+        movementDate,
+        movement.old_value
+      );
+
       const normalizedPromotion = normalizePromotionPosition(
         String(body.new_value ?? body.position ?? movement.new_value ?? ''),
         body.newbie_level
@@ -148,6 +157,8 @@ export async function PATCH(
 
       newValue = normalizedPromotion.position;
       normalizedNotes = mergePromotionLevelNote(notes, normalizedPromotion.position, normalizedPromotion.newbieLevel);
+    } else if (movement.movement_type === 'acting_manager') {
+      newValue = '代理店長';
     }
 
     const { data: duplicate } = await adminSupabase
@@ -172,6 +183,7 @@ export async function PATCH(
         employee_name: employeeName,
         movement_date: movementDate,
         new_value: newValue,
+        old_value: oldValue,
         notes: normalizedNotes,
         onboarding_is_pharmacist: typeof body.onboarding_is_pharmacist === 'boolean'
           ? body.onboarding_is_pharmacist
@@ -215,11 +227,12 @@ export async function PATCH(
       );
     }
 
-    if (movement.movement_type === 'promotion') {
+    if (movement.movement_type === 'promotion' || movement.movement_type === 'acting_manager') {
       await syncEmployeePromotionTimelineToMonthlyStaffStatus(
         adminSupabase,
         movement.employee_code,
-        affectedFromDate
+        affectedFromDate,
+        movement.movement_type === 'acting_manager' || movement.new_value === '代理店長' || updated.new_value === '代理店長'
       );
     }
 
@@ -243,7 +256,9 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       data: updated,
-      message: movement.movement_type === 'promotion'
+      message: movement.movement_type === 'acting_manager'
+        ? '已更新代理異動，並同步生效月份後的代理店長標記'
+        : movement.movement_type === 'promotion'
         ? '已更新升職異動，並同步重算生效月份後的月度職位'
         : movement.movement_type === 'onboarding'
           ? '已更新入職異動，並同步生效月份後的藥師身分'
@@ -268,6 +283,7 @@ export async function DELETE(
 ) {
   try {
     const supabase = await createClient();
+    const adminSupabase = createAdminClient();
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -287,9 +303,9 @@ export async function DELETE(
     }
 
     // 檢查記錄是否存在
-    const { data: movement, error: fetchError } = await supabase
+    const { data: movement, error: fetchError } = await adminSupabase
       .from('employee_movement_history')
-      .select('id, employee_code, employee_name, movement_type, movement_date')
+      .select('id, employee_code, employee_name, movement_type, movement_date, new_value')
       .eq('id', params.id)
       .single();
 
@@ -301,7 +317,7 @@ export async function DELETE(
     }
 
     // 刪除記錄
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await adminSupabase
       .from('employee_movement_history')
       .delete()
       .eq('id', params.id);
@@ -311,6 +327,15 @@ export async function DELETE(
       return NextResponse.json(
         { success: false, error: deleteError.message },
         { status: 500 }
+      );
+    }
+
+    if (movement.movement_type === 'promotion' || movement.movement_type === 'acting_manager') {
+      await syncEmployeePromotionTimelineToMonthlyStaffStatus(
+        adminSupabase,
+        movement.employee_code,
+        movement.movement_date,
+        movement.movement_type === 'acting_manager' || movement.new_value === '代理店長'
       );
     }
 

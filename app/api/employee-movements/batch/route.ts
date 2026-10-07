@@ -4,10 +4,11 @@ import { requirePermission } from '@/lib/permissions/check';
 import {
   syncOnboardingPharmacistToMonthlyStaffStatus,
   syncPromotionPositionToMonthlyStaffStatus,
+  syncEmployeePromotionTimelineToMonthlyStaffStatus,
 } from '@/lib/monthly-staff/promotion-position-sync';
 import { getPromotionLevelFromNotes } from '@/lib/monthly-staff/promotion-level';
 
-type MovementType = 'onboarding' | 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
+type MovementType = 'onboarding' | 'promotion' | 'acting_manager' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
 
 interface MovementInput {
   employee_code: string;
@@ -16,7 +17,7 @@ interface MovementInput {
   store_id?: string; // 任職門市（入職時必填）
   onboarding_is_pharmacist?: boolean; // 入職時是否為藥師
   birthday?: string; // 入職時必填生日
-  position?: string; // 僅升職時需要
+  position?: string; // 升職或代理異動時使用
   newbie_level?: string; // 升職為新人/行政時的階級
   effective_date: string;
   notes?: string;
@@ -228,11 +229,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { movements } = body as { movements: MovementInput[] };
+    const { movements: inputMovements } = body as { movements: MovementInput[] };
 
-    if (!movements || movements.length === 0) {
+    if (!inputMovements || inputMovements.length === 0) {
       return NextResponse.json({ success: false, error: '缺少異動資料' }, { status: 400 });
     }
+
+    const movements = inputMovements.map((movement) =>
+      movement.movement_type === 'promotion' && movement.position === '代理店長'
+        ? { ...movement, movement_type: 'acting_manager' as const }
+        : movement
+    );
 
     const onboardingOrganizationUnitIds = Array.from(
       new Set(
@@ -315,6 +322,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({
           success: false,
           error: `員工 ${movement.employee_code} 升職為行政需要指定行政(過階)或行政(未過階)`
+        }, { status: 400 });
+      }
+
+      if (movement.movement_type === 'acting_manager' && movement.position !== '代理店長') {
+        return NextResponse.json({
+          success: false,
+          error: `員工 ${movement.employee_code} 的代理異動職位必須為代理店長`
         }, { status: 400 });
       }
 
@@ -431,6 +445,9 @@ export async function POST(request: NextRequest) {
         newValue = normalizedPromotion.position;
         movement.position = normalizedPromotion.position;
         movement.newbie_level = normalizedPromotion.newbie_level;
+      } else if (movement.movement_type === 'acting_manager') {
+        oldValue = empData?.current_position || empData?.position || null;
+        newValue = '代理店長';
       } else if (movement.movement_type === 'store_transfer') {
         // 調店：查詢原門市名稱和新門市名稱
         const { data: fromStore } = await adminSupabase
@@ -738,6 +755,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: syncError instanceof Error ? syncError.message : '同步升職月度職位失敗'
+      }, { status: 500 });
+    }
+
+    const actingManagerAffectedDates = new Map<string, string>();
+    for (const movement of movementRecords.filter((item) => item.movement_type === 'acting_manager')) {
+      const currentDate = actingManagerAffectedDates.get(movement.employee_code);
+      if (!currentDate || movement.movement_date < currentDate) {
+        actingManagerAffectedDates.set(movement.employee_code, movement.movement_date);
+      }
+    }
+
+    try {
+      for (const [employeeCode, effectiveDate] of Array.from(actingManagerAffectedDates.entries())) {
+        await syncEmployeePromotionTimelineToMonthlyStaffStatus(
+          adminSupabase,
+          employeeCode,
+          effectiveDate,
+          true
+        );
+      }
+    } catch (syncError) {
+      console.error('Acting manager monthly status sync warning:', syncError);
+      return NextResponse.json({
+        success: false,
+        error: syncError instanceof Error ? syncError.message : '同步代理店長標記失敗'
       }, { status: 500 });
     }
 

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { syncPromotionPositionToMonthlyStaffStatus } from '@/lib/monthly-staff/promotion-position-sync';
+import {
+  resolveOfficialPositionBeforeDate,
+  syncPromotionPositionToMonthlyStaffStatus,
+} from '@/lib/monthly-staff/promotion-position-sync';
 import type { BatchPromotionInput } from '@/types/workflow';
 
 export async function POST(request: NextRequest) {
@@ -80,7 +83,12 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (empData) {
-        promotionRecords[i].old_value = empData.current_position || empData.position || null;
+        promotionRecords[i].old_value = await resolveOfficialPositionBeforeDate(
+          adminSupabase,
+          promotionRecords[i].employee_code,
+          promotionRecords[i].movement_date,
+          empData.current_position || empData.position || null
+        );
       }
     }
 
