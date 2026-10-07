@@ -80,8 +80,8 @@ export async function GET(request: NextRequest) {
         return {
           門市代號: codeMap[store.id] || store.store_code,
           門市名稱: store.store_name,
-          支援分店時數: summary?.support_to_other_stores_hours || 0,
-          分店支援時數: summary?.support_from_other_stores_hours || 0
+          分店支援時數: summary?.support_from_other_stores_hours || 0,
+          支援分店時數: summary?.support_to_other_stores_hours || 0
         };
       })
     );
@@ -94,8 +94,8 @@ export async function GET(request: NextRequest) {
     ws['!cols'] = [
       { wch: 12 }, // 門市代號
       { wch: 20 }, // 門市名稱
-      { wch: 15 }, // 支援分店時數
-      { wch: 15 }  // 分店支援時數
+      { wch: 15 }, // 分店支援時數
+      { wch: 15 }  // 支援分店時數
     ];
 
     XLSX.utils.book_append_sheet(wb, ws, '門市支援時數');
