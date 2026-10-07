@@ -5,6 +5,7 @@ import {
   syncOnboardingPharmacistToMonthlyStaffStatus,
   syncPromotionPositionToMonthlyStaffStatus,
 } from '@/lib/monthly-staff/promotion-position-sync';
+import { getPromotionLevelFromNotes } from '@/lib/monthly-staff/promotion-level';
 
 type MovementType = 'onboarding' | 'promotion' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
 
@@ -354,6 +355,7 @@ export async function POST(request: NextRequest) {
     // 為每筆記錄準備資料
     const movementRecords = [];
     const promotionPositionSyncInputs = [];
+    const seenMovementKeys = new Set<string>();
     
     for (const movement of movements) {
       const onboardingOrganizationUnitId = getOnboardingOrganizationUnitId(movement);
@@ -361,17 +363,53 @@ export async function POST(request: NextRequest) {
         ? organizationUnitById.get(onboardingOrganizationUnitId)
         : null;
 
-      // 檢查是否已存在相同的異動記錄（同員工、同日期、同異動類型）
-      const { data: existingRecord } = await adminSupabase
+      const normalizedPromotion = movement.movement_type === 'promotion'
+        ? normalizePromotionPosition(movement.position, movement.newbie_level)
+        : null;
+      const duplicateKey = [
+        movement.employee_code.toUpperCase(),
+        movement.effective_date,
+        movement.movement_type,
+        ...(normalizedPromotion
+          ? [normalizedPromotion.position, normalizedPromotion.newbie_level || '']
+          : []),
+      ].join('|');
+
+      if (seenMovementKeys.has(duplicateKey)) {
+        console.log(`跳過本批次重複記錄: ${duplicateKey}`);
+        continue;
+      }
+      seenMovementKeys.add(duplicateKey);
+
+      // 升職需連同職位與階段比對，允許同日分別記錄一階、二階新人。
+      const { data: existingRecords, error: existingRecordsError } = await adminSupabase
         .from('employee_movement_history')
-        .select('id')
+        .select('id, new_value, notes')
         .eq('employee_code', movement.employee_code.toUpperCase())
         .eq('movement_date', movement.effective_date)
-        .eq('movement_type', movement.movement_type)
-        .maybeSingle();
+        .eq('movement_type', movement.movement_type);
+
+      if (existingRecordsError) {
+        return NextResponse.json({
+          success: false,
+          error: `檢查既有異動記錄失敗：${existingRecordsError.message}`
+        }, { status: 500 });
+      }
+
+      const existingRecord = (existingRecords || []).find((record: any) => {
+        if (!normalizedPromotion) return true;
+
+        const existingPromotion = normalizePromotionPosition(
+          record.new_value || '',
+          getPromotionLevelFromNotes(record.notes) || undefined
+        );
+
+        return existingPromotion.position === normalizedPromotion.position &&
+          (existingPromotion.newbie_level || '') === (normalizedPromotion.newbie_level || '');
+      });
 
       if (existingRecord) {
-        console.log(`跳過重複記錄: ${movement.employee_code} - ${movement.effective_date} - ${movement.movement_type}`);
+        console.log(`跳過重複記錄: ${duplicateKey}`);
         continue; // 跳過重複記錄
       }
 

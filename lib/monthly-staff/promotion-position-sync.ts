@@ -19,6 +19,7 @@ type SupabaseLikeClient = {
 
 type PromotionTimelineRow = {
   id?: string;
+  created_at?: string;
   movement_date: string;
   new_value: string | null;
   old_value: string | null;
@@ -121,7 +122,8 @@ export async function syncPromotionPositionToMonthlyStaffStatus(
 export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
   supabase: SupabaseLikeClient,
   employeeCodeInput: string,
-  affectedFromDate: string
+  affectedFromDate: string,
+  syncActingManager = false
 ) {
   const employeeCode = normalizeEmployeeCode(employeeCodeInput);
   const affectedDate = String(affectedFromDate || '').trim();
@@ -133,7 +135,7 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
 
   const { data: promotions, error } = await supabase
     .from('employee_movement_history')
-    .select('id, movement_date, new_value, old_value, notes')
+    .select('id, created_at, movement_date, new_value, old_value, notes')
     .eq('employee_code', employeeCode)
     .eq('movement_type', 'promotion')
     .order('movement_date', { ascending: true })
@@ -145,6 +147,8 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
 
   const rows = ((promotions || []) as PromotionTimelineRow[])
     .map((row: PromotionTimelineRow) => ({
+      id: row.id,
+      createdAt: String(row.created_at || ''),
       movementDate: String(row.movement_date || '').trim(),
       yearMonth: getYearMonth(row.movement_date),
       position: String(row.new_value || '').trim(),
@@ -154,7 +158,24 @@ export async function syncEmployeePromotionTimelineToMonthlyStaffStatus(
     }))
     .filter((row) => /^\d{4}-\d{2}$/.test(row.yearMonth) && row.position);
 
-  if (rows.length === 0) {
+  rows.sort((a, b) => {
+    const dateOrder = a.movementDate.localeCompare(b.movementDate);
+    if (dateOrder !== 0) return dateOrder;
+
+    // 同日同時通過新人兩階時，月度職位以較高階段為準。
+    if (a.position === '新人' && b.position === '新人') {
+      const levelRank = (level: string | null) =>
+        level === '二階新人' ? 2 : level === '一階新人' ? 1 : 0;
+      const levelOrder = levelRank(a.newbieLevel) - levelRank(b.newbieLevel);
+      if (levelOrder !== 0) return levelOrder;
+    }
+
+    const createdAtOrder = a.createdAt.localeCompare(b.createdAt);
+    if (createdAtOrder !== 0) return createdAtOrder;
+    return String(a.id || '').localeCompare(String(b.id || ''));
+  });
+
+  if (rows.length === 0 && !syncActingManager) {
     return;
   }
 
