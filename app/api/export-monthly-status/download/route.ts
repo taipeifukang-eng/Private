@@ -266,8 +266,10 @@ export async function POST(request: NextRequest) {
       const grossProfitBase = adjustedGrossProfit ?? record.gross_profit;
       const grossProfit = grossProfitBase ? Math.round(grossProfitBase) : '';
       
-      // 時數：如果有外務實上規劃時數則使用該時數，否則使用一般工作時數
-      const hours = record.extra_task_planned_hours || record.work_hours || '';
+      // 督導卡班人員以卡班時數呈現；其他人員沿用外務規劃或一般工作時數
+      const hours = record.is_supervisor_rotation
+        ? (record.supervisor_shift_hours ?? '')
+        : (record.extra_task_planned_hours || record.work_hours || '');
       
       // 外務時數：如果有外務時數則顯示
       const externalHours = record.extra_task_external_hours || '';
@@ -281,7 +283,7 @@ export async function POST(request: NextRequest) {
         '職位': positionName,
         '階段': stage, // 第7欄：階段
         '當月個人實際毛利': grossProfit, // 第8欄：當月個人實際毛利
-        '時數': hours, // 優先使用外務實上規劃時數
+        '時數': hours,
         '天數(含休假)': workDays, // 只在未上滿整月時顯示
         '外務時數': externalHours // 第11欄：外務時數
       };
