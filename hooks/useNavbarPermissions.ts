@@ -33,6 +33,7 @@ export interface NavbarPermissions {
   canViewArchivedTasks: boolean;
   
   // 門市管理
+  canViewAnnualCalendar: boolean;
   canViewOrganization: boolean;
   canViewDepartments: boolean;
   canManageDepartments: boolean;
@@ -90,6 +91,7 @@ const DEFAULT_NAVBAR_PERMISSIONS: NavbarPermissions = {
   canViewDashboard: false,
   canManageTasks: false,
   canViewArchivedTasks: false,
+  canViewAnnualCalendar: true,
   canViewOrganization: false,
   canViewDepartments: false,
   canManageDepartments: false,
@@ -354,6 +356,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canViewArchivedTasks: hasPermissionCode('task.view_archived'),
           
           // 門市管理
+          canViewAnnualCalendar: true,
           canViewOrganization: hasAnyPermissionCode(ORGANIZATION_NAV_PERMISSION_CODES),
           canViewDepartments: hasAnyPermissionCode([
             'organization.department.view',
@@ -525,7 +528,8 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
 }
 
 export function hasAnyOrganizationPermission(permissions: NavbarPermissions): boolean {
-  return permissions.canViewOrganization ||
+  return permissions.canViewAnnualCalendar ||
+         permissions.canViewOrganization ||
          permissions.canViewDepartments ||
          permissions.canManageDepartments ||
          hasAnyStorePermission(permissions);

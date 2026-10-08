@@ -17,6 +17,7 @@ import {
   User as UserIcon,
   Archive,
   CalendarCheck,
+  CalendarDays,
   Store,
   Building2,
   ChevronDown,
@@ -145,6 +146,7 @@ export default function Navbar({ user }: NavbarProps) {
 
   // 組織管理相關的子選單項目（使用 RBAC 權限）
   const organizationSubItems = [
+    { href: '/organization/calendar', label: '年度行事曆', icon: CalendarDays, show: permissions.canViewAnnualCalendar },
     { href: '/admin/organization', label: '公司組織', icon: Building2, show: permissions.canViewOrganization },
     { href: '/admin/departments', label: '部門管理', icon: Users, show: permissions.canViewDepartments || permissions.canManageDepartments },
   ];
@@ -200,7 +202,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在組織管理相關頁面
-  const isInOrganizationSection = ['/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/admin/employee-purchases', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
+  const isInOrganizationSection = ['/organization/calendar', '/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/admin/employee-purchases', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 
