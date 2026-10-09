@@ -17,8 +17,6 @@ import {
 import {
   ORGANIZATION_CALENDAR_EVENT_TYPE_LABELS,
   ORGANIZATION_CALENDAR_HOLIDAY_TYPE_LABELS,
-  ORGANIZATION_CALENDAR_HOLIDAY_TYPES,
-  isCalendarDate,
   type OrganizationCalendarEventType,
   type OrganizationCalendarHolidayType,
 } from '@/lib/admin/organization-calendar';
@@ -113,33 +111,6 @@ function shiftDate(value: string, days: number) {
 function formatDate(value: string) {
   const [year, month, day] = value.split('-');
   return `${year}/${Number(month)}/${Number(day)}`;
-}
-
-function parseHolidayRows(text: string) {
-  const typeAliases: Record<string, OrganizationCalendarHolidayType> = {
-    國定假日: 'national_holiday',
-    假日: 'national_holiday',
-    national_holiday: 'national_holiday',
-    補假日: 'substitute_holiday',
-    補假: 'substitute_holiday',
-    substitute_holiday: 'substitute_holiday',
-    補行上班: 'makeup_workday',
-    補班: 'makeup_workday',
-    makeup_workday: 'makeup_workday',
-  };
-  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const rows = lines.map((line, index) => {
-    const columns = line.split(line.includes('\t') ? '\t' : ',').map(value => value.trim());
-    const [holiday_date, name, rawType] = columns;
-    const day_type = typeAliases[rawType || ''];
-    if (!isCalendarDate(holiday_date) || !name || !day_type || columns.length !== 3) {
-      throw new Error(`第 ${index + 1} 列格式錯誤，請依序填寫日期、名稱、類型`);
-    }
-    return { holiday_date, name, day_type };
-  });
-  if (rows.length === 0) throw new Error('請貼上至少一筆日期資料');
-  if (rows.length > 500) throw new Error('單次最多匯入 500 筆日期');
-  return rows;
 }
 
 function auditValue(field: string, value: unknown) {
@@ -325,8 +296,15 @@ export default function OrganizationCalendarClient({
     source_name: '行政院人事行政總處',
     source_url: '',
     source_revision: `${year} 年辦公日曆表`,
-    rows: '',
   });
+  const [holidayImportFile, setHolidayImportFile] = useState<File | null>(null);
+  const [holidayPreviewRows, setHolidayPreviewRows] = useState<Array<{
+    holiday_date: string;
+    name: string;
+    day_type: OrganizationCalendarHolidayType;
+  }>>([]);
+  const [holidayPreviewLoading, setHolidayPreviewLoading] = useState(false);
+  const [holidayImportError, setHolidayImportError] = useState('');
   const [historyEntry, setHistoryEntry] = useState<CalendarEntry | null>(null);
   const [history, setHistory] = useState<CalendarAudit[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -564,13 +542,9 @@ export default function OrganizationCalendarClient({
   async function importHolidays(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSavingHolidayImport(true);
-    setError('');
-    setNotice('');
+    setHolidayImportError('');
     try {
-      const holidays = parseHolidayRows(holidayImportDraft.rows);
-      if (holidays.some(row => Number(row.holiday_date.slice(0, 4)) !== year)) {
-        throw new Error(`每筆日期都必須是 ${year} 年`);
-      }
+      if (holidayPreviewRows.length === 0) throw new Error('請先讀取 CSV 並確認預覽資料');
       const response = await fetch('/api/organization/calendar/holidays', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -579,18 +553,58 @@ export default function OrganizationCalendarClient({
           source_name: holidayImportDraft.source_name,
           source_url: holidayImportDraft.source_url,
           source_revision: holidayImportDraft.source_revision,
-          holidays,
+          holidays: holidayPreviewRows,
         }),
       });
       await readResponse(response);
       setShowHolidayImport(false);
-      setHolidayImportDraft(current => ({ ...current, rows: '' }));
-      setNotice(`${year} 年政府假日資料已發布（${holidays.length} 筆）`);
+      setNotice(`${year} 年政府假日資料已發布（${holidayPreviewRows.length} 筆）`);
       await loadCalendar(year);
     } catch (importError: any) {
-      setError(importError.message || '匯入政府假日失敗');
+      setHolidayImportError(importError.message || '匯入政府假日失敗');
     } finally {
       setSavingHolidayImport(false);
+    }
+  }
+
+  async function previewHolidayCsv(useOfficialSource = false) {
+    setHolidayPreviewLoading(true);
+    setHolidayImportError('');
+    setHolidayPreviewRows([]);
+    try {
+      let response: Response;
+      if (holidayImportFile && !useOfficialSource) {
+        const form = new FormData();
+        form.set('calendar_year', String(year));
+        form.set('file', holidayImportFile);
+        response = await fetch('/api/organization/calendar/holidays/preview', {
+          method: 'POST',
+          body: form,
+        });
+      } else {
+        if (!useOfficialSource && !holidayImportDraft.source_url.trim()) {
+          throw new Error('請按「從人事總處載入」或選取已下載的 CSV 檔案');
+        }
+        response = await fetch('/api/organization/calendar/holidays/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(useOfficialSource
+            ? { calendar_year: year, use_official_source: true }
+            : { calendar_year: year, source_url: holidayImportDraft.source_url }),
+        });
+      }
+      const payload = await readResponse(response);
+      setHolidayPreviewRows(payload.holidays || []);
+      setHolidayImportDraft(current => ({
+        ...current,
+        source_name: payload.source_name || current.source_name,
+        source_url: payload.source_url || current.source_url,
+        source_revision: payload.source_revision || current.source_revision,
+      }));
+    } catch (previewError: any) {
+      setHolidayImportError(previewError.message || '讀取 CSV 失敗');
+    } finally {
+      setHolidayPreviewLoading(false);
     }
   }
 
@@ -782,14 +796,18 @@ export default function OrganizationCalendarClient({
         )}
         {canManageHolidays && (
           <button
-            type="button"
-            onClick={() => {
-              setHolidayImportDraft(current => ({
-                ...current,
-                source_revision: `${year} 年辦公日曆表`,
-              }));
-              setShowHolidayImport(true);
-            }}
+          type="button"
+          onClick={() => {
+            setHolidayImportDraft({
+              source_name: '行政院人事行政總處',
+              source_url: '',
+              source_revision: `${year - 1911} 年政府行政機關辦公日曆表`,
+            });
+            setHolidayImportFile(null);
+            setHolidayPreviewRows([]);
+            setHolidayImportError('');
+            setShowHolidayImport(true);
+          }}
             className="ml-auto inline-flex h-9 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50"
           >
             <FileUp aria-hidden="true" className="h-4 w-4" />
@@ -1117,40 +1135,57 @@ export default function OrganizationCalendarClient({
               </button>
             </header>
             <form onSubmit={importHolidays} className="space-y-4 px-5 py-5">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="holiday-source-name" className="mb-1.5 block text-sm font-medium text-slate-700">公告來源</label>
-                  <input id="holiday-source-name" required maxLength={120} value={holidayImportDraft.source_name} onChange={event => setHolidayImportDraft({ ...holidayImportDraft, source_name: event.target.value })} className="h-10 w-full rounded border border-slate-300 px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
-                </div>
-                <div>
-                  <label htmlFor="holiday-source-revision" className="mb-1.5 block text-sm font-medium text-slate-700">公告版本</label>
-                  <input id="holiday-source-revision" maxLength={120} value={holidayImportDraft.source_revision} onChange={event => setHolidayImportDraft({ ...holidayImportDraft, source_revision: event.target.value })} className="h-10 w-full rounded border border-slate-300 px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
-                </div>
-              </div>
+              {holidayImportError && <p role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{holidayImportError}</p>}
               <div>
-                <label htmlFor="holiday-source-url" className="mb-1.5 block text-sm font-medium text-slate-700">公告網址</label>
-                <input id="holiday-source-url" type="url" required value={holidayImportDraft.source_url} onChange={event => setHolidayImportDraft({ ...holidayImportDraft, source_url: event.target.value })} placeholder="https://…" className="h-10 w-full rounded border border-slate-300 px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
-              </div>
-              <div>
-                <label htmlFor="holiday-rows" className="mb-1.5 block text-sm font-medium text-slate-700">日期資料</label>
-                <textarea
-                  id="holiday-rows"
-                  required
-                  rows={9}
-                  value={holidayImportDraft.rows}
-                  onChange={event => setHolidayImportDraft({ ...holidayImportDraft, rows: event.target.value })}
-                  placeholder={'2026-01-01\t元旦\t國定假日\n2026-02-20\t補假\t補假日\n2026-02-07\t補行上班\t補行上班'}
-                  className="w-full rounded border border-slate-300 px-3 py-2 font-mono text-sm leading-6 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"
+                <label htmlFor="holiday-csv-file" className="mb-1.5 block text-sm font-medium text-slate-700">上傳已下載的 CSV</label>
+                <input
+                  id="holiday-csv-file"
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={event => {
+                    setHolidayImportFile(event.target.files?.[0] || null);
+                    setHolidayPreviewRows([]);
+                    setHolidayImportError('');
+                  }}
+                  className="block w-full rounded border border-slate-300 bg-white text-sm text-slate-700 file:mr-3 file:h-10 file:border-0 file:border-r file:border-slate-300 file:bg-slate-50 file:px-3 file:text-sm file:font-medium hover:file:bg-slate-100"
                 />
-                <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                  每列依序貼上日期、名稱、類型，可直接從試算表複製。類型：國定假日、補假日、補行上班；只接受 {year} 年日期。發布後會立即取代該年度舊版本。
-                </p>
+                {holidayImportFile && <p className="mt-1 text-xs text-slate-600">已選擇：{holidayImportFile.name}</p>}
+                <p className="mt-1.5 text-xs leading-5 text-slate-500">請使用一般版「政府行政機關辦公日曆表_utf8bom.csv」，不要選 Google 行事曆專用版本。也可以直接由系統載入。</p>
               </div>
-              <footer className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+              {holidayPreviewRows.length > 0 && (
+                <section className="border-y border-slate-200 py-3" aria-label="CSV 假日資料預覽">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <h3 className="text-sm font-semibold">辨識到 {holidayPreviewRows.length} 筆日期</h3>
+                    <span className="text-xs text-slate-500">來源：{holidayImportDraft.source_name} · {holidayImportDraft.source_revision}</span>
+                  </div>
+                  <ul className="mt-2 divide-y divide-slate-100">
+                    {holidayPreviewRows.slice(0, 8).map(row => (
+                      <li key={row.holiday_date} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span className="tabular-nums text-slate-600">{formatDate(row.holiday_date)}</span>
+                        <span className="min-w-0 flex-1 truncate text-slate-900">{row.name}</span>
+                        <span className="shrink-0 text-xs text-slate-500">{ORGANIZATION_CALENDAR_HOLIDAY_TYPE_LABELS[row.day_type]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  {holidayPreviewRows.length > 8 && <p className="mt-1 text-xs text-slate-500">另有 {holidayPreviewRows.length - 8} 筆，發布後會完整匯入。</p>}
+                </section>
+              )}
+              <footer className="flex flex-wrap justify-between gap-2 border-t border-slate-200 pt-4">
                 <button type="button" onClick={() => setShowHolidayImport(false)} className="h-10 rounded border border-slate-300 px-4 text-sm hover:bg-slate-50">取消</button>
-                <button type="submit" disabled={savingHolidayImport} className="h-10 rounded bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
-                  {savingHolidayImport ? '驗證並發布中…' : '發布年度資料'}
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <a href="https://data.gov.tw/dataset/14718" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50">
+                    人事總處開放資料（年度 CSV）
+                  </a>
+                  <button type="button" onClick={() => void previewHolidayCsv(true)} disabled={holidayPreviewLoading || savingHolidayImport} className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+                    {holidayPreviewLoading && !holidayImportFile ? '讀取中…' : '從人事總處載入'}
+                  </button>
+                  <button type="button" onClick={() => void previewHolidayCsv()} disabled={holidayPreviewLoading || savingHolidayImport || !holidayImportFile} className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+                    {holidayPreviewLoading && holidayImportFile ? '讀取中…' : '讀取已選檔案'}
+                  </button>
+                  <button type="submit" disabled={savingHolidayImport || holidayPreviewLoading || holidayPreviewRows.length === 0} className="h-10 rounded bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    {savingHolidayImport ? '發布中…' : '確認發布'}
+                  </button>
+                </div>
               </footer>
             </form>
           </section>
