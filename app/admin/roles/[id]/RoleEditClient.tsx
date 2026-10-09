@@ -227,6 +227,7 @@ export default function RoleEditClient({
   const [showTechnicalPermissionCodes, setShowTechnicalPermissionCodes] = useState(false);
   const [expandedPermissionModules, setExpandedPermissionModules] = useState<Set<string>>(new Set());
   const [expandedPermissionFeatures, setExpandedPermissionFeatures] = useState<Set<string>>(new Set());
+  const previousPermissionViewRef = useRef(permissionView);
   const [savedPermissionIds, setSavedPermissionIds] = useState<string[]>([]);
   const [permissionConflict, setPermissionConflict] = useState<string | null>(null);
   const [permissionListError, setPermissionListError] = useState<string | null>(null);
@@ -338,6 +339,9 @@ export default function RoleEditClient({
   }, [permissions]);
 
   useEffect(() => {
+    if (previousPermissionViewRef.current === permissionView) return;
+    previousPermissionViewRef.current = permissionView;
+
     const auditView = permissionView === 'changed' || permissionView === 'advanced';
     if (!auditView) {
       setExpandedPermissionModules(new Set());
