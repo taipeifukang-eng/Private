@@ -3,15 +3,22 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
+  CalendarClock,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   CirclePlus,
+  ExternalLink,
   FileUp,
   History,
+  Link2,
+  MapPin,
   Pencil,
+  RefreshCw,
   Search,
   Share2,
   Trash2,
+  Unlink,
   X,
 } from 'lucide-react';
 import {
@@ -33,6 +40,22 @@ type CalendarEntry = {
   event_type?: OrganizationCalendarEventType;
   day_type?: string;
   owner_id?: string;
+  is_all_day?: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  location?: string | null;
+};
+type GoogleCalendarStatus = {
+  configured: boolean;
+  calendarId: string | null;
+  connected: boolean;
+  calendarMatches: boolean;
+  googleAccountEmail: string | null;
+  connectedAt: string | null;
+  lastSyncAt: string | null;
+  lastSyncStatus: 'success' | 'partial' | 'failed' | null;
+  lastSyncError: string | null;
+  pendingCount: number;
 };
 type Person = { id: string; name: string; employee_code: string | null };
 type Share = {
@@ -65,6 +88,10 @@ type Draft = {
   event_type: OrganizationCalendarEventType;
   start_date: string;
   end_date: string;
+  is_all_day: boolean;
+  start_time: string;
+  end_time: string;
+  location: string;
   description: string;
 };
 
@@ -113,9 +140,15 @@ function formatDate(value: string) {
   return `${year}/${Number(month)}/${Number(day)}`;
 }
 
+function formatTime(value?: string | null) {
+  return value ? value.slice(0, 5) : '';
+}
+
 function auditValue(field: string, value: unknown) {
   if (value == null || value === '') return '未填寫';
   if (field === 'start_date' || field === 'end_date') return formatDate(String(value));
+  if (field === 'start_time' || field === 'end_time') return formatTime(String(value));
+  if (field === 'is_all_day') return value ? '全天' : '指定時間';
   if (field === 'event_type') return ORGANIZATION_CALENDAR_EVENT_TYPE_LABELS[value as OrganizationCalendarEventType] || String(value);
   if (field === 'status') return value === 'cancelled' ? '已取消' : '有效';
   return String(value);
@@ -250,11 +283,13 @@ export default function OrganizationCalendarClient({
   canCreateCompanyEvents,
   canEditCompanyEvents,
   canManageHolidays,
+  canManageGoogleCalendar,
 }: {
   currentUserId: string;
   canCreateCompanyEvents: boolean;
   canEditCompanyEvents: boolean;
   canManageHolidays: boolean;
+  canManageGoogleCalendar: boolean;
 }) {
   const today = localDateString(new Date());
   const [year, setYear] = useState(Number(today.slice(0, 4)));
@@ -282,6 +317,10 @@ export default function OrganizationCalendarClient({
     event_type: 'meeting',
     start_date: today,
     end_date: today,
+    is_all_day: true,
+    start_time: '09:00',
+    end_time: '10:00',
+    location: '',
     description: '',
   });
   const [formRecipients, setFormRecipients] = useState<Person[]>([]);
@@ -297,7 +336,6 @@ export default function OrganizationCalendarClient({
     source_url: '',
     source_revision: `${year} 年辦公日曆表`,
   });
-  const [holidayImportFile, setHolidayImportFile] = useState<File | null>(null);
   const [holidayPreviewRows, setHolidayPreviewRows] = useState<Array<{
     holiday_date: string;
     name: string;
@@ -309,6 +347,9 @@ export default function OrganizationCalendarClient({
   const [history, setHistory] = useState<CalendarAudit[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [googleStatus, setGoogleStatus] = useState<GoogleCalendarStatus | null>(null);
+  const [googleStatusError, setGoogleStatusError] = useState('');
+  const [googleSyncing, setGoogleSyncing] = useState(false);
 
   const loadCalendar = useCallback(async (targetYear = year) => {
     setLoading(true);
@@ -327,9 +368,36 @@ export default function OrganizationCalendarClient({
     }
   }, [year]);
 
+  const loadGoogleStatus = useCallback(async () => {
+    if (!canManageGoogleCalendar) return;
+    setGoogleStatusError('');
+    try {
+      const response = await fetch('/api/organization/calendar/google/status', { cache: 'no-store' });
+      setGoogleStatus(await readResponse(response));
+    } catch (statusError: any) {
+      setGoogleStatusError(statusError.message || '無法讀取 Google 同步狀態');
+    }
+  }, [canManageGoogleCalendar]);
+
   useEffect(() => {
     void loadCalendar(year);
   }, [loadCalendar, year]);
+
+  useEffect(() => {
+    void loadGoogleStatus();
+  }, [loadGoogleStatus]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('google_calendar');
+    if (!result) return;
+    const detail = params.get('google_detail') || '';
+    if (result === 'connected') setNotice(detail || 'Google 公司日曆已連結並完成首次同步');
+    else if (result === 'connected_with_errors') setError(detail || 'Google 已連結，部分資料同步失敗，請重試');
+    else setError(detail || 'Google 日曆連結失敗');
+    window.history.replaceState({}, '', window.location.pathname);
+    void loadGoogleStatus();
+  }, [loadGoogleStatus]);
 
   const entries = useMemo<CalendarEntry[]>(() => [
     ...companyEvents.map(event => ({
@@ -383,7 +451,7 @@ export default function OrganizationCalendarClient({
   function beginCreate(kind: 'company' | 'personal', date = selectedDate) {
     setFormKind(kind);
     setEditingEntry(null);
-    setDraft({ title: '', event_type: 'meeting', start_date: date, end_date: date, description: '' });
+    setDraft({ title: '', event_type: 'meeting', start_date: date, end_date: date, is_all_day: true, start_time: '09:00', end_time: '10:00', location: '', description: '' });
     setFormRecipients([]);
     setShowForm(true);
   }
@@ -396,6 +464,10 @@ export default function OrganizationCalendarClient({
       event_type: entry.event_type || 'meeting',
       start_date: entry.start_date,
       end_date: entry.end_date,
+      is_all_day: entry.is_all_day !== false,
+      start_time: formatTime(entry.start_time) || '09:00',
+      end_time: formatTime(entry.end_time) || '10:00',
+      location: entry.location || '',
       description: entry.description || '',
     });
     setFormRecipients([]);
@@ -422,10 +494,13 @@ export default function OrganizationCalendarClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      await readResponse(response);
+      const payload = await readResponse(response);
       setShowForm(false);
-      setNotice(editingEntry ? '行事已更新' : '行事已建立');
+      setNotice(payload.googleSync?.status === 'failed'
+        ? `行事已儲存，但 Google 同步失敗：${payload.googleSync.message || '請稍後重試'}`
+        : editingEntry ? '行事已更新' : '行事已建立');
       await loadCalendar(year);
+      await loadGoogleStatus();
     } catch (saveError: any) {
       setError(saveError.message || '儲存失敗');
     } finally {
@@ -441,9 +516,12 @@ export default function OrganizationCalendarClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: entry.id, status: 'cancelled' }),
       });
-      await readResponse(response);
-      setNotice('公司行事已取消');
+      const payload = await readResponse(response);
+      setNotice(payload.googleSync?.status === 'failed'
+        ? `系統已取消行事，但 Google 同步失敗：${payload.googleSync.message || '請稍後重試'}`
+        : '公司行事已取消');
       await loadCalendar(year);
+      await loadGoogleStatus();
     } catch (cancelError: any) {
       setError(cancelError.message || '取消失敗');
     }
@@ -556,10 +634,13 @@ export default function OrganizationCalendarClient({
           holidays: holidayPreviewRows,
         }),
       });
-      await readResponse(response);
+      const payload = await readResponse(response);
       setShowHolidayImport(false);
-      setNotice(`${year} 年政府假日資料已發布（${holidayPreviewRows.length} 筆）`);
+      setNotice(payload.googleSync?.status === 'failed' || payload.googleSync?.status === 'partial'
+        ? `${year} 年政府假日已發布，但 Google 同步尚未完整，請至同步區重試`
+        : `${year} 年政府假日資料已發布（${holidayPreviewRows.length} 筆）`);
       await loadCalendar(year);
+      await loadGoogleStatus();
     } catch (importError: any) {
       setHolidayImportError(importError.message || '匯入政府假日失敗');
     } finally {
@@ -567,32 +648,16 @@ export default function OrganizationCalendarClient({
     }
   }
 
-  async function previewHolidayCsv(useOfficialSource = false) {
+  async function previewHolidayCsv() {
     setHolidayPreviewLoading(true);
     setHolidayImportError('');
     setHolidayPreviewRows([]);
     try {
-      let response: Response;
-      if (holidayImportFile && !useOfficialSource) {
-        const form = new FormData();
-        form.set('calendar_year', String(year));
-        form.set('file', holidayImportFile);
-        response = await fetch('/api/organization/calendar/holidays/preview', {
-          method: 'POST',
-          body: form,
-        });
-      } else {
-        if (!useOfficialSource && !holidayImportDraft.source_url.trim()) {
-          throw new Error('請按「從人事總處載入」或選取已下載的 CSV 檔案');
-        }
-        response = await fetch('/api/organization/calendar/holidays/preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(useOfficialSource
-            ? { calendar_year: year, use_official_source: true }
-            : { calendar_year: year, source_url: holidayImportDraft.source_url }),
-        });
-      }
+      const response = await fetch('/api/organization/calendar/holidays/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ calendar_year: year, use_official_source: true }),
+      });
       const payload = await readResponse(response);
       setHolidayPreviewRows(payload.holidays || []);
       setHolidayImportDraft(current => ({
@@ -624,6 +689,40 @@ export default function OrganizationCalendarClient({
     }
   }
 
+  async function syncGoogleCalendar() {
+    setGoogleSyncing(true);
+    setGoogleStatusError('');
+    try {
+      const response = await fetch('/api/organization/calendar/google/sync', { method: 'POST' });
+      const result = await readResponse(response);
+      setNotice(result.failed
+        ? `Google 同步完成 ${result.synced || 0} 筆，${result.failed} 筆失敗，請稍後重試。`
+        : `Google 公司日曆已同步 ${result.synced || 0} 筆公司行事與政府假日。`);
+      await loadGoogleStatus();
+    } catch (syncError: any) {
+      setGoogleStatusError(syncError.message || 'Google 同步失敗');
+      await loadGoogleStatus();
+    } finally {
+      setGoogleSyncing(false);
+    }
+  }
+
+  async function disconnectGoogleCalendar() {
+    if (!window.confirm('解除後系統不會再更新 Google 日曆；已同步到 Google 的行事會保留。確定解除？')) return;
+    setGoogleSyncing(true);
+    setGoogleStatusError('');
+    try {
+      const response = await fetch('/api/organization/calendar/google/disconnect', { method: 'POST' });
+      await readResponse(response);
+      setNotice('Google 公司日曆已解除連結；既有 Google 行事保留不刪除');
+      await loadGoogleStatus();
+    } catch (disconnectError: any) {
+      setGoogleStatusError(disconnectError.message || '解除 Google 連結失敗');
+    } finally {
+      setGoogleSyncing(false);
+    }
+  }
+
   function renderEntry(entry: CalendarEntry, compact = false) {
     const isOwner = entry.source === 'personal' && entry.owner_id === currentUserId;
     const canEdit = entry.source === 'company'
@@ -634,6 +733,9 @@ export default function OrganizationCalendarClient({
       : entry.source === 'holiday'
         ? ORGANIZATION_CALENDAR_HOLIDAY_TYPE_LABELS[entry.day_type as OrganizationCalendarHolidayType]
         : '';
+    const timeLabel = entry.is_all_day === false
+      ? `${formatTime(entry.start_time)}-${formatTime(entry.end_time)}`
+      : '全天';
 
     return (
       <article key={entry.key} className={`border-l-2 ${SOURCE_STYLES[entry.source].marker} pl-3 ${compact ? 'py-1.5' : 'py-3'}`}>
@@ -643,9 +745,13 @@ export default function OrganizationCalendarClient({
               <span className="font-medium text-slate-900">{entry.title}</span>
               {typeLabel && <span className="text-xs text-slate-500">{typeLabel}</span>}
             </div>
-            {!compact && entry.start_date !== entry.end_date && (
-              <div className="mt-1 text-xs text-slate-500">{formatDate(entry.start_date)} - {formatDate(entry.end_date)}</div>
+            {!compact && (entry.start_date !== entry.end_date || entry.is_all_day === false) && (
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                <span>{formatDate(entry.start_date)}{entry.start_date !== entry.end_date ? ` - ${formatDate(entry.end_date)}` : ''}</span>
+                {entry.is_all_day === false && <span className="inline-flex items-center gap-1"><CalendarClock aria-hidden="true" className="h-3.5 w-3.5" />{timeLabel}</span>}
+              </div>
             )}
+            {!compact && entry.location && <p className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500"><MapPin aria-hidden="true" className="h-3.5 w-3.5" />{entry.location}</p>}
             {!compact && entry.description && (
               <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">{entry.description}</p>
             )}
@@ -749,6 +855,58 @@ export default function OrganizationCalendarClient({
         </div>
       )}
 
+      {canManageGoogleCalendar && (
+        <section className="mb-4 border-y border-slate-200 py-3" aria-label="Google 公司行事曆同步">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link2 aria-hidden="true" className="h-4 w-4 text-slate-600" />
+                <h2 className="text-sm font-semibold">Google 公司行事曆</h2>
+                {googleStatus?.connected && <span className="inline-flex items-center gap-1 text-xs text-emerald-700"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />已連結</span>}
+                {!googleStatus?.connected && <span className="text-xs text-slate-500">尚未連結</span>}
+              </div>
+              <p className="mt-1 text-sm text-slate-600">單向同步公司行事與已發布政府假日；個人行程不會同步。</p>
+              {googleStatus?.calendarId && <p className="mt-1 break-all text-xs text-slate-500">目標日曆：{googleStatus.calendarId}</p>}
+              {googleStatus?.googleAccountEmail && <p className="text-xs text-slate-500">授權帳號：{googleStatus.googleAccountEmail}</p>}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!googleStatus?.connected && (
+                <a
+                  href="/api/organization/calendar/google/connect"
+                  aria-disabled={!googleStatus?.configured}
+                  onClick={event => { if (!googleStatus?.configured) event.preventDefault(); }}
+                  className={`inline-flex h-9 items-center gap-2 rounded border px-3 text-sm ${googleStatus?.configured ? 'border-slate-300 bg-white text-slate-800 hover:bg-slate-50' : 'pointer-events-none border-slate-200 bg-slate-100 text-slate-400'}`}
+                >
+                  <ExternalLink aria-hidden="true" className="h-4 w-4" />連結 Google
+                </a>
+              )}
+              {googleStatus?.connected && (
+                <>
+                  <button type="button" onClick={() => void syncGoogleCalendar()} disabled={googleSyncing} className="inline-flex h-9 items-center gap-2 rounded bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+                    <RefreshCw aria-hidden="true" className={`h-4 w-4 ${googleSyncing ? 'animate-spin' : ''}`} />{googleSyncing ? '同步中' : '立即同步'}
+                  </button>
+                  <a href="/api/organization/calendar/google/connect" className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50">
+                    <Link2 aria-hidden="true" className="h-4 w-4" />重新授權
+                  </a>
+                  <button type="button" onClick={() => void disconnectGoogleCalendar()} disabled={googleSyncing} title="解除 Google 連結" aria-label="解除 Google 連結" className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                    <Unlink aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span>Google 授權可管理該帳號擁有的日曆事件；系統只同步上方指定日曆。</span>
+            {googleStatus?.lastSyncAt && <span>最近同步：{new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', dateStyle: 'short', timeStyle: 'short' }).format(new Date(googleStatus.lastSyncAt))}</span>}
+            {Boolean(googleStatus?.pendingCount) && <span className="text-amber-800">{googleStatus?.pendingCount} 筆待重試</span>}
+          </div>
+          {!googleStatus?.configured && <p className="mt-2 text-sm text-amber-800">尚未完成伺服器端 Google OAuth、日曆 ID 與加密金鑰設定。</p>}
+          {googleStatusError && <p role="alert" className="mt-2 text-sm text-rose-700">{googleStatusError}</p>}
+          {googleStatus?.lastSyncError && <p className="mt-2 whitespace-pre-wrap text-sm text-rose-700">同步待處理：{googleStatus.lastSyncError}</p>}
+          {googleStatus?.connected && !googleStatus.calendarMatches && <p role="alert" className="mt-2 text-sm text-rose-700">伺服器目前設定的目標日曆與已連結日曆不同，已暫停同步。</p>}
+        </section>
+      )}
+
       <section className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4" aria-label="行事曆檢視設定">
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => moveMonth(-1)} aria-label="上一個月" title="上一個月" className="rounded border border-slate-300 p-2 hover:bg-slate-50">
@@ -803,7 +961,6 @@ export default function OrganizationCalendarClient({
               source_url: '',
               source_revision: `${year - 1911} 年政府行政機關辦公日曆表`,
             });
-            setHolidayImportFile(null);
             setHolidayPreviewRows([]);
             setHolidayImportError('');
             setShowHolidayImport(true);
@@ -851,7 +1008,7 @@ export default function OrganizationCalendarClient({
                         <span className="mt-1 block space-y-1">
                           {dayEntries.slice(0, 2).map(entry => (
                             <span key={entry.key} className={`block truncate rounded border px-1 py-0.5 text-[11px] leading-4 ${SOURCE_STYLES[entry.source].chip}`}>
-                              {entry.title}
+                              {entry.is_all_day === false && <span className="mr-1 tabular-nums">{formatTime(entry.start_time)}</span>}{entry.title}
                             </span>
                           ))}
                           {dayEntries.length > 2 && <span className="block px-1 text-[11px] text-slate-500">+{dayEntries.length - 2} 項</span>}
@@ -879,7 +1036,7 @@ export default function OrganizationCalendarClient({
                             <span className="w-14 shrink-0 pt-0.5 text-sm tabular-nums text-slate-500">{Number(entry.start_date.slice(8, 10))} 日</span>
                             <span className={`min-w-0 flex-1 border-l-2 pl-3 ${SOURCE_STYLES[entry.source].marker}`}>
                               <span className="block truncate text-sm font-medium text-slate-800">{entry.title}</span>
-                              <span className="text-xs text-slate-500">{SOURCE_LABELS[entry.source]}{entry.start_date !== entry.end_date ? ` · 至 ${formatDate(entry.end_date)}` : ''}</span>
+                              <span className="text-xs text-slate-500">{SOURCE_LABELS[entry.source]}{entry.is_all_day === false ? ` · ${formatTime(entry.start_time)}-${formatTime(entry.end_time)}` : ''}{entry.start_date !== entry.end_date ? ` · 至 ${formatDate(entry.end_date)}` : ''}</span>
                             </span>
                           </button>
                         ))}
@@ -980,6 +1137,33 @@ export default function OrganizationCalendarClient({
                   <label htmlFor="calendar-end-date" className="mb-1.5 block text-sm font-medium text-slate-700">結束日期</label>
                   <input id="calendar-end-date" type="date" min={draft.start_date} value={draft.end_date} onChange={event => setDraft({ ...draft, end_date: event.target.value })} required className="h-10 w-full rounded border border-slate-300 px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
                 </div>
+              </div>
+              <div className="border-y border-slate-200 py-3">
+                <label className="inline-flex min-h-8 items-center gap-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={draft.is_all_day}
+                    onChange={event => setDraft({ ...draft, is_all_day: event.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                  />
+                  全天
+                </label>
+                {!draft.is_all_day && (
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="calendar-start-time" className="mb-1.5 block text-sm font-medium text-slate-700">開始時間</label>
+                      <input id="calendar-start-time" type="time" value={draft.start_time} onChange={event => setDraft({ ...draft, start_time: event.target.value })} required className="h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                    </div>
+                    <div>
+                      <label htmlFor="calendar-end-time" className="mb-1.5 block text-sm font-medium text-slate-700">結束時間</label>
+                      <input id="calendar-end-time" type="time" value={draft.end_time} onChange={event => setDraft({ ...draft, end_time: event.target.value })} required className="h-10 w-full rounded border border-slate-300 bg-white px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div>
+                <label htmlFor="calendar-event-location" className="mb-1.5 block text-sm font-medium text-slate-700">地點（選填）</label>
+                <input id="calendar-event-location" value={draft.location} onChange={event => setDraft({ ...draft, location: event.target.value })} maxLength={500} className="h-10 w-full rounded border border-slate-300 px-3 text-sm outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100" />
               </div>
               <div>
                 <label htmlFor="calendar-description" className="mb-1.5 block text-sm font-medium text-slate-700">補充說明</label>
@@ -1088,7 +1272,7 @@ export default function OrganizationCalendarClient({
                   {history.map(record => {
                     const before = record.before_data;
                     const after = record.after_data;
-                    const fields = ['title', 'event_type', 'start_date', 'end_date', 'description', 'status'];
+                    const fields = ['title', 'event_type', 'start_date', 'end_date', 'is_all_day', 'start_time', 'end_time', 'location', 'description', 'status'];
                     const changes = fields.filter(field => !before || before[field] !== after[field]);
                     const actionLabel = record.action === 'created' ? '新增' : record.action === 'cancelled' ? '取消' : '修改';
                     return (
@@ -1102,7 +1286,7 @@ export default function OrganizationCalendarClient({
                         <dl className="mt-2 space-y-1.5">
                           {changes.map(field => (
                             <div key={field} className="grid gap-1 text-sm sm:grid-cols-[96px_minmax(0,1fr)]">
-                              <dt className="text-slate-500">{{ title: '名稱', event_type: '類型', start_date: '開始日期', end_date: '結束日期', description: '說明', status: '狀態' }[field]}</dt>
+                              <dt className="text-slate-500">{{ title: '名稱', event_type: '類型', start_date: '開始日期', end_date: '結束日期', is_all_day: '時間方式', start_time: '開始時間', end_time: '結束時間', location: '地點', description: '說明', status: '狀態' }[field]}</dt>
                               <dd className="min-w-0 break-words text-slate-800">
                                 {before && <><span className="text-slate-500">{auditValue(field, before[field])}</span><span aria-hidden="true" className="px-1.5 text-slate-400">→</span></>}
                                 {auditValue(field, after[field])}
@@ -1136,22 +1320,7 @@ export default function OrganizationCalendarClient({
             </header>
             <form onSubmit={importHolidays} className="space-y-4 px-5 py-5">
               {holidayImportError && <p role="alert" className="rounded border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">{holidayImportError}</p>}
-              <div>
-                <label htmlFor="holiday-csv-file" className="mb-1.5 block text-sm font-medium text-slate-700">上傳已下載的 CSV</label>
-                <input
-                  id="holiday-csv-file"
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={event => {
-                    setHolidayImportFile(event.target.files?.[0] || null);
-                    setHolidayPreviewRows([]);
-                    setHolidayImportError('');
-                  }}
-                  className="block w-full rounded border border-slate-300 bg-white text-sm text-slate-700 file:mr-3 file:h-10 file:border-0 file:border-r file:border-slate-300 file:bg-slate-50 file:px-3 file:text-sm file:font-medium hover:file:bg-slate-100"
-                />
-                {holidayImportFile && <p className="mt-1 text-xs text-slate-600">已選擇：{holidayImportFile.name}</p>}
-                <p className="mt-1.5 text-xs leading-5 text-slate-500">請使用一般版「政府行政機關辦公日曆表_utf8bom.csv」，不要選 Google 行事曆專用版本。也可以直接由系統載入。</p>
-              </div>
+              <p className="text-sm text-slate-600">系統會依 {year} 年自動載入人事總處一般版辦公日曆，預覽核對後再發布。</p>
               {holidayPreviewRows.length > 0 && (
                 <section className="border-y border-slate-200 py-3" aria-label="CSV 假日資料預覽">
                   <div className="flex items-baseline justify-between gap-3">
@@ -1176,11 +1345,8 @@ export default function OrganizationCalendarClient({
                   <a href="https://data.gov.tw/dataset/14718" target="_blank" rel="noreferrer" className="inline-flex h-10 items-center rounded border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50">
                     人事總處開放資料（年度 CSV）
                   </a>
-                  <button type="button" onClick={() => void previewHolidayCsv(true)} disabled={holidayPreviewLoading || savingHolidayImport} className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
-                    {holidayPreviewLoading && !holidayImportFile ? '讀取中…' : '從人事總處載入'}
-                  </button>
-                  <button type="button" onClick={() => void previewHolidayCsv()} disabled={holidayPreviewLoading || savingHolidayImport || !holidayImportFile} className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
-                    {holidayPreviewLoading && holidayImportFile ? '讀取中…' : '讀取已選檔案'}
+                  <button type="button" onClick={() => void previewHolidayCsv()} disabled={holidayPreviewLoading || savingHolidayImport} className="h-10 rounded border border-slate-300 px-4 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+                    {holidayPreviewLoading ? '載入中…' : '從人事總處載入'}
                   </button>
                   <button type="submit" disabled={savingHolidayImport || holidayPreviewLoading || holidayPreviewRows.length === 0} className="h-10 rounded bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50">
                     {savingHolidayImport ? '發布中…' : '確認發布'}

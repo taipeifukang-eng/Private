@@ -8,6 +8,7 @@ import {
   readCalendarRequestBody,
 } from '@/lib/admin/organization-calendar';
 import { createClient } from '@/lib/supabase/server';
+import { syncCompanyCalendarSnapshot } from '@/lib/organization/google-calendar';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,7 +71,13 @@ export async function POST(request: NextRequest) {
     });
     if (error) throw error;
 
-    return NextResponse.json({ import_id: data, count: rows.length }, { status: 201 });
+    let googleSync;
+    try {
+      googleSync = await syncCompanyCalendarSnapshot();
+    } catch (syncError: any) {
+      googleSync = { status: 'failed', message: syncError.message || 'Google 同步失敗' };
+    }
+    return NextResponse.json({ import_id: data, count: rows.length, googleSync }, { status: 201 });
   } catch (error: any) {
     console.error('匯入政府假日失敗:', error);
     return NextResponse.json({ error: error.message || '匯入政府假日失敗' }, { status: 500 });

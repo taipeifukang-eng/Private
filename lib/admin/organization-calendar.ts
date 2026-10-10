@@ -7,6 +7,9 @@ export const ORGANIZATION_CALENDAR_COMPANY_EDIT_PERMISSION =
 export const ORGANIZATION_CALENDAR_HOLIDAY_MANAGE_PERMISSION =
   'organization.calendar.holiday.manage' as const;
 
+export const ORGANIZATION_CALENDAR_GOOGLE_MANAGE_PERMISSION =
+  'organization.calendar.google.manage' as const;
+
 export const ORGANIZATION_CALENDAR_EVENT_TYPES = [
   'meeting',
   'activity',

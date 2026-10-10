@@ -19,14 +19,14 @@ export async function GET(request: NextRequest) {
     const [companyResult, personalResult, importResult] = await Promise.all([
       supabase
         .from('organization_calendar_events')
-        .select('id, title, event_type, start_date, end_date, description, status, created_by, updated_by, created_at, updated_at')
+        .select('id, title, event_type, start_date, end_date, is_all_day, start_time, end_time, location, description, status, created_by, updated_by, created_at, updated_at')
         .eq('status', 'active')
         .lte('start_date', yearEnd)
         .gte('end_date', yearStart)
         .order('start_date'),
       supabase
         .from('organization_personal_calendar_events')
-        .select('id, owner_id, title, start_date, end_date, description, created_at, updated_at')
+        .select('id, owner_id, title, start_date, end_date, is_all_day, start_time, end_time, location, description, created_at, updated_at')
         .lte('start_date', yearEnd)
         .gte('end_date', yearStart)
         .order('start_date'),

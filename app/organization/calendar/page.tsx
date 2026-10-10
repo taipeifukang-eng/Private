@@ -4,6 +4,7 @@ import { hasPermission } from '@/lib/permissions/check';
 import {
   ORGANIZATION_CALENDAR_COMPANY_CREATE_PERMISSION,
   ORGANIZATION_CALENDAR_COMPANY_EDIT_PERMISSION,
+  ORGANIZATION_CALENDAR_GOOGLE_MANAGE_PERMISSION,
   ORGANIZATION_CALENDAR_HOLIDAY_MANAGE_PERMISSION,
 } from '@/lib/admin/organization-calendar';
 import { createClient } from '@/lib/supabase/server';
@@ -15,10 +16,11 @@ export default async function OrganizationCalendarPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const [canCreateCompanyEvents, canEditCompanyEvents, canManageHolidays] = await Promise.all([
+  const [canCreateCompanyEvents, canEditCompanyEvents, canManageHolidays, canManageGoogleCalendar] = await Promise.all([
     hasPermission(user.id, ORGANIZATION_CALENDAR_COMPANY_CREATE_PERMISSION),
     hasPermission(user.id, ORGANIZATION_CALENDAR_COMPANY_EDIT_PERMISSION),
     hasPermission(user.id, ORGANIZATION_CALENDAR_HOLIDAY_MANAGE_PERMISSION),
+    hasPermission(user.id, ORGANIZATION_CALENDAR_GOOGLE_MANAGE_PERMISSION),
   ]);
 
   return (
@@ -27,6 +29,7 @@ export default async function OrganizationCalendarPage() {
       canCreateCompanyEvents={canCreateCompanyEvents}
       canEditCompanyEvents={canEditCompanyEvents}
       canManageHolidays={canManageHolidays}
+      canManageGoogleCalendar={canManageGoogleCalendar}
     />
   );
 }

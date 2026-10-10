@@ -181,6 +181,7 @@ export const ACTION_NAMES: Record<string, string> = {
   submit: '提交',
   restore: '還原',
   manage: '管理',
+  sync: '同步',
   access: '存取',
   approve: '審核', category_edit: '編輯分類', clone: '複製', close: '結案',
   comment_all: '回覆全部', comment_own_store: '回覆自己門市', complete: '完成',

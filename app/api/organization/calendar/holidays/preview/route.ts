@@ -85,11 +85,11 @@ async function findOfficialCsvUrl(year: number) {
     return score(rightName) - score(leftName);
   });
   if (candidates[0]) return officialCsvUrl(candidates[0], year);
-  throw new Error(`官方資料目前找不到民國 ${year - 1911} 年的一般版 CSV；可先下載官方檔案後從此處上傳`);
+  throw new Error(`官方資料尚未提供民國 ${year - 1911} 年的一般版 CSV，請稍後再載入或查看下方開放資料連結`);
 }
 
-function parseOfficialCsv(bytes: ArrayBuffer | Buffer, year: number) {
-  const workbook = XLSX.read(bytes, { type: Buffer.isBuffer(bytes) ? 'buffer' : 'array', raw: false });
+function parseOfficialCsv(bytes: Buffer, year: number) {
+  const workbook = XLSX.read(bytes, { type: 'buffer', raw: false });
   const firstSheet = workbook.SheetNames[0];
   if (!firstSheet) throw new Error('CSV 檔案沒有工作表內容');
   const worksheet = workbook.Sheets[firstSheet];
@@ -155,48 +155,27 @@ export async function POST(request: NextRequest) {
     if (!(await hasPermission(user.id, ORGANIZATION_CALENDAR_HOLIDAY_MANAGE_PERMISSION))) {
       return NextResponse.json({ error: '沒有維護政府假日資料的權限' }, { status: 403 });
     }
-    const requestLength = Number(request.headers.get('content-length') || 0);
-    if (requestLength > MAX_CSV_BYTES + 32 * 1024) {
-      return NextResponse.json({ error: 'CSV 檔案不可超過 2 MB' }, { status: 413 });
+    const body: unknown = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: '請提供有效年度' }, { status: 400 });
     }
-
-    let year = 0;
-    let sourceUrl = OFFICIAL_SOURCE_PAGE;
-    let bytes: ArrayBuffer | Buffer;
-    if (request.headers.get('content-type')?.includes('multipart/form-data')) {
-      const form = await request.formData();
-      year = Number(form.get('calendar_year'));
-      const file = form.get('file');
-      if (!(file instanceof File)) return NextResponse.json({ error: '請選擇 CSV 檔案' }, { status: 400 });
-      if (!file.name.toLowerCase().endsWith('.csv') || /google/i.test(file.name)) {
-        return NextResponse.json({ error: '請選擇一般版 CSV，不要選 Google 行事曆專用檔' }, { status: 400 });
-      }
-      if (file.size > MAX_CSV_BYTES) return NextResponse.json({ error: 'CSV 檔案不可超過 2 MB' }, { status: 400 });
-      bytes = Buffer.from(await file.arrayBuffer());
-    } else {
-      const body: unknown = await request.json().catch(() => null);
-      if (!body || typeof body !== 'object' || Array.isArray(body)) {
-        return NextResponse.json({ error: '請提供年度與官方 CSV 下載連結' }, { status: 400 });
-      }
-      const payload = body as Record<string, unknown>;
-      year = Number(payload.calendar_year);
-      if (!Number.isInteger(year) || year < 2000 || year > 2200) {
-        return NextResponse.json({ error: '年度格式錯誤' }, { status: 400 });
-      }
-      sourceUrl = payload.use_official_source === true
-        ? await findOfficialCsvUrl(year)
-        : officialCsvUrl(typeof payload.source_url === 'string' ? payload.source_url.trim() : '', year);
-      const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(15000), redirect: 'error' });
-      if (!response.ok) throw new Error(`人事總處 CSV 下載失敗（HTTP ${response.status}）`);
-      const contentLength = Number(response.headers.get('content-length') || 0);
-      if (contentLength > MAX_CSV_BYTES) throw new Error('CSV 檔案不可超過 2 MB');
-      bytes = Buffer.from(await response.arrayBuffer());
-      if (bytes.byteLength > MAX_CSV_BYTES) throw new Error('CSV 檔案不可超過 2 MB');
-    }
-
+    const payload = body as Record<string, unknown>;
+    const year = Number(payload.calendar_year);
     if (!Number.isInteger(year) || year < 2000 || year > 2200) {
       return NextResponse.json({ error: '年度格式錯誤' }, { status: 400 });
     }
+    if (payload.use_official_source !== true) {
+      return NextResponse.json({ error: '僅支援從人事總處載入官方資料' }, { status: 400 });
+    }
+
+    const sourceUrl = await findOfficialCsvUrl(year);
+    const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(15000), redirect: 'error' });
+    if (!response.ok) throw new Error(`人事總處 CSV 下載失敗（HTTP ${response.status}）`);
+    const contentLength = Number(response.headers.get('content-length') || 0);
+    if (contentLength > MAX_CSV_BYTES) throw new Error('官方 CSV 檔案超過 2 MB');
+    const bytes = Buffer.from(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_CSV_BYTES) throw new Error('官方 CSV 檔案超過 2 MB');
+
     const holidays = parseOfficialCsv(bytes, year);
     return NextResponse.json({
       calendar_year: year,

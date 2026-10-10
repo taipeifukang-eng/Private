@@ -15,9 +15,19 @@ function validatePersonalEvent(body: Record<string, unknown>) {
   const description = typeof body.description === 'string' ? body.description.trim() : '';
   const startDate = body.start_date;
   const endDate = body.end_date;
+  const isAllDay = body.is_all_day !== false;
+  const startTime = body.start_time;
+  const endTime = body.end_time;
+  const location = typeof body.location === 'string' ? body.location.trim() : '';
   if (!title) return { error: '請輸入行事名稱（最多 160 字）' };
   if (!isCalendarDate(startDate) || !isCalendarDate(endDate) || endDate < startDate) {
     return { error: '請確認行事日期範圍' };
+  }
+  if (location.length > 500) return { error: '地點最多 500 字' };
+  const validTime = (value: unknown) => typeof value === 'string' && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
+  if (!isAllDay && (!validTime(startTime) || !validTime(endTime) ||
+      (startDate === endDate && String(endTime) <= String(startTime)))) {
+    return { error: '請確認開始與結束時間；同一天的結束時間需晚於開始時間' };
   }
   if (description.length > 3000) return { error: '補充說明最多 3000 字' };
   return {
@@ -25,6 +35,10 @@ function validatePersonalEvent(body: Record<string, unknown>) {
       title,
       start_date: startDate,
       end_date: endDate,
+      is_all_day: isAllDay,
+      start_time: isAllDay ? null : startTime,
+      end_time: isAllDay ? null : endTime,
+      location: location || null,
       description: description || null,
     },
   };

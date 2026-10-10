@@ -18,7 +18,7 @@
 候選資料表：`organization_calendar_events`
 
 - `id`, `title`, `event_type`（會議／活動／重要事項）
-- `start_date`, `end_date`, `description`
+- `start_date`, `end_date`, `is_all_day`, `start_time`, `end_time`, `location`, `description`
 - `status`（有效／取消；不包含待核准）
 - `created_by`, `updated_by`, `created_at`, `updated_at`
 
@@ -33,7 +33,7 @@
 
 候選資料表：`organization_personal_calendar_events`
 
-- `id`, `owner_id`, `title`, `start_date`, `end_date`, `description`, timestamps
+- `id`, `owner_id`, `title`, `start_date`, `end_date`, `is_all_day`, `start_time`, `end_time`, `location`, `description`, timestamps
 - 預設只有 `owner_id` 可讀寫
 
 候選分享表：`organization_personal_calendar_event_shares`
@@ -62,6 +62,7 @@
 - `organization.calendar.company.create`
 - `organization.calendar.company.edit`
 - `organization.calendar.holiday.manage`
+- `organization.calendar.google.manage`：管理 Google OAuth 連結及補同步
 
 個人行程原則上由登入者管理自己的資料，不需要管理全公司的個人行程權限；指定分享對象取得該筆行程唯讀權限，並可向其他登入者再分享。
 
@@ -86,6 +87,14 @@
 1. 管理者匯入指定年度官方資料並保存來源與版本資訊。
 2. 使用者可在日曆顯示／隱藏政府參考層；不把政府假日自動轉成公司休假設定。
 
+### Google 公司日曆
+
+1. 授權管理者以 OAuth 連結持有公司 Google 日曆的帳號；refresh token 以 AES-256-GCM 加密後只存於伺服器專用資料表。
+2. 僅同步公司行事與已發布政府假日；使用來源鍵及 Google event ID 維持更新冪等，避免每次同步建立重複事件。
+3. 公司行事及假日同步為系統到 Google 單向；個人行程不送出，Google 端修改不回寫系統。
+4. 首次連結或手動補同步時，掃描目前有效公司行事及發布中的假日；日常寫入立即同步，失敗保存錯誤並提供重試。
+5. Google OAuth scope 會授權帳號所擁有日曆的事件管理能力；程式只呼叫伺服器設定的 `GOOGLE_CALENDAR_ID`，不列出或讀取其他日曆。
+
 ## 建議 MVP 順序
 
 1. 公司行事與異動稽核：先完成 RBAC、資料存取政策、即時新增／改期。
@@ -94,15 +103,16 @@
 
 ## MVP 假設
 
-- 公司行事以日期／日期區間為單位，暫不記錄開始與結束時間。
+- 行事可設全天或起訖時間，並可記錄地點；舊資料預設為全天。時間以 Asia/Taipei 傳送至 Google Calendar。
 - 第一版不發新增或改期通知。
-- 政府假日由管理者一鍵載入人事總處一般版 CSV，或上傳已下載的 CSV；解析後預覽日期與分類，再發布版本，保留人工核對及來源追溯。
+- 政府假日由管理者一鍵載入人事總處一般版 CSV；解析後預覽日期與分類，再發布版本，保留人工核對及來源追溯。開放資料集連結作為年度資源入口。
 
 ## 實作狀態
 
-- `20261008100000_organization_annual_calendar.sql` 已建立，含公司行事、異動稽核、個人行程分享鏈、政府假日版本及原子發布函式；尚未在任何資料庫執行。
+- `20261008100000_organization_annual_calendar.sql` 建立基礎資料；`20261010120000_organization_calendar_google_sync.sql` 擴充時間、地點與 Google 同步資料表。部署前需按順序確認執行狀態並套用尚未執行的 migration。
 - API 已接上登入者、RBAC、RLS；個人行程分享採唯讀且可沿有效授權鏈轉分享。
 - 日曆頁已接入組織管理導覽，提供月格線、全年清單、日期明細、公司／個人行事表單及政府假日年度匯入表單。
-- 假日匯入先從人事總處資料頁尋找所選年度一般版 CSV，再回退查詢政府資料開放平台的官方資料集（可取得歷年檔案），或由管理者上傳 CSV；拒絕 Google 專用版，解析整年日期後先預覽再發布。
+- 假日匯入先從人事總處資料頁尋找所選年度一般版 CSV，再回退查詢政府資料開放平台的官方資料集（可取得歷年檔案）；拒絕 Google 專用版，解析整年日期後先預覽再發布。
 - CSV 使用既有 `xlsx` 解析器，檢查年度天數、重複日期、公告旗標；按備註辨識國定假日／補假，按非上班週末辨識補行上班。
 - 尚未完成真實資料庫 migration 執行、已登入角色端到端測試及官方假日資料匯入驗證。
+- Google 同步程式已提供 OAuth、首次補同步、日常公司行事同步、政府假日補同步及失敗重試；仍需設定正式 OAuth 用戶端、日曆 ID、token 加密金鑰並做實際 Google 端驗收。
