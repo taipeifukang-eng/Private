@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CalendarDays, Check, Pencil, Save, X } from 'lucide-react';
+import { AlertCircle, CalendarDays, Check, Download, Pencil, Save, Upload, X } from 'lucide-react';
 
 type PrescriptionRow = {
   store_id: string;
@@ -116,8 +116,10 @@ export default function PrescriptionTab({
   const [success, setSuccess] = useState('');
   const requestSequence = useRef(0);
   const annualScrollRef = useRef<HTMLDivElement>(null);
+  const importFileRef = useRef<HTMLInputElement>(null);
   const [annualScrollPosition, setAnnualScrollPosition] = useState(0);
   const [annualScrollMax, setAnnualScrollMax] = useState(0);
+  const [importing, setImporting] = useState(false);
   const yearMonth = `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
   const years = Array.from({ length: now.getFullYear() - 2018 + 3 }, (_, index) => 2018 + index);
 
@@ -336,6 +338,54 @@ export default function PrescriptionTab({
     }
   }
 
+  async function downloadTemplate() {
+    try {
+      const response = await fetch(`/api/prescription-monthly/template?year_month=${encodeURIComponent(yearMonth)}`);
+      if (!response.ok) {
+        const json = await response.json();
+        throw new Error(json.error || '下載範本失敗');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `處方箋匯入範本_${yearMonth}.xlsx`;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (downloadError: any) {
+      setError(downloadError.message || '下載範本失敗');
+    }
+  }
+
+  async function importExcel(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (dirtyRows.length > 0 && !window.confirm('目前有尚未儲存的手動修改，匯入後會以 Excel 內容取代本月資料。確定繼續？')) return;
+
+    setImporting(true);
+    setError('');
+    setSuccess('');
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('year_month', yearMonth);
+      const response = await fetch('/api/prescription-monthly/import', { method: 'POST', body: formData });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        const details = Array.isArray(json.errors) ? json.errors.join('\n') : '';
+        throw new Error([json.error || 'Excel 匯入失敗', details].filter(Boolean).join('\n'));
+      }
+
+      setIsEditing(false);
+      await loadData();
+      setSuccess(`已匯入 ${json.imported} 間門市的 ${yearMonth} 處方箋資料`);
+    } catch (importError: any) {
+      setError(importError.message || 'Excel 匯入失敗');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <main className={`mx-auto max-w-[1500px] px-4 py-5 sm:px-6 ${viewMode === 'year' ? 'pb-16' : ''}`}>
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-slate-200 pb-4">
@@ -364,7 +414,7 @@ export default function PrescriptionTab({
               <select
                 value={selectedYear}
                 onChange={event => changePeriod(event.target.value, selectedMonth)}
-                disabled={saving}
+                disabled={saving || importing}
                 className="h-10 min-w-[112px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
                 aria-label="選擇處方箋年份"
               >
@@ -376,7 +426,7 @@ export default function PrescriptionTab({
               <select
                 value={selectedMonth}
                 onChange={event => changePeriod(selectedYear, event.target.value)}
-                disabled={saving}
+                disabled={saving || importing}
                 className="h-10 min-w-[92px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
                 aria-label="選擇處方箋月份"
               >
@@ -387,36 +437,55 @@ export default function PrescriptionTab({
             </label>}
           </div>
           {viewMode === 'month' && canEdit && !permissionLoading && (
-            isEditing ? (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={cancelEditing}
-                  disabled={loading || saving}
-                  className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <X size={16} />取消
-                </button>
-                <button
-                  type="button"
-                  onClick={saveChanges}
-                  disabled={loading || saving || dirtyRows.length === 0}
-                  className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  <Save size={16} />
-                  {saving ? '儲存中…' : dirtyRows.length ? `儲存變更（${dirtyRows.length}）` : '儲存變更'}
-                </button>
-              </div>
-            ) : (
+            <>
+              <input ref={importFileRef} type="file" accept=".xlsx,.xls" onChange={importExcel} className="hidden" />
               <button
                 type="button"
-                onClick={() => setIsEditing(true)}
-                disabled={loading}
-                className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:bg-slate-300"
+                onClick={downloadTemplate}
+                disabled={loading || importing || saving}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Pencil size={16} />輸入／編輯處方資料
+                <Download size={16} />下載本月範本
               </button>
-            )
+              <button
+                type="button"
+                onClick={() => importFileRef.current?.click()}
+                disabled={loading || importing || saving}
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-orange-700 bg-orange-700 px-3 text-sm font-medium text-white hover:bg-orange-800 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Upload size={16} />{importing ? '匯入中…' : '匯入 Excel'}
+              </button>
+              {isEditing ? (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={cancelEditing}
+                    disabled={loading || saving || importing}
+                    className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <X size={16} />取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveChanges}
+                    disabled={loading || saving || importing || dirtyRows.length === 0}
+                    className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:bg-slate-300"
+                  >
+                    <Save size={16} />
+                    {saving ? '儲存中…' : dirtyRows.length ? `儲存變更（${dirtyRows.length}）` : '儲存變更'}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(true)}
+                  disabled={loading || importing}
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Pencil size={16} />手動修正
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -595,7 +664,7 @@ export default function PrescriptionTab({
                             inputMode={index === 0 || index === 2 ? 'numeric' : 'decimal'}
                             value={row[field]}
                             onChange={event => updateField(row.store_id, field, event.target.value)}
-                            disabled={saving}
+                            disabled={saving || importing}
                             aria-label={`${row.store_name} ${['一般箋張數', '一般箋點值', '慢箋張數', '慢箋點值'][index]}`}
                             placeholder="未填"
                             className="h-9 w-full rounded border border-slate-300 bg-white px-2.5 text-right text-sm tabular-nums text-slate-900 placeholder:text-slate-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:cursor-wait disabled:bg-slate-50"
@@ -625,10 +694,10 @@ export default function PrescriptionTab({
       )}
       {!loading && viewMode === 'month' && rows.length > 0 && (
         <p className="mt-2 text-xs text-slate-500">
-          點值最多四位小數。{canEdit
+          點值最多四位小數；處方箋報表獨立於每月人員狀態與門市統計。{canEdit
             ? isEditing
-              ? '在各門市列輸入四項資料，再按「儲存變更」；張數會同步至月度門市統計。'
-              : '按「輸入／編輯處方資料」開始登錄；張數會同步至月度門市統計。'
+              ? '手動修改只會更新這份報表。'
+              : '可下載本月 Excel 範本填寫後匯入，也可直接編輯單一門市。'
             : permissionLoading
               ? '正在確認帳號的編輯權限。'
               : '目前是唯讀；需由管理者開啟「編輯業績資料」權限後才能輸入。'}

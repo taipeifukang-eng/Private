@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient, createClient } from '@/lib/supabase/server';
-import { hasAnyPermission, hasPermission } from '@/lib/permissions/check';
+import { hasPermission } from '@/lib/permissions/check';
+import { getPrescriptionReportContext } from '@/lib/performance/prescription-report-context';
 
 const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -11,61 +11,6 @@ type PrescriptionInput = {
   chronic_prescription_count: unknown;
   chronic_prescription_point_value: unknown;
 };
-
-async function getContext() {
-  const sessionClient = await createClient();
-  const { data: { user } } = await sessionClient.auth.getUser();
-  if (!user) return { response: NextResponse.json({ error: '未登入' }, { status: 401 }) };
-
-  const canView = await hasAnyPermission(user.id, ['performance.view', 'performance.edit']);
-  if (!canView) {
-    return { response: NextResponse.json({ error: '沒有查看業績資料的權限' }, { status: 403 }) };
-  }
-
-  const admin = createAdminClient();
-  const { data: profile, error: profileError } = await admin
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle();
-
-  if (profileError) {
-    console.error('[Prescription report] profile lookup failed:', profileError);
-    return { response: NextResponse.json({ error: '讀取使用者角色失敗' }, { status: 500 }) };
-  }
-  if (!profile) {
-    return { response: NextResponse.json({ error: '找不到登入者的人員資料，請確認帳號與人員主檔的連結' }, { status: 403 }) };
-  }
-
-  const { data: storeRows, error: storesError } = await admin
-    .from('stores')
-    .select('id, store_code, store_name')
-    .eq('is_active', true)
-    .order('store_code');
-
-  if (storesError) {
-    return { response: NextResponse.json({ error: storesError.message }, { status: 500 }) };
-  }
-
-  const allStores = storeRows || [];
-  let stores = allStores;
-  if (!['admin', 'supervisor'].includes(profile.role)) {
-    const { data: assignments, error: assignmentsError } = await admin
-      .from('store_managers')
-      .select('store_id')
-      .eq('user_id', user.id);
-
-    if (assignmentsError) {
-      console.error('[Prescription report] store assignments lookup failed:', assignmentsError);
-      return { response: NextResponse.json({ error: '讀取使用者門市指派失敗' }, { status: 500 }) };
-    }
-
-    const assignedIds = new Set((assignments || []).map(row => row.store_id));
-    stores = allStores.filter(store => assignedIds.has(store.id));
-  }
-
-  return { user, admin, stores };
-}
 
 function parseCount(value: unknown): number | null | undefined {
   if (value === null || value === undefined || value === '') return null;
@@ -87,7 +32,7 @@ function parsePointValue(value: unknown): number | null | undefined {
 
 export async function GET(request: NextRequest) {
   try {
-    const context = await getContext();
+    const context = await getPrescriptionReportContext();
     if ('response' in context) return context.response;
 
     const searchParams = new URL(request.url).searchParams;
@@ -103,7 +48,7 @@ export async function GET(request: NextRequest) {
       let summaries: any[] = [];
       if (storeIds.length > 0) {
         const { data, error } = await context.admin
-          .from('monthly_store_summary')
+          .from('monthly_prescription_reports')
           .select(`
             store_id,
             year_month,
@@ -154,7 +99,7 @@ export async function GET(request: NextRequest) {
     let summaries: any[] = [];
     if (storeIds.length > 0) {
       const { data, error } = await context.admin
-        .from('monthly_store_summary')
+        .from('monthly_prescription_reports')
         .select(`
           store_id,
           regular_prescription_count,
@@ -175,6 +120,7 @@ export async function GET(request: NextRequest) {
     const byStore = new Map(summaries.map(row => [row.store_id, row]));
     const records = context.stores.map(store => ({
       ...store,
+      store_id: store.id,
       ...(byStore.get(store.id) || {
         regular_prescription_count: null,
         regular_prescription_point_value: null,
@@ -194,7 +140,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const context = await getContext();
+    const context = await getPrescriptionReportContext();
     if ('response' in context) return context.response;
 
     const canEdit = await hasPermission(context.user.id, 'performance.edit');
@@ -235,8 +181,6 @@ export async function POST(request: NextRequest) {
       payload.push({
         year_month: yearMonth,
         store_id: store.id,
-        store_code: store.store_code,
-        store_name: store.store_name,
         regular_prescription_count: regularCount,
         regular_prescription_point_value: regularPointValue,
         chronic_prescription_count: chronicCount,
@@ -248,7 +192,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { error } = await context.admin
-      .from('monthly_store_summary')
+      .from('monthly_prescription_reports')
       .upsert(payload, { onConflict: 'year_month,store_id' });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
