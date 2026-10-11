@@ -13,7 +13,7 @@ Authorized users can review and maintain each visible store's prescription count
 | Authorized managers | Review visible stores' monthly values | Monthly | Desktop / mobile | Store visibility follows existing performance access scope |
 
 ## Core Tasks
-1. Select a month, scan the visible stores, enter or correct four values, and save the changed rows.
+1. Select a year and month, scan the visible stores, enter or correct four values, and save the changed rows.
 2. Read total chronic prescription count without manual calculation.
 3. Confirm which stores are blank, partially entered, or complete.
 
@@ -51,7 +51,7 @@ Authorized users can review and maintain each visible store's prescription count
 
 ## Acceptance Criteria
 - [ ] 業績管理 has a dedicated 處方箋 tab.
-- [ ] The chosen month lists only active stores visible to the signed-in user.
+- [ ] Separate year and month filters list only active stores visible to the signed-in user.
 - [ ] The report shows general count, general point value, chronic count, chronic point value, and computed total.
 - [ ] Editing counts here updates the same count fields used by monthly store statistics.
 - [ ] Total is calculated to one decimal place and cannot be edited directly.

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CalendarDays, Check, Save } from 'lucide-react';
+import { AlertCircle, CalendarDays, Check, Pencil, Save, X } from 'lucide-react';
 
 type PrescriptionRow = {
   store_id: string;
@@ -60,16 +60,26 @@ function calculatedTotal(row: PrescriptionRow): number | null {
   return roundedRegularQuarter + Number(chronic);
 }
 
-export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
+export default function PrescriptionTab({
+  canEdit,
+  permissionLoading,
+}: {
+  canEdit: boolean;
+  permissionLoading: boolean;
+}) {
   const now = new Date();
-  const [yearMonth, setYearMonth] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear()));
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
   const [rows, setRows] = useState<PrescriptionRow[]>([]);
   const [baseline, setBaseline] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const requestSequence = useRef(0);
+  const yearMonth = `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
+  const years = Array.from({ length: now.getFullYear() - 2018 + 3 }, (_, index) => 2018 + index);
 
   const loadData = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -127,10 +137,17 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
     setRows(current => current.map(row => row.store_id === storeId ? { ...row, [field]: value } : row));
   }
 
-  function changeMonth(nextMonth: string) {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(nextMonth)) return;
+  function changePeriod(nextYear: string, nextMonth: string) {
+    if (nextYear === selectedYear && nextMonth === selectedMonth) return;
     if (dirtyRows.length > 0 && !window.confirm('目前有尚未儲存的處方箋資料，確定切換月份並放棄這些修改嗎？')) return;
-    setYearMonth(nextMonth);
+    setSelectedYear(nextYear);
+    setSelectedMonth(nextMonth);
+  }
+
+  async function cancelEditing() {
+    if (dirtyRows.length > 0 && !window.confirm('放棄尚未儲存的處方箋修改？')) return;
+    setIsEditing(false);
+    if (dirtyRows.length > 0) await loadData();
   }
 
   async function saveChanges() {
@@ -175,6 +192,7 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
       const json = await response.json();
       if (!response.ok || !json.success) throw new Error(json.error || '儲存失敗');
       await loadData();
+      setIsEditing(false);
       setSuccess(`已儲存 ${json.saved} 間門市`);
     } catch (saveError: any) {
       setError(saveError.message || '儲存處方箋資料失敗');
@@ -191,27 +209,65 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
           <p className="mt-1 text-sm text-slate-600">各門市處方箋張數與點值</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-sm text-slate-700">
-            <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} />月份</span>
-            <input
-              type="month"
-              value={yearMonth}
-              onChange={event => changeMonth(event.target.value)}
-              disabled={saving}
-              className="h-10 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
-              aria-label="選擇處方箋月份"
-            />
-          </label>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={saveChanges}
-              disabled={loading || saving || dirtyRows.length === 0}
-              className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              <Save size={16} />
-              {saving ? '儲存中…' : dirtyRows.length ? `儲存變更（${dirtyRows.length}）` : '儲存變更'}
-            </button>
+          <div className="flex items-end gap-2">
+            <label className="flex flex-col gap-1 text-sm text-slate-700">
+              <span className="inline-flex items-center gap-1.5"><CalendarDays size={15} />年</span>
+              <select
+                value={selectedYear}
+                onChange={event => changePeriod(event.target.value, selectedMonth)}
+                disabled={saving}
+                className="h-10 min-w-[112px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                aria-label="選擇處方箋年份"
+              >
+                {years.map(year => <option key={year} value={year}>{year} 年</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm text-slate-700">
+              <span>月</span>
+              <select
+                value={selectedMonth}
+                onChange={event => changePeriod(selectedYear, event.target.value)}
+                disabled={saving}
+                className="h-10 min-w-[92px] rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200"
+                aria-label="選擇處方箋月份"
+              >
+                {Array.from({ length: 12 }, (_, index) => index + 1).map(month => (
+                  <option key={month} value={month}>{month} 月</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {canEdit && !permissionLoading && (
+            isEditing ? (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={cancelEditing}
+                  disabled={loading || saving}
+                  className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <X size={16} />取消
+                </button>
+                <button
+                  type="button"
+                  onClick={saveChanges}
+                  disabled={loading || saving || dirtyRows.length === 0}
+                  className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <Save size={16} />
+                  {saving ? '儲存中…' : dirtyRows.length ? `儲存變更（${dirtyRows.length}）` : '儲存變更'}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                disabled={loading}
+                className="inline-flex h-10 items-center gap-2 rounded-md bg-orange-600 px-4 text-sm font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                <Pencil size={16} />輸入／編輯處方資料
+              </button>
+            )
           )}
         </div>
       </div>
@@ -222,7 +278,7 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
         </p>
         <p className="text-slate-600" aria-live="polite">
           {loading ? '讀取中…' : `已完成 ${completedCount} / ${rows.length} 間`}
-          {!canEdit && !loading ? ' · 唯讀' : ''}
+          {permissionLoading ? ' · 正在確認編輯權限' : canEdit ? isEditing ? ' · 編輯中' : ' · 可編輯' : ' · 唯讀'}
         </p>
       </div>
 
@@ -257,7 +313,7 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
                 <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-500">正在載入門市資料…</td></tr>
               )}
               {!loading && !error && rows.length === 0 && (
-                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-500">此帳號目前沒有可查看的門市</td></tr>
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-500">目前沒有可查看的門市，請確認帳號的門市指派</td></tr>
               )}
               {!loading && rows.map(row => {
                 const isDirty = baseline[row.store_id] !== rowSignature(row);
@@ -281,16 +337,22 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
                     </th>
                     {FIELD_KEYS.map((field, index) => (
                       <td key={field} className="px-3 py-2">
-                        <input
-                          type="text"
-                          inputMode={index === 0 || index === 2 ? 'numeric' : 'decimal'}
-                          value={row[field]}
-                          onChange={event => updateField(row.store_id, field, event.target.value)}
-                          disabled={!canEdit || saving}
-                          aria-label={`${row.store_name} ${['一般箋張數', '一般箋點值', '慢箋張數', '慢箋點值'][index]}`}
-                          placeholder="未填"
-                          className="h-9 w-full rounded border border-slate-300 px-2.5 text-right text-sm tabular-nums text-slate-900 placeholder:text-slate-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:border-transparent disabled:bg-transparent disabled:text-slate-700"
-                        />
+                        {isEditing && canEdit && !permissionLoading ? (
+                          <input
+                            type="text"
+                            inputMode={index === 0 || index === 2 ? 'numeric' : 'decimal'}
+                            value={row[field]}
+                            onChange={event => updateField(row.store_id, field, event.target.value)}
+                            disabled={saving}
+                            aria-label={`${row.store_name} ${['一般箋張數', '一般箋點值', '慢箋張數', '慢箋點值'][index]}`}
+                            placeholder="未填"
+                            className="h-9 w-full rounded border border-slate-300 bg-white px-2.5 text-right text-sm tabular-nums text-slate-900 placeholder:text-slate-400 focus:border-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-200 disabled:cursor-wait disabled:bg-slate-50"
+                          />
+                        ) : (
+                          <span className="block px-2.5 text-right tabular-nums text-slate-700">
+                            {row[field] || <span className="text-slate-400">未填</span>}
+                          </span>
+                        )}
                       </td>
                     ))}
                     <td className="px-3 py-3 text-right font-semibold tabular-nums text-slate-900">
@@ -310,7 +372,13 @@ export default function PrescriptionTab({ canEdit }: { canEdit: boolean }) {
       </div>
       {!loading && rows.length > 0 && (
         <p className="mt-2 text-xs text-slate-500">
-          點值最多四位小數。{canEdit ? '張數留白可稍後補登；儲存後月度門市統計會同步使用同一張數。' : '資料由業績管理檢視權限控管。'}
+          點值最多四位小數。{canEdit
+            ? isEditing
+              ? '在各門市列輸入四項資料，再按「儲存變更」；張數會同步至月度門市統計。'
+              : '按「輸入／編輯處方資料」開始登錄；張數會同步至月度門市統計。'
+            : permissionLoading
+              ? '正在確認帳號的編輯權限。'
+              : '目前是唯讀；需由管理者開啟「編輯業績資料」權限後才能輸入。'}
         </p>
       )}
     </main>

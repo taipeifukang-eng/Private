@@ -25,12 +25,16 @@ async function getContext() {
   const admin = createAdminClient();
   const { data: profile, error: profileError } = await admin
     .from('profiles')
-    .select('role, managed_stores')
+    .select('role')
     .eq('id', user.id)
     .maybeSingle();
 
-  if (profileError || !profile) {
-    return { response: NextResponse.json({ error: '無法確認使用者門市範圍' }, { status: 500 }) };
+  if (profileError) {
+    console.error('[Prescription report] profile lookup failed:', profileError);
+    return { response: NextResponse.json({ error: '讀取使用者角色失敗' }, { status: 500 }) };
+  }
+  if (!profile) {
+    return { response: NextResponse.json({ error: '找不到登入者的人員資料，請確認帳號與人員主檔的連結' }, { status: 403 }) };
   }
 
   const { data: storeRows, error: storesError } = await admin
@@ -44,10 +48,21 @@ async function getContext() {
   }
 
   const allStores = storeRows || [];
-  const managedStores = Array.isArray(profile.managed_stores) ? profile.managed_stores : [];
-  const stores = ['admin', 'supervisor'].includes(profile.role)
-    ? allStores
-    : allStores.filter(store => managedStores.includes(store.id));
+  let stores = allStores;
+  if (!['admin', 'supervisor'].includes(profile.role)) {
+    const { data: assignments, error: assignmentsError } = await admin
+      .from('store_managers')
+      .select('store_id')
+      .eq('user_id', user.id);
+
+    if (assignmentsError) {
+      console.error('[Prescription report] store assignments lookup failed:', assignmentsError);
+      return { response: NextResponse.json({ error: '讀取使用者門市指派失敗' }, { status: 500 }) };
+    }
+
+    const assignedIds = new Set((assignments || []).map(row => row.store_id));
+    stores = allStores.filter(store => assignedIds.has(store.id));
+  }
 
   return { user, admin, stores };
 }

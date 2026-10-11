@@ -83,7 +83,7 @@ function emptyRecord(storeId: string, year: number, month: number): EditRow {
 
 export default function PerformancePage() {
   const supabase = createClient();
-  const { allowed: canEditPerformance } = usePermission('performance.edit');
+  const { allowed: canEditPerformance, loading: performanceEditPermissionLoading } = usePermission('performance.edit');
   const [profile, setProfile] = useState<any>(null);
   const [canViewBonusTab, setCanViewBonusTab] = useState(false);
   const [canViewPrescriptionTab, setCanViewPrescriptionTab] = useState(false);
@@ -472,7 +472,10 @@ export default function PerformancePage() {
       )}
 
       {canViewPrescriptionTab && activeTab === 'prescription' && (
-        <PrescriptionTab canEdit={canEditPerformance} />
+        <PrescriptionTab
+          canEdit={canEditPerformance}
+          permissionLoading={performanceEditPermissionLoading}
+        />
       )}
 
       {activeTab === 'performance' && (
