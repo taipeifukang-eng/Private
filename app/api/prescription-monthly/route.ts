@@ -90,12 +90,66 @@ export async function GET(request: NextRequest) {
     const context = await getContext();
     if ('response' in context) return context.response;
 
-    const yearMonth = new URL(request.url).searchParams.get('year_month') || '';
+    const searchParams = new URL(request.url).searchParams;
+    const year = searchParams.get('year') || '';
+    const yearMonth = searchParams.get('year_month') || '';
+    const storeIds = context.stores.map(store => store.id);
+
+    if (year) {
+      if (!/^\d{4}$/.test(year) || Number(year) < 2018 || Number(year) > 2100) {
+        return NextResponse.json({ error: '年份格式不正確' }, { status: 400 });
+      }
+
+      let summaries: any[] = [];
+      if (storeIds.length > 0) {
+        const { data, error } = await context.admin
+          .from('monthly_store_summary')
+          .select(`
+            store_id,
+            year_month,
+            regular_prescription_count,
+            regular_prescription_point_value,
+            chronic_prescription_count,
+            chronic_prescription_point_value,
+            total_chronic_prescription_count,
+            prescription_data_updated_at,
+            prescription_data_updated_by
+          `)
+          .gte('year_month', `${year}-01`)
+          .lte('year_month', `${year}-12`)
+          .in('store_id', storeIds);
+
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        summaries = data || [];
+      }
+
+      const byStoreMonth = new Map(summaries.map(row => [`${row.store_id}:${row.year_month}`, row]));
+      const records = context.stores.flatMap(store =>
+        Array.from({ length: 12 }, (_, index) => {
+          const month = `${year}-${String(index + 1).padStart(2, '0')}`;
+          return {
+            ...store,
+            year_month: month,
+            ...(byStoreMonth.get(`${store.id}:${month}`) || {
+              regular_prescription_count: null,
+              regular_prescription_point_value: null,
+              chronic_prescription_count: null,
+              chronic_prescription_point_value: null,
+              total_chronic_prescription_count: null,
+              prescription_data_updated_at: null,
+              prescription_data_updated_by: null,
+            }),
+          };
+        })
+      );
+
+      return NextResponse.json({ success: true, year, records });
+    }
+
     if (!YEAR_MONTH_PATTERN.test(yearMonth)) {
       return NextResponse.json({ error: '月份格式需為 YYYY-MM' }, { status: 400 });
     }
 
-    const storeIds = context.stores.map(store => store.id);
     let summaries: any[] = [];
     if (storeIds.length > 0) {
       const { data, error } = await context.admin
