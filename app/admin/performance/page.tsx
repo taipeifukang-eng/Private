@@ -21,6 +21,7 @@ import {
   BarChart2, Award, Target, Calendar, DollarSign, Filter,
 } from 'lucide-react';
 import { usePermission } from '@/lib/permissions/hooks';
+import PrescriptionTab from '@/components/performance/PrescriptionTab';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ export default function PerformancePage() {
   const { allowed: canEditPerformance } = usePermission('performance.edit');
   const [profile, setProfile] = useState<any>(null);
   const [canViewBonusTab, setCanViewBonusTab] = useState(false);
+  const [canViewPrescriptionTab, setCanViewPrescriptionTab] = useState(false);
   const [stores, setStores] = useState<Store[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
@@ -94,7 +96,7 @@ export default function PerformancePage() {
   const [importLoading, setImportLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [expandedQuarter, setExpandedQuarter] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'performance' | 'bonus-import'>('performance');
+  const [activeTab, setActiveTab] = useState<'performance' | 'bonus-import' | 'prescription'>('performance');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 門市自訂獎金閾值
@@ -140,6 +142,28 @@ export default function PerformancePage() {
       }
 
       setProfile(p || { id: user.id, role: 'admin', managed_stores: null });
+    })();
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const checkPermission = async (permissionCode: string) => {
+          const response = await fetch('/api/permissions/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permissionCode }),
+          });
+          const json = await response.json();
+          return response.ok && Boolean(json.allowed);
+        };
+
+        const allowed = await checkPermission('performance.view')
+          || await checkPermission('performance.edit');
+        setCanViewPrescriptionTab(allowed);
+      } catch {
+        setCanViewPrescriptionTab(false);
+      }
     })();
   }, []);
 
@@ -414,6 +438,19 @@ export default function PerformancePage() {
             <BarChart2 size={14} />
             團體獎金計算
           </button>
+          {canViewPrescriptionTab && (
+            <button
+              onClick={() => setActiveTab('prescription')}
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'prescription'
+                  ? 'border-orange-600 text-orange-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <Calendar size={14} />
+              處方箋
+            </button>
+          )}
           {canViewBonusTab && (
             <button
               onClick={() => setActiveTab('bonus-import')}
@@ -432,6 +469,10 @@ export default function PerformancePage() {
 
       {canViewBonusTab && activeTab === 'bonus-import' && (
         <BonusImportTab profile={profile} allStores={stores} />
+      )}
+
+      {canViewPrescriptionTab && activeTab === 'prescription' && (
+        <PrescriptionTab canEdit={canEditPerformance} />
       )}
 
       {activeTab === 'performance' && (
