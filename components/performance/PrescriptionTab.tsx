@@ -495,7 +495,17 @@ export default function PrescriptionTab({
                     </th>
                     {Array.from({ length: 12 }, (_, index) => {
                       const month = index + 1;
-                      const row = store.months[month];
+                      const row = store.months[month] || {
+                        store_id: store.store_id,
+                        store_code: store.store_code,
+                        store_name: store.store_name,
+                        regular_prescription_count: '',
+                        regular_prescription_point_value: '',
+                        chronic_prescription_count: '',
+                        chronic_prescription_point_value: '',
+                        total_chronic_prescription_count: null,
+                        prescription_data_updated_at: null,
+                      };
                       const status = rowStatus(row);
                       const total = row.total_chronic_prescription_count;
                       return (

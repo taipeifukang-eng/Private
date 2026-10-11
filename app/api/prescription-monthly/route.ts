@@ -129,6 +129,7 @@ export async function GET(request: NextRequest) {
           const month = `${year}-${String(index + 1).padStart(2, '0')}`;
           return {
             ...store,
+            store_id: store.id,
             year_month: month,
             ...(byStoreMonth.get(`${store.id}:${month}`) || {
               regular_prescription_count: null,
