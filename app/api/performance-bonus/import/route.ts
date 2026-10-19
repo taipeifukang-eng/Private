@@ -45,12 +45,12 @@ function isNonZeroNumber(value: unknown): value is number {
   return typeof value === 'number' && !isNaN(value) && value !== 0;
 }
 
-function mergeBonusValue(existing: unknown, incoming: unknown): number {
+function mergeBonusValue(existing: unknown, incoming: unknown, zeroIsExplicit = false): number {
   const oldValue = Number(existing) || 0;
   if (incoming === undefined) return oldValue;
 
   const incomingValue = Number(incoming) || 0;
-  if (oldValue !== 0 && incomingValue === 0) return oldValue;
+  if (!zeroIsExplicit && oldValue !== 0 && incomingValue === 0) return oldValue;
 
   return incomingValue;
 }
@@ -353,13 +353,13 @@ export async function POST(request: NextRequest) {
         if (!found) {
           const base = getStoreCodeBase(normalizedRawCode);
           const candidates = storeCodeBaseMap[base] || [];
-          if (candidates.length > 0) {
+          if (candidates.length === 1) {
             found = candidates[0].id;
-            if (candidates.length > 1) {
-              console.warn(
-                `[Store code prefix match] ${rawCode} matched multiple stores: ${candidates.map(c => c.code).join(', ')}; using ${candidates[0].code}`
-              );
-            }
+          } else if (candidates.length > 1) {
+            errors.push(
+              `${rowLabel}：門市代號 "${rawCode}" 對應多個門市（${candidates.map(c => c.code).join('、')}），請改用完整門市代號（${employeeCode}）`
+            );
+            continue;
           }
         }
 
@@ -562,7 +562,8 @@ export async function POST(request: NextRequest) {
       };
 
       BONUS_VALUE_FIELDS.forEach(field => {
-        merged[field] = mergeBonusValue(old?.[field], r[field]);
+        // Recalculated human subsidies may intentionally become zero; other zeroes remain placeholders.
+        merged[field] = mergeBonusValue(old?.[field], r[field], field === 'hr_subsidy_bonus');
       });
 
       if (r.other_bonus === undefined || (Number(old?.other_bonus) !== 0 && Number(r.other_bonus) === 0)) {
