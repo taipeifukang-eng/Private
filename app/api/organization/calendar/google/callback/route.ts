@@ -13,6 +13,12 @@ import { createAdminClient, createClient } from '@/lib/supabase/server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+const GOOGLE_CALENDAR_EVENT_WRITE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events.owned',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar',
+];
+
 function calendarPage(request: NextRequest, result: string, detail?: string) {
   const origin = getGoogleCalendarEnvironment().redirectUri
     ? new URL(getGoogleCalendarEnvironment().redirectUri).origin
@@ -71,6 +77,21 @@ export async function GET(request: NextRequest) {
     const tokenPayload = await tokenResponse.json().catch(() => ({}));
     if (!tokenResponse.ok || typeof tokenPayload.access_token !== 'string') {
       throw new Error('Google 授權交換失敗，請確認 OAuth 用戶端與回呼網址設定');
+    }
+    if (typeof tokenPayload.scope === 'string') {
+      const grantedScopes = tokenPayload.scope.split(/\s+/).filter(Boolean);
+      const calendarScopes = grantedScopes.filter((scope: string) => (
+        scope.startsWith('https://www.googleapis.com/auth/calendar')
+      ));
+      const canManageCalendarEvents = GOOGLE_CALENDAR_EVENT_WRITE_SCOPES.some(scope => (
+        grantedScopes.includes(scope)
+      ));
+      if (!canManageCalendarEvents) {
+        const reportedScopes = calendarScopes.length
+          ? calendarScopes.map((scope: string) => scope.replace('https://www.googleapis.com/auth/', '')).join('、')
+          : '沒有日曆 scope';
+        throw new Error(`Google 核發的授權碼未包含日曆事件寫入權限；回報的日曆 scope：${reportedScopes}`);
+      }
     }
 
     const admin = createAdminClient();
