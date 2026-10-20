@@ -57,6 +57,12 @@ type GoogleCalendarStatus = {
   lastSyncError: string | null;
   pendingCount: number;
 };
+type GoogleScopeDiagnosis = {
+  requiredScope: string;
+  canManageCalendarEvents: boolean | null;
+  grantedCalendarScopes: string[] | null;
+  checkedAt: string;
+};
 type Person = { id: string; name: string; employee_code: string | null };
 type Share = {
   id: string;
@@ -350,6 +356,8 @@ export default function OrganizationCalendarClient({
   const [googleStatus, setGoogleStatus] = useState<GoogleCalendarStatus | null>(null);
   const [googleStatusError, setGoogleStatusError] = useState('');
   const [googleSyncing, setGoogleSyncing] = useState(false);
+  const [googleDiagnosing, setGoogleDiagnosing] = useState(false);
+  const [googleScopeDiagnosis, setGoogleScopeDiagnosis] = useState<GoogleScopeDiagnosis | null>(null);
 
   const loadCalendar = useCallback(async (targetYear = year) => {
     setLoading(true);
@@ -707,6 +715,20 @@ export default function OrganizationCalendarClient({
     }
   }
 
+  async function diagnoseGoogleScopes() {
+    setGoogleDiagnosing(true);
+    setGoogleStatusError('');
+    setGoogleScopeDiagnosis(null);
+    try {
+      const response = await fetch('/api/organization/calendar/google/diagnose', { method: 'POST' });
+      setGoogleScopeDiagnosis(await readResponse(response));
+    } catch (diagnosisError: any) {
+      setGoogleStatusError(diagnosisError.message || '檢查 Google 授權範圍失敗');
+    } finally {
+      setGoogleDiagnosing(false);
+    }
+  }
+
   async function disconnectGoogleCalendar() {
     if (!window.confirm('解除後系統不會再更新 Google 日曆，但已同步到 Google 的行程不會刪除。之後仍可重新連結。確定解除？')) return;
     setGoogleSyncing(true);
@@ -885,6 +907,15 @@ export default function OrganizationCalendarClient({
               )}
               {googleStatus?.connected && (
                 <>
+                  <button
+                    type="button"
+                    onClick={() => void diagnoseGoogleScopes()}
+                    disabled={googleDiagnosing || googleSyncing}
+                    className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <RefreshCw aria-hidden="true" className={`h-4 w-4 ${googleDiagnosing ? 'animate-spin' : ''}`} />
+                    {googleDiagnosing ? '檢查中' : '檢查授權'}
+                  </button>
                   {!googleReconnectNeeded && (
                     <button type="button" onClick={() => void syncGoogleCalendar()} disabled={googleSyncing} className="inline-flex h-9 items-center gap-2 rounded bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
                       <RefreshCw aria-hidden="true" className={`h-4 w-4 ${googleSyncing ? 'animate-spin' : ''}`} />{googleSyncing ? '同步中' : '立即同步'}
@@ -908,6 +939,30 @@ export default function OrganizationCalendarClient({
           {!googleStatus?.configured && <p className="mt-2 text-sm text-amber-800">尚未完成伺服器端 Google OAuth、日曆 ID 與加密金鑰設定。</p>}
           {googleStatusError && <p role="alert" className="mt-2 text-sm text-rose-700">{googleStatusError}</p>}
           {googleStatus?.lastSyncError && <p className="mt-2 whitespace-pre-wrap text-sm text-rose-700">同步待處理：{googleStatus.lastSyncError}</p>}
+          {googleScopeDiagnosis && (
+            <div role="status" aria-live="polite" className={`mt-2 border-t pt-2 text-sm ${googleScopeDiagnosis.canManageCalendarEvents === false ? 'border-amber-200 text-amber-900' : 'border-slate-200 text-slate-700'}`}>
+              <p className="text-xs text-slate-500">
+                系統要求：{googleScopeDiagnosis.requiredScope.replace('https://www.googleapis.com/auth/', '')}
+              </p>
+              <p>
+                {googleScopeDiagnosis.canManageCalendarEvents === true
+                  ? '授權範圍檢查：Google 回報包含日曆事件寫入權限。'
+                  : googleScopeDiagnosis.canManageCalendarEvents === false
+                    ? '授權範圍檢查：Google 回報未包含日曆事件寫入權限。'
+                    : '授權範圍檢查：Google 未在權杖回應中提供 scope，暫時無法判定。'}
+              </p>
+              {googleScopeDiagnosis.grantedCalendarScopes !== null && (
+                <p className="mt-1 break-all text-xs">
+                  Google 回報的日曆 scope：{googleScopeDiagnosis.grantedCalendarScopes.length
+                    ? googleScopeDiagnosis.grantedCalendarScopes.map(scope => scope.replace('https://www.googleapis.com/auth/', '')).join('、')
+                    : '沒有日曆 scope'}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-slate-500">
+                檢查時間：{new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', dateStyle: 'short', timeStyle: 'short' }).format(new Date(googleScopeDiagnosis.checkedAt))}
+              </p>
+            </div>
+          )}
           {googleStatus?.connected && !googleStatus.calendarMatches && <p role="alert" className="mt-2 text-sm text-rose-700">伺服器目前設定的目標日曆與已連結日曆不同，已暫停同步。</p>}
         </section>
       )}

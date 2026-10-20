@@ -48,6 +48,11 @@ export type GoogleCalendarSyncResult = {
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_API_BASE = 'https://www.googleapis.com/calendar/v3';
+const GOOGLE_CALENDAR_EVENT_WRITE_SCOPES = [
+  'https://www.googleapis.com/auth/calendar.events.owned',
+  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar',
+];
 const EVENT_TYPE_LABELS: Record<string, string> = {
   meeting: '會議',
   activity: '活動',
@@ -132,7 +137,12 @@ export async function getGoogleCalendarStatus(admin = createAdminClient()) {
   };
 }
 
-async function accessToken(value: Connection) {
+type RefreshedGoogleToken = {
+  accessToken: string;
+  scopes: string[] | null;
+};
+
+async function refreshGoogleAccessToken(value: Connection): Promise<RefreshedGoogleToken> {
   const config = getGoogleCalendarEnvironment();
   if (!config.clientId || !config.clientSecret) throw new Error('Google OAuth 用戶端尚未完成設定');
   const response = await fetch(GOOGLE_TOKEN_URL, {
@@ -153,7 +163,34 @@ async function accessToken(value: Connection) {
       : '無法更新 Google 授權，請重新連結';
     throw new Error(detail);
   }
-  return payload.access_token as string;
+  return {
+    accessToken: payload.access_token as string,
+    scopes: typeof payload.scope === 'string' ? payload.scope.split(/\s+/).filter(Boolean) : null,
+  };
+}
+
+async function accessToken(value: Connection) {
+  return (await refreshGoogleAccessToken(value)).accessToken;
+}
+
+export async function diagnoseGoogleCalendarScopes(admin = createAdminClient()) {
+  const current = await connection(admin);
+  if (!current) throw new Error('Google 公司日曆尚未連結');
+
+  const token = await refreshGoogleAccessToken(current);
+  const grantedCalendarScopes = token.scopes?.filter(scope => (
+    scope.startsWith('https://www.googleapis.com/auth/calendar')
+  )) ?? null;
+  const canManageCalendarEvents = token.scopes === null
+    ? null
+    : GOOGLE_CALENDAR_EVENT_WRITE_SCOPES.some(scope => token.scopes?.includes(scope));
+
+  return {
+    requiredScope: GOOGLE_CALENDAR_EVENT_WRITE_SCOPES[0],
+    canManageCalendarEvents,
+    grantedCalendarScopes,
+    checkedAt: new Date().toISOString(),
+  };
 }
 
 function dateAfter(date: string) {
