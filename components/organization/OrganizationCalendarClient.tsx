@@ -708,7 +708,7 @@ export default function OrganizationCalendarClient({
   }
 
   async function disconnectGoogleCalendar() {
-    if (!window.confirm('解除後系統不會再更新 Google 日曆；已同步到 Google 的行事會保留。確定解除？')) return;
+    if (!window.confirm('解除後系統不會再更新 Google 日曆，但已同步到 Google 的行程不會刪除。之後仍可重新連結。確定解除？')) return;
     setGoogleSyncing(true);
     setGoogleStatusError('');
     try {
@@ -825,6 +825,8 @@ export default function OrganizationCalendarClient({
     share.shared_with_user_id === currentUserId && share.is_effective
   ));
   const canReshare = shareIsOwner || Boolean(currentShare);
+  const googleReconnectNeeded = /insufficient authentication scopes|insufficient.*scope|授權已失效|invalid_grant/i
+    .test(googleStatus?.lastSyncError || '');
 
   return (
     <main className="mx-auto min-h-[calc(100vh-64px)] max-w-[1600px] px-4 py-6 text-slate-900 sm:px-6 lg:px-8">
@@ -862,7 +864,8 @@ export default function OrganizationCalendarClient({
               <div className="flex flex-wrap items-center gap-2">
                 <Link2 aria-hidden="true" className="h-4 w-4 text-slate-600" />
                 <h2 className="text-sm font-semibold">Google 公司行事曆</h2>
-                {googleStatus?.connected && <span className="inline-flex items-center gap-1 text-xs text-emerald-700"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />已連結</span>}
+                {googleStatus?.connected && !googleReconnectNeeded && <span className="inline-flex items-center gap-1 text-xs text-emerald-700"><CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />已連結</span>}
+                {googleStatus?.connected && googleReconnectNeeded && <span className="text-xs font-medium text-amber-800">授權需更新</span>}
                 {!googleStatus?.connected && <span className="text-xs text-slate-500">尚未連結</span>}
               </div>
               <p className="mt-1 text-sm text-slate-600">單向同步公司行事與已發布政府假日；個人行程不會同步。</p>
@@ -882,14 +885,16 @@ export default function OrganizationCalendarClient({
               )}
               {googleStatus?.connected && (
                 <>
-                  <button type="button" onClick={() => void syncGoogleCalendar()} disabled={googleSyncing} className="inline-flex h-9 items-center gap-2 rounded bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
-                    <RefreshCw aria-hidden="true" className={`h-4 w-4 ${googleSyncing ? 'animate-spin' : ''}`} />{googleSyncing ? '同步中' : '立即同步'}
-                  </button>
-                  <a href="/api/organization/calendar/google/connect" className="inline-flex h-9 items-center gap-2 rounded border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50">
-                    <Link2 aria-hidden="true" className="h-4 w-4" />重新授權
+                  {!googleReconnectNeeded && (
+                    <button type="button" onClick={() => void syncGoogleCalendar()} disabled={googleSyncing} className="inline-flex h-9 items-center gap-2 rounded bg-slate-900 px-3 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+                      <RefreshCw aria-hidden="true" className={`h-4 w-4 ${googleSyncing ? 'animate-spin' : ''}`} />{googleSyncing ? '同步中' : '立即同步'}
+                    </button>
+                  )}
+                  <a href="/api/organization/calendar/google/connect" className={`inline-flex h-9 items-center gap-2 rounded border px-3 text-sm ${googleReconnectNeeded ? 'border-amber-300 bg-amber-50 font-medium text-amber-900 hover:bg-amber-100' : 'border-slate-300 text-slate-700 hover:bg-slate-50'}`}>
+                    <Link2 aria-hidden="true" className="h-4 w-4" />重新連結
                   </a>
-                  <button type="button" onClick={() => void disconnectGoogleCalendar()} disabled={googleSyncing} title="解除 Google 連結" aria-label="解除 Google 連結" className="rounded border border-slate-300 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50">
-                    <Unlink aria-hidden="true" className="h-4 w-4" />
+                  <button type="button" onClick={() => void disconnectGoogleCalendar()} disabled={googleSyncing} className="inline-flex h-9 items-center gap-2 rounded border border-rose-200 px-3 text-sm text-rose-700 hover:bg-rose-50 disabled:opacity-50">
+                    <Unlink aria-hidden="true" className="h-4 w-4" />解除連結
                   </button>
                 </>
               )}
