@@ -186,6 +186,7 @@ export async function diagnoseGoogleCalendarScopes(admin = createAdminClient()) 
     : GOOGLE_CALENDAR_EVENT_WRITE_SCOPES.some(scope => token.scopes?.includes(scope));
 
   return {
+    clientId: getGoogleCalendarEnvironment().clientId,
     requiredScope: GOOGLE_CALENDAR_EVENT_WRITE_SCOPES[0],
     canManageCalendarEvents,
     grantedCalendarScopes,

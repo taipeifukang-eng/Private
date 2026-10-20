@@ -58,6 +58,7 @@ type GoogleCalendarStatus = {
   pendingCount: number;
 };
 type GoogleScopeDiagnosis = {
+  clientId: string;
   requiredScope: string;
   canManageCalendarEvents: boolean | null;
   grantedCalendarScopes: string[] | null;
@@ -941,6 +942,9 @@ export default function OrganizationCalendarClient({
           {googleStatus?.lastSyncError && <p className="mt-2 whitespace-pre-wrap text-sm text-rose-700">同步待處理：{googleStatus.lastSyncError}</p>}
           {googleScopeDiagnosis && (
             <div role="status" aria-live="polite" className={`mt-2 border-t pt-2 text-sm ${googleScopeDiagnosis.canManageCalendarEvents === false ? 'border-amber-200 text-amber-900' : 'border-slate-200 text-slate-700'}`}>
+              <p className="break-all text-xs text-slate-500">
+                伺服器使用的 OAuth Client ID：{googleScopeDiagnosis.clientId}
+              </p>
               <p className="text-xs text-slate-500">
                 系統要求：{googleScopeDiagnosis.requiredScope.replace('https://www.googleapis.com/auth/', '')}
               </p>
