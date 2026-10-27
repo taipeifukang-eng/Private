@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/SignaturePad';
+import { getInspectionGpsCapturedAt, hasSuspiciousInspectionGpsTime } from '@/lib/inspection/date';
 import {
   ChevronDown,
   ChevronUp,
@@ -543,13 +544,19 @@ function NewInspectionPage() {
           setInspectionNo(restoredInspectionNo);
           skipNextStaffFetchForStoreRef.current = draft.selectedStoreId || null;
           setSelectedStoreId(draft.selectedStoreId || '');
-          setInspectionDate(draft.inspectionDate || formatDateInputValue(new Date()));
+          const suspiciousGpsTime = hasSuspiciousInspectionGpsTime(draft.gpsLocation?.capturedAt, draft.updatedAt);
+          setInspectionDate(suspiciousGpsTime
+            ? formatDateInputValue(new Date(draft.updatedAt))
+            : draft.inspectionDate || formatDateInputValue(new Date()));
           setExpandedSections(new Set(draft.expandedSections || []));
           setItemScores(restoredScores);
           setSignaturePhoto(draft.signaturePhoto || '');
           setSupervisorSignature(draft.supervisorSignature || '');
-          setGpsLocation(draft.gpsLocation || null);
-          if (draft.gpsLocation) {
+          setGpsLocation(suspiciousGpsTime ? null : draft.gpsLocation || null);
+          if (suspiciousGpsTime) {
+            setGpsStatus('error');
+            setGpsError('暫存的定位時間異常，已清除定位並依暫存時間還原日期，請確認巡店日期並重新定位。');
+          } else if (draft.gpsLocation) {
             setGpsStatus('success');
             setGpsError('');
           }
@@ -602,13 +609,14 @@ function NewInspectionPage() {
           accuracy: accuracy,
         });
         
+        const capturedAt = getInspectionGpsCapturedAt(position.timestamp);
         setGpsLocation({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: accuracy,
-          capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
+          capturedAt,
         });
-        setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())));
+        setInspectionDate(formatDateInputValue(new Date(capturedAt)));
         setGpsStatus('success');
         setGpsError('');
       },
@@ -635,13 +643,14 @@ function NewInspectionPage() {
             accuracy: accuracy,
           });
           
+          const capturedAt = getInspectionGpsCapturedAt(position.timestamp);
           setGpsLocation({
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: accuracy,
-            capturedAt: new Date(position.timestamp || Date.now()).toISOString(),
+            capturedAt,
           });
-          setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())));
+          setInspectionDate(formatDateInputValue(new Date(capturedAt)));
           setGpsStatus('success');
           setGpsError('');
         },

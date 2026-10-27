@@ -35,12 +35,12 @@ for (const [label, content] of [
   );
   assertIncludes(
     content,
-    'capturedAt: new Date(position.timestamp || Date.now()).toISOString()',
+    'const capturedAt = getInspectionGpsCapturedAt(position.timestamp)',
     `${label} should capture the geolocation timestamp`
   );
   assertIncludes(
     content,
-    'setInspectionDate(formatDateInputValue(new Date(position.timestamp || Date.now())))',
+    'setInspectionDate(formatDateInputValue(new Date(capturedAt)))',
     `${label} should sync the inspection date when GPS is captured`
   );
   assertIncludes(

@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
 import Link from 'next/link';
 
 type InspectionRecord = {
@@ -22,6 +22,22 @@ type InspectionCalendarProps = {
 };
 
 export default function InspectionCalendar({ inspections, currentDate, onMonthChange }: InspectionCalendarProps) {
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogTitleId = useId();
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!selectedDate || !dialog) return;
+    dialog.showModal();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedDate]);
+
   // 獲取當前月份的年月
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -58,6 +74,8 @@ export default function InspectionCalendar({ inspections, currentDate, onMonthCh
     });
     return grouped;
   }, [inspections]);
+
+  const selectedInspections = selectedDate ? inspectionsByDate.get(selectedDate) || [] : [];
 
   // 格式化日期為本地時間字串（避免 toISOString 的 UTC 偏移）
   const formatDateKey = (date: Date) => {
@@ -153,30 +171,34 @@ export default function InspectionCalendar({ inspections, currentDate, onMonthCh
               date.getFullYear() === new Date().getFullYear();
 
             return (
-              <div
+              <button
                 key={dateKey}
+                type="button"
+                onClick={() => setSelectedDate(dateKey)}
+                aria-label={`${dateKey}，共 ${dayInspections.length} 筆巡店紀錄，查看全部`}
+                aria-haspopup="dialog"
                 className={`
-                  min-h-[120px] p-2 rounded-lg border-2 transition-all
+                  min-w-0 min-h-[120px] p-2 rounded-lg border-2 transition-all text-left flex flex-col
+                  hover:border-blue-400 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
                   ${isCurrentMonth ? 'bg-white' : 'bg-gray-50'}
                   ${isToday ? 'border-blue-500 ring-2 ring-blue-200' : 'border-gray-200'}
                   ${dayInspections.length > 0 ? 'hover:border-blue-400 hover:shadow-md' : ''}
                 `}
               >
                 {/* 日期數字 */}
-                <div className={`
+                <span className={`
                   text-sm font-semibold mb-1
                   ${isCurrentMonth ? 'text-gray-900' : 'text-gray-400'}
                   ${isToday ? 'text-blue-600' : ''}
                 `}>
                   {date.getDate()}
-                </div>
+                </span>
 
                 {/* 巡店記錄 */}
-                <div className="space-y-1">
+                <span className="block w-full space-y-1">
                   {dayInspections.slice(0, 3).map((inspection) => (
-                    <Link
+                    <span
                       key={inspection.id}
-                      href={`/inspection/${inspection.id}`}
                       className={`
                         block px-2 py-1 rounded text-xs font-medium border
                         transition-all hover:scale-105
@@ -184,17 +206,17 @@ export default function InspectionCalendar({ inspections, currentDate, onMonthCh
                       `}
                       title={`${inspection.store.short_name || inspection.store.store_name} - 得分: ${inspection.grade}/10`}
                     >
-                      <div className="truncate">{inspection.store.short_name || inspection.store.store_code}</div>
-                      <div className="text-[10px] opacity-75">得分 {inspection.grade}</div>
-                    </Link>
+                      <span className="block truncate">{inspection.store.short_name || inspection.store.store_code}</span>
+                      <span className="block text-[10px] opacity-75">得分 {inspection.grade}</span>
+                    </span>
                   ))}
                   {dayInspections.length > 3 && (
-                    <div className="text-[10px] text-gray-500 text-center py-1">
-                      +{dayInspections.length - 3} 筆
-                    </div>
+                    <span className="block text-[10px] text-blue-700 text-center py-1 font-medium">
+                      +{dayInspections.length - 3} 筆・查看全部
+                    </span>
                   )}
-                </div>
-              </div>
+                </span>
+              </button>
             );
           })}
         </div>
@@ -222,6 +244,57 @@ export default function InspectionCalendar({ inspections, currentDate, onMonthCh
           </div>
         </div>
       </div>
+
+      <dialog
+        ref={dialogRef}
+        aria-labelledby={dialogTitleId}
+        onCancel={() => setSelectedDate(null)}
+        onClose={() => setSelectedDate(null)}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) {
+            setSelectedDate(null);
+          }
+        }}
+        className="m-auto w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] rounded-2xl border border-gray-200 p-0 bg-white shadow-2xl backdrop:bg-gray-900/50"
+      >
+        <div className="flex max-h-[85dvh] flex-col">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-200 bg-blue-50 px-5 py-4">
+            <div>
+              <h3 id={dialogTitleId} className="text-lg font-bold text-gray-900">
+                {selectedDate?.replace(/-/g, '/')} 巡店紀錄
+              </h3>
+              <p className="mt-1 text-sm text-gray-600">共 {selectedInspections.length} 筆，點選門市查看詳細內容</p>
+            </div>
+            <button type="button" autoFocus onClick={() => setSelectedDate(null)} aria-label="關閉巡店紀錄視窗" className="shrink-0 rounded-lg p-2 text-gray-600 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="min-h-0 overflow-y-auto overscroll-contain p-4">
+            {selectedInspections.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500">當日沒有巡店紀錄</p>
+            ) : (
+              <ul className="space-y-2">
+                {selectedInspections.map((inspection) => (
+                  <li key={inspection.id}>
+                    <Link href={`/inspection/${inspection.id}`} className="flex items-center gap-3 rounded-xl border border-gray-200 p-4 hover:border-blue-400 hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs text-gray-500">{inspection.store.store_code}</p>
+                        <p className="mt-1 break-words font-semibold text-gray-900">{inspection.store.store_name}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-lg border px-2 py-1 text-xs font-medium ${getGradeColor(inspection.grade)}`}>
+                        {inspection.grade ? `${inspection.grade} / 10` : '未評分'}
+                      </span>
+                      <ChevronRight aria-hidden="true" className="h-4 w-4 shrink-0 text-gray-400" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }
