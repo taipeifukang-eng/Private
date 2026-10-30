@@ -1,3 +1,4 @@
+import { readReconciledPharmacistMonth } from '@/lib/pharmacist-transfer-reconciliation';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
@@ -492,6 +493,13 @@ export default async function PharmacistManagementPage({
 
     currentRowsRaw = currentQ.data || [];
     previousRowsRaw = previousQ.data || [];
+    // Reconcile independently of the sync log: older transfers may have been missed.
+    if (!isSelectedMonthLocked) {
+      currentRowsRaw = await readReconciledPharmacistMonth(adminSupabase, selectedYearMonth, scopedStores || []);
+      if (!lockedMonthSet.has(previousYearMonth)) {
+        previousRowsRaw = await readReconciledPharmacistMonth(adminSupabase, previousYearMonth, scopedStores || []);
+      }
+    }
   }
 
   const currentRowsBase = currentRowsRaw || [];
