@@ -1,3 +1,4 @@
+import { hasMissingPharmacistCarry } from '@/lib/pharmacist-snapshot-carry';
 import { readReconciledPharmacistMonth } from '@/lib/pharmacist-transfer-reconciliation';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -185,7 +186,7 @@ export default async function PharmacistManagementPage({
     const lastSyncedAt: string | null = (syncLog as any)?.last_synced_at ?? null;
 
     if (skipInitialGeneration && lastSyncedAt) {
-      const { count: newMovementCount } = await adminSupabase
+      const { count: newMovementCount, error: movementCheckError } = await adminSupabase
         .from('employee_movement_history')
         .select('id', { count: 'exact', head: true })
         .in('store_id', storeIds)
@@ -194,7 +195,9 @@ export default async function PharmacistManagementPage({
         .gte('movement_date', monthStart)
         .lte('movement_date', monthEnd);
 
-      if ((newMovementCount ?? 0) === 0) return;
+      if (movementCheckError) throw movementCheckError;
+      if ((newMovementCount ?? 0) === 0 &&
+          !(await hasMissingPharmacistCarry(adminSupabase, baseYearMonth, targetYearMonth, storeIds))) return;
     }
 
     const { data: pharmacistCandidatesRaw } = await adminSupabase
@@ -249,6 +252,8 @@ export default async function PharmacistManagementPage({
         .delete()
         .in('id', invalidMovementIds);
     }
+
+    let hasBackfilledRows = false;
 
     // === 階段 1：初始快照生成（僅在快照不存在時）===
     let nextByCode = new Map<string, {
@@ -355,6 +360,7 @@ export default async function PharmacistManagementPage({
         const code = String(r.employee_code || '').toUpperCase();
         if (!code || !r.store_id) return;
         if (nextByCode.has(code)) return;
+        hasBackfilledRows = true;
 
         nextByCode.set(code, {
           year_month: targetYearMonth,
@@ -456,7 +462,7 @@ export default async function PharmacistManagementPage({
     if (payload.length === 0) return;
 
     // 只有初始生成或有實際異動變更時才 upsert
-    if (!skipInitialGeneration || Array.from(monthlyMovements || []).length > 0) {
+    if (!skipInitialGeneration || hasBackfilledRows || Array.from(monthlyMovements || []).length > 0) {
       await adminSupabase
         .from('pharmacist_monthly_snapshot')
         .upsert(payload, { onConflict: 'year_month,store_id,employee_code' });
