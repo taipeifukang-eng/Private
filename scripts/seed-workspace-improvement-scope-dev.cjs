@@ -47,11 +47,11 @@ const ok = (r) => {
     console.log("Prepared overdue test fixture");
     return;
   }
-  const file = ".tmp-check/improvement-manager-account.json",
-    email = "vue-workspace-improvement-manager@example.test";
-  let account = fs.existsSync(file)
-    ? JSON.parse(fs.readFileSync(file, "utf8"))
-    : null;
+  // D04：憑證只存在 .tmp-check/test-credentials.json（key: improvement_manager）。
+  const creds = require("../tests/support/credentials.cjs"),
+    email = "vue-workspace-improvement-manager@example.test",
+    saved = creds.loadCredentials().accounts.improvement_manager;
+  let account = saved && saved.password ? { id: saved.userId, email } : null;
   const users = ok(await db.auth.admin.listUsers({ perPage: 1000 })).users;
   let user = users.find((u) => u.email === email);
   if (!user) {
@@ -64,8 +64,8 @@ const ok = (r) => {
         user_metadata: { full_name: "Vue 改善範圍測試主管" },
       }),
     ).user;
-    account = { id: user.id, email, password };
-    fs.writeFileSync(file, JSON.stringify(account));
+    account = { id: user.id, email };
+    creds.registerAccount("improvement_manager", { email, password, userId: user.id });
   }
   if (!account || account.id !== user.id)
     throw Error("existing account credentials unavailable; not resetting");

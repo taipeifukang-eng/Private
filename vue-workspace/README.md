@@ -19,7 +19,7 @@ powershell -NoProfile -File scripts/start-workspace-preview.ps1
 
 首次準備需安裝根目錄依賴與 `npm install --prefix vue-workspace`。
 本工作目錄的 vue-workspace/node_modules 目前連到先前 Vue worktree 的依賴；搬移工作目錄時請自行 npm ci。
-可沿用原測試帳號；專用測試帳號位於根目錄 `.tmp-check/新版全站測試登入資料.txt`，不提交版本控制。全站導覽管理員可檢視完整選單，其他測試角色只顯示獲授權功能。
+可沿用原測試帳號；專用測試帳號位於根目錄 `.tmp-check/test-credentials.json`（由 `node scripts/seed-workspace-role-matrix-dev.cjs` 產生），不提交版本控制。全站導覽管理員可檢視完整選單，其他測試角色只顯示獲授權功能。
 
 ## 資料庫
 

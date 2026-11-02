@@ -13,9 +13,9 @@ const db = require("@supabase/supabase-js").createClient(
   e.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { persistSession: false } },
 );
-const actor = JSON.parse(
-  fs.readFileSync(".tmp-check/workspace-accounts.json", "utf8"),
-).accounts.find((a) => a.key === "navigation");
+const actor = require("../tests/support/credentials.cjs").requireWorkspaceAccount(
+  "navigation",
+);
 (async () => {
   const revision = await db
     .from("workspace_inspection_settings_revision")

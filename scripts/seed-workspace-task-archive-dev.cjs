@@ -18,11 +18,11 @@ const ok = (r) => {
   return r.data;
 };
 (async () => {
-  const file = ".tmp-check/task-archive-manager.json",
-    email = "vue-workspace-archive-manager@example.test";
-  let account = fs.existsSync(file)
-    ? JSON.parse(fs.readFileSync(file, "utf8"))
-    : null;
+  // D04：憑證只存在 .tmp-check/test-credentials.json（key: archive_manager）。
+  const creds = require("../tests/support/credentials.cjs"),
+    email = "vue-workspace-archive-manager@example.test",
+    saved = creds.loadCredentials().accounts.archive_manager;
+  let account = saved && saved.password ? { id: saved.userId, email } : null;
   const users = ok(await db.auth.admin.listUsers({ perPage: 1000 })).users;
   let user = users.find((u) => u.email === email);
   if (!user) {
@@ -30,8 +30,8 @@ const ok = (r) => {
     user = ok(
       await db.auth.admin.createUser({ email, password, email_confirm: true }),
     ).user;
-    account = { id: user.id, email, password };
-    fs.writeFileSync(file, JSON.stringify(account));
+    account = { id: user.id, email };
+    creds.registerAccount("archive_manager", { email, password, userId: user.id });
   }
   if (!account || account.id !== user.id)
     throw Error("existing credentials missing; not resetting");
@@ -86,9 +86,7 @@ const ok = (r) => {
         { onConflict: "user_id,role_id" },
       ),
   );
-  const nav = JSON.parse(
-    fs.readFileSync(".tmp-check/workspace-accounts.json", "utf8"),
-  ).accounts.find((a) => a.key === "navigation");
+  const nav = creds.requireWorkspaceAccount("navigation");
   const actor = users.find((u) => u.email === nav.email).id;
   const templateId = crypto.randomUUID(),
     own = crypto.randomUUID(),

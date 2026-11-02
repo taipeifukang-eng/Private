@@ -3,6 +3,10 @@ const fs = require("fs");
 const crypto = require("crypto");
 require("@next/env").loadEnvConfig(process.cwd(), true);
 const { createClient } = require("@supabase/supabase-js");
+const {
+  loadCredentials,
+  registerAccount,
+} = require("../tests/support/credentials.cjs");
 const e = process.env;
 if (
   new URL(e.NEXT_PUBLIC_SUPABASE_URL).hostname !==
@@ -67,15 +71,18 @@ async function main() {
     );
   }
   fs.mkdirSync(".tmp-check", { recursive: true });
-  const file = ".tmp-check/workspace-accounts.json";
-  const saved = fs.existsSync(file)
-    ? JSON.parse(fs.readFileSync(file, "utf8"))
-    : { accounts: [] };
+  // D04：密碼只寫入 .tmp-check/test-credentials.json（gitignored）；不再產生其他明碼檔。
+  const file = ".tmp-check/workspace-fixture.json";
+  const saved = loadCredentials();
   const users = ok(await db.auth.admin.listUsers({ perPage: 1000 })).users;
   const accounts = [];
   for (const [key, name, codes] of definitions) {
     const email = `vue-workspace-${key}@example.test`;
-    let account = saved.accounts.find((a) => a.email === email),
+    const savedAccount = saved.accounts[key];
+    let account =
+        savedAccount && savedAccount.password && savedAccount.email === email
+          ? { key, email, id: savedAccount.userId }
+          : null,
       user = users.find((u) => u.email === email);
     if (!user) {
       const password = crypto.randomBytes(24).toString("base64url") + "aA1!";
@@ -87,9 +94,8 @@ async function main() {
           user_metadata: { full_name: name },
         }),
       ).user;
-      account = { key, email, password, id: user.id };
-      saved.accounts.push(account);
-      fs.writeFileSync(file, JSON.stringify(saved, null, 2));
+      account = { key, email, id: user.id };
+      registerAccount(key, { email, password, userId: user.id });
     }
     if (!account)
       throw Error(
@@ -208,14 +214,8 @@ async function main() {
       2,
     ),
   );
-  fs.writeFileSync(
-    ".tmp-check/測試登入資料.txt",
-    accounts
-      .map((a) => `${a.key}\n帳號：${a.email}\n密碼：${a.password}\n`)
-      .join("\n"),
-  );
   console.log(
-    "DEV-only sample data ready. Credentials saved locally in .tmp-check; no credentials printed.",
+    "DEV-only sample data ready. Credentials live only in .tmp-check/test-credentials.json; no credentials printed.",
   );
 }
 main().catch((e) => {

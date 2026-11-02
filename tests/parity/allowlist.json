@@ -1,0 +1,9 @@
+[
+  {
+    "id": "inventory-view-implies-import-delete",
+    "page": "/inventory",
+    "description": "具備 inventory.inventory.view 的帳號（例如 navigation 帳號、店長）目前 session capabilities 的 importInventory 與 deleteInventory 皆為 true；僅有檢視權限卻同時可匯入與刪除盤點資料。",
+    "reason": "T01 角色矩陣 expected.capabilities 為現行行為快照（verified:false）。是否與舊版一致、是否應收緊，待 parity 階段驗證，並由使用者核可是否列為已知差異。",
+    "approvedBy": null
+  }
+]

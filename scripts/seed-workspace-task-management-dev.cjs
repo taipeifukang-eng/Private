@@ -18,9 +18,7 @@ const ok = (r) => {
   return r.data;
 };
 (async () => {
-  const manager = JSON.parse(
-    fs.readFileSync(".tmp-check/task-archive-manager.json", "utf8"),
-  );
+  const manager = require("../tests/support/credentials.cjs").requireWorkspaceAccount("archive_manager");
   const user = ok(await db.auth.admin.getUserById(manager.id)).user;
   if (user.email !== "vue-workspace-archive-manager@example.test")
     throw Error("not fixture account");
@@ -48,9 +46,7 @@ const ok = (r) => {
       { onConflict: "role_id,permission_id" },
     ),
   );
-  const nav = JSON.parse(
-    fs.readFileSync(".tmp-check/workspace-accounts.json", "utf8"),
-  ).accounts.find((a) => a.key === "navigation");
+  const nav = require("../tests/support/credentials.cjs").requireWorkspaceAccount("navigation");
   const users = ok(await db.auth.admin.listUsers({ perPage: 1000 })).users;
   const admin = users.find((u) => u.email === nav.email).id;
   const template = crypto.randomUUID(),

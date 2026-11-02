@@ -18,9 +18,7 @@ const ok = (r) => {
   return r.data;
 };
 (async () => {
-  const accounts = JSON.parse(
-    fs.readFileSync(".tmp-check/workspace-accounts.json", "utf8"),
-  ).accounts;
+  const accounts = require("../tests/support/credentials.cjs").readWorkspaceAccounts().accounts;
   const users = ok(await db.auth.admin.listUsers({ perPage: 1000 })).users;
   const actor = users.find(
     (u) => u.email === accounts.find((a) => a.key === "navigation").email,

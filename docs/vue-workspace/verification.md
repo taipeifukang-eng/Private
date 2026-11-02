@@ -159,7 +159,7 @@ Core Value Review：五入口留在工作台、查詢與編輯使用真實測試
 - templatesFor 在讀取範本及評級前後核對版本，避免跨多次查詢混用設定；POST 將伺服器版本送入 RPC，客戶端無法自行指定。
 - test-workspace-inspection-settings-race.cjs 兩項通過：實際新增停用測試範本推進設定版本後，過期版本及缺少版本皆於 RPC 拒絕，沒有殘留主檔。
 - test-workspace-inspection-transaction.cjs 回滾測試通過；test-workspace-inspection-write.py 原有七項正常／衝突／重送／權限／提交測試全部通過。
-- 新增獨立 Vue 測試主管帳號，只指定 VW001，不更動既有帳號權限。帳密只存 .tmp-check/improvement-manager-account.json，不印到日誌。
+- 新增獨立 Vue 測試主管帳號，只指定 VW001，不更動既有帳號權限。帳密只存 .tmp-check/test-credentials.json（key: improvement_manager），不印到日誌。
 - test-workspace-improvement-scope.py 五項通過：主管只能查管理門市且跨店 API 拒絕、同項並行不同回報只有一份成功、同巡店不同項並行回報全部回補入帳、已過日期但資料狀態 pending 保持既有可回報且零回補、資料狀態 overdue 不可回報。
 - 保留原系統「顯示逾期」與「資料狀態逾期結案」的差別；GET 不會更改狀態。測試只修改本次標記為 Vue 改善範圍與並行測試的假資料。
 - TypeScript 檢查通過；服務仍在原 localhost:3002。巡店仍有經理角色、舊資料、診斷頁及部分 UI 分支待驗收；全站其他模組尚未完成。

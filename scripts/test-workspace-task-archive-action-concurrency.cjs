@@ -2,7 +2,7 @@ const fs=require('fs'),crypto=require('crypto'),assert=require('assert/strict');
 if(new URL(e.NEXT_PUBLIC_SUPABASE_URL).hostname!=='mjpdfpxqttbhzeimmtqr.supabase.co'||e.ALLOW_DEV_DATABASE_OPERATIONS!=='true')throw Error('DEV mismatch');
 const db=require('@supabase/supabase-js').createClient(e.NEXT_PUBLIC_SUPABASE_URL,e.SUPABASE_SERVICE_ROLE_KEY,{auth:{persistSession:false}});const ok=r=>{if(r.error)throw Error(r.error.message);return r.data;};
 (async()=>{
- const actor=JSON.parse(fs.readFileSync('.tmp-check/task-archive-manager.json','utf8')).id,template=crypto.randomUUID(),ids=[crypto.randomUUID(),crypto.randomUUID()];
+ const actor=require('../tests/support/credentials.cjs').requireWorkspaceAccount('archive_manager').id,template=crypto.randomUUID(),ids=[crypto.randomUUID(),crypto.randomUUID()];
  ok(await db.from('templates').insert({id:template,title:'Vue 封存並行驗證',description:'Vue 專用並行測試',created_by:actor,steps_schema:[{id:'p',label:'主項',subSteps:[{id:'s',label:'子項'}]}]}));
  ok(await db.from('assignments').insert(ids.map(id=>({id,template_id:template,assigned_to:actor,created_by:actor,status:'pending',archived:false}))));ok(await db.from('assignment_collaborators').insert(ids.map(id=>({assignment_id:id,user_id:actor}))));ok(await db.from('logs').insert(ids.flatMap(id=>['p','s'].map(step_id=>({assignment_id:id,user_id:actor,step_id,action:'complete',note:'並行測試'})))));
  const before=ok(await db.from('assignments').select('id,workspace_version').in('id',ids));const args={p_template:template,p_actor:actor,p_versions:before.map(r=>({id:r.id,version:r.workspace_version}))};

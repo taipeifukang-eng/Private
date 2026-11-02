@@ -23,7 +23,7 @@ async function main(){
  const stamp=Date.now().toString(),f={actors:[],roles:[],units:[]};const persist=()=>fs.writeFileSync(path,JSON.stringify(f));persist();
  for(const [key,code] of Object.entries({view:'organization.organization.view',members:'organization.member.manage',managers:'organization.manager.manage',edit:'organization.department.edit',create:'organization.department.create'})){
   const email=`vorgp-${stamp}-${key}@example.invalid`,password=require('crypto').randomBytes(24).toString('hex');const user=check(await db.auth.admin.createUser({email,password,email_confirm:true})).user;
-  f.actors.push({key,id:user.id,email,password});persist();check(await db.from('profiles').update({role:'member',full_name:`Vue 組織驗證 ${key}`,department:null}).eq('id',user.id));
+  require('../tests/support/credentials.cjs').registerAccount(`vorgp:${stamp}:${key}`,{email,password,userId:user.id});f.actors.push({key,id:user.id,email});persist();check(await db.from('profiles').update({role:'member',full_name:`Vue 組織驗證 ${key}`,department:null}).eq('id',user.id));
   const role=check(await db.from('roles').insert({code:`vorgp_${stamp}_${key}`,name:`組織驗證 ${key}`,is_active:true}).select('id').single());f.roles.push(role.id);persist();
   const permission=check(await db.from('permissions').select('id').eq('code',code).single());check(await db.from('role_permissions').insert({role_id:role.id,permission_id:permission.id,is_allowed:true}));check(await db.from('user_roles').insert({user_id:user.id,role_id:role.id,is_active:true}));
  }

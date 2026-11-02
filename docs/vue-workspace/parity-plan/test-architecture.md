@@ -76,7 +76,7 @@ playwright.config.ts   vitest.config.ts   tests/run-all.cjs
 | ops_assistant | 營業助理 | — |
 | supervisor | 督導 | 多店（ZT01–03） |
 | store_manager | 店長 | 單店 ZT01 |
-| acting_manager | 代理店長 | — |
+| acting_manager | 代理店長 | 單店 ZT01（權限與 store_manager 完全相同） |
 | pharmacist | 藥師 | — |
 | inventory_team | 盤點組 | — |
 | ga_staff | 總務 | — |
@@ -87,6 +87,14 @@ playwright.config.ts   vitest.config.ts   tests/run-all.cjs
 - 各模組依需要補 `<module>_view`、`<module>_edit`、`<module>_delete` 細分帳號。
 - 每個角色都要列出「預期可見頁面」與「預期 API 狀態」，同時作為 smoke 與權限測試的 oracle。
 - 所有權限一律走 roles、role_permissions、user_roles，不使用 profiles.role 捷徑（舊版依 profiles.role 判斷的頁面除外，這類帳號兩者都要設）。
+- **代理店長（T01 裁定）**：舊版權限一律走 RBAC，`store_managers.role_type` 沒有 acting 類型，`lib/campaign-access.ts` 也把「店長／代理店長」視為同一類。因此 `acting_manager` 的權限碼與門市範圍和 `store_manager` 相同，差異只在月度資料的 `is_acting_manager` 與職稱。依據檔案與行號寫在 `role-matrix.json` 該帳號的 `note`。
+- **expected 快照**：`role-matrix.json` 的 `expected.capabilities` 是「現行行為快照」（`"verified": false`），待 parity 階段逐項對舊版驗證。已知疑點 `navigation` 帳號 `importInventory`／`deleteInventory` 為 true 記在 `tests/parity/allowlist.json`（id `inventory-view-implies-import-delete`），等使用者核可。
+- **administrator@example.test**：不重設密碼，由 `vue-workspace-admin@example.test` 取代，測試一律使用後者。
+
+### 舊腳本與明碼檔（D04）
+- 所有 `scripts/seed-workspace-*.cjs` 與 `scripts/workspace-organization-permissions-dev.cjs` 已不再寫出 `.tmp-check/workspace-accounts.json`、`測試登入資料.txt`、`task-archive-manager.json`、`improvement-manager-account.json` 或任何含密碼的 fixture；密碼一律寫入 `.tmp-check/test-credentials.json`（同一結構：`accounts.<key> = { email, password, userId }`），非機密的 id／門市資訊放 `.tmp-check/workspace-fixture.json`。
+- 既有 `scripts/test-workspace-*`（含 `test-vue-workspace*.py`）仍讀取上述舊明碼檔，在遷移前**可能因檔案或帳號不存在而失敗**。依 D01，碰到該頁時才遷移到 `tests/` 並改用 `tests/support/credentials.cjs`／`auth.ts`；遷移前不要為了讓舊腳本通過而重新產生明碼檔。
+- `.tmp-check/_archive-20261102` 內含明碼密碼的 fixture 與腳本已刪除。
 
 ## 6. 對等驗證機制
 1. **API 讀取對等**：`map/<workId>.json` 記錄以下內容：

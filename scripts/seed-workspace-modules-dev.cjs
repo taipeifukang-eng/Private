@@ -12,9 +12,7 @@ const db = require("@supabase/supabase-js").createClient(
   e.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { persistSession: false } },
 );
-const data = JSON.parse(
-  fs.readFileSync(".tmp-check/workspace-accounts.json", "utf8"),
-);
+const data = require("../tests/support/credentials.cjs").readWorkspaceAccounts();
 (async () => {
   const s = await db
     .from("stores")
