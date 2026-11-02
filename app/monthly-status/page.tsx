@@ -70,6 +70,7 @@ function MonthlyStatusContent() {
   const [canViewSupportHours, setCanViewSupportHours] = useState(false);
   const [canEditSupportHours, setCanEditSupportHours] = useState(false);
   const [canEditSupportBonus, setCanEditSupportBonus] = useState(false);
+  const [canAddEmployee, setCanAddEmployee] = useState(false);
   const [canAccessActivityManagement, setCanAccessActivityManagement] = useState(false);
   const [canViewPerformance, setCanViewPerformance] = useState(false);
   const [canViewMonthlyBonusDetail, setCanViewMonthlyBonusDetail] = useState(false);
@@ -166,6 +167,7 @@ function MonthlyStatusContent() {
           setCanViewSupportHours(permissionsResult.canViewSupportHours || false);
           setCanEditSupportHours(permissionsResult.canEditSupportHours || false);
           setCanEditSupportBonus(permissionsResult.canEditSupportBonus || false);
+          setCanAddEmployee(permissionsResult.canAddEmployee || false);
           setCanAccessActivityManagement(permissionsResult.canAccessActivityManagement || false);
           setCanViewPerformance(permissionsResult.canViewPerformance || false);
           setCanViewMonthlyBonusDetail(permissionsResult.canViewMonthlyBonusDetail || false);
@@ -517,6 +519,7 @@ function MonthlyStatusContent() {
               canViewSupportHours={canViewSupportHours}
               canEditSupportHours={canEditSupportHours}
               canEditSupportBonus={canEditSupportBonus}
+              canAddEmployee={canAddEmployee}
               canViewPerformance={canViewPerformance}
               canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
               canConfirmStatus={canConfirmStatus}
@@ -605,6 +608,7 @@ function MonthlyStatusContent() {
                     canViewSupportHours={canViewSupportHours}
                     canEditSupportHours={canEditSupportHours}
                     canEditSupportBonus={canEditSupportBonus}
+                    canAddEmployee={canAddEmployee}
                     canViewPerformance={canViewPerformance}
                     canViewMonthlyBonusDetail={canViewMonthlyBonusDetail}
                     canConfirmStatus={canConfirmStatus}
@@ -827,6 +831,7 @@ function StoreStatusDetail({
   canViewSupportHours,
   canEditSupportHours,
   canEditSupportBonus,
+  canAddEmployee,
   canViewPerformance,
   canViewMonthlyBonusDetail,
   canConfirmStatus,
@@ -845,6 +850,7 @@ function StoreStatusDetail({
   canViewSupportHours: boolean;
   canEditSupportHours: boolean;
   canEditSupportBonus: boolean;
+  canAddEmployee: boolean;
   canViewPerformance: boolean;
   canViewMonthlyBonusDetail: boolean;
   canConfirmStatus: boolean;
@@ -1538,9 +1544,7 @@ function StoreStatusDetail({
   const currentMonth = Number(yearMonth.split('-')[1] || '0');
   const quarterNumber = currentMonth >= 1 && currentMonth <= 12 ? Math.ceil(currentMonth / 3) : 0;
   const isQuarterEndMonth = [3, 6, 9, 12].includes(currentMonth);
-  const canManageBonusExpenseButtons =
-    ['admin', 'manager', 'supervisor', 'area_manager'].includes(userRole) ||
-    ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
+  const canManageBonusExpenseButtons = canEditSupportBonus;
   const monthlyPerformanceFields = [
     { key: 'monthly_revenue_target', label: '月營業額目標' },
     { key: 'monthly_revenue_actual', label: '月營業額實際' },
@@ -1749,13 +1753,13 @@ function StoreStatusDetail({
 
             {storeStatus !== 'confirmed' && (
               <div className="flex gap-2 flex-wrap">
-                <button
+                {canAddEmployee && <button
                   onClick={() => setShowAddModal(true)}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
                 >
                   <Plus size={16} />
                   手動新增員工
-                </button>
+                </button>}
                 {canEditSupportBonus && (
                   <button
                     onClick={() => setShowSupportBonusModal(true)}
@@ -1776,13 +1780,13 @@ function StoreStatusDetail({
                     </button>
                   </>
                 )}
-                <button
+                {canEditSupportBonus && <button
                   onClick={() => setShowMealAllowanceModal(true)}
                   className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center gap-2"
                 >
                   <CalendarCheck size={16} />
                   誤餐費登記
-                </button>
+                </button>}
               </div>
             )}
 

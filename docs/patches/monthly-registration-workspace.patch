@@ -1,0 +1,44 @@
+--- a/lib/workspace/monthly-tools.ts
++++ b/lib/workspace/monthly-tools.ts
+@@ -2,10 +2,10 @@
+ 
+ export const monthlyTools = {
+   support: { table: 'support_staff_bonus', permission: 'monthly.allowance.edit_support_bonus', fields: ['bonus_amount'] },
+-  transport: { table: 'monthly_staff_status', permission: 'monthly.allowance.edit_transport', fields: ['monthly_transport_expense', 'transport_expense_notes'] },
+-  talent: { table: 'talent_cultivation_bonus', permission: 'monthly.allowance.edit_talent', fields: ['cultivation_bonus', 'cultivation_target'] },
+-  spring: { table: 'spring_festival_bonus', permission: 'monthly.status.edit', fields: ['attendance_date', 'category', 'bonus_amount'] },
+-  meal: { table: 'meal_allowance_records', permission: 'monthly.allowance.edit_meal', fields: ['record_date', 'work_hours', 'meal_period', 'employee_type'] },
++  transport: { table: 'monthly_staff_status', permission: 'monthly.allowance.edit_support_bonus', fields: ['monthly_transport_expense', 'transport_expense_notes'] },
++  talent: { table: 'talent_cultivation_bonus', permission: 'monthly.allowance.edit_support_bonus', fields: ['cultivation_bonus', 'cultivation_target'] },
++  spring: { table: 'spring_festival_bonus', permission: 'monthly.allowance.edit_support_bonus', fields: ['attendance_date', 'category', 'bonus_amount'] },
++  meal: { table: 'meal_allowance_records', permission: 'monthly.allowance.edit_support_bonus', fields: ['record_date', 'work_hours', 'meal_period', 'employee_type'] },
+ } as const;
+ export type MonthlyTool = keyof typeof monthlyTools;
+ export function toolFor(kind: string) {
+--- a/app/api/workspace/monthly/tools/route.ts
++++ b/app/api/workspace/monthly/tools/route.ts
+@@ -37,13 +37,13 @@
+       for (const key of fields) if (viewStats) stats[key] = summary.data?.[key] ?? null;
+       for (const key of ['support_to_other_stores_hours','support_from_other_stores_hours']) if (viewSupport) stats[key] = summary.data?.[key] ?? null;
+       return respond({ stats, version: summary.data?.updated_at || null, storeStatus: summary.data?.store_status || 'not_started', capabilities: {
+-        ...capabilities, viewStats, viewSupport, editStats: viewStats && ctx.has('monthly.status.edit'), editSupport: ctx.has('monthly.allowance.edit_support_hours'), manual: ctx.has('monthly.status.edit'),
++        ...capabilities, viewStats, viewSupport, editStats: viewStats && ctx.has('monthly.status.edit'), editSupport: ctx.has('monthly.allowance.edit_support_hours'), manual: ctx.has('monthly.status.add_employee'),
+         pdf: ctx.has('monthly.export.download'), bonusDetails: ctx.has('monthly.status.bonus_detail.view'), performance: ctx.has('monthly.status.view_performance'), activity: ctx.has('activity.management.access'),
+         importPerformance: ctx.has('monthly.import.performance') && ctx.has('monthly.status.view_all'), importStats: ctx.has('monthly.import.store_stats') && ctx.has('monthly.status.view_all'),
+       }});
+     }
+     if (op === 'employees') {
+-      if (!ctx.has('monthly.status.edit', ...Object.values(monthlyTools).map(t=>t.permission))) throw new WorkspaceError(403, '沒有選擇人員權限');
++      if (!ctx.has('monthly.status.add_employee', 'monthly.status.edit', ...Object.values(monthlyTools).map(t=>t.permission))) throw new WorkspaceError(403, '沒有選擇人員權限');
+       const q = (p.get('q') || '').trim().slice(0,60).replace(/[%_,().]/g, '');
+       if (!q) return respond({ records: [] });
+       // Only a temporary, minimal picker; never expose the personnel master record.
+@@ -160,7 +160,7 @@
+       return respond({success:true});
+     }
+     if (b.op === 'manual') {
+-      permit(ctx,'monthly.status.edit');
++      permit(ctx,'monthly.status.add_employee');
+       const d = b.employee || {};
+       if (typeof d.employee_name !== 'string' || !d.employee_name.trim() || d.employee_name.length > 100 || ![...POSITION_OPTIONS,...SPECIAL_ROLE_OPTIONS].includes(d.position) || !['full_time','part_time'].includes(d.employment_type) || !MONTHLY_STATUS_OPTIONS.some(o=>o.value===d.monthly_status)) throw new WorkspaceError(400,'請填完整姓名、職位、僱用類型與本月狀態');
+       if (d.newbie_level && ![...NEWBIE_LEVEL_OPTIONS,...ADMIN_LEVEL_OPTIONS].some(o=>o.value===d.newbie_level)) throw new WorkspaceError(400,'人員階段不正確');

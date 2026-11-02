@@ -1,3 +1,4 @@
+import { authorizeMonthlyRegistration, MonthlyRegistrationError } from '@/lib/permissions/monthly-registration';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -18,20 +19,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, job_title')
-      .eq('id', user.id)
-      .single();
-
-    // 只有店長以上權限可以使用
-    const isManager = ['admin', 'manager', 'supervisor', 'area_manager'].includes(profile?.role || '');
-    const isStoreManager = ['店長', '代理店長', '督導', '督導(代理店長)'].includes(profile?.job_title || '');
-    
-    if (!profile || (!isManager && !isStoreManager)) {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
-    }
-
     const body = await request.json();
     const { year_month, store_id, expenses } = body as { 
       year_month: string; 
@@ -42,6 +29,8 @@ export async function POST(request: NextRequest) {
     if (!year_month || !store_id || !expenses) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
     }
+
+    const registrationDb = await authorizeMonthlyRegistration(user.id, store_id, year_month);
 
     // 如果沒有新記錄，直接回傳成功
     if (expenses.length === 0) {
@@ -65,7 +54,7 @@ export async function POST(request: NextRequest) {
     for (const expense of expenses) {
       try {
         // 找到對應的 monthly_staff_status 記錄
-        const { data: existing, error: findError } = await supabase
+        const { data: existing, error: findError } = await registrationDb
           .from('monthly_staff_status')
           .select('id')
           .eq('year_month', year_month)
@@ -84,7 +73,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 更新交通費用
-        const { error: updateError } = await supabase
+        const { error: updateError } = await registrationDb
           .from('monthly_staff_status')
           .update({
             monthly_transport_expense: expense.transport_expense,
@@ -121,7 +110,7 @@ export async function POST(request: NextRequest) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
       { success: false, error: error.message || '處理失敗' },
-      { status: 500 }
+      { status: error instanceof MonthlyRegistrationError ? error.status : 500 }
     );
   }
 }

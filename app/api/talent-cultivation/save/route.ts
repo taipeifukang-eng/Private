@@ -1,3 +1,4 @@
+import { authorizeMonthlyRegistration, MonthlyRegistrationError } from '@/lib/permissions/monthly-registration';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -18,20 +19,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, job_title')
-      .eq('id', user.id)
-      .single();
-
-    // 只有店長以上權限可以使用
-    const isManager = ['admin', 'manager', 'supervisor', 'area_manager'].includes(profile?.role || '');
-    const isStoreManager = ['店長', '代理店長', '督導', '督導(代理店長)'].includes(profile?.job_title || '');
-    
-    if (!profile || (!isManager && !isStoreManager)) {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
-    }
-
     const body = await request.json();
     const { year_month, store_id, bonuses } = body as { 
       year_month: string; 
@@ -42,6 +29,8 @@ export async function POST(request: NextRequest) {
     if (!year_month || !store_id || !bonuses) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
     }
+
+    const registrationDb = await authorizeMonthlyRegistration(user.id, store_id, year_month);
 
     // 驗證資料
     for (const bonus of bonuses) {
@@ -55,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     // 如果沒有新記錄（全部清除），嘗試刪舊資料後回傳成功
     if (bonuses.length === 0) {
-      await supabase
+      await registrationDb
         .from('talent_cultivation_bonus')
         .delete()
         .eq('year_month', year_month)
@@ -64,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 先刪除該門市該月所有舊記錄（整批替換）
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await registrationDb
       .from('talent_cultivation_bonus')
       .delete()
       .eq('year_month', year_month)
@@ -86,7 +75,7 @@ export async function POST(request: NextRequest) {
       created_by: user.id
     }));
 
-    const { data: insertedData, error: insertError } = await supabase
+    const { data: insertedData, error: insertError } = await registrationDb
       .from('talent_cultivation_bonus')
       .insert(insertRecords)
       .select();
@@ -106,7 +95,7 @@ export async function POST(request: NextRequest) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
       { success: false, error: error.message || '處理失敗' },
-      { status: 500 }
+      { status: error instanceof MonthlyRegistrationError ? error.status : 500 }
     );
   }
 }

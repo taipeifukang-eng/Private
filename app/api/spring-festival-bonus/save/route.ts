@@ -1,3 +1,4 @@
+import { authorizeMonthlyRegistration, MonthlyRegistrationError } from '@/lib/permissions/monthly-registration';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
@@ -19,20 +20,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, job_title')
-      .eq('id', user.id)
-      .single();
-
-    // 只有店長以上權限可以使用
-    const isManager = ['admin', 'manager', 'supervisor', 'area_manager'].includes(profile?.role || '');
-    const isStoreManager = ['店長', '代理店長', '督導', '督導(代理店長)'].includes(profile?.job_title || '');
-    
-    if (!profile || (!isManager && !isStoreManager)) {
-      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
-    }
-
     const body = await request.json();
     const { year_month, store_id, records } = body as { 
       year_month: string; 
@@ -44,8 +31,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
     }
 
+    const registrationDb = await authorizeMonthlyRegistration(user.id, store_id, year_month);
+
     // 先刪除該月份該門市的所有春節獎金記錄（全部替換模式）
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await registrationDb
       .from('spring_festival_bonus')
       .delete()
       .eq('year_month', year_month)
@@ -93,7 +82,7 @@ export async function POST(request: NextRequest) {
       created_by: user.id
     }));
 
-    const { error: insertError } = await supabase
+    const { error: insertError } = await registrationDb
       .from('spring_festival_bonus')
       .insert(insertData);
 
@@ -112,7 +101,7 @@ export async function POST(request: NextRequest) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
       { success: false, error: error.message || '處理失敗' },
-      { status: 500 }
+      { status: error instanceof MonthlyRegistrationError ? error.status : 500 }
     );
   }
 }

@@ -1,3 +1,6 @@
+import { createAdminClient } from '@/lib/supabase/server';
+import { hasPermission } from '@/lib/permissions/check';
+import { authorizeMonthlyRegistration, MonthlyRegistrationError } from '@/lib/permissions/monthly-registration';
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -69,6 +72,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
     }
 
+    if (!(await hasPermission(user.id, 'monthly.allowance.edit_support_bonus'))) {
+      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
+    }
     const body = await request.json();
     const {
       year_month,
@@ -89,8 +95,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    const registrationDb = await authorizeMonthlyRegistration(user.id, store_id, year_month);
+
     // 新增記錄
-    const { data, error } = await supabase
+    const { data, error } = await registrationDb
       .from('meal_allowance_records')
       .insert({
         year_month,
@@ -123,7 +131,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: false, 
       error: error.message 
-    }, { status: 500 });
+    }, { status: error instanceof MonthlyRegistrationError ? error.status : 500 });
   }
 }
 
@@ -149,8 +157,16 @@ export async function DELETE(request: NextRequest) {
       }, { status: 400 });
     }
 
+    if (!(await hasPermission(user.id, 'monthly.allowance.edit_support_bonus'))) {
+      return NextResponse.json({ success: false, error: '權限不足' }, { status: 403 });
+    }
+    const { data: record, error: lookupError } = await createAdminClient().from('meal_allowance_records').select('store_id, year_month').eq('id', recordId).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!record) return NextResponse.json({ success: false, error: '找不到記錄' }, { status: 404 });
+    const registrationDb = await authorizeMonthlyRegistration(user.id, record.store_id, record.year_month);
+
     // 刪除記錄
-    const { error } = await supabase
+    const { error } = await registrationDb
       .from('meal_allowance_records')
       .delete()
       .eq('id', recordId);
@@ -170,6 +186,6 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ 
       success: false, 
       error: error.message 
-    }, { status: 500 });
+    }, { status: error instanceof MonthlyRegistrationError ? error.status : 500 });
   }
 }

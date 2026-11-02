@@ -1,5 +1,7 @@
 'use server';
 
+import { authorizeMonthlyRegistration } from '@/lib/permissions/monthly-registration';
+
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
@@ -2492,6 +2494,12 @@ export async function addManualEmployee(
       return { success: false, error: '未登入' };
     }
 
+    const registrationDb = await authorizeMonthlyRegistration(user.id, storeId, yearMonth, 'monthly.status.add_employee');
+    const hasBonusValues = [employeeData.last_month_single_item_bonus, employeeData.talent_cultivation_bonus, employeeData.monthly_transport_expense].some(value => Number(value || 0) !== 0);
+    if (hasBonusValues && !(await hasPermission(user.id, 'monthly.allowance.edit_support_bonus'))) {
+      return { success: false, error: '沒有登記每月獎金與費用權限' };
+    }
+
     if (employeeData.position === '行政' && !employeeData.newbie_level) {
       return { success: false, error: '職位為行政時，必須標註「過階」或「未過階」' };
     }
@@ -2507,7 +2515,7 @@ export async function addManualEmployee(
     const resolvedStartDate = employeeData.start_date ||
       await resolveEmployeeStartDate(supabase, employeeData.employee_code, storeId);
 
-    const { data, error } = await supabase
+    const { data, error } = await registrationDb
       .from('monthly_staff_status')
       .insert({
         year_month: yearMonth,
@@ -2879,6 +2887,7 @@ export async function checkMonthlyStatusPermissions() {
         canViewSupportHours: false,
         canEditSupportHours: false,
         canEditSupportBonus: false,
+        canAddEmployee: false,
         canAccessActivityManagement: false,
         canViewPerformance: false,
         canViewMonthlyBonusDetail: false,
@@ -2894,6 +2903,7 @@ export async function checkMonthlyStatusPermissions() {
       canViewSupportHours,
       canEditSupportHours,
       canEditSupportBonus,
+      canAddEmployee,
       canAccessActivityManagement,
       canViewPerformance,
       canViewMonthlyBonusDetail,
@@ -2906,6 +2916,7 @@ export async function checkMonthlyStatusPermissions() {
       hasPermission(user.id, 'monthly.allowance.view_support_hours'),
       hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
       hasPermission(user.id, 'monthly.allowance.edit_support_bonus'),
+      hasPermission(user.id, 'monthly.status.add_employee'),
       hasPermission(user.id, 'activity.management.access'),
       hasPermission(user.id, 'monthly.status.view_performance'),
       hasPermission(user.id, 'monthly.status.bonus_detail.view'),
@@ -2921,6 +2932,7 @@ export async function checkMonthlyStatusPermissions() {
       canViewSupportHours,
       canEditSupportHours,
       canEditSupportBonus,
+      canAddEmployee,
       canAccessActivityManagement,
       canViewPerformance,
       canViewMonthlyBonusDetail,
@@ -2938,6 +2950,7 @@ export async function checkMonthlyStatusPermissions() {
       canViewSupportHours: false,
       canEditSupportHours: false,
       canEditSupportBonus: false,
+      canAddEmployee: false,
       canAccessActivityManagement: false,
       canViewPerformance: false,
       canViewMonthlyBonusDetail: false,
