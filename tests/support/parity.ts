@@ -13,6 +13,13 @@
  * 規則（D07）：任何未列入白名單的差異都是 FAIL；列入白名單但 approvedBy 為 null 的差異標為
  * 「待核可」(pending-approval)，不算通過；只有 approvedBy 有值才算 allowed。
  *
+ * 規則（decision: "fix"）：使用者裁定「必須改回舊行為」的差異，在白名單以 decision:'fix' + fixIn:'Wxx'
+ * 登記（approvedBy 必須為 null；它不是被允許的差異）。命中者標為 must-fix（排序：fail > must-fix > pending-approval），
+ * 報告 summary.mustFix 與 mustFix 清單會列出並附 fixIn，verdict 只要有 must-fix 就不是 PASS。
+ * 為了不擋住無關工作項：must-fix 只有在環境變數 PARITY_ENFORCE_FIX 含該 fixIn（逗號分隔）或等於 all 時才讓測試失敗，
+ * 否則只在測試加註解（annotation）。`npm run test:page -- <id>` 會自動設 PARITY_ENFORCE_FIX=<id>；
+ * 最終回歸 F01 使用 `--enforce-fix all`。沒有 match 的 fix 條目只作登記，不自動套用。
+ *
  * 此檔不 import @playwright/test 的執行期程式（只有型別），可直接在 Vitest 單元測試。
  * 不輸出任何金鑰、cookie、密碼；專案 ref 一律遮罩。
  */
@@ -189,6 +196,10 @@ export interface AllowlistEntry {
   approvedBy: string | null;
   /** 此差異留待哪個工作項（例如 W25）以機制一／二驗證後再補 match；只登記、不自動套用。 */
   deferredTo?: string;
+  /** 'fix'：使用者裁定必須改回舊行為（不是被允許的差異）。需搭配 fixIn，且 approvedBy 必須為 null。 */
+  decision?: 'fix';
+  /** decision 為 'fix' 時，應在哪個工作項（例如 W07）修正；該工作項執行時 PARITY_ENFORCE_FIX 會讓差異變成失敗。 */
+  fixIn?: string;
   /** 自動套用條件。沒有 match 的條目只作登記，不會自動套用到任何差異。 */
   match?: AllowlistMatch;
 }
@@ -213,6 +224,14 @@ export function validateAllowlist(list: unknown): string[] {
     if (e.deferredTo !== undefined && (typeof e.deferredTo !== 'string' || !e.deferredTo.trim())) {
       errors.push(`${tag} deferredTo 必須是非空字串（工作項 ID）`);
     }
+    if (e.decision !== undefined && e.decision !== 'fix') errors.push(`${tag} decision 目前只接受 "fix"`);
+    if (e.fixIn !== undefined && (typeof e.fixIn !== 'string' || !e.fixIn.trim())) {
+      errors.push(`${tag} fixIn 必須是非空字串（工作項 ID）`);
+    }
+    if (e.decision === 'fix') {
+      if (typeof e.fixIn !== 'string' || !e.fixIn.trim()) errors.push(`${tag} decision 為 fix 時 fixIn 必須是非空字串`);
+      if (e.approvedBy !== null) errors.push(`${tag} decision 為 fix 時 approvedBy 必須為 null（必須修正的差異不可標為已核可）`);
+    }
     if (e.id) {
       if (ids.has(e.id)) errors.push(`${tag} id 重複`);
       ids.add(e.id);
@@ -236,7 +255,7 @@ export function loadAllowlist(file = ALLOWLIST_FILE): AllowlistEntry[] {
   return list;
 }
 
-export type AllowlistStatus = 'approved' | 'pending-approval';
+export type AllowlistStatus = 'approved' | 'pending-approval' | 'must-fix';
 
 export interface Diff {
   /** status：HTTP 狀態不一致；count：筆數不一致；其餘同 DiffKind；column-missing：欄位在其中一邊不存在。 */
@@ -248,6 +267,8 @@ export interface Diff {
   detail?: string;
   allowlistId?: string;
   allowlistStatus?: AllowlistStatus;
+  /** allowlistStatus 為 must-fix 時，應修正的工作項。 */
+  fixIn?: string;
 }
 
 export interface DiffContext {
@@ -272,17 +293,21 @@ export function matchAllowlist(diff: Diff, ctx: DiffContext, allowlist: Allowlis
   return null;
 }
 
-export type EntryStatus = 'pass' | 'allowed' | 'pending-approval' | 'fail';
+export type EntryStatus = 'pass' | 'allowed' | 'pending-approval' | 'must-fix' | 'fail';
 
 /** 把每個差異標上白名單狀態，回傳整體狀態。未命中白名單 = fail；命中但未核可 = pending-approval。 */
 export function classify(diffs: Diff[], ctx: DiffContext, allowlist: AllowlistEntry[]): { status: EntryStatus; diffs: Diff[] } {
   const marked = diffs.map((d) => {
     const hit = matchAllowlist(d, ctx, allowlist);
     if (!hit) return { ...d };
+    if (hit.decision === 'fix') {
+      return { ...d, allowlistId: hit.id, allowlistStatus: 'must-fix' as AllowlistStatus, fixIn: hit.fixIn };
+    }
     return { ...d, allowlistId: hit.id, allowlistStatus: (hit.approvedBy ? 'approved' : 'pending-approval') as AllowlistStatus };
   });
   let status: EntryStatus = 'pass';
   if (marked.some((d) => !d.allowlistId)) status = 'fail';
+  else if (marked.some((d) => d.allowlistStatus === 'must-fix')) status = 'must-fix';
   else if (marked.some((d) => d.allowlistStatus === 'pending-approval')) status = 'pending-approval';
   else if (marked.length) status = 'allowed';
   return { status, diffs: marked };
@@ -313,19 +338,22 @@ export interface ParityReport {
   runId: string;
   generatedAt: string;
   environment: 'DEV';
-  verdict: 'PASS' | 'PENDING_APPROVAL' | 'FAIL';
-  summary: { total: number; pass: number; allowed: number; pendingApproval: number; fail: number };
+  verdict: 'PASS' | 'PENDING_APPROVAL' | 'MUST_FIX' | 'FAIL';
+  summary: { total: number; pass: number; allowed: number; pendingApproval: number; mustFix: number; fail: number };
   /** 本次執行出現過、狀態為待核可的白名單條目（供使用者核可）。 */
   pendingAllowlist: { id: string; page: string; description: string; hits: number }[];
+  /** 本次執行出現過、decision 為 fix 的白名單條目（必須在 fixIn 工作項改回舊行為）。 */
+  mustFix: { id: string; page: string; description: string; fixIn: string; hits: number }[];
   entries: ParityEntryResult[];
 }
 
 export function summarize(entries: ParityEntryResult[]): ParityReport['summary'] {
-  const s = { total: entries.length, pass: 0, allowed: 0, pendingApproval: 0, fail: 0 };
+  const s = { total: entries.length, pass: 0, allowed: 0, pendingApproval: 0, mustFix: 0, fail: 0 };
   for (const e of entries) {
     if (e.status === 'pass') s.pass += 1;
     else if (e.status === 'allowed') s.allowed += 1;
     else if (e.status === 'pending-approval') s.pendingApproval += 1;
+    else if (e.status === 'must-fix') s.mustFix += 1;
     else s.fail += 1;
   }
   return s;
@@ -334,21 +362,27 @@ export function summarize(entries: ParityEntryResult[]): ParityReport['summary']
 export function buildReport(runId: string, entries: ParityEntryResult[], allowlist: AllowlistEntry[], now = new Date()): ParityReport {
   const summary = summarize(entries);
   const hits = new Map<string, number>();
+  const fixHits = new Map<string, number>();
   for (const e of entries) {
     for (const d of e.diffs) {
       if (d.allowlistId && d.allowlistStatus === 'pending-approval') hits.set(d.allowlistId, (hits.get(d.allowlistId) || 0) + 1);
+      if (d.allowlistId && d.allowlistStatus === 'must-fix') fixHits.set(d.allowlistId, (fixHits.get(d.allowlistId) || 0) + 1);
     }
   }
   const pendingAllowlist = allowlist
     .filter((a) => hits.has(a.id))
     .map((a) => ({ id: a.id, page: a.page, description: a.description, hits: hits.get(a.id) as number }));
+  const mustFix = allowlist
+    .filter((a) => fixHits.has(a.id))
+    .map((a) => ({ id: a.id, page: a.page, description: a.description, fixIn: a.fixIn as string, hits: fixHits.get(a.id) as number }));
   return {
     runId,
     generatedAt: now.toISOString(),
     environment: 'DEV',
-    verdict: summary.fail ? 'FAIL' : summary.pendingApproval ? 'PENDING_APPROVAL' : 'PASS',
+    verdict: summary.fail ? 'FAIL' : summary.mustFix ? 'MUST_FIX' : summary.pendingApproval ? 'PENDING_APPROVAL' : 'PASS',
     summary,
     pendingAllowlist,
+    mustFix,
     entries: [...entries].sort((a, b) => a.id.localeCompare(b.id)),
   };
 }
@@ -426,14 +460,61 @@ export class ParityRecorder {
   }
 }
 
-/** 斷言：只有 fail 讓測試失敗；pending-approval 不算通過但不擋 CI，由報告 verdict 呈現。 */
-export function assertNoUnlistedDiffs(result: ParityEntryResult): void {
-  if (result.status !== 'fail') return;
-  const lines = result.diffs
-    .filter((d) => !d.allowlistId)
-    .slice(0, 20)
-    .map((d) => `  [${d.kind}] ${d.key}${d.detail ? ` — ${d.detail}` : ''}`);
-  throw new Error(`對等比對失敗 ${result.id}：${result.diffs.filter((d) => !d.allowlistId).length} 項未列白名單差異\n${lines.join('\n')}`);
+/** 解析 PARITY_ENFORCE_FIX（逗號分隔的 fixIn，或 all）。 */
+export function parseEnforceFix(raw: string | undefined): { all: boolean; ids: Set<string> } {
+  const ids = new Set(
+    String(raw || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean),
+  );
+  return { all: ids.has('all'), ids };
+}
+
+export function isFixEnforced(fixIn: string | undefined, raw: string | undefined = process.env.PARITY_ENFORCE_FIX): boolean {
+  const e = parseEnforceFix(raw);
+  return e.all || (!!fixIn && e.ids.has(fixIn));
+}
+
+export interface AssertOptions {
+  /** 預設讀 process.env.PARITY_ENFORCE_FIX。 */
+  enforceFix?: string;
+  /** must-fix 未被強制時的註解輸出；預設加到目前的 Playwright test（不在 test 內則忽略）。 */
+  annotate?: (a: { type: string; description: string }) => void;
+}
+
+function defaultAnnotate(a: { type: string; description: string }) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pw = nodeRequire('@playwright/test') as { test: { info(): { annotations: { type: string; description?: string }[] } } };
+    pw.test.info().annotations.push(a);
+  } catch {
+    // 不在 Playwright test 內（例如單元測試）：略過
+  }
+}
+
+/**
+ * 斷言：fail 讓測試失敗；pending-approval 不算通過但不擋 CI，由報告 verdict 呈現。
+ * must-fix 只有在 PARITY_ENFORCE_FIX 含其 fixIn（或 all）時才失敗，否則只加註解、不失敗。
+ */
+export function assertNoUnlistedDiffs(result: ParityEntryResult, opts: AssertOptions = {}): void {
+  if (result.status === 'fail') {
+    const lines = result.diffs
+      .filter((d) => !d.allowlistId)
+      .slice(0, 20)
+      .map((d) => `  [${d.kind}] ${d.key}${d.detail ? ` — ${d.detail}` : ''}`);
+    throw new Error(`對等比對失敗 ${result.id}：${result.diffs.filter((d) => !d.allowlistId).length} 項未列白名單差異\n${lines.join('\n')}`);
+  }
+  const fixes = result.diffs.filter((d) => d.allowlistStatus === 'must-fix');
+  if (!fixes.length) return;
+  const raw = opts.enforceFix !== undefined ? opts.enforceFix : process.env.PARITY_ENFORCE_FIX;
+  const enforced = fixes.filter((d) => isFixEnforced(d.fixIn, raw));
+  if (enforced.length) {
+    const lines = enforced.slice(0, 20).map((d) => `  [${d.kind}] ${d.key}（${d.allowlistId}，須於 ${d.fixIn} 修正）${d.detail ? ` — ${d.detail}` : ''}`);
+    throw new Error(`對等比對失敗 ${result.id}：${enforced.length} 項「必須改回舊行為」的差異尚未修正\n${lines.join('\n')}`);
+  }
+  const pending = Array.from(new Set(fixes.map((d) => `${d.allowlistId}→${d.fixIn}`)));
+  (opts.annotate || defaultAnnotate)({ type: 'must-fix', description: `必須於對應工作項修正的差異（未強制）：${pending.join(', ')}` });
 }
 
 // ---------------------------------------------------------------------------

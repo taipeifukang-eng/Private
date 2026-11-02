@@ -40,6 +40,8 @@ describe('env_guard.py 與 env-guard.cjs 一致', () => {
     ['URL ref 是 Production', { NEXT_PUBLIC_SUPABASE_URL: `https://${PROD_REF}.supabase.co`, EXPECTED_SUPABASE_PROJECT_REF: PROD_REF }, 'test'],
     ['anon JWT ref 不符', { NEXT_PUBLIC_SUPABASE_ANON_KEY: fakeJwt({ role: 'anon', ref: PROD_REF }) }, 'test'],
     ['service role JWT ref 不符', { SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: 'zzzzzzzzzzzzzzzzzzzz' }) }, 'test'],
+    ['其他變數含大寫 Production ref', { SOME_OTHER_URL: `https://${PROD_REF.toUpperCase()}.supabase.co` }, 'test'],
+    ['其他變數含 odvk 前綴樣式', { SOME_OTHER_URL: 'x-ODVKabcdefghijklmnop-y' }, 'test'],
     ['缺 ALLOW 旗標', { ALLOW_DEV_DATABASE_OPERATIONS: undefined }, 'test'],
     ['NODE_ENV=production', {}, 'production'],
   ];

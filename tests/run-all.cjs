@@ -2,7 +2,7 @@
 /**
  * 統一 runner。
  *   node tests/run-all.cjs [--layers unit,smoke,integration,e2e,parity|all] [--page <workId>]
- *                          [--run-id <id>] [--no-sweep] [--allow-nonempty-reserved]
+ *                          [--run-id <id>] [--enforce-fix <Wxx[,Wyy]|all>] [--no-sweep] [--allow-nonempty-reserved]
  * 步驟：守衛 -> (瀏覽器層) 確認測試站 -> sweeper(pre) -> unit -> playwright 各層 -> sweeper(post) -> 彙總。
  * 輸出：tests/reports/<runId>/summary.json、junit.xml、playwright-report/、created.json…
  * exit code：0 全綠；1 有測試失敗；2 環境守衛／測試站未通過；3 保留月份出現非測試門市資料而中止。
@@ -20,7 +20,7 @@ const ALL_LAYERS = ['unit', 'smoke', 'integration', 'e2e', 'parity'];
 const PLAYWRIGHT_LAYERS = ['smoke', 'integration', 'e2e', 'parity'];
 
 function parseArgs(argv) {
-  const opts = { layers: ALL_LAYERS.slice(), page: null, runId: null, sweep: true, allowNonEmptyReserved: false };
+  const opts = { layers: ALL_LAYERS.slice(), page: null, runId: null, enforceFix: null, sweep: true, allowNonEmptyReserved: false };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === '--layers') {
@@ -28,6 +28,7 @@ function parseArgs(argv) {
       opts.layers = v === 'all' ? ALL_LAYERS.slice() : v.split(',').map((s) => s.trim()).filter(Boolean);
     } else if (a === '--page') opts.page = argv[(i += 1)] || null;
     else if (a === '--run-id') opts.runId = argv[(i += 1)] || null;
+    else if (a === '--enforce-fix') opts.enforceFix = argv[(i += 1)] || null;
     else if (a === '--no-sweep') opts.sweep = false;
     else if (a === '--allow-nonempty-reserved') opts.allowNonEmptyReserved = true;
     else if (!a.startsWith('--') && !opts.page) opts.page = a; // npm run test:page -- W06
@@ -36,8 +37,16 @@ function parseArgs(argv) {
   const bad = opts.layers.filter((l) => !ALL_LAYERS.includes(l));
   if (bad.length) throw new Error(`未知的測試層：${bad.join(',')}`);
   if (opts.page && !/^[A-Za-z0-9_-]+$/.test(opts.page)) throw new Error('工作項 ID 格式不正確');
+  if (opts.enforceFix !== null && !/^(all|[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*)$/.test(opts.enforceFix)) throw new Error('--enforce-fix 格式不正確（Wxx[,Wyy] 或 all）');
   if (opts.runId && !RUN_ID_RE.test(opts.runId)) throw new Error('runId 格式不正確');
   return opts;
+}
+
+/** 決定 PARITY_ENFORCE_FIX：--enforce-fix 優先；否則 --page <id> 自動帶入；否則沿用呼叫端環境變數。 */
+function resolveEnforceFix(opts, inherited) {
+  if (opts.enforceFix) return opts.enforceFix;
+  if (opts.page) return opts.page;
+  return inherited || '';
 }
 
 function isPortOpen(port, host = '127.0.0.1') {
@@ -156,6 +165,11 @@ async function main() {
   // 子程序（vitest / playwright / sweeper）只繼承 DEV 變數
   applyDevEnv(devEnv);
   process.env.TEST_RUN_ID = runId;
+  // decision:"fix" 的白名單差異：test:page -- <id> 自動強制該工作項；--enforce-fix 可明確指定（all = 最終回歸 F01）。
+  const enforceFix = resolveEnforceFix(opts, process.env.PARITY_ENFORCE_FIX);
+  if (enforceFix) process.env.PARITY_ENFORCE_FIX = enforceFix;
+  else delete process.env.PARITY_ENFORCE_FIX;
+  summary.enforceFix = enforceFix || null;
 
   const pwLayers = opts.layers.filter((l) => PLAYWRIGHT_LAYERS.includes(l));
   const needsDb = pwLayers.length > 0;
@@ -257,7 +271,7 @@ async function main() {
   finish(failed ? 1 : 0);
 }
 
-module.exports = { parseArgs, collectPlaywrightCounts, ALL_LAYERS, PLAYWRIGHT_LAYERS };
+module.exports = { parseArgs, resolveEnforceFix, collectPlaywrightCounts, ALL_LAYERS, PLAYWRIGHT_LAYERS };
 
 if (require.main === module) {
   main().catch((error) => {

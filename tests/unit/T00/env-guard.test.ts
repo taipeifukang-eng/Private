@@ -89,6 +89,20 @@ describe('env-guard validateDevEnv', () => {
     expect(msg).not.toContain(PROD_REF);
   });
 
+  it('其他變數含大寫的 Production ref 也拒絕（不分大小寫）', () => {
+    const msg = rejects(goodEnv({ SOME_OTHER_URL: `https://${PROD_REF.toUpperCase()}.supabase.co` }));
+    expect(msg).toContain('SOME_OTHER_URL');
+    expect(msg.toLowerCase()).not.toContain(PROD_REF);
+  });
+
+  it('其他變數含 odvk+16 字母樣式（任意大小寫，即使不是已知 ref）也拒絕', () => {
+    rejects(goodEnv({ X_URL: 'https://odvkabcdefghijklmnop.supabase.co' }));
+    rejects(goodEnv({ X_URL: 'prefix-OdVkABCDEFGHIJKLMNOP-suffix' }));
+    // 少於 16 個字母不算樣式
+    expect(guard.containsProductionRef('odvkabc')).toBe(false);
+    expect(guard.containsProductionRef(DEV_REF)).toBe(false);
+  });
+
   it('所有拒絕訊息都不含 JWT 內容', () => {
     const env = goodEnv({ SUPABASE_SERVICE_ROLE_KEY: fakeJwt({ role: 'service_role', ref: PROD_REF }) });
     const msg = rejects(env);

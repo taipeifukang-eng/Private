@@ -348,3 +348,94 @@ describe('機制三：表格 / xlsx 逐欄比對', () => {
     expect(readWorkbookRows(csv)).toEqual([{ 員編: 'A', 金額: '1' }]);
   });
 });
+
+describe('decision: fix（必須改回舊行為）', () => {
+  const fixEntry: AllowlistEntry = {
+    id: 'fix-nav',
+    page: 'demo',
+    description: 'd',
+    reason: 'r',
+    approvedBy: null,
+    decision: 'fix',
+    fixIn: 'W07',
+    match: { mechanism: 'api-read', kind: 'only-legacy', key: 'gone' },
+  };
+  const ctx = { page: 'demo', mechanism: 'api-read' as const, role: 'admin' };
+  const mkResult = (diffs: { kind: string; key: string }[], list = [fixEntry, pendingEntry]) => {
+    const { status, diffs: d } = classify(diffs, ctx, list);
+    return { id: 'demo/e/admin', page: 'demo', entry: 'e', mechanism: 'api-read' as const, title: 't', legacy: { endpoint: 'a' }, native: { endpoint: 'b' }, compared: {}, status, diffs: d };
+  };
+
+  it('validateAllowlist：decision fix 需要非空 fixIn 且 approvedBy 必須為 null', () => {
+    const base = { id: 'a', page: 'p', description: 'd', reason: 'r' };
+    expect(validateAllowlist([{ ...base, approvedBy: null, decision: 'fix', fixIn: 'W07' }])).toEqual([]);
+    expect(validateAllowlist([{ ...base, approvedBy: null, decision: 'fix' }]).join()).toContain('fixIn');
+    expect(validateAllowlist([{ ...base, approvedBy: null, decision: 'fix', fixIn: ' ' }]).join()).toContain('fixIn');
+    expect(validateAllowlist([{ ...base, approvedBy: '使用者', decision: 'fix', fixIn: 'W07' }]).join()).toContain('approvedBy 必須為 null');
+    expect(validateAllowlist([{ ...base, approvedBy: null, decision: 'other' }]).join()).toContain('decision');
+    expect(validateAllowlist([{ ...base, approvedBy: null, fixIn: '' }]).join()).toContain('fixIn');
+  });
+
+  it('命中 fix 條目 -> allowlistStatus must-fix；排序 fail > must-fix > pending-approval', () => {
+    const only = mkResult([{ kind: 'only-legacy', key: 'gone' }]);
+    expect(only.status).toBe('must-fix');
+    expect(only.diffs[0]).toMatchObject({ allowlistId: 'fix-nav', allowlistStatus: 'must-fix', fixIn: 'W07' });
+    expect(mkResult([{ kind: 'only-legacy', key: 'gone' }, { kind: 'only-native', key: 'extra' }]).status).toBe('must-fix');
+    expect(mkResult([{ kind: 'only-legacy', key: 'gone' }, { kind: 'changed', key: 'unknown' }]).status).toBe('fail');
+  });
+
+  it('沒有 match 的 fix 條目只登記，不自動套用', () => {
+    const { match: _m, ...noMatch } = fixEntry;
+    void _m;
+    expect(mkResult([{ kind: 'only-legacy', key: 'gone' }], [noMatch]).status).toBe('fail');
+  });
+
+  it('報告：summary.mustFix、mustFix 清單含 fixIn，verdict 不是 PASS 也不是 FAIL', () => {
+    const dir = tmpReports();
+    const recorder = new ParityRecorder('demo', { runId: RUN_ID, reportsDir: dir, allowlist: [fixEntry] });
+    recorder.record({
+      entry: 'e', mechanism: 'api-read', role: 'admin', title: 't', legacy: { endpoint: 'a' }, native: { endpoint: 'b' }, compared: {},
+      diffs: [{ kind: 'only-legacy', key: 'gone' }],
+    });
+    const report = readReport(dir);
+    expect(report.verdict).toBe('MUST_FIX');
+    expect(report.summary).toMatchObject({ total: 1, mustFix: 1, fail: 0, pendingApproval: 0 });
+    expect(report.mustFix).toEqual([{ id: 'fix-nav', page: 'demo', description: 'd', fixIn: 'W07', hits: 1 }]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('斷言：未設 PARITY_ENFORCE_FIX 或不含該 fixIn -> 不失敗但加 annotation', () => {
+    const r = mkResult([{ kind: 'only-legacy', key: 'gone' }]);
+    for (const enforceFix of ['', 'W25', 'W08,W25']) {
+      const notes: { type: string; description: string }[] = [];
+      expect(() => assertNoUnlistedDiffs(r, { enforceFix, annotate: (a) => notes.push(a) })).not.toThrow();
+      expect(notes).toHaveLength(1);
+      expect(notes[0].type).toBe('must-fix');
+      expect(notes[0].description).toContain('fix-nav→W07');
+    }
+  });
+
+  it('斷言：PARITY_ENFORCE_FIX 含該 fixIn（逗號分隔）或 all -> 失敗', () => {
+    const r = mkResult([{ kind: 'only-legacy', key: 'gone' }]);
+    const notes: unknown[] = [];
+    for (const enforceFix of ['W07', 'W25, W07', 'all']) {
+      expect(() => assertNoUnlistedDiffs(r, { enforceFix, annotate: (a) => notes.push(a) })).toThrow(/fix-nav[\s\S]*W07/);
+    }
+    expect(notes).toHaveLength(0);
+  });
+
+  it('斷言：fail 仍然失敗；pass / pending-approval 不受影響', () => {
+    expect(() => assertNoUnlistedDiffs(mkResult([{ kind: 'changed', key: 'zzz' }]), { enforceFix: '' })).toThrow(/對等比對失敗/);
+    expect(() => assertNoUnlistedDiffs(mkResult([{ kind: 'only-native', key: 'extra' }]), { enforceFix: 'all' })).not.toThrow();
+    expect(() => assertNoUnlistedDiffs(mkResult([]), { enforceFix: 'all' })).not.toThrow();
+  });
+
+  it('正式 allowlist：兩筆 fix 條目都合法，且 inventory 那筆維持只登記（無 match）', () => {
+    const list = loadAllowlist();
+    const nav = list.find((a) => a.id === 'nav-archived-feature-gate');
+    const inv = list.find((a) => a.id === 'inventory-view-implies-import-delete');
+    expect(nav).toMatchObject({ decision: 'fix', fixIn: 'W07', approvedBy: null });
+    expect(inv).toMatchObject({ decision: 'fix', fixIn: 'W25', approvedBy: null });
+    expect(inv?.match).toBeUndefined();
+  });
+});

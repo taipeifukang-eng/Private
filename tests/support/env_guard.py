@@ -110,6 +110,14 @@ def _is_prod(ref: str) -> bool:
     return ref in PRODUCTION_REFS or str(ref).startswith(PRODUCTION_REF_PREFIX)
 
 
+_PRODUCTION_REF_RE = re.compile(re.escape(PRODUCTION_REF_PREFIX) + r"[a-z]{16}", re.IGNORECASE)
+
+
+def contains_production_ref(value: str) -> bool:
+    lower = str(value).lower()
+    return any(r.lower() in lower for r in PRODUCTION_REFS) or bool(_PRODUCTION_REF_RE.search(str(value)))
+
+
 def validate_dev_env(env: dict, node_env=None) -> dict:
     e = env or {}
     url = e.get("NEXT_PUBLIC_SUPABASE_URL")
@@ -146,8 +154,9 @@ def validate_dev_env(env: dict, node_env=None) -> dict:
             raise EnvGuardError(f"{key} 的 JWT ref 屬於 Production（ref {mask(ref)}）")
         if ref != DEV_REF:
             raise EnvGuardError(f"{key} 的 JWT ref 不是 DEV（ref {mask(ref)}）")
+    # 不分大小寫；另擋 odvk 後接 16 個小寫字母的樣式（不分大小寫）。
     for key, value in e.items():
-        if isinstance(value, str) and any(r in value for r in PRODUCTION_REFS):
+        if isinstance(value, str) and contains_production_ref(value):
             raise EnvGuardError(f"環境變數 {key} 含有 Production ref，拒絕執行")
     return {"project_ref": mask(url_ref), "node_env": effective or "<unset>"}
 

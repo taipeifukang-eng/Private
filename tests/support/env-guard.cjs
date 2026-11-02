@@ -101,6 +101,15 @@ function isProductionRef(ref) {
   return PRODUCTION_REFS.includes(ref) || String(ref).startsWith(PRODUCTION_REF_PREFIX);
 }
 
+const PRODUCTION_REF_PATTERN = new RegExp(`${PRODUCTION_REF_PREFIX}[a-z]{16}`, 'i');
+
+/** 字串中是否含 Production ref（完整 ref 或 odvk+16 字母樣式，不分大小寫）。 */
+function containsProductionRef(value) {
+  const v = String(value);
+  const lower = v.toLowerCase();
+  return PRODUCTION_REFS.some((r) => lower.includes(r.toLowerCase())) || PRODUCTION_REF_PATTERN.test(v);
+}
+
 /**
  * 驗證 env 物件（純函式，可用假 env 測試）。通過時回傳安全摘要，否則丟 EnvGuardError。
  * @param {Record<string,string|undefined>} env
@@ -152,13 +161,56 @@ function validateDevEnv(env, opts = {}) {
   }
 
   // 額外防線：任何其他變數值若含 Production ref 字串，也拒絕（不輸出值）。
+  // 不分大小寫；另擋 Production ref 前綴樣式（odvk 後接 16 個小寫字母，不分大小寫）。
   for (const [key, value] of Object.entries(e)) {
-    if (typeof value === 'string' && PRODUCTION_REFS.some((r) => value.includes(r))) {
+    if (typeof value === 'string' && containsProductionRef(value)) {
       throw new EnvGuardError(`環境變數 ${key} 含有 Production ref，拒絕執行`);
     }
   }
 
   return { projectRef: mask(urlRef), nodeEnv: nodeEnv || '<unset>' };
+}
+
+/** 開發後端（scripts/workspace-backend.cjs）一定要由 .env.development.local 提供的變數。 */
+const BACKEND_REQUIRED_KEYS = Object.freeze([
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'SUPABASE_SERVICE_ROLE_KEY',
+  'EXPECTED_SUPABASE_PROJECT_REF',
+]);
+
+/**
+ * 開發後端啟動用（純函式）。
+ * 1. 必要變數都必須存在於 .env.development.local 本身（devFileEnv），不可靠 .env.local 等 fallback 補上；
+ * 2. 載入後的 loadedEnv（例如 Next loadEnvConfig 之後的 process.env）值必須與 devFileEnv 相同
+ *    （偵測 fallback 檔或 shell 變數覆蓋）；
+ * 3. URL ref 與 anon / service role JWT（只解碼不驗簽）的 ref 都必須等於 DEV ref。
+ * 錯誤訊息不含值，ref 一律遮罩。
+ */
+function assertBackendDevEnv(devFileEnv, loadedEnv) {
+  const file = devFileEnv || {};
+  const loaded = loadedEnv || {};
+  for (const key of BACKEND_REQUIRED_KEYS) {
+    if (!file[key]) {
+      throw new EnvGuardError(`${key} 必須定義在 ${ALLOWED_ENV_FILE}（不可由 .env.local 等 fallback 檔補上）`);
+    }
+  }
+  for (const key of BACKEND_REQUIRED_KEYS) {
+    if (loaded[key] !== file[key]) {
+      throw new EnvGuardError(`${key} 載入後的值與 ${ALLOWED_ENV_FILE} 不一致（可能被 fallback env 檔或 shell 變數覆蓋）`);
+    }
+  }
+  const urlRef = parseSupabaseRef(loaded.NEXT_PUBLIC_SUPABASE_URL);
+  if (isProductionRef(urlRef)) throw new EnvGuardError(`Supabase ref 屬於 Production（ref ${mask(urlRef)}），拒絕啟動`);
+  if (urlRef !== DEV_REF || loaded.EXPECTED_SUPABASE_PROJECT_REF !== urlRef) {
+    throw new EnvGuardError('Supabase URL / EXPECTED_SUPABASE_PROJECT_REF 不是 DEV，拒絕啟動');
+  }
+  for (const key of ['NEXT_PUBLIC_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']) {
+    const payload = decodeJwtPayload(loaded[key], key);
+    if (!payload.ref || isProductionRef(String(payload.ref)) || payload.ref !== DEV_REF) {
+      throw new EnvGuardError(`${key} 的 JWT ref 不是 DEV（ref ${mask(payload.ref)}），拒絕啟動`);
+    }
+  }
 }
 
 /** 讀取 .env.development.local 並驗證；回傳 { env, summary }。env 不會寫入 process.env。 */
@@ -223,6 +275,10 @@ module.exports = {
   parseEnvText,
   loadDevEnvFile,
   validateDevEnv,
+  containsProductionRef,
+  assertBackendDevEnv,
+  BACKEND_REQUIRED_KEYS,
+  decodeJwtPayload,
   assertDevEnvironment,
   applyDevEnv,
   preflightServer,
