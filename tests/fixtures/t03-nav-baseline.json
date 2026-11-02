@@ -1,0 +1,286 @@
+{
+  "count": 24,
+  "pages": [
+    {
+      "navLabel": "我的任務",
+      "tabTitle": "我的任務",
+      "headings": [
+        "我的任務"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "任務管理",
+      "tabTitle": "任務管理",
+      "headings": [
+        "任務管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "已封存任務",
+      "tabTitle": "已封存任務",
+      "headings": [
+        "已封存任務"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "公司組織",
+      "tabTitle": "公司組織",
+      "headings": [
+        "公司組織"
+      ],
+      "hasTable": false,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "部門管理",
+      "tabTitle": "部門管理",
+      "headings": [
+        "部門管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "店長指派",
+      "tabTitle": "店長指派",
+      "headings": [
+        "店長指派",
+        "門市指派總覽"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "經理/督導管理",
+      "tabTitle": "經理／督導管理",
+      "headings": [
+        "經理／督導管理",
+        "管理門市總覽"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "門市管理",
+      "tabTitle": "門市管理",
+      "headings": [
+        "門市管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "員工管理",
+      "tabTitle": "員工管理",
+      "headings": [
+        "員工管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "人員異動管理",
+      "tabTitle": "人員異動管理",
+      "headings": [
+        "人員異動管理",
+        "第 1 列"
+      ],
+      "hasTable": false,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "批次匯入員工",
+      "tabTitle": "批次匯入員工",
+      "headings": [
+        "批次匯入員工"
+      ],
+      "hasTable": false,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "活動管理",
+      "tabTitle": "活動管理",
+      "headings": [
+        "活動管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "盤點管理",
+      "tabTitle": "盤點 · 2026-11",
+      "headings": [
+        "離線盤點匯入匯出工具",
+        "盤點結果分析報表",
+        "分類統計 0 類",
+        "盤虧前十名",
+        "盤盈前十名"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "業績管理",
+      "tabTitle": "業績管理",
+      "headings": [
+        "業績管理",
+        "獎金閾值設定（每人）",
+        "月獎金閾值",
+        "季獎金閾值",
+        "逐月業績明細"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "藥師管理",
+      "tabTitle": "藥師管理",
+      "headings": [
+        "藥師管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "員工購物管理",
+      "tabTitle": "員工購物管理",
+      "headings": [
+        "員工購物管理",
+        "職稱金額彙總",
+        "員工消費彙總"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "關係會員",
+      "tabTitle": "關係會員",
+      "headings": [
+        "關係會員"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "每月人員狀態",
+      "tabTitle": "人員狀態 · 南港店",
+      "headings": [
+        "每月人員狀態",
+        "門市每月統計資料",
+        "本月門市支援時數"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "巡店列表",
+      "tabTitle": "巡店 · 全部門市 · 2026-11",
+      "headings": [
+        "巡店列表",
+        "2026-11 巡店月曆",
+        "這個月份沒有巡店紀錄"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "巡店比較",
+      "tabTitle": "巡店比較 · 選擇門市",
+      "headings": [
+        "督導與經理巡店比較"
+      ],
+      "hasTable": false,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "待改善追蹤",
+      "tabTitle": "待改善追蹤",
+      "headings": [
+        "待改善追蹤"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "模板管理",
+      "tabTitle": "巡店範本設定",
+      "headings": [
+        "巡店範本與計分設定"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "使用者管理",
+      "tabTitle": "使用者管理",
+      "headings": [
+        "使用者管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "角色權限管理",
+      "tabTitle": "角色權限管理",
+      "headings": [
+        "角色權限管理"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    }
+  ]
+}

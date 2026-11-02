@@ -1,25 +1,4 @@
 <script setup lang="ts">
-import EmployeePurchases from "./pages/EmployeePurchases.vue";
-import Pharmacists from "./pages/Pharmacists.vue";
-import Relationships from "./pages/Relationships.vue";
-import RoleManagement from "./pages/Roles.vue";
-import UserManagement from "./pages/Users.vue";
-import Transfers from "./pages/Transfers.vue";
-import MovementManagement from "./pages/MovementManagement.vue";
-import MovementDraft from "./pages/MovementDraft.vue";
-import MovementHistory from "./pages/MovementHistory.vue";
-import Employees from "./pages/Employees.vue";
-import EmployeeCreate from "./pages/EmployeeCreate.vue";
-import EmployeeImport from './pages/EmployeeImport.vue';
-import EmployeeBirthdays from "./pages/EmployeeBirthdays.vue";
-import Departments from "./pages/Departments.vue";
-import DepartmentDetail from "./pages/DepartmentDetail.vue";
-import DepartmentWorkEditor from "./pages/DepartmentWorkEditor.vue";
-import Organization from "./pages/Organization.vue";
-import OrganizationEditor from "./pages/OrganizationEditor.vue";
-import StoreMap from "./pages/StoreMap.vue";
-import StorePromotions from "./pages/StorePromotions.vue";
-import StorePersonnel from "./pages/StorePersonnel.vue";
 import {
   ref,
   computed,
@@ -47,41 +26,12 @@ import {
 import { api, ApiError } from "./api";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
 import Modal from "./components/Modal.vue";
-import InspectionCompare from "./pages/InspectionCompare.vue";
-import Improvements from "./pages/Improvements.vue";
-import ImprovementDetail from "./pages/ImprovementDetail.vue";
-import InspectionSettings from "./pages/InspectionSettings.vue";
-import InspectionSettingEdit from "./pages/InspectionSettingEdit.vue";
-import TaskDispatch from "./pages/TaskDispatch.vue";
-import TaskTemplateEditor from "./pages/TaskTemplateEditor.vue";
-import TaskManagement from "./pages/TaskManagement.vue";
-import TaskManagementDetail from "./pages/TaskManagementDetail.vue";
-import TaskArchive from "./pages/TaskArchive.vue";
-import TaskArchiveDetail from "./pages/TaskArchiveDetail.vue";
-import MyTasks from "./pages/MyTasks.vue";
-import TaskRunner from "./pages/TaskRunner.vue";
-import InspectionPrint from "./pages/InspectionPrint.vue";
-import Inspections from "./pages/Inspections.vue";
-import Campaigns from "./pages/Campaigns.vue";
-import CampaignEdit from "./pages/CampaignEdit.vue";
-import InspectionEditor from "./pages/InspectionEditor.vue";
-import InspectionDetail from "./pages/InspectionDetail.vue";
-import CampaignSchedule from "./pages/CampaignSchedule.vue";
-import Monthly from "./pages/Monthly.vue";
-import MonthlyEdit from "./pages/MonthlyEdit.vue";
-import StoreEmployees from "./pages/StoreEmployees.vue";
-import Stores from "./pages/Stores.vue";
-import StoreEditor from "./pages/StoreEditor.vue";
-import StoreRelocation from "./pages/StoreRelocation.vue";
-import Supervisors from "./pages/Supervisors.vue";
-import SupervisorEdit from "./pages/SupervisorEdit.vue";
-import StoreManagers from "./pages/StoreManagers.vue";
-import StoreManagerEdit from "./pages/StoreManagerEdit.vue";
-import Performance from "./pages/Performance.vue";
-import PerformanceThresholds from "./pages/PerformanceThresholds.vue";
-import PerformancePrescription from "./pages/PerformancePrescription.vue";
-import PerformanceBonus from "./pages/PerformanceBonus.vue";
-import Inventory from "./pages/Inventory.vue";
+import {
+  WORKSPACE_PAGES,
+  WORKSPACE_PUBLIC_PAGES,
+  isPageAllowed,
+  pageUsesDefaultStore,
+} from "./workspace-pages";
 const session = useSession(),
   work = useWorkspace(),
   router = useRouter(),
@@ -105,6 +55,12 @@ const closeTabs = computed(() =>
 const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
+// 公開頁（D14）：不需登入，不啟動工作階段與頁籤機制。
+const publicPage = computed(() =>
+  route.meta.public
+    ? WORKSPACE_PUBLIC_PAGES.find((p) => p.name === route.name)
+    : undefined,
+);
 const menuButton = ref<HTMLButtonElement>();
 const menuPanel = ref<HTMLElement>();
 async function toggleNavigation() {
@@ -200,52 +156,11 @@ function expire() {
   }
 }
 function open(kind: WorkTab["kind"]) {
-  work.open(
-    kind,
-    [
-      "inspections",
-      "inspection-compare",
-      "improvements",
-      "monthly",
-      "performance",
-      "inventory",
-    ].includes(kind)
-      ? session.defaultStore
-      : "",
-  );
+  work.open(kind, pageUsesDefaultStore(kind) ? session.defaultStore : "");
   closeNavigation();
 }
 function allowed(tab: WorkTab) {
-  return (
-    !session.expired &&
-    (tab.kind === "employee-purchases" ? session.data?.capabilities.employeePurchases : tab.kind === "pharmacists" ? session.data?.capabilities.pharmacists : tab.kind === "relationships" ? session.data?.capabilities.relationships : tab.kind === "roles" ? session.data?.capabilities.roles : tab.kind === "users" ? session.data?.capabilities.users : tab.kind === "movement-management" ? (session.data?.capabilities.movementDraft || session.data?.capabilities.movementHistory || session.data?.capabilities.transfers) : tab.kind === "transfers" ? session.data?.capabilities.transfers : tab.kind === "movement-draft" ? session.data?.capabilities.movementDraft : tab.kind === "movement-history" ? session.data?.capabilities.movementHistory : tab.kind === "employees" || tab.kind === "employee-history" ? session.data?.capabilities.employees : tab.kind === "employee-create" ? session.data?.capabilities.employeeCreate : tab.kind === "employee-import" ? session.data?.capabilities.employeeImport : tab.kind === "employee-birthdays" ? session.data?.capabilities.employeeBirthdays : tab.kind.startsWith("department") ? session.data?.capabilities.departments : tab.kind.startsWith("organization") ? session.data?.capabilities.organization : tab.kind === "store-map" ? session.data?.capabilities.storeMap : tab.kind === "store-promotions" || tab.kind === "store-personnel" || tab.kind === "store-personnel-history" || tab.kind === "store-employees" || tab.kind === "stores" || tab.kind === "store-editor" || tab.kind === "store-relocation" || tab.kind === "store-history-editor" ? session.data?.capabilities.storeManagement : tab.kind === "supervisors" || tab.kind === "supervisor-edit" ? session.data?.capabilities.supervisors : tab.kind === "store-managers" || tab.kind === "store-manager-edit" ? session.data?.capabilities.storeManagers : tab.kind === "task-copy" || tab.kind === "task-assign" || tab.kind === "task-template-editor" ||
-    tab.kind.startsWith("task-management")
-      ? session.data?.capabilities.taskManagement
-      : tab.kind.startsWith("task-archive")
-        ? session.data?.capabilities.taskArchive
-        : tab.kind === "my-tasks" || tab.kind === "task-runner"
-          ? session.data?.capabilities.tasks
-          : tab.kind.startsWith("monthly")
-            ? session.data?.capabilities.monthly
-            : tab.kind.startsWith("performance")
-              ? session.data?.capabilities.performance
-              : tab.kind === "inventory"
-                ? session.data?.capabilities.inventory
-                : tab.kind.startsWith("inspection-setting")
-                  ? session.data?.capabilities.inspectionSettings
-                  : tab.kind.startsWith("improvement")
-                    ? session.data?.capabilities.improvements
-                    : tab.kind === "inspection-compare"
-                      ? session.data?.capabilities.compareInspections
-                      : tab.kind === "inspection-editor"
-                        ? session.data?.capabilities.createInspections ||
-                          session.data?.capabilities.inspections
-                        : tab.kind === "inspection-print" ||
-                            tab.kind === "inspections" ||
-                            tab.kind === "inspection-detail"
-                          ? session.data?.capabilities.inspections
-                          : session.data?.capabilities.campaigns)
-  );
+  return isPageAllowed(tab.kind, session.data?.capabilities, session.expired);
 }
 function requestClose(ids: string[], logout = false) {
   if (closingBusy.value || work.tabs.some((t) => ids.includes(t.id) && t.busy))
@@ -324,6 +239,7 @@ watch(
 watch(
   () => route.path,
   (path) => {
+    if (route.meta.public) return;
     const id = path.split("/")[2];
     if (id && work.tabs.some((t) => t.id === id)) work.active = id;
     else if (path === "/") work.active = "";
@@ -348,7 +264,10 @@ function tabKeys(event: KeyboardEvent, index: number) {
     )?.focus(),
   );
 }
-onMounted(async () => {
+let initialized = false;
+async function init() {
+  if (initialized) return;
+  initialized = true;
   try {
     dark.value = localStorage.getItem("fk-workspace-theme") === "dark";
     document.documentElement.dataset.theme = dark.value ? "dark" : "light";
@@ -359,7 +278,25 @@ onMounted(async () => {
   timer = setInterval(refreshSession, 60000);
   await boot();
   if (route.path !== "/") await router.replace("/");
+}
+onMounted(async () => {
+  await router.isReady();
+  if (route.meta.public) {
+    booting.value = false;
+    return;
+  }
+  await init();
 });
+// 首次載入為公開頁時略過初始化；之後切到工作台路由要補跑一次（session、監聽、主題）。
+watch(
+  () => route.meta.public,
+  (isPublic) => {
+    if (!isPublic && !initialized) {
+      booting.value = true;
+      void init();
+    }
+  },
+);
 onBeforeUnmount(() => {
   clearInterval(timer);
   window.removeEventListener("beforeunload", beforeUnload);
@@ -368,7 +305,12 @@ onBeforeUnmount(() => {
 });
 </script>
 <template>
-  <div v-if="booting" class="boot" role="status">正在開啟菁英作業台…</div>
+  <component
+    :is="publicPage.component"
+    v-if="publicPage"
+    :params="route.params"
+  />
+  <div v-else-if="booting" class="boot" role="status">正在開啟菁英作業台…</div>
   <main v-else-if="!session.data" class="login-layout">
     <section class="login-intro">
       <div class="brand-mark">FK</div>
@@ -612,102 +554,7 @@ onBeforeUnmount(() => {
           }}
         </div>
         <div v-show="allowed(tab)">
-          <Transfers v-if="tab.kind === 'transfers'" :tab="tab" />
-          <MovementManagement v-if="tab.kind === 'movement-management'" :tab="tab" />
-          <MovementDraft v-if="tab.kind === 'movement-draft'" :tab="tab" />
-          <MovementHistory v-if="tab.kind === 'movement-history'" :tab="tab" />
-          <Employees v-if="tab.kind === 'employees' || tab.kind === 'employee-history'" :tab="tab" />
-          <EmployeeCreate v-if="tab.kind === 'employee-create'" :tab="tab" />
-          <EmployeeImport v-if="tab.kind === 'employee-import'" :tab="tab" />
-          <EmployeeBirthdays v-if="tab.kind === 'employee-birthdays'" :tab="tab" />
-          <Departments v-if="tab.kind === 'departments'" :tab="tab" />
-          <DepartmentDetail v-if="tab.kind === 'department-detail'" :tab="tab" />
-          <DepartmentWorkEditor v-if="tab.kind === 'department-work-editor'" :tab="tab" />
-          <Organization v-if="tab.kind === 'organization'" :tab="tab" />
-          <OrganizationEditor v-if="tab.kind === 'organization-editor'" :tab="tab" />
-          <StoreMap v-if="tab.kind === 'store-map'" :tab="tab" />
-          <StorePromotions v-if="tab.kind === 'store-promotions'" :tab="tab" />
-          <StorePersonnel v-if="tab.kind === 'store-personnel' || tab.kind === 'store-personnel-history'" :tab="tab" />
-          <StoreEmployees v-if="tab.kind === 'store-employees'" :tab="tab" />
-          <Stores v-else-if="tab.kind === 'stores'" :tab="tab" />
-          <StoreEditor v-else-if="tab.kind === 'store-editor'" :tab="tab" />
-          <StoreRelocation v-else-if="tab.kind === 'store-relocation' || tab.kind === 'store-history-editor'" :tab="tab" />
-          <Supervisors v-else-if="tab.kind === 'supervisors'" :tab="tab" />
-          <SupervisorEdit v-else-if="tab.kind === 'supervisor-edit'" :tab="tab" />
-          <StoreManagers v-else-if="tab.kind === 'store-managers'" :tab="tab" />
-          <StoreManagerEdit v-else-if="tab.kind === 'store-manager-edit'" :tab="tab" />
-          <TaskDispatch v-else-if="tab.kind === 'task-copy' || tab.kind === 'task-assign'" :tab="tab" />
-          <TaskTemplateEditor
-            v-else-if="tab.kind === 'task-template-editor'"
-            :tab="tab"
-          />
-          <TaskManagement
-            v-else-if="tab.kind === 'task-management'"
-            :tab="tab"
-          />
-          <TaskManagementDetail
-            v-else-if="tab.kind === 'task-management-detail'"
-            :tab="tab"
-          />
-          <TaskArchive v-else-if="tab.kind === 'task-archive'" :tab="tab" />
-          <TaskArchiveDetail
-            v-else-if="tab.kind === 'task-archive-detail'"
-            :tab="tab"
-          />
-          <MyTasks v-else-if="tab.kind === 'my-tasks'" :tab="tab" />
-          <TaskRunner v-else-if="tab.kind === 'task-runner'" :tab="tab" />
-          <InspectionPrint
-            v-else-if="tab.kind === 'inspection-print'"
-            :tab="tab"
-          />
-          <InspectionSettings
-            v-else-if="tab.kind === 'inspection-settings'"
-            :tab="tab"
-          />
-          <InspectionSettingEdit
-            v-else-if="tab.kind === 'inspection-setting-edit'"
-            :tab="tab"
-          />
-          <Improvements v-else-if="tab.kind === 'improvements'" :tab="tab" />
-          <ImprovementDetail
-            v-else-if="tab.kind === 'improvement-detail'"
-            :tab="tab"
-          />
-          <InspectionCompare
-            v-else-if="tab.kind === 'inspection-compare'"
-            :tab="tab"
-          />
-          <InspectionEditor
-            v-else-if="tab.kind === 'inspection-editor'"
-            :tab="tab"
-          /><InspectionDetail
-            v-else-if="tab.kind === 'inspection-detail'"
-            :tab="tab"
-          /><CampaignSchedule
-            v-else-if="tab.kind === 'campaign-schedule'"
-            :tab="tab"
-          /><Monthly
-            v-else-if="tab.kind === 'monthly'"
-            :tab="tab"
-          /><MonthlyEdit
-            v-else-if="tab.kind === 'monthly-edit'"
-            :tab="tab"
-          /><PerformanceThresholds v-else-if="tab.kind === 'performance-thresholds'" :tab="tab" />
-          <PerformancePrescription v-else-if="tab.kind === 'performance-prescription'" :tab="tab" />
-          <PerformanceBonus v-else-if="tab.kind === 'performance-bonus'" :tab="tab" />
-          <Performance
-            v-else-if="tab.kind.startsWith('performance')"
-            :tab="tab"
-          /><EmployeePurchases v-else-if="tab.kind === 'employee-purchases'" :tab="tab" /><Pharmacists v-else-if="tab.kind === 'pharmacists'" :tab="tab" /><Relationships v-else-if="tab.kind === 'relationships'" :tab="tab" /><RoleManagement v-else-if="tab.kind === 'roles'" :tab="tab" /><UserManagement v-else-if="tab.kind === 'users'" :tab="tab" /><Inventory
-            v-else-if="tab.kind === 'inventory'"
-            :tab="tab"
-          /><Inspections
-            v-else-if="tab.kind === 'inspections'"
-            :tab="tab"
-          /><Campaigns v-else-if="tab.kind === 'campaigns'" :tab="tab" /><CampaignEdit
-            v-else-if="tab.kind === 'campaign-edit'"
-            :tab="tab"
-          />
+          <component :is="WORKSPACE_PAGES[tab.kind].component" :tab="tab" />
         </div>
       </section>
     </section>

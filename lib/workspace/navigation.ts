@@ -3,6 +3,7 @@ import {
   USER_MANAGEMENT_NAV_PERMISSION_CODES,
   ROLE_MANAGEMENT_NAV_PERMISSION_CODES,
 } from "@/lib/permissions/rbac-management";
+import type { WorkspaceNavKind } from "./page-kinds";
 import { type Context, CAMPAIGN_READ_CODES } from "./server";
 import {
   GA_MAINTENANCE_MODULE_CODES,
@@ -34,36 +35,7 @@ export function workspaceNavigation(
     label: string,
     href: string,
     codes: readonly string[] = [],
-    kind?:
-      | "transfers"
-      | "movement-management"
-      | "movement-draft"
-      | "movement-history"
-      | "employees"
-      | "employee-create"
-      | "employee-birthdays"
-      | "employee-import"
-      | "departments"
-      | "organization"
-      | "stores"
-      | "supervisors"
-      | "store-managers"
-      | "task-management"
-      | "task-archive"
-      | "my-tasks"
-      | "inspection-settings"
-      | "improvements"
-      | "inspection-compare"
-      | "inspections"
-      | "campaigns"
-      | "monthly"
-      | "performance"
-      | "inventory"
-      | "employee-purchases"
-      | "pharmacists"
-    | "relationships"
-    | "roles"
-    | "users",
+    kind?: WorkspaceNavKind,
   ) => ({ label, href, kind, allowed: !codes.length || has(...codes) });
   const groups = [
     {

@@ -59,3 +59,10 @@ python scripts/test-workspace-five-recovery.py
 
 框架參考：[Vite proxy](https://vite.dev/config/server-options#server-proxy)、[Vue component state lifecycle](https://vuejs.org/guide/built-ins/keep-alive.html)。
 
+
+## 新增工作頁與公開頁（T03）
+
+- 頁面種類（kind）的唯一來源是 `../lib/workspace/page-kinds.ts`（導覽 kind 與明細 kind 兩份清單）。
+- 新增工作頁：1) 在 `page-kinds.ts` 加 kind；2) 在 `src/workspace-page-meta.ts` 登錄標題與所需權限（capability，任一即可）；3) 在 `src/workspace-pages.ts` 登錄元件。漏登錄任何一處，`vue-tsc --noEmit` 會失敗；`lib/workspace/navigation.ts` 使用未登錄的 kind 時 `npx tsc --noEmit` 會失敗。App.vue 不需修改。
+- 公開頁（不需登入，D14）：Next 保留原路徑，由 `middleware.ts` 轉址到 `/workspace/index.html#/<route>`。在 `src/workspace-pages.ts` 的 `WORKSPACE_PUBLIC_PAGES` 與 `lib/workspace/public-routes.ts` 的 `WORKSPACE_PUBLIC_REDIRECTS` 各登錄一筆。目前只有示範路由 `/public-demo/:token`，轉址僅在 DEV 工作台環境啟用。
+- 回歸：`tests/unit/T03`（與重構前權限、標題逐項等價比對）、`tests/e2e/T03.regression.spec.ts`（admin 逐頁基準，`T03_BASELINE=write` 重寫基準）、`tests/e2e/T03.public-route.spec.ts`。
