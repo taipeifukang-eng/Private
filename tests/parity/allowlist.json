@@ -272,5 +272,82 @@
       "kind": "changed",
       "key": "canDelete"
     }
+  },
+  {
+    "id": "w01b-block-preview-follows-db",
+    "page": "monthly-edit",
+    "description": "預計獎金區塊預覽：舊版編輯頁自己寫一套判斷（calculateBlock），與儲存後資料庫 calculate_bonus_block 算出的區塊在三種情況不同——(1) 督導(店長)-雙：舊版當成「店長-雙」得區塊 3，資料庫明確排除督導，整月為區塊 1；(2) 勾選或取消「藥師」：舊版預覽使用載入時的藥師狀態、不會跟著更新，資料庫用儲存後的值；(3) 正職天數空白：舊版當 0 得區塊 3；新版送出前同樣把空白轉 0（與舊版 parseFloat||0 一致），預覽與儲存結果都是區塊 3，無差異。新版預覽照資料庫規則，儲存前看到的區塊就是儲存後的區塊。",
+    "reason": "M1 規格 W01b-q1（使用者 2026-11-02 確認）。規則集中於 lib/monthly-staff/block.ts，單元測試以 ≥20 組（手寫 32 筆＋抽樣 300 筆）在 DEV 呼叫 calculate_bonus_block RPC 逐筆比對；整合層另驗證儲存後觸發器的 calculated_block 與預覽相同。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "block-preview",
+      "kind": "changed",
+      "key": "block"
+    }
+  },
+  {
+    "id": "w01b-newbie-reminder-not-blocking",
+    "page": "monthly-edit",
+    "description": "新人升階提醒不阻擋儲存：舊版 confirm 按「取消」會中止儲存；新版視窗的「是」（套用階段）與「否」（維持原樣）都會繼續儲存。",
+    "reason": "M1 規格 W01b-q2（使用者補充：升階最終由人員異動紀錄控制，提醒只是請店長確認每位新人的狀態，不能阻擋儲存）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "newbie-reminder",
+      "kind": "changed",
+      "key": "savedAfterNo"
+    }
+  },
+  {
+    "id": "w01b-newbie-promote-via-movement",
+    "page": "monthly-edit",
+    "description": "到職滿 6 個月的新人：舊版問「是否要改成專員？」（按是也不會改職位，只是繼續儲存）；新版改為提示「升階請以人員異動紀錄處理，本表單不會直接改職位」，並附前往人員異動紀錄的連結（有權限者）。第 1、2 個月的提醒文字相同。",
+    "reason": "M1 規格 W01b-q2：滿 6 個月提示改專員時不在此表單直接改職位，改走人員異動紀錄。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "newbie-reminder",
+      "kind": "changed",
+      "key": "message"
+    }
+  },
+  {
+    "id": "w01b-partial-month-no-auto-status",
+    "page": "monthly-edit",
+    "description": "天數與本月狀態：天數剛好等於當月天數時兩邊都自動設為整月在職；不滿月時，舊版若目前為整月會自動改成「到職（本月新進）」，新版不自動改，改顯示「請確認本月狀態」並列出可能原因（新進、調店、留職停薪、復職、離職）。另外新版只在天數變動時判斷，開啟頁面當下不會自動改狀態（舊版載入時也會套用）。",
+    "reason": "M1 規格 W01b-q3（使用者補充：影響獎金的關鍵是職位認定，不滿整月的專員以上可能是調店、留職停薪、復職、離職，不能猜成新進）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "partial-month-status",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "w01b-submitted-edit-locked",
+    "page": "monthly-edit",
+    "description": "已送審（尚未確認）人員的編輯頁：舊版仍可修改並儲存；新版整月鎖定，只顯示「此筆目前僅供檢視」，沒有儲存按鈕，API 回 409（需先退回）。已確認的專屬畫面兩邊一致。",
+    "reason": "M1-x1 規則表（既有行為，與 W01a 名冊「編輯」按鈕差異同一決定）。需使用者確認是否接受。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "submitted-edit",
+      "kind": "changed",
+      "key": "canSave"
+    }
+  },
+  {
+    "id": "w01b-external-hours-not-in-partial-notes",
+    "page": "monthly-edit",
+    "description": "外務時數寫入位置：舊版在有外務時數時，把「外務時數: N小時」加在 partial_month_notes（未滿月備註）前面；新版只存在 extra_task_external_hours 欄位，不改動未滿月備註。規劃時數與外務時數本身的值兩邊相同。",
+    "reason": "舊版把資料混寫進備註欄屬不合理行為（D07：舊版不合理行為由新版修正並列白名單）。需使用者核可；若要維持舊版行為，需另開修正。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "save-readback",
+      "kind": "changed",
+      "key": "partial_month_notes"
+    }
   }
 ]

@@ -26,7 +26,9 @@ describe('M1-x1 規則表被實際引用', () => {
   });
   it('規則表是純檔案：不 import 任何伺服器或 Supabase 模組', () => {
     const rules = read('lib/workspace/monthly-status-rules.ts');
-    expect(rules).not.toMatch(/^import /m);
+    // 只允許引用 lib/monthly-staff 的純函式（W01b 抽出新人升階判斷）；不得 import 套件、@/ 別名或伺服器模組。
+    const imports = Array.from(rules.matchAll(/^import .* from ['"](.+)['"];?$/gm)).map((m) => m[1]);
+    for (const spec of imports) expect(spec, spec).toMatch(/^\.\.\/monthly-staff\/[a-z-]+$/);
   });
 });
 

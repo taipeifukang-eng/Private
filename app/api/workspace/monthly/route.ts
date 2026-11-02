@@ -30,6 +30,8 @@ import {
   STORE_WIDE_ACTIONS,
   type MonthlyAction,
 } from "@/lib/workspace/monthly-status-rules";
+import { isSupervisorActingManagerDual } from "@/lib/monthly-staff/block";
+import { plannedExtraTaskHours } from "@/lib/monthly-staff/hours";
 import {
   MONTHLY_STATUS_OPTIONS,
   POSITION_OPTIONS,
@@ -403,10 +405,7 @@ export async function POST(request: Request) {
           )
         )
           throw new WorkspaceError(400, "外務類型不正確");
-        const dual =
-          u.position.includes("督導") &&
-          u.position.includes("代理店長") &&
-          u.is_dual_position;
+        const dual = isSupervisorActingManagerDual(u.position, u.is_dual_position);
         updates.work_days =
           !dual && u.employment_type === "full_time" ? u.work_days : null;
         updates.work_hours =
@@ -428,17 +427,19 @@ export async function POST(request: Request) {
           ])
             updates[key] = null;
         updates.extra_tasks = u.extra_tasks.length ? u.extra_tasks : null;
+        // W01b：外務時數與規劃時數照舊版（`|| null`）；規劃時數公式與 Vue 預覽共用 lib/monthly-staff/hours.ts。
         updates.extra_task_external_hours = u.extra_tasks.length
-          ? u.extra_task_external_hours
+          ? u.extra_task_external_hours || null
           : null;
         updates.extra_task_planned_hours = u.extra_tasks.length
-          ? dual
-            ? u.work_hours
-            : u.employment_type === "full_time"
-              ? u.monthly_status === "full_month"
-                ? 160
-                : Math.round(((u.work_days || 0) / 5) * 32 * 10) / 10
-              : null
+          ? plannedExtraTaskHours({
+              position: u.position,
+              employment_type: u.employment_type,
+              is_dual_position: u.is_dual_position,
+              monthly_status: u.monthly_status,
+              work_days: u.work_days,
+              work_hours: u.work_hours,
+            })
           : null;
       }
       updates.updated_at = new Date().toISOString();

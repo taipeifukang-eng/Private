@@ -1,0 +1,71 @@
+{
+  "page": "monthly-edit",
+  "legacyRoute": "/monthly-status/edit/[id]",
+  "workItem": "W01b",
+  "entries": [
+    {
+      "id": "block-preview",
+      "mechanism": "ui-extract",
+      "description": "同一筆人員（同一份輸入）：舊編輯頁「系統自動計算區塊」與新編輯頁區塊預覽逐案比對。新版照資料庫 calculate_bonus_block（W01b-q1）。",
+      "legacy": { "ui": { "route": "/monthly-status/edit/<id>?year_month=2099-11&store_id=<ZT01>", "rowSelector": "h4 + div span" } },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 [data-block-preview] .block-chip" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "planned-hours",
+      "mechanism": "ui-extract",
+      "description": "外務時數自動換算：勾選外務後「該店規劃實上時數（自動計算）」欄位的值，舊版與新版逐案比對（正職整月、正職 10 天、督導(代理店長)-雙）。",
+      "legacy": { "ui": { "route": "/monthly-status/edit/<id>?year_month=2099-11&store_id=<ZT01>", "rowSelector": "input[readonly]" } },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 [data-planned-hours]" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "newbie-reminder",
+      "mechanism": "ui-extract",
+      "description": "新人升階提醒：到職後第 0／1／2／6 個月的新人，按儲存時舊版跳 confirm、新版跳「新人階段提醒」視窗；比對是否提醒、提醒訊息，以及回答『否』之後是否仍儲存（W01b-q2：新版不阻擋）。",
+      "legacy": { "source": "app/monthly-status/edit/[id]/page.tsx handleSave（confirm 對話框）" },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 dialog「新人階段提醒」" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "partial-month-status",
+      "mechanism": "ui-extract",
+      "description": "天數與本月狀態：把正職天數改成不滿月／剛好滿月後，本月狀態下拉的值與是否出現『請確認本月狀態』提示（W01b-q3：新版滿月自動整月、不滿月不自動改並提示）。",
+      "legacy": { "source": "app/monthly-status/edit/[id]/page.tsx「工作天數變更時自動判斷是否整月」" },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 [name=monthly_status]、[data-partial-hint]" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "admin-level-required",
+      "mechanism": "ui-extract",
+      "description": "行政職位階段必填：職位改成行政但不選過階／未過階時，儲存被擋下、訊息一致、DB 不變。",
+      "legacy": { "source": "app/monthly-status/edit/[id]/page.tsx handleSave（alert）" },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 role=alert" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "confirmed-screen",
+      "mechanism": "ui-extract",
+      "description": "已確認人員的專屬畫面：標題、說明文字、返回按鈕、沒有儲存按鈕。",
+      "legacy": { "ui": { "route": "/monthly-status/edit/<id>?year_month=2099-12&store_id=<ZT01>", "rowSelector": "h2" } },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 [data-confirmed-screen]" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "submitted-edit",
+      "mechanism": "ui-extract",
+      "description": "已送審（未確認）人員的編輯頁：舊版仍可編輯與儲存；新版整月鎖定、只能檢視（M1-x1 規則表）。",
+      "legacy": { "ui": { "route": "/monthly-status/edit/<id>?year_month=2099-12&store_id=<ZT02>", "rowSelector": "button" } },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 [data-readonly-notice]、儲存按鈕" },
+      "compareKey": "scenario"
+    },
+    {
+      "id": "save-readback",
+      "mechanism": "write-readback",
+      "description": "同樣的操作各自在舊編輯頁（updateStaffStatus）與新編輯頁（POST save）完成，以 service role 回讀 monthly_staff_status 逐欄比對：calculated_block、外務規劃／外務時數、督導卡班清空、天數／時數。",
+      "legacy": { "serverAction": { "file": "app/store/actions.ts", "name": "updateStaffStatus" } },
+      "native": { "api": { "path": "/api/workspace/monthly" } },
+      "compareKey": "scenario"
+    }
+  ]
+}

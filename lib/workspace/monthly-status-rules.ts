@@ -13,6 +13,8 @@
  * - 新增／編輯：舊版已送審仍可編輯；新版已送審整月鎖定（既有行為，維持）。
  */
 
+import { isNewbieCandidate, monthIndex, monthsSinceHire, suggestedNewbieAction } from '../monthly-staff/newbie';
+
 export type MonthlyStatus = 'draft' | 'submitted' | 'confirmed';
 export type MonthlyAction =
   | 'add'
@@ -229,29 +231,19 @@ export function partTimeMissingHours(rows: readonly PreSubmitStaff[]): PartTimeM
     .map((r) => ({ id: r.id, employee_code: r.employee_code || '', employee_name: r.employee_name || '' }));
 }
 
-function monthIndex(value: string): number | null {
-  const m = /^(\d{4})-(\d{2})/.exec(value);
-  return m ? Number(m[1]) * 12 + (Number(m[2]) - 1) : null;
-}
-
 /**
  * 舊版 checkNewbieStatus（app/store/actions.ts）：只看草稿列；
- * 有到職日且（職位為新人或本月狀態為本月新進）者，依到職月份差判斷。
+ * 有到職日且（職位為新人或本月狀態為本月新進）者，依到職月份差判斷（判斷抽到 lib/monthly-staff/newbie.ts，W01b 共用）。
  */
 export function newbiesNeedCheck(rows: readonly PreSubmitStaff[], yearMonth: string): NewbieNeedsCheck[] {
-  const current = monthIndex(yearMonth);
   const result: NewbieNeedsCheck[] = [];
-  if (current === null) return result;
+  if (monthIndex(yearMonth) === null) return result;
   for (const staff of rows) {
     if (staff.status !== 'draft') continue;
-    if (!staff.start_date || !(staff.position === '新人' || staff.monthly_status === 'new_hire')) continue;
-    const hired = monthIndex(staff.start_date);
-    if (hired === null) continue;
-    const monthsDiff = current - hired;
-    let suggested = '';
-    if (monthsDiff >= 1 && staff.newbie_level !== '一階新人' && staff.newbie_level !== '二階新人') suggested = '應該過一階段';
-    else if (monthsDiff >= 2 && staff.newbie_level !== '二階新人') suggested = '應該過二階段';
-    if (monthsDiff >= 6 && staff.position === '新人') suggested = '應該要過專員考試';
+    if (!staff.start_date || !isNewbieCandidate(staff.position, staff.monthly_status)) continue;
+    const monthsDiff = monthsSinceHire(staff.start_date, yearMonth);
+    if (monthsDiff === null) continue;
+    const suggested = suggestedNewbieAction(monthsDiff, staff.position, staff.newbie_level);
     if (suggested)
       result.push({
         id: staff.id,
