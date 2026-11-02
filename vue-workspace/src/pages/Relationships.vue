@@ -3,6 +3,13 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import {
+  filterRelationshipMembers,
+  lastFkrsNumber,
+  matchesRelationshipFilter,
+  relationshipFilters,
+  relationshipPageCount,
+} from "../relationship-members";
 const props = defineProps<{ tab: WorkTab }>();
 const section = ref("members"),
   members = ref<any[]>([]),
@@ -27,39 +34,12 @@ const modal = ref(""),
   dialogError = ref(""),
   discard = ref(false),
   file = ref<File | null>(null);
-const filters = [
-  { key: "all", label: "全部" },
-  { key: "approved_missing_number", label: "待填寫(已核可)" },
-  { key: "pending", label: "待核可" },
-  { key: "rejected", label: "已駁回" },
-];
-const matches = (m: any, key: string) =>
-  key === "all" ||
-  (key === "approved_missing_number"
-    ? m.is_approved && !m.member_number?.trim()
-    : key === "pending"
-      ? !m.is_approved && !m.rejected_at
-      : !!m.rejected_at);
+const filters = relationshipFilters;
+const matches = matchesRelationshipFilter;
 const visible = computed(() =>
-  members.value.filter(
-    (m) =>
-      matches(m, filter.value) &&
-      [
-        m.member_name,
-        m.phone,
-        m.relationship,
-        m.member_number,
-        m.creator?.full_name,
-      ].some((v) =>
-        String(v || "")
-          .toLowerCase()
-          .includes(search.value.trim().toLowerCase()),
-      ),
-  ),
+  filterRelationshipMembers(members.value, filter.value, search.value),
 );
-const pageCount = computed(() =>
-  Math.max(1, Math.ceil(visible.value.length / 50)),
-);
+const pageCount = computed(() => relationshipPageCount(visible.value.length));
 const rows = computed(() =>
   visible.value.slice(
     (Math.min(page.value, pageCount.value) - 1) * 50,
@@ -72,14 +52,7 @@ const salePages = computed(() =>
 const saleRows = computed(() =>
   sales.value.slice((salesPage.value - 1) * 50, salesPage.value * 50),
 );
-const lastNumber = computed(
-  () =>
-    members.value
-      .map((m) => m.member_number || "")
-      .filter((n) => /^FKRS\d+$/i.test(n))
-      .sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)))[0] ||
-    "尚無 FKRS 編號",
-);
+const lastNumber = computed(() => lastFkrsNumber(members.value));
 const dirty = computed(
   () =>
     !!modal.value &&

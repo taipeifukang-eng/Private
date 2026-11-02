@@ -9,6 +9,8 @@
 const MARKER_TARGETS = [
   { table: 'store_transfer_requests', column: 'employee_code', pattern: 'ZTT%', action: 'delete' },
   { table: 'profiles', column: 'employee_code', pattern: 'ZTT%', action: 'report' },
+  // M0：關係會員 e2e 建立的申請資料（姓名帶 ZT + runId 前綴）。
+  { table: 'relationship_members', column: 'member_name', pattern: 'ZTT%', action: 'delete' },
 ];
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
@@ -35,6 +37,7 @@ const TEST_STORE_CODES = BASELINE_VALUES.slice();
  */
 const DELETABLE_TABLES = {
   store_transfer_requests: ['id', 'employee_code'],
+  relationship_members: ['id'],
   monthly_store_summary: ['id'],
   monthly_staff_status: ['id'],
   support_staff_bonus: ['id'],

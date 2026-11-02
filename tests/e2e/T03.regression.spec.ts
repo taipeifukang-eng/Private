@@ -24,7 +24,9 @@ type PageFacts = {
   allowedNoticeShown: boolean;
 };
 
-test('T03 全站回歸：admin 導覽 kind 逐頁基準', async ({ browser }) => {
+test('T03 全站回歸：admin 導覽 kind 逐頁基準', async ({ browser }, testInfo) => {
+  // 此測試自行固定 1440 視窗，手機 project 重複執行沒有意義。
+  test.skip(testInfo.project.name === 'mobile-390', '桌機專用（內部固定 1440 視窗）');
   test.setTimeout(600_000);
   const ctx = await loginAs(browser, 'admin');
   const page = await ctx.newPage();
@@ -51,6 +53,20 @@ test('T03 全站回歸：admin 導覽 kind 逐頁基準', async ({ browser }) =>
     await page.waitForSelector('[role="tab"][aria-selected="true"]');
     await page.waitForLoadState('networkidle').catch(() => undefined);
     await page.waitForTimeout(3500);
+    // 等標題集合穩定（非同步載入的區塊可能晚於固定等待才出現）：連續兩次取樣相同才繼續，最多 20 秒。
+    {
+      let last = '';
+      for (let n = 0; n < 28; n++) {
+        const cur = await page.evaluate(() => {
+          const t = document.querySelector('[role="tab"][aria-selected="true"]');
+          const pnl = document.getElementById(t?.getAttribute('aria-controls') || '');
+          return pnl ? Array.from(pnl.querySelectorAll('h1,h2,h3')).map((h) => (h.textContent || '').trim()).join('|') : '';
+        });
+        if (cur && cur === last) break;
+        last = cur;
+        await page.waitForTimeout(700);
+      }
+    }
     const facts = await page.evaluate((navLabel) => {
       const tab = document.querySelector('[role="tab"][aria-selected="true"]') as HTMLElement | null;
       const panel = document.getElementById((tab?.getAttribute('aria-controls') as string) || '');
@@ -77,5 +93,12 @@ test('T03 全站回歸：admin 導覽 kind 逐頁基準', async ({ browser }) =>
   }
   const baseline = JSON.parse(fs.readFileSync(BASELINE, 'utf8')) as typeof snapshot;
   expect(snapshot.count).toBe(baseline.count);
-  for (let i = 0; i < baseline.pages.length; i++) expect(snapshot.pages[i], `頁面 ${baseline.pages[i].navLabel}`).toEqual(baseline.pages[i]);
+  // 標題清單含 DEV 資料動態產生的項目（例如藥師姓名、督導區），因此以「基準標題都必須出現」比對，不要求完全相等；
+  // 其餘欄位（標籤、頁籤標題、表格／表單／錯誤提示）維持完全比對。
+  for (let i = 0; i < baseline.pages.length; i++) {
+    const { headings: baseHeadings, ...baseRest } = baseline.pages[i];
+    const { headings: gotHeadings, ...gotRest } = snapshot.pages[i];
+    expect(gotRest, `頁面 ${baseline.pages[i].navLabel}`).toEqual(baseRest);
+    expect(gotHeadings, `頁面 ${baseline.pages[i].navLabel} 標題`).toEqual(expect.arrayContaining(baseHeadings));
+  }
 });

@@ -1,0 +1,47 @@
+{
+  "page": "relationships",
+  "legacyRoute": "/store/relationship-members",
+  "workItem": "M0",
+  "entries": [
+    {
+      "id": "members-list",
+      "mechanism": "api-read",
+      "description": "同角色讀取關係會員列表：舊 /api/relationship-members 與 workspace /api/workspace/relationships（members 欄位）逐筆比對；無權限角色的狀態碼也必須一致。",
+      "legacy": { "api": { "path": "/api/relationship-members", "pick": "members" } },
+      "native": { "api": { "path": "/api/workspace/relationships", "pick": "members" } },
+      "compareKey": "id",
+      "normalize": {}
+    },
+    {
+      "id": "sales-list",
+      "mechanism": "api-read",
+      "description": "同角色讀取銷售明細（以一個不存在的會員編號查詢，結果應皆為空；有權限者 200、無權限者 403 兩邊一致）。",
+      "legacy": { "api": { "path": "/api/relationship-sales", "query": { "member_number": "ZTT-NO-SUCH-MEMBER" }, "pick": "sales" } },
+      "native": { "api": { "path": "/api/workspace/relationships/sales", "query": { "member_number": "ZTT-NO-SUCH-MEMBER" }, "pick": "sales" } },
+      "compareKey": "id",
+      "normalize": {}
+    },
+    {
+      "id": "members-table",
+      "mechanism": "ui-extract",
+      "description": "admin 開啟舊頁表格與新版表格，逐欄比對（姓名、電話、關係、填表人、會員編號）。空值的佔位文字（舊『待填寫』『-』、新『尚未填寫』『—』）視為空字串，屬呈現差異而非資料差異。",
+      "legacy": { "ui": { "route": "/store/relationship-members", "rowSelector": "table tbody tr" } },
+      "native": { "source": "/workspace/index.html 關係會員頁 .relationship-page table" },
+      "columns": [
+        { "canonical": "name", "legacy": "姓名", "type": "string" },
+        { "canonical": "phone", "legacy": "電話", "type": "string" },
+        { "canonical": "relationship", "legacy": "關係", "type": "string" },
+        { "canonical": "creator", "legacy": "填表人", "type": "string" },
+        { "canonical": "number", "legacy": "會員編號", "type": "string" }
+      ]
+    },
+    {
+      "id": "nav-entry",
+      "mechanism": "navigation",
+      "description": "關係會員入口的可見性：舊規則（relationship_member.view/edit/delete/approve 任一）與新版 session navigation 的 /store/relationship-members 入口。",
+      "legacy": { "source": "app/store/relationship-members/page.tsx 的存取判斷；components/Navbar.tsx 入口" },
+      "native": { "api": { "path": "/api/workspace/session", "pick": "navigation" } },
+      "compareKey": "href"
+    }
+  ]
+}
