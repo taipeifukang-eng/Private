@@ -16,7 +16,16 @@
     "test:monthly-support-bonus-rbac": "node scripts/test-monthly-support-bonus-rbac.js",
     "test:general-affairs-production-isolation": "node scripts/test-general-affairs-production-isolation.js",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:guard": "node tests/support/env-guard.cjs",
+    "test:sweep": "node tests/support/sweeper.cjs scan",
+    "test:unit": "node tests/run-all.cjs --layers unit",
+    "test:smoke": "node tests/run-all.cjs --layers smoke",
+    "test:integration": "node tests/run-all.cjs --layers integration",
+    "test:e2e": "node tests/run-all.cjs --layers e2e",
+    "test:parity": "node tests/run-all.cjs --layers parity",
+    "test:page": "node tests/run-all.cjs --layers all --page",
+    "test:all": "node tests/run-all.cjs --layers all"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
@@ -31,14 +40,19 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/node": "^20",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^18",
     "@types/react-dom": "^18",
+    "@vue/test-utils": "^2.5.1",
     "autoprefixer": "^10.4.20",
+    "happy-dom": "^21.0.4",
     "postcss": "^8",
     "sharp": "^0.34.5",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12",
+    "vue": "^3.5.44"
   }
 }

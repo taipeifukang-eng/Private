@@ -96,3 +96,12 @@ next-env.d.ts
 /.next-*.log
 /output/
 /tests/reports/
+
+# Renamed env files must never be committed (D03)
+/.env*.bak
+
+# Python / Playwright artifacts
+__pycache__/
+*.py[cod]
+/test-results/
+/playwright-report/
