@@ -1,0 +1,501 @@
+{
+  "page": "navigation",
+  "legacyRoute": "(全站 Navbar：components/Navbar.tsx)",
+  "workItem": "T02",
+  "entries": [
+    {
+      "id": "nav-visibility",
+      "mechanism": "navigation",
+      "description": "以角色登入實際開啟舊站，從舊 Navbar DOM（桌機展開所有下拉子選單）擷取選單連結 href 與文字，對照新版殼層實際渲染的『全站功能選單』（以 session navigation 反查 href）。角色矩陣的 role 類帳號走 DOM；module 類帳號沒有 DOM 證據，退回規則表求值（報告的 legacy.endpoint 會標明）。parity 報告以 DOM 為準。",
+      "legacy": {
+        "source": "components/Navbar.tsx 渲染後的 DOM（備援：hooks/useNavbarPermissions.ts 規則表）",
+        "api": {
+          "path": "/api/permissions/user",
+          "pick": "permissions"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 全站功能選單 DOM；href 由 /api/workspace/session navigation 反查",
+        "api": {
+          "path": "/api/workspace/session",
+          "pick": "navigation"
+        }
+      },
+      "compareKey": "href",
+      "normalize": {},
+      "notes": "舊版事實來源：/api/permissions/user（有效權限）、/api/user/profile（profiles.role）、/api/general-affairs/access（服務中心入口）；角色碼取自 tests/fixtures/role-matrix.json 的 roleCode + systemRoles（舊版 Navbar 在瀏覽器端查 user_roles，無對應 REST）。"
+    },
+    {
+      "id": "nav-rules-vs-dom",
+      "mechanism": "navigation",
+      "description": "單元層快速檢查用的規則表求值，與舊 Navbar 實際渲染的 DOM 逐項比對。兩者不一致（rule-only / dom-only）代表規則表漂移或擷取有誤，報告必須標出。",
+      "legacy": {
+        "source": "navRules / navFlags 規則表求值"
+      },
+      "native": {
+        "source": "舊 Navbar DOM（桌機）"
+      },
+      "compareKey": "href",
+      "normalize": {}
+    },
+    {
+      "id": "nav-legacy-mobile-vs-desktop",
+      "mechanism": "navigation",
+      "description": "舊 Navbar 桌機（展開所有下拉）與手機（展開漢堡選單）看到的入口必須一致。",
+      "legacy": {
+        "source": "舊 Navbar DOM（桌機 1440）"
+      },
+      "native": {
+        "source": "舊 Navbar DOM（手機 390，漢堡選單展開）"
+      },
+      "compareKey": "href",
+      "normalize": {}
+    },
+    {
+      "id": "nav-native-dom-vs-session",
+      "mechanism": "navigation",
+      "description": "新版殼層實際渲染的選單，與 /api/workspace/session 的 navigation 必須一致（畫面沒有漏項或多項）。",
+      "legacy": {
+        "source": "/api/workspace/session navigation"
+      },
+      "native": {
+        "source": "/workspace/index.html 全站功能選單 DOM"
+      },
+      "compareKey": "href",
+      "normalize": {}
+    },
+    {
+      "id": "effective-permissions",
+      "mechanism": "api-read",
+      "description": "舊 /api/permissions/user 與新 /api/workspace/session 的有效權限碼集合必須一致（導覽可見性比對的前提）。",
+      "legacy": {
+        "api": {
+          "path": "/api/permissions/user",
+          "pick": "permissions"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/session",
+          "pick": "permissions"
+        }
+      },
+      "normalize": {}
+    }
+  ],
+  "codeSets": {
+    "ORGANIZATION_NAV": [
+      "organization.organization.view",
+      "organization.department.view",
+      "organization.department_workspace.view",
+      "organization.department.view",
+      "organization.department.create",
+      "organization.department.edit",
+      "organization.member.view",
+      "organization.member.manage",
+      "organization.manager.view",
+      "organization.manager.manage"
+    ],
+    "USER_NAV": [
+      "user.user.view",
+      "user.user.create",
+      "user.user.edit",
+      "user.user.delete",
+      "user.user.change_role",
+      "role.user_role.assign",
+      "role.user_role.revoke"
+    ],
+    "ROLE_NAV": [
+      "role.role.view",
+      "role.role.create",
+      "role.role.edit",
+      "role.role.delete",
+      "role.permission.view",
+      "role.permission.assign",
+      "role.user_role.view",
+      "role.user_role.assign",
+      "role.user_role.revoke"
+    ],
+    "GA_MAINTENANCE": [
+      "general_affairs.maintenance_request.create",
+      "general_affairs.maintenance_request.view_own_store",
+      "general_affairs.maintenance_request.view_all",
+      "general_affairs.maintenance_request.update",
+      "general_affairs.work_order.view_own_store",
+      "general_affairs.work_order.view_all",
+      "general_affairs.work_order.update",
+      "general_affairs.work_order.manage"
+    ],
+    "GA_WORK_ORDER": [
+      "general_affairs.work_order.view_own_store",
+      "general_affairs.work_order.view_all",
+      "general_affairs.work_order.update",
+      "general_affairs.work_order.manage",
+      "general_affairs.maintenance_request.view_all",
+      "general_affairs.maintenance_request.update"
+    ]
+  },
+  "legacyFacts": {
+    "adminProfileRoles": [
+      "admin"
+    ],
+    "adminRoleCodes": [
+      "admin",
+      "system_admin",
+      "admin_role",
+      "full_admin",
+      "full_admin_role",
+      "dev_full_admin",
+      "owner",
+      "owner_role"
+    ],
+    "storeManagerRoleCodes": [
+      "store_manager_role",
+      "store_manager"
+    ]
+  },
+  "navFlags": {
+    "gaServiceApi": {
+      "api": "generalAffairsAccess"
+    },
+    "gaInventory": {
+      "storeManagerBypass": true,
+      "anyOf": [
+        "general_affairs.inventory_balance.view",
+        "general_affairs.inventory_transaction.view",
+        "general_affairs.inventory_transaction.manage",
+        "general_affairs.inventory_transfer.view",
+        "general_affairs.inventory_transfer.manage"
+      ]
+    },
+    "gaMaintenance": {
+      "anyOf": [
+        "@GA_MAINTENANCE"
+      ]
+    },
+    "gaWorkOrders": {
+      "anyOf": [
+        "@GA_WORK_ORDER"
+      ]
+    },
+    "gaEquipment": {
+      "storeManagerBypass": true,
+      "anyOf": [
+        "general_affairs.equipment.view",
+        "general_affairs.equipment.manage"
+      ]
+    },
+    "gaFacilities": {
+      "storeManagerBypass": true,
+      "anyOf": [
+        "general_affairs.facility.view",
+        "general_affairs.facility.manage"
+      ]
+    },
+    "gaParts": {
+      "storeManagerBypass": true,
+      "anyOf": [
+        "general_affairs.part.view",
+        "general_affairs.part.manage"
+      ]
+    },
+    "gaVendors": {
+      "anyOf": [
+        "general_affairs.vendor.view",
+        "general_affairs.vendor.manage",
+        "general_affairs.service_category.view",
+        "general_affairs.service_category.manage",
+        "general_affairs.service_region.view",
+        "general_affairs.service_region.manage",
+        "general_affairs.cooperation_record.view"
+      ]
+    },
+    "gaUtilities": {
+      "anyOf": [
+        "general_affairs.utility_bill.view",
+        "general_affairs.utility_bill.manage"
+      ]
+    }
+  },
+  "navRules": [
+    {
+      "href": "/",
+      "label": "首頁",
+      "always": true
+    },
+    {
+      "href": "/my-tasks",
+      "label": "我的任務",
+      "anyOf": [
+        "task.view_own"
+      ]
+    },
+    {
+      "href": "/dashboard",
+      "label": "儀表板",
+      "anyOf": [
+        "dashboard.view"
+      ]
+    },
+    {
+      "href": "/admin/templates",
+      "label": "任務管理",
+      "anyOf": [
+        "task.manage"
+      ]
+    },
+    {
+      "href": "/admin/archived",
+      "label": "已封存任務",
+      "anyOf": [
+        "task.view_archived"
+      ]
+    },
+    {
+      "href": "/organization/calendar",
+      "label": "年度行事曆",
+      "always": true
+    },
+    {
+      "href": "/admin/organization",
+      "label": "公司組織",
+      "anyOf": [
+        "@ORGANIZATION_NAV"
+      ]
+    },
+    {
+      "href": "/admin/departments",
+      "label": "部門管理",
+      "anyOf": [
+        "organization.department.view",
+        "organization.department.create",
+        "organization.department.edit",
+        "organization.member.view",
+        "organization.member.manage",
+        "organization.manager.view",
+        "organization.manager.manage"
+      ]
+    },
+    {
+      "href": "/admin/store-managers",
+      "label": "店長指派",
+      "anyOf": [
+        "store.manager.assign"
+      ]
+    },
+    {
+      "href": "/admin/supervisors",
+      "label": "經理/督導管理",
+      "anyOf": [
+        "store.supervisor.assign"
+      ]
+    },
+    {
+      "href": "/admin/stores",
+      "label": "門市管理",
+      "anyOf": [
+        "store.manage"
+      ]
+    },
+    {
+      "href": "/admin/employee-management",
+      "label": "員工管理",
+      "anyOf": [
+        "employee.manage"
+      ]
+    },
+    {
+      "href": "/admin/promotion-management",
+      "label": "人員異動管理",
+      "anyOf": [
+        "employee.movement.manage"
+      ]
+    },
+    {
+      "href": "/admin/import-employees",
+      "label": "批次匯入員工",
+      "anyOf": [
+        "employee.import"
+      ]
+    },
+    {
+      "href": "/admin/activity-management",
+      "label": "活動管理",
+      "anyOf": [
+        "activity.manage",
+        "activity.campaign.edit",
+        "activity.store_detail.edit",
+        "activity.equipment_trip.edit",
+        "activity.checklist.edit"
+      ]
+    },
+    {
+      "href": "/inventory",
+      "label": "盤點管理",
+      "anyOf": [
+        "inventory.manage",
+        "inventory.inventory.access",
+        "inventory.inventory.view",
+        "inventory.result_analysis.view_own"
+      ]
+    },
+    {
+      "href": "/admin/performance",
+      "label": "業績管理",
+      "anyOf": [
+        "performance.view",
+        "performance.edit"
+      ]
+    },
+    {
+      "href": "/admin/pharmacist-management",
+      "label": "藥師管理",
+      "anyOf": [
+        "pharmacist.management.view"
+      ]
+    },
+    {
+      "href": "/admin/employee-purchases",
+      "label": "員工購物管理",
+      "anyOf": [
+        "employee_purchase.view",
+        "employee_purchase.import"
+      ]
+    },
+    {
+      "href": "/store/clinic-selfpay-margin",
+      "label": "診所自費藥毛利計算",
+      "anyOf": [
+        "monthly.status.view_own",
+        "monthly.status.view_all",
+        "employee.movement.manage",
+        "store.manage"
+      ]
+    },
+    {
+      "href": "/store/relationship-members",
+      "label": "關係會員",
+      "anyOf": [
+        "relationship_member.view",
+        "relationship_member.edit",
+        "relationship_member.delete",
+        "relationship_member.approve"
+      ]
+    },
+    {
+      "href": "/cross-dept/products-master",
+      "label": "商品主檔",
+      "anyOf": [
+        "store.products_master.manage"
+      ]
+    },
+    {
+      "href": "/monthly-status",
+      "label": "每月人員狀態",
+      "anyOf": [
+        "monthly.status.view_own",
+        "monthly.status.view_all"
+      ]
+    },
+    {
+      "href": "/admin/export-monthly-status",
+      "label": "資料匯出",
+      "anyOf": [
+        "monthly.status.export"
+      ]
+    },
+    {
+      "href": "/inspection",
+      "label": "巡店列表",
+      "anyOf": [
+        "inspection.view_own",
+        "inspection.view_store",
+        "inspection.view_all"
+      ]
+    },
+    {
+      "href": "/inspection/improvements",
+      "label": "待改善追蹤",
+      "anyOf": [
+        "inspection.improvement.view_all",
+        "inspection.improvement.view_own",
+        "inspection.improvement.view_own_store",
+        "inspection.improvement.manage",
+        "inspection.improvement.submit"
+      ]
+    },
+    {
+      "href": "/admin/inspection-templates",
+      "label": "模板管理",
+      "anyOf": [
+        "inspection.template.manage"
+      ]
+    },
+    {
+      "href": "/supervisor-management-log",
+      "label": "督導管理日誌",
+      "anyOf": [
+        "supervisor.management_log.view_own",
+        "supervisor.management_log.view_team",
+        "supervisor.management_log.create",
+        "supervisor.management_log.update_own",
+        "supervisor.management_log.follow_up",
+        "supervisor.management_log.manage"
+      ]
+    },
+    {
+      "href": "/cross-dept/merchandise",
+      "label": "商品部",
+      "anyOf": [
+        "cross_dept.stockout.view_all",
+        "cross_dept.stockout.respond",
+        "cross_dept.stockout.submit"
+      ]
+    },
+    {
+      "href": "/cross-dept/maintenance",
+      "label": "總務組",
+      "anyOf": [
+        "cross_dept.maintenance.view_all",
+        "cross_dept.maintenance.submit",
+        "cross_dept.maintenance.update"
+      ]
+    },
+    {
+      "href": "/general-affairs",
+      "label": "服務中心首頁",
+      "anyOfFlags": [
+        "gaServiceApi",
+        "gaInventory",
+        "gaMaintenance",
+        "gaWorkOrders",
+        "gaEquipment",
+        "gaFacilities",
+        "gaParts",
+        "gaVendors",
+        "gaUtilities"
+      ]
+    },
+    {
+      "href": "/general-affairs/inventory",
+      "label": "庫存管理",
+      "anyOfFlags": [
+        "gaInventory"
+      ]
+    },
+    {
+      "href": "/admin/users",
+      "label": "使用者管理",
+      "anyOf": [
+        "@USER_NAV"
+      ]
+    },
+    {
+      "href": "/admin/roles",
+      "label": "角色權限管理",
+      "anyOf": [
+        "@ROLE_NAV"
+      ]
+    }
+  ]
+}

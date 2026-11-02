@@ -4,6 +4,105 @@
     "page": "/inventory",
     "description": "具備 inventory.inventory.view 的帳號（例如 navigation 帳號、店長）目前 session capabilities 的 importInventory 與 deleteInventory 皆為 true；僅有檢視權限卻同時可匯入與刪除盤點資料。",
     "reason": "T01 角色矩陣 expected.capabilities 為現行行為快照（verified:false）。是否與舊版一致、是否應收緊，待 parity 階段驗證，並由使用者核可是否列為已知差異。",
-    "approvedBy": null
+    "approvedBy": null,
+    "deferredTo": "W25"
+  },
+  {
+    "id": "nav-home-entry",
+    "page": "navigation",
+    "description": "舊 Navbar 對所有登入者顯示「首頁」(/) 入口；新版 session navigation 沒有 / 項目（工作台本身即首頁）。",
+    "reason": "新版以工作台殼層取代首頁入口，導覽清單只列功能頁。尚待使用者確認是否接受此差異或需補首頁入口。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "/"
+    }
+  },
+  {
+    "id": "nav-inspection-compare-native-only",
+    "page": "navigation",
+    "description": "新版 navigation 在具備 inspection.compare + inspection.manager_tab + 巡店檢視權限時顯示「巡店比較」(/inspection/compare)；舊 Navbar 沒有此入口。",
+    "reason": "新版新增功能入口（lib/workspace/navigation.ts）。尚待使用者確認是否接受為新增功能。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/inspection/compare"
+    }
+  },
+  {
+    "id": "nav-activity-management-view-only",
+    "page": "navigation",
+    "description": "僅具活動檢視權限（CAMPAIGN_READ_CODES，如 activity.campaign.view_all / view_own）的角色，新版導覽顯示「活動管理」；舊 Navbar 只在 activity.manage 或 4 個 *.edit 權限時顯示。",
+    "reason": "新版 lib/workspace/navigation.ts 把活動檢視碼納入入口條件，舊版較嚴。屬放寬還是修正需使用者決定（D07）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/admin/activity-management"
+    }
+  },
+  {
+    "id": "nav-stores-view-codes",
+    "page": "navigation",
+    "description": "具 store.store.view / view_inactive / create / edit / clone 但沒有 store.manage 的角色，新版導覽顯示「門市管理」；舊 Navbar 只認 store.manage。",
+    "reason": "新版以細分權限碼決定入口，舊版只認總開關。需使用者決定是否接受（D07）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/admin/stores"
+    }
+  },
+  {
+    "id": "nav-supervisors-manager-assign",
+    "page": "navigation",
+    "description": "具 store.manager.assign（或 store.manage）但沒有 store.supervisor.assign 的角色，新版導覽顯示「經理/督導管理」；舊 Navbar 只認 store.supervisor.assign。",
+    "reason": "新版放寬了入口條件（lib/workspace/navigation.ts）。需使用者決定是否接受（D07）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/admin/supervisors"
+    }
+  },
+  {
+    "id": "nav-archived-feature-gate",
+    "page": "navigation",
+    "description": "navigation 帳號具 task.view_archived，舊 Navbar 顯示「已封存任務」；新版 session 的 taskArchive 功能旗標為 false，未顯示。",
+    "reason": "可能是新版回歸（缺口），也可能是功能旗標尚未開放；不確定，請使用者決定要補齊還是接受（D07）。對應 README W07 任務模板管理工作項。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "/admin/archived"
+    }
+  },
+  {
+    "id": "legacy-mobile-menu-missing-merchandise",
+    "page": "navigation",
+    "description": "舊 Navbar 桌機的「跨部門」下拉有「商品部」(/cross-dept/merchandise)，手機漢堡選單（components/Navbar.tsx 的 Mobile Menu）沒有跨部門區塊，手機版舊站看不到此入口。",
+    "reason": "舊版自身桌機／手機不一致，是舊版缺陷而非新版差異。新版以桌機版為準（入口都在），需使用者確認不必在新版重現手機缺漏。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "nav-legacy-mobile-vs-desktop",
+      "kind": "desktop-only",
+      "key": "/cross-dept/merchandise"
+    }
+  },
+  {
+    "id": "legacy-mobile-menu-missing-maintenance",
+    "page": "navigation",
+    "description": "舊 Navbar 桌機的「跨部門」下拉有「總務組」(/cross-dept/maintenance)，手機漢堡選單（components/Navbar.tsx 的 Mobile Menu）沒有跨部門區塊，手機版舊站看不到此入口。",
+    "reason": "舊版自身桌機／手機不一致，是舊版缺陷而非新版差異。新版以桌機版為準（入口都在），需使用者確認不必在新版重現手機缺漏。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "nav-legacy-mobile-vs-desktop",
+      "kind": "desktop-only",
+      "key": "/cross-dept/maintenance"
+    }
   }
 ]
