@@ -1,0 +1,63 @@
+{
+  "page": "monthly-status",
+  "legacyRoute": "/monthly-status",
+  "workItem": "W01a",
+  "entries": [
+    {
+      "id": "stats-cards",
+      "mechanism": "ui-extract",
+      "description": "同角色、同月份：舊頁統計卡片（總門市數／已確認／已提交／待填寫，僅 canViewStats）與新頁統計卡片逐項比對。",
+      "legacy": { "ui": { "route": "/monthly-status", "rowSelector": "p.text-3xl" } },
+      "native": { "source": "/workspace/index.html 每月人員狀態 .monthly-stats .stat-card" },
+      "compareKey": "card"
+    },
+    {
+      "id": "store-tabs",
+      "mechanism": "ui-extract",
+      "description": "同角色、同月份：舊頁門市頁籤（門市名稱＋狀態標籤）與新頁 .store-tabs 頁籤逐門市比對；已停止門市不在預設清單。",
+      "legacy": { "ui": { "route": "/monthly-status", "rowSelector": "div.overflow-x-auto > button" } },
+      "native": { "source": "/workspace/index.html 每月人員狀態 .store-tabs [role=tab]" },
+      "compareKey": "store"
+    },
+    {
+      "id": "roster-draft",
+      "mechanism": "ui-extract",
+      "description": "同角色、同門市（ZT01）、保留月份 2099-07（草稿）：舊頁名冊與新頁名冊以員編為鍵逐欄比對（姓名、職位與階段、僱用類型、藥師、到職日、本月狀態、天數/時數、特殊標記、業績欄位、可編輯、可刪除）。",
+      "legacy": { "ui": { "route": "/monthly-status?year_month=2099-07&store_id=<ZT01>", "rowSelector": "tbody tr" } },
+      "native": { "source": "/workspace/index.html 每月人員狀態 table tr[data-staff]" },
+      "compareKey": "code"
+    },
+    {
+      "id": "roster-submitted",
+      "mechanism": "ui-extract",
+      "description": "同上，保留月份 2099-08（已送審）：驗證已送審時的名冊、編輯與刪除可見性。",
+      "legacy": { "ui": { "route": "/monthly-status?year_month=2099-08&store_id=<ZT01>", "rowSelector": "tbody tr" } },
+      "native": { "source": "/workspace/index.html 每月人員狀態 table tr[data-staff]" },
+      "compareKey": "code"
+    },
+    {
+      "id": "staff-details",
+      "mechanism": "api-read",
+      "description": "展開列的各門市業績明細：舊 /api/staff-performance-details 與 workspace /api/workspace/monthly?op=staffDetails 同一筆人員逐筆比對。",
+      "legacy": { "api": { "path": "/api/staff-performance-details", "pick": "data" } },
+      "native": { "api": { "path": "/api/workspace/monthly", "pick": "details" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "delete-submitted",
+      "mechanism": "write-readback",
+      "description": "已送審人員的刪除：舊版在門市未確認時可刪（deleteMonthlyStatusRecord 不檢查列狀態）；新版只有草稿可刪（W01a-q1，API 409）。以相同狀態的兩列 fixture 分別操作後回讀是否仍存在。",
+      "legacy": { "serverAction": { "file": "app/store/actions.ts", "name": "deleteMonthlyStatusRecord" } },
+      "native": { "api": { "path": "/api/workspace/monthly" } },
+      "compareKey": "step"
+    },
+    {
+      "id": "presubmit-check",
+      "mechanism": "write-readback",
+      "description": "送審前檢查（W01a-q2）：舊版以兩段 confirm（兼職缺時數、逐一新人）處理；新版同一個視窗列出所有問題。兩邊使用同一份判斷規則，比對『會被列出的人員』。",
+      "legacy": { "source": "app/monthly-status/page.tsx handleSubmit；app/store/actions.ts checkNewbieStatus" },
+      "native": { "api": { "path": "/api/workspace/monthly" } },
+      "compareKey": "who"
+    }
+  ]
+}

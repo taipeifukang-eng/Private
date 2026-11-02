@@ -42,6 +42,7 @@ export type Store = {
   store_code: string;
   store_name: string;
   short_name?: string;
+  is_active?: boolean;
 };
 export type Campaign = {
   id: string;

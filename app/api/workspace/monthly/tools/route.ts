@@ -16,6 +16,7 @@ import { GET as activityEvents } from '@/app/api/event-dates/route';
 import { activityPlan } from '@/lib/workspace/activity-plan';
 import { POST as importPerformance } from '@/app/api/import-performance/route';
 import { POST as importStats } from '@/app/api/import-store-stats/route';
+import { canDoMonthlyAction, monthlyActionBlockedMessage, summaryStatusToMonthly } from '@/lib/workspace/monthly-status-rules';
 import { MONTHLY_STATUS_OPTIONS, POSITION_OPTIONS, SPECIAL_ROLE_OPTIONS, NEWBIE_LEVEL_OPTIONS, ADMIN_LEVEL_OPTIONS } from '@/types/workflow';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -110,6 +111,16 @@ export async function GET(request: Request) {
     throw new WorkspaceError(400, '不支援的操作');
   } catch (e) { return failed(e); }
 }
+// M1-x1：新增人員的狀態判斷走規則表（任一列或門市摘要不允許 add 即 409），不再只靠資料庫函式拋 locked。
+async function guardManualAdd(ctx: any, store: string, month: string) {
+  const summary = checked(await ctx.admin.from('monthly_store_summary').select('store_status').eq('store_id', store).eq('year_month', month).maybeSingle());
+  const rows = (checked(await ctx.admin.from('monthly_staff_status').select('status').eq('store_id', store).eq('year_month', month)) || []) as { status: string }[];
+  const states: unknown[] = rows.map((r) => r.status);
+  const summaryState = summaryStatusToMonthly((summary as any)?.store_status);
+  if (summaryState) states.push(summaryState);
+  const blocked = states.find((st) => !canDoMonthlyAction(st, 'add'));
+  if (blocked !== undefined) throw new WorkspaceError(409, monthlyActionBlockedMessage(blocked, 'add'));
+}
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
@@ -136,7 +147,8 @@ export async function POST(request: Request) {
       permit(ctx, 'monthly.export.download');
       return pdfData(new NextRequest(request.url, { method:'POST', body:JSON.stringify({year_month:month, store_id:store}), headers:{'Content-Type':'application/json'} }));
     }
-    await editableMonth(ctx, store, month);
+    if (b.op === 'manual') await guardManualAdd(ctx, store, month);
+    else await editableMonth(ctx, store, month);
     if (b.op === 'allowance') {
       const tool = toolFor(b.kind); permit(ctx, tool.permission);
       const records = validateAllowance(b.kind, b.records, month);

@@ -25,12 +25,18 @@ export async function moduleContext(module: keyof typeof moduleCodes) {
 export async function moduleStores(
   ctx: Context,
   module: "monthly" | "performance",
+  options: { includeInactive?: boolean } = {},
 ) {
+  // includeInactive 只給月結「已停止門市歷史」唯讀使用；預設行為不變（只含有效門市）。
   let q = ctx.auth
     .from("stores")
-    .select("id,store_code,store_name,short_name")
-    .eq("is_active", true)
+    .select(
+      (options.includeInactive
+        ? "id,store_code,store_name,short_name,is_active"
+        : "id,store_code,store_name,short_name") as "id,store_code,store_name,short_name",
+    )
     .order("store_code");
+  if (!options.includeInactive) q = q.eq("is_active", true);
   if (module === "monthly" && !ctx.has("monthly.status.view_all")) {
     const assigned =
       checked(
@@ -80,8 +86,9 @@ export async function requireStore(
   ctx: Context,
   module: "monthly" | "performance",
   id: string,
+  options: { includeInactive?: boolean } = {},
 ) {
-  const stores = await moduleStores(ctx, module);
+  const stores = await moduleStores(ctx, module, options);
   if (!stores.some((s) => s.id === id))
     throw new WorkspaceError(403, "沒有此門市操作權限");
 }
