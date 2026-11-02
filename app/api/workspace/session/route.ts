@@ -18,6 +18,8 @@ import {
   WorkspaceError,
 } from "@/lib/workspace/server";
 import { workspaceNavigation } from "@/lib/workspace/navigation";
+import { loadExportAccess } from "@/lib/workspace/monthly-export-server";
+import { canOpenMonthlyExport } from "@/lib/workspace/monthly-export";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
@@ -55,6 +57,7 @@ export async function GET() {
       for (const module of ["monthly", "performance"] as const)
         if (ctx.has(...moduleCodes[module]))
           for (const s of await moduleStores(ctx, module)) stores.set(s.id, s);
+    const monthlyExport = canOpenMonthlyExport(await loadExportAccess(ctx));
     return respond({
       user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
       permissions: Array.from(ctx.permissions),
@@ -83,6 +86,7 @@ export async function GET() {
         inspectionSettings: ctx.has("inspection.template.manage"),
         improvements,
         monthly: ctx.has(...moduleCodes.monthly),
+        monthlyExport: monthlyExport,
         performance: ctx.has(...moduleCodes.performance),
         inventory: ctx.has(...moduleCodes.inventory),
         importInventory: ctx.has(
@@ -121,6 +125,7 @@ export async function GET() {
         improvements,
         taskArchive,
         taskManagement,
+        monthlyExport,
       }),
     });
   } catch (error) {

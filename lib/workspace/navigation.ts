@@ -25,6 +25,7 @@ export function workspaceNavigation(
     improvements?: boolean;
     taskArchive?: boolean;
     taskManagement?: boolean;
+    monthlyExport?: boolean;
   } = {},
 ) {
   const has = (...codes: string[]) => ctx.has(...codes);
@@ -135,9 +136,12 @@ export function workspaceNavigation(
           ["monthly.status.view_own", "monthly.status.view_all"],
           "monthly",
         ),
-        item("資料匯出", "/admin/export-monthly-status", [
-          "monthly.status.export",
-        ]),
+        // W02-q1：入口改用 monthly.export.download（舊 API 實際檢查的權限碼）；
+        // W02-q2：單品獎金、支援時數照舊版開放，故有這兩項的人也進得來（由 features.monthlyExport 判斷）。
+        {
+          ...item("資料匯出", "/admin/export-monthly-status", [], "monthly-export"),
+          allowed: !!features.monthlyExport,
+        },
       ],
     },
     {

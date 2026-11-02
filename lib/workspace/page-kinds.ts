@@ -28,6 +28,7 @@ export const WORKSPACE_NAV_KINDS = [
   "inspections",
   "campaigns",
   "monthly",
+  "monthly-export",
   "performance",
   "inventory",
   "employee-purchases",

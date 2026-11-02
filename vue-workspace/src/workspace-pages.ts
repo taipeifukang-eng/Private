@@ -25,6 +25,7 @@ import Inspections from "./pages/Inspections.vue";
 import Inventory from "./pages/Inventory.vue";
 import Monthly from "./pages/Monthly.vue";
 import MonthlyEdit from "./pages/MonthlyEdit.vue";
+import MonthlyExport from "./pages/MonthlyExport.vue";
 import MovementDraft from "./pages/MovementDraft.vue";
 import MovementHistory from "./pages/MovementHistory.vue";
 import MovementManagement from "./pages/MovementManagement.vue";
@@ -122,6 +123,7 @@ const components: Record<WorkTabKind, Component> = {
   "campaign-edit": CampaignEdit,
   monthly: Monthly,
   "monthly-edit": MonthlyEdit,
+  "monthly-export": MonthlyExport,
   performance: Performance,
   "performance-edit": Performance,
   "performance-thresholds": PerformanceThresholds,

@@ -1,5 +1,5 @@
 {
-  "count": 24,
+  "count": 25,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -210,6 +210,22 @@
         "本月門市支援時數"
       ],
       "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "資料匯出",
+      "tabTitle": "資料匯出",
+      "headings": [
+        "每月人員資料匯出",
+        "選擇年月",
+        "統計資訊",
+        "匯出交通費用、單品獎金、育才獎金 Excel",
+        "門市列表",
+        "每月門市人員名冊"
+      ],
+      "hasTable": false,
       "hasForm": true,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
