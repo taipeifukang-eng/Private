@@ -668,10 +668,16 @@ export async function readRowsAsServiceRole(table: string, opts: ReadRowsOptions
   for (const [c, v] of Object.entries(opts.in || {})) q = q.in(c, v);
   for (const [c, v] of Object.entries(opts.like || {})) q = q.like(c, v);
   if (opts.order) q = q.order(opts.order);
-  q = q.limit(opts.limit ?? 1000);
+  const limit = opts.limit ?? 1000;
+  // 多取一列：若實際列數超過 limit，代表結果被截斷，直接 throw，避免以不完整資料比對。
+  q = q.limit(limit + 1);
   const { data, error } = await q;
   if (error) throw new Error(`回讀 ${table} 失敗：${error.message}`);
-  return (data || []) as Record<string, unknown>[];
+  const rows = (data || []) as Record<string, unknown>[];
+  if (rows.length > limit) {
+    throw new Error(`回讀 ${table} 的列數超過 limit=${limit}，結果會被截斷；請縮小 eq / in / like 條件，或明確調高 limit`);
+  }
+  return rows;
 }
 
 // ---------------------------------------------------------------------------

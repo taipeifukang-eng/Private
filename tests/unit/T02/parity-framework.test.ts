@@ -294,6 +294,23 @@ describe('機制二：副作用比對與只讀回讀', () => {
     await expect(readRowsAsServiceRole('employees', { client })).rejects.toThrow(/條件/);
     await expect(readRowsAsServiceRole('employees', { eq: { a: 1 }, select: '*;', client })).rejects.toThrow(/select/);
   });
+
+  it('readRowsAsServiceRole 回讀列數超過 limit 時 throw，剛好等於 limit 時通過', async () => {
+    const make = (n: number) => {
+      const seen: number[] = [];
+      const q: Record<string, unknown> = {
+        eq: () => q,
+        limit: (x: number) => (seen.push(x), q),
+        then: (res: (v: unknown) => unknown) => res({ data: Array.from({ length: Math.min(n, seen[0] ?? n) }, (_, i) => ({ i })), error: null }),
+      };
+      return { client: { from: () => ({ select: () => q }) } as unknown as SupabaseReadClient, seen };
+    };
+    const a = make(5);
+    await expect(readRowsAsServiceRole('t', { eq: { a: 1 }, limit: 5, client: a.client })).resolves.toHaveLength(5);
+    expect(a.seen).toEqual([6]);
+    const b = make(50);
+    await expect(readRowsAsServiceRole('t', { eq: { a: 1 }, limit: 5, client: b.client })).rejects.toThrow(/截斷/);
+  });
 });
 
 describe('機制三：表格 / xlsx 逐欄比對', () => {
