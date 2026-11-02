@@ -1,3 +1,4 @@
+import { getMovementDateError } from '@/lib/employee-movement-date';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
@@ -284,6 +285,8 @@ export async function POST(request: NextRequest) {
 
     // 驗證所有資料
     for (const movement of movements) {
+      const dateError = getMovementDateError(movement.effective_date);
+      if (dateError) return NextResponse.json({ success: false, error: `員工 ${movement.employee_code || ''}：${dateError}` }, { status: 400 });
       if (!movement.employee_code || !movement.employee_name || !movement.movement_type || !movement.effective_date) {
         return NextResponse.json({ 
           success: false, 

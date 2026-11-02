@@ -1,3 +1,4 @@
+import { getMovementDateError } from '@/lib/employee-movement-date';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission, requirePermission } from '@/lib/permissions/check';
@@ -8,9 +9,6 @@ import {
   syncMovementEmployeeNameToMonthlyStaffStatus,
 } from '@/lib/monthly-staff/promotion-position-sync';
 
-function isValidDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value);
-}
 
 function normalizePromotionPosition(position: string, newbieLevel?: string | null) {
   const rawPosition = String(position || '').trim();
@@ -110,9 +108,10 @@ export async function PATCH(
       );
     }
 
-    if (!isValidDate(movementDate)) {
+    const dateError = getMovementDateError(movementDate);
+    if (dateError) {
       return NextResponse.json(
-        { success: false, error: '生效日期格式錯誤，請使用 YYYY-MM-DD' },
+        { success: false, error: dateError },
         { status: 400 }
       );
     }

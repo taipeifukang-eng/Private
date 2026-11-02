@@ -343,9 +343,18 @@ export async function POST(request: NextRequest) {
     const BATCH = 50;
     for (let i = 0; i < staffStatusUpdates.length; i += BATCH) {
       const batch = staffStatusUpdates.slice(i, i + BATCH);
-      await Promise.all(batch.map(({ id, data }) =>
-        supabase.from('monthly_staff_status').update(data).eq('id', id)
-      ));
+      const updates = await Promise.all(batch.map(async ({ id, data }) => {
+        const result = await supabase.from('monthly_staff_status').update(data).eq('id', id).select('id');
+        if (result.error || result.data?.length !== 1) {
+          errors.push(`更新人員業績失敗: ${result.error?.message || '找不到資料或沒有寫入權限'}`);
+          return false;
+        }
+        return true;
+      }));
+      // Do not clear the existing detail rows when a parent update failed.
+      if (updates.some(ok => !ok)) {
+        return NextResponse.json({ success: false, error: '部分人員業績更新失敗，既有明細已保留，請核對後重試', errors }, { status: 500 });
+      }
     }
 
     // === 批次刪除舊明細 ===

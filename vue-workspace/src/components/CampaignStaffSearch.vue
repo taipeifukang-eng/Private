@@ -1,0 +1,7 @@
+<script setup lang="ts">
+import {ref} from 'vue';import {campaignApi} from '../campaign-api';
+defineProps<{disabled?:boolean}>();const emit=defineEmits<{select:[person:any]}>();const q=ref(''),rows=ref<any[]>([]),loading=ref(false),error=ref(''),searched=ref(false);
+async function search(){if(!q.value.trim()){rows.value=[];return;}loading.value=true;error.value='';try{rows.value=(await campaignApi('search',{q:q.value.trim()})).data||[];searched.value=true;}catch(e){error.value=(e as Error).message;}finally{loading.value=false;}}
+</script>
+<template><div class="staff-search"><label>搜尋員編或姓名<input v-model="q" :disabled="disabled||loading" @keydown.enter.prevent="search" @input="rows=[];searched=false" maxlength="80"></label><button type="button" :disabled="disabled||loading||!q.trim()" @click="search">{{loading?'搜尋中…':'搜尋人員'}}</button><p v-if="error" role="alert">{{error}}</p><div class="results" v-if="rows.length"><button type="button" v-for="r in rows" :key="r.employee_code" @click="emit('select',r);rows=[];q='';searched=false">{{r.employee_code}} {{r.employee_name}} · {{r.position||r.current_position}} {{r.store_name}}</button></div><p v-else-if="searched">沒有符合的人員。</p></div></template>
+<style scoped>.staff-search{display:flex;align-items:end;gap:8px;flex-wrap:wrap;margin:16px 0}.staff-search label{display:grid;gap:8px;flex:1;min-width:160px}.results{width:100%;max-height:220px;overflow:auto}.results button{display:block;width:100%;text-align:left;margin:4px 0}input{width:100%}</style>

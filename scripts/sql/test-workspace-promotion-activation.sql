@@ -1,0 +1,38 @@
+BEGIN;
+CREATE OR REPLACE FUNCTION public.workspace_test_activation_failure() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.employee_code LIKE 'VWACT%' AND NEW.position='經理' THEN RAISE EXCEPTION 'TEST_ACTIVATION_FAILURE'; END IF; RETURN NEW; END; $$;
+CREATE TRIGGER workspace_test_activation_failure BEFORE UPDATE ON public.monthly_staff_status FOR EACH ROW EXECUTE FUNCTION public.workspace_test_activation_failure();
+DO $$
+DECLARE sid uuid:=gen_random_uuid(); actor uuid; code text:='VWACT'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)); rows jsonb; result jsonb; total integer; snap text; due_id uuid; receipt uuid;
+BEGIN
+ SELECT id INTO actor FROM profiles LIMIT 1;
+ INSERT INTO stores(id,store_code,store_name,is_active) VALUES(sid,code,'Vue 升遷到期驗證',true);
+ INSERT INTO store_employees(store_id,employee_code,employee_name,position,current_position,employment_type) VALUES(sid,code,'到期測試員工','專員','專員','full_time'),(sid,code||'L','舊紀錄排除員工','專員','專員','full_time');
+ rows:=jsonb_build_array(jsonb_build_object('employee_code',code,'employee_name','到期測試員工','position','店長','newbie_level','','effective_date','2099-01-01','notes','future'));
+ result:=workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));
+ IF NOT EXISTS(SELECT 1 FROM workspace_promotion_activation WHERE history_id=(result->'ids'->>0)::uuid AND processed_at IS NULL) THEN RAISE EXCEPTION 'queue not created'; END IF;
+ rows:=jsonb_set(rows,'{0,position}','"督導"');rows:=jsonb_set(rows,'{0,effective_date}','"2099-02-01"');PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));
+ rows:=jsonb_set(rows,'{0,position}','"代理店長"');rows:=jsonb_set(rows,'{0,effective_date}','"2099-01-15"');PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));
+ INSERT INTO employee_movement_history(store_id,employee_code,employee_name,movement_type,movement_date,new_value,created_by) VALUES(sid,code||'L','舊紀錄排除員工','promotion','2099-01-01','督導',actor);
+ INSERT INTO monthly_staff_status(store_id,employee_code,employee_name,year_month,position,employment_type,monthly_status) SELECT sid,code,'到期測試員工',month,'專員','full_time','full_month' FROM unnest(ARRAY['2098-12','2099-01','2099-02']) month;
+ PERFORM workspace_apply_due_promotions('2098-12-31');
+ IF (SELECT current_position FROM store_employees WHERE employee_code=code)<>'專員' THEN RAISE EXCEPTION 'early activation'; END IF;
+ PERFORM workspace_apply_due_promotions('2099-01-01');
+ IF (SELECT current_position FROM store_employees WHERE employee_code=code)<>'店長' OR (SELECT position FROM monthly_staff_status WHERE employee_code=code AND year_month='2099-01')<>'店長' OR (SELECT position FROM monthly_staff_status WHERE employee_code=code AND year_month='2099-02')<>'督導' THEN RAISE EXCEPTION 'due/month creation synchronization'; END IF;
+ IF (SELECT position FROM monthly_staff_status WHERE employee_code=code AND year_month='2098-12')<>'專員' THEN RAISE EXCEPTION 'changed past month'; END IF;
+ PERFORM workspace_apply_due_promotions('2099-01-20');
+ IF (SELECT current_position FROM store_employees WHERE employee_code=code)<>'店長' THEN RAISE EXCEPTION 'acting replaced master'; END IF;
+ PERFORM workspace_apply_due_promotions('2099-03-01');
+ IF (SELECT current_position FROM store_employees WHERE employee_code=code)<>'督導' THEN RAISE EXCEPTION 'missed activation'; END IF;
+ IF (SELECT current_position FROM store_employees WHERE employee_code=code||'L')<>'專員' THEN RAISE EXCEPTION 'touched unqueued legacy history'; END IF;
+ IF (workspace_apply_due_promotions('2099-03-01')->>'processed')::int<>0 THEN RAISE EXCEPTION 'not idempotent'; END IF;
+ rows:=jsonb_set(rows,'{0,position}','"經理"');rows:=jsonb_set(rows,'{0,effective_date}','"2099-05-01"');result:=workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));due_id:=(result->'ids'->>0)::uuid;
+ INSERT INTO monthly_staff_status(store_id,employee_code,employee_name,year_month,position,employment_type,monthly_status) VALUES(sid,code,'到期測試員工','2099-05','督導','full_time','full_month');
+ snap:=workspace_promotion_snapshot(sid,rows);
+ BEGIN PERFORM workspace_apply_due_promotions('2099-05-01'); RAISE EXCEPTION 'accepted failed month'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%TEST_ACTIVATION_FAILURE%' THEN RAISE; END IF; END;
+ IF workspace_promotion_snapshot(sid,rows)<>snap OR (SELECT processed_at FROM workspace_promotion_activation WHERE history_id=due_id) IS NOT NULL THEN RAISE EXCEPTION 'partial activation'; END IF;
+ DELETE FROM employee_movement_history WHERE id=due_id;
+ IF EXISTS(SELECT 1 FROM workspace_promotion_activation WHERE history_id=due_id) THEN RAISE EXCEPTION 'deleted history still queued'; END IF;
+ IF has_function_privilege('anon','public.workspace_apply_due_promotions(date)','execute') OR has_function_privilege('authenticated','public.workspace_apply_due_promotions(date)','execute') THEN RAISE EXCEPTION 'worker exposed'; END IF;
+END $$;
+ROLLBACK;
+SELECT 'PASS due activation, catch-up, post-save months, acting, legacy isolation, idempotence, rollback, cancellation, private worker' AS result;

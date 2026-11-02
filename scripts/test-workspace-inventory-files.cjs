@@ -1,0 +1,10 @@
+const fs=require('fs'),ts=require('typescript'),vm=require('vm'),assert=require('assert');
+const source=fs.readFileSync('vue-workspace/src/lib/inventory-files.ts','utf8');const module_={exports:{}};vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:module_.exports,require,Map,Set,Error,Number,String});const {normalize,integrate,finalRows,code}=module_.exports;
+assert.equal(code(12),'00000012');assert.throws(()=>normalize([{品號:1,品名:'A',條碼:'',盤點數量:1},{品號:1,品名:'A',條碼:'',盤點數量:1}],'external'));
+const base=normalize([{品號:1,品名:'A',條碼:'',庫存:10,主要儲位:'A'},{品號:2,品名:'B',條碼:'',庫存:5,主要儲位:'B'},{品號:3,品名:'C',條碼:'',庫存:-2,主要儲位:'C'}],'base');
+const records=normalize([{品號:1,盤點數量:6,盤點儲位:'A'},{品號:1,盤點數量:4,盤點儲位:'B'},{品號:2,盤點數量:3,盤點儲位:'C'}],'pre');const result=integrate(base,records);assert.equal(result.zero.length,1);assert.equal(result.diff[0].盤差量,-2);assert.equal(result.missing[0].庫存量,-2);
+const final=finalRows(result.zero,normalize(result.diff,'internal'),normalize(result.missing,'missing'));assert.equal(final.length,3);assert.equal(final[0].實際量,10);assert.equal(final[2].盤差量,2);
+assert.throws(()=>normalize([{品號:1,盤點數量:'bad',盤點儲位:'A'}],'pre'));
+assert.throws(()=>finalRows(result.zero,normalize([{品號:1,庫存量:10,該儲位盤點數量:10}],'internal'),[]));
+const merged=normalize([{貨號:1,數量:2,貨架:1,棚板:2,序號:1},{貨號:1,數量:3,貨架:1,棚板:2,序號:2}],'modified');assert.equal(merged.length,1);assert.equal(merged[0].盤點數量,5);assert.equal(merged[0].盤點儲位,'外1-2');
+console.log('PASS inventory offline normalization, duplicates, multi-location totals, zero carryforward, negative stock, invalid numbers, overlap protection, external shelf grouping');

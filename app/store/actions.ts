@@ -2362,7 +2362,7 @@ export async function getMonthlyStoreSummaries(yearMonth: string) {
 /**
  * 匯出指定年月、門市的人員狀態資料（用於獎金計算）
  */
-export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: string) {
+export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: string, includeSubmitted = false) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -2378,7 +2378,7 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
         store:stores(store_code, store_name)
       `)
       .eq('year_month', yearMonth)
-      .eq('status', 'confirmed')
+      .in('status', includeSubmitted ? ['submitted','confirmed'] : ['confirmed'])
       .order('store_id')
       .order('employee_code');
 
@@ -2399,6 +2399,7 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
 
     // 轉換為適合匯出的格式
     const exportData = (data || []).map((item: any) => ({
+      ...(includeSubmitted ? { 審核狀態: item.status === 'submitted' ? '待審核' : '已確認' } : {}),
       門市代碼: codeMap[item.store_id] || item.store?.store_code || '',
       門市名稱: item.store?.store_name || '',
       員工代號: item.employee_code || '',

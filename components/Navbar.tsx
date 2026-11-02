@@ -49,6 +49,7 @@ import {
 } from '@/hooks/useNavbarPermissions';
 
 interface NavbarProps {
+  workspacePreviewEnabled?: boolean;
   user: {
     id: string;
     email: string;
@@ -61,7 +62,7 @@ interface NavbarProps {
   } | null;
 }
 
-export default function Navbar({ user }: NavbarProps) {
+export default function Navbar({ user, workspacePreviewEnabled = false }: NavbarProps) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTaskMenuOpen, setIsTaskMenuOpen] = useState(false);
@@ -568,6 +569,11 @@ export default function Navbar({ user }: NavbarProps) {
 
           {/* User Info and Sign Out */}
           <div className="flex items-center space-x-2 lg:space-x-4 shrink-0">
+            {workspacePreviewEnabled && (
+              <a href="/workspace/index.html" className="text-xs font-semibold whitespace-nowrap rounded border border-amber-300 bg-amber-50 text-amber-900 px-2 py-2" title="以新版全站工作台開啟此測試環境">
+                新版工作台
+              </a>
+            )}
             <div className="hidden lg:flex items-center space-x-3">
               <div className="text-right">
                 <div className="text-sm font-medium text-gray-900 truncate max-w-[120px] lg:max-w-none">

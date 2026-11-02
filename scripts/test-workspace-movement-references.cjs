@@ -1,0 +1,24 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,p);
+const {validateMovementFields}=require('../lib/workspace/movement-fields.ts'),{validateMovementReferences:validate}=require('../lib/workspace/movement-references.ts');
+const id='11111111-1111-4111-8111-111111111111',other='22222222-2222-4222-8222-222222222222';
+const base=validateMovementFields([{employee_code:'FK1',employee_name:'測試員工',store_id:id,movement_type:'promotion',position:'新人',newbie_level:'一階新人',effective_date:'2026-08-01'}],'2026-10-29').rows[0];
+const sources={stores:[{id,store_code:'T1',store_name:'測試店',is_active:true}],units:[],employees:[{employee_code:'FK1',employee_name:'測試員工',store_id:id}],history:[]};
+assert.equal(validate([base],sources).valid,true);
+for(const partial of [{stores:[]},{stores:[{...sources.stores[0],is_active:false}]},{employees:[]},{employees:[{...sources.employees[0],employee_name:'另一姓名'}]},{employees:[{...sources.employees[0],store_id:other}]}])assert.equal(validate([base],{...sources,...partial}).valid,false);
+assert.equal(validate([base],{...sources,employees:[{...sources.employees[0],store_id:null}]}).valid,true);
+const h={employee_code:'FK1',movement_date:'2026-08-01',movement_type:'promotion',new_value:'新人',notes:'新人等級:一階新人'};
+assert.equal(validate([base],{...sources,history:[h]}).valid,false);
+assert.equal(validate([{...base,newbie_level:'二階新人'}],{...sources,history:[h]}).valid,true);
+assert.equal(validate([{...base,movement_type:'acting_manager',position:'代理店長'}],{...sources,history:[{...h,new_value:'代理店長'}]}).valid,false);
+const onboarding={...base,movement_type:'onboarding',store_id:'org:'+other};
+assert.equal(validate([onboarding],{...sources,employees:[],units:[{id:other,code:'ORG',name:'測試部門',type:'department',parent_id:null,status:'active'}]}).valid,true);
+assert.equal(validate([onboarding],{...sources,units:[{id:other,code:'ORG',name:'測試部門',type:'department',parent_id:null,status:'inactive'}]}).valid,false);
+assert.equal(validate([{...base,movement_type:'store_transfer',store_id:other,from_store_id:id,to_store_id:other}],sources).valid,false);
+assert.equal(validate([base],{...sources,employees:[{...sources.employees[0],employee_name:'不同姓名'},{...sources.employees[0],store_id:other}]}).valid,false);
+console.log('PASS movement references: readable/active stores, organization, employee name/source, global master and existing duplicate levels/legacy acting');
+
+const chainSources={...sources,employees:[],stores:[...sources.stores,{id:other,store_code:'T2',store_name:'目的',is_active:true}]};
+const chain=[{...base,movement_type:'onboarding',effective_date:'2026-07-01'},{...base,movement_type:'store_transfer',store_id:other,from_store_id:id,to_store_id:other,effective_date:'2026-07-02'},{...base,store_id:other,effective_date:'2026-07-03'}];
+assert.equal(validate(chain,chainSources).valid,true);assert.equal(validate([chain[2],chain[0],chain[1]],chainSources).valid,true);
+console.log('PASS same-batch onboarding/transfer/promotion follows effective date and keeps source row numbers');

@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
+  const isDevLogin = process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://mjpdfpxqttbhzeimmtqr.supabase.co';
   const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
@@ -88,17 +89,17 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">
-              電子郵件
+              {isDevLogin ? '帳號或電子郵件' : '電子郵件'}
             </label>
             <div className="relative">
               <Mail className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
               <input
-                type="email"
+                type={isDevLogin ? "text" : "email"}
                 required
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all"
-                placeholder="your@email.com"
+                placeholder={isDevLogin ? "administrator 或電子郵件" : "your@email.com"}
                 disabled={isLoading}
               />
             </div>

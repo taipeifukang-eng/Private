@@ -37,7 +37,9 @@ export async function getPrescriptionReportContext() {
     return { response: NextResponse.json({ error: storesError.message }, { status: 500 }) };
   }
 
-  const allStores = storeRows || [];
+  const allStores = (storeRows || []).filter(
+    store => String(store.store_code || '').trim() !== '0000'
+  );
   let stores = allStores;
   if (!['admin', 'supervisor'].includes(profile.role)) {
     const { data: assignments, error: assignmentsError } = await admin

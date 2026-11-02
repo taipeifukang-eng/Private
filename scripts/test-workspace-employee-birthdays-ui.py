@@ -1,0 +1,20 @@
+import json
+from pathlib import Path
+from uuid import uuid4
+from playwright.sync_api import sync_playwright,expect
+B='http://localhost:3002';fixture=json.loads(Path('.tmp-check/birthday-save-fixture.json').read_text(encoding='utf-8'));a=next(a for a in json.loads(Path('.tmp-check/workspace-accounts.json').read_text(encoding='utf-8'))['accounts'] if a['key']=='navigation');expect.set_options(timeout=30000)
+with sync_playwright() as p:
+ browser=p.chromium.launch();c=browser.new_context(base_url=B,viewport={'width':1440,'height':1000},extra_http_headers={'Origin':B});assert c.request.post('/api/workspace/login',data={'email':a['email'],'password':a['password']}).ok
+ page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));page.goto('/workspace/index.html');page.locator('.sidebar').hover();page.locator('.nav-search input').fill('生日');page.locator('.module-trigger').first.hover();page.get_by_role('navigation').get_by_role('button',name='員工生日匯入 新版',exact=True).click();panel=page.locator('[role=tabpanel]:visible')
+ bad='員編,姓名,生日\n'+fixture[0]['employee_code']+','+fixture[0]['employee_name']+',2023-02-29'
+ panel.locator('input[type=file]').set_input_files({'name':'bad.csv','mimeType':'text/csv','buffer':bad.encode('utf-8')});expect(panel.get_by_role('alert')).to_contain_text('有效西元日期');expect(panel.get_by_role('button',name='確認更新 0 位員工生日',exact=True)).to_be_disabled()
+ page.get_by_role('button',name='關閉 員工生日匯入',exact=True).click();expect(page.get_by_role('dialog')).to_contain_text('確認提交');page.get_by_role('dialog').get_by_role('button',name='繼續編輯',exact=True).click();expect(panel.get_by_text('bad.csv',exact=True)).to_be_visible()
+ good='員編,姓名,生日\n'+'\n'.join(r['employee_code']+','+r['employee_name']+',2000-02-29' for r in fixture)
+ panel.locator('input[type=file]').set_input_files({'name':'good.csv','mimeType':'text/csv','buffer':good.encode('utf-8')});expect(page.get_by_role('dialog')).to_contain_text('取代目前匯入內容');page.get_by_role('dialog').get_by_role('button',name='預覽新檔案',exact=True).click();expect(panel.get_by_role('button',name='確認更新 2 位員工生日',exact=True)).to_be_enabled()
+ # Another actual save changes the preview version; the UI must preserve the uploaded file and re-preview it.
+ fresh=c.request.post('/api/workspace/employee-birthdays',multipart={'file':{'name':'another.csv','mimeType':'text/csv','buffer':good.replace('2000-02-29','2001-03-04').encode('utf-8')}}).json();assert fresh['valid'];assert c.request.put('/api/workspace/employee-birthdays',data={'rows':fresh['rows'],'expected':fresh['expected'],'requestId':str(uuid4())}).ok
+ panel.get_by_role('button',name='確認更新 2 位員工生日',exact=True).click();page.get_by_role('dialog').get_by_role('button',name='確認送出',exact=True).click();expect(panel.get_by_role('alert')).to_contain_text('重新預覽');expect(panel.get_by_role('button',name='確認更新 2 位員工生日',exact=True)).to_be_disabled();expect(panel.get_by_text('good.csv',exact=True)).to_be_visible();panel.get_by_role('button',name='重新預覽目前檔案',exact=True).click();expect(panel.get_by_role('cell',name='2001-03-04',exact=True)).to_have_count(2)
+ page.screenshot(path='.tmp-check/employee-birthdays-desktop.png');page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth');page.screenshot(path='.tmp-check/employee-birthdays-mobile.png')
+ panel.get_by_role('button',name='確認更新 2 位員工生日',exact=True).click();page.get_by_role('dialog').get_by_role('button',name='確認送出',exact=True).click();expect(panel.locator('.notice[role=status]')).to_contain_text('已更新 2 位員工');codes={r['employee_code'] for r in fixture};employees=c.request.get('/api/workspace/employees').json()['employees'];assert len([e for e in employees if e['employee_code'] in codes and e['birthday']=='2000-02-29'])==2
+ page.get_by_role('button',name='關閉 員工生日匯入',exact=True).click();expect(page.get_by_role('dialog')).to_have_count(0);assert not errors,errors
+ print('PASS real birthday UI: invalid rows, dirty close protection, replacement, stale version/re-preview, old/new values, mobile and confirmed save/readback');browser.close()

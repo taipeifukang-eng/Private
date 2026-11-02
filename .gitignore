@@ -84,3 +84,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Vue test-site integration
+/vue-workspace/node_modules/
+/vue-workspace/dist/
+/public/workspace/
+/.next-workspace-build/
+
+# Local build/verify artifacts and exports
+/.next-*/
+/.next-*.log
+/output/
+/tests/reports/

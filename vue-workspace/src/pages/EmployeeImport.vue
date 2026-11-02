@@ -1,0 +1,31 @@
+<script setup lang="ts">
+import {ref,computed,onBeforeUnmount} from 'vue';
+import {api,ApiError} from '../api';import type {WorkTab} from '../stores';import Modal from '../components/Modal.vue';
+const props=defineProps<{tab:WorkTab}>();
+const file=ref<File|null>(null),pending=ref<File|null>(null),preview=ref<any>(null),error=ref(''),confirm=ref(false),completed=ref<any>(null),invalid=ref(false),downloading=ref(false),page=ref(1);let requestId='';
+props.tab.submitOnly=true;
+const rows=computed(()=>preview.value?.rows||[]),pages=computed(()=>Math.max(1,Math.ceil(rows.value.length/100))),visible=computed(()=>rows.value.slice((page.value-1)*100,page.value*100));
+async function inspect(next:File){props.tab.busy=true;error.value='';confirm.value=false;try{const form=new FormData();form.append('file',next);const result=await api('employee-import',{method:'POST',body:form});file.value=next;preview.value=result;page.value=1;completed.value=null;invalid.value=false;requestId=crypto.randomUUID();props.tab.dirty=true;}catch(e){error.value=(e as Error).message;invalid.value=true;}finally{props.tab.busy=false;}}
+function choose(e:Event){const input=e.target as HTMLInputElement,next=input.files?.[0];input.value='';if(!next)return;if(props.tab.dirty){pending.value=next;return;}void inspect(next);}
+function replace(){const next=pending.value;pending.value=null;if(next)void inspect(next);}
+async function save(){if(!preview.value?.valid||invalid.value||props.tab.busy||completed.value)return;props.tab.busy=true;error.value='';confirm.value=false;try{completed.value=await api('employee-import',{method:'PUT',body:JSON.stringify({rows:rows.value,requestId})});props.tab.dirty=false;}catch(e){error.value=(e as Error).message;invalid.value=e instanceof ApiError&&[400,403,409].includes(e.status);}finally{props.tab.busy=false;}}
+async function template(){downloading.value=true;error.value='';try{const XLSX=await import('xlsx');const book=XLSX.utils.book_new(),sheet=XLSX.utils.aoa_to_sheet([['門市代號','員編','姓名','職位','到職日期']]);sheet['!cols']=[{wch:16},{wch:16},{wch:18},{wch:18},{wch:18}];XLSX.utils.book_append_sheet(book,sheet,'員工資料');XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['填寫說明'],['請在第一張「員工資料」工作表填寫；五個欄位均必填。'],['門市代號與員編建議以文字格式輸入，以保留前置零。'],['到職日期：YYYY-MM-DD、YYYY/M/D 或 Excel 日期。'],['只新增員工主檔；預設正職、在職，不建立登入帳號或月度資料。'],['既有員編（含離職員工）不覆寫，檔案內不可重複員編。']]),'填寫說明');XLSX.writeFile(book,'員工匯入範本.xlsx');}catch{error.value='範本下載失敗，請重試';}finally{downloading.value=false;}}
+onBeforeUnmount(()=>{delete props.tab.submitOnly;});
+</script>
+<template><header class="page-heading"><div><p class="eyebrow">組織與門市 / 員工管理</p><h1>批次匯入員工</h1><p>上傳名冊，核對後整批新增員工。</p></div><button :disabled="downloading||tab.busy" @click="template">{{downloading?'準備範本…':'下載 Excel 範本'}}</button></header>
+<p v-if="error" role="alert" class="notice error">{{error}}</p>
+<div v-if="completed" role="status" class="notice"><strong>已成功匯入 {{completed.imported}} 位員工。</strong><p>批次識別：{{completed.requestId}}</p><p>可至員工管理重新整理查看名冊。</p></div>
+<div class="import-controls"><label>上傳員工 Excel<input type="file" accept=".xlsx,.xls" :disabled="tab.busy||confirm||!!pending" @change="choose"></label><button v-if="file&&!completed" :disabled="tab.busy||!!pending" @click="inspect(file)">重新預覽目前檔案</button></div>
+<p class="hint">五個必填欄位：門市代號、員編、姓名、職位、到職日期。讀取第一張工作表；最多 10,000 列、5 MB。匯入後預設正職、在職。</p>
+<p class="hint">只新增員工主檔，不覆寫既有員編，也不建立登入帳號或月度資料。</p>
+<p v-if="tab.busy" role="status">正在處理，請稍候…</p><p v-if="!preview&&!tab.busy">請下載範本填寫，或上傳既有相同格式的 Excel。</p>
+<section v-if="preview"><h2>{{file?.name}}</h2><p>{{rows.length}} 位待核對 · 略過 {{preview.skipped}} 列空白列</p>
+<div v-if="preview.errors.length" class="notice error" role="alert"><strong>{{preview.errors.length}} 個問題，尚不能匯入</strong><ul><li v-for="(issue,i) in preview.errors" :key="i">第 {{issue.row}} 列：{{issue.message}}</li></ul><p>請修正檔案後重新上傳；整批通過才會新增。</p></div>
+<p v-if="invalid" class="notice">預覽已失效，請重新預覽並核對。</p>
+<div class="module-table"><table><thead><tr><th>來源列</th><th>門市</th><th>員編</th><th>姓名</th><th>職位</th><th>到職日期</th><th>檢查結果</th></tr></thead><tbody><tr v-for="r in visible" :key="r.row"><td>{{r.row}}</td><td>{{r.store_code}} {{r.store_name}}</td><td>{{r.employee_code}}</td><td>{{r.employee_name}}</td><td>{{r.position}}</td><td>{{r.start_date||'日期無效'}}</td><td>{{preview.errors.some((e:any)=>Number(e.row)===r.row)?'需修正':completed?'已匯入':'可新增'}}</td></tr></tbody></table></div>
+<div class="pagination"><span>第 {{page}} / {{pages}} 頁</span><button :disabled="page===1" @click="page--">上一頁</button><button :disabled="page===pages" @click="page++">下一頁</button></div>
+<button v-if="!completed" class="primary" :disabled="!preview.valid||invalid||tab.busy||!!pending" @click="confirm=true">確認匯入 {{rows.length}} 位員工</button></section>
+<Modal v-if="confirm" title="確認批次新增員工" @cancel="confirm=false"><p>將依 {{file?.name}} 新增 {{rows.length}} 位員工為正職、在職。請確認門市、員編及到職日期。</p><p>任何一筆檢查失敗都不會新增；已存在的員編不會覆寫。</p><div class="dialog-actions"><button @click="confirm=false">返回核對</button><button class="primary" @click="save">確認送出</button></div></Modal>
+<Modal v-if="pending" title="取代目前匯入內容？" @cancel="pending=null"><p>尚未送出的預覽將替換為 {{pending.name}}。</p><div class="dialog-actions"><button @click="pending=null">保留目前內容</button><button @click="replace">預覽新檔案</button></div></Modal>
+</template>
+<style scoped>.import-controls{display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin:20px 0}.import-controls label{display:grid;gap:8px}input{max-width:100%}.hint{color:var(--muted);line-height:1.8}h2{font-size:18px;overflow-wrap:anywhere}.notice ul{max-height:260px;overflow:auto}.notice p{overflow-wrap:anywhere}.module-table table{min-width:780px}.pagination{display:flex;gap:12px;align-items:center;margin:16px 0}.pagination span{margin-right:auto}</style>

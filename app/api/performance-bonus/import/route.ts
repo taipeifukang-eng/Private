@@ -41,18 +41,9 @@ function getNumOptional(row: Record<string, unknown>, keys: string[]): number | 
   return undefined;
 }
 
-function isNonZeroNumber(value: unknown): value is number {
-  return typeof value === 'number' && !isNaN(value) && value !== 0;
-}
-
-function mergeBonusValue(existing: unknown, incoming: unknown, zeroIsExplicit = false): number {
-  const oldValue = Number(existing) || 0;
-  if (incoming === undefined) return oldValue;
-
-  const incomingValue = Number(incoming) || 0;
-  if (!zeroIsExplicit && oldValue !== 0 && incomingValue === 0) return oldValue;
-
-  return incomingValue;
+function mergeBonusValue(existing: unknown, incoming: unknown): number {
+  if (incoming === undefined) return Number(existing) || 0;
+  return Number(incoming) || 0;
 }
 
 // 智能解析月份（支援 "1", "01", "1月", "一月" 等格式）
@@ -449,10 +440,7 @@ export async function POST(request: NextRequest) {
 
     // 去重：相同 store_id + year_month + employee_code 視為同一筆
     // 不同門市的相同員工保持獨立記錄（key 包含 store_id）。
-    // 同一 key 出現多列時：
-    //   - 0 視為 Excel 佔位值，不覆蓋既有非 0 值
-    //   - 非 0 可以覆蓋 undefined / 0
-    //   - 同一欄位若出現兩個不同的非 0 值，視為衝突並終止匯入
+    // 同一 key 出現多列時，所有明確數值（包含 0）都有效；同欄位數值不一致則中止匯入。
     const dedupMap = new Map<string, Record<string, any>>();
     for (const r of upserts) {
       const key = `${r.store_id}|${r.year_month}|${r.employee_code}`;
@@ -466,21 +454,12 @@ export async function POST(request: NextRequest) {
 
           const existingVal = existing[field];
 
-          if (isNonZeroNumber(existingVal) && isNonZeroNumber(incomingVal)) {
-            if (existingVal !== incomingVal) {
-              conflicts.push(
-                `${r.__rowLabel}：員編 ${r.employee_code}、年月 ${r.year_month}、門市 ${r.__rawStoreCode || r.store_id} 的「${field}」出現兩個不同非 0 值（${existingVal} vs ${incomingVal}）`
-              );
-            }
-            continue;
-          }
-
-          if (isNonZeroNumber(existingVal) && incomingVal === 0) {
-            continue;
-          }
-
-          if ((existingVal === undefined || existingVal === 0) && incomingVal !== undefined) {
+          if (existingVal === undefined) {
             existing[field] = incomingVal;
+          } else if (existingVal !== incomingVal) {
+            conflicts.push(
+              `${r.__rowLabel}：員編 ${r.employee_code}、年月 ${r.year_month}、門市 ${r.__rawStoreCode || r.store_id} 的「${field}」出現不同數值（${existingVal} vs ${incomingVal}）`
+            );
           }
         }
         if (r.employee_name) existing.employee_name = r.employee_name;
@@ -492,7 +471,7 @@ export async function POST(request: NextRequest) {
     if (conflicts.length > 0) {
       return NextResponse.json({
         success: false,
-        error: '匯入失敗：同一門市、同一月份、同一員編、同一獎金項目出現兩個不同非 0 值',
+        error: '匯入失敗：同一門市、同一月份、同一員編、同一獎金項目出現不同數值',
         conflicts,
       }, { status: 400 });
     }
@@ -562,11 +541,11 @@ export async function POST(request: NextRequest) {
       };
 
       BONUS_VALUE_FIELDS.forEach(field => {
-        // Recalculated human subsidies may intentionally become zero; other zeroes remain placeholders.
-        merged[field] = mergeBonusValue(old?.[field], r[field], field === 'hr_subsidy_bonus');
+        // Every explicit value, including zero, is authoritative for this store/month/employee.
+        merged[field] = mergeBonusValue(old?.[field], r[field]);
       });
 
-      if (r.other_bonus === undefined || (Number(old?.other_bonus) !== 0 && Number(r.other_bonus) === 0)) {
+      if (r.other_bonus === undefined) {
         merged.other_bonus_note = old?.other_bonus_note ?? null;
       } else {
         merged.other_bonus_note = Number(merged.other_bonus) !== 0

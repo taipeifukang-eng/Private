@@ -51,7 +51,7 @@ export default async function RootLayout({
           <AuthCodeHandler />
         </Suspense>
         
-        {user && <Navbar user={{
+        {user && <Navbar workspacePreviewEnabled={process.env.WORKSPACE_DEV_ENABLED === 'true' && process.env.EXPECTED_SUPABASE_PROJECT_REF === 'mjpdfpxqttbhzeimmtqr'} user={{
           id: user.id,
           email: user.email,
           profile: user.profile,

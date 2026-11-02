@@ -1,0 +1,38 @@
+BEGIN;
+CREATE OR REPLACE FUNCTION public.workspace_test_promotion_rollback() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.employee_code LIKE 'VWPROMTX%' AND NEW.position='副理' THEN RAISE EXCEPTION 'TEST_MONTHLY_FAILURE'; END IF; RETURN NEW; END; $$;
+CREATE TRIGGER workspace_test_promotion_rollback BEFORE UPDATE ON public.monthly_staff_status FOR EACH ROW EXECUTE FUNCTION public.workspace_test_promotion_rollback();
+DO $$
+DECLARE sid uuid:=gen_random_uuid(); sid2 uuid:=gen_random_uuid(); actor uuid; request_id uuid:=gen_random_uuid(); rows jsonb; snap text; result jsonb; total integer; code text:='VWPROMTX'||upper(substr(replace(gen_random_uuid()::text,'-',''),1,10)); code2 text; old_snapshot text;
+BEGIN
+SELECT id INTO actor FROM profiles LIMIT 1;
+code2:=code||'B';
+INSERT INTO stores(id,store_code,store_name,is_active) VALUES(sid,code,'Vue 升遷交易驗證',true),(sid2,code||'S','Vue 升遷跨店驗證',true);
+INSERT INTO store_employees(store_id,employee_code,employee_name,position,current_position,employment_type) VALUES(sid,code,'升遷交易員工','專員','專員','full_time'),(sid,code2,'同日新人員工','專員','專員','full_time');
+INSERT INTO monthly_staff_status(store_id,employee_code,employee_name,year_month,position,employment_type,monthly_status) SELECT CASE WHEN month='2026-09' THEN sid2 ELSE sid END,code,'升遷交易員工',month,'專員','full_time','full_month' FROM unnest(ARRAY['2026-07','2026-08','2026-09','2026-10','2027-01']) month;
+INSERT INTO monthly_staff_status(store_id,employee_code,employee_name,year_month,position,employment_type,monthly_status) VALUES(sid,code2,'同日新人員工','2026-08','專員','full_time','full_month');
+INSERT INTO employee_movement_history(store_id,employee_code,employee_name,movement_type,movement_date,old_value,new_value,created_by) VALUES(sid,code,'升遷交易員工','promotion','2026-10-01','店長','督導',actor);
+rows:=jsonb_build_array(jsonb_build_object('employee_code',code,'employee_name','升遷交易員工','position','店長','newbie_level','','effective_date','2026-08-01','notes','回溯升遷'));
+snap:=workspace_promotion_snapshot(sid,rows);
+result:=workspace_promotion_save(actor,request_id,sid,rows,snap);
+IF (result->>'created')::int<>1 THEN RAISE EXCEPTION 'created'; END IF;
+IF EXISTS(SELECT 1 FROM monthly_staff_status WHERE employee_code=code AND year_month IN ('2026-08','2026-09') AND position<>'店長') OR EXISTS(SELECT 1 FROM monthly_staff_status WHERE employee_code=code AND year_month>='2026-10' AND position<>'督導') OR (SELECT position FROM monthly_staff_status WHERE employee_code=code AND year_month='2026-07')<>'專員' THEN RAISE EXCEPTION 'timeline boundary'; END IF;
+IF workspace_promotion_save(actor,request_id,sid,rows,snap)<>result THEN RAISE EXCEPTION 'retry'; END IF;
+BEGIN PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,snap); RAISE EXCEPTION 'accepted stale'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%WORKSPACE_CONFLICT%' THEN RAISE; END IF; END;
+BEGIN PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows)); RAISE EXCEPTION 'accepted duplicate'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%WORKSPACE_DUPLICATE%' THEN RAISE; END IF; END;
+rows:=jsonb_set(rows,'{0,position}','"代理店長"');rows:=jsonb_set(rows,'{0,effective_date}','"2026-09-01"');
+PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));
+IF (SELECT position FROM monthly_staff_status WHERE employee_code=code AND year_month='2026-09')<>'店長' OR EXISTS(SELECT 1 FROM monthly_staff_status WHERE employee_code=code AND year_month>='2026-09' AND is_acting_manager IS DISTINCT FROM true) THEN RAISE EXCEPTION 'acting replaced official'; END IF;
+rows:=jsonb_build_array(jsonb_build_object('employee_code',code2,'employee_name','同日新人員工','position','新人','newbie_level','二階新人','effective_date','2026-08-01','notes',''),jsonb_build_object('employee_code',code2,'employee_name','同日新人員工','position','新人','newbie_level','一階新人','effective_date','2026-08-01','notes',''));
+PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));
+IF (SELECT newbie_level FROM monthly_staff_status WHERE employee_code=code2)<>'二階新人' THEN RAISE EXCEPTION 'same-day rank'; END IF;
+rows:=jsonb_build_array(jsonb_build_object('employee_code',code,'employee_name','升遷交易員工','position','副理','newbie_level','','effective_date','2026-09-15','notes','forced failure'));
+old_snapshot:=workspace_promotion_snapshot(sid,rows);
+BEGIN PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,old_snapshot); RAISE EXCEPTION 'did not fail'; EXCEPTION WHEN OTHERS THEN IF SQLERRM NOT LIKE '%TEST_MONTHLY_FAILURE%' THEN RAISE; END IF; END;
+IF workspace_promotion_snapshot(sid,rows)<>old_snapshot THEN RAISE EXCEPTION 'partial write'; END IF;
+rows:=jsonb_set(rows,'{0,position}','"經理"');rows:=jsonb_set(rows,'{0,effective_date}','"2099-01-01"');
+PERFORM workspace_promotion_save(actor,gen_random_uuid(),sid,rows,workspace_promotion_snapshot(sid,rows));
+IF (SELECT current_position FROM store_employees WHERE employee_code=code)<>'督導' THEN RAISE EXCEPTION 'future changed master'; END IF;
+IF has_function_privilege('anon','public.workspace_promotion_save(uuid,uuid,uuid,jsonb,text)','execute') OR has_function_privilege('authenticated','public.workspace_promotion_snapshot(uuid,jsonb)','execute') THEN RAISE EXCEPTION 'RPC exposure'; END IF;
+RAISE NOTICE 'PASS timeline, cross-store months, retries, conflicts, duplicates, acting, same-day levels, future master, full rollback and private RPC';
+END $$;
+ROLLBACK;

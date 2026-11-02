@@ -1,0 +1,1104 @@
+[
+  {
+    "legacyRoute": "/activity-management",
+    "source": "app/activity-management/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/campaigns/published"
+    ]
+  },
+  {
+    "legacyRoute": "/activity-view/[id]",
+    "source": "app/activity-view/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/CampaignStoreDetailModal",
+      "@/components/ChecklistOverviewModal",
+      "@/components/StaffOverviewModal",
+      "@/components/SupportRequestModal",
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/campaign-checklist-completions",
+      "/api/campaign-checklist-items",
+      "/api/campaign-department-publish",
+      "/api/campaign-equipment-trips",
+      "/api/campaign-store-headcount",
+      "/api/campaigns/",
+      "/api/event-dates",
+      "/api/stores-with-supervisors"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/activity-management/events",
+    "source": "app/admin/activity-management/events/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/event-dates"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/activity-management",
+    "source": "app/admin/activity-management/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/campaigns"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/activity-management/schedule/[id]",
+    "source": "app/admin/activity-management/schedule/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/CampaignDetailPreviewTable",
+      "@/components/CampaignStoreDetailModal",
+      "@/components/ChecklistTemplateEditor",
+      "@/components/EquipmentTripEditor",
+      "@/components/StoreSupportEditModal",
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/campaign-department-assets",
+      "/api/campaign-department-publish",
+      "/api/campaign-schedules",
+      "/api/campaign-store-details",
+      "/api/campaigns",
+      "/api/campaigns/publish",
+      "/api/event-dates",
+      "/api/store-activity-settings",
+      "/api/stores-with-supervisors"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/activity-management/settings",
+    "source": "app/admin/activity-management/settings/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/store-activity-settings",
+      "/api/supervisors/stores"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/archived",
+    "source": "app/admin/archived/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/components/admin/ArchivedTasksList",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/assign/[id]",
+    "source": "app/admin/assign/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/components/admin/AssignTemplateForm"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/create",
+    "source": "app/admin/create/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/admin/WorkflowBuilderV2"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/departments",
+    "source": "app/admin/departments/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/admin/OrganizationManagementClient",
+      "@/lib/admin/organization-management",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/edit/[id]",
+    "source": "app/admin/edit/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/components/admin/WorkflowBuilderV2"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/employee-management",
+    "source": "app/admin/employee-management/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/employee-purchases",
+    "source": "app/admin/employee-purchases/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/employee-purchases",
+      "/api/employee-purchases/employee-details",
+      "/api/employee-purchases/import"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/export-monthly-status",
+    "source": "app/admin/export-monthly-status/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/export-monthly-status/actual-staff-points",
+      "/api/export-monthly-status/download",
+      "/api/export-monthly-status/meal-allowance",
+      "/api/export-monthly-status/roster",
+      "/api/export-monthly-status/single-item-bonus",
+      "/api/export-monthly-status/spring-festival-bonus",
+      "/api/export-monthly-status/stores",
+      "/api/export-monthly-status/support-hours",
+      "/api/export-monthly-status/talent-cultivation-bonus",
+      "/api/export-monthly-status/transport"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/import-employees",
+    "source": "app/admin/import-employees/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/import-employees"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/inspection-templates",
+    "source": "app/admin/inspection-templates/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": [
+      "/api/inspection-grade-mapping",
+      "/api/inspection-templates",
+      "/api/inspection-templates/",
+      "/api/permissions/check"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/organization",
+    "source": "app/admin/organization/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/admin/OrganizationManagementClient",
+      "@/lib/admin/organization-management",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/performance",
+    "source": "app/admin/performance/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/components/performance/PrescriptionTab",
+      "@/lib/performance/bonus-calc",
+      "@/lib/permissions/hooks",
+      "@/lib/supabase/client"
+    ],
+    "apis": [
+      "/api/performance-bonus",
+      "/api/performance-bonus/averages",
+      "/api/performance-bonus/import",
+      "/api/performance-data",
+      "/api/performance-data/import",
+      "/api/performance-thresholds",
+      "/api/permissions/check",
+      "/api/stores-with-supervisors"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/pharmacist-management",
+    "source": "app/admin/pharmacist-management/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/promotion-management",
+    "source": "app/admin/promotion-management/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/monthly-staff/promotion-level",
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/employee-movements/",
+      "/api/employee-movements/batch",
+      "/api/store-transfer-requests",
+      "/api/store-transfer-requests/"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/roles/[id]",
+    "source": "app/admin/roles/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/permissions/check",
+      "@/lib/permissions/rbac-management",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/roles",
+    "source": "app/admin/roles/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/permissions/check",
+      "@/lib/permissions/rbac-management",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/store-managers",
+    "source": "app/admin/store-managers/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/store-managers/assign",
+      "/api/store-managers/assignments",
+      "/api/store-managers/stores",
+      "/api/store-managers/users"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/stores/[id]/clone",
+    "source": "app/admin/stores/[id]/clone/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/store/actions",
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/stores/[id]/edit",
+    "source": "app/admin/stores/[id]/edit/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/store/actions",
+      "@/components/admin/StoreGpsFields"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/stores/[id]/employee-management",
+    "source": "app/admin/stores/[id]/employee-management/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/monthly-staff/promotion-level",
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/stores/[id]/employees",
+    "source": "app/admin/stores/[id]/employees/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/stores/[id]/promotion-management",
+    "source": "app/admin/stores/[id]/promotion-management/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/promotions/batch"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/stores/create",
+    "source": "app/admin/stores/create/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/store/actions",
+      "@/components/admin/StoreGpsFields"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/stores/map",
+    "source": "app/admin/stores/map/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/admin/StoreGoogleMapClient",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/stores",
+    "source": "app/admin/stores/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/supervisors",
+    "source": "app/admin/supervisors/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/supervisors/assign",
+      "/api/supervisors/assignments",
+      "/api/supervisors/stores",
+      "/api/supervisors/users"
+    ]
+  },
+  {
+    "legacyRoute": "/admin/template/[id]",
+    "source": "app/admin/template/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/app/auth/actions",
+      "@/components/admin/DeleteAssignmentButton",
+      "@/types/workflow"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/templates",
+    "source": "app/admin/templates/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/components/admin/TemplateCardWithStats",
+      "@/types/workflow"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/admin/users",
+    "source": "app/admin/users/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/auth/actions",
+      "@/components/admin/UserManagementTable",
+      "@/lib/permissions/check",
+      "@/lib/permissions/rbac-management",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/assignment/[id]",
+    "source": "app/assignment/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/app/auth/actions",
+      "@/components/user/ChecklistRunner",
+      "@/types/workflow"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/cross-dept/maintenance",
+    "source": "app/cross-dept/maintenance/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/maintenance/status",
+      "@/lib/supabase/client"
+    ],
+    "apis": [
+      "/api/maintenance-categories",
+      "/api/maintenance-photos",
+      "/api/maintenance-requests",
+      "/api/maintenance-requests/summary",
+      "/api/maintenance-update-photos",
+      "/api/maintenance-updates",
+      "/api/permissions/check"
+    ]
+  },
+  {
+    "legacyRoute": "/cross-dept/merchandise",
+    "source": "app/cross-dept/merchandise/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": [
+      "/api/permissions/check",
+      "/api/permissions/check-multiple",
+      "/api/products-master",
+      "/api/stockout-reports",
+      "/api/stockout-responses"
+    ]
+  },
+  {
+    "legacyRoute": "/cross-dept/products-master",
+    "source": "app/cross-dept/products-master/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/products-master/AcquisitionProductsTab",
+      "@/components/products-master/StandardProductsMasterTab",
+      "@/lib/supabase/client"
+    ],
+    "apis": [
+      "/api/permissions/check"
+    ]
+  },
+  {
+    "legacyRoute": "/dashboard",
+    "source": "app/dashboard/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/user/managed-stores",
+      "/api/user/profile"
+    ]
+  },
+  {
+    "legacyRoute": "/forgot-password",
+    "source": "app/forgot-password/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/auth/actions"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/assets/scan/[token]",
+    "source": "app/general-affairs/assets/scan/[token]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/GeneralAffairsPageHeader",
+      "@/lib/supabase/server"
+    ],
+    "apis": [
+      "/api/general-affairs/assets/scan/"
+    ]
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment/categories",
+    "source": "app/general-affairs/equipment/categories/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/assets/AssetCategoryManagementClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment/labels",
+    "source": "app/general-affairs/equipment/labels/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/equipment/EquipmentQrLabelsClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment/maintenance-history",
+    "source": "app/general-affairs/equipment/maintenance-history/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/assets/AssetMaintenanceHistoryClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment/new",
+    "source": "app/general-affairs/equipment/new/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/equipment/EquipmentCreatePageClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment",
+    "source": "app/general-affairs/equipment/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/equipment/EquipmentManagementClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment/templates",
+    "source": "app/general-affairs/equipment/templates/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/equipment/EquipmentTemplatesClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/equipment/warranties",
+    "source": "app/general-affairs/equipment/warranties/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/equipment/EquipmentWarrantyClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/facilities/categories",
+    "source": "app/general-affairs/facilities/categories/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/assets/AssetCategoryManagementClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/facilities/maintenance-history",
+    "source": "app/general-affairs/facilities/maintenance-history/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/assets/AssetMaintenanceHistoryClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/facilities/new",
+    "source": "app/general-affairs/facilities/new/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/facilities/FacilityCreatePageClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/facilities",
+    "source": "app/general-affairs/facilities/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/facilities/FacilitiesClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/facilities/templates",
+    "source": "app/general-affairs/facilities/templates/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/facilities/FacilityTemplatesClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/facilities/warranties",
+    "source": "app/general-affairs/facilities/warranties/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/facilities/FacilityWarrantyClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/inventory/locations",
+    "source": "app/general-affairs/inventory/locations/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/inventory/InventoryLocationsClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/inventory",
+    "source": "app/general-affairs/inventory/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/inventory/InventoryTransactionsClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/inventory/transfers",
+    "source": "app/general-affairs/inventory/transfers/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/inventory/InventoryTransfersClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs",
+    "source": "app/general-affairs/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/dashboard/GeneralAffairsHomeClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/part-fulfillments",
+    "source": "app/general-affairs/part-fulfillments/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/parts/PartFulfillmentCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/part-requests/new",
+    "source": "app/general-affairs/part-requests/new/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/part-requests",
+    "source": "app/general-affairs/part-requests/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/parts/categories",
+    "source": "app/general-affairs/parts/categories/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/assets/AssetCategoryManagementClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/parts/compatibilities",
+    "source": "app/general-affairs/parts/compatibilities/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/parts/PartCompatibilityManagementClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/parts/new",
+    "source": "app/general-affairs/parts/new/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/parts/PartCreatePageClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/parts",
+    "source": "app/general-affairs/parts/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/parts/PartsClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/reports/mine",
+    "source": "app/general-affairs/reports/mine/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/requests/ServiceRequestMyReportsClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/reports/new",
+    "source": "app/general-affairs/reports/new/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/requests/ServiceRequestCreateClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/requests",
+    "source": "app/general-affairs/requests/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/requests/ServiceRequestIntakeClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/utility-bills",
+    "source": "app/general-affairs/utility-bills/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/expenses/UtilityBillsClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/utility-bills/report",
+    "source": "app/general-affairs/utility-bills/report/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/expenses/UtilityBillsReportClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/vendors/categories",
+    "source": "app/general-affairs/vendors/categories/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/vendors",
+    "source": "app/general-affairs/vendors/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/vendors/purchases",
+    "source": "app/general-affairs/vendors/purchases/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/vendors/regions",
+    "source": "app/general-affairs/vendors/regions/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/vendors/stats",
+    "source": "app/general-affairs/vendors/stats/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/general-affairs/work-orders",
+    "source": "app/general-affairs/work-orders/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/general-affairs/service-center/GeneralAffairsServiceCenterClient"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/[id]/edit",
+    "source": "app/inspection/[id]/edit/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/PrintInspectionReport",
+      "@/components/SignaturePad",
+      "@/lib/inspection/date",
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/[id]",
+    "source": "app/inspection/[id]/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/components/DeleteInspectionButton",
+      "@/components/InspectionPhotoViewer",
+      "@/components/PrintInspectionReport",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/compare",
+    "source": "app/inspection/compare/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/debug",
+    "source": "app/inspection/debug/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/diagnostic",
+    "source": "app/inspection/diagnostic/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/improvements/[id]",
+    "source": "app/inspection/improvements/[id]/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/improvements",
+    "source": "app/inspection/improvements/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/inspection/improvements"
+    ]
+  },
+  {
+    "legacyRoute": "/inspection/new",
+    "source": "app/inspection/new/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/SignaturePad",
+      "@/lib/inspection/date",
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection",
+    "source": "app/inspection/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/components/InspectionExportControls",
+      "@/components/InspectionOverview",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inspection/test-debug",
+    "source": "app/inspection/test-debug/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/inventory",
+    "source": "app/inventory/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/lib/permissions/hooks"
+    ],
+    "apis": [
+      "/api/inventory/result-analysis"
+    ]
+  },
+  {
+    "legacyRoute": "/login",
+    "source": "app/login/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/auth/actions",
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/monthly-release",
+    "source": "app/monthly-release/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/monthly-status/edit/[id]",
+    "source": "app/monthly-status/edit/[id]/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/app/store/actions",
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/monthly-status",
+    "source": "app/monthly-status/page.tsx",
+    "status": "部分原生化；未完成對等驗收",
+    "imports": [
+      "@/app/store/actions",
+      "@/components/ImportPerformanceModal",
+      "@/components/ImportStoreStatsModal",
+      "@/components/MealAllowanceModal",
+      "@/components/SingleItemBonusPDF",
+      "@/components/SpringFestivalBonusModal",
+      "@/components/SupportBonusModal",
+      "@/components/TalentCultivationModal",
+      "@/components/TransportExpenseModal",
+      "@/lib/monthly-staff/promotion-level",
+      "@/lib/performance/bonus-calc",
+      "@/lib/supabase/client",
+      "@/types/workflow"
+    ],
+    "apis": [
+      "/api/employees/list",
+      "/api/export-single-item-bonus-pdf",
+      "/api/monthly-status/bonus-details",
+      "/api/monthly-status/bonus-quarter-summary",
+      "/api/performance-data",
+      "/api/performance-thresholds",
+      "/api/staff-performance-details"
+    ]
+  },
+  {
+    "legacyRoute": "/my-tasks",
+    "source": "app/my-tasks/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/app/auth/actions"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/organization/calendar",
+    "source": "app/organization/calendar/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/components/organization/OrganizationCalendarClient",
+      "@/lib/admin/organization-calendar",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/",
+    "source": "app/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/actions",
+      "@/app/auth/actions",
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": [
+      "/api/store-transfer-requests"
+    ]
+  },
+  {
+    "legacyRoute": "/register",
+    "source": "app/register/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/auth/actions"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/reset-password",
+    "source": "app/reset-password/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/app/auth/actions",
+      "@/lib/supabase/client"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/store/clinic-selfpay-margin",
+    "source": "app/store/clinic-selfpay-margin/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/clinic-selfpay/batches",
+      "/api/clinic-selfpay/batches/",
+      "/api/clinic-selfpay/batches/import",
+      "/api/clinic-selfpay/mappings",
+      "/api/clinic-selfpay/mappings/close",
+      "/api/clinic-selfpay/mappings/history",
+      "/api/clinic-selfpay/permissions",
+      "/api/clinic-selfpay/prices/import",
+      "/api/clinic-selfpay/stores"
+    ]
+  },
+  {
+    "legacyRoute": "/store/relationship-members",
+    "source": "app/store/relationship-members/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [
+      "@/lib/permissions/check",
+      "@/lib/supabase/server"
+    ],
+    "apis": []
+  },
+  {
+    "legacyRoute": "/supervisor-management-log",
+    "source": "app/supervisor-management-log/page.tsx",
+    "status": "待逐項盤點",
+    "imports": [],
+    "apis": [
+      "/api/supervisor-management-log/cases",
+      "/api/supervisor-management-log/cases/",
+      "/api/supervisor-management-log/daily-plans",
+      "/api/supervisor-management-log/daily-plans/",
+      "/api/supervisor-management-log/options",
+      "/api/supervisor-management-log/today",
+      "/api/supervisor-management-log/voice/draft",
+      "/api/supervisor-management-log/voice/transcribe"
+    ]
+  }
+]

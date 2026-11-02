@@ -22,7 +22,7 @@ Authorized users can review annual trends across visible stores and maintain eac
 - Source of truth for this report: `monthly_prescription_reports`, independent from `monthly_store_summary` and monthly staff status.
 - Values: regular prescription count and point value, chronic prescription count and point value. Excel imports and focused edits write only to this report table.
 - Derived value: `round(regular prescription count / 4, 1) + chronic prescription count`; never manually editable.
-- Store list and access scope follow active stores and the existing performance manager scope.
+- Store list and access scope follow active stores and the existing performance manager scope, excluding company headquarters `0000 富康活力醫藥股份有限公司`.
 - Annual view reads the report table for all 12 months and does not read or update monthly staff-status prescription values.
 - Annual view is for comparison and is read-only. Selecting a month heading opens that month's single-month view for editing.
 - The annual table keeps the store column fixed and exposes a draggable month-position slider fixed to the viewport bottom, synchronized with horizontal table scrolling while vertically scrolling stores.
@@ -42,6 +42,7 @@ Authorized users can review annual trends across visible stores and maintain eac
 - Do not let the displayed total drift from the documented formula.
 - Do not silently treat missing values as completed zeroes.
 - Do not show or modify stores outside the user's allowed scope.
+- Do not include company headquarters (`store_code = 0000`) in the prescription report, templates, or imports.
 
 ## Existing Constraints
 - Next.js 14, React, Supabase, Tailwind CSS, lucide-react.
@@ -61,7 +62,7 @@ Authorized users can review annual trends across visible stores and maintain eac
 
 ## Acceptance Criteria
 - [ ] 業績管理 has a dedicated 處方箋 tab.
-- [ ] Separate year and month filters list only active stores visible to the signed-in user.
+- [ ] Separate year and month filters list only active stores visible to the signed-in user, excluding company headquarters `0000`.
 - [ ] Users can switch between single-month and annual views without changing the underlying data source.
 - [ ] Annual view shows all 12 months, with roughly 2–3 months visible at once on desktop, a frozen store column, and a bottom-fixed month-position slider synchronized with the table.
 - [ ] Selecting a month in annual view opens that month's single-month view.
