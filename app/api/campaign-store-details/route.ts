@@ -3,7 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { hasPermission } from '@/lib/permissions/check';
 import {
   getCampaignAccessDeniedMessage,
+  canAccessStore,
   getCampaignAudienceAccess,
+  getCampaignStoreScope,
+  hasCampaignScopeBypass,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -51,19 +54,19 @@ export async function GET(request: NextRequest) {
       .select('*')
       .eq('campaign_id', campaignId);
 
-    const shouldLimitToManagedStores =
-      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
+    // 持 store_detail.edit 者維持看全部
+    const scope = getCampaignStoreScope(access, canEdit || (await hasCampaignScopeBypass(user.id, [])));
 
     if (storeId) {
-      if (shouldLimitToManagedStores && !access.managedStoreIds.includes(storeId)) {
+      if (!canAccessStore(scope, storeId)) {
         return NextResponse.json({ success: true, data: [] });
       }
       query = query.eq('store_id', storeId);
-    } else if (shouldLimitToManagedStores) {
-      if (access.managedStoreIds.length === 0) {
+    } else if (!scope.all) {
+      if (scope.storeIds.length === 0) {
         return NextResponse.json({ success: true, data: [] });
       }
-      query = query.in('store_id', access.managedStoreIds);
+      query = query.in('store_id', scope.storeIds);
     }
 
     const { data, error } = await query;

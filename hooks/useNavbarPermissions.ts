@@ -46,6 +46,8 @@ export interface NavbarPermissions {
   canManageActivities: boolean;
   // 活動排程頁入口：有 activity.campaign.edit 或 activity.store_detail.edit 任一
   canAccessActivitySchedule: boolean;
+  // 活動檢視入口（/activity-management）：view_all，或 view_own（第一階段含舊 view）且至少有一筆 store_managers 任命
+  canViewActivities: boolean;
   canManageInventory: boolean;
   canManagePerformance: boolean;
   canViewPharmacistManagement: boolean;
@@ -103,6 +105,7 @@ const DEFAULT_NAVBAR_PERMISSIONS: NavbarPermissions = {
   canImportEmployees: false,
   canManageActivities: false,
   canAccessActivitySchedule: false,
+  canViewActivities: false,
   canManageInventory: false,
   canManagePerformance: false,
   canViewPharmacistManagement: false,
@@ -344,6 +347,20 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
         const hasAnyPermissionCode = (codes: readonly string[]) =>
           isAdminLike || codes.some((code) => permissionSet.has(code));
 
+        // 活動檢視入口：view_all，或 view_own（第一階段含舊 view）且在 store_managers 至少有一筆任命
+        let canViewActivities = hasPermissionCode('activity.campaign.view_all');
+        if (!canViewActivities && hasAnyPermissionCode(['activity.campaign.view_own', 'activity.campaign.view'])) {
+          try {
+            const entryRes = await fetch('/api/campaigns/entry-access', { cache: 'no-store' });
+            if (entryRes.ok) {
+              const entryJson = await entryRes.json();
+              canViewActivities = entryJson.canEnter === true;
+            }
+          } catch (entryError) {
+            console.error('❌ 載入活動檢視入口資格失敗:', entryError);
+          }
+        }
+
         const nextPermissions: NavbarPermissions = {
           canViewUsers,
           canManageUsers,
@@ -380,6 +397,7 @@ export function useNavbarPermissions(userId: string): NavbarPermissions {
           canManageMovements: hasPermissionCode('employee.movement.manage'),
           canImportEmployees: hasPermissionCode('employee.import'),
           canManageActivities: hasPermissionCode('activity.manage'),
+          canViewActivities,
           canAccessActivitySchedule: hasAnyPermissionCode([
             'activity.campaign.edit',
             'activity.store_detail.edit',
@@ -519,6 +537,7 @@ export function hasAnyStorePermission(permissions: NavbarPermissions): boolean {
          permissions.canImportEmployees ||
          permissions.canManageActivities ||
          permissions.canAccessActivitySchedule ||
+         permissions.canViewActivities ||
          permissions.canManageInventory ||
          permissions.canManagePerformance ||
          permissions.canViewPharmacistManagement ||

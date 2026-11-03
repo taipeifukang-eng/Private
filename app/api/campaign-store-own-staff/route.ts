@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasPermission } from '@/lib/permissions/check';
 import {
   getCampaignAccessDeniedMessage,
+  authorizeCampaignStoreWrite,
+  canAccessStore,
+  CAMPAIGN_PERM,
   getCampaignAudienceAccess,
+  getCampaignStoreScope,
+  hasAnyPermission,
+  hasCampaignScopeBypass,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -39,19 +44,18 @@ export async function GET(request: NextRequest) {
     }
 
     const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
-    const canManageStaff =
-      await hasPermission(user.id, 'activity.staff_overview.view') ||
-      await hasPermission(user.id, 'activity.support_assign.edit');
-    if (!hasCampaignPublishedAccess(access) && !canManageStaff) {
+    // support_assign.edit 為店長層級權限，不是看全部的 bypass；只有 activity.manage 維持看全部
+    const canBypassScope = await hasCampaignScopeBypass(user.id, []);
+    // 輔助權限不單獨放行：須通過發布閘門，草稿活動只有 view_all 或 activity.manage 可讀
+    if (!hasCampaignPublishedAccess(access) && !canBypassScope) {
       return NextResponse.json(
         { success: false, error: getCampaignAccessDeniedMessage(access) },
         { status: 403 }
       );
     }
 
-    const shouldLimitToManagedStores =
-      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
-    if (storeId && shouldLimitToManagedStores && !access.managedStoreIds.includes(storeId)) {
+    const scope = getCampaignStoreScope(access, canBypassScope);
+    if (storeId && !canAccessStore(scope, storeId)) {
       return NextResponse.json({ success: true, data: [] });
     }
 
@@ -64,9 +68,9 @@ export async function GET(request: NextRequest) {
 
     if (storeId) {
       query = query.eq('store_id', storeId);
-    } else if (shouldLimitToManagedStores) {
-      if (access.managedStoreIds.length === 0) return NextResponse.json({ success: true, data: [] });
-      query = query.in('store_id', access.managedStoreIds);
+    } else if (!scope.all) {
+      if (scope.storeIds.length === 0) return NextResponse.json({ success: true, data: [] });
+      query = query.in('store_id', scope.storeIds);
     }
 
     const { data, error } = await query;
@@ -99,6 +103,14 @@ export async function POST(request: NextRequest) {
 
     if (!campaign_id || !store_id) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
+    }
+
+    const auth = await authorizeCampaignStoreWrite(supabase, user.id, campaign_id, [store_id], [], [], [
+      // RLS 寫入 policy 只認 activity.manage / support_assign.edit；未任命者讀不到資料，也無法通過 RLS，不另開例外
+      CAMPAIGN_PERM.supportAssignEdit,
+    ]);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
     if (replace && Array.isArray(staff)) {
@@ -183,6 +195,30 @@ export async function DELETE(request: NextRequest) {
 
     const body = await request.json();
     const { id, campaign_id, store_id, employee_code } = body;
+
+    // 先決定要刪除的資料屬於哪個活動／門市，再做權限與範圍檢查
+    let targetCampaignId: string | null = campaign_id ?? null;
+    let targetStoreId: string | null = store_id ?? null;
+    if (id) {
+      const { data: row } = await supabase
+        .from('campaign_store_own_staff')
+        .select('campaign_id, store_id')
+        .eq('id', id)
+        .maybeSingle();
+      if (!row) {
+        return NextResponse.json({ success: false, error: '找不到要刪除的資料' }, { status: 404 });
+      }
+      targetCampaignId = row.campaign_id;
+      targetStoreId = row.store_id;
+    }
+    if (id || (campaign_id && store_id && employee_code)) {
+      const auth = await authorizeCampaignStoreWrite(supabase, user.id, targetCampaignId, [targetStoreId], [], [], [
+        CAMPAIGN_PERM.supportAssignEdit,
+      ]);
+      if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
+      }
+    }
 
     let query = supabase.from('campaign_store_own_staff').delete();
 

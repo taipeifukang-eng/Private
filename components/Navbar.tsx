@@ -36,6 +36,7 @@ import {
   Calculator,
   Wrench,
   UserPlus,
+  Sparkles,
 } from 'lucide-react';
 import { signOut } from '@/app/auth/actions';
 import {
@@ -159,6 +160,7 @@ export default function Navbar({ user }: NavbarProps) {
     { href: '/admin/promotion-management', label: '人員異動管理', icon: TrendingUp, show: permissions.canManageMovements },
     { href: '/admin/import-employees', label: '批次匯入員工', icon: Upload, show: permissions.canImportEmployees },
     { href: '/admin/activity-management', label: '活動管理', icon: CalendarCheck, show: permissions.canManageActivities || permissions.canAccessActivitySchedule },
+    { href: '/activity-management', label: '活動檢視', icon: Sparkles, show: permissions.canViewActivities },
     { href: '/inventory', label: '盤點管理', icon: Package, show: permissions.canManageInventory },
     { href: '/admin/performance', label: '業績管理', icon: TrendingUp, show: permissions.canManagePerformance },
     { href: '/admin/pharmacist-management', label: '藥師管理', icon: UserCog, show: permissions.canViewPharmacistManagement },
@@ -202,7 +204,7 @@ export default function Navbar({ user }: NavbarProps) {
   );
 
   // 判斷是否在組織管理相關頁面
-  const isInOrganizationSection = ['/organization/calendar', '/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/admin/employee-purchases', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
+  const isInOrganizationSection = ['/organization/calendar', '/admin/organization', '/admin/departments', '/admin/store-managers', '/admin/supervisors', '/admin/stores', '/admin/employee-management', '/admin/promotion-management', '/admin/import-employees', '/admin/activity-management', '/activity-management', '/inventory', '/admin/performance', '/admin/pharmacist-management', '/admin/employee-purchases', '/store/clinic-selfpay-margin', '/store/relationship-members'].some(
     path => pathname.startsWith(path) || pathname === path
   );
 

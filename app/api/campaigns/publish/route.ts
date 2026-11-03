@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { CAMPAIGN_PERM, hasAnyPermission } from '@/lib/campaign-access';
 
 // PATCH: Update campaign publish status
 export async function PATCH(request: NextRequest) {
@@ -9,6 +10,14 @@ export async function PATCH(request: NextRequest) {
     
     if (!user) {
       return NextResponse.json({ success: false, error: '未登入' }, { status: 401 });
+    }
+
+    // 發布需 activity.manage 或 activity.campaign.edit
+    if (!(await hasAnyPermission(user.id, [CAMPAIGN_PERM.manage, CAMPAIGN_PERM.campaignEdit]))) {
+      return NextResponse.json(
+        { success: false, error: '權限不足：需要 activity.manage 或 activity.campaign.edit 權限' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();

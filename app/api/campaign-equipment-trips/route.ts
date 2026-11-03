@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 import {
   getCampaignAccessDeniedMessage,
   getCampaignAudienceAccess,
+  getCampaignStoreScope,
+  hasCampaignScopeBypass,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -39,8 +41,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // 查詢所有車次
-  const { data, error } = await supabase
+  // 查詢所有車次：已通過上方權限與發布閘門，改用 service-role 讀取（RLS 只放行督導／盤點組／編輯權），
+  // 店長的門市範圍由下方依門市名稱過濾，避免店長用自己的 JWT 直接讀到別店車次。
+  const { data, error } = await createAdminClient()
     .from('campaign_equipment_trips')
     .select('*')
     .eq('campaign_id', campaign_id)
@@ -54,28 +57,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 
-  // 權限過濾：有編輯權限者看全部，否則只看與自己負責門市相關的車次
-  if (canEdit || access.canViewAll || access.canViewAsSupervisor || access.canViewAsDepartment) {
-    // 管理者、督導、部門角色：顯示所有車次
+  // 權限過濾：有編輯權限者、view_all、督導、盤點組看全部；店長只看與被任命門市相關的車次
+  const scope = getCampaignStoreScope(access, canEdit || (await hasCampaignScopeBypass(user.id, [])));
+  if (scope.all) {
     return NextResponse.json({ success: true, data: data ?? [] });
   }
 
-  // 店長/督導：查詢負責的門市
-  const { data: managedStores } = await supabase
-    .from('store_managers')
-    .select('store:stores!store_managers_store_id_fkey(store_name)')
-    .eq('user_id', user.id);
-
-  if (!managedStores || managedStores.length === 0) {
-    // 無負責門市，回傳空陣列
+  // 店長：查詢被任命門市（車次以門市名稱記錄 from/to_location）
+  if (scope.storeIds.length === 0) {
     return NextResponse.json({ success: true, data: [] });
   }
+  const { data: managedStores } = await supabase
+    .from('stores')
+    .select('store_name')
+    .in('id', scope.storeIds);
 
   // 提取門市名稱清單
   const managedStoreNames = new Set<string>();
-  managedStores.forEach(m => {
-    const storeName = (m as any).store?.store_name;
-    if (storeName) managedStoreNames.add(storeName);
+  (managedStores ?? []).forEach((s: any) => {
+    if (s.store_name) managedStoreNames.add(s.store_name);
   });
 
   // 過濾車次：from_location 或 to_location 有任一在用戶負責的門市內

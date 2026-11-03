@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { hasPermission } from '@/lib/permissions/check';
 import {
   getCampaignAccessDeniedMessage,
+  authorizeCampaignStoreWrite,
+  canAccessStore,
+  CAMPAIGN_PERM,
   getCampaignAudienceAccess,
+  hasAnyPermission,
+  hasCampaignScopeBypass,
+  getCampaignStoreScope,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -44,19 +49,20 @@ export async function GET(request: NextRequest) {
     }
 
     const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
-    const canManageHeadcount =
-      await hasPermission(user.id, 'activity.staff_overview.view') ||
-      await hasPermission(user.id, 'activity.support_assign.edit');
-    if (!hasCampaignPublishedAccess(access) && !canManageHeadcount) {
+    // store_detail.edit（行銷／營運編輯權）維持看全部；support_assign.edit 為店長層級，仍受門市範圍限制
+    const canBypassScope = await hasCampaignScopeBypass(user.id, [CAMPAIGN_PERM.storeDetailEdit]);
+    // 輔助權限不單獨放行：須通過發布閘門，草稿活動只有 view_all、activity.manage 或 store_detail.edit 可讀
+    if (!hasCampaignPublishedAccess(access) && !canBypassScope) {
       return NextResponse.json(
         { success: false, error: getCampaignAccessDeniedMessage(access) },
         { status: 403 }
       );
     }
 
-    const shouldLimitToManagedStores =
-      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
-    if (storeId && shouldLimitToManagedStores && !access.managedStoreIds.includes(storeId)) {
+    const scope = getCampaignStoreScope(access, canBypassScope);
+    const shouldLimitToManagedStores = !scope.all;
+    const scopedStoreIds = scope.all ? [] : scope.storeIds;
+    if (storeId && !canAccessStore(scope, storeId)) {
       return NextResponse.json({ success: true, data: [] });
     }
 
@@ -67,8 +73,8 @@ export async function GET(request: NextRequest) {
       .eq('campaign_id', campaignId);
     if (storeId) hcQuery = hcQuery.eq('store_id', storeId);
     else if (shouldLimitToManagedStores) {
-      if (access.managedStoreIds.length === 0) return NextResponse.json({ success: true, data: [] });
-      hcQuery = hcQuery.in('store_id', access.managedStoreIds);
+      if (scopedStoreIds.length === 0) return NextResponse.json({ success: true, data: [] });
+      hcQuery = hcQuery.in('store_id', scopedStoreIds);
     }
 
     const { data: hcData, error: hcError } = await hcQuery;
@@ -86,7 +92,7 @@ export async function GET(request: NextRequest) {
       .select('store_id')
       .eq('campaign_id', campaignId);
     if (storeId) ownQuery = ownQuery.eq('store_id', storeId);
-    else if (shouldLimitToManagedStores) ownQuery = ownQuery.in('store_id', access.managedStoreIds);
+    else if (shouldLimitToManagedStores) ownQuery = ownQuery.in('store_id', scopedStoreIds);
 
     const { data: ownData, error: ownError } = await ownQuery;
     if (ownError && ownError.code !== '42P01') {
@@ -127,6 +133,21 @@ export async function POST(request: NextRequest) {
 
     if (!campaign_id || !store_id) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
+    }
+
+    const auth = await authorizeCampaignStoreWrite(
+      supabase,
+      user.id,
+      campaign_id,
+      [store_id],
+      // store_detail.edit 持有者可寫全部門市（與 GET 的 bypass、RLS write policy 一致，不受任命限制）
+      [CAMPAIGN_PERM.storeDetailEdit],
+      [],
+      // RLS 寫入 policy 只認 activity.manage / store_detail.edit，其餘 API 先回 403（避免 RLS 500）
+      [CAMPAIGN_PERM.storeDetailEdit]
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
     const { error } = await supabase

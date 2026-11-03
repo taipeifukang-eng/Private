@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import {
   getCampaignAccessDeniedMessage,
   getCampaignAudienceAccess,
+  getCampaignStoreScope,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -50,11 +51,12 @@ export async function GET(request: Request) {
       .eq('campaign_id', campaign_id)
       .order('activity_date');
 
-    if (!access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager) {
-      if (access.managedStoreIds.length === 0) {
+    const scope = getCampaignStoreScope(access);
+    if (!scope.all) {
+      if (scope.storeIds.length === 0) {
         return NextResponse.json({ success: true, schedules: [] });
       }
-      query = query.in('store_id', access.managedStoreIds);
+      query = query.in('store_id', scope.storeIds);
     }
 
     const { data: schedules, error } = await query;
