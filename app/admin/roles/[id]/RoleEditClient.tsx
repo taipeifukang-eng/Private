@@ -197,6 +197,7 @@ export default function RoleEditClient({
   const router = useRouter();
   const [role, setRole] = useState<Role | null>(null);
   const [permissions, setPermissions] = useState<PermissionWithGrant[]>([]);
+  const [expectedPermissionIds, setExpectedPermissionIds] = useState<string[]>([]);
   const [groupedPermissions, setGroupedPermissions] = useState<PermissionGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -447,12 +448,14 @@ export default function RoleEditClient({
           const loadedPermissions: PermissionWithGrant[] = permData.permissions || [];
           setPermissions(loadedPermissions);
           setSavedPermissionIds(loadedPermissions.filter(permission => permission.granted).map(permission => permission.id));
+          setExpectedPermissionIds(permData.expectedPermissionIds || loadedPermissions.filter(permission => permission.granted).map(permission => permission.id));
           setPermissionConflict(null);
           setShowPermissionChanges(false);
           setPermissionListError(null);
         } else {
           setPermissions([]);
           setSavedPermissionIds([]);
+          setExpectedPermissionIds([]);
           setPermissionListError(permData.error || '權限清單載入失敗，請重新載入。');
         }
       }
@@ -630,7 +633,7 @@ export default function RoleEditClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           permissionIds: grantedPermissionIds,
-          expectedPermissionIds: savedPermissionIds,
+          expectedPermissionIds,
         })
       });
 

@@ -76,7 +76,15 @@ export async function GET(
     }));
 
     return NextResponse.json(
-      { permissions },
+      {
+        permissions,
+        // The atomic replacement compares ALL allowed grants, including inactive
+        // permissions hidden from the editor. Keep its snapshot separate from
+        // the active permissions the administrator can select.
+        expectedPermissionIds: (rolePermissions || [])
+          .filter(rp => rp.is_allowed)
+          .map(rp => rp.permission_id),
+      },
       { headers: { 'Cache-Control': 'no-store' } }
     );
   } catch (error) {
