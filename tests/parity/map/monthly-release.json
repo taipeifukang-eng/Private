@@ -1,0 +1,77 @@
+{
+  "page": "monthly-release",
+  "legacyRoute": "/monthly-release",
+  "workItem": "W04",
+  "entries": [
+    {
+      "id": "release-text",
+      "mechanism": "ui-extract",
+      "description": "逐期比對：期別代號、預設展開狀態、標籤、標題、摘要、月份，以及每個段落的標題、樣式（強調／卡片／條列）、段落文字與條列文字。",
+      "legacy": {
+        "ui": {
+          "route": "/monthly-release",
+          "rowSelector": "details[id]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 每月版更內容 [data-release]"
+      }
+    },
+    {
+      "id": "release-index",
+      "mechanism": "ui-extract",
+      "description": "頁面標題與「月份清單」區塊：標題、說明文字、期數徽章、每期卡片文字與「最新」標記。",
+      "legacy": {
+        "ui": {
+          "route": "/monthly-release",
+          "rowSelector": "section.mb-6"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 每月版更內容 [data-release-index]"
+      }
+    },
+    {
+      "id": "back-home",
+      "mechanism": "ui-extract",
+      "description": "舊版頁首有「返回首頁」連結；新版是工作台頁籤，沒有此連結。",
+      "legacy": {
+        "ui": {
+          "route": "/monthly-release",
+          "rowSelector": "a[href=\"/\"]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 每月版更內容（無此連結）"
+      }
+    },
+    {
+      "id": "access-login-only",
+      "mechanism": "ui-extract",
+      "description": "存取條件：舊頁只要登入就能開（任何角色都是 200 且有內容）；新版對所有登入帳號開放入口，沒有權限碼。",
+      "legacy": {
+        "ui": {
+          "route": "/monthly-release",
+          "rowSelector": "h1"
+        }
+      },
+      "native": {
+        "source": "/api/workspace/session capabilities.monthlyRelease"
+      }
+    },
+    {
+      "id": "access-anonymous",
+      "mechanism": "ui-extract",
+      "description": "未登入存取：舊頁沒有登入檢查，任何人都能看到公告；新版要求登入（工作台 session 401）。",
+      "legacy": {
+        "ui": {
+          "route": "/monthly-release",
+          "rowSelector": "h1"
+        }
+      },
+      "native": {
+        "source": "/api/workspace/session（未登入 401）"
+      }
+    }
+  ]
+}

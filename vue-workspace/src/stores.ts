@@ -33,6 +33,7 @@ export type Session = {
     taskManagement: boolean;
     monthly: boolean;
     monthlyExport: boolean;
+    monthlyRelease: boolean;
     performance: boolean;
     inventory: boolean;
     importInventory: boolean;

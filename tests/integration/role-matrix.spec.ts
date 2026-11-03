@@ -48,7 +48,11 @@ test.describe('角色矩陣：每個帳號都能登入且 session 與 role-matri
         // 與實作無關的不變式。
         const caps = Object.values(body.capabilities as Record<string, boolean>);
         if (account.key === 'admin') expect(caps.every(Boolean)).toBe(true);
-        if (account.key === 'denied') expect(caps.some(Boolean)).toBe(false);
+        // monthlyRelease（W04 版更說明頁）是「登入即可看」，所有登入帳號都為 true，不算角色權限。
+        expect(body.capabilities.monthlyRelease).toBe(true);
+        if (account.key === 'denied') {
+          expect(Object.entries(body.capabilities as Record<string, boolean>).filter(([k, v]) => v && k !== 'monthlyRelease')).toEqual([]);
+        }
       } finally {
         await api.dispose();
       }

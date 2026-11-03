@@ -87,6 +87,7 @@ export async function GET() {
         improvements,
         monthly: ctx.has(...moduleCodes.monthly),
         monthlyExport: monthlyExport,
+        monthlyRelease: true, // W04：版更說明頁登入即可看
         performance: ctx.has(...moduleCodes.performance),
         inventory: ctx.has(...moduleCodes.inventory),
         importInventory: ctx.has(

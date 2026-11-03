@@ -610,5 +610,41 @@
       "kind": "only-native",
       "key": "ui#threshold-auto-reload"
     }
+  },
+  {
+    "id": "nav-monthly-release-native",
+    "page": "navigation",
+    "description": "新版全站功能選單「每月人員狀態」群組新增「每月版更內容」，所有登入帳號都看得到；舊版 Navbar 沒有這個入口（舊版只在首頁有卡片連結）。",
+    "reason": "M1 W04：版更說明頁登入即可看，新版先放進導覽選單方便找到；首頁入口由 W12 補。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/monthly-release"
+    }
+  },
+  {
+    "id": "w04-no-back-home-link",
+    "page": "monthly-release",
+    "description": "舊版頁首右側有「返回首頁」連結；新版是工作台頁籤，沒有此連結（頁籤列與選單即為返回方式）。",
+    "reason": "工作台沒有「首頁」路由可返回，連結多餘。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "back-home",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "w04-login-required",
+    "page": "monthly-release",
+    "description": "未登入存取：舊版 /monthly-release 沒有任何登入檢查，任何人（含未登入）都能看到版更公告；新版是工作台頁面，需先登入（session 401）。",
+    "reason": "M1 W04-q1 使用者決定「獨立頁，登入即可看」；新版不開放匿名瀏覽。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "access-anonymous",
+      "kind": "only-legacy"
+    }
   }
 ]

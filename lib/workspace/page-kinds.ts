@@ -29,6 +29,7 @@ export const WORKSPACE_NAV_KINDS = [
   "campaigns",
   "monthly",
   "monthly-export",
+  "monthly-release",
   "performance",
   "inventory",
   "employee-purchases",

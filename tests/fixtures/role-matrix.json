@@ -322,6 +322,7 @@
           "improvements": true,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": true,
           "inventory": true,
           "importInventory": true,
@@ -362,6 +363,7 @@
           "/inspection/compare",
           "/inspection/improvements",
           "/inventory",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -492,6 +494,7 @@
           "improvements": true,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": true,
           "inventory": true,
           "importInventory": true,
@@ -522,6 +525,7 @@
           "/inspection",
           "/inspection/improvements",
           "/inventory",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -610,6 +614,7 @@
           "improvements": true,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": true,
           "inventory": false,
           "importInventory": false,
@@ -632,6 +637,7 @@
           "/inspection",
           "/inspection/compare",
           "/inspection/improvements",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -710,6 +716,7 @@
           "improvements": false,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": true,
           "inventory": false,
           "importInventory": false,
@@ -728,6 +735,7 @@
           "/admin/performance",
           "/admin/stores",
           "/dashboard",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -817,6 +825,7 @@
           "improvements": true,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -835,6 +844,7 @@
           "/dashboard",
           "/inspection",
           "/inspection/improvements",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -911,6 +921,7 @@
           "improvements": true,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": true,
           "importInventory": true,
@@ -928,6 +939,7 @@
           "/general-affairs",
           "/inspection/improvements",
           "/inventory",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -1004,6 +1016,7 @@
           "improvements": true,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": true,
           "importInventory": true,
@@ -1021,6 +1034,7 @@
           "/general-affairs",
           "/inspection/improvements",
           "/inventory",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -1077,6 +1091,7 @@
           "improvements": false,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1092,6 +1107,7 @@
           "/admin/export-monthly-status",
           "/admin/pharmacist-management",
           "/dashboard",
+          "/monthly-release",
           "/monthly-status",
           "/my-tasks",
           "/organization/calendar",
@@ -1163,6 +1179,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": true,
           "importInventory": true,
@@ -1177,6 +1194,7 @@
         "navigationHrefs": [
           "/dashboard",
           "/inventory",
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -1281,6 +1299,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1298,6 +1317,7 @@
           "/dashboard",
           "/general-affairs",
           "/general-affairs/inventory",
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -1355,6 +1375,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1369,6 +1390,7 @@
         "navigationHrefs": [
           "/dashboard",
           "/general-affairs",
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -1419,6 +1441,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1432,6 +1455,7 @@
         },
         "navigationHrefs": [
           "/dashboard",
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -1476,6 +1500,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1488,6 +1513,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 0
@@ -1536,6 +1562,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1548,6 +1575,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -1599,6 +1627,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1611,6 +1640,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 5
@@ -1661,6 +1691,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1673,6 +1704,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -1720,6 +1752,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1733,6 +1766,7 @@
         },
         "navigationHrefs": [
           "/admin/stores",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -1783,6 +1817,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1796,6 +1831,7 @@
         },
         "navigationHrefs": [
           "/admin/stores",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -1844,6 +1880,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1857,6 +1894,7 @@
         },
         "navigationHrefs": [
           "/admin/stores",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -1904,6 +1942,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1917,6 +1956,7 @@
         },
         "navigationHrefs": [
           "/inspection",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -1968,6 +2008,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -1981,6 +2022,7 @@
         },
         "navigationHrefs": [
           "/inspection",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 5
@@ -2029,6 +2071,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2042,6 +2085,7 @@
         },
         "navigationHrefs": [
           "/inspection",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -2090,6 +2134,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2103,6 +2148,7 @@
         },
         "navigationHrefs": [
           "/admin/activity-management",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -2153,6 +2199,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2166,6 +2213,7 @@
         },
         "navigationHrefs": [
           "/admin/activity-management",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -2215,6 +2263,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2228,6 +2277,7 @@
         },
         "navigationHrefs": [
           "/admin/activity-management",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 3
@@ -2276,6 +2326,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2288,6 +2339,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -2339,6 +2391,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2351,6 +2404,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -2401,6 +2455,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2413,6 +2468,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/my-tasks",
           "/organization/calendar"
         ],
@@ -2461,6 +2517,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2473,6 +2530,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar",
           "/store/relationship-members"
         ],
@@ -2522,6 +2580,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2534,6 +2593,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar",
           "/store/relationship-members"
         ],
@@ -2583,6 +2643,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2595,6 +2656,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar",
           "/store/relationship-members"
         ],
@@ -2645,6 +2707,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2658,6 +2721,7 @@
         },
         "navigationHrefs": [
           "/admin/roles",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 3
@@ -2711,6 +2775,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2725,6 +2790,7 @@
         "navigationHrefs": [
           "/admin/roles",
           "/admin/users",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 7
@@ -2776,6 +2842,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2790,6 +2857,7 @@
         "navigationHrefs": [
           "/admin/roles",
           "/admin/users",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 5
@@ -2837,6 +2905,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2850,6 +2919,7 @@
         },
         "navigationHrefs": [
           "/admin/users",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -2900,6 +2970,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2913,6 +2984,7 @@
         },
         "navigationHrefs": [
           "/admin/users",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -2961,6 +3033,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -2974,6 +3047,7 @@
         },
         "navigationHrefs": [
           "/admin/users",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -3024,6 +3098,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3038,6 +3113,7 @@
         "navigationHrefs": [
           "/admin/departments",
           "/admin/organization",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -3092,6 +3168,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3106,6 +3183,7 @@
         "navigationHrefs": [
           "/admin/departments",
           "/admin/organization",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 8
@@ -3154,6 +3232,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3167,6 +3246,7 @@
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -3217,6 +3297,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3230,6 +3311,7 @@
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -3278,6 +3360,7 @@
           "improvements": false,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3291,6 +3374,7 @@
         },
         "navigationHrefs": [
           "/admin/export-monthly-status",
+          "/monthly-release",
           "/monthly-status",
           "/organization/calendar",
           "/store/clinic-selfpay-margin"
@@ -3344,6 +3428,7 @@
           "improvements": false,
           "monthly": true,
           "monthlyExport": true,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3357,6 +3442,7 @@
         },
         "navigationHrefs": [
           "/admin/export-monthly-status",
+          "/monthly-release",
           "/monthly-status",
           "/organization/calendar",
           "/store/clinic-selfpay-margin"
@@ -3407,6 +3493,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": true,
           "inventory": false,
           "importInventory": false,
@@ -3420,6 +3507,7 @@
         },
         "navigationHrefs": [
           "/admin/performance",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -3470,6 +3558,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": true,
           "inventory": false,
           "importInventory": false,
@@ -3483,6 +3572,7 @@
         },
         "navigationHrefs": [
           "/admin/performance",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -3530,6 +3620,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3543,6 +3634,7 @@
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -3591,6 +3683,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3604,6 +3697,7 @@
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -3652,6 +3746,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": true,
           "importInventory": true,
@@ -3665,6 +3760,7 @@
         },
         "navigationHrefs": [
           "/inventory",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -3715,6 +3811,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": true,
           "importInventory": true,
@@ -3728,6 +3825,7 @@
         },
         "navigationHrefs": [
           "/inventory",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 4
@@ -3777,6 +3875,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": true,
           "importInventory": true,
@@ -3790,6 +3889,7 @@
         },
         "navigationHrefs": [
           "/inventory",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 3
@@ -3837,6 +3937,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3849,6 +3950,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -3897,6 +3999,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3909,6 +4012,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -3957,6 +4061,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -3969,6 +4074,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -4016,6 +4122,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -4028,6 +4135,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -4076,6 +4184,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -4090,6 +4199,7 @@
         "navigationHrefs": [
           "/admin/store-managers",
           "/admin/supervisors",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -4138,6 +4248,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -4150,6 +4261,7 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2
@@ -4197,6 +4309,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -4210,6 +4323,7 @@
         },
         "navigationHrefs": [
           "/general-affairs",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 1
@@ -4258,6 +4372,7 @@
           "improvements": false,
           "monthly": false,
           "monthlyExport": false,
+          "monthlyRelease": true,
           "performance": false,
           "inventory": false,
           "importInventory": false,
@@ -4271,6 +4386,7 @@
         },
         "navigationHrefs": [
           "/general-affairs",
+          "/monthly-release",
           "/organization/calendar"
         ],
         "permissionCount": 2

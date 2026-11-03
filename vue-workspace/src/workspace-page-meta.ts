@@ -75,6 +75,8 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   monthly: meta("每月人員狀態", ["monthly"], true),
   "monthly-edit": meta("人員明細", ["monthly"]),
   "monthly-export": meta("資料匯出", ["monthlyExport"]),
+  // W04：登入即可看（session 對所有已登入者回傳 monthlyRelease: true）。
+  "monthly-release": meta("每月版更內容", ["monthlyRelease"]),
   performance: meta("業績管理", ["performance"], true),
   "performance-edit": meta("編輯業績", ["performance"]),
   "performance-thresholds": meta("獎金閾值", ["performance"]),
