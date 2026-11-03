@@ -157,7 +157,14 @@ async function syncRole(db, account, permissionIds) {
     `roles upsert ${account.roleCode}`,
   );
   if (!role.code.startsWith(ROLE_PREFIX)) throw new Error('拒絕修改非 vue_workspace_* 角色');
-  const desiredCodes = account.permissions === 'ALL' ? [...permissionIds.keys()] : account.permissions;
+  // ALL = 所有 active 權限；但活動查看權限 migration（20261103090000）規定持有 view_all 的角色不再保留舊 view / view_own，
+  // 所以 ALL 要排除這兩個碼（與 DEV 現況與 fixture 一致），否則重新 seed 會把它們加回來。
+  const desiredCodes =
+    account.permissions === 'ALL'
+      ? [...permissionIds.keys()].filter(
+          (c) => !(permissionIds.has('activity.campaign.view_all') && (c === 'activity.campaign.view' || c === 'activity.campaign.view_own')),
+        )
+      : account.permissions;
   const desiredIds = new Set(desiredCodes.map((c) => permissionIds.get(c)));
   const existing = ok(await db.from('role_permissions').select('id,permission_id').eq('role_id', role.id), 'role_permissions select');
   const stale = existing.filter((r) => !desiredIds.has(r.permission_id)).map((r) => r.id);

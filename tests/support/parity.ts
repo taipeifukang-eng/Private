@@ -530,6 +530,36 @@ export function valueDiffsToDiffs(diffs: ValueDiff[], prefix = ''): Diff[] {
   }));
 }
 
+const isScalar = (v: unknown) => v === null || ['string', 'number', 'boolean'].includes(typeof v);
+export function isScalarArray(v: unknown[]): boolean {
+  return v.every(isScalar);
+}
+
+/**
+ * 純值陣列（例如權限碼清單）以集合比對：差異鍵是值本身（only-legacy / only-native）。
+ * 不能用索引逐項比對：兩邊長度不同時，排序後的索引會整段錯位，少一項就會產生大量假差異。
+ * 重複值以出現次數比對；只有集合相同但次數不同時才回報 count。
+ */
+export function scalarSetDiffs(legacy: unknown[], native: unknown[]): Diff[] {
+  const tally = (arr: unknown[]) => {
+    const m = new Map<string, { value: unknown; n: number }>();
+    for (const v of arr) {
+      const k = JSON.stringify(v);
+      const e = m.get(k);
+      if (e) e.n += 1;
+      else m.set(k, { value: v, n: 1 });
+    }
+    return m;
+  };
+  const l = tally(legacy);
+  const n = tally(native);
+  const out: Diff[] = [];
+  for (const [k, e] of l) if (!n.has(k)) out.push({ kind: 'only-legacy', key: String(e.value), legacy: e.value });
+  for (const [k, e] of n) if (!l.has(k)) out.push({ kind: 'only-native', key: String(e.value), native: e.value });
+  if (!out.length && legacy.length !== native.length) out.push({ kind: 'count', key: '(root)', legacy: legacy.length, native: native.length });
+  return out;
+}
+
 export function rowSetToDiffs(cmp: RowSetComparison): Diff[] {
   const out: Diff[] = [];
   if (cmp.legacyCount !== cmp.nativeCount) {
@@ -606,6 +636,8 @@ export async function compareApiRead(input: ApiReadInput) {
       compared.nativeRows = nv.length;
       if (input.compareKey) {
         diffs.push(...rowSetToDiffs(compareRowSets(lv as Record<string, unknown>[], nv as Record<string, unknown>[], input.compareKey)));
+      } else if (isScalarArray(lv) && isScalarArray(nv) && !rules.keepAllOrder) {
+        diffs.push(...scalarSetDiffs(lv, nv));
       } else {
         diffs.push(...valueDiffsToDiffs(diffNormalized(lv, nv)));
       }

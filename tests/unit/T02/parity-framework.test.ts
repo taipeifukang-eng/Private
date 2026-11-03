@@ -205,6 +205,29 @@ describe('機制一：API 讀取對等', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it('純值陣列（權限碼）以集合比對：一邊少兩項時只回報那兩項，不會讓後面整段索引錯位', async () => {
+    const { dir, recorder } = mk();
+    const all = ['a.view', 'a.view_all', 'a.view_own', 'b.x', 'c.y', 'd.z'];
+    const r = await compareApiRead({
+      recorder,
+      entry: 'perm',
+      title: 't',
+      role: 'admin',
+      legacyApi: fakeApi({
+        '/l': { status: 200, body: { permissions: all } },
+        '/n': { status: 200, body: { permissions: all.filter((c) => c !== 'a.view' && c !== 'a.view_own') } },
+      }),
+      legacy: { path: '/l', pick: 'permissions' },
+      native: { path: '/n', pick: 'permissions' },
+    });
+    expect(r.diffs).toEqual([
+      { kind: 'only-legacy', key: 'a.view', legacy: 'a.view' },
+      { kind: 'only-legacy', key: 'a.view_own', legacy: 'a.view_own' },
+    ]);
+    expect(r.compared).toMatchObject({ legacyRows: 6, nativeRows: 4 });
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it('兩邊同為 403 視為一致，不比內容', async () => {
     const { dir, recorder } = mk();
     const r = await compareApiRead({

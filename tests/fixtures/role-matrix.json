@@ -87,8 +87,7 @@
       "key": "campaign",
       "label": "活動",
       "view": [
-        "activity.campaign.view_all",
-        "activity.campaign.view"
+        "activity.campaign.view_all"
       ],
       "edit": [
         "activity.campaign.edit",
@@ -371,7 +370,7 @@
           "/store/relationship-members",
           "/supervisor-management-log"
         ],
-        "permissionCount": 243
+        "permissionCount": 241
       }
     },
     {
@@ -384,9 +383,7 @@
       "jobTitle": "導覽檢視員",
       "systemRoles": [],
       "permissions": [
-        "activity.campaign.view",
         "activity.campaign.view_all",
-        "activity.campaign.view_own",
         "activity.management.access",
         "activity.schedule.view",
         "activity.staff_overview.view",
@@ -533,7 +530,7 @@
           "/store/relationship-members",
           "/supervisor-management-log"
         ],
-        "permissionCount": 81
+        "permissionCount": 79
       }
     },
     {
@@ -547,7 +544,6 @@
       "department": "營業部",
       "systemRoles": [],
       "permissions": [
-        "activity.campaign.view",
         "activity.campaign.view_all",
         "activity.staff_overview.view",
         "activity.store_detail.view",
@@ -644,7 +640,7 @@
           "/store/clinic-selfpay-margin",
           "/store/relationship-members"
         ],
-        "permissionCount": 38
+        "permissionCount": 37
       }
     },
     {
@@ -660,7 +656,6 @@
       "permissions": [
         "activity.campaign.create",
         "activity.campaign.edit",
-        "activity.campaign.view",
         "activity.campaign.view_all",
         "activity.schedule.create",
         "activity.schedule.edit",
@@ -742,7 +737,7 @@
           "/store/clinic-selfpay-margin",
           "/store/relationship-members"
         ],
-        "permissionCount": 29
+        "permissionCount": 28
       }
     },
     {
@@ -756,6 +751,7 @@
       "systemRoles": [],
       "permissions": [
         "activity.campaign.view",
+        "activity.campaign.view_own",
         "dashboard.view",
         "employee.store_employee.view",
         "home.bonus_detail.view_own",
@@ -852,7 +848,7 @@
           "/store/relationship-members",
           "/supervisor-management-log"
         ],
-        "permissionCount": 28
+        "permissionCount": 29
       }
     },
     {
@@ -2103,7 +2099,133 @@
       "jobTitle": "活動view",
       "systemRoles": [],
       "permissions": [
-        "activity.campaign.view",
+        "activity.campaign.view_all"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": true,
+          "editCampaigns": false
+        },
+        "navigationHrefs": [
+          "/admin/activity-management",
+          "/monthly-release",
+          "/organization/calendar"
+        ],
+        "permissionCount": 1
+      }
+    },
+    {
+      "kind": "module",
+      "module": "campaign",
+      "action": "edit",
+      "key": "campaign_edit",
+      "email": "vue-workspace-campaign-edit@example.test",
+      "roleCode": "vue_workspace_campaign_edit",
+      "fullName": "測試 活動 edit",
+      "profileRole": "member",
+      "jobTitle": "活動edit",
+      "systemRoles": [],
+      "permissions": [
+        "activity.campaign.create",
+        "activity.campaign.edit",
+        "activity.campaign.view_all"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": true,
+          "editCampaigns": true
+        },
+        "navigationHrefs": [
+          "/admin/activity-management",
+          "/monthly-release",
+          "/organization/calendar"
+        ],
+        "permissionCount": 3
+      }
+    },
+    {
+      "kind": "module",
+      "module": "campaign",
+      "action": "delete",
+      "key": "campaign_delete",
+      "email": "vue-workspace-campaign-delete@example.test",
+      "roleCode": "vue_workspace_campaign_delete",
+      "fullName": "測試 活動 delete",
+      "profileRole": "member",
+      "jobTitle": "活動delete",
+      "systemRoles": [],
+      "permissions": [
+        "activity.campaign.delete",
         "activity.campaign.view_all"
       ],
       "stores": [],
@@ -2152,135 +2274,6 @@
           "/organization/calendar"
         ],
         "permissionCount": 2
-      }
-    },
-    {
-      "kind": "module",
-      "module": "campaign",
-      "action": "edit",
-      "key": "campaign_edit",
-      "email": "vue-workspace-campaign-edit@example.test",
-      "roleCode": "vue_workspace_campaign_edit",
-      "fullName": "測試 活動 edit",
-      "profileRole": "member",
-      "jobTitle": "活動edit",
-      "systemRoles": [],
-      "permissions": [
-        "activity.campaign.create",
-        "activity.campaign.edit",
-        "activity.campaign.view",
-        "activity.campaign.view_all"
-      ],
-      "stores": [],
-      "expected": {
-        "capabilities": {
-          "employeePurchases": false,
-          "pharmacists": false,
-          "relationships": false,
-          "roles": false,
-          "users": false,
-          "transfers": false,
-          "movementDraft": false,
-          "movementHistory": false,
-          "employees": false,
-          "employeeCreate": false,
-          "employeeBirthdays": false,
-          "employeeImport": false,
-          "departments": false,
-          "organization": false,
-          "storeMap": false,
-          "storeManagement": false,
-          "supervisors": false,
-          "storeManagers": false,
-          "tasks": false,
-          "taskArchive": false,
-          "taskManagement": false,
-          "inspectionSettings": false,
-          "improvements": false,
-          "monthly": false,
-          "monthlyExport": false,
-          "monthlyRelease": true,
-          "performance": false,
-          "inventory": false,
-          "importInventory": false,
-          "deleteInventory": false,
-          "compareInspections": false,
-          "createInspections": false,
-          "inspections": false,
-          "managerInspections": false,
-          "campaigns": true,
-          "editCampaigns": true
-        },
-        "navigationHrefs": [
-          "/admin/activity-management",
-          "/monthly-release",
-          "/organization/calendar"
-        ],
-        "permissionCount": 4
-      }
-    },
-    {
-      "kind": "module",
-      "module": "campaign",
-      "action": "delete",
-      "key": "campaign_delete",
-      "email": "vue-workspace-campaign-delete@example.test",
-      "roleCode": "vue_workspace_campaign_delete",
-      "fullName": "測試 活動 delete",
-      "profileRole": "member",
-      "jobTitle": "活動delete",
-      "systemRoles": [],
-      "permissions": [
-        "activity.campaign.delete",
-        "activity.campaign.view",
-        "activity.campaign.view_all"
-      ],
-      "stores": [],
-      "expected": {
-        "capabilities": {
-          "employeePurchases": false,
-          "pharmacists": false,
-          "relationships": false,
-          "roles": false,
-          "users": false,
-          "transfers": false,
-          "movementDraft": false,
-          "movementHistory": false,
-          "employees": false,
-          "employeeCreate": false,
-          "employeeBirthdays": false,
-          "employeeImport": false,
-          "departments": false,
-          "organization": false,
-          "storeMap": false,
-          "storeManagement": false,
-          "supervisors": false,
-          "storeManagers": false,
-          "tasks": false,
-          "taskArchive": false,
-          "taskManagement": false,
-          "inspectionSettings": false,
-          "improvements": false,
-          "monthly": false,
-          "monthlyExport": false,
-          "monthlyRelease": true,
-          "performance": false,
-          "inventory": false,
-          "importInventory": false,
-          "deleteInventory": false,
-          "compareInspections": false,
-          "createInspections": false,
-          "inspections": false,
-          "managerInspections": false,
-          "campaigns": true,
-          "editCampaigns": false
-        },
-        "navigationHrefs": [
-          "/admin/activity-management",
-          "/monthly-release",
-          "/organization/calendar"
-        ],
-        "permissionCount": 3
       }
     },
     {
@@ -4402,5 +4395,6 @@
     "pharmacist.management.delete"
   ],
   "verified": false,
-  "verifiedNote": "expected.capabilities 為現行行為快照，待 parity 階段驗證（尚未與舊版逐項核對）。"
+  "verifiedNote": "expected.capabilities 為現行行為快照，待 parity 階段驗證（尚未與舊版逐項核對）。",
+  "campaignViewScopeNote": "2026-11-04：DEV 已套用活動查看權限 migration（20261103090000_campaign_view_scope）。持有 view_all 的角色移除 view／view_own（admin 為 241 碼，不再是全部 243 個 active 碼）；只持有 view 的角色補 view_own（supervisor）。navigation 與 capabilities 不受影響。"
 }

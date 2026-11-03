@@ -88,7 +88,7 @@
     "page": "navigation",
     "description": "舊 Navbar 桌機的「跨部門」下拉有「商品部」(/cross-dept/merchandise)，手機漢堡選單（components/Navbar.tsx 的 Mobile Menu）沒有跨部門區塊，手機版舊站看不到此入口。",
     "reason": "舊版自身桌機／手機不一致，是舊版缺陷而非新版差異。新版以桌機版為準（入口都在），需使用者確認不必在新版重現手機缺漏。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-03)",
     "match": {
       "mechanism": "navigation",
       "entry": "nav-legacy-mobile-vs-desktop",
@@ -101,7 +101,7 @@
     "page": "navigation",
     "description": "舊 Navbar 桌機的「跨部門」下拉有「總務組」(/cross-dept/maintenance)，手機漢堡選單（components/Navbar.tsx 的 Mobile Menu）沒有跨部門區塊，手機版舊站看不到此入口。",
     "reason": "舊版自身桌機／手機不一致，是舊版缺陷而非新版差異。新版以桌機版為準（入口都在），需使用者確認不必在新版重現手機缺漏。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-03)",
     "match": {
       "mechanism": "navigation",
       "entry": "nav-legacy-mobile-vs-desktop",
@@ -829,6 +829,38 @@
       "entry": "master-layout",
       "key": "wording",
       "kind": "changed"
+    }
+  },
+  {
+    "id": "nav-admin-permissions-view-legacy-only",
+    "page": "navigation",
+    "description": "系統管理員（isAdminLike）：舊 /api/permissions/user 回傳「所有 active 權限碼」，含舊碼 activity.campaign.view；新 /api/workspace/session 的 permissions 取自角色實際指派（role_permissions）。活動查看權限 migration（20261103090000）已把 admin 角色上的 view／view_own 移除（因已持有 view_all），所以新版清單沒有 activity.campaign.view。",
+    "reason": "功能上無差異：admin 在新版 has() 一律為 true，capabilities 與導覽完全相同；差異只在權限碼清單的顯示。view 是第一階段保留、第二階段停用的舊碼。需使用者確認是否接受，或要求新版 admin 也回傳全部 active 碼。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "entry": "effective-permissions",
+      "kind": "only-legacy",
+      "key": "activity.campaign.view",
+      "roles": [
+        "admin"
+      ]
+    }
+  },
+  {
+    "id": "nav-admin-permissions-view-own-legacy-only",
+    "page": "navigation",
+    "description": "系統管理員（isAdminLike）：舊 /api/permissions/user 回傳「所有 active 權限碼」，含舊碼 activity.campaign.view_own；新 /api/workspace/session 的 permissions 取自角色實際指派（role_permissions）。活動查看權限 migration（20261103090000）已把 admin 角色上的 view／view_own 移除（因已持有 view_all），所以新版清單沒有 activity.campaign.view_own。",
+    "reason": "功能上無差異：admin 在新版 has() 一律為 true，capabilities 與導覽完全相同；差異只在權限碼清單的顯示。view 是第一階段保留、第二階段停用的舊碼。需使用者確認是否接受，或要求新版 admin 也回傳全部 active 碼。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "entry": "effective-permissions",
+      "kind": "only-legacy",
+      "key": "activity.campaign.view_own",
+      "roles": [
+        "admin"
+      ]
     }
   }
 ]

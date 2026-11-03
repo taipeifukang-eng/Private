@@ -73,7 +73,7 @@ describe('新版殼層 DOM', () => {
     const cross = { kind: 'desktop-only', key: '/cross-dept/maintenance' };
     expect(
       matchAllowlist(cross, { page: 'navigation', mechanism: 'navigation', entry: 'nav-legacy-mobile-vs-desktop', role: 'admin' }, list)?.approvedBy,
-    ).toBeNull();
+    ).toBe('user (2026-11-03)');
   });
 });
 
