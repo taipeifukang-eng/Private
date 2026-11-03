@@ -1,5 +1,5 @@
 import { checked, type Context } from './server';
-import { moduleCodes, moduleStores } from './modules';
+import { moduleCodes } from './modules';
 import {
   MONTHLY_EXPORT_GENERAL_PERMISSION,
   deriveExportStoreStatus,
@@ -73,12 +73,9 @@ export async function loadExportAccess(ctx: Context): Promise<ExportAccess> {
 }
 
 /**
- * 沒有一般匯出權限的人（只有單品獎金）只能選自己有權限看的門市。
- * 例外：沒有指派門市的支援時數角色（督導、經理、營業部主管）舊版單品獎金只檢查登入、不限門市，故回傳全部有效門市（null）。
+ * 單品獎金門市清單的範圍。W02-q2：單品獎金完全照舊版（只檢查登入、不限門市，資料可見範圍只由資料列權限決定），
+ * 所以包裝層不再另外縮小成 store_managers 指派門市；一律不加 id 限制（null），仍用呼叫者的 session client 讀取。
  */
-export async function scopedExportStoreIds(ctx: Context, access?: ExportAccess): Promise<string[] | null> {
-  if (ctx.has(MONTHLY_EXPORT_GENERAL_PERMISSION) || ctx.has('monthly.status.view_all')) return null;
-  const assigned = (await moduleStores(ctx, 'monthly')).map((s: { id: string }) => s.id);
-  if (!assigned.length && access?.supportHours) return null;
-  return assigned;
+export async function scopedExportStoreIds(_ctx: Context, _access?: ExportAccess): Promise<string[] | null> {
+  return null;
 }

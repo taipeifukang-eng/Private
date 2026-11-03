@@ -264,3 +264,21 @@ test.describe('權限：W02-q1／q2', () => {
     expect(session.capabilities.monthlyExport).toBe(true);
   });
 });
+
+test.describe('W02-q2：單品獎金門市範圍不被包裝層縮小', () => {
+  for (const role of ['supervisor', 'ops_manager', 'store_manager'] as const) {
+    test(`${role}：門市清單不另外縮小（只受資料列權限限制），單品獎金可匯出非指派門市`, async () => {
+      const api = await apiAs(role);
+      try {
+        const listed = await api.get(`${BASE}/stores`, { params: { year_month: MONTH } });
+        expect(listed.status()).toBe(200);
+        expect(Array.isArray((await listed.json()).stores)).toBe(true); // 範圍只由資料列權限（RLS）決定，不再縮成 store_managers 指派
+        // 單品獎金 API 不依指派門市限制：所選（非指派）門市照舊版回 200
+        const res = await api.post(`${BASE}/single-item-bonus`, { data: { year_month: MONTH, store_ids: selected() } });
+        expect(res.status()).toBe(200);
+      } finally {
+        await api.dispose();
+      }
+    });
+  }
+});

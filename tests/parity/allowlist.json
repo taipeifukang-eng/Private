@@ -401,8 +401,8 @@
   {
     "id": "w02-stores-scoped-for-single-item",
     "page": "monthly-export",
-    "description": "只有單品獎金權限（沒有 monthly.export.download）的帳號：舊門市列表 API 回 403；新版回傳該帳號有權限看的門市，讓單品獎金可選門市。",
-    "reason": "M1 W02-q2：單品獎金照舊版開放給店長、督導等人員；單品獎金需要選門市，所以新版提供範圍受限的門市清單。待使用者核可。",
+    "description": "只有單品獎金權限（沒有 monthly.export.download）的帳號：舊門市列表 API 回 403；新版回傳門市列表（不另外縮小範圍，僅受資料列可見範圍限制），讓單品獎金可選門市。",
+    "reason": "M1 W02-q2：單品獎金照舊版開放給店長、督導等人員；單品獎金需要選門市，所以新版提供門市清單（不縮小範圍，維持單品獎金照舊版不限門市）。待使用者核可。",
     "approvedBy": null,
     "match": {
       "mechanism": "api-read",
