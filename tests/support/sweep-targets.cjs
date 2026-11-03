@@ -21,6 +21,9 @@ const RESERVED_MONTH_TABLES = [
   'talent_cultivation_bonus',
   'spring_festival_bonus',
   'meal_allowance_records',
+  // P01：員工購物 POS 匯入（銷售月份 2099-xx，門市只用 ZT/VW）與藥師月份名冊快照。
+  'employee_purchase_sales',
+  'pharmacist_monthly_snapshot',
 ];
 const RESERVED_MONTH_PATTERN = '2099-%';
 
@@ -68,6 +71,11 @@ const DELETABLE_TABLES = {
   store_performance: ['id'],
   store_performance_thresholds: ['id'],
   monthly_bonus_records: ['id'],
+  // P01：員購匯入批次與藥師月份關帳沒有 store_id，只能依登錄的 id 清除；銷售明細與月份名冊另有保留月份機制後備。
+  employee_purchase_sales: ['id'],
+  employee_purchase_import_batches: ['id'],
+  pharmacist_monthly_snapshot: ['id'],
+  pharmacist_snapshot_locks: ['year_month'],
 };
 
 function isDeletableTarget(table, column) {

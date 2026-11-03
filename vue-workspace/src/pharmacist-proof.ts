@@ -1,4 +1,30 @@
-const MOBILE_SAFE_MAX_UPLOAD_BYTES = 3.5 * 1024 * 1024;
+// 繳費證明上限：新舊版實際行為相同（超過 3.5 MB 即擋下），畫面文字統一顯示 3.5 MB（M1 P01）。
+export const MOBILE_SAFE_MAX_UPLOAD_BYTES = 3.5 * 1024 * 1024;
+export const PROOF_LIMIT_LABEL = '3.5 MB';
+export const PROOF_TOO_LARGE_MESSAGE = `檔案過大，請壓縮至 ${PROOF_LIMIT_LABEL} 以內`;
+export const PROOF_FIELD_HINT = `大張照片會嘗試壓縮，上傳檔案需在 ${PROOF_LIMIT_LABEL} 以內。`;
+
+/** 壓縮後仍超過上限（舊版同一條件：size > 3.5 MB）。 */
+export function isProofTooLarge(size: number): boolean {
+  return size > MOBILE_SAFE_MAX_UPLOAD_BYTES;
+}
+
+/**
+ * 執照更新日是否逾期（舊版 PharmacistMasterList：new Date(date) < new Date()）。
+ * 空值不逾期；日期字串以 UTC 午夜解析，與舊版 new Date('YYYY-MM-DD') 相同，今天當天的日期視為已逾期（午夜早於現在）。
+ */
+export function isLicenseOverdue(date: string | null | undefined, now: Date = new Date()): boolean {
+  if (!date) return false;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed < now;
+}
+
+/** 督導區卡片的門市數與藥師數（舊版 PharmacistSupervisorCards 標頭）。 */
+export function zoneTotals(card: { stores?: Array<{ pharmacistCount?: number }> }) {
+  const stores = card.stores || [];
+  return { stores: stores.length, pharmacists: stores.reduce((sum, s) => sum + Number(s.pharmacistCount || 0), 0) };
+}
 export async function compressImageForMobile(file: File): Promise<File> {
   if (!file.type.startsWith('image/')) return file;
   if (file.size <= MOBILE_SAFE_MAX_UPLOAD_BYTES) return file;

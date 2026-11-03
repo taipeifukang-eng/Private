@@ -1207,7 +1207,7 @@ export async function pharmacistOverview(searchParams: {
       edit: canEditModule,
       addMonthly: canEditModule || canViewAllMonthly,
       master: canViewMasterTab,
-      masterEdit: canEditMasterTab && canEditModule,
+      masterEdit: canEditMasterTab,
     },
   };
 }

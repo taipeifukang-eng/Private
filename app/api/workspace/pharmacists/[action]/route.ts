@@ -51,12 +51,8 @@ async function run(r: NextRequest, key: string, method: string) {
         !(await hasPermission(ctx.user.id, "pharmacist.management.master.view"))
       )
         throw new WorkspaceError(403, "沒有藥師主檔查看權限");
-      if (
-        !["master"].includes(key) &&
-        method !== "GET" &&
-        !(await hasPermission(ctx.user.id, "pharmacist.management.master.edit"))
-      )
-        throw new WorkspaceError(403, "沒有藥師主檔編輯權限");
+      // 寫入權限由舊版 handler 自己檢查（pharmacist.management.edit），與舊版 API 一致；
+      // 舊版畫面以 master.edit 決定是否顯示主檔編輯控制項，這裡不另加 master.edit 檢查。
     }
     if (key === "monthly-manual" && method === "POST") {
       const body = await r.clone().json();

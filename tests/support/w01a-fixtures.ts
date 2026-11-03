@@ -4,7 +4,7 @@ import { readRowsAsServiceRole } from './parity';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { createRegistry, RUN_ID_RE } = require('./registry.cjs') as {
-  createRegistry: (o: { runId: string }) => { record: (e: { table: string; values: string[]; note?: string }) => void };
+  createRegistry: (o: { runId: string }) => { record: (e: { table: string; column?: string; values: string[]; note?: string }) => void };
   RUN_ID_RE: RegExp;
 };
 

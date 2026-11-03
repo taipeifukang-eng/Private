@@ -1,0 +1,50 @@
+{
+  "page": "pharmacists",
+  "legacyRoute": "/admin/pharmacist-management",
+  "workItem": "P01",
+  "entries": [
+    {
+      "id": "overview-ui",
+      "mechanism": "ui-extract",
+      "description": "同角色、同月份（2026-10，zone=all）：舊頁伺服器端計算的摘要卡、督導區卡片（門市數、藥師數、每間門市藥師數）與點開後的每位藥師（變化類型、備註），對比新版 overview 回應，以門市＋員編為鍵深度比對。",
+      "legacy": { "ui": { "route": "/admin/pharmacist-management", "rowSelector": "table tbody tr" } },
+      "native": { "api": { "path": "/api/workspace/pharmacists/overview", "method": "POST", "query": { "year_month": "2026-10", "zone": "all" } } }
+    },
+    {
+      "id": "overview-ui-text",
+      "mechanism": "ui-extract",
+      "description": "總覽頁面上的提示與標頭：檢視模式提示、督導區卡片「門市數／藥師數」、門市範圍為空的訊息、說明文字。",
+      "legacy": { "ui": { "route": "/admin/pharmacist-management", "rowSelector": "p, h3" } },
+      "native": { "source": "/workspace/index.html 藥師管理 督導區總覽" }
+    },
+    {
+      "id": "master-api",
+      "mechanism": "api-read",
+      "description": "主檔對等：舊 GET /api/pharmacist-annual-master/sync 與 workspace POST master 對同一年度（2026）的 data 以員編為鍵深度比對；無主檔權限的角色狀態碼一致。",
+      "legacy": { "api": { "path": "/api/pharmacist-annual-master/sync", "query": { "year": "2026" }, "pick": "data" } },
+      "native": { "api": { "path": "/api/workspace/pharmacists/master", "method": "POST", "query": { "year": "2026" }, "pick": "data" } },
+      "compareKey": "employee_code"
+    },
+    {
+      "id": "master-license-ui",
+      "mechanism": "ui-extract",
+      "description": "主檔表格「執照更新日」：每位藥師顯示的日期與是否以紅字（逾期）標示，舊頁與新版逐列比對。",
+      "legacy": { "ui": { "route": "/admin/pharmacist-management", "rowSelector": "table tbody tr" } },
+      "native": { "source": "/workspace/index.html 藥師管理 藥師主檔 [data-license-date]" }
+    },
+    {
+      "id": "master-layout",
+      "mechanism": "ui-extract",
+      "description": "主檔表格排版與增強：欄位合併方式、分頁（每頁 50 筆）、年費視窗的編輯備註與證明、狀態篩選字樣。",
+      "legacy": { "ui": { "route": "/admin/pharmacist-management", "rowSelector": "thead th" } },
+      "native": { "source": "/workspace/index.html 藥師管理 藥師主檔" }
+    },
+    {
+      "id": "proof-limit-text",
+      "mechanism": "ui-extract",
+      "description": "繳費證明上限的畫面文字：舊版欄位標籤寫「最大 10 MB」（實際前端壓縮上限 3.5 MB、伺服器 10 MB），新版統一顯示 3.5 MB（M1 P01 使用者決定）。",
+      "legacy": { "ui": { "route": "/admin/pharmacist-management", "rowSelector": "label" } },
+      "native": { "source": "/workspace/index.html 藥師管理 年費視窗" }
+    }
+  ]
+}

@@ -3,7 +3,14 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api, taiwanMonth } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
-import { compressImageForMobile } from "../pharmacist-proof";
+import {
+  compressImageForMobile,
+  isLicenseOverdue,
+  isProofTooLarge,
+  PROOF_FIELD_HINT,
+  PROOF_TOO_LARGE_MESSAGE,
+  zoneTotals,
+} from "../pharmacist-proof";
 const props = defineProps<{ tab: WorkTab }>();
 const section = ref("overview"),
   month = ref(props.tab.month || taiwanMonth()),
@@ -38,6 +45,11 @@ const section = ref("overview"),
   candidateSearch = ref(""),
   searching = ref(false);
 const caps = computed(() => overview.value?.capabilities || {});
+const monthLock = computed(() =>
+  (overview.value?.lockedMonths || []).find(
+    (l: any) => l.year_month === overview.value?.yearMonth,
+  ),
+);
 const schools = [
   "國立臺灣大學",
   "臺北醫學大學",
@@ -337,8 +349,7 @@ async function save() {
       endpoint = "fees";
       if (proofFile.value && !proofPath.value) {
         const upload = await compressImageForMobile(proofFile.value);
-        if (upload.size > 3.5 * 1024 * 1024)
-          throw Error("檔案過大，請壓縮至 3.5 MB 以內");
+        if (isProofTooLarge(upload.size)) throw Error(PROOF_TOO_LARGE_MESSAGE);
         const fd = new FormData();
         fd.append("file", upload);
         fd.append("employee_code", target.value.employee_code);
@@ -455,8 +466,15 @@ onMounted(loadOverview);
           {{ overview?.isLocked ? "解除月份關帳" : "月份關帳" }}</button
         ><span>{{
           overview?.isLocked ? "本月已關帳" : "未關帳月份會同步人事異動"
-        }}</span>
+        }}</span
+        ><small v-if="overview?.isLocked && monthLock" data-month-lock-info
+          >由 {{ monthLock.locked_by }} 關帳於
+          {{ String(monthLock.locked_at).slice(0, 10) }}</small
+        >
       </form>
+      <p v-if="overview && !caps.edit" class="notice" data-view-only>
+        目前為檢視模式（僅可查看，無法編輯）。
+      </p>
       <div v-if="overview" class="metrics">
         <button @click="showRows('all')">
           當月藥師總數 <strong>{{ overview.summary.total }}</strong></button
@@ -476,7 +494,14 @@ onMounted(loadOverview);
         :key="card.supervisorZone"
         class="zone"
       >
-        <h2>{{ card.supervisorZone }}</h2>
+        <h2>
+          {{ card.supervisorZone }}
+          <small data-zone-totals
+            >門市數：{{ zoneTotals(card).stores }}　藥師數：{{
+              zoneTotals(card).pharmacists
+            }}</small
+          >
+        </h2>
         <div class="stores">
           <button
             v-for="s in card.stores"
@@ -489,7 +514,10 @@ onMounted(loadOverview);
         </div>
       </section>
       <p v-if="overview && !overview.cards.length">
-        目前沒有可查看的門市資料。
+        目前沒有可查看的門市範圍。
+      </p>
+      <p v-else-if="overview" class="muted">
+        點選門市可查看藥師明細。明細中的變化備註會顯示上月職級或上月門市，無變化則留白。
       </p>
     </section>
     <section v-show="section === 'master'">
@@ -521,8 +549,9 @@ onMounted(loadOverview);
       <p v-if="master">
         {{ master.year }} 年度 ·
         {{ master.isLocked ? "已關帳，停止自動同步" : "未關帳"
-        }}<small v-if="master.lockInfo"
-          >關帳時間：{{ fmt(master.lockInfo.locked_at) }}</small
+        }}<small v-if="master.isLocked && master.lockInfo" data-annual-lock-info
+          >由 {{ master.lockInfo.locked_by }} 關帳於
+          {{ String(master.lockInfo.locked_at).slice(0, 10) }}</small
         ><small v-else>同步時間：{{ fmt(master.syncedAt) }}</small>
       </p>
       <div class="filters">
@@ -550,7 +579,7 @@ onMounted(loadOverview);
               <th>到職日／年資</th>
               <th>畢業學校／學歷</th>
               <th>負責藥師</th>
-              <th>證照換照日</th>
+              <th>執照更新日</th>
               <th>常年會費</th>
               <th>操作</th>
             </tr>
@@ -585,7 +614,13 @@ onMounted(loadOverview);
                 }}<small>{{ r.education_level || "—" }}</small>
               </td>
               <td>{{ r.is_responsible_pharmacist ? "是" : "否" }}</td>
-              <td>{{ r.license_renewal_date || "—" }}</td>
+              <td
+                data-license-date
+                :data-overdue="isLicenseOverdue(r.license_renewal_date)"
+                :class="{ overdue: isLicenseOverdue(r.license_renewal_date) }"
+              >
+                {{ r.license_renewal_date || "—" }}
+              </td>
               <td>
                 <button
                   :class="{ 'fee-current': r.annual_fee_is_blue }"
@@ -623,6 +658,10 @@ onMounted(loadOverview);
         ><button :disabled="page <= 1" @click="page--">上一頁</button
         ><button :disabled="page >= pages" @click="page++">下一頁</button>
       </footer>
+      <p class="muted" data-master-legend>
+        執照更新日顯示紅色代表已逾期。畢業學校、學歷、負責藥師、執照更新日可點「編輯」修改後儲存。
+        點「查看／登記會費」可查看或新增該藥師的常年會費申請記錄。常年會費按鈕為實色代表目前規則判定為已具備有效紀錄。手動新增的人員會在姓名下方顯示「手動新增」。
+      </p>
     </section>
   </section>
   <Modal
@@ -693,7 +732,7 @@ onMounted(loadOverview);
     >
     <template v-else-if="modal === 'fees'"
       ><button
-        v-if="caps.edit && !feeEditing"
+        v-if="caps.masterEdit && !feeEditing"
         class="primary"
         @click="newFee()"
       >
@@ -734,7 +773,7 @@ onMounted(loadOverview);
                 ><span v-else>未附證明</span>
               </td>
               <td>
-                <div v-if="caps.edit" class="actions">
+                <div v-if="caps.masterEdit" class="actions">
                   <button @click="newFee(f)">編輯備註／證明</button
                   ><button
                     class="danger"
@@ -794,7 +833,7 @@ onMounted(loadOverview);
                   ($event.target as HTMLInputElement).files?.[0] || null;
                 proofPath = '';
               " /></label
-          ><small>大張照片會嘗試壓縮，上傳檔案需在 3.5 MB 以內。</small>
+          ><small>{{ PROOF_FIELD_HINT }}</small>
         </fieldset>
         <button class="primary" :disabled="tab.busy">儲存會費紀錄</button
         ><button
@@ -831,7 +870,7 @@ onMounted(loadOverview);
               type="checkbox"
             />負責藥師</label
           ><label
-            >證照換照日<input
+            >執照更新日<input
               v-model="form.license_renewal_date"
               type="date" /></label
         ></template>
@@ -1040,6 +1079,10 @@ button[aria-pressed="true"],
 .fee-current {
   background: var(--primary);
   color: white;
+}
+td.overdue {
+  color: #c0262d;
+  font-weight: 600;
 }
 label {
   display: flex;

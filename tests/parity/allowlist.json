@@ -646,5 +646,189 @@
       "entry": "access-anonymous",
       "kind": "only-legacy"
     }
+  },
+  {
+    "id": "p01-purchases-unmatched-placeholder",
+    "page": "employee-purchases",
+    "description": "員編或姓名為空的列，占位文字不同：舊版顯示「-」；新版顯示「—」（員編）、「未比對員工」（姓名），門市名稱空白時顯示「未認列門市」。DEV 資料庫函式對未比對者會以會員編號與名稱填入，所以目前的測試資料不會出現空值，此條目登記的是程式碼層面的差異。",
+    "reason": "新版的占位文字比舊版更容易看懂；資料本身相同。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "summary-ui",
+      "key": "unmatched-placeholder",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-purchases-search-pagination",
+    "page": "employee-purchases",
+    "description": "新版增強：員工彙總表加搜尋（員編、姓名、認列門市）與分頁（每頁 50 筆）；舊版一次列出全部、沒有搜尋。",
+    "reason": "M0／P01 已確認新版增強保留（分頁、搜尋）。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-enhancements",
+      "key": "search-pagination",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "p01-purchases-import-confirm",
+    "page": "employee-purchases",
+    "description": "新版增強：匯入前必須勾選「我確認以此檔案覆蓋銷售月份的整月資料」，且已選檔案時關閉視窗會先確認是否放棄；舊版選檔後直接按匯入。",
+    "reason": "匯入會覆蓋整個銷售月份，多一道確認可防止誤操作。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-enhancements",
+      "key": "import-confirm",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "p01-purchases-detail-modal",
+    "page": "employee-purchases",
+    "description": "員工購買明細：舊版為頁內區塊（員工彙總表會收合，並有「回到員工列表選擇其他人」）；新版以對話框顯示，關閉後回到員工彙總表。內容與加總相同。",
+    "reason": "行為等價，工作台共用對話框元件。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "detail-ui",
+      "key": "detail-modal",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "p01-purchases-import-message",
+    "page": "employee-purchases",
+    "description": "匯入結果訊息：舊版訊息不含「跳過」筆數，警告以「另有 N 筆提醒」帶過；新版訊息多「跳過 N 筆」，並提供可展開的「匯入警告（N）」逐筆清單。匯入邏輯本身共用舊版 handler，寫入結果逐欄相同。",
+    "reason": "新版提供更完整的匯入回饋。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-enhancements",
+      "key": "import-message",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-purchases-import-dialog",
+    "page": "employee-purchases",
+    "description": "匯入入口：舊版為頁內「匯入 POS Excel」區塊（與查詢月份同一張卡）；新版為「匯入 POS Excel」按鈕開啟的對話框，且只有 employee_purchase.import 權限者看得到按鈕（舊版任何人都看得到區塊，送出才被 API 回 403）。",
+    "reason": "權限不足的使用者不會看到不能用的按鈕。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-enhancements",
+      "key": "import-dialog",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-pharmacist-debug-panel",
+    "page": "pharmacists",
+    "description": "舊版 ?debug=1 會在總覽頁顯示「Debug 資訊（server-side）」面板（使用者 ID、門市範圍、督導區對應等內部資料）；新版沒有。",
+    "reason": "盤點文件已註明 Debug 面板可不復刻，且面板會露出內部識別碼。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "overview-ui-text",
+      "key": "debug-panel",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "p01-pharmacist-master-view-stricter",
+    "page": "pharmacists",
+    "description": "藥師主檔 API：舊 /api/pharmacist-annual-master/sync 只檢查 pharmacist.management.view（只有 view、沒有 master.view 的帳號呼叫會回 200 並同步主檔，舊版只是在畫面上藏起「藥師主檔」分頁）；新版 workspace master 對沒有 pharmacist.management.master.view 的帳號回 403「沒有藥師主檔查看權限」。",
+    "reason": "新版比舊版嚴格，符合分頁權限的本意（盤點文件的權限矩陣）。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "entry": "master-api",
+      "kind": "status",
+      "roles": [
+        "pharmacist"
+      ]
+    }
+  },
+  {
+    "id": "p01-pharmacist-master-columns",
+    "page": "pharmacists",
+    "description": "藥師主檔欄位排版：舊版 10 欄（員編、姓名、狀態、現職職級、到職日／年資、畢業學校、學歷、負責藥師、執照更新日、常年會費，編輯權限者多「操作」）；新版 9 欄（員編／姓名合併、門市／職稱、狀態、到職日／年資、畢業學校／學歷…），新版多顯示門市。資料內容相同。",
+    "reason": "工作台表格以兩行儲存格合併欄位，並加上門市欄方便督導辨識。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "master-layout",
+      "key": "master-columns",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-pharmacist-master-pagination",
+    "page": "pharmacists",
+    "description": "藥師主檔分頁：新版每頁 50 筆；舊版一次列出全部符合的藥師。",
+    "reason": "盤點文件已確認為新版增強並保留。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "master-layout",
+      "key": "master-pagination",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "p01-pharmacist-master-status-label",
+    "page": "pharmacists",
+    "description": "藥師主檔狀態篩選字樣：舊版按鈕為「在職／已離職／留停／全部」，新版下拉為「在職／離職／留停／全部」。",
+    "reason": "字樣差異，篩選結果相同。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "master-layout",
+      "key": "master-status-filter-label",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-pharmacist-proof-limit-text",
+    "page": "pharmacists",
+    "description": "繳費證明上限文字：舊版欄位標籤寫「最大 10 MB」（伺服器上限 10 MB，前端壓縮後超過 3.5 MB 即擋下），新版統一顯示 3.5 MB。新舊實際的前端擋下門檻相同（3.5 MB）。",
+    "reason": "M1 P01 使用者決定：統一顯示 3.5 MB（只修正文字）。待主迴圈送使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "proof-limit-text",
+      "key": "proof-limit-label",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-pharmacist-fee-edit",
+    "page": "pharmacists",
+    "description": "年費視窗：新版增加「編輯備註／證明」（只可改備註與繳費證明，不改年度與公會），並把視窗分成「列表」與「表單」兩步；舊版只能新增與刪除。",
+    "reason": "盤點文件已確認為新版增強並保留。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "master-layout",
+      "key": "fee-edit",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "p01-pharmacist-wording",
+    "page": "pharmacists",
+    "description": "用詞與呈現差異（資料相同）：年費按鈕舊版「記錄」、新版「查看／登記會費」（有效紀錄時顯示「有效繳費紀錄」並以實色底標示）；手動新增人員標籤舊版「手動」、新版「手動新增」；負責藥師否的呈現舊版「-」、新版「否」；總覽「只看離職」舊版為按鈕，新版為「離職藥師」摘要卡；門市藥師明細舊版為跳窗並含督導區，新版為對話框含門市與變化備註。",
+    "reason": "工作台的一致用詞與共用元件。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "master-layout",
+      "key": "wording",
+      "kind": "changed"
+    }
   }
 ]
