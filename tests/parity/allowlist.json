@@ -433,5 +433,182 @@
       "entry": "year-control",
       "kind": "changed"
     }
+  },
+  {
+    "id": "w03-read-requires-module-and-store",
+    "page": "performance",
+    "description": "沒有被指派門市（或沒有 performance.view／edit）的帳號，直接以 store_id 讀年度業績與獎金閾值：舊 API 只要登入就回 200（資料受資料庫列級安全限制）；新 workspace API 要求業績模組權限，且 store_id 必須在該帳號可見門市內，否則 403。",
+    "reason": "新版沿用 workspace 的 moduleContext／requireStore 權限模型；畫面上這些帳號本來就看不到門市，只有手動呼叫 API 才會碰到。屬權限收緊，待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "entry": "year-read",
+      "roles": [
+        "performance_view",
+        "performance_edit",
+        "ops_assistant",
+        "denied"
+      ]
+    }
+  },
+  {
+    "id": "w03-thresholds-read-requires-store",
+    "page": "performance",
+    "description": "沒有被指派門市的帳號讀取門市獎金閾值：舊 API 回 200；新 API 回 403。",
+    "reason": "同 w03-read-requires-module-and-store：新版以 requireStore 限制可讀門市。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "entry": "thresholds-read",
+      "roles": [
+        "performance_view",
+        "performance_edit"
+      ]
+    }
+  },
+  {
+    "id": "w03-save-strict-validation",
+    "page": "performance",
+    "description": "單月業績存檔內容缺少數值欄位（或型別不是數字）：舊 API 以 upsert 接受（缺的欄位不寫入）；新 API 要求所有數值欄位都要出現且為數字或 null，否則 400。",
+    "reason": "新版年度頁表單一律送出完整欄位，所以只有手動呼叫 API 才會碰到。保留較嚴格的驗證，待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "entry": "save-partial-body"
+    }
+  },
+  {
+    "id": "w03-save-store-scope",
+    "page": "performance",
+    "description": "有 performance.edit 但沒有被指派該門市的帳號存單月業績：舊 API 不檢查門市（只受資料庫列級安全限制）；新 API 以 requireStore 回 403。",
+    "reason": "新版沿用 workspace 的門市範圍檢查。匯入（W03-q1）則完全照舊版不做逐列門市檢查。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "entry": "save-store-scope",
+      "roles": [
+        "performance_edit"
+      ]
+    }
+  },
+  {
+    "id": "w03-thresholds-save-strict",
+    "page": "performance",
+    "description": "獎金閾值存檔：舊 API 不驗證檻數、順序與金額，也不檢查門市指派；新 API 要求每期 5 檻、level 為 1..5、金額為 0 到 2147483647 的整數，並要求門市在可見範圍內。",
+    "reason": "舊版允許存入負數或不完整的檻數，會讓獎金計算出錯；新版加上驗證。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "entry": "thresholds-save"
+    }
+  },
+  {
+    "id": "w03-ui-row-edit-form",
+    "page": "performance",
+    "description": "逐月業績明細：舊版在儲存格直接編輯、逐列儲存；新版點月份開新分頁，以表單編輯後存檔。",
+    "reason": "M1 W03-q2：使用者決定保留新版表單編輯（介面差異）。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "changed",
+      "key": "ui#row-edit"
+    }
+  },
+  {
+    "id": "w03-ui-thresholds-separate-tab",
+    "page": "performance",
+    "description": "獎金閾值編輯：舊版在年度頁內就地編輯與取消；新版另開「獎金閾值」分頁編輯，儲存後年度頁自動重新載入（W03-q4）。",
+    "reason": "新版工作台以分頁處理編輯流程；舊版「儲存後立即生效」的效果由 W03-q4 的自動重新載入補足。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "changed",
+      "key": "ui#thresholds-editor"
+    }
+  },
+  {
+    "id": "w03-ui-import-confirm-dialog",
+    "page": "performance",
+    "description": "業績 Excel 匯入：舊版選檔後立即匯入；新版選檔後要在確認視窗按「確認匯入」才送出。",
+    "reason": "新版工作台的匯入一律先確認，避免誤選檔案就覆蓋資料。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "changed",
+      "key": "ui#import-confirmation"
+    }
+  },
+  {
+    "id": "w03-ui-prescription-dirty-switch-locked",
+    "page": "performance",
+    "description": "處方箋有未儲存修改時切換月份或檢視：舊版跳出確認視窗（可選擇放棄修改）；新版鎖住查詢條件，須先儲存才能切換。",
+    "reason": "新版工作台避免靜默丟失草稿。放棄修改的唯一方式是關閉該頁籤。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "changed",
+      "key": "ui#prescription-dirty-switch"
+    }
+  },
+  {
+    "id": "w03-ui-bonus-sort-tristate",
+    "page": "performance",
+    "description": "匯入每月獎金的欄位排序：舊版左鍵排序、右鍵取消排序；新版為按鈕切換升冪／降冪，沒有右鍵取消。",
+    "reason": "觸控裝置沒有右鍵。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "changed",
+      "key": "ui#bonus-sort-interaction"
+    }
+  },
+  {
+    "id": "w03-ui-import-timeout-message",
+    "page": "performance",
+    "description": "匯入逾時訊息：舊版「匯入逾時（超過 180 秒）- 伺服器忙碌，請稍後重試」；新版統一顯示「連線中斷或逾時，內容仍保留，請稍後重試」。",
+    "reason": "新版工作台共用的連線錯誤訊息。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "changed",
+      "key": "ui#import-timeout-message"
+    }
+  },
+  {
+    "id": "w03-ui-import-store-selector",
+    "page": "performance",
+    "description": "業績 Excel 匯入區塊新增「匯入門市」選項（目前所選門市／不指定門市）。舊版沒有此選項：匯入使用工具列所選門市，未選時依 Excel 門市代號。",
+    "reason": "M1 W03-q1：恢復可不選門市匯入多間門市的舊行為；新版工具列的門市不可為空，所以把「不指定門市」做成匯入區塊的明確選項，行為與舊版相同。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "only-native",
+      "key": "ui#import-store-selector"
+    }
+  },
+  {
+    "id": "w03-ui-threshold-auto-reload",
+    "page": "performance",
+    "description": "閾值在另一個分頁儲存後，已開啟的年度頁自動重新載入（同瀏覽器的其他分頁以 BroadcastChannel／storage 事件通知）；舊版沒有此行為（閾值在同頁就地編輯）。",
+    "reason": "M1 W03-q4。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ui-behavior",
+      "kind": "only-native",
+      "key": "ui#threshold-auto-reload"
+    }
   }
 ]

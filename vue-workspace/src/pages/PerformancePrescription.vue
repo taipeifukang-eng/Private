@@ -4,6 +4,12 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api, type Store } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import {
+  prescriptionSaveError,
+  prescriptionStatus,
+  prescriptionStatusLabel,
+  prescriptionTotal,
+} from "../../../lib/workspace/prescription-rules";
 const props = defineProps<{ tab: WorkTab; embedded?: boolean }>();
 const year = ref(Number(props.tab.month.slice(0, 4))),
   month = ref(props.tab.month),
@@ -53,20 +59,17 @@ const visible = computed(() =>
 const annualStores = computed(() => [
   ...new Map(visible.value.map((r) => [r.store_id, r])).values(),
 ]);
-const total = (r: any) => {
-  const a = r.regular_prescription_count,
-    b = r.chronic_prescription_count;
-  if (a == null || a === "" || b == null || b === "") return null;
-  return Math.round((Number(a) / 4 + Number.EPSILON) * 10) / 10 + Number(b);
+// 舊版 calculatedTotal：缺少或格式錯誤為 null，顯示時一律一位小數。
+const total = (r: any) => prescriptionTotal(r);
+const totalText = (r: any) => {
+  const t = total(r);
+  return t === null ? "—" : t.toFixed(1);
 };
 const amount = (n: any) =>
   n == null
     ? "—"
     : Number(n).toLocaleString("zh-TW", { maximumFractionDigits: 4 });
-const status = (r: any) => {
-  const count = fields.filter((f) => r[f[0]] != null && r[f[0]] !== "").length;
-  return count === 0 ? "未填" : count === 4 ? "完整" : "部分填寫";
-};
+const status = (r: any) => prescriptionStatusLabel(prescriptionStatus(r));
 async function load() {
   if (props.tab.dirty) {
     error.value = "請先儲存目前草稿再切換查詢。";
@@ -104,6 +107,14 @@ async function openMonth(m: number) {
 }
 async function save() {
   if (!dirtyRows.value.length) return true;
+  // 舊版 saveChanges：先在畫面檢查，格式錯誤不送出。
+  for (const row of dirtyRows.value) {
+    const problem = prescriptionSaveError(row);
+    if (problem) {
+      error.value = problem;
+      return false;
+    }
+  }
   props.tab.busy = true;
   error.value = "";
   try {
@@ -253,7 +264,7 @@ onMounted(load);
                     v-model="r[f[0]]"
                   /><span v-else>{{ amount(r[f[0]]) }}</span>
                 </td>
-                <td>{{ amount(total(r)) }}</td>
+                <td>{{ totalText(r) }}</td>
                 <td>{{ status(r) }}</td>
               </tr>
             </tbody>
@@ -288,7 +299,7 @@ onMounted(load);
                     r.store_id === s.store_id &&
                     r.year_month === `${year}-${String(m).padStart(2, '0')}`,
                 )"
-                ><strong>總慢箋 {{ amount(total(r)) }}</strong>
+                ><strong>總慢箋 {{ totalText(r) }}</strong>
                 <div v-for="f in fields">{{ f[1] }}：{{ amount(r[f[0]]) }}</div>
                 <small>{{ status(r) }}</small></template
               >

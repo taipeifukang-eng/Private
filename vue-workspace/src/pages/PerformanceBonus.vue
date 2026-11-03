@@ -170,6 +170,8 @@ async function upload() {
       body,
       signal: AbortSignal.timeout(180000),
     });
+    // 舊 API 在「沒有可匯入的資料」時回 200 加 success:false；舊畫面以 success 判斷，這裡一致。
+    if (r && r.success === false) throw new Error(r.error || "匯入失敗（無詳細錯誤訊息）");
     confirmImport.value = false;
     file.value = null;
     await load();

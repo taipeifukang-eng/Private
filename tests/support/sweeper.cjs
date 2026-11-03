@@ -16,6 +16,8 @@ const {
   isDeletableTarget,
   RESERVED_MONTH_TABLES,
   RESERVED_MONTH_PATTERN,
+  RESERVED_YEAR_TABLES,
+  TEST_STORE_SETTING_TABLES,
   BASELINE_VALUES,
   TEST_STORE_CODES,
 } = require('./sweep-targets.cjs');
@@ -70,15 +72,28 @@ function createDevDb(env) {
 
 const PAGE_SIZE = 1000;
 
-/** 分頁取出保留月份表中 2099-xx 列的 store_id（只取 store_id，不取其他欄位）。 */
-async function fetchReservedStoreIds(db, table) {
+/** 保留範圍的表清單：2099-xx 月份表、2038 年績效表（guardForeign）與測試門市專屬設定表。 */
+function reservedSpecs() {
+  return [
+    ...RESERVED_MONTH_TABLES.map((table) => ({ table, column: 'year_month', op: 'like', value: RESERVED_MONTH_PATTERN, guardForeign: true })),
+    ...RESERVED_YEAR_TABLES.map((t) => ({ ...t, guardForeign: true })),
+    ...TEST_STORE_SETTING_TABLES.map((t) => ({ ...t, op: null, guardForeign: false })),
+  ];
+}
+
+function applyFilter(q, spec) {
+  if (spec.op === 'like') return q.like(spec.column, spec.value);
+  if (spec.op === 'eq') return q.eq(spec.column, spec.value);
+  return q;
+}
+
+/** 分頁取出保留範圍內的列的 store_id（只取 store_id，不取其他欄位）。無 guardForeign 的表只取測試門市。 */
+async function fetchReservedStoreIds(db, spec, testIds) {
   const ids = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const res = await db
-      .from(table)
-      .select('store_id')
-      .like('year_month', RESERVED_MONTH_PATTERN)
-      .range(from, from + PAGE_SIZE - 1);
+    let q = applyFilter(db.from(spec.table).select('store_id'), spec);
+    if (!spec.guardForeign) q = q.in('store_id', testIds);
+    const res = await q.range(from, from + PAGE_SIZE - 1);
     if (res.error) throw new Error(res.error.message);
     const rows = Array.isArray(res.data) ? res.data : [];
     for (const r of rows) ids.push(r.store_id);
@@ -110,10 +125,12 @@ async function sweepReservedMonths(db, { dryRun = false } = {}) {
     return out;
   }
   const testSet = new Set(testIds);
-  for (const table of RESERVED_MONTH_TABLES) {
+  const specs = reservedSpecs();
+  for (const spec of specs) {
+    const table = spec.table;
     const row = { table, testRows: 0, foreignRows: 0, deleted: 0 };
     try {
-      const ids = await fetchReservedStoreIds(db, table);
+      const ids = await fetchReservedStoreIds(db, spec, testIds);
       row.testRows = ids.filter((id) => testSet.has(id)).length;
       row.foreignRows = ids.length - row.testRows;
       if (row.foreignRows > 0) out.foreign.push({ table, rows: row.foreignRows });
@@ -127,10 +144,8 @@ async function sweepReservedMonths(db, { dryRun = false } = {}) {
   for (const row of out.tables) {
     if (row.testRows === 0) continue;
     try {
-      const del = await db
-        .from(row.table)
-        .delete()
-        .like('year_month', RESERVED_MONTH_PATTERN)
+      const spec = specs.find((x) => x.table === row.table);
+      const del = await applyFilter(db.from(row.table).delete(), spec)
         .in('store_id', testIds)
         .select('store_id');
       if (del.error) throw new Error(del.error.message);

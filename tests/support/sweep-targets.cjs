@@ -24,6 +24,26 @@ const RESERVED_MONTH_TABLES = [
 ];
 const RESERVED_MONTH_PATTERN = '2099-%';
 
+/**
+ * 保留年份（W03）：績效資料的保留年度為 2038。
+ *  - store_performance.year = 2038、monthly_prescription_reports / monthly_bonus_records 的 year_month 為 2038-xx：
+ *    測試門市的列屬單次 fixture，sweeper 會清除；出現非測試門市的列則整體中止（與 2099 相同規則）。
+ *  - 注意：「2038」本身仍是長駐基準年度，不得出現在 created.json 的 values（evaluateEntry 會拒絕）；
+ *    清除一律走這裡的「保留年份」機制，不走登錄表。
+ */
+const RESERVED_PERFORMANCE_YEAR = 2038;
+const RESERVED_YEAR_TABLES = [
+  { table: 'store_performance', column: 'year', op: 'eq', value: RESERVED_PERFORMANCE_YEAR },
+  { table: 'monthly_prescription_reports', column: 'year_month', op: 'like', value: `${RESERVED_PERFORMANCE_YEAR}-%` },
+  { table: 'monthly_bonus_records', column: 'year_month', op: 'like', value: `${RESERVED_PERFORMANCE_YEAR}-%` },
+];
+
+/**
+ * 測試門市專屬設定表：沒有年份欄位。測試門市（ZT/VW）的列一律視為測試殘留並清除（還原為系統預設閾值）；
+ * 非測試門市的真實設定完全不碰，也不算 foreign。
+ */
+const TEST_STORE_SETTING_TABLES = [{ table: 'store_performance_thresholds' }];
+
 /** 長駐基準資料：任何情況都不得被 sweeper 刪除。 */
 const BASELINE_VALUES = ['VW001', 'VW002', 'ZT01', 'ZT02', 'ZT03', 'ZT04', 'ZT05'];
 
@@ -44,10 +64,14 @@ const DELETABLE_TABLES = {
   talent_cultivation_bonus: ['id'],
   spring_festival_bonus: ['id'],
   meal_allowance_records: ['id'],
+  // W03：績效（2038 年）。monthly_prescription_reports 沒有 id 欄，只由保留年份機制清除。
+  store_performance: ['id'],
+  store_performance_thresholds: ['id'],
+  monthly_bonus_records: ['id'],
 };
 
 function isDeletableTarget(table, column) {
   return Object.prototype.hasOwnProperty.call(DELETABLE_TABLES, table) && DELETABLE_TABLES[table].includes(column);
 }
 
-module.exports = { DELETABLE_TABLES, isDeletableTarget, TEST_STORE_CODES, MARKER_TARGETS, RESERVED_MONTH_TABLES, RESERVED_MONTH_PATTERN, BASELINE_VALUES };
+module.exports = { RESERVED_PERFORMANCE_YEAR, RESERVED_YEAR_TABLES, TEST_STORE_SETTING_TABLES, DELETABLE_TABLES, isDeletableTarget, TEST_STORE_CODES, MARKER_TARGETS, RESERVED_MONTH_TABLES, RESERVED_MONTH_PATTERN, BASELINE_VALUES };

@@ -33,7 +33,8 @@ async function run(request:NextRequest,{params}:Params,write:boolean){
     return saveThresholds(request);
    }
    const rows=checked(await ctx.auth.from('store_performance_thresholds').select('period_type,threshold_level,base_amount').eq('store_id',store))||[];
-   const build=(type:string,defaults:typeof MONTHLY_THRESHOLDS)=>defaults.map((d,i)=>({...d,baseAmount:Number(rows.find(r=>r.period_type===type&&r.threshold_level===i+1)?.base_amount??d.baseAmount)}));
+   // 與舊 /api/performance-thresholds GET 同一個形狀（level、multiplier、baseAmount、label、isCustom）。
+   const build=(type:string,defaults:typeof MONTHLY_THRESHOLDS)=>defaults.map((d,i)=>{const saved=rows.find(r=>r.period_type===type&&r.threshold_level===i+1);return{level:i+1,multiplier:d.multiplier,baseAmount:saved?Number(saved.base_amount):d.baseAmount,label:d.label,isCustom:!!saved};});
    return respond({monthly:build('monthly',MONTHLY_THRESHOLDS),quarterly:build('quarterly',QUARTERLY_THRESHOLDS)});
   }
   const reads:Record<string,(r:NextRequest)=>Promise<Response|undefined>>={prescription:readPrescription,'prescription-template':prescriptionTemplate,bonus:readBonus,'bonus-averages':bonusAverages,'bonus-stores':bonusStores};

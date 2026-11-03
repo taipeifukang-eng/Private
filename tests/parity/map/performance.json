@@ -1,0 +1,293 @@
+{
+  "page": "performance",
+  "legacyRoute": "/admin/performance",
+  "workItem": "W03",
+  "entries": [
+    {
+      "id": "year-read",
+      "mechanism": "api-read",
+      "description": "年度業績讀取：同角色、同門市（2038 年）舊 GET /api/performance-data 與新 GET /api/workspace/performance 的 records 逐列（以月份配對）逐欄比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data",
+          "pick": "records"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance",
+          "pick": "records"
+        }
+      },
+      "compareKey": "month"
+    },
+    {
+      "id": "thresholds-read",
+      "mechanism": "api-read",
+      "description": "獎金閾值讀取：舊 GET /api/performance-thresholds 與新 GET /api/workspace/performance-tools/thresholds（預設與自訂兩種門市），整個回應深度比對（含 level、multiplier、label、isCustom）。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-thresholds"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/thresholds"
+        }
+      }
+    },
+    {
+      "id": "year-bonus-calc",
+      "mechanism": "api-read",
+      "description": "月、季獎金逐月比對：同一份 store_performance 與閾值（ZT01 自訂、ZT02 預設，2038 全年含活動日折減、剛好達第一檻、未達檻），以舊版年度頁計算（對照實作）與新版 calcYearBonus 分別計算，每月獎金、季應得、季回補誤差 0 元。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data",
+          "pick": "records"
+        },
+        "source": "app/admin/performance/page.tsx（年度頁計算）"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance",
+          "pick": "records"
+        },
+        "source": "lib/workspace/performance-year.ts"
+      }
+    },
+    {
+      "id": "save-readback",
+      "mechanism": "write-readback",
+      "description": "單月業績存檔：同一份內容分別以舊 POST /api/performance-data 與新 POST /api/workspace/performance 寫入不同月份，回傳 record 與 DB 列逐欄比對（排除 id、月份、時間戳）。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "thresholds-save",
+      "mechanism": "write-readback",
+      "description": "獎金閾值存檔：舊版不驗證（檻數、順序、金額）也不檢查門市；新版要求每期 5 檻、順序 1..5、金額為非負整數，並檢查門市指派。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-thresholds",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/thresholds",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "save-partial-body",
+      "mechanism": "write-readback",
+      "description": "存檔內容缺少數值欄位：舊版 upsert 接受（缺的欄位不寫），新版要求所有數值欄位。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "save-store-scope",
+      "mechanism": "write-readback",
+      "description": "有 performance.edit 但沒有被指派該門市的帳號存檔：舊版不檢查門市，新版 requireStore 拒絕。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "import-multistore",
+      "mechanism": "write-readback",
+      "description": "W03-q1 業績 Excel 匯入（不選門市、依門市代號一次匯入多間門市，含一列找不到門市）：同一份內容分別以舊 /api/performance-data/import 與新 performance-tools/performance-import 匯入兩個月份，回應（imported、skipped、errors）與 DB 列逐欄比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data/import",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/performance-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "import-permission",
+      "mechanism": "write-readback",
+      "description": "業績匯入權限：各角色（沒有 performance.edit 者）新舊狀態碼一致。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-data/import",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/performance-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "prescription-read",
+      "mechanism": "api-read",
+      "description": "處方箋讀取（單月、年度）：舊 GET /api/prescription-monthly 與新 GET performance-tools/prescription，records 逐列逐欄比對（含總慢箋張數）。",
+      "legacy": {
+        "api": {
+          "path": "/api/prescription-monthly",
+          "pick": "records"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/prescription",
+          "pick": "records"
+        }
+      },
+      "compareKey": "store_id"
+    },
+    {
+      "id": "prescription-save",
+      "mechanism": "write-readback",
+      "description": "處方箋存檔與驗證：同一份內容分別以舊 POST /api/prescription-monthly 與新 performance-tools/prescription 寫入不同月份，DB 列逐欄比對；非法內容（點值五位小數、張數負數／小數）兩邊狀態碼與錯誤訊息一致。",
+      "legacy": {
+        "api": {
+          "path": "/api/prescription-monthly",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/prescription",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "prescription-template",
+      "mechanism": "api-read",
+      "description": "處方箋 Excel 範本下載（匯出）：同月份、同角色，舊 GET /api/prescription-monthly/template 與新 prescription-template 的 Excel 逐工作表、逐欄、逐格比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/prescription-monthly/template"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/prescription-template"
+        }
+      }
+    },
+    {
+      "id": "bonus-read",
+      "mechanism": "api-read",
+      "description": "每月獎金讀取：舊 GET /api/performance-bonus 與新 performance-tools/bonus（同 year_month）的 records 逐列比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-bonus",
+          "pick": "records"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/bonus",
+          "pick": "records"
+        }
+      },
+      "compareKey": [
+        "store_id",
+        "employee_code"
+      ]
+    },
+    {
+      "id": "bonus-averages",
+      "mechanism": "api-read",
+      "description": "年度累積平均獎金：舊 GET /api/performance-bonus/averages 與新 bonus-averages（兩種平均方式）整個回應深度比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-bonus/averages"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/bonus-averages"
+        }
+      }
+    },
+    {
+      "id": "bonus-stores",
+      "mechanism": "api-read",
+      "description": "督導與門市清單：舊 GET /api/stores-with-supervisors 與新 bonus-stores 整個回應深度比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/stores-with-supervisors"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/bonus-stores"
+        }
+      }
+    },
+    {
+      "id": "bonus-import-permission",
+      "mechanism": "write-readback",
+      "description": "每月獎金匯入權限：各角色新舊狀態碼一致（沒有 performance.bonus.import 者 403）。",
+      "legacy": {
+        "api": {
+          "path": "/api/performance-bonus/import",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/performance-tools/bonus-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "ui-behavior",
+      "mechanism": "ui-extract",
+      "description": "畫面行為對照（以舊頁與新頁原始碼特徵擷取）：逐月明細編輯方式、閾值編輯、匯入流程、處方箋未儲存切換、獎金排序、逾時訊息、匯入門市選項、閾值儲存後自動重新載入。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/performance",
+          "rowSelector": "source-features"
+        }
+      },
+      "native": {
+        "source": "vue-workspace/src/pages/Performance*.vue"
+      }
+    }
+  ]
+}

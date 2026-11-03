@@ -6,6 +6,9 @@ const emit = defineEmits<{ access: [canViewBonus: boolean] }>();
 import { ref, onMounted, watch, onBeforeUnmount, computed } from "vue";
 import { api, type Store } from "../api";
 import { useWorkspace, type WorkTab } from "../stores";
+import { createThresholdRefreshGate, onThresholdsSaved } from "../performance-sync";
+import { MONTHLY_THRESHOLDS } from "../../../lib/performance/bonus-calc";
+import { usesCustomThresholds } from "../../../lib/workspace/performance-year";
 const props = defineProps<{ tab: WorkTab; embedded?: boolean }>(),
   work = useWorkspace();
 const stores = ref<Store[]>([]),
@@ -18,7 +21,14 @@ const stores = ref<Store[]>([]),
 const thresholds = ref<any>(null),
   canViewBonus = ref(false),
   importFile = ref<File | null>(null),
-  importConfirm = ref(false);
+  importConfirm = ref(false),
+  // W03-q1：照舊版，可不指定門市，依 Excel「門市代號」欄位一次匯入多間門市。
+  importScope = ref<"current" | "excel">("current");
+const customThresholds = computed(
+  () =>
+    !!thresholds.value &&
+    usesCustomThresholds(thresholds.value.monthly, MONTHLY_THRESHOLDS),
+);
 function openTool(kind: "performance-thresholds") {
   const tab = work.open(kind, loaded.value.store);
   tab.month = String(loaded.value.year) + "-01";
@@ -37,12 +47,15 @@ async function importData() {
   try {
     const body = new FormData();
     body.append("file", importFile.value);
-    body.append("store_id", loaded.value.store);
-    body.append("year", String(loaded.value.year));
+    // 舊版：有選門市才帶 store_id（Excel 列沒有門市代號時的後備）；年份為目前選擇的年度。
+    if (importScope.value === "current" && props.tab.store)
+      body.append("store_id", props.tab.store);
+    body.append("year", String(year.value));
     const r = await api("performance-tools/performance-import", {
       method: "POST",
       body,
     });
+    if (r && r.success === false) throw new Error(r.error || "匯入失敗");
     importConfirm.value = false;
     importFile.value = null;
     await load();
@@ -90,7 +103,14 @@ watch(
   },
   { deep: true, flush: "sync" },
 );
+const gate = createThresholdRefreshGate({
+  currentStore: () => loaded.value.store,
+  refresh: () => refreshThresholds(),
+});
 async function load() {
+  return gate.track(doLoad);
+}
+async function doLoad() {
   loading.value = true;
   error.value = "";
   try {
@@ -134,7 +154,6 @@ function edit(month: number) {
   tab.payload = Object.fromEntries(
     [
       "id",
-      "updated_at",
       "store_id",
       "year",
       "month",
@@ -154,7 +173,6 @@ async function save() {
       body: JSON.stringify(body),
     });
     form.value.id = saved.record.id;
-    form.value.updated_at = saved.record.updated_at;
     snapshot = JSON.stringify(form.value);
     props.tab.dirty = false;
     message.value = "已儲存";
@@ -168,9 +186,30 @@ async function save() {
   }
 }
 if (props.tab.kind === "performance-edit") props.tab.save = save;
-onMounted(load);
+// W03-q4：閾值在另一個工作分頁（或瀏覽器分頁）儲存後，自動重新載入已開啟的年度頁。
+let stopThresholdSync: (() => void) | null = null;
+async function refreshThresholds() {
+  const storeId = loaded.value.store;
+  if (queryChanged.value) {
+    // 使用者已改了查詢條件但還沒查詢：只更新閾值，不動目前選擇。
+    try {
+      thresholds.value = await gate.track(() =>
+        api(`performance-tools/thresholds?store_id=${encodeURIComponent(storeId)}`),
+      );
+    } catch (e) {
+      error.value = (e as Error).message;
+    }
+  } else await load();
+  message.value = "獎金閾值已更新，年度頁已自動重新載入。";
+}
+onMounted(() => {
+  load();
+  if (props.tab.kind === "performance")
+    stopThresholdSync = onThresholdsSaved((storeId) => gate.notify(storeId));
+});
 onBeforeUnmount(() => {
   delete props.tab.save;
+  stopThresholdSync?.();
 });
 const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW"));
 </script>
@@ -214,6 +253,11 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
       ><button class="primary" :disabled="loading">查詢業績</button>
       <div v-if="canEdit" class="performance-import">
         <label
+          >匯入門市<select aria-label="匯入門市" v-model="importScope">
+            <option value="current">目前所選門市（Excel 未填門市代號時使用）</option>
+            <option value="excel">不指定門市（依 Excel 門市代號）</option>
+          </select></label
+        ><label
           >業績 Excel<input
             type="file"
             accept=".xlsx,.xls"
@@ -224,7 +268,7 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
             " /></label
         ><button
           type="button"
-          :disabled="!importFile || queryChanged || tab.busy || loading"
+          :disabled="!importFile || tab.busy || loading"
           @click="importConfirm = true"
         >
           匯入 Excel
@@ -269,6 +313,9 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
           毛利 90%＋營業額 5%＋來客數 5%＋慢箋 10%；毛利未達標時獎金為
           0。扣除活動日後平均毛利低於第一檻，月獎金乘以 80%。營業天數支援 0.5
           天。
+          <span v-if="customThresholds" class="custom-thresholds"
+            >• 此門市使用自訂閾值</span
+          >
         </p>
       </section>
 
@@ -290,9 +337,11 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
       :busy="tab.busy"
       @cancel="importConfirm = false"
       ><p>
-        {{
-          importFile?.name
-        }}：檔案內相同門市與年月的資料將依原匯入規則更新。其他已開啟的編輯頁不會被覆蓋。
+        {{ importFile?.name }}：{{
+          importScope === "excel"
+            ? "未指定門市，將依檔案內「門市代號」欄位匯入各門市"
+            : "Excel 列未填門市代號時使用目前所選門市"
+        }}；相同門市與年月的資料將依原匯入規則更新（後寫覆蓋）。
       </p>
       <p v-if="error" class="notice error">{{ error }}</p>
       <div class="dialog-actions">
@@ -339,6 +388,10 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
   gap: 12px;
   flex-wrap: wrap;
   margin-left: auto;
+}
+.custom-thresholds {
+  margin-left: 8px;
+  color: var(--accent, #2563eb);
 }
 .performance-import label {
   display: grid;

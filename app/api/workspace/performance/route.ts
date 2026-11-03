@@ -22,7 +22,13 @@ export async function GET(request: NextRequest) {
     const year = Number(url.searchParams.get("year"));
     if (!Number.isInteger(year) || year < 2000 || year > 2099)
       throw new WorkspaceError(400, "年度不正確");
-    if (!store) return respond({ stores, records: [], canEdit: false });
+    // 沒有可看的門市時仍要回傳權限旗標：舊版分頁（匯入每月獎金、匯入業績）依權限顯示，與門市指派無關。
+    const access = {
+      canEdit: ctx.has("performance.edit"),
+      canViewBonus: ctx.has("performance.bonus.view"),
+      canImportBonus: ctx.has("performance.bonus.import"),
+    };
+    if (!store) return respond({ stores, records: [], ...access });
     await requireStore(ctx, "performance", store);
     url.searchParams.set("store_id", store);
     const response = await read(
@@ -30,25 +36,11 @@ export async function GET(request: NextRequest) {
     );
     if (!response.ok) return response;
     const data = await response.json();
-    const versions =
-      checked(
-        await ctx.auth
-          .from("store_performance")
-          .select("id,updated_at")
-          .eq("store_id", store)
-          .eq("year", year),
-      ) || [];
     return respond({
       ...data,
-      records: data.records.map((r: any) => ({
-        ...r,
-        updated_at: versions.find((v) => v.id === r.id)?.updated_at,
-      })),
       stores,
       store,
-      canEdit: ctx.has("performance.edit"),
-      canViewBonus: ctx.has("performance.bonus.view"),
-      canImportBonus: ctx.has("performance.bonus.import"),
+      ...access,
     });
   } catch (e) {
     return failed(e);
@@ -117,33 +109,19 @@ export async function POST(request: NextRequest) {
         throw new WorkspaceError(400, "業績數值格式不正確");
       values[field] = body[field];
     }
-    if (body.id) {
-      let q = ctx.auth
+    // W03-q3：照舊版後寫覆蓋（舊 /api/performance-data 為 upsert，沒有版本檢查）。
+    // 以 store_id+year+month 為衝突鍵，不再比對 updated_at。
+    const record = checked(
+      await ctx.auth
         .from("store_performance")
-        .update(values)
-        .eq("id", body.id)
-        .eq("store_id", body.store_id)
-        .eq("year", body.year)
-        .eq("month", body.month);
-      q = body.updated_at
-        ? q.eq("updated_at", body.updated_at)
-        : q.is("updated_at", null);
-      const record = checked(await q.select().maybeSingle());
-      if (!record)
-        throw new WorkspaceError(
-          409,
-          "此月業績已由其他頁面更新，請保留草稿並重新查詢",
-        );
-      return respond({ success: true, record });
-    }
-    const result = await ctx.auth
-      .from("store_performance")
-      .insert({ ...values, created_by: ctx.user.id })
-      .select()
-      .single();
-    if (result.error?.code === "23505")
-      throw new WorkspaceError(409, "此月已有資料，請重新查詢後編輯");
-    return respond({ success: true, record: checked(result) });
+        .upsert(
+          { ...values, created_by: ctx.user.id },
+          { onConflict: "store_id,year,month" },
+        )
+        .select()
+        .single(),
+    );
+    return respond({ success: true, record });
   } catch (e) {
     return failed(e);
   }

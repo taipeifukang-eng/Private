@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import {computed} from 'vue';
-import {calcMonthlyBonus,calcQuarterlyBonus,type ThresholdDef,type MonthlyPerformance,formatRate} from '../../../lib/performance/bonus-calc';
+import {type ThresholdDef,formatRate} from '../../../lib/performance/bonus-calc';
+import {calcYearBonus} from '../../../lib/workspace/performance-year';
 const props=defineProps<{rows:any[];monthly:ThresholdDef[];quarterly:ThresholdDef[];canEdit:boolean;disabled:boolean}>();
 defineEmits<{edit:[month:number]}>();
 const amount=(v:any)=>v==null?'—':Number(v).toLocaleString('zh-TW',{maximumFractionDigits:2});
 const months=computed(()=>Array.from({length:12},(_,i)=>props.rows.find(r=>r.month===i+1)||{month:i+1,business_days:26}));
-const perf=(r:any):MonthlyPerformance=>({businessDays:r.business_days??26,grossProfitTarget:r.monthly_gross_profit_target??null,grossProfitActual:r.monthly_gross_profit_actual??null,revenueTarget:r.monthly_revenue_target??null,revenueActual:r.monthly_revenue_actual??null,customerCountTarget:r.monthly_customer_count_target??null,customerCountActual:r.monthly_customer_count_actual??null,rxTarget:r.last_month_rx_target??null,rxActual:r.last_month_rx_actual??null,activityDayGrossProfit:r.activity_day_gross_profit??null});
-const bonuses=computed(()=>months.value.map(r=>r.monthly_gross_profit_target==null||r.monthly_gross_profit_actual==null?null:calcMonthlyBonus(perf(r),props.monthly)));
-const quarters=computed(()=>[0,1,2,3].map(i=>({index:i,filled:bonuses.value.slice(i*3,i*3+3).filter(Boolean).length,result:calcQuarterlyBonus(months.value.slice(i*3,i*3+3).map(perf),bonuses.value.slice(i*3,i*3+3).map(b=>b?.finalBonus??0),props.quarterly)})));
+const year=computed(()=>calcYearBonus(props.rows,props.monthly,props.quarterly));
+const bonuses=computed(()=>year.value.months);
+const quarters=computed(()=>[0,1,2,3].map(i=>({index:i,filled:year.value.filled[i],result:year.value.quarters[i]!})));
 const columns=[['business_days','營業天數'],['monthly_gross_profit_target','毛利目標'],['monthly_gross_profit_actual','毛利實際'],['activity_day_gross_profit','活動當日毛利'],['monthly_revenue_target','營業額目標'],['monthly_revenue_actual','營業額實際'],['monthly_customer_count_target','來客數目標'],['monthly_customer_count_actual','來客數實際'],['last_month_rx_target','慢箋總張數目標'],['last_month_rx_actual','慢箋總張數實際']];
 const metrics=[['毛利','quarterlyGpTarget','quarterlyGpActual','gpAchieved'],['營業額','quarterlyRevenueTarget','quarterlyRevenueActual','revenueAchieved'],['來客數','quarterlyCustomerCountTarget','quarterlyCustomerCountActual','customerCountAchieved'],['慢箋總張數','quarterlyRxTarget','quarterlyRxActual','rxAchieved']];
 </script>
