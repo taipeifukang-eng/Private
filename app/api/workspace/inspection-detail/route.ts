@@ -20,7 +20,7 @@ export async function GET(request: Request) {
       await ctx.admin
         .from("inspection_masters")
         .select(
-          "id,workspace_version,inspection_date,store_id,inspector_id,inspection_type,status,total_score,max_possible_score,improvement_bonus,inspection_no,grade,indoor_temperature,supervisor_notes,gps_latitude,gps_longitude,gps_timestamp,signature_photo_url,supervisor_signature_url",
+          "id,workspace_version,inspection_date,store_id,inspector_id,inspection_type,status,total_score,max_possible_score,improvement_bonus,inspection_no,grade,indoor_temperature,supervisor_notes,gps_latitude,gps_longitude,gps_accuracy,gps_timestamp,created_at,signature_photo_url,supervisor_signature_url",
         )
         .eq("id", id)
         .maybeSingle(),
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     const store = checked(
       await ctx.admin
         .from("stores")
-        .select("store_name,store_code,address")
+        .select("store_name,store_code,short_name,address")
         .eq("id", row.store_id)
         .maybeSingle(),
     );

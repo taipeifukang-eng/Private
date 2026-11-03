@@ -6,6 +6,7 @@ const preview = ref("");
 const deleteConfirm = ref(false),
   deleted = ref(false);
 import { api } from "../api";
+import { formatTaipeiDateTime } from "../taipei-time";
 import { useWorkspace, useSession, type WorkTab } from "../stores";
 const work = useWorkspace(),
   session = useSession();
@@ -79,6 +80,7 @@ onMounted(() => {
     <div>
       <p class="eyebrow">巡店 / 紀錄明細</p>
       <h1>巡店紀錄明細</h1>
+      <p v-if="data" class="muted">{{ data.record.gps_timestamp ? "GPS定位於" : "建立於" }} {{ formatTaipeiDateTime(data.record.gps_timestamp || data.record.created_at) }}</p>
     </div>
     <div class="module-actions">
       <button

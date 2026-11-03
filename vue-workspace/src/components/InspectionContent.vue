@@ -2,6 +2,7 @@
 import {computed} from 'vue';
 import InspectionFinding from './InspectionFinding.vue';
 import InspectionPhotos from './InspectionPhotos.vue';
+import {formatTaipeiDate,formatTaipeiDateTime,formatTaipeiTime} from '../taipei-time';
 const props=defineProps<{data:any;printMode?:boolean;canReport?:boolean}>();
 defineEmits<{preview:[url:string];report:[id:string]}>();
 const data=computed(()=>props.data);
@@ -29,11 +30,11 @@ const status=computed(()=>({draft:'草稿',in_progress:'進行中',completed:'�
 <section class="record-section" aria-label="巡店基本資料">
 <dl class="record-meta">
 <div><dt>巡店單號</dt><dd>{{data.record.inspection_no || '未提供'}}</dd></div>
-<div><dt>巡店門市</dt><dd>{{data.store?.store_code}} {{data.store?.store_name || '未提供'}}</dd></div>
-<div><dt>巡店日期</dt><dd>{{data.record.inspection_date || '未提供'}}</dd></div>
+<div><dt>巡店門市</dt><dd>{{data.store?.short_name || data.store?.store_name || '未提供'}}<small v-if="data.store?.store_code">{{data.store.store_code}}</small></dd></div>
+<div><dt>巡店日期</dt><dd>{{formatTaipeiDate(data.record.gps_timestamp || data.record.inspection_date) || '未提供'}}<small v-if="data.record.gps_timestamp">{{formatTaipeiTime(data.record.gps_timestamp)}}</small></dd></div>
 <div><dt>{{data.record.inspection_type==='manager'?'經理人員':'督導人員'}}</dt><dd>{{data.inspector || '未提供'}}</dd></div>
 <div><dt>狀態</dt><dd>{{status}}</dd></div>
-<div><dt>GPS 定位</dt><dd><a v-if="gpsLink" :href="gpsLink.url" target="_blank" rel="noopener noreferrer" :aria-label="`${gpsLink.label}，另開 Google Maps`">{{gpsLink.label}} ↗ Google Maps</a><span v-else>無有效定位座標</span><small v-if="data.record.gps_timestamp">{{data.record.gps_timestamp}}</small></dd></div>
+<div><dt>GPS 定位</dt><dd><a v-if="gpsLink" :href="gpsLink.url" target="_blank" rel="noopener noreferrer" :aria-label="`${gpsLink.label}，另開 Google Maps`">{{gpsLink.label}} ↗ Google Maps</a><span v-else>無有效定位座標</span><small v-if="data.record.gps_timestamp">定位時間：{{formatTaipeiDateTime(data.record.gps_timestamp)}}</small><small v-if="gpsLink && data.record.gps_accuracy">精度：±{{Number(data.record.gps_accuracy).toFixed(0)}}m</small></dd></div>
 </dl>
 <div class="inspection-summary"><strong>得分 {{data.record.total_score ?? '—'}} / {{data.record.max_possible_score ?? '—'}}</strong><span>評級 {{data.record.grade || '—'}}</span><span v-if="data.improvements?.length">改善回補 {{data.record.improvement_bonus || 0}} 分</span></div>
 </section>
