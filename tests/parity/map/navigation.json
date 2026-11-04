@@ -330,6 +330,18 @@
       ]
     },
     {
+      "href": "/activity-management",
+      "label": "活動檢視",
+      "anyOf": [
+        "activity.campaign.view_all"
+      ],
+      "api": "campaignEntryAccess",
+      "apiCodes": [
+        "activity.campaign.view_own",
+        "activity.campaign.view"
+      ]
+    },
+    {
       "href": "/inventory",
       "label": "盤點管理",
       "anyOf": [

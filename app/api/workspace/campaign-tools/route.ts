@@ -26,7 +26,11 @@ async function handle(request:NextRequest){try{
  const resource=request.nextUrl.searchParams.get('resource')||'';
  if(resource==='permissions'&&request.method==='GET')return respond({permissions:Object.fromEntries(Object.entries(edits).map(([k,v])=>[k,ctx.has(...v)])),marketing:ctx.has('activity.marketing.publish','activity.checklist.edit'),merchandise:ctx.has('activity.merchandise.publish','activity.checklist.edit')});
  const handler=handlers[resource]?.[request.method];if(!handler&&!(request.method==='PUT'&&['schedules','ownStaff','supportStaff','checklist-order'].includes(resource)))throw new WorkspaceError(404,'找不到活動操作');
- if(request.method!=='GET'){checkOrigin(request);requireCapability(ctx,edits[resource]||[]);}
+ // 這五項寫入的權限與門市範圍由舊 API（lib/campaign-access.ts authorizeCampaignStoreWrite）判斷：
+ // 持 edit 權者寫全部；店長只寫被任命門市、督導依活動檢視範圍。這裡不再另加「必須持 edit 權」的前置閘門，
+ // 否則只有 view_own 的店長（舊版可寫自己門市）在新版會被擋。整批 PUT（RPC）仍只開放 edit 權。
+ const legacyScopedWrite=request.method!=='PUT'&&['headcount','completions','ownStaff','supportStaff','requests'].includes(resource);
+ if(request.method!=='GET'){checkOrigin(request);if(!legacyScopedWrite)requireCapability(ctx,edits[resource]||[]);}
  if(resource==='checklist-order'&&request.method==='PUT'){const b=await request.json();if(!uuid(b.campaign_id)||!Array.isArray(b.ids)||b.ids.some((id:any)=>!uuid(id)))throw new WorkspaceError(400,'排序格式不正確');return respond(checked(await ctx.admin.rpc('workspace_campaign_checklist_order',{p_actor:ctx.user.id,p_campaign:b.campaign_id,p_ids:b.ids})));}
  if(resource==='details'&&request.method==='POST'){
   const b=await request.json();if(!uuid(b.campaign_id)||!uuid(b.store_id))throw new WorkspaceError(400,'活動或門市識別不正確');
@@ -35,7 +39,6 @@ async function handle(request:NextRequest){try{
   for(const key of allowed)if(key in b){if(b[key]!==null&&(typeof b[key]!=='string'||b[key].length>10000))throw new WorkspaceError(400,'配置欄位格式不正確');values[key]=b[key]||null;}
   return respond({success:true,data:checked(await ctx.admin.from('campaign_store_details').upsert(values,{onConflict:'campaign_id,store_id'}).select().single())});
  }
- if(resource==='requests'&&request.method==='DELETE'){const b=await request.json();if(!uuid(b.id))throw new WorkspaceError(400,'支援需求識別不正確');checked(await ctx.admin.from('campaign_support_requests').delete().eq('id',b.id));return respond({success:true});}
  if(resource==='assets'&&request.method==='POST'){const b=await request.clone().formData();const files=b.getAll('files');if(!files.length||files.length>8||files.some(f=>!(f instanceof File)||f.size>5*1024*1024||!['image/png','image/jpeg','image/webp'].includes(f.type)))throw new WorkspaceError(400,'請選擇最多 8 張、每張 5MB 以下的 PNG、JPEG 或 WebP 圖片');}
  if(resource==='settings'&&request.method==='POST'){
   const b=await request.json(),days=(v:any)=>Array.isArray(v)&&v.every(d=>Number.isInteger(d)&&d>=1&&d<=7);

@@ -10,6 +10,7 @@ import {
   uuid,
   WorkspaceError,
 } from "@/lib/workspace/server";
+import { GET as legacyCampaigns } from "@/app/api/campaigns/route";
 export const dynamic = "force-dynamic";
 const fields =
   "id,name,start_date,end_date,campaign_type,is_active,updated_at,workspace_version,published_to_supervisors,published_to_store_managers,published_to_inventory_team";
@@ -19,7 +20,15 @@ export async function GET(request: Request) {
     requireCapability(ctx, CAMPAIGN_READ_CODES);
     const p = new URL(request.url).searchParams;
     const id = p.get("id");
-    let query = ctx.admin.from("campaigns").select(fields, { count: "exact" });
+    // 可見活動由舊版 GET /api/campaigns 決定（lib/campaign-access.ts：權限閘門、發布閘門、
+    // view_all／編輯權看全部），不在這裡另寫一份規則；本 API 只負責分頁、搜尋與欄位。
+    const legacy = await legacyCampaigns();
+    if (!legacy.ok) {
+      const denied = await legacy.json().catch(() => ({}));
+      throw new WorkspaceError(legacy.status === 401 ? 401 : legacy.status === 403 ? 403 : 503, legacy.status === 403 ? denied.error || "沒有活動查看權限" : "資料讀取或寫入失敗，請稍後重試");
+    }
+    const visibleIds: string[] = ((await legacy.json()).campaigns || []).map((c: any) => c.id);
+    let query = ctx.admin.from("campaigns").select(fields, { count: "exact" }).in("id", visibleIds.length ? visibleIds : ["00000000-0000-0000-0000-000000000000"]);
     if (id) {
       if (!uuid(id)) throw new WorkspaceError(400, "活動識別不正確");
       query = query.eq("id", id);

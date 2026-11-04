@@ -3,7 +3,8 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
-import { MODULE_NAMES, FEATURE_NAMES, ACTION_NAMES } from "../../../types/rbac";
+import { MODULE_NAMES, FEATURE_NAMES } from "../../../types/rbac";
+import { isScopePermission, preferredScopePermission, permissionLabel } from "../role-scope";
 const props = defineProps<{ tab: WorkTab }>();
 const roles = ref<any[]>([]),
   caps = ref<Record<string, boolean>>({}),
@@ -80,10 +81,7 @@ const normalizeModule = (name: string) =>
       組織管理: "organization",
     }) as Record<string, string>
   )[name] || name;
-const scope = (p: any) =>
-  ["view", "view_own", "view_own_store", "view_all"].includes(
-    p.code.split(".").at(-1),
-  );
+const scope = isScopePermission;
 const highImpact = (p: any) =>
   ["delete", "force_close", "revert", "unconfirm"].includes(p.action) ||
   p.code === "monthly.allowance.edit_support_bonus";
@@ -109,10 +107,7 @@ const featurePermissions = (module: string, feature: string) =>
   permissions.value.filter(
     (p) => normalizeModule(p.module) === module && p.feature === feature,
   );
-const preferredScope = (ps: any[]) =>
-  ["view_own_store", "view_own", "view", "view_all"]
-    .map((a) => ps.find((p) => p.code.split(".").at(-1) === a))
-    .find(Boolean);
+const preferredScope = preferredScopePermission;
 const basicLabel = (ps: any[]) => {
   const p = preferredScope(ps);
   return p ? label(p) : "進入功能";
@@ -125,10 +120,7 @@ const conflicts = computed(() => {
   }
   return [...features.values()].filter((ps) => ps.length > 1);
 });
-const label = (p: any) =>
-  p.code === "monthly.status.view_own"
-    ? "查看管理門市"
-    : ACTION_NAMES[p.action] || p.description || p.action;
+const label = permissionLabel;
 const groups = computed(() => {
   const result: Record<string, Record<string, any[]>> = {};
   for (const p of permissions.value) {
@@ -275,9 +267,7 @@ function preset(module: string, feature: string, mode: string) {
   const ps = permissions.value.filter(
     (p) => normalizeModule(p.module) === module && p.feature === feature,
   );
-  const preferred = ["view_own_store", "view_own", "view", "view_all"]
-    .map((a) => ps.find((p) => p.code.split(".").at(-1) === a))
-    .find(Boolean);
+  const preferred = preferredScope(ps);
   for (const p of ps)
     p.granted =
       mode !== "none" &&

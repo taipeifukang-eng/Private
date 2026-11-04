@@ -331,9 +331,11 @@
           "inspections": true,
           "managerInspections": true,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": true
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/admin/archived",
           "/admin/departments",
@@ -501,9 +503,11 @@
           "inspections": true,
           "managerInspections": false,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/admin/departments",
           "/admin/employee-purchases",
@@ -620,9 +624,11 @@
           "inspections": true,
           "managerInspections": true,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/admin/employee-purchases",
           "/admin/export-monthly-status",
@@ -721,9 +727,11 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": true
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/admin/employee-purchases",
           "/admin/export-monthly-status",
@@ -831,9 +839,11 @@
           "inspections": true,
           "managerInspections": false,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/admin/export-monthly-status",
           "/admin/stores",
@@ -927,6 +937,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1022,6 +1033,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1097,6 +1109,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1185,6 +1198,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1305,6 +1319,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1381,6 +1396,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1447,6 +1463,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1506,6 +1523,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1568,6 +1586,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1633,6 +1652,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1697,6 +1717,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1758,6 +1779,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1823,6 +1845,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1886,6 +1909,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1948,6 +1972,7 @@
           "inspections": true,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2014,6 +2039,7 @@
           "inspections": true,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2077,6 +2103,7 @@
           "inspections": true,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2139,9 +2166,11 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/monthly-release",
           "/organization/calendar"
@@ -2203,9 +2232,11 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": true
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/monthly-release",
           "/organization/calendar"
@@ -2266,9 +2297,11 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": true,
+          "campaignView": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
+          "/activity-management",
           "/admin/activity-management",
           "/monthly-release",
           "/organization/calendar"
@@ -2329,6 +2362,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2394,6 +2428,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2458,6 +2493,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2520,6 +2556,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2583,6 +2620,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2646,6 +2684,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2710,6 +2749,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2778,6 +2818,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2845,6 +2886,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2908,6 +2950,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2973,6 +3016,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3036,6 +3080,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3101,6 +3146,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3171,6 +3217,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3235,6 +3282,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3300,6 +3348,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3363,6 +3412,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3431,6 +3481,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3496,6 +3547,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3561,6 +3613,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3623,6 +3676,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3686,6 +3740,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3749,6 +3804,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3814,6 +3870,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3878,6 +3935,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3940,6 +3998,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4002,6 +4061,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4064,6 +4124,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4125,6 +4186,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4187,6 +4249,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4251,6 +4314,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4312,6 +4376,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4375,6 +4440,7 @@
           "inspections": false,
           "managerInspections": false,
           "campaigns": false,
+          "campaignView": false,
           "editCampaigns": false
         },
         "navigationHrefs": [

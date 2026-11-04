@@ -93,7 +93,18 @@ export const INSPECTION_CODES = [
   "inspection.view_store",
   "inspection.view_own",
 ];
+// 活動管理頁（/admin/activity-management 對應的 Vue 頁）的進入碼；不含 view_own，
+// 否則全員預設角色持 view_own 時會看到管理頁入口（舊版這些人只有「活動檢視」入口）。
+export const CAMPAIGN_PAGE_CODES = [
+  "activity.campaign.view_all",
+  "activity.campaign.view",
+  "activity.campaign.edit",
+  "activity.manage",
+  "activity.store_detail.edit", "activity.equipment_trip.edit", "activity.checklist.edit", "activity.support_request.edit", "activity.support_assign.edit", "activity.staff_overview.view", "activity.marketing.publish", "activity.merchandise.publish",
+];
+// 活動 API 的權限閘門：另含 view_own（店長／督導的查看權）。可見範圍一律由 lib/campaign-access.ts 決定。
 export const CAMPAIGN_READ_CODES = [
+  "activity.campaign.view_own",
   "activity.campaign.view_all",
   "activity.campaign.view",
   "activity.campaign.edit",

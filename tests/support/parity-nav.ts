@@ -23,7 +23,9 @@ export interface NavRule {
   adminBypass?: boolean;
   storeManagerBypass?: boolean;
   /** 以舊版 API 結果判斷（目前只有 generalAffairsAccess）。 */
-  api?: 'generalAffairsAccess';
+  api?: 'generalAffairsAccess' | 'campaignEntryAccess';
+  /** 只在 api 事實為真時才算數的權限碼（例如活動檢視：view_own / 舊 view 還要有任命才進得去）；僅供漂移檢查比對，不單獨放行。 */
+  apiCodes?: string[];
 }
 
 export type NavFlag = Omit<NavRule, 'href' | 'label'>;
@@ -44,6 +46,8 @@ export interface LegacyNavFacts {
   roleCodes: string[];
   /** /api/general-affairs/access 的 allowed。 */
   generalAffairsAccess: boolean;
+  /** /api/campaigns/entry-access 的 canEnter（活動檢視入口：view_all，或 view_own 且有任命／盤點組）。 */
+  campaignEntryAccess?: boolean;
 }
 
 export interface NavItem {
@@ -79,6 +83,7 @@ export function ruleVisible(rule: NavFlag, facts: LegacyNavFacts, data: NavMapDa
   if (rule.adminBypass !== false && isAdminLike(facts, data)) return true;
   if (rule.storeManagerBypass && isStoreManager(facts, data)) return true;
   if (rule.api === 'generalAffairsAccess' && facts.generalAffairsAccess) return true;
+  if (rule.api === 'campaignEntryAccess' && facts.campaignEntryAccess) return true;
   const have = new Set(facts.permissions);
   if (expandCodes(rule.anyOf, data.codeSets).some((c) => have.has(c))) return true;
   for (const flag of rule.anyOfFlags || []) {

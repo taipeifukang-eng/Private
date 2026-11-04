@@ -4,7 +4,7 @@ import {
   ROLE_MANAGEMENT_NAV_PERMISSION_CODES,
 } from "@/lib/permissions/rbac-management";
 import type { WorkspaceNavKind } from "./page-kinds";
-import { type Context, CAMPAIGN_READ_CODES } from "./server";
+import { type Context, CAMPAIGN_PAGE_CODES } from "./server";
 import {
   GA_MAINTENANCE_MODULE_CODES,
   GA_WORK_ORDER_MODULE_CODES,
@@ -26,6 +26,8 @@ export function workspaceNavigation(
     taskArchive?: boolean;
     taskManagement?: boolean;
     monthlyExport?: boolean;
+    /** 活動檢視入口：canEnterCampaignView（view_all，或 view_own 且有 store_managers 任命／盤點組）。 */
+    campaignView?: boolean;
   } = {},
 ) {
   const has = (...codes: string[]) => ctx.has(...codes);
@@ -82,10 +84,12 @@ export function workspaceNavigation(
             "activity.store_detail.edit",
             "activity.equipment_trip.edit",
             "activity.checklist.edit",
-            ...CAMPAIGN_READ_CODES,
+            ...CAMPAIGN_PAGE_CODES,
           ],
-          has(...CAMPAIGN_READ_CODES) ? "campaigns" : undefined,
+          has(...CAMPAIGN_PAGE_CODES) ? "campaigns" : undefined,
         ),
+        // 舊 Navbar 的「活動檢視」（/activity-management）：條件由 lib/campaign-access.ts 的 canEnterCampaignView 決定。
+        { label: "活動檢視", href: "/activity-management", kind: undefined, allowed: !!features.campaignView },
         item(
           "盤點管理",
           "/inventory",

@@ -45,6 +45,8 @@ export type Session = {
     createInspections: boolean;
     managerInspections: boolean;
     campaigns: boolean;
+    /** 活動檢視入口（canEnterCampaignView）。 */
+    campaignView: boolean;
     editCampaigns: boolean;
   };
   environment: string;

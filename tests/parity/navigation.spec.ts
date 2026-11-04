@@ -58,10 +58,11 @@ for (const account of fixture.accounts) {
       });
 
       // 2) 導覽可見性
-      const [permRes, profileRes, gaRes, sessionRes] = await Promise.all([
+      const [permRes, profileRes, gaRes, campaignEntryRes, sessionRes] = await Promise.all([
         api.get('/api/permissions/user'),
         api.get('/api/user/profile'),
         api.get('/api/general-affairs/access'),
+        api.get('/api/campaigns/entry-access'),
         api.get('/api/workspace/session'),
       ]);
       expect(permRes.status(), '舊 /api/permissions/user').toBe(200);
@@ -69,6 +70,7 @@ for (const account of fixture.accounts) {
       const permissions = ((await permRes.json()).permissions || []) as string[];
       const profile = profileRes.ok() ? await profileRes.json() : null;
       const ga = gaRes.ok() ? await gaRes.json() : null;
+      const campaignEntry = campaignEntryRes.ok() ? await campaignEntryRes.json() : null;
       const session = await sessionRes.json();
 
       const facts: LegacyNavFacts = {
@@ -76,6 +78,7 @@ for (const account of fixture.accounts) {
         profileRole: profile?.profile?.role ?? null,
         roleCodes: [account.roleCode, ...(account.systemRoles || [])],
         generalAffairsAccess: Boolean(ga?.allowed),
+        campaignEntryAccess: campaignEntry?.canEnter === true,
       };
       // 規則表求值（單元層快速檢查；module 類帳號沒有 DOM 證據時也以它為舊版來源）
       const rulesItems = legacyNavItems(facts, navData);

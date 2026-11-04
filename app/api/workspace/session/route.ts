@@ -9,7 +9,7 @@ import { improvementAccess } from "@/lib/workspace/improvements";
 import { moduleCodes, moduleStores } from "@/lib/workspace/modules";
 import {
   CAMPAIGN_EDIT_CODES,
-  CAMPAIGN_READ_CODES,
+  CAMPAIGN_PAGE_CODES,
   INSPECTION_CODES,
   context,
   failed,
@@ -19,12 +19,14 @@ import {
 } from "@/lib/workspace/server";
 import { workspaceNavigation } from "@/lib/workspace/navigation";
 import { loadExportAccess } from "@/lib/workspace/monthly-export-server";
+import { canEnterCampaignView } from "@/lib/campaign-access";
 import { canOpenMonthlyExport } from "@/lib/workspace/monthly-export";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const ctx = await context();
     let transfers=false;try{await transferAccess(ctx);transfers=true;}catch(e){if(!(e instanceof WorkspaceError&&e.status===403))throw e;}
+    const campaignView = await canEnterCampaignView(ctx.auth, ctx.user.id);
     const movementHistory=await canReadMovementHistory(ctx);
     const employees=ctx.has("employee.manage")&&await canReadStorePersonnel(ctx);
     const employeeCreate=ctx.has("employee.manage")&&ctx.has("employee.employee.create")&&await canReadStorePersonnel(ctx);
@@ -109,7 +111,8 @@ export async function GET() {
         createInspections: ctx.has("inspection.create"),
         inspections: ctx.has(...INSPECTION_CODES),
         managerInspections: ctx.has("inspection.manager_tab"),
-        campaigns: ctx.has(...CAMPAIGN_READ_CODES),
+        campaigns: ctx.has(...CAMPAIGN_PAGE_CODES),
+        campaignView,
         editCampaigns: ctx.has(...CAMPAIGN_EDIT_CODES),
       },
       stores: Array.from(stores.values()),
@@ -127,6 +130,7 @@ export async function GET() {
         taskArchive,
         taskManagement,
         monthlyExport,
+        campaignView,
       }),
     });
   } catch (error) {

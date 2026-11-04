@@ -11,6 +11,9 @@ const MARKER_TARGETS = [
   { table: 'profiles', column: 'employee_code', pattern: 'ZTT%', action: 'report' },
   // M0：關係會員 e2e 建立的申請資料（姓名帶 ZT + runId 前綴）。
   { table: 'relationship_members', column: 'member_name', pattern: 'ZTT%', action: 'delete' },
+  // CV01：活動查看權限測試。活動名稱 CVP-<runId>-KEY（子表 ON DELETE CASCADE）；帳號由 fixture 自行清除，這裡只回報孤兒。
+  { table: 'campaigns', column: 'name', pattern: 'CVP-T%', action: 'delete' },
+  { table: 'profiles', column: 'email', pattern: 'cvp-test-%', action: 'report' },
 ];
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
@@ -76,6 +79,9 @@ const DELETABLE_TABLES = {
   employee_purchase_import_batches: ['id'],
   pharmacist_monthly_snapshot: ['id'],
   pharmacist_snapshot_locks: ['year_month'],
+  // CV01：活動（子表 cascade）與門市任命 fixture，只依 registry 登錄的 id 清除。
+  campaigns: ['id'],
+  store_managers: ['id'],
 };
 
 function isDeletableTarget(table, column) {

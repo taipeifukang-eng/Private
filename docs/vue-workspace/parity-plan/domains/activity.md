@@ -615,3 +615,14 @@
 7) 共用角色帳號（DEV，前綴 zztest-camp-）：A admin(role=admin, 全 activity.*)；B 活動編輯(role=member, activity.campaign.edit)；C 唯讀(activity.campaign.view_all only)；D 店長(activity.campaign.view + activity.management.access，store_managers 對應門市 S1)；E 督導(activity.campaign.view + activity.management.access，督導 SV1 管 S1/S2)；F 跨區督導(SV2 管 S3/S4)；G 無權(無任何 activity.*)；H 盤點組(inventory_team 受眾)；I 行銷部(activity.marketing.publish)；J 商品部(activity.merchandise.publish)；K 門市細節編輯(activity.store_detail.edit)；L 設備車次(activity.equipment_trip.edit)；M Checklist(activity.checklist.edit)；N 支援(activity.support_request.edit + support_assign.edit)；X1 legacy-manager(role=manager，無 activity.* RBAC)；X2 rbac-only(role=member，有 activity.campaign.edit)；P 有 view 但無 management.access。
 8) 已確認的已知差異（須在 parity 報告列為 KNOWN-DIFF，不視為測試失敗，但須交使用者裁決）：Vue 無「進行中」徽章/有 is_active；類型文字「促銷」vs「母親節/周年慶」；Vue 無行銷圖片拖曳排序；Vue CampaignSchedule 不依 inventory 隱藏促銷分頁；月曆週日起始且無督導區色；/activity-management 與 /activity-view/[id] 無獨立路由、無狀態徽章與發布標籤；年度篩選無「全部」。MAX_MARKETING_IMAGE_COUNT 舊版=8（page.tsx 194 行）與 Vue 8 張一致。
 9) uncertain：舊版 CampaignStoreDetailModal / EquipmentTripEditor / ChecklistTemplateEditor / StoreSupportEditModal / SupportRequestModal / StaffOverviewModal / ChecklistOverviewModal 內部欄位未逐檔讀；Sonnet 實作 parity 前須先讀這些元件產出欄位清單再比對。test-workspace-campaign-ui.py 與 test-workspace-monthly-activity.py 斷言範圍未逐行確認，實作前先 grep 避免重複。
+
+## 活動查看權限（view_own／view_all）移植到 Vue（CV01，2026-11-04）
+
+- 規則來源只有 `lib/campaign-access.ts`（舊版 dc87ea4）；workspace 不複製規則：
+  - `GET /api/workspace/campaigns` 的可見活動委派舊 `GET /api/campaigns`（權限閘門、發布閘門、view_all／編輯權看全部），本 API 只負責分頁、搜尋與欄位。
+  - `/api/workspace/campaign-tools` 各分頁的讀取、店長可寫的五項資源（headcount、ownStaff POST／DELETE、completions、requests、supportStaff POST／DELETE）都直接呼叫舊 handler，由 `authorizeCampaignStoreWrite` 判斷；前置閘門不再要求持 edit 權（否則只有 view_own 的店長被擋，與舊版不同）。整批 PUT（RPC）與其他維護作業仍只開放 edit 權。
+  - 支援需求 DELETE 不再走 admin client 的特例，改走舊 handler（會檢查任命門市）。
+- 入口：`canEnterCampaignView(ctx.auth, userId)`。session `capabilities.campaignView`、導覽「活動檢視」（/activity-management，連到舊頁）、monthly tools `capabilities.activity`／`op=activity`／`op=activityDetail` 都用它，不再看 `activity.management.access`（該碼保留給其他功能，例如行銷部判斷）。
+- 權限碼常數：`CAMPAIGN_READ_CODES`（API 閘門，含 view_own）與 `CAMPAIGN_PAGE_CODES`（活動管理頁入口，不含 view_own，避免全員預設角色持 view_own 時看到管理頁）。
+- 權限頁（Roles.vue）：規則抽到 `vue-workspace/src/role-scope.ts`。`activity.campaign.view_own` 顯示「查看自己管理門市」，`view_all`「查看全部」，舊 `view`「（舊）查看，將停用」且不計入互斥查看範圍；快速預設反映實際勾選範圍。
+- 測試：`tests/*/CV01.*`（unit／smoke／integration／e2e／parity）；parity 對舊版 matrix 角色逐項比對可見活動、各分頁可見門市、入口與寫入允許與否。403 與 404 同視為「拒絕」。

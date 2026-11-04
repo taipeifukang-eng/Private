@@ -13,6 +13,7 @@ import { GET as published } from '@/app/api/campaigns/published/route';
 import { GET as campaignView } from '@/app/api/campaigns/[id]/view/route';
 import { GET as activityStores } from '@/app/api/stores-with-supervisors/route';
 import { GET as activityEvents } from '@/app/api/event-dates/route';
+import { canEnterCampaignView } from '@/lib/campaign-access';
 import { activityPlan } from '@/lib/workspace/activity-plan';
 import { POST as importPerformance } from '@/app/api/import-performance/route';
 import { POST as importStats } from '@/app/api/import-store-stats/route';
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
       for (const key of ['support_to_other_stores_hours','support_from_other_stores_hours']) if (viewSupport) stats[key] = summary.data?.[key] ?? null;
       return respond({ stats, version: summary.data?.updated_at || null, storeStatus: summary.data?.store_status || 'not_started', capabilities: {
         ...capabilities, viewStats, viewSupport, editStats: viewStats && ctx.has('monthly.status.edit'), editSupport: ctx.has('monthly.allowance.edit_support_hours'), manual: ctx.has('monthly.status.add_employee'),
-        pdf: ctx.has('monthly.export.download'), bonusDetails: ctx.has('monthly.status.bonus_detail.view'), performance: ctx.has('monthly.status.view_performance'), activity: ctx.has('activity.management.access'),
+        pdf: ctx.has('monthly.export.download'), bonusDetails: ctx.has('monthly.status.bonus_detail.view'), performance: ctx.has('monthly.status.view_performance'), activity: await canEnterCampaignView(ctx.auth, ctx.user.id),
         importPerformance: ctx.has('monthly.import.performance') && ctx.has('monthly.status.view_all'), importStats: ctx.has('monthly.import.store_stats') && ctx.has('monthly.status.view_all'),
       }});
     }
@@ -81,7 +82,7 @@ export async function GET(request: Request) {
       url.searchParams.set('year', month.slice(0,4)); url.searchParams.set('month', String(Number(month.slice(5))));
       return performanceData(new NextRequest(url));
     }
-    if (op === 'activity') { permit(ctx, 'activity.management.access'); return published(); }
+    if (op === 'activity') { await requireCampaignView(ctx); return published(); }
     if (op === 'excel') {
       permit(ctx, 'monthly.export.download');
       const result = await exportMonthlyStatusForBonus(month,store,true);
@@ -89,7 +90,7 @@ export async function GET(request: Request) {
       return respond(result);
     }
     if (op === 'activityDetail') {
-      permit(ctx, 'activity.management.access');
+      await requireCampaignView(ctx);
       const response = await campaignView(new NextRequest(url), { params: { id: p.get('id') || '' } });
       if (!response.ok) return response;
       const data = await response.json();
@@ -110,6 +111,10 @@ export async function GET(request: Request) {
     }
     throw new WorkspaceError(400, '不支援的操作');
   } catch (e) { return failed(e); }
+}
+// 活動檢視入口與舊版相同（canEnterCampaignView）；可見活動與門市範圍由舊 API（lib/campaign-access.ts）決定。
+async function requireCampaignView(ctx: any) {
+  if (!(await canEnterCampaignView(ctx.auth, ctx.user.id))) throw new WorkspaceError(403, '沒有此項操作權限');
 }
 // M1-x1：新增人員的狀態判斷走規則表（任一列或門市摘要不允許 add 即 409），不再只靠資料庫函式拋 locked。
 async function guardManualAdd(ctx: any, store: string, month: string) {

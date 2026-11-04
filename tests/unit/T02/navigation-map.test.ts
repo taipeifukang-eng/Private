@@ -24,6 +24,7 @@ const facts = (over: Partial<LegacyNavFacts> = {}): LegacyNavFacts => ({
   profileRole: 'member',
   roleCodes: [],
   generalAffairsAccess: false,
+  campaignEntryAccess: false,
   ...over,
 });
 const hrefs = (f: LegacyNavFacts) => legacyNavItems(f, data).map((i) => i.href);
@@ -48,7 +49,7 @@ describe('navigation.json 規則表不得與舊版原始碼漂移', () => {
   it('規則表用到的每個權限碼都出現在 useNavbarPermissions.ts（@codeSet 另由 lib 常數對照）', () => {
     const codes = new Set<string>();
     for (const r of [...data.navRules, ...Object.values(data.navFlags)]) {
-      for (const c of r.anyOf || []) if (!c.startsWith('@')) codes.add(c); // @codeSet 已由上一個測試對照 lib 常數
+      for (const c of [...(r.anyOf || []), ...(r.apiCodes || [])]) if (!c.startsWith('@')) codes.add(c); // @codeSet 已由上一個測試對照 lib 常數
     }
     const missing = Array.from(codes).filter((c) => !hookSource.includes(`'${c}'`));
     expect(missing).toEqual([]);
@@ -58,7 +59,7 @@ describe('navigation.json 規則表不得與舊版原始碼漂移', () => {
     const inHook = new Set<string>();
     for (const m of Array.from(hookSource.matchAll(/'([a-z_]+(?:\.[a-z_]+)+)'/g))) inHook.add(m[1]);
     const known = new Set<string>();
-    for (const r of [...data.navRules, ...Object.values(data.navFlags)]) for (const c of expandCodes(r.anyOf, data.codeSets)) known.add(c);
+    for (const r of [...data.navRules, ...Object.values(data.navFlags)]) { for (const c of expandCodes(r.anyOf, data.codeSets)) known.add(c); for (const c of r.apiCodes || []) known.add(c); }
     // canCreateInspection(inspection.create)、canManageUsers/Roles 的 mutation / assign 碼不控制任何入口，不需在規則表。
     const notNavEntry = new Set([
       'inspection.create',
@@ -105,6 +106,17 @@ describe('舊版 Navbar 規則求值', () => {
     const maintenanceOnly = hrefs(facts({ permissions: ['general_affairs.work_order.view_all'] }));
     expect(maintenanceOnly).toContain('/general-affairs');
     expect(maintenanceOnly).not.toContain('/general-affairs/inventory');
+  });
+});
+
+describe('活動檢視入口（canEnterCampaignView）', () => {
+  it('view_all 直接可見；view_own／舊 view 只有入口 API 通過才可見；無權限不可見', () => {
+    expect(hrefs(facts({ permissions: ['activity.campaign.view_all'] }))).toContain('/activity-management');
+    expect(hrefs(facts({ permissions: ['activity.campaign.view_own'] }))).not.toContain('/activity-management');
+    expect(hrefs(facts({ permissions: ['activity.campaign.view'] }))).not.toContain('/activity-management');
+    expect(hrefs(facts({ permissions: ['activity.campaign.view_own'], campaignEntryAccess: true }))).toContain('/activity-management');
+    expect(hrefs(facts({ permissions: ['activity.campaign.view'], campaignEntryAccess: true }))).toContain('/activity-management');
+    expect(hrefs(facts())).not.toContain('/activity-management');
   });
 });
 

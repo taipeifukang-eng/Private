@@ -36,7 +36,7 @@
   {
     "id": "nav-activity-management-view-only",
     "page": "navigation",
-    "description": "僅具活動檢視權限（CAMPAIGN_READ_CODES，如 activity.campaign.view_all / view_own）的角色，新版導覽顯示「活動管理」；舊 Navbar 只在 activity.manage 或 4 個 *.edit 權限時顯示。",
+    "description": "僅具活動檢視權限（CAMPAIGN_PAGE_CODES，如 activity.campaign.view_all / 舊 view）的角色，新版導覽顯示「活動管理」；舊 Navbar 只在 activity.manage 或 4 個 *.edit 權限時顯示。view_own 不在此列（view_own 的入口是「活動檢視」，與舊版相同）。",
     "reason": "新版 lib/workspace/navigation.ts 把活動檢視碼納入入口條件，舊版較嚴。屬放寬還是修正需使用者決定（D07）。",
     "approvedBy": "user (2026-11-02)",
     "match": {
