@@ -75,9 +75,7 @@ test('版更頁：深色主題下文字與背景仍可辨識（對比不低於 3
     await applyProjectViewport(page, testInfo);
     await page.goto('/workspace/index.html', { waitUntil: 'networkidle' });
     await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
-    await page.waitForSelector('.menu-toggle');
-    await page.click('.menu-toggle');
-    await page.locator('.workspace-menu button.catalog-item[title="每月版更內容"]').click();
+    await page.locator('[data-home-card="monthly-release"]').click();
     await expect(page.getByRole('heading', { name: '每月版更內容', exact: true })).toBeVisible();
     const ratio = await page.evaluate(() => {
       const lum = (rgb: string) => {

@@ -145,8 +145,7 @@ export function workspaceNavigation(
           ...item("資料匯出", "/admin/export-monthly-status", [], "monthly-export"),
           allowed: !!features.monthlyExport,
         },
-        // W04：版更說明頁，登入即可看（舊版只有首頁入口，首頁入口留給 W12）。
-        item("每月版更內容", "/monthly-release", [], "monthly-release"),
+        // 規格 E：「每月版更內容」不放在選單，改由工作台首頁卡片進入（同舊版）。
       ],
     },
     {

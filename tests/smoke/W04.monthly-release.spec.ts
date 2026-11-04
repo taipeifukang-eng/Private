@@ -42,7 +42,7 @@ for (const role of ROLES) {
   });
 }
 
-test('選單項目：所有登入角色都看得到「每月版更內容」', async ({ browser }, testInfo) => {
+test('首頁卡片：所有登入角色都看得到「每月版更內容」，選單沒有此項目', async ({ browser }, testInfo) => {
   test.setTimeout(120_000);
   for (const role of ['admin', 'denied']) {
     const ctx = await loginAs(browser, role);
@@ -50,9 +50,10 @@ test('選單項目：所有登入角色都看得到「每月版更內容」', as
       const page = await ctx.newPage();
       await applyProjectViewport(page, testInfo);
       await page.goto('/workspace/index.html', { waitUntil: 'networkidle' });
+      await expect(page.locator('[data-home-card="monthly-release"]'), role).toHaveCount(1);
       await page.waitForSelector('.menu-toggle');
       await page.click('.menu-toggle');
-      await expect(page.locator(`.workspace-menu button.catalog-item[title="${RELEASE_TITLE}"]`), role).toHaveCount(1);
+      await expect(page.locator(`.workspace-menu button.catalog-item[title="${RELEASE_TITLE}"]`), role).toHaveCount(0);
     } finally {
       await ctx.close();
     }

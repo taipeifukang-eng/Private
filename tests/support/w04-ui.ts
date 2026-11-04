@@ -13,9 +13,7 @@ export async function applyProjectViewport(page: Page, testInfo: TestInfo) {
 /** 從全站功能選單開啟新版「每月版更內容」。 */
 export async function openNativeRelease(page: Page) {
   await page.goto('/workspace/index.html', { waitUntil: 'networkidle' });
-  await page.waitForSelector('.menu-toggle');
-  await page.click('.menu-toggle');
-  await page.locator(`.workspace-menu button.catalog-item[title="${RELEASE_TITLE}"]`).click();
+  await page.locator('[data-home-card="monthly-release"]').click();
   await expect(page.getByRole('heading', { name: RELEASE_TITLE, exact: true })).toBeVisible();
 }
 

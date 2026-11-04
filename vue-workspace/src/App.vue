@@ -22,6 +22,7 @@ import {
   Sun,
   Moon,
   ExternalLink,
+  FileText,
 } from "lucide-vue-next";
 import { api, ApiError } from "./api";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
@@ -498,6 +499,16 @@ onBeforeUnmount(() => {
             <CalendarRange :size="24" /><span
               ><strong>管理活動檔期</strong
               ><small>新增活動與維護基本資料</small></span
+            ><span aria-hidden="true">→</span>
+          </button>
+          <button
+            v-if="session.data.capabilities.monthlyRelease"
+            data-home-card="monthly-release"
+            @click="open('monthly-release')"
+          >
+            <FileText :size="24" /><span
+              ><strong>每月版更內容</strong
+              ><small>查看本月系統調整內容與實際使用影響</small></span
             ><span aria-hidden="true">→</span>
           </button>
         </div>
