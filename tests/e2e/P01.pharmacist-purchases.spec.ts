@@ -4,7 +4,7 @@ import { P01_MONTHS, PHARMACIST_TITLE, PURCHASE_TITLE, collectErrors, noPageOver
 import { testStoreIds } from '../support/w01a-fixtures';
 
 // P01 e2e：桌機 1440 與手機 390 各跑完整主流程（project 由 playwright-options 決定）。
-//  員工購物（保留月份 2099，桌機 2099-11、手機 2099-12（不與其他頁面 e2e、W01a parity 的月份重疊；2099-12 僅 W01b parity 使用，層級不同且 workers=1 序列執行，P01 測後會清除自建人員），ZT01／ZT02，sweeper 清除）：
+//  員工購物（保留月份 2099，桌機 2099-11、手機 2099-12（不與其他頁面 e2e、W01a parity 的月份重疊；W01b parity 的 2099-12 於其 afterAll 退回草稿並刪除人員，故 P01 手機可用），ZT01／ZT02，sweeper 清除）：
 //    查詢 → 職稱卡篩選與再點取消 → 月份變更自動查詢 → 員工明細（四項加總含購買筆數）→ 搜尋與排序 → 匯入（確認勾選、警告、放棄檔案）。
 //  藥師管理（真實資料唯讀＋攔截主檔回應）：督導區總覽卡片、主檔執照逾期紅字、年費視窗 3.5 MB 上限與不送出請求。
 

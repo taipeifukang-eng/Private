@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext, type Dialog, type Page } from '@playwright/test';
 import { apiAs, loginAs } from '../support/auth';
 import { assertNoUnlistedDiffs, compareSideEffects, compareTables, loadMap, ParityRecorder, readRowsAsServiceRole, type ColumnSpec } from '../support/parity';
-import { addManual, editUpdates, ensureSummarySafe, postSave, readMonth, registerFixtureRows, staffCode, testStoreIds, W01B_MONTHS } from '../support/w01b-fixtures';
+import { addManual, clearDraftMonth, editUpdates, ensureSummarySafe, postSave, readMonth, registerFixtureRows, staffCode, testStoreIds, W01B_MONTHS } from '../support/w01b-fixtures';
 
 // W01b 對等層：同一份輸入，舊 /monthly-status/edit/[id] 與新「人員編輯」逐案比對。
 // 每個情境各建兩列相同的人員（一列給舊頁、一列給新頁），避免兩邊互相覆蓋。
@@ -88,6 +88,17 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  // 把已送審／已確認月份退回草稿並刪除人員，不讓鎖定狀態殘留到 sweeper（其他頁面 e2e 會共用同樣的 ZT01／ZT02 與月份，例如 P01 手機 2099-12）。盡力而為，sweeper 仍是後備。
+  if (admin) {
+    for (const [store, month] of [[zt01, PL], [zt02, PL], [zt01, PD], [zt02, PD]] as const) {
+      try {
+        for (const action of ['unconfirm', 'revert']) await admin.post('/api/workspace/monthly', { data: { action, store, month } });
+        await clearDraftMonth(admin, [store], month);
+      } catch {
+        /* sweeper 後備 */
+      }
+    }
+  }
   await admin?.dispose();
 });
 

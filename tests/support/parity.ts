@@ -554,8 +554,8 @@ export function scalarSetDiffs(legacy: unknown[], native: unknown[]): Diff[] {
   const l = tally(legacy);
   const n = tally(native);
   const out: Diff[] = [];
-  for (const [k, e] of l) if (!n.has(k)) out.push({ kind: 'only-legacy', key: String(e.value), legacy: e.value });
-  for (const [k, e] of n) if (!l.has(k)) out.push({ kind: 'only-native', key: String(e.value), native: e.value });
+  for (const [k, e] of Array.from(l)) if (!n.has(k)) out.push({ kind: 'only-legacy', key: String(e.value), legacy: e.value });
+  for (const [k, e] of Array.from(n)) if (!l.has(k)) out.push({ kind: 'only-native', key: String(e.value), native: e.value });
   if (!out.length && legacy.length !== native.length) out.push({ kind: 'count', key: '(root)', legacy: legacy.length, native: native.length });
   return out;
 }
