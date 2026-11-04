@@ -9,8 +9,8 @@ import { EXPORT_DEFINITIONS, exportFileName } from '../../lib/workspace/monthly-
 // W02 對等層：舊 /admin/export-monthly-status 與新「資料匯出」。
 //  - file-<type>：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員）下，十種匯出
 //    （九個 Excel；名冊另有 JSON 預覽）逐工作表、逐欄、逐格比對；同時比對 Content-Type 與 Content-Disposition。
-//  - unsubmitted-guard：含草稿門市（W02-q3，白名單）。
-//  - perm-<type>：各角色的 HTTP 狀態碼對照（W02-q1／q2，含育才獎金差異的白名單）。
+//  - unsubmitted-guard：含草稿門市，新舊都照樣產檔（規格 A.3，與舊版一致、無白名單）。
+//  - perm-<type>：各角色的 HTTP 狀態碼對照（規格 A.1：全部只看 monthly.export.download，與舊版不同處列白名單）。
 //  - stats-cards／store-badges／select-all／year-control：畫面比對。
 // 資料只用 ZT03（草稿）、ZT04（已送審）、ZT05（已確認）與保留月份 2099-05，sweeper 清除。
 // 環境沒有 openpyxl／exceljs，改以 SheetJS 做儲存格層級比對（型別、值、數字格式、欄寬、範圍、合併儲存格）。
@@ -141,16 +141,17 @@ for (const role of FILE_ROLES) {
 }
 
 // ---------------------------------------------------------------------------
-// W02-q3：含未提交門市
+// 規格 A.3：含未提交門市，新舊皆照樣產檔
 // ---------------------------------------------------------------------------
 
-test('含未提交門市（W02-q3）：舊版照樣產檔、新版 400（列白名單）；支援時數不受影響', async () => {
+test('含未提交門市（規格 A.3）：新舊都照樣產檔且檔案逐格一致；支援時數不受影響', async () => {
   test.setTimeout(240_000);
   const ids = [seed.ids.draft, seed.ids.submitted, seed.ids.confirmed];
   const results = [];
   for (const def of EXPORT_DEFINITIONS.filter((d) => d.storeScoped)) {
     const [l, n] = [await call(admin, LEGACY, def.path, 'POST', ids), await call(admin, NATIVE, def.path, 'POST', ids)];
     const diffs: Diff[] = l.status !== n.status ? [{ kind: 'status', key: 'http-status', legacy: l.status, native: n.status, detail: def.key }] : [];
+    if (!diffs.length && l.status === 200) diffs.push(...compareWorkbooks(l.body, n.body).diffs);
     results.push(
       recorder.record({
         entry: entry('unsubmitted-guard').id,
@@ -163,11 +164,11 @@ test('含未提交門市（W02-q3）：舊版照樣產檔、新版 400（列白�
         diffs,
       }),
     );
-    expect(n.status, `${def.key} 新版`).toBe(400);
+    expect(n.status, `${def.key} 新版`).toBe(200);
     expect(l.status, `${def.key} 舊版不檢查提交狀態，照樣產檔`).toBe(200);
   }
   for (const r of results) assertNoUnlistedDiffs(r);
-  // 支援時數：兩邊都不受選取影響
+  // 支援時數：兩邊都不受選取影響（需帶年月）
   const [l, n] = [await call(admin, LEGACY, 'support-hours', 'GET', []), await call(admin, NATIVE, 'support-hours', 'GET', [])];
   expect([l.status, n.status]).toEqual([200, 200]);
   expect(compareWorkbooks(l.body, n.body).diffs).toEqual([]);

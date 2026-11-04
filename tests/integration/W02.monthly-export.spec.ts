@@ -4,14 +4,13 @@ import { canonicalWorkbook, seedExportMonth, W02_MONTHS, type SeededMonth } from
 
 // W02 整合層：workspace 匯出 API（包裝舊 /api/export-monthly-status/*）。
 // 資料只用 ZT03（草稿）、ZT04（已送審）、ZT05（已確認）與保留月份 2099-02，由 sweeper 清除。
-// 檢查：門市狀態、九種匯出的內容與檔案格式、W02-q3（含未提交門市回 400 並列出）、
-// W02-q2（單品獎金只檢查登入、支援時數照舊版角色判斷、其餘需 monthly.export.download）、Origin 與方法限制。
+// 檢查：門市狀態、九種匯出的內容與檔案格式、規格 A（含未提交門市照舊版產檔、不再回 400；
+// 入口與 9 支匯出、門市清單都只看 monthly.export.download）、Origin 與方法限制。
 
 const MONTH = W02_MONTHS.integration;
 const BASE = '/api/workspace/monthly-export';
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const POST_KEYS = ['download', 'actual-staff-points', 'roster', 'transport', 'single-item-bonus', 'talent-cultivation-bonus', 'meal-allowance', 'spring-festival-bonus'] as const;
-const GENERAL_KEYS = POST_KEYS.filter((k) => k !== 'single-item-bonus');
 
 let admin: APIRequestContext;
 let seed: SeededMonth;
@@ -53,7 +52,7 @@ test.describe('門市列表與存取', () => {
 
   test('access：admin 全開；方法與資源檢查', async () => {
     const access = await (await admin.get(`${BASE}/access`)).json();
-    expect(access).toMatchObject({ general: true, singleItem: true, supportHours: true, canOpen: true });
+    expect(access).toMatchObject({ general: true, canOpen: true });
     expect((await admin.post(`${BASE}/access`, { data: {} })).status()).toBe(405);
     expect((await admin.post(`${BASE}/stores`, { data: {} })).status()).toBe(405);
     expect((await admin.get(`${BASE}/download`)).status()).toBe(405);
@@ -103,35 +102,21 @@ test.describe('九種匯出（admin、已送審＋已確認門市）', () => {
   });
 });
 
-test.describe('W02-q3：含未提交門市直接拒絕', () => {
+test.describe('規格 A.3：含未提交門市照舊版產檔', () => {
   for (const key of POST_KEYS) {
-    test(`${key}：含草稿門市 → 400 並列出`, async () => {
+    test(`${key}：含草稿門市 → 200 產檔`, async () => {
       const res = await admin.post(`${BASE}/${key}`, { data: { year_month: MONTH, store_ids: [seed.ids.draft, seed.ids.submitted] } });
-      expect(res.status()).toBe(400);
-      const body = await res.json();
-      expect(body.error).toContain('ZT03');
-      expect(body.error).not.toContain('ZT04');
-      expect((body.unsubmitted as any[]).map((s) => s.store_code)).toEqual(['ZT03']);
+      expect(res.status(), await res.text().catch(() => '')).toBe(200);
+      expect(res.headers()['content-type']).toContain(XLSX_TYPE);
     });
   }
 
-  test('名冊預覽（GET）同樣拒絕；全部已提交則通過；空門市清單交給舊 handler（400）', async () => {
+  test('名冊預覽（GET）含草稿門市也回 200 且含草稿門市人員；空門市清單交給舊 handler（400）', async () => {
     const res = await admin.get(`${BASE}/roster`, { params: { year_month: MONTH, store_ids: [seed.ids.draft, seed.ids.confirmed].join(',') } });
-    expect(res.status()).toBe(400);
-    expect((await res.json()).unsubmitted[0].store_code).toBe('ZT03');
+    expect(res.status()).toBe(200);
+    expect(((await res.json()).rows as any[]).length).toBeGreaterThan(0);
     const empty = await admin.post(`${BASE}/roster`, { data: { year_month: MONTH, store_ids: [] } });
     expect(empty.status()).toBe(400);
-  });
-
-  test('大寫 UUID 不能繞過守衛：含草稿門市仍 400（POST 與名冊預覽）', async () => {
-    const upper = [seed.ids.draft.toUpperCase(), seed.ids.submitted.toUpperCase()];
-    for (const key of POST_KEYS) {
-      const res = await admin.post(`${BASE}/${key}`, { data: { year_month: MONTH, store_ids: upper } });
-      expect(res.status(), key).toBe(400);
-      expect((await res.json()).unsubmitted.map((s: any) => s.store_code)).toEqual(['ZT03']);
-    }
-    const preview = await admin.get(`${BASE}/roster`, { params: { year_month: MONTH, store_ids: upper.join(',') } });
-    expect(preview.status()).toBe(400);
   });
 
   test('非標準 UUID 寫法（大括號、無連字號）與非陣列一律 400', async () => {
@@ -149,7 +134,7 @@ test.describe('W02-q3：含未提交門市直接拒絕', () => {
     expect((await sheetRows(res)).sheets[0].rowCount).toBe(3);
   });
 
-  test('不存在的門市與不合格年月一律 400（已停用門市交給舊 handler，以單元測試驗證）', async () => {
+  test('不存在的門市與不合格年月一律 400（基本格式檢查；已停用門市交給舊 handler，以單元測試驗證）', async () => {
     const ghost = '00000000-0000-4000-8000-000000000000';
     for (const key of POST_KEYS) {
       const res = await admin.post(`${BASE}/${key}`, { data: { year_month: MONTH, store_ids: [ghost, seed.ids.submitted] } });
@@ -159,18 +144,6 @@ test.describe('W02-q3：含未提交門市直接拒絕', () => {
     }
     const preview = await admin.get(`${BASE}/roster`, { params: { year_month: '2099-1', store_ids: selected().join(',') } });
     expect(preview.status()).toBe(400);
-  });
-
-  test('支援時數不受選取影響：草稿門市月份照樣 200', async () => {
-    expect((await admin.get(`${BASE}/support-hours`, { params: { year_month: MONTH } })).status()).toBe(200);
-  });
-
-  test('多個未提交門市全部列出', async () => {
-    const stores = await (await admin.get(`${BASE}/stores`, { params: { year_month: MONTH } })).json();
-    const pending = (stores.stores as any[]).filter((s) => s.store_status === 'pending').slice(0, 3);
-    const res = await admin.post(`${BASE}/transport`, { data: { year_month: MONTH, store_ids: pending.map((s) => s.id) } });
-    expect(res.status()).toBe(400);
-    expect((await res.json()).unsubmitted.length).toBe(pending.length);
   });
 });
 
@@ -187,28 +160,29 @@ test.describe('請求檢查', () => {
   });
 });
 
-test.describe('權限：W02-q1／q2', () => {
-  test('ops_assistant（有每月人員狀態、沒有 monthly.export.download）：只有單品獎金可用', async () => {
-    const api = await apiAs('ops_assistant');
-    try {
-      const access = await (await api.get(`${BASE}/access`)).json();
-      expect(access).toMatchObject({ general: false, singleItem: true, supportHours: false, canOpen: true });
-      for (const key of GENERAL_KEYS) {
-        const res = await api.post(`${BASE}/${key}`, { data: { year_month: MONTH, store_ids: selected() } });
-        expect(res.status(), key).toBe(403);
+test.describe('權限：規格 A.1（全部只看 monthly.export.download）', () => {
+  for (const role of ['ops_assistant', 'store_manager', 'denied'] as const) {
+    test(`${role}（沒有 monthly.export.download）：入口關閉，10 支匯出與門市清單全部 403`, async () => {
+      const api = await apiAs(role);
+      try {
+        expect(await (await api.get(`${BASE}/access`)).json()).toMatchObject({ general: false, canOpen: false });
+        for (const key of POST_KEYS) {
+          const res = await api.post(`${BASE}/${key}`, { data: { year_month: MONTH, store_ids: selected() } });
+          expect(res.status(), key).toBe(403);
+        }
+        expect((await api.get(`${BASE}/roster`, { params: { year_month: MONTH, store_ids: selected().join(',') } })).status()).toBe(403);
+        expect((await api.get(`${BASE}/support-hours`, { params: { year_month: MONTH } })).status()).toBe(403);
+        expect((await api.get(`${BASE}/stores`, { params: { year_month: MONTH } })).status()).toBe(403);
+        const session = await (await api.get('/api/workspace/session')).json();
+        expect(session.capabilities.monthlyExport).toBe(false);
+        expect(session.navigation.flatMap((g: any) => g.items).some((i: any) => i.href === '/admin/export-monthly-status')).toBe(false);
+      } finally {
+        await api.dispose();
       }
-      expect((await api.get(`${BASE}/roster`, { params: { year_month: MONTH, store_ids: selected().join(',') } })).status()).toBe(403);
-      const single = await api.post(`${BASE}/single-item-bonus`, { data: { year_month: MONTH, store_ids: selected() } });
-      expect(single.status()).toBe(200); // 舊版只檢查登入
-      expect((await api.get(`${BASE}/support-hours`, { params: { year_month: MONTH } })).status()).toBe(403);
-      const stores = await api.get(`${BASE}/stores`, { params: { year_month: MONTH } });
-      expect(stores.status()).toBe(200); // 單品獎金需要選門市（白名單 w02-stores-scoped-for-single-item）
-    } finally {
-      await api.dispose();
-    }
-  });
+    });
+  }
 
-  test('ops_manager（monthly.export.download）：一般匯出全部 200', async () => {
+  test('ops_manager（monthly.export.download）：9 支匯出（含單品獎金）與支援時數全部 200', async () => {
     const api = await apiAs('ops_manager');
     try {
       for (const key of POST_KEYS) {
@@ -216,42 +190,7 @@ test.describe('權限：W02-q1／q2', () => {
         expect(res.status(), key).toBe(200);
       }
       expect((await api.get(`${BASE}/roster`, { params: { year_month: MONTH, store_ids: selected().join(',') } })).status()).toBe(200);
-    } finally {
-      await api.dispose();
-    }
-  });
-
-  test('supportHours：照舊版角色判斷（supervisor 角色可、店長不可）', async () => {
-    const sup = await apiAs('supervisor');
-    const mgr = await apiAs('store_manager');
-    try {
-      expect((await sup.get(`${BASE}/support-hours`, { params: { year_month: MONTH } })).status()).toBe(200);
-      expect((await (await sup.get(`${BASE}/access`)).json()).supportHours).toBe(true);
-      // 沒有指派門市的支援時數角色：單品獎金要選得到門市（清單非空）
-      const listed = await sup.get(`${BASE}/stores`, { params: { year_month: MONTH } });
-      expect(listed.status()).toBe(200);
-      expect(((await listed.json()).stores as any[]).length).toBeGreaterThan(0);
-      expect((await mgr.get(`${BASE}/support-hours`, { params: { year_month: MONTH } })).status()).toBe(403);
-      expect((await (await mgr.get(`${BASE}/access`)).json()).supportHours).toBe(false);
-      // 店長看得到入口與單品獎金，一般匯出一律 403
-      expect((await (await mgr.get(`${BASE}/access`)).json())).toMatchObject({ general: false, singleItem: true, canOpen: true });
-      expect((await mgr.post(`${BASE}/transport`, { data: { year_month: MONTH, store_ids: selected() } })).status()).toBe(403);
-    } finally {
-      await sup.dispose();
-      await mgr.dispose();
-    }
-  });
-
-  test('denied（無任何權限）：入口關閉、門市列表 403、一般匯出 403；單品獎金與舊版相同只檢查登入', async () => {
-    const api = await apiAs('denied');
-    try {
-      expect(await (await api.get(`${BASE}/access`)).json()).toMatchObject({ general: false, singleItem: false, supportHours: false, canOpen: false });
-      expect((await api.get(`${BASE}/stores`, { params: { year_month: MONTH } })).status()).toBe(403);
-      expect((await api.post(`${BASE}/download`, { data: { year_month: MONTH, store_ids: selected() } })).status()).toBe(403);
-      expect((await api.post(`${BASE}/talent-cultivation-bonus`, { data: { year_month: MONTH, store_ids: selected() } })).status()).toBe(403);
-      const session = await (await api.get('/api/workspace/session')).json();
-      expect(session.capabilities.monthlyExport).toBe(false);
-      expect(session.navigation.flatMap((g: any) => g.items).some((i: any) => i.href === '/admin/export-monthly-status')).toBe(false);
+      expect((await api.get(`${BASE}/support-hours`, { params: { year_month: MONTH } })).status()).toBe(200);
     } finally {
       await api.dispose();
     }
@@ -265,20 +204,19 @@ test.describe('權限：W02-q1／q2', () => {
   });
 });
 
-test.describe('W02-q2：單品獎金門市範圍不被包裝層縮小', () => {
-  for (const role of ['supervisor', 'ops_manager', 'store_manager'] as const) {
-    test(`${role}：門市清單不另外縮小（只受資料列權限限制），單品獎金可匯出非指派門市`, async () => {
-      const api = await apiAs(role);
-      try {
-        const listed = await api.get(`${BASE}/stores`, { params: { year_month: MONTH } });
-        expect(listed.status()).toBe(200);
-        expect(Array.isArray((await listed.json()).stores)).toBe(true); // 範圍只由資料列權限（RLS）決定，不再縮成 store_managers 指派
-        // 單品獎金 API 不依指派門市限制：所選（非指派）門市照舊版回 200
-        const res = await api.post(`${BASE}/single-item-bonus`, { data: { year_month: MONTH, store_ids: selected() } });
-        expect(res.status()).toBe(200);
-      } finally {
-        await api.dispose();
-      }
-    });
-  }
+test.describe('規格 A.2：不限門市', () => {
+  test('ops_manager：門市清單為全部啟用門市（含沒有任命的門市），含草稿門市的單品獎金可匯出', async () => {
+    const api = await apiAs('ops_manager');
+    try {
+      const listed = await api.get(`${BASE}/stores`, { params: { year_month: MONTH } });
+      expect(listed.status()).toBe(200);
+      const adminList = await (await admin.get(`${BASE}/stores`, { params: { year_month: MONTH } })).json();
+      const codes = ((await listed.json()).stores as any[]).map((s) => s.store_code).sort();
+      expect(codes).toEqual((adminList.stores as any[]).map((s) => s.store_code).sort());
+      const res = await api.post(`${BASE}/single-item-bonus`, { data: { year_month: MONTH, store_ids: [seed.ids.draft, ...selected()] } });
+      expect(res.status()).toBe(200);
+    } finally {
+      await api.dispose();
+    }
+  });
 });

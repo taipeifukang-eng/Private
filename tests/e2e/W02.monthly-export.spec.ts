@@ -7,8 +7,8 @@ import { exportFileName, type ExportKey } from '../../lib/workspace/monthly-expo
 
 // W02 e2e：桌機 1440 與手機 390 各跑完整主流程。
 //  1. 有 monthly.export.download 的帳號（admin）：選月份 → 預設只勾可匯出門市 → 預覽名冊 → 九個下載逐一成功、檔名照舊版、內容非空 → 取消勾選後檔名門市數同步 → 全選／取消全選。
-//  2. 只有單品獎金權限的帳號（ops_assistant）：頁面只顯示單品獎金按鈕，且可下載。
-//  3. 伺服器拒絕（W02-q3 的 400）時畫面顯示清楚的錯誤訊息。
+//  2. 沒有 monthly.export.download 的帳號（ops_assistant）：選單看不到「資料匯出」（規格 A.1）。
+//  3. 伺服器拒絕（例如所選門市不存在的 400）時畫面顯示清楚的錯誤訊息。
 // 資料：ZT03（草稿）、ZT04（已送審）、ZT05（已確認），保留月份 2099-03（桌機）／2099-04（手機），sweeper 清除。
 
 async function download(page: Page, key: string, name: string) {
@@ -105,32 +105,16 @@ test('資料匯出：九種下載、名冊預覽、全選', async ({ browser }, 
   }
 });
 
-test('資料匯出：只有單品獎金權限的帳號只看到單品獎金按鈕', async ({ browser }, testInfo) => {
-  test.setTimeout(180_000);
-  const mobile = testInfo.project.name === 'mobile-390';
-  const month = mobile ? W02_MONTHS.e2eMobile : W02_MONTHS.e2eDesktop;
-  const admin = await apiAs('admin');
-  try {
-    await seedExportMonth(admin, month);
-  } finally {
-    await admin.dispose();
-  }
+test('資料匯出：沒有 monthly.export.download 的帳號，選單看不到「資料匯出」', async ({ browser }) => {
+  test.setTimeout(120_000);
   const ctx = await loginAs(browser, 'ops_assistant');
   try {
     const page = await ctx.newPage();
-    await openNativeExport(page);
-    await pickMonth(page, month);
-    expect(await visibleExportButtons(page)).toEqual(['single-item-bonus']);
-    await expect(page.locator('[data-export-roster]')).toHaveCount(0); // 名冊區塊屬一般匯出
-    // DEV 角色帳號的資料列可見範圍由 RLS 決定（與舊版相同）；看得到可匯出門市才實際下載，否則按鈕必須停用。
-    const n = Number((await readStats(page)).selected);
-    test.info().annotations.push({ type: 'visible-exportable-stores', description: String(n) });
-    if (n > 0) {
-      const wb = await download(page, 'single-item-bonus', exportFileName('single-item-bonus', month, n));
-      expect(wb.sheetNames).toEqual(['單品獎金']);
-    } else {
-      await expect(page.locator('[data-export="single-item-bonus"]')).toBeDisabled();
-    }
+    await page.goto('/workspace/index.html', { waitUntil: 'networkidle' });
+    await page.waitForSelector('.menu-toggle');
+    await page.click('.menu-toggle');
+    await expect(page.locator('.workspace-menu')).toBeVisible();
+    await expect(page.locator('.workspace-menu button.catalog-item[title="資料匯出"]')).toHaveCount(0);
     expect(await noPageOverflow(page)).toBe(true);
   } finally {
     await ctx.close();
@@ -153,10 +137,10 @@ test('資料匯出：伺服器回 400 時畫面顯示清楚的錯誤訊息', asy
     await openNativeExport(page);
     await pickMonth(page, month);
     await page.route('**/api/workspace/monthly-export/transport', (route) =>
-      route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: '以下門市尚未提交，無法匯出：ZT03 ZT 測試門市 03', unsubmitted: [] }) }),
+      route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ error: '所選門市不存在' }) }),
     );
     await page.locator('[data-export="transport"]').click();
-    await expect(page.locator('[data-export-error]')).toContainText('以下門市尚未提交，無法匯出');
+    await expect(page.locator('[data-export-error]')).toContainText('所選門市不存在');
     expect(await noPageOverflow(page)).toBe(true);
   } finally {
     await ctx.close();

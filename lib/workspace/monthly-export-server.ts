@@ -1,5 +1,4 @@
 import { checked, type Context } from './server';
-import { moduleCodes } from './modules';
 import {
   MONTHLY_EXPORT_GENERAL_PERMISSION,
   deriveExportStoreStatus,
@@ -28,12 +27,12 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
  * 沒有 status，所以舊版實際上永遠只依人員列推導（任一筆已確認 → 已確認；任一筆已提交 → 已提交）。
  * 為了與舊版輸出一致，這裡同樣只看人員列，不讀摘要表。
  */
-export async function loadExportStores(ctx: Context, yearMonth: string, onlyStoreIds?: readonly string[], options: { allStores?: boolean } = {}): Promise<ExportStoreRow[]> {
-  // allStores：守衛用，以 admin client 看全部門市（單品獎金舊版不限門市，守衛不能被呼叫者的資料列可見範圍影響）。
+export async function loadExportStores(ctx: Context, yearMonth: string, onlyStoreIds?: readonly string[], options: { allStores?: boolean; activeOnly?: boolean } = {}): Promise<ExportStoreRow[]> {
+  // allStores：以 admin client 看全部門市（規格 A：能進入的人所有匯出都不限門市，不受任命門市或資料列可見範圍影響）。
   const db = options.allStores ? ctx.admin : ctx.auth;
-  // 守衛（allStores）要連已停用門市一起看：舊版對停用門市照常產檔，守衛只擋「啟用中且未提交」與不存在的門市。
+  // 守衛（allStores）要連已停用門市一起看：舊版對停用門市照常產檔，守衛只擋不存在的門市；門市清單另以 activeOnly 只列啟用門市。
   const storeBase = db.from('stores').select('id, store_code, store_name, is_active').order('store_code');
-  const stores = checked(await (options.allStores ? storeBase : storeBase.eq('is_active', true))) || [];
+  const stores = checked(await (options.allStores && !options.activeOnly ? storeBase : storeBase.eq('is_active', true))) || [];
   const staff = await fetchAll<{ id: string; store_id: string; status: string | null }>((from, to) =>
     db.from('monthly_staff_status').select('id, store_id, status').eq('year_month', yearMonth).order('id').range(from, to),
   );
@@ -58,26 +57,11 @@ export async function loadExportStores(ctx: Context, yearMonth: string, onlyStor
         submitted_count: c.submitted,
         confirmed_count: c.confirmed,
         store_status: deriveExportStoreStatus(undefined, c.confirmed, c.submitted),
-        ...(options.allStores ? { is_active: s.is_active !== false } : {}),
+        ...(options.allStores && !options.activeOnly ? { is_active: s.is_active !== false } : {}),
       };
     });
 }
 
 export async function loadExportAccess(ctx: Context): Promise<ExportAccess> {
-  const profile = checked(
-    await ctx.admin.from('profiles').select('role, department, job_title').eq('id', ctx.user.id).maybeSingle(),
-  );
-  return exportAccess({
-    hasGeneral: ctx.has(MONTHLY_EXPORT_GENERAL_PERMISSION),
-    hasMonthlyModule: ctx.has(...moduleCodes.monthly),
-    profile,
-  });
-}
-
-/**
- * 單品獎金門市清單的範圍。W02-q2：單品獎金完全照舊版（只檢查登入、不限門市，資料可見範圍只由資料列權限決定），
- * 所以包裝層不再另外縮小成 store_managers 指派門市；一律不加 id 限制（null），仍用呼叫者的 session client 讀取。
- */
-export async function scopedExportStoreIds(_ctx: Context, _access?: ExportAccess): Promise<string[] | null> {
-  return null;
+  return exportAccess({ hasGeneral: ctx.has(MONTHLY_EXPORT_GENERAL_PERMISSION) });
 }

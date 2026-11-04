@@ -492,7 +492,7 @@
           "inspectionSettings": false,
           "improvements": true,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": true,
           "inventory": true,
@@ -511,7 +511,6 @@
           "/admin/activity-management",
           "/admin/departments",
           "/admin/employee-purchases",
-          "/admin/export-monthly-status",
           "/admin/organization",
           "/admin/performance",
           "/admin/pharmacist-management",
@@ -716,7 +715,7 @@
           "inspectionSettings": false,
           "improvements": false,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": true,
           "inventory": false,
@@ -734,7 +733,6 @@
           "/activity-management",
           "/admin/activity-management",
           "/admin/employee-purchases",
-          "/admin/export-monthly-status",
           "/admin/performance",
           "/admin/stores",
           "/dashboard",
@@ -828,7 +826,7 @@
           "inspectionSettings": false,
           "improvements": true,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": false,
           "inventory": false,
@@ -845,7 +843,6 @@
         "navigationHrefs": [
           "/activity-management",
           "/admin/activity-management",
-          "/admin/export-monthly-status",
           "/admin/stores",
           "/dashboard",
           "/inspection",
@@ -926,7 +923,7 @@
           "inspectionSettings": false,
           "improvements": true,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": false,
           "inventory": true,
@@ -941,7 +938,6 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
-          "/admin/export-monthly-status",
           "/dashboard",
           "/general-affairs",
           "/inspection/improvements",
@@ -1022,7 +1018,7 @@
           "inspectionSettings": false,
           "improvements": true,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": false,
           "inventory": true,
@@ -1037,7 +1033,6 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
-          "/admin/export-monthly-status",
           "/dashboard",
           "/general-affairs",
           "/inspection/improvements",
@@ -1098,7 +1093,7 @@
           "inspectionSettings": false,
           "improvements": false,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": false,
           "inventory": false,
@@ -1113,7 +1108,6 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
-          "/admin/export-monthly-status",
           "/admin/pharmacist-management",
           "/dashboard",
           "/monthly-release",
@@ -3401,7 +3395,7 @@
           "inspectionSettings": false,
           "improvements": false,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": false,
           "inventory": false,
@@ -3416,7 +3410,6 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
-          "/admin/export-monthly-status",
           "/monthly-release",
           "/monthly-status",
           "/organization/calendar",
@@ -3470,7 +3463,7 @@
           "inspectionSettings": false,
           "improvements": false,
           "monthly": true,
-          "monthlyExport": true,
+          "monthlyExport": false,
           "monthlyRelease": true,
           "performance": false,
           "inventory": false,
@@ -3485,7 +3478,6 @@
           "editCampaigns": false
         },
         "navigationHrefs": [
-          "/admin/export-monthly-status",
           "/monthly-release",
           "/monthly-status",
           "/organization/calendar",

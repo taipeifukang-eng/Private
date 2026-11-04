@@ -3,7 +3,7 @@ import { apiAs, loginAs } from '../support/auth';
 import { seedExportMonth, W02_MONTHS } from '../support/w02-fixtures';
 import { noPageOverflow, openNativeExport, pickMonth, readStats, readStoreRows, visibleExportButtons } from '../support/w02-ui';
 
-// W02 冒煙層：資料匯出頁。各角色看到的按鈕必須與 /monthly-export/access 一致（W02-q1／q2），
+// W02 冒煙層：資料匯出頁。各角色看到的按鈕必須與 /monthly-export/access 一致（規格 A.1：全部只看 monthly.export.download），
 // 只有單品獎金／支援時數權限者看不到其他按鈕；有權限者統計資訊與門市徽章正確；390 寬度無頁面層級水平溢出、無 pageerror。
 // 資料：ZT03（草稿）、ZT04（已送審）、ZT05（已確認），保留月份 2099-01，sweeper 清除。
 
@@ -19,12 +19,9 @@ test.beforeAll(async () => {
   }
 });
 
-function expectedButtons(access: { general: boolean; singleItem: boolean; supportHours: boolean }) {
+function expectedButtons(access: { general: boolean }) {
   const out: string[] = [];
-  if (access.general) out.push('download', 'actual-staff-points', 'roster-preview', 'roster', 'transport');
-  if (access.singleItem) out.push('single-item-bonus');
-  if (access.general) out.push('talent-cultivation-bonus', 'meal-allowance', 'spring-festival-bonus');
-  if (access.supportHours) out.push('support-hours');
+  if (access.general) out.push('download', 'actual-staff-points', 'roster-preview', 'roster', 'transport', 'single-item-bonus', 'talent-cultivation-bonus', 'meal-allowance', 'spring-festival-bonus', 'support-hours');
   return out;
 }
 
@@ -47,10 +44,19 @@ for (const role of ROLES) {
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+      if (!access.general) {
+        // 規格 A.1：沒有 monthly.export.download 的帳號，選單看不到入口。
+        await page.goto('/workspace/index.html', { waitUntil: 'networkidle' });
+        await page.waitForSelector('.menu-toggle');
+        await page.click('.menu-toggle');
+        await expect(page.locator('.workspace-menu button.catalog-item[title="資料匯出"]')).toHaveCount(0);
+        expect(await noPageOverflow(page)).toBe(true);
+        return;
+      }
       await openNativeExport(page);
       await pickMonth(page, MONTH);
       expect(await visibleExportButtons(page)).toEqual(expectedButtons(access));
-      if (access.general || access.singleItem) {
+      if (access.general) {
         // 畫面與 API 一致（DEV 的資料列可見範圍因角色而異，這裡以 API 為準）。
         const stats = await readStats(page);
         const exportableIds = apiStores.filter((x) => x.store_status !== 'pending');

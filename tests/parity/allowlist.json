@@ -365,9 +365,9 @@
   {
     "id": "nav-monthly-export-code-native",
     "page": "navigation",
-    "description": "具 monthly.export.download（營業部主管等）、有每月人員狀態權限（店長、督導等），或符合支援時數角色／職稱判斷的帳號，新版導覽顯示「資料匯出」；舊 Navbar 只認 monthly.status.export（實際沒有任何一般角色持有）。",
-    "reason": "M1 W02-q1／q2：入口改用 monthly.export.download（舊 API 實際檢查的權限碼）；單品獎金、支援時數兩支照舊版開放，所以有這兩項的人也要進得來。待使用者核可。",
-    "approvedBy": null,
+    "description": "具 monthly.export.download（營業部主管等）的帳號，新版導覽顯示「資料匯出」；舊 Navbar 只認 monthly.status.export（實際沒有任何一般角色持有）。新版入口與全部匯出只看 monthly.export.download，不再另看每月人員狀態權限或支援時數角色／職稱。",
+    "reason": "M1 修正規格 A.1：入口與 10 支匯出都只看 monthly.export.download（舊 API 實際檢查的權限碼）。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-native",
@@ -378,8 +378,8 @@
     "id": "nav-monthly-export-code-legacy",
     "page": "navigation",
     "description": "只有 monthly.status.export、沒有任何新版入口條件的帳號，舊 Navbar 顯示「資料匯出」，新版導覽不顯示。",
-    "reason": "M1 W02-q1：導覽權限碼統一為 monthly.export.download；舊版 monthly.status.export 與所有匯出 API 的權限碼不一致（會看得到、按了 403）。待使用者核可。",
-    "approvedBy": null,
+    "reason": "M1 修正規格 A.1：導覽權限碼統一為 monthly.export.download；舊版 monthly.status.export 與所有匯出 API 的權限碼不一致（會看得到、按了 403）。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-legacy",
@@ -387,23 +387,11 @@
     }
   },
   {
-    "id": "w02-unsubmitted-rejected",
-    "page": "monthly-export",
-    "description": "匯出請求含「尚未提交」門市：舊版 API 不檢查（只靠前端按鈕擋，全選時仍可送出）並照樣產檔；新版 API 回 400 並列出未提交門市。已停用門市與舊版一致照常產檔（守衛只擋啟用中且未提交者、格式不合的 year_month／store_ids、不存在的門市 id）。支援時數一律全部門市，不受影響。",
-    "reason": "M1 W02-q3：含未提交門市的匯出請求直接拒絕。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "api-read",
-      "entry": "unsubmitted-guard",
-      "kind": "status"
-    }
-  },
-  {
     "id": "w02-talent-requires-download",
     "page": "monthly-export",
     "description": "育才獎金匯出：舊版 API 只檢查登入，沒有 monthly.export.download 的帳號也能下載；新版要求 monthly.export.download（與其他 7 支一般匯出一致）。",
-    "reason": "M1 W02-q1：8 支一般匯出統一用 monthly.export.download；W02-q2 只特別保留單品獎金與支援時數照舊版。待使用者核可。",
-    "approvedBy": null,
+    "reason": "M1 修正規格 A.1：9 支匯出（含育才獎金）一律只看 monthly.export.download。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "entry": "perm-talent-cultivation-bonus",
@@ -411,15 +399,51 @@
     }
   },
   {
-    "id": "w02-stores-scoped-for-single-item",
+    "id": "w02-single-item-requires-download",
     "page": "monthly-export",
-    "description": "只有單品獎金權限（沒有 monthly.export.download）的帳號：舊門市列表 API 回 403；新版回傳門市列表（不另外縮小範圍，僅受資料列可見範圍限制），讓單品獎金可選門市。",
-    "reason": "M1 W02-q2：單品獎金照舊版開放給店長、督導等人員；單品獎金需要選門市，所以新版提供門市清單（不縮小範圍，維持單品獎金照舊版不限門市）。待使用者核可。",
-    "approvedBy": null,
+    "description": "單品獎金匯出：舊版 API 只檢查登入，沒有 monthly.export.download 的帳號（店長、督導等）也能下載；新版要求 monthly.export.download，沒有該權限碼的帳號看不到入口也不能使用。",
+    "reason": "M1 修正規格 A.1：入口與全部匯出（含單品獎金）只看 monthly.export.download，取代原 W02-q2 的開放規則。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
-      "entry": "perm-stores",
+      "entry": "perm-single-item-bonus",
       "kind": "status"
+    }
+  },
+  {
+    "id": "w02-support-hours-requires-download",
+    "page": "monthly-export",
+    "description": "支援時數匯出：舊版 API 依角色／職稱判斷（admin、supervisor、area_manager 或營業部經理）；新版只看 monthly.export.download，角色／職稱不再參與判斷。",
+    "reason": "M1 修正規格 A.1：支援時數只看 monthly.export.download，取代舊版角色／職稱判斷。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "perm-support-hours",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "w02-stores-list-all-stores-count",
+    "page": "monthly-export",
+    "description": "門市列表：舊版受資料列可見範圍（RLS）限制，部分角色（如營業部主管）只看到部分或 0 間門市；新版以伺服器權限列出全部啟用門市（筆數不同）。",
+    "reason": "M1 修正規格 A.2：能進入的人所有匯出都可選全部門市，門市清單 API 以伺服器權限讀取全部啟用門市，不受任命門市或資料列可見範圍限制。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "stores-list",
+      "kind": "count"
+    }
+  },
+  {
+    "id": "w02-stores-list-all-stores-rows",
+    "page": "monthly-export",
+    "description": "門市列表：舊版受資料列可見範圍限制看不到的門市，新版都會列出（新版多出的門市列）。",
+    "reason": "M1 修正規格 A.2：能進入的人所有匯出都可選全部門市，門市清單 API 以伺服器權限讀取全部啟用門市，不受任命門市或資料列可見範圍限制。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "stores-list",
+      "kind": "only-native"
     }
   },
   {
@@ -427,7 +451,7 @@
     "page": "monthly-export",
     "description": "「全選」按鈕：舊版連同未提交門市一併勾選（之後下載才失敗）；新版只勾選已提交、已確認的門市。",
     "reason": "M1 W02-q3：含未提交門市的請求會被 API 拒絕，所以新版畫面不再讓使用者選到未提交門市。待使用者核可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "select-all",
@@ -439,7 +463,7 @@
     "page": "monthly-export",
     "description": "年份欄位：舊版為「今年前後各兩年」的下拉選單；新版為可輸入年份的數字欄位（2000–2199）。",
     "reason": "新版沿用工作台一致的月份操作，且需能查詢保留測試月份與更早的歷史月份。待使用者核可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "year-control",

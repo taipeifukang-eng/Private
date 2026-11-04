@@ -7,15 +7,12 @@ import {
   canExportStore,
   canOpenMonthlyExport,
   canUseExport,
-  canExportSupportHours,
   deriveExportStoreStatus,
   exportAccess,
   exportFileName,
   findNonExportableIds,
-  findUnsubmittedStores,
   isExportYearMonth,
   normalizeStoreIds,
-  unsubmittedMessage,
   type ExportKey,
   type ExportStoreRow,
 } from '@/lib/workspace/monthly-export';
@@ -74,15 +71,9 @@ describe('W02 門市可匯出判斷與狀態推導', () => {
   });
 });
 
-describe('W02-q3 含未提交門市', () => {
+describe('規格 A.3 門市 id 檢查（不再擋未提交）', () => {
   const row = (id: string, code: string, status: ExportStoreRow['store_status']): ExportStoreRow => ({ id, store_code: code, store_name: `店${code}`, total_employees: 1, submitted_count: 0, confirmed_count: 0, store_status: status });
-  const stores = [row('a', 'ZT01', 'pending'), row('b', 'ZT02', 'submitted'), row('c', 'ZT03', 'confirmed'), row('d', 'ZT04', 'pending')];
-  it('只回傳被選取且未提交者', () => {
-    expect(findUnsubmittedStores(['a', 'b', 'c'], stores).map((s) => s.id)).toEqual(['a']);
-    expect(findUnsubmittedStores(['b', 'c'], stores)).toEqual([]);
-    expect(findUnsubmittedStores([], stores)).toEqual([]);
-    expect(findUnsubmittedStores(['zzz'], stores)).toEqual([]); // 清單外（例如已停用）不處理
-  });
+  const stores = [row('a', 'ZT01', 'pending'), row('b', 'ZT02', 'submitted'), row('c', 'ZT03', 'confirmed'), { ...row('x', 'ZT09', 'pending'), is_active: false }];
   it('normalizeStoreIds：trim、小寫、只接受標準 UUID，其餘一律 null', () => {
     const id = 'ABCDEF01-2345-6789-ABCD-EF0123456789';
     expect(normalizeStoreIds([` ${id} `])).toEqual([id.toLowerCase()]);
@@ -90,91 +81,54 @@ describe('W02-q3 含未提交門市', () => {
     for (const bad of [`{${id}}`, id.replace(/-/g, ''), 'zzz', '', 123, null]) expect(normalizeStoreIds([bad]), String(bad)).toBeNull();
     expect(normalizeStoreIds([id, 'zzz'])).toBeNull();
   });
-  it('大小寫不同的 id 仍比對得到', () => {
-    expect(findNonExportableIds(['b', 'zzz', 'a'], stores)).toEqual(['zzz']); // 只擋不存在者；未提交由 findUnsubmittedStores 處理
-    expect(findNonExportableIds(['b', 'c'], stores)).toEqual([]);
-    expect(findUnsubmittedStores(['A'], stores).map((s) => s.id)).toEqual(['a']);
+  it('只擋不存在的門市 id；未提交與停用門市都視為存在', () => {
+    expect(findNonExportableIds(['a', 'b', 'x'], stores)).toEqual([]);
+    expect(findNonExportableIds(['b', 'zzz', 'A'], stores)).toEqual(['zzz']);
   });
-  it('已停用門市（含未提交者）不被守衛擋下，交給舊 handler；啟用中未提交者仍擋', () => {
-    const inactive = { ...row('x', 'ZT09', 'pending'), is_active: false };
-    const active = { ...row('y', 'ZT08', 'pending'), is_active: true };
-    const all = [...stores, inactive, active];
-    expect(findUnsubmittedStores(['x', 'b'], all)).toEqual([]);
-    expect(findUnsubmittedStores(['x', 'y'], all).map((s) => s.id)).toEqual(['y']);
-    expect(findNonExportableIds(['x'], all)).toEqual([]); // 停用門市視為存在
-    expect(findNonExportableIds(['ghost', 'x'], all)).toEqual(['ghost']);
-  });
-  it('訊息列出所有未提交門市', () => {
-    const msg = unsubmittedMessage(findUnsubmittedStores(['a', 'd'], stores));
-    expect(msg).toContain('ZT01');
-    expect(msg).toContain('ZT04');
+  it('模組不再提供未提交守衛，包裝層也不再回 unsubmitted', () => {
+    expect(read('lib/workspace/monthly-export.ts')).not.toContain('findUnsubmittedStores');
+    const route = read('app/api/workspace/monthly-export/[resource]/route.ts');
+    expect(route).not.toContain('unsubmitted');
+    expect(route).not.toContain('findUnsubmittedStores');
   });
 });
 
-describe('W02-q2 權限：單品獎金、支援時數照舊版', () => {
-  const p = (role: string, department = '', job_title = '') => ({ role, department, job_title });
-  it('支援時數：admin／supervisor／area_manager，或營業部 manager 且職稱不是需指派職稱', () => {
-    expect(canExportSupportHours(p('admin'))).toBe(true);
-    expect(canExportSupportHours(p('supervisor'))).toBe(true);
-    expect(canExportSupportHours(p('area_manager'))).toBe(true);
-    expect(canExportSupportHours(p('manager', '營業部', '經理'))).toBe(true);
-    expect(canExportSupportHours(p('manager', '營業一部', ''))).toBe(true);
-    for (const t of ['督導', '店長', '代理店長', '督導(代理店長)']) expect(canExportSupportHours(p('manager', '營業部', t)), t).toBe(false);
-    expect(canExportSupportHours(p('manager', '行政部', '經理'))).toBe(false);
-    expect(canExportSupportHours(p('member', '營業部', '經理'))).toBe(false);
-    expect(canExportSupportHours(null)).toBe(false);
-    expect(canExportSupportHours(undefined)).toBe(false);
-  });
-  it('判斷式與舊 support-hours route 原始碼一致（防漂移）', () => {
-    const legacy = read('app/api/export-monthly-status/support-hours/route.ts');
-    expect(legacy).toContain("['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '')");
-    expect(legacy).toContain("profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment");
-    expect(legacy).toContain("['admin', 'supervisor', 'area_manager'].includes(profile?.role || '')");
-  });
-  it('單品獎金舊 route 只檢查登入（沒有 requirePermission）；育才獎金同樣沒有', () => {
-    expect(read('app/api/export-monthly-status/single-item-bonus/route.ts')).not.toContain('requirePermission');
-    expect(read('app/api/export-monthly-status/talent-cultivation-bonus/route.ts')).not.toContain('requirePermission');
-  });
-  it('其餘一般匯出舊 route 都檢查 monthly.export.download', () => {
+describe('規格 A.1 權限：全部只看 monthly.export.download', () => {
+  it('舊 route 的權限碼對照（防漂移）', () => {
     for (const r of ['download', 'actual-staff-points', 'roster', 'transport', 'meal-allowance', 'spring-festival-bonus', 'stores']) {
       expect(read(`app/api/export-monthly-status/${r}/route.ts`), r).toContain("'monthly.export.download'");
     }
   });
-  it('按鈕可見性：只有單品獎金／支援時數權限者，其他一般按鈕不可用', () => {
-    const onlyTwo = exportAccess({ hasGeneral: false, hasMonthlyModule: true, profile: p('admin') });
-    expect(onlyTwo).toEqual({ general: false, singleItem: true, supportHours: true });
-    const usable = EXPORT_DEFINITIONS.filter((d) => canUseExport(onlyTwo, d.key)).map((d) => d.key);
-    expect(usable.sort()).toEqual(['single-item-bonus', 'support-hours']);
-    const general = exportAccess({ hasGeneral: true, hasMonthlyModule: false, profile: p('member') });
-    expect(EXPORT_DEFINITIONS.filter((d) => canUseExport(general, d.key)).map((d) => d.key).sort()).toEqual(
-      EXPORT_DEFINITIONS.map((d) => d.key).filter((k) => k !== 'support-hours').sort(),
-    );
-  });
-  it('只符合支援時數角色判斷（無一般匯出、無月結模組）：單品獎金與支援時數可用', () => {
-    for (const role of ['admin', 'supervisor', 'area_manager']) {
-      const a = exportAccess({ hasGeneral: false, hasMonthlyModule: false, profile: p(role) });
-      expect(a, role).toEqual({ general: false, singleItem: true, supportHours: true });
-      expect(canOpenMonthlyExport(a)).toBe(true);
+  it('exportAccess／canOpen／canUseExport 只依 hasGeneral', () => {
+    const yes = exportAccess({ hasGeneral: true });
+    const no = exportAccess({ hasGeneral: false });
+    expect(yes).toEqual({ general: true });
+    expect(canOpenMonthlyExport(yes)).toBe(true);
+    expect(canOpenMonthlyExport(no)).toBe(false);
+    for (const d of EXPORT_DEFINITIONS) {
+      expect(canUseExport(yes, d.key), d.key).toBe(true);
+      expect(canUseExport(no, d.key), d.key).toBe(false);
     }
-    const biz = exportAccess({ hasGeneral: false, hasMonthlyModule: false, profile: p('manager', '營業部', '經理') });
-    expect(biz.singleItem).toBe(true);
   });
-  it('入口：沒有任何相關權限進不來', () => {
-    expect(canOpenMonthlyExport(exportAccess({ hasGeneral: false, hasMonthlyModule: false, profile: p('member') }))).toBe(false);
-    expect(canOpenMonthlyExport(exportAccess({ hasGeneral: false, hasMonthlyModule: true, profile: p('member') }))).toBe(true);
-    expect(canOpenMonthlyExport(exportAccess({ hasGeneral: false, hasMonthlyModule: false, profile: p('manager', '營業部', '經理') }))).toBe(true);
+  it('定義表：九支都是 general，只有 support-hours 不依門市', () => {
+    expect(EXPORT_DEFINITIONS.every((d) => d.permission === 'general')).toBe(true);
+    expect(EXPORT_DEFINITIONS.filter((d) => !d.storeScoped).map((d) => d.key)).toEqual(['support-hours']);
   });
-  it('定義表：只有 single-item 是 login、只有 support-hours 是 support-hours 且不依門市', () => {
-    expect(EXPORT_DEFINITIONS.filter((d) => d.permission === 'login').map((d) => d.key)).toEqual(['single-item-bonus']);
-    expect(EXPORT_DEFINITIONS.filter((d) => d.permission === 'support-hours').map((d) => d.key)).toEqual(['support-hours']);
-    expect(EXPORT_BY_KEY['support-hours'].storeScoped).toBe(false);
+  it('包裝層：資源一律先檢查 monthly.export.download，支援時數不套用角色判斷，門市清單用 admin 讀全部', () => {
+    const route = read('app/api/workspace/monthly-export/[resource]/route.ts');
+    expect(route).toContain('!access.general');
+    expect(route).toContain('buildSupportHoursResponse');
+    expect(route).not.toContain('scopedExportStoreIds');
+    expect(route).toContain('allStores: true, activeOnly: true');
   });
 });
 
 describe('W02 包裝層', () => {
   const route = read('app/api/workspace/monthly-export/[resource]/route.ts');
-  it('九支舊版產檔 handler 全部被包裝（共用產檔邏輯，不重寫）', () => {
-    for (const r of ['download', 'actual-staff-points', 'roster', 'transport', 'single-item-bonus', 'talent-cultivation-bonus', 'meal-allowance', 'spring-festival-bonus', 'support-hours']) {
+  it('八支舊版產檔 handler 被包裝；支援時數共用搬出的產檔函式（不重寫）', () => {
+    expect(route).toContain('@/lib/workspace/support-hours-export');
+    expect(read('app/api/export-monthly-status/support-hours/route.ts')).toContain('buildSupportHoursResponse');
+    for (const r of ['download', 'actual-staff-points', 'roster', 'transport', 'single-item-bonus', 'talent-cultivation-bonus', 'meal-allowance', 'spring-festival-bonus']) {
       expect(route, r).toContain(`@/app/api/export-monthly-status/${r}/route`);
     }
     expect(route).toContain('maxDuration');
@@ -204,10 +158,14 @@ describe('W02 parity map', () => {
 
 describe('W02 白名單條目', () => {
   const entries = loadAllowlist().filter((e) => e.page === 'monthly-export' || e.id.startsWith('w02-') || e.id.startsWith('nav-monthly-export'));
-  it('全部尚未核可（approvedBy 為 null），且都有 match', () => {
+  it('改回舊版的條目已移除', () => {
+    const ids = entries.map((e) => e.id);
+    for (const gone of ['w02-unsubmitted-rejected', 'w02-stores-scoped-for-single-item']) expect(ids, gone).not.toContain(gone);
+  });
+  it('剩餘條目都已核可且有 match', () => {
     expect(entries.length).toBeGreaterThanOrEqual(3);
     for (const e of entries) {
-      expect(e.approvedBy, e.id).toBeNull();
+      expect(e.approvedBy, e.id).toBe('user (2026-11-04)');
       expect(e.match, e.id).toBeTruthy();
     }
   });

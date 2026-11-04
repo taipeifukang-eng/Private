@@ -1,17 +1,13 @@
 import { NextRequest } from 'next/server';
 import { context, checkOrigin, failed, respond, WorkspaceError } from '@/lib/workspace/server';
 import {
-  EXPORT_BY_KEY,
   MONTHLY_EXPORT_GENERAL_PERMISSION,
   canOpenMonthlyExport,
   findNonExportableIds,
-  findUnsubmittedStores,
   isExportYearMonth,
   normalizeStoreIds,
-  unsubmittedMessage,
-  type ExportKey,
 } from '@/lib/workspace/monthly-export';
-import { loadExportAccess, loadExportStores, scopedExportStoreIds } from '@/lib/workspace/monthly-export-server';
+import { loadExportAccess, loadExportStores } from '@/lib/workspace/monthly-export-server';
 // 包裝舊版 handler：產檔邏輯（欄位、排序、工作表）完全沿用 app/api/export-monthly-status/*，不重寫。
 import { POST as download } from '@/app/api/export-monthly-status/download/route';
 import { POST as actualStaffPoints } from '@/app/api/export-monthly-status/actual-staff-points/route';
@@ -21,7 +17,7 @@ import { POST as singleItemBonus } from '@/app/api/export-monthly-status/single-
 import { POST as talentCultivationBonus } from '@/app/api/export-monthly-status/talent-cultivation-bonus/route';
 import { POST as mealAllowance } from '@/app/api/export-monthly-status/meal-allowance/route';
 import { POST as springFestivalBonus } from '@/app/api/export-monthly-status/spring-festival-bonus/route';
-import { GET as supportHours } from '@/app/api/export-monthly-status/support-hours/route';
+import { buildSupportHoursResponse } from '@/lib/workspace/support-hours-export';
 
 export const dynamic = 'force-dynamic';
 // 舊版為 serverless 函式；全部門市 × 一個月的匯出需要較長時間。
@@ -47,7 +43,7 @@ async function deliver(handler: Handler, request: NextRequest) {
   return response;
 }
 
-/** W02-q3：所選門市含尚未提交者，直接 400 並列出。 */
+/** 基本格式檢查：store_ids 格式、年月格式、門市 id 必須存在。不再擋尚未提交門市（規格 A.3，照舊版產檔）。 */
 async function guardStoreIds(ctx: Awaited<ReturnType<typeof context>>, yearMonth: unknown, storeIds: unknown): Promise<string[] | undefined> {
   if (storeIds === undefined || storeIds === null) return undefined; // 缺參數交給舊 handler 回 400
   if (!Array.isArray(storeIds)) throw new WorkspaceError(400, 'store_ids 格式錯誤');
@@ -57,12 +53,6 @@ async function guardStoreIds(ctx: Awaited<ReturnType<typeof context>>, yearMonth
   if (!isExportYearMonth(yearMonth)) throw new WorkspaceError(400, '缺少或錯誤的年月參數');
   if (!normalized.length) return normalized;
   const stores = await loadExportStores(ctx, yearMonth, undefined, { allStores: true });
-  const blocked = findUnsubmittedStores(normalized, stores);
-  if (blocked.length) {
-    const error = new WorkspaceError(400, unsubmittedMessage(blocked));
-    (error as WorkspaceError & { detail?: unknown }).detail = blocked;
-    throw error;
-  }
   // 不存在的門市 id 拒絕；已停用門市與舊版一致，交給舊 handler 產檔。
   if (findNonExportableIds(normalized, stores).length) throw new WorkspaceError(400, '所選門市不存在');
   return normalized;
@@ -73,13 +63,6 @@ function withBody(request: NextRequest, body: unknown) {
   const headers = new Headers(request.headers);
   headers.delete('content-length');
   return new NextRequest(request.url, { method: request.method, headers, body: JSON.stringify(body) });
-}
-
-function unsubmittedResponse(error: unknown) {
-  const detail = (error as { detail?: { id: string; store_code: string; store_name: string }[] })?.detail;
-  if (error instanceof WorkspaceError && error.status === 400 && detail)
-    return respond({ error: error.message, unsubmitted: detail }, 400);
-  return null;
 }
 
 async function run(request: NextRequest, { params }: Params, write: boolean) {
@@ -94,30 +77,28 @@ async function run(request: NextRequest, { params }: Params, write: boolean) {
       return respond({ ...access, canOpen: canOpenMonthlyExport(access) });
     }
 
+    // 全部資源（含單品獎金、育才獎金、支援時數、門市清單）一律只看 monthly.export.download。
+    if (!access.general) throw new WorkspaceError(403, `沒有資料匯出權限（需要 ${MONTHLY_EXPORT_GENERAL_PERMISSION}）`);
+
     if (resource === 'stores') {
       if (write) throw new WorkspaceError(405, '不支援此操作');
-      if (!canOpenMonthlyExport(access) || !(access.general || access.singleItem))
-        throw new WorkspaceError(403, '沒有資料匯出權限');
       const yearMonth = request.nextUrl.searchParams.get('year_month');
       if (!isExportYearMonth(yearMonth)) throw new WorkspaceError(400, '缺少或錯誤的年月參數');
-      const scope = await scopedExportStoreIds(ctx, access);
-      const stores = await loadExportStores(ctx, yearMonth, scope || undefined);
+      // 以伺服器權限讀全部啟用門市，不縮小到任命門市或資料列可見範圍。
+      const stores = await loadExportStores(ctx, yearMonth, undefined, { allStores: true, activeOnly: true });
       return respond({ success: true, stores });
     }
 
     if (resource === 'support-hours') {
-      // 舊版角色／職稱判斷由被包裝的 handler 執行（W02-q2：完全照舊版）；僅限 GET，且一律全部門市。
+      // 僅限 GET，一律全部門市；權限只看 monthly.export.download（不再套用舊版角色／職稱判斷）。
       if (write) throw new WorkspaceError(405, '不支援此操作');
-      return await deliver(supportHours, request);
+      const yearMonth = request.nextUrl.searchParams.get('year_month');
+      if (!isExportYearMonth(yearMonth)) throw new WorkspaceError(400, '缺少或錯誤的年月參數');
+      return await buildSupportHoursResponse(ctx.auth, yearMonth);
     }
 
     if (!Object.prototype.hasOwnProperty.call(POSTS, resource)) throw new WorkspaceError(404, '找不到此匯出');
-    const key = resource as ExportKey;
-    // 單品獎金（permission=login）：舊版只檢查登入，context() 已確認登入，這裡不加碼。育才獎金依 W02-q1 歸一般匯出。
-    if (EXPORT_BY_KEY[key].permission === 'general' && !ctx.has(MONTHLY_EXPORT_GENERAL_PERMISSION))
-      throw new WorkspaceError(403, `沒有此匯出權限（需要 ${MONTHLY_EXPORT_GENERAL_PERMISSION}）`);
-
-    if (write) {
+        if (write) {
       let body: { year_month?: unknown; store_ids?: unknown } = {};
       try {
         body = await request.clone().json();
@@ -130,12 +111,12 @@ async function run(request: NextRequest, { params }: Params, write: boolean) {
     }
     throw new WorkspaceError(405, '不支援此操作');
   } catch (e) {
-    return unsubmittedResponse(e) || failed(e);
+    return failed(e);
   }
 }
 
 async function runGet(request: NextRequest, p: Params) {
-  // roster 預覽（GET）：與 POST 相同的權限與 W02-q3 規則。
+  // roster 預覽（GET）：與 POST 相同的權限與 基本格式檢查。
   if (p.params.resource !== 'roster') return run(request, p, false);
   try {
     const ctx = await context();
@@ -148,7 +129,7 @@ async function runGet(request: NextRequest, p: Params) {
     url.searchParams.set('store_ids', ids.join(','));
     return await deliver(rosterPreview, new NextRequest(url, { method: 'GET', headers: request.headers }));
   } catch (e) {
-    return unsubmittedResponse(e) || failed(e);
+    return failed(e);
   }
 }
 

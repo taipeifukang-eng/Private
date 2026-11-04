@@ -33,7 +33,7 @@ const rosterMessage = ref("選擇門市後按「預覽每月門市人員名冊�
 
 const yearMonth = computed(() => `${year.value}-${String(month.value).padStart(2, "0")}`);
 const validYear = computed(() => Number.isInteger(year.value) && year.value >= 2000 && year.value <= 2199);
-const hasStores = computed(() => !!access.value && (access.value.general || access.value.singleItem));
+const hasStores = computed(() => !!access.value?.general);
 const exportable = computed(() => stores.value.filter((s) => canExportStore(s.store_status)));
 const allSelected = computed(() => exportable.value.length > 0 && exportable.value.every((s) => selected.value.has(s.id)));
 const totalEmployees = computed(() => stores.value.filter((s) => selected.value.has(s.id)).reduce((n, s) => n + s.total_employees, 0));
