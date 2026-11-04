@@ -63,8 +63,8 @@ async function guardStoreIds(ctx: Awaited<ReturnType<typeof context>>, yearMonth
     (error as WorkspaceError & { detail?: unknown }).detail = blocked;
     throw error;
   }
-  // 不在可匯出集合內（停用、不存在、清單外）一律拒絕，避免繞過未提交檢查。
-  if (findNonExportableIds(normalized, stores).length) throw new WorkspaceError(400, '所選門市不存在、已停用或尚未提交，無法匯出');
+  // 不存在的門市 id 拒絕；已停用門市與舊版一致，交給舊 handler 產檔。
+  if (findNonExportableIds(normalized, stores).length) throw new WorkspaceError(400, '所選門市不存在');
   return normalized;
 }
 

@@ -31,8 +31,9 @@ async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ da
 export async function loadExportStores(ctx: Context, yearMonth: string, onlyStoreIds?: readonly string[], options: { allStores?: boolean } = {}): Promise<ExportStoreRow[]> {
   // allStores：守衛用，以 admin client 看全部門市（單品獎金舊版不限門市，守衛不能被呼叫者的資料列可見範圍影響）。
   const db = options.allStores ? ctx.admin : ctx.auth;
-  const storeQuery = db.from('stores').select('id, store_code, store_name').eq('is_active', true).order('store_code');
-  const stores = checked(await storeQuery) || [];
+  // 守衛（allStores）要連已停用門市一起看：舊版對停用門市照常產檔，守衛只擋「啟用中且未提交」與不存在的門市。
+  const storeBase = db.from('stores').select('id, store_code, store_name, is_active').order('store_code');
+  const stores = checked(await (options.allStores ? storeBase : storeBase.eq('is_active', true))) || [];
   const staff = await fetchAll<{ id: string; store_id: string; status: string | null }>((from, to) =>
     db.from('monthly_staff_status').select('id, store_id, status').eq('year_month', yearMonth).order('id').range(from, to),
   );
@@ -45,7 +46,7 @@ export async function loadExportStores(ctx: Context, yearMonth: string, onlyStor
     counts.set(r.store_id, c);
   }
   const wanted = onlyStoreIds ? new Set(onlyStoreIds) : null;
-  return (stores as { id: string; store_code: string; store_name: string }[])
+  return (stores as { id: string; store_code: string; store_name: string; is_active?: boolean }[])
     .filter((s) => !wanted || wanted.has(s.id))
     .map((s) => {
       const c = counts.get(s.id) || { total: 0, submitted: 0, confirmed: 0 };
@@ -57,6 +58,7 @@ export async function loadExportStores(ctx: Context, yearMonth: string, onlyStor
         submitted_count: c.submitted,
         confirmed_count: c.confirmed,
         store_status: deriveExportStoreStatus(undefined, c.confirmed, c.submitted),
+        ...(options.allStores ? { is_active: s.is_active !== false } : {}),
       };
     });
 }

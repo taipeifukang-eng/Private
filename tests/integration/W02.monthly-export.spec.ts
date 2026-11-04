@@ -149,7 +149,7 @@ test.describe('W02-q3：含未提交門市直接拒絕', () => {
     expect((await sheetRows(res)).sheets[0].rowCount).toBe(3);
   });
 
-  test('不在可匯出集合內的門市（不存在／停用）與不合格年月一律 400', async () => {
+  test('不存在的門市與不合格年月一律 400（已停用門市交給舊 handler，以單元測試驗證）', async () => {
     const ghost = '00000000-0000-4000-8000-000000000000';
     for (const key of POST_KEYS) {
       const res = await admin.post(`${BASE}/${key}`, { data: { year_month: MONTH, store_ids: [ghost, seed.ids.submitted] } });

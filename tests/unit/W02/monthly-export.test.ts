@@ -91,9 +91,18 @@ describe('W02-q3 含未提交門市', () => {
     expect(normalizeStoreIds([id, 'zzz'])).toBeNull();
   });
   it('大小寫不同的 id 仍比對得到', () => {
-    expect(findNonExportableIds(['b', 'zzz', 'a'], stores)).toEqual(['zzz', 'a']);
+    expect(findNonExportableIds(['b', 'zzz', 'a'], stores)).toEqual(['zzz']); // 只擋不存在者；未提交由 findUnsubmittedStores 處理
     expect(findNonExportableIds(['b', 'c'], stores)).toEqual([]);
     expect(findUnsubmittedStores(['A'], stores).map((s) => s.id)).toEqual(['a']);
+  });
+  it('已停用門市（含未提交者）不被守衛擋下，交給舊 handler；啟用中未提交者仍擋', () => {
+    const inactive = { ...row('x', 'ZT09', 'pending'), is_active: false };
+    const active = { ...row('y', 'ZT08', 'pending'), is_active: true };
+    const all = [...stores, inactive, active];
+    expect(findUnsubmittedStores(['x', 'b'], all)).toEqual([]);
+    expect(findUnsubmittedStores(['x', 'y'], all).map((s) => s.id)).toEqual(['y']);
+    expect(findNonExportableIds(['x'], all)).toEqual([]); // 停用門市視為存在
+    expect(findNonExportableIds(['ghost', 'x'], all)).toEqual(['ghost']);
   });
   it('訊息列出所有未提交門市', () => {
     const msg = unsubmittedMessage(findUnsubmittedStores(['a', 'd'], stores));

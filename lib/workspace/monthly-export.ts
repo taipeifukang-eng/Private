@@ -94,18 +94,22 @@ export type ExportStoreRow = {
   submitted_count: number;
   confirmed_count: number;
   store_status: ExportStoreStatus;
+  /** 僅守衛用（allStores）才會帶；未帶視為啟用中。 */
+  is_active?: boolean;
 };
 
-/** W02-q3：找出所選門市中尚未提交者。不在清單中的門市（例如已停用）不處理，交給舊版 handler。 */
+/**
+ * W02-q3：找出所選門市中「啟用中且尚未提交」者。已停用門市不處理（舊版 handler 對停用門市照常產檔），交給舊 handler。
+ */
 export function findUnsubmittedStores(selectedIds: readonly string[], stores: readonly ExportStoreRow[]): ExportStoreRow[] {
   const wanted = new Set(selectedIds.map((v) => String(v).trim().toLowerCase()));
-  return stores.filter((s) => wanted.has(s.id) && !canExportStore(s.store_status));
+  return stores.filter((s) => s.is_active !== false && wanted.has(s.id) && !canExportStore(s.store_status));
 }
 
-/** 所選 id 中不在「可匯出（已提交／已確認）門市集合」內者（含停用、不存在、清單外）；呼叫端一律回 400。 */
+/** 所選 id 中完全不存在的門市（含停用者視為存在）；呼叫端回 400。 */
 export function findNonExportableIds(selectedIds: readonly string[], stores: readonly ExportStoreRow[]): string[] {
-  const ok = new Set(stores.filter((s) => canExportStore(s.store_status)).map((s) => s.id));
-  return selectedIds.filter((id) => !ok.has(String(id).trim().toLowerCase()));
+  const known = new Set(stores.map((s) => s.id));
+  return selectedIds.filter((id) => !known.has(String(id).trim().toLowerCase()));
 }
 
 const STORE_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
