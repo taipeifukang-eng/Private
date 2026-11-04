@@ -35,11 +35,12 @@ const record = ref<any>(props.tab.payload),
   liveStatus = ref<string>(props.tab.payload?.status || "draft"),
   options = ref<any>({ statuses: [], positions: [], levels: [], reasons: [] }),
   reminder = ref(false);
-const booleans: [string, string][] = [
-  ["is_dual_position", "雙職務（店長-雙、代理店長-雙、督導(代理店長)-雙）"],
-  ["has_manager_bonus", "店長／代理店長加成資格"],
-  ["is_supervisor_rotation", "督導卡班（獎金 = 0）"],
-  ["is_acting_manager", "是否擔任代理店長"],
+// 特殊標記：標題與說明文字照舊版 monthly-status/edit/[id]。
+const booleans: [string, string, string][] = [
+  ["is_dual_position", "是否為「雙」職務", "如：店長-雙、代理店長-雙、督導(代理店長)-雙"],
+  ["has_manager_bonus", "店長/代理店長加成資格", "是否套用店長達標加成 (managerMultiplier)"],
+  ["is_supervisor_rotation", "督導卡班", "督導輪調/卡班（獎金 = 0）"],
+  ["is_acting_manager", "是否擔任代理店長", "適用於主任、副店長、督導擔任代理店長職務時勾選"],
 ];
 const more: any = {};
 for (const key of [
@@ -62,8 +63,9 @@ for (const key of ["supervisor_shift_hours", "extra_task_external_hours"])
 more.extra_tasks = record.value.extra_tasks || [];
 const form = ref<any>({
   ...more,
-  work_days: record.value.work_days,
-  work_hours: record.value.work_hours,
+  // 舊版 data.work_days || 0：資料庫為 null 時顯示 0。
+  work_days: record.value.work_days || 0,
+  work_hours: record.value.work_hours || 0,
   notes: record.value.notes || "",
 });
 let snapshot = JSON.stringify(form.value);
@@ -96,11 +98,16 @@ const showNewbieLevel = computed(
   () => usesNewbieLevel(form.value.position, form.value.monthly_status),
 );
 const showAdminLevel = computed(() => form.value.position === "行政");
+// 舊版只檢查階段是否為空（position === '行政' && !newbieLevel）。
 const adminLevelMissing = computed(
-  () =>
-    showAdminLevel.value &&
-    !ADMIN_LEVEL_OPTIONS.some((o) => o.value === form.value.newbie_level),
+  () => showAdminLevel.value && !form.value.newbie_level,
 );
+// 舊版職位下拉只有一般職位；紀錄原本就是特殊職位時仍列出該值，避免資料遺失。
+const positionChoices = computed<string[]>(() => {
+  const list: string[] = options.value.positions || [];
+  const current = record.value.position;
+  return current && !list.includes(current) ? [...list, current] : list;
+});
 const isPartialMonth = computed(() => form.value.monthly_status !== "full_month");
 const hasExternalTask = computed(() => form.value.extra_tasks.length > 0);
 const plannedHours = computed(() =>
@@ -168,7 +175,6 @@ async function save() {
         store: props.tab.store,
         month: props.tab.month,
         id: props.tab.recordId,
-        version: record.value.updated_at,
         updates: {
           ...form.value,
           // 舊版 parseFloat(...) || 0：空白（或非數字）存 0；外派時數維持空白為 null。
@@ -185,6 +191,7 @@ async function save() {
     record.value = r.record;
     snapshot = JSON.stringify(form.value);
     props.tab.dirty = false;
+    // 舊版 alert「✅ 儲存成功」後回名冊頁；新版維持在編輯分頁（保留已開分頁與草稿），以「已儲存」提示（白名單 w01b-save-stays-in-editor）。
     message.value = "已儲存";
     return true;
   } catch (e) {
@@ -230,7 +237,7 @@ onMounted(async () => {
     );
     options.value = r.options;
     apiCanEdit.value = !!r.canEdit;
-    // 以最新名冊的狀態為準（例如開啟後該月已被確認）；不覆蓋 record，以免洗掉樂觀鎖版本。
+    // 以最新名冊的狀態為準（例如開啟後該月已被確認）。
     const fresh = (r.records || []).find((x: any) => x.id === props.tab.recordId);
     if (fresh?.status) liveStatus.value = fresh.status;
   } catch (e) {
@@ -276,7 +283,8 @@ onBeforeUnmount(() => {
         <div class="module-form-grid">
           <label
             >職位<select name="position" v-model="form.position">
-              <option v-for="p in options.positions" :value="p">{{ p }}</option>
+              <option value="">請選擇職位</option>
+              <option v-for="p in positionChoices" :value="p">{{ p }}</option>
             </select></label
           ><label
             >雇用類型<select name="employment_type" v-model="form.employment_type">
@@ -344,9 +352,10 @@ onBeforeUnmount(() => {
         </fieldset>
 
         <div v-if="isPartialMonth" class="module-form-grid" data-partial-month>
+          <h3 class="module-subheading">非整月在職詳細資訊</h3>
           <label
-            >未滿月原因<select name="partial_month_reason" v-model="form.partial_month_reason">
-              <option value="">無</option>
+            >非整月原因<select name="partial_month_reason" v-model="form.partial_month_reason">
+              <option value="">請選擇原因</option>
               <option v-for="s in options.reasons" :value="s.value">
                 {{ s.label }}
               </option>
@@ -361,7 +370,7 @@ onBeforeUnmount(() => {
 
         <div class="module-form-grid">
           <label v-if="mode === 'hours' && supervisorDual"
-            >本月工作時數（基準 160 小時）<input
+            >本月工作時數（小時，基準：160 小時）<input
               type="number"
               min="0"
               max="744"
@@ -370,7 +379,7 @@ onBeforeUnmount(() => {
               v-model.number="form.work_hours"
           /></label>
           <label v-else-if="mode === 'days'"
-            >本月工作天數（／ {{ totalDays }} 天）<input
+            >本月工作天數（/ {{ totalDays }} 天）<input
               type="number"
               min="0"
               :max="totalDays"
@@ -379,7 +388,7 @@ onBeforeUnmount(() => {
               v-model.number="form.work_days"
           /></label>
           <label v-else
-            >本月工作時數（基準 160 小時）<input
+            >本月工作時數（小時，基準：160 小時）<input
               type="number"
               min="0"
               max="744"
@@ -388,6 +397,12 @@ onBeforeUnmount(() => {
               v-model.number="form.work_hours"
           /></label>
         </div>
+        <p v-if="mode === 'hours' && supervisorDual" class="muted" data-hours-hint>
+          督導(代理店長)-雙 請填寫工作時數
+        </p>
+        <p v-else-if="mode === 'days'" class="muted" data-days-hint>
+          {{ form.monthly_status === "full_month" ? "整月在職請填滿天數" : "請填入實際工作天數" }}
+        </p>
         <p
           v-if="advice.needsConfirm"
           class="notice"
@@ -401,8 +416,9 @@ onBeforeUnmount(() => {
         </p>
 
         <div class="module-actions">
-          <label v-for="[key, label] in booleans" :key="key"
-            ><input type="checkbox" v-model="form[key]" />{{ label }}</label
+          <label v-for="[key, label, desc] in booleans" :key="key"
+            ><input type="checkbox" v-model="form[key]" />{{ label }}
+            <small class="muted">{{ desc }}</small></label
           >
         </div>
 

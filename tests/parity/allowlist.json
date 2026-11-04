@@ -325,6 +325,18 @@
     }
   },
   {
+    "id": "w01b-save-stays-in-editor",
+    "page": "monthly-edit",
+    "description": "儲存成功後：舊版跳 alert「✅ 儲存成功」並導回名冊頁（/monthly-status）；新版在人員編輯分頁顯示「已儲存」狀態訊息並停留原分頁（可繼續編輯，已開啟的分頁與草稿保留）。",
+    "reason": "新版為多分頁工作區，編輯分頁與名冊分頁並存，儲存後自動關閉／跳轉會洗掉其他分頁的草稿與捲動位置（W01b 既有設計，e2e 與對等測試皆以停留原分頁為準）。需使用者核可；若要改成回名冊再另開修正。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "save-success",
+      "kind": "changed"
+    }
+  },
+  {
     "id": "w01b-submitted-edit-locked",
     "page": "monthly-edit",
     "description": "已送審（尚未確認）人員的編輯頁：舊版仍可修改並儲存；新版整月鎖定，只顯示「此筆目前僅供檢視」，沒有儲存按鈕，API 回 409（需先退回）。已確認的專屬畫面兩邊一致。",

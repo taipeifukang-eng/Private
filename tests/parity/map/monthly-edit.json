@@ -44,6 +44,14 @@
       "compareKey": "scenario"
     },
     {
+      "id": "save-success",
+      "mechanism": "ui-extract",
+      "description": "儲存成功後的行為：舊版 alert「✅ 儲存成功」並回名冊頁；新版顯示「已儲存」並停留在編輯分頁。",
+      "legacy": { "source": "app/monthly-status/edit/[id]/page.tsx handleSave（alert + router.push）" },
+      "native": { "source": "/workspace/index.html 人員編輯分頁 role=status" },
+      "compareKey": "scenario"
+    },
+    {
       "id": "confirmed-screen",
       "mechanism": "ui-extract",
       "description": "已確認人員的專屬畫面：標題、說明文字、返回按鈕、沒有儲存按鈕。",

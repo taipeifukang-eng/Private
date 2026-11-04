@@ -58,11 +58,24 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
     await admin?.dispose();
   });
 
+  // 舊版職位下拉不含特殊職位；API 只在紀錄原本就是該特殊職位時放行（避免資料遺失）。
+  // 要存特殊職位的情境，改存「原本就是該職位」的專用人員（用到才建立）。
+  const SPECIALS = ['督導(代理店長)', '區經理(代理店長)', '督導(店長)', '區經理(店長)'];
+  const specialIds: Record<string, string> = {};
+  async function specialId(position: string) {
+    if (!specialIds[position]) {
+      specialIds[position] = (await addManual(admin, zt01, DRAFT, { name: `W01b ${position}`, code: staffCode('ABCD'[SPECIALS.indexOf(position)]), position })).id;
+      await registerFixtureRows(zt01, DRAFT);
+    }
+    return specialIds[position];
+  }
   async function saveMain(patch: Record<string, unknown>) {
-    const res = await postSave(admin, zt01, DRAFT, ids.main, versions.main, editUpdates(patch));
+    const special = typeof patch.position === 'string' && SPECIALS.includes(patch.position);
+    const id = special ? await specialId(patch.position as string) : ids.main;
+    const res = await postSave(admin, zt01, DRAFT, id, versions.main, editUpdates(patch));
     const body = await res.json();
-    if (res.status() === 200) versions.main = body.record.updated_at;
-    return { status: res.status(), body };
+    if (res.status() === 200 && !special) versions.main = body.record.updated_at;
+    return { status: res.status(), body, id };
   }
 
   // ------------------------------------------------------------------ 權限
@@ -106,7 +119,6 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
     ['monthly_status 非法', { monthly_status: 'bogus' }],
     ['newbie_level 非法', { newbie_level: '超級新人' }],
     ['行政缺階段（W01b 必填）', { position: '行政', newbie_level: null }],
-    ['行政選到新人階段', { position: '行政', newbie_level: '一階新人' }],
     ['partial_month_reason 非法', { partial_month_reason: '不明' }],
     ['start_date 格式錯誤', { start_date: '2099/02/01' }],
     ['旗標非 boolean', { is_dual_position: 'yes' }],
@@ -127,6 +139,30 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
       expect(after).toEqual(before);
     });
   }
+
+  test('行政階段必填只檢查是否為空（照舊版）：選到新人階段不擋；空白擋下', async () => {
+    expect((await saveMain({ position: '行政', newbie_level: '一階新人' })).status).toBe(200);
+    const blank = await saveMain({ position: '行政', newbie_level: null });
+    expect(blank.status).toBe(400);
+    expect(blank.body.error).toContain('過階');
+    expect((await saveMain({ position: '專員', newbie_level: null })).status).toBe(200);
+  });
+
+  test('職位只認舊版 POSITION_OPTIONS；特殊職位僅在紀錄原本就是該職位時可存', async () => {
+    for (const position of SPECIALS) {
+      // 一般人員改成特殊職位：400，DB 不變
+      const before = await dbRow(ids.main);
+      const res = await saveMain({ position });
+      // saveMain 對特殊職位會改存專用人員，因此另外直接打 main
+      expect(res.status, position).toBe(200);
+      const direct = await postSave(admin, zt01, DRAFT, ids.main, null, editUpdates({ position }));
+      expect(direct.status(), position).toBe(400);
+      expect(await dbRow(ids.main)).toEqual(before);
+    }
+    // GET 下拉選項不含特殊職位
+    const { body } = await readMonth(admin, zt01, DRAFT);
+    for (const position of SPECIALS) expect(body.options.positions).not.toContain(position);
+  });
 
   test('行政選過階／未過階可儲存', async () => {
     for (const level of ['過階行政', '未過階行政']) {
@@ -181,10 +217,10 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
         work_days: updates.work_days,
         extra_tasks: updates.extra_tasks,
       });
-      const { status, body } = await saveMain(patch);
+      const { status, body, id } = await saveMain(patch);
       expect(status, `${JSON.stringify(patch)} -> ${JSON.stringify(body).slice(0, 160)}`).toBe(200);
       expect(body.record.calculated_block, JSON.stringify(patch)).toBe(expected);
-      expect((await dbRow(ids.main)).calculated_block, JSON.stringify(patch)).toBe(expected);
+      expect((await dbRow(id)).calculated_block, JSON.stringify(patch)).toBe(expected);
       seen.add(expected);
     }
     for (const b of [1, 2, 3, 4, 5, 6]) expect(seen.has(b), `情境沒有涵蓋區塊 ${b}`).toBe(true);
@@ -245,12 +281,15 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
   });
 
   // ------------------------------------------------------------------ 樂觀鎖、跨店、狀態
-  test('樂觀鎖：用舊版本存檔 409；版本更新後可存', async () => {
+  test('並行寫入照舊版後寫覆蓋：舊版本（或不帶版本）存檔也成功', async () => {
     const stale = versions.main;
     expect((await saveMain({ notes: 'A 存檔' })).status).toBe(200);
     const res = await postSave(admin, zt01, DRAFT, ids.main, stale, editUpdates({ notes: 'B 用舊版本' }));
-    expect(res.status()).toBe(409);
-    expect((await dbRow(ids.main)).notes).toBe('A 存檔');
+    expect(res.status()).toBe(200);
+    expect((await dbRow(ids.main)).notes).toBe('B 用舊版本');
+    const noVersion = await postSave(admin, zt01, DRAFT, ids.main, null, editUpdates({ notes: 'C 不帶版本' }));
+    expect(noVersion.status()).toBe(200);
+    expect((await dbRow(ids.main)).notes).toBe('C 不帶版本');
   });
 
   test('id 屬於 ZT02 但 store 帶 ZT01：409，不可跨店改資料', async () => {

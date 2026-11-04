@@ -54,7 +54,7 @@ test.beforeAll(async () => {
   // 區塊預覽
   await makePair('b1', { name: 'PAR 專員整月' });
   await makePair('b3', { name: 'PAR 外務', position: '專員' }, { extra_tasks: ['長照外務'], extra_task_external_hours: 5 });
-  await makePair('b4', { name: 'PAR 督導店長雙' }, { position: '督導(店長)', is_dual_position: true });
+  await makePair('b4', { name: 'PAR 督導店長雙', position: '督導(店長)' }, { position: '督導(店長)', is_dual_position: true });
   await makePair('b5', { name: 'PAR 兼職待勾藥師', position: '助理', employment_type: 'part_time', work_days: 0, work_hours: 40 });
   // 規劃時數（b3 外務整月 160 同時是區塊預覽的外務案例）
   await makePair('x2', { name: 'PAR 外務十天', work_days: 10 }, { extra_tasks: ['診所業務'], monthly_status: 'new_hire', work_days: 10 });
@@ -69,6 +69,7 @@ test.beforeAll(async () => {
   await makePair('m2', { name: 'PAR 新進改滿月', work_days: 10 }, { monthly_status: 'new_hire', work_days: 10 });
   // 行政必填
   await makePair('a1', { name: 'PAR 行政' });
+  await makePair('s1', { name: 'PAR 儲存成功' });
   // 儲存回讀
   await makePair('e1', { name: 'PAR 勾外務' });
   await makePair('e2', { name: 'PAR 卡班關閉' }, { is_supervisor_rotation: true, supervisor_employee_code: 'S001', supervisor_name: 'PAR 督導', supervisor_position: '督導', supervisor_shift_hours: 10 });
@@ -341,6 +342,46 @@ test('行政職位未選階段：兩邊都擋下儲存、訊息相同、DB 不�
     assertNoUnlistedDiffs(result);
     expect(result.status).toBe('pass');
     expect(nativeRows[0]).toMatchObject({ blocked: 'Y', savedToDb: 'N' });
+  } finally {
+    await ctx.close();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5b. 儲存成功後的行為（白名單 w01b-save-stays-in-editor）
+// ---------------------------------------------------------------------------
+
+test('儲存成功後：舊版 alert 並回名冊頁；新版顯示已儲存並停留（白名單）', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const ctx = await loginAs(browser, 'admin');
+  try {
+    const lp = await ctx.newPage();
+    const alerts: string[] = [];
+    lp.on('dialog', (d: Dialog) => {
+      alerts.push(d.message());
+      void d.accept();
+    });
+    await openLegacy(lp, rows.s1L.id, zt01, PD);
+    await lp.locator(LX.notes).fill('PAR 儲存成功 舊');
+    await lp.getByRole('button', { name: '儲存', exact: true }).click();
+    await lp.waitForURL(/\/monthly-status(\?|$)/, { timeout: 30_000 });
+    const legacyRows = [{ scenario: 's1', message: alerts[0] || '', afterSave: 'roster' }];
+    await lp.close();
+
+    const np = await ctx.newPage();
+    await openNative(np, rows.s1N.code, PD);
+    await panel(np).locator('[name=notes]').fill('PAR 儲存成功 新');
+    await panel(np).getByRole('button', { name: '儲存出勤資料' }).click();
+    const status = panel(np).getByRole('status').filter({ hasText: '已儲存' });
+    await expect(status).toBeVisible({ timeout: 20_000 });
+    const nativeRows = [{ scenario: 's1', message: norm(await status.first().textContent()), afterSave: (await panel(np).locator('[name=notes]').count()) ? 'editor' : 'other' }];
+    await np.close();
+
+    const result = compareTables({ recorder, entry: 'save-success', title: '儲存成功後的行為', role: 'admin', legacySource: entry('save-success').legacy.source!, nativeSource: entry('save-success').native.source!, legacyRows, nativeRows, columns: [col('scenario'), col('message'), col('afterSave')], key: 'scenario' });
+    assertNoUnlistedDiffs(result);
+    expect(ok).toContain(result.status);
+    expect(legacyRows[0].message).toBe('✅ 儲存成功');
+    expect(nativeRows[0]).toMatchObject({ message: '已儲存', afterSave: 'editor' });
   } finally {
     await ctx.close();
   }

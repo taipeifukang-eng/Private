@@ -218,7 +218,7 @@ export async function GET(request: Request) {
       storeStatus: summary.data?.store_status || "not_started",
       options: {
         statuses: MONTHLY_STATUS_OPTIONS,
-        positions: [...POSITION_OPTIONS, ...SPECIAL_ROLE_OPTIONS],
+        positions: POSITION_OPTIONS,
         levels: [...NEWBIE_LEVEL_OPTIONS, ...ADMIN_LEVEL_OPTIONS],
         reasons: PARTIAL_MONTH_REASON_OPTIONS,
       },
@@ -292,7 +292,7 @@ export async function POST(request: Request) {
       const before = checked(
         await ctx.auth
           .from("monthly_staff_status")
-          .select("id,status,updated_at")
+          .select("id,status,position,updated_at")
           .eq("id", body.id)
           .eq("store_id", body.store)
           .eq("year_month", month)
@@ -321,9 +321,12 @@ export async function POST(request: Request) {
       updates.notes = body.updates.notes;
       const u = body.updates;
       if ("position" in u) {
+        // 舊版職位下拉只有 POSITION_OPTIONS；紀錄原本就是特殊職位時，維持原值才放行（避免資料遺失）。
         if (
-          ![...POSITION_OPTIONS, ...SPECIAL_ROLE_OPTIONS].includes(
-            u.position,
+          !(
+            POSITION_OPTIONS.includes(u.position) ||
+            (u.position === before.position &&
+              SPECIAL_ROLE_OPTIONS.includes(u.position))
           ) ||
           !["full_time", "part_time"].includes(u.employment_type) ||
           !MONTHLY_STATUS_OPTIONS.some((o) => o.value === u.monthly_status)
@@ -338,9 +341,9 @@ export async function POST(request: Request) {
           throw new WorkspaceError(400, "階段資料不正確");
         if (
           u.position === "行政" &&
-          !ADMIN_LEVEL_OPTIONS.some((o) => o.value === u.newbie_level)
+          !u.newbie_level
         )
-          throw new WorkspaceError(400, "行政人員須選擇行政階段");
+          throw new WorkspaceError(400, "職位為行政時，請標註「過階」或「未過階」");
         if (
           u.partial_month_reason &&
           !PARTIAL_MONTH_REASON_OPTIONS.some(
@@ -443,20 +446,18 @@ export async function POST(request: Request) {
           : null;
       }
       updates.updated_at = new Date().toISOString();
-      let q = ctx.auth
-        .from("monthly_staff_status")
-        .update(updates)
-        .eq("id", body.id)
-        .eq("status", "draft");
-      q = body.version
-        ? q.eq("updated_at", body.version)
-        : q.is("updated_at", null);
-      const row = checked(await q.select().maybeSingle());
+      // 舊版 updateStaffStatus 後寫覆蓋（W03-q3 同一決定）：不再用 updated_at 樂觀鎖；仍只允許草稿。
+      const row = checked(
+        await ctx.auth
+          .from("monthly_staff_status")
+          .update(updates)
+          .eq("id", body.id)
+          .eq("status", "draft")
+          .select()
+          .maybeSingle(),
+      );
       if (!row)
-        throw new WorkspaceError(
-          409,
-          "另一頁或其他人已更新，請保留草稿後重新查詢",
-        );
+        throw new WorkspaceError(409, "此筆已送出或已變更，請重新查詢");
       return respond({ record: row });
     }
     const actions: Record<string, (m: string, s: string, skip?: boolean) => Promise<any>> = {

@@ -193,7 +193,7 @@ test('滿 6 個月改走人員異動紀錄、行政階段必填、督導卡班�
       await expect(panel.getByRole('status').filter({ hasText: '已儲存' })).toBeVisible({ timeout: 20_000 });
       expect(await dbRow(rot.id)).toMatchObject({ is_supervisor_rotation: false, supervisor_employee_code: null, supervisor_name: null, supervisor_position: null, supervisor_shift_hours: null, calculated_block: 1 });
 
-      // 兩個分頁同時編輯：第二個存檔出現衝突提示並保留草稿
+      // 兩個分頁同時編輯：後存者覆蓋（照舊版，無樂觀鎖）
       await openRow(page, codes.con);
       const second = await ctx.newPage();
       second.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
@@ -205,12 +205,11 @@ test('滿 6 個月改走人員異動紀錄、行政階段必填、督導卡班�
       panel = ed(page);
       await panel.locator('[name=notes]').fill('A 後存');
       await panel.getByRole('button', { name: '儲存出勤資料' }).click();
-      const conflict = page.getByRole('dialog', { name: '儲存未完成' });
-      await expect(conflict).toContainText('另一頁或其他人已更新');
-      await expect(conflict).toContainText('編輯內容仍保留');
-      await conflict.getByRole('button', { name: '返回編輯' }).click();
+      // 舊版 updateStaffStatus 後寫覆蓋（W03-q3 同一決定）：不再有衝突提示，後存的 A 直接覆蓋。
+      await expect(panel.getByRole('status').filter({ hasText: '已儲存' })).toBeVisible({ timeout: 20_000 });
+      await expect(page.getByRole('dialog', { name: '儲存未完成' })).toHaveCount(0);
       await expect(panel.locator('[name=notes]')).toHaveValue('A 後存');
-      expect((await dbRow(con.id)).notes).toBe('B 先存');
+      expect((await dbRow(con.id)).notes).toBe('A 後存');
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       expect(overflow, '頁面層級水平溢出').toBeLessThanOrEqual(0);
