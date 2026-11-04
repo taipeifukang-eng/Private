@@ -205,7 +205,7 @@ async function nativeRoster(page: Page) {
         sales: perf ? text(td[9]) : '',
         gp: gpTexts[0] || '',
         rate: gpTexts[1] || '',
-        canEdit: buttons.includes('編輯出勤'),
+        canEdit: buttons.includes('編輯'),
         canDelete: buttons.includes('刪除'),
       };
     });

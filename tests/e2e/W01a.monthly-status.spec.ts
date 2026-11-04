@@ -109,11 +109,15 @@ test('店長送審：標籤、刪除草稿、送審前檢查單一視窗、送�
       await expect(confirm).toHaveCount(0);
       await expect(page.getByRole('button', { name: '送出審核' })).toHaveCount(0);
 
-      // DB：全部已送審；畫面：刪除按鈕消失（只有草稿可刪）
+      // DB：全部已送審；畫面：門市未確認，刪除按鈕照舊版每列都在（規格 B.2），非草稿按下後 API 回 409 說明需先退回
       const after = await dbRows(zt01, month);
       expect(after).toHaveLength(3);
       expect(after.every((r) => r.status === 'submitted')).toBe(true);
-      await expect(page.getByRole('button', { name: '刪除', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: '刪除', exact: true })).toHaveCount(3);
+      await page.getByRole('button', { name: '刪除', exact: true }).first().click();
+      await page.getByRole('dialog', { name: '刪除人員' }).getByRole('button', { name: '確認刪除' }).click();
+      await expect(page.getByRole('alert').filter({ hasText: '退回' })).toBeVisible({ timeout: 20_000 });
+      expect(await dbRows(zt01, month)).toHaveLength(3);
       await expect(page.locator('.store-tabs [role=tab]', { hasText: 'ZT 測試門市 01' })).toContainText('已提交');
       // 已送審後直接呼叫 API 刪除仍是 409
       const direct = await admin.post('/api/workspace/monthly', { data: { action: 'delete', store: zt01, month, id: String(after[0].id) } });

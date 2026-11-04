@@ -34,10 +34,10 @@ describe('M1-x1 規則表被實際引用', () => {
 
 describe('W01a 白名單條目', () => {
   const entries = loadAllowlist().filter((e) => e.page === 'monthly-status');
-  it('全部尚未核可（approvedBy 為 null），且都有 match', () => {
-    expect(entries.length).toBeGreaterThanOrEqual(10);
+  it('approvedBy 為 null 或非空字串（使用者核可），且都有 match', () => {
+    expect(entries.length).toBeGreaterThanOrEqual(8);
     for (const e of entries) {
-      expect(e.approvedBy, e.id).toBeNull();
+      expect(e.approvedBy === null || (typeof e.approvedBy === 'string' && e.approvedBy.length > 0), e.id).toBe(true);
       expect(e.match, e.id).toBeTruthy();
     }
   });
@@ -59,7 +59,11 @@ describe('M1-x1 review fixes', () => {
     expect(tools).toContain('@/lib/workspace/monthly-status-rules');
     expect(tools).toContain("'add'");
   });
-  it('movements query is scoped to the viewed store', () => {
-    expect(read('app/api/workspace/monthly/route.ts')).toContain('.eq("store_id", store)');
+  it('movements query 照舊版（規格 B.4）：可查任何員編、所有門市，但只用使用者身分（RLS），不用 service role', () => {
+    const route = read('app/api/workspace/monthly/route.ts');
+    const part = route.slice(route.indexOf('op === "movements"'), route.indexOf('movements: movements || []'));
+    expect(part).toContain('ctx.auth');
+    expect(part).not.toContain('ctx.admin');
+    expect(part).not.toContain('.eq("store_id", store)');
   });
 });

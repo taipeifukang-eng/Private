@@ -71,6 +71,11 @@ const monthLocked = computed(
     rows.value.some((r) => !canDoMonthlyAction(r.status, "edit")) ||
     ["submitted", "confirmed"].includes(String(permissions.value.storeStatus)),
 );
+// 規格 B.1／B.2：照舊版，門市未確認時每列（含已送審）都顯示「編輯」「刪除」，不另看 edit 權限；
+// 已送審列的編輯開唯讀頁，非草稿的刪除由 API 回 409「需先退回」。已停止門市維持唯讀。
+const rowEditable = computed(
+  () => permissions.value.storeActive !== false && permissions.value.storeStatus !== "confirmed",
+);
 const canPerf = computed(() => !!permissions.value.canViewPerformance);
 const visibleStores = computed(() =>
   showInactive.value ? allStores.value : stores.value,
@@ -389,13 +394,9 @@ onMounted(load);
           <td>{{ status[r.status] || r.status }}</td>
           <td class="row-actions">
             <button @click="edit(r)" :disabled="queryChanged">
-              {{
-                permissions.canEdit && r.status === "draft"
-                  ? "編輯出勤"
-                  : "查看明細"
-              }}
+              {{ rowEditable ? "編輯" : "查看明細" }}
             </button>
-            <button v-if="permissions.canDelete && canDoMonthlyAction(r.status, 'delete')" type="button" class="danger" :disabled="queryChanged || tab.busy" @click="deleting = r">刪除</button>
+            <button v-if="rowEditable" type="button" class="danger" :disabled="queryChanged || tab.busy" @click="deleting = r">刪除</button>
           </td>
         </tr>
         <tr v-if="expanded.has(r.id)" class="detail-row">

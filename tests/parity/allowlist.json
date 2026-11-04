@@ -112,40 +112,14 @@
   {
     "id": "w01a-delete-draft-only-action",
     "page": "monthly-status",
-    "description": "已送審或已確認的人員刪除：舊版 deleteMonthlyStatusRecord 只要是管理員或該門市店長、門市未確認就可刪（不看列狀態）；新版只有草稿可刪，已送審與已確認 API 回 409 並說明需先退回。刪除另需 monthly.status.edit 且被指派該門市（管理員除外），舊版只認 profiles.role=admin 或店長指派。",
-    "reason": "M1 規格 W01a-q1（使用者 2026-11-02 確認）。規則集中於 lib/workspace/monthly-status-rules.ts。",
-    "approvedBy": null,
+    "description": "已送審或已確認的人員刪除：舊版 deleteMonthlyStatusRecord 只要是管理員或該門市店長、門市未確認就可刪（不看列狀態）；新版授權同舊版（管理員或該門市店長，不另看 monthly.status.edit），但只有草稿可刪，已送審與已確認 API 回 409 並說明需先退回。畫面上「刪除」按鈕照舊版，門市未確認時每列都顯示，非草稿按下後顯示 409 說明。",
+    "reason": "M1 規格 W01a-q1，使用者 2026-11-04 選擇接受（保留只有草稿可刪）；按鈕可見性照舊版（修正規格 B.2）。規則集中於 lib/workspace/monthly-status-rules.ts。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "write-readback",
       "entry": "delete-submitted",
       "kind": "changed",
       "key": "exists"
-    }
-  },
-  {
-    "id": "w01a-delete-draft-only-button",
-    "page": "monthly-status",
-    "description": "名冊「刪除」按鈕：舊版門市未確認（含已送審）每列都有；新版只在草稿且有權限時顯示。",
-    "reason": "M1 規格 W01a-q1。與上一筆同一決定，這筆是畫面可見性的差異。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "roster-submitted",
-      "kind": "changed",
-      "key": "canDelete"
-    }
-  },
-  {
-    "id": "w01a-edit-button-draft-only",
-    "page": "monthly-status",
-    "description": "名冊列操作：舊版門市未確認（含已送審）顯示「編輯」；新版只有草稿且有編輯權限才顯示「編輯出勤」，其餘為「查看明細」。",
-    "reason": "新版已送審整月鎖定（既有行為、M1-x1 規則表：已送審不可編輯），與舊版已送審仍可編輯不同。需使用者確認是否接受。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "roster-submitted",
-      "kind": "changed",
-      "key": "canEdit"
     }
   },
   {
@@ -163,9 +137,9 @@
   {
     "id": "w01a-staff-details-requires-view-performance",
     "page": "monthly-status",
-    "description": "各門市業績明細 API：舊 /api/staff-performance-details 只檢查登入（任何登入者可讀任何人員的業績明細）；新版需 monthly.status.view_performance 且該門市在可見範圍內，否則 403。畫面上舊版本來就只對 canViewPerformance 顯示展開。",
-    "reason": "舊 API 無權限與範圍檢查，屬資料外洩風險；新版收緊。需使用者確認。",
-    "approvedBy": null,
+    "description": "各門市業績明細 API：舊 /api/staff-performance-details 只檢查登入（任何登入者可讀任何人員的業績明細，不看門市）；新版畫面照舊版（看得到名冊業績的人都能展開），伺服器只多保留一項檢查：該門市必須在本人可見範圍內，否則 403（例如沒有任何可見門市的 monthly_edit 帳號）。已不再要求 monthly.status.view_performance。",
+    "reason": "修正規格 B.3（使用者 2026-11-04 核可）：伺服器保留必須登入且門市在本人可見範圍內。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "entry": "staff-details",
@@ -196,18 +170,6 @@
     "match": {
       "mechanism": "api-read",
       "entry": "submit-gate",
-      "kind": "status"
-    }
-  },
-  {
-    "id": "w01a-movement-history-roster-only",
-    "page": "monthly-status",
-    "description": "異動歷程視窗：舊版在前端直接查 employee_movement_history（任何員編）；新版 API 只允許查『該門市本月名冊上的人員』，欄位也只回需要顯示的部分，且只回該門市的異動紀錄（舊版回全部門市）。",
-    "reason": "最小揭露，避免以此 API 查詢任意員工。需使用者確認。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "api-read",
-      "entry": "movement-history",
       "kind": "status"
     }
   },
@@ -245,32 +207,6 @@
       "mechanism": "api-read",
       "entry": "state-gate",
       "kind": "status"
-    }
-  },
-  {
-    "id": "w01a-edit-button-requires-edit-permission",
-    "page": "monthly-status",
-    "description": "草稿名冊的「編輯」按鈕：舊版只要門市未確認，任何看得到頁面的人（含只有檢視／確認權限的店長、督導）每列都顯示「編輯」；新版需 monthly.status.edit（且為有效門市）才顯示「編輯出勤」，否則為「查看明細」。",
-    "reason": "新版依 RBAC 權限碼控制（既有行為）。與舊版不同，需使用者確認是否接受。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "roster-draft",
-      "kind": "changed",
-      "key": "canEdit"
-    }
-  },
-  {
-    "id": "w01a-delete-button-requires-edit-permission",
-    "page": "monthly-status",
-    "description": "草稿名冊的「刪除」按鈕：舊版未確認時每列都顯示；新版需 monthly.status.edit 且被指派該門市（管理員除外）才顯示。",
-    "reason": "M1 規格 W01a-q1：刪除需 monthly.status.edit 且被指派該門市。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "roster-draft",
-      "kind": "changed",
-      "key": "canDelete"
     }
   },
   {

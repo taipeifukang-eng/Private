@@ -76,9 +76,8 @@ export async function GET(request: Request) {
     const stores = allStores.filter((s: any) => s.is_active !== false);
     const op = p.get("op");
     if (op === "staffDetails") {
-      // 舊版 /api/staff-performance-details：展開列的各門市業績明細（需 view_performance）。
-      if (!ctx.has("monthly.status.view_performance"))
-        throw new WorkspaceError(403, "沒有此操作權限");
+      // 舊版 /api/staff-performance-details：展開列的各門市業績明細。
+      // 規格 B.3：畫面照舊版（看得到名冊業績的人都能展開）；伺服器只保留登入與門市可見範圍檢查。
       const id = p.get("id") || "";
       if (!/^[0-9a-f-]{36}$/i.test(id))
         throw new WorkspaceError(400, "缺少員工狀態ID");
@@ -122,30 +121,17 @@ export async function GET(request: Request) {
     const month = monthValue(p.get("month"));
     const store = p.get("store") || stores[0]?.id || allStores[0]?.id;
     if (op === "movements") {
-      // 舊版點員工姓名開啟的異動歷程；只能查「該門市本月名冊」上的人員，且只回該門市的異動（不跨店、不外洩他店 notes）。
+      // 舊版點員工姓名開啟的異動歷程（規格 B.4）：可查任何員編、顯示所有門市的異動；
+      // 伺服器只保留登入檢查，並以使用者身分查詢（ctx.auth，受 RLS 限制），不用 service role 擴權。
       const code = p.get("employee_code") || "";
       if (!code || code.length > 50)
         throw new WorkspaceError(400, "缺少員工代號");
-      if (!store || !allStores.some((s: any) => s.id === store))
-        throw new WorkspaceError(403, "沒有此門市操作權限");
-      const onRoster = checked(
-        await ctx.auth
-          .from("monthly_staff_status")
-          .select("id")
-          .eq("store_id", store)
-          .eq("year_month", month)
-          .eq("employee_code", code)
-          .limit(1),
-      );
-      if (!onRoster?.length) throw new WorkspaceError(404, "本月名冊沒有此人員");
       const movements = checked(
         await ctx.auth
           .from("employee_movement_history")
-          .select(
-            "id,movement_type,movement_date,old_value,new_value,notes,stores:store_id(store_name)",
-          )
+          .select("*,stores:store_id(store_name)")
           .eq("employee_code", code)
-          .eq("store_id", store)
+          .not("store_id", "is", null)
           .order("movement_date", { ascending: false }),
       );
       return respond({ movements: movements || [] });
@@ -229,11 +215,8 @@ export async function GET(request: Request) {
       canUnconfirm: ctx.has("monthly.status.unconfirm"),
       canViewStats: !!stats,
       canViewPerformance,
-      // 刪除（W01a-q1）：需 monthly.status.edit 且被指派該門市（管理員除外）；是否可刪仍依各列狀態（只有草稿）。
-      canDelete:
-        storeActive &&
-        ctx.has("monthly.status.edit") &&
-        (ctx.isAdmin || (await isAssigned(ctx, store))),
+      // 刪除（規格 B.2）：管理員或該門市店長；實際只有草稿可刪（已送審回 409 需先退回）。
+      canDelete: storeActive && (ctx.isAdmin || (await isAssigned(ctx, store))),
     });
   } catch (e) {
     return failed(e);
@@ -254,13 +237,17 @@ export async function POST(request: Request) {
     if (elevated[body.action]) {
       if (!ctx.has(elevated[body.action]))
         throw new WorkspaceError(403, "沒有此操作權限");
+    } else if (body.action === "delete") {
+      // 規格 B.2：照舊版 deleteMonthlyStatusRecord，只認管理員或該門市店長，不另看 monthly.status.edit。
+      if (!ctx.isAdmin && !(await isAssigned(ctx, body.store)))
+        throw new WorkspaceError(403, "您沒有權限刪除此記錄");
     } else {
       if (!ctx.has(body.action === "submit" ? "monthly.status.submit" : "monthly.status.edit")) throw new WorkspaceError(403, "沒有此操作權限");
       if (!ctx.isAdmin && !(await isAssigned(ctx, body.store)))
         throw new WorkspaceError(403, "只有指派人員可編輯此門市");
     }
     if (body.action === "delete") {
-      // W01a-q1：只有草稿可刪（規則表 M1-x1）；已送審、已確認一律 409，需先退回。
+      // 規格 B.2：只有草稿可刪（規則表 M1-x1，使用者接受）；已送審、已確認一律 409，需先退回。
       if (typeof body.id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.id))
         throw new WorkspaceError(400, "缺少人員資料");
       const target = checked(

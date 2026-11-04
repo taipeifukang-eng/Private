@@ -76,8 +76,8 @@ for (const account of accounts) {
         expect(body.canConfirm).toBe(has(account, 'monthly.status.confirm'));
         expect(body.canRevert).toBe(has(account, 'monthly.status.revert'));
         expect(body.canUnconfirm).toBe(has(account, 'monthly.status.unconfirm'));
-        // 刪除：需 edit 且被指派（管理員除外），其餘一律 false
-        if (!has(account, 'monthly.status.edit')) expect(body.canDelete).toBe(false);
+        // 刪除（規格 B.2）：照舊版只認管理員或該門市店長，不看 monthly.status.edit
+        expect(typeof body.canDelete).toBe('boolean');
       }
     } finally {
       await api.dispose();
@@ -234,7 +234,7 @@ test.describe('W01a 流程（ZT 測試門市 + 2099-01）', () => {
     expect((await res.json()).error).toContain('退回');
     const { body } = await readMonth(admin, zt01, MONTH);
     expect(body.records.some((r: any) => r.id === ids.normal)).toBe(true);
-    // 已送審時 API 的 canDelete 仍是權限層級的 true，但畫面依列狀態隱藏；列狀態由 status 決定
+    // 規格 B.2：畫面照舊版，門市未確認時每列都有刪除按鈕；非草稿按下後由 API 回 409 並說明需先退回
     expect(body.records.find((r: any) => r.id === ids.normal).status).toBe('submitted');
   });
 
@@ -260,12 +260,14 @@ test.describe('W01a 流程（ZT 測試門市 + 2099-01）', () => {
     expect(body.records).toHaveLength(2);
   });
 
-  test('刪除需 monthly.status.edit 且被指派該門市：無編輯權限或未指派一律 403', async () => {
+  test('刪除只認管理員或該門市店長（規格 B.2，不看 monthly.status.edit）：其他帳號 403', async () => {
     for (const key of ['store_manager', 'ops_manager', 'monthly_view', 'monthly_edit', 'ops_assistant', 'supervisor']) {
       const api = await apiAs(key);
       try {
-        const res = await api.post('/api/workspace/monthly', { data: { action: 'delete', store: zt01, month: MONTH, id: ids.part } });
-        expect(res.status(), key).toBe(403);
+        // store_manager、supervisor 在 DEV 被指派 ZT01（舊版店長可刪），用不存在的 id 驗證授權通過（404）而不真的刪除；其他帳號 403
+        const assigned = key === 'store_manager' || key === 'supervisor';
+        const res = await api.post('/api/workspace/monthly', { data: { action: 'delete', store: zt01, month: MONTH, id: assigned ? MISSING_ID : ids.part } });
+        expect(res.status(), key).toBe(assigned ? 404 : 403);
       } finally {
         await api.dispose();
       }
@@ -293,7 +295,7 @@ test.describe('W01a 流程（ZT 測試門市 + 2099-01）', () => {
   });
 
   test('各門市業績明細與異動歷程的授權', async () => {
-    // 沒有 view_performance 的帳號：403
+    // 規格 B.3：不再要求 view_performance；伺服器只保留登入與門市可見範圍（monthly_edit 沒有可見門市 -> 403）
     const noPerf = await apiAs('monthly_edit');
     try {
       expect((await noPerf.get('/api/workspace/monthly', { params: { op: 'staffDetails', id: ids.part } })).status()).toBe(403);
@@ -307,17 +309,19 @@ test.describe('W01a 流程（ZT 測試門市 + 2099-01）', () => {
     expect(details.status()).toBe(200);
     expect((await details.json()).details).toEqual([]);
 
-    // 異動歷程：缺員編 400、不在本月名冊 404、在名冊回陣列
+    // 異動歷程（規格 B.4）：缺員編 400；可查任何員編（不限本月名冊、不限門市），沒有紀錄回空陣列
     expect((await admin.get('/api/workspace/monthly', { params: { op: 'movements', month: MONTH, store: zt01 } })).status()).toBe(400);
-    expect((await admin.get('/api/workspace/monthly', { params: { op: 'movements', month: MONTH, store: zt01, employee_code: 'ZTNOBODY' } })).status()).toBe(404);
+    const nobody = await admin.get('/api/workspace/monthly', { params: { op: 'movements', month: MONTH, store: zt01, employee_code: 'ZTNOBODY' } });
+    expect(nobody.status()).toBe(200);
+    expect((await nobody.json()).movements).toEqual([]);
     const { body } = await readMonth(admin, zt01, MONTH);
     const code = body.records.find((r: any) => r.id === ids.part).employee_code;
     const mv = await admin.get('/api/workspace/monthly', { params: { op: 'movements', month: MONTH, store: zt01, employee_code: code } });
     expect(mv.status()).toBe(200);
     expect(Array.isArray((await mv.json()).movements)).toBe(true);
-    // 其他門市的人員不能用本店名義查
+    // 其他門市的人員也可查（照舊版，不縮小到本店）
     const other = (await readMonth(admin, zt02, MONTH)).body.records[0].employee_code;
-    expect((await admin.get('/api/workspace/monthly', { params: { op: 'movements', month: MONTH, store: zt01, employee_code: other } })).status()).toBe(404);
+    expect((await admin.get('/api/workspace/monthly', { params: { op: 'movements', month: MONTH, store: zt01, employee_code: other } })).status()).toBe(200);
   });
 
   test('停用門市：可唯讀查看歷史，不可寫入', async () => {
