@@ -1,5 +1,5 @@
 {
-  "count": 26,
+  "count": 25,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -155,13 +155,9 @@
       "navLabel": "業績管理",
       "tabTitle": "業績管理",
       "headings": [
-        "業績管理",
-        "獎金閾值設定（每人）",
-        "月獎金閾值",
-        "季獎金閾值",
-        "逐月業績明細"
+        "業績管理"
       ],
-      "hasTable": true,
+      "hasTable": false,
       "hasForm": true,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
@@ -227,22 +223,6 @@
       ],
       "hasTable": false,
       "hasForm": true,
-      "hasErrorNotice": false,
-      "allowedNoticeShown": false
-    },
-    {
-      "navLabel": "每月版更內容",
-      "tabTitle": "每月版更內容",
-      "headings": [
-        "每月版更內容",
-        "月份清單",
-        "2026年3月 系統版更公告",
-        "一、本月重點更新（精簡）",
-        "二、對使用者的主要影響",
-        "三、提醒事項"
-      ],
-      "hasTable": false,
-      "hasForm": false,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },
