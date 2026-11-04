@@ -35,9 +35,11 @@ export async function GET(req: NextRequest) {
     .single();
 
   const isLocked = !!lockData;
+  // 工作台對沒有 master.view 的帳號加上 readonly=1：只讀回傳，不觸發寫入型同步。
+  const readOnly = req.nextUrl.searchParams.get('readonly') === '1';
 
   // 2. 如果未關帳，判斷是否有新增人事異動再決定是否重跑同步
-  if (!isLocked) {
+  if (!isLocked && !readOnly) {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year}-12-31`;
     const todayStr = new Date().toISOString().slice(0, 10);

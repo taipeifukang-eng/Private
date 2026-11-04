@@ -44,12 +44,16 @@ function formatMovementDateYMD(value: string | null | undefined): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
 }
 
-export async function pharmacistOverview(searchParams: {
-  year_month?: string;
-  zone?: string;
-  debug?: string;
-  tab?: string;
-}) {
+export async function pharmacistOverview(
+  searchParams: {
+    year_month?: string;
+    zone?: string;
+    debug?: string;
+    tab?: string;
+  },
+  // 規格 F1：Debug 內部資料只有管理員能拿到（舊版任何人帶 ?debug=1 都看得到）。
+  options: { isAdmin?: boolean } = {},
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -1203,6 +1207,7 @@ export async function pharmacistOverview(searchParams: {
     lockedMonths,
     isLocked: isSelectedMonthLocked,
     yearMonth: selectedYearMonth,
+    debug: isDebug && options.isAdmin ? debugPayload : undefined,
     capabilities: {
       edit: canEditModule,
       addMonthly: canEditModule || canViewAllMonthly,

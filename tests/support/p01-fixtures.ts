@@ -139,8 +139,8 @@ export const PURCHASE_TITLE = '員工購物管理';
 
 export const panel = (page: Page) => page.locator('section.work-page:visible');
 
-export async function openNativePage(page: Page, title: string) {
-  await page.goto('/workspace/index.html', { waitUntil: 'networkidle' });
+export async function openNativePage(page: Page, title: string, query = '') {
+  await page.goto('/workspace/index.html' + query, { waitUntil: 'networkidle' });
   await page.waitForSelector('.menu-toggle');
   await page.click('.menu-toggle');
   await page.locator(`.workspace-menu button.catalog-item[title="${title}"]`).click();

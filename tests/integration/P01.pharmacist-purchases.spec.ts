@@ -262,7 +262,7 @@ test.describe('藥師管理：權限矩陣', () => {
     }
   });
 
-  test('只有 view（無門市範圍）：總覽 200 但沒有門市；月份格式錯誤 400；沒有主檔權限的 action 都 403', async () => {
+  test('只有 view（無門市範圍）：總覽 200 但沒有門市；月份格式錯誤 400；主檔只讀 200；其他主檔 action 沒有權限 403', async () => {
     const api = await as('pharmacist');
     const ok = await api.post(`${PHARM}/overview`, { params: { year_month: '2026-10' } });
     expect(ok.status()).toBe(200);
@@ -275,8 +275,9 @@ test.describe('藥師管理：權限矩陣', () => {
       expect((await res.json()).error).toBe('月份格式不正確');
     }
     const master = await api.post(`${PHARM}/master`, { params: { year: '2026' } });
-    expect(master.status()).toBe(403);
-    expect((await master.json()).error).toBe('沒有藥師主檔查看權限');
+    // 規格 F3：只有 management.view 也拿得到主檔內容（同舊版），但伺服器不觸發寫入型同步（只讀回傳）。
+    expect(master.status()).toBe(200);
+    expect(Array.isArray((await master.json()).data)).toBe(true);
     for (const action of ['profiles', 'annual-lock', 'annual-manual']) {
       const res = await api.get(`${PHARM}/${action}`, { params: { year: '2026' } });
       expect(res.status(), action).toBe(403);

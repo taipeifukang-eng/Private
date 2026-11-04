@@ -23,7 +23,6 @@ const section = ref("overview"),
   message = ref(""),
   search = ref(""),
   status = ref("active"),
-  page = ref(1),
   modal = ref(""),
   target = ref<any>(null),
   form = ref<any>({}),
@@ -108,16 +107,22 @@ const masterRows = computed(() =>
         a.employee_code.localeCompare(b.employee_code),
     ),
 );
-const pages = computed(() =>
-    Math.max(1, Math.ceil(masterRows.value.length / 50)),
-  ),
-  visible = computed(() =>
-    masterRows.value.slice(
-      (Math.min(page.value, pages.value) - 1) * 50,
-      Math.min(page.value, pages.value) * 50,
-    ),
-  );
-watch([search, status], () => (page.value = 1));
+// 規格 F2：主檔不分頁（照舊版一次列出全部符合的藥師）。
+const visible = masterRows;
+// 規格 F2：狀態篩選字樣照舊版「在職／已離職／留停／全部」。
+const statusFilterLabels: Record<string, string> = {
+  active: "在職",
+  resigned: "已離職",
+  suspended: "留停",
+};
+// 規格 F1：?debug=1 時顯示 Debug 面板（伺服器只對管理員回傳內部資料）。
+const debugMode = (() => {
+  try {
+    return new URLSearchParams(window.location.search).get("debug") === "1";
+  } catch {
+    return false;
+  }
+})();
 const dirty = computed(
   () =>
     !!modal.value &&
@@ -152,7 +157,11 @@ async function loadOverview() {
   try {
     overview.value = await api(
       "pharmacists/overview?" +
-        new URLSearchParams({ year_month: month.value, zone: zone.value }),
+        new URLSearchParams({
+          year_month: month.value,
+          zone: zone.value,
+          ...(debugMode ? { debug: "1" } : {}),
+        }),
       { method: "POST" },
     );
     props.tab.month = overview.value.yearMonth;
@@ -170,7 +179,6 @@ async function loadMaster() {
     master.value = await api("pharmacists/master?year=" + year.value, {
       method: "POST",
     });
-    page.value = 1;
   } catch (e: any) {
     error.value = e.message;
   } finally {
@@ -472,6 +480,14 @@ onMounted(loadOverview);
           {{ String(monthLock.locked_at).slice(0, 10) }}</small
         >
       </form>
+      <div
+        v-if="debugMode && overview?.debug"
+        class="notice error"
+        data-debug-panel
+      >
+        <strong>Debug 資訊（server-side）</strong>
+        <pre style="max-height: 20rem; overflow: auto; white-space: pre-wrap; word-break: break-all">{{ JSON.stringify(overview.debug, null, 2) }}</pre>
+      </div>
       <p v-if="overview && !caps.edit" class="notice" data-view-only>
         目前為檢視模式（僅可查看，無法編輯）。
       </p>
@@ -563,7 +579,7 @@ onMounted(loadOverview);
         ><label
           >狀態<select v-model="status">
             <option value="">全部</option>
-            <option v-for="(v, k) in states" :value="k" :key="k">
+            <option v-for="(v, k) in statusFilterLabels" :value="k" :key="k">
               {{ v }}
             </option>
           </select></label
@@ -653,11 +669,6 @@ onMounted(loadOverview);
           </tbody>
         </table>
       </div>
-      <footer class="pager">
-        <span>第 {{ Math.min(page, pages) }} / {{ pages }} 頁</span
-        ><button :disabled="page <= 1" @click="page--">上一頁</button
-        ><button :disabled="page >= pages" @click="page++">下一頁</button>
-      </footer>
       <p class="muted" data-master-legend>
         執照更新日顯示紅色代表已逾期。畢業學校、學歷、負責藥師、執照更新日可點「編輯」修改後儲存。
         點「查看／登記會費」可查看或新增該藥師的常年會費申請記錄。常年會費按鈕為實色代表目前規則判定為已具備有效紀錄。手動新增的人員會在姓名下方顯示「手動新增」。

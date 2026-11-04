@@ -194,7 +194,7 @@ test('存取對等：無權限帳號舊頁被導走（伺服器端重新導向�
   }
 });
 
-test('提示與標頭對等：檢視模式提示、督導區門市數／藥師數、說明文字、空範圍訊息；Debug 面板只有舊版有', async ({ browser }, testInfo) => {
+test('提示與標頭對等：檢視模式提示、督導區門市數／藥師數、說明文字、空範圍訊息；Debug 面板（?debug=1，管理員）', async ({ browser }, testInfo) => {
   test.setTimeout(240_000);
   const diffs: Diff[] = [];
   // 1) 管理者：督導區卡片標頭與說明文字（會觸發真實門市同步：需核可）
@@ -210,7 +210,7 @@ test('提示與標頭對等：檢視模式提示、督導區門市數／藥師�
     const native = await admin.newPage();
     await native.setViewportSize((testInfo.project.use as any).viewport);
     const errors = collectErrors(native);
-    await openNativePage(native, PHARMACIST_TITLE);
+    await openNativePage(native, PHARMACIST_TITLE, '?debug=1');
     const p = panel(native);
     await p.getByLabel('月份').fill(YM);
     await p.getByRole('button', { name: '查詢總覽' }).click();
@@ -221,7 +221,7 @@ test('提示與標頭對等：檢視模式提示、督導區門市數／藥師�
     if (norm(legacyTotals) !== norm(nativeTotals)) diffs.push({ kind: 'changed', key: 'zone-totals', legacy: legacyTotals, native: nativeTotals });
     if (norm(legacyHint) !== norm(nativeHint)) diffs.push({ kind: 'changed', key: 'overview-hint', legacy: legacyHint, native: nativeHint });
     // 舊版 ?debug=1 的 Debug 面板，新版沒有
-    if (legacyDebug && (await native.getByText('Debug 資訊').count()) === 0) diffs.push({ kind: 'only-legacy', key: 'debug-panel', detail: '舊版 ?debug=1 會顯示 Debug 資訊面板' });
+    if (legacyDebug && (await native.getByText('Debug 資訊（server-side）').count()) === 0) diffs.push({ kind: 'only-legacy', key: 'debug-panel', detail: '舊版 ?debug=1 會顯示 Debug 資訊面板' });
     expect(errors, errors.join('\n')).toEqual([]);
     expect(legacyTotals).toMatch(/門市數：\d+/);
     expect(legacyDebug, '舊版 debug 面板存在').toBe(true);
@@ -350,9 +350,8 @@ test('主檔畫面對等 pharmacist_view：執照更新日顯示與逾期紅字�
     await expect(p.getByRole('columnheader', { name: '執照更新日' })).toBeVisible({ timeout: 60_000 });
     await expect(p.locator('tbody tr').first()).toBeVisible({ timeout: 60_000 });
     const nativeRows: LicenseRow[] = [];
-    let pages = 0;
-    for (;;) {
-      pages += 1;
+    {
+      // 規格 F2：主檔不分頁，一次列出全部。
       nativeRows.push(
         ...(await p.evaluate((root) => {
           const t = (el: Element | null | undefined) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -367,12 +366,9 @@ test('主檔畫面對等 pharmacist_view：執照更新日顯示與逾期紅字�
             });
         })),
       );
-      const next = p.getByRole('button', { name: '下一頁' });
-      if (await next.isDisabled()) break;
-      await next.click();
     }
     const nativeHeads = await p.locator('thead th').allTextContents();
-    const nativePager = pages > 1 || (await p.getByRole('button', { name: '下一頁' }).count()) > 0;
+    const nativePager = (await p.getByRole('button', { name: '下一頁' }).count()) > 0;
 
     const legacyRows = l.rows.filter((r) => r.code && r.code !== '-');
     const nativeComparable = nativeRows.filter((r) => r.code && r.code !== '手動新增');
@@ -404,7 +400,7 @@ test('主檔畫面對等 pharmacist_view：執照更新日顯示與逾期紅字�
     const vueSrc = fs.readFileSync(path.join(ROOT, 'vue-workspace/src/pages/Pharmacists.vue'), 'utf8');
     if (!legacyFee.includes('編輯') && vueSrc.includes('編輯備註／證明')) layout.push({ kind: 'only-native', key: 'fee-edit', detail: '年費視窗新增「編輯備註／證明」與列表／表單兩步' });
     if (legacyMaster.includes('記錄') && vueSrc.includes('查看／登記會費') && vueSrc.includes('手動新增')) layout.push({ kind: 'changed', key: 'wording', detail: '年費按鈕「記錄」→「查看／登記會費」、手動標籤、負責藥師否、離職篩選呈現' });
-    if (nativePager) layout.push({ kind: 'only-native', key: 'master-pagination', detail: '新版主檔每頁 50 筆分頁；舊版一次列出全部' });
+    if (nativePager) layout.push({ kind: 'only-native', key: 'master-pagination', detail: '新版主檔有分頁；舊版一次列出全部' });
     const nativeFilter = await p.getByLabel('狀態').locator('option').allTextContents();
     if (!l.filters.every((f) => nativeFilter.includes(f))) layout.push({ kind: 'changed', key: 'master-status-filter-label', legacy: l.filters.join('／'), native: nativeFilter.join('／') });
     assertNoUnlistedDiffs(

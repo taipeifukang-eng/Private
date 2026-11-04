@@ -493,18 +493,6 @@
     }
   },
   {
-    "id": "nav-monthly-release-native",
-    "page": "navigation",
-    "description": "新版全站功能選單「每月人員狀態」群組新增「每月版更內容」，所有登入帳號都看得到；舊版 Navbar 沒有這個入口（舊版只在首頁有卡片連結）。",
-    "reason": "M1 W04：版更說明頁登入即可看，新版先放進導覽選單方便找到；首頁入口由 W12 補。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "navigation",
-      "kind": "only-native",
-      "key": "/monthly-release"
-    }
-  },
-  {
     "id": "w04-no-back-home-link",
     "page": "monthly-release",
     "description": "舊版頁首右側有「返回首頁」連結；新版是工作台頁籤，沒有此連結（頁籤列與選單即為返回方式）。",
@@ -607,34 +595,6 @@
     }
   },
   {
-    "id": "p01-pharmacist-debug-panel",
-    "page": "pharmacists",
-    "description": "舊版 ?debug=1 會在總覽頁顯示「Debug 資訊（server-side）」面板（使用者 ID、門市範圍、督導區對應等內部資料）；新版沒有。",
-    "reason": "盤點文件已註明 Debug 面板可不復刻，且面板會露出內部識別碼。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "overview-ui-text",
-      "key": "debug-panel",
-      "kind": "only-legacy"
-    }
-  },
-  {
-    "id": "p01-pharmacist-master-view-stricter",
-    "page": "pharmacists",
-    "description": "藥師主檔 API：舊 /api/pharmacist-annual-master/sync 只檢查 pharmacist.management.view（只有 view、沒有 master.view 的帳號呼叫會回 200 並同步主檔，舊版只是在畫面上藏起「藥師主檔」分頁）；新版 workspace master 對沒有 pharmacist.management.master.view 的帳號回 403「沒有藥師主檔查看權限」。",
-    "reason": "新版比舊版嚴格，符合分頁權限的本意（盤點文件的權限矩陣）。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "api-read",
-      "entry": "master-api",
-      "kind": "status",
-      "roles": [
-        "pharmacist"
-      ]
-    }
-  },
-  {
     "id": "p01-pharmacist-master-columns",
     "page": "pharmacists",
     "description": "藥師主檔欄位排版：舊版 10 欄（員編、姓名、狀態、現職職級、到職日／年資、畢業學校、學歷、負責藥師、執照更新日、常年會費，編輯權限者多「操作」）；新版 9 欄（員編／姓名合併、門市／職稱、狀態、到職日／年資、畢業學校／學歷…），新版多顯示門市。資料內容相同。",
@@ -644,32 +604,6 @@
       "mechanism": "ui-extract",
       "entry": "master-layout",
       "key": "master-columns",
-      "kind": "changed"
-    }
-  },
-  {
-    "id": "p01-pharmacist-master-pagination",
-    "page": "pharmacists",
-    "description": "藥師主檔分頁：新版每頁 50 筆；舊版一次列出全部符合的藥師。",
-    "reason": "盤點文件已確認為新版增強並保留。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "master-layout",
-      "key": "master-pagination",
-      "kind": "only-native"
-    }
-  },
-  {
-    "id": "p01-pharmacist-master-status-label",
-    "page": "pharmacists",
-    "description": "藥師主檔狀態篩選字樣：舊版按鈕為「在職／已離職／留停／全部」，新版下拉為「在職／離職／留停／全部」。",
-    "reason": "字樣差異，篩選結果相同。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "master-layout",
-      "key": "master-status-filter-label",
       "kind": "changed"
     }
   },

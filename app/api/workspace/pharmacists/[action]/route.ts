@@ -43,10 +43,22 @@ async function run(r: NextRequest, key: string, method: string) {
         await pharmacistOverview({
           year_month: month,
           zone: r.nextUrl.searchParams.get("zone") || "all",
-        }),
+          debug: r.nextUrl.searchParams.get("debug") || undefined,
+        }, { isAdmin: ctx.isAdmin }),
       );
     }
-    if (["master", "annual-manual", "annual-lock", "profiles"].includes(key)) {
+    let request = r;
+    if (key === "master") {
+      // 規格 F3：只有 management.view（沒有 master.view）的帳號與舊版一樣拿得到主檔內容，
+      // 但不觸發寫入型同步，改為只讀回傳。
+      if (
+        !(await hasPermission(ctx.user.id, "pharmacist.management.master.view"))
+      ) {
+        const url = new URL(r.url);
+        url.searchParams.set("readonly", "1");
+        request = new NextRequest(url, r);
+      }
+    } else if (["annual-manual", "annual-lock", "profiles"].includes(key)) {
       if (
         !(await hasPermission(ctx.user.id, "pharmacist.management.master.view"))
       )
@@ -69,7 +81,7 @@ async function run(r: NextRequest, key: string, method: string) {
     if (key === "master" && method !== "POST")
       throw new WorkspaceError(405, "請使用同步查詢");
     if (!handlers[key]?.[action]) throw new WorkspaceError(404, "找不到此操作");
-    return await handlers[key][action](r);
+    return await handlers[key][action](request);
   } catch (e) {
     return failed(e);
   }
