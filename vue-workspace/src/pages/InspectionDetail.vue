@@ -6,7 +6,7 @@ const preview = ref("");
 const deleteConfirm = ref(false),
   deleted = ref(false);
 import { api } from "../api";
-import { formatTaipeiDateTime } from "../taipei-time";
+import { formatTaipeiDate, formatTaipeiDateTime } from "../taipei-time";
 import { useWorkspace, useSession, type WorkTab } from "../stores";
 const work = useWorkspace(),
   session = useSession();
@@ -30,7 +30,7 @@ async function load() {
     const result = await api(`inspection-detail?id=${props.tab.recordId}`);
     if (deleted.value) return;
     data.value = result;
-    props.tab.title = `巡店明細 · ${data.value.store?.store_name || ""}`;
+    props.tab.title = `巡店明細 · ${data.value.store?.short_name || data.value.store?.store_name || ""}`;
   } catch (e) {
     data.value = null;
     error.value = (e as Error).message;
@@ -123,8 +123,8 @@ onMounted(() => {
     :busy="tab.busy"
     @cancel="deleteConfirm = false"
     ><p>
-      確定刪除 {{ data.store?.store_name }} 在
-      {{ data.record.inspection_date }} 的巡店？
+      確定刪除 {{ data.store?.short_name || data.store?.store_name }} 在
+      {{ formatTaipeiDate(data.record.gps_timestamp || data.record.inspection_date) || data.record.inspection_date }} 的巡店？
     </p>
     <p>
       將一併刪除 {{ data.results.length }} 筆檢查明細、{{

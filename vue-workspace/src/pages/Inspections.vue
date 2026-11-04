@@ -2,6 +2,7 @@
 import { onMounted, ref, watch, computed } from "vue";
 import { api, type Store } from "../api";
 import { useSession, useWorkspace, type WorkTab } from "../stores";
+import { formatTaipeiDate } from "../taipei-time";
 import InspectionOverview from "../components/InspectionOverview.vue";
 const props = defineProps<{ tab: WorkTab }>();
 const session = useSession(),
@@ -157,7 +158,7 @@ const status: Record<string, string> = {
       >門市<select v-model="tab.store">
         <option value="">全部可查看門市</option>
         <option v-for="s in stores" :key="s.id" :value="s.id">
-          {{ s.store_code }} {{ s.store_name }}
+          {{ s.store_code }} {{ s.short_name || s.store_name }}
         </option>
       </select></label
     >
@@ -212,9 +213,9 @@ const status: Record<string, string> = {
         </thead>
         <tbody>
           <tr v-for="row in records" :key="row.id">
-            <td>{{ row.inspection_date }}</td>
+            <td>{{ formatTaipeiDate(row.inspection_date) || row.inspection_date }}</td>
             <td>
-              <strong>{{ row.store?.store_name || "未提供門市名稱" }}</strong
+              <strong>{{ row.store?.short_name || row.store?.store_name || "未提供門市名稱" }}</strong
               ><small>{{ row.store?.store_code }}</small>
             </td>
             <td>{{ row.inspector }}</td>

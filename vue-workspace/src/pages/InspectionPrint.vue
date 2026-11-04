@@ -28,7 +28,7 @@ async function load() {
   data.value = null;
   try {
     data.value = await api("inspection-detail?id=" + props.tab.recordId);
-    props.tab.title = "巡店報表 · " + data.value.store?.store_name;
+    props.tab.title = "巡店報表 · " + (data.value.store?.short_name || data.value.store?.store_name);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {

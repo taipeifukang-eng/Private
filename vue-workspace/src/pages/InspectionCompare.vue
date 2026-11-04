@@ -66,7 +66,8 @@ async function load() {
       "";
     props.tab.title =
       "巡店比較 · " +
-      (stores.value.find((s) => s.id === props.tab.store)?.store_name ||
+      (stores.value.find((s) => s.id === props.tab.store)?.short_name ||
+        stores.value.find((s) => s.id === props.tab.store)?.store_name ||
         "選擇門市");
   } catch (e) {
     if (current === sequence) error.value = (e as Error).message;
@@ -125,7 +126,7 @@ onMounted(load);
       >
         <option value="">選擇門市</option>
         <option v-for="s in stores" :key="s.id" :value="s.id">
-          {{ s.store_code }} {{ s.store_name }}
+          {{ s.store_code }} {{ s.short_name || s.store_name }}
         </option>
       </select></label
     >
