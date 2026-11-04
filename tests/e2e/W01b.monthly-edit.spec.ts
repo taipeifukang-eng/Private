@@ -106,12 +106,17 @@ test('新人編輯與區塊預覽：提醒取消即中止、不滿月不自動�
       await expect(panel.locator('[data-planned-hours]')).toHaveValue('128');
 
       // 儲存：跳出新人階段提醒，按「取消」中止儲存（照舊版 confirm），DB 不變、仍在編輯頁
+      const saveRequests: string[] = [];
+      page.on('request', (r) => {
+        if (/\/api\/workspace\/monthly(\/|\?|$)/.test(r.url()) && r.method() !== 'GET') saveRequests.push(`${r.method()} ${new URL(r.url()).pathname}`);
+      });
       await panel.getByRole('button', { name: '儲存出勤資料' }).click();
       const dialog = page.getByRole('dialog', { name: '新人階段提醒' });
       await expect(dialog).toContainText('此新人應該過一階段');
       await dialog.getByRole('button', { name: '取消', exact: true }).click();
       await expect(dialog).toHaveCount(0);
       await page.waitForTimeout(1500);
+      expect(saveRequests, '按取消後不得送出任何儲存請求').toEqual([]);
       let row = await dbRow(created.id);
       expect(row).toMatchObject({ newbie_level: '未過階新人', monthly_status: 'full_month' });
       expect(alerts).toEqual([]);
@@ -172,12 +177,17 @@ test('滿 6 個月提示應升為專員、行政階段必填、督導卡班清�
       await expect(notice.getByRole('button')).toHaveCount(0);
       await expect(panel.locator('[name=position]')).toHaveValue('新人');
       await panel.locator('[name=notes]').fill('E2E 滿六個月備註');
+      const saveRequests: string[] = [];
+      page.on('request', (r) => {
+        if (/\/api\/workspace\/monthly(\/|\?|$)/.test(r.url()) && r.method() !== 'GET') saveRequests.push(`${r.method()} ${new URL(r.url()).pathname}`);
+      });
       await panel.getByRole('button', { name: '儲存出勤資料' }).click();
       const dialog = page.getByRole('dialog', { name: '新人階段提醒' });
       await expect(dialog).toContainText('應升為專員，請加強員工訓練');
       await expect(dialog.getByRole('button', { name: '前往人員異動紀錄' })).toHaveCount(0);
       await dialog.getByRole('button', { name: '取消', exact: true }).click();
       await page.waitForTimeout(1500);
+      expect(saveRequests, '按取消後不得送出任何儲存請求').toEqual([]);
       expect((await dbRow(six.id)).notes).not.toBe('E2E 滿六個月備註');
       await panel.getByRole('button', { name: '儲存出勤資料' }).click();
       await page.getByRole('dialog', { name: '新人階段提醒' }).getByRole('button', { name: '確定', exact: true }).click();

@@ -65,6 +65,11 @@ function withBody(request: NextRequest, body: unknown) {
   return new NextRequest(request.url, { method: request.method, headers, body: JSON.stringify(body) });
 }
 
+/** 全部匯出資源共用的權限判斷（run 與 roster 預覽 GET 同一處，改權限只需改這裡）。 */
+function assertDownloadAccess(access: Awaited<ReturnType<typeof loadExportAccess>>) {
+  if (!access.general) throw new WorkspaceError(403, `沒有資料匯出權限（需要 ${MONTHLY_EXPORT_GENERAL_PERMISSION}）`);
+}
+
 async function run(request: NextRequest, { params }: Params, write: boolean) {
   try {
     if (write) checkOrigin(request);
@@ -78,7 +83,7 @@ async function run(request: NextRequest, { params }: Params, write: boolean) {
     }
 
     // 全部資源（含單品獎金、育才獎金、支援時數、門市清單）一律只看 monthly.export.download。
-    if (!access.general) throw new WorkspaceError(403, `沒有資料匯出權限（需要 ${MONTHLY_EXPORT_GENERAL_PERMISSION}）`);
+    assertDownloadAccess(access);
 
     if (resource === 'stores') {
       if (write) throw new WorkspaceError(405, '不支援此操作');
@@ -98,7 +103,7 @@ async function run(request: NextRequest, { params }: Params, write: boolean) {
     }
 
     if (!Object.prototype.hasOwnProperty.call(POSTS, resource)) throw new WorkspaceError(404, '找不到此匯出');
-        if (write) {
+    if (write) {
       let body: { year_month?: unknown; store_ids?: unknown } = {};
       try {
         body = await request.clone().json();
@@ -120,7 +125,7 @@ async function runGet(request: NextRequest, p: Params) {
   if (p.params.resource !== 'roster') return run(request, p, false);
   try {
     const ctx = await context();
-    if (!ctx.has(MONTHLY_EXPORT_GENERAL_PERMISSION)) throw new WorkspaceError(403, `沒有此匯出權限（需要 ${MONTHLY_EXPORT_GENERAL_PERMISSION}）`);
+    assertDownloadAccess(await loadExportAccess(ctx));
     const sp = request.nextUrl.searchParams;
     const raw = sp.get('store_ids');
     const ids = await guardStoreIds(ctx, sp.get('year_month'), raw === null ? undefined : raw.split(',').map((v) => v.trim()).filter(Boolean));

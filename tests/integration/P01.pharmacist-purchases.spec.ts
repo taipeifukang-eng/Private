@@ -284,6 +284,31 @@ test.describe('藥師管理：權限矩陣', () => {
     }
   });
 
+  test('規格 F1：非管理員帶 debug=1 呼叫 overview，回應不含 debug 內部資料', async () => {
+    const api = await as('pharmacist');
+    const res = await api.post(`${PHARM}/overview`, { params: { year_month: '2026-10', debug: '1' } });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.debug).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('"debug"');
+  });
+
+  test('規格 F3：沒有 master.view 的帳號呼叫 master 只讀回傳，不寫入同步紀錄或年度主檔', async () => {
+    const api = await as('pharmacist');
+    const YEAR = 2099;
+    const snap = async () => ({
+      log: await readRowsAsServiceRole('pharmacist_annual_master_sync_log', { eq: { year: YEAR } }),
+      master: await readRowsAsServiceRole('pharmacist_annual_master', { eq: { year: YEAR }, order: 'employee_code' }),
+    });
+    const before = await snap();
+    const res = await api.post(`${PHARM}/master`, { params: { year: String(YEAR) } });
+    expect(res.status()).toBe(200);
+    // 呼叫端自己帶 readonly=0 也不能讓沒有 master.view 的帳號觸發寫入（伺服器一律覆寫為 readonly=1）。
+    const res2 = await api.post(`${PHARM}/master`, { params: { year: String(YEAR), readonly: '0' } });
+    expect(res2.status()).toBe(200);
+    expect(await snap()).toEqual(before);
+  });
+
   test('主檔檢視者（master.view、無 edit）：GET master 405「請使用同步查詢」；主檔寫入 403（舊版 handler 的 Forbidden，需要 management.edit）', async () => {
     const api = await as('pharmacist_view');
     const get = await api.get(`${PHARM}/master`, { params: { year: '2026' } });

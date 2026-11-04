@@ -61,6 +61,18 @@ describe('白名單驗證與分類', () => {
     expect(listMaps()).toContain('navigation');
   });
 
+  it('正式 allowlist：未核可的條目只能是 decision=fix 或明列的待核可清單；已核可者的 reason 不得再寫「待使用者核可」', () => {
+    const STILL_PENDING = new Set(['p01-pharmacist-status-filter-control']); // 修正規格 F2 之外、本輪新增的控制型態差異
+    const list = loadAllowlist();
+    const unapproved = list.filter((e) => !e.approvedBy && e.decision !== 'fix' && !STILL_PENDING.has(e.id)).map((e) => e.id);
+    expect(unapproved, `這些條目沒有 approvedBy：${unapproved.join(', ')}`).toEqual([]);
+    const stale = list.filter((e) => e.approvedBy && /待使用者核可|待主迴圈/.test(e.reason)).map((e) => e.id);
+    expect(stale, `已核可但 reason 仍寫待核可：${stale.join(', ')}`).toEqual([]);
+    for (const id of ['inventory-view-implies-import-delete', 'nav-archived-feature-gate']) {
+      expect(list.find((e) => e.id === id)).toMatchObject({ decision: 'fix', approvedBy: null });
+    }
+  });
+
   it('每筆都有 id/page/description/reason/approvedBy 欄位', () => {
     const errors = validateAllowlist([{ id: 'a', page: 'p', description: 'd', reason: 'r' }, { id: 'a', page: 'p', description: '', reason: 'r', approvedBy: null }]);
     expect(errors.join('\n')).toContain('缺少 approvedBy');

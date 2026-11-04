@@ -109,11 +109,11 @@ const masterRows = computed(() =>
 );
 // 規格 F2：主檔不分頁（照舊版一次列出全部符合的藥師）。
 const visible = masterRows;
-// 規格 F2：狀態篩選字樣照舊版「在職／已離職／留停／全部」。
+// 規格 F2：狀態篩選順序與字樣照舊版「在職／留停／已離職／全部」。
 const statusFilterLabels: Record<string, string> = {
   active: "在職",
-  resigned: "已離職",
   suspended: "留停",
+  resigned: "已離職",
 };
 // 規格 F1：?debug=1 時顯示 Debug 面板（伺服器只對管理員回傳內部資料）。
 const debugMode = (() => {
@@ -578,10 +578,10 @@ onMounted(loadOverview);
             placeholder="員編或姓名" /></label
         ><label
           >狀態<select v-model="status">
-            <option value="">全部</option>
             <option v-for="(v, k) in statusFilterLabels" :value="k" :key="k">
               {{ v }}
             </option>
+            <option value="">全部</option>
           </select></label
         ><span>符合 {{ masterRows.length }} 位</span>
       </div>

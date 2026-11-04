@@ -94,6 +94,14 @@ test.describe('角色與存取', () => {
     expect((body.stores as any[]).map((s) => s.store_code)).toEqual(expect.arrayContaining(['ZT01', 'ZT02', 'VW001']));
   });
 
+  test('規格 D.4：沒有 store_id 時舊版預設「請選擇門市」——只回門市清單與權限旗標，records 為空，不自動帶第一間門市', async () => {
+    const body = await (await admin.get(BASE, { params: { year: String(W03_YEAR) } })).json();
+    expect(body.records).toEqual([]);
+    expect(body.store).toBe('');
+    expect((body.stores as any[]).length).toBeGreaterThan(0);
+    expect(body).toMatchObject({ canEdit: true, canViewBonus: true, canImportBonus: true });
+  });
+
   test('非管理者沒有被指派門市：看不到門市、不能讀特定門市，但有 performance.edit 可存（規格 D.1）', async () => {
     const api = await as('performance_edit');
     const read = await (await api.get(BASE, { params: { year: String(W03_YEAR) } })).json();
@@ -142,6 +150,12 @@ test.describe('業績寫入與 W03-q3（照舊版後寫覆蓋）', () => {
     expect((await savePerf(admin, ids.ZT01, 2, { monthly_gross_profit_actual: 'abc' })).status()).toBe(400);
     expect((await admin.post(BASE, { data: { ...{}, store_id: ids.ZT01, year: 1999, month: 2, business_days: 26 } })).status()).toBe(400);
     expect((await admin.post(BASE, { data: { store_id: ids.ZT01, year: W03_YEAR, month: 13, business_days: 26 } })).status()).toBe(400);
+    // 缺少或非 UUID 的 store_id：400「缺少門市」，不落到資料庫錯誤。
+    for (const bad of [undefined, '', 'not-a-uuid', 123]) {
+      const res = await admin.post(BASE, { data: { store_id: bad, year: W03_YEAR, month: 2, business_days: 26 } });
+      expect(res.status(), String(bad)).toBe(400);
+      expect((await res.json()).error).toBe('缺少門市');
+    }
     const noOrigin = await admin.post(BASE, { data: { store_id: ids.ZT01, year: W03_YEAR, month: 2 }, headers: { Origin: 'http://evil.example' } });
     expect(noOrigin.status()).toBe(403);
     expect((await readPerfRows(ids.ZT01)).some((r) => r.month === 2)).toBe(false);
@@ -190,6 +204,13 @@ test.describe('獎金閾值', () => {
       const monthly = ok.monthly.map((t, i) => (i === 0 ? { ...t, base_amount: bad } : t));
       expect((await post({ store_id: ids.ZT02, monthly, quarterly: ok.quarterly })).status(), String(bad)).toBe(400);
     }
+    // 重複檻別（會讓 upsert 同列更新兩次而 500）、超過 5 檻、store_id 非 UUID 一律 400。
+    const dup = [{ level: 1, base_amount: 1 }, { level: 1, base_amount: 2 }];
+    expect((await post({ store_id: ids.ZT02, monthly: dup, quarterly: dup })).status()).toBe(400);
+    const six = [1, 2, 3, 4, 5, 5].map((level) => ({ level, base_amount: 1 }));
+    expect((await post({ store_id: ids.ZT02, monthly: six, quarterly: ok.quarterly })).status()).toBe(400);
+    expect((await post({ store_id: 'not-a-uuid', ...ok })).status()).toBe(400);
+    expect((await post({ ...ok })).status()).toBe(400);
     const view = await as('performance_view');
     expect((await post({ store_id: ids.ZT02, ...ok }, view)).status()).toBe(403);
     const editNoStore = await as('performance_edit');

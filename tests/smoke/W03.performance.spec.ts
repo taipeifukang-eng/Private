@@ -47,6 +47,10 @@ for (const [role, exp] of Object.entries(ROLES)) {
       // 三個子分頁都能載入（沒有被指派門市的帳號：團體獎金顯示「沒有可查看的門市」）
       const group = panel(page).getByRole('region', { name: '團體獎金' });
       if ((access.stores as unknown[]).length) {
+        // 規格 D.4：門市預設為「請選擇門市」（空值），先提示選門市；選了第一間門市並查詢後才有明細。
+        await expect(group.getByText('請選擇門市。')).toBeVisible({ timeout: 30_000 });
+        await group.getByLabel('門市', { exact: true }).selectOption({ index: 1 });
+        await group.getByRole('button', { name: '查詢業績' }).click();
         await expect(group.getByRole('heading', { name: '逐月業績明細' })).toBeVisible({ timeout: 30_000 });
         await expect(group.locator('.performance-detail-table tbody tr')).toHaveCount(12);
         await expect(group.getByRole('heading', { name: /獎金閾值設定/ })).toBeVisible();

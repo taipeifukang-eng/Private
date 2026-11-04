@@ -18,7 +18,8 @@ export async function GET(request: NextRequest) {
     const ctx = await moduleContext("performance");
     const stores = await moduleStores(ctx, "performance");
     const url = new URL(request.url);
-    const store = url.searchParams.get("store_id") || stores[0]?.id;
+    // 舊版門市預設為「請選擇門市」（空值）：沒有 store_id 就不查資料，只回 stores 與權限旗標。
+    const store = url.searchParams.get("store_id") || "";
     const year = Number(url.searchParams.get("year"));
     if (!Number.isInteger(year) || year < 2000 || year > 2099)
       throw new WorkspaceError(400, "年度不正確");
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest) {
       canViewBonus: ctx.has("performance.bonus.view"),
       canImportBonus: ctx.has("performance.bonus.import"),
     };
-    if (!store) return respond({ stores, records: [], ...access });
+    if (!store) return respond({ stores, records: [], store: "", ...access });
     await requireStore(ctx, "performance", store);
     url.searchParams.set("store_id", store);
     const response = await read(
@@ -63,6 +64,8 @@ export async function POST(request: NextRequest) {
       body.month > 12
     )
       throw new WorkspaceError(400, "年月不正確");
+    if (typeof body.store_id !== "string" || !/^[0-9a-f-]{36}$/i.test(body.store_id))
+      throw new WorkspaceError(400, "缺少門市");
     const days = body.business_days;
     if (
       typeof days !== "number" ||

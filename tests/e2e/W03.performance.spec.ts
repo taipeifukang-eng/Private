@@ -49,8 +49,30 @@ test('團體獎金：匯入（不選門市）、編輯、獎金與閾值自動�
       page.on('pageerror', (e) => errors.push(String(e)));
       page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
       await openNativePerformance(page);
-      await queryYear(page, p.label, W03_YEAR);
       const g = group(page);
+
+      // 規格 D.4：門市預設為「請選擇門市」空值；不選門市時匯入依 Excel 門市代號（舊版行為），UI 不帶 store_id。
+      const storeSelect = g.getByLabel('門市', { exact: true });
+      await expect(storeSelect).toHaveValue('');
+      await expect(storeSelect.locator('option').first()).toHaveText('請選擇門市');
+      const otherMonth = p.month; // 與本案例其他步驟同一月份：同門市同月不與其他測試檔的月份互相覆蓋，後面的匯入會以後寫覆蓋
+      await g.getByLabel('年度').fill(String(W03_YEAR)); // 預設是今年；匯入的年份取工具列年度，必須改成保留的 2038
+      await g.locator('.performance-import input[type=file]').setInputFiles(
+        file([perfImportRow(p.primary, otherMonth, { 月實際毛利額: 700000 }), perfImportRow('ZT02', otherMonth, { 月實際毛利額: 710000 }), perfImportRow('NOPE99', otherMonth)]),
+      );
+      await g.getByRole('button', { name: '匯入 Excel' }).click();
+      const noStoreConfirm = page.getByRole('dialog', { name: '確認匯入業績' });
+      await expect(noStoreConfirm).toContainText('未選擇門市：將依 Excel 的「門市代號」欄位匯入');
+      const importReq = page.waitForRequest((r) => /performance-tools\/performance-import/.test(r.url()) && r.method() === 'POST');
+      await noStoreConfirm.getByRole('button', { name: '確認匯入' }).click();
+      const sent = (await importReq).postData() || '';
+      expect(sent).not.toContain('name="store_id"');
+      await expect(g.getByRole('status').filter({ hasText: '匯入完成：成功 2 筆，略過 1 筆' })).toBeVisible({ timeout: 30_000 });
+      const viaCode = await readRowsAsServiceRole('store_performance', { in: { store_id: [storeId, ids.ZT02] }, eq: { year: W03_YEAR, month: otherMonth }, select: 'store_id,monthly_gross_profit_actual' });
+      expect(viaCode).toHaveLength(2);
+      expect(viaCode.map((r) => Number(r.monthly_gross_profit_actual)).sort()).toEqual([700000, 710000]);
+
+      await queryYear(page, p.label, W03_YEAR);
       await expect(g.getByText('此門市使用自訂閾值')).toHaveCount(0);
 
       // W03-q1：Excel 列帶門市代號一次匯入兩間門市
@@ -62,7 +84,7 @@ test('團體獎金：匯入（不選門市）、編輯、獎金與閾值自動�
       const confirm = page.getByRole('dialog', { name: '確認匯入業績' });
       await expect(confirm).toContainText('使用目前所選門市');
       await confirm.getByRole('button', { name: '確認匯入' }).click();
-      await expect(g.getByRole('status').filter({ hasText: '匯入完成：成功 2 筆' })).toBeVisible({ timeout: 30_000 });
+      await expect(g.getByRole('status').filter({ hasText: '匯入完成：成功 2 筆，略過 0 筆' })).toBeVisible({ timeout: 30_000 });
       const imported = await readRowsAsServiceRole('store_performance', { in: { store_id: [storeId, ids.ZT02] }, eq: { year: W03_YEAR, month: p.month }, select: 'store_id,monthly_gross_profit_actual' });
       expect(imported).toHaveLength(2);
       expect((await readMonthRow(page, p.month))[3]).toBe('800,000'); // 毛利實際
@@ -225,6 +247,20 @@ test('匯入每月獎金：沒有有效資料顯示錯誤；有效檔案匯入�
       const row = b.locator('tbody tr').filter({ hasText: code });
       await expect(row).toHaveCount(1);
       await expect(row).toContainText('5,000');
+
+      // 規格 D.3：欄標題左鍵排序（同欄切升降冪）、右鍵取消排序（舊版行為）。
+      const nameTh = b.locator('th').filter({ has: page.getByRole('button', { name: /^姓名/ }) });
+      const nameBtn = nameTh.getByRole('button');
+      await nameBtn.click();
+      await expect(nameTh).toHaveAttribute('aria-sort', 'ascending');
+      await expect(nameBtn).toContainText('↑');
+      await nameBtn.click();
+      await expect(nameTh).toHaveAttribute('aria-sort', 'descending');
+      await expect(nameBtn).toContainText('↓');
+      await nameBtn.click({ button: 'right' });
+      await expect(nameTh).toHaveAttribute('aria-sort', 'none');
+      await expect(nameBtn).not.toContainText(/[↑↓]/);
+      await expect(b.locator('th[aria-sort="ascending"], th[aria-sort="descending"]')).toHaveCount(0);
       expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);
     } finally {
       await ctx.close();

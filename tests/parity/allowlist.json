@@ -141,8 +141,8 @@
     "id": "w01a-legacy-stray-zero",
     "page": "monthly-status",
     "description": "舊版毛利率欄在『交易次數為 0』時，React 的 `0 && <button>` 會多印出一個 0，畫面顯示成「-0」；新版顯示「—」。",
-    "reason": "舊版顯示瑕疵，新版不重現。需使用者確認可接受。",
-    "approvedBy": null,
+    "reason": "舊版顯示瑕疵，新版不重現。使用者 2026-11-04 核可接受。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "kind": "changed",
@@ -154,7 +154,7 @@
     "page": "monthly-status",
     "description": "送審前檢查：舊版先跳兼職缺時數的 confirm，再逐位新人 confirm（按『是』會離開頁面跳去編輯），最後再一個確認；新版同一個視窗列出兼職缺時數名單與需確認的新人清單（每人旁有「去編輯」），底部「確認無誤，仍要送出」。判斷規則照舊版。",
     "reason": "M1 規格 W01a-q2（使用者確認）。只是呈現方式不同；兩邊列出的人員由 parity 測試比對。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "write-readback",
       "entry": "presubmit-check",
@@ -166,7 +166,7 @@
     "page": "monthly-status",
     "description": "新版 API 在新人階段需確認時回 409（需帶 skipChecks）；舊版 submitStoreStatus 回 success:false + needNewbieCheck。結果相同（未確認不得送出），只是狀態碼與欄位不同。另外：沒有任何人員的月份送審，新版回 409「尚無人員資料」，舊版靜默成功。",
     "reason": "新版 API 以規則表（M1-x1）把『沒有可送審的列』視為不可執行。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "entry": "submit-gate",
@@ -177,8 +177,8 @@
     "id": "w01a-inactive-store-read-only",
     "page": "monthly-status",
     "description": "已停止門市歷史：舊版切換後可看並仍顯示操作按鈕；新版只能唯讀查看（不可初始化、送審、刪除、編輯），寫入一律 403。",
-    "reason": "停用門市不應再被修改。需使用者確認。",
-    "approvedBy": null,
+    "reason": "停用門市不應再被修改。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "inactive-store-history",
@@ -190,7 +190,7 @@
     "page": "monthly-status",
     "description": "名冊版面：新版多一欄『審核狀態』（每列狀態）；手機 390 寬維持表格、左右捲動並凍結姓名欄（TopScrollTable），舊版為頁面內橫向捲動。",
     "reason": "M1-mobile 規格（使用者確認）；審核狀態欄為新版新增資訊。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "roster-layout",
@@ -201,8 +201,8 @@
     "id": "w01a-state-gate-confirm-revert",
     "page": "monthly-status",
     "description": "確認／退回／取消確認：新版先以各列狀態套用規則表，沒有可處理的列回 409；舊版對不符合的列是 no-op 但仍回成功並更新門市摘要。",
-    "reason": "M1-x1 規則表。需使用者確認。",
-    "approvedBy": null,
+    "reason": "M1-x1 規則表。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "entry": "state-gate",
@@ -214,7 +214,7 @@
     "page": "monthly-edit",
     "description": "預計獎金區塊預覽：舊版編輯頁自己寫一套判斷（calculateBlock），與儲存後資料庫 calculate_bonus_block 算出的區塊在三種情況不同——(1) 督導(店長)-雙：舊版當成「店長-雙」得區塊 3，資料庫明確排除督導，整月為區塊 1；(2) 勾選或取消「藥師」：舊版預覽使用載入時的藥師狀態、不會跟著更新，資料庫用儲存後的值；(3) 正職天數空白：舊版當 0 得區塊 3；新版送出前同樣把空白轉 0（與舊版 parseFloat||0 一致），預覽與儲存結果都是區塊 3，無差異。新版預覽照資料庫規則，儲存前看到的區塊就是儲存後的區塊。",
     "reason": "M1 規格 W01b-q1（使用者 2026-11-02 確認）。規則集中於 lib/monthly-staff/block.ts，單元測試以 ≥20 組（手寫 32 筆＋抽樣 300 筆）在 DEV 呼叫 calculate_bonus_block RPC 逐筆比對；整合層另驗證儲存後觸發器的 calculated_block 與預覽相同。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "block-preview",
@@ -348,7 +348,7 @@
     "id": "w02-select-all-exportable-only",
     "page": "monthly-export",
     "description": "「全選」按鈕：舊版連同未提交門市一併勾選（之後下載才失敗）；新版只勾選已提交、已確認的門市。",
-    "reason": "M1 W02-q3：含未提交門市的請求會被 API 拒絕，所以新版畫面不再讓使用者選到未提交門市。待使用者核可。",
+    "reason": "M1 W02-q3：含未提交門市的請求會被 API 拒絕，所以新版畫面不再讓使用者選到未提交門市。使用者 2026-11-04 核可。",
     "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
@@ -360,7 +360,7 @@
     "id": "w02-year-input",
     "page": "monthly-export",
     "description": "年份欄位：舊版為「今年前後各兩年」的下拉選單；新版為可輸入年份的數字欄位（2000–2199）。",
-    "reason": "新版沿用工作台一致的月份操作，且需能查詢保留測試月份與更早的歷史月份。待使用者核可。",
+    "reason": "新版沿用工作台一致的月份操作，且需能查詢保留測試月份與更早的歷史月份。使用者 2026-11-04 核可。",
     "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
@@ -372,8 +372,8 @@
     "id": "w03-read-requires-module-and-store",
     "page": "performance",
     "description": "沒有被指派門市（或沒有 performance.view／edit）的帳號，直接以 store_id 讀年度業績與獎金閾值：舊 API 只要登入就回 200（資料受資料庫列級安全限制）；新 workspace API 要求業績模組權限，且 store_id 必須在該帳號可見門市內，否則 403。",
-    "reason": "新版沿用 workspace 的 moduleContext／requireStore 權限模型；畫面上這些帳號本來就看不到門市，只有手動呼叫 API 才會碰到。屬權限收緊，待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版沿用 workspace 的 moduleContext／requireStore 權限模型；畫面上這些帳號本來就看不到門市，只有手動呼叫 API 才會碰到。屬權限收緊，使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "kind": "status",
@@ -390,8 +390,8 @@
     "id": "w03-thresholds-read-requires-store",
     "page": "performance",
     "description": "沒有被指派門市的帳號讀取門市獎金閾值：舊 API 回 200；新 API 回 403。",
-    "reason": "同 w03-read-requires-module-and-store：新版以 requireStore 限制可讀門市。待使用者核可。",
-    "approvedBy": null,
+    "reason": "同 w03-read-requires-module-and-store：新版以 requireStore 限制可讀門市。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "kind": "status",
@@ -406,8 +406,8 @@
     "id": "w03-save-strict-validation",
     "page": "performance",
     "description": "單月業績存檔內容缺少數值欄位（或型別不是數字）：舊 API 以 upsert 接受（缺的欄位不寫入）；新 API 要求所有數值欄位都要出現且為數字或 null，否則 400。",
-    "reason": "新版年度頁表單一律送出完整欄位，所以只有手動呼叫 API 才會碰到。保留較嚴格的驗證，待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版年度頁表單一律送出完整欄位，所以只有手動呼叫 API 才會碰到。保留較嚴格的驗證，使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -418,8 +418,8 @@
     "id": "w03-ui-row-edit-form",
     "page": "performance",
     "description": "逐月業績明細：舊版在儲存格直接編輯、逐列儲存；新版點月份開新分頁，以表單編輯後存檔。",
-    "reason": "M1 W03-q2：使用者決定保留新版表單編輯（介面差異）。待使用者核可。",
-    "approvedBy": null,
+    "reason": "M1 W03-q2：使用者決定保留新版表單編輯（介面差異）。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-behavior",
@@ -431,8 +431,8 @@
     "id": "w03-ui-thresholds-separate-tab",
     "page": "performance",
     "description": "獎金閾值編輯：舊版在年度頁內就地編輯與取消；新版另開「獎金閾值」分頁編輯，儲存後年度頁自動重新載入（W03-q4）。",
-    "reason": "新版工作台以分頁處理編輯流程；舊版「儲存後立即生效」的效果由 W03-q4 的自動重新載入補足。待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版工作台以分頁處理編輯流程；舊版「儲存後立即生效」的效果由 W03-q4 的自動重新載入補足。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-behavior",
@@ -444,8 +444,8 @@
     "id": "w03-ui-import-confirm-dialog",
     "page": "performance",
     "description": "業績 Excel 匯入：舊版選檔後立即匯入；新版選檔後要在確認視窗按「確認匯入」才送出。",
-    "reason": "新版工作台的匯入一律先確認，避免誤選檔案就覆蓋資料。待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版工作台的匯入一律先確認，避免誤選檔案就覆蓋資料。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-behavior",
@@ -457,8 +457,8 @@
     "id": "w03-ui-prescription-dirty-switch-locked",
     "page": "performance",
     "description": "處方箋有未儲存修改時切換月份或檢視：舊版跳出確認視窗（可選擇放棄修改）；新版鎖住查詢條件，須先儲存才能切換。",
-    "reason": "新版工作台避免靜默丟失草稿。放棄修改的唯一方式是關閉該頁籤。待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版工作台避免靜默丟失草稿。放棄修改的唯一方式是關閉該頁籤。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-behavior",
@@ -470,8 +470,8 @@
     "id": "w03-ui-import-timeout-message",
     "page": "performance",
     "description": "匯入逾時訊息：舊版「匯入逾時（超過 180 秒）- 伺服器忙碌，請稍後重試」；新版統一顯示「連線中斷或逾時，內容仍保留，請稍後重試」。",
-    "reason": "新版工作台共用的連線錯誤訊息。待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版工作台共用的連線錯誤訊息。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-behavior",
@@ -483,8 +483,8 @@
     "id": "w03-ui-threshold-auto-reload",
     "page": "performance",
     "description": "閾值在另一個分頁儲存後，已開啟的年度頁自動重新載入（同瀏覽器的其他分頁以 BroadcastChannel／storage 事件通知）；舊版沒有此行為（閾值在同頁就地編輯）。",
-    "reason": "M1 W03-q4。待使用者核可。",
-    "approvedBy": null,
+    "reason": "M1 W03-q4。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-behavior",
@@ -496,8 +496,8 @@
     "id": "w04-no-back-home-link",
     "page": "monthly-release",
     "description": "舊版頁首右側有「返回首頁」連結；新版是工作台頁籤，沒有此連結（頁籤列與選單即為返回方式）。",
-    "reason": "工作台沒有「首頁」路由可返回，連結多餘。待使用者核可。",
-    "approvedBy": null,
+    "reason": "工作台沒有「首頁」路由可返回，連結多餘。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "back-home",
@@ -508,8 +508,8 @@
     "id": "w04-login-required",
     "page": "monthly-release",
     "description": "未登入存取：舊版 /monthly-release 沒有任何登入檢查，任何人（含未登入）都能看到版更公告；新版是工作台頁面，需先登入（session 401）。",
-    "reason": "M1 W04-q1 使用者決定「獨立頁，登入即可看」；新版不開放匿名瀏覽。待使用者核可。",
-    "approvedBy": null,
+    "reason": "M1 W04-q1 使用者決定「獨立頁，登入即可看」；新版不開放匿名瀏覽。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "access-anonymous",
@@ -520,8 +520,8 @@
     "id": "p01-purchases-unmatched-placeholder",
     "page": "employee-purchases",
     "description": "員編或姓名為空的列，占位文字不同：舊版顯示「-」；新版顯示「—」（員編）、「未比對員工」（姓名），門市名稱空白時顯示「未認列門市」。DEV 資料庫函式對未比對者會以會員編號與名稱填入，所以目前的測試資料不會出現空值，此條目登記的是程式碼層面的差異。",
-    "reason": "新版的占位文字比舊版更容易看懂；資料本身相同。待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版的占位文字比舊版更容易看懂；資料本身相同。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "summary-ui",
@@ -533,8 +533,8 @@
     "id": "p01-purchases-search-pagination",
     "page": "employee-purchases",
     "description": "新版增強：員工彙總表加搜尋（員編、姓名、認列門市）與分頁（每頁 50 筆）；舊版一次列出全部、沒有搜尋。",
-    "reason": "M0／P01 已確認新版增強保留（分頁、搜尋）。待使用者核可。",
-    "approvedBy": null,
+    "reason": "M0／P01 已確認新版增強保留（分頁、搜尋）。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-enhancements",
@@ -546,8 +546,8 @@
     "id": "p01-purchases-import-confirm",
     "page": "employee-purchases",
     "description": "新版增強：匯入前必須勾選「我確認以此檔案覆蓋銷售月份的整月資料」，且已選檔案時關閉視窗會先確認是否放棄；舊版選檔後直接按匯入。",
-    "reason": "匯入會覆蓋整個銷售月份，多一道確認可防止誤操作。待使用者核可。",
-    "approvedBy": null,
+    "reason": "匯入會覆蓋整個銷售月份，多一道確認可防止誤操作。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-enhancements",
@@ -559,8 +559,8 @@
     "id": "p01-purchases-detail-modal",
     "page": "employee-purchases",
     "description": "員工購買明細：舊版為頁內區塊（員工彙總表會收合，並有「回到員工列表選擇其他人」）；新版以對話框顯示，關閉後回到員工彙總表。內容與加總相同。",
-    "reason": "行為等價，工作台共用對話框元件。待使用者核可。",
-    "approvedBy": null,
+    "reason": "行為等價，工作台共用對話框元件。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "detail-ui",
@@ -572,8 +572,8 @@
     "id": "p01-purchases-import-message",
     "page": "employee-purchases",
     "description": "匯入結果訊息：舊版訊息不含「跳過」筆數，警告以「另有 N 筆提醒」帶過；新版訊息多「跳過 N 筆」，並提供可展開的「匯入警告（N）」逐筆清單。匯入邏輯本身共用舊版 handler，寫入結果逐欄相同。",
-    "reason": "新版提供更完整的匯入回饋。待使用者核可。",
-    "approvedBy": null,
+    "reason": "新版提供更完整的匯入回饋。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-enhancements",
@@ -585,8 +585,8 @@
     "id": "p01-purchases-import-dialog",
     "page": "employee-purchases",
     "description": "匯入入口：舊版為頁內「匯入 POS Excel」區塊（與查詢月份同一張卡）；新版為「匯入 POS Excel」按鈕開啟的對話框，且只有 employee_purchase.import 權限者看得到按鈕（舊版任何人都看得到區塊，送出才被 API 回 403）。",
-    "reason": "權限不足的使用者不會看到不能用的按鈕。待使用者核可。",
-    "approvedBy": null,
+    "reason": "權限不足的使用者不會看到不能用的按鈕。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "ui-enhancements",
@@ -598,8 +598,8 @@
     "id": "p01-pharmacist-master-columns",
     "page": "pharmacists",
     "description": "藥師主檔欄位排版：舊版 10 欄（員編、姓名、狀態、現職職級、到職日／年資、畢業學校、學歷、負責藥師、執照更新日、常年會費，編輯權限者多「操作」）；新版 9 欄（員編／姓名合併、門市／職稱、狀態、到職日／年資、畢業學校／學歷…），新版多顯示門市。資料內容相同。",
-    "reason": "工作台表格以兩行儲存格合併欄位，並加上門市欄方便督導辨識。待使用者核可。",
-    "approvedBy": null,
+    "reason": "工作台表格以兩行儲存格合併欄位，並加上門市欄方便督導辨識。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "master-layout",
@@ -611,8 +611,8 @@
     "id": "p01-pharmacist-proof-limit-text",
     "page": "pharmacists",
     "description": "繳費證明上限文字：舊版欄位標籤寫「最大 10 MB」（伺服器上限 10 MB，前端壓縮後超過 3.5 MB 即擋下），新版統一顯示 3.5 MB。新舊實際的前端擋下門檻相同（3.5 MB）。",
-    "reason": "M1 P01 使用者決定：統一顯示 3.5 MB（只修正文字）。待主迴圈送使用者核可。",
-    "approvedBy": null,
+    "reason": "M1 P01 使用者決定：統一顯示 3.5 MB（只修正文字）。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "proof-limit-text",
@@ -624,8 +624,8 @@
     "id": "p01-pharmacist-fee-edit",
     "page": "pharmacists",
     "description": "年費視窗：新版增加「編輯備註／證明」（只可改備註與繳費證明，不改年度與公會），並把視窗分成「列表」與「表單」兩步；舊版只能新增與刪除。",
-    "reason": "盤點文件已確認為新版增強並保留。待使用者核可。",
-    "approvedBy": null,
+    "reason": "盤點文件已確認為新版增強並保留。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "master-layout",
@@ -637,8 +637,8 @@
     "id": "p01-pharmacist-wording",
     "page": "pharmacists",
     "description": "用詞與呈現差異（資料相同）：年費按鈕舊版「記錄」、新版「查看／登記會費」（有效紀錄時顯示「有效繳費紀錄」並以實色底標示）；手動新增人員標籤舊版「手動」、新版「手動新增」；負責藥師否的呈現舊版「-」、新版「否」；總覽「只看離職」舊版為按鈕，新版為「離職藥師」摘要卡；門市藥師明細舊版為跳窗並含督導區，新版為對話框含門市與變化備註。",
-    "reason": "工作台的一致用詞與共用元件。待使用者核可。",
-    "approvedBy": null,
+    "reason": "工作台的一致用詞與共用元件。使用者 2026-11-04 核可。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "master-layout",
@@ -647,11 +647,45 @@
     }
   },
   {
+    "id": "p01-pharmacist-status-filter-control",
+    "page": "pharmacists",
+    "description": "藥師主檔狀態篩選：字樣與順序照舊版（在職／留停／已離職／全部，預設「在職」），但舊版為四個按鈕，新版為下拉選單。",
+    "reason": "M1 修正規格 F2 只要求字樣照舊版；控制型態沿用工作台表單元件。待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "master-layout",
+      "key": "master-status-filter-control",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "p01-pharmacist-debug-admin-only",
+    "page": "pharmacists",
+    "description": "藥師總覽 ?debug=1：舊版任何登入且帶 ?debug=1 的人都看得到「Debug 資訊（server-side）」面板；新版面板照舊版畫面實作，但伺服器只對管理員回傳 debug 內部資料，非管理員帶 ?debug=1 不會看到。",
+    "reason": "M1 修正規格 F1（使用者 2026-11-04 核可）：Debug 面板照舊版顯示，伺服器保留只有管理員看得到內部資料。測試：tests/integration/P01.pharmacist-purchases.spec.ts（非管理員 debug=1 無 debug 欄位）。",
+    "approvedBy": "user (2026-11-04)"
+  },
+  {
+    "id": "p01-pharmacist-master-readonly-without-master-view",
+    "page": "pharmacists",
+    "description": "藥師主檔同步：舊 /api/pharmacist-annual-master/sync 對只有 management.view（沒有 master.view）的帳號照樣執行寫入型同步（更新 sync_log 與年度主檔）；新版 workspace master 對這些帳號回傳相同內容（200），但以 readonly=1 只讀，不觸發寫入型同步。",
+    "reason": "M1 修正規格 F3（使用者 2026-11-04 核可）：畫面照舊版，伺服器保留沒有 master.view 的帳號不觸發寫入型同步。測試：tests/integration/P01.pharmacist-purchases.spec.ts（呼叫前後 sync_log／annual_master 不變）。",
+    "approvedBy": "user (2026-11-04)"
+  },
+  {
+    "id": "w03-basic-format-validation",
+    "page": "performance",
+    "description": "績效存檔的基本格式檢查：業績存檔檢查年月（2000–2099、1–12）與 store_id 為 UUID（缺少回 400「缺少門市」）；閾值存檔檢查 store_id 為 UUID、每期最多 5 筆、檻別 1–5 且不可重複、金額為 0～2147483647 的整數。舊 API 沒有這些檢查（錯誤資料會落到資料庫錯誤或 500）；兩邊都不強制五檻、也不檢查門市指派（營業天數 0.5–31 檢查舊版本來就有）。",
+    "reason": "M1 修正規格 D.1／D.2（使用者 2026-11-04 核可）：只保留基本格式檢查。重複檻別會造成 upsert 同列更新兩次而 500，故必須擋。測試：tests/integration/W03.performance.spec.ts。",
+    "approvedBy": "user (2026-11-04)"
+  },
+  {
     "id": "nav-admin-permissions-view-legacy-only",
     "page": "navigation",
     "description": "系統管理員（isAdminLike）：舊 /api/permissions/user 回傳「所有 active 權限碼」，含舊碼 activity.campaign.view；新 /api/workspace/session 的 permissions 取自角色實際指派（role_permissions）。活動查看權限 migration（20261103090000）已把 admin 角色上的 view／view_own 移除（因已持有 view_all），所以新版清單沒有 activity.campaign.view。",
-    "reason": "功能上無差異：admin 在新版 has() 一律為 true，capabilities 與導覽完全相同；差異只在權限碼清單的顯示。view 是第一階段保留、第二階段停用的舊碼。需使用者確認是否接受，或要求新版 admin 也回傳全部 active 碼。",
-    "approvedBy": null,
+    "reason": "功能上無差異：admin 在新版 has() 一律為 true，capabilities 與導覽完全相同；差異只在權限碼清單的顯示。view 是第一階段保留、第二階段停用的舊碼。使用者 2026-11-04 核可接受。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "entry": "effective-permissions",
@@ -666,8 +700,8 @@
     "id": "nav-admin-permissions-view-own-legacy-only",
     "page": "navigation",
     "description": "系統管理員（isAdminLike）：舊 /api/permissions/user 回傳「所有 active 權限碼」，含舊碼 activity.campaign.view_own；新 /api/workspace/session 的 permissions 取自角色實際指派（role_permissions）。活動查看權限 migration（20261103090000）已把 admin 角色上的 view／view_own 移除（因已持有 view_all），所以新版清單沒有 activity.campaign.view_own。",
-    "reason": "功能上無差異：admin 在新版 has() 一律為 true，capabilities 與導覽完全相同；差異只在權限碼清單的顯示。view 是第一階段保留、第二階段停用的舊碼。需使用者確認是否接受，或要求新版 admin 也回傳全部 active 碼。",
-    "approvedBy": null,
+    "reason": "功能上無差異：admin 在新版 has() 一律為 true，capabilities 與導覽完全相同；差異只在權限碼清單的顯示。view 是第一階段保留、第二階段停用的舊碼。使用者 2026-11-04 核可接受。",
+    "approvedBy": "user (2026-11-04)",
     "match": {
       "mechanism": "api-read",
       "entry": "effective-permissions",

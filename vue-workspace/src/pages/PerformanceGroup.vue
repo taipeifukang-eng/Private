@@ -48,8 +48,8 @@ async function importData() {
     const body = new FormData();
     body.append("file", importFile.value);
     // 舊版：有選門市才帶 store_id（Excel 列沒有門市代號時的後備）；年份為目前選擇的年度。
-    if (props.tab.store)
-      body.append("store_id", props.tab.store);
+    if (props.tab.store) body.append("store_id", props.tab.store);
+    else message.value = "未選擇門市：將依 Excel 的「門市代號」欄位匯入";
     body.append("year", String(year.value));
     const r = await api("performance-tools/performance-import", {
       method: "POST",
@@ -126,7 +126,8 @@ async function doLoad() {
     );
     stores.value = r.stores;
     rows.value = r.records;
-    props.tab.store = r.store || "";
+    // 舊版 selectedStoreId 預設為空；沒選門市就不查資料，也不改寫使用者的選擇。
+    props.tab.store = props.tab.store || "";
     loaded.value = { store: props.tab.store, year: year.value };
     canEdit.value = r.canEdit;
     canViewBonus.value = r.canViewBonus;
@@ -134,12 +135,12 @@ async function doLoad() {
     if (props.tab.kind === "performance")
       props.tab.month = String(year.value) + "-" + props.tab.month.slice(5, 7);
     thresholds.value = null;
-    if (r.store && props.tab.kind === "performance")
+    if (props.tab.store && props.tab.kind === "performance")
       thresholds.value = await api(
-        `performance-tools/thresholds?store_id=${encodeURIComponent(r.store)}`,
+        `performance-tools/thresholds?store_id=${encodeURIComponent(props.tab.store)}`,
       );
     if (props.tab.kind === "performance")
-      props.tab.title = `業績 · ${stores.value.find((s) => s.id === r.store)?.short_name || stores.value.find((s) => s.id === r.store)?.store_name || "門市"} · ${year.value}`;
+      props.tab.title = `業績 · ${stores.value.find((s) => s.id === props.tab.store)?.short_name || stores.value.find((s) => s.id === props.tab.store)?.store_name || "門市"} · ${year.value}`;
   } catch (e) {
     error.value = (e as Error).message;
     rows.value = [];
@@ -249,6 +250,7 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
     ><form class="module-filters" @submit.prevent="load">
       <label
         >門市<select aria-label="門市" v-model="tab.store" :disabled="loading">
+          <option value="">請選擇門市</option>
           <option v-for="s in stores" :value="s.id">
             {{ s.store_code }} {{ s.store_name }}
           </option>
@@ -336,13 +338,18 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
     <p v-else-if="!error && !stores.length" class="notice">
       沒有可查看的門市。
     </p>
+    <p v-else-if="!error && !tab.store" class="notice">請選擇門市。</p>
     <Modal
       v-if="importConfirm"
       title="確認匯入業績"
       :busy="tab.busy"
       @cancel="importConfirm = false"
       ><p>
-        {{ importFile?.name }}：Excel 列未填門市代號時使用目前所選門市；相同門市與年月的資料將依原匯入規則更新（後寫覆蓋）。
+        {{ importFile?.name }}：{{
+          tab.store
+            ? "Excel 列未填門市代號時使用目前所選門市"
+            : "未選擇門市：將依 Excel 的「門市代號」欄位匯入"
+        }}；相同門市與年月的資料將依原匯入規則更新（後寫覆蓋）。
       </p>
       <p v-if="error" class="notice error">{{ error }}</p>
       <div class="dialog-actions">

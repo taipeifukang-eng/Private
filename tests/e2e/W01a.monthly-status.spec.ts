@@ -115,7 +115,9 @@ test('店長送審：標籤、刪除草稿、送審前檢查單一視窗、送�
       expect(after.every((r) => r.status === 'submitted')).toBe(true);
       await expect(page.getByRole('button', { name: '刪除', exact: true })).toHaveCount(3);
       await page.getByRole('button', { name: '刪除', exact: true }).first().click();
+      const delete409 = page.waitForResponse((r) => /\/api\/workspace\/monthly$/.test(r.url()) && r.request().method() === 'POST' && r.status() === 409);
       await page.getByRole('dialog', { name: '刪除人員' }).getByRole('button', { name: '確認刪除' }).click();
+      await delete409;
       await expect(page.getByRole('alert').filter({ hasText: '退回' })).toBeVisible({ timeout: 20_000 });
       expect(await dbRows(zt01, month)).toHaveLength(3);
       await expect(page.locator('.store-tabs [role=tab]', { hasText: 'ZT 測試門市 01' })).toContainText('已提交');

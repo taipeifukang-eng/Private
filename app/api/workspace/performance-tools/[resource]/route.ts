@@ -29,7 +29,8 @@ async function run(request:NextRequest,{params}:Params,write:boolean){
    const store=body?.store_id||request.nextUrl.searchParams.get('store_id');
    if(write){
     // 規格 D.2：只保留基本格式檢查（整數且 ≥0、檻別 1–5）；不強制五檻、不檢查門市指派（照舊版）。
-    for(const period of ['monthly','quarterly'])if(!Array.isArray(body?.[period])||body[period].some((r:any)=>!r||!Number.isInteger(r.level)||r.level<1||r.level>5||!Number.isInteger(r.base_amount)||r.base_amount<0||r.base_amount>2147483647))throw new WorkspaceError(400,'獎金閾值格式不正確（檻別 1–5、金額為非負整數）');
+    if(typeof body?.store_id!=='string'||!/^[0-9a-f-]{36}$/i.test(body.store_id))throw new WorkspaceError(400,'缺少門市');
+    for(const period of ['monthly','quarterly'])if(!Array.isArray(body?.[period])||body[period].length>5||new Set(body[period].map((r:any)=>r?.level)).size!==body[period].length||body[period].some((r:any)=>!r||!Number.isInteger(r.level)||r.level<1||r.level>5||!Number.isInteger(r.base_amount)||r.base_amount<0||r.base_amount>2147483647))throw new WorkspaceError(400,'獎金閾值格式不正確（檻別 1–5 且不可重複、最多 5 檻、金額為非負整數）');
     return saveThresholds(request);
    }
    await requireStore(ctx,'performance',store);
