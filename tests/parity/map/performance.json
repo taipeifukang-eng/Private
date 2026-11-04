@@ -75,7 +75,7 @@
     {
       "id": "thresholds-save",
       "mechanism": "write-readback",
-      "description": "獎金閾值存檔：舊版不驗證（檻數、順序、金額）也不檢查門市；新版要求每期 5 檻、順序 1..5、金額為非負整數，並檢查門市指派。",
+      "description": "獎金閾值存檔：與舊版一致，只保留基本格式檢查（檻別 1..5、金額為非負整數），不強制五檻、不檢查門市指派。",
       "legacy": {
         "api": {
           "path": "/api/performance-thresholds",
@@ -109,7 +109,7 @@
     {
       "id": "save-store-scope",
       "mechanism": "write-readback",
-      "description": "有 performance.edit 但沒有被指派該門市的帳號存檔：舊版不檢查門市，新版 requireStore 拒絕。",
+      "description": "有 performance.edit 但沒有被指派該門市的帳號存檔：新舊版皆不檢查門市，結果一致。",
       "legacy": {
         "api": {
           "path": "/api/performance-data",

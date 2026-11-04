@@ -21,9 +21,9 @@ const stores = ref<Store[]>([]),
 const thresholds = ref<any>(null),
   canViewBonus = ref(false),
   importFile = ref<File | null>(null),
-  importConfirm = ref(false),
-  // W03-q1：照舊版，可不指定門市，依 Excel「門市代號」欄位一次匯入多間門市。
-  importScope = ref<"current" | "excel">("current");
+  importConfirm = ref(false);
+// 規格 D.4：照舊版，使用工具列所選門市；沒選時依 Excel「門市代號」欄位匯入。
+
 const customThresholds = computed(
   () =>
     !!thresholds.value &&
@@ -48,7 +48,7 @@ async function importData() {
     const body = new FormData();
     body.append("file", importFile.value);
     // 舊版：有選門市才帶 store_id（Excel 列沒有門市代號時的後備）；年份為目前選擇的年度。
-    if (importScope.value === "current" && props.tab.store)
+    if (props.tab.store)
       body.append("store_id", props.tab.store);
     body.append("year", String(year.value));
     const r = await api("performance-tools/performance-import", {
@@ -263,11 +263,6 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
       ><button class="primary" :disabled="loading">查詢業績</button>
       <div v-if="canEdit" class="performance-import">
         <label
-          >匯入門市<select aria-label="匯入門市" v-model="importScope">
-            <option value="current">目前所選門市（Excel 未填門市代號時使用）</option>
-            <option value="excel">不指定門市（依 Excel 門市代號）</option>
-          </select></label
-        ><label
           >業績 Excel<input
             type="file"
             accept=".xlsx,.xls"
@@ -347,11 +342,7 @@ const money = (n: any) => (n == null ? "—" : Number(n).toLocaleString("zh-TW")
       :busy="tab.busy"
       @cancel="importConfirm = false"
       ><p>
-        {{ importFile?.name }}：{{
-          importScope === "excel"
-            ? "未指定門市，將依檔案內「門市代號」欄位匯入各門市"
-            : "Excel 列未填門市代號時使用目前所選門市"
-        }}；相同門市與年月的資料將依原匯入規則更新（後寫覆蓋）。
+        {{ importFile?.name }}：Excel 列未填門市代號時使用目前所選門市；相同門市與年月的資料將依原匯入規則更新（後寫覆蓋）。
       </p>
       <p v-if="error" class="notice error">{{ error }}</p>
       <div class="dialog-actions">

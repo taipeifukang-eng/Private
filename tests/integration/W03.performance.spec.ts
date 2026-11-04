@@ -94,12 +94,12 @@ test.describe('角色與存取', () => {
     expect((body.stores as any[]).map((s) => s.store_code)).toEqual(expect.arrayContaining(['ZT01', 'ZT02', 'VW001']));
   });
 
-  test('非管理者沒有被指派門市：看不到門市、不能存特定門市（requireStore）', async () => {
+  test('非管理者沒有被指派門市：看不到門市、不能讀特定門市，但有 performance.edit 可存（規格 D.1）', async () => {
     const api = await as('performance_edit');
     const read = await (await api.get(BASE, { params: { year: String(W03_YEAR) } })).json();
     expect(read.stores).toEqual([]);
-    const res = await savePerf(api, ids.ZT01, 1);
-    expect(res.status()).toBe(403);
+    const res = await savePerf(api, ids.ZT04, 1);
+    expect(res.status(), await res.text()).toBe(200);
     expect((await api.get(BASE, { params: { year: String(W03_YEAR), store_id: ids.ZT01 } })).status()).toBe(403);
   });
 });
@@ -179,12 +179,13 @@ test.describe('獎金閾值', () => {
     expect(body.quarterly.map((t: any) => t.baseAmount)).toEqual(DEFAULT_QUARTERLY);
   });
 
-  test('POST 驗證：檻數、順序、非負整數、上限', async () => {
+  test('POST 驗證：只保留基本格式檢查（檻別 1-5、非負整數、上限），不強制五檻、不檢查門市指派', async () => {
     const post = (data: unknown, api = admin) => api.post(`${TOOLS}/thresholds`, { data });
     const ok = thresholdBody(DEFAULT_MONTHLY, DEFAULT_QUARTERLY);
-    expect((await post({ store_id: ids.ZT02, monthly: ok.monthly.slice(0, 4), quarterly: ok.quarterly })).status()).toBe(400);
-    const shuffled = [1, 3, 2, 4, 5].map((level, i) => ({ level, base_amount: DEFAULT_MONTHLY[i] }));
-    expect((await post({ store_id: ids.ZT02, monthly: shuffled, quarterly: ok.quarterly })).status()).toBe(400);
+    for (const level of [0, 6, 1.5]) {
+      const monthly = ok.monthly.map((t, i) => (i === 0 ? { ...t, level } : t));
+      expect((await post({ store_id: ids.ZT02, monthly, quarterly: ok.quarterly })).status(), `level ${level}`).toBe(400);
+    }
     for (const bad of [1.5, -1, 2147483648]) {
       const monthly = ok.monthly.map((t, i) => (i === 0 ? { ...t, base_amount: bad } : t));
       expect((await post({ store_id: ids.ZT02, monthly, quarterly: ok.quarterly })).status(), String(bad)).toBe(400);
@@ -192,7 +193,7 @@ test.describe('獎金閾值', () => {
     const view = await as('performance_view');
     expect((await post({ store_id: ids.ZT02, ...ok }, view)).status()).toBe(403);
     const editNoStore = await as('performance_edit');
-    expect((await post({ store_id: ids.ZT02, ...ok }, editNoStore)).status()).toBe(403); // 沒被指派該門市
+    expect((await post({ store_id: ids.ZT02, ...ok }, editNoStore)).status()).toBe(200); // 規格 D.2：不看門市指派
     const body = await (await admin.get(`${TOOLS}/thresholds`, { params: { store_id: ids.ZT02 } })).json();
     expect(body.monthly.map((t: any) => t.baseAmount)).toEqual(DEFAULT_MONTHLY); // 驗證失敗不留任何寫入
   });

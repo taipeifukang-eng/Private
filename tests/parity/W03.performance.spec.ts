@@ -286,7 +286,7 @@ test('存檔嚴格度：缺數值欄位（舊版 200、新版 400）', async () 
   assertNoUnlistedDiffs(result);
 });
 
-test('存檔門市範圍：有 performance.edit 但未被指派門市', async () => {
+test('存檔門市範圍：有 performance.edit 不看門市指派（與舊版一致）', async () => {
   const started = Date.now();
   const api = await as('performance_edit');
   const body = { store_id: ids.ZT02, year: W03_YEAR, month: 10, business_days: 26, monthly_gross_profit_target: 1000, monthly_revenue_target: null, monthly_customer_count_target: null, last_month_rx_target: null, monthly_gross_profit_actual: null, activity_day_gross_profit: null, monthly_revenue_actual: null, monthly_customer_count_actual: null, last_month_rx_actual: null, system_monthly_revenue: null, self_pay_monthly_revenue: null, monthly_true_gross_profit: null, system_monthly_gross_profit: null, monthly_long_term_care_gross_profit: null, monthly_rx_addon_makeup_gross_profit: null, monthly_theft_compensation_makeup_gross_profit: null, monthly_kamedis_deduction_gross_profit: null };
@@ -298,12 +298,13 @@ test('存檔門市範圍：有 performance.edit 但未被指派門市', async ()
     compared: {}, diffs: statusDiff(l.status, n.status), durationMs: Date.now() - started,
   });
   assertNoUnlistedDiffs(result);
-  expect(n.status).toBe(403);
+  expect(n.status).toBe(l.status);
+  expect(n.status).toBe(200);
 });
 
-test('閾值存檔嚴格度：舊版不驗證、不檢查門市；新版驗證並檢查門市指派', async () => {
+test('閾值存檔：只 4 檻、未指派門市都與舊版一致（新版只保留基本格式檢查）', async () => {
   const bodyOf = (store: string, monthlyCount: number) => ({ store_id: store, ...thresholdBody(DEFAULT_MONTHLY.slice(0, monthlyCount), DEFAULT_QUARTERLY) });
-  for (const [role, count, expectNative] of [['admin', 4, 400], ['performance_edit', 5, 403]] as const) {
+  for (const [role, count, expectNative] of [['admin', 4, 200], ['performance_edit', 5, 200]] as const) {
     const started = Date.now();
     const api = await as(role);
     const l = await send(api, 'POST', '/api/performance-thresholds', { data: bodyOf(ids.ZT04, count) });
@@ -526,20 +527,21 @@ test('畫面行為對照：差異逐項記錄並對應白名單', async () => {
   const rx = read('vue-workspace/src/pages/PerformancePrescription.vue');
   const bonus = read('vue-workspace/src/pages/PerformanceBonus.vue');
   const api = read('vue-workspace/src/api.ts');
-  const features: { key: string; legacyHas: boolean; nativeHas: boolean; legacy: string; native: string; kind: 'changed' | 'only-native' }[] = [
+  const features: { key: string; legacyHas: boolean; nativeHas: boolean; legacy: string; native: string; kind: 'changed' | 'only-native' | 'same' }[] = [
     { key: 'ui#row-edit', legacyHas: legacyPage.includes('async function saveRow(') && legacyPage.includes('setField(month'), nativeHas: group.includes('work.open("performance-edit"'), legacy: '逐月明細：儲存格直接編輯、逐列儲存', native: '點月份開新分頁，以表單編輯後存檔', kind: 'changed' },
     { key: 'ui#thresholds-editor', legacyHas: legacyPage.includes('startEditThreshold'), nativeHas: group.includes("openTool('performance-thresholds')"), legacy: '閾值在年度頁內就地編輯', native: '閾值另開分頁編輯', kind: 'changed' },
     { key: 'ui#import-confirmation', legacyHas: /onChange=\{handleImport\}/.test(legacyPage), nativeHas: group.includes('確認匯入業績'), legacy: '選檔後立即匯入', native: '選檔後須在確認視窗按「確認匯入」', kind: 'changed' },
     { key: 'ui#prescription-dirty-switch', legacyHas: legacyRx.includes("window.confirm('放棄尚未儲存的處方箋修改？')"), nativeHas: rx.includes(':disabled="tab.dirty || tab.busy || loading"'), legacy: '未儲存就切換：跳出確認視窗（可選擇放棄）', native: '未儲存時查詢條件被鎖住，須先儲存', kind: 'changed' },
-    { key: 'ui#bonus-sort-interaction', legacyHas: legacyPage.includes('onContextMenu={e => { e.preventDefault(); handleSortClear'), nativeHas: bonus.includes('@click="sortBy(c[0])"') && !bonus.includes('contextmenu'), legacy: '欄位排序：左鍵排序、右鍵取消', native: '欄位排序：點按鈕切換升冪、降冪（沒有右鍵取消）', kind: 'changed' },
+    { key: 'ui#bonus-sort-interaction', legacyHas: legacyPage.includes('onContextMenu={e => { e.preventDefault(); handleSortClear'), nativeHas: bonus.includes('@click="sortBy(c[0])"') && bonus.includes('@contextmenu.prevent="clearSort(c[0])"'), legacy: '欄位排序：左鍵排序、右鍵取消', native: '欄位排序：左鍵排序、右鍵取消', kind: 'same' },
     { key: 'ui#import-timeout-message', legacyHas: legacyPage.includes('匯入逾時（超過 180 秒）'), nativeHas: api.includes('連線中斷或逾時，內容仍保留，請稍後重試'), legacy: '匯入逾時：「匯入逾時（超過 180 秒）- 伺服器忙碌，請稍後重試」', native: '逾時：「連線中斷或逾時，內容仍保留，請稍後重試」', kind: 'changed' },
-    { key: 'ui#import-store-selector', legacyHas: !legacyPage.includes('匯入門市'), nativeHas: group.includes('aria-label="匯入門市"'), legacy: '(無)：匯入使用工具列所選門市，未選時依 Excel 門市代號', native: '匯入區塊有「匯入門市」選項：目前門市／不指定門市', kind: 'only-native' },
+    { key: 'ui#import-store-selector', legacyHas: !legacyPage.includes('匯入門市'), nativeHas: !group.includes('匯入門市') && !group.includes('importScope'), legacy: '(無)：匯入使用工具列所選門市，未選時依 Excel 門市代號', native: '(無)：匯入使用工具列所選門市，未選時依 Excel 門市代號', kind: 'same' },
     { key: 'ui#threshold-auto-reload', legacyHas: !legacyPage.includes('BroadcastChannel'), nativeHas: group.includes('onThresholdsSaved'), legacy: '(無)：閾值在同頁就地編輯，儲存即生效', native: '閾值另開分頁儲存後，已開啟的年度頁自動重新載入（W03-q4）', kind: 'only-native' },
   ];
   const diffs: Diff[] = [];
   for (const f of features) {
     expect(f.legacyHas, `${f.key}：舊版特徵已不存在，請更新對照`).toBe(true);
     expect(f.nativeHas, `${f.key}：新版特徵已不存在，請更新對照`).toBe(true);
+    if (f.kind === 'same') continue;
     diffs.push({ kind: f.kind, key: f.key, legacy: f.legacy, native: f.native });
   }
   const result = recorder.record({
@@ -548,7 +550,7 @@ test('畫面行為對照：差異逐項記錄並對應白名單', async () => {
     compared: { features: features.length }, diffs, durationMs: Date.now() - started,
   });
   assertNoUnlistedDiffs(result);
-  expect(result.diffs.length).toBe(features.length);
+  expect(result.diffs.length).toBe(features.filter((f) => f.kind !== 'same').length);
 });
 
 // 預設值檢查：避免閾值預設表被改成與舊版不同。

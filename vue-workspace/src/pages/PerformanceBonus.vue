@@ -22,7 +22,7 @@ const ym = ref(props.tab.month),
   canImport = ref(false),
   file = ref<File | null>(null),
   confirmImport = ref(false),
-  sort = ref("store"),
+  sort = ref<string | null>("store"),
   direction = ref(1),
   loaded = ref("");
 const filters = computed(() =>
@@ -75,6 +75,7 @@ const visible = computed(() =>
         bonusColumns.some((c) => Number(r[c[0]] || 0) !== 0),
     )
     .sort((a, b) => {
+      if (!sort.value) return 0;
       const x = value(a, sort.value),
         y = value(b, sort.value);
       return (
@@ -90,6 +91,13 @@ const filteredBonusTotal = computed(() =>
 );
 const amount = (v: any) =>
   Number(v || 0).toLocaleString("zh-TW", { maximumFractionDigits: 2 });
+// 照舊版：左鍵排序（同欄切換升降冪）、右鍵取消排序。
+function clearSort(key: string) {
+  if (sort.value === key) {
+    sort.value = null;
+    direction.value = 1;
+  }
+}
 function sortBy(key: string) {
   if (sort.value === key) direction.value *= -1;
   else {
@@ -333,7 +341,7 @@ onMounted(async () => {
                   : 'none'
               "
             >
-              <button @click="sortBy(c[0])">
+              <button @click="sortBy(c[0])" @contextmenu.prevent="clearSort(c[0])">
                 {{ c[1] }}
                 {{ sort === c[0] ? (direction === 1 ? "↑" : "↓") : "" }}
               </button>

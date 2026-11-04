@@ -53,14 +53,14 @@ test('團體獎金：匯入（不選門市）、編輯、獎金與閾值自動�
       const g = group(page);
       await expect(g.getByText('此門市使用自訂閾值')).toHaveCount(0);
 
-      // W03-q1：不指定門市，依 Excel 門市代號一次匯入兩間門市
-      await g.getByLabel('匯入門市').selectOption('excel');
+      // W03-q1：Excel 列帶門市代號一次匯入兩間門市
+      await expect(g.getByLabel('匯入門市')).toHaveCount(0); // 規格 D.4：無匯入門市選項
       await g.locator('.performance-import input[type=file]').setInputFiles(
         file([perfImportRow(p.primary, p.month, { 月實際毛利額: 800000 }), perfImportRow('ZT02', p.month, { 月實際毛利額: 810000 })]),
       );
       await g.getByRole('button', { name: '匯入 Excel' }).click();
       const confirm = page.getByRole('dialog', { name: '確認匯入業績' });
-      await expect(confirm).toContainText('未指定門市');
+      await expect(confirm).toContainText('使用目前所選門市');
       await confirm.getByRole('button', { name: '確認匯入' }).click();
       await expect(g.getByRole('status').filter({ hasText: '匯入完成：成功 2 筆' })).toBeVisible({ timeout: 30_000 });
       const imported = await readRowsAsServiceRole('store_performance', { in: { store_id: [storeId, ids.ZT02] }, eq: { year: W03_YEAR, month: p.month }, select: 'store_id,monthly_gross_profit_actual' });

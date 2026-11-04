@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     if (!ctx.has("performance.edit"))
       throw new WorkspaceError(403, "沒有編輯業績權限");
     const body = await request.clone().json();
-    await requireStore(ctx, "performance", body.store_id);
+    // W03-q 規格 D.1：有 performance.edit 即可存任何門市，不看門市指派（照舊版）。
     if (
       !Number.isInteger(body.year) ||
       body.year < 2000 ||

@@ -27,11 +27,12 @@ async function run(request:NextRequest,{params}:Params,write:boolean){
   if(resource==='thresholds'){
    const body=write?await request.clone().json():null;
    const store=body?.store_id||request.nextUrl.searchParams.get('store_id');
-   await requireStore(ctx,'performance',store);
    if(write){
-    for(const period of ['monthly','quarterly'])if(!Array.isArray(body[period])||body[period].length!==5||body[period].some((r:any,i:number)=>r.level!==i+1||!Number.isInteger(r.base_amount)||r.base_amount<0||r.base_amount>2147483647))throw new WorkspaceError(400,'每期需填寫五檻非負整數獎金金額');
+    // 規格 D.2：只保留基本格式檢查（整數且 ≥0、檻別 1–5）；不強制五檻、不檢查門市指派（照舊版）。
+    for(const period of ['monthly','quarterly'])if(!Array.isArray(body?.[period])||body[period].some((r:any)=>!r||!Number.isInteger(r.level)||r.level<1||r.level>5||!Number.isInteger(r.base_amount)||r.base_amount<0||r.base_amount>2147483647))throw new WorkspaceError(400,'獎金閾值格式不正確（檻別 1–5、金額為非負整數）');
     return saveThresholds(request);
    }
+   await requireStore(ctx,'performance',store);
    const rows=checked(await ctx.auth.from('store_performance_thresholds').select('period_type,threshold_level,base_amount').eq('store_id',store))||[];
    // 與舊 /api/performance-thresholds GET 同一個形狀（level、multiplier、baseAmount、label、isCustom）。
    const build=(type:string,defaults:typeof MONTHLY_THRESHOLDS)=>defaults.map((d,i)=>{const saved=rows.find(r=>r.period_type===type&&r.threshold_level===i+1);return{level:i+1,multiplier:d.multiplier,baseAmount:saved?Number(saved.base_amount):d.baseAmount,label:d.label,isCustom:!!saved};});
