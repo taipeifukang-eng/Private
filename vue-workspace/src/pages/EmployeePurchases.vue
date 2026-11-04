@@ -36,7 +36,7 @@ async function upload(){
  props.tab.busy=true;importError.value='';
  try{const fd=new FormData();fd.append('file',file.value);const result=await api('employee-purchases/import',{method:'POST',body:fd,signal:AbortSignal.timeout(180000)});
  message.value=`匯入完成：歸屬月份 ${result.year_month}，${result.imported} 筆，已比對 ${result.matched} 筆，未比對 ${result.unmatched} 筆，跳過 ${result.skipped} 筆，總金額 ${money(result.total_amount)}`;
- warnings.value=result.errors||[];file.value=null;importing.value=false;confirmed.value=false;await load('',result.year_month);return true;
+ warnings.value=result.errors||[];file.value=null;importing.value=false;confirmed.value=false;await load(position.value,result.year_month);return true;
  }catch(e:any){importError.value=e.message;return false}finally{props.tab.busy=false}
 }
 props.tab.save=upload;onBeforeUnmount(()=>{props.tab.save=undefined});onMounted(()=>load());
@@ -45,7 +45,7 @@ props.tab.save=upload;onBeforeUnmount(()=>{props.tab.save=undefined});onMounted(
 <section class="purchase-page">
 <header class="heading"><div><small>組織與門市 / 員工購物</small><h1>員工購物管理</h1><p class="muted" data-page-intro>匯入 POS 每月員工購物銷售資料，依當月人員快照統計不同職稱的購物金額。</p></div><div class="actions"><button :disabled="loading||tab.busy" @click="load()">重新整理</button><button v-if="data?.capabilities.import" class="primary" :disabled="loading||tab.busy" @click="openImport">匯入 POS Excel</button></div></header>
 <p v-if="error" role="alert" class="notice error">{{error}}</p><p v-if="message" role="status" class="notice">{{message}}</p><details v-if="warnings.length"><summary>匯入警告（{{warnings.length}}）</summary><ul><li v-for="(w,i) in warnings" :key="i">{{w}}</li></ul></details>
-<form class="filters" @submit.prevent="load('',month)"><label>月份<input v-model="month" type="month" required :disabled="loading||tab.busy" @change="monthChanged" /></label><button class="primary" :disabled="loading||tab.busy">查詢員購</button><span v-if="loadedMonth">顯示 {{loadedMonth}} · {{position||'全部職稱'}}</span></form>
+<form class="filters" @submit.prevent="load(position,month)"><label>月份<input v-model="month" type="month" required :disabled="loading||tab.busy" @change="monthChanged" /></label><button class="primary" :disabled="loading||tab.busy">查詢員購</button><span v-if="loadedMonth">顯示 {{loadedMonth}} · {{position||'全部職稱'}}</span></form>
 <p v-if="loading" role="status">載入中…</p>
 <template v-if="data">
 <div class="totals"><div>購物總金額<strong>{{money(data.total_amount)}}</strong></div><div>明細筆數<strong>{{money(data.total_count)}}</strong></div><div>已比對／未比對<strong>{{money(data.matched_count)}} / {{money(data.unmatched_count)}}</strong></div></div>

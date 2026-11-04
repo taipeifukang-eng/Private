@@ -134,4 +134,10 @@ describe('P01 頁面使用共用函式', () => {
     expect(vue).toContain('購買筆數');
     expect(vue).toContain('data-detail-totals');
   });
+  it('匯入成功與查詢員購都保留目前職稱（同舊版 selectedPosition）', () => {
+    expect(vue).toContain('await load(position.value,result.year_month)');
+    expect(vue).toContain('@submit.prevent="load(position,month)"');
+    expect(vue).not.toContain("load('',result.year_month)");
+    expect(vue).not.toContain("load('',month)");
+  });
 });
