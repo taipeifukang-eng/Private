@@ -54,12 +54,19 @@ async function importData() {
     const r = await api("performance-tools/performance-import", {
       method: "POST",
       body,
+      signal: AbortSignal.timeout(180000),
     });
-    if (r && r.success === false) throw new Error(r.error || "匯入失敗");
+    if (r && r.success === false) {
+      const errs: string[] = Array.isArray(r.errors) ? r.errors : [];
+      const more = errs.length > 5 ? `\n...另有 ${errs.length - 5} 筆` : "";
+      const details = errs.length ? `\n${errs.slice(0, 5).join("\n")}${more}` : "";
+      throw new Error(`${r.error || "匯入失敗"}${details}`);
+    }
     importConfirm.value = false;
     importFile.value = null;
     await load();
-    message.value = `匯入完成：成功 ${r.imported} 筆、略過 ${r.skipped ?? 0} 筆。${(r.errors || []).join("；")}`;
+    message.value = `匯入完成：成功 ${r.imported} 筆，略過 ${r.skipped} 筆${r.errors?.length ? "；有警告請見主控台" : ""}`;
+    if (r.errors?.length) console.warn("[Import]", r.errors);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -166,7 +173,10 @@ async function save() {
   error.value = "";
   try {
     const body = Object.fromEntries(
-      Object.entries(form.value).map(([k, v]) => [k, v === "" ? null : v]),
+      Object.entries(form.value).map(([k, v]) => [
+        k,
+        v === "" || (v === 0 && k !== "business_days") ? null : v,
+      ]),
     );
     const saved = await api("performance", {
       method: "POST",

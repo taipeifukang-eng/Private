@@ -214,3 +214,19 @@ describe('自訂閾值標記', () => {
     expect(usesCustomThresholds(one, MONTHLY_THRESHOLDS)).toBe(true);
   });
 });
+
+describe('W03 修正：未達第一檻照舊版顯示', () => {
+  it('level 0 顯示「-」且不顯示獎金金額', async () => {
+    const { levelLabel, hasBonusAmount } = await import('../../../lib/workspace/performance-year');
+    const y = calcYearBonus([row(1, { monthly_gross_profit_actual: 1 })] as never, MONTHLY_THRESHOLDS, QUARTERLY_THRESHOLDS);
+    const b = y.months[0]!;
+    expect(b.gpThresholdLevel).toBe(0);
+    expect(levelLabel(b.gpThresholdLevel)).toBe('-');
+    expect(hasBonusAmount(b)).toBe(false);
+    expect(levelLabel(0)).toBe('-');
+    expect(levelLabel(y.quarters[0]!.gpThresholdLevel)).toBe('-');
+    expect(levelLabel(1)).toBe('第一檻');
+    expect(levelLabel(5)).toBe('第五檻');
+    expect(hasBonusAmount(null)).toBe(false);
+  });
+});

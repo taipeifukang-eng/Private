@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {computed} from 'vue';
 import {type ThresholdDef,formatRate} from '../../../lib/performance/bonus-calc';
-import {calcYearBonus} from '../../../lib/workspace/performance-year';
+import {calcYearBonus,levelLabel,hasBonusAmount} from '../../../lib/workspace/performance-year';
 const props=defineProps<{rows:any[];monthly:ThresholdDef[];quarterly:ThresholdDef[];canEdit:boolean;disabled:boolean}>();
 defineEmits<{edit:[month:number]}>();
 const amount=(v:any)=>v==null?'—':Number(v).toLocaleString('zh-TW',{maximumFractionDigits:2});
@@ -17,14 +17,14 @@ const metrics=[['毛利','quarterlyGpTarget','quarterlyGpActual','gpAchieved'],[
   <details v-for="q in quarters" :key="q.index"><summary>Q{{q.index+1}}（{{q.index*3+1}}–{{q.index*3+3}} 月）<span>{{q.filled?`季回補 ${amount(q.result.makeupBonus)} 元／人`:'尚無資料'}}</span></summary>
    <template v-if="q.filled"><p v-if="q.filled<3" class="notice">僅 {{q.filled}} 個月有毛利目標與實績，以下為目前資料試算。</p>
    <div class="module-table"><table><thead><tr><th>指標</th><th>季度目標</th><th>季度實際</th><th>達標</th></tr></thead><tbody><tr v-for="m in metrics"><th>{{m[0]}}</th><td>{{amount((q.result as any)[m[1]])}}</td><td>{{amount((q.result as any)[m[2]])}}</td><td>{{(q.result as any)[m[3]]?'是':'否'}}</td></tr></tbody></table></div>
-   <p>營業天數 {{amount(q.result.quarterlyBusinessDays)}} · 毛利達成率 {{formatRate(q.result.gpAchievementRate)}} · 第 {{q.result.gpThresholdLevel}} 檻 · 基本獎金 {{amount(q.result.thresholdBaseAmount)}} · 權重 {{formatRate(q.result.totalWeight*100)}}</p>
+   <p>營業天數 {{amount(q.result.quarterlyBusinessDays)}} · 毛利達成率 {{formatRate(q.result.gpAchievementRate)}} · 達成門檻 {{levelLabel(q.result.gpThresholdLevel)}} · 基本獎金 {{amount(q.result.thresholdBaseAmount)}} · 權重 {{formatRate(q.result.totalWeight*100)}}</p>
    <p>季應得 {{amount(q.result.quarterlyBonus)}} − 月獎金合計 {{amount(q.result.monthlyBonusSum)}} ＝ 季回補 {{amount(q.result.makeupBonus)}} 元／人（最低為 0）</p></template>
    <p v-else class="muted">填寫月份毛利目標與實績後即可計算。</p>
   </details>
  </section>
  <h2>逐月業績明細</h2>
  <div class="module-table"><table class="performance-detail-table"><thead><tr><th>月份</th><th v-for="c in columns">{{c[1]}}</th><th>達成門檻</th><th>月獎金／人</th><th>操作</th></tr></thead><tbody>
-  <tr v-for="(r,i) in months" :key="r.month"><th>{{r.month}} 月</th><td v-for="c in columns">{{amount(r[c[0]])}}</td><td>{{bonuses[i]?`第 ${bonuses[i]!.gpThresholdLevel} 檻`:'—'}}</td><td><details v-if="bonuses[i]"><summary>{{amount(bonuses[i]!.finalBonus)}}</summary><dl class="bonus-breakdown"><dt>日毛利目標／實際</dt><dd>{{amount(bonuses[i]!.dailyGpTarget)}}／{{amount(bonuses[i]!.dailyGpActual)}}</dd><dt>毛利／營收／客數／慢箋達成率</dt><dd>{{formatRate(bonuses[i]!.gpAchievementRate)}}／{{formatRate(bonuses[i]!.revenueAchievementRate)}}／{{formatRate(bonuses[i]!.customerCountAchievementRate)}}／{{formatRate(bonuses[i]!.rxAchievementRate)}}</dd><dt>基本金額 × 權重</dt><dd>{{amount(bonuses[i]!.thresholdBaseAmount)}} × {{formatRate(bonuses[i]!.totalWeight*100)}}</dd><dt>活動日折減</dt><dd>{{bonuses[i]!.activityPenaltyApplied?'套用 80%':'未套用'}}；其他營業日平均毛利 {{amount(bonuses[i]!.activityAdjustedDailyGp)}}</dd></dl></details><span v-else>—</span></td><td><button :disabled="disabled" @click="$emit('edit',r.month)">{{canEdit?'編輯':'檢視'}}</button></td></tr>
+  <tr v-for="(r,i) in months" :key="r.month"><th>{{r.month}} 月</th><td v-for="c in columns">{{amount(r[c[0]])}}</td><td>{{bonuses[i]?levelLabel(bonuses[i]!.gpThresholdLevel):'—'}}</td><td><details v-if="hasBonusAmount(bonuses[i])"><summary>{{amount(bonuses[i]!.finalBonus)}}</summary><dl class="bonus-breakdown"><dt>日毛利目標／實際</dt><dd>{{amount(bonuses[i]!.dailyGpTarget)}}／{{amount(bonuses[i]!.dailyGpActual)}}</dd><dt>毛利／營收／客數／慢箋達成率</dt><dd>{{formatRate(bonuses[i]!.gpAchievementRate)}}／{{formatRate(bonuses[i]!.revenueAchievementRate)}}／{{formatRate(bonuses[i]!.customerCountAchievementRate)}}／{{formatRate(bonuses[i]!.rxAchievementRate)}}</dd><dt>基本金額 × 權重</dt><dd>{{amount(bonuses[i]!.thresholdBaseAmount)}} × {{formatRate(bonuses[i]!.totalWeight*100)}}</dd><dt>活動日折減</dt><dd>{{bonuses[i]!.activityPenaltyApplied?'套用 80%':'未套用'}}；其他營業日平均毛利 {{amount(bonuses[i]!.activityAdjustedDailyGp)}}</dd></dl></details><span v-else>—</span></td><td><button :disabled="disabled" @click="$emit('edit',r.month)">{{canEdit?'編輯':'檢視'}}</button></td></tr>
  </tbody></table></div>
 </template>
 <style scoped>

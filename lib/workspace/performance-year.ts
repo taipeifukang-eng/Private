@@ -86,3 +86,13 @@ export function calcYearBonus(
 export function usesCustomThresholds(monthly: ThresholdDef[], defaults: ThresholdDef[]): boolean {
   return monthly.some((t, i) => t.baseAmount !== defaults[i]?.baseAmount);
 }
+
+/** 舊版 thresholdBadge：未達第一檻顯示「-」。 */
+export function levelLabel(level: number): string {
+  return ["-", "第一檻", "第二檻", "第三檻", "第四檻", "第五檻"][level] ?? `第 ${level} 檻`;
+}
+
+/** 舊版：獎金金額只在達到第一檻以上才顯示，否則顯示「—」。 */
+export function hasBonusAmount(b: BonusResult | null | undefined): b is BonusResult {
+  return !!b && b.gpThresholdLevel > 0;
+}

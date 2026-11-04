@@ -122,6 +122,16 @@ test.describe('業績寫入與 W03-q3（照舊版後寫覆蓋）', () => {
     expect(read.records[0]).not.toHaveProperty('updated_at'); // 樂觀鎖用的版本欄位已移除
   });
 
+  test('非營業天數欄位輸入 0 照舊版（setField parseFloat || null）存成 NULL', async () => {
+    const res = await savePerf(admin, ids.ZT01, 3, { monthly_gross_profit_actual: 0, activity_day_gross_profit: 0, last_month_rx_actual: 0 });
+    expect(res.status(), await res.text()).toBe(200);
+    const row = (await readPerfRows(ids.ZT01)).find((r) => r.month === 3)!;
+    expect(row.monthly_gross_profit_actual).toBeNull();
+    expect(row.activity_day_gross_profit).toBeNull();
+    expect(row.last_month_rx_actual).toBeNull();
+    expect(Number(row.business_days)).toBe(26);
+  });
+
   test('權限與輸入驗證', async () => {
     const view = await as('performance_view');
     expect((await savePerf(view, ids.ZT01, 2)).status()).toBe(403);

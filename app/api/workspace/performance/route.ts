@@ -107,7 +107,8 @@ export async function POST(request: NextRequest) {
         (typeof body[field] !== "number" || !Number.isFinite(body[field]))
       )
         throw new WorkspaceError(400, "業績數值格式不正確");
-      values[field] = body[field];
+      // 照舊版 setField：非營業天數欄位 0 以 NULL 儲存。
+      values[field] = body[field] === 0 ? null : body[field];
     }
     // W03-q3：照舊版後寫覆蓋（舊 /api/performance-data 為 upsert，沒有版本檢查）。
     // 以 store_id+year+month 為衝突鍵，不再比對 updated_at。
