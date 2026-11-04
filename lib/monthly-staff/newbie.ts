@@ -5,7 +5,7 @@
  * - 編輯頁（舊 app/monthly-status/edit/[id]/page.tsx handleSave）：到職後「剛好第 N 個月」才提示（monthsDiff === 1 / 2 / 6）。
  * - 送審前檢查（舊 app/store/actions.ts checkNewbieStatus）：「滿 N 個月以上」都列出（monthsDiff >= N），由 monthly-status-rules 引用。
  *
- * W01b-q2（使用者 2026-11-02）：提醒不阻擋儲存；滿 6 個月時不在此表單直接改職位，改為提示以人員異動紀錄處理。
+ * 修正規格 C.4（使用者 2026-11-04）：照舊版 confirm，取消即中止儲存；滿 6 個月提示「應升為專員，請加強員工訓練」，不改職位、不附異動連結。
  */
 
 export type NewbieLevelValue = '一階新人' | '二階新人';
@@ -50,7 +50,7 @@ export function suggestedNewbieAction(monthsDiff: number, position: string | nul
 }
 
 export interface NewbiePrompt {
-  /** level：建議改新人階段（可一鍵套用）；promote：滿 6 個月，提示改以人員異動紀錄處理（不可在此改職位）。 */
+  /** level：建議改新人階段（確定後套用）；promote：滿 6 個月，只提示應升為專員（不在此表單改職位）。 */
   kind: 'level' | 'promote';
   monthsDiff: number;
   message: string;
@@ -58,10 +58,10 @@ export interface NewbiePrompt {
   suggestedLevel?: NewbieLevelValue;
 }
 
-export const PROMOTION_BY_MOVEMENT_NOTICE = '升階請以人員異動紀錄處理';
+export const PROMOTE_TO_SPECIALIST_MESSAGE = '應升為專員，請加強員工訓練';
 
 /**
- * 編輯頁儲存前的新人升階提醒（舊版 252–294 行邏輯，W01b-q2 調整為不阻擋、不直接改職位）。
+ * 編輯頁儲存前的新人升階提醒（舊版 252–294 行邏輯；滿 6 個月只提示、不直接改職位）。
  * 判斷條件沿用舊版：有到職日，且（職位為新人或本月狀態為本月新進）；到職後剛好第 1 / 2 / 6 個月。
  */
 export function newbiePromotionPrompt(
@@ -79,6 +79,6 @@ export function newbiePromotionPrompt(
   if (monthsDiff === 2 && newbieLevel !== '二階新人')
     return { kind: 'level', monthsDiff, suggestedLevel: '二階新人', message: '此新人應該過二階段，是否要改成二階新人？' };
   if (monthsDiff === 6 && position === '新人')
-    return { kind: 'promote', monthsDiff, message: `此新人已滿 6 個月，應該要過專員考試。${PROMOTION_BY_MOVEMENT_NOTICE}，本表單不會直接改職位。` };
+    return { kind: 'promote', monthsDiff, message: `此新人已滿 6 個月，${PROMOTE_TO_SPECIALIST_MESSAGE}。` };
   return null;
 }

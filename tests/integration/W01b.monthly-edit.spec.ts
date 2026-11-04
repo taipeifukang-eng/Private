@@ -244,6 +244,10 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
       expect(body.record.extra_task_external_hours ?? null).toBe((u.extra_task_external_hours as number | null) || null);
     }
     expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 5 })).body.record.extra_task_planned_hours).toBe(160);
+    // 規格 C.2：照舊版，外務時數 > 0 時寫入未滿月備註前綴；原備註以「; 」接在後面；沒有外務時數則維持原備註
+    expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 5, partial_month_notes: '' })).body.record.partial_month_notes).toBe('外務時數: 5小時');
+    expect((await saveMain({ extra_tasks: ['診所業務'], extra_task_external_hours: 2.5, partial_month_notes: '5/15 到職' })).body.record.partial_month_notes).toBe('外務時數: 2.5小時; 5/15 到職');
+    expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 0, partial_month_notes: '備註' })).body.record.partial_month_notes).toBe('備註');
     const cleared = await saveMain({ extra_tasks: [] });
     expect(cleared.body.record.extra_tasks).toBeNull();
     expect(cleared.body.record.extra_task_planned_hours).toBeNull();

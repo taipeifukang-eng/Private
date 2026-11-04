@@ -4,7 +4,7 @@ import {
   monthIndex,
   monthsSinceHire,
   newbiePromotionPrompt,
-  PROMOTION_BY_MOVEMENT_NOTICE,
+  PROMOTE_TO_SPECIALIST_MESSAGE,
   suggestedNewbieAction,
   usesNewbieLevel,
 } from '../../../lib/monthly-staff/newbie';
@@ -65,11 +65,11 @@ describe('newbiePromotionPrompt（編輯頁，月份 2026-10）', () => {
   it('到職 2026-08-01、已是二階 → 不提示', () => {
     expect(newbiePromotionPrompt('2026-08-01', ym, '新人', 'full_month', '二階新人')).toBeNull();
   });
-  it('到職 2026-04-01、職位新人 → 滿 6 個月：只提示以人員異動紀錄處理，不提供改職位', () => {
+  it('到職 2026-04-01、職位新人 → 滿 6 個月：只提示應升為專員，不提供改職位', () => {
     const p = newbiePromotionPrompt('2026-04-01', ym, '新人', 'full_month', '二階新人');
     expect(p?.kind).toBe('promote');
     expect(p?.monthsDiff).toBe(6);
-    expect(p?.message).toContain(PROMOTION_BY_MOVEMENT_NOTICE);
+    expect(p?.message).toContain(PROMOTE_TO_SPECIALIST_MESSAGE);
     expect(p?.suggestedLevel).toBeUndefined();
   });
   it('到職 2026-04-01 但職位已是專員（本月狀態不是新進）→ 不提示', () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from "vue";
+import { ref, reactive, onMounted, computed, watch } from "vue";
 import { api, type Store } from "../api";
 import { useWorkspace, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
@@ -250,6 +250,13 @@ async function execute() {
   }
 }
 onMounted(load);
+// 單人編輯儲存後回到本分頁：重新讀取名冊（有未完成操作時不打斷）。
+watch(
+  () => work.monthlyRevision,
+  () => {
+    if (!loading.value && !props.tab.busy && props.tab.store) void load();
+  },
+);
 </script>
 <template>
   <header class="page-heading">

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadAllowlist, loadMap } from '../../support/parity';
 
-// W01b 白名單與 parity map：每個與舊版不同的行為都有 approvedBy:null 且有 match 的條目，並對得上 map entry。
+// W01b 白名單與 parity map：每個與舊版不同的行為都有帶 match 的條目（approvedBy 為 null 或已核可字串），並對得上 map entry。
 const root = path.resolve(__dirname, '..', '..', '..');
 
 describe('W01b 白名單條目', () => {
@@ -11,10 +11,10 @@ describe('W01b 白名單條目', () => {
   const map = loadMap('monthly-edit');
   const entryIds = new Set(map.entries.map((e) => e.id));
 
-  it('全部尚未核可（approvedBy 為 null），且都有 match，match.entry 對應 parity map', () => {
-    expect(entries.length).toBeGreaterThanOrEqual(6);
+  it('approvedBy 為 null 或非空字串（使用者核可），且都有 match，match.entry 對應 parity map', () => {
+    expect(entries.length).toBeGreaterThanOrEqual(4);
     for (const e of entries) {
-      expect(e.approvedBy, e.id).toBeNull();
+      expect(e.approvedBy === null || (typeof e.approvedBy === 'string' && e.approvedBy.length > 0), e.id).toBe(true);
       expect(e.match, e.id).toBeTruthy();
       expect(entryIds.has(e.match!.entry!), `${e.id} 的 match.entry`).toBe(true);
     }
@@ -22,7 +22,7 @@ describe('W01b 白名單條目', () => {
 
   it('使用者拍板的三項差異都有登記：W01b-q1 區塊預覽、W01b-q2 新人提醒、W01b-q3 不滿月不自動改', () => {
     const ids = entries.map((e) => e.id);
-    for (const id of ['w01b-block-preview-follows-db', 'w01b-newbie-reminder-not-blocking', 'w01b-newbie-promote-via-movement', 'w01b-partial-month-no-auto-status']) expect(ids).toContain(id);
+    for (const id of ['w01b-block-preview-follows-db', 'w01b-newbie-promote-via-movement', 'w01b-partial-month-no-auto-status']) expect(ids).toContain(id);
   });
 
   it('parity map 的每個 entry 都有被 parity 測試引用', () => {

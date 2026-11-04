@@ -2,7 +2,7 @@
 import Modal from "../components/Modal.vue";
 import { ref, computed, watch, onBeforeUnmount, onMounted } from "vue";
 import { api } from "../api";
-import { useSession, useWorkspace, type WorkTab } from "../stores";
+import { useWorkspace, type WorkTab } from "../stores";
 import { canDoMonthlyAction } from "../../../lib/workspace/monthly-status-rules";
 import {
   BLOCK_DESCRIPTIONS,
@@ -18,7 +18,6 @@ import {
 import {
   usesNewbieLevel,
   newbiePromotionPrompt,
-  PROMOTION_BY_MOVEMENT_NOTICE,
 } from "../../../lib/monthly-staff/newbie";
 import {
   ADMIN_LEVEL_OPTIONS,
@@ -27,7 +26,6 @@ import {
 const saveFailed = ref(false);
 const props = defineProps<{ tab: WorkTab }>();
 const work = useWorkspace();
-const session = useSession();
 const record = ref<any>(props.tab.payload),
   error = ref(""),
   message = ref(""),
@@ -138,9 +136,6 @@ const prompt = computed(() =>
     form.value.newbie_level,
   ),
 );
-const canOpenMovements = computed(
-  () => !!session.data?.capabilities.movementHistory,
-);
 
 // W01b-q3：天數剛好滿月才自動設為整月；不滿月不自動改（只顯示提示）。
 watch(
@@ -191,8 +186,6 @@ async function save() {
     record.value = r.record;
     snapshot = JSON.stringify(form.value);
     props.tab.dirty = false;
-    // 舊版 alert「✅ 儲存成功」後回名冊頁；新版維持在編輯分頁（保留已開分頁與草稿），以「已儲存」提示（白名單 w01b-save-stays-in-editor）。
-    message.value = "已儲存";
     return true;
   } catch (e) {
     error.value = (e as Error).message;
@@ -202,7 +195,13 @@ async function save() {
     props.tab.busy = false;
   }
 }
-// W01b-q2：新人升階提醒不阻擋儲存；按「是」套用階段，按「否」維持原樣，兩者都繼續儲存。
+// 規格 C.3：照舊版，儲存成功跳「✅ 儲存成功」，然後回到月結總覽該門市分頁。
+async function saveAndReturn() {
+  if (!(await save())) return;
+  window.alert("✅ 儲存成功");
+  work.returnToMonthly(props.tab.id, props.tab.store, props.tab.month);
+}
+// 規格 C.4：照舊版 confirm，按「取消」中止儲存；按「確定」（level 時套用階段）後繼續儲存。
 async function requestSave() {
   const invalid = validate();
   if (invalid) {
@@ -213,18 +212,15 @@ async function requestSave() {
     reminder.value = true;
     return;
   }
-  await save();
+  await saveAndReturn();
 }
-async function answerReminder(apply: boolean) {
+async function answerReminder(confirmed: boolean) {
   const current = prompt.value;
   reminder.value = false;
-  if (apply && current?.kind === "level" && current.suggestedLevel)
+  if (!confirmed) return;
+  if (current?.kind === "level" && current.suggestedLevel)
     form.value.newbie_level = current.suggestedLevel;
-  await save();
-}
-function openMovements() {
-  reminder.value = false;
-  work.open("movement-history");
+  await saveAndReturn();
 }
 function back() {
   work.remove([props.tab.id]);
@@ -490,11 +486,6 @@ onBeforeUnmount(() => {
         data-newbie-reminder
       >
         <strong>新人階段提醒：</strong>{{ prompt.message }}
-        <template v-if="prompt.kind === 'promote' && canOpenMovements">
-          <button type="button" data-open-movements @click="openMovements">
-            前往人員異動紀錄
-          </button>
-        </template>
       </p>
 
       <section class="block-preview" aria-label="系統自動計算區塊" data-block-preview>
@@ -526,25 +517,9 @@ onBeforeUnmount(() => {
   >
   <Modal v-if="reminder && prompt" title="新人階段提醒" @cancel="reminder = false"
     ><p>{{ prompt.message }}</p>
-    <template v-if="prompt.kind === 'level'">
-      <p class="muted">不論選擇哪一項，都會繼續儲存。</p>
-      <div class="dialog-actions">
-        <button type="button" @click="answerReminder(false)">否，維持原樣並儲存</button>
-        <button class="primary" type="button" @click="answerReminder(true)">
-          是，改成{{ prompt.suggestedLevel }}並儲存
-        </button>
-      </div>
-    </template>
-    <template v-else>
-      <p class="muted">{{ PROMOTION_BY_MOVEMENT_NOTICE }}；本次儲存不會更動職位。</p>
-      <div class="dialog-actions">
-        <button v-if="canOpenMovements" type="button" @click="openMovements">
-          前往人員異動紀錄
-        </button>
-        <button class="primary" type="button" @click="answerReminder(false)">
-          知道了，繼續儲存
-        </button>
-      </div>
-    </template></Modal
+    <div class="dialog-actions">
+      <button type="button" @click="answerReminder(false)">取消</button>
+      <button class="primary" type="button" @click="answerReminder(true)">確定</button>
+    </div></Modal
   >
 </template>

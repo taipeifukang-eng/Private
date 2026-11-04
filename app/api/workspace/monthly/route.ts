@@ -421,6 +421,9 @@ export async function POST(request: Request) {
         updates.extra_task_external_hours = u.extra_tasks.length
           ? u.extra_task_external_hours || null
           : null;
+        // 規格 C.2：照舊版，有外務時數（>0）時，把「外務時數: N小時」加在 partial_month_notes 前面（原備註以「; 」接在後面）。
+        if (u.extra_tasks.length && u.extra_task_external_hours > 0)
+          updates.partial_month_notes = `外務時數: ${u.extra_task_external_hours}小時${u.partial_month_notes ? "; " + u.partial_month_notes : ""}`;
         updates.extra_task_planned_hours = u.extra_tasks.length
           ? plannedExtraTaskHours({
               position: u.position,

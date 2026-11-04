@@ -94,6 +94,7 @@ export const useWorkspace = defineStore("workspace", () => {
   const organizationRevision = ref(0);
   const departmentRevision = ref(0);
   const lastSavedTab = ref("");
+  const monthlyRevision = ref(0);
   const dirty = computed(() => tabs.value.filter((t) => t.dirty));
   function open(kind: WorkTab["kind"], store = "", recordId?: string) {
     const tab: WorkTab = {
@@ -118,6 +119,19 @@ export const useWorkspace = defineStore("workspace", () => {
         tabs.value[Math.max(0, Math.min(oldIndex, tabs.value.length - 1))]
           ?.id || "";
   }
+  // 單人編輯儲存成功後：關閉編輯分頁，回到月結總覽該門市分頁並請它重新讀取。
+  function returnToMonthly(editTabId: string, store: string, month: string) {
+    const target =
+      tabs.value.find((t) => t.kind === "monthly" && t.store === store && t.month === month) ||
+      tabs.value.find((t) => t.kind === "monthly" && t.store === store) ||
+      tabs.value.find((t) => t.kind === "monthly");
+    remove([editTabId]);
+    const monthly = target || open("monthly", store);
+    monthly.store = store;
+    monthly.month = month;
+    active.value = monthly.id;
+    monthlyRevision.value++;
+  }
   function clear() {
     tabs.value = [];
     deletedInspectionIds.value = [];
@@ -132,6 +146,8 @@ export const useWorkspace = defineStore("workspace", () => {
     organizationRevision,
     departmentRevision,
     lastSavedTab,
+    monthlyRevision,
+    returnToMonthly,
     open,
     remove,
     clear,

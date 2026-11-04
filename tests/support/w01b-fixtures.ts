@@ -69,7 +69,7 @@ export async function openNativeEditor(page: Page, storeLabel: string, month: st
   await page.waitForFunction(() => !document.querySelector('[role=status]'), undefined, { timeout: 30_000 });
   const row = page.locator(`tr[data-staff="${code}"]`);
   await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.getByRole('button', { name: /編輯出勤|查看明細/ }).click();
+  await row.getByRole('button', { name: /編輯|查看明細/ }).click();
   await expect(page.locator('form.module-editor, [data-confirmed-screen]').first()).toBeVisible({ timeout: 30_000 });
 }
 

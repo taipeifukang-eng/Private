@@ -133,10 +133,14 @@ async function openNative(page: Page, code: string, month: string, storeLabel = 
   await page.waitForFunction(() => !document.querySelector('[role=status]'), undefined, { timeout: 30_000 });
   const row = page.locator(`tr[data-staff="${code}"]`);
   await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.getByRole('button', { name: /編輯出勤|查看明細/ }).click();
+  await row.getByRole('button', { name: /^編輯$|查看明細/ }).click();
   await expect(page.locator('section.work-page:visible form.module-editor, section.work-page:visible [data-confirmed-screen]').first()).toBeVisible({ timeout: 30_000 });
 }
 const panel = (page: Page) => page.locator('section.work-page:visible');
+/** 新版儲存成功：跳 alert 並回到名冊，編輯表單消失。 */
+async function nativeEditorClosed(page: Page) {
+  await expect(panel(page).locator('form.module-editor')).toHaveCount(0, { timeout: 20_000 });
+}
 
 async function legacyBlock(page: Page) {
   return norm(await page.locator(LX.block).first().textContent()).replace('區塊', '').trim();
@@ -246,7 +250,7 @@ test('新人升階提醒對等：是否提醒、訊息、回答「否」後是�
       legacyRows.push({ scenario: key, prompted: messages.length ? 'Y' : 'N', message: messages[0] || '', savedAfterNo: legacySaved ? 'Y' : 'N' });
       await lp.close();
 
-      // 新頁：改備註 -> 儲存 -> 視窗出現則回答「否」（滿 6 個月沒有「否」，按「知道了，繼續儲存」）
+      // 新頁：改備註 -> 儲存 -> 視窗出現則按「取消」（與舊頁 confirm 取消相同，中止儲存）
       const np = await ctx.newPage();
       await openNative(np, rows[`${key}N`].code, PD);
       await panel(np).locator('[name=notes]').fill('PAR 提醒測試');
@@ -255,10 +259,11 @@ test('新人升階提醒對等：是否提醒、訊息、回答「否」後是�
       let message = '';
       if (await dialog.isVisible().catch(() => false) || (await dialog.waitFor({ state: 'visible', timeout: 2500 }).then(() => true).catch(() => false))) {
         message = norm(await dialog.locator('p').first().textContent());
-        const no = dialog.getByRole('button', { name: /^否，維持原樣並儲存$|^知道了，繼續儲存$/ });
-        await no.click();
+        await dialog.getByRole('button', { name: '取消', exact: true }).click();
+        await np.waitForTimeout(2500);
+      } else {
+        await nativeEditorClosed(np);
       }
-      await expect(panel(np).getByRole('status').filter({ hasText: '已儲存' })).toBeVisible({ timeout: 20_000 });
       const nativeSaved = norm((await dbRow(rows[`${key}N`].id)).notes) === 'PAR 提醒測試';
       nativeRows.push({ scenario: key, prompted: message ? 'Y' : 'N', message, savedAfterNo: nativeSaved ? 'Y' : 'N' });
       await np.close();
@@ -266,8 +271,9 @@ test('新人升階提醒對等：是否提醒、訊息、回答「否」後是�
     const result = compareTables({ recorder, entry: 'newbie-reminder', title: '新人升階提醒（第 0／1／2／6 個月）', role: 'admin', legacySource: entry('newbie-reminder').legacy.source!, nativeSource: entry('newbie-reminder').native.source!, legacyRows, nativeRows, columns: [col('scenario'), col('prompted'), col('message'), col('savedAfterNo')], key: 'scenario' });
     assertNoUnlistedDiffs(result);
     expect(ok).toContain(result.status);
-    // 觸發條件一致（誰會被提醒），差異只在「六個月訊息」與「否之後是否儲存」
+    // 觸發條件一致（誰會被提醒）、取消後都不儲存；差異只在六個月的訊息文字
     expect(legacyRows.map((r) => `${r.scenario}:${r.prompted}`)).toEqual(nativeRows.map((r) => `${r.scenario}:${r.prompted}`));
+    expect(nativeRows.map((r) => `${r.scenario}:${r.savedAfterNo}`)).toEqual(legacyRows.map((r) => `${r.scenario}:${r.savedAfterNo}`));
     expect(legacyRows.map((r) => r.prompted)).toEqual(['Y', 'Y', 'Y', 'N']);
   } finally {
     await ctx.close();
@@ -348,10 +354,10 @@ test('行政職位未選階段：兩邊都擋下儲存、訊息相同、DB 不�
 });
 
 // ---------------------------------------------------------------------------
-// 5b. 儲存成功後的行為（白名單 w01b-save-stays-in-editor）
+// 5b. 儲存成功後的行為（規格 C.3，照舊版）
 // ---------------------------------------------------------------------------
 
-test('儲存成功後：舊版 alert 並回名冊頁；新版顯示已儲存並停留（白名單）', async ({ browser }) => {
+test('儲存成功後：舊版與新版都跳「✅ 儲存成功」並回名冊（規格 C.3）', async ({ browser }) => {
   test.setTimeout(180_000);
   const ctx = await loginAs(browser, 'admin');
   try {
@@ -369,19 +375,24 @@ test('儲存成功後：舊版 alert 並回名冊頁；新版顯示已儲存並�
     await lp.close();
 
     const np = await ctx.newPage();
+    const nativeAlerts: string[] = [];
+    np.on('dialog', (d: Dialog) => {
+      nativeAlerts.push(d.message());
+      void d.accept();
+    });
     await openNative(np, rows.s1N.code, PD);
     await panel(np).locator('[name=notes]').fill('PAR 儲存成功 新');
     await panel(np).getByRole('button', { name: '儲存出勤資料' }).click();
-    const status = panel(np).getByRole('status').filter({ hasText: '已儲存' });
-    await expect(status).toBeVisible({ timeout: 20_000 });
-    const nativeRows = [{ scenario: 's1', message: norm(await status.first().textContent()), afterSave: (await panel(np).locator('[name=notes]').count()) ? 'editor' : 'other' }];
+    await nativeEditorClosed(np);
+    await expect(panel(np).locator('tr[data-staff]').first()).toBeVisible({ timeout: 20_000 });
+    const nativeRows = [{ scenario: 's1', message: nativeAlerts[0] || '', afterSave: (await panel(np).locator('tr[data-staff]').count()) ? 'roster' : 'other' }];
     await np.close();
 
     const result = compareTables({ recorder, entry: 'save-success', title: '儲存成功後的行為', role: 'admin', legacySource: entry('save-success').legacy.source!, nativeSource: entry('save-success').native.source!, legacyRows, nativeRows, columns: [col('scenario'), col('message'), col('afterSave')], key: 'scenario' });
     assertNoUnlistedDiffs(result);
     expect(ok).toContain(result.status);
     expect(legacyRows[0].message).toBe('✅ 儲存成功');
-    expect(nativeRows[0]).toMatchObject({ message: '已儲存', afterSave: 'editor' });
+    expect(nativeRows[0]).toMatchObject({ message: '✅ 儲存成功', afterSave: 'roster' });
   } finally {
     await ctx.close();
   }
@@ -444,7 +455,7 @@ for (const role of ROLES_LOCKED) {
 const READBACK_COLUMNS = ['position', 'employment_type', 'monthly_status', 'work_days', 'work_hours', 'is_dual_position', 'has_manager_bonus', 'is_supervisor_rotation', 'is_pharmacist', 'is_acting_manager', 'newbie_level', 'partial_month_reason', 'partial_month_days', 'partial_month_notes', 'supervisor_shift_hours', 'supervisor_employee_code', 'supervisor_name', 'supervisor_position', 'extra_tasks', 'extra_task_planned_hours', 'extra_task_external_hours', 'calculated_block', 'start_date', 'notes'];
 const pickCols = (row: Record<string, unknown>, scenario: string) => ({ scenario, ...Object.fromEntries(READBACK_COLUMNS.map((c) => [c, Array.isArray(row[c]) ? (row[c] as unknown[]).join(',') : row[c] ?? null])) });
 
-test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄一致（外務時數寫入未滿月備註為已知差異）', async ({ browser }) => {
+test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄一致（含外務時數寫入未滿月備註）', async ({ browser }) => {
   test.setTimeout(300_000);
   const ctx = await loginAs(browser, 'admin');
   try {
@@ -462,7 +473,7 @@ test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄�
     await panel(np1).getByLabel('長照外務').check();
     await panel(np1).locator('[name=extra_task_external_hours]').fill('5');
     await panel(np1).getByRole('button', { name: '儲存出勤資料' }).click();
-    await expect(panel(np1).getByRole('status').filter({ hasText: '已儲存' })).toBeVisible({ timeout: 20_000 });
+    await nativeEditorClosed(np1);
     await np1.close();
 
     // e2：關閉督導卡班
@@ -477,7 +488,7 @@ test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄�
     await openNative(np2, rows.e2N.code, PD);
     await panel(np2).getByLabel('督導卡班').uncheck();
     await panel(np2).getByRole('button', { name: '儲存出勤資料' }).click();
-    await expect(panel(np2).getByRole('status').filter({ hasText: '已儲存' })).toBeVisible({ timeout: 20_000 });
+    await nativeEditorClosed(np2);
     await np2.close();
 
     const legacyRows = [pickCols(await dbRow(rows.e1L.id), 'e1-external'), pickCols(await dbRow(rows.e2L.id), 'e2-rotation-off')];
@@ -493,8 +504,9 @@ test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄�
     });
     assertNoUnlistedDiffs(result);
     expect(ok).toContain(result.status);
-    // 已知差異恰好是外務時數寫入未滿月備註，其餘欄位（含 calculated_block）完全一致
-    expect(result.diffs.map((d) => d.key)).toEqual(['monthly_staff_status:e1-external#partial_month_notes']);
+    // 規格 C.2：外務時數寫入未滿月備註照舊版，所有欄位（含 partial_month_notes、calculated_block）完全一致
+    expect(result.diffs).toEqual([]);
+    expect(result.status).toBe('pass');
     expect(nativeRows[0]).toMatchObject({ calculated_block: 4, extra_task_planned_hours: 160, extra_task_external_hours: 5 });
     expect(nativeRows[1]).toMatchObject({ supervisor_name: null, supervisor_shift_hours: null, calculated_block: 1 });
   } finally {
