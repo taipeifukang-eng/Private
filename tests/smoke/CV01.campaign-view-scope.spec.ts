@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
-import { apiForUser, canEnterOracle, SCENARIOS, setupCv01, type CvFixtures } from '../support/cv01-fixtures';
+import { apiForUser, canEnterOracle, hasMonthlyAccess, monthlyStoreCode, SCENARIOS, setupCv01, type CvFixtures } from '../support/cv01-fixtures';
 import { getJson } from '../support/cv01-cases';
 
 // CV01 冒煙層：session capabilities 與導覽的「活動檢視」入口、權限閘門（campaigns API 的 403）。
 // 角色取舊版 matrix 的代表：單店店長、督導、盤點組（只有 view_own）、view_all、部門身分無 view_all、無權限。
 
-const KEYS = ['A_single_mgr', 'C_supervisor', 'H_inventory_view_own', 'I_view_all', 'G_dept_mgr_view_own', 'F_dept_mgr_access_only', 'K_no_perm'];
+const KEYS = ['A_single_mgr', 'C_supervisor', 'H_inventory_view_own', 'I_view_all', 'G_dept_mgr_view_own', 'G2_dept_mgr_area_only', 'F_dept_mgr_access_only', 'K_no_perm'];
 let fx: CvFixtures;
 test.beforeAll(async ({}, testInfo) => {
   test.setTimeout(180_000);
@@ -32,6 +32,11 @@ for (const key of KEYS) {
       const list = await getJson(ctx, '/api/workspace/campaigns?q=CVP-');
       const hasRead = SCENARIOS[key].perms.some((p) => ['activity.campaign.view_own', 'activity.campaign.view_all', 'activity.campaign.view'].includes(p));
       expect(list.status).toBe(hasRead ? 200 : 403);
+      // 每月人員狀態內的活動檢視（monthly tools op=activity）：能進入者 200，其餘 403
+      if (hasMonthlyAccess(SCENARIOS[key])) {
+        const monthly = await getJson(ctx, `/api/workspace/monthly/tools?store=${fx.stores[monthlyStoreCode(SCENARIOS[key])].id}&month=2099-05&op=activity`);
+        expect(monthly.status).toBe(want ? 200 : 403);
+      }
       // 管理頁入口（活動管理）不因 view_own 出現
       const manage = items.some((i) => i.href === '/admin/activity-management');
       expect(manage).toBe(SCENARIOS[key].perms.includes('activity.campaign.view_all'));

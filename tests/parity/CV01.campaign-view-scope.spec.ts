@@ -1,6 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import { assertNoUnlistedDiffs, loadMap, ParityRecorder, type Diff } from '../support/parity';
-import { apiForUser, SCENARIOS, setupCv01, type CampaignKey, type CvFixtures } from '../support/cv01-fixtures';
+import { apiForUser, hasMonthlyAccess, monthlyStoreCode, SCENARIOS, setupCv01, type CampaignKey, type CvFixtures } from '../support/cv01-fixtures';
 import { buildWriteCases, getJson, pool, READ_PAIRS, sendJson, statusClass, writeGroupKey, type WriteCase } from '../support/cv01-cases';
 
 // CV01 對等層：舊版（已含 dc87ea4 活動查看權限）API 與新版 workspace API，對舊版 matrix 角色逐項比對
@@ -119,11 +119,14 @@ for (const key of Object.keys(SCENARIOS)) {
       }
 
       // 4) 每月人員狀態的活動檢視（需要有可用的 monthly 門市：被任命者用第一間任命門市）
-      if (sc.appts.length) {
-        const storeId = fx.stores[sc.appts[0][0]].id;
+      if (hasMonthlyAccess(sc)) {
+        // 無活動任命的情境以 VW001 查詢（fixture 另給 area_manager 任命以通過門市前置限制；G 不能加任命，由 G2 覆蓋）
+        const storeId = fx.stores[monthlyStoreCode(sc)].id;
         const base = `/api/workspace/monthly/tools?store=${storeId}&month=2099-05`;
         const meta = await getJson(ctx, `${base}&op=meta`);
         if (meta.status !== 200) {
+          // 所有情境都應通過 monthly 的門市前置限制；失敗代表 fixture 或前置權限出了問題，不得靜默略過
+          expect(meta.status, `${key}：monthly meta 應為 200`).toBe(200);
           test.info().annotations.push({ type: 'skip-monthly', description: `${key}：monthly meta HTTP ${meta.status}，略過每月人員狀態內的活動檢視比對` });
         } else {
           const lc = await getJson(ctx, '/api/campaigns/entry-access');
@@ -194,7 +197,8 @@ for (const key of Object.keys(SCENARIOS)) {
             if (c.reset) await c.reset(fx);
             const l = await sendJson(ctx, c.method, c.legacyPath, body);
             if (c.reset) await c.reset(fx);
-            const n = await sendJson(ctx, c.method, `/api/workspace/campaign-tools?resource=${c.resource}`, body);
+            const nBody = c.nativeBody ? await c.nativeBody(fx, ctx) : body;
+            const n = await sendJson(ctx, c.nativeMethod || c.method, `/api/workspace/campaign-tools?resource=${c.resource}`, nBody);
             if (c.reset) await c.reset(fx);
             out.push(...statusDiff(c.name, l.status, n.status));
           }

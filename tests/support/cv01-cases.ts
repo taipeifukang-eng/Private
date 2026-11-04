@@ -1,5 +1,6 @@
+import crypto from 'node:crypto';
 import type { APIRequestContext } from '@playwright/test';
-import type { CampaignKey, CvFixtures } from './cv01-fixtures';
+import { CAMPAIGN_FLAGS, type CampaignKey, type CvFixtures } from './cv01-fixtures';
 
 /** CV01 讀取／寫入比對共用的端點對照（舊 API ↔ 新 workspace campaign-tools）。 */
 
@@ -38,7 +39,7 @@ export async function getJson(ctx: APIRequestContext, url: string): Promise<{ st
   return { status: res.status(), json };
 }
 
-export async function sendJson(ctx: APIRequestContext, method: 'POST' | 'DELETE', url: string, body: unknown): Promise<{ status: number; json: any }> {
+export async function sendJson(ctx: APIRequestContext, method: 'POST' | 'DELETE' | 'PUT' | 'PATCH', url: string, body: unknown): Promise<{ status: number; json: any }> {
   const res = await ctx.fetch(url, { method, data: body as object });
   let json: any = null;
   try {
@@ -54,7 +55,12 @@ export interface WriteCase {
   name: string;
   campaign: CampaignKey;
   store: string;
-  method: 'POST' | 'DELETE';
+  method: 'POST' | 'DELETE' | 'PUT' | 'PATCH';
+  /** 新版使用的方法與內容（預設與舊版相同）。整批 PUT 需要先 GET 取得 version。 */
+  nativeMethod?: 'POST' | 'DELETE' | 'PUT' | 'PATCH';
+  nativeBody?: (fx: CvFixtures, ctx: APIRequestContext) => Promise<Record<string, unknown>>;
+  /** 只有 edit 權（editCodes）可寫，view_own 任命身分不放行（如發布）。 */
+  editOnly?: boolean;
   legacyPath: string;
   resource: string;
   body: (fx: CvFixtures) => Record<string, unknown>;
@@ -149,11 +155,11 @@ export function buildWriteCases(): WriteCase[] {
       });
     }
     // 支援人員：R1 = VW001→ZT02、R3 = ZT03→VW002（支援門市與請求門市任一被任命即可）
-    for (const rk of ['R1', 'R3'] as const) {
+    for (const rk of ['R1', 'R2', 'R3'] as const) {
       out.push({
         name: `supportStaff POST ${rk} [${campaign}]`,
         campaign,
-        store: rk === 'R1' ? 'VW001' : 'VW002',
+        store: rk === 'R1' ? 'VW001' : rk === 'R2' ? 'ZT03' : 'VW002',
         method: 'POST',
         legacyPath: '/api/campaign-support-staff',
         resource: 'supportStaff',
@@ -168,12 +174,82 @@ export function buildWriteCases(): WriteCase[] {
             replace: true,
           };
         },
-        storeCodes: rk === 'R1' ? ['ZT02', 'VW001'] : ['VW002', 'ZT03'],
+        storeCodes: rk === 'R1' ? ['ZT02', 'VW001'] : rk === 'R2' ? ['ZT03', 'ZT02'] : ['VW002', 'ZT03'],
+        anyStore: true,
+        editCodes: [],
+        rlsCodes: ['activity.support_assign.edit'],
+      });
+      // 新版整批儲存（PUT，Vue 實際使用的路徑）必須與舊版 POST 的授權與任命門市範圍相同
+      out.push({
+        name: `supportStaff PUT ${rk} [${campaign}]`,
+        campaign,
+        store: rk === 'R1' ? 'VW001' : rk === 'R2' ? 'ZT03' : 'VW002',
+        method: 'POST',
+        nativeMethod: 'PUT',
+        legacyPath: '/api/campaign-support-staff',
+        resource: 'supportStaff',
+        body: (fx) => {
+          const r = fx.requests[campaign][rk];
+          return {
+            support_request_id: r.id,
+            campaign_id: fx.campaigns[campaign].id,
+            supporting_store_id: fx.stores[r.sup].id,
+            requesting_store_id: fx.stores[r.req].id,
+            staff: [{ employee_code: 'CVPF', employee_name: 'cvp' }],
+            replace: true,
+          };
+        },
+        nativeBody: async (fx, ctx) => {
+          const r = fx.requests[campaign][rk];
+          const cid = fx.campaigns[campaign].id;
+          const got = await getJson(ctx, `/api/workspace/campaign-tools?resource=supportStaff&campaign_id=${cid}&support_request_id=${r.id}`);
+          return { campaign_id: cid, scope: r.id, rows: [{ employee_code: 'CVPF', employee_name: 'cvp' }], version: got.json?.version ?? null, requestId: crypto.randomUUID() };
+        },
+        storeCodes: rk === 'R1' ? ['ZT02', 'VW001'] : rk === 'R2' ? ['ZT03', 'ZT02'] : ['VW002', 'ZT03'],
         anyStore: true,
         editCodes: [],
         rlsCodes: ['activity.support_assign.edit'],
       });
     }
+  }
+  // 自有人員整批儲存（PUT）：舊版 POST replace 的授權為 support_assign.edit＋任命門市
+  for (const campaign of ['SM', 'SUP', 'DRAFT'] as CampaignKey[]) {
+    for (const store of ['VW001', 'VW002', 'ZT01']) {
+      out.push({
+        name: `ownStaff PUT ${store} [${campaign}]`,
+        campaign,
+        store,
+        method: 'POST',
+        nativeMethod: 'PUT',
+        legacyPath: '/api/campaign-store-own-staff',
+        resource: 'ownStaff',
+        body: (fx) => ({ campaign_id: fx.campaigns[campaign].id, store_id: fx.stores[store].id, staff: [{ employee_code: 'CVP001', employee_name: 'cvp' }], replace: true }),
+        nativeBody: async (fx, ctx) => {
+          const cid = fx.campaigns[campaign].id;
+          const got = await getJson(ctx, `/api/workspace/campaign-tools?resource=ownStaff&campaign_id=${cid}&store_id=${fx.stores[store].id}`);
+          return { campaign_id: cid, scope: fx.stores[store].id, rows: [{ employee_code: 'CVP001', employee_name: 'cvp' }], version: got.json?.version ?? null, requestId: crypto.randomUUID() };
+        },
+        storeCodes: [store],
+        editCodes: [],
+        rlsCodes: ['activity.support_assign.edit'],
+      });
+    }
+  }
+  // 發布 PATCH：activity.manage 或 activity.campaign.edit（維持原狀態，不改資料）
+  for (const campaign of ['SM', 'SUP', 'INV', 'DRAFT'] as CampaignKey[]) {
+    out.push({
+      name: `publish PATCH [${campaign}]`,
+      campaign,
+      store: '',
+      method: 'PATCH',
+      legacyPath: '/api/campaigns/publish',
+      resource: 'publish',
+      body: (fx) => ({ campaignId: fx.campaigns[campaign].id, publishType: 'supervisors', status: CAMPAIGN_FLAGS[campaign].pubSup }),
+      storeCodes: [],
+      editOnly: true,
+      editCodes: ['activity.manage', 'activity.campaign.edit'],
+      rlsCodes: [],
+    });
   }
   return out;
 }
@@ -196,6 +272,8 @@ export async function pool<T, R>(items: T[], size: number, fn: (item: T) => Prom
 
 /** 寫入情境的並行分組：同一組的資料列會互相影響，需依序執行；不同組可並行。 */
 export function writeGroupKey(c: WriteCase): string {
+  // 整批 PUT 的 version 含 campaigns 列本身，發布 PATCH 會改動它：這三類同一活動必須依序執行，避免並行造成 stale
+  if (['ownStaff', 'supportStaff', 'publish'].includes(c.resource)) return `campaign-state|${c.campaign}`;
   return `${c.resource}|${c.campaign}|${c.resource === 'requests' ? '' : c.store}`;
 }
 

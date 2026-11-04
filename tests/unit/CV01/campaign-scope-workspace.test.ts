@@ -30,10 +30,16 @@ describe('CV01 workspace 引用單一規則來源（lib/campaign-access.ts）', 
     expect(tools).not.toMatch(/activity\.management\.access/); // 入口不再看 management.access
   });
 
-  it('campaign-tools：店長可寫的五項資源不再被「必須持 edit 權」前置閘門擋下，整批 PUT 仍只開放 edit 權', () => {
+  it('campaign-tools：店長可寫的五項資源不再被「必須持 edit 權」前置閘門擋下；ownStaff／supportStaff 整批 PUT 改走舊版任命門市授權', () => {
     const src = read('app/api/workspace/campaign-tools/route.ts');
     expect(src).toMatch(/legacyScopedWrite=request\.method!=='PUT'&&\['headcount','completions','ownStaff','supportStaff','requests'\]/);
-    expect(src).toMatch(/if\(!legacyScopedWrite\)requireCapability/);
+    expect(src).toMatch(/if\(!legacyScopedWrite&&!scopedBatch\)requireCapability/);
+    // 整批 PUT（service role RPC）呼叫前必須先套用 authorizeCampaignStoreWrite，RLS 寫入碼為 support_assign.edit
+    expect(src).toMatch(/scopedBatch=request\.method==='PUT'&&\['ownStaff','supportStaff'\]/);
+    expect(src.indexOf('authorizeCampaignStoreWrite(ctx.auth')).toBeGreaterThan(0);
+    expect(src.indexOf('authorizeCampaignStoreWrite(ctx.auth')).toBeLessThan(src.indexOf("rpc('workspace_campaign_replace'"));
+    expect(src).toMatch(/ownStaff:\['activity\.support_assign\.edit','activity\.manage'\]/);
+    expect(src).toMatch(/publish:\['activity\.campaign\.edit','activity\.manage'\]/);
     // 支援需求刪除交給舊 handler（authorizeCampaignStoreWrite），不再有 admin client 直接刪除的特例
     expect(src).not.toMatch(/from\('campaign_support_requests'\)\.delete\(\)/);
   });

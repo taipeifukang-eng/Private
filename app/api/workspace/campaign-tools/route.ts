@@ -17,9 +17,10 @@ import * as assets from '@/app/api/campaign-department-assets/route';
 import * as publish from '@/app/api/campaigns/publish/route';
 import * as employees from '@/app/api/monthly-staff-by-store/route';
 import * as search from '@/app/api/monthly-staff-by-store/search/route';
+import {authorizeCampaignStoreWrite,CAMPAIGN_PERM} from '@/lib/campaign-access';
 export const dynamic='force-dynamic';
 const handlers:Record<string,any>={schedules,settings,events,stores,details,ownStaff,requests,supportStaff,headcount,checklist,completions,trips,departments,assets,publish,employees,search};
-const edits:Record<string,string[]>={schedules:['activity.campaign.edit','activity.manage'],settings:['activity.campaign.edit','activity.manage'],events:['activity.campaign.edit','activity.manage'],details:['activity.store_detail.edit'],ownStaff:['activity.store_detail.edit'],requests:['activity.support_request.edit'],supportStaff:['activity.support_assign.edit'],headcount:['activity.store_detail.edit'],'checklist-order':['activity.checklist.edit'],checklist:['activity.checklist.edit'],completions:['activity.checklist.edit','activity.store_detail.edit'],trips:['activity.equipment_trip.edit'],departments:['activity.marketing.publish','activity.merchandise.publish','activity.checklist.edit'],assets:['activity.marketing.publish','activity.checklist.edit'],publish:['activity.campaign.edit']};
+const edits:Record<string,string[]>={schedules:['activity.campaign.edit','activity.manage'],settings:['activity.campaign.edit','activity.manage'],events:['activity.campaign.edit','activity.manage'],details:['activity.store_detail.edit'],ownStaff:['activity.support_assign.edit','activity.manage'],requests:['activity.support_request.edit'],supportStaff:['activity.support_assign.edit','activity.manage'],headcount:['activity.store_detail.edit'],'checklist-order':['activity.checklist.edit'],checklist:['activity.checklist.edit'],completions:['activity.checklist.edit','activity.store_detail.edit'],trips:['activity.equipment_trip.edit'],departments:['activity.marketing.publish','activity.merchandise.publish','activity.checklist.edit'],assets:['activity.marketing.publish','activity.checklist.edit'],publish:['activity.campaign.edit','activity.manage']};
 const readCodes=[...CAMPAIGN_READ_CODES,...Object.values(edits).flat(),'activity.staff_overview.view'];
 async function handle(request:NextRequest){try{
  const ctx=await context();requireCapability(ctx,readCodes);
@@ -30,7 +31,9 @@ async function handle(request:NextRequest){try{
  // 持 edit 權者寫全部；店長只寫被任命門市、督導依活動檢視範圍。這裡不再另加「必須持 edit 權」的前置閘門，
  // 否則只有 view_own 的店長（舊版可寫自己門市）在新版會被擋。整批 PUT（RPC）仍只開放 edit 權。
  const legacyScopedWrite=request.method!=='PUT'&&['headcount','completions','ownStaff','supportStaff','requests'].includes(resource);
- if(request.method!=='GET'){checkOrigin(request);if(!legacyScopedWrite)requireCapability(ctx,edits[resource]||[]);}
+ // 整批 PUT（ownStaff／supportStaff）走 service role RPC，必須先套用與舊 POST 相同的授權與任命門市範圍。
+ const scopedBatch=request.method==='PUT'&&['ownStaff','supportStaff'].includes(resource);
+ if(request.method!=='GET'){checkOrigin(request);if(!legacyScopedWrite&&!scopedBatch)requireCapability(ctx,edits[resource]||[]);}
  if(resource==='checklist-order'&&request.method==='PUT'){const b=await request.json();if(!uuid(b.campaign_id)||!Array.isArray(b.ids)||b.ids.some((id:any)=>!uuid(id)))throw new WorkspaceError(400,'排序格式不正確');return respond(checked(await ctx.admin.rpc('workspace_campaign_checklist_order',{p_actor:ctx.user.id,p_campaign:b.campaign_id,p_ids:b.ids})));}
  if(resource==='details'&&request.method==='POST'){
   const b=await request.json();if(!uuid(b.campaign_id)||!uuid(b.store_id))throw new WorkspaceError(400,'活動或門市識別不正確');
@@ -55,6 +58,18 @@ async function handle(request:NextRequest){try{
  if(atomic&&request.method==='PUT'){
   const b=await request.json(),scope=resource==='schedules'?null:b.scope;
   if(!uuid(b.campaign_id)||!uuid(b.requestId)||scope!==null&&!uuid(scope)||!Array.isArray(b.rows)||b.rows.length>1000)throw new WorkspaceError(400,'提交格式不正確');
+  if(resource==='ownStaff'||resource==='supportStaff'){
+   let storeIds:string[]=[scope as string];
+   if(resource==='supportStaff'){
+    const sr=checked(await ctx.admin.from('campaign_support_requests').select('campaign_id,requesting_store_id,supporting_store_id').eq('id',scope).maybeSingle()) as any;
+    if(!sr||sr.campaign_id!==b.campaign_id)throw new WorkspaceError(404,'找不到支援需求');
+    storeIds=[sr.supporting_store_id,sr.requesting_store_id];
+   }
+   // 與舊版相同：RLS 寫入碼為 support_assign.edit；支援人員的請求門市或支援門市任一為任命門市即可
+   let auth:any={ok:false,status:403,error:'權限不足'};
+   for(const sid of storeIds){auth=await authorizeCampaignStoreWrite(ctx.auth,ctx.user.id,b.campaign_id,[sid],[],[],[CAMPAIGN_PERM.supportAssignEdit]);if(auth.ok)break;}
+   if(!auth.ok)throw new WorkspaceError(auth.status,auth.error);
+  }
   const r=await ctx.admin.rpc('workspace_campaign_replace',{p_actor:ctx.user.id,p_request:b.requestId,p_kind:resource,p_campaign:b.campaign_id,p_scope:scope,p_rows:b.rows,p_version:b.version});
   if(r.error)throw new WorkspaceError(409,r.error.message==='WORKSPACE_STALE'?'資料已變更，草稿保留，請重新讀取核對。':'儲存未完成，請核對門市、人員及日期。整批資料未部分更新。');return respond(r.data);
  }

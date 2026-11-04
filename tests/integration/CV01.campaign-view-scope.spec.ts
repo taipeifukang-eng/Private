@@ -10,6 +10,8 @@ import {
   visibleStores,
   apiForUser,
   identity,
+  monthlyStoreCode,
+  hasMonthlyAccess,
   type CampaignKey,
   type CvFixtures,
   type Scenario,
@@ -124,9 +126,10 @@ test.describe('讀取矩陣（workspace API）', () => {
 });
 
 /** 寫入 oracle（規格「寫入規則」）。 */
-function canWrite(sc: Scenario, key: CampaignKey, storeCodes: string[], editCodes: string[], rlsCodes: string[], anyStore: boolean): boolean {
+function canWrite(sc: Scenario, key: CampaignKey, storeCodes: string[], editCodes: string[], rlsCodes: string[], anyStore: boolean, editOnly = false): boolean {
   const i = identity(sc);
   if (has(sc, P.manage) || editCodes.some((c) => has(sc, c))) return true;
+  if (editOnly) return false;
   if (rlsCodes.length > 0 && !rlsCodes.some((c) => has(sc, c))) return false;
   if (!(i.viewOwn || i.viewAll)) return false;
   const f = CAMPAIGN_FLAGS[key];
@@ -153,16 +156,63 @@ test.describe('寫入矩陣（workspace API）', () => {
           const out: { c: WriteCase; status: number }[] = [];
           for (const c of group) {
             if (c.reset) await c.reset(fx);
-            const res = await sendJson(ctx, c.method, `/api/workspace/campaign-tools?resource=${c.resource}`, c.body(fx));
+            const body = c.nativeBody ? await c.nativeBody(fx, ctx) : c.body(fx);
+            const res = await sendJson(ctx, c.nativeMethod || c.method, `/api/workspace/campaign-tools?resource=${c.resource}`, body);
             if (c.reset) await c.reset(fx);
             out.push({ c, status: res.status });
           }
           return out;
         });
         for (const { c, status } of outcomes.flat()) {
-          const want = canWrite(sc, c.campaign, c.storeCodes, c.editCodes, c.rlsCodes, !!c.anyStore);
+          const want = canWrite(sc, c.campaign, c.storeCodes, c.editCodes, c.rlsCodes, !!c.anyStore, !!c.editOnly);
           if (want) expect(status, `${sk} ${c.name} 應允許`).toBeLessThan(300);
           else expect([403, 404], `${sk} ${c.name} 應被擋，實際 ${status}`).toContain(status);
+        }
+      } finally {
+        await ctx.dispose();
+      }
+    });
+  }
+});
+
+// 每月人員狀態內的活動檢視（monthly tools op=activity / activityDetail）：
+// 入口、已發布活動清單與活動明細的排程門市，對照規格（含沒有任命的盤點組、view_all、部門身分、只有 edit 權）。
+test.describe('每月人員狀態的活動檢視（monthly tools）', () => {
+  for (const sk of Object.keys(SCENARIOS)) {
+    test(`${sk}：op=activity／activityDetail 依規格`, async ({}, testInfo) => {
+      test.skip(testInfo.project.name !== 'desktop-1440', '資料層只跑桌機專案');
+      test.setTimeout(300_000);
+      const sc = SCENARIOS[sk];
+      test.skip(!hasMonthlyAccess(sc), '沒有任何門市任命，過不了 monthly 的門市前置限制（G 由 G2 覆蓋）');
+      const ctx = await apiForUser(fx.users[sk]);
+      try {
+        const base = `/api/workspace/monthly/tools?store=${fx.stores[monthlyStoreCode(sc)].id}&month=2099-05`;
+        const meta = await getJson(ctx, `${base}&op=meta`);
+        expect(meta.status, `${sk} monthly meta`).toBe(200);
+        const enter = canEnterOracle(sc);
+        expect(meta.json.capabilities.activity, `${sk} meta.capabilities.activity`).toBe(enter);
+        const pub = await getJson(ctx, `${base}&op=activity`);
+        if (!enter) {
+          expect(pub.status, `${sk} op=activity 應被擋`).toBe(403);
+          return;
+        }
+        expect(pub.status, `${sk} op=activity`).toBe(200);
+        const rows: any[] = (pub.json.data || []).filter((r: any) => typeof r?.name === 'string' && r.name.startsWith(fx.namePrefix));
+        const got = new Set<string>(rows.map((r) => KEYS.find((k) => fx.campaigns[k].id === r.id)!).filter(Boolean));
+        const want = new Set<string>(KEYS.filter((k) => audience(sc, k).published));
+        expect(fmt(got), `${sk} 已發布活動`).toBe(fmt(want));
+        for (const key of KEYS) {
+          const detail = await getJson(ctx, `${base}&op=activityDetail&id=${fx.campaigns[key].id}`);
+          const label = `${sk} activityDetail[${key}]`;
+          if (!audience(sc, key).published) {
+            expect([403, 404], `${label} 應被擋，實際 ${detail.status}`).toContain(detail.status);
+            continue;
+          }
+          expect(detail.status, label).toBe(200);
+          const stores = new Set<string>((detail.json.schedules || []).map((r: any) => fx.storeIdToCode[r.store_id]).filter(Boolean));
+          expect(fmt(stores), `${label} 排程門市`).toBe(fmt(visibleStores(sc, key, false)));
+          const planStores = new Set<string>((detail.json.plan?.ownStaff || []).map((r: any) => fx.storeIdToCode[r.store_id]).filter(Boolean));
+          expect(fmt(planStores), `${label} plan.ownStaff 門市`).toBe(fmt(visibleStores(sc, key, false)));
         }
       } finally {
         await ctx.dispose();
