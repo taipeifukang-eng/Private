@@ -75,6 +75,7 @@ export default function ScheduleEditPage() {
 
   // 當前用戶權限
   const [canEditCalendar,    setCanEditCalendar]    = useState(false); // activity.campaign.edit
+  const [canPublishCampaign, setCanPublishCampaign] = useState(false); // activity.manage 或 activity.campaign.edit（發布 API 的要求）
   const [canEditStoreDetail, setCanEditStoreDetail] = useState(false); // activity.store_detail.edit
   const [canEditEquipmentTrip, setCanEditEquipmentTrip] = useState(false); // activity.equipment_trip.edit
   const [canEditChecklist, setCanEditChecklist] = useState(false); // activity.checklist.edit
@@ -506,6 +507,7 @@ export default function ScheduleEditPage() {
           });
           // 僅 RBAC admin 角色才跳過權限檢查（不再依賴舊 profiles.role）
           setCanEditCalendar(isRbacAdmin || permSet.has('activity.campaign.edit'));
+          setCanPublishCampaign(isRbacAdmin || permSet.has('activity.manage') || permSet.has('activity.campaign.edit'));
           setCanEditStoreDetail(isRbacAdmin || permSet.has('activity.store_detail.edit'));
           setCanEditEquipmentTrip(isRbacAdmin || permSet.has('activity.equipment_trip.edit'));
           setCanEditChecklist(isRbacAdmin || permSet.has('activity.checklist.edit'));
@@ -1039,7 +1041,8 @@ export default function ScheduleEditPage() {
                 自動排程
               </button>
             )}
-            {/* 發布按鈕 */}
+            {/* 發布按鈕：發布 API 要求 activity.manage 或 activity.campaign.edit，其他編輯權按了只會 403，所以不顯示 */}
+            {canPublishCampaign && (
             <div className="flex gap-3 border-l border-gray-300 pl-3">
               <button
                 onClick={() => handlePublish('supervisors')}
@@ -1107,6 +1110,7 @@ export default function ScheduleEditPage() {
                 )}
               </button>
             </div>
+            )}
             
             {hasUnsavedChanges && canEditCalendar && (
               <>

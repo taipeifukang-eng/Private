@@ -14,7 +14,7 @@ assigned=false;await denied(bonus);permissions.add('monthly.status.view_all');aw
 confirmed=true;await denied(bonus,409);confirmed=false;assigned=true;
 permissions=new Set(['monthly.status.edit','monthly.allowance.edit_transport','monthly.allowance.edit_meal','monthly.allowance.edit_talent']);await denied(bonus);await denied(manual);
 const next={NextResponse:{json:(body,options={})=>({body,status:options.status||200})}};
-const deps={'@/lib/supabase/server':server,'@/lib/permissions/check':{hasPermission},'@/lib/permissions/monthly-registration':guard,'next/server':next};
+const deps={'@/lib/campaign-access':{canEnterCampaignView:async()=>false},'@/lib/supabase/server':server,'@/lib/permissions/check':{hasPermission},'@/lib/permissions/monthly-registration':guard,'next/server':next};
 // Invoke actual handlers: a crafted direct request cannot bypass either group.
 for(const route of ['transport-expense/save','talent-cultivation/save','spring-festival-bonus/save','support-bonus/save','meal-allowance']){
  const handler=load('app/api/'+route+'/route.ts',deps);

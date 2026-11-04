@@ -3,7 +3,12 @@ import { createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
 import {
   getCampaignAccessDeniedMessage,
+  authorizeCampaignStoreWrite,
+  canAccessStore,
+  CAMPAIGN_PERM,
   getCampaignAudienceAccess,
+  getCampaignStoreScope,
+  hasCampaignScopeBypass,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -82,19 +87,19 @@ export async function GET(request: NextRequest) {
       .select('*')
       .in('checklist_item_id', itemIds);
 
-    const shouldLimitToManagedStores =
-      !access.canViewAll && !access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager;
+    // 持 checklist.edit 者維持看全部
+    const scope = getCampaignStoreScope(access, canEdit || (await hasCampaignScopeBypass(user.id, [])));
 
     if (store_id) {
-      if (shouldLimitToManagedStores && !access.managedStoreIds.includes(store_id)) {
+      if (!canAccessStore(scope, store_id)) {
         return NextResponse.json({ success: true, data: [] });
       }
       query = query.eq('store_id', store_id);
-    } else if (shouldLimitToManagedStores) {
-      if (access.managedStoreIds.length === 0) {
+    } else if (!scope.all) {
+      if (scope.storeIds.length === 0) {
         return NextResponse.json({ success: true, data: [] });
       }
-      query = query.in('store_id', access.managedStoreIds);
+      query = query.in('store_id', scope.storeIds);
     }
 
     const { data, error } = await query;
@@ -142,6 +147,26 @@ export async function POST(request: NextRequest) {
         { success: false, error: '缺少必要欄位' },
         { status: 400 }
       );
+    }
+
+    // 由檢查項目反查所屬活動，再驗證寫入權限與門市範圍
+    const { data: checklistItem } = await supabase
+      .from('campaign_checklist_items')
+      .select('campaign_id')
+      .eq('id', checklist_item_id)
+      .maybeSingle();
+    if (!checklistItem) {
+      return NextResponse.json({ success: false, error: '找不到檢查項目' }, { status: 404 });
+    }
+    const auth = await authorizeCampaignStoreWrite(
+      supabase,
+      user.id,
+      checklistItem.campaign_id,
+      [store_id],
+      [CAMPAIGN_PERM.checklistEdit]
+    );
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
     // 先查詢現有記錄，以便合併欄位（避免 upsert 覆蓋未傳入的欄位）

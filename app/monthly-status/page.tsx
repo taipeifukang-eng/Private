@@ -367,8 +367,8 @@ function MonthlyStatusContent() {
             </div>
             
             <div className="flex items-center gap-3 flex-wrap">
-              {/* 活動檢視按鈕 - 透過權限系統控制 */}
-              {canAccessActivityManagement && managedStores.length > 0 && (
+              {/* 活動檢視按鈕 - 條件由 checkMonthlyStatusPermissions 計算：view_all，或 view_own 且有 store_managers 任命 */}
+              {canAccessActivityManagement && (
                 <>
                   <Link
                     href="/activity-management"

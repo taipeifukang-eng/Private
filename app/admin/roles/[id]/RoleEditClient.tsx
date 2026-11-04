@@ -50,12 +50,26 @@ function getPermissionCodeAction(permission: PermissionWithGrant) {
 }
 
 function isExclusiveViewScope(permission: PermissionWithGrant) {
+  // 活動專案舊 view 第一階段與 view_own 並存（視同 view_own），不計入重複查看範圍；第二階段停用後移除此特判
+  if (permission.code === 'activity.campaign.view') return false;
   return VIEW_SCOPE_CODE_ACTIONS.has(getPermissionCodeAction(permission));
 }
 
 function getBasicViewPermissionIds(featurePermissions: PermissionWithGrant[]) {
   const scopePermissions = featurePermissions.filter(isExclusiveViewScope);
-  const preferredScope = ['view_own_store', 'view_own', 'view', 'view_all']
+  const scopeOrder = ['view_own_store', 'view_own', 'view', 'view_all'];
+  // 活動專案：快速預設要反映目前實際勾選的範圍（只有 view_all 或只有舊 view 時，不能一律顯示／套用「查看自己管理門市」）。
+  // 舊 view 不算互斥範圍（isExclusiveViewScope 排除它），所以從完整權限清單找已勾選者。
+  const grantedActivityScope = featurePermissions.some(permission => permission.code.startsWith('activity.campaign.'))
+    ? scopeOrder
+        .map(codeAction => featurePermissions.find(permission => (
+          permission.granted
+          && permission.code.startsWith('activity.campaign.')
+          && getPermissionCodeAction(permission) === codeAction
+        )))
+        .find(Boolean)
+    : undefined;
+  const preferredScope = grantedActivityScope ?? scopeOrder
     .map(codeAction => scopePermissions.find(permission => getPermissionCodeAction(permission) === codeAction))
     .find(Boolean);
 
@@ -91,6 +105,9 @@ function getSensitivePermissionLabel(permission: PermissionWithGrant) {
 
 function getPermissionActionLabel(permission: PermissionWithGrant) {
   if (permission.code === 'monthly.status.view_own') return '查看管理門市';
+  // 活動專案：舊 view 第一階段仍有效（視同 view_own），第二階段停用
+  if (permission.code === 'activity.campaign.view') return '（舊）查看，將停用';
+  if (permission.code === 'activity.campaign.view_own') return '查看自己管理門市';
   return ACTION_NAMES[permission.action] || permission.action;
 }
 

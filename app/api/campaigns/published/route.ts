@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { hasPermission } from '@/lib/permissions/check';
-import { getCampaignAudienceAccess } from '@/lib/campaign-access';
+import { evaluateCampaignAudience, hasCampaignViewPermission, loadCampaignViewer } from '@/lib/campaign-access';
 
 // GET: 取得已發布的活動（根據用戶權限）
 export async function GET() {
@@ -14,12 +13,11 @@ export async function GET() {
     }
 
     // 使用 RBAC 權限檢查
-    const canViewAll = await hasPermission(user.id, 'activity.campaign.view_all');
-    const canView = await hasPermission(user.id, 'activity.campaign.view');
+    const { viewAll: canViewAll, viewOwn: canViewOwn } = await hasCampaignViewPermission(user.id);
 
-    if (!canView && !canViewAll) {
+    if (!canViewOwn && !canViewAll) {
       return NextResponse.json(
-        { success: false, error: '權限不足：需要 activity.campaign.view 權限' },
+        { success: false, error: '權限不足：需要 activity.campaign.view_own 或 activity.campaign.view_all 權限' },
         { status: 403 }
       );
     }
@@ -47,16 +45,15 @@ export async function GET() {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
-    const campaignsWithAccess = await Promise.all(
-      (allCampaigns || []).map(async (campaign) => ({
-        campaign,
-        access: await getCampaignAudienceAccess(supabase, user.id, campaign),
-      }))
-    );
+    const viewer = await loadCampaignViewer(supabase, user.id);
+    const campaignsWithAccess = (allCampaigns || []).map((campaign) => ({
+      campaign,
+      access: evaluateCampaignAudience(viewer, campaign),
+    }));
     const visibleRows = campaignsWithAccess.filter(({ access }) =>
       access.canViewAsSupervisor || access.canViewAsStoreManager || access.canViewAsDepartment
     );
-    const firstAccess = campaignsWithAccess[0]?.access;
+    const firstAccess = campaignsWithAccess[0]?.access ?? evaluateCampaignAudience(viewer, {});
 
     return NextResponse.json({ 
       success: true, 

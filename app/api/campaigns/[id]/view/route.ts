@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getCampaignAccessDeniedMessage,
   getCampaignAudienceAccess,
+  getCampaignStoreScope,
   hasCampaignPublishedAccess,
 } from '@/lib/campaign-access';
 
@@ -52,15 +53,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       );
     }
 
-    // 督導/部門角色可看全排程；只有店長發布時，店長只看自己管理門市。
+    // 督導/部門受眾/view_all 看全排程；店長只看自己被任命的門市。
     let schedulesQuery = supabase
       .from('campaign_schedules')
       .select('*')
       .eq('campaign_id', campaignId);
 
-    if (!access.canViewAsSupervisor && !access.canViewAsDepartment && access.canViewAsStoreManager) {
-      if (access.managedStoreIds.length > 0) {
-        schedulesQuery = schedulesQuery.in('store_id', access.managedStoreIds);
+    const scope = getCampaignStoreScope(access);
+    if (!scope.all) {
+      if (scope.storeIds.length > 0) {
+        schedulesQuery = schedulesQuery.in('store_id', scope.storeIds);
       } else {
         // 沒有管理門市，返回空排程
         return NextResponse.json({ 

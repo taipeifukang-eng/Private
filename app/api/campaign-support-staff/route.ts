@@ -1,7 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  authorizeCampaignStoreWrite,
+  CAMPAIGN_PERM,
+  getCampaignAccessDeniedMessage,
+  getCampaignAudienceAccess,
+  hasAnyPermission,
+  hasCampaignScopeBypass,
+  getCampaignStoreScope,
+  hasCampaignPublishedAccess,
+} from '@/lib/campaign-access';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * 支援人員寫入檢查：持 activity.manage 者可寫全部；
+ * 否則請求門市或支援門市其中任一間須是本人被任命門市（督導依活動檢視範圍）。
+ */
+async function authorizeSupportStaffWrite(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  campaignId: string,
+  storeIds: string[]
+) {
+  let last: Awaited<ReturnType<typeof authorizeCampaignStoreWrite>> = {
+    ok: false,
+    status: 403,
+    error: '權限不足',
+  };
+  for (const storeId of storeIds) {
+    last = await authorizeCampaignStoreWrite(
+      supabase,
+      userId,
+      campaignId,
+      [storeId],
+      [],
+      [],
+      // RLS 寫入 policy 只認 activity.manage / support_assign.edit；未任命者讀不到資料，不另開例外
+      [CAMPAIGN_PERM.supportAssignEdit]
+    );
+    if (last.ok) return last;
+  }
+  return last;
+}
 
 /**
  * GET /api/campaign-support-staff
@@ -23,6 +64,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: '缺少 campaign_id' }, { status: 400 });
     }
 
+    const { data: campaign, error: campaignError } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', campaignId)
+      .single();
+    if (campaignError || !campaign) {
+      return NextResponse.json({ success: false, error: '找不到活動' }, { status: 404 });
+    }
+
+    const access = await getCampaignAudienceAccess(supabase, user.id, campaign);
+    // support_assign.edit 為店長層級，僅通過閘門；只有 activity.manage 維持看全部
+    const canBypassScope = await hasCampaignScopeBypass(user.id, []);
+    // 輔助權限（support_*.edit / staff_overview.view）不再單獨放行：仍須通過發布閘門（view_own/view_all），
+    // 草稿活動只有 view_all 或 activity.manage 可讀
+    if (!hasCampaignPublishedAccess(access) && !canBypassScope) {
+      return NextResponse.json(
+        { success: false, error: getCampaignAccessDeniedMessage(access) },
+        { status: 403 }
+      );
+    }
+    // 店長只能看「請求門市」或「支援門市」是自己被任命門市的資料
+    const scope = getCampaignStoreScope(access, canBypassScope);
+
     let query = supabase
       .from('campaign_support_staff')
       .select(`
@@ -34,6 +98,11 @@ export async function GET(request: NextRequest) {
       .order('sort_order')
       .order('created_at');
 
+    if (!scope.all) {
+      if (scope.storeIds.length === 0) return NextResponse.json({ success: true, data: [] });
+      const idList = scope.storeIds.join(',');
+      query = query.or(`requesting_store_id.in.(${idList}),supporting_store_id.in.(${idList})`);
+    }
     if (supportRequestId) {
       query = query.eq('support_request_id', supportRequestId);
     }
@@ -71,6 +140,15 @@ export async function POST(request: NextRequest) {
 
     if (!support_request_id || !campaign_id || !supporting_store_id || !requesting_store_id) {
       return NextResponse.json({ success: false, error: '缺少必要參數' }, { status: 400 });
+    }
+
+    // 指派支援人員的是「支援門市」的店長；請求門市端同樣視為有關係的門市
+    const auth = await authorizeSupportStaffWrite(supabase, user.id, campaign_id, [
+      supporting_store_id,
+      requesting_store_id,
+    ]);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
     if (replace && Array.isArray(staff)) {
@@ -158,6 +236,22 @@ export async function DELETE(request: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ success: false, error: '缺少 id' }, { status: 400 });
+    }
+
+    const { data: existing } = await supabase
+      .from('campaign_support_staff')
+      .select('campaign_id, supporting_store_id, requesting_store_id')
+      .eq('id', id)
+      .maybeSingle();
+    if (!existing) {
+      return NextResponse.json({ success: false, error: '找不到支援人員' }, { status: 404 });
+    }
+    const auth = await authorizeSupportStaffWrite(supabase, user.id, existing.campaign_id, [
+      existing.supporting_store_id,
+      existing.requesting_store_id,
+    ]);
+    if (!auth.ok) {
+      return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
 
     const { error } = await supabase

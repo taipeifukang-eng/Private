@@ -5,6 +5,7 @@ import { authorizeMonthlyRegistration } from '@/lib/permissions/monthly-registra
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
+import { canEnterCampaignView } from '@/lib/campaign-access';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 import type { 
   Store, 
@@ -2918,7 +2919,8 @@ export async function checkMonthlyStatusPermissions() {
       hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
       hasPermission(user.id, 'monthly.allowance.edit_support_bonus'),
       hasPermission(user.id, 'monthly.status.add_employee'),
-      hasPermission(user.id, 'activity.management.access'),
+      // 活動檢視入口：view_all，或 view_own（第一階段含舊 view）且至少有一筆 store_managers 任命
+      canEnterCampaignView(supabase, user.id),
       hasPermission(user.id, 'monthly.status.view_performance'),
       hasPermission(user.id, 'monthly.status.bonus_detail.view'),
       hasPermission(user.id, 'monthly.status.confirm'),
