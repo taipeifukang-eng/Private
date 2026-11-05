@@ -110,11 +110,12 @@ const masterRows = computed(() =>
 // 規格 F2：主檔不分頁（照舊版一次列出全部符合的藥師）。
 const visible = masterRows;
 // 規格 F2：狀態篩選順序與字樣照舊版「在職／留停／已離職／全部」。
-const statusFilterLabels: Record<string, string> = {
-  active: "在職",
-  suspended: "留停",
-  resigned: "已離職",
-};
+const statusFilterOptions = [
+  { value: "active", label: "在職" },
+  { value: "suspended", label: "留停" },
+  { value: "resigned", label: "已離職" },
+  { value: "", label: "全部" },
+];
 // 規格 F1：?debug=1 時顯示 Debug 面板（伺服器只對管理員回傳內部資料）。
 const debugMode = (() => {
   try {
@@ -576,13 +577,17 @@ onMounted(loadOverview);
             v-model="search"
             type="search"
             placeholder="員編或姓名" /></label
-        ><label
-          >狀態<select v-model="status">
-            <option v-for="(v, k) in statusFilterLabels" :value="k" :key="k">
-              {{ v }}
-            </option>
-            <option value="">全部</option>
-          </select></label
+        ><span class="status-buttons" role="group" aria-label="狀態篩選"
+          ><button
+            v-for="o in statusFilterOptions"
+            :key="o.value"
+            type="button"
+            data-status-filter
+            :aria-pressed="status === o.value"
+            @click="status = o.value"
+          >
+            {{ o.label }}
+          </button></span
         ><span>符合 {{ masterRows.length }} 位</span>
       </div>
       <div class="module-table">
@@ -1172,6 +1177,11 @@ footer.actions {
 }
 .module-table {
   margin-top: 16px;
+}
+.status-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 @media (max-width: 760px) {
   .filters label {

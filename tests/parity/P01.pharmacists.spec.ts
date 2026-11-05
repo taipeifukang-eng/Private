@@ -401,12 +401,11 @@ test('主檔畫面對等 pharmacist_view：執照更新日顯示與逾期紅字�
     if (!legacyFee.includes('編輯') && vueSrc.includes('編輯備註／證明')) layout.push({ kind: 'only-native', key: 'fee-edit', detail: '年費視窗新增「編輯備註／證明」與列表／表單兩步' });
     if (legacyMaster.includes('記錄') && vueSrc.includes('查看／登記會費') && vueSrc.includes('手動新增')) layout.push({ kind: 'changed', key: 'wording', detail: '年費按鈕「記錄」→「查看／登記會費」、手動標籤、負責藥師否、離職篩選呈現' });
     if (nativePager) layout.push({ kind: 'only-native', key: 'master-pagination', detail: '新版主檔有分頁；舊版一次列出全部' });
-    const nativeFilter = await p.getByLabel('狀態').locator('option').allTextContents();
-    // 順序與字樣都照舊版（在職／留停／已離職／全部）；舊版為按鈕列，新版為下拉選單（控制型態差異，見 allowlist）。
+    const nativeFilter = (await p.locator('[data-status-filter]').allTextContents()).map((x) => x.trim());
+    // 順序與字樣都照舊版（在職／留停／已離職／全部）；舊版與新版都是四個按鈕（G.2）。
     const order = ['在職', '留停', '已離職', '全部'];
     const legacyOrder = Array.from(new Set(l.filters.filter((f) => order.includes(f))));
     if (JSON.stringify(legacyOrder) !== JSON.stringify(nativeFilter)) layout.push({ kind: 'changed', key: 'master-status-filter-label', legacy: legacyOrder.join('／'), native: nativeFilter.join('／') });
-    layout.push({ kind: 'changed', key: 'master-status-filter-control', legacy: '按鈕列', native: '下拉選單' });
     assertNoUnlistedDiffs(
       recorder.record({
         entry: 'master-layout',

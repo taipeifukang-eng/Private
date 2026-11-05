@@ -181,6 +181,17 @@ test('藥師管理主流程：督導區總覽、主檔執照逾期紅字、年�
     await p.getByRole('button', { name: '藥師主檔' }).click();
     await expect(p.getByRole('columnheader', { name: '執照更新日' })).toBeVisible({ timeout: 30_000 });
     await expect(p.locator('[data-master-legend]')).toContainText('執照更新日顯示紅色代表已逾期');
+    // 規格 G.2：狀態篩選為舊版四個按鈕「在職／留停／已離職／全部」，預設在職；手機不得造成頁面水平溢出
+    const statusButtons = p.locator('[data-status-filter]');
+    await expect(statusButtons).toHaveText(['在職', '留停', '已離職', '全部']);
+    await expect(statusButtons.nth(0)).toHaveAttribute('aria-pressed', 'true');
+    await statusButtons.nth(1).click();
+    await expect(p.getByText('符合 0 位')).toBeVisible();
+    await statusButtons.nth(3).click();
+    await expect(p.getByText('符合 3 位')).toBeVisible();
+    await statusButtons.nth(0).click();
+    await expect(p.getByText('符合 3 位')).toBeVisible();
+    expect(await noPageOverflow(page), '主檔狀態按鈕頁面層級水平溢出').toBe(true);
     const cell = (name: string) => p.locator('tbody tr', { hasText: new RegExp(`^\\s*${name}`) }).locator('[data-license-date]');
     await expect(cell('逾期藥師')).toHaveAttribute('data-overdue', 'true');
     await expect(cell('逾期藥師')).toHaveCSS('color', OVERDUE_RGB);
