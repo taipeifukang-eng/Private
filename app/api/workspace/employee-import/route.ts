@@ -13,7 +13,9 @@ export async function POST(request:Request){try{
  if(!parsed.rows.length)throw new WorkspaceError(400,'檔案中沒有員工資料');
  const result=checked(await ctx.admin.rpc('workspace_employee_import_check',{p_rows:parsed.rows,p_visible:allowed.map(s=>s.id)}));
  const errors=[...parsed.errors,...result.errors].filter((r,i,a)=>a.findIndex(x=>String(x.row)===String(r.row)&&x.message===r.message)===i);
- return respond({...parsed,errors,valid:errors.length===0});
+ // D.1：完全重複且已存在的列自動略過並列在結果；其他錯誤整批不存。
+ const duplicates=(result.duplicates||[]).filter((d:any)=>!errors.some((e:any)=>String(e.row)===String(d.row)));
+ return respond({...parsed,errors,duplicates,valid:errors.length===0});
 }catch(e){return failed(e);}}
 export async function PUT(request:Request){try{
  checkOrigin(request);const ctx=await access();const b=await request.json();

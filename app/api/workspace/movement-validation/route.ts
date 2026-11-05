@@ -36,13 +36,14 @@ export async function POST(request:Request){try{
   readAll(()=>ctx.auth.from('store_employees').select('employee_code,employee_name,store_id').in('employee_code',chunk).order('id')),
   readAll(()=>ctx.auth.from('employee_movement_history').select('employee_code,movement_date,movement_type,new_value,notes').in('employee_code',chunk).gte('movement_date',dates[0]).lte('movement_date',dates[dates.length-1]).order('id')),
  ]);employees.push(...e);history.push(...h);}
- const result=validateMovementReferences(fields.rows,{stores,units,employees,history});
+ const result=validateMovementReferences(fields.rows,{stores,units,employees,history});let transferRequests=0;
  if(result.valid){
   const preview=checked(await ctx.admin.rpc('workspace_movement_preview',{p_actor:ctx.user.id,p_rows:fields.rows,p_expected:version}));
+  if(preview.valid){const have=new Set(result.skipped.map((x:any)=>x.row));for(const x of (preview.skipped||[]) as any[])if(!have.has(x.row))result.skipped.push({row:x.row,message:x.message});transferRequests=preview.transferRequests||0;}
   if(!preview.valid){result.valid=false;result.errors.push({row:preview.row||1,field:'employee_code',message:movementErrors[preview.problem]||'資料無法完成整批寫入，請核對主檔與異動內容後重試。'});}
  }
 
- return respond({rows:fields.rows,...result,sourceRows:fields.sourceRows,errors:result.errors.map(e=>({...e,row:fields.sourceRows?.[e.row-1]??e.row})),references:result.references.map(r=>({...r,row:fields.sourceRows?.[r.row-1]??r.row})),version:result.valid?version:null,validationOnly:false,canSubmit:result.valid});
+ return respond({rows:fields.rows,...result,sourceRows:fields.sourceRows,errors:result.errors.map(e=>({...e,row:fields.sourceRows?.[e.row-1]??e.row})),references:result.references.map(r=>({...r,row:fields.sourceRows?.[r.row-1]??r.row})),skipped:result.skipped.map((x:any)=>({...x,row:fields.sourceRows?.[x.row-1]??x.row})),transferRequests,version:result.valid?version:null,validationOnly:false,canSubmit:result.valid});
 }catch(e){return failed(e);}}
 
 export async function GET(){try{

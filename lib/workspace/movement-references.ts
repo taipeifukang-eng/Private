@@ -6,7 +6,7 @@ type Unit=PlacementUnit;
 type Employee={employee_code:string;employee_name:string;store_id:string|null};
 type History={employee_code:string;movement_date:string;movement_type:string;new_value:string|null;notes:string|null};
 export function validateMovementReferences(rows:MovementDraft[],sources:{stores:Store[];units:Unit[];employees:Employee[];history:History[]}){
- const errors:MovementIssue[]=[],stores=new Map(sources.stores.map(s=>[s.id,s])),units=new Map(movementPlacementOptions(sources.units).map(u=>[u.id,u]));
+ const errors:MovementIssue[]=[],skipped:{row:number;message:string}[]=[],stores=new Map(sources.stores.map(s=>[s.id,s])),units=new Map(movementPlacementOptions(sources.units).map(u=>[u.id,u]));
  const employees=new Map<string,Employee[]>(),history=new Map<string,History[]>();
  for(const e of sources.employees){const code=e.employee_code.trim().toUpperCase();employees.set(code,[...(employees.get(code)||[]),e]);}
  for(const h of sources.history){const key=JSON.stringify([h.employee_code.trim().toUpperCase(),h.movement_date]);history.set(key,[...(history.get(key)||[]),h]);}
@@ -30,12 +30,14 @@ export function validateMovementReferences(rows:MovementDraft[],sources:{stores:
    const level=h.new_value==='行政(過階)'?'過階行政':h.new_value==='行政(未過階)'?'未過階行政':getPromotionLevelFromNotes(h.notes)||'';
    return position===r.position&&level===r.newbie_level;
   });
-  if(duplicate)add('employee_code','已有相同員工、日期及內容的異動紀錄');
-  if(!errors.some(e=>e.row===index+1)&&['onboarding','store_transfer'].includes(r.movement_type)){
-   const next={employee_code:r.employee_code,employee_name:r.employee_name,store_id:r.movement_type==='store_transfer'?r.to_store_id:r.store_id};
+  // D.1：完全重複且已存在的列自動略過（列在結果），不算錯誤。
+  if(duplicate)skipped.push({row:index+1,message:'已有相同員工、日期及內容的異動紀錄，將自動略過'});
+  // D.2：調店只建立待確認申請，員工主檔要等原店與新店督導都確認才會換門市，所以只有入職會改變後續列看到的任職門市。
+  if(!errors.some(e=>e.row===index+1)&&r.movement_type==='onboarding'){
+   const next={employee_code:r.employee_code,employee_name:r.employee_name,store_id:r.store_id};
    employees.set(r.employee_code,[...candidates.filter(e=>e.store_id!==source&&e.store_id!==next.store_id),next]);
   }
   return {row:index+1,store_name:stores.get(r.store_id)?.store_name||units.get(r.store_id.slice(4))?.name||'',from_store_name:stores.get(r.from_store_id)?.store_name||'',to_store_name:stores.get(r.to_store_id)?.store_name||'',existing_employee:candidates.length>0};
  });
- return {references:references.sort((a,b)=>a.row-b.row),errors,valid:errors.length===0};
+ return {references:references.sort((a,b)=>a.row-b.row),errors,skipped:skipped.sort((a,b)=>a.row-b.row),valid:errors.length===0};
 }

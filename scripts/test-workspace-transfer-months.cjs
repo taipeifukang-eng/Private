@@ -8,8 +8,8 @@ for(const effectiveDate of ['2026-02-29','0115-07-01','2026/07/01','2026-13-01']
 assert.throws(()=>plan({...base,toStore:'a'}));
 p=plan({...base,rows:[],destinationDraftMonths:[]});assert.equal(p.changes.length,0);assert.equal(p.destinationMonthInitialized,false);
 const target={id:'target',store_id:'b',year_month:'2026-07',status:'draft',monthly_status:'full_month',work_days:31};p=plan({...base,rows:[...base.rows,target]});assert.equal(p.changes[1].operation,'update');assert.equal(p.changes[1].id,'target');
-p=plan({...base,rows:[...base.rows,{...target,status:'confirmed'}]});assert.match(p.conflicts.join(),/不是草稿/);assert(!p.changes.some(r=>r.id==='target'));
-p=plan({...base,rows:[...base.rows,{...target,year_month:'2026-09',status:'confirmed'}]});assert.match(p.conflicts.join(),/2026-09/);
+p=plan({...base,rows:[...base.rows,{...target,status:'confirmed'}]});assert.equal(p.conflicts.length,0);assert.deepEqual(p.lockedMonths,['2026-07']);assert(!p.changes.some(r=>r.id==='target'));
+p=plan({...base,rows:[...base.rows,{...target,year_month:'2026-09',status:'confirmed'}]});assert.equal(p.conflicts.length,0);assert.deepEqual(p.lockedMonths,['2026-09']);
 p=plan({...base,rows:[...base.rows,target,{...target,id:'duplicate'}]});assert.match(p.conflicts.join(),/重複/);
 const serialized=JSON.stringify(base);plan(base);assert.equal(JSON.stringify(base),serialized);
 console.log('PASS transfer month allocation: first/last day, leap year, year boundary, initialized-only insert, updates, locked later months, duplicates and immutable input');

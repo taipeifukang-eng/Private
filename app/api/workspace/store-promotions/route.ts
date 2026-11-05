@@ -54,6 +54,16 @@ export async function POST(request: Request) {
       if (matches.length !== 1) result.errors.push({row:rowNumber,field:'employee_code',message:matches.length?'此門市同員編有多筆主檔，請先核對':'找不到此門市可查看的員工'});
       else if (matches[0].employee_name !== row.employee_name) result.errors.push({row:rowNumber,field:'employee_name',message:'姓名與門市員工主檔不符，請核對'});
     });
+    // D.1：已存在且完全相同（員編、生效日、職位、階段）的升遷列自動略過並列在結果，其餘錯誤整批不存。
+    const duplicates: {row:number;employee_code:string;message:string}[] = [];
+    if (!result.errors.length) {
+      const codes = Array.from(new Set(result.rows.map(r => r.employee_code))), history: any[] = [];
+      for (let i=0;i<codes.length;i+=100) history.push(...(checked(await ctx.admin.from('employee_movement_history').select('employee_code,movement_date,movement_type,new_value,notes').eq('movement_type','promotion').in('employee_code',codes.slice(i,i+100)).limit(5000)) || []));
+      result.rows.forEach((row,index) => {
+        const same = history.some(h => h.employee_code === row.employee_code && h.movement_date === row.effective_date && h.new_value === row.position && (String(h.notes||'').match(/(?:新人等級|行政階級)[:：]([^；\n]+)/)?.[1] || '') === (row.newbie_level || ''));
+        if (same) duplicates.push({row:result.sourceRows?.[index] ?? index+1,employee_code:row.employee_code,message:'已有相同員工、日期及職位的升遷紀錄，將自動略過'});
+      });
+    }
     if (saveBody) {
       if (result.errors.length) return respond({error:'請修正升遷資料',errors:result.errors.map(e=>`第 ${e.row} 列：${e.message}`)},400);
       const saved = await ctx.admin.rpc('workspace_promotion_save',{p_actor:ctx.user.id,p_request:saveBody.requestId,p_store:store.id,p_rows:result.rows,p_expected:saveBody.expected});
@@ -61,7 +71,7 @@ export async function POST(request: Request) {
         const message = saved.error.message;
         if (message.includes('WORKSPACE_CONFLICT')) throw new WorkspaceError(409,'員工或月份資料已被其他人修改，請重新驗證後核對');
         if (message.includes('WORKSPACE_REQUEST_REUSED')) throw new WorkspaceError(409,'請求識別已用於其他內容，請重新驗證');
-        if (message.includes('WORKSPACE_DUPLICATE')) throw new WorkspaceError(409,'已有相同員工、日期及職位的升遷紀錄，請核對歷程');
+        if (message.includes('WORKSPACE_DUPLICATE')) throw new WorkspaceError(409,'檔案內有相同員工、日期、職位與階段的重複列，請移除後重新驗證');
         if (message.includes('WORKSPACE_EMPLOYEE')) throw new WorkspaceError(409,'員工主檔已變更，請重新驗證');
         if (message.includes('WORKSPACE_INACTIVE')) throw new WorkspaceError(400,'門市已停止營運');
         throw new WorkspaceError(503,'儲存未完成，升遷與月份資料未變更，請稍後重試');
@@ -69,6 +79,6 @@ export async function POST(request: Request) {
       return respond(saved.data);
     }
     const expected = result.errors.length ? null : checked(await ctx.admin.rpc('workspace_promotion_snapshot',{p_store:store.id,p_rows:result.rows}));
-    return respond({...result,valid:result.errors.length===0,store,expected});
+    return respond({...result,valid:result.errors.length===0,store,expected,duplicates});
   } catch (error) { return failed(error); }
 }

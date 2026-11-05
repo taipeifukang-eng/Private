@@ -62,7 +62,7 @@ describe('白名單驗證與分類', () => {
   });
 
   it('正式 allowlist：未核可的條目只能是 decision=fix 或明列的待核可清單；已核可者的 reason 不得再寫「待使用者核可」', () => {
-    const STILL_PENDING = new Set(['p01-pharmacist-status-filter-control']); // 修正規格 F2 之外、本輪新增的控制型態差異
+    const STILL_PENDING = new Set(['p01-pharmacist-status-filter-control', 'p02-transfer-confirm-master-store', 'p02-batch-transfer-master-store']); // 修正規格 F2 之外、本輪新增的控制型態差異
     const list = loadAllowlist();
     const unapproved = list.filter((e) => !e.approvedBy && e.decision !== 'fix' && !STILL_PENDING.has(e.id)).map((e) => e.id);
     expect(unapproved, `這些條目沒有 approvedBy：${unapproved.join(', ')}`).toEqual([]);

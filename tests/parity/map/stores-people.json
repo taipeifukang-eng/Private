@@ -1,0 +1,160 @@
+{
+  "page": "stores-people",
+  "legacyRoute": "/admin/stores",
+  "workItem": "P02",
+  "description": "P02 門市、店長、督導、員工匯入 11 頁對等（/admin/stores、create、map、[id]/edit、[id]/clone、[id]/employees、[id]/employee-management、[id]/promotion-management、store-managers、supervisors、import-employees）。",
+  "entries": [
+    {
+      "id": "stores-list-default",
+      "mechanism": "ui-extract",
+      "description": "門市列表（預設只看營運中）：同一個管理員，舊頁 /admin/stores 與新版門市管理逐店比對代碼、名稱、簡稱、負責人、地址、電話、員工數、狀態與排序；已停止數量（F.3 補回）。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/stores",
+          "rowSelector": "div.divide-y > div.grid"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/stores"
+        }
+      },
+      "compareKey": "store_code"
+    },
+    {
+      "id": "stores-list-inactive",
+      "mechanism": "ui-extract",
+      "description": "門市列表（顯示已停止）：舊頁 ?showInactive=true 與新版 ?inactive=true，已停止門市出現在列表且排序相同。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/stores?showInactive=true",
+          "rowSelector": "div.divide-y > div.grid"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/stores",
+          "query": {
+            "inactive": "true"
+          }
+        }
+      },
+      "compareKey": "store_code"
+    },
+    {
+      "id": "map-default-inactive",
+      "mechanism": "ui-extract",
+      "description": "門市整合地圖預設範圍：舊頁地圖（app/admin/stores/map/page.tsx）查詢沒有 is_active 篩選，一律載入所有門市（含已停止），也沒有勾選；新版預設只看營運中，有「查看已停止門市」權限者可勾選（M2 F.3）。舊版事實取自原始碼的查詢條件，新版事實取自即時 API（暫時停用 ZT05 觀察）。",
+      "legacy": {
+        "source": "app/admin/stores/map/page.tsx（supabase.from('stores').select(...).order('store_code')，沒有 is_active 篩選）"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/store-map"
+        }
+      }
+    },
+    {
+      "id": "import-valid-file",
+      "mechanism": "write-readback",
+      "description": "同一份 Excel（有效列）送舊版 POST /api/import-employees 與新版 employee-import 預覽＋儲存，回讀員工主檔：門市、姓名、職位、到職日、狀態、類型。FKPT 開頭新版自動兼職（M2 E.3）。",
+      "legacy": {
+        "api": {
+          "path": "/api/import-employees",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "import-dup-rows",
+      "mechanism": "write-readback",
+      "description": "同一份 Excel 含「已存在且完全相同」的列：舊版回報該列失敗；新版自動略過並列在結果（M2 D.1）。新列兩邊都新增，既有列兩邊都只有一筆。",
+      "legacy": {
+        "api": {
+          "path": "/api/import-employees",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "import-partial-error",
+      "mechanism": "write-readback",
+      "description": "同一份 Excel 含一列門市代號不存在：舊版逐列容錯，其他列照常新增；新版整批不存，預覽逐列說明原因（M2 D.1 整批原子）。錯誤列號兩邊相同。",
+      "legacy": {
+        "api": {
+          "path": "/api/import-employees",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "import-restrictions",
+      "mechanism": "write-readback",
+      "description": "職位不在公司職位清單、員編格式不合法：舊版照單全收；新版預覽標示錯誤且不新增（M2 F.1、E.1）。",
+      "legacy": {
+        "api": {
+          "path": "/api/import-employees",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-import",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "transfer-confirm-two-sides",
+      "mechanism": "write-readback",
+      "description": "調店申請確認：舊版任一督導（或管理員）確認一次就生效；新版要原店與新店督導都確認才生效，第一位確認後仍是待確認（M2 D.2）。兩側都確認後的異動歷史、主檔所在門市兩邊相同。",
+      "legacy": {
+        "api": {
+          "path": "/api/store-transfer-requests/[id]/confirm",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/transfers/confirm",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "batch-transfer",
+      "mechanism": "write-readback",
+      "description": "批次輸入的調店列：舊版直接生效；新版建立為待確認的調店申請，要兩店督導都確認才生效（M2 D.2）。確認後的異動歷史與主檔所在門市兩邊相同。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/batch",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/movement-submit",
+          "method": "POST"
+        }
+      }
+    }
+  ]
+}

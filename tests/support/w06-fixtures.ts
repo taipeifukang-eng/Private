@@ -185,7 +185,7 @@ export async function registerW06(codes: string[]) {
   if (!safe.length) return;
   const db = adminDb();
   const reg = registry();
-  for (const [table, column] of [['employee_movement_history', 'employee_code'], ['store_employees', 'employee_code'], ['monthly_staff_recheck', 'employee_code'], ['monthly_staff_adjustment_log', 'employee_code']] as const) {
+  for (const [table, column] of [['employee_movement_history', 'employee_code'], ['store_employees', 'employee_code'], ['monthly_staff_recheck', 'employee_code'], ['monthly_staff_adjustment_log', 'employee_code'], ['store_transfer_requests', 'employee_code']] as const) {
     const { data } = await db.from(table).select('id').in(column, safe);
     if (data?.length) reg.record({ table, column: 'id', values: data.map((r: any) => String(r.id)), note: `W06 ${table}` });
   }
@@ -196,7 +196,7 @@ export async function purgeW06(codes: string[], stores: string[] = []) {
   const safe = Array.from(new Set(codes)).filter((c) => W06_CODE_RANGE.test(c));
   const db = adminDb();
   if (safe.length) {
-    for (const table of ['monthly_staff_adjustment_log', 'monthly_staff_recheck', 'employee_movement_history', 'store_employees']) {
+    for (const table of ['store_transfer_requests', 'monthly_staff_adjustment_log', 'monthly_staff_recheck', 'employee_movement_history', 'store_employees']) {
       const { error } = await db.from(table).delete().in('employee_code', safe);
       if (error) throw new Error(`清除 ${table} 失敗：${error.message}`);
     }

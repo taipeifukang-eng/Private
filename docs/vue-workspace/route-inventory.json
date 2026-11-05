@@ -186,7 +186,7 @@
   {
     "legacyRoute": "/admin/import-employees",
     "source": "app/admin/import-employees/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [],
     "apis": [
       "/api/import-employees"
@@ -290,7 +290,7 @@
   {
     "legacyRoute": "/admin/store-managers",
     "source": "app/admin/store-managers/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [],
     "apis": [
       "/api/store-managers/assign",
@@ -302,7 +302,7 @@
   {
     "legacyRoute": "/admin/stores/[id]/clone",
     "source": "app/admin/stores/[id]/clone/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/app/store/actions",
       "@/lib/supabase/client"
@@ -312,7 +312,7 @@
   {
     "legacyRoute": "/admin/stores/[id]/edit",
     "source": "app/admin/stores/[id]/edit/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/app/store/actions",
       "@/components/admin/StoreGpsFields"
@@ -322,7 +322,7 @@
   {
     "legacyRoute": "/admin/stores/[id]/employee-management",
     "source": "app/admin/stores/[id]/employee-management/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/lib/monthly-staff/promotion-level",
       "@/lib/supabase/client",
@@ -333,7 +333,7 @@
   {
     "legacyRoute": "/admin/stores/[id]/employees",
     "source": "app/admin/stores/[id]/employees/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/lib/supabase/client"
     ],
@@ -342,7 +342,7 @@
   {
     "legacyRoute": "/admin/stores/[id]/promotion-management",
     "source": "app/admin/stores/[id]/promotion-management/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/lib/supabase/client",
       "@/types/workflow"
@@ -354,7 +354,7 @@
   {
     "legacyRoute": "/admin/stores/create",
     "source": "app/admin/stores/create/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/app/store/actions",
       "@/components/admin/StoreGpsFields"
@@ -364,7 +364,7 @@
   {
     "legacyRoute": "/admin/stores/map",
     "source": "app/admin/stores/map/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/components/admin/StoreGoogleMapClient",
       "@/lib/permissions/check",
@@ -375,7 +375,7 @@
   {
     "legacyRoute": "/admin/stores",
     "source": "app/admin/stores/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [
       "@/lib/permissions/check",
       "@/lib/supabase/server"
@@ -385,7 +385,7 @@
   {
     "legacyRoute": "/admin/supervisors",
     "source": "app/admin/supervisors/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；P02 已完成對等驗收（2026-11）",
     "imports": [],
     "apis": [
       "/api/supervisors/assign",

@@ -281,6 +281,17 @@ test.describe('W06 異動回寫每月人員名冊', () => {
     expect(later.ok, JSON.stringify(later.body)).toBe(true);
     const r = await submitMovements(admin, [{ employee_code: c.backdate, employee_name: 'W06 補登調店', store_id: zt02, movement_type: 'store_transfer', from_store_id: zt01, to_store_id: zt02, effective_date: '2099-08-01' }]);
     expect(r.ok, JSON.stringify(r.body)).toBe(true);
+    // D.2：批次輸入的調店只建立待確認申請；由系統管理員代兩店督導確認（補登 2099-08-01）後才寫入歷史。
+    expect((r.body as any).transferRequests).toBe(1);
+    expect((await historyOf(c.backdate)).map((x) => x.movement_type)).toEqual(['promotion']);
+    const { data: pending } = await adminDb().from('store_transfer_requests').select('id,status,requested_date').eq('employee_code', c.backdate);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].status).toBe('pending');
+    expect(pending[0].requested_date).toBe('2099-08-01');
+    const pv = await admin.post('/api/workspace/transfers/preview', { data: { id: pending[0].id, effective_date: '2099-08-01' } });
+    expect(pv.status(), await pv.text()).toBe(200);
+    const cf = await admin.post('/api/workspace/transfers/confirm', { data: { id: pending[0].id, effective_date: '2099-08-01', version: (await pv.json()).version } });
+    expect(cf.status(), await cf.text()).toBe(200);
     const h = await historyOf(c.backdate);
     expect(h.map((x) => x.movement_type)).toEqual(['store_transfer', 'promotion']);
     const active = (await masterOf(c.backdate)).filter((x) => x.is_active);
