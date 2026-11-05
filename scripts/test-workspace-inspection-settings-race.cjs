@@ -73,6 +73,11 @@ const actor = require("../tests/support/credentials.cjs").requireWorkspaceAccoun
         grade: "10",
         score_percentage: 100,
         indoor_temperature: 26,
+      // 新增巡店需帶合格定位（資料庫 trigger）
+      gps_latitude: 25.033,
+      gps_longitude: 121.5654,
+      gps_accuracy: 20,
+      gps_timestamp: new Date().toISOString(),
       },
       p_results: templates.data.map((t) => ({
         template_id: t.id,

@@ -185,6 +185,11 @@ async function main() {
             status: i ? "draft" : "completed",
             total_score: i ? 0 : 180,
             max_possible_score: 220,
+            // 新增巡店需帶合格定位（資料庫 trigger：誤差 <= 1000 公尺、時間在 2 小時內）
+            gps_latitude: 25.033,
+            gps_longitude: 121.5654,
+            gps_accuracy: 20,
+            gps_timestamp: new Date().toISOString(),
           }),
       );
   }

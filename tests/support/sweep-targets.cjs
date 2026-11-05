@@ -14,6 +14,8 @@ const MARKER_TARGETS = [
   // CV01：活動查看權限測試。活動名稱 CVP-<runId>-KEY（子表 ON DELETE CASCADE）；帳號由 fixture 自行清除，這裡只回報孤兒。
   { table: 'campaigns', column: 'name', pattern: 'CVP-T%', action: 'delete' },
   { table: 'profiles', column: 'email', pattern: 'cvp-test-%', action: 'report' },
+  // I01：巡店（新增巡店強制定位）測試資料。巡店備註帶 ZT + runId 標記（子表 ON DELETE CASCADE）。
+  { table: 'inspection_masters', column: 'supervisor_notes', pattern: 'ZTT%', action: 'delete' },
 ];
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
@@ -81,6 +83,8 @@ const DELETABLE_TABLES = {
   pharmacist_snapshot_locks: ['year_month'],
   // CV01：活動（子表 cascade）與門市任命 fixture，只依 registry 登錄的 id 清除。
   campaigns: ['id'],
+  // I01：巡店主表（子表 cascade），只依 registry 登錄的 id 清除。
+  inspection_masters: ['id'],
   store_managers: ['id'],
 };
 
