@@ -27,5 +27,8 @@ export async function PUT(request:Request){try{
  if(birthday&&start_date&&birthday>start_date)throw new WorkspaceError(400,'生日不可晚於到職日');
  const r=await ctx.admin.rpc('workspace_employee_edit',{p_actor:ctx.user.id,p_request:b.requestId,p_expected:b.expected,p_data:{employee_code:employeeCode,employee_name:d.employee_name.trim(),current_position:position,birthday,start_date}});
  if(r.error)throw new WorkspaceError(r.error.message.includes('WORKSPACE_CHANGED')?409:503,r.error.message.includes('WORKSPACE_CHANGED')?'員工資料已變更，草稿已保留。請關閉後重新開啟核對。':'儲存未完成，請稍後重試；資料未部分寫入。');
- return respond(r.data);
+ // 需重新確認清單補上門市名稱（同月份多家門市時看得出是哪一家要重新確認）。
+ const data:any=r.data;
+ if(Array.isArray(data?.recheck)&&data.recheck.length){const ids=Array.from(new Set(data.recheck.map((x:any)=>x.store_id).filter(Boolean)));const st=await ctx.admin.from('stores').select('id,store_code,store_name').in('id',ids as string[]);const byId=new Map((st.data||[]).map((x:any)=>[x.id,x]));data.recheck=data.recheck.map((x:any)=>({...x,store_code:byId.get(x.store_id)?.store_code??null,store_name:byId.get(x.store_id)?.store_name??null}));}
+ return respond(data);
 }catch(e){return failed(e);}}

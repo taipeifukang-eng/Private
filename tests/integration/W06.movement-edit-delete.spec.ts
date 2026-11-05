@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, request as playwrightRequest, test, type APIRequestContext } from '@playwright/test';
 import { apiAs } from '../support/auth';
 import {
   W06_MONTHS,
@@ -39,6 +39,7 @@ const c = {
   list: w06Code('FKF', 27),
   dup: w06Code('FKF', 28),
   other: w06Code('FKF', 29),
+  single: w06Code('FKF', 39),
 };
 const all = () => Object.values(c);
 const field = (rows: Record<string, any>[], month: string, key: string) => rows.find((r) => r.year_month === month)?.[key];
@@ -96,6 +97,52 @@ test.describe('W06 C 組：修改與刪除歷史異動', () => {
     const ok = await patch(id, { notes: '管理員修改' });
     expect(ok.status(), await ok.text()).toBe(200);
     expect((await historyOf(c.perm))[0].notes).toBe('管理員修改');
+  });
+
+  test('C.2 單一權限角色：只持有其中一個權限的帳號，修改、刪除、歷史頁各自被伺服器放行或擋下；未登入 401', async () => {
+    await seedMaster(c.single, 'W06 單一權限', zt01);
+    const id = await insertHistory({ code: c.single, name: 'W06 單一權限', store: zt01, type: 'leave_without_pay', date: '2099-07-20' });
+    // 修改類權限（異動管理、員工管理、批次升遷）：可修改、可看歷史頁，不能刪除；刪除異動權限：可刪除，不能修改也不能看歷史頁。
+    const cases: { role: string; patch: number; del: number; get: number }[] = [
+      { role: 'movement_manage_only', patch: 200, del: 403, get: 200 },
+      { role: 'employee_manage_only', patch: 200, del: 403, get: 200 },
+      { role: 'promotion_batch_only', patch: 200, del: 403, get: 200 },
+      { role: 'promotion_delete_only', patch: 403, del: 200, get: 403 },
+    ];
+    for (const k of cases) {
+      const who = await apiAs(k.role);
+      try {
+        expect((await who.get('/api/workspace/employee-movements', { params: { month: m1 } })).status(), `${k.role} GET 歷史頁`).toBe(k.get);
+        const p = await patch(id, { notes: `${k.role} 修改` }, who);
+        expect(p.status(), `${k.role} PATCH ${await p.text()}`).toBe(k.patch);
+        if (k.del === 403) {
+          expect((await del(id, who)).status(), `${k.role} DELETE`).toBe(403);
+          expect(await historyOf(c.single), `${k.role} 被擋下後資料還在`).toHaveLength(1);
+        }
+        if (k.patch === 200) expect((await historyOf(c.single))[0].notes).toBe(`${k.role} 修改`);
+        else expect((await historyOf(c.single))[0].notes).not.toBe(`${k.role} 修改`);
+      } finally {
+        await who.dispose();
+      }
+    }
+    const anon = await playwrightRequest.newContext({ baseURL: 'http://localhost:3002', extraHTTPHeaders: { Origin: 'http://localhost:3002' } });
+    try {
+      expect((await anon.get('/api/workspace/employee-movements')).status()).toBe(401);
+      expect((await patch(id, { notes: 'x' }, anon)).status()).toBe(401);
+      expect((await del(id, anon)).status()).toBe(401);
+    } finally {
+      await anon.dispose();
+    }
+    expect(await historyOf(c.single)).toHaveLength(1);
+    // 只有「刪除異動」權限的帳號沒有門市範圍也能刪（與舊版相同：只檢查權限，不受 RLS 範圍限制）
+    const deleter = await apiAs('promotion_delete_only');
+    try {
+      const d = await del(id, deleter);
+      expect(d.status(), await d.text()).toBe(200);
+    } finally {
+      await deleter.dispose();
+    }
+    expect(await historyOf(c.single)).toHaveLength(0);
   });
 
   test('C.1 修改：姓名、日期、備註同步主檔與名冊；不開放改類型與門市；欄位驗證', async () => {

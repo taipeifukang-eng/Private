@@ -12,7 +12,8 @@ const messages:Record<string,string>={
 };
 async function visible(ctx:Awaited<ReturnType<typeof context>>,id:string){
  if(!uuid(id))throw new WorkspaceError(404,'找不到該異動記錄');
- const r=await ctx.auth.from('employee_movement_history').select('id,employee_code,employee_name,movement_type,movement_date').eq('id',id).maybeSingle();
+ // C.2 legacy_perms：與舊版相同，先檢查權限（呼叫端已做），再用管理端讀取，不受門市範圍（RLS）影響。
+ const r=await ctx.admin.from('employee_movement_history').select('id,employee_code,employee_name,movement_type,movement_date').eq('id',id).maybeSingle();
  if(r.error)throw new WorkspaceError(503,'異動紀錄讀取失敗，請重試');
  if(!r.data)throw new WorkspaceError(404,'找不到該異動記錄');
  return r.data;

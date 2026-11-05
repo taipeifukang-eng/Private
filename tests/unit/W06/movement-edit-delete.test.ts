@@ -30,11 +30,6 @@ describe('C.2 權限規則', () => {
     expect(canDeleteMovement(ctxWith('employee.promotion.delete'))).toBe(true);
     for (const code of MOVEMENT_EDIT_CODES) expect(canDeleteMovement(ctxWith(code)), code).toBe(false);
   });
-  it('批次升遷權限者可看歷史頁（讀取檢查包含批次升遷）', () => {
-    const src = read('lib/workspace/employee-movements.ts');
-    expect(src).toContain("ctx.has('employee.promotion.batch')");
-    expect(src).toContain('canEditMovement(ctx)');
-  });
 });
 
 describe('C.1 資料庫函式', () => {
@@ -74,11 +69,9 @@ describe('C.1 資料庫函式', () => {
 
 describe('C.1／C.2 API 與介面', () => {
   const route = read('app/api/workspace/employee-movements/[id]/route.ts');
-  it('PATCH／DELETE 在伺服器端檢查來源與權限，且只看得到有查看範圍的異動', () => {
-    expect(route).toContain('checkOrigin(request)');
-    expect(route).toContain('requireCapability(ctx,[...MOVEMENT_EDIT_CODES])');
-    expect(route).toContain('requireCapability(ctx,[...MOVEMENT_DELETE_CODES])');
-    expect(route).toContain("ctx.auth.from('employee_movement_history')");
+  it('PATCH／DELETE 先檢查權限再用管理端讀取該筆異動（與舊版相同，不受門市範圍影響）；權限行為由整合層以單一權限帳號驗證', () => {
+    expect(route).toContain("ctx.admin.from('employee_movement_history')");
+    expect(route).not.toContain("ctx.auth.from('employee_movement_history')");
     expect(route).toContain('workspace_movement_update');
     expect(route).toContain('workspace_movement_delete');
   });

@@ -105,6 +105,8 @@ BEGIN
    sid:=CASE WHEN orgid IS NULL THEN (item->>'store_id')::uuid END;
    IF orgid IS NOT NULL AND kind<>'onboarding' THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
    IF orgid IS NULL AND NOT EXISTS(SELECT 1 FROM stores WHERE id=sid AND is_active) THEN RAISE EXCEPTION 'WORKSPACE_STORE_CHANGED'; END IF;
+   -- 同一天不可同時有留停與復職（狀態與天數會互相矛盾）。
+   IF kind IN('leave_without_pay','return_to_work') AND EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=code AND h.movement_date=dt AND h.movement_type=CASE WHEN kind='leave_without_pay' THEN 'return_to_work' ELSE 'leave_without_pay' END) THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
    IF EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=code AND h.movement_date=dt AND
     CASE WHEN h.movement_type='promotion' AND h.new_value='代理店長' THEN 'acting_manager' ELSE h.movement_type END=kind AND
     (kind<>'promotion' OR (h.new_value=item->>'position' AND coalesce(substring(h.notes FROM '(?:新人等級|行政階級)[:：]([^；\n]+)'),'')=coalesce(item->>'newbie_level','')))) THEN
@@ -171,7 +173,7 @@ BEGIN
       END IF;
       IF emp.id IS NULL THEN
        INSERT INTO store_employees(store_id,user_id,employee_code,employee_name,position,current_position,employment_type,is_pharmacist,is_active,employment_status,start_date,birthday,last_movement_date,last_movement_type)
-       VALUES(sid,uid,code,item->>'employee_name','新人','新人',CASE WHEN code LIKE 'FKPT%' THEN 'part_time' ELSE 'full_time' END,(item->>'onboarding_is_pharmacist')::boolean,true,'active',dt,(item->>'birthday')::date,dt,kind);
+       VALUES(sid,uid,code,item->>'employee_name',CASE WHEN code LIKE 'FKPT%' THEN CASE WHEN (item->>'onboarding_is_pharmacist')::boolean THEN '兼職藥師' ELSE '兼職助理' END ELSE '新人' END,CASE WHEN code LIKE 'FKPT%' THEN CASE WHEN (item->>'onboarding_is_pharmacist')::boolean THEN '兼職藥師' ELSE '兼職助理' END ELSE '新人' END,CASE WHEN code LIKE 'FKPT%' THEN 'part_time' ELSE 'full_time' END,(item->>'onboarding_is_pharmacist')::boolean,true,'active',dt,(item->>'birthday')::date,dt,kind);
       ELSE
        UPDATE store_employees SET is_active=true,employment_status='active',start_date=dt,birthday=(item->>'birthday')::date,is_pharmacist=(item->>'onboarding_is_pharmacist')::boolean,last_movement_date=dt,last_movement_type=kind WHERE id=emp.id AND (last_movement_date IS NULL OR last_movement_date<=dt);
       END IF;

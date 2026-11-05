@@ -50,6 +50,15 @@ test('歷史異動頁：修改、刪除（只限最新一筆）與確認視窗',
     await expect(rowOf('第二筆').getByTestId('movement-delete')).toBeEnabled();
     await expect(rowOf('第二筆').getByTestId('movement-delete-hint')).toHaveCount(0);
     expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);
+    // 手機：操作欄固定在右側，不必橫向捲動就看得到修改／刪除；篩選區單欄堆疊、控制項左側對齊
+    const view = page.viewportSize()!;
+    const editBox = await rowOf('第二筆').getByTestId('movement-edit').boundingBox();
+    expect(editBox!.x + editBox!.width, '修改按鈕在第一屏內').toBeLessThanOrEqual(view.width + 1);
+    if (mobile) {
+      await expect(p.locator('.swipe-hint')).toBeVisible();
+      const lefts = await p.locator('.filters').locator('label, button').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().left)));
+      expect(new Set(lefts).size, '篩選區單欄對齊：' + lefts.join(',')).toBe(1);
+    }
 
     // 修改：姓名與備註，儲存後列表更新、主檔同步
     await rowOf('第一筆').getByTestId('movement-edit').click();

@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, request as playwrightRequest, test, type APIRequestContext } from '@playwright/test';
 import { apiAs } from '../support/auth';
 import { assertNoUnlistedDiffs, loadMap, ParityRecorder, valueDiffsToDiffs } from '../support/parity';
 import { diffNormalized } from '../support/normalize';
@@ -11,6 +11,8 @@ import { W06_MONTHS, adminDb, historyOf, insertHistory, masterOf, purgeReceipts,
 
 const map = loadMap('movement-sync');
 const recorder = new ParityRecorder('movement-sync');
+const permMap = loadMap('movement-edit-delete');
+const permRecorder = new ParityRecorder('movement-edit-delete');
 const entry = (id: string) => map.entries.find((e) => e.id === id)!.id;
 const { m1, m2 } = W06_MONTHS;
 type Facts = Record<string, unknown>;
@@ -126,5 +128,41 @@ test.describe('W06 C 組 歷史異動修改與刪除對等', () => {
     const n = await admin.delete(nativeUrl(first[code.oldN]));
     const facts = async (c: string, status: number): Promise<Facts> => ({ ok: status === 200, history: (await hist(c)).join(' ;; ') });
     record('delete-non-latest', '刪除非最新一筆：是否成功、剩餘異動歷史', 'DELETE', await facts(code.oldL, l.status()), await facts(code.oldN, n.status()));
+  });
+
+  test('C.2 權限對等：各角色（單一權限、無權限、未登入）呼叫舊版與新版的修改、刪除，狀態碼一致', async () => {
+    const missing = '00000000-0000-4000-8000-000000000000';
+    const roles = ['denied', 'employee', 'movement_manage_only', 'employee_manage_only', 'promotion_batch_only', 'promotion_delete_only', 'admin', 'anonymous'];
+    const facts: Record<string, { legacy: Facts; native: Facts }> = { PATCH: { legacy: {}, native: {} }, DELETE: { legacy: {}, native: {} } };
+    for (const role of roles) {
+      const who = role === 'anonymous' ? await playwrightRequest.newContext({ baseURL: 'http://localhost:3002', extraHTTPHeaders: { Origin: 'http://localhost:3002' } }) : await apiAs(role);
+      try {
+        const lp = await who.patch(legacyUrl(missing), { data: { notes: 'x' } });
+        const np = await who.patch(nativeUrl(missing), { data: { notes: 'x' } });
+        const ld = await who.delete(legacyUrl(missing));
+        const nd = await who.delete(nativeUrl(missing));
+        facts.PATCH.legacy[role] = lp.status();
+        facts.PATCH.native[role] = np.status();
+        facts.DELETE.legacy[role] = ld.status();
+        facts.DELETE.native[role] = nd.status();
+      } finally {
+        await who.dispose();
+      }
+    }
+    for (const [method, id] of [['PATCH', 'patch-permissions'], ['DELETE', 'delete-permissions']] as const) {
+      const e = permMap.entries.find((x) => x.id === id)!.id;
+      assertNoUnlistedDiffs(
+        permRecorder.record({
+          entry: e,
+          mechanism: 'write-readback',
+          role: 'matrix',
+          title: `${method} 權限矩陣狀態碼（${roles.join('、')}）`,
+          legacy: { endpoint: `${method} /api/employee-movements/[id]` },
+          native: { endpoint: `${method} /api/workspace/employee-movements/[id]` },
+          compared: { roles: roles.length },
+          diffs: valueDiffsToDiffs(diffNormalized(facts[method].legacy, facts[method].native)),
+        }),
+      );
+    }
   });
 });

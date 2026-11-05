@@ -11,7 +11,10 @@ import type { MovementDraft } from '../../../lib/workspace/movement-fields';
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
-const SQL = read('supabase/workspace-dev/20261106100000_w06_roster_recompute.sql');
+const W06_SQL = read('supabase/workspace-dev/20261106100000_w06_roster_recompute.sql');
+const P02_SQL = read('supabase/workspace-dev/20261106200000_p02_d_batch_transfer.sql');
+// 登記、批次升遷、調店確認三支函式的唯一定義在較晚的 P02 檔（含 D.1、D.2），W06 檔不得再定義，避免重複套用 W06 時蓋回舊版。
+const SQL = [W06_SQL, P02_SQL].join(String.fromCharCode(10));
 const ROLLBACK = read('supabase/workspace-dev/20261106100000_w06_roster_recompute.rollback.sql');
 
 /** 取出指定函式的完整內容（CREATE OR REPLACE FUNCTION name( ... 到下一個 CREATE 或結尾）。 */
@@ -22,6 +25,15 @@ function fn(name: string): string {
   const next = SQL.indexOf('CREATE OR REPLACE FUNCTION', alt + 10);
   return SQL.slice(alt, next < 0 ? undefined : next);
 }
+
+describe('函式只定義一份', () => {
+  for (const name of ['workspace_movement_save', 'workspace_promotion_save', 'workspace_transfer_confirm']) {
+    it(`${name} 只在 P02 檔定義，W06 檔不含`, () => {
+      expect(W06_SQL).not.toContain(`FUNCTION public.${name}(`);
+      expect(P02_SQL).toContain(`FUNCTION public.${name}(`);
+    });
+  }
+});
 
 describe('單一計算：所有入口都呼叫 workspace_roster_recompute', () => {
   for (const name of ['workspace_movement_save', 'workspace_promotion_save', 'workspace_apply_due_promotions', 'workspace_transfer_confirm', 'workspace_transfer_correct', 'workspace_roster_apply_store_month']) {

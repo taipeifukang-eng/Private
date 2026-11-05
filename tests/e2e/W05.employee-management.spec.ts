@@ -45,6 +45,8 @@ test('新增員工與編輯職位（UI）', async ({ browser }, testInfo) => {
     await openEmployeeCreate(page);
     const p = workPanel(page);
     await p.getByLabel('員編').first().fill('FKI001');
+    await expect(p.getByTestId('employee-id-error')).toContainText('實習生不納入系統'); // 即時提示（輸入時就看到）
+    await expect(p.getByTestId('employee-type')).toHaveCount(0);
     await p.getByLabel('姓名').fill('W05 實習生');
     await p.getByRole('button', { name: '核對並新增' }).click();
     await expect(p.getByRole('alert')).toContainText('實習生');
@@ -53,6 +55,8 @@ test('新增員工與編輯職位（UI）', async ({ browser }, testInfo) => {
 
     // --- 新增員工：格式錯誤 ---
     await p.getByLabel('員編').first().fill('FK12');
+    await expect(p.getByTestId('employee-id-error')).toContainText('員編格式錯誤'); // 格式不合規不顯示「類型：正職」
+    await expect(p.getByTestId('employee-type')).toHaveCount(0);
     await p.getByRole('button', { name: '核對並新增' }).click();
     await expect(p.getByRole('alert')).toContainText('員編格式錯誤');
 

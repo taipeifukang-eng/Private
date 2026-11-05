@@ -11,7 +11,8 @@ let requestId='',pendingKey='';
 props.tab.submitOnly=true;
 watch(form,()=>{if(!done.value)props.tab.dirty=JSON.stringify(form.value)!==baseline;},{deep:true,flush:'sync'});
 async function load(){loading.value=true;error.value='';try{const d=await api('employees');positions.value=d.positions;allowed.value=d.capabilities.create;}catch(e){error.value=(e as Error).message;}finally{loading.value=false;}}
-const typeLabel=computed(()=>{const c=normalizeEmployeeId(form.value.employee_code);if(!c||isInternEmployeeId(c))return '';return employmentTypeForEmployeeId(c)==='part_time'?EMPLOYMENT_TYPE_BY_CODE_LABEL:'正職（依員編）';});
+const idCheck=computed(()=>normalizeEmployeeId(form.value.employee_code)?checkEmployeeId(form.value.employee_code):null);
+const typeLabel=computed(()=>{const c=normalizeEmployeeId(form.value.employee_code);if(!c||!idCheck.value?.ok||isInternEmployeeId(c))return '';return employmentTypeForEmployeeId(c)==='part_time'?EMPLOYMENT_TYPE_BY_CODE_LABEL:'正職（依員編）';});
 function review(){error.value='';const id=checkEmployeeId(form.value.employee_code);if(!id.ok){error.value=id.message;return;}if(!form.value.employee_name.trim()){error.value='請填寫姓名。';return;}confirm.value=true;}
 async function save(){if(props.tab.busy||done.value||!allowed.value)return;confirm.value=false;props.tab.busy=true;error.value='';const data={...form.value,employee_code:form.value.employee_code.trim().toUpperCase(),employee_name:form.value.employee_name.trim()},key=JSON.stringify(data);if(key!==pendingKey){pendingKey=key;requestId=crypto.randomUUID();}try{await api('employees',{method:'POST',body:JSON.stringify({requestId,data})});form.value=data;done.value=true;props.tab.dirty=false;props.tab.title='員工已新增 · '+data.employee_name;}catch(e){error.value=(e as Error).message;}finally{props.tab.busy=false;}}
 onMounted(load);onBeforeUnmount(()=>{delete props.tab.submitOnly;});
@@ -23,7 +24,7 @@ onMounted(load);onBeforeUnmount(()=>{delete props.tab.submitOnly;});
 <p v-if="done" class="notice" role="status">已新增 {{form.employee_code}} {{form.employee_name}}。可關閉此頁；新增其他員工請回到「員工管理」點選「新增員工」。</p>
 <form v-if="allowed" @submit.prevent="review">
 <fieldset :disabled="tab.busy||done||confirm"><div class="employee-fields">
-<label>員編<input v-model="form.employee_code" required autocomplete="off" placeholder="FK1234／FKF12345／FKPT123"><small class="hint">格式：FK+4碼、FKF+5碼、FKPT+3碼數字</small><small v-if="typeLabel" class="hint" data-testid="employee-type">類型：{{typeLabel}}</small></label>
+<label>員編<input v-model="form.employee_code" required autocomplete="off" placeholder="FK1234／FKF12345／FKPT123"><small class="hint">格式：FK+4碼、FKF+5碼、FKPT+3碼數字</small><small v-if="idCheck&&!idCheck.ok" class="hint" style="color:var(--danger,#b42318)" data-testid="employee-id-error">{{idCheck.message}}</small><small v-if="typeLabel" class="hint" data-testid="employee-type">類型：{{typeLabel}}</small></label>
 <label>姓名<input v-model="form.employee_name" required maxlength="100" autocomplete="off"></label>
 <label :for="tab.id+'-position'">當前職位<select :id="tab.id+'-position'" aria-label="當前職位" v-model="form.current_position"><option value="">未指定</option><option v-for="p in positions" :key="p">{{p}}</option></select></label>
 <label>到職日<input v-model="form.start_date" type="date" min="1900-01-01" max="9999-12-31"></label>

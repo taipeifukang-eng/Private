@@ -15,10 +15,10 @@ export async function GET(request:Request){try{
  if(type!=='all')query=query.eq('movement_type',type);
  const result=await query.range((page-1)*size,page*size-1);if(result.error)throw new WorkspaceError(503,'異動紀錄讀取失敗，請重試');
  const rows=result.data||[],codes=Array.from(new Set(rows.map(r=>r.employee_code)));
- // C.1：每位員工只有時間軸最後一筆可刪（movement_date、created_at、id 排序）。
+ // C.1：每位員工只有時間軸最後一筆可刪（movement_date、created_at、id 排序）；用管理端讀取，避免 RLS 隱藏較新的異動而誤判。
  const latest=new Map<string,string>();
  for(let i=0;i<codes.length;i+=25){
-  const all=await ctx.auth.from('employee_movement_history').select('id,employee_code,movement_date,created_at').in('employee_code',codes.slice(i,i+25)).order('movement_date',{ascending:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(5000);
+  const all=await ctx.admin.from('employee_movement_history').select('id,employee_code,movement_date,created_at').in('employee_code',codes.slice(i,i+25)).order('movement_date',{ascending:false}).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(5000);
   if(all.error)throw new WorkspaceError(503,'異動紀錄讀取失敗，請重試');
   for(const h of all.data||[])if(!latest.has(h.employee_code))latest.set(h.employee_code,h.id);
  }

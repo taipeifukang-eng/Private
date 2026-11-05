@@ -37,3 +37,7 @@ for (const file of files) {
   );
   if (r.status) process.exit(r.status);
 }
+if (!rollback)
+  console.log(
+    "提醒：workspace_movement_save／promotion_save／transfer_confirm 只定義在 P02 檔，全新環境請接著執行 apply-workspace-p02-dev.cjs。",
+  );

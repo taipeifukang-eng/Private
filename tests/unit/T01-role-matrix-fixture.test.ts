@@ -15,8 +15,20 @@ const REQUIRED_ROLE_KEYS = [
 
 describe('T01 role-matrix.json', () => {
   it('包含 D06 的 13 個角色', () => {
-    const keys = fixture.accounts.filter((a: { kind: string }) => a.kind === 'role').map((a: { key: string }) => a.key);
+    const keys = fixture.accounts.filter((a: { kind: string; key: string }) => a.kind === 'role' && !a.key.endsWith('_only')).map((a: { key: string }) => a.key);
     expect(keys).toEqual(REQUIRED_ROLE_KEYS);
+  });
+
+  it('W06 單一權限帳號（*_only）各自只持有一個異動相關權限', () => {
+    const single = Object.fromEntries(
+      fixture.accounts.filter((a: { key: string }) => a.key.endsWith('_only')).map((a: { key: string; permissions: string[] }) => [a.key, a.permissions]),
+    );
+    expect(single).toEqual({
+      movement_manage_only: ['employee.movement.manage'],
+      employee_manage_only: ['employee.manage'],
+      promotion_batch_only: ['employee.promotion.batch'],
+      promotion_delete_only: ['employee.promotion.delete'],
+    });
   });
 
   it('通過 seed 的安全邊界驗證（@example.test、vue_workspace_*、VW/ZT 門市）', () => {

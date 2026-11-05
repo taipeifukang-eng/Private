@@ -34,7 +34,7 @@ onMounted(load);onBeforeUnmount(()=>{alive=false;props.tab.dirty=false;delete pr
   </form>
   <div v-else class="dialog-actions"><button @click="close">關閉</button></div>
  </Modal>
- <Modal v-if="outcome" title="職位已更新，部分月份需重新確認" @cancel="emit('saved')"><p data-testid="employee-edit-recheck">已更新 {{outcome.position_updated_months}} 個未送審／未確認月份的職位；另有 {{outcome.recheck_count}} 個已送審或已確認的月份未更動，已記錄為「需重新確認」。</p><ul><li v-for="x in outcome.recheck" :key="x.store_id+x.year_month">{{x.year_month}}：{{x.old||'未填'}} → {{x.new}}</li></ul><div class="dialog-actions"><button class="primary" @click="emit('saved')">知道了</button></div></Modal>
+ <Modal v-if="outcome" title="職位已更新，部分月份需重新確認" @cancel="emit('saved')"><p data-testid="employee-edit-recheck">已更新 {{outcome.position_updated_months}} 個未送審／未確認月份的職位；另有 {{outcome.recheck_count}} 個已送審或已確認的月份未更動，已記錄為「需重新確認」。</p><ul><li v-for="x in outcome.recheck" :key="x.store_id+x.year_month">{{x.year_month}} {{[x.store_code,x.store_name].filter(Boolean).join(' ')||'未提供門市'}}：{{x.old||'未填'}} → {{x.new}}</li></ul><div class="dialog-actions"><button class="primary" @click="emit('saved')">知道了</button></div></Modal>
  <Modal v-if="discard" title="放棄尚未儲存的員工資料？" @cancel="discard=false"><p>關閉將放棄本次修改。</p><div class="dialog-actions"><button @click="discard=false">繼續編輯</button><button @click="emit('close')">放棄並關閉</button></div></Modal>
 </template>
 <style scoped>fieldset{border:0;padding:0;margin:20px 0;min-width:0}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.fields label{display:grid;gap:8px}.fields input,.fields select{width:100%;min-width:0}.notice{line-height:1.8}@media(max-width:600px){.fields{grid-template-columns:1fr}}</style>

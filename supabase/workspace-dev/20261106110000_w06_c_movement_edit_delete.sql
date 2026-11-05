@@ -73,6 +73,7 @@ BEGIN
  IF EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=m.employee_code AND h.movement_date=nd AND h.id<>m.id AND
    CASE WHEN h.movement_type='promotion' AND h.new_value='代理店長' THEN 'acting_manager' ELSE h.movement_type END=kind AND
    (kind<>'promotion' OR h.new_value IS NOT DISTINCT FROM newv)) THEN RAISE EXCEPTION 'WORKSPACE_DUPLICATE'; END IF;
+ IF kind IN('leave_without_pay','return_to_work') AND EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=m.employee_code AND h.movement_date=nd AND h.id<>m.id AND h.movement_type=CASE WHEN kind='leave_without_pay' THEN 'return_to_work' ELSE 'leave_without_pay' END) THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
  UPDATE employee_movement_history SET employee_name=nm,movement_date=nd,new_value=newv,old_value=oldv,notes=nn,
   onboarding_is_pharmacist=CASE WHEN kind='onboarding' THEN pharm ELSE onboarding_is_pharmacist END WHERE id=m.id;
  old_ym:=to_char(m.movement_date,'YYYY-MM');new_ym:=to_char(nd,'YYYY-MM');from_ym:=least(old_ym,new_ym);
@@ -103,7 +104,7 @@ GRANT EXECUTE ON FUNCTION public.workspace_movement_update(uuid,uuid,jsonb) TO s
 CREATE OR REPLACE FUNCTION public.workspace_movement_delete(p_actor uuid,p_id uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE m employee_movement_history%rowtype; newer employee_movement_history%rowtype; kind text; rec jsonb; ym text; eff record; restored boolean:=false;
- today date:=(now() AT TIME ZONE 'Asia/Taipei')::date; prev_onb employee_movement_history%rowtype;
+ today date:=(now() AT TIME ZONE 'Asia/Taipei')::date; prev_onb employee_movement_history%rowtype; rr record;
 BEGIN
  IF p_actor IS NULL OR p_id IS NULL THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
  IF NOT EXISTS(SELECT 1 FROM profiles WHERE id=p_actor) THEN RAISE EXCEPTION 'WORKSPACE_FORBIDDEN'; END IF;
@@ -114,6 +115,12 @@ BEGIN
  IF FOUND THEN RAISE EXCEPTION 'WORKSPACE_NOT_LATEST' USING DETAIL='newer='||newer.id||';date='||newer.movement_date||';type='||newer.movement_type; END IF;
  kind:=CASE WHEN m.movement_type='promotion' AND m.new_value='代理店長' THEN 'acting_manager' ELSE m.movement_type END;
  ym:=to_char(m.movement_date,'YYYY-MM');
+ -- 已確認的調店申請：異動被刪除後標記為已撤銷（rejected），保留申請紀錄與原因，不再指向已不存在的異動。
+ IF m.movement_type='store_transfer' THEN
+  UPDATE store_transfer_requests SET status='rejected',movement_history_id=NULL,
+   notes=concat_ws('；',nullif(notes,''),'調店異動已於 '||to_char(now() AT TIME ZONE 'Asia/Taipei','YYYY-MM-DD')||' 刪除（原生效日 '||m.movement_date||'），申請已撤銷')
+  WHERE movement_history_id=m.id AND status='confirmed';
+ END IF;
  DELETE FROM employee_movement_history WHERE id=m.id;
  -- 主檔狀態與門市：依剩餘異動重建（沒有任何狀態類異動時不動）。
  restored:=workspace_employee_master_resync(m.employee_code);
@@ -130,7 +137,8 @@ BEGIN
   SELECT * INTO eff FROM workspace_effective_promotion(m.employee_code,today);
   IF eff.pos IS NOT NULL THEN
    restored:=workspace_employee_master_position_sync(m.employee_code) OR restored;
-  ELSIF kind='promotion' AND m.old_value IS NOT NULL AND m.old_value<>'代理店長' THEN
+  ELSIF kind='promotion' AND m.old_value IS NOT NULL AND m.old_value<>'代理店長' AND m.movement_date<=today THEN
+   -- 被刪升職已經生效過（主檔曾同步到它），且沒有其他已生效升職：退回原職位。尚未生效的升職從未寫入主檔，不動。
    UPDATE store_employees SET position=m.old_value,current_position=m.old_value,last_promotion_date=NULL,updated_at=now()
     WHERE employee_code=m.employee_code AND current_position IS NOT DISTINCT FROM m.new_value;
    restored:=true;
@@ -151,6 +159,21 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=m.employee_code) THEN
   UPDATE monthly_staff_recheck SET status='resolved',resolved_by=p_actor,resolved_at=now(),updated_at=now()
   WHERE employee_code=m.employee_code AND source_type='movement' AND status='pending' AND year_month>=ym;
+  -- 刪掉唯一一筆入職：入職產生的名冊列一併移出（未鎖定月份直接刪並留調整紀錄，已送審或已確認月份記需重新確認），主檔停用。
+  IF kind='onboarding' THEN
+   FOR rr IN SELECT s.* FROM monthly_staff_status s WHERE s.employee_code=m.employee_code AND s.year_month>=ym AND NOT coalesce(s.is_manually_added,false) LOOP
+    IF workspace_staff_month_locked(rr.store_id,rr.year_month,rr.status) THEN
+     PERFORM workspace_monthly_recheck_add(p_actor,m.employee_code,coalesce(rr.employee_name,m.employee_name),rr.store_id,rr.year_month,rr.id,'roster_row','列入名冊','應移出名冊','movement:onboarding','刪除異動（'||m.movement_date||'）：入職已刪除，但此月份已送審或已確認未更動','movement',m.id::text);
+    ELSE
+     INSERT INTO monthly_staff_adjustment_log(store_id,year_month,employee_code,employee_name,monthly_staff_status_id,field,old_value,new_value,movement_id,movement_label,created_by)
+     VALUES(rr.store_id,rr.year_month,m.employee_code,coalesce(rr.employee_name,m.employee_name),rr.id,'roster_row','列入名冊','已移出名冊',m.id::text,'刪除異動（'||m.movement_date||'）',p_actor);
+     DELETE FROM monthly_staff_status WHERE id=rr.id;
+    END IF;
+   END LOOP;
+   UPDATE store_employees SET is_active=false,employment_status='resigned',updated_at=now()
+    WHERE employee_code=m.employee_code AND is_active AND last_movement_type='onboarding' AND last_movement_date=m.movement_date;
+   restored:=true;
+  END IF;
  END IF;
  RETURN jsonb_build_object('id',m.id,'employee_code',m.employee_code,'employee_name',m.employee_name,'movement_type',kind,'roster',rec,'fromMonth',ym,'masterRestored',restored);
 END;$$;
