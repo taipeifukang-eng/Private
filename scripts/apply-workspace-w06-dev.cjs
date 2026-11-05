@@ -24,6 +24,7 @@ for (const script of [
 const rollback = process.argv.includes("--rollback");
 const base = [
   "20261106100000_w06_roster_recompute",
+  "20261106110000_w06_c_movement_edit_delete",
 ];
 const files = (rollback ? base.slice().reverse() : base).map(
   (n) => `supabase/workspace-dev/${n}${rollback ? ".rollback" : ""}.sql`,

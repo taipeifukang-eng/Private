@@ -87,6 +87,74 @@
           "method": "POST"
         }
       }
+    },
+    {
+      "id": "edit-promotion",
+      "mechanism": "write-readback",
+      "description": "修改升職異動（草稿月份）：舊版 PATCH /api/employee-movements/[id] 與新版同一路徑改升職職位後，回讀異動歷史與每月人員狀態職位；主檔職位新版同步（B.3）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/[id]",
+          "method": "PATCH"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-movements/[id]",
+          "method": "PATCH"
+        }
+      }
+    },
+    {
+      "id": "edit-name",
+      "mechanism": "write-readback",
+      "description": "修改姓名：舊版連已送審月份的姓名一併改寫；新版已送審月份不動（A.2），草稿月份、員工主檔與異動歷史一致。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/[id]",
+          "method": "PATCH"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-movements/[id]",
+          "method": "PATCH"
+        }
+      }
+    },
+    {
+      "id": "delete-latest",
+      "mechanism": "write-readback",
+      "description": "刪除員工最新一筆異動：舊版只刪歷史與重算升職時間軸，主檔不恢復；新版恢復員工主檔職位並重算名冊（C.1）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/[id]",
+          "method": "DELETE"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-movements/[id]",
+          "method": "DELETE"
+        }
+      }
+    },
+    {
+      "id": "delete-non-latest",
+      "mechanism": "write-readback",
+      "description": "刪除非最新一筆：舊版任一筆都可刪；新版只能刪最新一筆，其餘回 409 提示先刪較新的（C.1）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/[id]",
+          "method": "DELETE"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-movements/[id]",
+          "method": "DELETE"
+        }
+      }
     }
   ]
 }

@@ -965,5 +965,89 @@
       "entry": "same-day-multi-level",
       "key": "monthLevel"
     }
+  },
+  {
+    "id": "w06c-edit-master-position",
+    "page": "movement-sync",
+    "description": "修改升職職位後，新版同步員工主檔目前職位；舊版 DEV 只改月度資料，主檔職位沒改。",
+    "reason": "M2 規格 C.1（修改後一樣做 A 組連動）與 B.3，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "edit-promotion",
+      "key": "masterPosition"
+    }
+  },
+  {
+    "id": "w06c-edit-name-locked-month",
+    "page": "movement-sync",
+    "description": "修改姓名：舊版連已送審月份的姓名一併改寫；新版已送審／已確認月份不動。",
+    "reason": "M2 規格 A.2（已送審月份不動）與 C.1，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "edit-name",
+      "key": "lockedName"
+    }
+  },
+  {
+    "id": "w06c-delete-latest-master-position",
+    "page": "movement-sync",
+    "description": "刪除最新一筆升職後，新版恢復員工主檔職位為刪除前的原職位；舊版只刪異動歷史，主檔仍是升職後職位。",
+    "reason": "M2 規格 C.1（刪除後自動恢復員工主檔狀態、門市、職位），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-latest",
+      "key": "masterPosition"
+    }
+  },
+  {
+    "id": "w06c-delete-non-latest-ok",
+    "page": "movement-sync",
+    "description": "刪除非最新一筆異動：舊版可以刪；新版回 409，提示先刪較新的一筆。",
+    "reason": "M2 規格 C.1（只能刪除該員工最新的一筆），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-non-latest",
+      "key": "ok"
+    }
+  },
+  {
+    "id": "w06c-delete-non-latest-history",
+    "page": "movement-sync",
+    "description": "刪除非最新一筆異動後，舊版只剩較新的一筆；新版兩筆歷史都保留。",
+    "reason": "M2 規格 C.1（只能刪除該員工最新的一筆），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-non-latest",
+      "key": "history"
+    }
+  },
+  {
+    "id": "w06c-delete-latest-roster-m1Position",
+    "page": "movement-sync",
+    "description": "刪除最新一筆升職後，新版把草稿月份（首月）名冊職位恢復為原職位；舊版只刪異動歷史，名冊仍是升職後的職位。",
+    "reason": "M2 規格 C.1（刪除後自動恢復受影響月份的名冊，範圍套用 A.1、A.2），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-latest",
+      "key": "m1Position"
+    }
+  },
+  {
+    "id": "w06c-delete-latest-roster-m2Position",
+    "page": "movement-sync",
+    "description": "刪除最新一筆升職後，新版把草稿月份（次月）名冊職位恢復為原職位；舊版只刪異動歷史，名冊仍是升職後的職位。",
+    "reason": "M2 規格 C.1（刪除後自動恢復受影響月份的名冊，範圍套用 A.1、A.2），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-latest",
+      "key": "m2Position"
+    }
   }
 ]
