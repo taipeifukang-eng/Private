@@ -1241,5 +1241,21 @@
       "entry": "batch-transfer",
       "key": "finalActiveStore"
     }
+  },
+  {
+    "id": "nav-promotion-management-history-edit",
+    "page": "navigation",
+    "description": "新版導覽在 employee_manage_only 與 promotion_batch_only 兩個角色多出「人員異動管理」(/admin/promotion-management)；舊 Navbar 只給 employee.movement.manage。批次升遷權限者可查看異動歷史頁；員工管理權限者可修改歷史異動，需要能進入該頁。",
+    "reason": "M2 規格 C.2（歷史異動編輯／刪除與檢視權限），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2 C.2)",
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/admin/promotion-management",
+      "roles": [
+        "employee_manage_only",
+        "promotion_batch_only"
+      ]
+    }
   }
 ]
