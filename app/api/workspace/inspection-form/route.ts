@@ -11,6 +11,12 @@ import {
   type Context,
 } from "@/lib/workspace/server";
 import { scoreInspection } from "@/lib/workspace/inspection-scoring";
+import {
+  formatTaipeiDate,
+  getGpsDbErrorMessage,
+  isGpsDbError,
+  validateGpsFix,
+} from "@/lib/inspection/gps-policy";
 export const dynamic = "force-dynamic";
 const hash = (v: unknown) =>
   createHash("sha256").update(JSON.stringify(v)).digest("hex");
@@ -281,30 +287,37 @@ export async function POST(request: Request) {
     });
     let gps: any = {};
     let date = body.date;
-    if (body.gps) {
+    if (record) {
+      // 編輯：保留第一次的定位與巡店日期，忽略 body.gps 與 body.date。
+      date = record.inspection_date;
+    } else {
       const g = body.gps;
-      if (
-        !Number.isFinite(g.latitude) ||
-        Math.abs(g.latitude) > 90 ||
-        !Number.isFinite(g.longitude) ||
-        Math.abs(g.longitude) > 180 ||
-        !Number.isFinite(g.accuracy) ||
-        g.accuracy < 0 ||
-        !Number.isFinite(Date.parse(g.capturedAt))
-      )
-        throw new WorkspaceError(400, "定位資料不正確");
+      const fix = g && typeof g === "object" ? g : null;
+      if (!fix)
+        throw new WorkspaceError(
+          400,
+          "新增巡店必須先完成定位，請重新定位後再送出",
+        );
+      const check = validateGpsFix({
+        latitude: fix.latitude,
+        longitude: fix.longitude,
+        accuracy: fix.accuracy,
+        capturedAt: typeof fix.capturedAt === "string" ? fix.capturedAt : null,
+      });
+      if (!check.ok)
+        throw new WorkspaceError(
+          400,
+          check.message.includes("重新定位")
+            ? check.message
+            : check.message + "，請重新定位後再送出",
+        );
       gps = {
-        gps_latitude: g.latitude,
-        gps_longitude: g.longitude,
-        gps_accuracy: g.accuracy,
-        gps_timestamp: g.capturedAt,
+        gps_latitude: fix.latitude,
+        gps_longitude: fix.longitude,
+        gps_accuracy: fix.accuracy,
+        gps_timestamp: fix.capturedAt,
       };
-      date = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Taipei",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(g.capturedAt));
+      date = formatTaipeiDate(fix.capturedAt);
     }
     const master = {
       store_id: body.store,
@@ -332,6 +345,8 @@ export async function POST(request: Request) {
     });
     if (result.error) {
       const m = result.error.message;
+      if (isGpsDbError(result.error))
+        throw new WorkspaceError(400, getGpsDbErrorMessage(result.error));
       if (m.includes("SETTINGS_CONFLICT"))
         throw new WorkspaceError(
           409,

@@ -4,6 +4,20 @@ import { api } from "../api";
 import { useWorkspace, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
 import SignatureInput from "../components/SignatureInput.vue";
+import GpsGuideDialog from "../components/GpsGuideDialog.vue";
+import {
+  GPS_HIGH_ACCURACY_FALLBACK_MS,
+  classifyGeolocationError,
+  classifyGpsDbError,
+  formatTaipeiDate,
+  getGpsDbErrorMessage,
+  getGpsFailureMessage,
+  isGpsDbError,
+  isGpsTimestampWithinWindow,
+  validateGpsFix,
+  type GpsFailureKind,
+} from "../../../lib/inspection/gps-policy";
+import { getInspectionGpsCapturedAt } from "../../../lib/inspection/date";
 import { scoreInspection } from "../../../lib/workspace/inspection-scoring";
 const props = defineProps<{ tab: WorkTab }>(),
   work = useWorkspace();
@@ -22,15 +36,17 @@ const loading = ref(true),
   templateHash = ref(""),
   version = ref(0),
   locked = ref(false),
-  locating = ref(false),
   uploading = ref(false);
-const today = () =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+// 定位狀態（僅新增模式使用）：新增巡店必須先定位成功，表單才會解鎖。
+const gpsStatus = ref<"idle" | "loading" | "success" | "error">("idle"),
+  gpsError = ref(""),
+  gpsKind = ref<GpsFailureKind | null>(null),
+  gpsWarning = ref(false),
+  gpsGuideOpen = ref(false);
+let gpsAttempt = 0,
+  gpsTimer = 0;
+const isNew = computed(() => !props.tab.recordId);
+const today = () => formatTaipeiDate(new Date());
 const form = ref<any>({
   store: props.tab.store,
   type: props.tab.payload?.type || "supervisor",
@@ -64,18 +80,28 @@ const scoreResult = computed(() => {
     return { value: null, error: (e as Error).message };
   }
 });
+// 定位結果與日期由系統帶入，不算使用者未儲存的變更。
+const snapshot = () => JSON.stringify({ ...form.value, gps: null, date: null });
 watch(
   form,
   () => {
     if (!loading.value) {
-      props.tab.dirty = JSON.stringify(form.value) !== baseline;
+      props.tab.dirty = snapshot() !== baseline;
       message.value = "";
     }
   },
   { deep: true, flush: "sync" },
 );
+const gpsLocked = computed(
+  () => isNew.value && (gpsStatus.value !== "success" || !form.value.gps),
+);
 const disabled = computed(
-  () => loading.value || locked.value || props.tab.busy || uploading.value,
+  () =>
+    loading.value ||
+    locked.value ||
+    props.tab.busy ||
+    uploading.value ||
+    gpsLocked.value,
 );
 function score(id: string) {
   return form.value.scores.find((s: any) => s.template_id === id);
@@ -172,7 +198,7 @@ async function load() {
       ? "編輯巡店"
       : "新增" + (form.value.type === "manager" ? "經理" : "督導") + "巡店";
     ready.value = true;
-    baseline = JSON.stringify(form.value);
+    baseline = snapshot();
     props.tab.dirty = false;
   } catch (e) {
     error.value = (e as Error).message;
@@ -215,38 +241,68 @@ async function loadRoster() {
   }
 }
 function locate() {
-  if (!navigator.geolocation) {
-    error.value = "此瀏覽器不支援定位";
-    return;
-  }
-  locating.value = true;
+  const attempt = ++gpsAttempt;
+  window.clearTimeout(gpsTimer);
+  const current = () => gpsAttempt === attempt;
+  const fail = (kind: GpsFailureKind, accuracy?: number | null) => {
+    if (!current()) return;
+    form.value.gps = null;
+    gpsWarning.value = false;
+    gpsKind.value = kind;
+    gpsError.value = getGpsFailureMessage(kind, accuracy);
+    gpsStatus.value = "error";
+    gpsGuideOpen.value = true;
+  };
+  const accept = (p: GeolocationPosition) => {
+    if (!current()) return;
+    const fix = {
+      latitude: p.coords.latitude,
+      longitude: p.coords.longitude,
+      accuracy: p.coords.accuracy,
+      capturedAt: getInspectionGpsCapturedAt(p.timestamp),
+    };
+    const check = validateGpsFix(fix);
+    if (!check.ok) return fail(check.kind, fix.accuracy);
+    form.value.gps = fix;
+    form.value.date = formatTaipeiDate(fix.capturedAt);
+    gpsWarning.value = check.warning;
+    gpsKind.value = null;
+    gpsError.value = "";
+    gpsStatus.value = "success";
+    gpsGuideOpen.value = false;
+  };
+  if (!navigator.geolocation) return fail("unsupported");
+  gpsStatus.value = "loading";
+  form.value.gps = null;
+  gpsWarning.value = false;
+  gpsError.value = "";
+  gpsKind.value = null;
+  let fallback = false;
+  // 高精度先試約 8 秒，逾時或失敗改用一般定位（WiFi／基地台）；兩者都失敗才算失敗。
+  const tryNormal = () => {
+    if (fallback || !current()) return;
+    fallback = true;
+    window.clearTimeout(gpsTimer);
+    navigator.geolocation.getCurrentPosition(
+      accept,
+      (e) => fail(classifyGeolocationError(e.code)),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  };
+  gpsTimer = window.setTimeout(tryNormal, GPS_HIGH_ACCURACY_FALLBACK_MS);
   navigator.geolocation.getCurrentPosition(
     (p) => {
-      const now = Date.now();
-      const timestamp =
-        Number.isFinite(p.timestamp) && Math.abs(p.timestamp - now) <= 300000
-          ? p.timestamp
-          : now;
-      form.value.gps = {
-        latitude: p.coords.latitude,
-        longitude: p.coords.longitude,
-        accuracy: p.coords.accuracy,
-        capturedAt: new Date(timestamp).toISOString(),
-      };
-      form.value.date = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Asia/Taipei",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date(timestamp));
-      locating.value = false;
+      if (fallback) return;
+      window.clearTimeout(gpsTimer);
+      accept(p);
     },
-    () => {
-      error.value = "定位失敗，請檢查瀏覽器定位權限後重試。";
-      locating.value = false;
-    },
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    () => tryNormal(),
+    { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 },
   );
+}
+function retryFromGuide() {
+  gpsGuideOpen.value = false;
+  locate();
 }
 async function photo(id: string, event: Event) {
   const input = event.target as HTMLInputElement,
@@ -288,6 +344,14 @@ async function save(status = "draft") {
     failed.value = true;
     return false;
   }
+  if (isNew.value && !isGpsTimestampWithinWindow(form.value.gps?.capturedAt)) {
+    // 定位時間窗已過期（超過 2 小時）：不送出，重新定位。
+    submitConfirm.value = false;
+    message.value = "";
+    error.value = "定位已過期，正在重新定位，完成後請再送出。";
+    locate();
+    return false;
+  }
   props.tab.busy = true;
   try {
     const body = {
@@ -307,7 +371,7 @@ async function save(status = "draft") {
     });
     props.tab.recordId = r.record.id;
     version.value = r.record.workspace_version;
-    baseline = JSON.stringify(form.value);
+    baseline = snapshot();
     props.tab.dirty = false;
     pending = null;
     submitConfirm.value = false;
@@ -317,6 +381,19 @@ async function save(status = "draft") {
     return true;
   } catch (e) {
     error.value = (e as Error).message;
+    if (isNew.value && (isGpsDbError(e) || /定位/.test(error.value))) {
+      // 伺服器擋下定位資料：表單重新鎖住並引導重新定位。
+      const msg = isGpsDbError(e) ? getGpsDbErrorMessage(e) : error.value;
+      error.value = msg;
+      submitConfirm.value = false;
+      form.value.gps = null;
+      gpsWarning.value = false;
+      gpsKind.value = classifyGpsDbError(msg);
+      gpsError.value = msg;
+      gpsStatus.value = "error";
+      gpsGuideOpen.value = true;
+      return false;
+    }
     failed.value = true;
     return false;
   } finally {
@@ -325,9 +402,15 @@ async function save(status = "draft") {
 }
 props.tab.save = () => save("draft");
 onBeforeUnmount(() => {
+  gpsAttempt++;
+  window.clearTimeout(gpsTimer);
   delete props.tab.save;
 });
-onMounted(load);
+onMounted(() => {
+  // 新增模式進頁自動定位；編輯模式不定位，沿用第一次的定位與日期。
+  if (!props.tab.recordId) locate();
+  void load();
+});
 </script>
 <template>
   <header class="page-heading">
@@ -371,7 +454,7 @@ onMounted(load);
           >巡店日期<input
             type="date"
             v-model="form.date"
-            :disabled="!!form.gps"
+            disabled
             required /></label
         ><label
           >室內溫度（°C）<input
@@ -383,19 +466,72 @@ onMounted(load);
             required
         /></label>
       </div>
-      <div class="module-actions">
-        <button type="button" @click="locate" :disabled="locating">
-          {{ locating ? "定位中…" : "取得 GPS 定位" }}</button
-        ><span v-if="form.gps"
+    </fieldset>
+    <div
+      class="gps-panel"
+      data-testid="gps-panel"
+      :data-gps-status="isNew ? gpsStatus : 'readonly'"
+    >
+      <strong>GPS 定位<small v-if="isNew">（必填）</small></strong>
+      <template v-if="isNew">
+        <span
+          v-if="gpsStatus === 'loading' || gpsStatus === 'idle'"
+          data-testid="gps-loading"
+          role="status"
+          >定位中…</span
+        >
+        <template v-else-if="gpsStatus === 'success' && form.gps">
+          <span class="gps-ok">✓ 已定位</span>
+          <a
+            :href="`https://www.google.com/maps?q=${form.gps.latitude},${form.gps.longitude}`"
+            target="_blank"
+            rel="noopener noreferrer"
+            >({{ form.gps.latitude.toFixed(6) }},
+            {{ form.gps.longitude.toFixed(6) }})</a
+          >
+          <span data-testid="gps-accuracy" :class="{ 'gps-warn': gpsWarning }"
+            >精度: ±{{ Math.round(form.gps.accuracy) }}m{{
+              gpsWarning ? " (建議使用手機)" : ""
+            }}</span
+          >
+        </template>
+        <span v-else class="gps-fail" data-testid="gps-error" role="alert"
+          >✗ {{ gpsError }}</span
+        >
+        <div class="module-actions">
+          <button
+            v-if="gpsStatus === 'error'"
+            type="button"
+            data-testid="gps-retry"
+            @click="locate"
+          >
+            重新定位
+          </button>
+        </div>
+        <p class="muted">
+          所有人新增巡店都必須先定位成功（誤差需在 1000
+          公尺內），表單會在定位成功後解鎖；巡店日期依定位時間（台北）認列。
+        </p>
+        <button
+          type="button"
+          class="gps-link"
+          data-testid="gps-guide-link"
+          @click="gpsGuideOpen = true"
+        >
+          定位開不了？看教學
+        </button>
+      </template>
+      <template v-else>
+        <span v-if="form.gps" data-testid="gps-readonly"
           >{{ form.gps.latitude.toFixed(5) }},
           {{ form.gps.longitude.toFixed(5) }} · 精度
           {{ Math.round(form.gps.accuracy) }} 公尺</span
-        ><button v-if="form.gps" type="button" @click="form.gps = null">
-          清除定位
-        </button>
-      </div>
-      <p v-if="form.gps" class="muted">巡店日期依定位時間（台北）認列。</p>
-    </fieldset>
+        ><span v-else class="muted">此巡店沒有定位紀錄。</span>
+        <p class="muted">
+          定位與巡店日期為第一次建立時的紀錄，編輯時不會更新。
+        </p>
+      </template>
+    </div>
     <fieldset :disabled="disabled">
       <legend>當班人員</legend>
       <div class="module-actions">
@@ -575,6 +711,13 @@ onMounted(load);
       ><button class="primary" :disabled="disabled">提交巡店</button>
     </div>
   </form>
+  <GpsGuideDialog
+    v-if="gpsGuideOpen"
+    :failure-kind="gpsStatus === 'error' ? gpsKind : null"
+    :failure-message="gpsStatus === 'error' ? gpsError : ''"
+    @close="gpsGuideOpen = false"
+    @retry="retryFromGuide"
+  />
   <Modal
     v-if="submitConfirm"
     title="提交巡店"
