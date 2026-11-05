@@ -9,6 +9,7 @@ import {
   GPS_HIGH_ACCURACY_FALLBACK_MS,
   classifyGeolocationError,
   classifyGpsDbError,
+  detectGpsDevice,
   formatTaipeiDate,
   getGpsDbErrorMessage,
   getGpsFailureMessage,
@@ -240,6 +241,12 @@ async function loadRoster() {
     error.value = (e as Error).message;
   }
 }
+const gpsMobile = (() => {
+  const d = detectGpsDevice(navigator.userAgent, {
+    maxTouchPoints: navigator.maxTouchPoints,
+  });
+  return d === "ios" || d === "android";
+})();
 function locate() {
   const attempt = ++gpsAttempt;
   window.clearTimeout(gpsTimer);
@@ -270,6 +277,7 @@ function locate() {
     gpsError.value = "";
     gpsStatus.value = "success";
     gpsGuideOpen.value = false;
+    if (error.value.startsWith("定位已過期")) error.value = "";
   };
   if (!navigator.geolocation) return fail("unsupported");
   gpsStatus.value = "loading";
@@ -472,7 +480,7 @@ onMounted(() => {
       data-testid="gps-panel"
       :data-gps-status="isNew ? gpsStatus : 'readonly'"
     >
-      <strong>GPS 定位<small v-if="isNew">（必填）</small></strong>
+      <strong>GPS 定位<small v-if="isNew">(必填)</small></strong>
       <template v-if="isNew">
         <span
           v-if="gpsStatus === 'loading' || gpsStatus === 'idle'"
@@ -508,9 +516,12 @@ onMounted(() => {
             重新定位
           </button>
         </div>
-        <p class="muted">
-          所有人新增巡店都必須先定位成功（誤差需在 1000
-          公尺內），表單會在定位成功後解鎖；巡店日期依定位時間（台北）認列。
+        <p class="muted" data-testid="gps-hint">
+          {{
+            gpsMobile
+              ? "💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內），請開啟「精確位置」。"
+              : "💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內）。桌機使用 WiFi 定位亦可，但實際巡店建議用手機開啟此頁面以獲得精確 GPS 座標。"
+          }}
         </p>
         <button
           type="button"

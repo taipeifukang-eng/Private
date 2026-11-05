@@ -311,13 +311,15 @@ export async function POST(request: Request) {
             ? check.message
             : check.message + "，請重新定位後再送出",
         );
+      // 正規化為含 Z 的 ISO 字串，避免 JS 與 Postgres 對無時區字串解讀不同。
+      const capturedIso = new Date(fix.capturedAt).toISOString();
       gps = {
         gps_latitude: fix.latitude,
         gps_longitude: fix.longitude,
         gps_accuracy: fix.accuracy,
-        gps_timestamp: fix.capturedAt,
+        gps_timestamp: capturedIso,
       };
-      date = formatTaipeiDate(fix.capturedAt);
+      date = formatTaipeiDate(capturedIso);
     }
     const master = {
       store_id: body.store,

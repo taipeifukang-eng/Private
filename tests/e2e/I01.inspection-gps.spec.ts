@@ -145,6 +145,11 @@ test('拒絕權限：維持鎖住，顯示原因，自動跳出教學（權限�
       });
       expect(overflow, `教學視窗 ${label} 水平溢出`).toBeLessThanOrEqual(1);
     }
+    // 最長的 LINE 分頁：主按鈕固定在視窗底部，不用捲動就看得到。
+    await guide(page).getByRole('tab', { name: '從 LINE 開啟' }).click();
+    const vh = page.viewportSize()!.height;
+    const box = await page.getByTestId('gps-guide-retry').boundingBox();
+    expect(box && box.y + box.height <= vh + 1, '我開好了，重新定位 應在可視範圍內').toBe(true);
     expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);
     await page.getByTestId('gps-guide-retry').click();
     await expect(guide(page)).toHaveCount(0);
@@ -362,6 +367,39 @@ test('送出前定位時間窗已過期：不送出，自動重新定位', async
     expect(posted).toBe(false);
     await geoRespond(page, GPS_BASE, true);
     await expect(gpsPanel(page)).toHaveAttribute('data-gps-status', 'success');
+    // 重新定位成功後，過期橫幅必須消失。
+    await expect(ed(page).getByText('定位已過期')).toHaveCount(0);
+    await expect(storeSelect(page)).toBeEnabled();
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('伺服器擋下定位：表單重新鎖住、顯示原因並自動彈出教學', async ({ browser }, testInfo) => {
+  test.setTimeout(120_000);
+  const { ctx, page } = await openAs(browser, testInfo, { stub: true });
+  try {
+    await openNativeNew(page);
+    await geoRespond(page, GPS_BASE);
+    await expect(gpsPanel(page)).toHaveAttribute('data-gps-status', 'success');
+    await storeSelect(page).selectOption({ label: await optionFor(page, storeCodeFor(testInfo)) });
+    await ed(page).getByLabel(/室內溫度/).fill('26');
+    await page.route('**/api/workspace/inspection-form', async (route) => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: '【巡店定位】定位誤差過大（±1500 公尺），請重新定位後再送出' }),
+      });
+    });
+    await ed(page).getByRole('button', { name: '提交巡店' }).click();
+    await page.getByRole('button', { name: '確認提交' }).click();
+    await expect(gpsPanel(page)).toHaveAttribute('data-gps-status', 'error');
+    await expect(page.getByTestId('gps-error')).toContainText('定位誤差過大');
+    await expect(guide(page)).toBeVisible();
+    await expect(page.getByTestId('gps-guide-note')).toContainText('誤差過大');
+    await page.getByRole('dialog').getByRole('button', { name: '關閉' }).click();
+    await expect(storeSelect(page)).toBeDisabled();
   } finally {
     await ctx.close();
   }

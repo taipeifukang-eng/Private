@@ -133,6 +133,36 @@ test.describe('API：新增巡店的定位檢查', () => {
     }
   });
 
+  test('重送：同 writeId 同 body 在時間窗過後仍回 replayed；新 writeId 重送同一筆回 409 DUPLICATE_DAY', async () => {
+    test.setTimeout(90_000);
+    runIdOrThrow();
+    const admin = await apiAs('admin');
+    try {
+      const store = await storeIdByCode(admin, 'ZT04');
+      // 定位時間距今 2 小時少 15 秒：建立當下合格，16 秒後已逾時間窗。
+      const edge = fix({ capturedAt: new Date(Date.now() - (2 * HOUR - 15_000)).toISOString() });
+      const created = await createInspectionViaApi(admin, store, 'replay', { gps: edge, date: formatTaipeiDate(edge.capturedAt) });
+      expect(created.res.status(), JSON.stringify(created.json)).toBe(200);
+      await registerInspection(created.json.record.id);
+      await new Promise((r) => setTimeout(r, 16_000));
+      const replay = await admin.post('/api/workspace/inspection-form', { data: created.body });
+      const replayJson = await replay.json();
+      expect(replay.status(), JSON.stringify(replayJson)).toBe(200);
+      expect(replayJson.replayed).toBe(true);
+      expect(replayJson.record.id).toBe(created.json.record.id);
+      // 新 writeId 重送同一筆已存在的新增：時間窗已過會先被 400 擋下，所以改用合格定位重送。
+      const again = await buildBody(admin, store, 'replay', { gps: edge, date: formatTaipeiDate(edge.capturedAt) });
+      const fresh = fix();
+      const res = await admin.post('/api/workspace/inspection-form', {
+        data: { ...again, gps: fresh, date: formatTaipeiDate(fresh.capturedAt) },
+      });
+      const json = await res.json();
+      expect(res.status(), JSON.stringify(json)).toBe(409);
+    } finally {
+      await admin.dispose();
+    }
+  });
+
   test('未登入不能寫入：401', async ({ request }) => {
     const res = await request.post(`${TEST_ORIGIN}/api/workspace/inspection-form`, { data: {}, headers: { Origin: TEST_ORIGIN } });
     expect([401, 403]).toContain(res.status());

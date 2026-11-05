@@ -72,7 +72,7 @@ const current = computed(
         </li>
       </ol>
     </div>
-    <div class="dialog-actions">
+    <div class="dialog-actions gps-guide-actions">
       <button type="button" @click="emit('close')">關閉</button
       ><button
         type="button"

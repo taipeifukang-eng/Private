@@ -1314,7 +1314,7 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 .gps-panel .gps-ok {
-  color: var(--primary);
+  color: #16a34a;
 }
 .gps-panel .gps-fail {
   color: var(--danger);
@@ -1335,4 +1335,27 @@ tbody tr:hover {
   opacity: 0.5;
   pointer-events: none;
   user-select: none;
+}
+
+.dialog .gps-guide-actions {
+  --dp: 28px;
+  position: sticky;
+  bottom: 0;
+  margin: 16px calc(-1 * var(--dp)) calc(-1 * var(--dp));
+  padding: 12px var(--dp) var(--dp);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 700px) {
+  .dialog .gps-guide-actions {
+    --dp: 22px;
+  }
+}
+@media (max-width: 640px) {
+  .dialog .gps-guide-actions {
+    flex-direction: column-reverse;
+  }
+  .dialog .gps-guide-actions button {
+    width: 100%;
+  }
 }
