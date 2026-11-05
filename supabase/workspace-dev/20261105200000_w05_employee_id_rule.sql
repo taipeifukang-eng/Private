@@ -7,6 +7,8 @@ CREATE OR REPLACE FUNCTION public.workspace_employee_id_valid(p_code text) RETUR
 LANGUAGE sql IMMUTABLE AS $$ SELECT coalesce(p_code,'') ~ '^(FK[0-9]{4}|FKF[0-9]{5}|FKPT[0-9]{3})$' $$;
 CREATE OR REPLACE FUNCTION public.workspace_employee_id_type(p_code text) RETURNS text
 LANGUAGE sql IMMUTABLE AS $$ SELECT CASE WHEN coalesce(p_code,'') LIKE 'FKPT%' THEN 'part_time' ELSE 'full_time' END $$;
+REVOKE ALL ON FUNCTION public.workspace_employee_id_valid(text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.workspace_employee_id_type(text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.workspace_employee_id_valid(text),public.workspace_employee_id_type(text) TO service_role;
 
 -- E.1 新增員工：格式與兼職判斷都由規則決定。
@@ -128,8 +130,9 @@ $$;
 REVOKE ALL ON FUNCTION workspace_birthday_save(uuid,uuid,jsonb,text,uuid[]) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION workspace_birthday_save(uuid,uuid,jsonb,text,uuid[]) TO service_role;
 
+-- 觸發器函式以 SECURITY DEFINER 執行（owner 仍可呼叫已 REVOKE 的 workspace_employee_id_valid），因此舊版以 authenticated 身分寫入的路徑不受 REVOKE 影響。
 -- E.1 異動入職：不改動 workspace_movement_save，改以資料表觸發器擋下不合規的新員編（FKI、格式、長度）。
-CREATE OR REPLACE FUNCTION public.workspace_guard_onboarding_code() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION public.workspace_guard_onboarding_code() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 BEGIN
  IF NEW.movement_type='onboarding' AND NOT workspace_employee_id_valid(NEW.employee_code) THEN
   RAISE EXCEPTION 'WORKSPACE_INVALID' USING DETAIL='employee_id_rule';
@@ -139,9 +142,10 @@ END;$$;
 DROP TRIGGER IF EXISTS workspace_guard_onboarding_code ON public.employee_movement_history;
 CREATE TRIGGER workspace_guard_onboarding_code BEFORE INSERT ON public.employee_movement_history
  FOR EACH ROW EXECUTE FUNCTION public.workspace_guard_onboarding_code();
+REVOKE ALL ON FUNCTION public.workspace_guard_onboarding_code() FROM PUBLIC,anon,authenticated;
 
 -- E.1 每月人員狀態手動新增：員編可留空（舊版行為，見 E.2 待使用者決定），有填就必須合規。只擋新增，不擋更新。
-CREATE OR REPLACE FUNCTION public.workspace_guard_manual_staff_code() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION public.workspace_guard_manual_staff_code() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 BEGIN
  IF coalesce(NEW.is_manually_added,false) AND nullif(btrim(coalesce(NEW.employee_code,'')),'') IS NOT NULL AND NOT workspace_employee_id_valid(NEW.employee_code) THEN
   RAISE EXCEPTION 'WORKSPACE_INVALID' USING DETAIL='employee_id_rule';
@@ -151,6 +155,7 @@ END;$$;
 DROP TRIGGER IF EXISTS workspace_guard_manual_staff_code ON public.monthly_staff_status;
 CREATE TRIGGER workspace_guard_manual_staff_code BEFORE INSERT ON public.monthly_staff_status
  FOR EACH ROW EXECUTE FUNCTION public.workspace_guard_manual_staff_code();
+REVOKE ALL ON FUNCTION public.workspace_guard_manual_staff_code() FROM PUBLIC,anon,authenticated;
 
 NOTIFY pgrst,'reload schema';
 COMMIT;
