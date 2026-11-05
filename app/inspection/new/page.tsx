@@ -4,7 +4,21 @@ import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/SignaturePad';
+import GpsGuideDialog from '@/components/inspection/GpsGuideDialog';
 import { getInspectionGpsCapturedAt, hasSuspiciousInspectionGpsTime } from '@/lib/inspection/date';
+import {
+  GPS_HIGH_ACCURACY_FALLBACK_MS,
+  classifyGeolocationError,
+  classifyGpsDbError,
+  detectGpsDevice,
+  formatTaipeiDate,
+  isGpsTimestampWithinWindow,
+  getGpsDbErrorMessage,
+  getGpsFailureMessage,
+  isGpsDbError,
+  validateGpsFix,
+  type GpsFailureKind,
+} from '@/lib/inspection/gps-policy';
 import {
   ChevronDown,
   ChevronUp,
@@ -101,10 +115,8 @@ function getInspectionDraftId(inspectionType: 'supervisor' | 'manager') {
 }
 
 function formatDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  // 一律以台北時區計算日期，不受裝置時區影響
+  return formatTaipeiDate(date);
 }
 
 function createInspectionClientRequestId() {
@@ -229,6 +241,18 @@ function NewInspectionPage() {
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number; capturedAt?: string } | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
+  const [gpsFailureKind, setGpsFailureKind] = useState<GpsFailureKind | null>(null);
+  const [gpsWarning, setGpsWarning] = useState(false);
+  const [gpsNotice, setGpsNotice] = useState('');
+  const [gpsGuideOpen, setGpsGuideOpen] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  useEffect(() => {
+    const device = detectGpsDevice(navigator.userAgent, { maxTouchPoints: navigator.maxTouchPoints });
+    setIsMobileDevice(device === 'ios' || device === 'android');
+  }, []);
+  const gpsAttemptRef = useRef(0);
+  // 定位成功（且通過精度與時間檢查）前，整張表單鎖住
+  const gpsLocked = gpsStatus !== 'success' || !gpsLocation;
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [indoorTemperature, setIndoorTemperature] = useState('');
 
@@ -552,13 +576,9 @@ function NewInspectionPage() {
           setItemScores(restoredScores);
           setSignaturePhoto(draft.signaturePhoto || '');
           setSupervisorSignature(draft.supervisorSignature || '');
-          setGpsLocation(suspiciousGpsTime ? null : draft.gpsLocation || null);
+          // 草稿還原一律不沿用舊定位：進頁已自動重新定位，定位成功前表單維持鎖住。
           if (suspiciousGpsTime) {
-            setGpsStatus('error');
-            setGpsError('暫存的定位時間異常，已清除定位並依暫存時間還原日期，請確認巡店日期並重新定位。');
-          } else if (draft.gpsLocation) {
-            setGpsStatus('success');
-            setGpsError('');
+            setGpsNotice('暫存的定位時間異常，已依暫存時間還原日期，請確認巡店日期。');
           }
           setSupervisorNotes(draft.supervisorNotes || '');
           setIndoorTemperature(draft.indoorTemperature || '');
@@ -582,103 +602,89 @@ function NewInspectionPage() {
     }
   };
 
-  // 獲取 GPS 定位（先嘗試高精度，失敗則使用一般定位）
+  // 獲取 GPS 定位（先嘗試高精度約 8 秒，逾時或失敗改用一般定位；兩者都失敗才算失敗）
+  // 精度誤差 > 1000 公尺視為失敗，與失敗相同處理（表單維持鎖住並跳出教學）。
   const requestGPSLocation = () => {
-    if (!navigator.geolocation) {
+    const attempt = ++gpsAttemptRef.current;
+    const isCurrent = () => gpsAttemptRef.current === attempt;
+
+    const fail = (kind: GpsFailureKind, accuracy?: number | null) => {
+      if (!isCurrent()) return;
+      setGpsLocation(null);
+      setGpsWarning(false);
+      setGpsFailureKind(kind);
+      setGpsError(getGpsFailureMessage(kind, accuracy));
       setGpsStatus('error');
-      setGpsError('當前瀏覽器不支援定位功能');
+      setGpsGuideOpen(true);
+    };
+
+    const accept = (position: GeolocationPosition) => {
+      if (!isCurrent()) return;
+      const capturedAt = getInspectionGpsCapturedAt(position.timestamp);
+      const fix = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        capturedAt,
+      };
+      const check = validateGpsFix(fix);
+      if (!check.ok) {
+        fail(check.kind, fix.accuracy);
+        return;
+      }
+      setGpsLocation(fix);
+      setInspectionDate(formatDateInputValue(new Date(capturedAt)));
+      setGpsWarning(check.warning);
+      setGpsFailureKind(null);
+      setGpsError('');
+      setGpsStatus('success');
+      setGpsGuideOpen(false);
+    };
+
+    if (!navigator.geolocation) {
+      fail('unsupported');
       return;
     }
 
     setGpsStatus('loading');
+    setGpsLocation(null);
+    setGpsWarning(false);
     setGpsError('');
-    
-    // 先嘗試高精度 GPS 定位（適合手機）
-    const highAccuracyTimeout = setTimeout(() => {
-      console.log('⚠️ 高精度定位逾時，嘗試一般定位（WiFi/IP）...');
-      tryLowAccuracyLocation();
-    }, 8000); // 8秒內沒有高精度結果就fallback
-    
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        clearTimeout(highAccuracyTimeout);
-        const accuracy = position.coords.accuracy;
-        console.log('✅ 高精度定位成功:', {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          accuracy: accuracy,
-        });
-        
-        const capturedAt = getInspectionGpsCapturedAt(position.timestamp);
-        setGpsLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: accuracy,
-          capturedAt,
-        });
-        setInspectionDate(formatDateInputValue(new Date(capturedAt)));
-        setGpsStatus('success');
-        setGpsError('');
-      },
-      (error) => {
-        clearTimeout(highAccuracyTimeout);
-        console.log('⚠️ 高精度定位失敗，嘗試一般定位...', error.message);
-        tryLowAccuracyLocation();
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 7000,
-        maximumAge: 0,
-      }
-    );
-    
-    // Fallback: 使用一般定位（WiFi/IP，適合桌機或室內）
-    function tryLowAccuracyLocation() {
+    setGpsFailureKind(null);
+
+    let fallbackStarted = false;
+    // Fallback: 使用一般定位（WiFi/基地台，適合桌機或室內）
+    const tryLowAccuracyLocation = () => {
+      if (fallbackStarted || !isCurrent()) return;
+      fallbackStarted = true;
+      window.clearTimeout(highAccuracyTimeout);
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const accuracy = position.coords.accuracy;
-          console.log('✅ 一般定位成功 (WiFi/IP):', {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: accuracy,
-          });
-          
-          const capturedAt = getInspectionGpsCapturedAt(position.timestamp);
-          setGpsLocation({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: accuracy,
-            capturedAt,
-          });
-          setInspectionDate(formatDateInputValue(new Date(capturedAt)));
-          setGpsStatus('success');
-          setGpsError('');
-        },
-        (error) => {
-          setGpsStatus('error');
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              setGpsError('定位權限被拒絕（請檢查Windows定位設定）');
-              break;
-            case error.POSITION_UNAVAILABLE:
-              setGpsError('無法取得位置（請開啟Windows定位服務）');
-              break;
-            case error.TIMEOUT:
-              setGpsError('定位逾時，請重試');
-              break;
-            default:
-              setGpsError('定位失敗（請確認系統定位功能已開啟）');
-          }
-          console.error('❌ 一般定位也失敗:', error);
-          console.error('💡 可能原因: Windows系統定位未開啟，請至 設定 → 隱私權 → 位置');
-        },
+        accept,
+        (error) => fail(classifyGeolocationError(error.code)),
         {
           enableHighAccuracy: false,
           timeout: 10000,
           maximumAge: 300000, // 接受5分鐘內的快取位置
         }
       );
-    }
+    };
+
+    // 先嘗試高精度 GPS 定位（適合手機）；8 秒內沒有結果就 fallback
+    const highAccuracyTimeout = window.setTimeout(tryLowAccuracyLocation, GPS_HIGH_ACCURACY_FALLBACK_MS);
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        if (fallbackStarted) return;
+        window.clearTimeout(highAccuracyTimeout);
+        accept(position);
+      },
+      () => tryLowAccuracyLocation(),
+      {
+        enableHighAccuracy: true,
+        timeout: 7000,
+        maximumAge: 0,
+      }
+    );
   };
 
   // 切換區塊展開/收合
@@ -890,6 +896,21 @@ function NewInspectionPage() {
     if (submitInFlightRef.current) {
       return;
     }
+    if (gpsLocked || !gpsLocation) {
+      alert('請先完成定位才能儲存或送出');
+      return;
+    }
+    if (!isGpsTimestampWithinWindow(gpsLocation.capturedAt)) {
+      // 定位時間已過期（或裝置時鐘異常）：不等資料庫往返，直接重新定位
+      setGpsWarning(false);
+      setGpsFailureKind('time_invalid');
+      setGpsError(getGpsFailureMessage('time_invalid'));
+      setGpsLocation(null);
+      setGpsStatus('error');
+      alert('定位已過期，請重新定位後再送出（表單內容已保留）');
+      requestGPSLocation();
+      return;
+    }
     if (!selectedStoreId) {
       alert('請選擇門市');
       return;
@@ -996,10 +1017,10 @@ function NewInspectionPage() {
           supervisor_signature_url: supervisorSignature || null,
           supervisor_notes: supervisorNotes.trim() || null,
           indoor_temperature: indoorTemperature ? parseFloat(indoorTemperature) : null,
-          gps_latitude: gpsLocation?.latitude || null,
-          gps_longitude: gpsLocation?.longitude || null,
-          gps_accuracy: gpsLocation?.accuracy || null,
-          gps_timestamp: gpsLocation?.capturedAt || null,
+          gps_latitude: gpsLocation.latitude,
+          gps_longitude: gpsLocation.longitude,
+          gps_accuracy: gpsLocation.accuracy ?? null,
+          gps_timestamp: gpsLocation.capturedAt ?? null,
         })
         .select()
         .single();
@@ -1094,6 +1115,19 @@ function NewInspectionPage() {
       console.error('❌ 儲存失敗:', error);
       console.error('❌ 錯誤詳情:', JSON.stringify(error, null, 2));
       
+      // 資料庫 trigger 擋下的定位錯誤：直接顯示中文訊息，並要求重新定位
+      if (isGpsDbError(error)) {
+        const message = getGpsDbErrorMessage(error);
+        setGpsLocation(null);
+        setGpsWarning(false);
+        setGpsFailureKind(classifyGpsDbError(message));
+        setGpsError(message);
+        setGpsStatus('error');
+        setGpsGuideOpen(true);
+        alert(message);
+        return;
+      }
+
       // 顯示更詳細的錯誤訊息
       let errorMessage = '儲存失敗';
       if (error?.message) {
@@ -1181,6 +1215,11 @@ function NewInspectionPage() {
         {/* 基本資訊 */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
           <h2 className="text-sm sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">基本資訊</h2>
+          <fieldset
+            disabled={gpsLocked}
+            data-testid="inspection-form-lock-basic"
+            className={`min-w-0 border-0 p-0 m-0 ${gpsLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}
+          >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
             <div>
               <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1.5 sm:mb-2">
@@ -1208,88 +1247,104 @@ function NewInspectionPage() {
               </label>
               <input
                 type="date"
-                value={inspectionDate}
+                value={gpsLocation?.capturedAt ? formatDateInputValue(new Date(gpsLocation.capturedAt)) : inspectionDate}
                 onChange={(e) => setInspectionDate(e.target.value)}
                 className="w-full px-2.5 sm:px-4 py-2 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs sm:text-base"
                 required
               />
             </div>
           </div>
+          </fieldset>
           
           {/* GPS 定位狀態 */}
-          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200" data-testid="gps-panel" data-gps-status={gpsStatus}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div className="flex items-center gap-2">
                 <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${
-                  gpsStatus === 'success' ? 'text-green-600' : 
-                  gpsStatus === 'error' ? 'text-red-600' : 
+                  gpsStatus === 'success' ? 'text-green-600' :
+                  gpsStatus === 'error' ? 'text-red-600' :
                   'text-gray-400'
                 }`} />
                 <span className="text-xs sm:text-sm font-medium text-gray-700">GPS 定位</span>
-                <span className="text-[10px] text-gray-400">(選填)</span>
+                <span className="text-[10px] text-red-500">(必填)</span>
               </div>
-              <div className="flex items-center gap-2">
-                {gpsStatus === 'loading' && (
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
+                {(gpsStatus === 'loading' || gpsStatus === 'idle') && (
                   <>
                     <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
-                    <span className="text-xs sm:text-sm text-blue-600">定位中...</span>
+                    <span className="text-xs sm:text-sm text-blue-600" data-testid="gps-loading">定位中…</span>
                   </>
                 )}
                 {gpsStatus === 'success' && gpsLocation && (
-                  <div className="flex flex-col items-end gap-0.5">
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end gap-0.5 min-w-0">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
                       <span className="text-xs sm:text-sm text-green-600 font-medium">✓ 已定位</span>
                       <a
                         href={`https://www.google.com/maps?q=${gpsLocation.latitude},${gpsLocation.longitude}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] sm:text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                        className="text-[10px] sm:text-xs text-blue-600 hover:text-blue-800 hover:underline break-all"
                         title="在 Google 地圖中查看"
                       >
                         ({gpsLocation.latitude.toFixed(6)}, {gpsLocation.longitude.toFixed(6)})
                       </a>
                     </div>
-                    {gpsLocation.accuracy && (
-                      <span className={`text-[10px] ${gpsLocation.accuracy > 500 ? 'text-orange-500' : 'text-gray-400'}`}>
+                    {gpsLocation.accuracy != null && (
+                      <span className={`text-[10px] ${gpsWarning ? 'text-orange-500' : 'text-gray-400'}`} data-testid="gps-accuracy">
                         精度: ±{gpsLocation.accuracy.toFixed(0)}m
-                        {gpsLocation.accuracy > 500 && ' (建議使用手機)'}
+                        {gpsWarning && ' (建議使用手機)'}
                       </span>
                     )}
                   </div>
                 )}
                 {gpsStatus === 'error' && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs sm:text-sm text-red-600">✗ {gpsError}</span>
+                  <div className="flex flex-wrap items-center gap-2 min-w-0">
+                    <span className="text-xs sm:text-sm text-red-600 break-words min-w-0" data-testid="gps-error">✗ {gpsError}</span>
                     <button
+                      type="button"
                       onClick={requestGPSLocation}
-                      className="ml-2 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                      data-testid="gps-retry"
+                      className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
                     >
                       重新定位
                     </button>
-                    <button
-                      onClick={() => setGpsStatus('idle')}
-                      className="px-2 py-1 text-xs bg-gray-400 text-white rounded hover:bg-gray-500 transition-colors"
-                    >
-                      跳過
-                    </button>
                   </div>
-                )}
-                {gpsStatus === 'idle' && (
-                  <button
-                    onClick={requestGPSLocation}
-                    className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                  >
-                    獲取位置
-                  </button>
                 )}
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 mt-1">
-              💡 桌機定位通常使用WiFi/IP，精度較差。實際巡店時建議使用手機開啟此頁面以獲得精確GPS座標。
+            {gpsNotice && <p className="text-[11px] text-amber-600 mt-1 break-words">{gpsNotice}</p>}
+            <p className="text-[10px] text-gray-500 mt-1 break-words">
+              {isMobileDevice
+                ? '💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內），請開啟「精確位置」。'
+                : '💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內）。桌機使用 WiFi 定位亦可，但實際巡店建議用手機開啟此頁面以獲得精確 GPS 座標。'}
             </p>
+            <button
+              type="button"
+              onClick={() => setGpsGuideOpen(true)}
+              data-testid="gps-guide-link"
+              className="mt-1.5 text-xs text-blue-600 hover:text-blue-800 underline"
+            >
+              定位開不了？看教學
+            </button>
           </div>
         </div>
 
+        <GpsGuideDialog
+          open={gpsGuideOpen}
+          failureKind={gpsStatus === 'error' ? gpsFailureKind : null}
+          failureMessage={gpsStatus === 'error' ? gpsError : ''}
+          onClose={() => setGpsGuideOpen(false)}
+          onRetry={() => {
+            setGpsGuideOpen(false);
+            requestGPSLocation();
+          }}
+        />
+
+        <fieldset
+          disabled={gpsLocked}
+          data-testid="inspection-form-lock-main"
+          className={`min-w-0 border-0 p-0 m-0 ${gpsLocked ? 'opacity-50 pointer-events-none select-none' : ''}`}
+        >
         {/* 當班人員 */}
         {selectedStoreId && (
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-3 sm:p-6 mb-3 sm:mb-6">
@@ -1778,6 +1833,7 @@ function NewInspectionPage() {
             {submitting ? '送出中...' : (!signaturePhoto || !supervisorSignature ? '請完成兩個簽名' : '送出記錄')}
           </button>
         </div>
+        </fieldset>
       </div>
     </div>
   );
