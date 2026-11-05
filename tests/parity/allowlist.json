@@ -257,7 +257,7 @@
       "mechanism": "write-readback",
       "entry": "save-readback",
       "kind": "changed",
-      "key": "partial_month_notes"
+      "key": "monthly_staff_status:e1-resave#partial_month_notes"
     }
   },
   {

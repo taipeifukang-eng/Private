@@ -187,6 +187,8 @@ test('藥師管理主流程：督導區總覽、主檔執照逾期紅字、年�
     await expect(statusButtons.nth(0)).toHaveAttribute('aria-pressed', 'true');
     await statusButtons.nth(1).click();
     await expect(p.getByText('符合 0 位')).toBeVisible();
+    await statusButtons.nth(2).click();
+    await expect(p.getByText('符合 0 位')).toBeVisible();
     await statusButtons.nth(3).click();
     await expect(p.getByText('符合 3 位')).toBeVisible();
     await statusButtons.nth(0).click();
