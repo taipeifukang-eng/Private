@@ -92,7 +92,29 @@ const actions: Record<string, string> = {
   confirm: "確認本月狀態",
   revert: "退回草稿",
   unconfirm: "取消確認",
+  recompute: "依異動重算",
 };
+// M2 A.2／A.3：需重新確認清單、近期因異動自動調整清單。
+const recheck = computed<any[]>(() => permissions.value.recheck || []);
+const adjustments = computed<any[]>(() => permissions.value.adjustments || []);
+const adjustedCodes = computed(() => new Set(adjustments.value.map((a: any) => a.employee_code)));
+const fieldLabels: Record<string, string> = {
+  position: "職位",
+  newbie_level: "階段",
+  is_acting_manager: "代理店長標記",
+  is_pharmacist: "藥師身分",
+  monthly_status: "本月狀態",
+  work_days: "工作天數",
+  partial_month_reason: "未滿月原因",
+  roster_row: "名冊列",
+};
+function fieldValue(field: string, value: string | null) {
+  if (value === null || value === undefined || value === "") return "（空）";
+  if (value === "true") return "是";
+  if (value === "false") return "否";
+  if (field === "monthly_status") return labels[value] || value;
+  return value;
+}
 const expanded = reactive(new Set<string>());
 const staffDetails = reactive<Record<string, any[]>>({});
 const detailBusy = ref("");
@@ -316,7 +338,14 @@ watch(
         @click="confirmation = 'initialize'"
         :disabled="loading || queryChanged || tab.busy || !tab.store"
       >
-        初始化本月人員</button></template
+        初始化本月人員</button
+      ><button
+        v-if="permissions.canRecompute && rows.length"
+        data-testid="monthly-recompute"
+        @click="confirmation = 'recompute'"
+        :disabled="loading || queryChanged || tab.busy || !tab.store"
+      >
+        依異動重算</button></template
       ><button
         v-if="permissions.canSubmit && rowsAllow(rows, 'submit')"
         class="primary"
@@ -353,6 +382,20 @@ watch(
     條件已變更，請按「查詢人員」更新資料後再操作。
   </p>
   <p v-if="permissions.storeActive === false && !loading && !error" class="notice">此為已停止門市的歷史資料，僅供查看。</p>
+  <section v-if="recheck.length && !loading" class="roster-panel recheck" data-testid="monthly-recheck" aria-label="需重新確認">
+    <h2>需重新確認（{{ recheck.length }}）</h2>
+    <p class="muted">異動已登記，但下列月份已送審或已確認，名冊沒有被更動。請將該月份退回草稿後，按「依異動重算」。</p>
+    <ul>
+      <li v-for="x in recheck" :key="x.id"><strong>{{ x.year_month }}</strong> {{ x.employee_code }} {{ x.employee_name }}：{{ fieldLabels[x.field] || x.field }} {{ fieldValue(x.field, x.old_value) }} → {{ fieldValue(x.field, x.new_value) }}<small>{{ x.reason_label }}</small></li>
+    </ul>
+  </section>
+  <section v-if="adjustments.length && !loading" class="roster-panel adjusted" data-testid="monthly-adjustments" aria-label="近期因異動自動調整">
+    <h2>近期因異動自動調整（{{ adjustments.length }}）</h2>
+    <p class="muted">下列欄位已依人員異動覆蓋原本的內容（含店長手動修改過的資料），僅供核對，不會另外通知。</p>
+    <ul>
+      <li v-for="a in adjustments" :key="a.id">{{ a.employee_code }} {{ a.employee_name }}：{{ fieldLabels[a.field] || a.field }} {{ fieldValue(a.field, a.old_value) }} → {{ fieldValue(a.field, a.new_value) }}<small>{{ a.movement_label }}</small></li>
+    </ul>
+  </section>
   <MonthlyTools :global-target="globalToolsTarget" :store-target="storeToolsTarget" :tab="tab" :rows="rows" :month-state="monthState" :options="permissions.options || {}" :revision="revision" :disabled="loading || queryChanged || !tab.store || !!error || permissions.storeActive === false" @refresh="load" />
   <p v-if="loading" role="status">載入人員資料…</p>
   <TopScrollTable v-else-if="!error" label="人員狀態表格" class="monthly-table">
@@ -386,9 +429,9 @@ watch(
           </td>
           <td>{{ r.position }}<span v-if="levelSuffix(r.position, r.newbie_level)" class="level" :class="{ missing: levelSuffix(r.position, r.newbie_level)!.missing }">（{{ levelSuffix(r.position, r.newbie_level)!.text }}）</span></td>
           <td>{{ r.employment_type === "part_time" ? "兼職" : "正職" }}<span v-if="r.is_pharmacist" class="tag">藥師</span><br />{{ r.start_date || "—" }}</td>
-          <td>{{ labels[r.monthly_status] || r.monthly_status }}</td>
+          <td>{{ labels[r.monthly_status] || r.monthly_status }}<small v-if="r.movement_hint" class="movement-hint" data-testid="movement-hint">{{ r.movement_hint }}</small></td>
           <td data-cell="workload">{{ workloadText(r) }}</td>
-          <td><span class="tags"><span v-for="t in staffTags(r)" :key="t.key" class="tag" :data-tag="t.key">{{ t.label }}</span><template v-if="!staffTags(r).length">—</template></span></td>
+          <td><span class="tags"><span v-for="t in staffTags(r)" :key="t.key" class="tag" :data-tag="t.key">{{ t.label }}</span><span v-if="adjustedCodes.has(r.employee_code)" class="tag" data-tag="adjusted">異動調整</span><template v-if="!staffTags(r).length && !adjustedCodes.has(r.employee_code)">—</template></span></td>
           <template v-if="canPerf">
             <td>{{ r.last_month_single_item_bonus ? `$${r.last_month_single_item_bonus.toLocaleString()}` : "—" }}</td>
             <td>{{ r.calculated_block ? `區塊 ${r.calculated_block}` : "—" }}</td>
@@ -441,6 +484,7 @@ watch(
     @cancel="confirmation = ''; skipChecks = false"
     ><p>即將處理 {{ tab.month }} 的門市人員資料。請確認目前門市與月份。</p>
     <p v-if="confirmation === 'submit'" class="muted">提交後店長將無法再修改。</p>
+    <p v-if="confirmation === 'recompute'" class="muted">會依人員異動重算本月名冊的職位、階段、狀態與天數，並以異動為準覆蓋手動修改（變更會列在「近期因異動自動調整」）。</p>
     <p v-if="confirmation === 'confirm'" class="muted">確認後資料將用於獎金計算；確認後會自動跳到下一間未確認的門市。</p>
     <div class="dialog-actions">
       <button @click="confirmation = ''; skipChecks = false" :disabled="tab.busy">取消</button
@@ -502,5 +546,6 @@ watch(
 .sticky-name{position:sticky;left:0;z-index:2;background:var(--surface)}th.sticky-name{z-index:3}.monthly-table table{min-width:1500px}.link-button{border:0;background:transparent;padding:0;min-height:0;color:inherit;text-decoration:underline dotted;cursor:pointer}.tag{display:inline-block;font-size:12px;padding:1px 6px;margin:0 2px 2px;border-radius:4px;background:var(--soft);color:var(--ink)}.tags{display:flex;flex-wrap:wrap;gap:2px}.manual-tag{background:#fbe3c4;color:#6a3b05}.level{font-size:12px;color:var(--primary)}.level.missing{color:var(--danger);font-weight:600}tr.manual td{background:color-mix(in srgb,#fbe3c4 22%,transparent)}tr.manual td.sticky-name{background:var(--surface)}.row-actions{display:flex;gap:6px;flex-wrap:nowrap}.row-actions .danger{color:var(--danger)}.expand{margin-left:6px;font-size:12px;padding:2px 8px;min-height:0}
 .detail-row td{background:var(--soft)}.detail-box{padding:6px 0 6px 24px}.detail-box table{min-width:0;width:auto;background:var(--surface)}.detail-box .total td{font-weight:600}
 .check-list{list-style:none;padding:0;margin:8px 0 16px}.check-list li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}.movement-list{list-style:none;padding:0;margin:12px 0;max-height:50vh;overflow:auto}.movement-list li{padding:10px 0;border-bottom:1px solid var(--line)}.movement-list p{margin:4px 0}
+.roster-panel{border:1px solid var(--line);background:var(--surface);padding:12px 16px;margin:0 0 16px}.roster-panel h2{font-size:16px;margin:0 0 6px}.roster-panel ul{margin:8px 0 0;padding-left:18px;max-height:240px;overflow:auto}.roster-panel li{margin:4px 0}.roster-panel small{display:block;color:var(--muted)}.roster-panel.recheck{border-color:#e0b04a}.movement-hint{display:block;font-size:12px;color:var(--danger)}
 @media(max-width:650px){.monthly-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.store-tabs-bar{flex-wrap:wrap}.check-list li{flex-wrap:wrap}.detail-box{padding-left:0}}
 </style>

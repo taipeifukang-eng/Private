@@ -18,8 +18,10 @@ export function validateMovementReferences(rows:MovementDraft[],sources:{stores:
   if(r.movement_type!=='onboarding'&&!candidates.length)add('employee_code','找不到可查看的員工主檔，請先核對員編');
   if(candidates.length&&!candidates.some(e=>e.employee_name.trim()===r.employee_name))add('employee_name','姓名與此員編的員工主檔不符');
   const source=r.movement_type==='store_transfer'?r.from_store_id:r.store_id;
-  if(r.movement_type!=='onboarding'&&candidates.length&&!candidates.some(e=>e.store_id===source||e.store_id===null))add('store_id','此員工主檔不屬於所選任職門市，請核對異動來源');
-  if(r.movement_type!=='onboarding'&&candidates.some(e=>e.store_id===source||e.store_id===null)&&!candidates.some(e=>(e.store_id===source||e.store_id===null)&&e.employee_name.trim()===r.employee_name))add('employee_name','姓名與所選任職門市的主檔不符');
+  // M2 A.4：復職不一定回原店，復職門市可與主檔原任職門市不同（只要求員工存在、姓名相符）。
+  const placeCheck=r.movement_type!=='onboarding'&&r.movement_type!=='return_to_work';
+  if(placeCheck&&candidates.length&&!candidates.some(e=>e.store_id===source||e.store_id===null))add('store_id','此員工主檔不屬於所選任職門市，請核對異動來源');
+  if(placeCheck&&candidates.some(e=>e.store_id===source||e.store_id===null)&&!candidates.some(e=>(e.store_id===source||e.store_id===null)&&e.employee_name.trim()===r.employee_name))add('employee_name','姓名與所選任職門市的主檔不符');
   const existing=history.get(JSON.stringify([r.employee_code,r.effective_date]))||[];
   const duplicate=existing.some(h=>{
    const type=h.movement_type==='promotion'&&h.new_value==='代理店長'?'acting_manager':h.movement_type;

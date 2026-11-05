@@ -1,0 +1,92 @@
+{
+  "page": "movement-sync",
+  "legacyRoute": "/api/employee-movements/batch",
+  "workItem": "W06",
+  "entries": [
+    {
+      "id": "promo-unlocked",
+      "mechanism": "write-readback",
+      "description": "升職（草稿月份）：同一組員工與月份名冊，舊版 /api/employee-movements/batch 與新版 movement-submit 寫入後，回讀異動歷史與每月人員狀態。主檔職位：舊版 DEV 沒有同步（B.3）；新版同步為最新有效升職。月結頁新增近期因異動自動調整紀錄（A.3）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/batch",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/movement-submit",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "promo-locked",
+      "mechanism": "write-readback",
+      "description": "升職（已送審月份）：舊版直接改寫已送審月份；新版不動，記入需重新確認清單（A.2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/batch",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/movement-submit",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "leave-resign-after-init",
+      "mechanism": "write-readback",
+      "description": "初始化後才登錄留停、離職：舊版只改員工主檔，名冊不會跟著變；新版回寫生效月與之後已初始化的月份（A.1、A.4）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/batch",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/movement-submit",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "same-day-multi-level",
+      "mechanism": "write-readback",
+      "description": "同日登記新人二階與專員：舊版以最後登記者為準；新版取相對最高的職等（B.2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/batch",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/movement-submit",
+          "method": "POST"
+        }
+      }
+    },
+    {
+      "id": "acting-manager",
+      "mechanism": "write-readback",
+      "description": "代理店長：舊版與新版都只在生效月起標註記、不改正式職位（對等，無差異）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/batch",
+          "method": "POST"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/movement-submit",
+          "method": "POST"
+        }
+      }
+    }
+  ]
+}

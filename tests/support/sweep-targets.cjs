@@ -29,6 +29,9 @@ const RESERVED_MONTH_TABLES = [
   // P01：員工購物 POS 匯入（銷售月份 2099-xx，門市只用 ZT/VW）與藥師月份名冊快照。
   'employee_purchase_sales',
   'pharmacist_monthly_snapshot',
+  // W06：需重新確認清單與近期因異動自動調整紀錄（保留月份 2099-xx、測試門市）。
+  'monthly_staff_recheck',
+  'monthly_staff_adjustment_log',
 ];
 const RESERVED_MONTH_PATTERN = '2099-%';
 
@@ -89,6 +92,9 @@ const DELETABLE_TABLES = {
   // W05：員工主檔（測試員編範圍 FK8xxx／FKF8xxxx／FKPT9xx）與「需重新確認」清單，只依 registry 登錄的 id 清除。
   store_employees: ['id'],
   monthly_staff_recheck: ['id'],
+  // W06：異動歷史、近期因異動自動調整紀錄（測試員編範圍 FK7xxx／FKF7xxxx／FKPT8xx），只依 registry 登錄的 id 清除。
+  employee_movement_history: ['id'],
+  monthly_staff_adjustment_log: ['id'],
 };
 
 function isDeletableTarget(table, column) {

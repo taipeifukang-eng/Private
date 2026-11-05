@@ -809,5 +809,161 @@
       "kind": "changed",
       "key": "position"
     }
+  },
+  {
+    "id": "w06-master-position-sync",
+    "page": "movement-sync",
+    "description": "升職異動寫入後，新版同步員工主檔目前職位（升職、代理、過試用期都會校正）；舊版 DEV 只改月度資料，主檔職位沒改（使用者回報的問題）。",
+    "reason": "M2 規格 B.3，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "promo-unlocked",
+      "key": "masterPosition"
+    }
+  },
+  {
+    "id": "w06-adjustment-log",
+    "page": "movement-sync",
+    "description": "異動覆蓋店長手動改過的草稿資料時，新版留下「近期因異動自動調整」紀錄（誰、欄位、原值到新值、哪筆異動）；舊版沒有。",
+    "reason": "M2 規格 A.3（manual_overwrite），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "promo-unlocked",
+      "key": "adjustmentLogged"
+    }
+  },
+  {
+    "id": "w06-locked-month-not-overwritten",
+    "page": "movement-sync",
+    "description": "已送審月份：新版不動該月份職位；舊版直接改寫已送審月份。",
+    "reason": "M2 規格 A.2（monthly_locked），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "promo-locked",
+      "key": "lockedPosition"
+    }
+  },
+  {
+    "id": "w06-locked-month-recheck",
+    "page": "movement-sync",
+    "description": "已送審月份：新版記入需重新確認清單（月結頁顯示），舊版沒有這個清單。",
+    "reason": "M2 規格 A.2，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "promo-locked",
+      "key": "recheckPending"
+    }
+  },
+  {
+    "id": "w06-sync-leave-month",
+    "page": "movement-sync",
+    "description": "初始化後才登錄留停：新版把生效月名冊改成留停、天數為留停日前一天；舊版名冊不變。",
+    "reason": "M2 規格 A.1、A.4，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "leave-resign-after-init",
+      "key": "leaveMonthStatus"
+    }
+  },
+  {
+    "id": "w06-sync-leave-days",
+    "page": "movement-sync",
+    "description": "初始化後才登錄留停：新版回寫留停當月天數；舊版名冊天數不變。",
+    "reason": "M2 規格 A.1、A.4，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "leave-resign-after-init",
+      "key": "leaveMonthWorkDays"
+    }
+  },
+  {
+    "id": "w06-leave-drop-later-months",
+    "page": "movement-sync",
+    "description": "留停期間後續月份：新版不列名冊；舊版仍列名冊。",
+    "reason": "M2 規格 A.4（drop_during_leave），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "leave-resign-after-init",
+      "key": "laterMonthListed"
+    }
+  },
+  {
+    "id": "w06-sync-resign-month",
+    "page": "movement-sync",
+    "description": "初始化後才登錄離職：新版回寫離職月名冊狀態；舊版名冊不變。",
+    "reason": "M2 規格 A.1，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "leave-resign-after-init",
+      "key": "resignMonthStatus"
+    }
+  },
+  {
+    "id": "w06-sync-resign-days",
+    "page": "movement-sync",
+    "description": "初始化後才登錄離職：新版回寫離職當月天數（離職當天算上班）；舊版名冊天數不變。",
+    "reason": "M2 規格 A.1，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "leave-resign-after-init",
+      "key": "resignMonthWorkDays"
+    }
+  },
+  {
+    "id": "w06-resign-drop-later-months",
+    "page": "movement-sync",
+    "description": "離職之後的月份：新版不列名冊；舊版已初始化月份仍列名冊。",
+    "reason": "M2 規格 A.1（月初以前已離職不帶入名冊），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "leave-resign-after-init",
+      "key": "resignLaterMonthListed"
+    }
+  },
+  {
+    "id": "w06-same-day-highest-rank",
+    "page": "movement-sync",
+    "description": "同日登記新人二階與專員：新版月份名冊呈現相對最高的職等（專員）；舊版以最後登記者為準。",
+    "reason": "M2 規格 B.2，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "same-day-multi-level",
+      "key": "monthPosition"
+    }
+  },
+  {
+    "id": "w06-same-day-master-position",
+    "page": "movement-sync",
+    "description": "同日多階升職：新版主檔取最高職等並同步；舊版 DEV 主檔不同步。",
+    "reason": "M2 規格 B.2、B.3，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "same-day-multi-level",
+      "key": "masterPosition"
+    }
+  },
+  {
+    "id": "w06-same-day-highest-rank-level",
+    "page": "movement-sync",
+    "description": "同日登記新人二階與專員：新版月份名冊以專員為準（不帶新人階段）；舊版以最後登記者（新人二階）為準。",
+    "reason": "M2 規格 B.2，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "same-day-multi-level",
+      "key": "monthLevel"
+    }
   }
 ]

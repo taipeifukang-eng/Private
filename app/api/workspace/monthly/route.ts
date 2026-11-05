@@ -185,6 +185,28 @@ export async function GET(request: Request) {
     const summary = await getStoreMonthlySummary(month,store);
     if (!summary.success) throw new WorkspaceError(503, "月份狀態讀取失敗，請重試");
     const storeActive = (stores as any[]).some((s) => s.id === store);
+    // M2 A.2／A.3：需重新確認清單（該門市所有月份）與本月「近期因異動自動調整」清單。
+    const recheck = checked(
+      await ctx.admin
+        .from("monthly_staff_recheck")
+        .select("id,employee_code,employee_name,year_month,field,old_value,new_value,reason_label,source_type,created_at")
+        .eq("store_id", store)
+        .eq("status", "pending")
+        .order("year_month")
+        .order("employee_code")
+        .limit(200),
+    ) as any[];
+    const since = new Date(Date.now() - 60 * 86400000).toISOString();
+    const adjustments = checked(
+      await ctx.admin
+        .from("monthly_staff_adjustment_log")
+        .select("id,employee_code,employee_name,field,old_value,new_value,movement_label,created_at")
+        .eq("store_id", store)
+        .eq("year_month", month)
+        .gte("created_at", since)
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ) as any[];
     // 業績與獎金欄位只給有 view_performance 的角色；其他角色在伺服器端移除，不只在畫面隱藏。
     const canViewPerformance = ctx.has("monthly.status.view_performance");
     const records = canViewPerformance
@@ -214,6 +236,9 @@ export async function GET(request: Request) {
       canConfirm: ctx.has("monthly.status.confirm"),
       canRevert: ctx.has("monthly.status.revert"),
       canUnconfirm: ctx.has("monthly.status.unconfirm"),
+      recheck,
+      adjustments,
+      canRecompute: storeActive && ctx.has("monthly.status.edit"),
       canViewStats: !!stats,
       canViewPerformance,
       // 刪除（規格 B.2）：管理員或該門市店長；實際只有草稿可刪（已送審回 409 需先退回）。
@@ -454,6 +479,34 @@ export async function POST(request: Request) {
         throw new WorkspaceError(409, "此筆已送出或已變更，請重新查詢");
       return respond({ record: row });
     }
+    if (body.action === "recompute") {
+      // M2 A.2：月份退回草稿後，一鍵依異動重算；仍有已送審／已確認的列時拒絕（要先退回草稿）。
+      const rows = (checked(
+        await ctx.auth
+          .from("monthly_staff_status")
+          .select("id,status")
+          .eq("store_id", body.store)
+          .eq("year_month", month),
+      ) || []) as any[];
+      const summary = await getStoreMonthlySummary(month, body.store);
+      const storeStatus = String(summary.data?.store_status || "");
+      if (
+        rows.some((r) => !canDoMonthlyAction(r.status, "edit")) ||
+        ["submitted", "confirmed"].includes(storeStatus)
+      )
+        throw new WorkspaceError(409, "此月份已送審或已確認，請先退回草稿再依異動重算");
+      const applied = checked(
+        await ctx.admin.rpc("workspace_roster_apply_store_month", {
+          p_actor: ctx.user.id,
+          p_store: body.store,
+          p_month: month,
+          p_log: true,
+          p_apply_locked: false,
+          p_label: "依異動重算",
+        }),
+      );
+      return respond({ success: true, recomputed: applied });
+    }
     const actions: Record<string, (m: string, s: string, skip?: boolean) => Promise<any>> = {
       initialize: initializeMonthlyStatus,
       submit: submitStoreStatus,
@@ -496,6 +549,19 @@ export async function POST(request: Request) {
       }
     }
     const result = await actions[body.action](month, body.store, skipChecks);
+    if (result.success && body.action === "initialize" && result.initialized) {
+      // M2 A.1：初始化後套用異動回寫的同一套計算，確保「先初始化後登錄」與「先登錄後初始化」結果相同。
+      const applied = await ctx.admin.rpc("workspace_roster_apply_store_month", {
+        p_actor: ctx.user.id,
+        p_store: body.store,
+        p_month: month,
+        p_log: false,
+        p_apply_locked: false,
+        p_label: "初始化",
+      });
+      if (applied.error)
+        throw new WorkspaceError(503, "名冊已初始化，但依異動套用失敗，請按「依異動重算」重試");
+    }
     if (!result.success)
       throw new WorkspaceError(
         400,
