@@ -9,6 +9,10 @@ import { getInspectionGpsCapturedAt, hasSuspiciousInspectionGpsTime } from '@/li
 import {
   GPS_HIGH_ACCURACY_FALLBACK_MS,
   classifyGeolocationError,
+  classifyGpsDbError,
+  detectGpsDevice,
+  formatTaipeiDate,
+  isGpsTimestampWithinWindow,
   getGpsDbErrorMessage,
   getGpsFailureMessage,
   isGpsDbError,
@@ -111,10 +115,8 @@ function getInspectionDraftId(inspectionType: 'supervisor' | 'manager') {
 }
 
 function formatDateInputValue(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  // 一律以台北時區計算日期，不受裝置時區影響
+  return formatTaipeiDate(date);
 }
 
 function createInspectionClientRequestId() {
@@ -243,6 +245,11 @@ function NewInspectionPage() {
   const [gpsWarning, setGpsWarning] = useState(false);
   const [gpsNotice, setGpsNotice] = useState('');
   const [gpsGuideOpen, setGpsGuideOpen] = useState(false);
+  const [isMobileDevice, setIsMobileDevice] = useState(false);
+  useEffect(() => {
+    const device = detectGpsDevice(navigator.userAgent, { maxTouchPoints: navigator.maxTouchPoints });
+    setIsMobileDevice(device === 'ios' || device === 'android');
+  }, []);
   const gpsAttemptRef = useRef(0);
   // 定位成功（且通過精度與時間檢查）前，整張表單鎖住
   const gpsLocked = gpsStatus !== 'success' || !gpsLocation;
@@ -893,6 +900,17 @@ function NewInspectionPage() {
       alert('請先完成定位才能儲存或送出');
       return;
     }
+    if (!isGpsTimestampWithinWindow(gpsLocation.capturedAt)) {
+      // 定位時間已過期（或裝置時鐘異常）：不等資料庫往返，直接重新定位
+      setGpsWarning(false);
+      setGpsFailureKind('time_invalid');
+      setGpsError(getGpsFailureMessage('time_invalid'));
+      setGpsLocation(null);
+      setGpsStatus('error');
+      alert('定位已過期，請重新定位後再送出（表單內容已保留）');
+      requestGPSLocation();
+      return;
+    }
     if (!selectedStoreId) {
       alert('請選擇門市');
       return;
@@ -1102,7 +1120,7 @@ function NewInspectionPage() {
         const message = getGpsDbErrorMessage(error);
         setGpsLocation(null);
         setGpsWarning(false);
-        setGpsFailureKind(/誤差/.test(message) ? 'accuracy_too_large' : /時間/.test(message) ? 'time_invalid' : 'invalid_fix');
+        setGpsFailureKind(classifyGpsDbError(message));
         setGpsError(message);
         setGpsStatus('error');
         setGpsGuideOpen(true);
@@ -1296,7 +1314,9 @@ function NewInspectionPage() {
             </div>
             {gpsNotice && <p className="text-[11px] text-amber-600 mt-1 break-words">{gpsNotice}</p>}
             <p className="text-[10px] text-gray-500 mt-1 break-words">
-              💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內）。桌機使用 WiFi 定位亦可，但實際巡店建議用手機開啟此頁面以獲得精確 GPS 座標。
+              {isMobileDevice
+                ? '💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內），請開啟「精確位置」。'
+                : '💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內）。桌機使用 WiFi 定位亦可，但實際巡店建議用手機開啟此頁面以獲得精確 GPS 座標。'}
             </p>
             <button
               type="button"

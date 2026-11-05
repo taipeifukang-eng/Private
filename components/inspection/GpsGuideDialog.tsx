@@ -6,6 +6,7 @@ import {
   GPS_GUIDE_TABS,
   GPS_LINE_BROWSER_NOTICE,
   getDefaultGuideTab,
+  detectGpsDevice,
   getGpsFailureNote,
   isLineInAppBrowser,
   type GpsFailureKind,
@@ -24,18 +25,21 @@ interface GpsGuideDialogProps {
 export default function GpsGuideDialog({ open, failureKind, failureMessage, onClose, onRetry }: GpsGuideDialogProps) {
   const [tab, setTab] = useState<GpsGuideTabId>('windows');
   const [inLine, setInLine] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     if (!open || typeof navigator === 'undefined') return;
     const ua = navigator.userAgent;
     setInLine(isLineInAppBrowser(ua));
+    const device = detectGpsDevice(ua, { maxTouchPoints: navigator.maxTouchPoints });
+    setIsMobile(device === 'ios' || device === 'android');
     setTab(getDefaultGuideTab(ua, { maxTouchPoints: navigator.maxTouchPoints }));
   }, [open]);
 
   if (!open) return null;
 
   const current = GPS_GUIDE_TABS.find((t) => t.id === tab) || GPS_GUIDE_TABS[0];
-  const note = getGpsFailureNote(failureKind);
+  const note = getGpsFailureNote(failureKind, isMobile);
 
   return (
     <div

@@ -29,13 +29,13 @@ BEGIN
       USING ERRCODE = '23514';
   END IF;
 
-  IF NEW.gps_accuracy < 0 THEN
+  IF NEW.gps_accuracy = 'NaN'::numeric OR NEW.gps_accuracy < 0 THEN
     RAISE EXCEPTION '【巡店定位】定位誤差資料不正確，請重新定位後再送出'
       USING ERRCODE = '23514';
   END IF;
 
   IF NEW.gps_accuracy > 1000 THEN
-    RAISE EXCEPTION '【巡店定位】定位誤差過大（±% 公尺），上限為 1000 公尺，請重新定位後再送出', round(NEW.gps_accuracy)
+    RAISE EXCEPTION '【巡店定位】定位誤差過大（±% 公尺），上限為 1000 公尺，請重新定位後再送出', ceil(NEW.gps_accuracy)
       USING ERRCODE = '23514';
   END IF;
 

@@ -3,6 +3,8 @@ import {
   GPS_DB_ERROR_PREFIX,
   GPS_GUIDE_TABS,
   classifyGeolocationError,
+  classifyGpsDbError,
+  formatTaipeiDate,
   detectGpsDevice,
   evaluateGpsAccuracy,
   getDefaultGuideTab,
@@ -175,5 +177,40 @@ describe('guide content', () => {
   it('formats failure messages', () => {
     expect(getGpsFailureMessage('accuracy_too_large', 1234)).toBe('定位誤差過大（±1234 公尺）');
     expect(getGpsFailureMessage('permission_denied')).toBe('定位權限被拒絕');
+  });
+});
+
+describe('classifyGpsDbError', () => {
+  it('treats missing-data message as invalid_fix even though it contains 誤差', () => {
+    expect(classifyGpsDbError('【巡店定位】新增巡店必須先完成定位（缺少定位座標、誤差或時間），請重新定位後再送出')).toBe('invalid_fix');
+  });
+  it('classifies the other trigger messages', () => {
+    expect(classifyGpsDbError('【巡店定位】定位座標超出範圍，請重新定位後再送出')).toBe('invalid_fix');
+    expect(classifyGpsDbError('【巡店定位】定位誤差資料不正確，請重新定位後再送出')).toBe('invalid_fix');
+    expect(classifyGpsDbError('【巡店定位】定位誤差過大（±1001 公尺），上限為 1000 公尺')).toBe('accuracy_too_large');
+    expect(classifyGpsDbError('【巡店定位】定位時間距現在超過 2 小時，請重新定位後再送出')).toBe('time_invalid');
+    expect(classifyGpsDbError('【巡店定位】定位時間晚於伺服器時間')).toBe('time_invalid');
+    expect(classifyGpsDbError('')).toBe('invalid_fix');
+  });
+});
+
+describe('formatTaipeiDate', () => {
+  it('uses Taipei time regardless of device timezone', () => {
+    expect(formatTaipeiDate('2026-11-05T17:30:00Z')).toBe('2026-11-06');
+    expect(formatTaipeiDate('2026-11-05T15:59:00Z')).toBe('2026-11-05');
+  });
+});
+
+describe('guide wording', () => {
+  it('does not use bopomofo in the iOS guide and mentions aA', () => {
+    const ios = GPS_GUIDE_TABS.find((t) => t.id === 'ios')!;
+    const all = ios.steps.map((x) => x.text).join('');
+    expect(all).not.toContain('ㄅㄚ');
+    expect(all).toContain('aA');
+  });
+  it('does not tell mobile users to switch to mobile', () => {
+    expect(getGpsFailureNote('accuracy_too_large', true)).not.toContain('改用手機');
+    expect(getGpsFailureNote('accuracy_too_large', true)).toContain('精確位置');
+    expect(getGpsFailureNote('accuracy_too_large', false)).toContain('改用手機');
   });
 });

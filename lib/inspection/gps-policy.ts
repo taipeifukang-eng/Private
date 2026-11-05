@@ -120,6 +120,26 @@ export function validateGpsFix(fix: GpsFix | null | undefined, now: number = Dat
     : { ok: true, warning: false, message: '' };
 }
 
+/** 由 trigger 中文訊息判斷失敗類型：缺漏與資料不正確優先，再判斷誤差過大與時間。 */
+export function classifyGpsDbError(message: string | null | undefined): GpsFailureKind {
+  const m = message || '';
+  if (/缺少|必須先完成定位/.test(m)) return 'invalid_fix';
+  if (/資料不正確|超出範圍/.test(m)) return 'invalid_fix';
+  if (/過大/.test(m)) return 'accuracy_too_large';
+  if (/時間/.test(m)) return 'time_invalid';
+  return 'invalid_fix';
+}
+
+/** 以台北時區（Asia/Taipei）格式化為 YYYY-MM-DD，不受裝置時區影響。 */
+export function formatTaipeiDate(input: Date | string | number): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(input));
+}
+
 /** 是否為資料庫 trigger 擋下的定位錯誤。 */
 export function isGpsDbError(error: unknown): boolean {
   const message = (error as { message?: unknown } | null | undefined)?.message;
@@ -191,7 +211,7 @@ export const GPS_GUIDE_TABS: GpsGuideTab[] = [
     steps: [
       { icon: '⚙️', text: '打開「設定」→「隱私權與安全性」→「定位服務」，確認最上方的「定位服務」是開啟的。' },
       { icon: '🧭', text: '在定位服務清單中找到「Safari 網站」，選擇「使用 App 期間」，並開啟「精確位置」。' },
-      { icon: '🌐', text: '回到 Safari，點網址列左側的「ㄅㄚ」圖示 →「網站設定」，把「位置」設為「允許」。' },
+      { icon: '🌐', text: '回到 Safari，點網址列的「aA」（或「⋯」）圖示 →「網站設定」，把「位置」設為「允許」。' },
       { icon: '🔄', text: '回到本頁，按下方「我開好了，重新定位」。' },
     ],
   },
@@ -228,7 +248,7 @@ export const GPS_GUIDE_TABS: GpsGuideTab[] = [
 ];
 
 /** 依失敗原因加註的重點提示。 */
-export function getGpsFailureNote(kind: GpsFailureKind | null | undefined): string {
+export function getGpsFailureNote(kind: GpsFailureKind | null | undefined, isMobile: boolean = false): string {
   switch (kind) {
     case 'permission_denied':
       return '這次失敗的原因是「權限被拒絕」：請先允許本網站使用定位，再重新定位。';
@@ -236,7 +256,9 @@ export function getGpsFailureNote(kind: GpsFailureKind | null | undefined): stri
     case 'timeout':
       return '這次失敗的原因是「無法取得位置或逾時」：請確認系統定位已開啟，並移動到窗邊或戶外再試。';
     case 'accuracy_too_large':
-      return '這次失敗的原因是「定位誤差過大」：建議改用手機，並開啟「精確位置」。';
+      return isMobile
+        ? '這次失敗的原因是「定位誤差過大」：請開啟「精確位置」，移到窗邊或戶外，等待幾秒後再重新定位。'
+        : '這次失敗的原因是「定位誤差過大」：建議改用手機，並開啟「精確位置」。';
     case 'time_invalid':
       return '這次失敗的原因是「定位時間異常」：請確認裝置日期時間為自動設定，再重新定位。';
     case 'unsupported':
