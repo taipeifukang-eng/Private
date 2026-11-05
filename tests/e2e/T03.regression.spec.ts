@@ -57,11 +57,14 @@ test('T03 全站回歸：admin 導覽 kind 逐頁基準', async ({ browser }, te
     {
       let last = '';
       for (let n = 0; n < 28; n++) {
-        const cur = await page.evaluate(() => {
+        const { cur, busy } = await page.evaluate(() => {
           const t = document.querySelector('[role="tab"][aria-selected="true"]');
           const pnl = document.getElementById(t?.getAttribute('aria-controls') || '');
-          return pnl ? Array.from(pnl.querySelectorAll('h1,h2,h3')).map((h) => (h.textContent || '').trim()).join('|') : '';
+          // 面板內仍有「載入…」狀態列（例如每月人員狀態的名冊與門市統計是依序載入的）就不算穩定。
+          const loading = pnl ? Array.from(pnl.querySelectorAll('[role="status"]')).some((e) => /^載入/.test((e.textContent || '').trim())) : false;
+          return { cur: pnl ? Array.from(pnl.querySelectorAll('h1,h2,h3')).map((h) => (h.textContent || '').trim()).join('|') : '', busy: loading };
         });
+        if (busy) { last = ''; await page.waitForTimeout(700); continue; }
         if (cur && cur === last) break;
         last = cur;
         await page.waitForTimeout(700);

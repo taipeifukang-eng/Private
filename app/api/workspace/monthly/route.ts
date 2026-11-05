@@ -186,8 +186,10 @@ export async function GET(request: Request) {
     if (!summary.success) throw new WorkspaceError(503, "月份狀態讀取失敗，請重試");
     const storeActive = (stores as any[]).some((s) => s.id === store);
     // M2 A.2／A.3：需重新確認清單（該門市所有月份）與本月「近期因異動自動調整」清單。
-    const recheck = checked(
-      await ctx.admin
+    const since = new Date(Date.now() - 60 * 86400000).toISOString();
+    // 兩個查詢互不相依，並行送出（原本序列執行會讓每月人員狀態頁多等一趟 DB 往返）。
+    const [recheckRes, adjustmentsRes] = await Promise.all([
+      ctx.admin
         .from("monthly_staff_recheck")
         .select("id,employee_code,employee_name,year_month,field,old_value,new_value,reason_label,source_type,created_at")
         .eq("store_id", store)
@@ -195,10 +197,7 @@ export async function GET(request: Request) {
         .order("year_month")
         .order("employee_code")
         .limit(200),
-    ) as any[];
-    const since = new Date(Date.now() - 60 * 86400000).toISOString();
-    const adjustments = checked(
-      await ctx.admin
+      ctx.admin
         .from("monthly_staff_adjustment_log")
         .select("id,employee_code,employee_name,field,old_value,new_value,movement_label,created_at")
         .eq("store_id", store)
@@ -206,7 +205,9 @@ export async function GET(request: Request) {
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(100),
-    ) as any[];
+    ]);
+    const recheck = checked(recheckRes) as any[];
+    const adjustments = checked(adjustmentsRes) as any[];
     // 業績與獎金欄位只給有 view_performance 的角色；其他角色在伺服器端移除，不只在畫面隱藏。
     const canViewPerformance = ctx.has("monthly.status.view_performance");
     const records = canViewPerformance
