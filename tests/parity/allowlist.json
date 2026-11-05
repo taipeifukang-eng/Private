@@ -647,19 +647,6 @@
     }
   },
   {
-    "id": "p01-pharmacist-status-filter-control",
-    "page": "pharmacists",
-    "description": "藥師主檔狀態篩選：字樣與順序照舊版（在職／留停／已離職／全部，預設「在職」），但舊版為四個按鈕，新版為下拉選單。",
-    "reason": "M1 修正規格 F2 只要求字樣照舊版；控制型態沿用工作台表單元件。待使用者核可。",
-    "approvedBy": null,
-    "match": {
-      "mechanism": "ui-extract",
-      "entry": "master-layout",
-      "key": "master-status-filter-control",
-      "kind": "changed"
-    }
-  },
-  {
     "id": "p01-pharmacist-debug-admin-only",
     "page": "pharmacists",
     "description": "藥師總覽 ?debug=1：舊版任何登入且帶 ?debug=1 的人都看得到「Debug 資訊（server-side）」面板；新版面板照舊版畫面實作，但伺服器只對管理員回傳 debug 內部資料，非管理員帶 ?debug=1 不會看到。",
