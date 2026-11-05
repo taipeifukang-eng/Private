@@ -177,7 +177,7 @@ async function activity(r:any){const sequence=++openSequence;dialogLoading.value
      </template>
      <div v-else-if="mode==='stats'||mode==='supportHours'" class="monthly-form-grid"><label v-for="[key,label] in mode==='stats'?statsFields:supportFields">{{label}}<input type="number" min="0" step="any" v-model.number="form[key]" required /></label></div>
      <div v-else-if="mode==='manual'" class="monthly-form-grid">
-      <label>員工代號<input v-model="form.employee_code" maxlength="50" /></label><label>姓名<input v-model="form.employee_name" required maxlength="100" /></label><button type="button" @click="selectedIndex=0">搜尋既有人員</button>
+      <label>員工代號<input v-model="form.employee_code" autocomplete="off" placeholder="FK1234／FKF12345／FKPT123" /><small>格式：FK+4碼、FKF+5碼、FKPT+3碼數字；可留空</small></label><label>姓名<input v-model="form.employee_name" required maxlength="100" /></label><button type="button" @click="selectedIndex=0">搜尋既有人員</button>
       <label>職位<select v-model="form.position"><option v-for="p in options.positions" :value="p">{{p}}</option></select></label><label>僱用類型<select v-model="form.employment_type"><option value="full_time">正職</option><option value="part_time">兼職</option></select></label>
       <label>本月狀態<select v-model="form.monthly_status"><option v-for="s in options.statuses" :value="s.value">{{s.label}}</option></select></label>
       <label>階段<select v-model="form.newbie_level"><option value="">不適用</option><option v-for="s in options.levels" :value="s.value">{{s.label}}</option></select></label>

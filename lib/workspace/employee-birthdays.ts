@@ -1,3 +1,4 @@
+import {checkEmployeeId,normalizeEmployeeId} from './employee-id-rule';
 export type BirthdayRow={row:number;employee_code:string;employee_name:string;birthday:string};
 export type BirthdayIssue={row:number;message:string};
 export const MAX_BIRTHDAY_ROWS=10000;
@@ -44,8 +45,8 @@ export function parseBirthdayCsv(input:string,today:string){
   if(record.cells.length!==3){errors.push({row:record.line,message:'欄位數量不是三欄，請確認逗號與引號'});continue;}
   const data=Object.fromEntries(fields.map((k,i)=>[k,record.cells[i].trim()]));
   if(!data.birthday){skipped++;continue;}
-  const code=data.employee_code.toUpperCase();
-  if(!/^[A-Z0-9_-]{1,30}$/.test(code)){errors.push({row:record.line,message:'員編格式不正確'});continue;}
+  const idCheck=checkEmployeeId(data.employee_code),code=idCheck.code;
+  if(!idCheck.ok){errors.push({row:record.line,message:idCheck.message});continue;}
   if(!data.employee_name||data.employee_name.length>200){errors.push({row:record.line,message:'請填寫正確姓名'});continue;}
   if(seen.has(code)){errors.push({row:record.line,message:`員編 ${code} 與第 ${seen.get(code)} 列重複`});continue;}seen.set(code,record.line);
   const birthday=normalizeBirthday(data.birthday,today);

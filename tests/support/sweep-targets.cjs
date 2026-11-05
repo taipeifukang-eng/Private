@@ -86,6 +86,9 @@ const DELETABLE_TABLES = {
   // I01：巡店主表（子表 cascade），只依 registry 登錄的 id 清除。
   inspection_masters: ['id'],
   store_managers: ['id'],
+  // W05：員工主檔（測試員編範圍 FK8xxx／FKF8xxxx／FKPT9xx）與「需重新確認」清單，只依 registry 登錄的 id 清除。
+  store_employees: ['id'],
+  monthly_staff_recheck: ['id'],
 };
 
 function isDeletableTarget(table, column) {

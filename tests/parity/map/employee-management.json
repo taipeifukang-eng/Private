@@ -1,0 +1,64 @@
+{
+  "page": "employee-management",
+  "legacyRoute": "/admin/employee-management",
+  "workItem": "W05",
+  "entries": [
+    {
+      "id": "list-ui",
+      "mechanism": "ui-extract",
+      "description": "員工名冊：同一組測試員工在舊頁與新版表格的員編、姓名、當前職位、狀態、到職日、生日逐欄比對（搜尋後只留測試員編）。",
+      "legacy": { "ui": { "route": "/admin/employee-management", "rowSelector": "table tbody tr" } },
+      "native": { "source": "/workspace/index.html 員工管理 table tbody tr" },
+      "compareKey": "employee_code"
+    },
+    {
+      "id": "create-fk",
+      "mechanism": "ui-extract",
+      "description": "新增員工（FK+4 碼，輸入小寫）：兩邊都接受、員編轉大寫、正職。",
+      "legacy": { "ui": { "route": "/admin/employee-management", "rowSelector": "新增員工 modal" } },
+      "native": { "source": "/workspace/index.html 新增員工" }
+    },
+    {
+      "id": "create-fkf",
+      "mechanism": "ui-extract",
+      "description": "新增員工（FKF+5 碼）：兩邊都接受、正職。",
+      "legacy": { "ui": { "route": "/admin/employee-management", "rowSelector": "新增員工 modal" } },
+      "native": { "source": "/workspace/index.html 新增員工" }
+    },
+    {
+      "id": "create-fkpt",
+      "mechanism": "ui-extract",
+      "description": "新增員工（FKPT+3 碼）：舊版固定寫成正職；新版依員編自動兼職（M2 E.3）。",
+      "legacy": { "ui": { "route": "/admin/employee-management", "rowSelector": "新增員工 modal" } },
+      "native": { "source": "/workspace/index.html 新增員工" }
+    },
+    {
+      "id": "create-fki",
+      "mechanism": "ui-extract",
+      "description": "新增員工（FKI+3 碼實習生）：舊版確認後可新增；新版一律拒絕（M2 E.2）。",
+      "legacy": { "ui": { "route": "/admin/employee-management", "rowSelector": "新增員工 modal" } },
+      "native": { "source": "/workspace/index.html 新增員工" }
+    },
+    {
+      "id": "create-bad-format",
+      "mechanism": "ui-extract",
+      "description": "新增員工（格式錯誤 FK+2 碼）：兩邊都拒絕、沒有寫入。",
+      "legacy": { "ui": { "route": "/admin/employee-management", "rowSelector": "新增員工 modal" } },
+      "native": { "source": "/workspace/index.html 新增員工" }
+    },
+    {
+      "id": "create-api-bypass",
+      "mechanism": "write-readback",
+      "description": "繞過畫面直接呼叫新增 API 送格式錯誤員編：舊版 /api/employees/add 沒有伺服器端檢查而寫入；新版伺服器端與 DEV SQL 都拒絕（M2 E.1 入口範圍）。",
+      "legacy": { "api": { "path": "/api/employees/add", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/employees", "method": "POST" } }
+    },
+    {
+      "id": "edit-position-sync",
+      "mechanism": "write-readback",
+      "description": "編輯員工改姓名與職位：同一份月人員資料（草稿月份＋已送審月份）。舊版全部月份一起改；新版只改未送審、未確認月份，已送審月份列入需重新確認（M2 E.4）。",
+      "legacy": { "api": { "path": "/api/employees/update", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/employees/edit", "method": "PUT" } }
+    }
+  ]
+}

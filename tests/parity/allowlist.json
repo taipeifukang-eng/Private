@@ -711,5 +711,103 @@
         "admin"
       ]
     }
+  },
+  {
+    "id": "w05-fkpt-auto-part-time",
+    "page": "employee-management",
+    "description": "新增員工時員編為 FKPT 開頭：舊版 /api/employees/add 固定寫成正職（full_time）；新版依員編自動設為兼職（part_time），新增畫面顯示「類型：兼職（依員編）」。",
+    "reason": "M2 規格 E.3（fkpt_type = auto_pt），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "create-fkpt",
+      "kind": "changed",
+      "key": "employmentType"
+    }
+  },
+  {
+    "id": "w05-fki-forbidden",
+    "page": "employee-management",
+    "description": "新增員工時員編為 FKI 開頭（實習生）：舊版確認後可新增；新版所有入口一律拒絕，實習生不出現在系統。",
+    "reason": "M2 規格 E.2（fki = forbid），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "create-fki"
+    }
+  },
+  {
+    "id": "w05-server-side-id-rule",
+    "page": "employee-management",
+    "description": "直接呼叫新增員工 API 送不合規員編：舊版 /api/employees/add 沒有伺服器端格式檢查而寫入；新版 API 與 DEV SQL 都套用同一套員編規則並拒絕。",
+    "reason": "M2 規格 E.1（code_rule = all_strict）所有新增入口強制，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "create-api-bypass"
+    }
+  },
+  {
+    "id": "w05-edit-position-unlocked-only",
+    "page": "employee-management",
+    "description": "編輯員工改職位：舊版把職位一次寫入所有月份（含已送審、已確認）；新版只改未送審、未確認月份，姓名仍全部同步，已送審／已確認月份職位不動。",
+    "reason": "M2 規格 E.4（edit_position = unlocked_only），使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "edit-position-sync",
+      "key": "lockedPosition"
+    }
+  },
+  {
+    "id": "w05-edit-position-recheck",
+    "page": "employee-management",
+    "description": "編輯員工改職位時，已送審／已確認月份在新版會登記到「需重新確認」清單（monthly_staff_recheck）；舊版沒有這個機制。",
+    "reason": "M2 規格 E.4 並與 A.2 共用「需重新確認」清單，使用者 2026-11-05 問卷核可。",
+    "approvedBy": "user (2026-11-05 survey/m2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "edit-position-sync",
+      "key": "recheckPending"
+    }
+  },
+  {
+    "id": "w05-list-empty-date-placeholder",
+    "page": "employee-management",
+    "description": "員工名冊中到職日、生日沒有資料時：舊頁顯示「-」，新版顯示「—」。",
+    "reason": "新版統一使用長破折號當空值；不影響資料，只是顯示符號不同。尚待使用者確認是否接受。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "list-ui",
+      "kind": "changed",
+      "key": "startDate"
+    }
+  },
+  {
+    "id": "w05-list-empty-birthday-placeholder",
+    "page": "employee-management",
+    "description": "員工名冊中生日沒有資料時：舊頁顯示「-」，新版顯示「—」。",
+    "reason": "同上，尚待使用者確認是否接受。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "list-ui",
+      "kind": "changed",
+      "key": "birthday"
+    }
+  },
+  {
+    "id": "w05-list-empty-position-label",
+    "page": "employee-management",
+    "description": "員工名冊中當前職位沒有資料時：舊頁顯示「-」，新版顯示「未提供」。",
+    "reason": "新版以文字說明沒有職位；不影響資料，尚待使用者確認是否接受。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "list-ui",
+      "kind": "changed",
+      "key": "position"
+    }
   }
 ]

@@ -4,6 +4,7 @@ import {POSITION_OPTIONS} from '@/types/workflow';
 import {normalizeBirthday} from '@/lib/workspace/employee-birthdays';
 import {canReadStorePersonnel} from '@/lib/workspace/store-personnel';
 import {employeeDirectory} from '@/lib/workspace/employee-directory';
+import {checkEmployeeId} from '@/lib/workspace/employee-id-rule';
 export const dynamic='force-dynamic';
 async function all(query:()=>any){const result:any[]=[];for(let start=0;;start+=500){const rows=checked(await query().range(start,start+499)) as any[];result.push(...rows);if(rows.length<500)return result;}}
 export async function GET(request:Request){try{
@@ -31,13 +32,13 @@ export async function POST(request:Request){try{
  let body:any;try{body=await request.json();}catch{throw new WorkspaceError(400,'員工資料格式不正確');}
  const d=body?.data;
  if(!uuid(body?.requestId)||!d||typeof d.employee_code!=='string'||typeof d.employee_name!=='string')throw new WorkspaceError(400,'請填寫員編與姓名');
- const code=d.employee_code.trim().toUpperCase(),name=d.employee_name.trim(),position=d.current_position??'';
- if(!/^[A-Z0-9_-]{1,20}$/.test(code)||!name||name.length>100||typeof position!=='string'||(position&&!POSITION_OPTIONS.includes(position)))throw new WorkspaceError(400,'員編、姓名或職位格式不正確');
+ const idCheck=checkEmployeeId(d.employee_code),code=idCheck.code,name=d.employee_name.trim(),position=d.current_position??'';
+ if(!idCheck.ok)throw new WorkspaceError(400,idCheck.message);
+ if(!name||name.length>100||typeof position!=='string'||(position&&!POSITION_OPTIONS.includes(position)))throw new WorkspaceError(400,'員編、姓名或職位格式不正確');
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const date=(value:any,limit:string)=>{if(value==null||value==='')return null;if(typeof value!=='string')throw new WorkspaceError(400,'日期格式不正確');const normalized=normalizeBirthday(value,limit);if(!normalized)throw new WorkspaceError(400,'請填寫有效的西元日期，生日不可晚於今天');return normalized;};
  const birthday=date(d.birthday,today),start=date(d.start_date,'9999-12-31');
  if(birthday&&start&&birthday>start)throw new WorkspaceError(400,'生日不可晚於到職日');
- if(code.startsWith('FKI')&&d.confirmInternCode!==true)throw new WorkspaceError(400,'FKI 開頭通常為實習生員編，請先確認再新增');
  const result=await ctx.admin.rpc('workspace_employee_create',{p_actor:ctx.user.id,p_request:body.requestId,p_data:{employee_code:code,employee_name:name,current_position:position,start_date:start,birthday}});
  if(result.error){if(result.error.message.includes('WORKSPACE_DUPLICATE'))throw new WorkspaceError(409,'此員編已存在於主檔、月人員狀態或異動紀錄，請先查看既有員工');if(result.error.message.includes('WORKSPACE_REQUEST_REUSED'))throw new WorkspaceError(409,'新增識別已用於其他內容，請重新確認');if(result.error.message.includes('WORKSPACE_DATE'))throw new WorkspaceError(400,'生日或到職日不正確');throw new WorkspaceError(503,'員工新增未完成，請稍後重試');}
  return respond(result.data);

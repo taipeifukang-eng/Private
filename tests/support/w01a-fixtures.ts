@@ -146,7 +146,17 @@ export async function registerFixtureRows(store: string, month: string) {
   if (summary.length) reg.record({ table: 'monthly_store_summary', values: summary.map((r) => String(r.id)), note: `W01a ${month}` });
 }
 
-/** 測試人員員編：ZT + runId（大寫）+ 單字元標籤（欄位長度有限），符合 sweeper 標記。 */
+/**
+ * 測試人員員編。M2 規格 E.1 起，每月人員狀態手動新增必須符合員編規則（FK+4、FKF+5、FKPT+3），
+ * 所以不能再用 ZT+runId 當員編。改成 FKF + 9 + 兩碼 runId 雜湊 + 兩碼標籤序號（FKF9xxxx，DEV 真實員編沒有這個範圍）：
+ * 同一個 run 內每個標籤唯一；列屬保留月份 2099-xx 的測試門市，由 sweeper 清除（員編本身不再帶標記）。
+ */
 export function staffCode(tag: string) {
-  return `ZT${runIdOrThrow()}-${tag}`.toUpperCase();
+  const runId = runIdOrThrow();
+  let hash = 0;
+  for (const ch of runId.split('')) hash = (hash * 31 + ch.charCodeAt(0)) % 100;
+  const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  let index = tag.length === 1 ? alphabet.indexOf(tag.toUpperCase()) : -1;
+  if (index < 0) index = tag.split('').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 64, 7) + 36;
+  return `FKF9${String(hash).padStart(2, '0')}${String(index).padStart(2, '0')}`.slice(0, 8);
 }

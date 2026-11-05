@@ -1,3 +1,4 @@
+import {checkEmployeeId} from './employee-id-rule';
 import {getMovementDateError} from '../employee-movement-date';
 import {POSITION_OPTIONS,NEWBIE_LEVEL_OPTIONS,ADMIN_LEVEL_OPTIONS} from '../../types/workflow';
 import {normalizeBirthday} from './employee-birthdays';
@@ -25,7 +26,9 @@ export function validateMovementFields(input:unknown,today:string){
   for(const field of fields)if(raw[field]!=null&&typeof raw[field]!=='string')add(field,'欄位格式須為文字');
   for(const field of ['store_id','from_store_id','to_store_id'] as const)r[field]=r[field].toLowerCase();
   r.employee_code=r.employee_code.toUpperCase();r.onboarding_is_pharmacist=raw.onboarding_is_pharmacist===true;
-  if(!/^[A-Z0-9_-]{1,20}$/.test(r.employee_code))add('employee_code','員編必填，限 20 字內的英數字、底線或連字號');
+  // E.1：入職是新建立員編，必須符合員編規則（FKI 一律拒絕）；其餘異動針對既有員工，只做長度與字元的基本檢查。
+  if(r.movement_type==='onboarding'){const id=checkEmployeeId(r.employee_code);if(!id.ok)add('employee_code',id.message);}
+  else if(!/^[A-Z0-9_-]{1,20}$/.test(r.employee_code))add('employee_code','員編必填，限 20 字內的英數字、底線或連字號');
   if(r.employee_code.startsWith('EXAMPLE-'))add('employee_code','請將範例員編 EXAMPLE-xx 替換為實際員編');
   if(!r.employee_name||r.employee_name.length>100)add('employee_name','姓名必填且不得超過 100 字');
   if(!movementTypes.some(t=>t.value===r.movement_type))add('movement_type','請選擇有效異動類型');

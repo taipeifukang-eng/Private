@@ -1,4 +1,6 @@
 import * as XLSX from 'xlsx';
+import {POSITION_OPTIONS} from '../../types/workflow';
+import {checkEmployeeId,completeExcelEmployeeId} from './employee-id-rule';
 export const HEADERS=['門市代號','員編','姓名','職位','到職日期'];
 export const MAX_IMPORT_ROWS=10000,MAX_IMPORT_BYTES=5*1024*1024;
 export function importDate(value:unknown,date1904=false){
@@ -18,13 +20,15 @@ export function parseEmployeeImport(buffer:Buffer,stores:any[]){
  for(let i=1;i<matrix.length;i++){
   const values=indices.map(c=>matrix[i]?.[c]??'');if(values.every(v=>!String(v).trim())){skipped++;continue;}
   const texts=values.map(v=>String(v).trim()),[storeCode,rawCode,name,position]=texts;
-  const code=rawCode.toUpperCase(),date=importDate(values[4],!!book.Workbook?.WBProps?.date1904);
+  const code=completeExcelEmployeeId(rawCode),date=importDate(values[4],!!book.Workbook?.WBProps?.date1904);
   const matches=stores.filter(s=>s.store_code===storeCode||(/^\d+$/.test(storeCode)&&/^\d+$/.test(s.store_code)&&Number(s.store_code)===Number(storeCode)));
   const r={row:i+1,store_id:matches.length===1?matches[0].id:null,store_code:matches.length===1?matches[0].store_code:storeCode,store_name:matches.length===1?matches[0].store_name:'',employee_code:code,employee_name:name,position,start_date:date};rows.push(r);
   const messages=[];for(let j=0;j<HEADERS.length;j++)if(!texts[j])messages.push('缺少'+HEADERS[j]);
   if(storeCode&&matches.length!==1)messages.push('門市代號不存在、不在可匯入範圍或對應不唯一');
-  if(rawCode&&!/^[A-Z0-9_-]{1,30}$/.test(code))messages.push('員編須為30字內英數字、底線或連字號');
-  if(name.length>200||position.length>100)messages.push('姓名或職位過長');
+  if(rawCode){const id=checkEmployeeId(code);if(!id.ok)messages.push(id.message);}
+  if(name.length>200)messages.push('姓名過長');
+  // F.1：職位必須在公司職位清單內。
+  if(position&&!POSITION_OPTIONS.includes(position))messages.push('職位不在公司職位清單內');
   if(texts[4]&&!date)messages.push('到職日期無效，請用 YYYY-MM-DD 或 Excel 日期');
   for(const message of messages)errors.push({row:i+1,message});
  }

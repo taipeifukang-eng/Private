@@ -1,3 +1,4 @@
+import {completeExcelEmployeeId,normalizeEmployeeId} from './employee-id-rule';
 import * as XLSX from 'xlsx';
 import {normalizePromotionDate} from './promotion-import';
 import {movementTypes,validateMovementFields,MAX_MOVEMENT_ROWS,type MovementIssue} from './movement-fields';
@@ -26,7 +27,7 @@ export function parseMovementWorkbook(buffer:Buffer,today:string,stores:Location
   const row:any={};let nonempty=false;
   for(const [c,key] of Array.from(columns)){const cell=sheet[XLSX.utils.encode_cell({r,c})];if(!cell)continue;if(cell.f||cell.t==='e')errors.push({row:r+1,field:key,message:'請移除公式或 Excel 錯誤，貼上實際值'});if(cell.f||String(cell.v??'').trim())nonempty=true;row[key]=['birthday','effective_date'].includes(key)?date(cell.v,!!book.Workbook?.WBProps?.date1904):String(XLSX.utils.format_cell(cell)||'').trim();}
   if(!nonempty)continue;
-  const code=String(row.employee_code||'').toUpperCase();row.employee_code=fullCodes?code:/^\d{4}$/.test(code)?'FK'+code:/^\d{5}$/.test(code)?'FKF'+code:code;
+  row.employee_code=fullCodes?normalizeEmployeeId(row.employee_code):completeExcelEmployeeId(row.employee_code);
   row.movement_type=movementTypes.find(t=>t.label===row.movement_type)?.value||row.movement_type;
   if(row.movement_type==='onboarding'){const flag=String(row.onboarding_is_pharmacist??'').toLowerCase();row.onboarding_is_pharmacist=['是','true','1'].includes(flag)?true:['否','false','0'].includes(flag)?false:undefined;}
   for(const field of ['store_id','from_store_id','to_store_id']){

@@ -7,6 +7,7 @@ import { POST as pdfData } from '@/app/api/export-single-item-bonus-pdf/route';
 import { GET as bonusDetails } from '@/app/api/monthly-status/bonus-details/route';
 import { GET as quarterBonuses } from '@/app/api/monthly-status/bonus-quarter-summary/route';
 import { monthlyQuarterSummary } from '@/lib/workspace/monthly-quarter';
+import { checkEmployeeId, normalizeEmployeeId } from '@/lib/workspace/employee-id-rule';
 import { MONTHLY_THRESHOLDS, QUARTERLY_THRESHOLDS } from '@/lib/performance/bonus-calc';
 import { GET as performanceData } from '@/app/api/performance-data/route';
 import { GET as published } from '@/app/api/campaigns/published/route';
@@ -183,8 +184,10 @@ export async function POST(request: Request) {
       if (d.newbie_level && ![...NEWBIE_LEVEL_OPTIONS,...ADMIN_LEVEL_OPTIONS].some(o=>o.value===d.newbie_level)) throw new WorkspaceError(400,'人員階段不正確');
       for (const [key,max] of [['work_days',31],['work_hours',744]] as const) if (typeof d[key] !== 'number' || !Number.isFinite(d[key]) || d[key]<0 || d[key]>max) throw new WorkspaceError(400,'工作天數／時數不正確');
       if (!uuid(b.requestId)) throw new WorkspaceError(400,'缺少新增識別，請重新開啟視窗');
+      // E.1：手動新增的員編需符合員編規則（FKI 一律拒絕）；員編留空維持舊版行為（E.2 待使用者決定）。
+      if (normalizeEmployeeId(d.employee_code)) { const id = checkEmployeeId(d.employee_code); if (!id.ok) throw new WorkspaceError(400,id.message); }
       if(d.position==='行政' && !ADMIN_LEVEL_OPTIONS.some(o=>o.value===d.newbie_level)) throw new WorkspaceError(400,'行政人員須選擇行政階段');
-      const result = await ctx.admin.rpc('workspace_add_monthly_employee',{p_store:store,p_month:month,p_id:b.requestId,p_employee:{employee_name:d.employee_name.trim(),employee_code:String(d.employee_code||'').trim().toUpperCase().slice(0,50),position:d.position,employment_type:d.employment_type,monthly_status:d.monthly_status,is_pharmacist:!!d.is_pharmacist,work_days:d.work_days,work_hours:d.work_hours,newbie_level:d.newbie_level || undefined,notes:String(d.notes||'').slice(0,2000)}});
+      const result = await ctx.admin.rpc('workspace_add_monthly_employee',{p_store:store,p_month:month,p_id:b.requestId,p_employee:{employee_name:d.employee_name.trim(),employee_code:normalizeEmployeeId(d.employee_code),position:d.position,employment_type:d.employment_type,monthly_status:d.monthly_status,is_pharmacist:!!d.is_pharmacist,work_days:d.work_days,work_hours:d.work_hours,newbie_level:d.newbie_level || undefined,notes:String(d.notes||'').slice(0,2000)}});
       if (result.error) throw new WorkspaceError(409,result.error.message.includes('duplicated')?'此員工已在本月名冊，請編輯原有人員資料':'新增未完成，請重新查詢月份狀態後再試');
       return respond({success:true,data:result.data});
     }
