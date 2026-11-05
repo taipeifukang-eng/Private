@@ -31,6 +31,7 @@ import {
   type MonthlyAction,
 } from "@/lib/workspace/monthly-status-rules";
 import { isSupervisorActingManagerDual } from "@/lib/monthly-staff/block";
+import { applyExternalHoursPrefix } from "@/lib/monthly-staff/external-hours-note";
 import { plannedExtraTaskHours } from "@/lib/monthly-staff/hours";
 import {
   MONTHLY_STATUS_OPTIONS,
@@ -421,9 +422,12 @@ export async function POST(request: Request) {
         updates.extra_task_external_hours = u.extra_tasks.length
           ? u.extra_task_external_hours || null
           : null;
-        // 規格 C.2：照舊版，有外務時數（>0）時，把「外務時數: N小時」加在 partial_month_notes 前面（原備註以「; 」接在後面）。
-        if (u.extra_tasks.length && u.extra_task_external_hours > 0)
-          updates.partial_month_notes = `外務時數: ${u.extra_task_external_hours}小時${u.partial_month_notes ? "; " + u.partial_month_notes : ""}`;
+        // 規格 C.2／G.3：有外務時數（>0）時，把「外務時數: N小時」加在 partial_month_notes 前面（原備註以「; 」接在後面）；
+        // 先移除既有前綴避免重複儲存疊加（與舊版不同）；外務時數為 0 或空時只移除前綴、保留原備註。
+        updates.partial_month_notes = applyExternalHoursPrefix(
+          u.partial_month_notes,
+          u.extra_tasks.length ? u.extra_task_external_hours : null,
+        );
         updates.extra_task_planned_hours = u.extra_tasks.length
           ? plannedExtraTaskHours({
               position: u.position,

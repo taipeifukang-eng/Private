@@ -248,6 +248,10 @@ test.describe('W01b 單人編輯 API（ZT 測試門市 + 2099-02 / 2099-03）', 
     expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 5, partial_month_notes: '' })).body.record.partial_month_notes).toBe('外務時數: 5小時');
     expect((await saveMain({ extra_tasks: ['診所業務'], extra_task_external_hours: 2.5, partial_month_notes: '5/15 到職' })).body.record.partial_month_notes).toBe('外務時數: 2.5小時; 5/15 到職');
     expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 0, partial_month_notes: '備註' })).body.record.partial_month_notes).toBe('備註');
+    // 規格 G.3：既有前綴（含疊加）先移除再加最新一個；時數 0／空只移除前綴
+    expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 6, partial_month_notes: '外務時數: 5小時; 外務時數: 5小時; 原備註' })).body.record.partial_month_notes).toBe('外務時數: 6小時; 原備註');
+    expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 0, partial_month_notes: '外務時數: 6小時; 原備註' })).body.record.partial_month_notes).toBe('原備註');
+    expect((await saveMain({ extra_tasks: ['長照外務'], extra_task_external_hours: 0, partial_month_notes: '外務時數: 6小時' })).body.record.partial_month_notes ?? null).toBeNull();
     const cleared = await saveMain({ extra_tasks: [] });
     expect(cleared.body.record.extra_tasks).toBeNull();
     expect(cleared.body.record.extra_task_planned_hours).toBeNull();

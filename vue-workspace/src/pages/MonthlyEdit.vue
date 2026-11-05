@@ -201,7 +201,7 @@ async function saveAndReturn() {
   window.alert("✅ 儲存成功");
   work.returnToMonthly(props.tab.id, props.tab.store, props.tab.month);
 }
-// 規格 C.4：照舊版 confirm，按「取消」中止儲存；按「確定」（level 時套用階段）後繼續儲存。
+// 規格 C.4／G.4：照舊版 confirm，按「取消」中止儲存；按「確定」後仍存表單原本的階段（舊版 setNewbieLevel 為非同步狀態，送出的仍是舊值）。
 async function requestSave() {
   const invalid = validate();
   if (invalid) {
@@ -215,11 +215,8 @@ async function requestSave() {
   await saveAndReturn();
 }
 async function answerReminder(confirmed: boolean) {
-  const current = prompt.value;
   reminder.value = false;
   if (!confirmed) return;
-  if (current?.kind === "level" && current.suggestedLevel)
-    form.value.newbie_level = current.suggestedLevel;
   await saveAndReturn();
 }
 function back() {

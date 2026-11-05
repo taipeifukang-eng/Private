@@ -275,6 +275,31 @@ test('新人升階提醒對等：是否提醒、訊息、回答「否」後是�
     expect(legacyRows.map((r) => `${r.scenario}:${r.prompted}`)).toEqual(nativeRows.map((r) => `${r.scenario}:${r.prompted}`));
     expect(nativeRows.map((r) => `${r.scenario}:${r.savedAfterNo}`)).toEqual(legacyRows.map((r) => `${r.scenario}:${r.savedAfterNo}`));
     expect(legacyRows.map((r) => r.prompted)).toEqual(['Y', 'Y', 'Y', 'N']);
+
+    // 規格 G.4：按「確定」後兩邊存進資料庫的階段都維持表單原本的階段（舊版 setNewbieLevel 為非同步，送出的仍是舊值）
+    for (const key of ['n1', 'n2']) {
+      const lp = await ctx.newPage();
+      lp.on('dialog', (d: Dialog) => void d.accept());
+      await openLegacy(lp, rows[`${key}L`].id, zt01, PD);
+      await lp.locator(LX.notes).fill('PAR 確定測試');
+      await lp.getByRole('button', { name: '儲存', exact: true }).click();
+      await lp.waitForTimeout(3000);
+      const legacyRow = await dbRow(rows[`${key}L`].id);
+      await lp.close();
+
+      const np = await ctx.newPage();
+      await openNative(np, rows[`${key}N`].code, PD);
+      await panel(np).locator('[name=notes]').fill('PAR 確定測試');
+      await panel(np).getByRole('button', { name: '儲存出勤資料' }).click();
+      await np.getByRole('dialog', { name: '新人階段提醒' }).getByRole('button', { name: '確定', exact: true }).click();
+      await np.waitForTimeout(3000);
+      const nativeRow = await dbRow(rows[`${key}N`].id);
+      await np.close();
+      expect(norm(legacyRow.notes), `${key} 舊版有儲存`).toBe('PAR 確定測試');
+      expect(norm(nativeRow.notes), `${key} 新版有儲存`).toBe('PAR 確定測試');
+      expect(nativeRow.newbie_level, `${key} 確定後階段`).toBe(legacyRow.newbie_level);
+      expect(nativeRow.newbie_level, `${key} 階段維持原值`).toBe(key === 'n1' ? '未過階新人' : '一階新人');
+    }
   } finally {
     await ctx.close();
   }
@@ -493,6 +518,23 @@ test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄�
 
     const legacyRows = [pickCols(await dbRow(rows.e1L.id), 'e1-external'), pickCols(await dbRow(rows.e2L.id), 'e2-rotation-off')];
     const nativeRows = [pickCols(await dbRow(rows.e1N.id), 'e1-external'), pickCols(await dbRow(rows.e2N.id), 'e2-rotation-off')];
+
+    // 規格 G.3：e1 再存一次（只改一般備註）。舊版把已含前綴的備註再加一個前綴（疊加）；新版伺服器去重。
+    const lp3 = await ctx.newPage();
+    lp3.on('dialog', (d: Dialog) => void d.accept());
+    await openLegacy(lp3, rows.e1L.id, zt01, PD);
+    await lp3.locator(LX.notes).fill('PAR 再存');
+    await lp3.getByRole('button', { name: '儲存', exact: true }).click();
+    await lp3.waitForTimeout(2500);
+    await lp3.close();
+    const np3 = await ctx.newPage();
+    await openNative(np3, rows.e1N.code, PD);
+    await panel(np3).locator('[name=notes]').fill('PAR 再存'); // 新版未變更時儲存鈕為停用，兩邊都改同一個備註
+    await panel(np3).getByRole('button', { name: '儲存出勤資料' }).click();
+    await nativeEditorClosed(np3);
+    await np3.close();
+    legacyRows.push(pickCols(await dbRow(rows.e1L.id), 'e1-resave'));
+    nativeRows.push(pickCols(await dbRow(rows.e1N.id), 'e1-resave'));
     const result = compareSideEffects({
       recorder,
       entry: 'save-readback',
@@ -505,8 +547,10 @@ test('儲存回讀對等：勾外務與關閉督導卡班後，DB 欄位逐欄�
     assertNoUnlistedDiffs(result);
     expect(ok).toContain(result.status);
     // 規格 C.2：外務時數寫入未滿月備註照舊版，所有欄位（含 partial_month_notes、calculated_block）完全一致
-    expect(result.diffs).toEqual([]);
-    expect(result.status).toBe('pass');
+    // 唯一允許的差異：e1-resave 的 partial_month_notes（G.3 前綴去重，allowlist w01b-external-hours-prefix-dedupe）
+    expect(result.diffs.filter((d) => d.key !== 'monthly_staff_status:e1-resave#partial_month_notes')).toEqual([]);
+    expect((nativeRows[2] as Record<string, unknown>).partial_month_notes).toBe('外務時數: 5小時');
+    expect(String((legacyRows[2] as Record<string, unknown>).partial_month_notes)).toBe('外務時數: 5小時; 外務時數: 5小時');
     expect(nativeRows[0]).toMatchObject({ calculated_block: 4, extra_task_planned_hours: 160, extra_task_external_hours: 5 });
     expect(nativeRows[1]).toMatchObject({ supervisor_name: null, supervisor_shift_hours: null, calculated_block: 1 });
   } finally {

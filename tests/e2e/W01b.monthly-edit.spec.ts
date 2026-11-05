@@ -121,12 +121,12 @@ test('新人編輯與區塊預覽：提醒取消即中止、不滿月不自動�
       expect(row).toMatchObject({ newbie_level: '未過階新人', monthly_status: 'full_month' });
       expect(alerts).toEqual([]);
 
-      // 再存一次，按「確定」→ 套用一階新人並儲存，跳「✅ 儲存成功」回名冊
+      // 再存一次，按「確定」→ 照舊版仍存原階段（未過階新人，不套用一階）並儲存，跳「✅ 儲存成功」回名冊
       await panel.getByRole('button', { name: '儲存出勤資料' }).click();
       await page.getByRole('dialog', { name: '新人階段提醒' }).getByRole('button', { name: '確定', exact: true }).click();
       await savedAndReturned(page, alerts, 1);
       row = await dbRow(created.id);
-      expect(row).toMatchObject({ newbie_level: '一階新人', monthly_status: 'new_hire', work_days: 20, calculated_block: 4, extra_task_planned_hours: 128, extra_task_external_hours: 6, position: '新人' });
+      expect(row).toMatchObject({ newbie_level: '未過階新人', monthly_status: 'new_hire', work_days: 20, calculated_block: 4, extra_task_planned_hours: 128, extra_task_external_hours: 6, position: '新人' });
 
       // 回到名冊：區塊標籤已更新
       await expect(ed(page).locator(`tr[data-staff="${code}"]`)).toContainText('區塊 4', { timeout: 20_000 });

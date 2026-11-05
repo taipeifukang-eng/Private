@@ -248,6 +248,19 @@
     }
   },
   {
+    "id": "w01b-external-hours-prefix-dedupe",
+    "page": "monthly-edit",
+    "description": "外務時數寫入未滿月備註：舊版每次儲存都在備註前加「外務時數: N小時」，而編輯頁載入時又帶回含前綴的備註，重複儲存會疊成「外務時數: 5小時; 外務時數: 5小時; …」；新版伺服器存檔時先移除既有前綴（含其後的「; 」，可多個疊加）再加上最新一個，外務時數為 0 或空時只移除前綴、保留原備註。",
+    "reason": "M1 修正規格 G.3（使用者 2026-11-05 核可）。測試：tests/unit/W01b/external-hours-note.test.ts、tests/integration/W01b.monthly-edit.spec.ts、tests/parity/W01b.monthly-edit.spec.ts（e1-resave）。",
+    "approvedBy": "user (2026-11-05)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "save-readback",
+      "kind": "changed",
+      "key": "partial_month_notes"
+    }
+  },
+  {
     "id": "w01b-submitted-edit-locked",
     "page": "monthly-edit",
     "description": "已送審（尚未確認）人員的編輯頁：舊版仍可修改並儲存；新版整月鎖定，只顯示「此筆目前僅供檢視」，沒有儲存按鈕，API 回 409（需先退回）。已確認的專屬畫面兩邊一致。",
