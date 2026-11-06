@@ -150,8 +150,7 @@ test.describe('W06 後續問卷 H 組畫面', () => {
       await expect(toggle).toBeChecked();
       await expect(toggle).toBeDisabled();
       expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);
-      expect(errors, errors.join('
-')).toEqual([]);
+      expect(errors, errors.join('\n')).toEqual([]);
     } finally {
       await ctx.close();
     }
