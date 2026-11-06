@@ -58,3 +58,14 @@
 - 四層測試加 parity，對 DEV；測試資料只在 VW/ZT 測試門市與保留月份，sweeper 孤兒 0。
 - 每一項與舊版不同的行為列入 tests/parity/allowlist.json，approvedBy 如上。
 - DB 變更只放 supabase/workspace-dev/（含 rollback 與 apply 腳本），正式區 SQL 清單附在完成報告。
+
+## F. 追加確認（survey/m3f，2026-11-06 23:41 UTC，全部採建議）
+
+凡依本節核可的 allowlist 項目，approvedBy 寫 `user (2026-11-07 survey/m3f Fx)`。
+
+- **F1 營業主管開啟他人任務（grant_after_review）：** 接受新版「需任務管理權限」，allowlist m3-open-others-task-rbac 核可。上線前提供正式區只查詢 SQL 列出「舊版可開（profiles.role admin/manager）但新版不可開」的人，以及補授權 task.manage 的指令草稿（使用者勾選名單後執行；含預覽、備份、rollback）。
+- **F2 參與者兼管理者代勾（allow）：** 有任務管理權限的人即使本身負責其中一段，也可代勾其他區段，同樣記錄代做者；自己的區段照常是本人勾選。
+- **F3 刪除有派發過的模板（accept_new）：** 接受新版，m3-legacy-delete-template-fk-* 核可。
+- **F4 獎金已確認判定（all_stores）：** 維持實作：涉及的每間門市都已確認才算，查不到也標註。
+- **F5 首頁本月用台灣時間（taipei）：** m3-home-timezone 核可。
+- **F6 首頁重複版更入口（remove_quick）：** 移除快捷入口中的版更，保留提醒卡片；快捷入口只剩巡店、活動。
