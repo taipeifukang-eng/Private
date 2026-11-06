@@ -16,6 +16,10 @@ const MARKER_TARGETS = [
   { table: 'profiles', column: 'email', pattern: 'cvp-test-%', action: 'report' },
   // I01：巡店（新增巡店強制定位）測試資料。巡店備註帶 ZT + runId 標記（子表 ON DELETE CASCADE）。
   { table: 'inspection_masters', column: 'supervisor_notes', pattern: 'ZTT%', action: 'delete' },
+  // M3（W07/W09/P03）：任務範本標題「[自動測試]M3 <runId> …」。assignments 沒有 cascade，所以 sweeper 先刪 logs、協作者、指派再刪範本（cascade: task-template）。
+  { table: 'templates', column: 'title', pattern: '[自動測試]M3 T%', action: 'delete', cascade: 'task-template' },
+  // M3：刪除任務與模板的稽核紀錄（測試範本標題同上）。
+  { table: 'workspace_task_delete_audit', column: 'template_title', pattern: '[自動測試]M3 T%', action: 'delete' },
 ];
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/

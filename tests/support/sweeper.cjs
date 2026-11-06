@@ -239,7 +239,34 @@ async function runSweeper(opts = {}) {
       const res = await q;
       if (res.error) throw new Error(res.error.message);
       row.matched = res.count || 0;
-      if (mode === 'sweep' && target.action === 'delete' && row.matched > 0) {
+      if (mode === 'sweep' && target.action === 'delete' && row.matched > 0 && target.cascade === 'task-template') {
+        // 任務範本：先刪 logs、協作者、指派（assignments 沒有 cascade），最後刪範本；只動標題帶測試標記的範本。
+        const found = await db.from('templates').select('id').like(target.column, target.pattern);
+        if (found.error) throw new Error(found.error.message);
+        const tids = (found.data || []).map((r) => r.id);
+        const aids = [];
+        for (let i = 0; i < tids.length; i += 100) {
+          const a = await db.from('assignments').select('id').in('template_id', tids.slice(i, i + 100));
+          if (a.error) throw new Error(a.error.message);
+          aids.push(...(a.data || []).map((r) => r.id));
+        }
+        for (let i = 0; i < aids.length; i += 100) {
+          const part = aids.slice(i, i + 100);
+          for (const t of ['logs', 'assignment_collaborators']) {
+            const d = await db.from(t).delete().in('assignment_id', part);
+            if (d.error) throw new Error(d.error.message);
+          }
+          const d = await db.from('assignments').delete().in('id', part);
+          if (d.error) throw new Error(d.error.message);
+        }
+        let n = 0;
+        for (let i = 0; i < tids.length; i += 100) {
+          const d = await db.from('templates').delete().in('id', tids.slice(i, i + 100)).select('id');
+          if (d.error) throw new Error(d.error.message);
+          n += (d.data || []).length;
+        }
+        row.deleted = n;
+      } else if (mode === 'sweep' && target.action === 'delete' && row.matched > 0) {
         const del = await db
           .from(target.table)
           .delete()
