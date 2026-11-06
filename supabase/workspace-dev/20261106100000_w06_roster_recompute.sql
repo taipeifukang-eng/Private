@@ -81,12 +81,13 @@ LANGUAGE sql IMMUTABLE AS $$ SELECT p_type IN('store_transfer','resignation','le
 REVOKE ALL ON FUNCTION public.workspace_acting_end_event(text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.workspace_acting_end_event(text,text) TO service_role;
 
--- H.5：員工在指定日（含，依登記先後）是否仍是某店的代理店長（最近一次代理之後沒有結束異動）。調店確認用它判斷「原為代理」。
+-- H.5：員工在指定日（含，依登記先後）是否仍是某店的代理店長（最近一次代理之後沒有結束異動）。p_store 為 NULL 表示不分門市。
+-- 登記調店時用它偵測「目前是代理店長」，確認調店時用它決定是否在新店自動登記代理。
 CREATE OR REPLACE FUNCTION public.workspace_acting_active(p_code text,p_store uuid,p_until date) RETURNS boolean
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public,pg_temp AS $$
  SELECT EXISTS(SELECT 1 FROM employee_movement_history a WHERE a.employee_code=p_code
   AND (a.movement_type='acting_manager' OR (a.movement_type='promotion' AND a.new_value='代理店長')) AND a.movement_date<=p_until
-  AND (a.store_id IS NULL OR a.store_id=p_store)
+  AND (p_store IS NULL OR a.store_id IS NULL OR a.store_id=p_store)
   AND NOT EXISTS(SELECT 1 FROM employee_movement_history e WHERE e.employee_code=p_code AND workspace_acting_end_event(e.movement_type,e.new_value)
    AND (e.movement_date,e.created_at,e.id)>(a.movement_date,a.created_at,a.id) AND e.movement_date<=p_until))
 $$;
@@ -418,7 +419,7 @@ BEGIN
  IF p_version IS NULL OR p_version IS DISTINCT FROM workspace_transfer_snapshot(p_id) THEN RAISE EXCEPTION 'WORKSPACE_STALE';END IF;
  SELECT * INTO history FROM employee_movement_history WHERE id=req.movement_history_id;
  IF NOT FOUND OR history.movement_type<>'store_transfer' OR history.employee_code IS DISTINCT FROM req.employee_code OR history.store_id IS DISTINCT FROM req.to_store_id OR history.movement_date IS DISTINCT FROM req.effective_date THEN RAISE EXCEPTION 'WORKSPACE_HISTORY_CHANGED';END IF;
- IF EXISTS(SELECT 1 FROM employee_movement_history WHERE employee_code=req.employee_code AND id<>history.id AND movement_date>=least(req.effective_date,p_date)) THEN RAISE EXCEPTION 'WORKSPACE_LATER_MOVEMENT';END IF;
+ IF EXISTS(SELECT 1 FROM employee_movement_history WHERE employee_code=req.employee_code AND id<>history.id AND id IS DISTINCT FROM req.acting_movement_id AND movement_date>=least(req.effective_date,p_date)) THEN RAISE EXCEPTION 'WORKSPACE_LATER_MOVEMENT';END IF;
  IF EXISTS(SELECT 1 FROM store_employees WHERE employee_code=req.employee_code AND last_movement_date>req.effective_date) THEN RAISE EXCEPTION 'WORKSPACE_LATER_MOVEMENT';END IF;
  IF (SELECT count(*) FROM store_employees WHERE employee_code=req.employee_code AND is_active=true)<>1 THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED';END IF;
  SELECT * INTO target FROM store_employees WHERE employee_code=req.employee_code AND store_id=req.to_store_id AND is_active=true;
@@ -430,6 +431,8 @@ BEGIN
  SELECT store_name INTO from_name FROM stores WHERE id=req.from_store_id;SELECT store_name INTO to_name FROM stores WHERE id=req.to_store_id;
  old_data:=jsonb_build_object('request',to_jsonb(req),'history',to_jsonb(history),'employees',(SELECT jsonb_agg(to_jsonb(e)) FROM store_employees e WHERE employee_code=req.employee_code),'monthly',(SELECT jsonb_agg(to_jsonb(m)) FROM monthly_staff_status m WHERE employee_code=req.employee_code AND store_id IN(req.from_store_id,req.to_store_id) AND year_month=ym));
  UPDATE employee_movement_history SET movement_date=p_date,notes=concat_ws('；',nullif(notes,''),'生效日更正 '||req.effective_date||' → '||p_date||'（'||btrim(p_reason)||'）') WHERE id=history.id;
+ -- H.5：調店確認時自動登記的新店代理異動，生效日跟著調店更正。
+ UPDATE employee_movement_history SET movement_date=p_date WHERE id=req.acting_movement_id;
  UPDATE store_employees SET last_movement_date=p_date WHERE employee_code=req.employee_code AND store_id IN(req.from_store_id,req.to_store_id) AND last_movement_type='store_transfer' AND last_movement_date=req.effective_date;
  PERFORM workspace_roster_recompute(p_actor,req.employee_code,ym,NULL,NULL,true,false,'store_transfer',history.id::text,'調店生效日更正（'||p_date||'）');
  UPDATE store_transfer_requests SET effective_date=p_date,corrected_at=now(),corrected_by=p_actor,correction_reason=btrim(p_reason) WHERE id=p_id;

@@ -1,7 +1,8 @@
 -- M2 後續問卷（survey/m2-followup，2026-11-06）H 組的資料表與資料變更（DEV 專用，可重複套用）。
 --  H.4 員工主檔新增「階段」欄位 store_employees.newbie_level（值與每月人員狀態同一套：未過階新人／一階新人／二階新人、未過階行政／過階行政），
 --      並依升職異動回填既有員工（只填目前為空的列；DEV 可直接套用，正式區改交給使用者執行 docs/vue-workspace/parity-plan/m2-sql/backfill_employee_stage.sql）。
---  H.1／H.5 調店確認改為任一方督導確認即成立：確認紀錄只留一筆（side 允許 from／to／both／admin），申請多一個 acting_ended 欄位。
+--  H.1／H.5 調店確認改為任一方督導確認即成立：確認紀錄只留一筆（side 允許 from／to／both／admin）；
+--      申請多三個欄位 acting_ended／continue_acting／acting_movement_id（登記調店時詢問新店是否續任代理店長，2026-11-06 修訂版 H.5）。
 -- 函式（職等同步、名冊重算、調店確認、修改刪除異動、手動新增員編守衛）的新定義直接放在各自原本的檔案
 --   （20261105200000_w05、20261106100000_w06、20261106110000_w06_c、20261106200000_p02_d），重跑任何一支 apply 都不會倒退。
 -- 本檔不含函式，沒有套用順序問題；rollback 檔會把上述函式還原成 H 組之前的定義。
@@ -10,8 +11,10 @@ BEGIN;
 -- H.4 階段欄位
 ALTER TABLE public.store_employees ADD COLUMN IF NOT EXISTS newbie_level varchar(20);
 
--- H.5 調店時原為代理店長
+-- H.5 調店與代理店長：acting_ended（原為代理且新店不續任）、continue_acting（登記時的答案）、acting_movement_id（確認時自動登記的新店代理異動）
 ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS acting_ended boolean NOT NULL DEFAULT false;
+ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS continue_acting boolean NOT NULL DEFAULT false;
+ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS acting_movement_id uuid;
 
 -- H.1 調店確認紀錄：一個申請只留一筆。舊版（D.2 雙方確認）留下的多筆紀錄只保留最早的一筆。
 DELETE FROM public.store_transfer_confirmations c USING public.store_transfer_confirmations d

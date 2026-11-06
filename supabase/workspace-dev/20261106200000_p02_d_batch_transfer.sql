@@ -2,13 +2,18 @@
 --  D.1 整批原子＋完全重複列自動略過：員工匯入、異動批次、批次升遷。完全重複且已存在的列略過並列在結果；其他錯誤整批不存。
 --  D.2→H.1／H.7 調店確認（使用者 2026-11-06 改為任一方督導確認即成立）：原店或新店任一位督導（主責或代理）確認即生效；系統管理員可代確認並留紀錄；
 --      店長不能確認；批次輸入的調店列建立為待確認申請（requested_date 記錄批次填的日期，確認時預設帶入）。確認紀錄只留一筆（side：from／to／both／admin）。
---  H.5 調店生效時原店仍是代理店長者，store_transfer_requests.acting_ended=true，畫面提示並可一鍵登記新店代理店長。
+--  H.5（2026-11-06 修訂）登記調店時詢問「新任職的門市是否也擔任代理店長」，答案存在 store_transfer_requests.continue_acting；
+--      確認生效時若原店仍是代理店長：選「是」就在新店自動登記代理店長異動（生效日同調店日，acting_movement_id 記下它，刪除調店時一併還原），
+--      選「否」代理註記隨調店結束（acting_ended=true）。
 --  既有 DEV 資料表的欄位與限制變更見 20261107100000_m2h_stage_and_transfer_confirm.sql。
 --  依賴：20261106100000_w06_roster_recompute（workspace_roster_recompute）。
 BEGIN;
 ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS requested_date date;
--- H.5：調店生效時原店仍是代理店長（代理註記隨調店結束）。
+-- H.5：調店生效時原店仍是代理店長，且答「新店不續任」（代理註記隨調店結束）。
 ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS acting_ended boolean NOT NULL DEFAULT false;
+-- H.5：登記調店時的答案「新任職的門市是否也擔任代理店長」；確認時自動登記的新店代理異動編號。
+ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS continue_acting boolean NOT NULL DEFAULT false;
+ALTER TABLE public.store_transfer_requests ADD COLUMN IF NOT EXISTS acting_movement_id uuid;
 CREATE TABLE IF NOT EXISTS public.store_transfer_confirmations(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  request_id uuid NOT NULL REFERENCES public.store_transfer_requests(id) ON DELETE CASCADE,
@@ -130,8 +135,9 @@ BEGIN
     END IF;
     IF NOT EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND store_id=from_sid)
      OR EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND employee_name IS DISTINCT FROM item->>'employee_name') THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED'; END IF;
-    INSERT INTO store_transfer_requests(employee_code,employee_name,from_store_id,to_store_id,status,notes,created_by,requested_date)
-    VALUES(code,item->>'employee_name',from_sid,to_sid,'pending',nullif(item->>'notes',''),p_actor,dt) RETURNING id INTO mid;
+    -- H.5：批次逐列可勾「新店續任代理」（預設不勾）；只有該員目前確實是代理店長才會記下。
+    INSERT INTO store_transfer_requests(employee_code,employee_name,from_store_id,to_store_id,status,notes,created_by,requested_date,continue_acting)
+    VALUES(code,item->>'employee_name',from_sid,to_sid,'pending',nullif(item->>'notes',''),p_actor,dt,coalesce((item->>'continue_acting')::boolean,false) AND workspace_acting_active(code,from_sid,dt)) RETURNING id INTO mid;
     xfer:=xfer+1;
 
    ELSE
@@ -305,7 +311,7 @@ CREATE OR REPLACE FUNCTION public.workspace_transfer_confirm(p_actor uuid, p_id 
  SET search_path TO 'public', 'pg_temp'
 AS $$
 DECLARE req store_transfer_requests%rowtype; source store_employees%rowtype; target store_employees%rowtype;
- sup_from boolean; sup_to boolean; conf_side text; from_name text;to_name text;mid uuid;effective_month text;is_admin boolean;is_latest boolean;was_acting boolean;
+ sup_from boolean; sup_to boolean; conf_side text; from_name text;to_name text;mid uuid;effective_month text;is_admin boolean;is_latest boolean;was_acting boolean;keep_acting boolean;acting_id uuid;cur_pos text;
 BEGIN
  IF p_actor IS NULL OR p_id IS NULL OR (p_date IS NOT NULL AND p_date<'1912-01-01'::date) THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
 
@@ -321,7 +327,7 @@ BEGIN
  SELECT * INTO req FROM store_transfer_requests WHERE id=p_id;
  IF NOT FOUND THEN RAISE EXCEPTION 'WORKSPACE_NOT_FOUND'; END IF;
  IF req.status='confirmed' AND req.confirmed_by=p_actor AND req.effective_date=p_date AND req.movement_history_id IS NOT NULL THEN
-  RETURN jsonb_build_object('id',p_id,'status','confirmed','movement_history_id',req.movement_history_id,'alreadyConfirmed',true,'actingEnded',coalesce(req.acting_ended,false));
+  RETURN jsonb_build_object('id',p_id,'status','confirmed','movement_history_id',req.movement_history_id,'alreadyConfirmed',true,'actingEnded',coalesce(req.acting_ended,false),'actingContinued',req.acting_movement_id IS NOT NULL);
  END IF;
  IF req.status<>'pending' THEN RAISE EXCEPTION 'WORKSPACE_CONFLICT'; END IF;
  -- H.1／H.7：原店或新店任一位督導（role_type=supervisor，主責或代理）確認即成立；系統管理員可代確認並留下紀錄；店長與其他人不能確認。
@@ -348,8 +354,10 @@ BEGIN
  effective_month:=to_char(p_date,'YYYY-MM');
  -- A.2：已送審／已確認月份不動，改記到需重新確認清單（由 workspace_roster_recompute 處理）。
  IF EXISTS(SELECT 1 FROM monthly_staff_status WHERE employee_code=req.employee_code AND store_id IN(req.from_store_id,req.to_store_id) AND year_month>=effective_month GROUP BY store_id,year_month HAVING count(*)>1) THEN RAISE EXCEPTION 'WORKSPACE_MONTH_DUPLICATE'; END IF;
- -- H.5：調店生效時，原店仍是代理店長者代理註記隨調店結束（由 workspace_roster_recompute 依異動不再標代理）；記下這件事供畫面提示。
+ -- H.5：調店生效時，原店仍是代理店長者代理註記隨調店結束（由 workspace_roster_recompute 依異動不再標代理）；
+ -- 申請上答了「新店續任代理」者，確認後在新店自動登記代理店長異動（生效日同調店日）。
  was_acting:=workspace_acting_active(req.employee_code,req.from_store_id,p_date);
+ keep_acting:=was_acting AND coalesce(req.continue_acting,false);
  -- H.1：確認紀錄只留一筆（由哪一方、哪位督導確認，或管理員代確認）；舊版（雙方確認）留下的單側紀錄一併取代。
  DELETE FROM store_transfer_confirmations WHERE request_id=p_id;
  INSERT INTO store_transfer_confirmations(request_id,side,confirmed_by,is_proxy) VALUES(p_id,conf_side,p_actor,conf_side='admin');
@@ -364,9 +372,17 @@ BEGIN
   UPDATE store_employees SET user_id=source.user_id,employee_name=req.employee_name,position=source.position,current_position=source.current_position,newbie_level=source.newbie_level,employment_type=source.employment_type,is_pharmacist=source.is_pharmacist,is_active=true,start_date=source.start_date,birthday=source.birthday,employment_status=source.employment_status,last_promotion_date=source.last_promotion_date,last_movement_date=p_date,last_movement_type='store_transfer' WHERE id=target.id;
  END IF;
  END IF;
+
+ IF keep_acting THEN
+  -- 異動歷史以 created_at 排序：新店代理要排在調店之後，才不會被同日的調店結束。
+  UPDATE employee_movement_history SET created_at=clock_timestamp() WHERE id=mid;
+  SELECT coalesce(current_position,position) INTO cur_pos FROM store_employees WHERE employee_code=req.employee_code ORDER BY is_active DESC,last_movement_date DESC NULLS LAST LIMIT 1;
+  INSERT INTO employee_movement_history(employee_code,employee_name,store_id,movement_type,movement_date,old_value,new_value,notes,created_by,created_at)
+  VALUES(req.employee_code,req.employee_name,req.to_store_id,'acting_manager',p_date,nullif(cur_pos,'代理店長'),'代理店長','調店時續任代理店長（隨調店申請自動登記）',p_actor,clock_timestamp()+interval '1 millisecond') RETURNING id INTO acting_id;
+ END IF;
  PERFORM workspace_roster_recompute(p_actor,req.employee_code,effective_month,NULL,NULL,true,false,'store_transfer',mid::text,'調店（'||p_date||'）');
- UPDATE store_transfer_requests SET status='confirmed',confirmed_by=p_actor,confirmed_at=now(),effective_date=p_date,movement_history_id=mid,acting_ended=was_acting WHERE id=p_id;
- RETURN jsonb_build_object('id',p_id,'status','confirmed','movement_history_id',mid,'side',conf_side,'actingEnded',was_acting,'employee_code',req.employee_code,'to_store_id',req.to_store_id,'effective_date',p_date);
+ UPDATE store_transfer_requests SET status='confirmed',confirmed_by=p_actor,confirmed_at=now(),effective_date=p_date,movement_history_id=mid,acting_ended=(was_acting AND NOT keep_acting),acting_movement_id=acting_id WHERE id=p_id;
+ RETURN jsonb_build_object('id',p_id,'status','confirmed','movement_history_id',mid,'side',conf_side,'actingEnded',(was_acting AND NOT keep_acting),'actingContinued',keep_acting,'employee_code',req.employee_code,'to_store_id',req.to_store_id,'effective_date',p_date);
 END;
 $$;
 

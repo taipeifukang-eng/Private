@@ -87,6 +87,10 @@ BEGIN
   UPDATE store_employees SET start_date=nd,is_pharmacist=coalesce(pharm,is_pharmacist),updated_at=now()
    WHERE employee_code=m.employee_code AND store_id IS NOT DISTINCT FROM m.store_id AND (start_date IS DISTINCT FROM nd OR is_pharmacist IS DISTINCT FROM coalesce(pharm,is_pharmacist));
  END IF;
+ -- H.5：調店確認時自動登記的新店代理異動，生效日跟著調店修改。
+ IF nd IS DISTINCT FROM m.movement_date AND m.movement_type='store_transfer' THEN
+  UPDATE employee_movement_history h SET movement_date=nd FROM store_transfer_requests q WHERE q.movement_history_id=m.id AND h.id=q.acting_movement_id;
+ END IF;
  IF nd IS DISTINCT FROM m.movement_date THEN
   UPDATE store_employees SET last_movement_date=nd,updated_at=now() WHERE employee_code=m.employee_code AND last_movement_date=m.movement_date AND last_movement_type=m.movement_type;
   IF m.movement_type IN('onboarding','leave_without_pay','return_to_work','resignation','store_transfer') THEN PERFORM workspace_employee_master_resync(m.employee_code); END IF;
@@ -103,14 +107,17 @@ GRANT EXECUTE ON FUNCTION public.workspace_movement_update(uuid,uuid,jsonb) TO s
 CREATE OR REPLACE FUNCTION public.workspace_movement_delete(p_actor uuid,p_id uuid) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE m employee_movement_history%rowtype; newer employee_movement_history%rowtype; kind text; rec jsonb; ym text; eff record; restored boolean:=false;
- today date:=(now() AT TIME ZONE 'Asia/Taipei')::date; prev_onb employee_movement_history%rowtype; rr record;
+ today date:=(now() AT TIME ZONE 'Asia/Taipei')::date; prev_onb employee_movement_history%rowtype; rr record; gen uuid;
 BEGIN
  IF p_actor IS NULL OR p_id IS NULL THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
  IF NOT EXISTS(SELECT 1 FROM profiles WHERE id=p_actor) THEN RAISE EXCEPTION 'WORKSPACE_FORBIDDEN'; END IF;
  LOCK TABLE store_employees,monthly_staff_status,employee_movement_history IN SHARE ROW EXCLUSIVE MODE;
  SELECT * INTO m FROM employee_movement_history WHERE id=p_id;
  IF NOT FOUND THEN RAISE EXCEPTION 'WORKSPACE_NOT_FOUND'; END IF;
- SELECT * INTO newer FROM employee_movement_history h WHERE h.employee_code=m.employee_code AND h.id<>m.id AND (h.movement_date,h.created_at,h.id)>(m.movement_date,m.created_at,m.id) ORDER BY h.movement_date DESC,h.created_at DESC,h.id DESC LIMIT 1;
+
+ -- H.5：調店確認時自動登記的新店代理異動算調店的一部分：刪調店時一併還原，不算「更晚的異動」。
+ IF m.movement_type='store_transfer' THEN SELECT acting_movement_id INTO gen FROM store_transfer_requests WHERE movement_history_id=m.id; END IF;
+ SELECT * INTO newer FROM employee_movement_history h WHERE h.employee_code=m.employee_code AND h.id<>m.id AND h.id IS DISTINCT FROM gen AND (h.movement_date,h.created_at,h.id)>(m.movement_date,m.created_at,m.id) ORDER BY h.movement_date DESC,h.created_at DESC,h.id DESC LIMIT 1;
  IF FOUND THEN RAISE EXCEPTION 'WORKSPACE_NOT_LATEST' USING DETAIL='newer='||newer.id||';date='||newer.movement_date||';type='||newer.movement_type; END IF;
  kind:=CASE WHEN m.movement_type='promotion' AND m.new_value='代理店長' THEN 'acting_manager' ELSE m.movement_type END;
  ym:=to_char(m.movement_date,'YYYY-MM');
@@ -121,6 +128,9 @@ BEGIN
   WHERE movement_history_id=m.id AND status='confirmed';
  END IF;
  DELETE FROM employee_movement_history WHERE id=m.id;
+ IF gen IS NOT NULL THEN DELETE FROM employee_movement_history WHERE id=gen; END IF;
+ -- 自動登記的代理異動本身被刪掉時，申請上的連結一併清除。
+ UPDATE store_transfer_requests SET acting_movement_id=NULL WHERE acting_movement_id=m.id;
  -- 主檔狀態與門市：依剩餘異動重建（沒有任何狀態類異動時不動）。
  restored:=workspace_employee_master_resync(m.employee_code);
  -- 入職：恢復上一次入職的到職日與藥師身分。

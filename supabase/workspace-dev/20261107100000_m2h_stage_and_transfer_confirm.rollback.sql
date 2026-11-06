@@ -303,6 +303,59 @@ BEGIN
  END LOOP;
  RETURN jsonb_build_object('updated',res_updated,'created',res_created,'removed',res_removed,'recheck',res_rechecks,'adjusted',res_adjust);
 END;$$;
+CREATE OR REPLACE FUNCTION public.workspace_transfer_correct(p_actor uuid, p_id uuid, p_date date, p_reason text, p_version text, p_request uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE req store_transfer_requests%rowtype; cached workspace_transfer_corrections%rowtype; target store_employees%rowtype; old_data jsonb;result jsonb;is_admin boolean;ym text;d integer;total integer;from_name text;to_name text;history employee_movement_history%rowtype;
+BEGIN
+ IF p_actor IS NULL OR p_id IS NULL OR p_request IS NULL OR p_date IS NULL OR p_date<'2000-01-01'::date OR p_date>'2100-12-31'::date OR coalesce(btrim(p_reason),'')='' OR length(p_reason)>2000 THEN RAISE EXCEPTION 'WORKSPACE_INVALID';END IF;
+ 
+ SELECT role='admin' INTO is_admin FROM profiles WHERE id=p_actor;
+ IF NOT coalesce(is_admin,false) AND NOT EXISTS(
+  SELECT 1 FROM user_roles ur JOIN roles r ON r.id=ur.role_id
+  WHERE ur.user_id=p_actor AND ur.is_active=true AND (ur.expires_at IS NULL OR ur.expires_at>now()) AND r.is_active=true
+  AND (r.code IN('admin','system_admin','full_admin','full_admin_role','dev_full_admin','owner','owner_role','admin_role')
+   OR EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp.permission_id WHERE rp.role_id=r.id AND rp.is_allowed=true AND p.is_active=true AND p.code='employee.store_transfer.confirm'))
+ ) THEN RAISE EXCEPTION 'WORKSPACE_FORBIDDEN'; END IF;
+ LOCK TABLE store_employees,employee_movement_history,monthly_staff_status,store_transfer_requests IN SHARE ROW EXCLUSIVE MODE;
+ SELECT * INTO req FROM store_transfer_requests WHERE id=p_id;
+ IF NOT FOUND THEN RAISE EXCEPTION 'WORKSPACE_NOT_FOUND';END IF;
+ IF NOT coalesce(is_admin,false) AND NOT EXISTS(SELECT 1 FROM store_managers WHERE user_id=p_actor AND store_id IN(req.from_store_id,req.to_store_id)) THEN RAISE EXCEPTION 'WORKSPACE_FORBIDDEN';END IF;
+ SELECT * INTO cached FROM workspace_transfer_corrections WHERE request_id=p_request;
+ IF FOUND THEN
+  IF cached.actor_id<>p_actor OR cached.transfer_id<>p_id OR cached.new_date<>p_date OR cached.reason<>btrim(p_reason) THEN RAISE EXCEPTION 'WORKSPACE_REQUEST_REUSED';END IF;
+  RETURN cached.result||jsonb_build_object('alreadyCorrected',true);
+ END IF;
+ IF req.status<>'confirmed' OR req.effective_date IS NULL OR req.movement_history_id IS NULL THEN RAISE EXCEPTION 'WORKSPACE_CONFLICT';END IF;
+ IF req.effective_date=p_date THEN RAISE EXCEPTION 'WORKSPACE_SAME_DATE';END IF;
+ IF to_char(req.effective_date,'YYYY-MM')<>to_char(p_date,'YYYY-MM') THEN RAISE EXCEPTION 'WORKSPACE_CROSS_MONTH_PENDING';END IF;
+ PERFORM id FROM stores WHERE id IN(req.from_store_id,req.to_store_id) ORDER BY id FOR SHARE;
+ IF p_version IS NULL OR p_version IS DISTINCT FROM workspace_transfer_snapshot(p_id) THEN RAISE EXCEPTION 'WORKSPACE_STALE';END IF;
+ SELECT * INTO history FROM employee_movement_history WHERE id=req.movement_history_id;
+ IF NOT FOUND OR history.movement_type<>'store_transfer' OR history.employee_code IS DISTINCT FROM req.employee_code OR history.store_id IS DISTINCT FROM req.to_store_id OR history.movement_date IS DISTINCT FROM req.effective_date THEN RAISE EXCEPTION 'WORKSPACE_HISTORY_CHANGED';END IF;
+ IF EXISTS(SELECT 1 FROM employee_movement_history WHERE employee_code=req.employee_code AND id<>history.id AND movement_date>=least(req.effective_date,p_date)) THEN RAISE EXCEPTION 'WORKSPACE_LATER_MOVEMENT';END IF;
+ IF EXISTS(SELECT 1 FROM store_employees WHERE employee_code=req.employee_code AND last_movement_date>req.effective_date) THEN RAISE EXCEPTION 'WORKSPACE_LATER_MOVEMENT';END IF;
+ IF (SELECT count(*) FROM store_employees WHERE employee_code=req.employee_code AND is_active=true)<>1 THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED';END IF;
+ SELECT * INTO target FROM store_employees WHERE employee_code=req.employee_code AND store_id=req.to_store_id AND is_active=true;
+ IF NOT FOUND OR target.last_movement_type IS DISTINCT FROM 'store_transfer' OR target.last_movement_date IS DISTINCT FROM req.effective_date THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED';END IF;
+ IF NOT EXISTS(SELECT 1 FROM store_employees WHERE employee_code=req.employee_code AND store_id=req.from_store_id AND is_active=false AND last_movement_type='store_transfer' AND last_movement_date=req.effective_date) THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED';END IF;
+ ym:=to_char(p_date,'YYYY-MM');d:=extract(day FROM p_date);total:=extract(day FROM(date_trunc('month',p_date)+interval '1 month - 1 day'));
+ -- A.2：已送審／已確認月份不動，改記到需重新確認清單（由 workspace_roster_recompute 處理）。
+ IF EXISTS(SELECT 1 FROM monthly_staff_status WHERE employee_code=req.employee_code AND store_id IN(req.from_store_id,req.to_store_id) AND year_month=ym GROUP BY store_id HAVING count(*)>1) THEN RAISE EXCEPTION 'WORKSPACE_MONTH_DUPLICATE';END IF;
+ SELECT store_name INTO from_name FROM stores WHERE id=req.from_store_id;SELECT store_name INTO to_name FROM stores WHERE id=req.to_store_id;
+ old_data:=jsonb_build_object('request',to_jsonb(req),'history',to_jsonb(history),'employees',(SELECT jsonb_agg(to_jsonb(e)) FROM store_employees e WHERE employee_code=req.employee_code),'monthly',(SELECT jsonb_agg(to_jsonb(m)) FROM monthly_staff_status m WHERE employee_code=req.employee_code AND store_id IN(req.from_store_id,req.to_store_id) AND year_month=ym));
+ UPDATE employee_movement_history SET movement_date=p_date,notes=concat_ws('；',nullif(notes,''),'生效日更正 '||req.effective_date||' → '||p_date||'（'||btrim(p_reason)||'）') WHERE id=history.id;
+ UPDATE store_employees SET last_movement_date=p_date WHERE employee_code=req.employee_code AND store_id IN(req.from_store_id,req.to_store_id) AND last_movement_type='store_transfer' AND last_movement_date=req.effective_date;
+ PERFORM workspace_roster_recompute(p_actor,req.employee_code,ym,NULL,NULL,true,false,'store_transfer',history.id::text,'調店生效日更正（'||p_date||'）');
+ UPDATE store_transfer_requests SET effective_date=p_date,corrected_at=now(),corrected_by=p_actor,correction_reason=btrim(p_reason) WHERE id=p_id;
+ result:=jsonb_build_object('id',p_id,'effective_date',p_date,'status','confirmed');
+ INSERT INTO workspace_transfer_corrections(request_id,actor_id,transfer_id,old_date,new_date,reason,before_data,result) VALUES(p_request,p_actor,p_id,req.effective_date,p_date,btrim(p_reason),old_data,result);
+ RETURN result;
+END;
+$$;
 DROP FUNCTION IF EXISTS public.workspace_acting_active(text,uuid,date);
 DROP FUNCTION IF EXISTS public.workspace_acting_end_event(text,text);
 -- W06 C：修改與刪除異動（H.9 之前）
@@ -531,6 +584,134 @@ BEGIN
  RETURN jsonb_build_object('id',p_id,'status','confirmed','movement_history_id',mid);
 END;
 $$;
+CREATE OR REPLACE FUNCTION public.workspace_movement_save(p_actor uuid, p_request uuid, p_rows jsonb, p_expected text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE cached workspace_movement_requests%rowtype; item jsonb; entry record; emp store_employees%rowtype;
+ req store_transfer_requests%rowtype; source store_employees%rowtype; target store_employees%rowtype;
+ unit organization_units%rowtype; uid uuid; sid uuid; orgid uuid; mid uuid; ids jsonb:='[]'; output jsonb;
+ code text; kind text; dt date; oldval text; newval text; note text; rowno integer;
+ skipped jsonb:='[]'; xfer integer:=0; from_sid uuid; to_sid uuid; from_name text;to_name text;ym text;effective_month text;d integer;total integer;month_day text;p_date date;is_latest boolean;
+BEGIN
+ IF p_actor IS NULL OR p_request IS NULL OR jsonb_typeof(p_rows) IS DISTINCT FROM 'array' OR jsonb_array_length(p_rows) NOT BETWEEN 1 AND 500 THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
+ -- The API checks RBAC; RPC is service-only. Do not permit a nonexistent audit actor.
+ IF NOT EXISTS(SELECT 1 FROM profiles WHERE id=p_actor) THEN RAISE EXCEPTION 'WORKSPACE_FORBIDDEN'; END IF;
+ LOCK TABLE stores,store_employees,employee_movement_history,monthly_staff_status,organization_units,profiles,organization_memberships IN SHARE ROW EXCLUSIVE MODE;
+ SELECT * INTO cached FROM workspace_movement_requests WHERE request_id=p_request;
+ IF FOUND THEN
+  IF cached.actor_id<>p_actor OR cached.payload IS DISTINCT FROM p_rows THEN RAISE EXCEPTION 'WORKSPACE_REQUEST_REUSED'; END IF;
+  RETURN cached.result;
+ END IF;
+ IF p_expected IS NULL OR workspace_movement_snapshot(p_rows) IS DISTINCT FROM p_expected THEN RAISE EXCEPTION 'WORKSPACE_STALE'; END IF;
+ FOR entry IN SELECT value,ordinality FROM jsonb_array_elements(p_rows) WITH ORDINALITY ORDER BY value->>'effective_date',ordinality LOOP
+  item:=entry.value;rowno:=entry.ordinality;
+  BEGIN
+   code:=item->>'employee_code';kind:=item->>'movement_type';dt:=(item->>'effective_date')::date;
+   IF code IS NULL OR code !~ '^[A-Z0-9_-]{1,20}$' OR code LIKE 'EXAMPLE-%' OR coalesce(item->>'employee_name','')='' OR dt IS NULL OR dt<'1912-01-01' OR kind NOT IN('onboarding','promotion','acting_manager','leave_without_pay','return_to_work','pass_probation','resignation','store_transfer') THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
+   orgid:=CASE WHEN left(item->>'store_id',4)='org:' THEN substring(item->>'store_id' FROM 5)::uuid END;
+   sid:=CASE WHEN orgid IS NULL THEN (item->>'store_id')::uuid END;
+   IF orgid IS NOT NULL AND kind<>'onboarding' THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
+   IF orgid IS NULL AND NOT EXISTS(SELECT 1 FROM stores WHERE id=sid AND is_active) THEN RAISE EXCEPTION 'WORKSPACE_STORE_CHANGED'; END IF;
+   -- 同一天不可同時有留停與復職（狀態與天數會互相矛盾）。
+   IF kind IN('leave_without_pay','return_to_work') AND EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=code AND h.movement_date=dt AND h.movement_type=CASE WHEN kind='leave_without_pay' THEN 'return_to_work' ELSE 'leave_without_pay' END) THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
+   IF EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=code AND h.movement_date=dt AND
+    CASE WHEN h.movement_type='promotion' AND h.new_value='代理店長' THEN 'acting_manager' ELSE h.movement_type END=kind AND
+    (kind<>'promotion' OR (h.new_value=item->>'position' AND coalesce(substring(h.notes FROM '(?:新人等級|行政階級)[:：]([^；\n]+)'),'')=coalesce(item->>'newbie_level','')))) THEN
+    -- D.1：完全重複且已存在的列自動略過，列在結果；其他錯誤整批不存。
+    skipped:=skipped||jsonb_build_array(jsonb_build_object('row',rowno,'employee_code',code,'movement_type',kind,'effective_date',dt,'message','已有相同員工、日期及內容的異動紀錄，將自動略過'));CONTINUE;
+   END IF;
+   IF kind='store_transfer' THEN
+    -- D.2：批次輸入的調店列只建立「待確認」調店申請，要原店與新店督導都確認才生效（生效時才寫異動與回寫名冊）。
+    from_sid:=(item->>'from_store_id')::uuid;to_sid:=(item->>'to_store_id')::uuid;
+    IF from_sid IS NULL OR to_sid IS NULL OR from_sid=to_sid THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
+    SELECT store_name INTO from_name FROM stores WHERE id=from_sid AND is_active=true;
+    SELECT store_name INTO to_name FROM stores WHERE id=to_sid AND is_active=true;
+    IF from_name IS NULL OR to_name IS NULL THEN RAISE EXCEPTION 'WORKSPACE_STORE_CHANGED'; END IF;
+    IF EXISTS(SELECT 1 FROM employee_movement_history WHERE employee_code=code AND movement_type='store_transfer' AND movement_date=dt)
+     OR EXISTS(SELECT 1 FROM store_transfer_requests WHERE employee_code=code AND status='pending' AND from_store_id=from_sid AND to_store_id=to_sid) THEN
+     skipped:=skipped||jsonb_build_array(jsonb_build_object('row',rowno,'employee_code',code,'movement_type',kind,'effective_date',dt,'message','已有相同的調店紀錄或待確認申請，將自動略過'));CONTINUE;
+    END IF;
+    IF NOT EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND store_id=from_sid)
+     OR EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND employee_name IS DISTINCT FROM item->>'employee_name') THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED'; END IF;
+    INSERT INTO store_transfer_requests(employee_code,employee_name,from_store_id,to_store_id,status,notes,created_by,requested_date)
+    VALUES(code,item->>'employee_name',from_sid,to_sid,'pending',nullif(item->>'notes',''),p_actor,dt) RETURNING id INTO mid;
+    xfer:=xfer+1;
+
+   ELSE
+    IF (SELECT count(*) FROM store_employees WHERE employee_code=code AND store_id IS NOT DISTINCT FROM sid)>1 THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED'; END IF;
+    SELECT * INTO emp FROM store_employees WHERE employee_code=code AND store_id IS NOT DISTINCT FROM sid;
+    IF kind='return_to_work' AND emp.id IS NULL AND sid IS NOT NULL THEN
+     -- 復職不一定回原店：在指定門市建立主檔列，原店列（留停中）停用。
+     SELECT * INTO source FROM store_employees WHERE employee_code=code ORDER BY is_active DESC,last_movement_date DESC NULLS LAST LIMIT 1;
+     IF FOUND AND source.employee_name IS NOT DISTINCT FROM item->>'employee_name' THEN
+      INSERT INTO store_employees(store_id,user_id,employee_code,employee_name,position,current_position,employment_type,is_pharmacist,is_active,start_date,birthday,employment_status,last_promotion_date,last_movement_date,last_movement_type)
+      VALUES(sid,source.user_id,code,source.employee_name,source.position,source.current_position,source.employment_type,source.is_pharmacist,false,source.start_date,source.birthday,'leave_without_pay',source.last_promotion_date,source.last_movement_date,source.last_movement_type);
+      SELECT * INTO emp FROM store_employees WHERE employee_code=code AND store_id=sid;
+     END IF;
+    END IF;
+    IF emp.id IS NULL AND kind<>'onboarding' THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED'; END IF;
+    IF EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND employee_name IS DISTINCT FROM item->>'employee_name') THEN RAISE EXCEPTION 'WORKSPACE_EMPLOYEE_CHANGED'; END IF;
+    IF kind='onboarding' AND EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND is_active AND store_id IS DISTINCT FROM sid) THEN RAISE EXCEPTION 'WORKSPACE_OTHER_STORE'; END IF;
+    IF kind='return_to_work' AND EXISTS(SELECT 1 FROM store_employees WHERE employee_code=code AND is_active AND employment_status IS DISTINCT FROM 'leave_without_pay' AND store_id IS DISTINCT FROM sid) THEN RAISE EXCEPTION 'WORKSPACE_OTHER_STORE'; END IF;
+    IF kind='promotion' THEN
+     output:=workspace_promotion_save(p_actor,gen_random_uuid(),sid,jsonb_build_array(item),workspace_promotion_snapshot(sid,jsonb_build_array(item)));
+     mid:=(output->'ids'->>0)::uuid;
+    ELSE
+     oldval:=coalesce(emp.employment_status,'active');newval:=oldval;note:=nullif(item->>'notes','');uid:=NULL;
+     IF kind='onboarding' THEN
+      IF nullif(item->>'birthday','') IS NULL OR (item->>'birthday')::date>dt OR jsonb_typeof(item->'onboarding_is_pharmacist') IS DISTINCT FROM 'boolean' THEN RAISE EXCEPTION 'WORKSPACE_INVALID'; END IF;
+      newval:='active';oldval:=NULL;
+      note:=concat_ws('；',note,'是否藥師:'||CASE WHEN (item->>'onboarding_is_pharmacist')::boolean THEN '是' ELSE '否' END);
+      IF orgid IS NOT NULL THEN
+       SELECT * INTO unit FROM organization_units WHERE id=orgid AND status='active' AND type<>'company';
+       IF NOT FOUND OR EXISTS(SELECT 1 FROM organization_units WHERE parent_id=orgid AND status='active') THEN RAISE EXCEPTION 'WORKSPACE_ORGANIZATION'; END IF;
+       IF EXISTS(WITH RECURSIVE ancestors AS (SELECT id,parent_id,status,ARRAY[id] path FROM organization_units WHERE id=orgid UNION ALL SELECT u.id,u.parent_id,u.status,a.path||u.id FROM organization_units u JOIN ancestors a ON u.id=a.parent_id WHERE NOT u.id=ANY(a.path)) SELECT 1 FROM ancestors WHERE status<>'active' OR (parent_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM organization_units WHERE id=ancestors.parent_id))) THEN RAISE EXCEPTION 'WORKSPACE_ORGANIZATION'; END IF;
+       IF NOT EXISTS(WITH RECURSIVE chain AS (SELECT id,parent_id,type,ARRAY[id] path FROM organization_units WHERE id=orgid UNION ALL SELECT u.id,u.parent_id,u.type,c.path||u.id FROM organization_units u JOIN chain c ON u.id=c.parent_id WHERE NOT u.id=ANY(c.path)) SELECT 1 FROM chain WHERE parent_id IS NULL) THEN RAISE EXCEPTION 'WORKSPACE_ORGANIZATION'; END IF;
+       IF EXISTS(SELECT 1 FROM organization_units WHERE type='headquarters' AND status='active') AND NOT EXISTS(WITH RECURSIVE chain AS (SELECT id,parent_id,type,ARRAY[id] path FROM organization_units WHERE id=orgid UNION ALL SELECT u.id,u.parent_id,u.type,c.path||u.id FROM organization_units u JOIN chain c ON u.id=c.parent_id WHERE NOT u.id=ANY(c.path)) SELECT 1 FROM chain WHERE type='headquarters' AND id<>orgid) THEN RAISE EXCEPTION 'WORKSPACE_ORGANIZATION'; END IF;
+       IF (SELECT count(*) FROM profiles WHERE employee_code=code)<>1 THEN RAISE EXCEPTION 'WORKSPACE_ORG_PROFILE'; END IF;
+       SELECT id INTO uid FROM profiles WHERE employee_code=code;
+       newval:=unit.code||' '||unit.name;note:=concat_ws('；',note,'任職組織:'||newval);
+       UPDATE organization_memberships SET status='inactive',effective_to=dt,is_primary=false,updated_by=p_actor,updated_at=now() WHERE user_id=uid AND membership_type='primary_department' AND status='active' AND effective_to IS NULL;
+       IF EXISTS(SELECT 1 FROM organization_memberships WHERE user_id=uid AND organization_unit_id=orgid AND membership_type='primary_department') THEN
+        UPDATE organization_memberships SET status='active',effective_from=dt,effective_to=NULL,is_primary=true,membership_role='member',updated_by=p_actor,updated_at=now() WHERE user_id=uid AND organization_unit_id=orgid AND membership_type='primary_department';
+       ELSE
+        INSERT INTO organization_memberships(organization_unit_id,user_id,membership_role,membership_type,effective_from,status,is_primary,created_by,updated_by) VALUES(orgid,uid,'member','primary_department',dt,'active',true,p_actor,p_actor);
+       END IF;
+      END IF;
+      IF emp.id IS NULL THEN
+       INSERT INTO store_employees(store_id,user_id,employee_code,employee_name,position,current_position,employment_type,is_pharmacist,is_active,employment_status,start_date,birthday,last_movement_date,last_movement_type)
+       VALUES(sid,uid,code,item->>'employee_name',CASE WHEN code LIKE 'FKPT%' THEN CASE WHEN (item->>'onboarding_is_pharmacist')::boolean THEN '兼職藥師' ELSE '兼職助理' END ELSE '新人' END,CASE WHEN code LIKE 'FKPT%' THEN CASE WHEN (item->>'onboarding_is_pharmacist')::boolean THEN '兼職藥師' ELSE '兼職助理' END ELSE '新人' END,CASE WHEN code LIKE 'FKPT%' THEN 'part_time' ELSE 'full_time' END,(item->>'onboarding_is_pharmacist')::boolean,true,'active',dt,(item->>'birthday')::date,dt,kind);
+      ELSE
+       UPDATE store_employees SET is_active=true,employment_status='active',start_date=dt,birthday=(item->>'birthday')::date,is_pharmacist=(item->>'onboarding_is_pharmacist')::boolean,last_movement_date=dt,last_movement_type=kind WHERE id=emp.id AND (last_movement_date IS NULL OR last_movement_date<=dt);
+      END IF;
+     ELSIF kind='acting_manager' THEN
+      oldval:=nullif(coalesce(emp.current_position,emp.position),'代理店長');newval:='代理店長';
+     ELSIF kind='pass_probation' THEN
+      oldval:=coalesce(emp.current_position,emp.position);newval:=coalesce(oldval,'過試用期');
+     ELSE
+      newval:=CASE kind WHEN 'leave_without_pay' THEN 'leave_without_pay' WHEN 'resignation' THEN 'resigned' ELSE 'active' END;
+      UPDATE store_employees SET employment_status=newval,is_active=(newval<>'resigned') WHERE id=emp.id AND (last_movement_date IS NULL OR last_movement_date<=dt);
+      IF kind='return_to_work' THEN UPDATE store_employees SET is_active=false,employment_status='resigned' WHERE employee_code=code AND id<>emp.id AND is_active AND (last_movement_date IS NULL OR last_movement_date<=dt); END IF;
+     END IF;
+     IF kind<>'onboarding' THEN UPDATE store_employees SET last_movement_date=dt,last_movement_type=kind WHERE id=emp.id AND (last_movement_date IS NULL OR last_movement_date<=dt); END IF;
+     INSERT INTO employee_movement_history(employee_code,employee_name,store_id,movement_type,movement_date,old_value,new_value,notes,created_by,onboarding_is_pharmacist,created_at)
+     VALUES(code,item->>'employee_name',sid,kind,dt,oldval,newval,note,p_actor,CASE WHEN kind='onboarding' THEN (item->>'onboarding_is_pharmacist')::boolean END,clock_timestamp()) RETURNING id INTO mid;
+     PERFORM workspace_roster_recompute(p_actor,code,to_char(dt,'YYYY-MM'),NULL,NULL,true,false,kind,mid::text,
+      CASE kind WHEN 'onboarding' THEN '入職' WHEN 'acting_manager' THEN '代理' WHEN 'leave_without_pay' THEN '留職停薪' WHEN 'return_to_work' THEN '復職' WHEN 'pass_probation' THEN '過試用期' WHEN 'resignation' THEN '離職' ELSE kind END||'（'||dt||'）');
+     IF kind IN('acting_manager','pass_probation') THEN PERFORM workspace_employee_master_position_sync(code); END IF;
+    END IF;
+   END IF;
+   ids:=ids||jsonb_build_array(jsonb_build_object('row',rowno,'id',mid,'pending_transfer_request',kind='store_transfer'));
+  EXCEPTION WHEN OTHERS THEN RAISE EXCEPTION USING MESSAGE=SQLERRM,DETAIL='row='||rowno; END;
+ END LOOP;
+ output:=jsonb_build_object('created',jsonb_array_length(ids),'records',ids,'requestId',p_request,'skipped',skipped,'transferRequests',xfer);
+ INSERT INTO workspace_movement_requests(request_id,actor_id,payload,result) VALUES(p_request,p_actor,p_rows,output);
+ RETURN output;
+END;
+$$;
 UPDATE public.store_transfer_confirmations SET side='from' WHERE side IN('both','admin');
 ALTER TABLE public.store_transfer_confirmations DROP CONSTRAINT IF EXISTS store_transfer_confirmations_side_check;
 ALTER TABLE public.store_transfer_confirmations ADD CONSTRAINT store_transfer_confirmations_side_check CHECK(side IN('from','to'));
@@ -539,6 +720,8 @@ ALTER TABLE public.store_transfer_confirmations DROP CONSTRAINT IF EXISTS store_
 ALTER TABLE public.store_transfer_confirmations DROP CONSTRAINT IF EXISTS store_transfer_confirmations_request_id_side_key;
 ALTER TABLE public.store_transfer_confirmations ADD CONSTRAINT store_transfer_confirmations_request_id_side_key UNIQUE(request_id,side);
 ALTER TABLE public.store_transfer_requests DROP COLUMN IF EXISTS acting_ended;
+ALTER TABLE public.store_transfer_requests DROP COLUMN IF EXISTS continue_acting;
+ALTER TABLE public.store_transfer_requests DROP COLUMN IF EXISTS acting_movement_id;
 ALTER TABLE public.store_employees DROP COLUMN IF EXISTS newbie_level;
 NOTIFY pgrst,'reload schema';
 COMMIT;
