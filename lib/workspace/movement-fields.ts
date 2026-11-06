@@ -10,7 +10,8 @@ export const movementTypes=[
 ] as const;
 export const MAX_MOVEMENT_ROWS=500;
 const fields=['employee_code','employee_name','store_id','movement_type','birthday','position','newbie_level','effective_date','notes','from_store_id','to_store_id'] as const;
-export type MovementDraft=Record<typeof fields[number],string>&{onboarding_is_pharmacist:boolean};
+/** continue_acting：調店列勾選「新店續任代理店長」（H.5，預設不勾，只在 true 時出現）。 */
+export type MovementDraft=Record<typeof fields[number],string>&{onboarding_is_pharmacist:boolean;continue_acting?:boolean};
 export type MovementIssue={row:number;field:string;message:string};
 const uuid=(value:string)=>/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 
@@ -41,6 +42,7 @@ export function validateMovementFields(input:unknown,today:string){
    if(!uuid(r.to_store_id))add('to_store_id','請選擇新任職門市');
    if(r.from_store_id&&r.from_store_id===r.to_store_id)add('to_store_id','原任職與新任職門市不可相同');
    r.store_id=r.to_store_id;
+   if(raw.continue_acting===true)r.continue_acting=true;
   }else{
    const org=r.store_id.startsWith('org:');
    if(org?(r.movement_type!=='onboarding'||!uuid(r.store_id.slice(4))):!uuid(r.store_id))add('store_id','請選擇任職門市；總部組織僅供入職使用');

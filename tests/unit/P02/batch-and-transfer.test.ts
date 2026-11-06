@@ -5,9 +5,9 @@ import { transferMonthPlan } from '../../../lib/workspace/transfer-months';
 import { validateMovementReferences } from '../../../lib/workspace/movement-references';
 import type { MovementDraft } from '../../../lib/workspace/movement-fields';
 
-// P02 單元層（M2 規格 D.1、D.2）：
+// P02 單元層（M2 規格 D.1、D.2→H.1／H.7、H.5）：
 //   D.1 重複列略過（不再當錯誤）；D.2 調店不再因已送審月份整筆拒絕，改列出不會被修改的月份；
-//   批次輸入的調店只建立待確認申請（員工主檔要等兩側督導都確認才換門市）。
+//   批次輸入的調店只建立待確認申請（員工主檔要等任一方督導確認才換門市，H.1）。
 //   SQL 的行為由整合層（tests/integration/P02.stores-people）回讀資料庫驗證；這裡檢查 SQL／rollback 的結構與純函式。
 
 const ROOT = path.resolve(__dirname, '..', '..', '..');
@@ -76,34 +76,56 @@ describe('D.1 異動批次：完全重複列略過、調店只是待確認申請
 });
 
 describe('SQL 結構（20261106200000_p02_d_batch_transfer）', () => {
-  it('兩店確認紀錄：每申請每側一筆，管理員代確認有 is_proxy，申請刪除時一併清除', () => {
+  it('H.1 確認紀錄：每申請只有一筆（from／to／both／admin），管理員代確認有 is_proxy，申請刪除時一併清除', () => {
     expect(SQL).toContain('CREATE TABLE IF NOT EXISTS public.store_transfer_confirmations');
-    expect(SQL).toMatch(/side text NOT NULL CHECK\(side IN\('from','to'\)\)/);
+    expect(SQL).toMatch(/side text NOT NULL CHECK\(side IN\('from','to','both','admin'\)\)/);
     expect(SQL).toContain('is_proxy boolean NOT NULL DEFAULT false');
-    expect(SQL).toContain('UNIQUE(request_id,side)');
+    expect(SQL).toContain('UNIQUE(request_id)');
     expect(SQL).toContain('ON DELETE CASCADE');
     expect(SQL).toContain('ADD COLUMN IF NOT EXISTS requested_date date');
   });
-  it('確認函式：只有督導（role_type=supervisor）或系統管理員可確認某一側；兩側齊全才寫異動', () => {
+  it('H.1／H.7 確認函式：原店或新店任一位督導（role_type=supervisor）或系統管理員確認即寫異動；店長不能確認', () => {
     const f = fn(SQL, 'workspace_transfer_confirm');
     expect(f).toContain("role_type='supervisor'");
-    expect(f).toContain('WORKSPACE_SIDE_DONE');
     expect(f).toContain('WORKSPACE_DATE_REQUIRED');
-    expect(f).toContain('will_complete');
-    // 單側確認直接回傳，不會走到寫入異動
-    expect(f.indexOf("'status','pending'")).toBeLessThan(f.indexOf("INSERT INTO employee_movement_history"));
+    // 不再有「等另一側」的待確認路徑
+    expect(f).not.toContain('will_complete');
+    expect(f).not.toContain('WORKSPACE_SIDE_DONE');
+    expect(f).not.toContain("'waitingFor'");
+    // 店長（role_type=store_manager）不在可確認名單；沒有督導指派也不是管理員 → 拒絕
+    expect(f).not.toContain("role_type='store_manager'");
+    expect(f).toContain('NOT sup_from AND NOT sup_to AND NOT coalesce(is_admin,false)');
+    // 確認紀錄記下哪一方：兩店都是同一位督導 → both；管理員代確認 → admin
+    expect(f).toContain("WHEN sup_from AND sup_to THEN 'both'");
+    expect(f).toContain("ELSE 'admin'");
+    // 確認時主檔換店並回寫名冊
+    expect(f).toContain('UPDATE store_employees SET is_active=false');
+    expect(f).toContain('workspace_roster_recompute');
     // 舊版「任一店 store_managers 就可確認」已移除
     expect(f).not.toContain('store_id IN(req.from_store_id,req.to_store_id)) THEN RAISE EXCEPTION');
     // A.2／B.1 不再整筆拒絕
     expect(f).not.toContain('WORKSPACE_MONTH_LOCKED');
     expect(f).not.toContain('WORKSPACE_LATER_MOVEMENT');
   });
+  it('H.5 修訂：確認時依申請答案在新店自動登記代理，答「否」則代理註記隨調店結束', () => {
+    const f = fn(SQL, 'workspace_transfer_confirm');
+    expect(f).toContain('workspace_acting_active');
+    expect(f).toContain('keep_acting');
+    expect(f).toContain("'acting_manager'");
+    expect(f).toContain('acting_movement_id');
+    expect(f).toContain('acting_ended=(was_acting AND NOT keep_acting)');
+    expect(SQL).toContain('continue_acting boolean NOT NULL DEFAULT false');
+    // 批次調店列：預設不續任，只有確實是代理店長才記下
+    const save = fn(SQL, 'workspace_movement_save');
+    expect(save).toContain('continue_acting');
+    expect(save).toContain('workspace_acting_active(code,from_sid,dt)');
+  });
   it('批次輸入的調店列只建立待確認申請，不直接寫調店異動', () => {
     const f = fn(SQL, 'workspace_movement_save');
     expect(f).toContain('INSERT INTO store_transfer_requests');
     expect(f).toContain("'pending'");
     const transferBlock = f.slice(f.indexOf("IF kind='store_transfer' THEN"), f.indexOf('ELSE', f.indexOf("IF kind='store_transfer' THEN")));
-    expect(transferBlock).not.toContain("INSERT INTO employee_movement_history");
+    expect(transferBlock).not.toContain('INSERT INTO employee_movement_history');
     expect(transferBlock).not.toContain('UPDATE store_employees');
   });
   it('完全重複的列略過並回報（異動批次、批次升遷、員工匯入），不再整批擋下', () => {
@@ -118,26 +140,50 @@ describe('SQL 結構（20261106200000_p02_d_batch_transfer）', () => {
   it('rollback 還原函式並移除確認紀錄與欄位', () => {
     expect(ROLLBACK).toContain('DROP TABLE IF EXISTS public.store_transfer_confirmations');
     expect(ROLLBACK).toContain('DROP COLUMN IF EXISTS requested_date');
+    expect(ROLLBACK).toContain('DROP COLUMN IF EXISTS acting_ended');
+    expect(ROLLBACK).toContain('DROP COLUMN IF EXISTS continue_acting');
     expect(ROLLBACK).toContain('FUNCTION public.workspace_transfer_confirm(');
     expect(fn(ROLLBACK, 'workspace_transfer_confirm')).toContain('WORKSPACE_MONTH_DUPLICATE');
     expect(fn(ROLLBACK, 'workspace_employee_import_check')).not.toContain('duplicates');
   });
+  it('m2h 檔：確認紀錄限制改為一筆、新欄位冪等、rollback 還原舊函式', () => {
+    const m2h = read('supabase/workspace-dev/20261107100000_m2h_stage_and_transfer_confirm.sql');
+    const rb = read('supabase/workspace-dev/20261107100000_m2h_stage_and_transfer_confirm.rollback.sql');
+    expect(m2h).toContain('ADD COLUMN IF NOT EXISTS continue_acting');
+    expect(m2h).toContain('ADD COLUMN IF NOT EXISTS acting_movement_id');
+    expect(m2h).toContain("CHECK(side IN('from','to','both','admin'))");
+    expect(m2h).toContain('store_transfer_confirmations_request_uidx');
+    expect(rb).toContain("CHECK(side IN('from','to'))");
+    expect(rb).toContain('FUNCTION public.workspace_transfer_confirm(');
+    expect(rb).toContain('FUNCTION public.workspace_movement_save(');
+    expect(rb).toContain('DROP COLUMN IF EXISTS continue_acting');
+  });
 });
 
 describe('API 與介面', () => {
-  it('調店確認走 workspace API，單側確認不需日期，兩側齊全才要求日期與核對版本', () => {
+  it('H.1 調店確認走 workspace API：一定要生效日期與核對版本，任一方督導確認即成立', () => {
     const api = read('app/api/workspace/transfers/confirm/route.ts');
-    expect(api).toContain('completes');
+    expect(api).not.toContain('completes');
     expect(api).toContain('workspace_transfer_confirm');
-    expect(api).toContain('p_date:completes?body.effective_date:null');
+    expect(api).toContain('p_date:body.effective_date');
+    expect(api).toContain('access.canConfirm(row)');
+    const lib = read('lib/workspace/transfers.ts');
+    expect(lib).toContain('supervised.has(r.from_store_id)||supervised.has(r.to_store_id)');
+    expect(lib).not.toContain("'store_manager'");
   });
-  it('調店頁顯示兩位督導各自的確認狀態與代確認標記', () => {
+  it('調店頁顯示由哪一方、哪位督導確認（或管理員代確認），並提示新店是否續任代理', () => {
     const page = read('vue-workspace/src/pages/Transfers.vue');
     expect(page).toContain('督導');
     expect(page).toContain('系統管理員代確認');
+    expect(page).toContain('transfer-confirmation');
+    expect(page).toContain('acting-continue-tag');
     const dialog = read('vue-workspace/src/components/TransferConfirm.vue');
-    expect(dialog).toContain('approveSide');
-    expect(dialog).toContain('willComplete');
+    expect(dialog).not.toContain('approveSide');
+    expect(dialog).not.toContain('willComplete');
+    expect(dialog).toContain('transfer-confirm-who');
+    const create = read('vue-workspace/src/components/TransferCreate.vue');
+    expect(create).toContain('新任職的門市是否也擔任代理店長');
+    expect(read('vue-workspace/src/pages/MovementDraft.vue')).toContain('acting-continue');
   });
   it('F.3：門市列表顯示已停止數量、店長指派提示已有店長', () => {
     expect(read('vue-workspace/src/pages/Stores.vue')).toContain('inactiveCount');

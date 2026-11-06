@@ -10,7 +10,7 @@ export async function POST(request:Request){try{
  if(!uuid(body?.id))throw new WorkspaceError(400,'申請編號不正確');const dateError=getMovementDateError(body.effective_date);if(dateError)throw new WorkspaceError(400,dateError);
  const row=checked(await ctx.auth.from('store_transfer_requests').select('*').eq('id',body.id).maybeSingle());
  if(!row||!access.canRead(row))throw new WorkspaceError(404,'找不到可查看的調店申請');
- if(!access.confirm||!(access.admin||access.supervised.has(row.from_store_id)||access.supervised.has(row.to_store_id)))throw new WorkspaceError(403,'只有原店或新店督導（或系統管理員代確認）可以確認此調店申請');
+ if(!access.canConfirm(row))throw new WorkspaceError(403,'只有原店或新店督導（或系統管理員代確認）可以確認此調店申請');
  if(row.status!=='pending')throw new WorkspaceError(409,'此申請已被處理，請重新整理確認');
  // Scoped authorization above allows both ends of this particular request to be checked.
  // Do not return other employees' monthly records or expose a general service-role catalog.
@@ -33,6 +33,8 @@ export async function POST(request:Request){try{
  const active=employees.filter(e=>e.is_active);
  if(active.length!==1||active[0]?.store_id!==row.from_store_id||active[0]?.employee_name!==row.employee_name||employees.filter(e=>e.store_id===row.to_store_id).length>1)plan.conflicts.push('員工主檔與申請不符，請核對姓名及原任職門市');
  const backdated=!!(later?.length||employees.some(e=>e.last_movement_date>body.effective_date));
+ // H.5：原店仍是代理店長者，依申請上的答案決定新店是否自動續任代理，或代理註記隨調店結束。
+ const actingNow=checked(await ctx.admin.rpc('workspace_acting_active',{p_code:row.employee_code,p_store:row.from_store_id,p_until:body.effective_date}))===true,continueActing=actingNow&&!!row.continue_acting;
  if(version!==checked(await ctx.admin.rpc('workspace_transfer_snapshot',{p_id:row.id})))throw new WorkspaceError(409,'資料在核對期間變更，請重新核對');
- return respond({version,id:row.id,employee_code:row.employee_code,employee_name:row.employee_name,effective_date:body.effective_date,...plan,validationOnly:false,canSubmit:plan.conflicts.length===0,backdated,lockedMonths:plan.lockedMonths});
+ return respond({version,id:row.id,employee_code:row.employee_code,employee_name:row.employee_name,effective_date:body.effective_date,...plan,validationOnly:false,canSubmit:plan.conflicts.length===0,backdated,actingNow,continueActing,lockedMonths:plan.lockedMonths});
 }catch(e){return failed(e);}}

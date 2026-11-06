@@ -9,15 +9,16 @@ export async function GET(request:Request){try{
  const storeIds=Array.from(new Set<string>(rows.flatMap(r=>[r.from_store_id,r.to_store_id]))),storeNames=new Map<string,any>();
  for(let i=0;i<storeIds.length;i+=100){const stores=checked(await ctx.admin.from('stores').select('id,store_code,store_name').in('id',storeIds.slice(i,i+100)))||[];for(const s of stores)storeNames.set(s.id,s);}
  for(const row of rows){row.from_store=storeNames.get(row.from_store_id)||row.from_store;row.to_store=storeNames.get(row.to_store_id)||row.to_store;}
- // D.2：兩店督導各自的確認狀態（含系統管理員代確認紀錄）與兩店督導名單。
+ // H.1：確認紀錄（哪一方、哪位督導或管理員代確認）與兩店督導名單。
  const requestIds=rows.map(r=>r.id),confirmations=new Map<string,any[]>(),supervisorsByStore=new Map<string,string[]>();
  for(let i=0;i<requestIds.length;i+=100){for(const c of checked(await ctx.admin.from('store_transfer_confirmations').select('request_id,side,confirmed_by,is_proxy,created_at').in('request_id',requestIds.slice(i,i+100)))||[])confirmations.set(c.request_id,[...(confirmations.get(c.request_id)||[]),c]);}
  const supRows:any[]=[];for(let i=0;i<storeIds.length;i+=100)supRows.push(...(checked(await ctx.admin.from('store_managers').select('store_id,user_id').eq('role_type','supervisor').in('store_id',storeIds.slice(i,i+100)))||[]));
  const ids=Array.from(new Set<string>([...rows.flatMap(r=>[r.created_by,r.confirmed_by,r.corrected_by]),...Array.from(confirmations.values()).flat().map(c=>c.confirmed_by),...supRows.map(r=>r.user_id)].filter(Boolean))),names=new Map<string,string>();
  for(let i=0;i<ids.length;i+=100){const profiles=checked(await ctx.admin.from('profiles').select('id,full_name').in('id',ids.slice(i,i+100)))||[];for(const p of profiles)names.set(p.id,p.full_name||'未提供姓名');}
  for(const r of supRows)supervisorsByStore.set(r.store_id,[...(supervisorsByStore.get(r.store_id)||[]),names.get(r.user_id)||'未提供姓名']);
- const sideState=(r:any,side:'from'|'to')=>{const c=(confirmations.get(r.id)||[]).find(x=>x.side===side);return c?{confirmed:true,by_name:names.get(c.confirmed_by)||'未提供姓名',at:c.created_at,proxy:!!c.is_proxy}:{confirmed:false,by_name:null,at:null,proxy:false};};
- return respond({rows:rows.map(r=>{const done=(confirmations.get(r.id)||[]).map((c:any)=>c.side as 'from'|'to'),mine=r.status==='pending'?access.sides(r,done):[];return {...r,confirmations:{from:sideState(r,'from'),to:sideState(r,'to')},supervisors:{from:supervisorsByStore.get(r.from_store_id)||[],to:supervisorsByStore.get(r.to_store_id)||[]},mySides:mine,canConfirm:mine.length>0,willComplete:mine.length>0&&done.length+mine.length>=2,creator_name:names.get(r.created_by)||null,confirmer_name:names.get(r.confirmed_by)||null,corrector_name:names.get(r.corrected_by)||null,canReject:r.status==='pending'&&access.canReject(r),canCorrect:r.status==='confirmed'&&!!r.effective_date&&!!r.movement_history_id&&access.canReject(r)};}),status,canCreate:access.create});
+ // H.1：確認紀錄只有一筆：由哪一方（原店／新店督導）、哪位督導，或系統管理員代確認。
+ const confirmationOf=(r:any)=>{const c=(confirmations.get(r.id)||[])[0];return c?{side:c.side as string,by_name:names.get(c.confirmed_by)||'未提供姓名',at:c.created_at,proxy:!!c.is_proxy||c.side==='admin'}:null;};
+ return respond({rows:rows.map(r=>{const mine=r.status==='pending'?access.canConfirm(r):false;return {...r,confirmation:confirmationOf(r),supervisors:{from:supervisorsByStore.get(r.from_store_id)||[],to:supervisorsByStore.get(r.to_store_id)||[]},canConfirm:mine,mySide:mine?access.sideOf(r):null,creator_name:names.get(r.created_by)||null,confirmer_name:names.get(r.confirmed_by)||null,corrector_name:names.get(r.corrected_by)||null,canReject:r.status==='pending'&&access.canReject(r),canCorrect:r.status==='confirmed'&&!!r.effective_date&&!!r.movement_history_id&&access.canReject(r)};}),status,canCreate:access.create});
 }catch(e){return failed(e);}}
 export async function POST(request:Request){try{
  checkOrigin(request);const access=await transferAccess(),{ctx}=access;

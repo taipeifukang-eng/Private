@@ -247,7 +247,7 @@ test.describe('P02 員工匯入對等（同一份 Excel 送新舊匯入 API）',
   });
 });
 
-test.describe('P02 調店確認對等（D.2）', () => {
+test.describe('P02 調店確認對等（H.1，取代 D.2）', () => {
   test.describe.configure({ mode: 'serial' });
   let admin: APIRequestContext;
   let sup: APIRequestContext;
@@ -282,7 +282,7 @@ test.describe('P02 調店確認對等（D.2）', () => {
   const hist = async (c: string) => (await historyOf(c)).map((h) => [h.movement_type, h.movement_date, h.old_value, h.new_value].join('|'));
   const active = async (c: string) => (await masterOf(c)).filter((m) => m.is_active).map((m) => storeOf[m.store_id]).join(',');
 
-  test('申請確認：舊版確認一次就生效、新版第一位督導確認後仍待確認（D.2 已核可差異）；兩側都確認後結果相同', async () => {
+  test('申請確認：舊版與新版都是任一督導（或管理員）確認一次就生效（H.1，取代 D.2 雙方確認）；生效後申請狀態與異動歷史相同', async () => {
     await seedMaster(code.tL, NAME('調店舊'), st.ZT01);
     await seedMaster(code.tN, NAME('調店新'), st.ZT01);
     const created = await admin.post('/api/store-transfer-requests', { data: { employee_code: code.tL, employee_name: NAME('調店舊'), from_store_id: st.ZT01, to_store_id: st.ZT04, notes: '' } });
@@ -295,21 +295,16 @@ test.describe('P02 調店確認對等（D.2）', () => {
     // 舊版對未來生效日只記錄、不立刻換主檔門市（新版確認後立即更新，M1 已核可），所以兩邊都用過去日期，只比較督導確認規則。
     const lc = await admin.post(`/api/store-transfer-requests/${legacyId}/confirm`, { data: { effective_date: '2026-10-05' } });
     expect(lc.status(), await lc.text()).toBe(200);
-    const nc = await sup.post('/api/workspace/transfers/confirm', { data: { id: nativeId } });
-    expect(nc.status(), await nc.text()).toBe(200);
-    const afterFirst = async (c: string): Promise<Facts> => ({ statusAfterFirstConfirm: (await transferRequestsOf(c))[0]?.status, historyAfterFirstConfirm: (await hist(c)).length, activeStoreAfterFirstConfirm: await active(c) });
-    const first = { legacy: await afterFirst(code.tL), native: await afterFirst(code.tN) };
-
-    // 新版：新店督導確認（兩側齊全）
-    const pv = await ops.post('/api/workspace/transfers/preview', { data: { id: nativeId, effective_date: '2026-10-05' } });
+    // 新版：原店督導一個人確認即生效
+    const pv = await sup.post('/api/workspace/transfers/preview', { data: { id: nativeId, effective_date: '2026-10-05' } });
     expect(pv.status(), await pv.text()).toBe(200);
-    const done = await ops.post('/api/workspace/transfers/confirm', { data: { id: nativeId, effective_date: '2026-10-05', version: (await pv.json()).version } });
+    const done = await sup.post('/api/workspace/transfers/confirm', { data: { id: nativeId, effective_date: '2026-10-05', version: (await pv.json()).version } });
     expect(done.status(), await done.text()).toBe(200);
     const fin = async (c: string): Promise<Facts> => ({ finalStatus: (await transferRequestsOf(c))[0]?.status, finalHistory: await hist(c), finalActiveStore: await active(c) });
     record(
-      'transfer-confirm-two-sides', '調店申請確認：第一位督導確認後與兩側確認後', 'write-readback',
+      'transfer-confirm-any-supervisor', '調店申請確認：一位督導確認後', 'write-readback',
       'POST /api/store-transfer-requests/[id]/confirm', 'POST /api/workspace/transfers/confirm',
-      { ...first.legacy, ...(await fin(code.tL)) }, { ...first.native, ...(await fin(code.tN)) },
+      await fin(code.tL), await fin(code.tN),
     );
   });
 

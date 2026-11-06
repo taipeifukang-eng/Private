@@ -24,7 +24,7 @@ import {
 // P02 整合層（M2 規格 D.1、D.2、F.3、F.4）：
 //   F.4 角色權限矩陣：11 頁對應的 workspace API，用 role-matrix 角色驗證允許與拒絕（未登入 401）。
 //   D.1 員工匯入、異動批次、批次升遷：整批原子；完全重複且已存在的列自動略過並列在結果；其他錯誤整批不存。
-//   D.2 調店：原店與新店督導都確認才生效；同一督導確認一次；系統管理員可代確認並留紀錄；批次的調店列建立為待確認申請。
+//   D.2→H.1／H.7 調店：原店或新店任一位督導確認即生效（side=from／to／both）；系統管理員可代確認並留紀錄（side=admin）；店長不能確認；批次的調店列建立為待確認申請。
 //   F.3 地圖預設只看營運中（有權限才可勾選已停止）、門市列表「已停止數量」。
 // 員編只用 FKF6xxxx／FKPT7xx／FK6xxx、ZT01～ZT04 與保留月份 2099；測試結束清除。
 
@@ -279,15 +279,16 @@ test.describe('D.1 整批原子與完全重複略過', () => {
   });
 });
 
-test.describe('D.2 調店：原店與新店督導都確認才生效', () => {
+test.describe('H.1／H.7 調店：原店或新店任一位督導確認即成立', () => {
   test.describe.configure({ mode: 'serial' });
   let admin: APIRequestContext;
   let sup: APIRequestContext;
   let ops: APIRequestContext;
   let outsider: APIRequestContext;
+  let storeMgr: APIRequestContext;
   let st: Record<string, string> = {};
   let undo: () => Promise<void> = async () => undefined;
-  const code = { two: p02Code('FKF', 11), same: p02Code('FKF', 12), proxy: p02Code('FKF', 13), none: p02Code('FKF', 14), reject: p02Code('FKF', 15) };
+  const code = { toSide: p02Code('FKF', 11), same: p02Code('FKF', 12), proxy: p02Code('FKF', 13), none: p02Code('FKF', 14), reject: p02Code('FKF', 15), from: p02Code('FKF', 16), nodate: p02Code('FKF', 17), mgr: p02Code('FKF', 18) };
   const all = () => Object.values(code);
 
   async function createRequest(c: string, from: string, to: string) {
@@ -312,102 +313,113 @@ test.describe('D.2 調店：原店與新店督導都確認才生效', () => {
   test.beforeAll(async () => {
     st = await p02Stores();
     await purgeP02(all());
-    // `supervisor` 測試帳號已是 ZT01～ZT03 的督導；`ops_manager` 暫時任命為 ZT04 督導，兩者暫時加上調店確認權限。
+    // `supervisor` 測試帳號已是 ZT01～ZT03 的督導；`ops_manager` 暫時任命為 ZT04 督導，兩者暫時加上調店確認權限；
+    // `store_manager`（ZT01 店長）暫時加上調店確認權限，驗證「有權限的店長仍不能確認」。
     undo = await grantTransferSupervisors([
       { roleCode: 'vue_workspace_supervisor', email: 'vue-workspace-supervisor@example.test', stores: [st.ZT01, st.ZT02, st.ZT03] },
       { roleCode: 'vue_workspace_ops_manager', email: 'vue-workspace-ops-manager@example.test', stores: [st.ZT04] },
+      { roleCode: 'vue_workspace_store_manager', email: 'vue-workspace-store-manager@example.test', stores: [] },
     ]);
     admin = await apiAs('admin');
     sup = await apiAs('supervisor');
     ops = await apiAs('ops_manager');
     outsider = await apiAs('store_view');
+    storeMgr = await apiAs('store_manager');
   });
   test.afterAll(async () => {
     await registerP02(all()).catch(() => undefined);
     await purgeP02(all()).catch(() => undefined);
     await undo().catch(() => undefined);
-    for (const api of [admin, sup, ops, outsider]) await api?.dispose();
+    for (const api of [admin, sup, ops, outsider, storeMgr]) await api?.dispose();
   });
 
-  test('兩位不同督導：先確認的一側仍是待確認，兩側都確認才生效，確認畫面資料顯示兩位督導各自狀態', async () => {
-    const id = await createRequest(code.two, st.ZT01, st.ZT04);
-    const before = await rowFor(sup, id);
+  test('新店督導一人確認即生效：確認紀錄只有一筆（新店督導），主檔換到新店，名單顯示由哪一方哪位督導確認', async () => {
+    const id = await createRequest(code.toSide, st.ZT01, st.ZT04);
+    const before = await rowFor(ops, id);
     expect(before.status).toBe('pending');
     expect(before.canConfirm).toBe(true);
-    expect(before.mySides).toEqual(['from']);
-    expect(before.willComplete).toBe(false);
+    expect(before.mySide).toBe('to');
+    expect(before.confirmation).toBeNull();
     expect(before.supervisors.from).toContain('測試督導');
-    expect(before.confirmations.from.confirmed).toBe(false);
-    expect(before.confirmations.to.confirmed).toBe(false);
-    // 原店督導確認：不需要日期，仍是待確認。
-    const first = await sup.post('/api/workspace/transfers/confirm', { data: { id } });
-    expect(first.status(), await first.text()).toBe(200);
-    expect(await first.json()).toMatchObject({ status: 'pending', waitingFor: ['to'] });
-    expect(await historyOf(code.two)).toHaveLength(0);
-    expect((await masterOf(code.two)).filter((m) => m.is_active).map((m) => m.store_id)).toEqual([st.ZT01]);
-    // 同一位督導重複確認：冪等。
-    const repeat = await sup.post('/api/workspace/transfers/confirm', { data: { id } });
-    expect(repeat.status()).toBe(200);
-    expect((await repeat.json()).alreadyConfirmed).toBe(true);
-    // 新店督導：看得到原店已確認，這一次確認會讓兩側齊全，需要生效日。
-    const mid = await rowFor(ops, id);
-    expect(mid.confirmations.from.confirmed).toBe(true);
-    expect(mid.confirmations.from.by_name).toBe('測試督導');
-    expect(mid.confirmations.from.proxy).toBe(false);
-    expect(mid.mySides).toEqual(['to']);
-    expect(mid.willComplete).toBe(true);
+    // 沒有日期與核對版本不能確認（確認就是生效）
     const noDate = await ops.post('/api/workspace/transfers/confirm', { data: { id } });
     expect(noDate.status()).toBe(400);
+    expect(await historyOf(code.toSide)).toHaveLength(0);
     const done = await completeConfirm(ops, id, '2099-08-10');
     expect(done.status(), await done.text()).toBe(200);
-    expect((await done.json()).status).toBe('confirmed');
+    expect(await done.json()).toMatchObject({ status: 'confirmed', side: 'to' });
     const conf = await confirmationsOf(id);
-    expect(conf.map((c) => [c.side, c.is_proxy])).toEqual([['from', false], ['to', false]]);
-    expect(new Set(conf.map((c) => c.confirmed_by)).size).toBe(2);
-    expect((await historyOf(code.two)).map((h) => h.movement_type)).toEqual(['store_transfer']);
-    expect((await masterOf(code.two)).filter((m) => m.is_active).map((m) => m.store_id)).toEqual([st.ZT04]);
+    expect(conf.map((c) => [c.side, c.is_proxy])).toEqual([['to', false]]);
+    expect((await historyOf(code.toSide)).map((h) => h.movement_type)).toEqual(['store_transfer']);
+    expect((await masterOf(code.toSide)).filter((m) => m.is_active).map((m) => m.store_id)).toEqual([st.ZT04]);
+    const after = await rowFor(admin, id);
+    expect(after.status).toBe('confirmed');
+    expect(after.confirmation).toMatchObject({ side: 'to', by_name: expect.any(String), proxy: false });
+    // 同一張申請不能再確認第二次（已被處理）
+    const again = await sup.post('/api/workspace/transfers/preview', { data: { id, effective_date: '2099-08-11' } });
+    expect(again.status()).toBe(409);
   });
 
-  test('同一位督導同時是兩店督導：確認一次即生效', async () => {
-    const id = await createRequest(code.same, st.ZT01, st.ZT02);
-    const row = await rowFor(sup, id);
-    expect(row.mySides).toEqual(['from', 'to']);
-    expect(row.willComplete).toBe(true);
+  test('原店督導一人確認即生效（side=from）', async () => {
+    const id = await createRequest(code.from, st.ZT01, st.ZT04);
+    expect((await rowFor(sup, id)).mySide).toBe('from');
     const done = await completeConfirm(sup, id, '2099-08-11');
     expect(done.status(), await done.text()).toBe(200);
+    expect((await confirmationsOf(id)).map((c) => [c.side, c.is_proxy])).toEqual([['from', false]]);
+    expect((await masterOf(code.from)).filter((m) => m.is_active).map((m) => m.store_id)).toEqual([st.ZT04]);
+  });
+
+  test('同一位督導同時是兩店督導：確認一次即生效（side=both）', async () => {
+    const id = await createRequest(code.same, st.ZT01, st.ZT02);
+    const row = await rowFor(sup, id);
+    expect(row.mySide).toBe('both');
+    const done = await completeConfirm(sup, id, '2099-08-12');
+    expect(done.status(), await done.text()).toBe(200);
     const conf = await confirmationsOf(id);
-    expect(conf).toHaveLength(2);
-    expect(conf.every((c) => c.is_proxy === false)).toBe(true);
-    expect(new Set(conf.map((c) => c.confirmed_by)).size).toBe(1);
+    expect(conf.map((c) => [c.side, c.is_proxy])).toEqual([['both', false]]);
     expect((await historyOf(code.same)).map((h) => h.movement_type)).toEqual(['store_transfer']);
   });
 
-  test('系統管理員可代為確認並留下紀錄（代確認的那一側標記 proxy）', async () => {
+  test('系統管理員可代確認並留下紀錄（side=admin、is_proxy=true）；畫面資料標示代確認', async () => {
     const id = await createRequest(code.proxy, st.ZT01, st.ZT04);
-    expect((await sup.post('/api/workspace/transfers/confirm', { data: { id } })).status()).toBe(200);
     const row = await rowFor(admin, id);
-    expect(row.mySides).toEqual(['to']);
-    const done = await completeConfirm(admin, id, '2099-08-12');
-    expect(done.status(), await done.text()).toBe(200);
-    const conf = await confirmationsOf(id);
-    expect(conf.map((c) => [c.side, c.is_proxy])).toEqual([['from', false], ['to', true]]);
-    const after = await rowFor(admin, id);
-    expect(after.status).toBe('confirmed');
-    expect(after.confirmations.to.proxy).toBe(true);
-  });
-
-  test('不是這兩店督導的人不能確認（403）；管理員一次代兩側時兩側都標記代確認', async () => {
-    const id = await createRequest(code.none, st.ZT02, st.ZT04);
-    const o = await outsider.post('/api/workspace/transfers/confirm', { data: { id } });
-    expect(o.status()).toBe(403);
-    // ops_manager 只是 ZT04 督導，不是 ZT02 督導：只能確認新店一側。
-    const mine = await rowFor(ops, id);
-    expect(mine.mySides).toEqual(['to']);
-    const admRow = await rowFor(admin, id);
-    expect(admRow.mySides).toEqual(['from', 'to']);
+    expect(row.mySide).toBe('admin');
     const done = await completeConfirm(admin, id, '2099-08-13');
     expect(done.status(), await done.text()).toBe(200);
-    expect((await confirmationsOf(id)).map((c) => [c.side, c.is_proxy])).toEqual([['from', true], ['to', true]]);
+    expect((await confirmationsOf(id)).map((c) => [c.side, c.is_proxy])).toEqual([['admin', true]]);
+    const after = await rowFor(admin, id);
+    expect(after.confirmation.proxy).toBe(true);
+  });
+
+  test('H.7 不是這兩店督導的人不能確認（403）；有權限的店長也不能確認；無督導門市只有管理員可代確認', async () => {
+    const id = await createRequest(code.none, st.ZT02, st.ZT04);
+    expect((await outsider.post('/api/workspace/transfers/confirm', { data: { id } })).status()).toBe(403);
+    // 店長（ZT01 店長，已暫時加上確認權限）：即使是這家店的店長也不能確認
+    const mgrId = await createRequest(code.mgr, st.ZT01, st.ZT04);
+    const mgrRow = await rowFor(storeMgr, mgrId);
+    if (mgrRow) expect(mgrRow.canConfirm).toBe(false);
+    const mgrTry = await storeMgr.post('/api/workspace/transfers/preview', { data: { id: mgrId, effective_date: '2099-08-14' } });
+    expect(mgrTry.status()).toBe(403);
+    const mgrConfirm = await storeMgr.post('/api/workspace/transfers/confirm', { data: { id: mgrId, effective_date: '2099-08-14', version: 'a'.repeat(32) } });
+    expect(mgrConfirm.status()).toBe(403);
+    expect(await historyOf(code.mgr)).toHaveLength(0);
+    // ops_manager 只是 ZT04 督導：對 ZT02→ZT04 的申請可以確認（新店督導），不再需要另一側
+    const mine = await rowFor(ops, id);
+    expect(mine.mySide).toBe('to');
+    // 管理員一次確認即可，標記代確認
+    const done = await completeConfirm(admin, id, '2099-08-13');
+    expect(done.status(), await done.text()).toBe(200);
+    expect((await confirmationsOf(id)).map((c) => [c.side, c.is_proxy])).toEqual([['admin', true]]);
+  });
+
+  test('確認一定要生效日期與核對版本（400），錯誤版本 409，不寫任何資料', async () => {
+    const id = await createRequest(code.nodate, st.ZT01, st.ZT04);
+    expect((await sup.post('/api/workspace/transfers/confirm', { data: { id, effective_date: '2099-08-15' } })).status()).toBe(400);
+    const stale = await sup.post('/api/workspace/transfers/confirm', { data: { id, effective_date: '2099-08-15', version: 'b'.repeat(32) } });
+    expect(stale.status()).toBe(409);
+    expect(await historyOf(code.nodate)).toHaveLength(0);
+    expect((await transferRequestsOf(code.nodate))[0].status).toBe('pending');
+    expect(await confirmationsOf(id)).toHaveLength(0);
   });
 
   test('督導仍可拒絕申請，不產生異動', async () => {
