@@ -121,7 +121,7 @@ onMounted(load);
               刪除流程模板
             </button>
             <button
-              v-if="canDeleteAssignment && r.completedAssignments > 0"
+              v-if="canDeleteAssignment && r.count > 0 && r.completed === r.count"
               class="danger"
               @click="begin(r, 'completed')"
             >
