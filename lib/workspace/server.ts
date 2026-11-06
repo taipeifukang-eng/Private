@@ -115,7 +115,13 @@ export const CAMPAIGN_EDIT_CODES = [
   "activity.campaign.edit",
   "activity.manage",
 ];
-export async function context() {
+export type ContextOptions<T = undefined> = {
+  // 預設 true；只有 session 路由需要 profile.full_name，其餘路由傳 false 可少一趟查詢。
+  profile?: boolean;
+  // 在 getUser 之後與 user_roles／profiles 並行執行的額外查詢（例如名冊頁的門市清單），結果放在 ctx.prefetched。
+  prefetch?: (env: { auth: ReturnType<typeof sessionClient>; admin: ReturnType<typeof adminClient>; userId: string }) => Promise<T>;
+};
+export async function context<T = undefined>(options: ContextOptions<T> = {}) {
   const auth = sessionClient();
   const {
     data: { user },
@@ -123,15 +129,23 @@ export async function context() {
   } = await auth.auth.getUser();
   if (error || !user) throw new WorkspaceError(401, "登入已過期，請重新登入");
   const admin = adminClient();
-  const assignments = checked(
-    await admin
+  // getUser 之後三個查詢互不相依，並行送出（原本是 user_roles 再 profiles 序列執行）。
+  const [assignmentsResult, profileResult, prefetched] = await Promise.all([
+    admin
       .from("user_roles")
       .select(
         "is_active,expires_at,role:roles(code,is_active,role_permissions(is_allowed,permission:permissions(code,is_active)))",
       )
       .eq("user_id", user.id)
       .eq("is_active", true),
-  );
+    options.profile === false
+      ? Promise.resolve(null)
+      : admin.from("profiles").select("id,full_name").eq("id", user.id).maybeSingle(),
+    options.prefetch
+      ? options.prefetch({ auth, admin, userId: user.id })
+      : Promise.resolve(undefined as T),
+  ]);
+  const assignments = checked(assignmentsResult);
   const permissions = new Set<string>();
   const roleCodes = new Set<string>();
   let isAdmin = false;
@@ -162,18 +176,12 @@ export async function context() {
       if (rp.is_allowed && p?.is_active) permissions.add(p.code);
     }
   }
-  const profile = checked(
-    await admin
-      .from("profiles")
-      .select("id,full_name")
-      .eq("id", user.id)
-      .maybeSingle(),
-  );
+  const profile = profileResult ? checked(profileResult) : null;
   const has = (...codes: string[]) =>
     isAdmin || codes.some((code) => permissions.has(code));
-  return { auth, admin, user, profile, permissions, roleCodes, isAdmin, has };
+  return { auth, admin, user, profile, permissions, roleCodes, isAdmin, has, prefetched };
 }
-export type Context = Awaited<ReturnType<typeof context>>;
+export type Context = Awaited<ReturnType<typeof context<any>>>;
 export function requireCapability(ctx: Context, codes: string[]) {
   if (!ctx.has(...codes)) throw new WorkspaceError(403, "沒有此功能的操作權限");
 }

@@ -90,7 +90,15 @@ export async function canEnterCampaignView(
   supabase: SupabaseClientLike,
   userId: string
 ): Promise<boolean> {
-  const { viewAll, viewOwn } = await hasCampaignViewPermission(userId);
+  return canEnterCampaignViewWith(supabase, userId, await hasCampaignViewPermission(userId));
+}
+
+/** 同 canEnterCampaignView，但權限結果由呼叫端提供（新版工作台已從角色載入權限，不必再逐碼查三次）。 */
+export async function canEnterCampaignViewWith(
+  supabase: SupabaseClientLike,
+  userId: string,
+  { viewAll, viewOwn }: { viewAll: boolean; viewOwn: boolean }
+): Promise<boolean> {
   if (viewAll) return true;
   if (!viewOwn) return false;
   const [{ data: appointments }, { data: profile }] = await Promise.all([

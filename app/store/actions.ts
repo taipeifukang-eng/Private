@@ -887,37 +887,64 @@ export async function upsertStoreEmployee(data: {
 /**
  * 獲取指定年月、門市的人員狀態列表
  */
-export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) {
+/**
+ * 呼叫端已驗證過使用者／已有 Supabase client 時可傳入，省下重複的 getUser 往返（新版工作台使用）。
+ * 不傳就和以前完全一樣（舊版頁面不受影響）。
+ */
+export type VerifiedCaller = { user?: { id: string } | null; supabase?: any };
+// 這兩個函式同時是 Server Action：只有 server 端傳入 supabase client（無法由瀏覽器序列化）時才相信 caller.user。
+async function resolveCaller(caller: VerifiedCaller) {
+  if (caller.supabase && caller.user) return { supabase: caller.supabase as Awaited<ReturnType<typeof createClient>>, user: caller.user };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return { supabase, user };
+}
+
+export async function getMonthlyStaffStatus(yearMonth: string, storeId: string, caller: VerifiedCaller = {}) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await resolveCaller(caller);
     
     if (!user) {
       return { success: false, error: '未登入', data: [] };
     }
 
-    const { data, error } = await supabase
-      .from('monthly_staff_status')
-      .select(`
+    // 四個查詢互不相依，並行送出（原本循序 4 趟）；只有員工列失敗才中止，其餘失敗維持原本「記錄後略過」。
+    const [staffRes, bonusRes, franchiseRes, currentStoreRes] = await Promise.all([
+      supabase
+        .from('monthly_staff_status')
+        .select(`
         *,
         user:profiles!monthly_staff_status_user_id_fkey(id, email, full_name)
       `)
-      .eq('year_month', yearMonth)
-      .eq('store_id', storeId)
-      .order('employee_code');
+        .eq('year_month', yearMonth)
+        .eq('store_id', storeId)
+        .order('employee_code'),
+      // 查詢上個月單品獎金資料
+      supabase
+        .from('support_staff_bonus')
+        .select('employee_code, bonus_amount')
+        .eq('year_month', yearMonth)
+        .eq('store_id', storeId),
+      // 加盟店門市代碼集合（用於排除個人業績加總）
+      supabase
+        .from('stores')
+        .select('store_code')
+        .eq('is_franchise', true),
+      // 目前頁面門市代碼（若本店是加盟店，仍需保留本店自己的業績）
+      supabase
+        .from('stores')
+        .select('store_code')
+        .eq('id', storeId)
+        .single(),
+    ]);
+    const { data, error } = staffRes;
 
     if (error) {
       console.error('Error fetching monthly staff status:', error);
       return { success: false, error: error.message, data: [] };
     }
 
-    // 查詢上個月單品獎金資料
-    const { data: bonusData, error: bonusError } = await supabase
-      .from('support_staff_bonus')
-      .select('employee_code, bonus_amount')
-      .eq('year_month', yearMonth)
-      .eq('store_id', storeId);
-
+    const { data: bonusData, error: bonusError } = bonusRes;
     if (bonusError) {
       console.error('Error fetching bonus data:', bonusError);
     }
@@ -928,11 +955,7 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
       return matched ? matched[0] : text.trim();
     };
 
-    // 加盟店門市代碼集合（用於排除個人業績加總）
-    const { data: franchiseStores, error: franchiseError } = await supabase
-      .from('stores')
-      .select('store_code')
-      .eq('is_franchise', true);
+    const { data: franchiseStores, error: franchiseError } = franchiseRes;
 
     if (franchiseError) {
       console.error('Error fetching franchise stores:', franchiseError);
@@ -944,12 +967,7 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
         .filter(Boolean)
     );
 
-    // 目前頁面門市代碼（若本店是加盟店，仍需保留本店自己的業績）
-    const { data: currentStoreInfo, error: currentStoreError } = await supabase
-      .from('stores')
-      .select('store_code')
-      .eq('id', storeId)
-      .single();
+    const { data: currentStoreInfo, error: currentStoreError } = currentStoreRes;
 
     if (currentStoreError) {
       console.error('Error fetching current store info:', currentStoreError);
@@ -2716,10 +2734,9 @@ export async function deleteStoreEmployee(employeeId: string) {
 /**
  * 獲取門市每月統計資料
  */
-export async function getStoreMonthlySummary(yearMonth: string, storeId: string) {
+export async function getStoreMonthlySummary(yearMonth: string, storeId: string, caller: VerifiedCaller = {}) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await resolveCaller(caller);
     
     if (!user) {
       return { success: false, error: '未登入', data: null };
