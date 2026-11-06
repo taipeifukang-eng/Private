@@ -5,7 +5,8 @@ import { authorizeMonthlyRegistration } from '@/lib/permissions/monthly-registra
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
-import { canEnterCampaignView } from '@/lib/campaign-access';
+import { canEnterCampaignViewWithSnapshot } from '@/lib/campaign-access';
+import { loadPermissionSnapshot, type PermissionSnapshot } from '@/lib/permissions/snapshot';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 import type { 
   Store, 
@@ -637,6 +638,17 @@ export async function createStoreRelocationHistory(data: {
 }
 
 /**
+ * 每月人員狀態相關權限用：一次載入目前使用者的 profile / 角色 / 權限快照。
+ * 判斷結果與逐項呼叫 hasPermission() 完全相同（見 lib/permissions/snapshot.ts）。
+ */
+async function loadMonthlyPermissionSnapshot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<PermissionSnapshot> {
+  return loadPermissionSnapshot(supabase, createAdminClient(), userId);
+}
+
+/**
  * 獲取用戶可管理的門市列表
  * - admin: 所有門市
  * - manager (督導/區經理): 被指派的門市
@@ -651,9 +663,10 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
       return { success: false, error: '未登入', data: [] };
     }
 
-    // 使用 RBAC 權限檢查
-    const canViewAllStores = await hasPermission(user.id, 'monthly.status.view_all');
-    const canViewOwnStores = await hasPermission(user.id, 'monthly.status.view_own');
+    // 使用 RBAC 權限檢查（一次載入 profile / 角色 / 權限，在記憶體判斷）
+    const snapshot = await loadMonthlyPermissionSnapshot(supabase, user.id);
+    const canViewAllStores = snapshot.has('monthly.status.view_all');
+    const canViewOwnStores = snapshot.has('monthly.status.view_own');
 
     if (!canViewOwnStores && !canViewAllStores) {
       return { success: false, error: '權限不足', data: [] };
@@ -664,12 +677,8 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
       canViewOwnStores
     });
 
-    // 獲取用戶基本資料（僅用於回傳，不用於權限判斷）
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
+    // 用戶基本資料（僅用於回傳，不用於權限判斷）
+    const profile = snapshot.profile;
 
     const includeInactive = options?.include_inactive ?? false;
 
@@ -2904,34 +2913,21 @@ export async function checkMonthlyStatusPermissions() {
       };
     }
 
-    const [
-      canViewStats,
-      canViewSupportHours,
-      canEditSupportHours,
-      canEditSupportBonus,
-      canAddEmployee,
-      canAccessActivityManagement,
-      canViewPerformance,
-      canViewMonthlyBonusDetail,
-      canConfirmStatus,
-      canRevertStatus,
-      canUnconfirmStatus,
-      canExportMonthlyDownload
-    ] = await Promise.all([
-      hasPermission(user.id, 'monthly.status.view_stats'),
-      hasPermission(user.id, 'monthly.allowance.view_support_hours'),
-      hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
-      hasPermission(user.id, 'monthly.allowance.edit_support_bonus'),
-      hasPermission(user.id, 'monthly.status.add_employee'),
-      // 活動檢視入口：view_all，或 view_own（第一階段含舊 view）且至少有一筆 store_managers 任命
-      canEnterCampaignView(supabase, user.id),
-      hasPermission(user.id, 'monthly.status.view_performance'),
-      hasPermission(user.id, 'monthly.status.bonus_detail.view'),
-      hasPermission(user.id, 'monthly.status.confirm'),
-      hasPermission(user.id, 'monthly.status.revert'),
-      hasPermission(user.id, 'monthly.status.unconfirm'),
-      hasPermission(user.id, 'monthly.export.download')
-    ]);
+    // 一次載入權限快照，12 個旗標在記憶體內判斷（原本每個旗標各 2–3 次資料庫往返）
+    const snapshot = await loadMonthlyPermissionSnapshot(supabase, user.id);
+    const canViewStats = snapshot.has('monthly.status.view_stats');
+    const canViewSupportHours = snapshot.has('monthly.allowance.view_support_hours');
+    const canEditSupportHours = snapshot.has('monthly.allowance.edit_support_hours');
+    const canEditSupportBonus = snapshot.has('monthly.allowance.edit_support_bonus');
+    const canAddEmployee = snapshot.has('monthly.status.add_employee');
+    // 活動檢視入口：view_all，或 view_own（第一階段含舊 view）且至少有一筆 store_managers 任命
+    const canAccessActivityManagement = await canEnterCampaignViewWithSnapshot(supabase, user.id, snapshot);
+    const canViewPerformance = snapshot.has('monthly.status.view_performance');
+    const canViewMonthlyBonusDetail = snapshot.has('monthly.status.bonus_detail.view');
+    const canConfirmStatus = snapshot.has('monthly.status.confirm');
+    const canRevertStatus = snapshot.has('monthly.status.revert');
+    const canUnconfirmStatus = snapshot.has('monthly.status.unconfirm');
+    const canExportMonthlyDownload = snapshot.has('monthly.export.download');
 
     return {
       success: true,

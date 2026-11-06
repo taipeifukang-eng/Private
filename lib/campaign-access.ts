@@ -1,4 +1,5 @@
 import { hasAnyPermission, hasPermission } from '@/lib/permissions/check';
+import type { PermissionSnapshot } from '@/lib/permissions/snapshot';
 
 export { hasAnyPermission };
 
@@ -100,6 +101,25 @@ export async function canEnterCampaignView(
   if (appointments && appointments.length > 0) return true;
   // 盤點組（部門受眾）沒有門市任命，但可看發布給盤點組的活動，入口需與資料可見性一致
   return profile?.department === INVENTORY_TEAM_DEPARTMENT;
+}
+
+/**
+ * 同 canEnterCampaignView，但權限與部門改用已載入的 PermissionSnapshot 在記憶體判斷
+ * （省下 3 次 hasPermission + 1 次 profiles 查詢）。判斷規則必須與 canEnterCampaignView 完全相同。
+ */
+export async function canEnterCampaignViewWithSnapshot(
+  supabase: SupabaseClientLike,
+  userId: string,
+  snapshot: PermissionSnapshot
+): Promise<boolean> {
+  const viewAll = snapshot.has(CAMPAIGN_PERM.viewAll);
+  if (viewAll) return true;
+  const viewOwn = snapshot.has(CAMPAIGN_PERM.viewOwn) || snapshot.has(CAMPAIGN_PERM.legacyView);
+  if (!viewOwn) return false;
+  const { data: appointments } = await supabase.from('store_managers').select('id').eq('user_id', userId).limit(1);
+  if (appointments && appointments.length > 0) return true;
+  // 盤點組（部門受眾）沒有門市任命，但可看發布給盤點組的活動，入口需與資料可見性一致
+  return snapshot.profile?.department === INVENTORY_TEAM_DEPARTMENT;
 }
 
 export type CampaignViewer = {
