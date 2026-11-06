@@ -105,7 +105,7 @@ function buildScenarios() {
   // --- 單一權限帳號（各一份有 VW001 店長任命、一份無任命）
   for (const [name, code] of Object.entries(MONTHLY)) {
     add(`single_${name}`, { desc: `單一權限 ${code}（+VW001 店長任命）`, roles: [{ perms: [code] }], appts: [['VW001', 'store_manager']] });
-    add(`single_${name}_noappt`, { desc: `單一權限 ${code}（無任命）`, roles: [{ perms: [code] }] });
+    if (name === 'viewOwn' || name === 'viewAll') add(`single_${name}_noappt`, { desc: `單一權限 ${code}（無任命）`, roles: [{ perms: [code] }] });
   }
   return S;
 }
@@ -255,12 +255,22 @@ async function setup(env, admin, anonClientFactory, opts = {}) {
 
     // 登入
     const loginJobs = Object.entries(users).map(([key, u]) => async () => {
-      const c = anonClientFactory();
-      const r = await c.auth.signInWithPassword({ email: u.email, password: u.password });
-      if (r.error) throw new Error(`登入 ${key} 失敗：${r.error.message}`);
-      u.session = r.data.session;
+      // DEV 的 auth 有登入頻率限制：遇到就等一下再試
+      for (let attempt = 0; ; attempt++) {
+        const c = anonClientFactory();
+        const r = await c.auth.signInWithPassword({ email: u.email, password: u.password });
+        if (!r.error) {
+          u.session = r.data.session;
+          return;
+        }
+        if (/rate limit/i.test(r.error.message) && attempt < 40) {
+          await new Promise((res) => setTimeout(res, 15000));
+          continue;
+        }
+        throw new Error(`登入 ${key} 失敗：${r.error.message}`);
+      }
     });
-    for (let i = 0; i < loginJobs.length; i += 6) await Promise.all(loginJobs.slice(i, i + 6).map((j) => j()));
+    for (let i = 0; i < loginJobs.length; i += 4) await Promise.all(loginJobs.slice(i, i + 4).map((j) => j()));
 
     // 保留月份資料
     const sumRows = ['VW001', 'VW002', 'ZT01', 'ZT02', 'ZT03', 'ZT04'].map((c, i) => ({
