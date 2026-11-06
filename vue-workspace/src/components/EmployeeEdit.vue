@@ -26,6 +26,7 @@ onMounted(load);onBeforeUnmount(()=>{alive=false;props.tab.dirty=false;delete pr
     <label>員編<input :value="form.employee_code" readonly /></label>
     <label>姓名<input v-model="form.employee_name" required maxlength="100" /></label>
     <label>當前職位<select v-model="form.current_position"><option value="">未指定</option><option v-for="p in positions" :key="p">{{p}}</option></select></label>
+    <label>階段<input :value="detail.employee.newbie_level||'—'" readonly aria-label="階段" data-testid="employee-edit-stage" /><small>依升職異動自動更新，不能在這裡修改</small></label>
     <label>到職日<input type="date" v-model="form.start_date" min="1900-01-01" max="9999-12-31" /></label>
     <label>生日<input type="date" v-model="form.birthday" min="1900-01-01" /></label>
    </div></fieldset>

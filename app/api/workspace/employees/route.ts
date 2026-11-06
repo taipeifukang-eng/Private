@@ -18,7 +18,7 @@ export async function GET(request:Request){try{
   return respond({history:history.map(h=>({...h,old_label:label(h.old_value),new_label:formatPromotionPosition(label(h.new_value),h.notes),display_notes:getMovementNotesForDisplay(h.notes)}))});
  }
  const [masters,statuses,movements]=await Promise.all([
-  all(()=>ctx.auth.from('store_employees').select('employee_code,employee_name,start_date,birthday,current_position,is_active,employment_status,last_movement_date').order('id')),
+  all(()=>ctx.auth.from('store_employees').select('employee_code,employee_name,start_date,birthday,current_position,newbie_level,is_active,employment_status,last_movement_date').order('id')),
   all(()=>ctx.auth.from('monthly_staff_status').select('employee_code,employee_name,position,year_month,monthly_status,start_date').order('year_month',{ascending:false}).order('id')),
   all(()=>ctx.auth.from('employee_movement_history').select('employee_code,employee_name,movement_type,new_value,movement_date').order('movement_date',{ascending:false}).order('created_at',{ascending:false}).order('id')),
  ]);

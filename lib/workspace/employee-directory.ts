@@ -8,6 +8,8 @@ type EmployeeSource = {
   is_active: boolean | null;
   employment_status: string | null;
   last_movement_date: string | null;
+  /** H.4：員工主檔階段（新人／行政才有值），跟著升職異動自動更新。 */
+  newbie_level?: string | null;
 };
 
 type MonthlyStaffStatusSource = {
@@ -80,6 +82,7 @@ export function employeeDirectory(storeEmployees: EmployeeSource[], allStatuses:
       start_date: preferred.start_date || fallback.start_date,
       birthday: preferred.birthday || fallback.birthday,
       current_position: preferred.current_position || fallback.current_position,
+      newbie_level: preferred.newbie_level || (preferred.current_position ? null : fallback.newbie_level) || null,
     });
   }
 
@@ -173,6 +176,7 @@ export function employeeDirectory(storeEmployees: EmployeeSource[], allStatuses:
       current_position: currentPosition,
       start_date: emp.start_date,
       birthday: emp.birthday || null,
+      newbie_level: ['新人', '行政'].includes(String(currentPosition || '')) ? emp.newbie_level || null : null,
       current_status: currentStatus,
       is_active: currentStatus !== 'resigned',
     };

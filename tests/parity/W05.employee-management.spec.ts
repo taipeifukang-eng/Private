@@ -253,11 +253,14 @@ test.describe('W05 員工管理對等', () => {
       const p = workPanel(nativePage);
       await p.getByPlaceholder('員編、姓名或職位').fill('W05名冊');
       await expect(p.locator('tbody tr')).toHaveCount(2, { timeout: 30_000 });
-      const nativeRows = await p.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('td')).slice(0, 6).map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())));
+      // H.4：新版在「當前職位」之後多一欄「階段」（舊版沒有）；比對欄位時跳過它，階段另外當作新版才有的欄位登記。
+      const nativeFull = await p.locator('tbody tr').evaluateAll((trs) => trs.map((tr) => Array.from(tr.querySelectorAll('td')).slice(0, 7).map((td) => (td.textContent || '').replace(/\s+/g, ' ').trim())));
+      const nativeRows = nativeFull.map((r) => [r[0], r[1], r[2], r[4], r[5], r[6]]);
+      const stages = Object.fromEntries(nativeFull.map((r) => [r[0], r[3]]));
 
       // 扁平成「員編#欄位」，白名單可用欄位名比對任何一列。
-      const shape = (rows: string[][]) =>
-        Object.fromEntries(rows.flatMap((r) => Object.entries({ name: r[1], position: r[2], status: r[3], startDate: r[4], birthday: r[5] }).map(([k, v]) => [`${r[0]}#${k}`, v])));
+      const shape = (rows: string[][], extra: Record<string, string> = {}) =>
+        Object.fromEntries(rows.flatMap((r) => Object.entries({ name: r[1], position: r[2], status: r[3], startDate: r[4], birthday: r[5], ...(extra[r[0]] !== undefined ? { stage: extra[r[0]] } : {}) }).map(([k, v]) => [`${r[0]}#${k}`, v])));
       assertNoUnlistedDiffs(
         recorder.record({
           entry: entry('list-ui'),
@@ -267,7 +270,7 @@ test.describe('W05 員工管理對等', () => {
           legacy: { endpoint: '/admin/employee-management table' },
           native: { endpoint: '員工管理 table' },
           compared: { rows: legacyRows.length },
-          diffs: valueDiffsToDiffs(diffNormalized(shape(legacyRows), shape(nativeRows))),
+          diffs: valueDiffsToDiffs(diffNormalized(shape(legacyRows), shape(nativeRows, stages))),
         }),
       );
     } finally {

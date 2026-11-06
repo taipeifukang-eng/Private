@@ -9,7 +9,10 @@ function code(value:any){if(typeof value!=='string'||! /^[A-Z0-9_-]{1,30}$/.test
 export async function GET(request:Request){try{
  const ctx=await authorized(), employeeCode=code(new URL(request.url).searchParams.get('employee'));
  const snapshot=checked(await ctx.admin.rpc('workspace_employee_edit_state',{p_code:employeeCode}));
- const employee=employeeDirectory(snapshot.masters,snapshot.statuses,snapshot.movements)[0];
+ // H.4：階段（員工主檔 newbie_level）另外讀取，不放進核對用的 expected 快照。
+ const stages=checked(await ctx.admin.from('store_employees').select('id,newbie_level,is_active,last_movement_date').eq('employee_code',employeeCode).order('is_active',{ascending:false}).order('last_movement_date',{ascending:false,nullsFirst:false}));
+ const masters=(snapshot.masters||[]).map((m:any)=>({...m,newbie_level:(stages||[]).find((x:any)=>x.id===m.id)?.newbie_level??null}));
+ const employee=employeeDirectory(masters,snapshot.statuses,snapshot.movements)[0];
  if(!employee)throw new WorkspaceError(404,'找不到員工');
  return respond({employee,expected:snapshot,positions:POSITION_OPTIONS,monthlyCount:snapshot.statuses.length,masterCount:snapshot.masters.length});
 }catch(e){return failed(e);}}
