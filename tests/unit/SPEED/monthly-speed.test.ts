@@ -125,3 +125,22 @@ describe('C 名冊頁 RPC 結構', () => {
     expect(read('app/store/actions.ts')).toMatch(/Math\.round\(acc\.sales \* 100\) \/ 100/);
   });
 });
+
+describe('活動入口權限：等同 Production has_permission（無 admin 繞過）', () => {
+  const mk = (perms: string[], admin: boolean) => {
+    const c = fakeCtx(perms, [], admin);
+    c.auth = { from: () => ({ select: () => ({ eq: () => ({ limit: async () => ({ data: [] }), maybeSingle: async () => ({ data: { department: 'x' } }) }) }) }) };
+    return c;
+  };
+  it('admin 角色沒有明確授權 -> activity=false', async () => {
+    const meta = await buildMonthlyMeta(mk([], true), {});
+    expect(meta.capabilities.activity).toBe(false);
+  });
+  it('明確持有 view_all -> activity=true（含 admin）', async () => {
+    expect((await buildMonthlyMeta(mk(['activity.campaign.view_all'], false), {})).capabilities.activity).toBe(true);
+    expect((await buildMonthlyMeta(mk(['activity.campaign.view_all'], true), {})).capabilities.activity).toBe(true);
+  });
+  it('roster RPC 失敗退回時會記錄 console.error', () => {
+    expect(read('app/api/workspace/monthly/route.ts')).toMatch(/console\.error\([^)]*roster RPC failed/);
+  });
+});

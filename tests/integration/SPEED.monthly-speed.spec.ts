@@ -35,6 +35,14 @@ test.describe('名冊回應附帶 meta，與 op=meta 一致', () => {
           expect(body.canViewStats).toBe(meta.capabilities.viewStats);
           expect(body.storeStatus).toBe(meta.storeStatus);
         }
+        // 獨立比對：活動入口與 session 的舊版 canEnterCampaignView 一致（meta 兩條路徑共用同一支函式，單比兩邊會是同義反覆）。
+        // DEV 的 has_permission 對 admin 角色有繞過、Production 沒有，所以 admin 帳號（隱含授權）不比對這一項。
+        if (key !== 'admin') {
+          const sess = await (await api.get('/api/workspace/session')).json();
+          const first = stores[0];
+          const r = await api.get('/api/workspace/monthly', { params: { month: MONTH, store: first.id } });
+          if (r.status() === 200) expect((await r.json()).meta.capabilities.activity).toBe(sess.capabilities.campaignView);
+        }
         // 沒有指定門市（總覽）不附 meta。
         const noStore = await api.get('/api/workspace/monthly', { params: { month: '2099-12' } });
         if (noStore.status() === 200) {
