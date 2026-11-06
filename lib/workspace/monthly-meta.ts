@@ -13,7 +13,8 @@ const SUPPORT_FIELDS = ['support_to_other_stores_hours', 'support_from_other_sto
  * 不再為這三個碼各打 profiles／user_roles／rpc 三趟。
  * 注意：這裡刻意用 ctx.permissions（角色明確授權），不用 ctx.has（isAdmin 對任何碼回 true）。
  * Production 的 has_permission 沒有 admin 繞過，只看 role_permissions；用 ctx.has 會讓 admin/owner 角色多出活動入口。
- * 已知殘餘差異：ctx 載入時略過 roles.is_active=false 的角色，Production has_permission 不檢查 roles.is_active（極端情況，入口顯示而已）。
+ * ctx.permissions 的解析（lib/workspace/permission-semantics.ts）與 Production has_permission 一致：看 user_roles 有效且未過期、is_allowed、權限啟用，
+ * 不檢查 roles.is_active（原先 ctx 會略過停用角色造成的殘餘差異已消除）；profiles.role==='admin' 的應用層保底只影響 ctx.has／isAdmin，不會進 ctx.permissions。
  */
 export async function buildMonthlyMeta(ctx: Context, summary: Record<string, any> | null | undefined) {
   const capabilities: Record<string, boolean> = {};

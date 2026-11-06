@@ -2,6 +2,7 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { resolveAccess } from "./permission-semantics";
 
 const DEV_REF = "mjpdfpxqttbhzeimmtqr";
 export class WorkspaceError extends Error {
@@ -116,7 +117,7 @@ export const CAMPAIGN_EDIT_CODES = [
   "activity.manage",
 ];
 export type ContextOptions<T = undefined> = {
-  // 預設 true；只有 session 路由需要 profile.full_name，其餘路由傳 false 可少一趟查詢。
+  // 預設 true；只有 session 路由需要 profile.full_name，其餘路由傳 false 不回傳 profile（role 仍會查，供 isAdmin 判斷）。
   profile?: boolean;
   // 在 getUser 之後與 user_roles／profiles 並行執行的額外查詢（例如名冊頁的門市清單），結果放在 ctx.prefetched。
   prefetch?: (env: { auth: ReturnType<typeof sessionClient>; admin: ReturnType<typeof adminClient>; userId: string }) => Promise<T>;
@@ -134,51 +135,25 @@ export async function context<T = undefined>(options: ContextOptions<T> = {}) {
     admin
       .from("user_roles")
       .select(
-        "is_active,expires_at,role:roles(code,is_active,role_permissions(is_allowed,permission:permissions(code,is_active)))",
+        "is_active,expires_at,role:roles(code,role_permissions(is_allowed,permission:permissions(code,is_active)))",
       )
       .eq("user_id", user.id)
       .eq("is_active", true),
-    options.profile === false
-      ? Promise.resolve(null)
-      : admin.from("profiles").select("id,full_name").eq("id", user.id).maybeSingle(),
+    // 一律查 profiles（含 role）：isAdmin 的 profiles.role==='admin' 保底要用；與其他兩個查詢並行，不增加等待時間。
+    admin.from("profiles").select("id,full_name,role").eq("id", user.id).maybeSingle(),
     options.prefetch
       ? options.prefetch({ auth, admin, userId: user.id })
       : Promise.resolve(undefined as T),
   ]);
   const assignments = checked(assignmentsResult);
-  const permissions = new Set<string>();
-  const roleCodes = new Set<string>();
-  let isAdmin = false;
-  for (const assignment of assignments || []) {
-    if (
-      assignment.expires_at &&
-      Date.parse(assignment.expires_at) <= Date.now()
-    )
-      continue;
-    const role = one(assignment.role);
-    if (!role?.is_active) continue;
-    roleCodes.add(role.code);
-    if (
-      [
-        "admin",
-        "system_admin",
-        "full_admin",
-        "full_admin_role",
-        "dev_full_admin",
-        "owner",
-        "owner_role",
-        "admin_role",
-      ].includes(role.code)
-    )
-      isAdmin = true;
-    for (const rp of role.role_permissions || []) {
-      const p = one(rp.permission);
-      if (rp.is_allowed && p?.is_active) permissions.add(p.code);
-    }
-  }
-  const profile = profileResult ? checked(profileResult) : null;
-  const has = (...codes: string[]) =>
-    isAdmin || codes.some((code) => permissions.has(code));
+  // 舊版 isAdminLikeUser 的 profiles.role==='admin' 保底需要 profiles.role；查詢失敗時與舊版一樣視為非 admin。
+  const profileRole = (profileResult as any)?.data?.role ?? null;
+  const { permissions, roleCodes, isAdmin, has } = resolveAccess(
+    assignments as any,
+    profileRole,
+  );
+  const profile =
+    options.profile === false || !profileResult ? null : checked(profileResult);
   return { auth, admin, user, profile, permissions, roleCodes, isAdmin, has, prefetched };
 }
 export type Context = Awaited<ReturnType<typeof context<any>>>;
