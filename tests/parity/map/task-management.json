@@ -1,0 +1,93 @@
+{
+  "page": "task-management",
+  "legacyRoute": "/admin/templates、/admin/template/[id]",
+  "workItem": "W07",
+  "entries": [
+    {
+      "id": "delete-assignment",
+      "mechanism": "write-readback",
+      "description": "刪除已完成任務：舊版在 /admin/template/[id] 按「刪除」（app/actions.ts#deleteAssignment）與新版 DELETE kind=assignment，各用一份相同 fixture，回讀指派、勾選紀錄、協作者與範本殘留。新版另寫稽核紀錄（M3 Q2）。",
+      "legacy": {
+        "serverAction": {
+          "file": "app/actions.ts",
+          "name": "deleteAssignment"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-management",
+          "method": "DELETE"
+        }
+      }
+    },
+    {
+      "id": "delete-template-completed",
+      "mechanism": "write-readback",
+      "description": "刪除流程模板（底下任務都已完成）：舊版卡片選單「刪除整個流程模板」（deleteTemplate）與新版 DELETE kind=template（需輸入標題）。回讀範本、指派、勾選紀錄、協作者殘留；新版另寫稽核紀錄。",
+      "legacy": {
+        "serverAction": {
+          "file": "app/actions.ts",
+          "name": "deleteTemplate"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-management",
+          "method": "DELETE"
+        }
+      }
+    },
+    {
+      "id": "delete-template-active",
+      "mechanism": "write-readback",
+      "description": "刪除流程模板（底下還有待處理任務）：舊版直接連帶刪除；新版擋下並提示先完成或封存（M3 Q1）。",
+      "legacy": {
+        "serverAction": {
+          "file": "app/actions.ts",
+          "name": "deleteTemplate"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-management",
+          "method": "DELETE"
+        }
+      }
+    },
+    {
+      "id": "list-templates",
+      "mechanism": "ui-extract",
+      "description": "模板列表：同一批測試範本（含一個沒有未封存任務的、一個剛建立的），舊版 /admin/templates 卡片標題與新版列表比對。新版全部顯示並標示尚未指派（M3 Q3）。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/templates",
+          "rowSelector": "div.shadow-lg h3"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-management"
+        }
+      }
+    },
+    {
+      "id": "detail-scope",
+      "mechanism": "ui-extract",
+      "description": "模板詳情範圍：管理者不是協作者的任務，舊版 /admin/template/[id]（getAssignments 只回本人參與）看不到，新版顯示範圍內全部未封存任務（M3 A.7，D07）。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/template/[id]",
+          "rowSelector": "a[href^=\"/assignment/\"]"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-management",
+          "query": {
+            "id": "<templateId>"
+          }
+        }
+      }
+    }
+  ]
+}

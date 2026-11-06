@@ -1,0 +1,33 @@
+{
+  "page": "task-archive",
+  "legacyRoute": "/admin/archived",
+  "workItem": "W09",
+  "entries": [
+    {
+      "id": "archive-access",
+      "mechanism": "write-readback",
+      "description": "已封存任務頁的進入權限：舊版頁面要 profiles.role 為 admin 或 manager；新版維持「身分加 task.view_archived」（M3 Q4），正式區補授權 SQL 在 docs/vue-workspace/parity-plan/m3-sql/。",
+      "legacy": {
+        "source": "app/admin/archived/page.tsx（role in admin, manager）、hooks/useNavbarPermissions.ts（task.view_archived）"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-archive"
+        }
+      }
+    },
+    {
+      "id": "archive-readonly",
+      "mechanism": "write-readback",
+      "description": "封存任務詳情唯讀（M3 Q5）：新版封存後不能再勾選；舊版 /assignment/[id] 仍可操作。",
+      "legacy": {
+        "source": "app/assignment/[id]/page.tsx"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-detail"
+        }
+      }
+    }
+  ]
+}

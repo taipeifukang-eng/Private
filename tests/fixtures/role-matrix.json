@@ -508,6 +508,7 @@
         "navigationHrefs": [
           "/activity-management",
           "/admin/activity-management",
+          "/admin/archived",
           "/admin/departments",
           "/admin/employee-purchases",
           "/admin/organization",

@@ -1,0 +1,24 @@
+{
+  "page": "task-create",
+  "legacyRoute": "/admin/create",
+  "workItem": "P03",
+  "entries": [
+    {
+      "id": "create-result",
+      "mechanism": "write-readback",
+      "description": "建立任務的寫入對等：舊版 /admin/create 畫面（createTemplateV2）與新版 POST /api/workspace/task-template，輸入相同標題、說明、營業部區段、同一位執行人員、一個主項，回讀範本、指派、協作者逐欄比對（隨機 id、時間戳與新版版本號除外）。",
+      "legacy": {
+        "serverAction": {
+          "file": "app/actions.ts",
+          "name": "createTemplateV2"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/task-template",
+          "method": "POST"
+        }
+      }
+    }
+  ]
+}

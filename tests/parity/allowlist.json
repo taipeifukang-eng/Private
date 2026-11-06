@@ -1234,5 +1234,214 @@
         "promotion_batch_only"
       ]
     }
+  },
+  {
+    "id": "m3-delete-template-blocked-by-active",
+    "page": "task-management",
+    "description": "刪除流程模板時，底下還有待處理或進行中的未封存任務：舊版直接連帶刪除（範本、指派、勾選紀錄、協作者全部消失）；新版擋下並提示先完成或封存，資料完全不動。",
+    "reason": "M3 規格 A.1（Q1 = block_and_type_name），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q1)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-active",
+      "key": "templateDeleted"
+    }
+  },
+  {
+    "id": "m3-delete-template-active-leftovers",
+    "page": "task-management",
+    "description": "同上情境，舊版刪除後指派、勾選紀錄、協作者不留；新版被擋下所以都還在。",
+    "reason": "M3 規格 A.1（Q1），隨「被擋下」一起發生的連帶差異。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q1)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-active",
+      "key": "assignmentsLeft"
+    }
+  },
+  {
+    "id": "m3-delete-template-active-logs",
+    "page": "task-management",
+    "description": "同上情境的勾選紀錄與協作者殘留列數。",
+    "reason": "M3 規格 A.1（Q1）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q1)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-active",
+      "key": "logsLeft"
+    }
+  },
+  {
+    "id": "m3-delete-template-active-collaborators",
+    "page": "task-management",
+    "description": "同上情境的協作者殘留列數。",
+    "reason": "M3 規格 A.1（Q1）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q1)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-active",
+      "key": "collaboratorsLeft"
+    }
+  },
+  {
+    "id": "m3-delete-template-active-status",
+    "page": "task-management",
+    "description": "同上情境新版回 409（被擋下），舊版成功。",
+    "reason": "M3 規格 A.1（Q1）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q1)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-active",
+      "key": "outcome"
+    }
+  },
+  {
+    "id": "m3-delete-template-typed-title",
+    "page": "task-management",
+    "description": "刪除流程模板的確認方式：舊版是瀏覽器 confirm 視窗，按確定就刪；新版確認視窗要求輸入模板標題且完全相符才能按確認（伺服器端也檢查標題）。此差異在畫面操作層，沒有可比對的資料欄位。",
+    "reason": "M3 規格 A.1（Q1 = block_and_type_name），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q1)"
+  },
+  {
+    "id": "m3-delete-audit-assignment",
+    "page": "task-management",
+    "description": "刪除已完成任務時，新版在同一交易寫一筆稽核紀錄（誰、何時、哪個模板與任務、任務摘要）；舊版不留紀錄。",
+    "reason": "M3 規格 A.2（Q2 = delete_with_audit），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-assignment",
+      "key": "auditRows"
+    }
+  },
+  {
+    "id": "m3-delete-audit-template",
+    "page": "task-management",
+    "description": "刪除流程模板時，新版同樣寫稽核紀錄（含刪除的指派數、完成數、封存數）；舊版不留紀錄。",
+    "reason": "M3 規格 A.2（Q2）延伸到刪除模板，使用者 2026-11-07 問卷核可 A.1／A.2 的刪除流程。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q2)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-completed",
+      "key": "auditRows"
+    }
+  },
+  {
+    "id": "m3-list-show-all-with-badge",
+    "page": "task-management",
+    "description": "模板列表：舊版只顯示有未封存任務的模板；新版範圍內的模板全部顯示，沒有未封存任務的標示「尚未指派」並可直接指派，剛建立與剛複製的模板立即可見。",
+    "reason": "M3 規格 A.3（Q3 = show_all_with_badge），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q3)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "list-templates",
+      "key": "unassignedVisible"
+    }
+  },
+  {
+    "id": "m3-list-count-all",
+    "page": "task-management",
+    "description": "同上：新版列出的測試範本筆數多於舊版（多出的是尚未指派的範本）。",
+    "reason": "M3 規格 A.3（Q3）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q3)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "list-templates",
+      "key": "visibleTitles"
+    }
+  },
+  {
+    "id": "m3-detail-scope-all-unarchived",
+    "page": "task-management",
+    "description": "模板詳情：舊版只顯示本人參與的任務（getAssignments 依協作者過濾，屬 bug）；新版顯示範圍內全部未封存任務。",
+    "reason": "M3 規格 A.7（直接做，D07）。",
+    "approvedBy": "user (2026-11-07 survey/m3 A.7)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "detail-scope",
+      "key": "assignmentCount"
+    }
+  },
+  {
+    "id": "m3-archive-permission-role-and-code",
+    "page": "task-archive",
+    "description": "已封存任務頁權限：新版維持「身分（管理員或主管）加 task.view_archived」，舊版頁面只看 profiles.role；上線前以 docs/vue-workspace/parity-plan/m3-sql/ 的正式區 SQL 把現有主管角色補授權，補完後兩邊可進入的人相同。",
+    "reason": "M3 規格 A.4（Q4 = role_and_permission_with_backfill），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q4)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "archive-access",
+      "key": "canEnter",
+      "roles": [
+        "ops_manager"
+      ]
+    }
+  },
+  {
+    "id": "m3-archive-detail-readonly",
+    "page": "task-archive",
+    "description": "封存任務詳情：新版唯讀，不能再勾選或改備註（task-detail 對封存任務回 404）；舊版 /assignment/[id] 對封存任務仍可操作。要再做用「複製任務」。",
+    "reason": "M3 規格 A.5（Q5 = readonly），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q5)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "archive-readonly",
+      "key": "interactive"
+    }
+  },
+  {
+    "id": "m3-create-dept-strict-override",
+    "page": "task-create",
+    "description": "建立／編輯任務的部門限制：舊版只在畫面上只列出所選部門的人（伺服器不檢查）；新版伺服器與資料庫都檢查被指派人屬於所選部門，除非明確勾選「跨部門支援人員」，該人記在區段 support_users 並在畫面與資料上標示為跨部門支援。上限（50 區段、1000 項目）維持新版。",
+    "reason": "M3 規格 A.6（Q6 = strict_with_override），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q6)"
+  },
+  {
+    "id": "m3-legacy-delete-template-fk-templateDeleted",
+    "page": "task-management",
+    "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（範本是否被刪除）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
+    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-completed",
+      "key": "templateDeleted"
+    }
+  },
+  {
+    "id": "m3-legacy-delete-template-fk-assignmentsLeft",
+    "page": "task-management",
+    "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（指派殘留筆數）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
+    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-completed",
+      "key": "assignmentsLeft"
+    }
+  },
+  {
+    "id": "m3-legacy-delete-template-fk-logsLeft",
+    "page": "task-management",
+    "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（勾選紀錄殘留筆數）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
+    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-completed",
+      "key": "logsLeft"
+    }
+  },
+  {
+    "id": "m3-legacy-delete-template-fk-collaboratorsLeft",
+    "page": "task-management",
+    "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（協作者殘留筆數）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
+    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-template-completed",
+      "key": "collaboratorsLeft"
+    }
   }
 ]
