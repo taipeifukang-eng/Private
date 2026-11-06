@@ -41,7 +41,7 @@ test('店長送審：標籤、刪除草稿、送審前檢查單一視窗、送�
     const stores = await testStoreIds(admin, month);
     const zt01 = stores.ZT01;
     const zt02 = stores.ZT02;
-    const codes = { n: staffCode('N'), p: staffCode('P'), b: staffCode('B'), d: staffCode('D'), t: staffCode('T') };
+    const codes = { n: staffCode('N'), p: staffCode('P', true), b: staffCode('B'), d: staffCode('D'), t: staffCode('T') };
     await addManual(admin, zt01, month, { name: 'E2E 專員', code: codes.n });
     await addManual(admin, zt01, month, { name: 'E2E 兼職', code: codes.p, position: '兼職專員', employment_type: 'part_time', work_hours: 0, work_days: 0 });
     await addManual(admin, zt01, month, { name: 'E2E 新人', code: codes.b, position: '新人', newbie_level: '一階新人' });

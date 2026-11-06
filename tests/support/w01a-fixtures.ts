@@ -151,12 +151,14 @@ export async function registerFixtureRows(store: string, month: string) {
  * 所以不能再用 ZT+runId 當員編。改成 FKF + 9 + 兩碼 runId 雜湊 + 兩碼標籤序號（FKF9xxxx，DEV 真實員編沒有這個範圍）：
  * 同一個 run 內每個標籤唯一；列屬保留月份 2099-xx 的測試門市，由 sweeper 清除（員編本身不再帶標記）。
  */
-export function staffCode(tag: string) {
+export function staffCode(tag: string, partTime = false) {
   const runId = runIdOrThrow();
   let hash = 0;
   for (const ch of runId.split('')) hash = (hash * 31 + ch.charCodeAt(0)) % 100;
   const alphabet = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   let index = tag.length === 1 ? alphabet.indexOf(tag.toUpperCase()) : -1;
   if (index < 0) index = tag.split('').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 64, 7) + 36;
+  // H.8：每月手動新增的僱用類型一律依員編決定，兼職列必須用 FKPT 員編（FKPT9nn，DEV 真實員編沒有這個範圍）。
+  if (partTime) return `FKPT9${String((hash + index) % 100).padStart(2, '0')}`;
   return `FKF9${String(hash).padStart(2, '0')}${String(index).padStart(2, '0')}`.slice(0, 8);
 }

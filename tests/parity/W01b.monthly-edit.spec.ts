@@ -34,7 +34,7 @@ async function dbRow(id: string) {
 /** 每個情境建 L（舊頁）與 N（新頁）兩列。 */
 async function makePair(key: string, base: { name: string; position?: string; employment_type?: 'full_time' | 'part_time'; work_days?: number; work_hours?: number; newbie_level?: string }, patch: Record<string, unknown> = {}, store = zt01, month = PD) {
   for (const side of ['L', 'N']) {
-    const code = staffCode(tagPool.shift()!);
+    const code = staffCode(tagPool.shift()!, base.employment_type === 'part_time');
     const created = await addManual(admin, store, month, { ...base, name: `${base.name}${side}`, code });
     const rec = (await readMonth(admin, store, month)).body.records.find((r: any) => r.id === created.id);
     const res = await postSave(admin, store, month, created.id, rec.updated_at, editUpdates({ position: base.position || '專員', employment_type: base.employment_type || 'full_time', work_days: base.work_days ?? 30, work_hours: base.work_hours ?? 0, newbie_level: base.newbie_level || null, ...patch }));

@@ -127,7 +127,7 @@ test.describe('W01a 流程（ZT 測試門市 + 2099-01）', () => {
       }
     }
     ids.normal = (await addManual(admin, zt01, MONTH, { name: 'W01a 專員', code: staffCode('N') })).id;
-    ids.part = (await addManual(admin, zt01, MONTH, { name: 'W01a 兼職', code: staffCode('P'), position: '兼職專員', employment_type: 'part_time', work_hours: 0, work_days: 0 })).id;
+    ids.part = (await addManual(admin, zt01, MONTH, { name: 'W01a 兼職', code: staffCode('P', true), position: '兼職專員', employment_type: 'part_time', work_hours: 0, work_days: 0 })).id;
     ids.newbie = (await addManual(admin, zt01, MONTH, { name: 'W01a 新人', code: staffCode('B'), position: '新人', newbie_level: '一階新人' })).id;
     ids.other = (await addManual(admin, zt02, MONTH, { name: 'W01a 二店', code: staffCode('T') })).id;
     await ensureSummary(admin, zt01, MONTH);

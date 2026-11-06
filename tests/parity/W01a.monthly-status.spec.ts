@@ -42,7 +42,7 @@ test.beforeAll(async () => {
   zt01 = stores.ZT01;
   zt02 = stores.ZT02;
   codes.n = staffCode('N');
-  codes.p = staffCode('P');
+  codes.p = staffCode('P', true);
   codes.b = staffCode('B');
   codes.d1 = staffCode('1');
   codes.d2 = staffCode('2');
@@ -310,8 +310,8 @@ for (const role of ROLES_ROSTER) {
         await expect(native.locator('tr[data-staff]').first()).toBeVisible({ timeout: 30_000 });
 
         const rawLegacy = await legacyRoster(legacy);
-        const legacyRows = (rawLegacy).filter((r) => r.code.startsWith('FKF9')).map(canonicalRoster);
-        const nativeRows = (await nativeRoster(native)).filter((r) => r.code.startsWith('FKF9')).map(canonicalRoster);
+        const legacyRows = (rawLegacy).filter((r) => /^(?:FKF9|FKPT9)/.test(r.code)).map(canonicalRoster);
+        const nativeRows = (await nativeRoster(native)).filter((r) => /^(?:FKF9|FKPT9)/.test(r.code)).map(canonicalRoster);
         expect(legacyRows.length, '舊頁名冊列數').toBeGreaterThan(0);
         const result = compareTables({
           recorder,
@@ -435,11 +435,11 @@ test('送審前檢查：舊版兩段確認 vs 新版同一視窗，列出的人�
     for (const m of messages) {
       if (m.includes('尚未填寫本月工作時數')) {
         for (const line of m.split('\n')) {
-          const hit = line.match(/^(FKF9\S+) /);
+          const hit = line.match(/^((?:FKF9|FKPT9)\S+) /);
           if (hit) legacyWho.push({ who: `part:${hit[1]}`, suggested: '' });
         }
       }
-      const newbie = m.match(/^(FKF9\S+) .*\n到職日.*\n.*\n建議：(.+)\n/);
+      const newbie = m.match(/^((?:FKF9|FKPT9)\S+) .*\n到職日.*\n.*\n建議：(.+)\n/);
       if (newbie) legacyWho.push({ who: `newbie:${newbie[1]}`, suggested: newbie[2].trim() });
     }
     const draftRows = await readRowsAsServiceRole('monthly_staff_status', { eq: { store_id: zt01, year_month: M_DRAFT }, select: 'status' });
