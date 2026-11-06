@@ -3,6 +3,11 @@ import { ref, computed, onMounted } from "vue";
 import { api, ApiError } from "../api";
 import { useWorkspace, useSession, type WorkTab } from "../stores";
 import { flattenTaskSteps } from "../../../lib/workspace/task-state";
+
+// Q9／B.3：整體進度以勾選紀錄為準（所有區段所有步驟完成才算已完成），不看 assignments.status。
+const overallDone = (r: any) => r.total > 0 && r.total === r.done;
+const overallStatus = (r: any) =>
+  overallDone(r) ? "completed" : r.done > 0 ? "in_progress" : "pending";
 import Modal from "../components/Modal.vue";
 import TaskSchedule from "../components/TaskSchedule.vue";
 const props = defineProps<{ tab: WorkTab }>(),
@@ -143,10 +148,10 @@ onMounted(load);
     >
       <h2>
         {{ r.assignee }} · {{ r.department || "未分部門" }}
-        <span class="status-badge" :data-status="r.status">{{
-          r.status === "completed"
+        <span class="status-badge" :data-status="overallStatus(r)">{{
+          overallDone(r)
             ? "已完成"
-            : r.status === "in_progress"
+            : r.done > 0
               ? "進行中"
               : "待處理"
         }}</span>
@@ -154,7 +159,7 @@ onMounted(load);
           開啟任務（可代為勾選）
         </button>
         <button
-          v-if="data.canDeleteAssignment && r.status === 'completed'"
+          v-if="data.canDeleteAssignment && overallDone(r)"
           class="danger"
           :disabled="tab.busy"
           @click="removing = r; removeError = ''"
@@ -164,7 +169,7 @@ onMounted(load);
       </h2>
       <p>
         實際完成 {{ r.done }} / {{ r.total }} ·
-        {{ r.total > 0 && r.total === r.done ? "所有項目已完成" : "尚未完成" }}
+        {{ overallDone(r) ? "所有項目已完成" : "尚未完成" }}
       </p>
       <p class="muted">
         指派：{{ dateOf(r.created_at) }} · 完成：{{ dateOf(r.completed_at) }}

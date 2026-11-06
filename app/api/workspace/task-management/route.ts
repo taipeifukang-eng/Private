@@ -70,7 +70,7 @@ export async function GET(request: Request) {
           hasDelete: ctx.has("task.template.delete"),
         }),
         completedAssignments: records.filter(
-          (r) => r.template_id === t.id && r.status === "completed",
+          (r) => r.template_id === t.id && r.total > 0 && r.total === r.done,
         ).length,
       })),
       canDeleteAssignment: canDeleteAssignments(scope),
@@ -141,7 +141,7 @@ export async function DELETE(request: Request) {
       const a = (
         await ctx.admin
           .from("assignments")
-          .select("id,template_id,status")
+          .select("id,template_id")
           .eq("id", b.id)
           .maybeSingle()
       ).data as any;
@@ -149,8 +149,6 @@ export async function DELETE(request: Request) {
       const { scope } = await managedTemplate(ctx, a.template_id);
       if (!canDeleteAssignments(scope))
         throw new WorkspaceError(403, "權限不足，需要刪除任務範本的權限");
-      if (a.status !== "completed")
-        throw new WorkspaceError(409, "只能刪除已完成的任務");
       const r = await ctx.admin.rpc("workspace_delete_assignment", {
         p_assignment: b.id,
         p_actor: ctx.user.id,
@@ -168,14 +166,9 @@ export async function DELETE(request: Request) {
     if (b.kind === "completed") {
       if (!canDeleteAssignments(scope))
         throw new WorkspaceError(403, "權限不足，需要刪除任務範本的權限");
-      const ids = await taskRows(() =>
-        ctx.admin
-          .from("assignments")
-          .select("id")
-          .eq("template_id", b.id)
-          .eq("archived", false)
-          .eq("status", "completed")
-          .order("id"),
+      // 與畫面一致：以勾選紀錄推算的整體進度判斷（Q9／B.3），不看 assignments.status。
+      const ids = (await templateAssignments(ctx, [b.id])).filter(
+        (r) => r.total > 0 && r.total === r.done,
       );
       let deleted = 0,
         failed = 0;

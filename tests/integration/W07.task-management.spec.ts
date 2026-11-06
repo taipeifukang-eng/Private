@@ -9,6 +9,8 @@ import {
   countRows,
   createTemplate,
   deleteRunTemplates,
+  logSteps,
+  stepIds,
   runIdOrThrow,
   setAssignment,
   templateExists,
@@ -85,7 +87,7 @@ test.describe('A.1 刪除流程模板', () => {
       const audit = await auditRows({ template_id: t.id });
       expect(audit).toHaveLength(1);
       expect(audit[0]).toMatchObject({ kind: 'template', actor_id: userId('admin'), template_title: t.form.title });
-      expect(audit[0].summary).toMatchObject({ assignment_count: 2, completed_count: 2, archived_count: 1 });
+      expect(audit[0].summary).toMatchObject({ assignment_count: 2, completed_count: 1, archived_count: 1 }); // 以勾選紀錄推算：第二筆只有 status 欄位是 completed、沒有勾選紀錄，不算完成
     } finally {
       await admin.dispose();
     }
@@ -163,6 +165,48 @@ test.describe('A.2 刪除已完成任務（含稽核紀錄）', () => {
       expect(await res.json()).toMatchObject({ deleted: 1, failed: 0 });
       expect(await countRows('assignments', 'id', [second]), '未完成的不能被刪').toBe(1);
       expect(await auditRows({ template_id: t.id })).toHaveLength(1);
+    } finally {
+      await admin.dispose();
+    }
+  });
+});
+
+test.describe('A.1／A.2 完成判斷以勾選紀錄為準（Q9／B.3），不看 assignments.status', () => {
+  test('status 是 completed 但只勾了部分步驟：不能刪任務（409）、也擋下刪模板，批次刪除不動它', async () => {
+    const admin = await apiAs('admin');
+    try {
+      const t = await createTemplate(admin, 'del-progress-partial');
+      const ids = await stepIds(t.id);
+      expect(ids.length).toBeGreaterThan(1);
+      await logSteps(t.assignmentId, ids.slice(0, 1), userId('admin'));
+      await setAssignment(t.assignmentId, { status: 'completed', completed_at: new Date().toISOString() });
+      let res = await del(admin, { kind: 'assignment', id: t.assignmentId });
+      expect(res.status()).toBe(409);
+      res = await del(admin, { kind: 'template', id: t.id, title: t.form.title });
+      expect(res.status()).toBe(409);
+      res = await del(admin, { kind: 'completed', id: t.id });
+      expect(await res.json()).toMatchObject({ deleted: 0, failed: 0 });
+      expect(await countRows('assignments', 'id', [t.assignmentId])).toBe(1);
+      expect(await templateExists(t.id)).toBe(true);
+      expect(await auditRows({ template_id: t.id })).toHaveLength(0);
+    } finally {
+      await admin.dispose();
+    }
+  });
+
+  test('勾選紀錄全部完成但 status 仍是 in_progress：可刪任務，批次刪除也會刪到（與畫面按鈕一致）', async () => {
+    const admin = await apiAs('admin');
+    try {
+      const t = await createTemplate(admin, 'del-progress-full');
+      const second = await addAssignment(t.id, { status: 'pending' }, [userId('employee')]);
+      await logSteps(t.assignmentId, await stepIds(t.id), userId('admin'));
+      await setAssignment(t.assignmentId, { status: 'in_progress' });
+      const list = await (await admin.get('/api/workspace/task-management')).json();
+      expect(list.records.find((r: any) => r.id === t.id)).toMatchObject({ completed: 1, completedAssignments: 1 });
+      const res = await del(admin, { kind: 'completed', id: t.id });
+      expect(await res.json()).toMatchObject({ deleted: 1, failed: 0 });
+      expect(await countRows('assignments', 'id', [t.assignmentId])).toBe(0);
+      expect(await countRows('assignments', 'id', [second])).toBe(1);
     } finally {
       await admin.dispose();
     }

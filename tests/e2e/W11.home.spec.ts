@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import { apiAs, loginAs } from '../support/auth';
 import { applyProjectViewport, noPageOverflow } from '../support/w04-ui';
 import { addSectionAssignment, createTemplate, deleteRunTemplates, dropAutoAssignments, DEPT, logSteps, runIdOrThrow, sectionOf, templateSections, userId } from '../support/m3-fixtures';
-import { pendingTransferRows, seedBonus, seedTransfers, storeIds, withEmployeeCode } from '../support/w11-fixtures';
+import { pendingTransferRows, seedBonusAs, seedTransfers, storeIds } from '../support/w11-fixtures';
 
 // W11 / W12 e2e（桌機 1440 與手機 390）：
 //  - 獎金卡：前 3 個月在外面，較早月份收在「較早月份」；未確認的月份標「尚未確認，金額可能調整」，已確認的不標；展開看欄位與合計。
@@ -19,9 +19,8 @@ test('獎金卡與我的任務：標註未確認、較早月份收合、未完�
   runIdOrThrow();
   const tag = testInfo.project.name;
   const st = await storeIds();
-  const restore = await withEmployeeCode('ops_assistant');
   const months = ['2038-04', '2038-03', '2038-02', '2038-01'];
-  const cleanup = await seedBonus(
+  const cleanup = await seedBonusAs('ops_assistant', 
     months.map((yearMonth, i) => ({ yearMonth, store: st.ZT05, amounts: { group_bonus: 1000 + i, other_bonus: i === 0 ? 5 : 0 }, note: '加班' })),
     [{ yearMonth: '2038-03', store: st.ZT05 }],
   );
@@ -79,7 +78,6 @@ test('獎金卡與我的任務：標註未確認、較早月份收合、未完�
   } finally {
     await ctx.close();
     await cleanup();
-    await restore();
   }
 });
 

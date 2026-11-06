@@ -2,7 +2,7 @@ import { expect, request as playwrightRequest, test } from '@playwright/test';
 import { apiAs, TEST_ORIGIN } from '../support/auth';
 import { adminDb, addSectionAssignment, createTemplate, deleteRunTemplates, dropAutoAssignments, logSteps, sectionOf, userId, DEPT, runIdOrThrow, templateSections } from '../support/m3-fixtures';
 import { p02Code, purgeP02, registerP02, seedMaster } from '../support/p02-fixtures';
-import { homeFor, marker, pendingTransferRows, seedBonus, seedTransfers, storeIds, withEmployeeCode } from '../support/w11-fixtures';
+import { homeFor, marker, pendingTransferRows, seedBonusAs, seedTransfers, storeIds } from '../support/w11-fixtures';
 import { taipeiDate } from '../../lib/workspace/home-rules';
 
 // W11 整合層（M3 C.1–C.4、C.6）：GET /api/workspace/home。
@@ -68,8 +68,7 @@ test.describe('每月獎金明細（C.2、Q12）', () => {
   test.describe.configure({ mode: 'serial' });
   test('有資料才顯示、零金額不列、同月多門市加總；月結已確認才不標註', async () => {
     const st = await storeIds();
-    const restoreCode = await withEmployeeCode('ops_assistant');
-    const cleanup = await seedBonus(
+    const cleanup = await seedBonusAs('ops_assistant', 
       [
         { yearMonth: '2038-03', store: st.ZT05, amounts: { group_bonus: 1000, talent_bonus: 250.5, transport_fee: -100 } },
         { yearMonth: '2038-02', store: st.ZT05, amounts: { group_bonus: 700, other_bonus: 50 }, note: '加班' },
@@ -99,7 +98,6 @@ test.describe('每月獎金明細（C.2、Q12）', () => {
       expect(order).toEqual([...order].sort().reverse());
     } finally {
       await cleanup();
-      await restoreCode();
     }
     const after = await adminDb().from('profiles').select('employee_code').eq('id', userId('ops_assistant')).single();
     expect(after.data.employee_code, '員編已還原').not.toBe(marker());
@@ -107,9 +105,8 @@ test.describe('每月獎金明細（C.2、Q12）', () => {
 
   test('只顯示最近 12 個月，且前 3 個月之外放在「較早月份」資料裡（同一份清單依新到舊）', async () => {
     const st = await storeIds();
-    const restoreCode = await withEmployeeCode('ops_assistant');
     const months = ['2038-01', '2038-02', '2038-03', '2038-04', '2038-05', '2038-06', '2038-07', '2038-08', '2038-09', '2038-10', '2038-11', '2038-12', '2037-12'];
-    const cleanup = await seedBonus(months.map((yearMonth) => ({ yearMonth, store: st.ZT05, amounts: { group_bonus: 10 } })));
+    const cleanup = await seedBonusAs('ops_assistant', months.map((yearMonth) => ({ yearMonth, store: st.ZT05, amounts: { group_bonus: 10 } })));
     try {
       const { body } = await get('ops_assistant');
       const got = (body.bonus.months as any[]).map((m) => m.yearMonth);
@@ -119,7 +116,6 @@ test.describe('每月獎金明細（C.2、Q12）', () => {
       expect((body.bonus.months as any[]).every((m) => m.confirmed === false), '沒有月結資料視為未確認').toBe(true);
     } finally {
       await cleanup();
-      await restoreCode();
     }
   });
 

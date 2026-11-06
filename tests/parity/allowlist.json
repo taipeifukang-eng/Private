@@ -1520,8 +1520,8 @@
     "id": "m3-open-others-task-rbac",
     "page": "task-run",
     "description": "打開非自己參與的任務：舊版 /assignment/[id] 對 profiles.role 為 admin 或 manager 的人都開放（營業主管可以打開）；新版只開放有任務管理權限者（管理員，或同時有 task.manage 的主管），並可代為勾選、每次記錄代做者（誰、何時）。沒有任務管理權限的主管（例如測試營業主管）新版打不開。",
-    "reason": "M3 規格 B.1（Q7 = edit_with_log）與 D08（任務管理權限依 RBAC 收緊），使用者核可。",
-    "approvedBy": "user (2026-11-07 survey/m3 Q7)",
+    "reason": "M3 規格 B.1（Q7 = edit_with_log）只決定「代為勾選並記錄」，沒有決定營業主管（profiles.role=manager 但沒有 task.manage）是否失去舊版的開啟權限；D08 寫明「暫採建議，列入白名單請使用者核可」，B.1 也要求上線前把新舊名單差異列給使用者。待使用者核可。另：有任務管理權限的人開啟任務不限範本建立者（與規格 B.1、舊版 admin/manager 不限範圍一致）。",
+    "approvedBy": null,
     "match": {
       "mechanism": "api-read",
       "entry": "open-others-task",
@@ -1590,7 +1590,7 @@
     "id": "m3-home-timezone",
     "page": "home",
     "description": "首頁「本月」的判定：舊版用伺服器本地時間，新版固定用台北時間（月底與月初的跨日邊界在 UTC 伺服器上才會不同）。",
-    "reason": "M3 規格 C.6：資料規則照舊版；日期改台北時間只在伺服器不是台北時區時才有差別。",
-    "approvedBy": "user (2026-11-07 survey/m3 Q11)"
+    "reason": "M3 規格 C.6：資料規則照舊版（Q11 = same_as_old，只決定資料規則照舊版，沒有核可日期改台北時間）；日期改台北時間只在伺服器不是台北時區時才有差別。待使用者核可。",
+    "approvedBy": null
   }
 ]

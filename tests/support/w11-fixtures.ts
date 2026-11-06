@@ -55,6 +55,11 @@ export async function seedBonus(rows: BonusSeed[], confirmed: { yearMonth: strin
   const reg = createRegistry({ runId: runIdOrThrow() });
   const ids: string[] = [],
     summaryIds: string[] = [];
+  const undo = async () => {
+    if (ids.length) await db.from('monthly_bonus_records').delete().in('id', ids);
+    if (summaryIds.length) await db.from('monthly_store_summary').delete().in('id', summaryIds);
+  };
+  try {
   for (const r of rows) {
     const ins = await db
       .from('monthly_bonus_records')
@@ -69,6 +74,11 @@ export async function seedBonus(rows: BonusSeed[], confirmed: { yearMonth: strin
     const ins = await db.from('monthly_store_summary').insert({ year_month: c.yearMonth, store_id: c.store, store_status: 'confirmed' }).select('id').single();
     if (ins.error) throw new Error(`建立月結摘要失敗：${ins.error.message}`);
     summaryIds.push(ins.data.id);
+  }
+  } catch (e) {
+    // 部分失敗：已寫入的列只刪自己建立的 id 再丟錯，不留 2038 殘留。
+    await undo();
+    throw e;
   }
   if (summaryIds.length) reg.record({ table: 'monthly_store_summary', values: summaryIds, note: 'W11 summary 2038' });
   return async () => {
@@ -109,4 +119,26 @@ export async function pendingTransferRows() {
   const r = await adminDb().from('store_transfer_requests').select('from_store_id,to_store_id').eq('status', 'pending');
   if (r.error) throw new Error(r.error.message);
   return r.data as { from_store_id: string; to_store_id: string }[];
+}
+
+/**
+ * 暫時把測試帳號員編設成 ZT<runId> 並寫入獎金列；回傳單一清除函式（先清獎金列、再還原員編）。
+ * 任何一步失敗都會先把已做的還原／清掉再丟錯，不會讓員編停在 ZT<runId>。
+ */
+export async function seedBonusAs(role: string, rows: BonusSeed[], confirmed: { yearMonth: string; store: string }[] = []) {
+  const restore = await withEmployeeCode(role);
+  let cleanup: () => Promise<void>;
+  try {
+    cleanup = await seedBonus(rows, confirmed);
+  } catch (e) {
+    await restore();
+    throw e;
+  }
+  return async () => {
+    try {
+      await cleanup();
+    } finally {
+      await restore();
+    }
+  };
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { parse, NodeTypes } from '@vue/compiler-dom';
 
 // W12 單元層（M3 C.5）：首頁版面順序、問候、快捷入口位置，以及 API 路由不設頁面權限（登入即可讀）。
 const root = path.resolve(__dirname, '..', '..', '..');
@@ -10,10 +11,22 @@ const template = view.slice(view.indexOf('<template>'), view.indexOf('<style'));
 
 describe('首頁版面（C.5）', () => {
   it('順序：調店確認 → 每月版更 → 我的獎金 → 新人入職 → 任務 → 壽星 → 年費 → 執照 → 快捷入口', () => {
-    const marks = ['data-home-card="transfer-confirm"', 'data-home-card="monthly-release"', 'data-home-card="bonus"', 'data-home-card="onboarding"', 'data-home-card="tasks"', 'data-home-card="birthdays"', 'data-home-card="annual-fee"', 'data-home-card="license"', 'data-home="quick"'];
-    const at = marks.map((m) => template.indexOf(m));
-    expect(at.every((i) => i >= 0), `找不到：${marks.filter((_, i) => at[i] < 0)}`).toBe(true);
-    expect([...at].sort((a, b) => a - b)).toEqual(at);
+    // 用模板 AST 判斷：註解裡的屬性不算；被 v-if="false" / v-show="false" 擋住的卡片不算。
+    const found: { key: string; hidden: boolean }[] = [];
+    const walk = (node: any, hidden: boolean) => {
+      let h = hidden;
+      if (node.type === NodeTypes.ELEMENT) {
+        const hide = node.props.some((p: any) => p.type === NodeTypes.DIRECTIVE && ['if', 'show'].includes(p.name) && p.exp?.content?.trim() === 'false');
+        h = hidden || hide;
+        const attr = node.props.find((p: any) => p.type === NodeTypes.ATTRIBUTE && ((p.name === 'data-home-card' || (p.name === 'data-home' && p.value?.content === 'quick'))));
+        if (attr) found.push({ key: `${attr.name}=${attr.value?.content}`, hidden: h });
+      }
+      for (const c of node.children || []) if (typeof c === 'object') walk(c, h);
+    };
+    walk(parse(template), false);
+    const expected = ['data-home-card=transfer-confirm', 'data-home-card=monthly-release', 'data-home-card=bonus', 'data-home-card=onboarding', 'data-home-card=tasks', 'data-home-card=birthdays', 'data-home-card=annual-fee', 'data-home-card=license', 'data-home=quick'];
+    expect(found.filter((f) => f.hidden), '不得有被 v-if/v-show="false" 隱藏的卡片').toEqual([]);
+    expect(found.map((f) => f.key)).toEqual(expected);
   });
   it('問候只有「歡迎回來，姓名」，沒有依角色的一句話', () => {
     expect(template).toContain('歡迎回來，{{ name }}');

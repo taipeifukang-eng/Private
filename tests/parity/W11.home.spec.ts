@@ -4,7 +4,7 @@ import { assertNoUnlistedDiffs, loadMap, ParityRecorder, valueDiffsToDiffs } fro
 import { diffNormalized } from '../support/normalize';
 import { adminDb, addSectionAssignment, createTemplate, deleteRunTemplates, dropAutoAssignments, DEPT, logSteps, runIdOrThrow, sectionOf, templateSections, userId } from '../support/m3-fixtures';
 import { p02Code, purgeP02, registerP02, seedMaster } from '../support/p02-fixtures';
-import { seedBonus, seedTransfers, storeIds, withEmployeeCode } from '../support/w11-fixtures';
+import { seedBonusAs, seedTransfers, storeIds } from '../support/w11-fixtures';
 import { taipeiDate } from '../../lib/workspace/home-rules';
 
 // W11 / W12 對等層（M3 C）：舊版 app/page.tsx 的畫面擷取（用同一個角色登入）對新版 GET /api/workspace/home。
@@ -235,8 +235,7 @@ test('每月獎金明細：欄位、金額、合計、零金額與同月兩間�
   test.setTimeout(240_000);
   runIdOrThrow();
   const st = await storeIds();
-  const restore = await withEmployeeCode('ops_assistant');
-  const cleanup = await seedBonus(
+  const cleanup = await seedBonusAs('ops_assistant', 
     [
       { yearMonth: '2038-03', store: st.ZT05, amounts: { group_bonus: 1000, talent_bonus: 250.5, transport_fee: -100 } },
       { yearMonth: '2038-02', store: st.ZT05, amounts: { group_bonus: 700, other_bonus: 50 }, note: '加班' },
@@ -261,7 +260,6 @@ test('每月獎金明細：欄位、金額、合計、零金額與同月兩間�
     await ctx.close();
     await api.dispose();
     await cleanup();
-    await restore();
   }
 });
 
