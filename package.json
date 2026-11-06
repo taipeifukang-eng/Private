@@ -14,6 +14,9 @@
     "test:general-affairs-vendor-print-form": "node scripts/test-general-affairs-vendor-print-form.js",
     "test:inspection-monthly-store-lineage": "node scripts/test-inspection-monthly-store-lineage.js",
     "test:monthly-support-bonus-rbac": "node scripts/test-monthly-support-bonus-rbac.js",
+    "test:permission-snapshot-unit": "node scripts/perf/test-permission-snapshot-unit.cjs",
+    "test:monthly-status-equivalence": "node scripts/perf/test-monthly-status-equivalence.cjs",
+    "measure:monthly-status": "node scripts/perf/measure-monthly-status.cjs",
     "test:general-affairs-production-isolation": "node scripts/test-general-affairs-production-isolation.js",
     "start": "next start",
     "lint": "next lint"
