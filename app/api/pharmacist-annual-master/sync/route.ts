@@ -39,6 +39,9 @@ export async function GET(req: NextRequest) {
   // 工作台對沒有 master.view 的帳號加上 readonly=1：只讀回傳，不觸發寫入型同步。
   const readOnly = req.nextUrl.searchParams.get('readonly') === '1';
 
+  // 真正最後同步時間（回傳給畫面顯示）
+  let lastSyncedAt: string | null = null;
+
   // 2. 如果未關帳，判斷是否有新增人事異動再決定是否重跑同步
   if (!isLocked && !readOnly) {
     const yearStart = `${year}-01-01`;
@@ -53,7 +56,7 @@ export async function GET(req: NextRequest) {
       .eq('year', year)
       .single();
 
-    let lastSyncedAt: string | null = syncLog?.last_synced_at ?? null;
+    lastSyncedAt = syncLog?.last_synced_at ?? null;
     let needsSync = true;
 
     if (lastSyncedAt) {
