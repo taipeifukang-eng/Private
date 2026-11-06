@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {ref,computed,onMounted} from 'vue';import {api} from '../api';import Modal from '../components/Modal.vue';import type {WorkTab} from '../stores';
+import {ref,computed,onMounted} from 'vue';import {api} from '../api';import Modal from '../components/Modal.vue';import PromotionPositionSelect from '../components/PromotionPositionSelect.vue';import type {WorkTab} from '../stores';
 const props=defineProps<{tab:WorkTab;embedded?:boolean}>(),month=ref(props.tab.month),type=ref('all'),size=ref('100'),data=ref<any>(null),loading=ref(false),error=ref('');
 const exporting=ref(false);
 const types=ref<{value:string;label:string}[]>([]);
@@ -31,7 +31,7 @@ onMounted(()=>load());
  <form class="edit-form" @submit.prevent="saveEdit"><p v-if="dialogError" class="notice error" role="alert">{{dialogError}}</p>
  <label>姓名<input v-model="form.employee_name" maxlength="100" required aria-label="姓名"></label>
  <label>生效日期<input type="date" v-model="form.movement_date" required aria-label="生效日期"></label>
- <template v-if="editing.movement_type==='promotion'"><label>升任後職位<select v-model="form.position" aria-label="升任後職位" @change="form.newbie_level=''"><option v-for="p in data.positions" :key="p">{{p}}</option></select></label><label v-if="['新人','行政'].includes(form.position)">新人／行政階級<select v-model="form.newbie_level" aria-label="新人／行政階級"><option value="">請選擇</option><option v-for="l in levelOptions" :key="l.value" :value="l.value">{{l.label}}</option></select></label></template>
+ <template v-if="editing.movement_type==='promotion'"><PromotionPositionSelect v-model="form.position" :positions="data.positions" title="升任後職位" @change="form.newbie_level=''"/><label v-if="['新人','行政'].includes(form.position)">新人／行政階級<select v-model="form.newbie_level" aria-label="新人／行政階級"><option value="">請選擇</option><option v-for="l in levelOptions" :key="l.value" :value="l.value">{{l.label}}</option></select></label></template>
  <label v-if="editing.movement_type==='onboarding'" class="check"><input type="checkbox" v-model="form.onboarding_is_pharmacist" aria-label="入職藥師身分">入職時為藥師</label>
  <label>備註<textarea v-model="form.notes" maxlength="5000" rows="3" aria-label="備註"></textarea></label>
  <p class="hint">儲存後會同步員工主檔與受影響月份的每月人員狀態；已送審／已確認月份不會被改動，會列入「需重新確認」。</p>

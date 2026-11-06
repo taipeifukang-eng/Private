@@ -157,7 +157,7 @@ test.describe('W06 C 組：修改與刪除歷史異動', () => {
     expect((await masterOf(c.edit))[0].employee_name).toBe('W06 修改後');
     const rows = await rosterRows(c.edit);
     expect(field(rows, m1, 'employee_name')).toBe('W06 修改後'); // 草稿月份同步
-    expect(field(rows, m2, 'employee_name')).toBe('W06 修改前'); // 已送審月份不動（A.2）
+    expect(field(rows, m2, 'employee_name')).toBe('W06 修改後'); // H.9：姓名同步全部月份（含已送審），不列需重新確認
     // 驗證
     for (const bad of [{ movement_date: '2099-13-40' }, { movement_date: '115-01-01' }, { employee_name: '' }, { notes: 'x'.repeat(5001) }]) {
       const r = await patch(id, bad);

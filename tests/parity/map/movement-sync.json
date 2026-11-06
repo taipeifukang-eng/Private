@@ -108,7 +108,7 @@
     {
       "id": "edit-name",
       "mechanism": "write-readback",
-      "description": "修改姓名：舊版連已送審月份的姓名一併改寫；新版已送審月份不動（A.2），草稿月份、員工主檔與異動歷史一致。",
+      "description": "修改姓名：舊版與新版都把姓名同步到全部月份（含已送審、已確認）、員工主檔與異動歷史（M2 H.9，取代 A.2 對姓名的例外）。",
       "legacy": {
         "api": {
           "path": "/api/employee-movements/[id]",

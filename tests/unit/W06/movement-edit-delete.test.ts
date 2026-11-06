@@ -51,7 +51,8 @@ describe('C.1 資料庫函式', () => {
     expect(histUpdate).not.toMatch(/\bstore_id\s*=/);
     expect(upd).toContain('workspace_roster_recompute(p_actor,m.employee_code,from_ym');
     expect(upd).toContain("RAISE EXCEPTION 'WORKSPACE_DUPLICATE'");
-    expect(upd).toContain('workspace_staff_month_locked(');
+    // H.9：姓名同步全部月份（含已送審、已確認），不再依月份鎖定排除
+    expect(upd).not.toContain('workspace_staff_month_locked(');
     expect(upd).toContain("'行政階級:'");
     expect(upd).toContain("'新人等級:'");
   });

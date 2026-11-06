@@ -85,7 +85,7 @@ test.describe('W06 C 組 歷史異動修改與刪除對等', () => {
     record('edit-promotion', '修改升職職位：異動歷史、名冊職位、主檔職位', 'PATCH', await facts(code.editL), await facts(code.editN));
   });
 
-  test('修改姓名：草稿月份與主檔、歷史對等；已送審月份舊版也改、新版不動（A.2 已核可差異）', async () => {
+  test('修改姓名：草稿月份、已送審月份、主檔、歷史全部對等（H.9：姓名同步全部月份，取代 A.2 對姓名的例外）', async () => {
     const ids: Record<string, string> = {};
     for (const c of [code.nameL, code.nameN]) ids[c] = await seedPromotion(c, 'W06對等 原名', { lockedM2: true });
     const body = { employee_name: 'W06對等 新名', movement_date: '2025-03-10', notes: '改名' };

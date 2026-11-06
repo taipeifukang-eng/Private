@@ -89,3 +89,22 @@ export function pickEffectivePosition<T extends RankedEntry>(entries: readonly T
   }
   return best;
 }
+
+// H.6：升職職位下拉的分組（使用者 2026-11-06 survey/m2-followup）。
+// 預設只列門市職等與兼職職位；偏向總部的職位收在「顯示總部職位」之後，仍可選。只影響畫面分組，不改排名規則、不限制可儲存的職位；
+// 批次升遷 Excel 匯入與 API 仍接受總部職位。
+export const HQ_POSITIONS = ['總經理', '副總經理', '資深經理', '資深副理', '副理', '資深專員', '高級專員', '出納專員', '助理'] as const;
+/** 兼職四職位視為門市一般選項。 */
+export const PART_TIME_POSITIONS = ['兼職專員', '兼職藥師', '兼職藥師專員', '兼職助理'] as const;
+
+export function isHeadquartersPosition(position: unknown): boolean {
+  return typeof position === 'string' && (HQ_POSITIONS as readonly string[]).includes(position.trim());
+}
+
+/** 把職位清單分成「門市（含兼職）」與「總部」兩組，保留原順序。 */
+export function splitPromotionPositions(all: readonly string[]): { store: string[]; headquarters: string[] } {
+  const store: string[] = [];
+  const headquarters: string[] = [];
+  for (const position of all || []) (isHeadquartersPosition(position) ? headquarters : store).push(position);
+  return { store, headquarters };
+}
