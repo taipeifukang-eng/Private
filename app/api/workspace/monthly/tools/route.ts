@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { checked, checkOrigin, failed, respond, uuid, WorkspaceError } from '@/lib/workspace/server';
 import { moduleContext, requireStore, monthValue } from '@/lib/workspace/modules';
+import { buildMonthlyMeta } from '@/lib/workspace/monthly-meta';
 import { monthlyTools, toolFor, permit, editableMonth, validateAllowance } from '@/lib/workspace/monthly-tools';
 import { getStoreMonthlySummary, exportMonthlyStatusForBonus } from '@/app/store/actions';
 import { POST as pdfData } from '@/app/api/export-single-item-bonus-pdf/route';
@@ -25,25 +26,14 @@ export const maxDuration = 120;
 
 export async function GET(request: Request) {
   try {
-    const ctx = await moduleContext('monthly');
+    const ctx = await moduleContext('monthly', { profile: false, prefetchStores: true });
     const p = new URL(request.url).searchParams;
     const month = monthValue(p.get('month')), store = p.get('store') || '', op = p.get('op') || 'meta';
     await requireStore(ctx, 'monthly', store);
     if (op === 'meta') {
-      const summary = await getStoreMonthlySummary(month, store);
+      const summary = await getStoreMonthlySummary(month, store, { user: ctx.user, supabase: ctx.auth });
       if (!summary.success) throw new WorkspaceError(503, '門市統計讀取失敗');
-      const capabilities: Record<string, boolean> = {};
-      for (const [kind, tool] of Object.entries(monthlyTools)) capabilities[kind] = ctx.has(tool.permission);
-      const viewStats = ctx.has('monthly.status.view_stats'), viewSupport = ctx.has('monthly.allowance.view_support_hours', 'monthly.allowance.edit_support_hours');
-      const fields = ['total_staff_count','admin_staff_count','newbie_count','business_days','total_gross_profit','total_customer_count','prescription_addon_only_count','regular_prescription_count','chronic_prescription_count'];
-      const stats: Record<string, any> = {};
-      for (const key of fields) if (viewStats) stats[key] = summary.data?.[key] ?? null;
-      for (const key of ['support_to_other_stores_hours','support_from_other_stores_hours']) if (viewSupport) stats[key] = summary.data?.[key] ?? null;
-      return respond({ stats, version: summary.data?.updated_at || null, storeStatus: summary.data?.store_status || 'not_started', capabilities: {
-        ...capabilities, viewStats, viewSupport, editStats: viewStats && ctx.has('monthly.status.edit'), editSupport: ctx.has('monthly.allowance.edit_support_hours'), manual: ctx.has('monthly.status.add_employee'),
-        pdf: ctx.has('monthly.export.download'), bonusDetails: ctx.has('monthly.status.bonus_detail.view'), performance: ctx.has('monthly.status.view_performance'), activity: await canEnterCampaignView(ctx.auth, ctx.user.id),
-        importPerformance: ctx.has('monthly.import.performance') && ctx.has('monthly.status.view_all'), importStats: ctx.has('monthly.import.store_stats') && ctx.has('monthly.status.view_all'),
-      }});
+      return respond(await buildMonthlyMeta(ctx, summary.data));
     }
     if (op === 'employees') {
       if (!ctx.has('monthly.status.add_employee', 'monthly.status.edit', ...Object.values(monthlyTools).map(t=>t.permission))) throw new WorkspaceError(403, '沒有選擇人員權限');
@@ -130,7 +120,7 @@ async function guardManualAdd(ctx: any, store: string, month: string) {
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
-    const ctx = await moduleContext('monthly');
+    const ctx = await moduleContext('monthly', { profile: false });
     if (request.headers.get('content-type')?.includes('multipart/form-data')) {
       const form = await request.formData(), kind = String(form.get('kind')), month = monthValue(form.get('month'));
       if (!['performance','stats'].includes(kind)) throw new WorkspaceError(400,'匯入類型錯誤');

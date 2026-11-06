@@ -396,7 +396,7 @@ watch(
       <li v-for="a in adjustments" :key="a.id">{{ a.employee_code }} {{ a.employee_name }}：{{ fieldLabels[a.field] || a.field }} {{ fieldValue(a.field, a.old_value) }} → {{ fieldValue(a.field, a.new_value) }}<small>{{ a.movement_label }}</small></li>
     </ul>
   </section>
-  <MonthlyTools :global-target="globalToolsTarget" :store-target="storeToolsTarget" :tab="tab" :rows="rows" :month-state="monthState" :options="permissions.options || {}" :revision="revision" :disabled="loading || queryChanged || !tab.store || !!error || permissions.storeActive === false" @refresh="load" />
+  <MonthlyTools :global-target="globalToolsTarget" :store-target="storeToolsTarget" :tab="tab" :rows="rows" :month-state="monthState" :options="permissions.options || {}" :revision="revision" :meta="permissions.meta" :disabled="loading || queryChanged || !tab.store || !!error || permissions.storeActive === false" @refresh="load" />
   <p v-if="loading" role="status">載入人員資料…</p>
   <TopScrollTable v-else-if="!error" label="人員狀態表格" class="monthly-table">
     <table>

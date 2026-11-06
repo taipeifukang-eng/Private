@@ -8,7 +8,7 @@ import { checkEmployeeId, employmentTypeForEmployeeId, isValidEmployeeId, EMPLOY
 import ActivityPlan from './ActivityPlan.vue';
 const quarterMode=ref<'quarterBonuses'|'quarterPerformance'|''>('');
 const quarterNumber=computed(()=>Math.ceil(Number(props.tab.month.slice(5))/3));
-const props = defineProps<{ tab: WorkTab; monthState: string; rows: any[]; options: any; revision: number; disabled: boolean; globalTarget?:HTMLElement; storeTarget?:HTMLElement }>();
+const props = defineProps<{ tab: WorkTab; monthState: string; rows: any[]; options: any; revision: number; meta?: any; disabled: boolean; globalTarget?:HTMLElement; storeTarget?:HTMLElement }>();
 const emit = defineEmits<{ refresh: [] }>();
 const work = useWorkspace(), meta = ref<any>({capabilities:{},stats:{}}), loading = ref(false), error = ref(''), message = ref('');
 const mode = ref(''), entries = ref<any[]>([]), form = ref<any>({}), expected = ref<any[]>([]), readRows = ref<any[]>([]), dialogLoading = ref(false), dialogError = ref(''), discard = ref(false), query = ref(''), candidates = ref<any[]>([]), selectedIndex = ref(-1);
@@ -44,7 +44,9 @@ async function load() {
  catch(e){ error.value=(e as Error).message; meta.value={capabilities:{},stats:{}}; }
  finally {loading.value=false;}
 }
-watch(()=>props.revision,load,{immediate:true});
+// 項目 A：名冊回應已附上 meta（統計、capabilities、version），開頁時直接使用，不再另打 op=meta；
+// 沒有附 meta（舊回應或非有效門市）時維持原本的 load()。存檔後 emit('refresh') 會重新讀名冊，meta 隨之更新。
+watch(()=>props.revision,()=>{ if(props.meta && !props.disabled){ meta.value=props.meta; error.value=''; loading.value=false; } else void load(); },{immediate:true});
 async function read(op:string, extra:Record<string,string>={}) { return api(`monthly/tools?${new URLSearchParams({...context,op,...extra})}`); }
 async function open(kind:string) {
  const sequence=++openSequence; requestId=crypto.randomUUID();

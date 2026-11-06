@@ -6,11 +6,13 @@ import {
   WorkspaceError,
 } from "@/lib/workspace/server";
 import {
+  isAssignedTo,
   moduleContext,
   moduleStores,
   monthValue,
   requireStore,
 } from "@/lib/workspace/modules";
+import { buildMonthlyMeta } from "@/lib/workspace/monthly-meta";
 import {
   getMonthlyStaffStatus,
   getStoreMonthlySummary,
@@ -51,24 +53,50 @@ const PERFORMANCE_FIELDS = [
 ] as const;
 const STAFF_CHECK_COLUMNS =
   "id,status,employee_code,employee_name,employment_type,work_hours,start_date,position,monthly_status,newbie_level";
-async function isAssigned(ctx: any, store: string) {
-  const assigned = checked(
-    await ctx.auth
-      .from("store_managers")
-      .select("id")
-      .eq("user_id", ctx.user.id)
-      .eq("store_id", store),
-  ) as unknown[] | null;
-  return !!assigned?.length;
-}
+const isAssigned = (ctx: any, store: string) => isAssignedTo(ctx, store);
 const extractStoreCode = (raw: unknown) => {
   const text = String(raw || "").toUpperCase();
   const matched = text.match(/\d{4}[A-Z]?/);
   return matched ? matched[0] : text.trim();
 };
+// 名冊頁一次要的資料。名冊＋門市統計列用單一 RPC（以使用者身分執行，RLS 照舊，一趟往返），
+// recheck／adjustments 是 service role 才讀得到的表，與 RPC 同時送出；RPC 還沒套用（或失敗）時，名冊與統計退回逐表查詢，結果相同。
+async function rosterPage(ctx: any, month: string, store: string, since: string) {
+  const [rpc, recheckRes, adjustmentsRes] = await Promise.all([
+    ctx.auth.rpc("workspace_monthly_roster_page", { p_store: store, p_month: month }),
+    ctx.admin
+      .from("monthly_staff_recheck")
+      .select("id,employee_code,employee_name,year_month,field,old_value,new_value,reason_label,source_type,created_at")
+      .eq("store_id", store)
+      .eq("status", "pending")
+      .order("year_month")
+      .order("employee_code")
+      .limit(200),
+    ctx.admin
+      .from("monthly_staff_adjustment_log")
+      .select("id,employee_code,employee_name,field,old_value,new_value,movement_label,created_at")
+      .eq("store_id", store)
+      .eq("year_month", month)
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+  const recheck = checked(recheckRes) as any[];
+  const adjustments = checked(adjustmentsRes) as any[];
+  if (!rpc.error && rpc.data && Array.isArray(rpc.data.records))
+    return { records: rpc.data.records as any[], summary: (rpc.data.summary || null) as any, recheck, adjustments };
+  const caller = { user: ctx.user, supabase: ctx.auth };
+  const [result, summary] = await Promise.all([
+    getMonthlyStaffStatus(month, store, caller),
+    getStoreMonthlySummary(month, store, caller),
+  ]);
+  if (!result.success) throw new WorkspaceError(400, result.error || "讀取失敗");
+  if (!summary.success) throw new WorkspaceError(503, "月份狀態讀取失敗，請重試");
+  return { records: (result.data || []) as any[], summary: summary.data as any, recheck, adjustments };
+}
 export async function GET(request: Request) {
   try {
-    const ctx = await moduleContext("monthly");
+    const ctx = await moduleContext("monthly", { profile: false, prefetchStores: true });
     const p = new URL(request.url).searchParams;
     // 含已停止門市（唯讀歷史）；寫入一律只認有效門市（見 POST）。
     const allStores = await moduleStores(ctx, "monthly", {
@@ -138,8 +166,8 @@ export async function GET(request: Request) {
       return respond({ movements: movements || [] });
     }
     // 總覽用：各門市本月狀態（只含有效門市，與舊版 getMonthlyStoreSummaries 一致，且不帶統計欄位）。
-    const summaryRows =
-      stores.length === 0
+    const fetchSummaries = async () =>
+      (stores.length === 0
         ? []
         : checked(
             await ctx.auth
@@ -150,12 +178,14 @@ export async function GET(request: Request) {
                 "store_id",
                 stores.map((s: any) => s.id),
               ),
-          ) || [];
-    const summaries = summaryRows as { store_id: string; store_status: string }[];
-    const stats = ctx.has("monthly.status.view_stats")
-      ? computeStoreStats(stores as any, summaries)
-      : null;
-    if (!store)
+          ) || []) as { store_id: string; store_status: string }[];
+    const statsOf = (summaries: { store_id: string; store_status: string }[]) =>
+      ctx.has("monthly.status.view_stats")
+        ? computeStoreStats(stores as any, summaries)
+        : null;
+    if (!store) {
+      const summaries = await fetchSummaries();
+      const stats = statsOf(summaries);
       return respond({
         stores,
         allStores,
@@ -166,6 +196,7 @@ export async function GET(request: Request) {
         canViewStats: !!stats,
         canViewPerformance: ctx.has("monthly.status.view_performance"),
       });
+    }
     if (!allStores.some((s: any) => s.id === store))
       throw new WorkspaceError(403, "沒有此門市操作權限");
     if (op === "precheck") {
@@ -179,40 +210,27 @@ export async function GET(request: Request) {
       );
       return respond({ report: preSubmitReport((rows || []) as any, month) });
     }
-    const result = await getMonthlyStaffStatus(month, store);
-    if (!result.success)
-      throw new WorkspaceError(400, result.error || "讀取失敗");
-    const summary = await getStoreMonthlySummary(month,store);
-    if (!summary.success) throw new WorkspaceError(503, "月份狀態讀取失敗，請重試");
     const storeActive = (stores as any[]).some((s) => s.id === store);
     // M2 A.2／A.3：需重新確認清單（該門市所有月份）與本月「近期因異動自動調整」清單。
     const since = new Date(Date.now() - 60 * 86400000).toISOString();
-    // 兩個查詢互不相依，並行送出（原本序列執行會讓每月人員狀態頁多等一趟 DB 往返）。
-    const [recheckRes, adjustmentsRes] = await Promise.all([
-      ctx.admin
-        .from("monthly_staff_recheck")
-        .select("id,employee_code,employee_name,year_month,field,old_value,new_value,reason_label,source_type,created_at")
-        .eq("store_id", store)
-        .eq("status", "pending")
-        .order("year_month")
-        .order("employee_code")
-        .limit(200),
-      ctx.admin
-        .from("monthly_staff_adjustment_log")
-        .select("id,employee_code,employee_name,field,old_value,new_value,movement_label,created_at")
-        .eq("store_id", store)
-        .eq("year_month", month)
-        .gte("created_at", since)
-        .order("created_at", { ascending: false })
-        .limit(100),
+    // 速度規格 B／C：名冊頁資料（一支 RPC，或退回的並行查詢）、各門市總覽、刪除權限互不相依，一起並行；
+    // 使用者已在 context 驗證，helper 不再各自 getUser。
+    const [page, summaries, assigned] = await Promise.all([
+      rosterPage(ctx, month, store, since),
+      fetchSummaries(),
+      storeActive && !ctx.isAdmin ? isAssigned(ctx, store) : Promise.resolve(false),
     ]);
-    const recheck = checked(recheckRes) as any[];
-    const adjustments = checked(adjustmentsRes) as any[];
+    const stats = statsOf(summaries);
+    const { recheck, adjustments } = page;
+    // 速度規格 A：附上工具列需要的 meta（統計、capabilities、version），開頁不必再打 op=meta。
+    // 與 tools?op=meta 同一支 buildMonthlyMeta；欄位權限（viewStats／viewSupport）在裡面過濾。
+    // 已停止門市工具列停用（disabled），不附 meta，維持原行為。
+    const meta = storeActive ? await buildMonthlyMeta(ctx, page.summary) : undefined;
     // 業績與獎金欄位只給有 view_performance 的角色；其他角色在伺服器端移除，不只在畫面隱藏。
     const canViewPerformance = ctx.has("monthly.status.view_performance");
     const records = canViewPerformance
-      ? result.data
-      : (result.data || []).map((r: any) => {
+      ? page.records
+      : page.records.map((r: any) => {
           const copy = { ...r };
           for (const key of PERFORMANCE_FIELDS) delete copy[key];
           return copy;
@@ -225,7 +243,7 @@ export async function GET(request: Request) {
       store,
       storeActive,
       records,
-      storeStatus: summary.data?.store_status || "not_started",
+      storeStatus: page.summary?.store_status || "not_started",
       options: {
         statuses: MONTHLY_STATUS_OPTIONS,
         positions: POSITION_OPTIONS,
@@ -243,7 +261,8 @@ export async function GET(request: Request) {
       canViewStats: !!stats,
       canViewPerformance,
       // 刪除（規格 B.2）：管理員或該門市店長；實際只有草稿可刪（已送審回 409 需先退回）。
-      canDelete: storeActive && (ctx.isAdmin || (await isAssigned(ctx, store))),
+      canDelete: storeActive && (ctx.isAdmin || assigned),
+      meta,
     });
   } catch (e) {
     return failed(e);
@@ -252,7 +271,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     checkOrigin(request);
-    const ctx = await moduleContext("monthly");
+    const ctx = await moduleContext("monthly", { profile: false });
     const body = await request.json();
     const month = monthValue(body.month);
     await requireStore(ctx, "monthly", body.store);
