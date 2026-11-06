@@ -58,26 +58,33 @@ export async function GET(req: NextRequest) {
 
     lastSyncedAt = syncLog?.last_synced_at ?? null;
     let needsSync = true;
+    // 同步「開始」時間：在讀取異動之前取得，同步期間才登錄/修改的異動下次仍會被觸發
+    const syncStartedAt = new Date().toISOString();
 
     if (lastSyncedAt) {
       // 有同步記錄：上次同步後有 新登錄 / 事後修改 / 生效日到了 任一種異動才重跑
-      needsSync = await hasSyncTriggeringMovement(adminSupabase, {
-        lastSyncedAt,
-        today: todayStr,
-        movementTypes: ['resignation', 'leave_without_pay', 'leave_of_absence', 'return_to_work', 'onboarding'],
-        rangeStart: yearStart,
-        rangeEnd: effectiveEnd,
-      });
+      try {
+        needsSync = await hasSyncTriggeringMovement(adminSupabase, {
+          lastSyncedAt,
+          today: todayStr,
+          movementTypes: ['resignation', 'leave_without_pay', 'leave_of_absence', 'return_to_work', 'onboarding'],
+          rangeStart: yearStart,
+          rangeEnd: effectiveEnd,
+        });
+      } catch (e) {
+        // 觸發查詢失敗時降級：視為需要同步並記錄，不讓整頁 500
+        console.error('[pharmacist-annual-master/sync] trigger query failed, falling back to sync', e);
+        needsSync = true;
+      }
     }
 
     if (needsSync) {
       await syncAnnualMaster(adminSupabase, year, todayStr);
-      // 更新（或初次寫入）同步時間
-      const syncedNow = new Date().toISOString();
+      // 更新（或初次寫入）同步時間（用開始時間）
       const { error: logError } = await adminSupabase
         .from('pharmacist_annual_master_sync_log')
-        .upsert({ year, last_synced_at: syncedNow }, { onConflict: 'year' });
-      if (!logError) lastSyncedAt = syncedNow;
+        .upsert({ year, last_synced_at: syncStartedAt }, { onConflict: 'year' });
+      if (!logError) lastSyncedAt = syncStartedAt;
     }
   }
 
