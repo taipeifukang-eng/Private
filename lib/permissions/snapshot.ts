@@ -125,3 +125,31 @@ export async function loadPermissionSnapshot(
 
   return { userId, profile, isAdminLike, has };
 }
+
+/**
+ * 備援快照：當 service client 無法建立（例如環境變數缺 SUPABASE_SERVICE_ROLE_KEY）時使用。
+ * 行為與改前相同：對指定的權限代碼逐項呼叫原本的 hasPermission（走使用者 client + RPC），
+ * 結果預先算好後放進快照；沒列在 codes 內的代碼一律視為無權限。
+ */
+export async function loadLegacyPermissionSnapshot(
+  userDb: DbLike,
+  userId: string,
+  codes: readonly string[],
+  checkPermission: (userId: string, code: string) => Promise<boolean>
+): Promise<PermissionSnapshot> {
+  const unique = Array.from(new Set(codes));
+  const [profileRes, results] = await Promise.all([
+    Promise.resolve(
+      userDb.from('profiles').select('role, department, job_title').eq('id', userId).maybeSingle()
+    ).catch((error: unknown) => ({ data: null, error })),
+    Promise.all(unique.map(async (code) => [code, await checkPermission(userId, code)] as const)),
+  ]);
+  const granted = new Set(results.filter(([, ok]) => ok).map(([code]) => code));
+  const profile: PermissionSnapshotProfile | null = (profileRes && (profileRes as any).data) || null;
+  return {
+    userId,
+    profile,
+    isAdminLike: profile?.role === 'admin',
+    has: (code: string) => granted.has(code),
+  };
+}

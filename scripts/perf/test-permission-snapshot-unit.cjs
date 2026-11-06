@@ -91,10 +91,17 @@ async function compare(label, world, opts) {
   const oldMod = loadProjectModule('worktree', 'lib/permissions/check.ts', ctx);
   const snapMod = loadProjectModule('worktree', 'lib/permissions/snapshot.ts', ctx);
   const snap = await snapMod.loadPermissionSnapshot(db, db.__admin, USER_ID);
+  // 備援快照（缺 service role key 時使用）：逐項呼叫舊 hasPermission，結果必須相同
+  const codes = [TARGET, 'monthly.status.confirm', 'unknown.perm.code', ''];
+  const legacySnap = await snapMod.loadLegacyPermissionSnapshot(db, USER_ID, codes, oldMod.hasPermission);
   for (const code of [TARGET, 'monthly.status.confirm', 'unknown.perm.code', '']) {
     total += 1;
     const o = await oldMod.hasPermission(USER_ID, code);
     const n = snap.has(code);
+    if (legacySnap.has(code) !== o) {
+      bad += 1;
+      if (bad <= 20) console.log(`備援快照不一致 ${label} code=${JSON.stringify(code)} 舊=${o} 備援=${legacySnap.has(code)}`);
+    }
     if (o !== n) {
       bad += 1;
       if (bad <= 20) console.log(`不一致 ${label} code=${JSON.stringify(code)} 舊=${o} 新=${n}`);

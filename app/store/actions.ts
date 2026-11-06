@@ -5,8 +5,8 @@ import { authorizeMonthlyRegistration } from '@/lib/permissions/monthly-registra
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
-import { canEnterCampaignViewWithSnapshot } from '@/lib/campaign-access';
-import { loadPermissionSnapshot, type PermissionSnapshot } from '@/lib/permissions/snapshot';
+import { canEnterCampaignViewWithSnapshot, CAMPAIGN_PERM } from '@/lib/campaign-access';
+import { loadPermissionSnapshot, loadLegacyPermissionSnapshot, type PermissionSnapshot } from '@/lib/permissions/snapshot';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 import type { 
   Store, 
@@ -641,11 +641,38 @@ export async function createStoreRelocationHistory(data: {
  * 每月人員狀態相關權限用：一次載入目前使用者的 profile / 角色 / 權限快照。
  * 判斷結果與逐項呼叫 hasPermission() 完全相同（見 lib/permissions/snapshot.ts）。
  */
+const MONTHLY_SNAPSHOT_PERMISSION_CODES = [
+  'monthly.status.view_all',
+  'monthly.status.view_own',
+  'monthly.status.view_stats',
+  'monthly.allowance.view_support_hours',
+  'monthly.allowance.edit_support_hours',
+  'monthly.allowance.edit_support_bonus',
+  'monthly.status.add_employee',
+  'monthly.status.view_performance',
+  'monthly.status.bonus_detail.view',
+  'monthly.status.confirm',
+  'monthly.status.revert',
+  'monthly.status.unconfirm',
+  'monthly.export.download',
+  CAMPAIGN_PERM.viewAll,
+  CAMPAIGN_PERM.viewOwn,
+  CAMPAIGN_PERM.legacyView,
+] as const;
+
 async function loadMonthlyPermissionSnapshot(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string
 ): Promise<PermissionSnapshot> {
-  return loadPermissionSnapshot(supabase, createAdminClient(), userId);
+  let adminDb: ReturnType<typeof createAdminClient>;
+  try {
+    adminDb = createAdminClient();
+  } catch (error) {
+    // 缺 SUPABASE_SERVICE_ROLE_KEY 等情況：退回改前行為（逐項 hasPermission），避免整個 action 失敗
+    console.error('無法建立 service client，權限快照改用逐項 hasPermission:', error);
+    return loadLegacyPermissionSnapshot(supabase, userId, MONTHLY_SNAPSHOT_PERMISSION_CODES, hasPermission);
+  }
+  return loadPermissionSnapshot(supabase, adminDb, userId);
 }
 
 /**
