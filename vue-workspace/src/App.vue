@@ -13,8 +13,6 @@ import {
   Users,
   TrendingUp,
   PackageSearch,
-  ClipboardList,
-  CalendarRange,
   Plus,
   X,
   LogOut,
@@ -22,11 +20,11 @@ import {
   Sun,
   Moon,
   ExternalLink,
-  FileText,
 } from "lucide-vue-next";
 import { api, ApiError } from "./api";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
 import Modal from "./components/Modal.vue";
+import HomeView from "./components/HomeView.vue";
 import {
   WORKSPACE_PAGES,
   WORKSPACE_PUBLIC_PAGES,
@@ -90,18 +88,6 @@ const navigation = computed(() =>
       ),
     }))
     .filter((group) => group.items.length),
-);
-const legacyQuick = computed(() =>
-  (session.data?.navigation || [])
-    .flatMap((g) => g.items)
-    .filter((i) =>
-      [
-        "/monthly-status",
-        "/admin/performance",
-        "/inventory",
-        "/general-affairs",
-      ].includes(i.href),
-    ),
 );
 function legacyHref(href: string) {
   return session.data?.integrated ? href : "http://localhost:3002" + href;
@@ -480,73 +466,7 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <main v-if="!current" class="welcome">
-        <p class="eyebrow">工作總覽</p>
-        <h1>開始今天的營運作業</h1>
-        <p>沿用原測試站的全站功能選單。五個優先模組直接在工作頁籤內操作。</p>
-        <div class="work-options">
-          <button
-            v-if="session.data.capabilities.inspections"
-            @click="open('inspections')"
-          >
-            <ClipboardList :size="24" /><span
-              ><strong>查詢巡店紀錄</strong
-              ><small>依門市、月份檢視巡店結果</small></span
-            ><span aria-hidden="true">→</span></button
-          ><button
-            v-if="session.data.capabilities.campaigns"
-            @click="open('campaigns')"
-          >
-            <CalendarRange :size="24" /><span
-              ><strong>管理活動檔期</strong
-              ><small>新增活動與維護基本資料</small></span
-            ><span aria-hidden="true">→</span>
-          </button>
-          <button
-            v-if="session.data.capabilities.monthlyRelease"
-            data-home-card="monthly-release"
-            @click="open('monthly-release')"
-          >
-            <FileText :size="24" /><span
-              ><strong>每月版更內容</strong
-              ><small>查看本月系統調整內容與實際使用影響</small></span
-            ><span aria-hidden="true">→</span>
-          </button>
-        </div>
-        <p
-          v-if="
-            !session.data.capabilities.inspections &&
-            !session.data.capabilities.campaigns
-          "
-          class="notice"
-        >
-          你目前沒有巡店或活動管理權限。
-        </p>
-        <div class="legacy-quick" v-if="legacyQuick.length">
-          <h2>常用營運功能</h2>
-          <button
-            v-for="item in legacyQuick.filter((i) => i.kind)"
-            :key="item.href"
-            @click="open(item.kind!)"
-          >
-            {{ item.label }}
-          </button>
-          <a
-            v-for="item in legacyQuick.filter((i) => !i.kind)"
-            :key="item.href"
-            :href="legacyHref(item.href)"
-            target="_blank"
-            rel="noopener"
-            >{{ item.label }}<ExternalLink :size="14" /><small
-              >原測試頁</small
-            ></a
-          >
-        </div>
-        <div class="scope-note">
-          <h2>新舊功能共用測試環境</h2>
-          <p>
-            每月人員狀態、巡店、活動、業績與盤點使用獨立工作頁。其餘入口仍連至既有測試頁；所有功能依帳號權限顯示。
-          </p>
-        </div>
+        <HomeView />
       </main>
       <section
         v-for="tab in work.tabs"
