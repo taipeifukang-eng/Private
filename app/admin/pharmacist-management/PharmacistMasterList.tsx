@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useMemo, useEffect, useCallback } from 'react';
 import PharmacistAnnualFeeModal from './PharmacistAnnualFeeModal';
+import { formatTaiwanDateTime } from '@/lib/pharmacist/sync-trigger';
 
 const SCHOOL_OPTIONS = [
   '國立臺灣大學',
@@ -426,7 +427,7 @@ export default function PharmacistMasterList({
 
           {syncedAt && !isLocked && (
             <p className="text-xs text-green-600">
-              已自動同步人事異動（{syncedAt.slice(0, 10)}）
+              最後同步：{formatTaiwanDateTime(syncedAt)}
             </p>
           )}
 
