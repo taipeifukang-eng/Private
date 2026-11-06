@@ -1400,8 +1400,8 @@
     "id": "m3-legacy-delete-template-fk-templateDeleted",
     "page": "task-management",
     "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（範本是否被刪除）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
-    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
-    "approvedBy": null,
+    "reason": "使用者於 survey/m3f F3 核可（accept_new）：舊版在 DEV 刪除有派發過的範本會被外鍵擋下；新版走交易式 RPC，一併刪除勾選紀錄、協作者與指派後刪範本。",
+    "approvedBy": "user (2026-11-07 survey/m3f F3)",
     "match": {
       "mechanism": "write-readback",
       "entry": "delete-template-completed",
@@ -1412,8 +1412,8 @@
     "id": "m3-legacy-delete-template-fk-assignmentsLeft",
     "page": "task-management",
     "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（指派殘留筆數）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
-    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
-    "approvedBy": null,
+    "reason": "使用者於 survey/m3f F3 核可（accept_new）：舊版在 DEV 刪除有派發過的範本會被外鍵擋下；新版走交易式 RPC，一併刪除勾選紀錄、協作者與指派後刪範本。",
+    "approvedBy": "user (2026-11-07 survey/m3f F3)",
     "match": {
       "mechanism": "write-readback",
       "entry": "delete-template-completed",
@@ -1424,8 +1424,8 @@
     "id": "m3-legacy-delete-template-fk-logsLeft",
     "page": "task-management",
     "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（勾選紀錄殘留筆數）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
-    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
-    "approvedBy": null,
+    "reason": "使用者於 survey/m3f F3 核可（accept_new）：舊版在 DEV 刪除有派發過的範本會被外鍵擋下；新版走交易式 RPC，一併刪除勾選紀錄、協作者與指派後刪範本。",
+    "approvedBy": "user (2026-11-07 survey/m3f F3)",
     "match": {
       "mechanism": "write-readback",
       "entry": "delete-template-completed",
@@ -1436,8 +1436,8 @@
     "id": "m3-legacy-delete-template-fk-collaboratorsLeft",
     "page": "task-management",
     "description": "舊版 deleteTemplate 在 DEV 資料庫刪除「底下已有指派的範本」會被外鍵 assignments_template_id_fkey 擋下（update or delete on table templates violates foreign key constraint），畫面顯示「刪除失敗」，範本與底下資料全部留著（協作者殘留筆數）；新版走交易式 RPC，先刪勾選紀錄、協作者、指派再刪範本，成功。正式區的外鍵是否有 ON DELETE CASCADE 尚未確認。",
-    "reason": "舊版 bug（DEV 外鍵沒有 cascade，舊版註解以為會 cascade）。M3 規格 A.1 已要求刪除走交易式 RPC，但「舊版在 DEV 其實刪不掉」這件事沒有在問卷中明講，需使用者確認是否接受（待核可）。",
-    "approvedBy": null,
+    "reason": "使用者於 survey/m3f F3 核可（accept_new）：舊版在 DEV 刪除有派發過的範本會被外鍵擋下；新版走交易式 RPC，一併刪除勾選紀錄、協作者與指派後刪範本。",
+    "approvedBy": "user (2026-11-07 survey/m3f F3)",
     "match": {
       "mechanism": "write-readback",
       "entry": "delete-template-completed",
@@ -1520,8 +1520,8 @@
     "id": "m3-open-others-task-rbac",
     "page": "task-run",
     "description": "打開非自己參與的任務：舊版 /assignment/[id] 對 profiles.role 為 admin 或 manager 的人都開放（營業主管可以打開）；新版只開放有任務管理權限者（管理員，或同時有 task.manage 的主管），並可代為勾選、每次記錄代做者（誰、何時）。沒有任務管理權限的主管（例如測試營業主管）新版打不開。",
-    "reason": "M3 規格 B.1（Q7 = edit_with_log）只決定「代為勾選並記錄」，沒有決定營業主管（profiles.role=manager 但沒有 task.manage）是否失去舊版的開啟權限；D08 寫明「暫採建議，列入白名單請使用者核可」，B.1 也要求上線前把新舊名單差異列給使用者。待使用者核可。另：有任務管理權限的人開啟任務不限範本建立者（與規格 B.1、舊版 admin/manager 不限範圍一致）。",
-    "approvedBy": null,
+    "reason": "使用者於 survey/m3f F1 核可：營業主管（profiles.role=manager 但沒有 task.manage）開啟他人任務，新版需任務管理權限（管理員或有 task.manage）。上線前以正式區只查詢 SQL（m3-sql/compare_task_proxy_access.sql）列出新舊差異，並提供補授權 task.manage 的草稿（m3-sql/grant_task_manage_*.sql），由使用者勾選名單後自行執行。另：有任務管理權限的人開啟任務不限範本建立者（與規格 B.1、舊版 admin/manager 不限範圍一致）。",
+    "approvedBy": "user (2026-11-07 survey/m3f F1)",
     "match": {
       "mechanism": "api-read",
       "entry": "open-others-task",
@@ -1546,9 +1546,9 @@
   {
     "id": "m3-home-quick-entries",
     "page": "home",
-    "description": "首頁快捷入口：新版在提醒卡片下方有巡店、活動、版更快捷入口，舊版首頁沒有。",
-    "reason": "M3 規格 C.5（Q15）：新版快捷入口保留，放在提醒卡片下方。",
-    "approvedBy": "user (2026-11-07 survey/m3 Q15)",
+    "description": "首頁快捷入口：新版在提醒卡片下方有巡店、活動快捷入口（F6 已移除版更），舊版首頁沒有。",
+    "reason": "M3 規格 C.5（Q15）：新版快捷入口保留，放在提醒卡片下方；F6 移除重複的版更入口，只留巡店、活動。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q15; survey/m3f F6)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "home-layout",
@@ -1590,7 +1590,7 @@
     "id": "m3-home-timezone",
     "page": "home",
     "description": "首頁「本月」的判定：舊版用伺服器本地時間，新版固定用台北時間（月底與月初的跨日邊界在 UTC 伺服器上才會不同）。",
-    "reason": "M3 規格 C.6：資料規則照舊版（Q11 = same_as_old，只決定資料規則照舊版，沒有核可日期改台北時間）；日期改台北時間只在伺服器不是台北時區時才有差別。待使用者核可。",
-    "approvedBy": null
+    "reason": "使用者於 survey/m3f F5 核可（taipei）：首頁「本月」固定用台灣時間；只有伺服器不在台北時區且遇月底月初跨日時才與舊版不同。",
+    "approvedBy": "user (2026-11-07 survey/m3f F5)"
   }
 ]

@@ -13,6 +13,7 @@ if (fs.readFileSync(path.join(root, "supabase/.temp/project-ref"), "utf8").trim(
 const rollback = process.argv.includes("--rollback");
 const base = [
   "20261107130000_m3_task_proxy",
+  "20261107150000_m3f2_task_proxy_per_action",
 ];
 const files = (rollback ? base.slice().reverse() : base).map(
   (n) => `supabase/workspace-dev/${n}${rollback ? ".rollback" : ""}.sql`,

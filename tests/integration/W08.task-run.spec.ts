@@ -37,6 +37,58 @@ const mine = async (role: string) => {
   }
 };
 
+test.describe('F2 參與者兼管理者：代勾他區段才標代做', () => {
+  test('管理員本身是營業部區段參與者：勾自己區段不標 proxy，勾總務區段標 proxy，同一次儲存可混合', async () => {
+    runIdOrThrow();
+    const admin = await apiAs('admin');
+    try {
+      const t = await createTemplate(admin, 'f2-mixed', twoSections());
+      const [secA, secB] = await templateSections(t.id);
+      const a = await addSectionAssignment(t.id, secA.id, [userId('admin')]);
+
+      const d = await (await admin.get('/api/workspace/task-detail', { params: { id: a } })).json();
+      expect(d.proxy).toBe(false);
+      expect(d.canProxyOthers).toBe(true);
+      expect(d.groups.map((g: any) => g.department)).toEqual(['營業部', '總務']);
+      expect(d.ownStepIds).toEqual(expect.arrayContaining(secA.steps.map((s) => s.id)));
+      expect(d.ownStepIds).not.toContain(secB.steps[0].id);
+
+      const own = secA.steps[0].id;
+      const other = secB.steps[0].id;
+      expect((await saveChecks(admin, a, [{ stepId: own, checked: true }])).status()).toBe(200);
+      expect((await logRows(a))[0]).toMatchObject({ user_id: userId('admin'), step_id: own, proxy: false });
+
+      const mix = await saveChecks(admin, a, [{ stepId: other, checked: true, note: '代勾' }, { stepId: secA.steps[1].id, checked: true }]);
+      expect(mix.status(), JSON.stringify(await mix.json().catch(() => ({})))).toBe(200);
+      const rows = await logRows(a);
+      expect(rows.map((r) => [r.step_id, r.proxy])).toEqual([[own, false], [other, true], [secA.steps[1].id, false]]);
+      const after = await (await admin.get('/api/workspace/task-detail', { params: { id: a } })).json();
+      expect(after.logs.map((l: any) => l.proxy)).toEqual([false, true, false]);
+    } finally {
+      await admin.dispose();
+    }
+  });
+
+  test('非管理者的參與者仍不能勾他區段，也看不到他區段，不能代勾；無權限者不會因此被放行', async () => {
+    const admin = await apiAs('admin');
+    const ops = await apiAs('ops_assistant');
+    try {
+      const t = await createTemplate(admin, 'f2-plain', twoSections());
+      const [secA, secB] = await templateSections(t.id);
+      const a = await addSectionAssignment(t.id, secA.id, [userId('ops_assistant')]);
+      const d = await (await ops.get('/api/workspace/task-detail', { params: { id: a } })).json();
+      expect(d.canProxyOthers).toBe(false);
+      expect(d.groups).toHaveLength(1);
+      const bad = await saveChecks(ops, a, [{ stepId: secB.steps[0].id, checked: true }]);
+      expect(bad.status()).toBe(400);
+      expect(await logRows(a)).toHaveLength(0);
+    } finally {
+      await admin.dispose();
+      await ops.dispose();
+    }
+  });
+});
+
 test.describe('B.1 管理者代為勾選並記錄代做者', () => {
   test('管理員打開非自己參與的任務：看得到全部區段，勾選寫入 proxy 紀錄（代做者是管理員）', async () => {
     runIdOrThrow();

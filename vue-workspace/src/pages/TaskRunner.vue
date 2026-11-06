@@ -153,7 +153,7 @@ onBeforeUnmount(() => {
       <p class="eyebrow">派發任務 / 填寫進度</p>
       <h1>{{ data?.template.title || "任務內容" }}</h1>
       <p v-if="data" class="muted">
-        {{ data.creator }} 派發 · {{ data.proxy ? "全部項目" : "我的項目" }} {{ done }} / {{ flat.length }}
+        {{ data.creator }} 派發 · {{ data.proxy || data.canProxyOthers ? "全部項目" : "我的項目" }} {{ done }} / {{ flat.length }}
       </p>
     </div>
     <div class="button-row">
@@ -195,6 +195,9 @@ onBeforeUnmount(() => {
     <p v-if="data.proxy" class="notice" role="status" data-flag="proxy">
       你不是此任務的參與者。你的勾選與備註會記錄為「由 {{ session.data?.user.name || "你" }} 代為勾選」。
     </p>
+    <p v-if="data.canProxyOthers" class="notice" role="status" data-flag="proxy-others">
+      你有任務管理權限：自己區段的項目照常是你本人勾選；勾選其他區段的項目會記錄為「由 {{ session.data?.user.name || "你" }} 代為勾選」。
+    </p>
     <p>{{ data.template.description }}</p>
     <p class="muted">
       協作成員：{{ data.collaborators.map((c: any) => c.name + (c.support ? "（跨部門支援）" : "")).join("、") }}
@@ -204,7 +207,7 @@ onBeforeUnmount(() => {
       <legend>我的工作項目</legend>
       <p v-if="!flat.length">尚未設定可操作項目，請聯絡派發人員。</p>
       <template v-for="g in groups" :key="g.sectionId ?? 'all'">
-      <h3 v-if="data.proxy && groups.length > 1">{{ g.department || "區段" }}</h3>
+      <h3 v-if="groups.length > 1">{{ g.department || "區段" }}<span v-if="!data.proxy && g.sectionId !== data.sectionId" class="muted">（他區段，代為勾選）</span></h3>
       <section v-for="s in g.steps" :key="s.id" class="task-step">
         <label class="task-check"
           ><input

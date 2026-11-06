@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // M3 W12 首頁：版面順序照舊版（調店確認 → 每月版更 → 我的獎金 → 新人入職 → 任務、壽星、年費、執照），
-// 問候只留「歡迎回來，姓名」（C.5），新版快捷入口（巡店、活動、版更）放在提醒卡片下方。
+// 問候只留「歡迎回來，姓名」（C.5），新版快捷入口（巡店、活動；版更只留提醒卡片，F6）放在提醒卡片下方。
 // 資料全部來自 GET /api/workspace/home。
 import { computed, onMounted, ref } from "vue";
 import { ArrowRight, ArrowRightLeft, BellRing, Cake, ClipboardList, CalendarRange, ExternalLink, FileText, UserPlus } from "lucide-vue-next";
@@ -33,7 +33,7 @@ const legacyQuick = computed(() =>
 function legacyHref(href: string) {
   return session.data?.integrated ? href : "http://localhost:3002" + href;
 }
-const hasQuick = computed(() => caps.value.inspections || caps.value.campaigns || caps.value.monthlyRelease);
+const hasQuick = computed(() => caps.value.inspections || caps.value.campaigns);
 async function load() {
   loading.value = true;
   error.value = "";
@@ -233,9 +233,6 @@ onMounted(load);
         </button>
         <button v-if="caps.campaigns" @click="work.open('campaigns')">
           <CalendarRange :size="24" /><span><strong>管理活動檔期</strong><small>新增活動與維護基本資料</small></span><span aria-hidden="true">→</span>
-        </button>
-        <button v-if="caps.monthlyRelease" data-quick="monthly-release" @click="work.open('monthly-release')">
-          <FileText :size="24" /><span><strong>每月版更內容</strong><small>查看本月系統調整內容與實際使用影響</small></span><span aria-hidden="true">→</span>
         </button>
       </div>
     </section>

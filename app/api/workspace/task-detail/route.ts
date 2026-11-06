@@ -8,7 +8,7 @@ import {
   checkOrigin,
 } from "@/lib/workspace/server";
 import { taskDetail } from "@/lib/workspace/tasks";
-import { applyTaskChanges, flattenTaskSteps } from "@/lib/workspace/task-state";
+import { applyTaskChanges, flattenTaskSteps, markProxyActions } from "@/lib/workspace/task-state";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
@@ -48,6 +48,8 @@ export async function POST(request: Request) {
       flat.length && flat.every((s) => s.id in result.state)
         ? "completed"
         : "in_progress";
+    // 代做標記由伺服器依「項目是否在本人區段」決定，不信任前端：非參與者全部代做；參與者只有他區段的項目代做。
+    const actions = markProxyActions(result.actions, data.ownStepIds || [], !!data.proxy);
     const hash = createHash("sha256")
       .update(
         JSON.stringify({
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
       p_version: body.version,
       p_write: body.writeId,
       p_hash: hash,
-      p_actions: result.actions,
+      p_actions: actions,
       p_status: status,
       p_proxy: !!data.proxy,
     });

@@ -72,3 +72,13 @@ export function applyTaskChanges(
   }
   return { state, actions };
 }
+
+/** M3 F2：代做標記由伺服器決定。非參與者全部代做；參與者只有「不在自己區段」的項目才算代做。 */
+export function markProxyActions<T extends { step_id: string }>(
+  actions: T[],
+  ownStepIds: string[],
+  nonParticipant: boolean,
+) {
+  const own = new Set(ownStepIds);
+  return actions.map((a) => ({ ...a, proxy: nonParticipant || !own.has(a.step_id) }));
+}

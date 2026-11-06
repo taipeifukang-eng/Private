@@ -33,7 +33,9 @@ export async function taskDetail(ctx: Context, id: string) {
     ) || [];
   const mine = collaborators.find((c) => c.user_id === ctx.user.id);
   const proxy = !mine;
-  if (proxy && !(await canProxy(ctx)))
+  // M3 F2：參與者若同時有任務管理權限，也能代勾其他區段（自己的區段仍是本人勾選）。
+  const manager = await canProxy(ctx);
+  if (proxy && !manager)
     throw new WorkspaceError(404, "找不到指派給你的任務");
   const template = record.template;
   if (!template) throw new WorkspaceError(409, "任務範本已不存在");
@@ -44,11 +46,23 @@ export async function taskDetail(ctx: Context, id: string) {
   if (mine?.section_id && !section)
     throw new WorkspaceError(409, "指派區段已變更，請聯絡派發人員");
   // 代做者看到全部區段（舊版 admin/manager 檢視不限區段）；參與者只看自己的區段。
-  const groups: { sectionId: string | null; department: string; steps: TaskStep[] }[] = proxy
-    ? sections.length
+  type Group = { sectionId: string | null; department: string; steps: TaskStep[] };
+  const everySection = (): Group[] =>
+    sections.length
       ? sections.map((s: any) => ({ sectionId: s.id, department: s.department || "", steps: s.steps || [] }))
-      : [{ sectionId: null, department: "", steps: template.steps_schema || [] }]
+      : [{ sectionId: null, department: "", steps: template.steps_schema || [] }];
+  const ownGroups: Group[] = proxy
+    ? []
     : [{ sectionId: mine!.section_id || null, department: section?.department || "", steps: section ? section.steps || [] : template.steps_schema || [] }];
+  const groups: Group[] = proxy
+    ? everySection()
+    : manager
+      ? mine!.section_id
+        ? everySection()
+        : [...ownGroups, ...(sections.length ? everySection() : [])]
+      : ownGroups;
+  // 參與者自己區段的項目編號；這些項目的勾選不標代做，其餘（管理者代勾他區段）標代做。
+  const ownStepIds = flattenTaskSteps(ownGroups.flatMap((g) => g.steps)).map((s) => s.id);
   const steps: TaskStep[] = groups.flatMap((g) => g.steps);
   const logs: any[] = [];
   for (let from = 0; ; from += 500) {
@@ -99,6 +113,8 @@ export async function taskDetail(ctx: Context, id: string) {
     sections,
     sectionId: mine?.section_id ?? null,
     proxy,
+    ownStepIds,
+    canProxyOthers: !proxy && groups.length > ownGroups.length,
     groups,
     overall: progressOf(template, mine?.section_id ?? null, state),
     state,

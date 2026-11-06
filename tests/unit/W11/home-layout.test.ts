@@ -32,9 +32,13 @@ describe('首頁版面（C.5）', () => {
     expect(template).toContain('歡迎回來，{{ name }}');
     for (const sentence of ['您是系統管理員', '您是專案經理', '查看並執行指派給您的任務']) expect(template).not.toContain(sentence);
   });
-  it('快捷入口有巡店、活動、版更，且放在所有提醒卡片之後', () => {
+  it('快捷入口只有巡店、活動（F6 移除版更），且放在所有提醒卡片之後', () => {
     const quick = template.slice(template.indexOf('data-home="quick"'));
-    for (const text of ['查詢巡店紀錄', '管理活動檔期', '每月版更內容']) expect(quick).toContain(text);
+    const block = quick.slice(0, quick.indexOf('</section>'));
+    for (const text of ['查詢巡店紀錄', '管理活動檔期']) expect(block).toContain(text);
+    expect(block).not.toContain('每月版更內容');
+    expect(block).not.toContain('monthly-release');
+    expect(template).toContain('data-home-card="monthly-release"');
   });
   it('獎金月份未確認時標註「尚未確認，金額可能調整」（Q12）', () => {
     expect(template).toContain('尚未確認，金額可能調整');

@@ -222,7 +222,7 @@ test.describe('首頁讀取對等（逐角色）', () => {
           d.annualFee.visible && d.annualFee.rows.length ? 'annual-fee' : null,
           d.license.visible && d.license.rows.length ? 'license' : null,
         ].filter(Boolean) as string[];
-        record('home-layout', `首頁版面（${role}）`, role, { cardOrder: lines(legacy.cards), greetingSubtitle: legacy.subtitle, quickEntries: legacy.quickEntries }, { cardOrder: lines(nativeCards), greetingSubtitle: '', quickEntries: '巡店、活動、版更' });
+        record('home-layout', `首頁版面（${role}）`, role, { cardOrder: lines(legacy.cards), greetingSubtitle: legacy.subtitle, quickEntries: legacy.quickEntries }, { cardOrder: lines(nativeCards), greetingSubtitle: '', quickEntries: '巡店、活動' });
       } finally {
         await ctx.close();
         await api.dispose();
