@@ -62,3 +62,17 @@ describe('首頁 API', () => {
     expect(src).toContain('ctx.admin');
   });
 });
+
+describe('首頁版面寬度', () => {
+  const css = view.slice(view.indexOf('<style'));
+  it('內容寬度在寬螢幕可延展（>= 1400px），不再鎖在 1100px', () => {
+    const m = css.match(/\.home\s*\{[^}]*max-width:\s*(\d+)px/);
+    expect(m, '.home 要有 max-width').not.toBeNull();
+    expect(Number(m![1])).toBeGreaterThanOrEqual(1400);
+    expect(css).toMatch(/\.home\s*\{[^}]*min-width:\s*0/);
+  });
+  it('快捷入口不再被全域 760px 限制，與上方卡片同寬', () => {
+    expect(css).toMatch(/\.home-quick \.work-options\s*\{[^}]*max-width:\s*none/);
+  });
+});
+

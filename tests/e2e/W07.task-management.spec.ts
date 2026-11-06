@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { apiAs, loginAs } from '../support/auth';
 import { applyProjectViewport, noPageOverflow } from '../support/w04-ui';
-import { addAssignment, auditRows, completeAssignment, countRows, createTemplate, deleteRunTemplates, openFromMenu, runIdOrThrow, templateExists, userId } from '../support/m3-fixtures';
+import { addAssignment, auditRows, completeAssignment, countRows, createTemplate, deleteRunTemplates, logSteps, openFromMenu, runIdOrThrow, stepIds, templateExists, userId } from '../support/m3-fixtures';
 
 // W07 e2e（桌機 1440 與手機 390 各跑一次）：
 //  1. 刪除流程模板：底下有進行中任務時，輸入標題後按確認也會被擋並顯示原因；取消不刪；完成後輸入標題完全相符才能按確認，刪除後從列表消失、資料庫無殘留。
@@ -74,6 +74,8 @@ test('模板詳情：只有已完成的任務旁有刪除按鈕；刪除後該�
   const admin = await apiAs('admin');
   const t = await createTemplate(admin, `e2e-del-assignment-${tag}`);
   const other = await addAssignment(t.id, { status: 'in_progress' }, [userId('employee')]);
+  // 狀態由勾選紀錄推導：只勾第一個步驟，才是「進行中」（只改 status 欄位不算）。
+  await logSteps(other, (await stepIds(t.id)).slice(0, 1), userId('employee'));
   await completeAssignment(t.assignmentId, t.id, userId('admin'));
   await admin.dispose();
   const ctx = await loginAs(browser, 'admin');

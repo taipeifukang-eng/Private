@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { canDeleteAssignments, canDeleteTemplate, taskManagementScope, templateListRow, templateTitleMatches } from '../../../lib/workspace/task-management';
 
 // W07 單元層（M3 A.1、A.2、A.3）：刪除權限矩陣、標題確認、列表列（尚未指派標示、不出現 NaN）、任務管理範圍。
@@ -77,3 +79,15 @@ describe('任務管理範圍（taskManagementScope）', () => {
     await expect(taskManagementScope(ctxOf({ role: 'member', caps: ['task.manage'] }))).rejects.toMatchObject({ status: 403 });
   });
 });
+
+describe('B.3 管理明細每筆任務的狀態徽章由勾選紀錄推導', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'vue-workspace/src/pages/TaskManagementDetail.vue'), 'utf8');
+  const tpl = src.slice(src.indexOf('<template>'));
+  it('徽章與刪除按鈕不讀 r.status，改用 overallStatus / overallDone（done、total）', () => {
+    expect(tpl).not.toMatch(/r\.status/);
+    expect(tpl).toContain(':data-status="overallStatus(r)"');
+    expect(src).toMatch(/overallDone = \(r: any\) => r\.total > 0 && r\.total === r\.done/);
+    expect(src).toMatch(/r\.done > 0 \? "in_progress" : "pending"/);
+  });
+});
+

@@ -256,7 +256,7 @@ onMounted(load);
 </template>
 
 <style scoped>
-.home { max-width: 1100px; }
+.home { width: 100%; max-width: 1560px; min-width: 0; }
 .home h1 { margin: 0 0 18px; }
 .home-banner {
   display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; margin: 0 0 12px; padding: 16px 18px;
@@ -300,7 +300,7 @@ onMounted(load);
 .right { text-align: right; }
 .home-quick { margin-top: 18px; }
 .home-quick h2 { font-size: 13px; }
-.home-quick .work-options { margin: 8px 0 24px; }
+.home-quick .work-options { max-width: none; width: 100%; margin: 8px 0 24px; }
 @media (max-width: 640px) {
   .home-table.cols-4 .head, .home-table.cols-4 .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .bonus-month > summary { flex-wrap: wrap; }
