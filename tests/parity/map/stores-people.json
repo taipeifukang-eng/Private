@@ -123,9 +123,9 @@
       }
     },
     {
-      "id": "transfer-confirm-two-sides",
+      "id": "transfer-confirm-any-supervisor",
       "mechanism": "write-readback",
-      "description": "調店申請確認：舊版任一督導（或管理員）確認一次就生效；新版要原店與新店督導都確認才生效，第一位確認後仍是待確認（M2 D.2）。兩側都確認後的異動歷史、主檔所在門市兩邊相同。",
+      "description": "調店申請確認：舊版任一督導（或管理員）確認一次就生效；新版（M2 H.1，取代 D.2 的雙方確認）同樣由原店或新店任一位督導（或管理員代確認）確認一次就生效。確認後的申請狀態、異動歷史兩邊相同；主檔所在門市新版換到新店（已核可差異）。",
       "legacy": {
         "api": {
           "path": "/api/store-transfer-requests/[id]/confirm",

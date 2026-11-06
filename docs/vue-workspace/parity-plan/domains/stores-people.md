@@ -558,7 +558,7 @@
 
 **資料表**：stores、store_employees、employee_movement_history、monthly_staff_status
 
-**既有測試**：scripts/test-workspace-promotions.py、scripts/test-workspace-promotions-close.py、scripts/test-workspace-promotions-concurrency.cjs、scripts/test-workspace-promotions-load.py、scripts/test-workspace-promotions-transaction.cjs、scripts/test-workspace-promotion-import.cjs、scripts/test-workspace-promotion-activation.cjs、scripts/test-workspace-promotion-permissions.py、scripts/test-workspace-promotion-preview.py、scripts/test-workspace-promotion-scheduled-dev.cjs、scripts/test-promotion-monthly-position-sync.js、scripts/test-acting-manager-promotion-movement.js
+**既有測試**：scripts/test-workspace-promotions.py、scripts/test-workspace-promotions-close.py、scripts/test-workspace-promotions-concurrency.cjs、scripts/test-workspace-promotions-load.py、scripts/test-workspace-promotions-transaction.cjs、scripts/test-workspace-promotion-import.cjs、scripts/test-workspace-promotion-activation.cjs、scripts/test-workspace-promotion-permissions.py、scripts/test-workspace-promotion-preview.py、scripts/test-workspace-promotion-scheduled-dev.cjs、scripts/test-promotion-monthly-position-sync.js
 
 **待確認**
 
@@ -586,7 +586,7 @@
 - 並行：兩個 session 以同一 expected 送出，一個成功一個回 409（沿用 scripts/test-workspace-promotions-concurrency.cjs）
 - 原子性：3 列中第 2 列員編不存在，整批不寫入（Vue 語意）
 - 權限矩陣：R-admin、R-sales-member 200；R-sales-trap（有 employee.promotion.batch，但 canReadStorePersonnel 為 false）403；R-supervisor、R-store-manager-A、R-staff 403。並與舊 API 第 27 行 role ∈ {admin, manager, supervisor, area_manager} 的結果並列成表，回報差異
-- 代理店長：升為代理店長時的 movement_type 與月份職位同步（對照 scripts/test-acting-manager-promotion-movement.js）
+- 代理店長：升為代理店長時的 movement_type 與月份職位同步（舊對照腳本 test-acting-manager-promotion-movement.js 已於 H.11 淘汰刪除；代理店長現為獨立異動類型，由 W06/P02 整合測試驗證）
 
 **E2E**
 
@@ -964,7 +964,7 @@
 
 **資料表**：employee_movement_history、store_employees、monthly_staff_status、store_transfer_requests、stores、organization_units、profiles
 
-**既有測試**：scripts/test-workspace-movement-management.py、scripts/test-workspace-movement-draft-ui.py、scripts/test-workspace-movement-draft-file.cjs、scripts/test-workspace-movement-submit.py、scripts/test-workspace-movement-validation.py、scripts/test-workspace-movement-import.cjs、scripts/test-workspace-movement-export.cjs、scripts/test-workspace-movement-fields.cjs、scripts/test-workspace-movement-locations.cjs、scripts/test-workspace-movement-references.cjs、scripts/test-workspace-movement-catalog.py、scripts/test-workspace-movement-catalog-dev.cjs、scripts/test-workspace-movement-history.py、scripts/test-workspace-movement-history-dev.cjs、scripts/test-workspace-transfers.py、scripts/test-workspace-transfers-dev.cjs、scripts/test-workspace-transfer-create.py、scripts/test-workspace-transfer-confirm.py、scripts/test-workspace-transfer-confirm-dev.cjs、scripts/test-workspace-transfer-history.py、scripts/test-workspace-transfer-history-layout.py、scripts/test-workspace-transfer-races.py、scripts/test-workspace-transfer-roles.py、scripts/test-workspace-transfer-roles-dev.cjs、scripts/test-workspace-transfer-correction-plan.cjs、scripts/test-workspace-transfer-months.cjs、scripts/test-employee-movement-date.cjs、scripts/test-store-transfer-effective-date-correction.js、scripts/test-acting-manager-promotion-movement.js、scripts/test-pharmacist-transfer-reconciliation.cjs
+**既有測試**：scripts/test-workspace-movement-management.py、scripts/test-workspace-movement-draft-ui.py、scripts/test-workspace-movement-draft-file.cjs、scripts/test-workspace-movement-submit.py、scripts/test-workspace-movement-validation.py、scripts/test-workspace-movement-import.cjs、scripts/test-workspace-movement-export.cjs、scripts/test-workspace-movement-fields.cjs、scripts/test-workspace-movement-locations.cjs、scripts/test-workspace-movement-references.cjs、scripts/test-workspace-movement-catalog.py、scripts/test-workspace-movement-catalog-dev.cjs、scripts/test-workspace-movement-history.py、scripts/test-workspace-movement-history-dev.cjs、scripts/test-workspace-transfers.py、scripts/test-workspace-transfers-dev.cjs、scripts/test-workspace-transfer-create.py、scripts/test-workspace-transfer-confirm.py、scripts/test-workspace-transfer-confirm-dev.cjs、scripts/test-workspace-transfer-history.py、scripts/test-workspace-transfer-history-layout.py、scripts/test-workspace-transfer-races.py、scripts/test-workspace-transfer-roles.py、scripts/test-workspace-transfer-roles-dev.cjs、scripts/test-workspace-transfer-correction-plan.cjs、scripts/test-workspace-transfer-months.cjs、scripts/test-employee-movement-date.cjs、scripts/test-store-transfer-effective-date-correction.js、scripts/test-pharmacist-transfer-reconciliation.cjs
 
 **待確認**
 

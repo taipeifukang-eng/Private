@@ -775,7 +775,7 @@
     "id": "w05-list-empty-date-placeholder",
     "page": "employee-management",
     "description": "員工名冊中到職日、生日沒有資料時：舊頁顯示「-」，新版顯示「—」。",
-    "reason": "新版統一使用長破折號當空值；不影響資料，只是顯示符號不同。尚待使用者確認是否接受。",
+    "reason": "新版統一使用長破折號當空值；不影響資料，只是顯示符號不同。使用者 2026-11-06 接受（survey/m2-followup H.10）。",
     "approvedBy": "user (2026-11-06 survey/m2-followup H.10)",
     "match": {
       "mechanism": "ui-extract",
@@ -788,7 +788,7 @@
     "id": "w05-list-empty-birthday-placeholder",
     "page": "employee-management",
     "description": "員工名冊中生日沒有資料時：舊頁顯示「-」，新版顯示「—」。",
-    "reason": "同上，尚待使用者確認是否接受。",
+    "reason": "同上，使用者 2026-11-06 接受（survey/m2-followup H.10）。",
     "approvedBy": "user (2026-11-06 survey/m2-followup H.10)",
     "match": {
       "mechanism": "ui-extract",
@@ -801,13 +801,26 @@
     "id": "w05-list-empty-position-label",
     "page": "employee-management",
     "description": "員工名冊中當前職位沒有資料時：舊頁顯示「-」，新版顯示「未提供」。",
-    "reason": "新版以文字說明沒有職位；不影響資料，尚待使用者確認是否接受。",
+    "reason": "新版以文字說明沒有職位；不影響資料。使用者 2026-11-06 接受（survey/m2-followup H.10）。",
     "approvedBy": "user (2026-11-06 survey/m2-followup H.10)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "list-ui",
       "kind": "changed",
       "key": "position"
+    }
+  },
+  {
+    "id": "w05-list-stage-column",
+    "page": "employee-management",
+    "description": "員工名冊多一欄「階段」（新人：未過階／一階／二階新人，行政：未過階／過階行政；其他職位為「—」）；舊頁沒有這個欄位。",
+    "reason": "M2 後續問卷 H.4：員工主檔新增階段欄位，跟著升職異動自動更新，員工管理列表與編輯畫面顯示。使用者 2026-11-06 核可。",
+    "approvedBy": "user (2026-11-06 survey/m2-followup H.4)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "list-ui",
+      "kind": "only-native",
+      "key": "stage"
     }
   },
   {
@@ -979,18 +992,6 @@
     }
   },
   {
-    "id": "w06c-edit-name-locked-month",
-    "page": "movement-sync",
-    "description": "修改姓名：舊版連已送審月份的姓名一併改寫；新版已送審／已確認月份不動。",
-    "reason": "M2 規格 A.2（已送審月份不動）與 C.1，使用者 2026-11-05 問卷核可。",
-    "approvedBy": "user (2026-11-05 survey/m2)",
-    "match": {
-      "mechanism": "write-readback",
-      "entry": "edit-name",
-      "key": "lockedName"
-    }
-  },
-  {
     "id": "w06c-delete-latest-master-position",
     "page": "movement-sync",
     "description": "刪除最新一筆升職後，新版恢復員工主檔職位為刪除前的原職位；舊版只刪異動歷史，主檔仍是升職後職位。",
@@ -1135,30 +1136,6 @@
     }
   },
   {
-    "id": "p02-transfer-two-sides-statusAfterFirstConfirm",
-    "page": "stores-people",
-    "description": "調店申請第一位督導（或管理員）確認後：舊版立刻變成已確認；新版仍是待確認，要等另一側督導確認。",
-    "reason": "M2 規格 D.2（direct_transfer_bypass = both_supervisors：原店與新店督導都確認才生效），使用者 2026-11-05 問卷核可。",
-    "approvedBy": "user (2026-11-05 survey/m2)",
-    "match": {
-      "mechanism": "write-readback",
-      "entry": "transfer-confirm-two-sides",
-      "key": "statusAfterFirstConfirm"
-    }
-  },
-  {
-    "id": "p02-transfer-two-sides-historyAfterFirstConfirm",
-    "page": "stores-people",
-    "description": "調店申請第一位督導確認後：舊版已寫入調店異動；新版尚未寫入。",
-    "reason": "M2 規格 D.2（direct_transfer_bypass = both_supervisors：原店與新店督導都確認才生效），使用者 2026-11-05 問卷核可。",
-    "approvedBy": "user (2026-11-05 survey/m2)",
-    "match": {
-      "mechanism": "write-readback",
-      "entry": "transfer-confirm-two-sides",
-      "key": "historyAfterFirstConfirm"
-    }
-  },
-  {
     "id": "p02-batch-transfer-historyAfterBatch",
     "page": "stores-people",
     "description": "批次輸入的調店列：舊版直接寫入調店異動；新版建立為待確認申請，尚未寫入異動。",
@@ -1222,11 +1199,11 @@
     "id": "p02-transfer-confirm-master-store",
     "page": "stores-people",
     "description": "調店申請確認生效後的員工主檔：舊版 /api/store-transfer-requests/[id]/confirm 只寫調店異動、申請狀態與月人員，員工主檔（store_employees）仍留在原店（DEV 沒有調店觸發器）；新版兩側督導都確認後同一交易把主檔換到新店並依 A 組回寫名冊。",
-    "reason": "M2 D.2 說「生效時走 A 組回寫」，新版的主檔換店是前一個里程碑（調店確認）已有的行為，但使用者尚未針對這項與舊版（DEV）不同的結果明確核可；舊版 Production 是否另有機制補主檔未驗證。待使用者核可。",
+    "reason": "調店確認生效時，新版同一交易把員工主檔換到新店並依 A 組回寫名冊（舊版 DEV 只寫異動、申請狀態與月人員，主檔留在原店）。使用者 2026-11-06 核可（survey/m2-followup H.1：確認後員工主檔門市換新店、異動與名冊照 A 組連動）。",
     "approvedBy": "user (2026-11-06 survey/m2-followup H.1)",
     "match": {
       "mechanism": "write-readback",
-      "entry": "transfer-confirm-two-sides",
+      "entry": "transfer-confirm-any-supervisor",
       "key": "finalActiveStore"
     }
   },
@@ -1234,7 +1211,7 @@
     "id": "p02-batch-transfer-master-store",
     "page": "stores-people",
     "description": "批次輸入調店確認生效後的員工主檔：舊版 /api/employee-movements/batch 寫調店異動與月人員，員工主檔（store_employees）仍留在原店（DEV 沒有調店觸發器）；新版兩側督導都確認後同一交易把主檔換到新店並依 A 組回寫名冊。",
-    "reason": "M2 D.2 說「生效時走 A 組回寫」，新版的主檔換店是前一個里程碑（調店確認）已有的行為，但使用者尚未針對這項與舊版（DEV）不同的結果明確核可；舊版 Production 是否另有機制補主檔未驗證。待使用者核可。",
+    "reason": "調店確認生效時，新版同一交易把員工主檔換到新店並依 A 組回寫名冊（舊版 DEV 只寫異動、申請狀態與月人員，主檔留在原店）。使用者 2026-11-06 核可（survey/m2-followup H.1：確認後員工主檔門市換新店、異動與名冊照 A 組連動）。",
     "approvedBy": "user (2026-11-06 survey/m2-followup H.1)",
     "match": {
       "mechanism": "write-readback",
