@@ -37,6 +37,9 @@ export async function GET(req: NextRequest) {
 
   const isLocked = !!lockData;
 
+  // 真正最後同步時間（回傳給畫面顯示）
+  let lastSyncedAt: string | null = null;
+
   // 2. 如果未關帳，判斷是否有新增人事異動再決定是否重跑同步
   if (!isLocked) {
     const yearStart = `${year}-01-01`;
@@ -51,7 +54,7 @@ export async function GET(req: NextRequest) {
       .eq('year', year)
       .single();
 
-    let lastSyncedAt: string | null = syncLog?.last_synced_at ?? null;
+    lastSyncedAt = syncLog?.last_synced_at ?? null;
     let needsSync = true;
 
     if (lastSyncedAt) {
