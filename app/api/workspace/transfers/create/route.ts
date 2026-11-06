@@ -11,6 +11,9 @@ export async function GET(request:Request){try{
   const code=actingCode.trim().toUpperCase(),fromStore=(query.get('from_store_id')||'').toLowerCase();
   if(!/^[A-Z0-9_-]{1,20}$/.test(code)||(fromStore&&!uuid(fromStore)))throw new WorkspaceError(400,'員編或門市不正確');
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  // 只回答使用者看得到的員工，避免用員編探測任意人員的代理身分。
+  const visible=checked(await ctx.auth.from('store_employees').select('id').eq('employee_code',code).limit(1))||[];
+  if(!visible.length)return respond({acting:false});
   const acting=checked(await ctx.admin.rpc('workspace_acting_active',{p_code:code,p_store:fromStore||null,p_until:today}))===true;
   return respond({acting});
  }
@@ -28,11 +31,13 @@ export async function POST(request:Request){try{
  if(body.data.continue_acting!==undefined&&typeof body.data.continue_acting!=='boolean')throw new WorkspaceError(400,'請核對「新店是否續任代理店長」');
  const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  // H.5：只有該員目前確實是原店的代理店長，「新店續任代理」的答案才有意義，否則一律記為否。
- const continueActing=body.data.continue_acting===true&&checked(await ctx.admin.rpc('workspace_acting_active',{p_code:d.employee_code,p_store:d.from_store_id,p_until:today}))===true;
+ const isActing=checked(await ctx.admin.rpc('workspace_acting_active',{p_code:d.employee_code,p_store:d.from_store_id,p_until:today}))===true;
+ const continueActing=body.data.continue_acting===true&&isActing;
  const id=body.requestId.toLowerCase();
  const existing=async()=>checked(await ctx.auth.from('store_transfer_requests').select('*').eq('id',id).maybeSingle());
  const replay=(row:any)=>{if(row.created_by!==ctx.user.id||fields.some(k=>(row[k]||'')!==d[k])||!!row.continue_acting!==continueActing)throw new WorkspaceError(409,'此請求編號已使用，請重新核對申請');return respond({id:row.id,status:row.status,alreadyCreated:true});};
  const prior=await existing();if(prior)return replay(prior);
+ if(isActing&&typeof body.data.continue_acting!=='boolean')throw new WorkspaceError(400,'此員工目前是代理店長，請回答新店是否續任代理店長');
  const stores=checked(await ctx.auth.from('stores').select('id').in('id',[d.from_store_id,d.to_store_id]).eq('is_active',true))||[];
  if(stores.length!==2)throw new WorkspaceError(400,'調出或調入門市已停用或無法查看，請重新選擇');
  const result=await ctx.auth.from('store_transfer_requests').insert({...d,notes:d.notes||null,continue_acting:continueActing,id,created_by:ctx.user.id,status:'pending'}).select('id,status').single();
