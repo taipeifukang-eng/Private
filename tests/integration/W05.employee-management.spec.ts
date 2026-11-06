@@ -200,18 +200,32 @@ test.describe('W05 員工管理與員編規則', () => {
     expect(data).toEqual([]);
   });
 
-  test('E.1／E.2 每月人員狀態手動新增：FKI 與錯誤格式 400；合規與留空（舊版行為）可新增；資料庫觸發器同樣擋下', async () => {
-    for (const code of ['FKI001', 'FK12', 'ABCDEFG']) {
+  test('E.1／H.2／H.8 每月人員狀態手動新增：員編必填（空白、FKI、錯誤格式 400）；合規員編可新增，類型一律依員編；資料庫觸發器同樣擋下', async () => {
+    for (const code of ['FKI001', 'FK12', 'ABCDEFG', '', '   ']) {
       const r = await addMonthlyManual(admin, zt01, W05_MONTHS.draft, { employee_name: 'W05 手動', employee_code: code });
-      expect(r.status, code).toBe(400);
+      expect(r.status, JSON.stringify(code)).toBe(400);
     }
-    const ok = await addMonthlyManual(admin, zt01, W05_MONTHS.draft, { employee_name: 'W05 手動兼職', employee_code: ` ${codes.manual.toLowerCase()} `, position: '兼職助理', employment_type: 'part_time', work_days: 0, work_hours: 12 });
+    // 沒有 employee_code 欄位同樣擋下
+    const missing = await addMonthlyManual(admin, zt01, W05_MONTHS.draft, { employee_name: 'W05 未填員編' });
+    expect(missing.status).toBe(400);
+    // H.8：FKPT 員編即使送來「正職」也記為兼職
+    const ok = await addMonthlyManual(admin, zt01, W05_MONTHS.draft, { employee_name: 'W05 手動兼職', employee_code: ` ${codes.manual.toLowerCase()} `, position: '兼職助理', employment_type: 'full_time', work_days: 0, work_hours: 12 });
     expect(ok.status, JSON.stringify(ok.body)).toBe(200);
-    expect((await monthlyRows(codes.manual, [W05_MONTHS.draft]))[0].employee_code).toBe(codes.manual);
-    const blank = await addMonthlyManual(admin, zt01, W05_MONTHS.draft, { employee_name: 'W05 未填員編', employee_code: '' });
-    expect(blank.status).toBe(200);
-    const { error } = await adminDb().from('monthly_staff_status').insert({ year_month: W05_MONTHS.draft, store_id: zt01, employee_code: 'FKI002', employee_name: 'W05', is_manually_added: true });
-    expect(error?.message).toContain('WORKSPACE_INVALID');
+    const row = (await monthlyRows(codes.manual, [W05_MONTHS.draft]))[0];
+    expect(row.employee_code).toBe(codes.manual);
+    expect(row.employment_type).toBe('part_time');
+    // 一般員編（FK／FKF）即使送來「兼職」也記為正職
+    const full = await addMonthlyManual(admin, zt01, W05_MONTHS.draft, { employee_name: 'W05 手動正職', employee_code: codes.edit, employment_type: 'part_time' });
+    expect(full.status, JSON.stringify(full.body)).toBe(200);
+    expect((await monthlyRows(codes.edit, [W05_MONTHS.draft]))[0].employment_type).toBe('full_time');
+    await adminDb().from('monthly_staff_status').delete().eq('employee_code', codes.edit).eq('year_month', W05_MONTHS.draft);
+    // 資料庫防線：直接寫入手動新增列，不合規或空白員編在 BEFORE INSERT 被擋；類型由員編決定
+    for (const bad of ['FKI002', '']) {
+      const { error } = await adminDb().from('monthly_staff_status').insert({ year_month: W05_MONTHS.draft, store_id: zt01, employee_code: bad, employee_name: 'W05', is_manually_added: true });
+      expect(error?.message, JSON.stringify(bad)).toContain('WORKSPACE_INVALID');
+    }
+    const { error: nullErr } = await adminDb().from('monthly_staff_status').insert({ year_month: W05_MONTHS.draft, store_id: zt01, employee_name: 'W05', is_manually_added: true });
+    expect(nullErr?.message).toContain('WORKSPACE_INVALID');
     await registerRoster(zt01, W05_MONTHS.draft);
   });
 

@@ -7,7 +7,7 @@ import { POST as pdfData } from '@/app/api/export-single-item-bonus-pdf/route';
 import { GET as bonusDetails } from '@/app/api/monthly-status/bonus-details/route';
 import { GET as quarterBonuses } from '@/app/api/monthly-status/bonus-quarter-summary/route';
 import { monthlyQuarterSummary } from '@/lib/workspace/monthly-quarter';
-import { checkEmployeeId, normalizeEmployeeId } from '@/lib/workspace/employee-id-rule';
+import { checkEmployeeId, employmentTypeForEmployeeId } from '@/lib/workspace/employee-id-rule';
 import { MONTHLY_THRESHOLDS, QUARTERLY_THRESHOLDS } from '@/lib/performance/bonus-calc';
 import { GET as performanceData } from '@/app/api/performance-data/route';
 import { GET as published } from '@/app/api/campaigns/published/route';
@@ -180,14 +180,14 @@ export async function POST(request: Request) {
     if (b.op === 'manual') {
       permit(ctx,'monthly.status.add_employee');
       const d = b.employee || {};
-      if (typeof d.employee_name !== 'string' || !d.employee_name.trim() || d.employee_name.length > 100 || ![...POSITION_OPTIONS,...SPECIAL_ROLE_OPTIONS].includes(d.position) || !['full_time','part_time'].includes(d.employment_type) || !MONTHLY_STATUS_OPTIONS.some(o=>o.value===d.monthly_status)) throw new WorkspaceError(400,'請填完整姓名、職位、僱用類型與本月狀態');
+      if (typeof d.employee_name !== 'string' || !d.employee_name.trim() || d.employee_name.length > 100 || ![...POSITION_OPTIONS,...SPECIAL_ROLE_OPTIONS].includes(d.position) || !MONTHLY_STATUS_OPTIONS.some(o=>o.value===d.monthly_status)) throw new WorkspaceError(400,'請填完整姓名、職位與本月狀態');
       if (d.newbie_level && ![...NEWBIE_LEVEL_OPTIONS,...ADMIN_LEVEL_OPTIONS].some(o=>o.value===d.newbie_level)) throw new WorkspaceError(400,'人員階段不正確');
       for (const [key,max] of [['work_days',31],['work_hours',744]] as const) if (typeof d[key] !== 'number' || !Number.isFinite(d[key]) || d[key]<0 || d[key]>max) throw new WorkspaceError(400,'工作天數／時數不正確');
       if (!uuid(b.requestId)) throw new WorkspaceError(400,'缺少新增識別，請重新開啟視窗');
-      // E.1：手動新增的員編需符合員編規則（FKI 一律拒絕）；員編留空維持舊版行為（E.2 待使用者決定）。
-      if (normalizeEmployeeId(d.employee_code)) { const id = checkEmployeeId(d.employee_code); if (!id.ok) throw new WorkspaceError(400,id.message); }
+      // E.1／H.2：手動新增的員編必填且符合員編規則（FKI 一律拒絕，不再有「留空加實習生」入口）；H.8：僱用類型一律依員編（FKPT 兼職、其餘正職），不再讓人選。
+      const employeeId = checkEmployeeId(d.employee_code); if (!employeeId.ok) throw new WorkspaceError(400,employeeId.message);
       if(d.position==='行政' && !ADMIN_LEVEL_OPTIONS.some(o=>o.value===d.newbie_level)) throw new WorkspaceError(400,'行政人員須選擇行政階段');
-      const result = await ctx.admin.rpc('workspace_add_monthly_employee',{p_store:store,p_month:month,p_id:b.requestId,p_employee:{employee_name:d.employee_name.trim(),employee_code:normalizeEmployeeId(d.employee_code),position:d.position,employment_type:d.employment_type,monthly_status:d.monthly_status,is_pharmacist:!!d.is_pharmacist,work_days:d.work_days,work_hours:d.work_hours,newbie_level:d.newbie_level || undefined,notes:String(d.notes||'').slice(0,2000)}});
+      const result = await ctx.admin.rpc('workspace_add_monthly_employee',{p_store:store,p_month:month,p_id:b.requestId,p_employee:{employee_name:d.employee_name.trim(),employee_code:employeeId.code,position:d.position,employment_type:employmentTypeForEmployeeId(employeeId.code),monthly_status:d.monthly_status,is_pharmacist:!!d.is_pharmacist,work_days:d.work_days,work_hours:d.work_hours,newbie_level:d.newbie_level || undefined,notes:String(d.notes||'').slice(0,2000)}});
       if (result.error) throw new WorkspaceError(409,result.error.message.includes('duplicated')?'此員工已在本月名冊，請編輯原有人員資料':'新增未完成，請重新查詢月份狀態後再試');
       return respond({success:true,data:result.data});
     }

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useWorkspace, type WorkTab } from '../stores';
 import Modal from './Modal.vue';
 import MonthlyQuarter from './MonthlyQuarter.vue';
+import { checkEmployeeId, employmentTypeForEmployeeId, isValidEmployeeId, EMPLOYMENT_TYPE_BY_CODE_LABEL } from '../../../lib/workspace/employee-id-rule';
 import ActivityPlan from './ActivityPlan.vue';
 const quarterMode=ref<'quarterBonuses'|'quarterPerformance'|''>('');
 const quarterNumber=computed(()=>Math.ceil(Number(props.tab.month.slice(5))/3));
@@ -70,6 +71,7 @@ async function search(index:number) {
  if(!query.value.trim())return;
  try {const r=await read('employees',{q:query.value}); if(seq===searchSequence)candidates.value=r.records;}catch(e){dialogError.value=(e as Error).message;}
 }
+const manualTypeText = computed(() => isValidEmployeeId(form.value?.employee_code) ? (employmentTypeForEmployeeId(form.value.employee_code)==='part_time' ? EMPLOYMENT_TYPE_BY_CODE_LABEL : '正職（依員編）') : '依員編判斷（請先填寫正確員編）');
 function choose(e:any) {
  const r=mode.value==='manual'?form.value:entries.value[selectedIndex.value];
  r.employee_code=e.employee_code; r.employee_name=e.employee_name;
@@ -84,7 +86,7 @@ async function save() {
  try {
   const body:any={...context,op:fields[mode.value]?'allowance':mode.value};
   if(fields[mode.value]){body.kind=mode.value;body.records=entries.value;body.expected=expected.value;}
-  else if(mode.value==='manual'){body.employee=form.value;body.requestId=requestId;}
+  else if(mode.value==='manual'){const id=checkEmployeeId(form.value.employee_code);if(!id.ok)throw Error(id.message);form.value.employee_code=id.code;form.value.employment_type=employmentTypeForEmployeeId(id.code);body.employee=form.value;body.requestId=requestId;}
   else {body.updates=form.value;body.version=meta.value.version;}
   await api('monthly/tools',{method:'POST',body:JSON.stringify(body)});
   props.tab.dirty=false;baseline=snapshot();message.value=`${titles[mode.value]}已儲存`;mode.value='';emit('refresh');return true;
@@ -177,8 +179,8 @@ async function activity(r:any){const sequence=++openSequence;dialogLoading.value
      </template>
      <div v-else-if="mode==='stats'||mode==='supportHours'" class="monthly-form-grid"><label v-for="[key,label] in mode==='stats'?statsFields:supportFields">{{label}}<input type="number" min="0" step="any" v-model.number="form[key]" required /></label></div>
      <div v-else-if="mode==='manual'" class="monthly-form-grid">
-      <label>員工代號<input v-model="form.employee_code" autocomplete="off" placeholder="FK1234／FKF12345／FKPT123" /><small>格式：FK+4碼、FKF+5碼、FKPT+3碼數字；可留空</small></label><label>姓名<input v-model="form.employee_name" required maxlength="100" /></label><button type="button" @click="selectedIndex=0">搜尋既有人員</button>
-      <label>職位<select v-model="form.position"><option v-for="p in options.positions" :value="p">{{p}}</option></select></label><label>僱用類型<select v-model="form.employment_type"><option value="full_time">正職</option><option value="part_time">兼職</option></select></label>
+      <label>員工代號<input v-model="form.employee_code" required autocomplete="off" aria-label="員工代號" placeholder="FK1234／FKF12345／FKPT123" /><small>必填。格式：FK+4碼、FKF+5碼、FKPT+3碼數字</small></label><label>姓名<input v-model="form.employee_name" required maxlength="100" /></label><button type="button" @click="selectedIndex=0">搜尋既有人員</button>
+      <label>職位<select v-model="form.position"><option v-for="p in options.positions" :value="p">{{p}}</option></select></label><p class="monthly-readonly" data-testid="manual-employment-type" aria-label="僱用類型">類型：{{manualTypeText}}</p>
       <label>本月狀態<select v-model="form.monthly_status"><option v-for="s in options.statuses" :value="s.value">{{s.label}}</option></select></label>
       <label>階段<select v-model="form.newbie_level"><option value="">不適用</option><option v-for="s in options.levels" :value="s.value">{{s.label}}</option></select></label>
       <label>工作天數<input type="number" min="0" max="31" step="0.5" v-model.number="form.work_days" required /></label><label>工作時數<input type="number" min="0" max="744" step="0.5" v-model.number="form.work_hours" required /></label>
