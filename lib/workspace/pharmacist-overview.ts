@@ -1,4 +1,5 @@
 import { hasMissingPharmacistCarry } from '@/lib/pharmacist-snapshot-carry';
+import { hasSyncTriggeringMovement, taiwanDateOf } from '@/lib/pharmacist/sync-trigger';
 import { readReconciledPharmacistMonth } from '@/lib/pharmacist-transfer-reconciliation';
 // DEV workspace reader ported from the legacy pharmacist overview.
 // Retains its scoped monthly snapshot and movement reconciliation algorithm.
@@ -25,6 +26,13 @@ type ScopedStore = {
   store_code: string;
   store_name: string;
 };
+
+/** 附加備註；同樣片段已存在時不重複附加（快照重算時避免 notes 越來越長）。 */
+export function appendNote(notes: string, fragment: string): string {
+  const frag = fragment.trim();
+  if (!frag || String(notes || "").includes(frag)) return notes;
+  return `${notes}; ${frag}`.trim();
+}
 
 function formatYearMonth(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -170,6 +178,9 @@ export async function pharmacistOverview(
     );
     const monthEnd = `${targetYearMonth}-${String(monthEndDate.getDate()).padStart(2, "0")}`;
 
+    // 同步開始時間：在讀取異動之前取得，寫入 sync log 時使用
+    const syncStartedAt = new Date().toISOString();
+
     // === 增量判斷：快照存在且無新異動時直接跳過 ===
     const [{ count: snapshotCount }, { data: syncLog }] = await Promise.all([
       adminSupabase
@@ -189,25 +200,29 @@ export async function pharmacistOverview(
       (syncLog as any)?.last_synced_at ?? null;
 
     if (skipInitialGeneration && lastSyncedAt) {
-      const { count: newMovementCount, error: movementCheckError } = await adminSupabase
-        .from("employee_movement_history")
-        .select("id", { count: "exact", head: true })
-        .in("store_id", storeIds)
-        .gt("created_at", lastSyncedAt)
-        .in("movement_type", [
-          "resignation",
-          "onboarding",
-          "return_to_work",
-          "store_transfer",
-          "promotion",
-          "leave_without_pay",
-          "leave_of_absence",
-        ])
-        .gte("movement_date", monthStart)
-        .lte("movement_date", monthEnd);
-
-      if (movementCheckError) throw movementCheckError;
-      if ((newMovementCount ?? 0) === 0 &&
+      // 上次同步後有 新登錄 / 事後修改 / 生效日到了 任一種異動才重算
+      let hasTriggeringMovement = true; // 查詢失敗時降級為需要重算
+      try {
+        hasTriggeringMovement = await hasSyncTriggeringMovement(adminSupabase, {
+          lastSyncedAt,
+          today: taiwanDateOf(new Date()),
+          movementTypes: [
+            "resignation",
+            "onboarding",
+            "return_to_work",
+            "store_transfer",
+            "promotion",
+            "leave_without_pay",
+            "leave_of_absence",
+          ],
+          rangeStart: monthStart,
+          rangeEnd: monthEnd,
+          storeIds,
+        });
+      } catch (e) {
+        console.error("[pharmacist-management] trigger query failed, falling back to recompute", e);
+      }
+      if (!hasTriggeringMovement &&
           !(await hasMissingPharmacistCarry(adminSupabase, baseYearMonth, targetYearMonth, storeIds))) return;
     }
 
@@ -439,7 +454,7 @@ export async function pharmacistOverview(
         const row = nextByCode.get(code);
         if (!row) return;
         row.is_active = false;
-        row.notes = `${row.notes}; ${mmdd || ""} resignation`.trim();
+        row.notes = appendNote(row.notes, `${mmdd || ""} resignation`);
         nextByCode.set(code, row);
         return;
       }
@@ -456,7 +471,7 @@ export async function pharmacistOverview(
           row.is_active = true;
           row.employee_name =
             row.employee_name || String(m.employee_name || "");
-          row.notes = `${row.notes}; ${mmdd || ""} ${type}`.trim();
+          row.notes = appendNote(row.notes, `${mmdd || ""} ${type}`);
           nextByCode.set(code, row);
         } else {
           nextByCode.set(code, {
@@ -477,7 +492,7 @@ export async function pharmacistOverview(
         const row = nextByCode.get(code);
         if (!row) return;
         row.is_active = false;
-        row.notes = `${row.notes}; ${mmdd || ""} leave_of_absence`.trim();
+        row.notes = appendNote(row.notes, `${mmdd || ""} leave_of_absence`);
         nextByCode.set(code, row);
         return;
       }
@@ -486,8 +501,7 @@ export async function pharmacistOverview(
         // 規則：非切整月調店，當月維持原店，次月才生效
         const row = nextByCode.get(code);
         if (!row) return;
-        row.notes =
-          `${row.notes}; ${mmdd || ""} transfer (effective next month)`.trim();
+        row.notes = appendNote(row.notes, `${mmdd || ""} transfer (effective next month)`);
         nextByCode.set(code, row);
         return;
       }
@@ -495,16 +509,28 @@ export async function pharmacistOverview(
       if (type === "promotion") {
         const row = nextByCode.get(code);
         if (!row) return;
-        row.notes =
-          `${row.notes}; ${mmdd || ""} promotion (effective next month)`.trim();
+        row.notes = appendNote(row.notes, `${mmdd || ""} promotion (effective next month)`);
         const nextPosition = String(m.new_value || "").trim();
         if (nextPosition) row.position = nextPosition;
         nextByCode.set(code, row);
       }
     });
 
+    const markSynced = async () => {
+      // 同步完成後更新 sync log（供下次增量判斷使用）
+      await adminSupabase
+        .from("pharmacist_monthly_snapshot_sync_log")
+        .upsert(
+          { year_month: targetYearMonth, last_synced_at: syncStartedAt },
+          { onConflict: "year_month" },
+        );
+    };
+
     const payload = Array.from(nextByCode.values());
-    if (payload.length === 0) return;
+    if (payload.length === 0) {
+      await markSynced();
+      return;
+    }
 
     // 只有初始生成或有實際異動變更時才 upsert
     if (
@@ -515,17 +541,8 @@ export async function pharmacistOverview(
       await adminSupabase
         .from("pharmacist_monthly_snapshot")
         .upsert(payload, { onConflict: "year_month,store_id,employee_code" });
-      // 同步完成後更新 sync log（供下次增量判斷使用）
-      await adminSupabase
-        .from("pharmacist_monthly_snapshot_sync_log")
-        .upsert(
-          {
-            year_month: targetYearMonth,
-            last_synced_at: new Date().toISOString(),
-          },
-          { onConflict: "year_month" },
-        );
     }
+    await markSynced();
   }
 
   let currentRowsRaw: any[] = [];

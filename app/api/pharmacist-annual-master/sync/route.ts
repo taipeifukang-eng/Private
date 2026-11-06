@@ -86,6 +86,14 @@ export async function GET(req: NextRequest) {
         .upsert({ year, last_synced_at: syncStartedAt }, { onConflict: 'year' });
       if (!logError) lastSyncedAt = syncStartedAt;
     }
+  } else if (!isLocked && readOnly) {
+    // 只讀模式不同步，但仍回傳真正最後同步時間供畫面顯示
+    const { data: syncLog } = await adminSupabase
+      .from('pharmacist_annual_master_sync_log')
+      .select('last_synced_at')
+      .eq('year', year)
+      .maybeSingle();
+    lastSyncedAt = syncLog?.last_synced_at ?? null;
   }
 
   // 3. 查詢年度主檔資料
