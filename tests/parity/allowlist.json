@@ -776,7 +776,7 @@
     "page": "employee-management",
     "description": "員工名冊中到職日、生日沒有資料時：舊頁顯示「-」，新版顯示「—」。",
     "reason": "新版統一使用長破折號當空值；不影響資料，只是顯示符號不同。尚待使用者確認是否接受。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-06 survey/m2-followup H.10)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "list-ui",
@@ -789,7 +789,7 @@
     "page": "employee-management",
     "description": "員工名冊中生日沒有資料時：舊頁顯示「-」，新版顯示「—」。",
     "reason": "同上，尚待使用者確認是否接受。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-06 survey/m2-followup H.10)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "list-ui",
@@ -802,7 +802,7 @@
     "page": "employee-management",
     "description": "員工名冊中當前職位沒有資料時：舊頁顯示「-」，新版顯示「未提供」。",
     "reason": "新版以文字說明沒有職位；不影響資料，尚待使用者確認是否接受。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-06 survey/m2-followup H.10)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "list-ui",
@@ -1223,7 +1223,7 @@
     "page": "stores-people",
     "description": "調店申請確認生效後的員工主檔：舊版 /api/store-transfer-requests/[id]/confirm 只寫調店異動、申請狀態與月人員，員工主檔（store_employees）仍留在原店（DEV 沒有調店觸發器）；新版兩側督導都確認後同一交易把主檔換到新店並依 A 組回寫名冊。",
     "reason": "M2 D.2 說「生效時走 A 組回寫」，新版的主檔換店是前一個里程碑（調店確認）已有的行為，但使用者尚未針對這項與舊版（DEV）不同的結果明確核可；舊版 Production 是否另有機制補主檔未驗證。待使用者核可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-06 survey/m2-followup H.1)",
     "match": {
       "mechanism": "write-readback",
       "entry": "transfer-confirm-two-sides",
@@ -1235,7 +1235,7 @@
     "page": "stores-people",
     "description": "批次輸入調店確認生效後的員工主檔：舊版 /api/employee-movements/batch 寫調店異動與月人員，員工主檔（store_employees）仍留在原店（DEV 沒有調店觸發器）；新版兩側督導都確認後同一交易把主檔換到新店並依 A 組回寫名冊。",
     "reason": "M2 D.2 說「生效時走 A 組回寫」，新版的主檔換店是前一個里程碑（調店確認）已有的行為，但使用者尚未針對這項與舊版（DEV）不同的結果明確核可；舊版 Production 是否另有機制補主檔未驗證。待使用者核可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-06 survey/m2-followup H.1)",
     "match": {
       "mechanism": "write-readback",
       "entry": "batch-transfer",
