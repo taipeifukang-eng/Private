@@ -1530,5 +1530,67 @@
         "ops_manager"
       ]
     }
+  },
+  {
+    "id": "m3-home-greeting-subtitle",
+    "page": "home",
+    "description": "首頁問候：舊版歡迎標題下方有依角色的一句話（例如「您是系統管理員，擁有完整的系統控制權限」）；新版只留「歡迎回來，姓名」。",
+    "reason": "M3 規格 C.5（Q15 = old_order_keep_quick）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q15)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "home-layout",
+      "key": "greetingSubtitle"
+    }
+  },
+  {
+    "id": "m3-home-quick-entries",
+    "page": "home",
+    "description": "首頁快捷入口：新版在提醒卡片下方有巡店、活動、版更快捷入口，舊版首頁沒有。",
+    "reason": "M3 規格 C.5（Q15）：新版快捷入口保留，放在提醒卡片下方。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q15)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "home-layout",
+      "key": "quickEntries"
+    }
+  },
+  {
+    "id": "m3-home-bonus-unconfirmed-label",
+    "page": "home",
+    "description": "每月獎金明細：該月月結狀態不是「已確認」時，新版在該月標註「尚未確認，金額可能調整」；舊版不論狀態都直接顯示金額、沒有標註。月份、欄位與金額逐筆與舊版相同。",
+    "reason": "M3 規格 C.2（Q12 = show_with_label）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q12)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "home-bonus",
+      "key": "unconfirmedMonths"
+    }
+  },
+  {
+    "id": "m3-home-task-order",
+    "page": "home",
+    "description": "首頁我的任務：舊版依建立時間顯示最新 3 筆（不分完成與否）；新版未完成優先、依建立時間新到舊，不足 3 筆才補已完成。各任務的標題與狀態文字相同，只有挑選與排序不同。",
+    "reason": "M3 規格 C.4（Q14 = unfinished_first）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q14)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "home-tasks",
+      "key": "homeTasks"
+    }
+  },
+  {
+    "id": "m3-home-transfer-supervised-count",
+    "page": "home",
+    "description": "調店待確認數：舊版只有確認權限者（督導）看到「自己管轄門市相關」的全部待確認申請（任何任命，含店長身分與申請另一端的狀態）；新版只數「我現在可以確認」的（原店或新店任一位督導，店長不能確認）。管理員與有建立調店權限者仍看全部，與舊版相同。DEV 沒有只有確認權限的測試帳號，差異由整合測試以替身 context 驗證。",
+    "reason": "M3 規格 C.3（Q13 = confirmable_only，使用者補充）。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q13)"
+  },
+  {
+    "id": "m3-home-timezone",
+    "page": "home",
+    "description": "首頁「本月」的判定：舊版用伺服器本地時間，新版固定用台北時間（月底與月初的跨日邊界在 UTC 伺服器上才會不同）。",
+    "reason": "M3 規格 C.6：資料規則照舊版；日期改台北時間只在伺服器不是台北時區時才有差別。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q11)"
   }
 ]
