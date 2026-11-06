@@ -2,13 +2,14 @@
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
 import TaskSchedule from "../components/TaskSchedule.vue";
-import { useWorkspace, type WorkTab } from "../stores";
+import { useSession, useWorkspace, type WorkTab } from "../stores";
 import {
   applyTaskChanges,
   flattenTaskSteps,
   type TaskChange,
 } from "../../../lib/workspace/task-state";
 const work = useWorkspace(),
+  session = useSession(),
   newer = ref(false),
   refreshError = ref("");
 let timer: ReturnType<typeof setInterval>;
@@ -22,6 +23,24 @@ const props = defineProps<{ tab: WorkTab }>(),
   schedule = ref(false),
   pending = ref<any>(null);
 const flat = computed(() => flattenTaskSteps(data.value?.steps || []));
+const groups = computed(
+  () => data.value?.groups || [{ sectionId: null, department: "", steps: data.value?.steps || [] }],
+);
+const labelOf = computed(
+  () => new Map(flat.value.map((s: any) => [s.id, s.label])),
+);
+const history = computed(() =>
+  ((data.value?.logs || []) as any[])
+    .filter((l) => labelOf.value.has(l.step_id))
+    .slice()
+    .reverse(),
+);
+function logText(l: any) {
+  const act = l.action === "complete" ? "勾選" : "取消勾選";
+  return l.proxy
+    ? `由 ${l.actorName} 代為${l.action === "complete" ? "勾選" : "取消"}`
+    : `${l.actorName} ${act}`;
+}
 const done = computed(
   () => flat.value.filter((s) => s.id in state.value).length,
 );
@@ -134,7 +153,7 @@ onBeforeUnmount(() => {
       <p class="eyebrow">派發任務 / 填寫進度</p>
       <h1>{{ data?.template.title || "任務內容" }}</h1>
       <p v-if="data" class="muted">
-        {{ data.creator }} 派發 · 我的項目 {{ done }} / {{ flat.length }}
+        {{ data.creator }} 派發 · {{ data.proxy ? "全部項目" : "我的項目" }} {{ done }} / {{ flat.length }}
       </p>
     </div>
     <div class="button-row">
@@ -173,6 +192,9 @@ onBeforeUnmount(() => {
   </p>
   <p v-if="loading" role="status">載入任務…</p>
   <template v-if="data">
+    <p v-if="data.proxy" class="notice" role="status" data-flag="proxy">
+      你不是此任務的參與者。你的勾選與備註會記錄為「由 {{ session.data?.user.name || "你" }} 代為勾選」。
+    </p>
     <p>{{ data.template.description }}</p>
     <p class="muted">
       協作成員：{{ data.collaborators.map((c: any) => c.name + (c.support ? "（跨部門支援）" : "")).join("、") }}
@@ -181,7 +203,9 @@ onBeforeUnmount(() => {
     <fieldset class="task-checklist" :disabled="tab.busy || !!pending">
       <legend>我的工作項目</legend>
       <p v-if="!flat.length">尚未設定可操作項目，請聯絡派發人員。</p>
-      <section v-for="s in data.steps" :key="s.id" class="task-step">
+      <template v-for="g in groups" :key="g.sectionId ?? 'all'">
+      <h3 v-if="data.proxy && groups.length > 1">{{ g.department || "區段" }}</h3>
+      <section v-for="s in g.steps" :key="s.id" class="task-step">
         <label class="task-check"
           ><input
             type="checkbox"
@@ -226,7 +250,18 @@ onBeforeUnmount(() => {
           </label>
         </div>
       </section>
+      </template>
     </fieldset>
+    <section class="task-history" aria-label="步驟紀錄">
+      <h2>步驟紀錄</h2>
+      <p v-if="!history.length" class="muted">尚無勾選紀錄。</p>
+      <ul v-else>
+        <li v-for="l in history" :key="l.id" :data-proxy="l.proxy">
+          {{ new Date(l.created_at).toLocaleString("zh-TW") }}　{{ logText(l) }}　{{ labelOf.get(l.step_id) }}
+          <span v-if="l.note" class="muted">（備註：{{ l.note }}）</span>
+        </li>
+      </ul>
+    </section>
   </template>
 </template>
 <style scoped>

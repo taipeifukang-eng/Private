@@ -22,6 +22,7 @@ export const WORKSPACE_NAV_KINDS = [
   "task-management",
   "task-archive",
   "my-tasks",
+  "dashboard",
   "inspection-settings",
   "improvements",
   "inspection-compare",

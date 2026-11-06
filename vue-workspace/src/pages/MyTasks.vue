@@ -81,6 +81,8 @@ onMounted(load);
           <td>
             <strong>{{ r.template.title }}</strong>
             <p class="muted">{{ r.department || "未分部門" }}</p>
+            <p v-if="r.sectionChanged" class="muted" data-flag="section-changed">區段已變更，請聯絡派發人員</p>
+            <p v-if="r.multiple" class="muted" data-flag="multiple">派發日期 {{ r.created_at.slice(0, 10) }}（同任務有多筆進度）</p>
           </td>
           <td>
             {{ r.creator }}
@@ -88,11 +90,14 @@ onMounted(load);
               {{ r.collaborators.map((c: any) => c.name).join("、") }}
             </p>
           </td>
-          <td>{{ r.done }} / {{ r.total }}</td>
-          <td>{{ labels[r.status] || r.status }}</td>
+          <td>我的進度 {{ r.done }} / {{ r.total }}</td>
+          <td>
+            {{ labels[r.status] || r.status }}
+            <p class="muted">整體 {{ r.overallDone }} / {{ r.overallTotal }}</p>
+          </td>
           <td>{{ r.created_at.slice(0, 10) }}</td>
           <td>
-            <button @click="work.open('task-runner', '', r.id)">
+            <button :disabled="r.sectionChanged" @click="work.open('task-runner', '', r.id)">
               開啟任務
             </button>
           </td>

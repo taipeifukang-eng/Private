@@ -54,10 +54,11 @@ export async function POST(request: Request) {
           id: body.id,
           version: body.version,
           changes: body.changes,
+          proxy: !!data.proxy,
         }),
       )
       .digest("hex");
-    const saved = await ctx.admin.rpc("workspace_save_task", {
+    const saved = await ctx.admin.rpc("workspace_save_task_v2", {
       p_id: body.id,
       p_actor: ctx.user.id,
       p_version: body.version,
@@ -65,6 +66,7 @@ export async function POST(request: Request) {
       p_hash: hash,
       p_actions: result.actions,
       p_status: status,
+      p_proxy: !!data.proxy,
     });
     if (saved.error) {
       if (/CONFLICT/.test(saved.error.message))

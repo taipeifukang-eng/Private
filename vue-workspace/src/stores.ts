@@ -29,6 +29,7 @@ export type Session = {
     storeManagers: boolean;
     supervisors: boolean;
     tasks: boolean;
+    dashboard: boolean;
     taskArchive: boolean;
     taskManagement: boolean;
     monthly: boolean;

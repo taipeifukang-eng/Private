@@ -150,6 +150,9 @@ onMounted(load);
               ? "進行中"
               : "待處理"
         }}</span>
+        <button :disabled="tab.busy" data-action="open-runner" @click="work.open('task-runner', '', r.id)">
+          開啟任務（可代為勾選）
+        </button>
         <button
           v-if="data.canDeleteAssignment && r.status === 'completed'"
           class="danger"

@@ -31,6 +31,7 @@ import MovementDraft from "./pages/MovementDraft.vue";
 import MovementHistory from "./pages/MovementHistory.vue";
 import MovementManagement from "./pages/MovementManagement.vue";
 import MyTasks from "./pages/MyTasks.vue";
+import Dashboard from "./pages/Dashboard.vue";
 import Organization from "./pages/Organization.vue";
 import OrganizationEditor from "./pages/OrganizationEditor.vue";
 import Performance from "./pages/Performance.vue";
@@ -109,6 +110,7 @@ const components: Record<WorkTabKind, Component> = {
   "task-archive": TaskArchive,
   "task-archive-detail": TaskArchiveDetail,
   "my-tasks": MyTasks,
+  dashboard: Dashboard,
   "task-runner": TaskRunner,
   "inspection-print": InspectionPrint,
   "inspection-settings": InspectionSettings,

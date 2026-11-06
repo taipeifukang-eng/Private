@@ -58,6 +58,7 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "task-archive": meta("已封存任務", ["taskArchive"]),
   "task-archive-detail": meta("封存任務紀錄", ["taskArchive"]),
   "my-tasks": meta("我的任務", ["tasks"]),
+  dashboard: meta("儀表板", ["dashboard"]),
   "task-runner": meta("任務內容", ["tasks"]),
   "inspection-print": meta("巡店列印預覽", ["inspections"]),
   "inspection-settings": meta("巡店範本設定", ["inspectionSettings"]),

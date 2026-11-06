@@ -83,6 +83,7 @@ export async function GET() {
         supervisors: ctx.has("store.supervisor.assign", "store.manager.assign", "store.manage"),
         storeManagers: ctx.has("store.manager.assign", "store.manage"),
         tasks: ctx.has("task.view_own"),
+        dashboard: ctx.has("dashboard.view"),
         taskArchive,
         taskManagement,
         inspectionSettings: ctx.has("inspection.template.manage"),

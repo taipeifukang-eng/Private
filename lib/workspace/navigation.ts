@@ -45,7 +45,7 @@ export function workspaceNavigation(
       label: "派發任務",
       items: [
         item("我的任務", "/my-tasks", ["task.view_own"], "my-tasks"),
-        item("儀表板", "/dashboard", ["dashboard.view"]),
+        item("儀表板", "/dashboard", ["dashboard.view"], "dashboard"),
         ...(features.taskManagement
           ? [item("任務管理", "/admin/templates", [], "task-management")]
           : []),
