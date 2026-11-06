@@ -6,13 +6,17 @@
 // 每次 2–3 次資料庫往返（profile、user_roles、RPC has_permission）。這裡改成一次平行載入，
 // 在記憶體內算出與 hasPermission() 完全相同的結果。
 //
-// 語意（必須與 lib/permissions/check.ts 的 hasPermission 逐項一致）：
+// 語意（必須與 lib/permissions/check.ts 的 hasPermission 逐項一致；DB 端以「正式區」has_permission 定義為準，
+// 2026-11-06 由正式區唯讀查詢確認）：
 //   hasPermission(userId, code) =
-//        isAdminLikeUser(userId)                     // 管理員保底：profiles.role === 'admin'，
+//        isAdminLikeUser(userId)                     // 應用層保底（照舊）：profiles.role === 'admin'，
 //                                                    // 或有效 user_roles 的角色 code 在保底名單內（不檢查 roles.is_active）
-//     || DB has_permission(userId, code)              // 資料庫函式：
-//          - 有效 user_roles 且 roles.is_active 且 roles.code = 'admin'，或
-//          - 有效 user_roles + roles.is_active + role_permissions.is_allowed + permissions.is_active + code 相符
+//     || DB has_permission(userId, code)              // 正式區資料庫函式（SECURITY DEFINER）：
+//          EXISTS user_roles ur JOIN role_permissions rp (ur.role_id = rp.role_id) JOIN permissions p (rp.permission_id = p.id)
+//          WHERE ur.user_id = userId AND ur.is_active
+//            AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+//            AND rp.is_allowed AND p.code = code AND p.is_active
+//        重點：不檢查 roles.is_active（角色停用仍放行）、資料庫端沒有 role.code = 'admin' 的放行。
 //   「有效 user_roles」= user_roles.is_active = true 且 (expires_at 為空或晚於現在)
 //
 // 讀取方式：
@@ -78,7 +82,7 @@ export async function loadPermissionSnapshot(
     Promise.resolve(
       adminDb
         .from('user_roles')
-        .select('expires_at, role:roles(code, is_active, role_permissions(is_allowed, permission:permissions(code, is_active)))')
+        .select('expires_at, role:roles(role_permissions(is_allowed, permission:permissions(code, is_active)))')
         .eq('user_id', userId)
         .eq('is_active', true)
     ).catch((error: unknown) => ({ data: null, error })),
@@ -98,18 +102,14 @@ export async function loadPermissionSnapshot(
     });
   }
 
-  // ---- DB has_permission 等價計算
-  let dbAdmin = false;
+  // ---- 正式區 DB has_permission 等價計算（不看 roles.is_active，也沒有 role.code = 'admin' 放行）
   const granted = new Set<string>();
   if (grantRes.error) {
     console.error('權限快照讀取錯誤:', grantRes.error);
   } else {
     for (const ur of (grantRes.data || []) as any[]) {
       if (!isNotExpired(ur?.expires_at, now)) continue;
-      const role = ur?.role;
-      if (!role || role.is_active !== true) continue;
-      if (role.code === 'admin') dbAdmin = true;
-      for (const rp of (role.role_permissions || []) as any[]) {
+      for (const rp of (ur?.role?.role_permissions || []) as any[]) {
         if (rp?.is_allowed === true && rp?.permission?.is_active === true && typeof rp.permission.code === 'string') {
           granted.add(rp.permission.code);
         }
@@ -119,8 +119,7 @@ export async function loadPermissionSnapshot(
 
   const has = (permissionCode: string): boolean => {
     if (isAdminLike) return true;
-    if (!permissionCode || String(permissionCode).trim() === '') return false;
-    return dbAdmin || granted.has(permissionCode);
+    return granted.has(permissionCode);
   };
 
   return { userId, profile, isAdminLike, has };

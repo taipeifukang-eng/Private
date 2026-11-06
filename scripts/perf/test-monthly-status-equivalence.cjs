@@ -16,6 +16,10 @@
  *
  * 並列出每個 action 的往返次數（改前 vs 改後）。任何不一致 → exit code 1。
  *
+ * 「改前」參考值的資料庫端語意 = 正式區 has_permission（與 DEV 的 has_permission 不同）：
+ * 測試開始時在 DEV 建立暫時函式 perf_has_permission_prod（內容同正式區定義），改前版本的 rpc('has_permission')
+ * 被 harness 攔截改呼叫它；測完（含失敗）一律 DROP。
+ *
  * 用法：node scripts/perf/test-monthly-status-equivalence.cjs [--base <git ref>] [--only key1,key2] [--keep]
  * 只連 DEV；測試資料用完即清除（--cleanup 可單獨清除殘留）。
  */
@@ -24,6 +28,7 @@ const { execFileSync } = require('node:child_process');
 const { loadDevEnv, ROOT } = require('./dev-env.cjs');
 const { setup, teardown, cleanupAll, buildScenarios, YM, FRANCHISE_STORE } = require('./ms-fixture.cjs');
 const { openActions, makeServiceClient } = require('./ms-harness.cjs');
+const prodFn = require('./prod-has-permission-fn.cjs');
 
 const ARGS = process.argv.slice(2);
 const argVal = (n, d) => {
@@ -118,7 +123,12 @@ async function main() {
   const scenarios = only ? only.split(',') : undefined;
   say(`改前版本 = ${BASE}   改後版本 = 工作樹`);
   let fx;
+  let fnCreated = false;
   try {
+    prodFn.createProdFn();
+    fnCreated = true;
+    const probe = await admin.rpc(prodFn.FN, { p_user_id: '00000000-0000-0000-0000-000000000000', p_permission_code: 'x' });
+    if (probe.error) throw new Error(`暫時函式 ${prodFn.FN} 不可用：${probe.error.message}`);
     fx = await setup(ENV, admin, anon, { scenarios });
     const keys = Object.keys(fx.users);
     say(`測試帳號 ${keys.length} 個，開始比對…\n`);
@@ -134,13 +144,28 @@ async function main() {
 
     const runUser = async (key) => {
       const u = fx.users[key];
-      const [oldH, newH] = await Promise.all([openActions(ENV, u.session, BASE), openActions(ENV, u.session, NEW)]);
+      const [oldH, newH] = await Promise.all([openActions(ENV, u.session, BASE, { rpcRename: { has_permission: prodFn.FN } }), openActions(ENV, u.session, NEW)]);
 
       // ---- A2：權限旗標
       const pO = await call(oldH, 'checkMonthlyStatusPermissions');
       const pN = await call(newH, 'checkMonthlyStatusPermissions');
       same(`[${key}] checkMonthlyStatusPermissions`, pO.value, pN.value);
       addTrips('checkMonthlyStatusPermissions', pO.trips, pN.trips);
+      // roles.is_active=false 但 user_roles 有效 -> 正式區語意仍放行（改前改後都必須有旗標，證明參考值真的是正式區語意）
+      if (key === 'role_inactive' || key === 'role_inactive_partial') {
+        checks += 1;
+        if (!FLAGS.some((f) => pO.value[f]) || !FLAGS.some((f) => pN.value[f])) {
+          failures += 1;
+          failLines.push(`不符正式區語意 [${key}] roles.is_active=false 但 user_roles 有效，應有旗標為 true`);
+        }
+      }
+      if (key === 'role_inactive_ur_expired') {
+        checks += 1;
+        if (FLAGS.some((f) => pO.value[f]) || FLAGS.some((f) => pN.value[f])) {
+          failures += 1;
+          failLines.push(`不符正式區語意 [${key}] user_roles 過期應全部為 false`);
+        }
+      }
       matrixRows.push({ key, desc: u.desc, flags: FLAGS.filter((f) => pN.value[f]).map((f) => f.replace(/^can/, '')) });
 
       // ---- A2：可管門市
@@ -190,7 +215,16 @@ async function main() {
       for (const l of failLines.slice(0, 30)) say(l);
     }
   } finally {
-    const log = await teardown(admin, fx);
+    const log = fx ? await teardown(admin, fx) : [];
+    if (fnCreated) {
+      try {
+        prodFn.dropProdFn();
+        say(`已 DROP 暫時函式 ${prodFn.FN}`);
+      } catch (e) {
+        say(`警告：DROP ${prodFn.FN} 失敗，請手動執行 node scripts/perf/prod-has-permission-fn.cjs drop：${e.message}`);
+        failures += 1;
+      }
+    }
     say('清除測試資料：', log.length ? log.join('; ') : 'OK');
   }
   if (failures) process.exitCode = 1;

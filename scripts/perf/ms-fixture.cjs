@@ -83,7 +83,9 @@ function buildScenarios() {
   add('no_roles_with_appt', { desc: '沒有角色，但有任命', appts: [['VW001', 'store_manager']] });
 
   // --- 角色狀態邊界
-  add('role_inactive', { desc: '角色 is_active=false（持完整權限）', roles: [{ perms: ALL_MONTHLY, roleActive: false }], appts: [['VW001', 'store_manager']] });
+  add('role_inactive', { desc: '角色 is_active=false 但 user_roles 有效（持完整權限；正式區 has_permission 不檢查 roles.is_active，仍放行）', roles: [{ perms: ALL_MONTHLY, roleActive: false }], appts: [['VW001', 'store_manager']] });
+  add('role_inactive_partial', { desc: '角色 is_active=false 但 user_roles 有效（僅 view_own / stats / confirm）', profile: { title: '店長' }, roles: [{ perms: [MONTHLY.viewOwn, MONTHLY.stats, MONTHLY.confirm], roleActive: false }], appts: [['VW001', 'store_manager']] });
+  add('role_inactive_ur_expired', { desc: '角色 is_active=false 且 user_roles 已過期（不放行）', roles: [{ perms: ALL_MONTHLY, roleActive: false, expires: PAST }], appts: [['VW001', 'store_manager']] });
   add('ur_inactive', { desc: 'user_roles.is_active=false', roles: [{ perms: ALL_MONTHLY, urActive: false }], appts: [['VW001', 'store_manager']] });
   add('ur_expired', { desc: 'user_roles 已過期', roles: [{ perms: ALL_MONTHLY, expires: PAST }], appts: [['VW001', 'store_manager']] });
   add('ur_not_yet_expired', { desc: 'user_roles 未到期', roles: [{ perms: ALL_MONTHLY, expires: FUTURE }], appts: [['VW001', 'store_manager']] });

@@ -133,10 +133,24 @@ async function makeUserClient(env, session, counter) {
   return c;
 }
 
+/** 攔截 client.rpc(name)，依 map 改呼叫別的函式；其餘成員原樣轉發 */
+function renameRpc(client, map) {
+  return new Proxy(client, {
+    get(target, prop) {
+      if (prop === 'rpc') return (name, ...rest) => target.rpc(map[name] || name, ...rest);
+      const v = target[prop];
+      return typeof v === 'function' ? v.bind(target) : v;
+    },
+  });
+}
+
 /** 對一個帳號載入指定版本的 actions，回傳可呼叫物件與計數器 */
-async function openActions(env, session, ref) {
+async function openActions(env, session, ref, opts = {}) {
   const counter = makeCounter();
-  const ctx = { user: await makeUserClient(env, session, counter), admin: makeServiceClient(env, counter) };
+  let user = await makeUserClient(env, session, counter);
+  // DEV 的 has_permission 與正式區不同：「改前」參考值改呼叫 DEV 上的暫時函式 perf_has_permission_prod（內容 = 正式區定義）
+  if (opts.rpcRename) user = renameRpc(user, opts.rpcRename);
+  const ctx = { user, admin: makeServiceClient(env, counter) };
   const actions = loadProjectModule(ref, 'app/store/actions.ts', ctx);
   counter.reset();
   return { actions, counter, ctx };

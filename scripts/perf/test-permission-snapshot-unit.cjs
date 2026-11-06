@@ -11,8 +11,12 @@
  *   × role_permissions.is_allowed、permissions.is_active、權限 code 相符與否
  * 對每個組合，比較「舊 hasPermission(userId, code)」與「snapshot.has(code)」必須相同。
  *
- * 舊 hasPermission 內的 RPC has_permission 以 DEV 基準 migration 的 SQL 語意在假資料庫裡重現
- * （supabase/migrations/20260722030244_dev_schema_baseline.sql）。不連資料庫。
+ * 舊 hasPermission 內的 RPC has_permission 以「正式區」函式定義在假資料庫裡重現（2026-11-06 正式區唯讀查詢取得）：
+ *   EXISTS(user_roles ur JOIN role_permissions rp ON ur.role_id = rp.role_id JOIN permissions p ON rp.permission_id = p.id
+ *          WHERE ur.user_id = ? AND ur.is_active AND (ur.expires_at IS NULL OR ur.expires_at > NOW())
+ *            AND rp.is_allowed AND p.code = ? AND p.is_active)
+ * 不檢查 roles.is_active（角色停用仍放行），資料庫端也沒有 role.code = 'admin' 的放行。
+ * 這與 DEV baseline 的 has_permission 不同，所以不能用 DEV 函式當參考。不連資料庫。
  *
  * 用法：node scripts/perf/test-permission-snapshot-unit.cjs
  */
@@ -69,13 +73,11 @@ function makeDb(world, { userSeesRoles = true } = {}) {
   }
   return {
     from: (t) => builder(t, 'user'),
-    // 重現 DB has_permission（基準 migration）
+    // 重現「正式區」DB has_permission：不看 roles.is_active，沒有 role.code = 'admin' 放行
     async rpc(name, args) {
       if (name !== 'has_permission') return { data: null, error: { message: 'unknown rpc' } };
       const code = args.p_permission_code;
-      if (!code || String(code).trim() === '') return { data: false, error: null };
-      const valid = world.rows.filter((r) => r.ur.is_active === true && (r.ur.expires_at === null || new Date(r.ur.expires_at).getTime() > NOW) && r.role.is_active === true);
-      if (valid.some((r) => r.role.code === 'admin')) return { data: true, error: null };
+      const valid = world.rows.filter((r) => r.ur.is_active === true && (r.ur.expires_at === null || new Date(r.ur.expires_at).getTime() > NOW));
       const ok = valid.some((r) => r.perms.some((p) => p.is_allowed === true && p.is_active === true && p.code === code));
       return { data: ok, error: null };
     },
@@ -141,6 +143,33 @@ async function compare(label, world, opts) {
       }
     }
   }
+  // ---- 正式區語意的明確斷言（不只「新舊相同」，也要確認兩邊都等於正式區預期值）
+  const snapMod = loadProjectModule('worktree', 'lib/permissions/snapshot.ts', { user: null, admin: null });
+  const expectHas = async (label, world, code, expected, opts) => {
+    const db = makeDb(world, opts);
+    const snap = await snapMod.loadPermissionSnapshot(db, db.__admin, USER_ID);
+    total += 1;
+    if (snap.has(code) !== expected) {
+      bad += 1;
+      console.log(`正式區預期不符 ${label} 預期=${expected} 實際=${snap.has(code)}`);
+    }
+  };
+  const base = (role, perms, ur = {}) => ({
+    profile: { role: 'member', department: null, job_title: null },
+    rows: [{ ur: { is_active: true, expires_at: null, ...ur }, role, perms }],
+  });
+  const grant = [{ code: TARGET, is_allowed: true, is_active: true }];
+  // roles.is_active=false 但 user_roles 有效：正式區仍放行
+  await expectHas('roles.is_active=false + 有效 user_roles + 權限 -> 放行', base({ code: 'perf_custom', is_active: false }, grant), TARGET, true);
+  await expectHas('roles.is_active=false + user_roles 未到期 -> 放行', base({ code: 'perf_custom', is_active: false }, grant, { expires_at: FUTURE }), TARGET, true);
+  await expectHas('roles.is_active=false + user_roles 過期 -> 不放行', base({ code: 'perf_custom', is_active: false }, grant, { expires_at: PAST }), TARGET, false);
+  await expectHas('roles.is_active=false + user_roles.is_active=false -> 不放行', base({ code: 'perf_custom', is_active: false }, grant, { is_active: false }), TARGET, false);
+  // role code = admin：DB 端不放行（使用者看不到自己的 user_roles 時，應用層保底也看不到）
+  await expectHas('role.code=admin 無任何權限列，使用者讀不到 user_roles -> 不放行', base({ code: 'admin', is_active: true }, []), TARGET, false, { userSeesRoles: false });
+  await expectHas('role.code=admin 無任何權限列，使用者讀得到 user_roles -> 應用層保底放行', base({ code: 'admin', is_active: true }, []), TARGET, true);
+  await expectHas('一般角色 + 權限 is_allowed=false -> 不放行', base({ code: 'perf_custom', is_active: true }, [{ code: TARGET, is_allowed: false, is_active: true }]), TARGET, false);
+  await expectHas('一般角色 + permissions.is_active=false -> 不放行', base({ code: 'perf_custom', is_active: true }, [{ code: TARGET, is_allowed: true, is_active: false }]), TARGET, false);
+
   // 多角色聯集：一個過期、一個不允許、一個有效
   await compare('multi-role union', {
     profile: { role: null, department: null, job_title: null },
