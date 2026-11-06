@@ -85,6 +85,7 @@ async function rosterPage(ctx: any, month: string, store: string, since: string)
   const adjustments = checked(adjustmentsRes) as any[];
   if (!rpc.error && rpc.data && Array.isArray(rpc.data.records))
     return { records: rpc.data.records as any[], summary: (rpc.data.summary || null) as any, recheck, adjustments };
+  console.error("[workspace/monthly] roster RPC failed, falling back to per-table queries:", rpc.error?.message || "empty payload");
   const caller = { user: ctx.user, supabase: ctx.auth };
   const [result, summary] = await Promise.all([
     getMonthlyStaffStatus(month, store, caller),
