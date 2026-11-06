@@ -127,6 +127,36 @@ test.describe('W06 後續問卷 H 組畫面', () => {
     }
   });
 
+  test('H.6 歷史紀錄修改視窗：既有總部職位升職預設展開總部職位，切換開關鎖定', async ({ browser }, testInfo) => {
+    test.setTimeout(240_000);
+    const mobile = testInfo.project.name === 'mobile-390';
+    await setup(mobile ? 'ZT02' : 'ZT01');
+    const code = w06Code('FKF', mobile ? 89 : 88);
+    await claim(code);
+    const ctx = await loginAs(browser, 'admin');
+    try {
+      await seedMaster(code, 'E2E 歷史總部', store, { position: '副理' });
+      await insertHistory({ code, name: 'E2E 歷史總部', store, type: 'promotion', date: `${m2}-12`, old: '專員', new: '副理', notes: '總部升職編輯' });
+      const page = await ctx.newPage();
+      await applyProjectViewport(page, testInfo);
+      const errors = collectErrors(page);
+      const p = await openHistory(page, m2);
+      const row = p.locator('tbody tr', { hasText: code }).filter({ hasText: '總部升職編輯' });
+      await row.getByTestId('movement-edit').click();
+      const dialog = page.getByRole('dialog');
+      const select = dialog.getByRole('combobox', { name: '升任後職位' });
+      await expect(select).toHaveValue('副理', { timeout: 60_000 });
+      const toggle = dialog.getByRole('checkbox', { name: '顯示總部職位' });
+      await expect(toggle).toBeChecked();
+      await expect(toggle).toBeDisabled();
+      expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);
+      expect(errors, errors.join('
+')).toEqual([]);
+    } finally {
+      await ctx.close();
+    }
+  });
+
   test('H.9 歷史紀錄頁修改姓名：全部月份（含已確認）同步，不列需重新確認', async ({ browser }, testInfo) => {
     test.setTimeout(240_000);
     const mobile = testInfo.project.name === 'mobile-390';

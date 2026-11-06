@@ -177,7 +177,15 @@ test.describe('H.5 調店與代理店長', () => {
   });
 
   test('調店確認紀錄只有一筆，confirmations 查詢與清單一致', async () => {
-    const reqs = await transferRequestsOf(code.yes);
-    for (const r of reqs) expect((await confirmationsOf(r.id)).length).toBeLessThanOrEqual(1);
+    // code.no、code.edit 的申請都已由管理員確認（admin 不是兩店督導，記為代確認）：各恰好一筆確認紀錄
+    for (const c of [code.no, code.edit]) {
+      const reqs = (await transferRequestsOf(c)).filter((r) => r.status === 'confirmed');
+      expect(reqs.length, c).toBeGreaterThan(0);
+      for (const r of reqs) {
+        const confs = await confirmationsOf(r.id);
+        expect(confs).toHaveLength(1);
+        expect(confs[0]).toMatchObject({ side: 'admin', is_proxy: true });
+      }
+    }
   });
 });

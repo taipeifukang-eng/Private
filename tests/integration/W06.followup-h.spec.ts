@@ -21,6 +21,7 @@ import {
   w06Code,
   w06StoreIds,
 } from '../support/w06-fixtures';
+import { readMonth, saveRow } from '../support/w01a-fixtures';
 
 // W06 整合層（M2 後續問卷 H.4、H.5、H.9）：回讀資料庫驗證。
 //   H.4 員工主檔階段跟著升職異動（新增、修改、刪除恢復）自動更新；調店帶到新店主檔；員工清單與編輯 API 回傳階段。
@@ -174,8 +175,19 @@ test.describe('W06 後續問卷 H 組：階段、代理店長自動結束、姓�
     rows = await rosterRows(c.actPromo);
     expect([m1, m2, m3].map((m) => field(rows, m, 'is_acting_manager'))).toEqual([true, false, true]);
     // 仍可手動取消：把 7 月的勾選取消，其他月份不受影響
-    await adminDb().from('monthly_staff_status').update({ is_acting_manager: false }).eq('employee_code', c.actPromo).eq('year_month', m1);
-    expect(field(await rosterRows(c.actPromo), m1, 'is_acting_manager')).toBe(false);
+    // 走每月人員狀態的編輯 API（不是直接改資料庫）；之後再有異動重算時，名冊會依異動覆蓋手動值（新版行為，舊版沒有重算，見 m2-spec H.5）。
+    const monthly = await readMonth(admin, zt01, m1);
+    const rec = (monthly.body.records || []).find((r: any) => r.employee_code === c.actPromo);
+    expect(rec, '名冊應有該員').toBeTruthy();
+    expect(rec.is_acting_manager).toBe(true);
+    const saved = await saveRow(admin, zt01, m1, rec, { is_acting_manager: false });
+    expect(saved.is_acting_manager).toBe(false);
+    rows = await rosterRows(c.actPromo);
+    expect(field(rows, m1, 'is_acting_manager')).toBe(false);
+    expect(field(rows, m3, 'is_acting_manager')).toBe(true); // 其他月份不受影響
+    // 重算後依異動覆蓋：9/5 的代理異動仍在，7 月又依異動標回代理
+    await recompute(c.actPromo, m1);
+    expect(field(await rosterRows(c.actPromo), m1, 'is_acting_manager')).toBe(true);
     // 刪除（9/5 的代理 → 店長升職）：恢復「到 7、8 月都標代理」的狀態
     const del1 = await historyOf(c.actPromo);
     const lastActing = del1[del1.length - 1];
