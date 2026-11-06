@@ -1,5 +1,5 @@
 {
-  "count": 25,
+  "count": 26,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -9,6 +9,18 @@
       ],
       "hasTable": true,
       "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "儀表板",
+      "tabTitle": "儀表板",
+      "headings": [
+        "歡迎回來，測試系統管理員",
+        "我的任務"
+      ],
+      "hasTable": true,
+      "hasForm": false,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },

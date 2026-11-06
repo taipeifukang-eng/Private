@@ -12,3 +12,8 @@
 3. `grant_task_view_archived_C_rollback.sql`：若上線後要撤回，依備份表只刪除步驟 B 新增的授權。
 
 這些檔案不得在 DEV 以外的環境由 Claude 執行；由使用者在正式區 SQL editor 自行審閱後執行。
+
+## B.1 管理者代為勾選：舊版 admin／manager 名單與新版比對
+
+- `compare_task_proxy_access.sql`：只讀。列出舊版能打開別人任務、新版打不開的人（以及反向的異常）。上線前請使用者看結果：有出入的人要決定補授權 `task.manage` 或接受打不開。
+- 新版的資料庫變更（`logs.proxy` 欄位與 `workspace_save_task_v2`）目前只在 DEV（`supabase/workspace-dev/20261107130000_m3_task_proxy.sql`，附 rollback）；正式區切換前需另外核准後套用。

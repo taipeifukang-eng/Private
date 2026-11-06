@@ -1443,5 +1443,92 @@
       "entry": "delete-template-completed",
       "key": "collaboratorsLeft"
     }
+  },
+  {
+    "id": "m3-run-completion-all-sections",
+    "page": "task-run",
+    "description": "已完成的判定：同一份任務有多個區段時，舊版某人把自己區段全部勾完就把整份任務標成「已完成」（只看自己區段）；新版要所有區段所有步驟都完成才算已完成，取消勾選退回進行中，列表另顯示「我的進度 x / y」只算自己區段。",
+    "reason": "M3 規格 B.3（Q9 = all_sections），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q9)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "run-completion-rule",
+      "key": "statusAfterOwnSectionDone"
+    }
+  },
+  {
+    "page": "task-run",
+    "reason": "M3 規格 B.2（Q8 = dedupe_keep_progress），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q8)",
+    "id": "m3-my-tasks-dedupe-visible-cards",
+    "description": "我的任務去重：去重鍵照舊（同範本、同部門、同區段）。舊版只留最新一筆（可能是完全沒動過的）；新版有任何進度的那筆一律顯示、多筆有進度全部顯示並標派發日期，只有完全沒動過的重複卡片才收起（卡片張數）。",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "my-tasks-dedupe",
+      "key": "visibleCards"
+    }
+  },
+  {
+    "page": "task-run",
+    "reason": "M3 規格 B.2（Q8 = dedupe_keep_progress），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q8)",
+    "id": "m3-my-tasks-dedupe-progress-visible",
+    "description": "同上：舊版可能把有進度的卡片藏起來，只留沒動過的最新一筆；新版有進度的卡片一律可見。",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "my-tasks-dedupe",
+      "key": "everyProgressedCardVisible"
+    }
+  },
+  {
+    "page": "task-run",
+    "reason": "M3 規格 B.2（Q8 = dedupe_keep_progress），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q8)",
+    "id": "m3-my-tasks-dedupe-idle-visible",
+    "description": "同上：舊版保留的最新一筆可能是沒動過的重複卡片；新版把沒動過的重複卡片收起。",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "my-tasks-dedupe",
+      "key": "idleDuplicateVisible"
+    }
+  },
+  {
+    "page": "task-run",
+    "reason": "M3 規格 B.4（Q10 = progress_everywhere），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q10)",
+    "id": "m3-dashboard-progress-percent",
+    "description": "儀表板進度條與百分比：舊版只算自己區段的勾選比例；新版一律以勾選紀錄推算的整體（所有區段）完成度為準，與「已完成」判定同一套算法。",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "dashboard-progress",
+      "key": "progressPercent"
+    }
+  },
+  {
+    "page": "task-run",
+    "reason": "M3 規格 B.4（Q10 = progress_everywhere），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q10)",
+    "id": "m3-dashboard-status-label",
+    "description": "儀表板狀態徽章：舊版自己區段勾完就顯示已完成；新版所有區段都完成才顯示已完成，統計卡也用同一套算法。",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "dashboard-progress",
+      "key": "statusLabel"
+    }
+  },
+  {
+    "id": "m3-open-others-task-rbac",
+    "page": "task-run",
+    "description": "打開非自己參與的任務：舊版 /assignment/[id] 對 profiles.role 為 admin 或 manager 的人都開放（營業主管可以打開）；新版只開放有任務管理權限者（管理員，或同時有 task.manage 的主管），並可代為勾選、每次記錄代做者（誰、何時）。沒有任務管理權限的主管（例如測試營業主管）新版打不開。",
+    "reason": "M3 規格 B.1（Q7 = edit_with_log）與 D08（任務管理權限依 RBAC 收緊），使用者核可。",
+    "approvedBy": "user (2026-11-07 survey/m3 Q7)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "open-others-task",
+      "key": "canOpen",
+      "roles": [
+        "ops_manager"
+      ]
+    }
   }
 ]

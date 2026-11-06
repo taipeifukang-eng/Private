@@ -174,3 +174,59 @@ export async function openFromMenu(page: Page, title: string) {
   await page.click('.menu-toggle');
   await page.locator(`.workspace-menu button.catalog-item[title="${title}"]`).click();
 }
+
+// ---- M3 B（W08 / W10）共用工具 ----
+export const GA_DEPT = '總務';
+/** 兩個區段的範本：營業部（ops_assistant）與總務（ga_staff），每區段兩個步驟。 */
+export function twoSections() {
+  return [
+    sectionOf({ department: DEPT, users: [userId('ops_assistant')] }),
+    sectionOf({ department: GA_DEPT, users: [userId('ga_staff')] }),
+  ];
+}
+export async function templateSections(templateId: string) {
+  const t = await adminDb().from('templates').select('sections').eq('id', templateId).single();
+  if (t.error) throw new Error(t.error.message);
+  return t.data.sections as { id: string; department: string; steps: { id: string; subSteps?: { id: string }[] }[] }[];
+}
+/** 直接新增一筆指派（指定區段與協作者）；回傳指派 id。管理員不是協作者，所以管理員打開它就是「代做者」。 */
+export async function addSectionAssignment(templateId: string, sectionId: string | null, users: string[], over: Record<string, unknown> = {}) {
+  const db = adminDb();
+  const by = userId('admin');
+  const ins = await db.from('assignments').insert({ template_id: templateId, assigned_to: users[0] || by, created_by: by, status: 'pending', archived: false, department: DEPT, ...over }).select('id').single();
+  if (ins.error) throw new Error(ins.error.message);
+  const c = await db.from('assignment_collaborators').insert(users.map((u) => ({ assignment_id: ins.data.id, user_id: u, section_id: sectionId })));
+  if (c.error) throw new Error(c.error.message);
+  return ins.data.id as string;
+}
+/** 對指定步驟寫入勾選紀錄（不改 assignments.status，用來模擬舊資料或別人已勾過）。 */
+export async function logSteps(assignmentId: string, stepIdList: string[], by: string, action: 'complete' | 'uncomplete' = 'complete') {
+  const r = await adminDb().from('logs').insert(stepIdList.map((id) => ({ assignment_id: assignmentId, user_id: by, step_id: id, action, note: null })));
+  if (r.error) throw new Error(r.error.message);
+}
+export async function logRows(assignmentId: string) {
+  const r = await adminDb().from('logs').select('user_id,step_id,action,proxy,created_at').eq('assignment_id', assignmentId).order('created_at');
+  if (r.error) throw new Error(r.error.message);
+  return r.data as { user_id: string; step_id: string; action: string; proxy: boolean; created_at: string }[];
+}
+export async function assignmentRow(assignmentId: string) {
+  const r = await adminDb().from('assignments').select('status,completed_at,workspace_version').eq('id', assignmentId).single();
+  if (r.error) throw new Error(r.error.message);
+  return r.data as { status: string; completed_at: string | null; workspace_version: number };
+}
+/** 儲存勾選（走 POST /api/workspace/task-detail）。 */
+export async function saveChecks(api: APIRequestContext, assignmentId: string, changes: { stepId: string; checked: boolean; note?: string }[]) {
+  const d = await (await api.get('/api/workspace/task-detail', { params: { id: assignmentId } })).json();
+  return api.post('/api/workspace/task-detail', { data: { id: assignmentId, writeId: randomUUID(), version: d.workspace_version, changes } });
+}
+/** 刪掉 createTemplate 自動建立的那筆指派（只刪這個範本自己的 id），讓畫面測試只看到自己加的指派。 */
+export async function dropAutoAssignments(t: { assignmentIds: string[] }) {
+  const db = adminDb();
+  if (!t.assignmentIds.length) return;
+  for (const table of ['logs', 'assignment_collaborators']) {
+    const d = await db.from(table).delete().in('assignment_id', t.assignmentIds);
+    if (d.error) throw new Error(`清理 ${table} 失敗：${d.error.message}`);
+  }
+  const d = await db.from('assignments').delete().in('id', t.assignmentIds);
+  if (d.error) throw new Error(`清理指派失敗：${d.error.message}`);
+}
