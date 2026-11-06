@@ -99,7 +99,7 @@ describe('W04 頁面註冊與存取規則', () => {
   it('session 對所有登入者回傳 monthlyRelease: true，導覽選單不放此入口（規格 E），改由首頁卡片進入', () => {
     expect(read('app/api/workspace/session/route.ts')).toMatch(/monthlyRelease:\s*true/);
     expect(read('lib/workspace/navigation.ts')).not.toContain('"/monthly-release"');
-    expect(read('vue-workspace/src/App.vue')).toContain('data-home-card="monthly-release"');
+    expect(read('vue-workspace/src/components/HomeView.vue')).toContain('data-home-card="monthly-release"');
   });
 
   it('頁面元件讀取期別陣列、最新一期預設展開、可收合，且不發任何資料請求', () => {
