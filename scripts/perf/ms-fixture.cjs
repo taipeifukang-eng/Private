@@ -118,13 +118,17 @@ async function cleanupAll(admin) {
     const r = await q;
     if (r.error && r.error.code !== '42P01') log.push(`${what}: ${r.error.message}`);
   };
-  // 保留月份資料
-  const { data: staff } = await admin.from('monthly_staff_status').select('id').like('year_month', '2099-%');
-  const staffIds = (staff || []).map((s) => s.id);
-  if (staffIds.length) await del('monthly_performance_details', admin.from('monthly_performance_details').delete().in('staff_status_id', staffIds));
-  await del('monthly_staff_status', admin.from('monthly_staff_status').delete().like('year_month', '2099-%'));
-  await del('monthly_store_summary', admin.from('monthly_store_summary').delete().like('year_month', '2099-%'));
-  await del('support_staff_bonus', admin.from('support_staff_bonus').delete().like('year_month', '2099-%'));
+  // 保留月份資料：只刪本測試用的月份（YM）與測試門市，不碰其他分支在 2099 的資料
+  const { data: testStores } = await admin.from('stores').select('id').in('store_code', ['VW001', 'VW002', 'ZT01', 'ZT02', 'ZT03', 'ZT04', FRANCHISE_STORE]);
+  const storeIds = (testStores || []).map((s) => s.id);
+  if (storeIds.length) {
+    const { data: staff } = await admin.from('monthly_staff_status').select('id').eq('year_month', YM).in('store_id', storeIds);
+    const staffIds = (staff || []).map((s) => s.id);
+    if (staffIds.length) await del('monthly_performance_details', admin.from('monthly_performance_details').delete().in('staff_status_id', staffIds));
+    await del('monthly_staff_status', admin.from('monthly_staff_status').delete().eq('year_month', YM).in('store_id', storeIds));
+    await del('monthly_store_summary', admin.from('monthly_store_summary').delete().eq('year_month', YM).in('store_id', storeIds));
+    await del('support_staff_bonus', admin.from('support_staff_bonus').delete().eq('year_month', YM).in('store_id', storeIds));
+  }
 
   // 帳號 / 任命 / 角色
   const { data: profs } = await admin.from('profiles').select('id').like('email', `${PREFIX_EMAIL}%@example.test`);
