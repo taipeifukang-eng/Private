@@ -31,6 +31,8 @@ function legacyAllowed(kindArg: string, c: Capabilities | undefined, expired: bo
         ? c?.taskArchive
         : tab.kind === 'my-tasks' || tab.kind === 'task-runner'
           ? c?.tasks
+          : tab.kind === 'dashboard'
+            ? c?.dashboard // M3 W10 新增 kind：儀表板需要 dashboard.view
           : tab.kind === 'monthly-release'
             ? c?.monthlyRelease // W04 新增 kind：登入即可看（session 對所有登入者回 true）
           : tab.kind === 'monthly-export'
@@ -67,7 +69,7 @@ const LEGACY_TITLES: Record<string, string> = {
   'store-relocation': '門市搬遷沿革', 'store-history-editor': '補建歷史沿革', supervisors: '經理／督導管理', 'supervisor-edit': '管理門市指派',
   'store-managers': '店長指派', 'store-manager-edit': '編輯店長指派', 'task-copy': '複製範本', 'task-assign': '派發任務',
   'task-template-editor': '任務範本', 'task-management': '任務管理', 'task-management-detail': '任務管理明細', 'task-archive': '已封存任務',
-  'task-archive-detail': '封存任務紀錄', 'my-tasks': '我的任務', 'task-runner': '任務內容', 'inspection-print': '巡店列印預覽',
+  'task-archive-detail': '封存任務紀錄', 'my-tasks': '我的任務', dashboard: '儀表板', 'task-runner': '任務內容', 'inspection-print': '巡店列印預覽',
   'inspection-settings': '巡店範本設定', 'inspection-setting-edit': '編輯巡店設定', improvements: '待改善追蹤', 'improvement-detail': '改善回報',
   'inspection-compare': '巡店比較', 'inspection-editor': '新增巡店', 'inspection-detail': '巡店紀錄明細', 'campaign-schedule': '活動門市排程',
   monthly: '每月人員狀態', 'monthly-edit': '人員明細', 'monthly-export': '資料匯出', 'monthly-release': '每月版更內容', 'employee-purchases': '員工購物管理', pharmacists: '藥師管理', relationships: '關係會員',
