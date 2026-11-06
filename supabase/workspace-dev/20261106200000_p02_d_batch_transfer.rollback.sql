@@ -338,5 +338,6 @@ END;$$;
 
 DROP TABLE IF EXISTS public.store_transfer_confirmations;
 ALTER TABLE public.store_transfer_requests DROP COLUMN IF EXISTS requested_date;
+ALTER TABLE public.store_transfer_requests DROP COLUMN IF EXISTS acting_ended;
 NOTIFY pgrst,'reload schema';
 COMMIT;

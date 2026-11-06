@@ -80,9 +80,8 @@ BEGIN
  -- 主檔：姓名一律同步；入職日期與藥師身分只在這是該員工最新一次入職時同步；最後異動日期跟著改。
  IF nm IS DISTINCT FROM m.employee_name THEN
   UPDATE store_employees SET employee_name=nm,updated_at=now() WHERE employee_code=m.employee_code AND employee_name IS DISTINCT FROM nm;
-  -- 名冊姓名：已送審／已確認月份不動（A.2），其餘月份跟著改。
-  UPDATE monthly_staff_status s SET employee_name=nm,updated_at=now() WHERE s.employee_code=m.employee_code AND s.year_month>=from_ym AND s.employee_name IS DISTINCT FROM nm
-   AND NOT workspace_staff_month_locked(s.store_id,s.year_month,s.status);
+  -- H.9：名冊姓名一律同步全部月份（含已送審、已確認，不列需重新確認）。
+  UPDATE monthly_staff_status s SET employee_name=nm,updated_at=now() WHERE s.employee_code=m.employee_code AND s.employee_name IS DISTINCT FROM nm;
  END IF;
  IF kind='onboarding' AND NOT EXISTS(SELECT 1 FROM employee_movement_history h WHERE h.employee_code=m.employee_code AND h.movement_type='onboarding' AND h.id<>m.id AND (h.movement_date,h.created_at)>(nd,m.created_at)) THEN
   UPDATE store_employees SET start_date=nd,is_pharmacist=coalesce(pharm,is_pharmacist),updated_at=now()
@@ -139,7 +138,7 @@ BEGIN
    restored:=workspace_employee_master_position_sync(m.employee_code) OR restored;
   ELSIF kind='promotion' AND m.old_value IS NOT NULL AND m.old_value<>'代理店長' AND m.movement_date<=today THEN
    -- 被刪升職已經生效過（主檔曾同步到它），且沒有其他已生效升職：退回原職位。尚未生效的升職從未寫入主檔，不動。
-   UPDATE store_employees SET position=m.old_value,current_position=m.old_value,last_promotion_date=NULL,updated_at=now()
+   UPDATE store_employees SET position=m.old_value,current_position=m.old_value,last_promotion_date=NULL,newbie_level=NULL,updated_at=now()
     WHERE employee_code=m.employee_code AND current_position IS NOT DISTINCT FROM m.new_value;
    restored:=true;
   END IF;

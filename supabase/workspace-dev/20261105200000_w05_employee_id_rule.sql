@@ -144,11 +144,14 @@ CREATE TRIGGER workspace_guard_onboarding_code BEFORE INSERT ON public.employee_
  FOR EACH ROW EXECUTE FUNCTION public.workspace_guard_onboarding_code();
 REVOKE ALL ON FUNCTION public.workspace_guard_onboarding_code() FROM PUBLIC,anon,authenticated;
 
--- E.1 每月人員狀態手動新增：員編可留空（舊版行為，見 E.2 待使用者決定），有填就必須合規。只擋新增，不擋更新。
+-- E.1／H.2／H.8 每月人員狀態手動新增：員編必填且符合規則（關閉舊版「留空加實習生」入口），僱用類型一律依員編（FKPT 兼職、其餘正職）。只擋新增，不擋更新。
 CREATE OR REPLACE FUNCTION public.workspace_guard_manual_staff_code() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 BEGIN
- IF coalesce(NEW.is_manually_added,false) AND nullif(btrim(coalesce(NEW.employee_code,'')),'') IS NOT NULL AND NOT workspace_employee_id_valid(NEW.employee_code) THEN
-  RAISE EXCEPTION 'WORKSPACE_INVALID' USING DETAIL='employee_id_rule';
+ IF coalesce(NEW.is_manually_added,false) THEN
+  IF NOT workspace_employee_id_valid(NEW.employee_code) THEN
+   RAISE EXCEPTION 'WORKSPACE_INVALID' USING DETAIL='employee_id_rule';
+  END IF;
+  NEW.employment_type:=workspace_employee_id_type(NEW.employee_code);
  END IF;
  RETURN NEW;
 END;$$;

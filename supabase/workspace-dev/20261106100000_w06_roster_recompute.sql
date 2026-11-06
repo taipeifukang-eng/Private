@@ -64,13 +64,34 @@ DECLARE r record; changed integer;
 BEGIN
  SELECT * INTO r FROM workspace_effective_promotion(p_code,(now() AT TIME ZONE 'Asia/Taipei')::date);
  IF r.pos IS NULL THEN RETURN false; END IF;
- UPDATE store_employees SET position=r.pos,current_position=r.pos,last_promotion_date=r.eff_date,updated_at=now()
- WHERE employee_code=p_code AND (position IS DISTINCT FROM r.pos OR current_position IS DISTINCT FROM r.pos OR last_promotion_date IS DISTINCT FROM r.eff_date);
+ -- H.4：階段（新人：未過階／一階／二階新人；行政：未過階／過階行政）跟著同一筆有效升職；其他職位沒有階段。
+ UPDATE store_employees SET position=r.pos,current_position=r.pos,last_promotion_date=r.eff_date,
+  newbie_level=CASE WHEN r.pos IN('新人','行政') THEN r.lvl END,updated_at=now()
+ WHERE employee_code=p_code AND (position IS DISTINCT FROM r.pos OR current_position IS DISTINCT FROM r.pos OR last_promotion_date IS DISTINCT FROM r.eff_date
+  OR newbie_level IS DISTINCT FROM CASE WHEN r.pos IN('新人','行政') THEN r.lvl END);
  GET DIAGNOSTICS changed=ROW_COUNT;
  RETURN changed>0;
 END;$$;
 REVOKE ALL ON FUNCTION public.workspace_employee_master_position_sync(text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.workspace_employee_master_position_sync(text) TO service_role;
+
+-- H.5：哪些異動會結束代理店長註記（升職為店長、調店、離職、留職停薪）。代理店長本身不算。
+CREATE OR REPLACE FUNCTION public.workspace_acting_end_event(p_type text,p_new text) RETURNS boolean
+LANGUAGE sql IMMUTABLE AS $$ SELECT p_type IN('store_transfer','resignation','leave_without_pay') OR (p_type='promotion' AND p_new='店長') $$;
+REVOKE ALL ON FUNCTION public.workspace_acting_end_event(text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.workspace_acting_end_event(text,text) TO service_role;
+
+-- H.5：員工在指定日（含，依登記先後）是否仍是某店的代理店長（最近一次代理之後沒有結束異動）。調店確認用它判斷「原為代理」。
+CREATE OR REPLACE FUNCTION public.workspace_acting_active(p_code text,p_store uuid,p_until date) RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=public,pg_temp AS $$
+ SELECT EXISTS(SELECT 1 FROM employee_movement_history a WHERE a.employee_code=p_code
+  AND (a.movement_type='acting_manager' OR (a.movement_type='promotion' AND a.new_value='代理店長')) AND a.movement_date<=p_until
+  AND (a.store_id IS NULL OR a.store_id=p_store)
+  AND NOT EXISTS(SELECT 1 FROM employee_movement_history e WHERE e.employee_code=p_code AND workspace_acting_end_event(e.movement_type,e.new_value)
+   AND (e.movement_date,e.created_at,e.id)>(a.movement_date,a.created_at,a.id) AND e.movement_date<=p_until))
+$$;
+REVOKE ALL ON FUNCTION public.workspace_acting_active(text,uuid,date) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.workspace_acting_active(text,uuid,date) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.workspace_roster_recompute(
  p_actor uuid,p_code text,p_from_month text,p_to_month text DEFAULT NULL,p_only_store uuid DEFAULT NULL,
@@ -227,7 +248,13 @@ BEGIN
    END IF;
   END IF;
   d_acting:=NULL;
-  IF has_acting THEN d_acting:=EXISTS(SELECT 1 FROM employee_movement_history WHERE employee_code=p_code AND (movement_type='acting_manager' OR (movement_type='promotion' AND new_value='代理店長')) AND to_char(movement_date,'YYYY-MM')<=ym); END IF;
+  -- H.5：代理店長註記在升職為店長、調店、離職、留停時自動結束（結束日＝該異動生效日，該月起名冊不標代理）。
+  -- 同一天、較晚登記的代理異動（例如調店後在新店代理）不會被同日的調店結束；代理註記只標在登記代理的那家店。
+  IF has_acting THEN d_acting:=EXISTS(SELECT 1 FROM employee_movement_history a WHERE a.employee_code=p_code
+    AND (a.movement_type='acting_manager' OR (a.movement_type='promotion' AND a.new_value='代理店長')) AND to_char(a.movement_date,'YYYY-MM')<=ym
+    AND (a.store_id IS NULL OR a.store_id=tgt.sid)
+    AND NOT EXISTS(SELECT 1 FROM employee_movement_history e WHERE e.employee_code=p_code AND workspace_acting_end_event(e.movement_type,e.new_value)
+      AND (e.movement_date,e.created_at,e.id)>(a.movement_date,a.created_at,a.id) AND to_char(e.movement_date,'YYYY-MM')<=ym)); END IF;
   d_pharm:=NULL;
   IF has_onb THEN SELECT onboarding_is_pharmacist INTO d_pharm FROM employee_movement_history WHERE employee_code=p_code AND movement_type='onboarding' AND onboarding_is_pharmacist IS NOT NULL AND to_char(movement_date,'YYYY-MM')<=ym ORDER BY movement_date DESC,created_at DESC LIMIT 1; END IF;
   d_type:=NULL;d_start:=NULL;

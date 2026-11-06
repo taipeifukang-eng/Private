@@ -77,7 +77,9 @@ BEGIN
  IF snapshot IS DISTINCT FROM p_expected THEN RAISE EXCEPTION 'WORKSPACE_CHANGED'; END IF;
  IF jsonb_array_length(snapshot->'masters')+jsonb_array_length(snapshot->'statuses')+jsonb_array_length(snapshot->'movements')=0 THEN RAISE EXCEPTION 'WORKSPACE_MISSING'; END IF;
  new_name:=btrim(p_data->>'employee_name');new_pos:=nullif(p_data->>'current_position','');
- UPDATE store_employees SET employee_name=new_name,start_date=started,birthday=birth,position=new_pos,current_position=new_pos WHERE employee_code=code;
+ -- H.4：階段只屬於新人／行政，且跟升職異動走；改成其他職位就清空，職位不變則保留。
+ UPDATE store_employees SET employee_name=new_name,start_date=started,birthday=birth,position=new_pos,current_position=new_pos,
+  newbie_level=CASE WHEN new_pos IN('新人','行政') AND current_position IS NOT DISTINCT FROM new_pos THEN newbie_level ELSE NULL END WHERE employee_code=code;
  GET DIAGNOSTICS changed=ROW_COUNT;
  IF changed=0 THEN
   INSERT INTO store_employees(employee_code,employee_name,position,current_position,start_date,birthday,employment_type,employment_status,is_active,store_id)

@@ -378,6 +378,8 @@ BEGIN
  RETURN result;
 END;
 $$;
+DROP FUNCTION IF EXISTS public.workspace_acting_active(text,uuid,date);
+DROP FUNCTION IF EXISTS public.workspace_acting_end_event(text,text);
 DROP FUNCTION IF EXISTS public.workspace_roster_apply_store_month(uuid,uuid,text,boolean,boolean,text);
 DROP FUNCTION IF EXISTS public.workspace_roster_recompute(uuid,text,text,text,uuid,boolean,boolean,text,text,text);
 DROP FUNCTION IF EXISTS public.workspace_employee_master_position_sync(text);

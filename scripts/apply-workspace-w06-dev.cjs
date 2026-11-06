@@ -39,5 +39,5 @@ for (const file of files) {
 }
 if (!rollback)
   console.log(
-    "提醒：workspace_movement_save／promotion_save／transfer_confirm 只定義在 P02 檔，全新環境請接著執行 apply-workspace-p02-dev.cjs。",
+    "提醒：workspace_movement_save／promotion_save／transfer_confirm 只定義在 P02 檔，全新環境請接著執行 apply-workspace-p02-dev.cjs，最後執行 apply-workspace-m2h-dev.cjs（H 組欄位與限制）。",
   );
