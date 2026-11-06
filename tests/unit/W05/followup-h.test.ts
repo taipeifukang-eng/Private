@@ -99,13 +99,16 @@ describe('H.4 員工主檔階段', () => {
   it('回填 SQL：DEV 與正式區檔案用同一段 UPDATE；只填空值、不覆蓋既有階段', () => {
     const grab = (t: string) => t.slice(t.indexOf('-- BACKFILL-BEGIN'), t.indexOf('-- BACKFILL-END'));
     const dev = grab(read('supabase/workspace-dev/20261107100000_m2h_stage_and_transfer_confirm.sql'));
-    const prodFile = read('docs/vue-workspace/parity-plan/m2-sql/backfill_employee_stage.sql');
+    const prodFile = read('docs/vue-workspace/parity-plan/m2-sql/backfill_employee_stage_C_backfill.sql');
+    const addFile = read('docs/vue-workspace/parity-plan/m2-sql/backfill_employee_stage_A_add_column.sql');
     const prod = grab(prodFile);
     expect(dev.length).toBeGreaterThan(500);
     expect(prod).toBe(dev);
     expect(dev).toContain('WHERE e.id = p.id AND e.newbie_level IS NULL AND p.lvl IS NOT NULL');
-    expect(prodFile).toContain('ADD COLUMN IF NOT EXISTS newbie_level');
+    expect(addFile).toContain('ADD COLUMN IF NOT EXISTS newbie_level');
+    expect(addFile).not.toMatch(/^BEGIN;/m);
     expect(prodFile).toContain('ROLLBACK');
+    expect(prodFile).toMatch(/^BEGIN;/m);
     // 正式區檔案只動 store_employees.newbie_level（唯一的 UPDATE），不刪資料
     expect((prodFile.match(/^UPDATE /gm) || []).length).toBe(1);
     expect(prodFile).not.toMatch(/\bDELETE\b|\bDROP TABLE\b|\bTRUNCATE\b/i);

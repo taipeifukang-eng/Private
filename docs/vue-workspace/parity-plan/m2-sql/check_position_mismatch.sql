@@ -8,7 +8,7 @@
 --   * 員工主檔（store_employees）的 position 或 current_position 和最新有效升職的職位不同，就列出。
 -- 欄位 mismatch_kind：position（position 欄不同）、current_position（current_position 欄不同）、both。
 -- 階段（M2 H.4）：員工主檔新增 store_employees.newbie_level 之後，下方第二段查詢（階段比對）才能執行；
---   請先執行 backfill_employee_stage.sql 的步驟 A（新增欄位）與步驟 C（回填）。第一段查詢（職位比對）不需要這個欄位，可以單獨執行。
+--   請先執行 backfill_employee_stage_A_add_column.sql（新增欄位）與 backfill_employee_stage_C_backfill.sql（回填）。第一段查詢（職位比對）不需要這個欄位，可以單獨執行。
 --   階段規則：最新有效升職的職位是新人或行政、且和主檔職位相同時，主檔階段應等於該筆升職備註的階段；
 --   主檔職位不是新人／行政時階段應為空。兩段查詢都只有 SELECT，不會修改任何資料。
 -- ==== 第一段：職位比對 ====
@@ -59,7 +59,7 @@ WHERE e.is_active = true
   AND (e.position IS DISTINCT FROM l.promoted_position OR e.current_position IS DISTINCT FROM l.promoted_position)
 ORDER BY s.store_code, e.employee_code;
 
--- ==== 第二段：階段比對（需要 store_employees.newbie_level 欄位，請先執行 backfill_employee_stage.sql 步驟 A）====
+-- ==== 第二段：階段比對（需要 store_employees.newbie_level 欄位，請先執行 backfill_employee_stage_A_add_column.sql）====
 -- 欄位 stage_mismatch_kind：missing（主檔階段空白，升職異動有階段）、different（兩邊階段不同）、should_be_empty（主檔職位不是新人／行政卻有階段）。
 WITH ranked AS (
   SELECT h.id, h.employee_code, h.movement_date, h.new_value AS promoted_position,
