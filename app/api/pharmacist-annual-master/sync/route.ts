@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
+import { hasSyncTriggeringMovement, taiwanDateOf } from '@/lib/pharmacist/sync-trigger';
 
 /**
  * GET /api/pharmacist-annual-master/sync?year=2026
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
   if (!isLocked && !readOnly) {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year}-12-31`;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = taiwanDateOf(new Date());
     const effectiveEnd = todayStr < yearEnd ? todayStr : yearEnd;
 
     // 查詢上次同步時間
@@ -52,28 +53,28 @@ export async function GET(req: NextRequest) {
       .eq('year', year)
       .single();
 
-    const lastSyncedAt: string | null = syncLog?.last_synced_at ?? null;
+    let lastSyncedAt: string | null = syncLog?.last_synced_at ?? null;
     let needsSync = true;
 
     if (lastSyncedAt) {
-      // 有同步記錄：只在 last_synced_at 後有新增人事異動時才重跑
-      const { count } = await adminSupabase
-        .from('employee_movement_history')
-        .select('id', { count: 'exact', head: true })
-        .gt('created_at', lastSyncedAt)
-        .in('movement_type', ['resignation', 'leave_without_pay', 'leave_of_absence', 'return_to_work', 'onboarding'])
-        .gte('movement_date', yearStart)
-        .lte('movement_date', effectiveEnd);
-
-      needsSync = (count ?? 0) > 0;
+      // 有同步記錄：上次同步後有 新登錄 / 事後修改 / 生效日到了 任一種異動才重跑
+      needsSync = await hasSyncTriggeringMovement(adminSupabase, {
+        lastSyncedAt,
+        today: todayStr,
+        movementTypes: ['resignation', 'leave_without_pay', 'leave_of_absence', 'return_to_work', 'onboarding'],
+        rangeStart: yearStart,
+        rangeEnd: effectiveEnd,
+      });
     }
 
     if (needsSync) {
-      await syncAnnualMaster(adminSupabase, year);
+      await syncAnnualMaster(adminSupabase, year, todayStr);
       // 更新（或初次寫入）同步時間
-      await adminSupabase
+      const syncedNow = new Date().toISOString();
+      const { error: logError } = await adminSupabase
         .from('pharmacist_annual_master_sync_log')
-        .upsert({ year, last_synced_at: new Date().toISOString() }, { onConflict: 'year' });
+        .upsert({ year, last_synced_at: syncedNow }, { onConflict: 'year' });
+      if (!logError) lastSyncedAt = syncedNow;
     }
   }
 
@@ -213,7 +214,8 @@ export async function GET(req: NextRequest) {
     isLocked,
     lockInfo: lockData || null,
     data: rows,
-    syncedAt: isLocked ? null : new Date().toISOString(),
+    // 真正最後同步時間（sync_log.last_synced_at），不是現在時間
+    syncedAt: isLocked ? null : lastSyncedAt,
   });
 }
 
@@ -223,10 +225,9 @@ export async function GET(req: NextRequest) {
  * 2. 已存在的人有狀態異動 => 只 UPDATE 狀態欄位（不動姓名、到職日）
  * 3. 檢查年度開始前已離職的人 => 更新狀態為離職
  */
-async function syncAnnualMaster(adminSupabase: any, year: number) {
+async function syncAnnualMaster(adminSupabase: any, year: number, today: string) {
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
-  const today = new Date().toISOString().slice(0, 10);
   const effectiveEnd = today < yearEnd ? today : yearEnd;
 
   // 1. 取得該年度所有人事異動

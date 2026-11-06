@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
+import { hasSyncTriggeringMovement, taiwanDateOf } from '@/lib/pharmacist/sync-trigger';
 import PharmacistSupervisorCards from './PharmacistSupervisorCards';
 import PharmacistMasterList from './PharmacistMasterList';
 import OverviewFilterForm from './OverviewFilterForm';
@@ -186,17 +187,16 @@ export default async function PharmacistManagementPage({
     const lastSyncedAt: string | null = (syncLog as any)?.last_synced_at ?? null;
 
     if (skipInitialGeneration && lastSyncedAt) {
-      const { count: newMovementCount, error: movementCheckError } = await adminSupabase
-        .from('employee_movement_history')
-        .select('id', { count: 'exact', head: true })
-        .in('store_id', storeIds)
-        .gt('created_at', lastSyncedAt)
-        .in('movement_type', ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion', 'leave_without_pay', 'leave_of_absence'])
-        .gte('movement_date', monthStart)
-        .lte('movement_date', monthEnd);
-
-      if (movementCheckError) throw movementCheckError;
-      if ((newMovementCount ?? 0) === 0 &&
+      // 上次同步後有 新登錄 / 事後修改 / 生效日到了 任一種異動才重算
+      const hasTriggeringMovement = await hasSyncTriggeringMovement(adminSupabase, {
+        lastSyncedAt,
+        today: taiwanDateOf(new Date()),
+        movementTypes: ['resignation', 'onboarding', 'return_to_work', 'store_transfer', 'promotion', 'leave_without_pay', 'leave_of_absence'],
+        rangeStart: monthStart,
+        rangeEnd: monthEnd,
+        storeIds,
+      });
+      if (!hasTriggeringMovement &&
           !(await hasMissingPharmacistCarry(adminSupabase, baseYearMonth, targetYearMonth, storeIds))) return;
     }
 
@@ -458,19 +458,26 @@ export default async function PharmacistManagementPage({
       }
     });
 
+    const markSynced = async () => {
+      // 同步完成後更新 sync log（供下次增量判斷使用）
+      await adminSupabase
+        .from('pharmacist_monthly_snapshot_sync_log')
+        .upsert({ year_month: targetYearMonth, last_synced_at: new Date().toISOString() }, { onConflict: 'year_month' });
+    };
+
     const payload = Array.from(nextByCode.values());
-    if (payload.length === 0) return;
+    if (payload.length === 0) {
+      await markSynced();
+      return;
+    }
 
     // 只有初始生成或有實際異動變更時才 upsert
     if (!skipInitialGeneration || hasBackfilledRows || Array.from(monthlyMovements || []).length > 0) {
       await adminSupabase
         .from('pharmacist_monthly_snapshot')
         .upsert(payload, { onConflict: 'year_month,store_id,employee_code' });
-          // 同步完成後更新 sync log（供下次增量判斷使用）
-          await adminSupabase
-            .from('pharmacist_monthly_snapshot_sync_log')
-            .upsert({ year_month: targetYearMonth, last_synced_at: new Date().toISOString() }, { onConflict: 'year_month' });
     }
+    await markSynced();
   }
 
   let currentRowsRaw: any[] = [];
