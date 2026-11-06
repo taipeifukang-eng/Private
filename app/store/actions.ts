@@ -896,43 +896,55 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
       return { success: false, error: '未登入', data: [] };
     }
 
-    const { data, error } = await supabase
-      .from('monthly_staff_status')
-      .select(`
-        *,
-        user:profiles!monthly_staff_status_user_id_fkey(id, email, full_name)
-      `)
-      .eq('year_month', yearMonth)
-      .eq('store_id', storeId)
-      .order('employee_code');
-
-    if (error) {
-      console.error('Error fetching monthly staff status:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-
-    // 查詢上個月單品獎金資料
-    const { data: bonusData, error: bonusError } = await supabase
-      .from('support_staff_bonus')
-      .select('employee_code, bonus_amount')
-      .eq('year_month', yearMonth)
-      .eq('store_id', storeId);
-
-    if (bonusError) {
-      console.error('Error fetching bonus data:', bonusError);
-    }
-
     const extractStoreCode = (raw: string | null | undefined): string => {
       const text = String(raw || '').toUpperCase();
       const matched = text.match(/\d{4}[A-Z]?/);
       return matched ? matched[0] : text.trim();
     };
 
-    // 加盟店門市代碼集合（用於排除個人業績加總）
-    const { data: franchiseStores, error: franchiseError } = await supabase
-      .from('stores')
-      .select('store_code')
-      .eq('is_franchise', true);
+    // 彼此不相依的四個查詢並行：人員狀態、上個月單品獎金、加盟店門市代碼集合、目前頁面門市代碼
+    const [
+      { data, error },
+      { data: bonusData, error: bonusError },
+      { data: franchiseStores, error: franchiseError },
+      { data: currentStoreInfo, error: currentStoreError }
+    ] = await Promise.all([
+      supabase
+        .from('monthly_staff_status')
+        .select(`
+          *,
+          user:profiles!monthly_staff_status_user_id_fkey(id, email, full_name)
+        `)
+        .eq('year_month', yearMonth)
+        .eq('store_id', storeId)
+        .order('employee_code'),
+      // 查詢上個月單品獎金資料
+      supabase
+        .from('support_staff_bonus')
+        .select('employee_code, bonus_amount')
+        .eq('year_month', yearMonth)
+        .eq('store_id', storeId),
+      // 加盟店門市代碼集合（用於排除個人業績加總）
+      supabase
+        .from('stores')
+        .select('store_code')
+        .eq('is_franchise', true),
+      // 目前頁面門市代碼（若本店是加盟店，仍需保留本店自己的業績）
+      supabase
+        .from('stores')
+        .select('store_code')
+        .eq('id', storeId)
+        .single()
+    ]);
+
+    if (error) {
+      console.error('Error fetching monthly staff status:', error);
+      return { success: false, error: error.message, data: [] };
+    }
+
+    if (bonusError) {
+      console.error('Error fetching bonus data:', bonusError);
+    }
 
     if (franchiseError) {
       console.error('Error fetching franchise stores:', franchiseError);
@@ -943,13 +955,6 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) 
         .map((s: any) => extractStoreCode(s.store_code))
         .filter(Boolean)
     );
-
-    // 目前頁面門市代碼（若本店是加盟店，仍需保留本店自己的業績）
-    const { data: currentStoreInfo, error: currentStoreError } = await supabase
-      .from('stores')
-      .select('store_code')
-      .eq('id', storeId)
-      .single();
 
     if (currentStoreError) {
       console.error('Error fetching current store info:', currentStoreError);
