@@ -663,8 +663,25 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
       return { success: false, error: '未登入', data: [] };
     }
 
+    return await resolveManagedStores(supabase, user.id, options);
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+/**
+ * 解析使用者可管理的門市（getUserManagedStores 與 getMonthlyStoreSummaries 共用，只載入一次權限）。
+ * 呼叫端需已確認 userId 為目前登入者。
+ */
+async function resolveManagedStores(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  options?: { include_inactive?: boolean }
+) {
+  try {
     // 使用 RBAC 權限檢查（一次載入 profile / 角色 / 權限，在記憶體判斷）
-    const snapshot = await loadMonthlyPermissionSnapshot(supabase, user.id);
+    const snapshot = await loadMonthlyPermissionSnapshot(supabase, userId);
     const canViewAllStores = snapshot.has('monthly.status.view_all');
     const canViewOwnStores = snapshot.has('monthly.status.view_own');
 
@@ -717,7 +734,7 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
         *,
         store:stores(*)
       `)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) {
       console.error('Error fetching managed stores:', error);
@@ -2329,7 +2346,46 @@ export async function unconfirmStoreStatus(yearMonth: string, storeId: string) {
 }
 
 /**
+ * 月度摘要查詢用的門市欄位（頁面只用 summary 本身的欄位；store 關聯只保留識別用的明確欄位）
+ */
+const MONTHLY_SUMMARY_STORE_COLUMNS = 'id, store_code, store_name, is_active, is_franchise';
+
+/**
+ * 讀取指定門市範圍的月度摘要。門市範圍由伺服器端呼叫端算好後傳入（不重複做可管門市判斷）。
+ */
+async function fetchMonthlyStoreSummaries(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  yearMonth: string,
+  stores: Array<{ id: string }>
+) {
+  const storeIds = stores.map((s) => s.id);
+
+  if (storeIds.length === 0) {
+    return { success: true, data: [] };
+  }
+
+  const { data, error } = await supabase
+    .from('monthly_store_summary')
+    .select(`
+      *,
+      store:stores(${MONTHLY_SUMMARY_STORE_COLUMNS})
+    `)
+    .eq('year_month', yearMonth)
+    .in('store_id', storeIds)
+    .order('store_id');
+
+  if (error) {
+    console.error('Error fetching monthly store summaries:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+
+  return { success: true, data: data || [] };
+}
+
+/**
  * 獲取所有門市的月度摘要
+ * 可管門市在伺服器端只算一次（不再透過 getUserManagedStores 重複驗證登入與權限）。
+ * 門市範圍一律由伺服器依登入者權限決定，不接受前端傳入門市清單（避免越權讀取他店資料）。
  */
 export async function getMonthlyStoreSummaries(yearMonth: string) {
   try {
@@ -2341,33 +2397,12 @@ export async function getMonthlyStoreSummaries(yearMonth: string) {
     }
 
     // 獲取用戶可管理的門市
-    const managedResult = await getUserManagedStores();
+    const managedResult = await resolveManagedStores(supabase, user.id);
     if (!managedResult.success) {
       return { success: false, error: managedResult.error, data: [] };
     }
 
-    const storeIds = managedResult.data.map((s: any) => s.id);
-
-    if (storeIds.length === 0) {
-      return { success: true, data: [] };
-    }
-
-    const { data, error } = await supabase
-      .from('monthly_store_summary')
-      .select(`
-        *,
-        store:stores(*)
-      `)
-      .eq('year_month', yearMonth)
-      .in('store_id', storeIds)
-      .order('store_id');
-
-    if (error) {
-      console.error('Error fetching monthly store summaries:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-
-    return { success: true, data: data || [] };
+    return await fetchMonthlyStoreSummaries(supabase, yearMonth, managedResult.data as Array<{ id: string }>);
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message, data: [] };
