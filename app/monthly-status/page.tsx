@@ -890,6 +890,11 @@ function StoreStatusDetail({
   const [movementHistory, setMovementHistory] = useState<any[]>([]);
   const [loadingMovement, setLoadingMovement] = useState(false);
 
+  // 門市每月統計資料（統計表單與支援時數表單共用，由這裡讀一次再傳下去）
+  const [storeSummary, setStoreSummary] = useState<any | null>(null);
+  const [storeSummaryLoading, setStoreSummaryLoading] = useState(true);
+  const storeSummaryRequestRef = useRef(0);
+
   // 判斷是否為需要指派的職位（督導或店長）
   const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(userJobTitle);
 
@@ -930,6 +935,40 @@ function StoreStatusDetail({
   useEffect(() => {
     loadStaffStatus();
   }, [store.id, yearMonth]);
+
+  // 檢查是否為該門市的店長（包括被指派為店長的督導）
+  const isStoreManager = managedStores.some(s => s.id === store.id) &&
+    ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
+  const hasEditSupportPermission = canEditSupportHours || (['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager);
+  const shouldViewStats = canViewStats;
+  const shouldViewSupportHours = canViewSupportHours || hasEditSupportPermission;
+  // 統計表單或支援時數表單至少顯示其一時才需要讀取
+  const needsStoreSummary = shouldViewStats || hasEditSupportPermission;
+
+  useEffect(() => {
+    if (!needsStoreSummary) return;
+    loadStoreSummary();
+  }, [store.id, yearMonth, needsStoreSummary]);
+
+  const loadStoreSummary = async () => {
+    const requestId = ++storeSummaryRequestRef.current;
+    setStoreSummaryLoading(true);
+    try {
+      const { getStoreMonthlySummary } = await import('@/app/store/actions');
+      const result = await getStoreMonthlySummary(yearMonth, store.id);
+      if (requestId !== storeSummaryRequestRef.current) return;
+      // 與原本兩個表單各自讀取時相同：讀取失敗或沒有資料時，不覆蓋表單目前顯示的內容
+      if (result.success && result.data) {
+        setStoreSummary(result.data);
+      }
+    } catch (error) {
+      console.error('Error loading store summary:', error);
+    } finally {
+      if (requestId === storeSummaryRequestRef.current) {
+        setStoreSummaryLoading(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (!showMonthlyBonusDetailModal && !showQuarterBonusSummaryModal && !showMonthlyPerformanceModal && !showQuarterPerformanceModal) {
@@ -1667,14 +1706,7 @@ function StoreStatusDetail({
             </p>
           </div>
           
-          {/* 檢查是否為該門市的店長（包括被指派為店長的督導） */}
           {(() => {
-            const isStoreManager = managedStores.some(s => s.id === store.id) && 
-              ['店長', '代理店長', '督導', '督導(代理店長)'].includes(userJobTitle);
-            const hasEditSupportPermission = canEditSupportHours || (['admin', 'supervisor', 'area_manager'].includes(userRole) || isStoreManager);
-            const shouldViewStats = canViewStats;
-            const shouldViewSupportHours = canViewSupportHours || hasEditSupportPermission;
-            
             // 如果可以查看統計資料，顯示統計資料表單
             if (shouldViewStats) {
               return (
@@ -1682,6 +1714,8 @@ function StoreStatusDetail({
                   <StoreMonthlyStatsForm
                     storeId={store.id}
                     yearMonth={yearMonth}
+                    summary={storeSummary}
+                    summaryLoading={storeSummaryLoading}
                     isReadOnly={true}
                     hideSupportHours={!shouldViewSupportHours}
                   />
@@ -1690,6 +1724,8 @@ function StoreStatusDetail({
                     <StoreSupportHoursForm
                       storeId={store.id}
                       yearMonth={yearMonth}
+                      summary={storeSummary}
+                      summaryLoading={storeSummaryLoading}
                       isReadOnly={storeStatus === 'confirmed'}
                     />
                   )}
@@ -1704,6 +1740,8 @@ function StoreStatusDetail({
                   <StoreSupportHoursForm
                     storeId={store.id}
                     yearMonth={yearMonth}
+                    summary={storeSummary}
+                    summaryLoading={storeSummaryLoading}
                     isReadOnly={storeStatus === 'confirmed'}
                   />
                 </div>
@@ -3648,18 +3686,23 @@ function AddManualEmployeeModal({
 }
 
 // 門市每月統計資料表單
+// 統計資料由父層（StoreStatusDetail）讀取一次後傳入，與支援時數表單共用，不再自己查詢。
 function StoreMonthlyStatsForm({
   storeId,
   yearMonth,
+  summary,
+  summaryLoading,
   isReadOnly,
   hideSupportHours = false
 }: {
   storeId: string;
   yearMonth: string;
+  summary: any | null;
+  summaryLoading: boolean;
   isReadOnly: boolean;
   hideSupportHours?: boolean;
 }) {
-  const [loading, setLoading] = useState(true);
+  const loading = summaryLoading;
   const [saving, setSaving] = useState(false);
   const [stats, setStats] = useState({
     total_staff_count: 0,
@@ -3676,36 +3719,21 @@ function StoreMonthlyStatsForm({
   });
 
   useEffect(() => {
-    loadStats();
-  }, [storeId, yearMonth]);
-
-  const loadStats = async () => {
-    setLoading(true);
-    try {
-      const { getStoreMonthlySummary } = await import('@/app/store/actions');
-      const result = await getStoreMonthlySummary(yearMonth, storeId);
-      
-      if (result.success && result.data) {
-        setStats({
-          total_staff_count: result.data.total_staff_count || 0,
-          admin_staff_count: result.data.admin_staff_count || 0,
-          newbie_count: result.data.newbie_count || 0,
-          business_days: result.data.business_days || 0,
-          total_gross_profit: result.data.total_gross_profit || 0,
-          total_customer_count: result.data.total_customer_count || 0,
-          prescription_addon_only_count: result.data.prescription_addon_only_count || 0,
-          regular_prescription_count: result.data.regular_prescription_count || 0,
-          chronic_prescription_count: result.data.chronic_prescription_count || 0,
-          support_to_other_stores_hours: result.data.support_to_other_stores_hours || 0,
-          support_from_other_stores_hours: result.data.support_from_other_stores_hours || 0
-        });
-      }
-    } catch (error) {
-      console.error('Error loading stats:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (!summary) return;
+    setStats({
+      total_staff_count: summary.total_staff_count || 0,
+      admin_staff_count: summary.admin_staff_count || 0,
+      newbie_count: summary.newbie_count || 0,
+      business_days: summary.business_days || 0,
+      total_gross_profit: summary.total_gross_profit || 0,
+      total_customer_count: summary.total_customer_count || 0,
+      prescription_addon_only_count: summary.prescription_addon_only_count || 0,
+      regular_prescription_count: summary.regular_prescription_count || 0,
+      chronic_prescription_count: summary.chronic_prescription_count || 0,
+      support_to_other_stores_hours: summary.support_to_other_stores_hours || 0,
+      support_from_other_stores_hours: summary.support_from_other_stores_hours || 0
+    });
+  }, [summary]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -3940,16 +3968,22 @@ function StoreMonthlyStatsForm({
 }
 
 // 門市支援時數表單（獨立組件，供店長/代理店長/督導使用）
+// 初始資料由父層（StoreStatusDetail）讀取一次後傳入，與統計表單共用；存檔後仍只重新讀取本表單的資料。
 function StoreSupportHoursForm({
   storeId,
   yearMonth,
+  summary,
+  summaryLoading,
   isReadOnly
 }: {
   storeId: string;
   yearMonth: string;
+  summary: any | null;
+  summaryLoading: boolean;
   isReadOnly: boolean;
 }) {
-  const [loading, setLoading] = useState(true);
+  const [reloading, setReloading] = useState(false);
+  const loading = summaryLoading || reloading;
   const [saving, setSaving] = useState(false);
   const [existingData, setExistingData] = useState<any>(null);
   const [supportHours, setSupportHours] = useState({
@@ -3958,11 +3992,17 @@ function StoreSupportHoursForm({
   });
 
   useEffect(() => {
-    loadSupportHours();
-  }, [storeId, yearMonth]);
+    if (!summary) return;
+    setExistingData(summary);
+    setSupportHours({
+      support_to_other_stores_hours: summary.support_to_other_stores_hours || 0,
+      support_from_other_stores_hours: summary.support_from_other_stores_hours || 0
+    });
+  }, [summary]);
 
+  // 存檔後重新讀取以確認資料已儲存（只更新這個表單，與原本行為相同）
   const loadSupportHours = async () => {
-    setLoading(true);
+    setReloading(true);
     try {
       const { getStoreMonthlySummary } = await import('@/app/store/actions');
       const result = await getStoreMonthlySummary(yearMonth, storeId);
@@ -3977,7 +4017,7 @@ function StoreSupportHoursForm({
     } catch (error) {
       console.error('Error loading support hours:', error);
     } finally {
-      setLoading(false);
+      setReloading(false);
     }
   };
 
