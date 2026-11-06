@@ -15,7 +15,10 @@ const props = defineProps<{ tab: WorkTab }>(),
   archiveError = ref(""),
   pending = ref<any>(null),
   conflict = ref(false),
-  saved = ref<number | null>(null);
+  saved = ref<number | null>(null),
+  removing = ref<any>(null),
+  removeError = ref(""),
+  removed = ref("");
 const ready = computed(
   () =>
     data.value?.records.length > 0 &&
@@ -71,6 +74,24 @@ async function archive() {
     props.tab.busy = false;
   }
 }
+async function removeAssignment() {
+  if (!removing.value) return;
+  props.tab.busy = true;
+  removeError.value = "";
+  try {
+    await api<any>("task-management", {
+      method: "DELETE",
+      body: JSON.stringify({ kind: "assignment", id: removing.value.id }),
+    });
+    removed.value = `已刪除 ${removing.value.assignee} 的已完成任務，並留下稽核紀錄。`;
+    removing.value = null;
+    await load();
+  } catch (e) {
+    removeError.value = (e as Error).message;
+  } finally {
+    props.tab.busy = false;
+  }
+}
 onMounted(load);
 </script>
 <template>
@@ -107,6 +128,7 @@ onMounted(load);
       查看已封存任務
     </button>
   </div>
+  <p v-if="removed" class="notice" role="status">{{ removed }}</p>
   <template v-if="data"
     ><p>{{ data.template.description }}</p>
     <p v-if="data.records.length && !ready" class="muted">
@@ -119,7 +141,24 @@ onMounted(load);
       class="managed-assignment"
       :data-assignment-id="r.id"
     >
-      <h2>{{ r.assignee }} · {{ r.department || "未分部門" }}</h2>
+      <h2>
+        {{ r.assignee }} · {{ r.department || "未分部門" }}
+        <span class="status-badge" :data-status="r.status">{{
+          r.status === "completed"
+            ? "已完成"
+            : r.status === "in_progress"
+              ? "進行中"
+              : "待處理"
+        }}</span>
+        <button
+          v-if="data.canDeleteAssignment && r.status === 'completed'"
+          class="danger"
+          :disabled="tab.busy"
+          @click="removing = r; removeError = ''"
+        >
+          刪除
+        </button>
+      </h2>
       <p>
         實際完成 {{ r.done }} / {{ r.total }} ·
         {{ r.total > 0 && r.total === r.done ? "所有項目已完成" : "尚未完成" }}
@@ -129,7 +168,9 @@ onMounted(load);
       </p>
       <p>
         協作成員：{{
-          r.collaborators.map((c: any) => c.name).join("、") || "無"
+          r.collaborators
+            .map((c: any) => c.name + (c.support ? "（跨部門支援）" : ""))
+            .join("、") || "無"
         }}
       </p>
       <div class="module-table">
@@ -191,6 +232,22 @@ onMounted(load);
         </div>
       </details>
     </section></template
+  >
+  <Modal
+    v-if="removing"
+    title="刪除已完成任務"
+    :busy="tab.busy"
+    @cancel="removing = null"
+    ><p>
+      將永久刪除 {{ removing.assignee }} 這筆已完成任務（含勾選紀錄與協作者），並留下稽核紀錄，無法復原。
+    </p>
+    <p v-if="removeError" role="alert" class="notice error">{{ removeError }}</p>
+    <div class="dialog-actions">
+      <button :disabled="tab.busy" @click="removing = null">取消</button
+      ><button class="danger" :disabled="tab.busy" @click="removeAssignment">
+        {{ tab.busy ? "刪除中…" : "確認刪除" }}
+      </button>
+    </div></Modal
   >
   <Modal
     v-if="confirming"

@@ -1,5 +1,6 @@
 import { checked, Context, requireCapability, WorkspaceError } from "./server";
 import { flattenTaskSteps, taskState, type TaskStep } from "./task-state";
+import { isSupportMember } from "./task-template";
 export async function taskDetail(ctx: Context, id: string) {
   requireCapability(ctx, ["task.view_own"]);
   const record = checked(
@@ -83,6 +84,7 @@ export async function taskDetail(ctx: Context, id: string) {
     collaborators: collaborators.map((c) => ({
       ...c,
       name: profiles.find((p) => p.id === c.user_id)?.full_name || "未命名成員",
+      support: isSupportMember(sections, c.section_id, c.user_id),
     })),
     creator:
       profiles.find((p) => p.id === template.created_by)?.full_name ||

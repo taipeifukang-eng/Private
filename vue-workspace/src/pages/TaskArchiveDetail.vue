@@ -119,7 +119,9 @@ onMounted(load);
     </dl>
     <p>
       協作成員：{{
-        data.collaborators.map((c: any) => c.name).join("、") || "無"
+        data.collaborators
+          .map((c: any) => c.name + (c.support ? "（跨部門支援）" : ""))
+          .join("、") || "無"
       }}
     </p>
     <p>最後進度 {{ data.done }} / {{ data.total }}</p>

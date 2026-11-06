@@ -175,7 +175,7 @@ onBeforeUnmount(() => {
   <template v-if="data">
     <p>{{ data.template.description }}</p>
     <p class="muted">
-      協作成員：{{ data.collaborators.map((c: any) => c.name).join("、") }}
+      協作成員：{{ data.collaborators.map((c: any) => c.name + (c.support ? "（跨部門支援）" : "")).join("、") }}
     </p>
     <TaskSchedule v-if="schedule" :record="data" />
     <fieldset class="task-checklist" :disabled="tab.busy || !!pending">

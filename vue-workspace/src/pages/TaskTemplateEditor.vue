@@ -45,8 +45,39 @@ function addSection() {
     id: crypto.randomUUID(),
     department: "",
     assigned_users: [],
+    support_users: [],
     steps: [newStep()],
   });
+}
+const supportOpen = ref<Record<string, boolean>>({});
+const showSupport = (section: any) =>
+  supportOpen.value[section.id] ?? (section.support_users || []).length > 0;
+function outsiders(section: any) {
+  return people.value.filter(
+    (p) =>
+      p.department &&
+      p.department !== section.department &&
+      (!search.value ||
+        [p.full_name, p.employee_code, p.job_title, p.department]
+          .join(" ")
+          .includes(search.value)),
+  );
+}
+const isSupport = (section: any, id: string) =>
+  (section.support_users || []).includes(id);
+function toggleSupport(section: any, id: string, on: boolean) {
+  section.support_users ||= [];
+  section.support_users = section.support_users.filter((x: string) => x !== id);
+  section.assigned_users = section.assigned_users.filter((x: string) => x !== id);
+  if (on) {
+    section.support_users.push(id);
+    section.assigned_users.push(id);
+  }
+}
+function changeDepartment(section: any) {
+  section.assigned_users = [];
+  section.support_users = [];
+  supportOpen.value[section.id] = false;
 }
 function move(array: any[], index: number, offset: number) {
   const other = index + offset;
@@ -272,7 +303,7 @@ onBeforeUnmount(() => {
         >部門<select
           v-model="section.department"
           :aria-label="'區段 ' + (Number(si) + 1) + ' 部門'"
-          @change="section.assigned_users = []"
+          @change="changeDepartment(section)"
         >
           <option value="">請選擇部門</option>
           <option v-for="d in departments" :key="d">{{ d }}</option>
@@ -299,7 +330,41 @@ onBeforeUnmount(() => {
           此部門沒有符合搜尋條件的人員。
         </p>
       </div>
-      <p class="muted">已選 {{ section.assigned_users.length }} 人</p>
+      <label class="check-field"
+        ><input
+          type="checkbox"
+          :checked="showSupport(section)"
+          :disabled="!section.department"
+          :aria-label="'區段 ' + (Number(si) + 1) + ' 加入跨部門支援人員'"
+          @change="
+            supportOpen[section.id] = ($event.target as HTMLInputElement).checked
+          "
+        />加入跨部門支援人員（其他部門的人，會標示為跨部門支援）</label
+      >
+      <div v-if="showSupport(section)" class="member-list support-list">
+        <label v-for="person in outsiders(section)" :key="person.id"
+          ><input
+            type="checkbox"
+            :checked="isSupport(section, person.id)"
+            :aria-label="'跨部門支援 ' + (person.full_name || person.employee_code)"
+            @change="
+              toggleSupport(
+                section,
+                person.id,
+                ($event.target as HTMLInputElement).checked,
+              )
+            "
+          />{{ person.full_name || person.employee_code || "未命名成員"
+          }}<small>{{ person.department }} {{ person.job_title }}</small></label
+        >
+        <p v-if="!outsiders(section).length" class="muted">
+          沒有符合搜尋條件的其他部門人員。
+        </p>
+      </div>
+      <p class="muted">
+        已選 {{ section.assigned_users.length }} 人，其中跨部門支援
+        {{ (section.support_users || []).length }} 人
+      </p>
       <div
         v-for="(step, pi) in section.steps"
         :key="step.id"

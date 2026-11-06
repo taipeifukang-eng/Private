@@ -5,6 +5,7 @@ import {
   requireCapability,
 } from "./server";
 import { flattenTaskSteps, taskState } from "./task-state";
+import { isSupportMember } from "./task-template";
 export async function archiveScope(ctx: Context) {
   const profile = checked(
     await ctx.admin
@@ -108,7 +109,11 @@ export async function archivedDetail(ctx: Context, id: string) {
     creator: name(record.created_by),
     assignee: name(record.assigned_to),
     archiver: name(record.archived_by),
-    collaborators: collaborators.map((c) => ({ ...c, name: name(c.user_id) })),
+    collaborators: collaborators.map((c) => ({
+      ...c,
+      name: name(c.user_id),
+      support: isSupportMember(sections, c.section_id, c.user_id),
+    })),
     logs: logs.map((l) => ({
       ...l,
       name: name(l.user_id),

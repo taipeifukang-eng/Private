@@ -49,9 +49,9 @@ export function workspaceNavigation(
         ...(features.taskManagement
           ? [item("任務管理", "/admin/templates", [], "task-management")]
           : []),
-        ...(features.taskArchive
-          ? [item("已封存任務", "/admin/archived", [], "task-archive")]
-          : []),
+        // M3 A.4（approvals nav-archived-feature-gate 改回舊版）：入口只看 task.view_archived，與舊 Navbar 一致；
+        // 頁面本身仍由 archiveScope（身分加 task.view_archived）把關。
+        item("已封存任務", "/admin/archived", ["task.view_archived"], "task-archive"),
       ],
     },
     {
