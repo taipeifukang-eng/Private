@@ -1,9 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, onBeforeUnmount } from "vue";
-import { api } from "../api";
-import { useWorkspace, type WorkTab } from "../stores";
+import { api, ApiError } from "../api";
+import { useSession, useWorkspace, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
 import SignatureInput from "../components/SignatureInput.vue";
+import InspectionPhotoCapture from "../components/InspectionPhotoCapture.vue";
+import { carryOverScores, type CarryNotice } from "../../../lib/workspace/inspection-carryover";
+import { hasManualStaffEdits, rosterToStaff, type DutyStaff } from "../../../lib/workspace/inspection-staff";
+import {
+  DRAFT_TTL_DAYS,
+  OFFLINE_RETRY_MESSAGE,
+  draftKey,
+  expiresAt,
+  hasDraftContent,
+  serverMovedOn,
+  type OfflineDraft,
+} from "../../../lib/workspace/inspection-offline-policy";
+import { getDraft, offlineAvailable, purgeExpiredDrafts, putDraft, removeDraft } from "../inspection-offline";
 import GpsGuideDialog from "../components/GpsGuideDialog.vue";
 import {
   GPS_HIGH_ACCURACY_FALLBACK_MS,
@@ -21,7 +34,9 @@ import {
 import { getInspectionGpsCapturedAt } from "../../../lib/inspection/date";
 import { scoreInspection } from "../../../lib/workspace/inspection-scoring";
 const props = defineProps<{ tab: WorkTab }>(),
-  work = useWorkspace();
+  work = useWorkspace(),
+  session = useSession();
+const userId = computed(() => session.data?.user.id || "");
 const recordRemoved = computed(() =>
   work.deletedInspectionIds.includes(props.tab.recordId || ""),
 );
@@ -36,8 +51,21 @@ const loading = ref(true),
   stores = ref<any[]>([]),
   templateHash = ref(""),
   version = ref(0),
-  locked = ref(false),
-  uploading = ref(false);
+  locked = ref(false);
+// M4 Q9：範本變更後重新載入，列出對不上的項目給督導確認。
+const carryNotices = ref<CarryNotice[]>([]),
+  noticesAck = ref(false);
+// M4 Q13：換門市時當班人員自動換成新門市名單；已有手動修改先確認。
+const staffConfirm = ref<null | { store: string; previous: string; roster: DutyStaff[] }>(null);
+let autoRoster: DutyStaff[] = [],
+  suppressStore = false;
+// M4 Q14–Q16：離線暫存。
+const restorePrompt = ref<OfflineDraft | null>(null),
+  restoreDeleteConfirm = ref(false),
+  offlineNotice = ref(""),
+  draftSavedAt = ref(0);
+let autosaveReady = false,
+  draftTimer = 0;
 // 定位狀態（僅新增模式使用）：新增巡店必須先定位成功，表單才會解鎖。
 const gpsStatus = ref<"idle" | "loading" | "success" | "error">("idle"),
   gpsError = ref(""),
@@ -101,7 +129,7 @@ const disabled = computed(
     loading.value ||
     locked.value ||
     props.tab.busy ||
-    uploading.value ||
+    !!restorePrompt.value ||
     gpsLocked.value,
 );
 function score(id: string) {
@@ -144,15 +172,10 @@ async function load() {
           position: s.position || "",
         })),
       };
-    } else
-      form.value.staff = r.roster.map((s: any) => ({
-        ...s,
-        employee_code: s.employee_code || "",
-        employee_name: s.employee_name || "",
-        position: s.position || "",
-        is_duty_supervisor: false,
-        is_manually_added: false,
-      }));
+    } else {
+      autoRoster = rosterToStaff(r.roster);
+      form.value.staff = rosterToStaff(r.roster);
+    }
     form.value.scores = r.templates.map((t: any) => {
       const old = r.results.find((s: any) => s.template_id === t.id);
       const checked = old?.selected_items || [];
@@ -201,12 +224,191 @@ async function load() {
     ready.value = true;
     baseline = snapshot();
     props.tab.dirty = false;
+    if (!offered) {
+      offered = true;
+      void offerRestore();
+    }
   } catch (e) {
     error.value = (e as Error).message;
+    // 已送出（完成或結案）的巡店不能再編輯：本機暫存自動清除（Q16）。
+    if (
+      e instanceof ApiError &&
+      e.status === 409 &&
+      /已完成或已結案/.test(e.message) &&
+      props.tab.recordId &&
+      userId.value
+    )
+      void removeDraft(userId.value, form.value.type, props.tab.recordId);
   } finally {
     loading.value = false;
   }
 }
+let offered = false;
+
+// ---- M4 Q14–Q16：離線暫存 ----
+function draftPayload(): OfflineDraft {
+  return {
+    key: draftKey(userId.value, form.value.type, props.tab.recordId),
+    userId: userId.value,
+    type: form.value.type,
+    recordId: props.tab.recordId || null,
+    savedAt: Date.now(),
+    serverVersion: version.value,
+    templateHash: templateHash.value,
+    templates: templates.value.map((t: any) => ({
+      id: t.id,
+      item_name: t.item_name,
+      max_score: t.max_score,
+      is_active: t.is_active,
+      checklist_items: t.checklist_items,
+    })),
+    // 定位與日期由系統重新帶入，不暫存。
+    form: { ...form.value, gps: null, date: null },
+  };
+}
+async function flushDraft() {
+  window.clearTimeout(draftTimer);
+  if (!autosaveReady || !userId.value || locked.value || !ready.value) return;
+  if (!props.tab.dirty) return;
+  if (!props.tab.recordId && !hasDraftContent(form.value)) return;
+  const draft = draftPayload();
+  if (await putDraft(draft)) draftSavedAt.value = draft.savedAt;
+}
+function scheduleDraft() {
+  window.clearTimeout(draftTimer);
+  draftTimer = window.setTimeout(() => void flushDraft(), 700);
+}
+async function clearDrafts(previousRecordId?: string | null) {
+  window.clearTimeout(draftTimer);
+  autosaveReady = false;
+  if (!userId.value) return;
+  const t = form.value.type;
+  await removeDraft(userId.value, t, null);
+  if (previousRecordId) await removeDraft(userId.value, t, previousRecordId);
+  if (props.tab.recordId) await removeDraft(userId.value, t, props.tab.recordId);
+  draftSavedAt.value = 0;
+}
+async function offerRestore() {
+  if (!userId.value) return;
+  if (!(await offlineAvailable())) {
+    offlineNotice.value = "此瀏覽器無法使用本機暫存，請完成後盡快儲存。";
+    return;
+  }
+  await purgeExpiredDrafts();
+  const draft = await getDraft(userId.value, form.value.type, props.tab.recordId);
+  if (draft) restorePrompt.value = draft;
+  else autosaveReady = true;
+}
+const restoreInfo = computed(() => {
+  const d = restorePrompt.value;
+  if (!d) return null;
+  return {
+    savedAt: new Date(d.savedAt).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }),
+    expires: new Date(expiresAt(d.savedAt)).toLocaleDateString("zh-TW", { timeZone: "Asia/Taipei" }),
+    serverMoved: serverMovedOn(d, version.value),
+  };
+});
+function applyRestore() {
+  const d = restorePrompt.value;
+  if (!d) return;
+  const saved = d.form;
+  const merged = carryOverScores(d.templates, saved.scores || [], templates.value);
+  suppressStore = true;
+  form.value = {
+    ...form.value,
+    ...saved,
+    type: form.value.type,
+    scores: merged.scores,
+    gps: form.value.gps,
+    date: form.value.date,
+  };
+  suppressStore = false;
+  autoRoster = [];
+  carryNotices.value = merged.notices;
+  noticesAck.value = false;
+  restorePrompt.value = null;
+  restoreDeleteConfirm.value = false;
+  autosaveReady = true;
+  message.value = "已還原本機暫存的內容（含照片與簽名）。";
+  void flushDraft();
+}
+async function deleteRestore() {
+  if (userId.value)
+    await removeDraft(userId.value, form.value.type, props.tab.recordId);
+  restorePrompt.value = null;
+  restoreDeleteConfirm.value = false;
+  autosaveReady = true;
+  message.value = "已刪除本機暫存。";
+}
+const onHide = () => {
+  if (document.visibilityState === "hidden") void flushDraft();
+};
+
+// ---- M4 Q9：範本變更時重新載入並保留還對得上的內容 ----
+async function reloadTemplates() {
+  const params = new URLSearchParams({ type: form.value.type });
+  if (props.tab.recordId) params.set("id", props.tab.recordId);
+  else if (form.value.store) params.set("store", form.value.store);
+  const r = await api("inspection-form?" + params);
+  const merged = carryOverScores(templates.value, form.value.scores, r.templates);
+  templates.value = r.templates;
+  grades.value = r.grades;
+  templateHash.value = r.templateHash;
+  form.value.scores = merged.scores;
+  carryNotices.value = merged.notices;
+  noticesAck.value = false;
+  message.value =
+    "巡店範本剛被更新，已重新載入並保留還對得上的勾選、數量、備註與照片；請確認下方清單後再送出。";
+}
+const TEMPLATE_CHANGED = /範本已更新|巡店設定已變更|巡店設定正在更新/;
+
+// ---- M4 Q13：換門市時當班人員自動帶入 ----
+async function onStoreChanged(next: string, previous: string) {
+  try {
+    const r = await api(
+      "inspection-form?" +
+        new URLSearchParams({
+          type: form.value.type,
+          store: next,
+          ...(props.tab.recordId ? { id: props.tab.recordId } : {}),
+        }),
+    );
+    const roster = rosterToStaff(r.roster);
+    if (hasManualStaffEdits(form.value.staff, autoRoster)) {
+      staffConfirm.value = { store: next, previous, roster };
+      return;
+    }
+    autoRoster = roster;
+    form.value.staff = rosterToStaff(r.roster);
+  } catch (e) {
+    error.value = (e as Error).message;
+  }
+}
+function confirmStaffReplace() {
+  const c = staffConfirm.value;
+  if (!c) return;
+  autoRoster = c.roster;
+  form.value.staff = rosterToStaff(c.roster);
+  staffConfirm.value = null;
+  message.value = "當班人員已換成新門市的上月在職名單。";
+}
+function cancelStaffReplace() {
+  const c = staffConfirm.value;
+  if (!c) return;
+  suppressStore = true;
+  form.value.store = c.previous;
+  suppressStore = false;
+  staffConfirm.value = null;
+}
+watch(
+  () => form.value.store,
+  (next, previous) => {
+    if (loading.value || suppressStore || !next || next === previous) return;
+    void onStoreChanged(next, previous);
+  },
+  { flush: "sync" },
+);
+watch(form, scheduleDraft, { deep: true });
 async function loadRoster() {
   if (!form.value.store) return;
   error.value = "";
@@ -312,28 +514,21 @@ function retryFromGuide() {
   gpsGuideOpen.value = false;
   locate();
 }
-async function photo(id: string, event: Event) {
-  const input = event.target as HTMLInputElement,
-    file = input.files?.[0];
-  if (!file) return;
-  uploading.value = true;
-  try {
-    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type))
-      throw new Error("請選擇 JPEG、PNG 或 WebP 圖片");
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, 800 / Math.max(bitmap.width, bitmap.height)),
-      c = document.createElement("canvas");
-    c.width = Math.round(bitmap.width * scale);
-    c.height = Math.round(bitmap.height * scale);
-    c.getContext("2d")!.drawImage(bitmap, 0, 0, c.width, c.height);
-    bitmap.close();
-    score(id).photos.push(c.toDataURL("image/jpeg", 0.7));
-  } catch (e) {
-    error.value = (e as Error).message;
-  } finally {
-    input.value = "";
-    uploading.value = false;
-  }
+function addPhoto(id: string, url: string) {
+  const list = score(id).photos;
+  if (list.length >= 5) return;
+  list.push(url);
+  // 拍照後立即寫入本機暫存（Q14），連拍不遺失。
+  void flushDraft();
+}
+function removePhoto(id: string, index: number) {
+  score(id).photos.splice(index, 1);
+  void flushDraft();
+}
+function setQuantity(id: string, label: string, raw: string) {
+  // 與舊版一致：最小 1、整數、空白或錯誤輸入自動回 1。
+  const n = Math.floor(Number(raw));
+  score(id).quantities[label] = Number.isFinite(n) && n >= 1 ? n : 1;
 }
 async function save(status = "draft") {
   if (recordRemoved.value) {
@@ -349,6 +544,17 @@ async function save(status = "draft") {
   }
   if (scoreResult.value.error) {
     error.value = scoreResult.value.error;
+    failed.value = true;
+    return false;
+  }
+  if (carryNotices.value.length && !noticesAck.value && status === "completed") {
+    error.value = "範本有變更，請先確認下方「對不上的項目」清單再送出。";
+    failed.value = true;
+    return false;
+  }
+  if (status === "completed" && (!form.value.signature || !form.value.supervisorSignature)) {
+    // M4 Q12：正式送出必須雙簽名（草稿可不簽）。
+    error.value = "請完成「店長／當班主管確認簽名」與「督導簽名」兩個簽名後再送出。";
     failed.value = true;
     return false;
   }
@@ -371,24 +577,55 @@ async function save(status = "draft") {
       status,
     };
     const serialized = JSON.stringify(body);
+    if (serialized.length > 24_000_000) {
+      error.value = "照片總容量過大，請刪除部分照片後再儲存";
+      failed.value = true;
+      return false;
+    }
     if (pending?.serialized !== serialized)
       pending = { serialized, writeId: crypto.randomUUID() };
     const r = await api("inspection-form", {
       method: "POST",
       body: JSON.stringify({ ...body, writeId: pending.writeId }),
     });
+    const wasRecord = props.tab.recordId;
     props.tab.recordId = r.record.id;
     version.value = r.record.workspace_version;
     baseline = snapshot();
     props.tab.dirty = false;
     pending = null;
     submitConfirm.value = false;
+    // 伺服器儲存成功後清除本機暫存（草稿與已送出都清；之後的修改會重新暫存）。
+    await clearDrafts(wasRecord);
+    autosaveReady = status !== "completed";
+    carryNotices.value = [];
     message.value = status === "completed" ? "巡店已完成提交" : "草稿已儲存";
     locked.value = status === "completed";
     props.tab.title = locked.value ? "已提交巡店" : "編輯巡店";
     return true;
   } catch (e) {
     error.value = (e as Error).message;
+    if (e instanceof ApiError && e.status === 0) {
+      // M4：網路中斷採手動重送，不自動補送（正式送出會產生待改善與獎金計算）。
+      submitConfirm.value = false;
+      error.value = "";
+      message.value = OFFLINE_RETRY_MESSAGE;
+      await flushDraft();
+      return false;
+    }
+    if (e instanceof ApiError && e.status === 409 && TEMPLATE_CHANGED.test(e.message)) {
+      // M4 Q9：擋下送出，保留填寫內容並自動對應新範本。
+      submitConfirm.value = false;
+      error.value = "";
+      try {
+        await reloadTemplates();
+        await flushDraft();
+      } catch (e2) {
+        error.value = (e2 as Error).message;
+        failed.value = true;
+      }
+      return false;
+    }
     if (isNew.value && (isGpsDbError(e) || /定位/.test(error.value))) {
       // 伺服器擋下定位資料：表單重新鎖住並引導重新定位。
       const msg = isGpsDbError(e) ? getGpsDbErrorMessage(e) : error.value;
@@ -412,9 +649,12 @@ props.tab.save = () => save("draft");
 onBeforeUnmount(() => {
   gpsAttempt++;
   window.clearTimeout(gpsTimer);
+  void flushDraft();
+  document.removeEventListener("visibilitychange", onHide);
   delete props.tab.save;
 });
 onMounted(() => {
+  document.addEventListener("visibilitychange", onHide);
   // 新增模式進頁自動定位；編輯模式不定位，沿用第一次的定位與日期。
   if (!props.tab.recordId) locate();
   void load();
@@ -443,6 +683,30 @@ onMounted(() => {
   <p v-if="error" class="notice error" role="alert">{{ error }}</p>
   <button v-if="!loading && !ready" @click="load">重新載入表單</button>
   <p v-if="message" class="notice" role="status">{{ message }}</p>
+  <p v-if="offlineNotice" class="notice error" role="status">{{ offlineNotice }}</p>
+  <section
+    v-if="carryNotices.length"
+    class="notice error"
+    role="alert"
+    data-testid="carryover-notices"
+  >
+    <strong>範本有變更，以下項目請督導確認（分數不會被悄悄改動）：</strong>
+    <ul class="carryover-list">
+      <li v-for="(n, i) in carryNotices" :key="i">
+        {{ n.item_name }}：{{ n.message }}
+      </li>
+    </ul>
+    <label class="restore-note"
+      ><span
+        ><input
+          type="checkbox"
+          v-model="noticesAck"
+          data-testid="carryover-ack"
+        />
+        我已確認以上變更</span
+      ></label
+    >
+  </section>
   <form
     v-if="!loading && ready"
     @submit.prevent="submitConfirm = true"
@@ -638,6 +902,9 @@ onMounted(() => {
         >
           <h3>
             {{ t.item_name }} <small>滿分 {{ t.max_score }}</small>
+            <small v-if="t.is_active === false" class="tag" data-testid="template-disabled"
+              >已停用</small
+            >
           </h3>
           <p class="muted">{{ t.item_description }}</p>
           <div
@@ -665,7 +932,9 @@ onMounted(() => {
                 :aria-label="o.label + '數量'"
                 :value="score(t.id).quantities[o.label] || 1"
                 @input="
-                  score(t.id).quantities[o.label] = Number(
+                  setQuantity(
+                    t.id,
+                    o.label,
                     ($event.target as HTMLInputElement).value,
                   )
                 "
@@ -679,23 +948,13 @@ onMounted(() => {
               :aria-label="t.item_name + '備註'"
             />
           </label>
-          <div class="inspection-photos">
-            <figure v-for="(url, i) in score(t.id).photos" :key="i">
-              <img
-                :src="url"
-                :alt="t.item_name + '照片' + (Number(i) + 1)"
-              /><button type="button" @click="score(t.id).photos.splice(i, 1)">
-                移除照片 {{ Number(i) + 1 }}
-              </button>
-            </figure>
-          </div>
-          <label v-if="score(t.id).photos.length < 5"
-            >加入問題照片（最多 5 張）<input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              :aria-label="t.item_name + '加入照片'"
-              @change="photo(t.id, $event)"
-          /></label>
+          <InspectionPhotoCapture
+            :photos="score(t.id).photos"
+            :name="t.item_name"
+            @add="addPhoto(t.id, $event)"
+            @remove="removePhoto(t.id, $event)"
+            @error="error = $event"
+          />
         </section>
       </details>
     </fieldset>
@@ -707,7 +966,7 @@ onMounted(() => {
       <div class="module-form-grid">
         <SignatureInput
           v-model="form.signature"
-          label="門市人員簽名"
+          label="店長／當班主管確認簽名"
           :disabled="disabled"
         /><SignatureInput
           v-model="form.supervisorSignature"
@@ -730,6 +989,45 @@ onMounted(() => {
     @retry="retryFromGuide"
   />
   <Modal
+    v-if="restorePrompt && !restoreDeleteConfirm"
+    title="發現未完成的暫存內容"
+    ><p data-testid="restore-info">
+      這台裝置上有你在 {{ restoreInfo?.savedAt }} 暫存的巡店內容（含照片與簽名），
+      保留到 {{ restoreInfo?.expires }}（共 {{ DRAFT_TTL_DAYS }} 天）。要還原嗎？
+    </p>
+    <p v-if="restoreInfo?.serverMoved" class="notice error" role="alert">
+      注意：伺服器上的這張草稿在暫存之後已被其他裝置更新過，還原後再儲存會以你的暫存內容為準。
+    </p>
+    <div class="dialog-actions">
+      <button type="button" data-testid="restore-no" @click="restoreDeleteConfirm = true">
+        不還原</button
+      ><button type="button" class="primary" data-testid="restore-yes" @click="applyRestore">
+        還原暫存
+      </button>
+    </div></Modal
+  ><Modal v-if="restorePrompt && restoreDeleteConfirm" title="確定刪除暫存？"
+    ><p>
+      刪除後無法復原，暫存的照片、簽名與填寫內容都會消失。確定不要還原嗎？
+    </p>
+    <div class="dialog-actions">
+      <button type="button" data-testid="restore-back" @click="restoreDeleteConfirm = false">
+        返回，我要還原</button
+      ><button type="button" class="primary" data-testid="restore-delete" @click="deleteRestore">
+        確定刪除
+      </button>
+    </div></Modal
+  ><Modal v-if="staffConfirm" title="換成新門市的當班人員？"
+    ><p data-testid="staff-confirm-text">
+      你已手動修改過當班人員（新增人員、勾選當班督導或改過名單）。換門市會把名單整份換成新門市的上月在職名單，手動填的資料會被清掉。
+    </p>
+    <div class="dialog-actions">
+      <button type="button" data-testid="staff-keep" @click="cancelStaffReplace">
+        取消，維持原門市</button
+      ><button type="button" class="primary" data-testid="staff-replace" @click="confirmStaffReplace">
+        換成新名單
+      </button>
+    </div></Modal
+  ><Modal
     v-if="submitConfirm"
     title="提交巡店"
     :busy="tab.busy"

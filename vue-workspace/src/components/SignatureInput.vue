@@ -9,9 +9,12 @@ const props = defineProps<{
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 const opened = ref(false),
   canvas = ref<HTMLCanvasElement | null>(null),
-  drawing = ref(false);
+  drawing = ref(false),
+  // M4 Q12：沒畫任何筆跡前，「確認簽名」是灰的（與舊版一致），空白圖片不能當作已簽名。
+  hasInk = ref(false);
 async function open() {
   opened.value = true;
+  hasInk.value = false;
   await nextTick();
   const ctx = canvas.value?.getContext("2d");
   if (!ctx) return;
@@ -24,6 +27,7 @@ async function open() {
     const img = new Image();
     img.onload = () => ctx.drawImage(img, 0, 0, 800, 260);
     img.src = props.modelValue;
+    hasInk.value = true;
   }
 }
 function point(e: PointerEvent) {
@@ -49,6 +53,7 @@ function move(e: PointerEvent) {
     ctx = canvas.value!.getContext("2d")!;
   ctx.lineTo(p.x, p.y);
   ctx.stroke();
+  hasInk.value = true;
 }
 function clear() {
   const ctx = canvas.value?.getContext("2d");
@@ -56,8 +61,10 @@ function clear() {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, 800, 260);
   }
+  hasInk.value = false;
 }
 function confirm() {
+  if (!hasInk.value) return;
   emit("update:modelValue", canvas.value!.toDataURL("image/png"));
   opened.value = false;
 }
@@ -93,7 +100,13 @@ function confirm() {
       <div class="dialog-actions">
         <button type="button" @click="opened = false">取消</button
         ><button type="button" @click="clear">清除重簽</button
-        ><button type="button" class="primary" @click="confirm">
+        ><button
+          type="button"
+          class="primary"
+          data-testid="signature-confirm"
+          :disabled="!hasInk"
+          @click="confirm"
+        >
           確認簽名
         </button>
       </div></Modal
