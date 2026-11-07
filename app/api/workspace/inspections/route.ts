@@ -1,4 +1,6 @@
 import { inspectionCoverage } from "@/lib/workspace/inspection-coverage";
+import { latestDataMonth } from "@/lib/workspace/inspection-list";
+import { taipeiDate } from "@/lib/workspace/home-rules";
 import {
   checked,
   context,
@@ -14,13 +16,14 @@ export async function GET(request: Request) {
     const ctx = await context();
     const scope = await inspectionScope(ctx);
     const p = new URL(request.url).searchParams;
-    const month = p.get("month") || "";
+    let month = p.get("month") || "";
+    const defaultMonth = month === "";
     const store = p.get("store") || "";
     const type = p.get("type") || "supervisor";
     const page = Number(p.get("page") || 1);
     const overview = p.get("overview") === "true";
     if (
-      !/^20\d{2}-(0[1-9]|1[0-2])$/.test(month) ||
+      (!defaultMonth && !/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) ||
       (store && !uuid(store)) ||
       !["supervisor", "manager"].includes(type) ||
       !Number.isInteger(page) ||
@@ -30,45 +33,58 @@ export async function GET(request: Request) {
       throw new WorkspaceError(400, "查詢條件不正確");
     if (type === "manager" && !ctx.has("inspection.manager_tab"))
       throw new WorkspaceError(403, "沒有經理巡店查看權限");
-    if (!scope.all && !scope.own && !scope.assigned.length)
-      return respond({ records: [], total: 0 });
+    // 共用：可見範圍（M4 Q3 舊版聯集）與巡店類型條件。
+    const scoped = (select: string, options?: { count: "exact" }) => {
+      let q: any = ctx.admin.from("inspection_masters").select(select, options);
+      if (!scope.all) {
+        const conditions = [];
+        if (scope.own) conditions.push(`inspector_id.eq.${ctx.user.id}`);
+        if (scope.assigned.length)
+          conditions.push(`store_id.in.(${scope.assigned.join(",")})`);
+        q = q.or(conditions.join(","));
+      }
+      return type === "manager"
+        ? q.eq("inspection_type", type)
+        : q.or("inspection_type.eq.supervisor,inspection_type.is.null");
+    };
+    if (defaultMonth) {
+      // M4 Q4：預設月份＝近 6 個月內可見資料最新一筆所在月份，完全沒資料才用本月（台灣）。
+      const t = taipeiDate();
+      const since = new Date(Date.UTC(t.year, t.month - 1 - 6, t.day))
+        .toISOString()
+        .slice(0, 10);
+      const latest = checked(
+        await scoped("inspection_date")
+          .gte("inspection_date", since)
+          .order("inspection_date", { ascending: false })
+          .limit(1),
+      ) as { inspection_date: string }[] | null;
+      month = latestDataMonth((latest || []).map((r) => r.inspection_date));
+    }
     const [year, m] = month.split("-").map(Number);
     const end = new Date(Date.UTC(year, m, 1)).toISOString().slice(0, 10);
-    let query = ctx.admin
-      .from("inspection_masters")
-      .select(
-        "id,inspection_no,store_id,inspector_id,inspection_date,status,total_score,max_possible_score,score_percentage,inspection_type,grade",
-        { count: "exact" },
-      )
+    let query: any = scoped(
+      "id,inspection_no,store_id,inspector_id,inspection_date,status,total_score,max_possible_score,score_percentage,inspection_type,grade,improvement_bonus",
+      { count: "exact" },
+    )
       .gte("inspection_date", `${month}-01`)
       .lt("inspection_date", end);
-    if (!scope.all) {
-      const conditions = [];
-      if (scope.own) conditions.push(`inspector_id.eq.${ctx.user.id}`);
-      if (scope.assigned.length)
-        conditions.push(`store_id.in.(${scope.assigned.join(",")})`);
-      query = query.or(conditions.join(","));
-    }
     if (store) query = query.eq("store_id", store);
-    query =
-      type === "manager"
-        ? query.eq("inspection_type", type)
-        : query.or("inspection_type.eq.supervisor,inspection_type.is.null");
     const result = await query
       .order("inspection_date", { ascending: false })
       .order("id")
       .range((page - 1) * 20, page * 20 - 1);
-    let records = checked(result) || [];
+    let records: any[] = (checked(result) as any[]) || [];
     if (overview) {
       records = [];
       for (let offset = 0; ; offset += 500) {
-        const batch =
+        const batch: any[] =
           checked(
             await query
               .order("inspection_date", { ascending: false })
               .order("id")
               .range(offset, offset + 499),
-          ) || [];
+          ) as any[] || [];
         records.push(...batch);
         if (batch.length < 500) break;
       }
@@ -136,6 +152,7 @@ export async function GET(request: Request) {
       );
     }
     return respond({
+      month,
       records: records.map((r) => ({
         ...r,
         store: stores?.find((s) => s.id === r.store_id),

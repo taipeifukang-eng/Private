@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import Modal from "./Modal.vue";
+import { inspectionStats } from "../../../lib/workspace/inspection-list";
 const props = defineProps<{
   month: string;
   records: any[];
@@ -53,27 +54,23 @@ function detail(row: any) {
   selected.value = "";
   emit("detail", row);
 }
-const stats = computed(() => ({
-  excellent: props.records.filter((r) => Number(r.grade) >= 8).length,
-  good: props.records.filter((r) => Number(r.grade) >= 6 && Number(r.grade) < 8)
-    .length,
-  improve: props.records.filter((r) => Number(r.grade || 0) < 6).length,
-}));
+// M4 Q1、Q2：只算所選月份、只算已完成（草稿、進行中不灌水）。
+const stats = computed(() => inspectionStats(props.records));
 </script>
 <template>
-  <div class="inspection-summary" aria-label="當月巡店統計">
+  <div class="inspection-summary" aria-label="當月巡店統計" data-testid="inspection-stats">
     <span
-      >總巡店次數 <strong>{{ records.length }}</strong></span
+      >總巡店次數 <strong data-stat="total">{{ stats.total }}</strong></span
     ><span
-      >優秀（8–10 分） <strong>{{ stats.excellent }}</strong></span
+      >優秀（8–10 分） <strong data-stat="excellent">{{ stats.excellent }}</strong></span
     ><span
-      >良好（6–7 分） <strong>{{ stats.good }}</strong></span
+      >良好（6–7 分） <strong data-stat="good">{{ stats.good }}</strong></span
     ><span
-      >需改善（0–5 分） <strong>{{ stats.improve }}</strong></span
-    >
+      >需改善（0–5 分） <strong data-stat="improve">{{ stats.improve }}</strong></span
+    ><small class="muted">只統計 {{ month }} 已完成的巡店單，草稿與進行中不列入。</small>
   </div>
   <div v-if="coverage" class="inspection-coverage">
-    <details open>
+    <details open data-testid="coverage-visited">
       <summary>{{ month }} 已巡店（{{ coverage.visited.length }}）</summary>
       <ul>
         <li v-for="s in coverage.visited" :key="s.id">
@@ -82,11 +79,12 @@ const stats = computed(() => ({
       </ul>
       <p v-if="!coverage.visited.length">本月尚無已巡店門市。</p>
     </details>
-    <details open>
+    <details open data-testid="coverage-unvisited">
       <summary>{{ month }} 尚未巡店（{{ coverage.unvisited.length }}）</summary>
       <ul>
-        <li v-for="s in coverage.unvisited" :key="s.id">
+        <li v-for="s in coverage.unvisited" :key="s.id" :data-draft="s.has_draft ? 'true' : 'false'">
           {{ s.short_name || s.store_name }}
+          <small v-if="s.has_draft" class="draft-tag">有草稿未送出</small>
         </li>
       </ul>
       <p v-if="!coverage.unvisited.length">本月範圍內門市皆已有巡店紀錄。</p>

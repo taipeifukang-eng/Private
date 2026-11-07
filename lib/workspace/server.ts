@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { resolveAccess } from "./permission-semantics";
+import { listScopeFor } from "./inspection-list";
 
 const DEV_REF = "mjpdfpxqttbhzeimmtqr";
 export class WorkspaceError extends Error {
@@ -160,11 +161,12 @@ export type Context = Awaited<ReturnType<typeof context<any>>>;
 export function requireCapability(ctx: Context, codes: string[]) {
   if (!ctx.has(...codes)) throw new WorkspaceError(403, "沒有此功能的操作權限");
 }
+// M4 Q3：可見範圍照舊版（RLS p1f_inspection_masters_read）取聯集，純函式見 lib/workspace/inspection-list.ts。
 export async function inspectionScope(ctx: Context) {
   requireCapability(ctx, INSPECTION_CODES);
   if (ctx.has("inspection.view_all"))
-    return { all: true, assigned: [] as string[], own: false };
-  const rows = ctx.has("inspection.view_store")
+    return listScopeFor(ctx.has, []);
+  const rows = ctx.has("inspection.view_store") || ctx.has("inspection.view_own")
     ? checked(
         await ctx.admin
           .from("store_managers")
@@ -172,11 +174,10 @@ export async function inspectionScope(ctx: Context) {
           .eq("user_id", ctx.user.id),
       )
     : [];
-  return {
-    all: false,
-    assigned: (rows || []).map((r) => r.store_id as string),
-    own: ctx.has("inspection.view_own"),
-  };
+  return listScopeFor(
+    ctx.has,
+    (rows || []).map((r) => r.store_id as string),
+  );
 }
 export async function inspectionStores(ctx: Context) {
   const scope = await inspectionScope(ctx);

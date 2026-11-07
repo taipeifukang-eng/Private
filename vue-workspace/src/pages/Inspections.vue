@@ -34,8 +34,10 @@ async function load(reset = false) {
   const seq = ++sequence;
   loading.value = true;
   error.value = "";
+  // M4 Q4：還沒手動選過月份時不帶 month，由伺服器回「最新有資料的月份」。
+  const useDefault = !props.tab.payload?.monthChosen;
   const query = {
-    month: props.tab.month,
+    month: useDefault ? "" : props.tab.month,
     store: props.tab.store,
     type: type.value,
   };
@@ -48,7 +50,9 @@ async function load(reset = false) {
       coverage.value = result.coverage;
       canExport.value = result.canExport;
       total.value = result.total;
-      resultMonth.value = query.month;
+      resultMonth.value = result.month;
+      props.tab.month = result.month;
+      props.tab.payload = { ...props.tab.payload, monthChosen: true };
     }
   } catch (e) {
     if (seq === sequence) {
@@ -68,6 +72,7 @@ function createInspection() {
 }
 async function changeMonth(month: string) {
   props.tab.month = month;
+  props.tab.payload = { ...props.tab.payload, monthChosen: true };
   await load(true);
 }
 async function download() {
@@ -116,6 +121,11 @@ watch(
     }
   },
 );
+// 舊版評級徽章配色：8–10 紫、6–7 綠、4–5 黃、其餘紅。
+function gradeTone(grade: string | number | null) {
+  const n = parseInt(String(grade ?? "0"), 10) || 0;
+  return n >= 8 ? "tone-top" : n >= 6 ? "tone-good" : n >= 4 ? "tone-mid" : "tone-low";
+}
 const status: Record<string, string> = {
   draft: "草稿",
   in_progress: "進行中",
@@ -132,10 +142,15 @@ const status: Record<string, string> = {
     </div>
     <div class="module-actions">
       <button
-        v-if="session.data?.capabilities.compareInspections"
+        v-if="
+          type === 'manager' &&
+          session.data?.capabilities.compareInspections &&
+          allRecords.length
+        "
+        data-testid="compare-entry"
         @click="work.open('inspection-compare', tab.store)"
       >
-        巡店比較
+        督導 vs 經理 對比分析
       </button>
       <button
         v-if="session.data?.capabilities.createInspections"
@@ -153,7 +168,13 @@ const status: Record<string, string> = {
       ><button @click="load()" :disabled="loading">重新整理</button>
     </div>
   </header>
-  <form class="filter-bar" @submit.prevent="load(true)">
+  <form
+    class="filter-bar"
+    @submit.prevent="
+      props.tab.payload = { ...props.tab.payload, monthChosen: true };
+      load(true);
+    "
+  >
     <label
       >門市<select v-model="tab.store">
         <option value="">全部可查看門市</option>
@@ -206,7 +227,8 @@ const status: Record<string, string> = {
             <th>門市</th>
             <th>巡店人員</th>
             <th>流水號</th>
-            <th>得分</th>
+            <th>分數</th>
+            <th>得分（滿分 10 分）</th>
             <th>狀態</th>
             <th>操作</th>
           </tr>
@@ -220,8 +242,20 @@ const status: Record<string, string> = {
             </td>
             <td>{{ row.inspector }}</td>
             <td>{{ row.inspection_no || "尚無流水號" }}</td>
-            <td>
-              {{ row.total_score ?? "—" }} / {{ row.max_possible_score ?? "—" }}
+            <td data-col="score">
+              <strong>{{ row.total_score ?? "—" }}</strong> /
+              {{ row.max_possible_score ?? 220 }}
+              <small
+                v-if="Number(row.improvement_bonus) > 0"
+                class="bonus-note"
+                data-testid="bonus-note"
+                >（含改善 +{{ row.improvement_bonus }}）</small
+              >
+            </td>
+            <td data-col="grade">
+              <span :class="['grade-badge', gradeTone(row.grade)]">{{
+                row.grade ?? "-"
+              }}</span>
             </td>
             <td>
               <span
@@ -256,7 +290,7 @@ const status: Record<string, string> = {
       </table>
     </div>
     <div v-if="!records.length" class="empty">
-      <h2>這個月份沒有巡店紀錄</h2>
+      <h2>{{ resultMonth }} 沒有巡店紀錄</h2>
       <p>請調整門市或月份後重新查詢。</p>
     </div>
     <footer class="pagination">
