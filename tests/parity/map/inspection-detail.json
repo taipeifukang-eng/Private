@@ -1,0 +1,85 @@
+{
+  "page": "inspection-detail",
+  "legacyRoute": "/inspection/[id]",
+  "workItem": "W16",
+  "entries": [
+    {
+      "id": "print-layout",
+      "mechanism": "ui-extract",
+      "description": "A4 列印報表（M4 Q20、Q21）：同一張巡店單，舊版 PrintInspectionReport（列印媒體）與新版報表預覽（列印媒體）逐項對照區塊順序、欄位、分數卡、待改善項目、手寫空格、督導建議流程、簽名區、紙張與頁數。",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/{id}",
+          "rowSelector": "#print-content"
+        },
+        "source": "components/PrintInspectionReport.tsx"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InspectionReport.vue（巡店詳情 → 列印報表預覽）"
+      }
+    },
+    {
+      "id": "print-paper",
+      "mechanism": "ui-extract",
+      "description": "A4 列印報表的紙張大小與頁數：舊版與新版在列印媒體下輸出 PDF，對照 MediaBox 與頁數。",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/{id}",
+          "rowSelector": "#print-content"
+        },
+        "source": "components/PrintInspectionReport.tsx（@page size A4、margin 15mm）"
+      },
+      "native": {
+        "source": "vue-workspace/src/style.css（@media print @page）"
+      }
+    },
+    {
+      "id": "detail-facts",
+      "mechanism": "ui-extract",
+      "description": "詳情頁畫面逐欄對照：單號、門市、督導、分數、評級、室內溫度、當班人員、備註、需改善項目與扣分、改善回報狀態。",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/{id}",
+          "rowSelector": "main"
+        }
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InspectionContent.vue（巡店詳情）"
+      }
+    },
+    {
+      "id": "delete-scope",
+      "mechanism": "write-readback",
+      "description": "M4 Q22：刪除範圍。舊版 DELETE /api/inspection/{id} 只檢查「刪除巡店」權限，經理巡店也能刪；新版經理巡店另需「經理巡店」權限，並限可見範圍、版本檢查。",
+      "legacy": {
+        "api": {
+          "method": "DELETE",
+          "path": "/api/inspection/{id}"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "DELETE",
+          "path": "/api/workspace/inspection-detail"
+        }
+      }
+    },
+    {
+      "id": "delete-scope-supervisor",
+      "mechanism": "write-readback",
+      "description": "督導巡店單：同一個有刪除權限的帳號，舊版與新版都能刪（不應有差異）。",
+      "legacy": {
+        "api": {
+          "method": "DELETE",
+          "path": "/api/inspection/{id}"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "DELETE",
+          "path": "/api/workspace/inspection-detail"
+        }
+      }
+    }
+  ]
+}

@@ -1761,5 +1761,65 @@
       "entry": "offline-draft",
       "key": "confirmsBeforeDiscard"
     }
+  },
+  {
+    "id": "m4-w16-q21-flow-deadline",
+    "page": "inspection-detail",
+    "description": "A4 報表「督導建議流程」第 1 點：舊版寫「應於 3 個工作日內確認所有待改善項目」；新版改印系統算出的具體期限日期並附回補級距（數字隨後台設定自動變）。",
+    "reason": "M4 規格 Q21（print_system_deadline），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q21)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "print-layout",
+      "key": "flow[0]"
+    }
+  },
+  {
+    "id": "m4-w16-q20-followup-block",
+    "page": "inspection-detail",
+    "description": "A4 報表：店長已回報改善的項目下方，新版多印回報說明、照片與回補分數；沒資料就不出現（舊版沒有）。",
+    "reason": "M4 規格 Q20（legacy_plus_followup），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q20)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "print-layout",
+      "key": "followupBlocks"
+    }
+  },
+  {
+    "id": "m4-w16-q20-score-trio",
+    "page": "inspection-detail",
+    "description": "A4 報表與詳情頁：分數並列「原始得分、改善回補、最終得分」（回補已加進總分，避免被誤認為還要再加一次）；舊版只印總得分。純顯示補強。",
+    "reason": "M4 規格 Q20（列印加改善回報結果）與「分數呈現」說明，使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q20)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "print-layout",
+      "key": "scoreTrio"
+    }
+  },
+  {
+    "id": "m4-w16-q22-delete-manager-status",
+    "page": "inspection-detail",
+    "description": "沒有「經理巡店」權限但有「刪除巡店」權限者刪除經理巡店單：舊版回 200，新版回 403。",
+    "reason": "M4 規格 Q22（scoped_with_counts：經理巡店需經理權限、限可見範圍），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q22)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-scope",
+      "key": "status"
+    }
+  },
+  {
+    "id": "m4-w16-q22-delete-manager-deleted",
+    "page": "inspection-detail",
+    "description": "同上：舊版經理單被刪除，新版資料仍在（避免跨範圍誤刪）。",
+    "reason": "M4 規格 Q22，使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q22)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-scope",
+      "key": "deleted"
+    }
   }
 ]
