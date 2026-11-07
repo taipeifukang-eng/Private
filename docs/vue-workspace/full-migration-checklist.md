@@ -115,12 +115,12 @@
 | `/general-affairs/vendors/stats` | `app/general-affairs/vendors/stats/page.tsx` | 待逐項盤點 |
 | `/general-affairs/work-orders` | `app/general-affairs/work-orders/page.tsx` | 待逐項盤點 |
 | `/inspection/[id]/edit` | `app/inspection/[id]/edit/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/inspection/[id]` | `app/inspection/[id]/page.tsx` | 部分原生化；未完成對等驗收 |
-| `/inspection/compare` | `app/inspection/compare/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
+| `/inspection/[id]` | `app/inspection/[id]/page.tsx` | 已原生化；M4 W16 對等驗收完成（詳情畫面事實、A4 列印報表對照舊版 PrintInspectionReport、刪除範圍；已核可差異見 tests/parity/allowlist.json Q20–Q22） |
+| `/inspection/compare` | `app/inspection/compare/page.tsx` | 已原生化；M4 P04 對等驗收完成（差異判定新舊同輸入同輸出、權限與門市範圍 Q23） |
 | `/inspection/debug` | `app/inspection/debug/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
 | `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
-| `/inspection/improvements/[id]` | `app/inspection/improvements/[id]/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/inspection/improvements` | `app/inspection/improvements/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
+| `/inspection/improvements/[id]` | `app/inspection/improvements/[id]/page.tsx` | 已原生化；M4 W17 對等驗收完成（回補台灣日期 Q17、寫入資格 Q18、逾期補報 Q19） |
+| `/inspection/improvements` | `app/inspection/improvements/page.tsx` | 已原生化；M4 W17 對等驗收完成（查看範圍角色矩陣等價、急迫標示、連結） |
 | `/inspection/new` | `app/inspection/new/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
 | `/inspection` | `app/inspection/page.tsx` | 部分原生化；未完成對等驗收 |
 | `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |

@@ -1905,5 +1905,41 @@
       "entry": "list-limit",
       "key": "limitPerStatus"
     }
+  },
+  {
+    "id": "m4-p04-both-missing",
+    "page": "inspection-compare",
+    "description": "督導單與經理單兩邊都沒有某檢查項目的紀錄：舊版當成「扣分相同」，新版標「缺少明細」；只要有一邊有紀錄，缺的一邊都視為 0 扣分，與舊版完全相同。",
+    "reason": "M4 規格「巡店比較的差異判定」（不另問、直接做），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q23)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "status-rule",
+      "key": "bothMissingStatus"
+    }
+  },
+  {
+    "id": "m4-p04-q23-required-permissions",
+    "page": "inspection-compare",
+    "description": "比較頁權限：舊版只要有「巡店比較」；新版需同時有「巡店比較」與「經理巡店」（比較頁會顯示經理巡店的明細與備註，與詳情頁規則一致）。",
+    "reason": "M4 規格 Q23（strict_both），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q23)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "access-rule",
+      "key": "requiredPermissions"
+    }
+  },
+  {
+    "id": "m4-p04-q23-store-scope",
+    "page": "inspection-compare",
+    "description": "比較頁門市下拉：舊版為所有啟用門市；新版限可見範圍（範圍外的門市只看得到自己建立的單）。",
+    "reason": "M4 規格 Q23（strict_both），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q23)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "access-rule",
+      "key": "storeScope"
+    }
   }
 ]
