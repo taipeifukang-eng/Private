@@ -126,12 +126,16 @@ onMounted(() => {
       確定刪除 {{ data.store?.short_name || data.store?.store_name }} 在
       {{ formatTaipeiDate(data.record.gps_timestamp || data.record.inspection_date) || data.record.inspection_date }} 的巡店？
     </p>
-    <p>
+    <p data-testid="delete-counts">
       將一併刪除 {{ data.results.length }} 筆檢查明細、{{
         data.staff.length
       }}
       筆當班人員及 {{ data.improvements.length }} 筆改善回報，此操作無法復原。
     </p>
+    <p v-if="Number(data.record.improvement_bonus) > 0" class="notice" data-testid="delete-bonus-warning">
+      此單已有改善回補 {{ data.record.improvement_bonus }} 分，刪除後回補分數也會一併消失。
+    </p>
+    <p v-if="data.record.inspection_type === 'manager'" class="muted">這是經理巡店記錄，需要「經理巡店」權限才能刪除。</p>
     <p>{{ data.record.inspection_no }}</p>
     <div class="dialog-actions">
       <button :disabled="tab.busy" @click="deleteConfirm = false">

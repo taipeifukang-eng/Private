@@ -9,6 +9,7 @@ import {
   uuid,
   WorkspaceError,
 } from "@/lib/workspace/server";
+import { compareStatus } from "@/lib/workspace/inspection-compare";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
@@ -99,7 +100,14 @@ export async function GET(request: Request) {
           )
           .in("inspection_id", [supervisor, manager]),
       ) || [];
-    const ids = Array.from(new Set(results.map((r) => r.template_id)));
+    // 與舊版一樣把「目前啟用的範本」也列進來：兩邊都沒有紀錄的項目標「缺少明細」。
+    const active =
+      checked(
+        await ctx.admin.from("inspection_templates").select("id").eq("is_active", true),
+      ) || [];
+    const ids = Array.from(
+      new Set([...results.map((r) => r.template_id), ...active.map((t) => t.id)]),
+    );
     const templates = ids.length
       ? checked(
           await ctx.admin
@@ -120,16 +128,6 @@ export async function GET(request: Request) {
         const b = results.find(
           (r) => r.template_id === id && r.inspection_id === manager,
         );
-        const status =
-          !a || !b
-            ? "missing"
-            : Number(a.deduction_amount) === Number(b.deduction_amount)
-              ? "same"
-              : Number(a.deduction_amount) === 0
-                ? "manager_only"
-                : Number(b.deduction_amount) === 0
-                  ? "supervisor_only"
-                  : "both_different";
         return {
           template: templates.find((t) => t.id === id) || {
             id,
@@ -140,7 +138,7 @@ export async function GET(request: Request) {
           },
           supervisor: a || null,
           manager: b || null,
-          status,
+          status: compareStatus(a, b),
         };
       })
       .sort(

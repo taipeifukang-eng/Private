@@ -9,6 +9,7 @@ import {
   uuid,
   WorkspaceError,
 } from "@/lib/workspace/server";
+import { followupNotice } from "@/lib/workspace/inspection-print";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
@@ -77,6 +78,21 @@ export async function GET(request: Request) {
           )
           .eq("inspection_id", id),
       ) || [];
+    const bonusRules =
+      checked(
+        await ctx.admin
+          .from("inspection_bonus_config")
+          .select("day_from,day_to,bonus_score,description,sort_order,is_active")
+          .eq("is_active", true)
+          .order("sort_order"),
+      ) || [];
+    // Q21：列印報表上的期限與回補級距用系統實際的規則，不再寫死「3 個工作日」。
+    const deadlines = improvements.map((i) => i.deadline).filter(Boolean).sort();
+    const followup = followupNotice({
+      inspectionDate: row.inspection_date,
+      deadline: deadlines[0] || null,
+      rules: bonusRules,
+    });
     const inspector = checked(
       await ctx.admin
         .from("profiles")
@@ -86,7 +102,18 @@ export async function GET(request: Request) {
     );
     return respond({
       inspector: inspector?.full_name || "未知",
-      canDelete: ctx.has("inspection.delete"),
+      bonusRules,
+      followup,
+      // Q22：刪除需「刪除巡店」權限；經理巡店另需「經理巡店」權限（範圍已在上方限制為可見範圍）。
+      canDelete:
+        ctx.has("inspection.delete") &&
+        (row.inspection_type !== "manager" || ctx.has("inspection.manager_tab")),
+      counts: {
+        results: results.length,
+        staff: staff.length,
+        improvements: improvements.length,
+        improvedBonus: Number(row.improvement_bonus) || 0,
+      },
       improvements,
       staff,
       record: row,

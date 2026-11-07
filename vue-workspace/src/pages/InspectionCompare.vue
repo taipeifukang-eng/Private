@@ -223,7 +223,7 @@ onMounted(load);
     >
     <p v-if="!groups.length" class="notice">
       {{
-        result.items.length
+        result.items.some((r: any) => r.status !== "missing")
           ? "沒有符合條件的項目。"
           : "兩份紀錄皆沒有檢查明細，無法逐項比較。"
       }}
@@ -231,7 +231,7 @@ onMounted(load);
     <details
       v-for="[section, rows] in groups"
       :key="section"
-      :open="rows.some((r: any) => r.status !== 'same')"
+      :open="rows.some((r: any) => r.status !== 'same' && r.status !== 'missing')"
     >
       <summary>{{ section }}（{{ rows.length }} 項）</summary>
       <div class="module-table">
@@ -245,7 +245,7 @@ onMounted(load);
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in rows" :key="r.template.id">
+            <tr v-for="r in rows" :key="r.template.id" :data-status="r.status">
               <th>
                 {{ r.template.item_name }}
                 <p class="muted">{{ r.template.item_description }}</p>

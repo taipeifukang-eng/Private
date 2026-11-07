@@ -117,13 +117,13 @@
 | `/inspection/[id]/edit` | `app/inspection/[id]/edit/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
 | `/inspection/[id]` | `app/inspection/[id]/page.tsx` | 部分原生化；未完成對等驗收 |
 | `/inspection/compare` | `app/inspection/compare/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/inspection/debug` | `app/inspection/debug/page.tsx` | 待逐項盤點 |
-| `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | 待逐項盤點 |
+| `/inspection/debug` | `app/inspection/debug/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
+| `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
 | `/inspection/improvements/[id]` | `app/inspection/improvements/[id]/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
 | `/inspection/improvements` | `app/inspection/improvements/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
 | `/inspection/new` | `app/inspection/new/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
 | `/inspection` | `app/inspection/page.tsx` | 部分原生化；未完成對等驗收 |
-| `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | 待逐項盤點 |
+| `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
 | `/inventory` | `app/inventory/page.tsx` | 部分原生化；結果分析可操作，但離線三模組、原因 Excel 匯入及完整分析／匯出未對等，見重查表 |
 | `/login` | `app/login/page.tsx` | 待逐項盤點 |
 | `/monthly-release` | `app/monthly-release/page.tsx` | 待逐項盤點 |
@@ -206,3 +206,14 @@
 
 ## 2026-10-30 員工購物管理
 - `/admin/employee-purchases` 已接原生 EmployeePurchases：POS匯入、月份統計、職稱篩選、員工彙總排序、購物商品明細跳窗；不再連回舊頁。DEV缺少統計RPC已補齊，資料本身尚無正式複製；實際臨時Excel匯入與覆蓋已驗證並清除。
+
+## M4 P04 排除登錄（exclude）
+
+使用者決策 D13（2026-11-02）：以下除錯用頁面與 API 不復刻到 Vue 工作台，標記為 **exclude**，不列入對等驗收也不計入未完成項目。
+
+| 路由／API | 來源 | 狀態 |
+|---|---|---|
+| `/inspection/debug` | `app/inspection/debug/page.tsx` | exclude |
+| `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | exclude |
+| `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | exclude |
+| `/api/inspection-debug` | `app/api/inspection-debug/` | exclude |

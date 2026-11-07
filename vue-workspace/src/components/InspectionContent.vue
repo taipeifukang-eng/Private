@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import {computed} from 'vue';
+import {scoreTrio} from '../../../lib/workspace/inspection-print';
 import InspectionFinding from './InspectionFinding.vue';
 import InspectionPhotos from './InspectionPhotos.vue';
 import {formatTaipeiDate,formatTaipeiDateTime,formatTaipeiTime} from '../taipei-time';
 const props=defineProps<{data:any;printMode?:boolean;canReport?:boolean}>();
 defineEmits<{preview:[url:string];report:[id:string]}>();
 const data=computed(()=>props.data);
+const trio=computed(()=>scoreTrio(data.value.record));
 const related = (r: any) => (data.value?.improvements || []).filter((i: any) => i.inspection_result_id ? i.inspection_result_id === r.id : i.template_id && i.template_id === r.template_id);
 const needsAttention = (r: any) => Number(r.deduction_amount) > 0 || (r.given_score != null && r.max_score != null && Number(r.given_score) < Number(r.max_score)) || r.is_improvement || related(r).length > 0;
 const findings = computed(() => (data.value?.results || []).filter(needsAttention));
@@ -36,7 +38,7 @@ const status=computed(()=>({draft:'草稿',in_progress:'進行中',completed:'�
 <div><dt>狀態</dt><dd>{{status}}</dd></div>
 <div><dt>GPS 定位</dt><dd><a v-if="gpsLink" :href="gpsLink.url" target="_blank" rel="noopener noreferrer" :aria-label="`${gpsLink.label}，另開 Google Maps`">{{gpsLink.label}} ↗ Google Maps</a><span v-else>無有效定位座標</span><small v-if="data.record.gps_timestamp">定位時間：{{formatTaipeiDateTime(data.record.gps_timestamp)}}</small><small v-if="gpsLink && data.record.gps_accuracy">精度：±{{Number(data.record.gps_accuracy).toFixed(0)}}m</small></dd></div>
 </dl>
-<div class="inspection-summary"><strong>得分 {{data.record.total_score ?? '—'}} / {{data.record.max_possible_score ?? '—'}}</strong><span>評級 {{data.record.grade || '—'}}</span><span v-if="data.improvements?.length">改善回補 {{data.record.improvement_bonus || 0}} 分</span></div>
+<div class="inspection-summary" data-testid="detail-score"><strong>最終得分 {{data.record.total_score ?? '—'}} / {{data.record.max_possible_score ?? '—'}}</strong><span>評級 {{data.record.grade || '—'}}</span><template v-if="data.improvements?.length"><span data-testid="score-original">原始得分 {{trio.original}}</span><span data-testid="score-bonus">改善回補 +{{trio.bonus}} 分</span><span class="muted">（回補已加進最終得分）</span></template></div>
 </section>
 <section class="record-section" aria-label="室內溫度"><h2>室內溫度</h2><p>{{data.record.indoor_temperature ?? '未記錄'}}<span v-if="data.record.indoor_temperature != null"> °C</span></p></section>
 <section class="record-section" aria-label="當班人員資訊"><h2>當班人員資訊</h2><div v-if="data.staff?.length" class="staff-table"><table><thead><tr><th>員編</th><th>姓名</th><th>職位</th><th>當班主管</th></tr></thead><tbody><tr v-for="(person,i) in data.staff" :key="i"><td>{{person.employee_code || '—'}}</td><td>{{person.employee_name || '—'}}</td><td>{{person.position || '—'}}</td><td>{{person.is_duty_supervisor?'是':'—'}}</td></tr></tbody></table></div><p v-else class="muted">未記錄當班人員</p></section>
