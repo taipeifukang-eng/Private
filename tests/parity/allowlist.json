@@ -1821,5 +1821,89 @@
       "entry": "delete-scope",
       "key": "deleted"
     }
+  },
+  {
+    "id": "m4-w17-q17-taipei-date-days",
+    "page": "improvements",
+    "description": "改善回補天數：回報時間在台灣凌晨 0–8 點時，舊版正式區函式用 UTC 日期少算一天（可能落入較高回補級距），新版按台灣日期。台灣 8 點以後的回報，天數與回補兩邊完全相同。",
+    "reason": "M4 規格 Q17（taipei_date），使用者 2026-11-07 問卷核可。影響獎金，已有同輸入同輸出測試。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q17)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "bonus-days-early",
+      "key": "earlyMorning"
+    }
+  },
+  {
+    "id": "m4-w17-overdue-taipei-status",
+    "page": "improvements",
+    "description": "改善逾期顯示：判定改用台灣日期（舊版列表伺服端用 UTC 日期），只有台灣凌晨 0–8 點、期限為台灣昨天的項目會早 8 小時顯示為「已逾期」；逾期只在顯示時計算、不寫回資料庫。",
+    "reason": "M4 規格「改善逾期判定改用台灣日期」（不另問、直接做；與 Q17 同一原則），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q17)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "urgent",
+      "key": "yesterday.status"
+    }
+  },
+  {
+    "id": "m4-w17-overdue-taipei-urgent",
+    "page": "improvements",
+    "description": "同上：該項目在舊版仍是「待改善、剩 −1 天」而標急迫，新版已是「已逾期」，不再標急迫。",
+    "reason": "M4 規格「改善逾期判定改用台灣日期」，使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q17)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "urgent",
+      "key": "yesterday.urgent"
+    }
+  },
+  {
+    "id": "m4-w17-q18-write-codes",
+    "page": "improvements",
+    "description": "改善回報的寫入資格：舊版資料庫只允許該門市店長、該次巡店督導、有「管理改善」權限者、管理員（只有「提交改善」權限者按送出看似成功卻沒寫入）；新版允許管理員、該門市店長、有「提交改善」權限者（不限門市，須看得到該項目）。",
+    "reason": "M4 規格 Q18（plus_submit_permission），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q18)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "write-permission",
+      "key": "permissionCodes[0]"
+    }
+  },
+  {
+    "id": "m4-w17-q18-inspector",
+    "page": "improvements",
+    "description": "同上：舊版「該次巡店督導本人」可寫入；新版只認管理員、該門市店長與「提交改善」權限者（督導角色目前有提交改善權限，不受影響）。",
+    "reason": "M4 規格 Q18，使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q18)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "write-permission",
+      "key": "inspectorOfInspection"
+    }
+  },
+  {
+    "id": "m4-w17-q19-db-overdue-report",
+    "page": "improvements",
+    "description": "被補跑程式標成已逾期（資料庫 overdue）的項目：舊版不顯示填寫區、無法回報；新版一律可補回報（留下改善紀錄與照片），回補 0 分。",
+    "reason": "M4 規格 Q19（allow_all_zero），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q19)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "overdue-report",
+      "key": "dbOverdueCanReport"
+    }
+  },
+  {
+    "id": "m4-w17-list-no-limit",
+    "page": "improvements",
+    "description": "改善列表：舊版每個狀態最多載 200 筆；新版全部載入。",
+    "reason": "M4 規格「改善列表」（不另問、直接做），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q19)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "list-limit",
+      "key": "limitPerStatus"
+    }
   }
 ]
