@@ -30,3 +30,17 @@
 - 加分金額公式（扣分乘回補比例，四捨五入到小數一位）本批不改動。
 - 回補日數改用台灣日期（Q17）屬 W17，不在本批 SQL 內。
 - DEV 對應檔：`supabase/workspace-dev/20261107160000_m4_grade_snapshot.sql`（含 rollback 與 `scripts/apply-workspace-m4-grade-snapshot-dev.cjs`）。
+
+## W17：改善回補改按台灣日期（Q17）、逾期回補 0（Q19）
+
+對應 m4-spec.md Q17、Q19。正式區現在的 `calculate_improvement_bonus` 用 `improved_at::date`（UTC 日期）算「巡店日到回報日」天數，
+台灣時間凌晨 0 點到 8 點回報會少算一天，可能落入較高的回補級距。新版改用台灣日期；回報日超過改善期限（deadline）一律回補 0，
+被補跑程式標成「已逾期」的項目也可以補報（回補 0）。公式（扣分乘回補比例，四捨五入到小數一位）與規則挑選方式不變。
+
+執行順序（每個檔案都單獨貼上執行）：
+
+1. `w17_A_preview.sql`：只讀。看目前函式是否為 UTC 版本、回補規則、歷史上有多少筆因 UTC 少算一天、各狀態筆數。
+2. `w17_B_apply.sql`：以 `BEGIN;` 開頭，備份原函式到 `m4_w17_backup` 後換成新函式，看過最後核對（兩欄都應為 true）再另外執行 `COMMIT;` 或 `ROLLBACK;`。
+3. `w17_C_rollback.sql`：撤回，依備份還原。
+
+備註：不重算既有資料；歷史紀錄維持當時的天數與分數。DEV 對應檔：`supabase/workspace-dev/20261108100000_m4_w17_improvement_taipei_overdue.sql`（含 rollback 與 `scripts/apply-workspace-m4-w17-improvement-dev.cjs`）。
