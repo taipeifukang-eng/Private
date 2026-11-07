@@ -59,7 +59,7 @@ export async function taskDetail(ctx: Context, id: string) {
     : manager
       ? mine!.section_id
         ? everySection()
-        : [...ownGroups, ...(sections.length ? everySection() : [])]
+        : ownGroups // section_id 為 null：ownGroups 已是 steps_schema 全部項目，不再疊加各區段（避免重複）
       : ownGroups;
   // 參與者自己區段的項目編號；這些項目的勾選不標代做，其餘（管理者代勾他區段）標代做。
   const ownStepIds = flattenTaskSteps(ownGroups.flatMap((g) => g.steps)).map((s) => s.id);

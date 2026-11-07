@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS public.m3_task_view_archived_grants (
   role_id uuid NOT NULL,
   granted_at timestamptz NOT NULL DEFAULT now()
 );
+-- 備份表只供步驟 C 使用：開啟 RLS 並收回 anon／authenticated 權限（service_role 與 SQL editor 的 postgres 不受影響），避免被 PostgREST 讀寫或竄改。
+ALTER TABLE public.m3_task_view_archived_grants ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.m3_task_view_archived_grants FROM anon, authenticated;
 WITH perm AS (
   SELECT id FROM permissions WHERE code = 'task.view_archived' AND is_active LIMIT 1
 ), has_perm AS (

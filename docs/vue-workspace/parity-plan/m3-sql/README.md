@@ -20,7 +20,7 @@
 1. `compare_task_proxy_access.sql`：只讀。列出「舊版可、新版不可」的人（含 user id、員工編號、目前持有的角色），以及反向異常。判定依 `lib/workspace/permission-semantics.ts` 的正式區語意：不檢查 roles.is_active，並把管理員類角色（admin、system_admin 等）視為系統管理員。
 2. 從結果挑出要補授權的人，把員工編號（profiles.employee_code）或 user id 填進下面兩個檔案的 `target` 清單（兩個檔案填同一份）：
    - `grant_task_manage_A_preview.sql`：只讀預覽。逐人顯示將補授權，或略過原因（找不到、身分不是 manager、已有權限）。
-   - `grant_task_manage_B_grant.sql`：以 BEGIN 開頭，不自動提交。只建立專用角色 `task_proxy_manager`（只含 task.manage），並把名單中的 manager 加進去；不改現有角色，所以不會連帶讓同角色的其他人也拿到權限。備份表 `m3_task_manage_grants` 記錄新增的角色、授權與人員。執行後核對回傳，再另外執行 COMMIT; 或 ROLLBACK;。
+   - `grant_task_manage_B_grant.sql`：以 BEGIN 開頭，不自動提交。只建立專用角色 `task_proxy_manager`（含 task.manage 與 task.view_own，新版 taskDetail 兩者都要），並把名單中的 manager 加進去；不改現有角色，所以不會連帶讓同角色的其他人也拿到權限。備份表 `m3_task_manage_grants` 已開啟 RLS 並收回 anon／authenticated 權限（避免被 PostgREST 竄改後讓撤回誤刪），記錄新增的角色、授權與人員。執行後核對回傳，再另外執行 COMMIT; 或 ROLLBACK;。
    - `grant_task_manage_C_rollback.sql`：上線後要撤回時，依備份表只刪除步驟 B 新增的項目。
 3. 沒有補授權的主管，切到新版後打開別人的任務會看到「找不到指派給你的任務」，這是已核可的差異。
 
