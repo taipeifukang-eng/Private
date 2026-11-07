@@ -1,37 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
+import { legacyLadder, legacyScore } from '../../support/legacy-inspection';
 import { gradeFromMapping, legacyHardcodedGrade, scoreInspection, type InspectionTemplate } from '../../../lib/workspace/inspection-scoring';
 
 // W14 計算對等（M4 Q10/Q11）：同一份輸入餵舊版新增巡店頁的算法與新版 scoreInspection，總分與評級必須相同。
-// 舊版算法直接從 app/inspection/new/page.tsx 原始碼讀取門檻，避免測試自己寫死而與舊版脫節。
-const root = path.resolve(__dirname, '..', '..', '..');
-const legacySource = fs.readFileSync(path.join(root, 'app/inspection/new/page.tsx'), 'utf8').replace(/\r\n/g, '\n');
-const ladder = [...legacySource.matchAll(/if \(finalScore >= (\d+)\) grade = '(\d+)'|else if \(finalScore >= (\d+)\) grade = '(\d+)'/g)].map((m) => ({
-  min: Number(m[1] ?? m[3]),
-  grade: Number(m[2] ?? m[4]),
-}));
-
-/** 舊版 calculateTotals + handleCheckItem／handleQuantityChange 的等價實作（逐行對照原始碼）。 */
-function legacyScore(templates: InspectionTemplate[], inputs: { template_id: string; checked_items: string[]; quantities: Record<string, number> }[]) {
-  let totalDeduction = 0;
-  for (const t of templates) {
-    const input = inputs.find((i) => i.template_id === t.id)!;
-    // handleQuantityChange：Math.max(1, quantity)；handleCheckItem：quantities[label] || 1
-    const deduction = input.checked_items.reduce((sum, label) => {
-      const item = (t.checklist_items || []).find((ci) => ci.label === label);
-      if (!item) return sum;
-      const quantity = item.requires_quantity ? Math.max(1, input.quantities[label] || 1) : 1;
-      return sum + item.deduction * quantity;
-    }, 0);
-    totalDeduction += deduction;
-  }
-  const round1 = (v: number) => Math.round(v * 10) / 10;
-  totalDeduction = round1(totalDeduction);
-  const finalScore = round1(220 - totalDeduction);
-  const grade = ladder.find((l) => finalScore >= l.min)?.grade ?? 0;
-  return { total: finalScore, grade: String(grade), deduction: totalDeduction };
-}
+// 舊版算法（含門檻）由 tests/support/legacy-inspection.ts 直接從 app/inspection/new/page.tsx 原始碼讀取。
+const ladder = legacyLadder();
 
 const tpl = (id: string, max: number, items: InspectionTemplate['checklist_items']): InspectionTemplate => ({ id, item_name: '項' + id, max_score: max, checklist_items: items });
 

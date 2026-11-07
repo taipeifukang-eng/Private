@@ -1668,5 +1668,98 @@
       "mechanism": "ui-extract",
       "entry": "visibility"
     }
+  },
+  {
+    "id": "m4-w14-q9-template-change-block",
+    "page": "inspection-editor",
+    "description": "填寫途中後台改了巡店範本：舊版不檢查、照送；新版擋下送出，重新載入時保留還對得上的勾選、數量、備註、照片，對不上的列出讓督導確認後才能再送。",
+    "reason": "M4 規格 Q9（carry_over），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q9)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "template-changed"
+    }
+  },
+  {
+    "id": "m4-w14-q10-only-original-items",
+    "page": "inspection-editor",
+    "description": "範本之後新增檢查項目時編輯舊單：舊版載入目前啟用的全部項目；新版只評舊單當時就有的項目（含已停用者），新增項目不納入。",
+    "reason": "M4 規格 Q10（only_original），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q10)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "edit-items"
+    }
+  },
+  {
+    "id": "m4-w14-q11-block-over-max",
+    "page": "inspection-editor",
+    "description": "單項扣分超過該項滿分：舊版照存（該項顯示 0、總分照實扣，可能變負數、評級掉到 0）；新版擋下不給存並提示檢查數量。",
+    "reason": "M4 規格 Q11（block），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q11)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "over-max"
+    }
+  },
+  {
+    "id": "m4-w14-q13-confirm-before-replace",
+    "page": "inspection-editor",
+    "description": "換門市時當班人員自動換成新門市名單；新版在已有手動修改（新增人員、勾當班督導、改名單）時先跳確認，舊版直接清掉。",
+    "reason": "M4 規格 Q13（auto_replace_confirm），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q13)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "duty-staff",
+      "key": "confirmsBeforeReplacingManualEdits"
+    }
+  },
+  {
+    "id": "m4-w15-q14-edit-page-draft",
+    "page": "inspection-editor",
+    "description": "離線暫存涵蓋編輯草稿頁（舊版只有新增頁）；編輯暫存在伺服器草稿已被其他裝置更新時還原會提示。",
+    "reason": "M4 規格 Q14（both_all），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q14)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "offline-draft",
+      "key": "coversEditPage"
+    }
+  },
+  {
+    "id": "m4-w15-q15-per-user-isolation",
+    "page": "inspection-editor",
+    "description": "暫存依登入帳號分開保存（舊版只依督導／經理巡店分開，換帳號會看到前一人的內容與簽名）。",
+    "reason": "M4 規格 Q15（per_user），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q15)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "offline-draft",
+      "key": "keyedByUser"
+    }
+  },
+  {
+    "id": "m4-w15-q16-retention-15-days",
+    "page": "inspection-editor",
+    "description": "暫存保留 15 天，超過自動清除（舊版沒有期限）。",
+    "reason": "M4 規格 Q16（keep7，使用者補充改為 15 天），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q16)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "offline-draft",
+      "key": "retentionDays"
+    }
+  },
+  {
+    "id": "m4-w15-q16-confirm-before-discard",
+    "page": "inspection-editor",
+    "description": "還原詢問選「不還原」要再確認一次才刪除（舊版選取消就永久刪除）。",
+    "reason": "M4 規格 Q16（keep7），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q16)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "offline-draft",
+      "key": "confirmsBeforeDiscard"
+    }
   }
 ]

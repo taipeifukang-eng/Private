@@ -1,0 +1,70 @@
+{
+  "page": "inspection-editor",
+  "legacyRoute": "/inspection/new",
+  "workItem": "W14",
+  "entries": [
+    {
+      "id": "score-same-input",
+      "mechanism": "write-readback",
+      "description": "同一份勾選與數量輸入：舊版新增頁算法（門檻由原始碼讀出）與新版 API 寫入後回讀的總分、評級相同（含影響獎金的評級）。",
+      "legacy": { "source": "app/inspection/new/page.tsx calculateTotals / handleCheckItem / handleQuantityChange" },
+      "native": { "source": "POST /api/workspace/inspection-form（lib/workspace/inspection-scoring.ts）" }
+    },
+    {
+      "id": "over-max",
+      "mechanism": "write-readback",
+      "description": "M4 Q11：單項扣分超過該項滿分。舊版照存（該項顯示 0、總分照實扣）；新版擋下不給存。",
+      "legacy": { "source": "app/inspection/new/page.tsx handleCheckItem（earned_score = Math.max(0, …) 但 totalDeduction 照加）" },
+      "native": { "source": "POST /api/workspace/inspection-form → 400" }
+    },
+    {
+      "id": "edit-items",
+      "mechanism": "write-readback",
+      "description": "M4 Q10：範本後來新增項目時編輯舊單。舊版編輯頁載入目前啟用的全部項目；新版只載入舊單當時就有的項目。",
+      "legacy": { "source": "app/inspection/[id]/edit/page.tsx（is_active = true）" },
+      "native": { "source": "GET /api/workspace/inspection-form?id=…" }
+    },
+    {
+      "id": "signature",
+      "mechanism": "write-readback",
+      "description": "M4 Q12：空白簽名不能確認、正式送出需要雙簽名；新舊相同（新版後端另檢查）。",
+      "legacy": { "source": "components/SignaturePad.tsx（disabled={!hasContent}）、app/inspection/new/page.tsx（!signaturePhoto || !supervisorSignature）" },
+      "native": { "source": "POST /api/workspace/inspection-form status=completed" }
+    },
+    {
+      "id": "template-changed",
+      "mechanism": "write-readback",
+      "description": "M4 Q9：填寫途中後台改了範本。舊版不檢查、照送；新版擋下送出並保留還對得上的內容。",
+      "legacy": { "source": "app/inspection/new/page.tsx（沒有範本版本比對）" },
+      "native": { "source": "POST /api/workspace/inspection-form（templateHash 比對，409）＋ carryOverScores" }
+    },
+    {
+      "id": "duty-staff",
+      "mechanism": "write-readback",
+      "description": "M4 Q13：選擇或更換門市時自動帶入上月在職名單。新舊都自動帶入並整份換掉；新版在已有手動修改時先確認。",
+      "legacy": { "source": "app/inspection/new/page.tsx fetchStaffForStore（選門市時觸發）" },
+      "native": { "source": "vue-workspace/src/pages/InspectionEditor.vue onStoreChanged" }
+    },
+    {
+      "id": "offline-draft",
+      "mechanism": "write-readback",
+      "description": "M4 Q14–Q16：離線暫存涵蓋頁面、帳號隔離、保留期限、不還原的確認。",
+      "legacy": { "source": "app/inspection/new/page.tsx（IndexedDB fk-inspection-drafts，id 只含巡店類型）" },
+      "native": { "source": "lib/workspace/inspection-offline-policy.ts、vue-workspace/src/inspection-offline.ts" }
+    },
+    {
+      "id": "photo-capture",
+      "mechanism": "write-readback",
+      "description": "追加要求：問題照片連續拍照——直接開後鏡頭、每項最多 5 張、長邊 800px，與舊版一致。",
+      "legacy": { "source": "app/inspection/new/page.tsx 約 1714–1735 行" },
+      "native": { "source": "vue-workspace/src/components/InspectionPhotoCapture.vue" }
+    },
+    {
+      "id": "quantity-input",
+      "mechanism": "write-readback",
+      "description": "數量輸入統一：最小 1、整數、空白自動回 1。",
+      "legacy": { "source": "app/inspection/new/page.tsx handleQuantityChange（Math.max(1, quantity)）" },
+      "native": { "source": "vue-workspace/src/pages/InspectionEditor.vue setQuantity" }
+    }
+  ]
+}
