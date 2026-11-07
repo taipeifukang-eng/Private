@@ -36,13 +36,14 @@ export function pngInkPixels(png: Buffer): number {
   }
   const channels = CHANNELS[colorType];
   if (!channels || depth !== 8 || interlace !== 0 || !width || !height || width * height > 4_000_000) return -1;
+  const stride = width * channels;
   let raw: Buffer;
   try {
-    raw = inflateSync(Buffer.concat(idat));
+    // 解壓後大小上限＝像素資料實際需要的大小，超過（壓縮炸彈）會丟錯而回 -1。
+    raw = inflateSync(Buffer.concat(idat), { maxOutputLength: (stride + 1) * height });
   } catch {
     return -1;
   }
-  const stride = width * channels;
   if (raw.length < (stride + 1) * height) return -1;
   const prev = Buffer.alloc(stride);
   const cur = Buffer.alloc(stride);
