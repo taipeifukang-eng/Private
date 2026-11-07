@@ -95,9 +95,9 @@ export function displayStatus(status: string, deadline: string | null | undefine
 /** 距離期限剩幾天（今天到期為 0，逾期為負數）。 */
 export const daysRemaining = (deadline: string, today = improvementToday()) =>
   daysBetween(today, deadline.slice(0, 10));
-/** 舊版：待改善且剩 2 天內（含今天到期）標急迫。 */
+/** 舊版：待改善且剩 2 天內（含今天到期）標急迫；已過期限的另外顯示為「已逾期」，不再算急迫。 */
 export const isUrgent = (status: string, deadline: string | null | undefined, today = improvementToday()) =>
-  status === "pending" && !!deadline && daysRemaining(deadline, today) <= 2;
+  status === "pending" && !!deadline && daysRemaining(deadline, today) >= 0 && daysRemaining(deadline, today) <= 2;
 export function remainingLabel(deadline: string, today = improvementToday()) {
   const n = daysRemaining(deadline, today);
   return n > 0 ? `剩 ${n} 天` : n === 0 ? "今天到期" : `逾期 ${Math.abs(n)} 天`;

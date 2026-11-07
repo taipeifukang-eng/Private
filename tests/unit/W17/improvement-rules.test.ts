@@ -161,5 +161,6 @@ describe('逾期顯示與急迫標示（舊版：待改善且剩 2 天內）', (
     expect(isUrgent('pending', '2099-03-15', today)).toBe(true);
     expect(isUrgent('pending', '2099-03-18', today)).toBe(false);
     expect(isUrgent('improved', '2099-03-15', today)).toBe(false);
+    expect(isUrgent('pending', '2099-03-14', today), '已過期限顯示為已逾期，不再算急迫').toBe(false);
   });
 });
