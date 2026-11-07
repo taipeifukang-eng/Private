@@ -1,7 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, onMounted } from "vue";
 import { api } from "../api";
 import { useWorkspace, type WorkTab } from "../stores";
+import {
+  activeMaxScoreTotal,
+  bonusImpactNotice,
+  maxScoreWarning,
+} from "../../../lib/workspace/inspection-settings-rules";
 const props = defineProps<{ tab: WorkTab }>(),
   work = useWorkspace(),
   data = ref<any>(null),
@@ -23,6 +28,8 @@ function edit(kind: string, id?: string) {
   const tab = work.open("inspection-setting-edit", "", id);
   tab.payload = { kind };
 }
+const scoreTotal = computed(() => activeMaxScoreTotal(data.value?.templates || []));
+const scoreWarning = computed(() => maxScoreWarning(scoreTotal.value));
 onMounted(load);
 </script>
 <template>
@@ -50,9 +57,14 @@ onMounted(load);
       ><div class="list-meta">
         <span
           >啟用 {{ data.templates.filter((t: any) => t.is_active).length }} 項 ·
+          啟用項目滿分總和
+          <strong data-testid="score-total">{{ scoreTotal }}</strong> 分 ·
           巡店起始總分固定 220 分</span
         ><button class="primary" @click="edit('template')">新增檢查項目</button>
       </div>
+      <p v-if="scoreWarning" class="warn-notice" role="status" data-testid="score-warning">
+        {{ scoreWarning }}
+      </p>
       <div class="module-table">
         <table>
           <thead>
@@ -87,7 +99,9 @@ onMounted(load);
       </div></template
     ><template v-else-if="section === 'grades'"
       ><div class="list-meta">
-        <p>新的巡店及後續分數變動使用此對照，既有分數不會批次重算。</p>
+        <p data-testid="grade-snapshot-note">
+          每張巡店單以「完成當時」的對照表為準；之後修改對照表，不影響已完成的巡店單，改善加分只增加分數，評級仍照該單完成時的門檻。
+        </p>
         <button class="primary" @click="edit('grades')">編輯評級對照</button>
       </div>
       <div class="module-table">
@@ -108,7 +122,12 @@ onMounted(load);
       </div></template
     ><template v-else
       ><div class="list-meta">
-        <p>依巡店日至回報日的天數，回補原扣分的百分比。</p>
+        <div>
+          <p>依巡店日至回報日的天數，回補原扣分的百分比。</p>
+          <p class="warn-notice" role="status" data-testid="bonus-impact">
+            {{ bonusImpactNotice(data.pendingImprovements ?? 0) }}
+          </p>
+        </div>
         <button class="primary" @click="edit('bonus')">新增回補規則</button>
       </div>
       <div class="module-table">

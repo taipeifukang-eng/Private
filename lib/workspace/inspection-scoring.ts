@@ -4,6 +4,32 @@ export type InspectionTemplate = {
   checklist_items:
     { label: string; deduction: number; requires_quantity?: boolean }[] | null;
 };
+export type GradeMapping = { grade: number; min_score: number }[];
+export const DEFAULT_GRADE_MAPPING: GradeMapping = [220, 215, 191, 181, 171, 161, 151, 141, 131, 121, 0].map(
+  (min_score, i) => ({ grade: 10 - i, min_score }),
+);
+/** 評級＝達標的最高一級（M4 Q5：每張單用完成當時 snapshot 的門檻）。 */
+export function gradeFromMapping(total: number, mapping: GradeMapping = DEFAULT_GRADE_MAPPING) {
+  return (
+    [...mapping]
+      .sort((a, b) => b.grade - a.grade)
+      .find((m) => total >= Number(m.min_score))?.grade ?? 0
+  );
+}
+/** 舊版寫死門檻（改善加分重算、舊新增／編輯頁），僅供新舊同輸入同輸出對照測試。 */
+export function legacyHardcodedGrade(total: number) {
+  if (total >= 220) return 10;
+  if (total >= 215) return 9;
+  if (total >= 191) return 8;
+  if (total >= 181) return 7;
+  if (total >= 171) return 6;
+  if (total >= 161) return 5;
+  if (total >= 151) return 4;
+  if (total >= 141) return 3;
+  if (total >= 131) return 2;
+  if (total >= 121) return 1;
+  return 0;
+}
 export type InspectionScoreInput = {
   template_id: string;
   checked_items: string[];
@@ -14,9 +40,7 @@ export type InspectionScoreInput = {
 export function scoreInspection(
   templates: InspectionTemplate[],
   inputs: InspectionScoreInput[],
-  mappings = [220, 215, 191, 181, 171, 161, 151, 141, 131, 121, 0].map(
-    (min_score, i) => ({ grade: 10 - i, min_score }),
-  ),
+  mappings: GradeMapping = DEFAULT_GRADE_MAPPING,
 ) {
   if (
     inputs.length !== templates.length ||
@@ -69,10 +93,7 @@ export function scoreInspection(
     Math.round(results.reduce((n, r) => n + r.deduction_amount, 0) * 10) / 10;
   const total = Math.round((220 - deduction) * 10) / 10;
   if (total < 0) throw new Error("總扣分超過 220 分，請確認數量");
-  const grade =
-    [...mappings]
-      .sort((a, b) => b.grade - a.grade)
-      .find((m) => total >= m.min_score)?.grade ?? 0;
+  const grade = gradeFromMapping(total, mappings);
   return {
     results,
     total,

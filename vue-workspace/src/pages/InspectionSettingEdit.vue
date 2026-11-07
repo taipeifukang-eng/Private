@@ -3,11 +3,17 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
 import { type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import {
+  bonusImpactNotice,
+  findBonusOverlap,
+} from "../../../lib/workspace/inspection-settings-rules";
 const props = defineProps<{ tab: WorkTab }>(),
   kind = props.tab.payload?.kind || "template",
   form = ref<any>(null),
   version = ref(0),
   templates = ref<any[]>([]),
+  bonusRules = ref<any[]>([]),
+  pendingCount = ref(0),
   loading = ref(false),
   error = ref(""),
   message = ref(""),
@@ -40,6 +46,8 @@ async function load() {
     const d = await api<any>("inspection-settings");
     version.value = d.version;
     templates.value = d.templates;
+    bonusRules.value = d.bonus;
+    pendingCount.value = d.pendingImprovements ?? 0;
     let row;
     if (kind === "grades") row = d.grades;
     else if (props.tab.recordId)
@@ -98,6 +106,23 @@ function chooseSection(e: Event) {
 }
 async function save() {
   if (props.tab.busy || !form.value) return false;
+  if (kind === "bonus") {
+    // M4 Q7：啟用中的規則天數不能重疊（空缺允許）；伺服器端另有交易內檢查。
+    if (Number(form.value.day_to) < Number(form.value.day_from)) {
+      error.value = "結束天數不能小於起始天數";
+      return false;
+    }
+    const clash = findBonusOverlap(bonusRules.value, {
+      id: props.tab.recordId,
+      day_from: Number(form.value.day_from),
+      day_to: Number(form.value.day_to),
+      is_active: !!form.value.is_active,
+    });
+    if (clash) {
+      error.value = `啟用中的回補天數範圍不能重疊：與 ${clash.day_from}–${clash.day_to} 天的規則重疊，請先調整其中一條。`;
+      return false;
+    }
+  }
   props.tab.busy = true;
   error.value = "";
   try {
@@ -116,6 +141,13 @@ async function save() {
     });
     version.value = r.version;
     if (r.id) props.tab.recordId = r.id;
+    if (kind === "bonus") {
+      const saved = { ...form.value, id: props.tab.recordId };
+      bonusRules.value = [
+        ...bonusRules.value.filter((x) => x.id !== saved.id),
+        saved,
+      ];
+    }
     baseline = JSON.stringify(form.value);
     props.tab.dirty = false;
     pending = null;
@@ -371,7 +403,11 @@ onBeforeUnmount(() => {
           />
         </label>
         <p class="muted">
-          啟用規則的天數不可重疊；新回報將按此比例計算。已產生的改善期限與已回補分數維持原紀錄。
+          啟用規則的天數不可重疊（天數之間有空缺時，該天數回補 0）；新回報將按此比例計算。已回補完成的分數維持原紀錄。
+          改善期限＝巡店日加上所有啟用規則中最大的天數，停用最長的規則後，日後新產生的改善期限會變短。
+        </p>
+        <p class="warn-notice" role="status" data-testid="bonus-impact">
+          {{ bonusImpactNotice(pendingCount) }}
         </p></template
       >
       <label v-if="kind !== 'grades'"
@@ -397,6 +433,9 @@ onBeforeUnmount(() => {
     :busy="tab.busy"
     @cancel="deactivate = false"
     ><p>停用後不再供新巡店或新回報使用，既有紀錄會保留。</p>
+    <p v-if="kind === 'bonus'" class="warn-notice">
+      {{ bonusImpactNotice(pendingCount) }}
+    </p>
     <div class="dialog-actions">
       <button :disabled="tab.busy" @click="deactivate = false">取消</button
       ><button class="danger" :disabled="tab.busy" @click="disable">

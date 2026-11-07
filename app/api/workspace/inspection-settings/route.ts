@@ -22,7 +22,7 @@ export async function GET() {
           .eq("singleton", true)
           .single(),
       );
-      const [a, b, c] = await Promise.all([
+      const [a, b, c, d] = await Promise.all([
         ctx.admin
           .from("inspection_templates")
           .select("*")
@@ -36,7 +36,13 @@ export async function GET() {
           .from("inspection_bonus_config")
           .select("*")
           .order("sort_order"),
+        // M4 Q6：目前等待改善的項目數（回補規則儲存前顯示「會受影響的筆數」）。
+        ctx.admin
+          .from("inspection_improvements")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pending"),
       ]);
+      if (d.error) throw d.error;
       const templates = checked(a) || [],
         grades = checked(b) || [],
         bonus = checked(c) || [];
@@ -50,7 +56,13 @@ export async function GET() {
       if (!revision || !after)
         throw new WorkspaceError(409, "設定版本尚未建立");
       if (revision.version === after.version)
-        return respond({ version: revision.version, templates, grades, bonus });
+        return respond({
+          version: revision.version,
+          templates,
+          grades,
+          bonus,
+          pendingImprovements: d.count || 0,
+        });
     }
     throw new WorkspaceError(409, "設定正在更新，請重新載入");
   } catch (e) {
