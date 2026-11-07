@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import { api } from "../api";
-import { useWorkspace, type WorkTab } from "../stores";
+import { useWorkspace, useSession, type WorkTab } from "../stores";
 const props = defineProps<{ tab: WorkTab }>(),
   work = useWorkspace(),
+  session = useSession(),
   rows = ref<any[]>([]),
   stores = ref<any[]>([]),
   loading = ref(false),
@@ -44,7 +45,7 @@ onMounted(load);
     <div>
       <p class="eyebrow">巡店 / 改善追蹤</p>
       <h1>待改善追蹤</h1>
-      <p class="muted">依期限追蹤缺失，開啟項目填寫改善說明與照片。</p>
+      <p class="muted">依期限追蹤缺失，開啟項目填寫改善說明與照片；剩 2 天內標「急迫」，逾期仍可補報（回補 0 分）。</p>
     </div>
     <button @click="load" :disabled="loading">重新整理</button>
   </header>
@@ -83,7 +84,7 @@ onMounted(load);
         </tr>
       </thead>
       <tbody>
-        <tr v-for="r in visible" :key="r.id">
+        <tr v-for="r in visible" :key="r.id" :data-status="r.status" :data-urgent="r.urgent ? 'true' : 'false'" :class="{ 'row-urgent': r.urgent, 'row-overdue': r.status === 'overdue' }">
           <td>
             {{ r.store?.store_code }} {{ r.store?.store_name }}
             <p>{{ r.inspection_date }} · {{ r.inspector_name }}</p>
@@ -95,7 +96,11 @@ onMounted(load);
           <td>{{ r.deduction_amount }}</td>
           <td>
             {{ r.deadline }}
-            <p>{{ labels[r.status] }}</p>
+            <p>
+              {{ labels[r.status] }}
+              <strong v-if="r.urgent" class="badge-urgent" data-testid="urgent-badge">急迫</strong>
+            </p>
+            <p v-if="r.status === 'pending' || r.status === 'overdue'" data-testid="remaining" :class="{ 'text-danger': r.status === 'overdue' || r.urgent }">{{ r.remaining }}</p>
           </td>
           <td>
             {{
@@ -107,6 +112,9 @@ onMounted(load);
           <td>
             <button @click="work.open('improvement-detail', r.store_id, r.id)">
               查看與回報
+            </button>
+            <button v-if="session.data?.capabilities.inspections" data-testid="open-inspection" @click="work.open('inspection-detail', r.store_id, r.inspection_id)">
+              查看完整巡店記錄
             </button>
           </td>
         </tr>

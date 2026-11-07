@@ -67,10 +67,4 @@ export async function improvementRecord(ctx: Context, id: string) {
     ctx.has("inspection.improvement.submit");
   return { row, master, canSubmit };
 }
-export const improvementToday = () =>
-  new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Taipei",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+export { improvementToday } from "./improvement-rules";

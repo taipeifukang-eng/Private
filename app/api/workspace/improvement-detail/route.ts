@@ -7,10 +7,14 @@ import {
   uuid,
   WorkspaceError,
 } from "@/lib/workspace/server";
+import { improvementRecord } from "@/lib/workspace/improvements";
 import {
-  improvementRecord,
+  displayStatus,
   improvementToday,
-} from "@/lib/workspace/improvements";
+  remainingLabel,
+  reportBonus,
+} from "@/lib/workspace/improvement-rules";
+const REPORTABLE = ["pending", "overdue"];
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
@@ -38,22 +42,33 @@ export async function GET(request: Request) {
       checked(
         await ctx.admin
           .from("inspection_bonus_config")
-          .select("day_from,day_to,bonus_score,description")
+          .select("day_from,day_to,bonus_score,description,sort_order,is_active")
           .eq("is_active", true)
           .order("sort_order"),
       ) || [];
+    const today = improvementToday();
+    // 預估回補：與資料庫同一套算法（台灣日期、逾期回補 0），以實際提交結果為準。
+    const estimate = master?.inspection_date
+      ? reportBonus({
+          inspectionDate: master.inspection_date,
+          deadline: row.deadline,
+          improvedAt: new Date(),
+          deduction: Number(row.deduction_amount) || 0,
+          rules: bonus,
+        })
+      : null;
     return respond({
+      estimate,
+      remaining: row.deadline ? remainingLabel(row.deadline, today) : "",
       record: row,
       master,
       store,
       inspector: inspector?.full_name || "未知",
       bonus,
-      today: improvementToday(),
-      canSubmit: canSubmit && row.status === "pending",
-      displayStatus:
-        row.status === "pending" && row.deadline < improvementToday()
-          ? "overdue"
-          : row.status,
+      today,
+      // Q19：逾期一律可補回報（pending 超過期限、或補跑程式標成 overdue），回補 0 分；已改善後不可再改。
+      canSubmit: canSubmit && REPORTABLE.includes(row.status),
+      displayStatus: displayStatus(row.status, row.deadline, today),
     });
   } catch (e) {
     return failed(e);
@@ -95,7 +110,7 @@ export async function POST(request: Request) {
       JSON.stringify(row.improvement_photo_urls) === JSON.stringify(body.photos)
     )
       return respond({ record: row });
-    if (row.status !== "pending" || row.updated_at !== body.version)
+    if (!REPORTABLE.includes(row.status) || row.updated_at !== body.version)
       throw new WorkspaceError(
         409,
         "改善項目已更新或已結案，請重新開啟核對；目前填寫內容仍保留",
@@ -111,7 +126,7 @@ export async function POST(request: Request) {
           status: "improved",
         })
         .eq("id", row.id)
-        .eq("status", "pending")
+        .in("status", REPORTABLE)
         .eq("updated_at", body.version)
         .select("*")
         .maybeSingle(),

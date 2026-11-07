@@ -1,8 +1,11 @@
 import { checked, context, failed, respond } from "@/lib/workspace/server";
+import { improvementAccess } from "@/lib/workspace/improvements";
 import {
-  improvementAccess,
+  displayStatus,
   improvementToday,
-} from "@/lib/workspace/improvements";
+  isUrgent,
+  remainingLabel,
+} from "@/lib/workspace/improvement-rules";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
@@ -85,17 +88,19 @@ export async function GET() {
             .in("id", ids.slice(i, i + 200)),
         ) || []),
       );
+    const today = improvementToday();
     return respond({
       stores,
+      today,
       records: unique
         .map((row) => {
           const master = masters.find((r) => r.id === row.inspection_id);
           return {
             ...row,
-            status:
-              row.status === "pending" && row.deadline < improvementToday()
-                ? "overdue"
-                : row.status,
+            // 逾期按台灣日期，只在顯示時計算（不寫回資料庫）；急迫＝待改善且剩 2 天內（舊版規則）。
+            status: displayStatus(row.status, row.deadline, today),
+            urgent: isUrgent(row.status, row.deadline, today),
+            remaining: row.deadline ? remainingLabel(row.deadline, today) : "",
             store: stores.find((s) => s.id === row.store_id),
             inspection_date: master?.inspection_date,
             inspector_name:

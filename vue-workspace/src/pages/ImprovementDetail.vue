@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { api } from "../api";
-import { type WorkTab } from "../stores";
+import { useWorkspace, useSession, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
 const props = defineProps<{ tab: WorkTab }>(),
+  work = useWorkspace(),
+  session = useSession(),
   data = ref<any>(null),
   loading = ref(false),
   error = ref(""),
@@ -28,27 +30,10 @@ const labels: Record<string, string> = {
   overdue: "已逾期",
   improved: "已改善",
 };
+// 預估回補由伺服器用與資料庫相同的算法算出（台灣日期、逾期回補 0）。
 const estimate = computed(() => {
-  if (!data.value) return null;
-  const days = Math.max(
-    0,
-    Math.round(
-      (Date.parse(data.value.today) -
-        Date.parse(data.value.master.inspection_date)) /
-        86400000,
-    ),
-  );
-  const rule = data.value.bonus.find(
-    (b: any) => days >= b.day_from && days <= b.day_to,
-  );
-  return {
-    days,
-    percent: rule?.bonus_score || 0,
-    score:
-      Math.round(
-        (data.value.record.deduction_amount * (rule?.bonus_score || 0)) / 10,
-      ) / 10,
-  };
+  const e = data.value?.estimate;
+  return e ? { days: e.days_taken, percent: e.percent, score: e.bonus_score, overdue: e.overdue } : null;
 });
 async function load() {
   loading.value = true;
@@ -159,7 +144,7 @@ onBeforeUnmount(() => {
   <template v-else-if="data"
     ><h2>{{ data.record.section_name }} / {{ data.record.item_name }}</h2>
     <p>
-      狀態：{{ labels[data.displayStatus] }} · 改善期限：{{
+      狀態：{{ labels[data.displayStatus] }}<span v-if="data.remaining && data.record.status !== 'improved'"> （{{ data.remaining }}）</span> · 改善期限：{{
         data.record.deadline
       }}
       · 原扣分：{{ data.record.deduction_amount }}
@@ -175,7 +160,10 @@ onBeforeUnmount(() => {
       查看問題照片（{{ data.record.issue_photo_urls.length }}）
     </button>
     <template v-if="data.canSubmit"
-      ><p v-if="estimate" class="notice">
+      ><p v-if="data.displayStatus === 'overdue'" class="notice" data-testid="overdue-note">
+        此項目已超過改善期限（{{ data.record.deadline }}），仍可補報並留下改善紀錄與照片，但回補 0 分。
+      </p>
+      <p v-else-if="estimate" class="notice" data-testid="estimate-note">
         距巡店 {{ estimate.days }} 天，依目前規則預估回補扣分
         {{ estimate.percent }}%（{{ estimate.score }} 分），以實際提交結果為準。
       </p>
@@ -239,7 +227,7 @@ onBeforeUnmount(() => {
         完成 {{ data.record.days_taken }} 天 · 回補
         {{ data.record.bonus_score }} 分 · {{ data.record.improved_at }}
       </p>
-      <p v-else class="notice">目前沒有回報權限，或項目已逾期結案。</p>
+      <p v-else class="notice" data-testid="no-submit-note">您沒有提交此項目改善的權限（管理員、該門市店長或有「提交改善」權限者可回報）。</p>
       <p style="white-space: pre-wrap">
         {{ data.record.improvement_description || "尚未回報" }}
       </p>
@@ -251,6 +239,9 @@ onBeforeUnmount(() => {
       </button></template
     ></template
   >
+  <p v-if="data && session.data?.capabilities.inspections" class="module-actions">
+    <button data-testid="open-inspection" @click="work.open('inspection-detail', data.record.store_id, data.record.inspection_id)">查看完整巡店記錄 →</button>
+  </p>
   <Modal
     v-if="confirm"
     title="提交改善回報"
