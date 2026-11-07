@@ -2,6 +2,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public data?: any,
   ) {
     super(message);
   }
@@ -33,6 +34,7 @@ export async function api<T = any>(
     throw new ApiError(
       response.status,
       [data.error || "服務暫時無法使用，請重試", ...(Array.isArray(data.errors) ? data.errors : [])].join("\n"),
+      data,
     );
   }
   return data as T;

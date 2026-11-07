@@ -360,11 +360,35 @@ export async function POST(request: Request) {
           409,
           "送出期間巡店設定已變更，資料尚未儲存，請保留草稿並重新開啟核對",
         );
-      if (m.includes("DUPLICATE_DAY"))
-        throw new WorkspaceError(
+      if (m.includes("DUPLICATE_DAY")) {
+        // M4 規格「不另問」：回傳既有紀錄（限本人），前端提供「開啟既有紀錄」按鈕。
+        let dup = ctx.admin
+          .from("inspection_masters")
+          .select("id,status,inspection_type")
+          .eq("inspector_id", ctx.user.id)
+          .eq("store_id", body.store)
+          .eq("inspection_date", date);
+        dup =
+          body.type === "supervisor"
+            ? dup.or("inspection_type.eq.supervisor,inspection_type.is.null")
+            : dup.eq("inspection_type", body.type);
+        if (record) dup = dup.neq("id", record.id);
+        const found = await dup.limit(1).maybeSingle();
+        const existing = found.data
+          ? {
+              id: found.data.id,
+              status: found.data.status,
+              type: found.data.inspection_type || "supervisor",
+            }
+          : null;
+        return respond(
+          {
+            error: "你在此門市同一天已有同類巡店，請開啟既有紀錄",
+            existing,
+          },
           409,
-          "你在此門市同一天已有同類巡店，請開啟既有紀錄",
         );
+      }
       if (m.includes("WRITE_CONFLICT"))
         throw new WorkspaceError(409, "紀錄已變更或完成，請保留草稿並重新載入");
       if (m.includes("NOT_OWNER"))

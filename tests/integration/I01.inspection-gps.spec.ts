@@ -158,6 +158,8 @@ test.describe('API：新增巡店的定位檢查', () => {
       });
       const json = await res.json();
       expect(res.status(), JSON.stringify(json)).toBe(409);
+      // 回傳本人的既有紀錄，讓前端提供「開啟既有紀錄」按鈕。
+      expect(json.existing).toEqual({ id: created.json.record.id, status: 'draft', type: 'supervisor' });
     } finally {
       await admin.dispose();
     }
