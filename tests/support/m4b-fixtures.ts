@@ -73,7 +73,10 @@ export async function seedFollowupInspection(
   const templates = await activeTemplates(count);
   const id = await seedMaster({ ...rest, status: 'completed', total: rest.total ?? 220 - count * (deduction ?? 4) });
   await seedResults(id, templates.map((template) => ({ template, deduction: deduction ?? 4 })));
-  return { id, templates, improvements: await improvementsOf(id) };
+  // 同一個陳述式建立的改善項目 created_at 相同，順序不固定；一律依範本順序排列，讓 improvements[i] 對應 templates[i]。
+  const rows = await improvementsOf(id);
+  const improvements = templates.map((tpl) => rows.find((r) => r.template_id === tpl.id)).filter(Boolean);
+  return { id, templates, improvements };
 }
 
 /** 改善回報要送的內容（一張小圖）。 */

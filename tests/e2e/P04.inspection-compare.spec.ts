@@ -40,10 +40,9 @@ test('選門市與兩份已完成紀錄比較：差異統計正確，只看差�
     page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
     await openFromMenu(page, '巡店比較');
     const storeSelect = work(page).getByLabel('比較門市');
-    const options = await storeSelect.locator('option').all();
-    for (const o of options) {
-      if ((await o.textContent())?.includes('ZT05')) await storeSelect.selectOption((await o.getAttribute('value'))!);
-    }
+    const zt05 = storeSelect.locator('option', { hasText: 'ZT05' });
+    await expect(zt05).toHaveCount(1);
+    await storeSelect.selectOption((await zt05.getAttribute('value'))!);
     await expect(work(page).getByLabel('督導巡店')).not.toHaveValue('');
     await expect(work(page).getByLabel('經理巡店')).not.toHaveValue('');
     await work(page).getByRole('button', { name: '開始比較' }).click();
