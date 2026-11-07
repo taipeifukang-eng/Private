@@ -56,6 +56,10 @@ async function fillNew(page: Page, testInfo: any, tag: string, slot = 0) {
   await expect(thumbs(page, 0)).toHaveCount(1, { timeout: 30_000 });
   await sign(page, 0);
   await sign(page, 1);
+  // 等到最後一次變更（第二個簽名）也寫入本機暫存，後續才能安全地重新整理。
+  await expect
+    .poll(async () => (await idbAll(page)).some((d) => d.form?.supervisorSignature && d.form?.signature && d.form?.scores?.[0]?.photos?.length === 1), { timeout: 20_000 })
+    .toBe(true);
 }
 const newKey = (uid: string) => `${uid}|supervisor|new`;
 
