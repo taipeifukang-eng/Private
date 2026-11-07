@@ -153,3 +153,64 @@ test('Q5：完成時記錄門檻；之後改評級對照表，已完成的單評
     expect(restored.map((m) => [m.grade, Number(m.min_score)])).toEqual(original.map((m) => [m.grade, Number(m.min_score)]));
   }
 });
+
+// 審查補強：改善回補函式 update_inspection_bonus_total 本身要依 snapshot 算評級。
+// DEV 有 workspace_grade_from_settings trigger 會在 total_score 更新後重算評級、蓋掉函式寫的值，
+// 所以這裡在「一個一定回滾的 DO 區塊」內暫時停用該 trigger（正式區沒有這個 trigger，由函式單獨決定評級），
+// 用結果訊息把數值帶出來；區塊以 RAISE EXCEPTION 結束，停用與所有寫入都會回滾。
+test('Q5：改善回補函式單獨依 snapshot 算評級（停用 DEV 評級 trigger；與舊版寫死門檻不同的自訂門檻）', async () => {
+  test.setTimeout(120_000);
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { spawnSync } = await import('node:child_process');
+  const root = path.resolve(__dirname, '..', '..');
+  const guard = require('../support/env-guard.cjs') as { assertDevEnvironment: (o: { root: string }) => { env: Record<string, string> } };
+  const { env } = guard.assertDevEnvironment({ root });
+  const ref = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split('.')[0];
+  const linked = fs.existsSync(path.join(root, 'supabase/.temp/project-ref')) ? fs.readFileSync(path.join(root, 'supabase/.temp/project-ref'), 'utf8').trim() : '';
+  test.skip(linked !== ref, 'supabase CLI 未連結到 DEV，無法在交易內單獨驗證回補函式');
+
+  const db = adminDb();
+  const tpl = await db.from('inspection_templates').select('id').eq('is_active', true).limit(1).single();
+  expect(tpl.error).toBeNull();
+  // 自訂門檻：grade g 需 20*g 分（200 分即 10 級）；舊版寫死門檻 200 分只有 8 級
+  const custom = Array.from({ length: 11 }, (_, g) => ({ grade: g, min_score: g * 20 }));
+  const id = await seedMaster({ store: 'ZT04', inspector: 'admin', date: `${M4_MONTH.snapshot}-04`, status: 'draft', total: 200, tag: 'snap-fn' });
+  const result = await db.from('inspection_results').insert({ inspection_id: id, template_id: tpl.data.id, max_score: 20, given_score: 10, deduction_amount: 10, is_improvement: true, selected_items: [], notes: 'ZT M4 snapshot fn' });
+  expect(result.error).toBeNull();
+  const done = await db.from('inspection_masters').update({ status: 'completed', total_score: 200 }).eq('id', id).select('inspector_id').single();
+  expect(done.error).toBeNull();
+  // 只改 snapshot 欄位（不在 trigger 的欄位清單內，不會重算）
+  const set = await db.from('inspection_masters').update({ grade_thresholds: custom }).eq('id', id);
+  expect(set.error).toBeNull();
+  const imp = await db.from('inspection_improvements').select('id').eq('inspection_id', id);
+  expect(imp.data?.length).toBe(1);
+  const sql = `DO $$
+DECLARE r jsonb;
+BEGIN
+  ALTER TABLE public.inspection_masters DISABLE TRIGGER workspace_grade_from_settings;
+  UPDATE public.inspection_improvements SET status='improved', improved_at=now(), improved_by='${done.data.inspector_id}', improvement_description='ZT M4 snapshot fn' WHERE id='${imp.data[0].id}';
+  SELECT jsonb_build_object('total',total_score,'grade',grade) INTO r FROM public.inspection_masters WHERE id='${id}';
+  RAISE EXCEPTION 'M4RESULT:%', r;
+END $$;`;
+  const file = path.join(os.tmpdir(), `m4-bonus-fn-${randomUUID()}.sql`);
+  fs.writeFileSync(file, sql);
+  try {
+    const run = spawnSync('supabase', ['db', 'query', '--linked', '--file', file], { cwd: root, encoding: 'utf8', shell: true });
+    const out = `${run.stdout}\n${run.stderr}`;
+    const m = /M4RESULT:(\{[^}]*\})/.exec(out.replace(/\\"/g, '"'));
+    expect(m, out.slice(0, 600)).not.toBeNull();
+    const got = JSON.parse(m![1]) as { total: number; grade: string };
+    const total = Number(got.total);
+    expect(total).toBeGreaterThanOrEqual(200);
+    const expectedCustom = gradeFromMapping(total, custom);
+    expect(expectedCustom, '自訂門檻與舊版寫死門檻必須給出不同評級，測試才有鑑別力').not.toBe(legacyHardcodedGrade(total));
+    expect(Number(got.grade), '函式單獨決定評級：照 snapshot，不是舊版寫死門檻').toBe(expectedCustom);
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+  // 交易已回滾：評級 trigger 仍啟用、改善項目仍是待改善
+  const after = await db.from('inspection_improvements').select('status').eq('id', imp.data[0].id).single();
+  expect(after.data.status).toBe('pending');
+});
