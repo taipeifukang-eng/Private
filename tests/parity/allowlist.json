@@ -1592,5 +1592,81 @@
     "description": "首頁「本月」的判定：舊版用伺服器本地時間，新版固定用台北時間（月底與月初的跨日邊界在 UTC 伺服器上才會不同）。",
     "reason": "使用者於 survey/m3f F5 核可（taipei）：首頁「本月」固定用台灣時間；只有伺服器不在台北時區且遇月底月初跨日時才與舊版不同。",
     "approvedBy": "user (2026-11-07 survey/m3f F5)"
+  },
+  {
+    "id": "m4-w13-q1-cards-selected-month",
+    "page": "inspection-list",
+    "description": "列表最上方四張統計卡：舊版固定統計近 6 個月全部巡店單（切月份不動）；新版只統計所選月份，與表格、月曆同一個月。",
+    "reason": "M4 規格 Q1（selected_month，使用者選非建議項），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q1)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "stats-month"
+    }
+  },
+  {
+    "id": "m4-w13-q2-stats-finished-only",
+    "page": "inspection-list",
+    "description": "統計卡只算已完成（含已結案）的巡店單；舊版草稿、進行中也算（草稿當 0 分算進需改善）。",
+    "reason": "M4 規格 Q2（split），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q2)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "stats-finished"
+    }
+  },
+  {
+    "id": "m4-w13-q2-coverage-draft-tag",
+    "page": "inspection-list",
+    "description": "已巡店／尚未巡店名單：只有草稿、進行中的門市，舊版算已巡店；新版留在尚未巡店並標「有草稿未送出」。",
+    "reason": "M4 規格 Q2（split），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q2)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "coverage"
+    }
+  },
+  {
+    "id": "m4-w18-q5-grade-snapshot",
+    "page": "inspection-settings",
+    "description": "評級對照表被改過後：舊版新增／編輯巡店與改善加分仍用寫死門檻；新版每張單以完成當時的門檻為準（snapshot），之後改門檻不影響已完成的單，加分只加分數。",
+    "reason": "M4 規格 Q5（snapshot），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q5)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "grade-new-inspection-after-change"
+    }
+  },
+  {
+    "id": "m4-w18-q6-impact-notice",
+    "page": "inspection-settings",
+    "description": "回補規則設定頁儲存前顯示「目前有 N 筆等待改善的項目會受影響」並說明改善期限由啟用規則最大天數決定；舊版沒有任何提醒。計算時點照舊（店長回報當下）。",
+    "reason": "M4 規格 Q6（apply_at_report），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q6)"
+  },
+  {
+    "id": "m4-w18-q7-block-overlap",
+    "page": "inspection-settings",
+    "description": "啟用中的回補規則天數範圍重疊時擋下儲存（空缺仍允許）；舊版不檢查，重疊時取排序在前的一條。上線前以正式區唯讀預覽（m4-sql/w18_A_preview.sql）確認既有資料有無重疊。",
+    "reason": "M4 規格 Q7（block_overlap），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q7)"
+  },
+  {
+    "id": "m4-w18-q8-max-score-warning",
+    "page": "inspection-settings",
+    "description": "設定頁顯示啟用項目滿分總和，不等於 220 時醒目警告（只警告不阻擋；評分仍固定從 220 起算）；舊版只顯示總和不警告。",
+    "reason": "M4 規格 Q8（warn），使用者 2026-11-07 問卷核可。",
+    "approvedBy": "user (2026-11-07 survey/m4 Q8)"
+  },
+  {
+    "id": "m4-w13-q3-legacy-write-policy-reads-all",
+    "page": "inspection-list",
+    "description": "可見範圍：新版照規格 Q3 取舊版 RLS 讀取政策的聯集（自己建立的、被指派門市、查看全部）。但舊版實際連到的資料庫另有「寫入政策」p1f_inspection_masters_write（FOR ALL，條件是持有 inspection.create 或 inspection.delete），多個政策取聯集，所以持有「新增巡店」權限的督導在舊版列表其實看得到所有門市的巡店單（舊版查詢本身不另外篩選）。新版督導少看到未被指派門市、他人建立的單。",
+    "reason": "M4 規格 Q3 背景只描述舊版讀取政策，未提到寫入政策也會放行讀取；這是規格撰寫時未發現的實際舊版行為，需使用者確認要維持規格（聯集）或改成與舊版實際相同（有新增權限者看全部）。待核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "visibility"
+    }
   }
 ]
