@@ -69,7 +69,7 @@ async function nativeMonth(role: string, month: string | null, extra: Record<str
 }
 const statusLabel: Record<string, string> = { draft: '草稿', in_progress: '進行中', completed: '已完成', closed: '已結案' };
 
-function record(entry: string, title: string, legacyV: unknown, nativeV: unknown, compared: unknown, role = 'supervisor') {
+function record(entry: string, title: string, legacyV: unknown, nativeV: unknown, compared: any, role = 'supervisor') {
   const e = find(entry);
   assertNoUnlistedDiffs(
     recorder.record({
