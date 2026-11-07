@@ -7,7 +7,7 @@ import { buildBody, deleteInspections, registerInspection, runIdOrThrow, storeId
 import { adminDb } from '../support/m4-fixtures';
 import { BLANK_WHITE, SIGNED } from '../support/png';
 import { legacyEditPage, legacyNewPage, legacyScore, legacySignaturePad, readLegacy } from '../support/legacy-inspection';
-import { DRAFT_TTL_DAYS, draftKey } from '../../lib/workspace/inspection-offline-policy';
+import { DRAFT_TTL_DAYS, draftKey, draftKeysToClear, restoreStep } from '../../lib/workspace/inspection-offline-policy';
 
 // W14 對等層（M4 Q9–Q13、W15 Q14–Q16、追加的連續拍照）。
 // 舊版是用戶端運算與用戶端畫面規則，所以：
@@ -246,12 +246,22 @@ test('offline-draft：離線暫存涵蓋頁面、帳號隔離、保留期限、�
   };
   const native = {
     coversNewPage: draftKey('u', 'supervisor', null).endsWith('|new'),
-    coversEditPage: draftKey('u', 'supervisor', 'rec-1').endsWith('|rec-1') && /draftKey\(userId\.value, form\.value\.type, props\.tab\.recordId\)/.test(editor),
+    coversEditPage: draftKey('u', 'supervisor', 'rec-1').endsWith('|rec-1') && /draftKey\(userId\.value, form\.value\.type, props\.tab\.recordId, slot\)/.test(editor),
     storesPhotosAndSignatures: /form: \{ \.\.\.form\.value, gps: null, date: null \}/.test(editor),
     keyedByUser: draftKey('u1', 'supervisor', null) !== draftKey('u2', 'supervisor', null) && /draftUsable\(draft, userId\)/.test(idb),
     retentionDays: DRAFT_TTL_DAYS === 15 ? 'set' : null,
-    confirmsBeforeDiscard: /restoreDeleteConfirm/.test(editor) && /data-testid="restore-delete"/.test(editor),
-    clearsAfterSubmit: /await clearDrafts\(wasRecord\)/.test(editor),
+    // 行為由純函式決定：一步「不還原」不會刪除，必須再確認；編輯器的刪除與還原一律經過 restoreStep。
+    confirmsBeforeDiscard:
+      restoreStep('ask', 'decline') === 'confirm-delete' &&
+      restoreStep('ask', 'confirm-delete') !== 'deleted' &&
+      restoreStep('confirm-delete', 'confirm-delete') === 'deleted' &&
+      /stepRestore\("confirm-delete"\) !== "deleted"/.test(editor),
+    // 儲存成功後清掉自己的暫存槽（含剛存的舊單號），且不碰其他新增分頁的暫存槽。
+    clearsAfterSubmit:
+      draftKeysToClear('u', 'supervisor', 'a', 'rec-1', 'rec-1').includes(draftKey('u', 'supervisor', null, 'a')) &&
+      !draftKeysToClear('u', 'supervisor', 'a').includes(draftKey('u', 'supervisor', null, 'b')) &&
+      /await clearDrafts\(wasRecord\)/.test(editor) &&
+      /draftKeysToClear\(userId\.value/.test(editor),
   };
   expect(DRAFT_TTL_DAYS).toBe(15);
   report('offline-draft', '離線暫存規則', legacy, native);

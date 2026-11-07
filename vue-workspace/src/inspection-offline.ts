@@ -7,6 +7,8 @@ import {
 
 // M4 Q14–Q16：巡店離線暫存（IndexedDB，容量足夠放照片與簽名）。
 // 任何錯誤都不丟出：瀏覽器不支援或被封鎖時，退化成沒有暫存，不影響填寫。
+/** 目前開著的「新增」分頁正在使用的暫存槽（帳號|類型|槽），其他新增分頁不會還原或刪除它們。 */
+export const claimedSlots = new Set<string>();
 export const DRAFT_DB = "workspace-inspection-drafts";
 const STORE = "drafts";
 let opened: Promise<IDBDatabase> | null = null;
@@ -63,13 +65,14 @@ export async function getDraft(
   userId: string,
   type: string,
   recordId: string | null | undefined,
+  slot?: string | null,
 ): Promise<OfflineDraft | null> {
   try {
-    const key = draftKey(userId, type, recordId);
+    const key = draftKey(userId, type, recordId, slot);
     const draft = await run<OfflineDraft | undefined>("readonly", (s) => s.get(key));
     if (!draft) return null;
     if (isExpired(draft.savedAt)) {
-      await removeDraft(userId, type, recordId);
+      await removeDraft(userId, type, recordId, slot);
       return null;
     }
     return draftUsable(draft, userId) ? draft : null;
@@ -77,15 +80,34 @@ export async function getDraft(
     return null;
   }
 }
+export async function removeDraftByKey(key: string) {
+  try {
+    await run("readwrite", (s) => s.delete(key));
+  } catch {
+    /* 沒有暫存可刪 */
+  }
+}
 export async function removeDraft(
   userId: string,
   type: string,
   recordId: string | null | undefined,
+  slot?: string | null,
 ) {
   try {
-    await run("readwrite", (s) => s.delete(draftKey(userId, type, recordId)));
+    await run("readwrite", (s) => s.delete(draftKey(userId, type, recordId, slot)));
   } catch {
     /* 沒有暫存可刪 */
+  }
+}
+/** 這個帳號、這個類型所有「新增」暫存（每個新增分頁各一份，含舊版共用槽），新的在前。 */
+export async function listNewDrafts(userId: string, type: string): Promise<OfflineDraft[]> {
+  try {
+    const all = await run<OfflineDraft[]>("readonly", (s) => s.getAll());
+    return all
+      .filter((d) => draftUsable(d, userId) && d.recordId === null && d.type === type)
+      .sort((a, b) => b.savedAt - a.savedAt);
+  } catch {
+    return [];
   }
 }
 /** 進頁時清掉所有過期（超過 15 天）的暫存，不分帳號。 */

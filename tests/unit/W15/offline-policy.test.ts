@@ -3,10 +3,12 @@ import {
   DRAFT_TTL_DAYS,
   DRAFT_TTL_MS,
   draftKey,
+  draftKeysToClear,
   draftUsable,
   expiresAt,
   hasDraftContent,
   isExpired,
+  restoreStep,
   serverMovedOn,
   type OfflineDraft,
 } from '../../../lib/workspace/inspection-offline-policy';
@@ -47,6 +49,14 @@ describe('Q15 依帳號隔離', () => {
     expect(draftKey('u1', 'manager', 'r1')).toBe('u1|manager|r1');
     expect(draftKey('u1', 'supervisor', null)).not.toBe(draftKey('u2', 'supervisor', null));
   });
+  it('每個新增分頁各有自己的暫存槽，彼此 key 不同；舊版共用槽仍可辨識', () => {
+    expect(draftKey('u1', 'supervisor', null, 'a')).toBe('u1|supervisor|new:a');
+    expect(draftKey('u1', 'supervisor', null, 'a')).not.toBe(draftKey('u1', 'supervisor', null, 'b'));
+    expect(draftKey('u1', 'supervisor', null, '')).toBe('u1|supervisor|new');
+    // 編輯暫存以單號為準，不受 slot 影響
+    expect(draftKey('u1', 'supervisor', 'r1', 'a')).toBe('u1|supervisor|r1');
+    expect(draftUsable(mk({ key: draftKey('u1', 'supervisor', null, 'a'), slot: 'a' }), 'u1')).toBe(true);
+  });
   it('別的帳號看不到、過期的不能用', () => {
     const d = mk();
     expect(draftUsable(d, 'u1')).toBe(true);
@@ -55,6 +65,23 @@ describe('Q15 依帳號隔離', () => {
     expect(draftUsable(null, 'u1')).toBe(false);
     expect(draftUsable(mk({ savedAt: Date.now() - DRAFT_TTL_MS - 1000 }), 'u1')).toBe(false);
     expect(draftUsable(mk({ key: 'u2|supervisor|new' }), 'u1')).toBe(false);
+  });
+});
+
+describe('多個新增分頁互不影響／還原流程', () => {
+  it('儲存成功只清自己的暫存槽，不清其他新增分頁', () => {
+    const a = draftKeysToClear('u1', 'supervisor', 'a');
+    expect(a).toEqual(['u1|supervisor|new:a']);
+    expect(a).not.toContain(draftKey('u1', 'supervisor', null, 'b'));
+    expect(draftKeysToClear('u1', 'supervisor', 'a', 'r1', 'r1')).toEqual(['u1|supervisor|new:a', 'u1|supervisor|r1']);
+  });
+  it('不還原要再確認才刪；返回可再選；已結束的狀態不再變動', () => {
+    expect(restoreStep('ask', 'confirm-delete')).toBe('ask');
+    expect(restoreStep('ask', 'decline')).toBe('confirm-delete');
+    expect(restoreStep('confirm-delete', 'back')).toBe('ask');
+    expect(restoreStep('confirm-delete', 'confirm-delete')).toBe('deleted');
+    expect(restoreStep('ask', 'restore')).toBe('restored');
+    expect(restoreStep('deleted', 'restore')).toBe('deleted');
   });
 });
 

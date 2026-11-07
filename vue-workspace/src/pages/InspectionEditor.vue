@@ -11,12 +11,15 @@ import {
   DRAFT_TTL_DAYS,
   OFFLINE_RETRY_MESSAGE,
   draftKey,
+  draftKeysToClear,
   expiresAt,
+  restoreStep,
+  type RestoreStep,
   hasDraftContent,
   serverMovedOn,
   type OfflineDraft,
 } from "../../../lib/workspace/inspection-offline-policy";
-import { getDraft, offlineAvailable, purgeExpiredDrafts, putDraft, removeDraft } from "../inspection-offline";
+import { getDraft, claimedSlots, listNewDrafts, offlineAvailable, purgeExpiredDrafts, putDraft, removeDraft, removeDraftByKey } from "../inspection-offline";
 import GpsGuideDialog from "../components/GpsGuideDialog.vue";
 import {
   GPS_HIGH_ACCURACY_FALLBACK_MS,
@@ -60,12 +63,34 @@ const staffConfirm = ref<null | { store: string; previous: string; roster: DutyS
 let autoRoster: DutyStaff[] = [],
   suppressStore = false;
 // M4 Q14–Q16：離線暫存。
+// 同店同日同類型已有巡店：提供「開啟既有紀錄」按鈕（草稿開編輯頁，已完成開明細）。
+const existing = ref<null | { id: string; status: string; type: string }>(null);
+function openExisting() {
+  const e = existing.value;
+  if (!e) return;
+  if (e.status === "draft" || e.status === "in_progress") {
+    const tab = work.open("inspection-editor", form.value.store, e.id);
+    tab.payload = { type: e.type };
+  } else work.open("inspection-detail", form.value.store, e.id);
+}
 const restorePrompt = ref<OfflineDraft | null>(null),
   restoreDeleteConfirm = ref(false),
+  restoreFlow = ref<RestoreStep>("ask"),
   offlineNotice = ref(""),
   draftSavedAt = ref(0);
 let autosaveReady = false,
   draftTimer = 0;
+// 每個「新增」分頁各有自己的暫存槽，避免同帳號多個新增分頁互相覆寫或誤刪（slot 以空字串代表舊版共用槽）。
+let slot = props.tab.recordId ? "" : crypto.randomUUID();
+const claimed = claimedSlots;
+const claimKey = () => userId.value + "|" + form.value.type + "|" + slot;
+let claimedAs = "";
+function claimSlot() {
+  if (props.tab.recordId) return;
+  if (claimedAs) claimed.delete(claimedAs);
+  claimedAs = claimKey();
+  claimed.add(claimedAs);
+}
 // 定位狀態（僅新增模式使用）：新增巡店必須先定位成功，表單才會解鎖。
 const gpsStatus = ref<"idle" | "loading" | "success" | "error">("idle"),
   gpsError = ref(""),
@@ -252,10 +277,11 @@ let offered = false;
 // ---- M4 Q14–Q16：離線暫存 ----
 function draftPayload(): OfflineDraft {
   return {
-    key: draftKey(userId.value, form.value.type, props.tab.recordId),
+    key: draftKey(userId.value, form.value.type, props.tab.recordId, slot),
     userId: userId.value,
     type: form.value.type,
     recordId: props.tab.recordId || null,
+    slot: props.tab.recordId ? undefined : slot,
     savedAt: Date.now(),
     serverVersion: version.value,
     templateHash: templateHash.value,
@@ -282,14 +308,18 @@ function scheduleDraft() {
   window.clearTimeout(draftTimer);
   draftTimer = window.setTimeout(() => void flushDraft(), 700);
 }
+function stepRestore(action: "decline" | "back" | "restore" | "confirm-delete") {
+  restoreFlow.value = restoreStep(restoreFlow.value, action);
+  restoreDeleteConfirm.value = restoreFlow.value === "confirm-delete";
+  return restoreFlow.value;
+}
 async function clearDrafts(previousRecordId?: string | null) {
   window.clearTimeout(draftTimer);
   autosaveReady = false;
   if (!userId.value) return;
   const t = form.value.type;
-  await removeDraft(userId.value, t, null);
-  if (previousRecordId) await removeDraft(userId.value, t, previousRecordId);
-  if (props.tab.recordId) await removeDraft(userId.value, t, props.tab.recordId);
+  for (const key of draftKeysToClear(userId.value, t, slot, previousRecordId, props.tab.recordId))
+    await removeDraftByKey(key);
   draftSavedAt.value = 0;
 }
 async function offerRestore() {
@@ -299,8 +329,19 @@ async function offerRestore() {
     return;
   }
   await purgeExpiredDrafts();
-  const draft = await getDraft(userId.value, form.value.type, props.tab.recordId);
-  if (draft) restorePrompt.value = draft;
+  claimSlot();
+  let draft: OfflineDraft | null;
+  if (props.tab.recordId)
+    draft = await getDraft(userId.value, form.value.type, props.tab.recordId);
+  else
+    // 其他新增分頁正在使用的暫存不提供還原，也不會被這個分頁刪除。
+    draft = (await listNewDrafts(userId.value, form.value.type)).find(
+      (d) => !claimed.has(userId.value + "|" + d.type + "|" + (d.slot || "")),
+    ) || null;
+  if (draft) {
+    restoreFlow.value = "ask";
+    restorePrompt.value = draft;
+  }
   else autosaveReady = true;
 }
 const restoreInfo = computed(() => {
@@ -314,7 +355,7 @@ const restoreInfo = computed(() => {
 });
 function applyRestore() {
   const d = restorePrompt.value;
-  if (!d) return;
+  if (!d || stepRestore("restore") !== "restored") return;
   const saved = d.form;
   const merged = carryOverScores(d.templates, saved.scores || [], templates.value);
   suppressStore = true;
@@ -332,13 +373,20 @@ function applyRestore() {
   noticesAck.value = false;
   restorePrompt.value = null;
   restoreDeleteConfirm.value = false;
+  if (!props.tab.recordId) {
+    slot = d.slot || "";
+    claimSlot();
+  }
   autosaveReady = true;
   message.value = "已還原本機暫存的內容（含照片與簽名）。";
   void flushDraft();
 }
 async function deleteRestore() {
+  const target = restorePrompt.value;
+  // 必須先走過「不還原」再確認，才會真的刪除。
+  if (!target || stepRestore("confirm-delete") !== "deleted") return;
   if (userId.value)
-    await removeDraft(userId.value, form.value.type, props.tab.recordId);
+    await removeDraft(userId.value, form.value.type, target.recordId, target.slot);
   restorePrompt.value = null;
   restoreDeleteConfirm.value = false;
   autosaveReady = true;
@@ -540,6 +588,7 @@ async function save(status = "draft") {
     return false;
   }
   error.value = "";
+  existing.value = null;
   if (disabled.value) return false;
   if (!form.value.store || form.value.temperature === "") {
     error.value = "請選擇門市並輸入室內溫度";
@@ -609,6 +658,8 @@ async function save(status = "draft") {
     return true;
   } catch (e) {
     error.value = (e as Error).message;
+    if (e instanceof ApiError && e.status === 409 && e.data?.existing?.id)
+      existing.value = e.data.existing;
     if (e instanceof ApiError && e.status === 0) {
       // M4：網路中斷採手動重送，不自動補送（正式送出會產生待改善與獎金計算）。
       submitConfirm.value = false;
@@ -654,6 +705,7 @@ onBeforeUnmount(() => {
   gpsAttempt++;
   window.clearTimeout(gpsTimer);
   void flushDraft();
+  if (claimedAs) claimed.delete(claimedAs);
   document.removeEventListener("visibilitychange", onHide);
   delete props.tab.save;
 });
@@ -685,6 +737,7 @@ onMounted(() => {
   </p>
   <p v-if="loading" role="status">載入巡店表單…</p>
   <p v-if="error" class="notice error" role="alert">{{ error }}</p>
+  <button v-if="existing" type="button" class="primary" data-testid="open-existing-inline" @click="openExisting">開啟既有紀錄</button>
   <button v-if="!loading && !ready" @click="load">重新載入表單</button>
   <p v-if="message" class="notice" role="status">{{ message }}</p>
   <p v-if="offlineNotice" class="notice error" role="status">{{ offlineNotice }}</p>
@@ -1003,7 +1056,7 @@ onMounted(() => {
       注意：伺服器上的這張草稿在暫存之後已被其他裝置更新過，還原後再儲存會以你的暫存內容為準。
     </p>
     <div class="dialog-actions">
-      <button type="button" data-testid="restore-no" @click="restoreDeleteConfirm = true">
+      <button type="button" data-testid="restore-no" @click="stepRestore('decline')">
         不還原</button
       ><button type="button" class="primary" data-testid="restore-yes" @click="applyRestore">
         還原暫存
@@ -1014,7 +1067,7 @@ onMounted(() => {
       刪除後無法復原，暫存的照片、簽名與填寫內容都會消失。確定不要還原嗎？
     </p>
     <div class="dialog-actions">
-      <button type="button" data-testid="restore-back" @click="restoreDeleteConfirm = false">
+      <button type="button" data-testid="restore-back" @click="stepRestore('back')">
         返回，我要還原</button
       ><button type="button" class="primary" data-testid="restore-delete" @click="deleteRestore">
         確定刪除
@@ -1049,6 +1102,7 @@ onMounted(() => {
     <p>表單內容仍保留，請修正或稍後重試。</p>
     <div class="dialog-actions">
       <button @click="failed = false">返回編輯</button>
+      <button v-if="existing" type="button" class="primary" data-testid="open-existing" @click="failed = false; openExisting()">開啟既有紀錄</button>
     </div></Modal
   >
 </template>

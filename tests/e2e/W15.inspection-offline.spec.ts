@@ -71,7 +71,8 @@ test('Q14：新增巡店暫存含照片與簽名；重新整理後還原；儲�
     await fillNew(page, testInfo, 'w15-restore');
     await expect.poll(() => draftCount(page, uid), { timeout: 15_000 }).toBe(1);
     const saved = (await idbAll(page))[0];
-    expect(saved.key).toBe(newKey(uid));
+    // 每個新增分頁各有自己的暫存槽：key 為「帳號|類型|new:槽」
+    expect(saved.key.startsWith(newKey(uid) + ':')).toBe(true);
     expect(Number(saved.form.temperature)).toBe(27.5);
     expect(saved.form.signature).toMatch(/^data:image\/png/);
     expect(saved.form.supervisorSignature).toMatch(/^data:image\/png/);
@@ -167,7 +168,7 @@ test('Q15：依帳號隔離——換帳號看不到他人暫存，換回來仍�
     await ed(page).getByLabel(/室內溫度/).fill('21');
     await expect.poll(() => draftCount(page, supId), { timeout: 15_000 }).toBe(1);
     const all = await idbAll(page);
-    expect(all.map((d) => d.key).sort()).toEqual([newKey(adminId), newKey(supId)].sort());
+    expect(all.map((d) => d.userId).sort()).toEqual([adminId, supId].sort());
     expect(Number(all.find((d) => d.userId === adminId).form.temperature)).toBe(27.5);
     // 換回管理員：仍可還原自己的
     await switchAccount(ctx as BrowserContext, 'admin');
@@ -347,6 +348,77 @@ test('編輯頁：伺服器上已是完成的單，本機舊暫存自動清除',
     await expect.poll(async () => (await idbAll(page)).some((d) => d.recordId === rec.id), { timeout: 30_000 }).toBe(false);
     await expect(ed(page).getByText('已完成或已結案的巡店不能編輯')).toBeVisible();
   } finally {
+    await purge();
+    await admin.dispose();
+    await ctx.close();
+  }
+});
+
+const openEditorTab = (page: Page, store: string) =>
+  page.evaluate((s) => {
+    const app = (document.querySelector('#app') as any)?.__vue_app__;
+    app.config.globalProperties.$pinia._s.get('workspace').open('inspection-editor', s);
+  }, store);
+
+test('審查補強：同帳號開兩個新增分頁，暫存各用各的槽；一個分頁儲存不會刪掉另一個分頁的暫存，也不會提示還原它', async ({ browser }, testInfo) => {
+  test.setTimeout(300_000);
+  const { ctx, page, errors } = await start(browser, testInfo);
+  const admin = await apiAs('admin');
+  try {
+    const uid = await sessionUserId(page);
+    await fillNew(page, testInfo, 'w15-tabA');
+    await expect.poll(() => draftCount(page, uid), { timeout: 15_000 }).toBe(1);
+    // 不重新整理，直接再開第二個新增分頁（門市乙）
+    await openEditorTab(page, await storeIdByCode(admin, storeCodeFor(testInfo, 1)));
+    await waitUnlocked(page);
+    await expect(page.getByRole('dialog', { name: '發現未完成的暫存內容' }), '另一個新增分頁正在使用的暫存不能被還原或刪除').toHaveCount(0);
+    await selectStore(page, storeCodeFor(testInfo, 1));
+    await ed(page).getByLabel(/室內溫度/).fill('21');
+    await ed(page).getByLabel('巡店備註').fill(marker('w15-tabB'));
+    await expect.poll(() => draftCount(page, uid), { timeout: 15_000 }).toBe(2);
+    const keys = (await idbAll(page)).map((d) => d.key);
+    expect(new Set(keys).size).toBe(2);
+    // 分頁乙儲存草稿成功 → 只清分頁乙自己的暫存
+    await ed(page).getByRole('button', { name: '儲存草稿' }).click();
+    await expect(ed(page).getByText('草稿已儲存')).toBeVisible({ timeout: 30_000 });
+    await expect.poll(() => draftCount(page, uid), { timeout: 15_000 }).toBe(1);
+    const left = (await idbAll(page))[0];
+    expect(left.form.notes).toBe(marker('w15-tabA'));
+    expect(errors, errors.join('\n')).toEqual([]);
+  } finally {
+    await registerCreated(testInfo, 'w15-tabB');
+    await purge();
+    await admin.dispose();
+    await ctx.close();
+  }
+});
+
+test('審查補強：同店同日同類型已有巡店，儲存被擋時出現「開啟既有紀錄」按鈕，點了開啟既有那一張', async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const { ctx, page, errors } = await start(browser, testInfo);
+  const admin = await apiAs('admin');
+  try {
+    const store = await storeIdByCode(admin, storeCodeFor(testInfo, 0));
+    const res = await admin.post('/api/workspace/inspection-form', { data: await buildBody(admin, store, 'w15-dup-existing') });
+    expect(res.status(), (await res.text()).slice(0, 200)).toBe(200);
+    const rec = (await res.json()).record;
+    await registerInspection(rec.id);
+    created.push(rec.id);
+    await openEditorTab(page, store);
+    await waitUnlocked(page);
+    await selectStore(page, storeCodeFor(testInfo, 0));
+    await ed(page).getByLabel(/室內溫度/).fill('23');
+    await ed(page).getByLabel('巡店備註').fill(marker('w15-dup-new'));
+    await ed(page).getByRole('button', { name: '儲存草稿' }).click();
+    await expect(ed(page).getByText('同一天已有同類巡店')).toBeVisible({ timeout: 30_000 });
+    const open = page.getByTestId('open-existing');
+    await expect(open).toBeVisible();
+    await open.click();
+    // 既有的是草稿 → 開啟它的編輯頁（備註是既有那一張的）
+    await expect(ed(page).getByLabel('巡店備註')).toHaveValue(marker('w15-dup-existing'), { timeout: 30_000 });
+    expect(errors, errors.join('\n')).toEqual([]);
+  } finally {
+    await registerCreated(testInfo, 'w15-dup-new');
     await purge();
     await admin.dispose();
     await ctx.close();
