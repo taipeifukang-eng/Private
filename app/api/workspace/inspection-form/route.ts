@@ -11,6 +11,7 @@ import {
   type Context,
 } from "@/lib/workspace/server";
 import { scoreInspection } from "@/lib/workspace/inspection-scoring";
+import { completedSignatureError } from "@/lib/workspace/inspection-signature";
 import {
   formatTaipeiDate,
   getGpsDbErrorMessage,
@@ -68,9 +69,9 @@ async function templatesFor(ctx: Context, id: string | null) {
     .order("section_order")
     .order("item_order")
     .order("id");
-  q = ids.length
-    ? q.or(`is_active.eq.true,id.in.(${ids.join(",")})`)
-    : q.eq("is_active", true);
+  // M4 Q10：編輯舊單只評「舊單當時就有的項目」（含之後被停用的），範本後來新增的項目不納入；
+  // 沒有任何既有明細（新增、或舊資料沒有明細）才用目前啟用的全部項目。
+  q = ids.length ? q.in("id", ids) : q.eq("is_active", true);
   const templates = checked(await q) || [];
   const grades =
     checked(
@@ -248,6 +249,11 @@ export async function POST(request: Request) {
       throw new WorkspaceError(409, "巡店範本已更新，請保留草稿並重新載入");
     if (!Array.isArray(body.scores))
       throw new WorkspaceError(400, "評分資料不正確");
+    // M4 Q12 / D09：草稿可不簽；正式送出必須有兩個非空白簽名。
+    if (body.status === "completed") {
+      const bad = completedSignatureError(body.signature, body.supervisorSignature);
+      if (bad) throw new WorkspaceError(400, bad);
+    }
     for (const score of body.scores) {
       if (
         typeof score.notes !== "string" ||

@@ -1,5 +1,6 @@
 export type InspectionTemplate = {
   id: string;
+  item_name?: string;
   max_score: number;
   checklist_items:
     { label: string; deduction: number; requires_quantity?: boolean }[] | null;
@@ -76,7 +77,9 @@ export function scoreInspection(
     }
     deduction = Math.round(deduction * 10) / 10;
     if (deduction > Number(t.max_score))
-      throw new Error("項目扣分超過該項滿分，請確認缺失數量");
+      throw new Error(
+        `${t.item_name ? "「" + t.item_name + "」" : "項目"}扣分 ${deduction} 超過該項滿分 ${Number(t.max_score)}，請確認缺失數量`,
+      );
     return {
       template_id: t.id,
       max_score: Number(t.max_score),
