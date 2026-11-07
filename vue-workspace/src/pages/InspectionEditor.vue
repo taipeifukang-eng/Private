@@ -74,6 +74,10 @@ const gpsStatus = ref<"idle" | "loading" | "success" | "error">("idle"),
   gpsGuideOpen = ref(false);
 let gpsAttempt = 0,
   gpsTimer = 0;
+// 錯誤視窗出現時，收起「確認提交」視窗，避免兩個視窗疊在一起。
+watch(failed, (v) => {
+  if (v) submitConfirm.value = false;
+});
 const isNew = computed(() => !props.tab.recordId);
 const today = () => formatTaipeiDate(new Date());
 const form = ref<any>({
