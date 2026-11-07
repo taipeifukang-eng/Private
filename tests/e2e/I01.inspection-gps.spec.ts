@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { apiAs, loginAs, TEST_ORIGIN } from '../support/auth';
 import { formatTaipeiDate } from '../../lib/inspection/gps-policy';
+import { sign } from '../support/w14-ui';
 import {
   GPS_BASE,
   applyProjectViewport,
@@ -350,6 +351,9 @@ test('送出前定位時間窗已過期：不送出，自動重新定位', async
     await expect(gpsPanel(page)).toHaveAttribute('data-gps-status', 'success');
     await storeSelect(page).selectOption({ label: await optionFor(page, storeCodeFor(testInfo)) });
     await ed(page).getByLabel(/室內溫度/).fill('26');
+    // M4 Q12：正式送出需要雙簽名，先完成簽名才會走到定位檢查。
+    await sign(page, 0);
+    await sign(page, 1);
     // 把頁面時鐘撥快 3 小時，模擬定位停留太久。
     await page.evaluate(() => {
       const real = Date.now.bind(Date);
@@ -384,6 +388,8 @@ test('伺服器擋下定位：表單重新鎖住、顯示原因並自動彈出�
     await expect(gpsPanel(page)).toHaveAttribute('data-gps-status', 'success');
     await storeSelect(page).selectOption({ label: await optionFor(page, storeCodeFor(testInfo)) });
     await ed(page).getByLabel(/室內溫度/).fill('26');
+    await sign(page, 0);
+    await sign(page, 1);
     await page.route('**/api/workspace/inspection-form', async (route) => {
       if (route.request().method() !== 'POST') return route.fallback();
       await route.fulfill({
