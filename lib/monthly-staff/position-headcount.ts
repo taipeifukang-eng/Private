@@ -503,3 +503,11 @@ export function buildHeadcountExportRows(result: MonthHeadcount): {
   const detailRows = [...result.storeEntries.map((e) => toRow(e, true)), ...result.excluded.map((e) => toRow(e, false))];
   return { summaryRows, detailRows };
 }
+
+/** 只在 payload 屬於目前所選月份時才回傳未定稿門市；切換月份讀取中（payload 還是上個月）回傳空陣列，避免橫幅顯示舊月份資料。 */
+export function unfinalizedStoresForMonth(
+  payload: { yearMonth: string; unfinalizedStores?: HeadcountStore[] } | null | undefined,
+  month: string,
+): HeadcountStore[] {
+  return payload && payload.yearMonth === month ? payload.unfinalizedStores ?? [] : [];
+}

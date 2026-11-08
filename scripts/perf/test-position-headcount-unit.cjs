@@ -371,6 +371,16 @@ for (const [name, p, ok] of ACCESS) {
   t(`權限：${name} → ${ok ? '可看' : '不可看'}`, () => assert.equal(A.canViewEmployeeManagement(p), ok));
 }
 
+t('未定稿橫幅：payload 月份與所選月份相同才顯示', () => {
+  const payload = { yearMonth: '2026-10', unfinalizedStores: STORES.slice(0, 3) };
+  assert.equal(H.unfinalizedStoresForMonth(payload, '2026-10').length, 3);
+});
+t('未定稿橫幅：切換月份讀取中（舊 payload）不顯示上月名單', () => {
+  const payload = { yearMonth: '2026-10', unfinalizedStores: STORES.slice(0, 3) };
+  assert.deepEqual(H.unfinalizedStoresForMonth(payload, '2026-09'), []);
+});
+t('未定稿橫幅：payload 為 null 回傳空', () => assert.deepEqual(H.unfinalizedStoresForMonth(null, '2026-09'), []));
+
 console.log(`通過 ${passed} 項`);
 if (failures.length) {
   console.error(`失敗 ${failures.length} 項：\n- ${failures.join('\n- ')}`);

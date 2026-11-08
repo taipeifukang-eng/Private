@@ -8,6 +8,7 @@ import {
   buildHeadcountExportRows,
   computeHeadcountTrend,
   computeMonthHeadcount,
+  unfinalizedStoresForMonth,
   type AreaHeadcount,
   type ColumnKey,
   type HeadcountEntry,
@@ -126,7 +127,7 @@ export default function PositionHeadcountPanel() {
     span: HEADCOUNT_COLUMNS.filter((c) => c.group === label).length,
   }));
 
-  const unfinalized = payload?.unfinalizedStores ?? [];
+  const unfinalized = unfinalizedStoresForMonth(payload, month);
   const otherPositions = (entries: HeadcountEntry[]) => {
     const m = new Map<string, number>();
     entries.forEach((e) => {
@@ -180,7 +181,7 @@ export default function PositionHeadcountPanel() {
 
       {error && <div className="bg-red-50 border border-red-200 text-red-800 rounded-lg p-4 text-sm">{error}</div>}
 
-      {payload && unfinalized.length > 0 && (
+      {unfinalized.length > 0 && (
         <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-lg p-4 text-sm">
           <p className="font-semibold">本月資料尚未定稿，數字可能變動</p>
           <p className="mt-1">
