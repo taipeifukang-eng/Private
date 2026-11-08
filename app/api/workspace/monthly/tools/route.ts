@@ -16,6 +16,7 @@ import { GET as campaignView } from '@/app/api/campaigns/[id]/view/route';
 import { GET as activityStores } from '@/app/api/stores-with-supervisors/route';
 import { GET as activityEvents } from '@/app/api/event-dates/route';
 import { canEnterCampaignView } from '@/lib/campaign-access';
+import { campaignVisibleInView } from '@/lib/workspace/campaign-rules';
 import { activityPlan } from '@/lib/workspace/activity-plan';
 import { POST as importPerformance } from '@/app/api/import-performance/route';
 import { POST as importStats } from '@/app/api/import-store-stats/route';
@@ -73,7 +74,14 @@ export async function GET(request: Request) {
       url.searchParams.set('year', month.slice(0,4)); url.searchParams.set('month', String(Number(month.slice(5))));
       return performanceData(new NextRequest(url));
     }
-    if (op === 'activity') { await requireCampaignView(ctx); return published(); }
+    if (op === 'activity') {
+      await requireCampaignView(ctx);
+      const response = await published();
+      if (!response.ok) return response;
+      // M5 Q2：停用的活動對活動檢視一律隱藏（含有「查看全部」權限者）。
+      const body = await response.json();
+      return respond({ ...body, data: (body.data || []).filter(campaignVisibleInView) });
+    }
     if (op === 'excel') {
       permit(ctx, 'monthly.export.download');
       const result = await exportMonthlyStatusForBonus(month,store,true);
@@ -85,6 +93,7 @@ export async function GET(request: Request) {
       const response = await campaignView(new NextRequest(url), { params: { id: p.get('id') || '' } });
       if (!response.ok) return response;
       const data = await response.json();
+      if (!campaignVisibleInView(data.campaign || {})) throw new WorkspaceError(404, '找不到此活動，或活動已停用');
       const ids = Array.from(new Set<string>((data.schedules || []).map((s: any)=>s.store_id)));
       const stores = ids.length ? checked(await ctx.auth.from('stores').select('id,store_code,store_name,short_name').in('id',ids)) || [] : [];
       const [plan, storeResult, eventResult] = await Promise.all([

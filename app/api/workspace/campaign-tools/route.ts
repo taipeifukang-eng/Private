@@ -18,6 +18,7 @@ import * as publish from '@/app/api/campaigns/publish/route';
 import * as employees from '@/app/api/monthly-staff-by-store/route';
 import * as search from '@/app/api/monthly-staff-by-store/search/route';
 import {authorizeCampaignStoreWrite,CAMPAIGN_PERM} from '@/lib/campaign-access';
+import {CAMPAIGN_INACTIVE_VISIBLE_CODES} from '@/lib/workspace/campaign-rules';
 export const dynamic='force-dynamic';
 const handlers:Record<string,any>={schedules,settings,events,stores,details,ownStaff,requests,supportStaff,headcount,checklist,completions,trips,departments,assets,publish,employees,search};
 const edits:Record<string,string[]>={schedules:['activity.campaign.edit','activity.manage'],settings:['activity.campaign.edit','activity.manage'],events:['activity.campaign.edit','activity.manage'],details:['activity.store_detail.edit'],ownStaff:['activity.support_assign.edit','activity.manage'],requests:['activity.support_request.edit'],supportStaff:['activity.support_assign.edit','activity.manage'],headcount:['activity.store_detail.edit'],'checklist-order':['activity.checklist.edit'],checklist:['activity.checklist.edit'],completions:['activity.checklist.edit','activity.store_detail.edit'],trips:['activity.equipment_trip.edit'],departments:['activity.marketing.publish','activity.merchandise.publish','activity.checklist.edit'],assets:['activity.marketing.publish','activity.checklist.edit'],publish:['activity.campaign.edit','activity.manage']};
@@ -26,6 +27,9 @@ async function handle(request:NextRequest){try{
  const ctx=await context();requireCapability(ctx,readCodes);
  const resource=request.nextUrl.searchParams.get('resource')||'';
  if(resource==='permissions'&&request.method==='GET')return respond({permissions:Object.fromEntries(Object.entries(edits).map(([k,v])=>[k,ctx.has(...v)])),marketing:ctx.has('activity.marketing.publish','activity.checklist.edit'),merchandise:ctx.has('activity.merchandise.publish','activity.checklist.edit')});
+ // M5 Q2：停用的活動對督導／店長等沒有編輯或發布權限的人一律隱藏（連直接帶活動編號讀取也一樣）。
+ const readCampaign=request.nextUrl.searchParams.get('campaign_id');
+ if(request.method==='GET'&&uuid(readCampaign)&&!ctx.has(...CAMPAIGN_INACTIVE_VISIBLE_CODES)){const row=checked(await ctx.admin.from('campaigns').select('is_active').eq('id',readCampaign).maybeSingle()) as any;if(row&&row.is_active===false)throw new WorkspaceError(404,'找不到此活動，或活動已停用');}
  const handler=handlers[resource]?.[request.method];if(!handler&&!(request.method==='PUT'&&['schedules','ownStaff','supportStaff','checklist-order'].includes(resource)))throw new WorkspaceError(404,'找不到活動操作');
  // 這五項寫入的權限與門市範圍由舊 API（lib/campaign-access.ts authorizeCampaignStoreWrite）判斷：
  // 持 edit 權者寫全部；店長只寫被任命門市、督導依活動檢視範圍。這裡不再另加「必須持 edit 權」的前置閘門，
