@@ -1,0 +1,63 @@
+{
+  "page": "calendar",
+  "legacyRoute": "/organization/calendar",
+  "workItem": "W23",
+  "entries": [
+    {
+      "id": "year-read",
+      "mechanism": "api-read",
+      "description": "讀取年度行事曆：同一個登入者，舊 GET /api/organization/calendar 與新 GET /api/workspace/calendar 的公司行事、個人行程（含分享給我的）、政府假日、假日來源必須完全相同。新版另外多回 currentUserId 與 permissions（畫面需要）。",
+      "legacy": { "api": { "path": "/api/organization/calendar", "query": { "year": "2099" } } },
+      "native": { "api": { "path": "/api/workspace/calendar", "query": { "year": "2099" } } }
+    },
+    {
+      "id": "permission-flags",
+      "mechanism": "ui-extract",
+      "description": "畫面按鈕旗標：舊頁用 hasPermission（應用層，管理員一律放行）判斷新增公司行事、修改取消、匯入假日、Google 管理四個旗標；新版前三個改用資料庫規則（沒有管理員繞過），Google 管理維持應用層。一般帳號完全相同；舊式管理員沒被授予時舊版會顯示按鈕但儲存失敗（資料庫擋下）。",
+      "legacy": { "source": "app/organization/calendar/page.tsx（四個 hasPermission）" },
+      "native": { "api": { "path": "/api/workspace/calendar", "query": { "year": "2099" }, "pick": "permissions" } }
+    },
+    {
+      "id": "company-write",
+      "mechanism": "write-readback",
+      "description": "公司行事新增、修改、取消：同一份輸入分別打舊 API 與新 API，回傳狀態與錯誤訊息相同，寫入資料庫的欄位與異動紀錄相同；沒有權限、欄位錯誤的回應也相同。",
+      "legacy": { "api": { "method": "POST", "path": "/api/organization/calendar/company-events" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/calendar/company-events" } }
+    },
+    {
+      "id": "personal-write",
+      "mechanism": "write-readback",
+      "description": "個人行程新增（含分享給同事）、修改、刪除：同一份輸入分別打舊 API 與新 API，寫入資料庫的欄位與分享紀錄相同。",
+      "legacy": { "api": { "method": "POST", "path": "/api/organization/calendar/personal-events" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/calendar/personal-events" } }
+    },
+    {
+      "id": "people-search",
+      "mechanism": "api-read",
+      "description": "Q18 分享對象搜尋：舊版搜得到所有人（含已停用、已離職）；新版排除已停用與離職，其餘（在職、自己不出現、最多 30 人）相同。",
+      "legacy": { "api": { "path": "/api/organization/calendar/people", "query": { "q": "<token>" } } },
+      "native": { "api": { "path": "/api/workspace/calendar/people", "query": { "q": "<token>" } } }
+    },
+    {
+      "id": "holiday-preview",
+      "mechanism": "api-read",
+      "description": "政府假日預覽：同一份官方日曆（mock），舊預覽與新預覽解析出的假日清單必須完全相同。新版另外回傳現行版本與差異（Q21）。",
+      "legacy": { "api": { "path": "/api/organization/calendar/holidays/preview" } },
+      "native": { "api": { "path": "/api/workspace/calendar/holidays/preview" } }
+    },
+    {
+      "id": "holiday-republish",
+      "mechanism": "write-readback",
+      "description": "Q21 同年度再次發布：舊版直接取代（沒有任何確認）；新版沒帶確認回 409 與差異，帶確認後取代。取代後的資料庫結果（舊版本已取代、新版本發布、假日內容）必須相同。",
+      "legacy": { "api": { "method": "POST", "path": "/api/organization/calendar/holidays" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/calendar/holidays" } }
+    },
+    {
+      "id": "legacy-url",
+      "mechanism": "navigation",
+      "description": "舊網址 /organization/calendar：舊版直接顯示舊頁；新版 307 轉到新版年度行事曆。Google 授權回調網址 /api/organization/calendar/google/callback 不變，回導路徑仍是 /organization/calendar（再由舊網址轉新版）。導覽入口：舊版對所有登入者顯示，新版同樣。",
+      "legacy": { "source": "app/organization/calendar/page.tsx、components/Navbar.tsx、hooks/useNavbarPermissions.ts（canViewAnnualCalendar: true）" },
+      "native": { "source": "middleware.ts + lib/workspace/calendar-rules.ts calendarLegacyTarget；lib/workspace/navigation.ts" }
+    }
+  ]
+}

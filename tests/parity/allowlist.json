@@ -2423,5 +2423,120 @@
       "entry": "callback-guard",
       "kind": "changed"
     }
+  },
+  {
+    "id": "m5-w23-year-read-extras",
+    "page": "calendar",
+    "description": "新版讀取年度行事曆多回 currentUserId 與 permissions 兩個欄位（畫面判斷自己的行事與按鈕要用）；舊版由頁面伺服器端另外計算後傳給畫面。",
+    "reason": "新版 API 把舊頁面的伺服器端參數一併回傳，資料內容本身沒有差異。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "year-read",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m5-w23-admin-buttons",
+    "page": "calendar",
+    "description": "舊式身分是管理員、但角色沒有被授予行事曆權限的帳號：舊版畫面顯示新增、修改、取消、匯入假日按鈕，按下儲存時資料庫規則擋下（儲存失敗）；新版這三個按鈕依資料庫規則不顯示。",
+    "reason": "m5-spec 不需決策項目（年度行事曆權限維持舊版三個獨立權限，以資料庫規則為準；管理員若沒被授予就不能編，上線前列出正式區誰有權限、缺的直接授予角色，不改程式）。新版不顯示按下去必定失敗的按鈕。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "permission-flags",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w23-q18-people",
+    "page": "calendar",
+    "description": "分享個人行程搜尋同事：舊版搜得到已停用帳號與已離職人員；新版搜尋結果排除這兩類，其餘照舊（至少 2 個字、姓名或員編、最多 30 人、轉分享保留）。",
+    "reason": "M5 Q18：使用者選「搜尋排除已停用／離職人員，其餘照舊」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q18)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "people-search",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w23-q21-preview-diff",
+    "page": "calendar",
+    "description": "政府假日預覽：新版另外回傳現行已發布版本（existing）與差異（diff），畫面據此顯示「新增／移除／改名幾筆」；舊版預覽沒有這兩項。",
+    "reason": "M5 Q21：使用者選「發布前顯示與現有版本的差異並二次確認」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q21)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "holiday-preview",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m5-w23-q21-confirm",
+    "page": "calendar",
+    "description": "同一年度再次發布政府假日：舊版直接取代、全公司立即看到新日期；新版沒帶確認時回 409 並附差異，確認後才取代。",
+    "reason": "M5 Q21：使用者選「發布前顯示與現有版本的差異並二次確認」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q21)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "holiday-republish",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w23-legacy-url-redirect",
+    "page": "calendar",
+    "description": "舊網址 /organization/calendar 在 DEV 工作台環境改為 307 轉到新版年度行事曆（Google 授權回調網址不變，回導路徑仍是 /organization/calendar，再轉新版）。",
+    "reason": "m5-spec 不需決策項目（Google 授權回調網址不變，成功後由舊站頁面轉到新版年度行事曆，不需動 Google 後台設定）；D14 同樣的轉址機制。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "navigation",
+      "entry": "legacy-url",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w23-personal-create-rls-fix",
+    "page": "calendar",
+    "description": "個人行程「新增」：DEV 依舊 migration 建立的讀取規則會讓新增後的回讀失敗（new row violates row-level security policy），新增個人行程根本存不進去；配套的 DEV SQL（20261109110200）讓建立者本人一律可讀，其餘分享規則不變。正式區是否同樣有此問題尚未查證，已準備唯讀探測 SQL。",
+    "reason": "不在問卷範圍內的發現：這是修正舊規則的缺陷，不是使用者決定的差異，待使用者核可（正式區要不要套同一個修正）。",
+    "approvedBy": null
+  },
+  {
+    "id": "m5-w24-q19-description-note",
+    "page": "google-sync",
+    "description": "寫到 Google 的事件描述：新版在舊版描述之後多一段「請勿在此修改，請回系統」（公司行事與政府假日都有）；其餘欄位完全相同。",
+    "reason": "M5 Q19：使用者選「照舊真的刪除，並在 Google 事件描述加註『請勿在此修改，請回系統』」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q19)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "event-description",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w24-q20-pending-count",
+    "page": "google-sync",
+    "description": "Google 同步狀態的待同步筆數：舊版只算「連結紀錄上有錯誤」的筆數，授權失效時顯示 0 筆而且頁面沒有常駐提示；新版算「應該在 Google 上卻缺連結或有錯誤」的筆數。",
+    "reason": "M5 Q20：使用者選「照舊流程，但行事曆頁頂端常駐警示『有 N 筆待同步／授權已失效』給管理者」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q20)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "status-pending",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w24-q20-banner-field",
+    "page": "google-sync",
+    "description": "Google 同步狀態 API 新版多回 banner（頁頂警示內容）與 legacyPendingCount（舊算法筆數，對照用）兩個欄位；警示只給有 Google 管理權限的人。",
+    "reason": "M5 Q20：頁頂警示需要的資料。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q20)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "status-pending",
+      "kind": "only-native"
+    }
   }
 ]
