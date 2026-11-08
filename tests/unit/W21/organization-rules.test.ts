@@ -28,7 +28,7 @@ function legacyDepartmentGateCodes(): string[] {
     if (!Array.isArray(value)) throw new Error(`舊頁引用的 ${name} 不是權限清單`);
     value.forEach((c: string) => codes.add(c));
   }
-  return [...codes].sort();
+  return Array.from(codes).sort();
 }
 
 describe('Q9 部門管理進入條件照舊版頁面', () => {
@@ -45,7 +45,7 @@ describe('Q9 部門管理進入條件照舊版頁面', () => {
     ]);
   });
 
-  const universe = [...new Set([...org.ORGANIZATION_NAV_PERMISSION_CODES, ...DEPARTMENT_PAGE_PERMISSION_CODES])];
+  const universe = Array.from(new Set([...org.ORGANIZATION_NAV_PERMISSION_CODES, ...DEPARTMENT_PAGE_PERMISSION_CODES]));
   const subsets: string[][] = [];
   for (let mask = 0; mask < 1 << universe.length; mask += 1) subsets.push(universe.filter((_, i) => mask & (1 << i)));
   const ctxOf = (codes: string[]) => ({ has: (...c: string[]) => c.some((x) => codes.includes(x)), roleCodes: new Set<string>() }) as any;
