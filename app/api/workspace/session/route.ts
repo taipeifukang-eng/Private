@@ -3,6 +3,7 @@ import {transferAccess} from "@/lib/workspace/transfers";
 import {canReadMovementHistory} from "@/lib/workspace/employee-movements";
 import { canReadStorePersonnel } from "@/lib/workspace/store-personnel";
 import { ORGANIZATION_NAV_PERMISSION_CODES } from "@/lib/admin/organization-management";
+import { DEPARTMENT_PAGE_PERMISSION_CODES } from "@/lib/workspace/organization-rules";
 import { taskManagementScope } from "@/lib/workspace/task-management";
 import { archiveScope } from "@/lib/workspace/task-archive";
 import { improvementAccess } from "@/lib/workspace/improvements";
@@ -76,7 +77,7 @@ export async function GET() {
         employeeCreate,
         employeeBirthdays,
         employeeImport:ctx.has("employee.import"),
-        departments: ctx.has(...ORGANIZATION_NAV_PERMISSION_CODES,"organization.department_workspace.manage"),
+        departments: ctx.has(...DEPARTMENT_PAGE_PERMISSION_CODES), // M5 Q9：照舊版部門管理頁的進入條件
         organization: ctx.has(...ORGANIZATION_NAV_PERMISSION_CODES),
         storeMap: ctx.has("store.store.view","store.store.view_inactive","store.manage"),
         storeManagement: ctx.has("store.store.view", "store.store.view_inactive", "store.store.create", "store.store.edit", "store.store.clone", "store.manage"),

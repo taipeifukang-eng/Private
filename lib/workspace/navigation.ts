@@ -1,4 +1,5 @@
 import { ORGANIZATION_NAV_PERMISSION_CODES } from "@/lib/admin/organization-management";
+import { DEPARTMENT_PAGE_PERMISSION_CODES } from "./organization-rules";
 import {
   USER_MANAGEMENT_NAV_PERMISSION_CODES,
   ROLE_MANAGEMENT_NAV_PERMISSION_CODES,
@@ -64,7 +65,7 @@ export function workspaceNavigation(
           ORGANIZATION_NAV_PERMISSION_CODES,
           "organization",
         ),
-        item("部門管理", "/admin/departments", [...ORGANIZATION_NAV_PERMISSION_CODES, "organization.department_workspace.manage"], "departments"),
+        item("部門管理", "/admin/departments", DEPARTMENT_PAGE_PERMISSION_CODES, "departments"), // M5 Q9：照舊版頁面條件
         item("店長指派", "/admin/store-managers", ["store.manager.assign", "store.manage"], "store-managers"),
         item("經理/督導管理", "/admin/supervisors", [
           "store.supervisor.assign", "store.manager.assign", "store.manage",

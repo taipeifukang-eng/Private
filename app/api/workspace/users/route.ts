@@ -16,6 +16,7 @@ import {
 } from "@/lib/admin/user-rbac-view";
 import { deleteUser } from "@/app/auth/actions";
 import { hasPermission } from "@/lib/permissions/check";
+import { isBanActive, isPendingActivation } from "@/lib/workspace/user-management-rules";
 export const dynamic = "force-dynamic";
 async function access() {
   const ctx = await context();
@@ -73,8 +74,7 @@ export async function GET(request: NextRequest) {
           created_at: u.created_at,
           ...profile,
           has_auth: true,
-          is_disabled:
-            !!u.banned_until && Date.parse(u.banned_until) > Date.now(),
+          is_disabled: isBanActive(u.banned_until),
         });
       }
       if (data.users.length < 1000) break;
@@ -96,13 +96,15 @@ export async function GET(request: NextRequest) {
         ),
         is_dev_test_account: isDevTestAccount(u.email),
       };
-    });
+    }).map((u) => ({ ...u, is_pending_activation: isPendingActivation(u) }));
     const codes = ["create", "edit", "delete", "change_role"];
     const flags = await Promise.all(
       codes.map((c) => hasPermission(ctx.user.id, "user.user." + c)),
     );
     return respond({
       users,
+      // M5 Q15：待開通 = 沒有任何生效角色的有效帳號（站內通知，不另寄信）
+      pendingCount: users.filter((u) => u.is_pending_activation).length,
       currentUser: ctx.user.id,
       capabilities: {
         ...Object.fromEntries(codes.map((c, i) => [c, flags[i]])),
@@ -170,6 +172,12 @@ export async function POST(request: NextRequest) {
     checkOrigin(request);
     const ctx = await access(),
       body = await request.json();
+    // M5 Q12：新增使用者改回連到公開註冊頁，由本人自己註冊；管理員直接建立帳號的功能已移除。
+    if (body.action === "create")
+      throw new WorkspaceError(
+        400,
+        "新增使用者請由本人使用公開註冊頁自行註冊，管理員無法代為建立帳號",
+      );
     if (
       typeof body.password !== "string" ||
       body.password.length < 6 ||
@@ -195,44 +203,7 @@ export async function POST(request: NextRequest) {
         message: "密碼已重置，請妥善保存新密碼",
       });
     }
-    if (body.action !== "create") throw new WorkspaceError(400, "未知操作");
-    await permission(ctx.user.id, "user.user.create");
-    const email = String(body.email || "").trim(),
-      full_name = String(body.full_name || "").trim();
-    if (
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-      email.length > 254 ||
-      !full_name ||
-      full_name.length > 200
-    )
-      throw new WorkspaceError(400, "請輸入有效的電子郵件與姓名");
-    const { data, error } = await ctx.admin.auth.admin.createUser({
-      email,
-      password: body.password,
-      email_confirm: true,
-      user_metadata: { full_name },
-    });
-    if (error) throw new WorkspaceError(400, error.message);
-    const { error: profileError } = await ctx.admin
-      .from("profiles")
-      .upsert(
-        { id: data.user.id, email, full_name, role: "member" },
-        { onConflict: "id" },
-      );
-    if (profileError) {
-      const cleanup = await ctx.admin.auth.admin.deleteUser(data.user.id);
-      if (cleanup.error)
-        throw new WorkspaceError(
-          500,
-          "帳號已建立但基本資料未完成，請重新查詢帳號清單後處理，勿重複建立",
-        );
-      throw new WorkspaceError(400, "建立基本資料失敗，帳號已回復，請重試");
-    }
-    return respond({
-      success: true,
-      message: "使用者已建立，預設為成員；可接續編輯資料及角色",
-      id: data.user.id,
-    });
+    throw new WorkspaceError(400, "未知操作");
   } catch (e) {
     return failed(e);
   }

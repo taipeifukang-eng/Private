@@ -1,9 +1,10 @@
 import { checked, checkOrigin, context, failed, requireCapability, respond, uuid, WorkspaceError } from '@/lib/workspace/server';
-import { ORGANIZATION_NAV_PERMISSION_CODES, ORGANIZATION_DEPARTMENT_WORKSPACE_MANAGE_PERMISSION_CODES } from '@/lib/admin/organization-management';
+import { ORGANIZATION_DEPARTMENT_WORKSPACE_MANAGE_PERMISSION_CODES } from '@/lib/admin/organization-management';
+import { DEPARTMENT_PAGE_PERMISSION_CODES } from '@/lib/workspace/organization-rules';
 export const dynamic='force-dynamic';
 const manage=[...ORGANIZATION_DEPARTMENT_WORKSPACE_MANAGE_PERMISSION_CODES];
 export async function GET(request:Request){try{
- const ctx=await context();requireCapability(ctx,[...ORGANIZATION_NAV_PERMISSION_CODES,...manage]);
+ const ctx=await context();requireCapability(ctx,[...DEPARTMENT_PAGE_PERMISSION_CODES]); // M5 Q9：照舊版部門管理頁的進入條件（只有組織檢視或成員／主管檢視權限進不來）
  const query=new URL(request.url).searchParams;
  if(query.get('people')==='true'){
   requireCapability(ctx,manage);const people:any[]=[];
