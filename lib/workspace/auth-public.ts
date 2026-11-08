@@ -63,10 +63,19 @@ export function validateRegister(input: Partial<RegisterInput>): string | null {
  * 提示文字沿用舊版各頁的原句（註冊「密碼不一致」「密碼至少需要 6 個字元」；重設「兩次輸入的密碼不一致」「密碼長度至少需要 6 個字元」）。
  */
 export function validateNewPassword(password: unknown, confirm?: unknown, kind: "register" | "reset" = "reset"): string | null {
-  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH)
-    return kind === "register" ? `密碼至少需要 ${MIN_PASSWORD_LENGTH} 個字元` : `密碼長度至少需要 ${MIN_PASSWORD_LENGTH} 個字元`;
-  if (password.length > MAX_PASSWORD_LENGTH) return `密碼最多 ${MAX_PASSWORD_LENGTH} 個字元`;
-  if (confirm !== undefined && password !== confirm) return kind === "register" ? "密碼不一致" : "兩次輸入的密碼不一致";
+  const tooShort = typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH;
+  const mismatch = confirm !== undefined && password !== confirm;
+  const shortText = kind === "register" ? `密碼至少需要 ${MIN_PASSWORD_LENGTH} 個字元` : `密碼長度至少需要 ${MIN_PASSWORD_LENGTH} 個字元`;
+  const mismatchText = kind === "register" ? "密碼不一致" : "兩次輸入的密碼不一致";
+  // 檢查順序照舊版：註冊頁先比對兩次是否一致、再看長度；重設頁先看長度、再比對。
+  if (kind === "register") {
+    if (mismatch) return mismatchText;
+    if (tooShort) return shortText;
+  } else {
+    if (tooShort) return shortText;
+    if (mismatch) return mismatchText;
+  }
+  if ((password as string).length > MAX_PASSWORD_LENGTH) return `密碼最多 ${MAX_PASSWORD_LENGTH} 個字元`;
   return null;
 }
 

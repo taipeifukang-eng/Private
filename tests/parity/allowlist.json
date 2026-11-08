@@ -2289,5 +2289,139 @@
       "entry": "ban-state",
       "kind": "changed"
     }
+  },
+  {
+    "id": "m5-w22-login-redirect-stricter",
+    "page": "public-auth",
+    "description": "登入後回原頁：舊版只擋非 / 開頭與 // 開頭；新版另擋 /\\host、控制字元、編碼後的 //、回到登入／註冊等公開頁的迴圈，這些輸入新版改去首頁。",
+    "reason": "m5-spec 不需決策項目（登入後回原頁只允許站內路徑）。新版放行的路徑舊版一定也放行，只有更嚴格。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "login-redirect-rule",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w22-login-error-chinese",
+    "page": "public-auth",
+    "description": "登入失敗訊息：舊版顯示 Supabase 英文原文（Invalid login credentials）；新版回中文白話，帳號不存在與密碼錯誤同一句。",
+    "reason": "m5-spec 不需決策項目（錯誤訊息中文化、不透露帳號是否存在）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "login-error-text",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w22-forgot-neutral-text",
+    "page": "public-auth",
+    "description": "忘記密碼：舊版成功一律說「郵件已發送」、失敗顯示英文原文；新版已註冊與未註冊回應完全相同，提示「若此信箱已註冊會收到重設信」。",
+    "reason": "m5-spec 不需決策項目（忘記密碼一律顯示同一句話，錯誤改中文白話，不透露帳號是否存在）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "forgot-password-text",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w22-site-url-missing-error",
+    "page": "public-auth",
+    "description": "重設信連結網站網址：舊版缺 NEXT_PUBLIC_SITE_URL 時退回 localhost:3000；新版直接報錯，不寄出打不開的連結。",
+    "reason": "m5-spec 不需決策項目（移除缺設定時寄出無法開啟連結的退路，改為直接報錯）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "forgot-site-url",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w22-public-urls-redirect",
+    "page": "public-auth",
+    "description": "D14：/login、/register、/forgot-password、/reset-password 原網址保留，舊版直接顯示頁面，新版 307 轉到 Vue 公開頁（僅 DEV 工作台環境啟用）。",
+    "reason": "D14 公開頁保留原網址再轉到新版；m5-spec 不需決策項目（逐頁登記後才啟用）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "navigation",
+      "entry": "public-url-redirects",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w22-login-store-count-removed",
+    "page": "public-auth",
+    "description": "登入頁門市數量動態訊息（正在同步 N 間門市的營運脈動）新版不放。",
+    "reason": "m5-spec 不需決策項目（新版登入頁不放門市數量，並把「測試環境」文字改成正式文字）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "login-page-features",
+      "kind": "only-legacy",
+      "key": "store-count-line"
+    }
+  },
+  {
+    "id": "m5-w22-login-back-home-removed",
+    "page": "public-auth",
+    "description": "登入頁「返回首頁」連結新版不放：新版登入頁本身就是工作台入口，沒有另一個首頁可返回。",
+    "reason": "m5-spec 不需決策項目（新版登入頁補忘記密碼與回原頁，其餘維持精簡）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "login-page-features",
+      "kind": "only-legacy",
+      "key": "back-home-link"
+    }
+  },
+  {
+    "id": "m5-w22-q15-pending-page",
+    "page": "public-auth",
+    "description": "沒有任何角色的帳號登入後：舊版沒有任何說明（空白、同仁以為壞了）；新版顯示「帳號待管理員開通」說明頁，管理員在使用者管理看到待開通標籤。",
+    "reason": "M5 Q15：使用者選「保留公開註冊，登入後顯示帳號待管理員開通」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q15)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "pending-activation-page",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m5-w22-register-success-text",
+    "page": "public-auth",
+    "description": "註冊成功提示：舊版 alert「註冊成功！請登入。」；新版頁面內提示並說明需管理員開通角色。",
+    "reason": "M5 Q15 與 m5-spec 註冊頁（欄位與驗證照舊、錯誤訊息中文化）；提示文字配合待開通流程調整。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "register-success-text",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w22-reset-clears-session",
+    "page": "public-auth",
+    "description": "重設成功之後：舊版保留重設用的登入狀態；新版先登出，請用新密碼重新登入。",
+    "reason": "m5-spec 不需決策項目（重設密碼頁依 D14 移到新版）；重設用的登入狀態不應保留成正式登入。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "reset-session-after-success",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w22-callback-guard",
+    "page": "public-auth",
+    "description": "/auth/callback：舊版 next 可導去外部網站、失敗時網址帶英文原文；新版 next 只允許站內路徑、失敗只帶固定中文。",
+    "reason": "m5-spec 不需決策項目（登入後回原頁只允許站內路徑、錯誤中文化；重設信連結維持現有路徑）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "callback-guard",
+      "kind": "changed"
+    }
   }
 ]

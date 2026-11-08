@@ -1,0 +1,98 @@
+{
+  "page": "public-auth",
+  "legacyRoute": "/login、/register、/forgot-password、/reset-password、/auth/callback",
+  "workItem": "W22",
+  "entries": [
+    {
+      "id": "login-redirect-rule",
+      "mechanism": "ui-extract",
+      "description": "登入後回原頁：舊版只擋「不是 / 開頭」與「// 開頭」；新版另擋 /\\host、控制字元、編碼後的 // 與回到登入／註冊等公開頁的迴圈。同一批輸入逐一比對，新版放行的舊版一定也放行。",
+      "legacy": { "source": "app/login/page.tsx（redirect 判斷）" },
+      "native": { "source": "lib/workspace/auth-public.ts safeRedirectPath" }
+    },
+    {
+      "id": "register-validation",
+      "mechanism": "ui-extract",
+      "description": "Q16 註冊密碼規則：舊版 app/register/page.tsx 的驗證（兩次不一致、少於 6 字元，含檢查順序與提示文字）與新版 validateRegister 對同一批輸入的結果必須相同。",
+      "legacy": { "source": "app/register/page.tsx handleSubmit" },
+      "native": { "source": "lib/workspace/auth-public.ts validateRegister" }
+    },
+    {
+      "id": "reset-validation",
+      "mechanism": "ui-extract",
+      "description": "Q16 重設密碼規則：舊版 app/reset-password/page.tsx 的驗證（少於 6 字元、兩次不一致）與新版 validateNewPassword(reset) 對同一批輸入的結果必須相同。",
+      "legacy": { "source": "app/reset-password/page.tsx handleSubmit" },
+      "native": { "source": "lib/workspace/auth-public.ts validateNewPassword" }
+    },
+    {
+      "id": "login-error-text",
+      "mechanism": "api-read",
+      "description": "登入失敗訊息：舊版直接顯示 Supabase 英文原文（Invalid login credentials）；新版回中文白話。同一組錯誤密碼實際呼叫比對。",
+      "legacy": { "serverAction": "app/auth/actions.ts signIn（signInWithPassword 錯誤訊息）" },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/login" } }
+    },
+    {
+      "id": "forgot-password-text",
+      "mechanism": "ui-extract",
+      "description": "忘記密碼：舊版成功時一律說「郵件已發送」、失敗時顯示 Supabase 英文原文；新版已註冊與未註冊信箱回應完全相同，並說「若此信箱已註冊會收到」。新版回應相同性用實際 API 驗證。",
+      "legacy": { "serverAction": "app/auth/actions.ts requestPasswordReset／app/forgot-password/page.tsx" },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/auth/forgot-password" } }
+    },
+    {
+      "id": "forgot-site-url",
+      "mechanism": "ui-extract",
+      "description": "重設信連結的網站網址：舊版缺 NEXT_PUBLIC_SITE_URL 時退回 http://localhost:3000（寄出打不開的連結）；新版直接報錯。",
+      "legacy": { "source": "app/auth/actions.ts requestPasswordReset（siteUrl 退路）" },
+      "native": { "source": "lib/workspace/auth-public.ts resetRedirectUrl" }
+    },
+    {
+      "id": "public-url-redirects",
+      "mechanism": "navigation",
+      "description": "D14：四個原網址（/login、/register、/forgot-password、/reset-password）保留，舊版直接顯示 Next 頁面，新版 307 轉到 Vue 公開頁；登入頁保留 redirect 參數。",
+      "legacy": { "source": "app/login、app/register、app/forgot-password、app/reset-password 的 page.tsx（原網址直接回 200）" },
+      "native": { "source": "middleware.ts + lib/workspace/public-routes.ts（307 轉址）" }
+    },
+    {
+      "id": "login-page-features",
+      "mechanism": "ui-extract",
+      "description": "登入頁功能點：舊版有忘記密碼連結、註冊連結、返回首頁、門市數量動態訊息；新版保留前兩者（Q15 放註冊連結），門市數量與「測試環境」字樣依規格移除。",
+      "legacy": { "source": "app/login/page.tsx" },
+      "native": { "source": "vue-workspace/src/components/LoginForm.vue + PublicShell.vue" }
+    },
+    {
+      "id": "register-no-role",
+      "mechanism": "write-readback",
+      "description": "Q15 新註冊者資料：新版註冊 API 建立的人員資料列，與舊版 signUp 路徑（同樣的 auth 建立觸發）逐欄相同，且都沒有任何角色指派。",
+      "legacy": { "serverAction": "app/auth/actions.ts signUp（建立 auth 使用者，觸發建立人員資料）" },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/auth/register" } }
+    },
+    {
+      "id": "pending-activation-page",
+      "mechanism": "ui-extract",
+      "description": "Q15 沒有角色的帳號登入後：舊版沒有任何說明；新版 session 回報待開通並顯示「帳號待管理員開通」說明頁。",
+      "legacy": { "source": "app/**（沒有待開通提示）" },
+      "native": { "api": { "path": "/api/workspace/session", "pick": "pendingActivation" } }
+    },
+    {
+      "id": "register-success-text",
+      "mechanism": "ui-extract",
+      "description": "註冊成功提示：舊版 alert「註冊成功！請登入。」；新版頁面內提示，並說明需管理員開通角色。",
+      "legacy": { "source": "app/register/page.tsx（alert）" },
+      "native": { "source": "app/api/workspace/auth/register/route.ts + Register.vue" }
+    },
+    {
+      "id": "reset-session-after-success",
+      "mechanism": "ui-extract",
+      "description": "重設成功之後：舊版保留重設用的登入狀態並轉到登入頁；新版先登出重設用的登入狀態，再轉到登入頁。",
+      "legacy": { "source": "app/reset-password/page.tsx" },
+      "native": { "source": "vue-workspace/src/pages/ResetPassword.vue" }
+    },
+    {
+      "id": "callback-guard",
+      "mechanism": "ui-extract",
+      "description": "/auth/callback：舊版 next 參數不檢查（可導去外部網站）、換取失敗時把 Supabase 英文原文放進網址；新版 next 只允許站內路徑、失敗只帶固定中文。",
+      "legacy": { "source": "app/auth/callback/route.ts" },
+      "native": { "api": { "path": "/api/workspace/auth/reset-password", "pick": "valid" } }
+    }
+  ]
+}
