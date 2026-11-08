@@ -28,8 +28,8 @@ describe('CV01 workspace 引用單一規則來源（lib/campaign-access.ts）', 
     // M5 W20：月報工具與獨立活動檢視頁共用 lib/workspace/activity-view.ts，入口判斷只寫在那一處。
     const tools = read('app/api/workspace/monthly/tools/route.ts');
     const shared = read('lib/workspace/activity-view.ts');
-    expect(tools).toContain('activityListResponse(ctx)');
-    expect(tools).toContain('activityDetailResponse(ctx, url,');
+    expect(tools).toContain('await activityListResponse(ctx)');
+    expect(tools).toContain('await activityDetailResponse(ctx, url,');
     expect(shared).toContain('canEnterCampaignView(ctx.auth, ctx.user.id)');
     expect(read('app/api/workspace/activity-view/route.ts')).toContain('activityListResponse(ctx)');
     expect(tools + shared).not.toMatch(/activity.management.access/); // 入口不再看 management.access

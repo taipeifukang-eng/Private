@@ -68,14 +68,14 @@ export async function GET(request: Request) {
       url.searchParams.set('year', month.slice(0,4)); url.searchParams.set('month', String(Number(month.slice(5))));
       return performanceData(new NextRequest(url));
     }
-    if (op === 'activity') return activityListResponse(ctx);
+    if (op === 'activity') return await activityListResponse(ctx);
     if (op === 'excel') {
       permit(ctx, 'monthly.export.download');
       const result = await exportMonthlyStatusForBonus(month,store,true);
       if (!result.success) throw new WorkspaceError(400,result.error || '匯出失敗');
       return respond(result);
     }
-    if (op === 'activityDetail') return activityDetailResponse(ctx, url, p.get('id') || '');
+    if (op === 'activityDetail') return await activityDetailResponse(ctx, url, p.get('id') || '');
     throw new WorkspaceError(400, '不支援的操作');
   } catch (e) { return failed(e); }
 }

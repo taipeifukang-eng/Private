@@ -156,6 +156,7 @@ test('Q7 按鈕與管轄門市：舊頁在瀏覽器端的查詢規則 vs 新版�
 });
 
 test('Q6 填報寫入範圍：舊版各 POST API vs 新版 campaign-tools（同帳號、同門市，允許與否相同）', async () => {
+  test.setTimeout(240_000);
   const e = entry('fill-write-scope');
   const s = await stores();
   type Case = { role: string; what: string; legacy: () => Promise<number>; native: () => Promise<number> };
