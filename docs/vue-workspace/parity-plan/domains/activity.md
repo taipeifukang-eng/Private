@@ -2,6 +2,8 @@
 
 > M5 更新（2026-11-08）：W19、P05 已完成並以程式碼為準，下列盤點中的缺口多數已補上，保留原文供對照。已補上：活動列表狀態依日期、停用與未發布標籤、類型文字、排程入口依權限（Q2）；停用的活動對督導／店長／活動檢視／門市端隱藏（Q2）；刪除前輸入名稱並列出筆數（Q3）；改期列出期間外門市並移回尚未安排（Q4）；三種誤操作提醒（Q5）；盤點類只有三個分頁；月曆週一為首；督導區顏色；特殊日期依月份分組與星期；允許與禁止星期重疊擋下；行銷圖片拖曳排序（最多 8 張、5MB）；自動排程與舊版 200 組隨機資料對照。W20 活動檢視填報、受眾可見性文件說法「新版不一致」已過時（新舊相同，依 2026-11-03 規格），由 W20 另案處理。實測新發現：舊版寫入要同時過 profiles.role 與資料庫 RLS 兩關，所以「舊式身分經理但沒有編輯權」的人舊版也寫不進去。
 
+> W20 更新（2026-11-09）：/activity-management 與 /activity-view/[id] 已有獨立的新版頁（kind activity-view、activity-view-detail，API /api/workspace/activity-view，共用伺服器邏輯在 lib/workspace/activity-view.ts，規則在 lib/workspace/activity-view-rules.ts）。下方這兩節的「缺少或不同」多數已補上或已核可：年度按鈕預設今年、狀態與發布對象標籤、未發布標籤、總門市數／已排程數、PDF 改回 A4 橫式與舊檔名、無權限頁、停用隱藏（Q2）、舊網址轉新版（Q8，middleware.ts，僅 DEV 工作台環境）、Q6 完整填報（支援請求、活動人力查看的人力預估與本店人員、前置 Check List）、Q7 三顆按鈕照舊版。實測新發現：(1) 舊頁只有在持有「支援指派」或「人力查看」權限（或角色代碼 admin）時才載入管轄門市，所以只有檢視權的店長連前置 Check List 按鈕都看不到——新版照舊；(2) 人力預估寫入的舊 API 把 activity.store_detail.edit 當成「寫全部門市」的編輯權，持有者不受任命門市限制——新版照舊；(3) 督導在資料庫 RLS 下只讀得到自己管轄的門市資料，總門市數、督導圖例與舊版相同（正式區 RLS 若不同，結果以正式區為準）。
+
 ## 領域共用缺口
 
 - 缺少獨立路由：Vue 無 /activity-management、/activity-view/[id] 對應的獨立 URL/導覽，已發布活動的檢視只藏在 MonthlyTools「活動檢視」，且進入權限用 activity.management.access，與舊版 activity.campaign.view/view_all + getCampaignAudienceAccess 受眾判斷不一致，需統一(lib/campaign-access.ts、monthly/tools/route.ts)

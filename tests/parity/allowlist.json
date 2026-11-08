@@ -2087,5 +2087,78 @@
     "description": "自動排程：活動期間內沒有可用日期（週三、週六、週日且未被阻擋）時，新版補上與舊版相同的提示並不產生排程。演算法本身經 200 組隨機資料對照，輸入相同則輸出相同（排程集合含順序、失敗門市）。",
     "reason": "m5-spec 不需決策項目。",
     "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w20-q2-inactive-hidden-list",
+    "page": "activity-view",
+    "description": "停用的活動：舊版活動檢視列表不看停用旗標（停用的活動店長、督導仍看得到）；新版活動檢視一律隱藏，連有「查看全部」權限的人也看不到。",
+    "reason": "M5 Q2：使用者選「保留停用，且停用的活動對督導／店長／檢視端隱藏」（非建議項）。上線前以 m5-sql/w19_q2_inactive_campaigns.sql 查正式區有沒有誤設停用。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q2)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "view-list-set",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w20-q2-inactive-hidden-detail",
+    "page": "activity-view",
+    "description": "停用的活動直接帶活動編號開排程檢視：舊版仍能讀到，新版回 404（找不到此活動，或活動已停用）。",
+    "reason": "M5 Q2：同上（停用的活動對檢視端一律隱藏，含直接輸入網址）。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q2)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "view-detail",
+      "kind": "status",
+      "key": "detail-status#inactive"
+    }
+  },
+  {
+    "id": "m5-w20-q8-legacy-url-redirect",
+    "page": "activity-view",
+    "description": "舊網址 /activity-management 與 /activity-view/[id] 自動轉到新版工作台對應頁（307，含 ?focus=marketing|merchandise）；舊版是直接顯示舊頁。舊頁與舊 API 檔案保持原樣（正式區未啟用轉址）。",
+    "reason": "M5 Q8：使用者選「自動轉址到新版對應頁」，書籤與 LINE／群組貼過的連結仍可用。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q8)",
+    "match": {
+      "mechanism": "navigation",
+      "entry": "legacy-url-redirect",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w20-status-label-end-day",
+    "page": "activity-view",
+    "description": "活動狀態標籤：舊版用現在時間與 UTC 零點的結束日比較，結束日當天台灣時間 08:00 後就顯示「已結束」；新版以台灣日期判斷，結束日整天都是「進行中」。",
+    "reason": "m5-spec 不需決策項目（活動檢視頁補回狀態標籤）；舊版是時區造成的錯誤，列入差異清單。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "status-label",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m5-w20-unpublished-tag",
+    "page": "activity-view",
+    "description": "有「查看全部」權限者看到的未發布草稿，新版列表加「未發布」標籤；舊版沒有標籤，容易誤以為已發給門市。",
+    "reason": "m5-spec 不需決策項目（有「查看全部」權限的人看得到未發布草稿：照舊版，但列表加「未發布」標籤）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "unpublished-tag",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m5-w20-no-permission-page",
+    "page": "activity-view",
+    "description": "無權限直接輸入網址：舊版跳 alert 再導回列表；新版顯示無權限頁（說明原因，有返回活動列表按鈕）。找不到或已停用的活動同樣只說看不到。",
+    "reason": "m5-spec 不需決策項目（無權限直接輸入網址時顯示無權限頁）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "no-permission-page",
+      "kind": "changed"
+    }
   }
 ]

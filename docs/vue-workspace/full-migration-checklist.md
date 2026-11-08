@@ -37,8 +37,8 @@
 
 | 既有路由 | 程式來源 | 狀態 |
 | --- | --- | --- |
-| `/activity-management` | `app/activity-management/page.tsx` | 待逐項盤點 |
-| `/activity-view/[id]` | `app/activity-view/[id]/page.tsx` | 待逐項盤點 |
+| `/activity-management` | `app/activity-management/page.tsx` | 已原生化（導覽「活動檢視」開新版列表頁籤）；M5 W20 完成：年度按鈕（預設今年）、狀態與發布對象標籤、未發布標籤、停用隱藏 Q2；舊網址自動轉新版 Q8（僅 DEV 工作台環境啟用，舊頁檔案保留）；已核可差異見 tests/parity/allowlist.json m5-w20-*
+| `/activity-view/[id]` | `app/activity-view/[id]/page.tsx` | 已原生化（新版排程檢視頁籤，路徑 /api/workspace/activity-view）；M5 W20 完成：Q6 店長／督導填報（人力預估、本店人員、Check List 勾選與備註、支援指派）、Q7 三顆按鈕與管轄門市照舊版、A4 橫式 PDF 與舊檔名、總門市數／已排程數、?focus 直開行銷／商品部、無權限頁；舊網址自動轉新版 Q8
 | `/admin/activity-management/events` | `app/admin/activity-management/events/page.tsx` | 已原生化（活動管理頁的「特殊日期」視窗）；M5 P05 對等驗收完成（依月份分組與星期、同日覆蓋前提醒；已核可差異見 tests/parity/allowlist.json m5-w19-*） |
 | `/admin/activity-management` | `app/admin/activity-management/page.tsx` | 已原生化；M5 P05 對等驗收完成（列表狀態依日期、停用隱藏 Q2、刪除輸入名稱與筆數 Q3、改期移回尚未安排 Q4、寫入只看角色權限 Q1；已核可差異見 tests/parity/allowlist.json m5-w19-*） |
 | `/admin/activity-management/schedule/[id]` | `app/admin/activity-management/schedule/[id]/page.tsx` | 已原生化；M5 W19 完成（七個分區、盤點類三分頁、週一為首月曆、督導區顏色、自動排程與舊版 200 組隨機資料同輸入同輸出、行銷圖片拖曳排序、Q5 三種提醒） |

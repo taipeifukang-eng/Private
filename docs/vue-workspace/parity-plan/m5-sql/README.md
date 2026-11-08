@@ -12,6 +12,9 @@
 | `w19_q4_out_of_range_schedules.sql` | Q4 | 排程日期落在活動期間外的既有資料（舊版改期後留下的隱形排程）。新版排程頁會顯示並提供「移回尚未安排」。 |
 | `w19_q5_schedules_on_blocked_days.sql` | Q5 | 已排在禁止日或門市禁止星期的既有排程，僅供了解現況。 |
 
+| `w20_q7_entry_audit.sql` | W20 | 活動檢視入口名單：有活動檢視權（查看自己的或全部）的人，哪些能進入、哪些「有權限但沒有任命也不是盤點組」而看不到入口（舊版已定規則，新舊相同）。由你決定誰要補門市任命。 |
+| `w20_q7_buttons_preview.sql` | W20 Q7 | 每個人在活動排程檢視會看到哪幾顆按鈕（支援請求、活動人力查看、前置 Check List）與管轄門市數；特別標出「有權限但沒有任命，三顆按鈕都不出現」的人。 |
+
 ## 選用：把誤停用的活動改回啟用（需要寫入）
 
 1. `w19_q2_B_reactivate.sql`：以 `BEGIN;` 開頭，不會自動提交。把要改回啟用的活動 id 填進暫存表，先預覽、備份到 `m5_w19_campaign_backup`、再改，最後一段核對（`still_inactive` 應為 0），確認後另外執行 `COMMIT;`，有疑慮執行 `ROLLBACK;`。
@@ -19,6 +22,7 @@
 
 ## 備註
 
+- W20 同樣沒有資料庫結構變更，也沒有寫入型 SQL；兩份名單都是唯讀。
 - 本批次 W19 沒有資料庫結構變更（沒有新欄位、沒有新函式），所以沒有 DEV 的 migration 與 apply 腳本；Q3 的筆數、Q4 的期間外門市都由 API 直接查詢。
 - 實測發現（與 m5-spec 的背景描述不同，已寫進 allowlist 與完成報告）：舊版 `POST /api/campaigns` 在「舊式身分是經理、但角色沒有活動編輯權」時其實也寫不進去（資料庫 RLS 擋下，回 500），不是規格背景所說的「舊版放行」。所以 Q1 真正新舊不同的帳號只有「有活動編輯權、但舊式身分不是管理員或經理」（以及只靠管理員後備放行的人），這就是 `w19_q1_write_permission_diff.sql` 會列出的 `NEW_ONLY` 名單。
 - 權限判定一律照正式區 has_permission：`user_roles.is_active` 且未過期、`role_permissions.is_allowed`、`permissions.is_active`，不檢查 `roles.is_active`，資料庫端沒有 admin 放行。

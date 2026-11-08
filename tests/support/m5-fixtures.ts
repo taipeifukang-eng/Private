@@ -128,6 +128,29 @@ export async function eventOn(date: string): Promise<any | null> {
   return must(await adminDb().from('event_dates').select('*').eq('event_date', date).maybeSingle(), '讀取特殊日期');
 }
 
+/**
+ * W20 活動檢視用：已發布給督導、店長、盤點組的活動，排程 VW001／ZT01／ZT02，一個前置工作項目，三筆支援需求（VW001←ZT02、ZT01←ZT03、ZT02←VW001）。
+ * 全部帶 m5Name 標記，由 deleteRunData 依標記清除。
+ */
+export async function seedW20Campaign(tag: string, over: Partial<SeedCampaign> = {}) {
+  const db = adminDb();
+  const s = await stores();
+  const c = await seedCampaign({ tag, start: '2099-05-01', end: '2099-05-31', publish: { sup: true, sm: true, inv: true }, ...over });
+  await seedSchedules(c.id, [['VW001', '2099-05-06'], ['ZT01', '2099-05-09'], ['ZT02', '2099-05-10']]);
+  const item = must(await db.from('campaign_checklist_items').insert({ campaign_id: c.id, task_name: 'W20 前置項目', item_order: 1 }).select('id').single(), '檢核項目') as any;
+  const reqs = must(
+    await db.from('campaign_support_requests').insert([
+      { campaign_id: c.id, requesting_store_id: s.VW001.id, supporting_store_id: s.ZT02.id, requested_count: 2 },
+      { campaign_id: c.id, requesting_store_id: s.ZT01.id, supporting_store_id: s.ZT03.id, requested_count: 1 },
+      { campaign_id: c.id, requesting_store_id: s.ZT02.id, supporting_store_id: s.VW001.id, requested_count: 1 },
+    ]).select('id,requesting_store_id'),
+    '支援需求',
+  ) as any[];
+  const reqOf = (code: string) => reqs.find((r) => r.requesting_store_id === s[code].id).id as string;
+  // requestVW001：VW001 請求支援；requestZT01：ZT01 請求支援；requestFromVW001：ZT02 請求、由 VW001 出人（舊版「支援請求」視窗列的就是這種）。
+  return { ...c, itemId: item.id as string, requestVW001: reqOf('VW001'), requestZT01: reqOf('ZT01'), requestFromVW001: reqOf('ZT02'), stores: s };
+}
+
 /** 刪除本次 run 建立的活動（子表 cascade）與特殊日期。只依標記刪，不用日期大量刪除。 */
 export async function deleteRunData() {
   const db = adminDb();
@@ -168,6 +191,9 @@ export const P = {
   viewAll: 'activity.campaign.view_all',
   viewOwn: 'activity.campaign.view_own',
   storeDetail: 'activity.store_detail.edit',
+  supportAssign: 'activity.support_assign.edit',
+  overview: 'activity.staff_overview.view',
+  checklistEdit: 'activity.checklist.edit',
 } as const;
 export const M5_SCENARIOS: Record<string, M5Scenario> = {
   // Q1：持活動編輯權、舊式身分是一般成員（營業助理類）。舊版寫入被擋、新版放行。
@@ -182,6 +208,11 @@ export const M5_SCENARIOS: Record<string, M5Scenario> = {
   supervisor: { desc: '督導（ZT01）只有檢視自己的', perms: [P.viewOwn], profileRole: 'member', appts: [['ZT01', 'supervisor']] },
   // 只有門市細節編輯權（排程入口要出現，活動新增不行）。
   store_detail: { desc: '門市細節編輯權（另有檢視全部）', perms: [P.storeDetail, P.viewAll], profileRole: 'member', appts: [['VW001', 'area_manager']] },
+  // W20（Q6、Q7）：店長／督導在活動檢視的填報與按鈕範圍。
+  w20_mgr_support: { desc: '店長（VW001）：檢視自己的＋支援指派', perms: [P.viewOwn, P.supportAssign], profileRole: 'member', appts: [['VW001', 'store_manager']] },
+  w20_mgr_overview: { desc: '店長（VW001）：檢視自己的＋人力查看', perms: [P.viewOwn, P.overview], profileRole: 'member', appts: [['VW001', 'store_manager']] },
+  w20_mgr_full: { desc: '店長（VW001）：檢視自己的＋支援指派＋人力查看＋門市細節編輯', perms: [P.viewOwn, P.supportAssign, P.overview, P.storeDetail], profileRole: 'member', appts: [['VW001', 'store_manager']] },
+  w20_sup_full: { desc: '督導（ZT01）：檢視自己的＋支援指派＋人力查看＋門市細節編輯', perms: [P.viewOwn, P.supportAssign, P.overview, P.storeDetail], profileRole: 'member', appts: [['ZT01', 'supervisor']] },
 };
 
 export async function cleanupM5Users(db: any = adminDb()): Promise<string[]> {
