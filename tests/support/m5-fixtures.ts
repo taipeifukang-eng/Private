@@ -213,6 +213,26 @@ export const M5_SCENARIOS: Record<string, M5Scenario> = {
   w20_mgr_overview: { desc: '店長（VW001）：檢視自己的＋人力查看', perms: [P.viewOwn, P.overview], profileRole: 'member', appts: [['VW001', 'store_manager']] },
   w20_mgr_full: { desc: '店長（VW001）：檢視自己的＋支援指派＋人力查看＋門市細節編輯', perms: [P.viewOwn, P.supportAssign, P.overview, P.storeDetail], profileRole: 'member', appts: [['VW001', 'store_manager']] },
   w20_sup_full: { desc: '督導（ZT01）：檢視自己的＋支援指派＋人力查看＋門市細節編輯', perms: [P.viewOwn, P.supportAssign, P.overview, P.storeDetail], profileRole: 'member', appts: [['ZT01', 'supervisor']] },
+  // W21（Q9）：部門管理頁進入條件與資料讀取的權限組合。appts 為空陣列（不需要門市任命）。
+  org_view: { desc: '只有公司組織檢視', perms: ['organization.organization.view'], profileRole: 'member', appts: [] },
+  org_member_view: { desc: '只有成員檢視', perms: ['organization.member.view'], profileRole: 'member', appts: [] },
+  org_manager_view: { desc: '只有主管檢視', perms: ['organization.manager.view'], profileRole: 'member', appts: [] },
+  dept_view: { desc: '只有部門檢視', perms: ['organization.department.view'], profileRole: 'member', appts: [] },
+  dept_ws_view: { desc: '只有部門工作檢視', perms: ['organization.department_workspace.view'], profileRole: 'member', appts: [] },
+  dept_ws_manage: { desc: '只有部門工作管理', perms: ['organization.department_workspace.manage'], profileRole: 'member', appts: [] },
+  dept_member_manage: { desc: '只有成員管理', perms: ['organization.member.manage'], profileRole: 'member', appts: [] },
+  org_full: {
+    desc: '組織與部門全部權限',
+    perms: ['organization.organization.view', 'organization.department.view', 'organization.department.create', 'organization.department.edit', 'organization.member.view', 'organization.member.manage', 'organization.manager.view', 'organization.manager.manage', 'organization.department_workspace.view', 'organization.department_workspace.manage'],
+    profileRole: 'member',
+    appts: [],
+  },
+  // P06：使用者管理與角色管理。
+  user_viewer: { desc: '只能查看使用者', perms: ['user.user.view'], profileRole: 'member', appts: [] },
+  user_editor: { desc: '使用者查看／編輯／變更角色／建立／刪除，舊式身分一般成員', perms: ['user.user.view', 'user.user.edit', 'user.user.change_role', 'user.user.create', 'user.user.delete'], profileRole: 'member', appts: [] },
+  user_admin: { desc: '舊式身分管理員，使用者查看／變更角色', perms: ['user.user.view', 'user.user.change_role'], profileRole: 'admin', appts: [] },
+  role_viewer: { desc: '只能查看角色', perms: ['role.role.view', 'role.permission.view', 'role.user_role.view'], profileRole: 'member', appts: [] },
+  role_assigner: { desc: '角色查看＋指派／移除使用者', perms: ['role.role.view', 'role.permission.view', 'role.user_role.view', 'role.user_role.assign', 'role.user_role.revoke'], profileRole: 'member', appts: [] },
 };
 
 export async function cleanupM5Users(db: any = adminDb()): Promise<string[]> {
@@ -272,7 +292,7 @@ export async function setupM5Users(keys: string[] = Object.keys(M5_SCENARIOS)): 
     users[key] = { key, id: uid, email, password };
     must(await db.from('profiles').update({ role: sc.profileRole, job_title: '測試', department: null }).eq('id', uid), `profile ${key}`);
     must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
-    must(await db.from('store_managers').insert(sc.appts.map(([code, type], i) => ({ user_id: uid, store_id: s[code].id, role_type: type, is_primary: i === 0 }))), `store_managers ${key}`);
+    if (sc.appts.length) must(await db.from('store_managers').insert(sc.appts.map(([code, type], i) => ({ user_id: uid, store_id: s[code].id, role_type: type, is_primary: i === 0 }))), `store_managers ${key}`);
   }
   return { users, teardown: () => cleanupM5Users(db) };
 }

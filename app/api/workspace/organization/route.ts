@@ -68,7 +68,7 @@ export async function POST(request: Request) { try {
       ['WORKSPACE_PARENT', 400, '上層單位不存在或已停用'],
       ['WORKSPACE_PRIMARY_CONFLICT', 409, '所選人員已有其他主要組織，請先核對原組織的成員指派'],
       ['WORKSPACE_PRIMARY_MANAGER', 400, '請指定一位主要主管'],
-      ['WORKSPACE_INACTIVE', 400, '停用單位不可調整成員或主管'],
+      // M5 Q10：停用單位仍可調整成員與主管，資料庫不再回 WORKSPACE_INACTIVE。
       ['WORKSPACE_USER', 400, '所選人員已不存在或主管角色不正確'],
       ['cycle', 400, '組織層級不可指向自己或形成循環'],
       ['own parent', 400, '組織單位不可指定自己為上層'],
