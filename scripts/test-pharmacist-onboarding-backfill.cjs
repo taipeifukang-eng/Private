@@ -3,7 +3,8 @@
 /**
  * 藥師「入職未同步」修正測試。
  *
- *  1. 純函式單元測試：補列條件（在職、是藥師、該月已入職、不在名單）、主檔同步挑選
+ *  1. 純函式單元測試：補列條件（在職、當時是藥師、該月已入職、從未出現在該月以前名單）、
+ *     該月門市依「最近入職或調店」推算（調店當月維持原店）、主檔同步挑選
  *  2. 靜態檢查：兩條寫入路徑（批次新增、單筆修改）都呼叫主檔同步；每月快照使用補列且不受 sync_log 跳過影響
  *  3. DEV 整合測試（只連 DEV；只用 ZT 測試門市、2098 保留月份；用 id/員編精準刪除，結束檢查 0 殘留）：
  *       新門市、入職勾是藥師、主檔 false、無快照 -> 修正後該月與之後月份出現；
@@ -69,8 +70,12 @@ ok('not yet onboarded in that month -> not backfilled', () => {
 ok('non-pharmacist (flag false, master false) is not backfilled', () => {
   assert.equal(run([emp({})], [onb({ onboarding_is_pharmacist: false })]).length, 0);
 });
-ok('master pharmacist with onboarding flag false still counts (master wins)', () => {
-  assert.equal(run([emp({ is_pharmacist: true })], [onb({ onboarding_is_pharmacist: false })]).length, 1);
+ok('master is pharmacist NOW but was onboarded as non-pharmacist -> not backfilled into past months', () => {
+  assert.equal(run([emp({ is_pharmacist: true })], [onb({ movement_date: '2024-03-01', onboarding_is_pharmacist: false })], [], '2025-01').length, 0);
+});
+ok('master flag deliberately false but onboarding flag true: backfilled only while never seen; once in a roster it is not re-added', () => {
+  assert.equal(run([emp({ is_pharmacist: false })], [onb({})]).length, 1);
+  assert.equal(run([emp({ is_pharmacist: false })], [onb({})], ['FK1']).length, 0);
 });
 ok('latest onboarding up to month end decides the flag', () => {
   const list = [onb({ movement_date: '2026-01-01', onboarding_is_pharmacist: true }), onb({ movement_date: '2026-03-01', onboarding_is_pharmacist: false })];
@@ -83,10 +88,29 @@ ok('already in the month roster (any store) -> not duplicated', () => {
 ok('inactive employee is not backfilled', () => {
   assert.equal(run([emp({ is_active: false })], [onb({})]).length, 0);
 });
-ok('no onboarding movement: falls back to start_date; none at all -> skipped', () => {
-  assert.equal(run([emp({ is_pharmacist: true, start_date: '2025-01-01' })], []).length, 1);
-  assert.equal(run([emp({ is_pharmacist: true, start_date: '2026-06-01' })], []).length, 0);
-  assert.equal(run([emp({ is_pharmacist: true })], []).length, 0);
+ok('no onboarding movement at all (even master pharmacist with start_date) -> no evidence, skipped', () => {
+  assert.equal(run([emp({ is_pharmacist: true, start_date: '2025-01-01' })], []).length, 0);
+});
+const tr = (o) => ({ employee_code: 'FK1', movement_type: 'store_transfer', store_id: 's2', movement_date: '2026-08-15', created_at: '2026-08-15T01:00:00Z', onboarding_is_pharmacist: null, ...o });
+const storeOf = (list, ym) => { const r = run([emp({ store_id: 's2' })], list, [], ym); return r.length ? r[0].store_id : null; };
+ok('month store: before the transfer month uses the onboarding store, not the current master store', () => {
+  const list = [onb({ store_id: 's1' }), tr({})];
+  assert.equal(storeOf(list, '2026-05'), 's1');
+  assert.equal(storeOf(list, '2026-07'), 's1');
+});
+ok('month store: transfer month stays at the old store, next month moves (same rule as reconcile)', () => {
+  const list = [onb({ store_id: 's1' }), tr({})];
+  assert.equal(storeOf(list, '2026-08'), 's1');
+  assert.equal(storeOf(list, '2026-09'), 's2');
+  assert.equal(storeOf([onb({ store_id: 's1' }), tr({ movement_date: '2026-08-01' })], '2026-08'), 's2');
+});
+ok('month store: out-of-scope current store but in-scope store back then is still backfilled there', () => {
+  const mk = (ym) => B.computeMissingOnboardingPharmacists({ targetYearMonth: ym, employees: [emp({ store_id: 's2' })], onboardings: [onb({ store_id: 's1' }), tr({})], existingCodes: new Set(), scopeStoreIds: ['s1'] });
+  assert.deepEqual(mk('2026-06').map(x => x.store_id), ['s1']);
+  assert.equal(mk('2026-09').length, 0);
+});
+ok('transfer rows never count as onboarding evidence', () => {
+  assert.equal(run([emp({})], [tr({ store_id: 's1', movement_date: '2026-04-01', onboarding_is_pharmacist: true })]).length, 0);
 });
 ok('store out of scope / missing store is skipped; duplicates collapse', () => {
   const r = B.computeMissingOnboardingPharmacists({ targetYearMonth: '2026-05', employees: [emp({ store_id: 'other' }), emp({ employee_code: 'FK2' }), emp({ employee_code: 'FK2' })], onboardings: [onb({ employee_code: 'FK2' })], existingCodes: new Set(), scopeStoreIds: ['s1'] });
@@ -170,6 +194,12 @@ async function dbTests() {
     movementIds.push(data.id);
   }
 
+  async function addTransfer(k, date, toStore) {
+    const { data, error } = await db.from('employee_movement_history').insert({ employee_code: code(k), employee_name: '入職補列測試' + k, store_id: toStore, movement_type: 'store_transfer', movement_date: date }).select('id').single();
+    if (error) throw error;
+    movementIds.push(data.id);
+  }
+
   // 用真正的 ensureSnapshotForMonth 原始碼，接真實 DEV client
   const pageSrc = page.replace(/\r\n/g, '\n');
   const noteStart = pageSrc.indexOf('function appendNote(');
@@ -210,6 +240,11 @@ async function dbTests() {
     // E：主檔就是藥師、有入職異動（舊資料已正確）-> 也會補（不在名單）
     await addEmp(4, { is_pharmacist: true }); await addOnb(4, '2098-01-05', true);
 
+    // F：入職在 ZT01、2098-01-20 調到 ZT02（2098-02 起在 ZT02）；主檔現在在 ZT02
+    await addEmp(5, { store_id: sid.ZT02 }); await addOnb(5, '2098-01-10', true); await addTransfer(5, '2098-01-20', sid.ZT02);
+    // G：入職在 ZT01、2098-03-15 才調到 ZT02（2098-02 仍在 ZT01，2098-03 當月仍維持 ZT01）；主檔現在在 ZT02
+    await addEmp(6, { store_id: sid.ZT02 }); await addOnb(6, '2098-01-10', true); await addTransfer(6, '2098-03-15', sid.ZT02);
+
     // 先重現舊行為：sync_log 判定「無變動」時，舊程式（沒有補列）完全不會補 A
     const future = new Date(Date.now() + 86400000).toISOString();
     {
@@ -238,12 +273,19 @@ async function dbTests() {
     await okAsync('master-true E with onboarding movement and no row is also filled', async () => {
       assert.equal((await rows('2098-02', 4)).length, 1);
     });
+    await okAsync('transferred pharmacists are backfilled into the store they belonged to that month (not the current master store)', async () => {
+      const f = await rows('2098-02', 5), g = await rows('2098-02', 6);
+      assert.equal(f.length, 1); assert.equal(f[0].store_id, sid.ZT02); // 01-20 調店，02 月已生效
+      assert.equal(g.length, 1); assert.equal(g[0].store_id, sid.ZT01); // 03-15 才調店，02 月仍在原店
+    });
     await okAsync('later month 2098-03 contains A (carried), C appears once onboarded, B never', async () => {
       await makeEnsure()('2098-03');
       assert.equal((await rows('2098-03', 0)).length, 1);
       assert.equal((await rows('2098-03', 2)).length, 1);
       assert.equal((await rows('2098-03', 1)).length, 0);
       assert.equal((await rows('2098-03', 3)).length, 0);
+      const g = await rows('2098-03', 6);
+      assert.equal(g.length, 1); assert.equal(g[0].store_id, sid.ZT01); // 調店當月維持原店
     });
     await okAsync('first generation month 2098-01: backfilled row survives the old "non-pharmacist movement" cleanup', async () => {
       await makeEnsure()('2098-01');
@@ -251,13 +293,29 @@ async function dbTests() {
       assert.equal(r.length, 1);
       assert.match(r[0].notes, /backfilled: onboarding not synced/);
       assert.equal((await rows('2098-01', 1)).length, 0);
+      const f = await rows('2098-01', 5);
+      assert.equal(f.length, 1); assert.equal(f[0].store_id, sid.ZT01); // 調店前的月份放入職門市（即使後面月份已有 F 的列）
     });
-    await okAsync('re-running with nothing missing writes nothing new (idempotent, skip works)', async () => {
-      const before = await db.from('pharmacist_monthly_snapshot').select('id, updated_at').in('year_month', MONTHS).in('employee_code', codes);
+    await okAsync('re-running with nothing missing rewrites nothing and creates nothing (updated_at and row set unchanged)', async () => {
+      const snap = async () => {
+        const { data, error } = await db.from('pharmacist_monthly_snapshot').select('id, updated_at, notes, store_id').in('year_month', MONTHS).in('employee_code', codes).order('id');
+        if (error) throw error;
+        return data;
+      };
+      // 對照組：確認 updated_at 真的偵測得到改寫（否則這個測試沒有意義）
+      const control = (await snap())[0];
+      await new Promise(r => setTimeout(r, 30));
+      const { error: ce } = await db.from('pharmacist_monthly_snapshot').update({ notes: control.notes }).eq('id', control.id);
+      if (ce) throw ce;
+      const afterControl = (await snap()).find(r => r.id === control.id);
+      assert.notEqual(afterControl.updated_at, control.updated_at, 'updated_at 不會隨改寫變動，無法偵測重複寫入');
+
+      const before = await snap();
       await new Promise(r => setTimeout(r, 50));
       await makeEnsure()('2098-02');
-      const after = await db.from('pharmacist_monthly_snapshot').select('id, updated_at').in('year_month', MONTHS).in('employee_code', codes);
-      assert.equal(after.data.length, before.data.length);
+      await makeEnsure()('2098-03');
+      const after = await snap();
+      assert.deepEqual(after, before);
     });
     await okAsync('locked month 2098-04 is never touched (no rows created)', async () => {
       const { error } = await db.from('pharmacist_snapshot_locks').insert({ year_month: '2098-04', locked_by: 'test' });

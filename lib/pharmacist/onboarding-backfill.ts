@@ -2,11 +2,17 @@
  * 每月藥師快照：補上「入職未同步」而漏掉的在職藥師。
  *
  * 補的條件（全部成立）：
- *   1. 員工主檔在職（is_active）且屬於範圍內門市
- *   2. 是藥師：主檔 is_pharmacist=true，或「該月底前最近一筆入職異動」勾是藥師
- *   3. 該月已入職：該月底前有入職異動；完全沒有入職異動時用主檔 start_date
- *   4. 不在該月快照名單（任何門市）
- * 補在其主檔所屬門市，notes 註明 BACKFILL_NOTE。已關帳月份由呼叫端排除，絕不改動。
+ *   1. 員工主檔在職（is_active）
+ *   2. 當時是藥師：該月底前「最近一筆入職異動」勾是藥師。
+ *      不看主檔現在的 is_pharmacist（主檔是「現在」的身分，看不出該月當時是不是藥師，
+ *      也會把刻意改成非藥師的人重新補回來）。
+ *   3. 該月已入職：該月底前有入職異動
+ *   4. 從未出現在「該月（含）以前」任何月份的快照名單（與正式區補正 SQL A/B「從未出現在任何快照」一致；
+ *      只看該月以前，是因為補到更早的月份時，後面月份的列不該讓前面的月份被略過）
+ * 該月所屬門市：與 reconcilePharmacistTransfers 同一規則，取「最近一筆入職或調店」異動的門市：
+ *   入職異動 movement_date <= 月底；調店異動 movement_date <= 該月 1 日（調店當月維持原店，次月才生效）。
+ *   沒有可用門市時才退回主檔 store_id。
+ * 該月所屬門市必須在呼叫端範圍內。notes 註明 BACKFILL_NOTE。已關帳月份由呼叫端排除，絕不改動。
  *
  * 純函式 computeMissingOnboardingPharmacists 可單元測試；
  * findMissingOnboardingPharmacists 負責批次查詢（固定幾次查詢，不是每人一查）。
@@ -25,8 +31,11 @@ export interface BackfillEmployee {
   current_position?: string | null;
 }
 
+/** 入職或調店異動（調店的 store_id 是新門市）。movement_type 省略視為入職。 */
 export interface BackfillOnboarding {
   employee_code: string;
+  movement_type?: string | null;
+  store_id?: string | null;
   movement_date?: string | null;
   created_at?: string | null;
   onboarding_is_pharmacist?: boolean | null;
@@ -55,12 +64,14 @@ const day = (v?: string | null) => (v ? String(v).slice(0, 10) : '');
 export function computeMissingOnboardingPharmacists(opts: {
   targetYearMonth: string;
   employees: BackfillEmployee[];
+  /** 候選人的入職與調店異動。 */
   onboardings: BackfillOnboarding[];
-  /** 該月快照已有的員編（大寫，任何門市）。 */
+  /** 該月（含）以前任一月份快照已出現過的員編（大寫，任何門市）。 */
   existingCodes: Set<string>;
   scopeStoreIds?: string[];
 }): BackfillRow[] {
   const monthEnd = monthEndOf(opts.targetYearMonth);
+  const monthStart = `${opts.targetYearMonth}-01`;
   const scope = opts.scopeStoreIds ? new Set(opts.scopeStoreIds) : null;
 
   const byCode = new Map<string, BackfillOnboarding[]>();
@@ -71,36 +82,39 @@ export function computeMissingOnboardingPharmacists(opts: {
     list.push(o);
     byCode.set(code, list);
   }
+  const byTime = (a: BackfillOnboarding, b: BackfillOnboarding) =>
+    day(a.movement_date).localeCompare(day(b.movement_date)) ||
+    String(a.created_at || '').localeCompare(String(b.created_at || ''));
+  const isTransfer = (o: BackfillOnboarding) => o.movement_type === 'store_transfer';
 
   const rows: BackfillRow[] = [];
   const seen = new Set<string>();
   for (const e of opts.employees || []) {
     const code = String(e.employee_code || '').toUpperCase();
     if (!code || seen.has(code) || opts.existingCodes.has(code)) continue;
-    if (e.is_active === false || !e.store_id) continue;
-    if (scope && !scope.has(String(e.store_id))) continue;
+    if (e.is_active === false) continue;
 
     const all = byCode.get(code) || [];
-    const effective = all
-      .filter(o => day(o.movement_date) && day(o.movement_date) <= monthEnd)
-      .sort((a, b) =>
-        day(a.movement_date).localeCompare(day(b.movement_date)) ||
-        String(a.created_at || '').localeCompare(String(b.created_at || '')));
-    const latest = effective[effective.length - 1];
+    const onboardings = all
+      .filter(o => !isTransfer(o) && day(o.movement_date) && day(o.movement_date) <= monthEnd)
+      .sort(byTime);
+    const latest = onboardings[onboardings.length - 1];
+    // 該月已入職，且當時（最近一筆入職）勾是藥師
+    if (!latest || latest.onboarding_is_pharmacist !== true) continue;
 
-    let entered: boolean;
-    if (latest) entered = true;
-    else if (all.length > 0) entered = false; // 入職日在該月之後
-    else entered = !!day(e.start_date) && day(e.start_date) <= monthEnd;
-    if (!entered) continue;
-
-    const isPharmacist = e.is_pharmacist === true || latest?.onboarding_is_pharmacist === true;
-    if (!isPharmacist) continue;
+    // 該月所屬門市：最近一筆生效的入職或調店
+    const placed = all
+      .filter(o => day(o.movement_date) && (isTransfer(o) ? day(o.movement_date) <= monthStart : day(o.movement_date) <= monthEnd))
+      .sort(byTime);
+    const placedStore = [...placed].reverse().find(o => o.store_id)?.store_id;
+    const storeId = placedStore || e.store_id;
+    if (!storeId) continue;
+    if (scope && !scope.has(String(storeId))) continue;
 
     seen.add(code);
     rows.push({
       year_month: opts.targetYearMonth,
-      store_id: String(e.store_id),
+      store_id: String(storeId),
       employee_code: code,
       employee_name: String(e.employee_name || ''),
       position: e.current_position || e.position || null,
@@ -140,59 +154,49 @@ export async function findMissingOnboardingPharmacists(
   if (!storeIds.length) return [];
   const monthEnd = monthEndOf(targetYearMonth);
 
-  // 1) 範圍內在職且主檔是藥師的員工 + 範圍內入職勾藥師的異動 -> 候選員編
-  const [masters, flagged] = await Promise.all([
-    readAll((a, b) => client.from('store_employees')
-      .select(EMPLOYEE_COLUMNS)
-      .in('store_id', storeIds).eq('is_active', true).eq('is_pharmacist', true)
-      .order('employee_code').range(a, b)),
-    readAll((a, b) => client.from('employee_movement_history')
-      .select('id, employee_code')
-      .eq('movement_type', 'onboarding').eq('onboarding_is_pharmacist', true)
-      .in('store_id', storeIds).lte('movement_date', monthEnd)
-      .order('id').range(a, b)),
-  ]);
-
-  const employees = new Map<string, BackfillEmployee>();
-  for (const m of masters) employees.set(String(m.employee_code).toUpperCase(), m);
+  // 1) 該月底前入職且勾是藥師的異動 -> 候選員編。
+  //    不限門市：藥師可能已調到範圍外或範圍內的其他店，該月歸屬哪間由下面的規則決定。
+  const flagged = await readAll((a, b) => client.from('employee_movement_history')
+    .select('id, employee_code')
+    .eq('movement_type', 'onboarding').eq('onboarding_is_pharmacist', true)
+    .lte('movement_date', monthEnd)
+    .order('id').range(a, b));
   const flaggedCodes = Array.from(new Set<string>(
     flagged.map((r: any) => String(r.employee_code || '').toUpperCase()).filter(Boolean),
   ));
-  const extraCodes = flaggedCodes.filter(c => !employees.has(c));
-  for (const part of chunk(extraCodes)) {
-    const { data, error } = await client.from('store_employees')
-      .select(EMPLOYEE_COLUMNS)
-      .in('employee_code', part).in('store_id', storeIds).eq('is_active', true);
-    if (error) throw error;
-    for (const m of data || []) employees.set(String(m.employee_code).toUpperCase(), m);
-  }
-  const candidates = Array.from(employees.keys());
-  if (!candidates.length) return [];
+  if (!flaggedCodes.length) return [];
 
-  // 2) 候選人的入職異動、該月快照已有的員編（分批）
+  // 2) 候選人的主檔、入職與調店異動、該月（含）以前快照已出現的員編（分批）
+  const employees: BackfillEmployee[] = [];
   const onboardings: BackfillOnboarding[] = [];
   const existingCodes = new Set<string>();
   const tasks: Promise<void>[] = [];
-  for (const part of chunk(candidates)) {
+  for (const part of chunk(flaggedCodes)) {
     tasks.push((async () => {
-      const { data, error } = await client.from('employee_movement_history')
-        .select('employee_code, movement_date, created_at, onboarding_is_pharmacist')
-        .eq('movement_type', 'onboarding').in('employee_code', part);
+      const { data, error } = await client.from('store_employees')
+        .select(EMPLOYEE_COLUMNS).in('employee_code', part).eq('is_active', true);
       if (error) throw error;
-      onboardings.push(...(data || []));
+      employees.push(...(data || []));
     })());
     tasks.push((async () => {
-      const { data, error } = await client.from('pharmacist_monthly_snapshot')
-        .select('employee_code').eq('year_month', targetYearMonth).in('employee_code', part);
-      if (error) throw error;
-      for (const r of data || []) existingCodes.add(String(r.employee_code || '').toUpperCase());
+      const rows = await readAll((a, b) => client.from('employee_movement_history')
+        .select('id, employee_code, movement_type, store_id, movement_date, created_at, onboarding_is_pharmacist')
+        .in('movement_type', ['onboarding', 'store_transfer']).in('employee_code', part)
+        .order('id').range(a, b));
+      onboardings.push(...rows);
+    })());
+    tasks.push((async () => {
+      const rows = await readAll((a, b) => client.from('pharmacist_monthly_snapshot')
+        .select('id, employee_code').lte('year_month', targetYearMonth).in('employee_code', part)
+        .order('id').range(a, b));
+      for (const r of rows) existingCodes.add(String(r.employee_code || '').toUpperCase());
     })());
   }
   await Promise.all(tasks);
 
   return computeMissingOnboardingPharmacists({
     targetYearMonth,
-    employees: Array.from(employees.values()),
+    employees,
     onboardings,
     existingCodes,
     scopeStoreIds: storeIds,
