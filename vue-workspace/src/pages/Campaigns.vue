@@ -106,7 +106,7 @@ onMounted(() => {void load();campaignApi('permissions').then(r=>{perms.value=r;}
             </td>
             <td>{{ row.start_date }} — {{ row.end_date }}</td>
             <td>{{ campaignTypeLabel(row.campaign_type) }}</td>
-            <td class="status"><span class="tag" :class="'phase-'+phase(row)">{{ phaseLabel(row) }}</span><span v-if="!row.is_active" class="tag off" title="停用的活動對督導、店長、活動檢視都不顯示">停用</span><span v-if="!publishedAudiences(row).length" class="tag draft" title="尚未發布給督導、店長或盤點組">未發布</span></td>
+            <td><div class="status"><span class="tag" :class="'phase-'+phase(row)">{{ phaseLabel(row) }}</span><span v-if="!row.is_active" class="tag off" title="停用的活動對督導、店長、活動檢視都不顯示">停用</span><span v-if="!publishedAudiences(row).length" class="tag draft" title="尚未發布給督導、店長或盤點組">未發布</span></div></td>
             <td>
               <button @click="edit(row.id)">
                 {{ session.data?.capabilities.editCampaigns ? "編輯" : "查看" }}
