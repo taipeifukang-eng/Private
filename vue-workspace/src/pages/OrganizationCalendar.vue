@@ -394,7 +394,7 @@ onMounted(async () => {
     <Modal v-if="showForm" :title="editing ? `編輯行事：${editing.title}` : formKind === 'company' ? '新增公司行事' : '新增個人行程'" :busy="saving" @cancel="showForm = false">
       <form class="event-form" data-testid="event-form" @submit.prevent="save">
         <p v-if="formError" role="alert" class="notice error">{{ formError }}</p>
-        <div v-if="!editing && permissions.createCompany" class="segmented" role="group" aria-label="行事類型">
+        <div v-if="!editing && permissions.createCompany" class="segmented" role="group" aria-label="新增種類">
           <button type="button" :class="{ on: formKind === 'company' }" :aria-pressed="formKind === 'company'" @click="formKind = 'company'">公司行事</button>
           <button type="button" :class="{ on: formKind === 'personal' }" :aria-pressed="formKind === 'personal'" @click="formKind = 'personal'">個人行程</button>
         </div>
