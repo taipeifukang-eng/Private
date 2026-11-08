@@ -171,7 +171,7 @@ export const P = {
 } as const;
 export const M5_SCENARIOS: Record<string, M5Scenario> = {
   // Q1：持活動編輯權、舊式身分是一般成員（營業助理類）。舊版寫入被擋、新版放行。
-  editor_member: { desc: '有活動編輯權、舊式身分一般成員', perms: [P.edit], profileRole: 'member', appts: [['VW001', 'area_manager']] },
+  editor_member: { desc: '有活動編輯權（另有檢視全部，與正式區營業助理角色相同）、舊式身分一般成員', perms: [P.edit, P.viewAll], profileRole: 'member', appts: [['VW001', 'area_manager']] },
   // Q1：舊式身分是經理、角色只有檢視全部。舊版寫入放行、新版擋下。
   manager_viewer: { desc: '舊式身分經理、角色只有檢視全部', perms: [P.viewAll], profileRole: 'manager', appts: [['VW001', 'area_manager']] },
   // 一般檢視端：只有檢視全部。
@@ -181,7 +181,7 @@ export const M5_SCENARIOS: Record<string, M5Scenario> = {
   // 督導：被任命 ZT01 督導。
   supervisor: { desc: '督導（ZT01）只有檢視自己的', perms: [P.viewOwn], profileRole: 'member', appts: [['ZT01', 'supervisor']] },
   // 只有門市細節編輯權（排程入口要出現，活動新增不行）。
-  store_detail: { desc: '只有門市細節編輯權', perms: [P.storeDetail], profileRole: 'member', appts: [['VW001', 'area_manager']] },
+  store_detail: { desc: '門市細節編輯權（另有檢視全部）', perms: [P.storeDetail, P.viewAll], profileRole: 'member', appts: [['VW001', 'area_manager']] },
 };
 
 export async function cleanupM5Users(db: any = adminDb()): Promise<string[]> {

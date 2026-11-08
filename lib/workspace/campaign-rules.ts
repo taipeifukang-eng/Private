@@ -254,7 +254,13 @@ export function marketingUploadError(currentCount: number, files: { size: number
 // ---------------------------------------------------------------------------
 // Q1：新舊寫入權限（預覽 SQL 與測試用）
 // ---------------------------------------------------------------------------
-/** 舊版 POST/PUT/DELETE 的條件：profiles.role 必須是 admin 或 manager。 */
+/** 舊版 POST/PUT/DELETE 的第一關：profiles.role 必須是 admin 或 manager（否則回 403 權限不足）。 */
 export const legacyCampaignWriteAllowed = (profileRole: string | null | undefined) => profileRole === "admin" || profileRole === "manager";
+/**
+ * 舊版實際能不能寫：除了上面的 profiles.role，資料庫 RLS（p1h_campaigns_write）還要求 has_permission
+ * 'activity.manage' 或 'activity.campaign.edit'，沒有就是 500。兩關都過才寫得進去。
+ */
+export const legacyCampaignEffectiveWrite = (profileRole: string | null | undefined, hasWritePermission: boolean) =>
+  legacyCampaignWriteAllowed(profileRole) && hasWritePermission;
 /** 新版：只看角色權限（管理員後備由 server 的 has 處理）。 */
 export const nativeCampaignWriteAllowed = (has: (...codes: string[]) => boolean) => has("activity.campaign.edit", "activity.manage");

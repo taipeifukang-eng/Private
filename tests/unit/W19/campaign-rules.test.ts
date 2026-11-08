@@ -15,6 +15,7 @@ import {
   describeEvent,
   eventOverwrite,
   groupEventsByMonth,
+  legacyCampaignEffectiveWrite,
   legacyCampaignWriteAllowed,
   manualScheduleWarnings,
   marketingUploadError,
@@ -244,6 +245,20 @@ describe('Q1 寫入權限語意', () => {
     const has = (...codes: string[]) => codes.some((c) => ['activity.campaign.edit'].includes(c));
     expect(nativeCampaignWriteAllowed(has)).toBe(true);
     expect(nativeCampaignWriteAllowed(() => false)).toBe(false);
+  });
+  it('舊版實際寫入 = profiles.role 通過 且 資料庫權限通過（RLS）；差異帳號只剩「有權限但舊式身分不是 admin／manager」', () => {
+    const table: [string, boolean, boolean, boolean][] = [
+      // profiles.role, 有編輯權, 舊版實際, 新版
+      ['member', true, false, true],
+      ['manager', true, true, true],
+      ['manager', false, false, false],
+      ['member', false, false, false],
+      ['admin', true, true, true],
+    ];
+    for (const [role, perm, legacy, native] of table) {
+      expect(legacyCampaignEffectiveWrite(role, perm), `${role}/${perm} 舊版`).toBe(legacy);
+      expect(nativeCampaignWriteAllowed((...c: string[]) => perm && c.includes('activity.campaign.edit')), `${role}/${perm} 新版`).toBe(native);
+    }
   });
   it('新版寫入入口沒有 profiles.role 前置條件', () => {
     const route = read('app/api/workspace/campaigns/route.ts');
