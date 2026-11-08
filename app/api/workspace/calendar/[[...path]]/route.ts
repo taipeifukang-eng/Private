@@ -202,7 +202,9 @@ async function run(req: NextRequest, path: string[], method: string) {
       if (!response.ok) return response;
       const data = await response.json();
       const { existing, rows } = await currentHolidays(ctx, Number(data.calendar_year));
-      return respond({ ...data, existing, diff: existing ? diffHolidays(rows, data.holidays || []) : null });
+      // 測試站：假的官方日曆來源名稱加測試標記，發布後的假日版本才能被 sweeper 辨識與清除（正式與一般環境不會進入這個分支）。
+      const sourceName = calendarMockEnabled() ? `[自動測試]M5W23 ${data.source_name}` : data.source_name;
+      return respond({ ...data, source_name: sourceName, existing, diff: existing ? diffHolidays(rows, data.holidays || []) : null });
     }
 
     if (a === "google" && path.length === 2) {

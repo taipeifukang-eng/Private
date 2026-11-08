@@ -28,6 +28,20 @@ const MARKER_TARGETS = [
   { table: 'organization_units', column: 'code', pattern: 'M5W21-T%', action: 'report' },
 ];
 
+// M5 W23／W24（年度行事曆）：標題與假日來源名稱帶「[自動測試]M5W23 」。公司行事有異動紀錄（event_id restrict），sweeper 先刪紀錄再刪行事。
+// 個人行程刪除時分享紀錄 cascade。測試站的 mock 假日預覽來源名稱固定帶此標記（lib/workspace/calendar-mock.ts 啟用時才會）。
+// Google 同步連結只有保留年度 2099 的假日（holiday:2099-…）與連線列（mock 帳號）屬於測試；公司行事的連結由測試依事件 id 自行刪除。
+// 員工主檔測試列（離職對象搜尋）員編 ZTTW23…。
+const CALENDAR_MARKER = '[自動測試]M5W23 %';
+MARKER_TARGETS.push(
+  { table: 'organization_calendar_events', column: 'title', pattern: CALENDAR_MARKER, action: 'delete', cascade: 'calendar-event' },
+  { table: 'organization_personal_calendar_events', column: 'title', pattern: CALENDAR_MARKER, action: 'delete' },
+  { table: 'organization_calendar_holiday_imports', column: 'source_name', pattern: CALENDAR_MARKER, action: 'delete' },
+  { table: 'organization_calendar_google_event_links', column: 'source_key', pattern: 'holiday:2099-%', action: 'delete' },
+  { table: 'organization_calendar_google_connections', column: 'google_account_email', pattern: 'mock-google@example.test', action: 'delete' },
+  { table: 'store_employees', column: 'employee_code', pattern: 'ZTTW23%', action: 'delete' },
+);
+
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
 const RESERVED_MONTH_TABLES = [
   'monthly_store_summary',

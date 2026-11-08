@@ -12,7 +12,7 @@ const ref = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split(".")[0];
 if (fs.readFileSync(path.join(root, "supabase/.temp/project-ref"), "utf8").trim() !== ref)
   throw Error("supabase CLI 連結的專案不是 DEV，停止");
 const rollback = process.argv.includes("--rollback");
-const base = ["20261109110000_m5_w23_annual_calendar", "20261109110100_m5_w24_calendar_google_sync"];
+const base = ["20261109110000_m5_w23_annual_calendar", "20261109110100_m5_w24_calendar_google_sync", "20261109110200_m5_w23_personal_event_owner_read"];
 const files = (rollback ? base.slice().reverse() : base).map(
   (n) => `supabase/workspace-dev/${n}${rollback ? ".rollback" : ""}.sql`,
 );

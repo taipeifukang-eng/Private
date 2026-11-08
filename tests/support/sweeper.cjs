@@ -266,6 +266,23 @@ async function runSweeper(opts = {}) {
           n += (d.data || []).length;
         }
         row.deleted = n;
+      } else if (mode === 'sweep' && target.action === 'delete' && row.matched > 0 && target.cascade === 'calendar-event') {
+        // 年度行事曆公司行事：異動紀錄的 event_id 是 restrict，先刪紀錄與 Google 連結，再刪標題帶測試標記的行事。
+        const found = await db.from('organization_calendar_events').select('id').like(target.column, target.pattern);
+        if (found.error) throw new Error(found.error.message);
+        const ids = (found.data || []).map((r) => r.id);
+        let n = 0;
+        for (let i = 0; i < ids.length; i += 100) {
+          const part = ids.slice(i, i + 100);
+          const a = await db.from('organization_calendar_event_audit').delete().in('event_id', part);
+          if (a.error) throw new Error(a.error.message);
+          const l = await db.from('organization_calendar_google_event_links').delete().in('source_key', part.map((id) => 'company:' + id));
+          if (l.error) throw new Error(l.error.message);
+          const d = await db.from('organization_calendar_events').delete().in('id', part).select('id');
+          if (d.error) throw new Error(d.error.message);
+          n += (d.data || []).length;
+        }
+        row.deleted = n;
       } else if (mode === 'sweep' && target.action === 'delete' && row.matched > 0) {
         const del = await db
           .from(target.table)

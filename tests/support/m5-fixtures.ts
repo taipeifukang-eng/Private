@@ -227,6 +227,15 @@ export const M5_SCENARIOS: Record<string, M5Scenario> = {
     profileRole: 'member',
     appts: [],
   },
+  // W23／W24：年度行事曆的三個獨立權限與 Google 管理（appts 為空；PAGE_PERM 會另外加入，所以不是「待開通」帳號）。
+  cal_plain: { desc: '沒有任何行事曆權限（一般同仁）', perms: [], profileRole: 'member', appts: [] },
+  cal_creator: { desc: '只能新增公司行事', perms: ['organization.calendar.company.create'], profileRole: 'member', appts: [] },
+  cal_editor: { desc: '可修改或取消公司行事（另可新增）', perms: ['organization.calendar.company.create', 'organization.calendar.company.edit'], profileRole: 'member', appts: [] },
+  cal_holiday: { desc: '只能維護政府假日', perms: ['organization.calendar.holiday.manage'], profileRole: 'member', appts: [] },
+  cal_google: { desc: '只能管理 Google 同步', perms: ['organization.calendar.google.manage'], profileRole: 'member', appts: [] },
+  cal_all: { desc: '四個行事曆權限都有', perms: ['organization.calendar.company.create', 'organization.calendar.company.edit', 'organization.calendar.holiday.manage', 'organization.calendar.google.manage'], profileRole: 'member', appts: [] },
+  // 舊式身分是管理員、但角色沒有被授予任何行事曆權限（資料庫規則：管理員也不能編）。
+  cal_admin_ungranted: { desc: '舊式身分管理員，沒有被授予行事曆權限', perms: [], profileRole: 'admin', appts: [] },
   // P06：使用者管理與角色管理。
   user_viewer: { desc: '只能查看使用者', perms: ['user.user.view'], profileRole: 'member', appts: [] },
   user_editor: { desc: '使用者查看／編輯／變更角色／建立／刪除，舊式身分一般成員', perms: ['user.user.view', 'user.user.edit', 'user.user.change_role', 'user.user.create', 'user.user.delete'], profileRole: 'member', appts: [] },

@@ -36,8 +36,13 @@ export function resetMock() {
   (globalThis as unknown as { __fkCalendarMock?: MockState }).__fkCalendarMock = fresh();
   return mockState();
 }
-export function setMock(patch: Partial<Pick<MockState, "tokenInvalid" | "scopeMissing" | "failTitles" | "failDelete" | "csvVariant" | "officialFail">>) {
+export function setMock(
+  patch: Partial<Pick<MockState, "tokenInvalid" | "scopeMissing" | "failTitles" | "failDelete" | "csvVariant" | "officialFail">> & { addEvents?: { id: string; summary?: string }[] },
+) {
   const s = mockState();
+  // 模擬「別人在 Google 上手動建立的事件」：系統不該動它。
+  if (Array.isArray(patch.addEvents))
+    for (const e of patch.addEvents) s.events[String(e.id)] = { id: String(e.id), calendarId: "mock-calendar@group.calendar.google.com", summary: String(e.summary || "手動建立"), description: "手動建立" };
   if (typeof patch.tokenInvalid === "boolean") s.tokenInvalid = patch.tokenInvalid;
   if (typeof patch.scopeMissing === "boolean") s.scopeMissing = patch.scopeMissing;
   if (Array.isArray(patch.failTitles)) s.failTitles = patch.failTitles.map(String);
