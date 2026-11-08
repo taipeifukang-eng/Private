@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount, watch } from "vue";
 import { api } from "../api";
 import { useWorkspace, useSession, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import ImprovementPhotoUpload from "../components/ImprovementPhotoUpload.vue";
 const props = defineProps<{ tab: WorkTab }>(),
   work = useWorkspace(),
   session = useSession(),
@@ -60,35 +61,8 @@ function show(urls: string[]) {
   );
   index.value = 0;
 }
-async function upload(event: Event) {
-  const input = event.target as HTMLInputElement;
-  if (!input.files) return;
-  error.value = "";
-  props.tab.busy = true;
-  try {
-    const files = Array.from(input.files);
-    if (files.length + photos.value.length > 5)
-      throw Error("最多可上傳 5 張照片");
-    for (const file of files) {
-      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
-        throw Error("請選擇 JPEG、PNG 或 WebP 圖片");
-      const bitmap = await createImageBitmap(file),
-        scale = Math.min(1, 800 / Math.max(bitmap.width, bitmap.height)),
-        canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-      canvas
-        .getContext("2d")!
-        .drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-      bitmap.close();
-      photos.value.push(canvas.toDataURL("image/jpeg", 0.7));
-    }
-  } catch (e) {
-    error.value = (e as Error).message;
-  } finally {
-    props.tab.busy = false;
-    input.value = "";
-  }
+function onPhotoError(message: string) {
+  error.value = message;
 }
 async function submit() {
   if (props.tab.busy) return;
@@ -187,30 +161,17 @@ onBeforeUnmount(() => {
               rows="5"
               style="width: 100%"
             /></label
-          ><label
-            >改善照片（1–5 張）<input
-              aria-label="上傳改善照片"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              :disabled="photos.length >= 5"
-              @change="upload"
-          /></label>
-          <div class="module-actions">
-            <figure v-for="(url, i) in photos" :key="i">
-              <img
-                :src="url"
-                :alt="'改善照片 ' + (i + 1)"
-                style="width: 120px; height: 90px; object-fit: cover"
-              />
-              <figcaption>
-                <button type="button" @click="show([url])">
-                  放大照片 {{ i + 1 }}</button
-                ><button type="button" @click="photos.splice(i, 1)">
-                  移除照片 {{ i + 1 }}
-                </button>
-              </figcaption>
-            </figure>
+          >
+          <div class="improvement-photos">
+            <span class="improvement-photos-title">改善照片（1–5 張）</span>
+            <ImprovementPhotoUpload
+              :photos="photos"
+              @add="photos.push($event)"
+              @remove="photos.splice($event, 1)"
+              @preview="show([photos[$event]])"
+              @error="onPhotoError"
+              @busy="tab.busy = $event"
+            />
           </div>
           <button
             class="primary"

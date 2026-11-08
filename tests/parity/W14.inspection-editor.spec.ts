@@ -184,12 +184,15 @@ test('signature：空白簽名不能確認、正式送出需要雙簽名——�
       completedWithOneSignatureAccepted: !/!signaturePhoto \|\| !supervisorSignature/.test(newPage),
       completedWithBlankSignatureAccepted: !/disabled=\{!hasContent\}/.test(pad),
       label: '店長/當班主管確認簽名',
+      // M4 F3：兩個簽名未完成時送出鈕為灰（舊版 disabled 條件含兩個簽名）。
+      submitButtonDisabledWithoutSignatures: /disabled=\{[^}]*!signaturePhoto \|\| !supervisorSignature/.test(newPage),
     };
     const native = {
       blankCanBeConfirmed: !/:disabled="!hasInk"/.test(nativePad),
       completedWithOneSignatureAccepted: await attempt(SIGNED(), ''),
       completedWithBlankSignatureAccepted: await attempt(BLANK_WHITE(), SIGNED()),
       label: /label="([^"]*確認簽名)"/.exec(nativeEditor)![1].replace('／', '/'),
+      submitButtonDisabledWithoutSignatures: /:disabled="disabled \|\| missingSignatures\.length > 0"/.test(nativeEditor),
     };
     report('signature', '簽名規則', legacy, native);
     expect(await attempt(SIGNED(), SIGNED()), '兩個簽名都有筆跡可以正式送出').toBe(true);

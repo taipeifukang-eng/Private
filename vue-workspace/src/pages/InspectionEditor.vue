@@ -161,6 +161,19 @@ const disabled = computed(
     !!restorePrompt.value ||
     gpsLocked.value,
 );
+// M4 F3：兩個簽名沒完成時「提交巡店」停用（同舊版 !signaturePhoto || !supervisorSignature），旁邊寫明缺哪個。
+const missingSignatures = computed(() => {
+  const out: string[] = [];
+  if (!form.value.signature) out.push("店長／當班主管簽名");
+  if (!form.value.supervisorSignature) out.push("督導簽名");
+  return out;
+});
+const submitHint = computed(() => {
+  const m = missingSignatures.value;
+  if (!m.length) return "";
+  if (m.length === 2) return "請完成店長／當班主管簽名與督導簽名";
+  return "請完成" + m[0];
+});
 function score(id: string) {
   return form.value.scores.find((s: any) => s.template_id === id);
 }
@@ -1035,7 +1048,20 @@ onMounted(() => {
     <div class="module-actions">
       <button type="button" @click="save('draft')" :disabled="disabled">
         儲存草稿</button
-      ><button class="primary" :disabled="disabled">提交巡店</button>
+      ><button
+        class="primary"
+        :disabled="disabled || missingSignatures.length > 0"
+        :aria-describedby="submitHint ? 'submit-signature-hint' : undefined"
+      >
+        提交巡店</button
+      ><span
+        v-if="submitHint && !locked"
+        id="submit-signature-hint"
+        class="muted"
+        data-testid="submit-signature-hint"
+        role="status"
+        >{{ submitHint }}</span
+      >
     </div>
   </form>
   <GpsGuideDialog

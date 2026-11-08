@@ -44,3 +44,17 @@
 3. `w17_C_rollback.sql`：撤回，依備份還原。
 
 備註：不重算既有資料；歷史紀錄維持當時的天數與分數。DEV 對應檔：`supabase/workspace-dev/20261108100000_m4_w17_improvement_taipei_overdue.sql`（含 rollback 與 `scripts/apply-workspace-m4-w17-improvement-dev.cjs`）。
+
+## W17：誰在舊版能回報改善、新版不能（只查詢，F 節）
+
+對應 m4-spec.md F 節最後一項。新版只讓三種人回報改善：管理員、該門市店長、有「提交改善」權限（`inspection.improvement.submit`）者。
+舊版另外允許「該次巡店督導本人」與「有管理改善權限（`inspection.improvement.manage`）者」。`w17_D_reporter_diff.sql` 列出舊版可、新版不可的人員：
+
+- `L1 巡店督導本人`：自己巡的單還有尚未改善的項目，但他不是管理員、不是該門市店長、也沒有提交改善權限。
+- `L2 管理改善權限`：有管理改善權限，但不是管理員、沒有提交改善權限；每個不是他當店長的門市，其尚未改善項目都算受影響。
+- `affected_items`／`affected_stores`：受影響的尚未改善項目數與門市數；`current_roles` 為其目前有效角色。
+
+使用方式：只讀，單獨貼到正式區 SQL editor 執行，不改任何資料。權限判定照正式區 `has_permission`（`user_roles.is_active` 且未過期，
+`role_permissions.is_allowed`、`permissions.is_active`；不檢查 `roles.is_active`）。看過名單後，應該能回報的人請另行補授權 `inspection.improvement.submit`
+（授權草稿需使用者核可後才寫），其餘視為接受新版收緊（allowlist `m4-w17-q18-write-codes`、`m4-w17-q18-inspector`）。
+已在 DEV 以唯讀方式跑過，語法正確。

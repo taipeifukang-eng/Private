@@ -12,6 +12,30 @@ const list = read('vue-workspace/src/pages/Improvements.vue');
 const detail = read('vue-workspace/src/pages/ImprovementDetail.vue');
 const devSql = read('supabase/workspace-dev/20261108100000_m4_w17_improvement_taipei_overdue.sql');
 
+describe('M4 F：改善照片中文上傳按鈕', () => {
+  const upload = read('vue-workspace/src/components/ImprovementPhotoUpload.vue');
+  const capture = read('vue-workspace/src/components/InspectionPhotoCapture.vue');
+  it('回報頁改用中文按鈕元件，不再直接放原生 file input', () => {
+    expect(detail).toContain('<ImprovementPhotoUpload');
+    expect(detail).not.toContain('type="file"');
+    expect(upload).toContain('<span>選擇照片</span>');
+    expect(upload).toContain('aria-label="上傳改善照片"');
+  });
+  it('可多選、只收 JPEG／PNG／WebP、不帶 capture、最多 5 張、縮圖可刪除，風格共用拍照樣式', () => {
+    expect(upload).toContain('multiple');
+    expect(upload).toContain('accept="image/jpeg,image/png,image/webp"');
+    expect(upload).not.toContain('capture=');
+    expect(upload).toContain('const MAX = 5;');
+    expect(upload).toContain('class="photo-remove"');
+    expect(upload).toContain('photo-capture-button');
+    expect(upload).toContain('photo-capture-input');
+  });
+  it('巡店拍照元件維持後鏡頭 capture="environment"', () => {
+    expect(capture).toContain('capture="environment"');
+    expect(capture).toContain('accept="image/*"');
+  });
+});
+
 describe('Q17 台灣日期（資料庫函式）', () => {
   it('DEV 函式用 Asia/Taipei 日期算 days_taken，並有逾期保護；公式不變', () => {
     expect(devSql).toContain("(NEW.improved_at AT TIME ZONE 'Asia/Taipei')::date");
@@ -26,6 +50,7 @@ describe('Q17 台灣日期（資料庫函式）', () => {
       'docs/vue-workspace/parity-plan/m4-sql/w17_A_preview.sql',
       'docs/vue-workspace/parity-plan/m4-sql/w17_B_apply.sql',
       'docs/vue-workspace/parity-plan/m4-sql/w17_C_rollback.sql',
+      'docs/vue-workspace/parity-plan/m4-sql/w17_D_reporter_diff.sql',
     ])
       expect(fs.existsSync(path.join(root, f)), f).toBe(true);
     const apply = read('docs/vue-workspace/parity-plan/m4-sql/w17_B_apply.sql');
@@ -76,5 +101,21 @@ describe('急迫標示與連結（補回舊版）', () => {
   });
   it('列表不再限制每狀態 200 筆（全部載入，已列白名單）', () => {
     expect(listApi).not.toMatch(/limit\(200\)|LIST_LIMIT/);
+  });
+});
+
+describe('F 節：舊新版改善回報資格差異（只讀 SQL）', () => {
+  const sql = read('docs/vue-workspace/parity-plan/m4-sql/w17_D_reporter_diff.sql');
+  it('只讀、涵蓋督導本人與管理改善權限、扣掉管理員／店長／提交改善權限，且不檢查 roles.is_active', () => {
+    expect(sql).not.toMatch(/^\s*(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|GRANT|TRUNCATE)\b/im);
+    expect(sql).toContain('inspection.improvement.manage');
+    expect(sql).toContain('inspection.improvement.submit');
+    expect(sql).toContain('inspector_id');
+    expect(sql).toContain('store_managers');
+    expect(sql).toContain("pr.role = 'admin'");
+    expect(sql).not.toMatch(/\br\.is_active/);
+  });
+  it('README 有說明', () => {
+    expect(read('docs/vue-workspace/parity-plan/m4-sql/README.md')).toContain('w17_D_reporter_diff.sql');
   });
 });

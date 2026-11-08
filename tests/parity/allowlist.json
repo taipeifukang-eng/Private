@@ -1619,11 +1619,22 @@
     "id": "m4-w13-q2-coverage-draft-tag",
     "page": "inspection-list",
     "description": "已巡店／尚未巡店名單：只有草稿、進行中的門市，舊版算已巡店；新版留在尚未巡店並標「有草稿未送出」。",
-    "reason": "M4 規格 Q2（split），使用者 2026-11-07 問卷核可。",
-    "approvedBy": "user (2026-11-07 survey/m4 Q2)",
+    "reason": "M4 規格 Q2（split），使用者 2026-11-07 問卷核可；F2 追加確認（in_pending）：只有草稿的門市留在尚未巡店並標「有草稿未送出」。",
+    "approvedBy": "user (2026-11-08 survey/m4f F2)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "coverage"
+    }
+  },
+  {
+    "id": "m4-w13-f-closed-counts-finished",
+    "page": "inspection-list",
+    "description": "「已結案（closed）」的巡店單視同已完成，計入統計卡的已完成數量；舊版統計不特別處理結案狀態。",
+    "reason": "M4 規格 F 節「直接做」：已結案視同已完成計入統計，使用者 2026-11-08 survey/m4f 核可。",
+    "approvedBy": "user (2026-11-08 survey/m4f)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "stats-finished"
     }
   },
   {
@@ -1662,8 +1673,8 @@
     "id": "m4-w13-q3-legacy-write-policy-reads-all",
     "page": "inspection-list",
     "description": "可見範圍：新版照規格 Q3 取舊版 RLS 讀取政策的聯集（自己建立的、被指派門市、查看全部）。但舊版實際連到的資料庫另有「寫入政策」p1f_inspection_masters_write（FOR ALL，條件是持有 inspection.create 或 inspection.delete），多個政策取聯集，所以持有「新增巡店」權限的督導在舊版列表其實看得到所有門市的巡店單（舊版查詢本身不另外篩選）。新版督導少看到未被指派門市、他人建立的單。",
-    "reason": "M4 規格 Q3 背景只描述舊版讀取政策，未提到寫入政策也會放行讀取；這是規格撰寫時未發現的實際舊版行為，需使用者確認要維持規格（聯集）或改成與舊版實際相同（有新增權限者看全部）。待核可。",
-    "approvedBy": null,
+    "reason": "M4 規格 Q3 背景只描述舊版讀取政策，未提到寫入政策也會放行讀取；這是規格撰寫時未發現的實際舊版行為，使用者 2026-11-08 survey/m4f F1 選擇維持規格（聯集），不採舊版寫入政策的讀取副作用。",
+    "approvedBy": "user (2026-11-08 survey/m4f F1)",
     "match": {
       "mechanism": "ui-extract",
       "entry": "visibility"
@@ -1886,8 +1897,8 @@
     "id": "m4-w17-q19-db-overdue-report",
     "page": "improvements",
     "description": "被補跑程式標成已逾期（資料庫 overdue）的項目：舊版不顯示填寫區、無法回報；新版一律可補回報（留下改善紀錄與照片），回補 0 分。",
-    "reason": "M4 規格 Q19（allow_all_zero），使用者 2026-11-07 問卷核可。",
-    "approvedBy": "user (2026-11-07 survey/m4 Q19)",
+    "reason": "M4 規格 Q19（allow_all_zero），使用者 2026-11-07 問卷核可；F4 追加確認（keep_guard）：保留資料庫「回報日超過期限一律回補 0」保護。",
+    "approvedBy": "user (2026-11-08 survey/m4f F4)",
     "match": {
       "mechanism": "write-readback",
       "entry": "overdue-report",

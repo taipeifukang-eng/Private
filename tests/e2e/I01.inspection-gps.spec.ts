@@ -114,6 +114,11 @@ test('定位成功前整張表單鎖住：顯示定位中，不能選門市、�
     await geoRespond(page, GPS_BASE);
     await expect(gpsPanel(page)).toHaveAttribute('data-gps-status', 'success');
     await expect(storeSelect(page)).toBeEnabled();
+    // M4 F3：定位成功後表單解鎖，但兩個簽名沒完成前「提交巡店」仍是灰的；完成簽名後才可按。
+    await expect(ed(page).getByRole('button', { name: '提交巡店' })).toBeDisabled();
+    await expect(ed(page).getByTestId('submit-signature-hint')).toContainText('簽名');
+    await sign(page, 0);
+    await sign(page, 1);
     await expect(ed(page).getByRole('button', { name: '提交巡店' })).toBeEnabled();
   } finally {
     await ctx.close();

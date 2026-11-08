@@ -43,6 +43,22 @@ describe('問題照片連續拍照（使用者追加要求）', () => {
   });
 });
 
+describe('F3 提交按鈕：簽名未完成即停用', () => {
+  it('兩個簽名任一缺少時「提交巡店」停用，儲存草稿不受影響', () => {
+    expect(editor).toContain(':disabled="disabled || missingSignatures.length > 0"');
+    expect(editor).toMatch(/<button type="button" @click="save\('draft'\)" :disabled="disabled">/);
+  });
+  it('旁邊文字說明缺哪個簽名', () => {
+    expect(editor).toContain('"店長／當班主管簽名"');
+    expect(editor).toContain('"督導簽名"');
+    expect(editor).toContain('data-testid="submit-signature-hint"');
+    expect(editor).toContain('"請完成店長／當班主管簽名與督導簽名"');
+  });
+  it('後端雙簽名檢查保留', () => {
+    expect(route).toContain('completedSignatureError(body.signature, body.supervisorSignature)');
+  });
+});
+
 describe('Q12 簽名', () => {
   it('簽名板沒畫筆跡前「確認簽名」為停用', () => {
     expect(signature).toContain(':disabled="!hasInk"');

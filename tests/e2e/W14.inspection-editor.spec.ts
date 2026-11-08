@@ -63,34 +63,37 @@ test('連續拍照：後鏡頭 capture、連拍 5 張、第 5 張後按鈕消失
   }
 });
 
-test('簽名：沒畫前確認鈕是灰的；正式送出沒有兩個簽名會被擋下，不送出請求', async ({ browser }, testInfo) => {
+test('簽名：沒畫前確認鈕是灰的；兩個簽名未完成時提交巡店為灰並說明缺哪個（F3），草稿照常可存', async ({ browser }, testInfo) => {
   test.setTimeout(180_000);
   const { ctx, page } = await open(browser, testInfo);
-  let posts = 0;
-  await page.route('**/api/workspace/inspection-form', (route) => {
-    if (route.request().method() === 'POST') posts++;
-    return route.continue();
-  });
+  const submit = ed(page).getByRole('button', { name: '提交巡店' });
+  const hint = ed(page).getByTestId('submit-signature-hint');
   try {
     await expect(ed(page).getByText('店長／當班主管確認簽名')).toBeVisible();
     await expect(ed(page).getByText('督導簽名', { exact: true })).toBeVisible();
     await selectStore(page, 'ZT01');
     await ed(page).getByLabel(/室內溫度/).fill('26');
-    // 只簽一個，送出被擋
+    // 兩個都沒簽：按鈕灰，兩個都提示
+    await expect(submit).toBeDisabled();
+    await expect(hint).toContainText('店長／當班主管簽名');
+    await expect(hint).toContainText('督導簽名');
+    // 草稿不受影響
+    await expect(ed(page).getByRole('button', { name: '儲存草稿' })).toBeEnabled();
+    // 只簽店長：仍灰，只提示督導
     await sign(page, 0);
     await expect(ed(page).getByAltText('店長／當班主管確認簽名')).toBeVisible();
-    await ed(page).getByRole('button', { name: '提交巡店' }).click();
-    await page.getByRole('button', { name: '確認提交' }).click();
-    await expect(page.getByText('巡店尚未儲存')).toBeVisible();
-    await expect(page.locator('dialog[open]')).toContainText('兩個簽名');
-    await page.getByRole('button', { name: '返回編輯' }).click();
-    expect(posts, '前端先擋下，不送出').toBe(0);
+    await expect(submit).toBeDisabled();
+    await expect(hint).toHaveText('請完成督導簽名');
     // 開簽名板後直接取消，沒有產生簽名；督導欄位仍是空的
     await ed(page).getByRole('button', { name: '開啟簽名板' }).click();
     await expect(page.getByTestId('signature-confirm')).toBeDisabled();
     await page.locator('dialog[open]').getByRole('button', { name: '取消' }).click();
     await expect(ed(page).getByAltText('督導簽名')).toHaveCount(0);
     await shot(page, testInfo, 'w14-signature-required');
+    // 補上督導簽名後可按
+    await sign(page, 1);
+    await expect(submit).toBeEnabled();
+    await expect(hint).toHaveCount(0);
   } finally {
     await ctx.close();
   }
