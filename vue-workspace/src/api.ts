@@ -55,6 +55,9 @@ export type Campaign = {
   is_active: boolean;
   workspace_version: number;
   updated_at: string;
+  published_to_supervisors?: boolean;
+  published_to_store_managers?: boolean;
+  published_to_inventory_team?: boolean;
 };
 export const taiwanMonth = () =>
   new Intl.DateTimeFormat("en-CA", {

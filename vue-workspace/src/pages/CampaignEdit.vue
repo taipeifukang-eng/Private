@@ -3,6 +3,7 @@ import { ref, computed, onMounted, watch, nextTick } from "vue";
 import { api, ApiError, type Campaign } from "../api";
 import { useSession, useWorkspace, type WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import { publishedAudiences } from "../../../lib/workspace/campaign-rules";
 const props = defineProps<{ tab: WorkTab; embedded?: boolean }>();
 const emit=defineEmits<{saved:[]}>();
 const session = useSession(),
@@ -25,6 +26,10 @@ const loading = ref(false),
   showReload = ref(false),
   errorModal = ref(false);
 const fields = ref<Record<string, string>>({});
+// M5 Q4／Q5c：改期前列出期間外的門市；已發布活動儲存前提示立即生效。
+const outside = ref<{ store_id: string; store_code: string; store_name: string; activity_date: string }[]>([]),
+  dialog = ref<"" | "outside" | "published">(""),
+  published = ref<string[]>([]);
 const readOnly = computed(
   () => !session.data?.capabilities.editCampaigns || session.expired,
 );
@@ -58,6 +63,7 @@ function accept(record: Campaign) {
   };
   baseline.value = JSON.stringify(form.value);
   version.value = record.workspace_version;
+  published.value = publishedAudiences(record);
   props.tab.recordId = record.id;
   props.tab.dirty = false;
   conflict.value = false;
@@ -105,6 +111,42 @@ async function save(): Promise<boolean> {
     )?.focus();
     return false;
   }
+  outside.value = [];
+  if (props.tab.recordId) {
+    const was = JSON.parse(baseline.value);
+    if (was.start_date !== form.value.start_date || was.end_date !== form.value.end_date) {
+      props.tab.busy = true;
+      error.value = "";
+      try {
+        const r = await api(`campaigns?${new URLSearchParams({ id: props.tab.recordId, preview: "outside", start: form.value.start_date, end: form.value.end_date })}`);
+        outside.value = r.outside || [];
+      } catch (e) {
+        error.value = (e as Error).message;
+        return false;
+      } finally {
+        props.tab.busy = false;
+      }
+    }
+    if (outside.value.length) {
+      dialog.value = "outside";
+      return false;
+    }
+    if (published.value.length) {
+      dialog.value = "published";
+      return false;
+    }
+  }
+  return commit();
+}
+function afterOutside() {
+  if (published.value.length) dialog.value = "published";
+  else {
+    dialog.value = "";
+    void commit();
+  }
+}
+async function commit(): Promise<boolean> {
+  dialog.value = "";
   props.tab.busy = true;
   error.value = "";
   message.value = "";
@@ -116,12 +158,15 @@ async function save(): Promise<boolean> {
         id: props.tab.recordId,
         version: version.value,
         requestId,
+        ...(outside.value.length ? { moveOutside: true } : {}),
       }),
     });
     work.lastSavedTab = props.tab.id;
     work.campaignRevision++;
     accept(result.record);
-    message.value = "已儲存活動資料";emit('saved');
+    message.value = result.moved ? `已儲存活動資料，並將 ${result.moved} 間期間外的門市移回「尚未安排」` : "已儲存活動資料";
+    outside.value = [];
+    emit('saved');
     return true;
   } catch (e) {
     error.value = (e as Error).message;
@@ -222,13 +267,13 @@ function reload() {
       <div class="form-grid">
         <label
           >活動類型<select v-model="form.campaign_type">
-            <option value="promotion">促銷活動</option>
+            <option value="promotion">促銷（母親節／周年慶等）</option>
             <option value="inventory">盤點活動</option>
           </select></label
         ><label
           >啟用狀態<select v-model="form.is_active">
             <option :value="true">啟用</option>
-            <option :value="false">停用</option>
+            <option :value="false">停用（對督導、店長、活動檢視隱藏）</option>
           </select></label
         >
       </div>
@@ -260,6 +305,21 @@ function reload() {
     <div class="dialog-actions">
       <button @click="showReload = false">繼續編輯</button
       ><button class="danger" @click="reload">放棄修改並載入</button>
+    </div></Modal
+  >
+  <Modal v-if="dialog === 'outside'" title="有門市排程落在新的活動期間外" @cancel="dialog = ''"
+    ><p>新期間是 {{ form.start_date }} 到 {{ form.end_date }}。以下 {{ outside.length }} 間門市目前排的日期不在期間內，確認後會一併移回「尚未安排」（排程日期會清除，需要時再重新排）。</p>
+    <ul class="outside"><li v-for="o in outside" :key="o.store_id">{{ o.store_code }} {{ o.store_name }}：原排 {{ o.activity_date }}</li></ul>
+    <div class="dialog-actions">
+      <button @click="dialog = ''">返回修改日期</button
+      ><button class="danger" @click="afterOutside">確認並移回尚未安排</button>
+    </div></Modal
+  >
+  <Modal v-if="dialog === 'published'" title="此活動已發布，儲存後立即生效" @cancel="dialog = ''"
+    ><p>此活動已發布給{{ published.join("、") }}，儲存後他們看到的內容會立即改變，系統不會另外通知。確定要儲存嗎？</p>
+    <div class="dialog-actions">
+      <button @click="dialog = ''">返回</button
+      ><button class="primary" @click="commit">確認儲存</button>
     </div></Modal
   >
   <Modal
