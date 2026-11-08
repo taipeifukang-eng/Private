@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { UserCog, Plus, Search, TrendingUp, X, Save, Calendar, Edit2, Upload, Download, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { POSITION_OPTIONS } from '@/types/workflow';
+import PositionHeadcountPanel from './PositionHeadcountPanel';
 import { formatPromotionPosition, getMovementNotesForDisplay } from '@/lib/monthly-staff/promotion-level';
 
 interface Employee {
@@ -66,6 +67,7 @@ export default function EmployeeManagementClient({
 
   const [employees, setEmployees] = useState<Employee[]>(sortedInitialEmployees);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>(sortedInitialEmployees);
+  const [activeTab, setActiveTab] = useState<'employees' | 'headcount'>('employees');
   const [searchTerm, setSearchTerm] = useState('');
   const [employmentStatusFilter, setEmploymentStatusFilter] = useState<'all' | 'active' | 'resigned'>('all');
   const [positionFilter, setPositionFilter] = useState('all');
@@ -393,7 +395,7 @@ export default function EmployeeManagementClient({
             </h1>
             <p className="text-gray-600">管理所有員工資料庫，提供每月人員狀態使用</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className={`${activeTab === 'employees' ? 'flex' : 'hidden'} items-center gap-3`}>
             <button
               onClick={handleExportFilteredExcel}
               className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
@@ -425,6 +427,23 @@ export default function EmployeeManagementClient({
           </div>
         </div>
 
+        {/* 分頁 */}
+        <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
+          {([['employees', '員工資料庫'], ['headcount', '每月人數統計']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              className={`px-5 py-3 font-semibold whitespace-nowrap border-b-2 -mb-px ${activeTab === key ? 'border-blue-600 text-blue-700' : 'border-transparent text-gray-600 hover:text-gray-900'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'headcount' && <PositionHeadcountPanel />}
+
+        <div className={activeTab === 'employees' ? '' : 'hidden'}>
         {/* 統計卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
@@ -618,6 +637,7 @@ export default function EmployeeManagementClient({
             <li>• 點擊「升遷歷程」可查看該員工的升遷記錄</li>
             <li>• 員工的升遷請使用「升遷管理」功能統一處理</li>
           </ul>
+        </div>
         </div>
       </div>
 
