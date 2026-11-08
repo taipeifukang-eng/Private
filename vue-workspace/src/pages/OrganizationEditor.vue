@@ -28,7 +28,6 @@ async function load(preserve=false) {
   const d=await api('organization'); units.value=d.units;version.value=d.version;
   permitted.value=Boolean(d.capabilities[mode==='basic'?(props.tab.recordId?'update':'create'):mode]);
   if(props.tab.recordId&&!current.value)throw Error('此組織單位已不存在');
-  if(mode!=='basic' && current.value?.status!=='active')permitted.value=false;
   if(mode!=='basic' && permitted.value)people.value=(await api('organization-people')).people;
   let remote:any=null;
   if(current.value){
@@ -69,7 +68,7 @@ props.tab.save=save;onMounted(()=>load());onBeforeUnmount(()=>{answer(false);del
 </script>
 <template>
  <header class="page-heading"><div><p class="eyebrow">組織與門市 / 公司組織</p><h1>{{mode==='members'?'設定成員':mode==='managers'?'設定主管':tab.recordId?'編輯組織單位':'新增組織單位'}}</h1><p v-if="current">{{current.code}} · {{current.name}}</p></div><button :disabled="loading||tab.busy||confirm" @click="load(tab.dirty)">{{tab.dirty?'重新載入（保留草稿）':'重新載入'}}</button></header>
- <p v-if="error" role="alert" class="notice error">{{error}}</p><p v-if="message" role="status" class="notice">{{message}}</p><p v-if="loading" role="status">載入組織資料…</p><p v-if="!loading&&!permitted" class="notice">此操作目前無權限，或單位已停用。</p>
+ <p v-if="error" role="alert" class="notice error">{{error}}</p><p v-if="message" role="status" class="notice">{{message}}</p><p v-if="loading" role="status">載入組織資料…</p><p v-if="!loading&&!permitted" class="notice">此操作目前無權限。</p>
  <section v-if="review" class="review" aria-label="核對最新組織資料"><h2>核對目前資料與草稿</h2><p>其他操作已更新此單位。請確認要保留的內容，再繼續儲存。</p><template v-if="mode==='basic'"><div v-for="key in differences" :key="key" class="difference"><h3>{{labels[key]}}</h3><div class="comparison"><div><strong>目前資料</strong><p>{{display(latest[key],key)}}</p></div><div><strong>你的草稿</strong><p>{{display(form[key],key)}}</p></div></div><button type="button" @click="useLatest(key)">採用目前的{{labels[key]}}</button></div><p v-if="!differences.length">草稿已與目前資料相同。</p></template><template v-else><div class="comparison"><div><h3>目前{{mode==='members'?'成員':'主管'}}</h3><p v-if="!latest.length">尚未指派</p><p v-for="entry in latest" :key="mode==='members'?entry:entry.user_id">{{personName(mode==='members'?entry:entry.user_id)}}<template v-if="mode==='managers'"> · {{managerRoles[entry.manager_role]}}{{entry.is_primary?'（主要）':''}}</template></p></div><div><h3>你的草稿</h3><p v-if="!(mode==='members'?members:managers).length">尚未指派</p><p v-for="entry in (mode==='members'?members:managers)" :key="typeof entry==='string'?entry:entry.user_id">{{personName(typeof entry==='string'?entry:entry.user_id)}}<template v-if="typeof entry!=='string'"> · {{managerRoles[entry.manager_role]}}{{entry.is_primary?'（主要）':''}}</template></p></div></div><button type="button" @click="useLatest()">採用目前全部指派</button></template><div class="dialog-actions"><button class="primary" :disabled="loading||tab.busy" @click="review=false">已核對，繼續編輯</button></div></section><form v-if="version" @submit.prevent="save"><fieldset :disabled="!permitted||loading||tab.busy||conflict||review||confirm">
   <div v-if="mode==='basic'" class="organization-form">
    <label>單位代碼<input v-model="form.code" required maxlength="30"></label><label>單位名稱<input v-model="form.name" required maxlength="200"></label>

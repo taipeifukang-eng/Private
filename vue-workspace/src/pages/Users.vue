@@ -3,6 +3,11 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import {
+  ADMIN_GRANT_WARNING,
+  REGISTER_PATH,
+  compatRoleNeedsAdminConfirm,
+} from "../../../lib/workspace/user-management-rules";
 const props = defineProps<{ tab: WorkTab }>();
 const users = ref<any[]>([]),
   caps = ref<Record<string, boolean>>({}),
@@ -24,7 +29,10 @@ const users = ref<any[]>([]),
   detailTab = ref("roles"),
   showPassword = ref(false),
   resetDone = ref(false),
-  copyMessage = ref("");
+  copyMessage = ref(""),
+  pendingOnly = ref(false),
+  pendingCount = ref(0),
+  adminConfirm = ref(false);
 const roleNames: Record<string, string> = {
   admin: "管理員",
   manager: "主管",
@@ -33,7 +41,7 @@ const roleNames: Record<string, string> = {
 const baseline = ref("{}");
 const draft = computed(
   () =>
-    ["create", "edit", "role", "reset"].includes(modal.value) &&
+    ["edit", "role", "reset"].includes(modal.value) &&
     JSON.stringify(form.value) !== baseline.value &&
     !resetDone.value,
 );
@@ -43,6 +51,7 @@ const filtered = computed(() =>
     .filter(
       (u) =>
         (!role.value || u.role === role.value) &&
+        (!pendingOnly.value || u.is_pending_activation) &&
         [u.email, u.full_name, u.employee_code].some((v) =>
           String(v || "")
             .toLowerCase()
@@ -72,7 +81,7 @@ const pages = computed(() =>
       Math.min(page.value, pages.value) * 50,
     ),
   );
-watch([search, role], () => (page.value = 1));
+watch([search, role, pendingOnly], () => (page.value = 1));
 const permissions = computed(() =>
   (detail.value?.effective_permissions || []).filter((p: any) =>
     [
@@ -89,7 +98,6 @@ const permissions = computed(() =>
 const modalTitle = computed(
   () =>
     ({
-      create: "新增使用者",
       edit: "編輯使用者",
       role: "變更相容角色",
       reset: "重置密碼",
@@ -107,6 +115,8 @@ async function load() {
     users.value = r.users;
     caps.value = r.capabilities;
     currentUser.value = r.currentUser;
+    pendingCount.value = r.pendingCount || 0;
+    if (!pendingCount.value) pendingOnly.value = false;
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -130,9 +140,7 @@ function open(action: string, user: any = null) {
         )
       : action === "role"
         ? { role: user.role }
-        : action === "create"
-          ? { email: "", full_name: "", password: "", confirmPassword: "" }
-          : { password: "" };
+        : { password: "" };
   baseline.value = JSON.stringify(form.value);
   props.tab.dirty = false;
 }
@@ -170,16 +178,18 @@ async function copy(text: string) {
 }
 async function save() {
   if (props.tab.busy) return false;
-  if (!["create", "edit", "role", "reset", "delete"].includes(modal.value))
-    return true;
+  if (!["edit", "role", "reset", "delete"].includes(modal.value)) return true;
   dialogError.value = "";
+  // M5 Q13：把人改成管理員前，先顯示醒目確認（後端規則不變）。
   if (
-    modal.value === "create" &&
-    form.value.password !== form.value.confirmPassword
+    modal.value === "role" &&
+    !adminConfirm.value &&
+    compatRoleNeedsAdminConfirm(target.value?.role, form.value.role)
   ) {
-    dialogError.value = "兩次密碼不一致";
+    adminConfirm.value = true;
     return false;
   }
+  adminConfirm.value = false;
   props.tab.busy = true;
   try {
     let r: any;
@@ -189,10 +199,9 @@ async function save() {
         method: "DELETE",
       });
     else {
-      const { confirmPassword, ...values } = form.value;
       r = await api("users", {
         method: action === "edit" || action === "role" ? "PATCH" : "POST",
-        body: JSON.stringify({ action, id: target.value?.id, ...values }),
+        body: JSON.stringify({ action, id: target.value?.id, ...form.value }),
       });
     }
     message.value = r.message || "操作完成";
@@ -262,9 +271,14 @@ const validationLabels: Record<string, string> = {
     </div>
     <div class="module-actions">
       <button :disabled="loading || tab.busy" @click="load">重新整理</button
-      ><button v-if="caps.create" class="primary" @click="open('create')">
-        新增使用者
-      </button>
+      ><a
+        class="button-link primary"
+        data-testid="add-user-link"
+        :href="REGISTER_PATH"
+        target="_blank"
+        rel="noopener"
+        >新增使用者</a
+      >
     </div>
   </header>
   <p v-if="error" class="notice error" role="alert">{{ error }}</p>
@@ -272,6 +286,14 @@ const validationLabels: Record<string, string> = {
   <div class="user-counts" aria-label="使用者統計">
     <button :aria-pressed="role === ''" @click="role = ''">
       總使用者 <strong>{{ users.length }}</strong></button
+    ><button
+      data-testid="pending-filter"
+      :aria-pressed="pendingOnly"
+      :disabled="!pendingCount && !pendingOnly"
+      @click="pendingOnly = !pendingOnly"
+    >
+      待開通 <strong data-testid="pending-count">{{ pendingCount }}</strong> 位
+    </button
     ><button
       v-for="(name, key) in roleNames"
       :aria-pressed="role === key"
@@ -313,7 +335,13 @@ const validationLabels: Record<string, string> = {
             {{ u.employee_code || "—" }}<br /><strong>{{
               u.full_name || "未設定"
             }}</strong
-            ><small v-if="u.id === currentUser">目前登入</small>
+            ><small v-if="u.id === currentUser">目前登入</small
+            ><small
+              v-if="u.is_pending_activation"
+              class="pending-tag"
+              data-testid="pending-tag"
+              >待開通</small
+            >
           </td>
           <td>{{ u.email }}</td>
           <td>{{ u.department || "—" }}<br />{{ u.job_title || "—" }}</td>
@@ -519,39 +547,6 @@ const validationLabels: Record<string, string> = {
     >
     <form v-else @submit.prevent="save">
       <fieldset :disabled="tab.busy">
-        <template v-if="modal === 'create'"
-          ><label
-            >姓名<input
-              v-model="form.full_name"
-              required
-              maxlength="200" /></label
-          ><label
-            >電子郵件<input
-              type="email"
-              v-model="form.email"
-              required
-              autocomplete="off"
-              maxlength="254" /></label
-          ><label
-            >密碼<input
-              type="password"
-              v-model="form.password"
-              required
-              minlength="6"
-              maxlength="128"
-              autocomplete="new-password" /></label
-          ><label
-            >確認密碼<input
-              type="password"
-              v-model="form.confirmPassword"
-              required
-              minlength="6"
-              autocomplete="new-password"
-          /></label>
-          <p class="muted">
-            新增後預設為成員；此操作不寄送通知郵件。
-          </p></template
-        >
         <template v-if="modal === 'edit'"
           ><label
             v-for="(label, key) in {
@@ -634,6 +629,30 @@ const validationLabels: Record<string, string> = {
       </div>
     </form>
   </Modal>
+  <Modal
+    v-if="adminConfirm"
+    title="確認授予管理員"
+    :busy="tab.busy"
+    @cancel="adminConfirm = false"
+  >
+    <p class="notice error admin-warning" role="alert" data-testid="admin-grant-warning">
+      {{ ADMIN_GRANT_WARNING }}
+    </p>
+    <p>
+      即將把 {{ target?.full_name || target?.email }} 的相容角色改為「管理員」。
+    </p>
+    <div class="dialog-actions">
+      <button :disabled="tab.busy" @click="adminConfirm = false">取消</button
+      ><button
+        class="danger"
+        data-testid="admin-grant-confirm"
+        :disabled="tab.busy"
+        @click="save"
+      >
+        確認授予管理員權限
+      </button>
+    </div></Modal
+  >
   <Modal v-if="discard" title="放棄未儲存內容？" @cancel="discard = false"
     ><p>關閉後將清除這次編輯內容。</p>
     <div class="dialog-actions">
@@ -643,6 +662,26 @@ const validationLabels: Record<string, string> = {
   >
 </template>
 <style scoped>
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border: 1px solid var(--primary);
+  text-decoration: none;
+}
+.pending-tag {
+  display: inline-block;
+  width: fit-content;
+  padding: 2px 8px;
+  border: 1px solid #b45309;
+  color: #b45309;
+  font-weight: 700;
+}
+.admin-warning {
+  font-size: 18px;
+  font-weight: 700;
+  border-width: 2px;
+}
 .user-counts {
   display: flex;
   gap: 12px;

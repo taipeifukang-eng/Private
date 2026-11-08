@@ -5,6 +5,7 @@ import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
 import { MODULE_NAMES, FEATURE_NAMES } from "../../../types/rbac";
 import { isScopePermission, preferredScopePermission, permissionLabel } from "../role-scope";
+import { ADMIN_GRANT_WARNING, roleAssignmentNeedsAdminConfirm } from "../../../lib/workspace/user-management-rules";
 const props = defineProps<{ tab: WorkTab }>();
 const roles = ref<any[]>([]),
   caps = ref<Record<string, boolean>>({}),
@@ -334,7 +335,7 @@ async function savePermissions() {
   confirm.value = "";
   return false;
 }
-async function assign() {
+async function assign(confirmed = false) {
   const employee_codes = [
     ...new Set(
       codes.value
@@ -347,6 +348,12 @@ async function assign() {
     dialogError.value = "請輸入員工編號";
     return;
   }
+  // M5 Q13：把人加進管理員等級角色前，先顯示醒目確認（後端規則不變）。
+  if (!confirmed && roleAssignmentNeedsAdminConfirm(target.value)) {
+    confirm.value = "admin-grant";
+    return;
+  }
+  confirm.value = "";
   if (await perform(url() + "/users", "POST", { employee_codes })) {
     codes.value = "";
     await selectSection("users");
@@ -417,8 +424,8 @@ onMounted(load);
           type="checkbox"
           :disabled="loading"
           @change="load"
-        />顯示測試角色
-        <span v-if="hidden">（隱藏 {{ hidden }} 筆）</span></label
+        />顯示 DEV 測試角色
+        <span v-if="hidden && !includeDev" data-testid="hidden-dev-roles">已隱藏 {{ hidden }} 個 DEV 測試角色</span></label
       >
     </div>
     <p>{{ loading ? "載入中…" : `共 ${visible.length} 個角色` }}</p>
@@ -438,7 +445,8 @@ onMounted(load);
           <tr v-for="r in visible" :key="r.id">
             <td>
               <strong>{{ r.name }}</strong
-              ><small>{{ r.code }} {{ r.is_system ? "· 系統預設" : "" }}</small>
+              ><small>{{ r.code }} {{ r.is_system ? "· 系統預設" : "" }}</small
+              ><small v-if="r.is_dev_verification_role" data-testid="dev-role-tag">DEV測試</small>
             </td>
             <td>{{ r.description || "—" }}</td>
             <td>{{ r.permission_count }}</td>
@@ -712,7 +720,7 @@ onMounted(load);
         <p v-if="!Object.keys(groups).length">沒有符合條件的權限</p>
       </section>
       <section v-else-if="section === 'users' && !detailLoading">
-        <form v-if="caps.assignUsers" @submit.prevent="assign">
+        <form v-if="caps.assignUsers" @submit.prevent="assign()">
           <label
             >批次指派員工編號<textarea
               v-model="codes"
@@ -800,6 +808,7 @@ onMounted(load);
           permissions: '確認權限變更',
           delete: '刪除角色',
           revoke: '移除使用者指派',
+          'admin-grant': '確認授予管理員等級角色',
         } as any
       )[confirm]
     "
@@ -845,6 +854,25 @@ onMounted(load);
         </button>
       </div></template
     >
+    <template v-else-if="confirm === 'admin-grant'"
+      ><p class="notice error admin-warning" role="alert" data-testid="admin-grant-warning">
+        {{ ADMIN_GRANT_WARNING }}
+      </p>
+      <p>
+        你正要把 {{ codes.trim() }} 加進「{{ target.name }}」（管理員等級角色）。
+      </p>
+      <div class="actions">
+        <button :disabled="tab.busy" @click="confirm = ''">取消</button
+        ><button
+          class="danger"
+          data-testid="admin-grant-confirm"
+          :disabled="tab.busy"
+          @click="assign(true)"
+        >
+          確認授予管理員權限
+        </button>
+      </div></template
+    >
     <template v-else-if="confirm === 'discard'"
       ><p>尚未儲存的角色資料、權限與待指派員編將被放棄。</p>
       <div class="actions">
@@ -883,6 +911,11 @@ onMounted(load);
   </Modal>
 </template>
 <style scoped>
+.admin-warning {
+  font-size: 18px;
+  font-weight: 700;
+  border-width: 2px;
+}
 .role-header,
 .actions,
 .feature-heading,
