@@ -71,6 +71,9 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "campaign-schedule": meta("活動門市排程", ["campaigns"]),
   inspections: meta("巡店列表", ["inspections"], true),
   campaigns: meta("活動管理", ["campaigns"]),
+  // M5 W20：活動檢視獨立入口（舊 /activity-management、/activity-view/[id]）；入口條件與舊版相同（canEnterCampaignView）。
+  "activity-view": meta("活動檢視", ["campaignView"]),
+  "activity-view-detail": meta("活動排程檢視", ["campaignView"]),
   // 新增活動；帶 recordId 開啟時標題改為「編輯活動」，見 pageTitle()。
   "campaign-edit": meta("新增活動", ["campaigns"]),
   monthly: meta("每月人員狀態", ["monthly"], true),

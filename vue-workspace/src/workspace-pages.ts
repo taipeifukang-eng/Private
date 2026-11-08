@@ -4,6 +4,8 @@ import type { Component } from "vue";
 import type { WorkTabKind } from "../../lib/workspace/page-kinds";
 import CampaignEdit from "./pages/CampaignEdit.vue";
 import CampaignSchedule from "./pages/CampaignSchedule.vue";
+import ActivityViewDetail from "./pages/ActivityViewDetail.vue";
+import ActivityViewList from "./pages/ActivityViewList.vue";
 import Campaigns from "./pages/Campaigns.vue";
 import DepartmentDetail from "./pages/DepartmentDetail.vue";
 import DepartmentWorkEditor from "./pages/DepartmentWorkEditor.vue";
@@ -123,6 +125,8 @@ const components: Record<WorkTabKind, Component> = {
   "campaign-schedule": CampaignSchedule,
   inspections: Inspections,
   campaigns: Campaigns,
+  "activity-view": ActivityViewList,
+  "activity-view-detail": ActivityViewDetail,
   "campaign-edit": CampaignEdit,
   monthly: Monthly,
   "monthly-edit": MonthlyEdit,

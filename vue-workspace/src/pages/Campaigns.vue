@@ -113,7 +113,7 @@ onMounted(() => {void load();campaignApi('permissions').then(r=>{perms.value=r;}
               </button>
               <button v-if="enterSchedule()" @click="work.open('campaign-schedule', '', row.id)">
                 活動規劃／排程
-              </button><a v-else-if="perms" class="button-link" href="/activity-management" target="_blank" rel="noopener">活動檢視</a><button v-if="session.data?.capabilities.editCampaigns" class="danger" @click="askDelete(row)">刪除活動</button>
+              </button><button v-else-if="perms && session.data?.capabilities.campaignView" data-testid="open-activity-view" @click="work.open('activity-view')">活動檢視</button><button v-if="session.data?.capabilities.editCampaigns" class="danger" @click="askDelete(row)">刪除活動</button>
             </td>
           </tr>
         </tbody>

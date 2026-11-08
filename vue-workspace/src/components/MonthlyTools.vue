@@ -206,7 +206,7 @@ async function activity(r:any){const sequence=++openSequence;dialogLoading.value
     </div>
     <template v-if="mode==='activity'">
      <template v-if="!activityDetail"><label>活動年度<input type="number" min="2000" max="2099" v-model="activityYear" /></label><div class="module-table"><table><thead><tr><th>活動</th><th>期間</th><th>操作</th></tr></thead><tbody><tr v-for="r in visibleActivities"><td>{{r.name}}</td><td>{{r.start_date}}～{{r.end_date}}</td><td><button @click="activity(r)" :disabled="dialogLoading">查看活動規劃</button></td></tr></tbody></table></div></template>
-     <ActivityPlan v-else :key="activityDetail.campaign.id" :data="activityDetail" :store="context.store" @back="activityDetail=null" @retry="activity(activityDetail.campaign)" />
+     <ActivityPlan v-else :key="activityDetail.campaign.id" :data="activityDetail" :store="context.store" :viewer="activityDetail.viewer" :tab="tab" :total-stores="activityDetail.totalStores" @back="activityDetail=null" @retry="activity(activityDetail.campaign)" />
     </template>
     <div v-else class="module-table"><table><thead><tr><th v-for="[,label] in mode==='bonuses'?bonusFields:performanceFields">{{label}}</th></tr></thead><tbody><tr v-for="r in readRows"><td v-for="[key] in mode==='bonuses'?bonusFields:performanceFields">{{key.startsWith('employee_')||key==='source_store_name'?r[key]:fmt(r[key])}}</td></tr></tbody></table></div>
     <p v-if="mode==='activity'&&!activityDetail&&!visibleActivities.length&&!dialogLoading">此年度尚無可查看的活動。</p><p v-else-if="mode!=='activity'&&!readRows.length&&!dialogLoading">此月份尚無資料。</p><div class="dialog-actions"><button @click="close()">關閉</button></div>

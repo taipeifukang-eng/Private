@@ -54,6 +54,30 @@ const closeTabs = computed(() =>
 const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
+// M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
+const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail"];
+const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string } | null>(null);
+function capturePendingOpen() {
+  if (!route.meta.open) return;
+  const kind = String(route.params.kind || "") as WorkTab["kind"];
+  const id = route.params.id ? String(route.params.id) : undefined;
+  if (!OPEN_LINK_KINDS.includes(kind)) return;
+  if (kind === "activity-view-detail" && !id) return;
+  const focus = String(route.query.focus || "");
+  pendingOpen.value = { kind, id, focus: focus === "marketing" || focus === "merchandise" ? focus : undefined };
+}
+function applyPendingOpen() {
+  const p = pendingOpen.value;
+  if (!p || !session.data) return;
+  pendingOpen.value = null;
+  const tab = work.open(p.kind, "", p.id);
+  if (p.focus) tab.payload = { focus: p.focus };
+}
+function deniedMessage(tab: WorkTab) {
+  if (session.expired) return "登入已過期，暫停顯示資料與儲存。";
+  if (tab.kind.startsWith("activity-view")) return "您沒有權限查看活動檢視。如需使用，請聯絡管理員。";
+  return "此功能權限已變更，無法繼續查看或編輯。";
+}
 // 公開頁（D14）：不需登入，不啟動工作階段與頁籤機制。
 const publicPage = computed(() =>
   route.meta.public
@@ -120,6 +144,7 @@ async function login() {
     await session.refresh();
     work.clear();
     await router.replace("/");
+    applyPendingOpen();
   } catch (e) {
     loginError.value = (e as Error).message;
   } finally {
@@ -263,8 +288,10 @@ async function init() {
   window.addEventListener("workspace-session-expired", expire);
   window.addEventListener("focus", refreshSession);
   timer = setInterval(refreshSession, 60000);
+  capturePendingOpen();
   await boot();
   if (route.path !== "/") await router.replace("/");
+  applyPendingOpen();
 }
 onMounted(async () => {
   await router.isReady();
@@ -478,11 +505,7 @@ onBeforeUnmount(() => {
         class="work-page"
       >
         <div v-if="!allowed(tab)" class="notice error" role="alert">
-          {{
-            session.expired
-              ? "登入已過期，暫停顯示資料與儲存。"
-              : "此功能權限已變更，無法繼續查看或編輯。"
-          }}
+          {{ deniedMessage(tab) }}
         </div>
         <div v-show="allowed(tab)">
           <component :is="WORKSPACE_PAGES[tab.kind].component" :tab="tab" />

@@ -29,6 +29,8 @@ function legacyAllowed(kindArg: string, c: Capabilities | undefined, expired: bo
       ? c?.taskManagement
       : tab.kind.startsWith('task-archive')
         ? c?.taskArchive
+        : tab.kind.startsWith('activity-view')
+          ? c?.campaignView // M5 W20 新增 kind：活動檢視入口（canEnterCampaignView）
         : tab.kind === 'my-tasks' || tab.kind === 'task-runner'
           ? c?.tasks
           : tab.kind === 'dashboard'
@@ -75,6 +77,7 @@ const LEGACY_TITLES: Record<string, string> = {
   monthly: '每月人員狀態', 'monthly-edit': '人員明細', 'monthly-export': '資料匯出', 'monthly-release': '每月版更內容', 'employee-purchases': '員工購物管理', pharmacists: '藥師管理', relationships: '關係會員',
   roles: '角色權限管理', users: '使用者管理', performance: '業績管理', 'performance-thresholds': '獎金閾值', 'performance-prescription': '處方箋報表',
   'performance-bonus': '每月獎金', 'performance-edit': '編輯業績', inventory: '盤點管理',
+  'activity-view': '活動檢視', 'activity-view-detail': '活動排程檢視',
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');

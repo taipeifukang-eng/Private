@@ -15,7 +15,7 @@ describe('活動列表 Campaigns.vue', () => {
   });
   it('排程入口依權限、純檢視者改走活動檢視', () => {
     expect(s).toContain('canEnterSchedule');
-    expect(s).toContain('href="/activity-management"');
+    expect(s).toContain("work.open('activity-view')");
   });
   it('刪除：輸入名稱、筆數、名稱不符時按鈕停用', () => {
     expect(s).toContain('preview=delete');
