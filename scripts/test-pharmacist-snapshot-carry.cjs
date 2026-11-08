@@ -6,6 +6,8 @@ const moduleContext = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/pharmacist-snapshot-carry.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,moduleContext);
 const triggerContext = { exports: {} };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/pharmacist/sync-trigger.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,triggerContext);
+const backfillContext = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/pharmacist/onboarding-backfill.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,backfillContext);
 const source = fs.readFileSync('app/admin/pharmacist-management/page.tsx','utf8');
 const noteStart = source.indexOf('function appendNote(');
 const appendNoteSource = ts.transpileModule(source.slice(noteStart).match(/^[\s\S]*?\r?\n\}/)[0],{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;
@@ -46,7 +48,7 @@ function fixture(movements = [], locked = false) {
    }).then(resolve,reject)}
   };return q;
  }};
- const context={adminSupabase:client,canUseSnapshot:true,lockedMonthSet:new Set(locked?['2026-09']:[]),storeIds:['0008'],getPreviousYearMonth:()=> '2026-08',hasMissingPharmacistCarry:moduleContext.exports.hasMissingPharmacistCarry,hasSyncTriggeringMovement:triggerContext.exports.hasSyncTriggeringMovement,taiwanDateOf:triggerContext.exports.taiwanDateOf};
+ const context={adminSupabase:client,canUseSnapshot:true,lockedMonthSet:new Set(locked?['2026-09']:[]),storeIds:['0008'],getPreviousYearMonth:()=> '2026-08',hasMissingPharmacistCarry:moduleContext.exports.hasMissingPharmacistCarry,findMissingOnboardingPharmacists:backfillContext.exports.findMissingOnboardingPharmacists,hasSyncTriggeringMovement:triggerContext.exports.hasSyncTriggeringMovement,taiwanDateOf:triggerContext.exports.taiwanDateOf};
  vm.createContext(context);vm.runInContext(appendNoteSource,context);vm.runInContext(functionSource,context);
  return {run:()=>context.ensureSnapshotForMonth('2026-09'),tables,writes:()=>writes};
 }

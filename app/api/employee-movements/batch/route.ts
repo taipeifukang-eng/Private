@@ -6,6 +6,7 @@ import {
   syncPromotionPositionToMonthlyStaffStatus,
   syncEmployeePromotionTimelineToMonthlyStaffStatus,
 } from '@/lib/monthly-staff/promotion-position-sync';
+import { syncOnboardingPharmacistToEmployeeMaster } from '@/lib/pharmacist/onboarding-master-sync';
 import { getPromotionLevelFromNotes } from '@/lib/monthly-staff/promotion-level';
 
 type MovementType = 'onboarding' | 'promotion' | 'acting_manager' | 'leave_without_pay' | 'return_to_work' | 'pass_probation' | 'resignation' | 'store_transfer';
@@ -643,6 +644,22 @@ export async function POST(request: NextRequest) {
             });
         }
       }
+    }
+
+    // 入職勾「是藥師」一律同步員工主檔（不論有無生日）；只會改成 true，不自動改回 false
+    try {
+      await syncOnboardingPharmacistToEmployeeMaster(
+        adminSupabase,
+        movements
+          .filter((m) => m.movement_type === 'onboarding')
+          .map((m) => ({ employee_code: m.employee_code, is_pharmacist: Boolean(m.onboarding_is_pharmacist) }))
+      );
+    } catch (masterSyncError) {
+      console.error('Onboarding pharmacist master sync warning:', masterSyncError);
+      return NextResponse.json({
+        success: false,
+        error: masterSyncError instanceof Error ? masterSyncError.message : '同步員工主檔藥師身分失敗'
+      }, { status: 500 });
     }
 
     const organizationOnboardingMovements = movements.filter(
