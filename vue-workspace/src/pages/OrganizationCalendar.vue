@@ -33,10 +33,13 @@ const AUDIT_FIELDS: [string, string][] = [
 ];
 const taipeiToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Taipei", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const today = taipeiToday();
+// 深連結可指定開啟日期（?date=YYYY-MM-DD，2000 到 2200 年）；沒指定就是今天。
+const requested = String(props.tab.payload?.date || "");
+const startDate = /^\d{4}-\d{2}-\d{2}$/.test(requested) && Number(requested.slice(0, 4)) >= 2000 && Number(requested.slice(0, 4)) <= 2200 ? requested : today;
 
-const year = ref(Number(today.slice(0, 4)));
-const month = ref(Number(today.slice(5, 7)) - 1);
-const selectedDate = ref(today);
+const year = ref(Number(startDate.slice(0, 4)));
+const month = ref(Number(startDate.slice(5, 7)) - 1);
+const selectedDate = ref(startDate);
 const view = ref<"month" | "year">("month");
 const data = reactive({ companyEvents: [] as any[], personalEvents: [] as any[], holidays: [] as any[], holidaySource: null as any });
 const permissions = reactive({ createCompany: false, editCompany: false, manageHolidays: false, manageGoogle: false });
@@ -250,7 +253,7 @@ onMounted(async () => {
     if (g.result === "connected") notice.value = g.detail || "Google 公司日曆已連結並完成首次同步";
     else if (g.result === "connected_with_errors") error.value = g.detail || "Google 已連結，部分資料同步失敗，請重試";
     else error.value = g.detail || "Google 日曆連結失敗";
-    props.tab.payload = undefined;
+    props.tab.payload = { ...props.tab.payload, google: undefined };
     await loadGoogle();
   }
 });

@@ -96,14 +96,14 @@ export async function googleLinks(): Promise<any[]> {
   return must(await adminDb().from('organization_calendar_google_event_links').select('source_key,source_type,google_event_id,last_error'), '讀取 Google 連結') as any[];
 }
 
-/** 直接以 service role 建立公司行事（供「取消」「Google 同步」等測試當前提；寫入者記為系統，不經 RLS）。 */
-export async function seedCompanyEvent(tag: string, over: Record<string, unknown> = {}): Promise<{ id: string; title: string }> {
+/** 以「有新增公司行事權限」的帳號建立公司行事（資料庫的觸發器需要登入身分，service role 不能直接寫）。 */
+export async function seedCompanyEvent(api: APIRequestContext, tag: string, over: Record<string, unknown> = {}): Promise<{ id: string; title: string }> {
   const title = calTitle(tag);
-  const row = must(
-    await adminDb().from('organization_calendar_events').insert({ title, event_type: 'meeting', start_date: '2099-03-10', end_date: '2099-03-10', is_all_day: true, ...over }).select('id,title').single(),
-    '建立公司行事',
-  ) as any;
-  return row;
+  const r = await api.post('/api/workspace/calendar/company-events', { data: { title, event_type: 'meeting', start_date: '2099-03-10', end_date: '2099-03-10', is_all_day: true, ...over } });
+  const text = await r.text();
+  if (r.status() !== 201) throw new Error(`建立公司行事失敗（HTTP ${r.status()}）：${text}`);
+  const event = JSON.parse(text).event;
+  return { id: event.id, title };
 }
 
 /** 離職員工主檔（員編 ZTTW23…，掛在測試門市 VW001）：用來測「搜尋不含離職」。 */
