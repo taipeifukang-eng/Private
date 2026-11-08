@@ -39,7 +39,7 @@ test('店長：導覽有活動檢視；每月人員狀態只看到發布給店�
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(String(e)));
     await openMenu(page);
-    await expect(page.locator('a.catalog-item[title^="活動檢視"]')).toBeVisible();
+    await expect(page.locator('.workspace-menu .catalog-item[title="活動檢視"]')).toBeVisible();
     await expect(page.locator('a.catalog-item[title^="活動管理"]')).toHaveCount(0); // 只有 view_own：沒有管理頁入口
     await page.locator('.workspace-menu button.catalog-item[title="每月人員狀態"]').click();
     await expect(page.getByRole('heading', { name: '每月人員狀態', exact: true })).toBeVisible();
@@ -68,7 +68,7 @@ test('無權限帳號：導覽沒有活動檢視', async ({ browser }) => {
   try {
     const page = await ctx.newPage();
     await openMenu(page);
-    await expect(page.locator('a.catalog-item[title^="活動檢視"]')).toHaveCount(0);
+    await expect(page.locator('.workspace-menu .catalog-item[title="活動檢視"]')).toHaveCount(0);
   } finally {
     await ctx.close();
   }

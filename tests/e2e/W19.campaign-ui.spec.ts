@@ -112,7 +112,7 @@ test('Q2 純檢視者：看不到停用的活動與「活動規劃／排程」�
     await expect(rowOf(page, on.name)).toBeVisible();
     await expect(page.getByText(off.name)).toHaveCount(0);
     await expect(rowOf(page, on.name).getByRole('button', { name: '活動規劃／排程' })).toHaveCount(0);
-    await expect(rowOf(page, on.name).getByRole('link', { name: '活動檢視' })).toBeVisible();
+    await expect(rowOf(page, on.name).getByRole('button', { name: '活動檢視' })).toBeVisible();
     await expect(rowOf(page, on.name).getByRole('button', { name: '查看' })).toBeVisible();
     await expect(rowOf(page, on.name).getByRole('button', { name: '刪除活動' })).toHaveCount(0);
   } finally {
