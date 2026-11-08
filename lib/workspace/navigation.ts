@@ -89,7 +89,7 @@ export function workspaceNavigation(
           has(...CAMPAIGN_PAGE_CODES) ? "campaigns" : undefined,
         ),
         // 舊 Navbar 的「活動檢視」（/activity-management）：條件由 lib/campaign-access.ts 的 canEnterCampaignView 決定。
-        { label: "活動檢視", href: "/activity-management", kind: undefined, allowed: !!features.campaignView },
+        { label: "活動檢視", href: "/activity-management", kind: features.campaignView ? ("activity-view" as WorkspaceNavKind) : undefined, allowed: !!features.campaignView },
         item(
           "盤點管理",
           "/inventory",

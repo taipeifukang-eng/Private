@@ -66,7 +66,9 @@ describe('Q2 停用的可見性', () => {
   });
   it('伺服器端三個入口都套用同一組規則（避免有人漏掉）', () => {
     expect(read('app/api/workspace/campaigns/route.ts')).toContain('CAMPAIGN_INACTIVE_VISIBLE_CODES');
-    expect(read('app/api/workspace/monthly/tools/route.ts')).toContain('campaignVisibleInView');
+    // 月報工具與獨立活動檢視頁（W20）共用 lib/workspace/activity-view.ts
+    expect(read('lib/workspace/activity-view.ts')).toContain('campaignVisibleInView');
+    expect(read('app/api/workspace/monthly/tools/route.ts')).toContain('activityListResponse');
     expect(read('app/api/workspace/campaign-tools/route.ts')).toContain('CAMPAIGN_INACTIVE_VISIBLE_CODES');
   });
   it('舊版 route handler 沒有被改動（campaign-tools 直接 import 舊 handler，RBAC 不可更動）', () => {

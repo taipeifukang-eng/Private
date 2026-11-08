@@ -25,9 +25,14 @@ describe('CV01 workspace 引用單一規則來源（lib/campaign-access.ts）', 
   it('可見活動委派舊 GET /api/campaigns；入口用 canEnterCampaignView', () => {
     expect(read('app/api/workspace/campaigns/route.ts')).toMatch(/from "@\/app\/api\/campaigns\/route"/);
     expect(read('app/api/workspace/session/route.ts')).toMatch(/canEnterCampaignView\(ctx\.auth, ctx\.user\.id\)/);
+    // M5 W20：月報工具與獨立活動檢視頁共用 lib/workspace/activity-view.ts，入口判斷只寫在那一處。
     const tools = read('app/api/workspace/monthly/tools/route.ts');
-    expect(tools).toMatch(/canEnterCampaignView\(ctx\.auth, ctx\.user\.id\)/);
-    expect(tools).not.toMatch(/activity\.management\.access/); // 入口不再看 management.access
+    const shared = read('lib/workspace/activity-view.ts');
+    expect(tools).toContain('activityListResponse(ctx)');
+    expect(tools).toContain('activityDetailResponse(ctx, url,');
+    expect(shared).toContain('canEnterCampaignView(ctx.auth, ctx.user.id)');
+    expect(read('app/api/workspace/activity-view/route.ts')).toContain('activityListResponse(ctx)');
+    expect(tools + shared).not.toMatch(/activity.management.access/); // 入口不再看 management.access
   });
 
   it('campaign-tools：店長可寫的五項資源不再被「必須持 edit 權」前置閘門擋下；ownStaff／supportStaff 整批 PUT 改走舊版任命門市授權', () => {

@@ -11,13 +11,7 @@ import { monthlyQuarterSummary } from '@/lib/workspace/monthly-quarter';
 import { checkEmployeeId, employmentTypeForEmployeeId } from '@/lib/workspace/employee-id-rule';
 import { MONTHLY_THRESHOLDS, QUARTERLY_THRESHOLDS } from '@/lib/performance/bonus-calc';
 import { GET as performanceData } from '@/app/api/performance-data/route';
-import { GET as published } from '@/app/api/campaigns/published/route';
-import { GET as campaignView } from '@/app/api/campaigns/[id]/view/route';
-import { GET as activityStores } from '@/app/api/stores-with-supervisors/route';
-import { GET as activityEvents } from '@/app/api/event-dates/route';
-import { canEnterCampaignView } from '@/lib/campaign-access';
-import { campaignVisibleInView } from '@/lib/workspace/campaign-rules';
-import { activityPlan } from '@/lib/workspace/activity-plan';
+import { activityDetailResponse, activityListResponse } from '@/lib/workspace/activity-view';
 import { POST as importPerformance } from '@/app/api/import-performance/route';
 import { POST as importStats } from '@/app/api/import-store-stats/route';
 import { canDoMonthlyAction, monthlyActionBlockedMessage, summaryStatusToMonthly } from '@/lib/workspace/monthly-status-rules';
@@ -74,47 +68,16 @@ export async function GET(request: Request) {
       url.searchParams.set('year', month.slice(0,4)); url.searchParams.set('month', String(Number(month.slice(5))));
       return performanceData(new NextRequest(url));
     }
-    if (op === 'activity') {
-      await requireCampaignView(ctx);
-      const response = await published();
-      if (!response.ok) return response;
-      // M5 Q2：停用的活動對活動檢視一律隱藏（含有「查看全部」權限者）。
-      const body = await response.json();
-      return respond({ ...body, data: (body.data || []).filter(campaignVisibleInView) });
-    }
+    if (op === 'activity') return activityListResponse(ctx);
     if (op === 'excel') {
       permit(ctx, 'monthly.export.download');
       const result = await exportMonthlyStatusForBonus(month,store,true);
       if (!result.success) throw new WorkspaceError(400,result.error || '匯出失敗');
       return respond(result);
     }
-    if (op === 'activityDetail') {
-      await requireCampaignView(ctx);
-      const response = await campaignView(new NextRequest(url), { params: { id: p.get('id') || '' } });
-      if (!response.ok) return response;
-      const data = await response.json();
-      if (!campaignVisibleInView(data.campaign || {})) throw new WorkspaceError(404, '找不到此活動，或活動已停用');
-      const ids = Array.from(new Set<string>((data.schedules || []).map((s: any)=>s.store_id)));
-      const stores = ids.length ? checked(await ctx.auth.from('stores').select('id,store_code,store_name,short_name').in('id',ids)) || [] : [];
-      const [plan, storeResult, eventResult] = await Promise.all([
-        activityPlan(url, data.campaign.id, ids),
-        activityStores().then(async r=>({ok:r.ok,body:await r.json()})).catch(()=>null),
-        activityEvents().then(async r=>({ok:r.ok,body:await r.json()})).catch(()=>null),
-      ]);
-      const enriched = storeResult?.ok && storeResult.body.success !== false ? storeResult.body.data || [] : [];
-      if (!storeResult?.ok || storeResult.body.success === false) plan.errors.stores='督導資訊讀取失敗，請重試';
-      if (!eventResult?.ok || eventResult.body.success === false) plan.errors.events='特殊日期讀取失敗，請重試';
-      const events = (eventResult?.ok ? eventResult.body.events || eventResult.body.data || [] : []).filter((e:any)=>e.event_date>=data.campaign.start_date && e.event_date<=data.campaign.end_date);
-      for (const s of stores) { const info=enriched.find((r:any)=>r.id===s.id); Object.assign(s,{supervisor_id:info?.supervisor_id,supervisor_code:info?.supervisor_code,supervisor_name:info?.supervisor_name}); }
-      plan.events=events;
-      return respond({...data, plan, schedules:(data.schedules || []).map((s:any)=>({...s,store:stores.find(x=>x.id===s.store_id)}))});
-    }
+    if (op === 'activityDetail') return activityDetailResponse(ctx, url, p.get('id') || '');
     throw new WorkspaceError(400, '不支援的操作');
   } catch (e) { return failed(e); }
-}
-// 活動檢視入口與舊版相同（canEnterCampaignView）；可見活動與門市範圍由舊 API（lib/campaign-access.ts）決定。
-async function requireCampaignView(ctx: any) {
-  if (!(await canEnterCampaignView(ctx.auth, ctx.user.id))) throw new WorkspaceError(403, '沒有此項操作權限');
 }
 // M1-x1：新增人員的狀態判斷走規則表（任一列或門市摘要不允許 add 即 409），不再只靠資料庫函式拋 locked。
 async function guardManualAdd(ctx: any, store: string, month: string) {
