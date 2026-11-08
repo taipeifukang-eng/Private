@@ -255,3 +255,19 @@ describe('W21 畫面與 API 結構', () => {
     }
   });
 });
+
+describe('組織圖卡片統計（照舊版 renderChartNode）', () => {
+  it('直接下層數與含下層的不重複人數（同一人在多個單位只算一次）', async () => {
+    const { chartCounts } = await import('@/lib/workspace/organization-rules');
+    const units = [
+      { id: 'co', code: 'CO', parent_id: null, sort_order: 0, status: 'active', members: [{ user_id: 'a' }] },
+      { id: 'd1', code: 'D1', parent_id: 'co', sort_order: 1, status: 'active', members: [{ user_id: 'a' }, { user_id: 'b' }] },
+      { id: 'd2', code: 'D2', parent_id: 'co', sort_order: 2, status: 'active', members: [{ user_id: 'c' }] },
+      { id: 't', code: 'T', parent_id: 'd1', sort_order: 1, status: 'active', members: [] },
+    ];
+    const [root] = buildChart(units, false);
+    expect(chartCounts(root)).toEqual({ children: 2, people: 3 });
+    expect(chartCounts(root.children[0])).toEqual({ children: 1, people: 2 });
+    expect(chartCounts(root.children[1])).toEqual({ children: 0, people: 1 });
+  });
+});

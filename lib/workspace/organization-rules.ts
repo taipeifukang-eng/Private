@@ -58,3 +58,14 @@ export function buildChart<T extends ChartUnit>(units: readonly T[], showInactiv
       .map((unit) => ({ unit, children: build(unit.id) }));
   return build(null);
 }
+
+/** 組織圖卡片的統計：照舊版 renderChartNode —— 直接下層數、含下層的不重複人數。 */
+export function chartCounts<T extends ChartUnit & { members?: ReadonlyArray<{ user_id: string }> }>(node: ChartNode<T>) {
+  const counted = new Set<string>();
+  const walk = (n: ChartNode<T>) => {
+    (n.unit.members || []).forEach((m) => counted.add(m.user_id));
+    n.children.forEach(walk);
+  };
+  walk(node);
+  return { children: node.children.length, people: counted.size };
+}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // M5 W21 組織圖卡片（唯讀）：遞迴渲染一個單位卡片與其下層。編輯仍只在樹狀模式進行。
 import { unitTypes, managerRoles } from "../organization";
+import { chartCounts } from "../../../lib/workspace/organization-rules";
 defineOptions({ name: "OrgChartNode" });
 defineProps<{ node: { unit: any; children: any[] }; selected: string; dim: Set<string> | null }>();
 const emit = defineEmits<{ select: [id: string] }>();
@@ -11,6 +12,7 @@ const emit = defineEmits<{ select: [id: string] }>();
       <small>{{ unitTypes[node.unit.type] }} · {{ node.unit.code }}{{ node.unit.status === "inactive" ? " · 停用" : "" }}</small>
       <strong>{{ node.unit.name }}</strong>
       <span>{{ node.unit.members.length }} 位成員</span>
+      <span data-testid="chart-counts">{{ chartCounts(node).children }} 個下層 | {{ chartCounts(node).people }} 人</span>
       <span>{{ node.unit.managers.map((m: any) => (m.user?.full_name || "") + (m.is_primary ? "" : "（" + managerRoles[m.manager_role] + "）")).filter(Boolean).join("、") || "未設定主管" }}</span>
     </button>
     <ul v-if="node.children.length" class="chart-children">
