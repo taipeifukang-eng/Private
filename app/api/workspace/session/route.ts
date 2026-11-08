@@ -18,6 +18,7 @@ import {
   respond,
   WorkspaceError,
 } from "@/lib/workspace/server";
+import { isPendingAccount } from "@/lib/workspace/auth-public";
 import { workspaceNavigation } from "@/lib/workspace/navigation";
 import { loadExportAccess } from "@/lib/workspace/monthly-export-server";
 import { canEnterCampaignView } from "@/lib/campaign-access";
@@ -64,6 +65,8 @@ export async function GET() {
     return respond({
       user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
       permissions: Array.from(ctx.permissions),
+      // M5 Q15：沒有任何生效角色、也不是管理員 = 帳號待管理員開通（畫面顯示說明頁而不是空白）
+      pendingActivation: isPendingAccount(ctx),
       capabilities: {
         employeePurchases:ctx.has("employee_purchase.view") || ctx.has("employee_purchase.import"),
         pharmacists:ctx.has("pharmacist.management.view"),

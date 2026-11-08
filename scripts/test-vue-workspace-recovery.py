@@ -29,7 +29,7 @@ with sync_playwright() as p:
  panel(page).get_by_label('活動名稱',exact=False).fill('[Vue 測試] 過期保留草稿');ctx.clear_cookies();assert ctx.request.get(BASE+'/api/workspace/session').status==401
  page.evaluate("window.dispatchEvent(new Event('focus'))");expect(page.locator('.session-notice')).to_contain_text('登入已過期',timeout=30000);expect(page.locator('.work-page:visible .edit-form')).not_to_be_visible();passed('expired session conceals data and disables editing')
  page.get_by_role('button',name='離開並重新登入').click();expect(page.get_by_role('dialog')).to_contain_text('[Vue 測試] 過期保留草稿');page.keyboard.press('Escape');expect(page.get_by_role('dialog')).to_have_count(0);passed('expiry logout still asks before discarding drafts')
- page.get_by_role('button',name='離開並重新登入').click();page.get_by_role('button',name='放棄修改並登出').click();expect(page.get_by_role('heading',name='登入測試工作區')).to_be_visible(timeout=30000);passed('expired session can log out and return to login')
+ page.get_by_role('button',name='離開並重新登入').click();page.get_by_role('button',name='放棄修改並登出').click();expect(page.get_by_role('heading',name='登入菁英作業台')).to_be_visible(timeout=30000);passed('expired session can log out and return to login')
  viewer=b.new_context();login(viewer,'viewer')
  try:
   revoke_viewer(False);assert viewer.request.get(BASE+'/api/workspace/inspections?month='+DATA['month']).status==403;passed('role revocation enforced without relogin')

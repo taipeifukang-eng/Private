@@ -24,6 +24,9 @@ try {
   fail(`環境守衛未通過：${error.message}`);
 }
 
+// M5 W22（D17）：註冊與忘記密碼對 @example.test 信箱改走不寄信路徑；只在測試站啟動時開啟。
+process.env.WORKSPACE_AUTH_MAIL_MOCK = 'true';
+
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const build = spawnSync(npm, ['--prefix', 'vue-workspace', 'run', 'build'], {
   cwd: root,

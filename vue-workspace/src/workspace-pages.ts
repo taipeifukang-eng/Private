@@ -64,6 +64,10 @@ import TaskTemplateEditor from "./pages/TaskTemplateEditor.vue";
 import Transfers from "./pages/Transfers.vue";
 import UserManagement from "./pages/Users.vue";
 import PublicDemo from "./pages/PublicDemo.vue";
+import Login from "./pages/Login.vue";
+import Register from "./pages/Register.vue";
+import ForgotPassword from "./pages/ForgotPassword.vue";
+import ResetPassword from "./pages/ResetPassword.vue";
 import {
   WORKSPACE_PAGE_META,
   isPageAllowed,
@@ -167,4 +171,9 @@ export type PublicPage = {
 
 export const WORKSPACE_PUBLIC_PAGES: readonly PublicPage[] = [
   { path: "/public-demo/:token", name: "public-demo", title: "公開頁示範", component: PublicDemo },
+  // M5 W22（D14）：登入、註冊、忘記密碼、重設密碼；Next 原路徑見 lib/workspace/public-routes.ts。
+  { path: "/login", name: "login", title: "登入", component: Login },
+  { path: "/register", name: "register", title: "註冊", component: Register },
+  { path: "/forgot-password", name: "forgot-password", title: "忘記密碼", component: ForgotPassword },
+  { path: "/reset-password", name: "reset-password", title: "重設密碼", component: ResetPassword },
 ];

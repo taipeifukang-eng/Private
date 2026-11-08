@@ -12,7 +12,7 @@ describe('T03 公開頁路由策略（D14）', () => {
   });
 
   it('不符合的路徑、缺少參數、多餘路徑段一律不轉址', () => {
-    for (const p of ['/', '/login', '/public-demo', '/public-demo/', '/public-demo/a/b', '/other/abc']) {
+    for (const p of ['/', '/logout', '/loginx', '/register/x', '/public-demo', '/public-demo/', '/public-demo/a/b', '/other/abc']) {
       expect(resolveWorkspacePublicRedirect(p), p).toBeNull();
     }
   });

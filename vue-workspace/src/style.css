@@ -1373,3 +1373,57 @@ tbody tr:hover {
 .tag{display:inline-block;padding:1px 8px;border-radius:10px;background:#eee;color:#555;font-size:12px}
 .badge-urgent{display:inline-block;margin-left:6px;padding:1px 8px;border-radius:10px;background:#fff3cd;color:#8a5a00;border:1px solid #e0b252;font-size:12px}.row-urgent{background:rgba(255,193,7,.08)}.row-overdue{background:rgba(165,45,39,.05)}.text-danger{color:var(--danger,#a52d27)}
 .photo-thumb-zoom{cursor:zoom-in}.improvement-photos{display:block;margin:8px 0}.improvement-photos-title{display:block;font-weight:600}
+
+.public-links {
+  font-size: 14px;
+  margin: 0;
+}
+.public-links a {
+  color: inherit;
+  text-decoration: underline;
+}
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.check-row input {
+  width: auto;
+}
+.pending-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.pending-card {
+  max-width: 520px;
+  width: 100%;
+  display: grid;
+  gap: 14px;
+}
+.pending-card h1 {
+  font-size: 28px;
+  font-weight: 500;
+  margin: 0;
+}
+.pending-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .login-layout {
+    grid-template-columns: 1fr;
+  }
+  .login-intro {
+    padding: 28px 16px;
+  }
+  .brand-mark {
+    margin-bottom: 20px;
+  }
+  .login-panel {
+    padding: 28px 16px;
+  }
+}

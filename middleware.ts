@@ -10,7 +10,7 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://mjpdfpxqttbhzeimmtqr.supabase.co';
   // D14：公開頁保留 Next 原路徑，轉址到 Vue 工作台 hash 路由（目前僅示範路由，僅 DEV 工作台環境）。
   if (isDevWorkspace) {
-    const target = resolveWorkspacePublicRedirect(request.nextUrl.pathname);
+    const target = resolveWorkspacePublicRedirect(request.nextUrl.pathname, undefined, request.nextUrl.search);
     if (target) return NextResponse.redirect(new URL(target, request.url), 307);
     // M5 W20 Q8：舊網址 /activity-management、/activity-view/:id 自動轉到新版活動檢視（舊頁與舊 API 不動，僅 DEV 工作台環境啟用）。
     const activityTarget = activityLegacyTarget(request.nextUrl.pathname, request.nextUrl.search);

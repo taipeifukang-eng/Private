@@ -25,6 +25,8 @@ import { api, ApiError } from "./api";
 import { useSession, useWorkspace, type WorkTab } from "./stores";
 import Modal from "./components/Modal.vue";
 import HomeView from "./components/HomeView.vue";
+import LoginForm from "./components/LoginForm.vue";
+import PendingActivation from "./components/PendingActivation.vue";
 import {
   WORKSPACE_PAGES,
   WORKSPACE_PUBLIC_PAGES,
@@ -37,10 +39,8 @@ const session = useSession(),
   route = useRoute();
 const booting = ref(true),
   bootError = ref(""),
-  loginError = ref(""),
-  loggingIn = ref(false),
-  email = ref(""),
-  password = ref("");
+  pendingBusy = ref(false),
+  pendingError = ref("");
 const menuOpen = ref(false),
   dark = ref(false),
   closing = ref<string[] | null>(null),
@@ -129,26 +129,37 @@ async function boot() {
     booting.value = false;
   }
 }
-async function login() {
-  loggingIn.value = true;
-  loginError.value = "";
+async function loggedIn() {
+  await session.refresh();
+  work.clear();
+  await router.replace("/");
+  applyPendingOpen();
+}
+// M5 Q15：待開通帳號的說明頁：重新檢查（管理員可能剛開通）與登出。
+async function recheckPending() {
+  pendingBusy.value = true;
+  pendingError.value = "";
   try {
-    await api("login", {
-      method: "POST",
-      body: JSON.stringify({
-        email: email.value.trim(),
-        password: password.value,
-      }),
-    });
-    password.value = "";
     await session.refresh();
-    work.clear();
-    await router.replace("/");
-    applyPendingOpen();
   } catch (e) {
-    loginError.value = (e as Error).message;
+    pendingError.value = (e as Error).message;
   } finally {
-    loggingIn.value = false;
+    pendingBusy.value = false;
+  }
+}
+async function pendingLogout() {
+  pendingBusy.value = true;
+  pendingError.value = "";
+  try {
+    await api("logout", { method: "POST", body: "{}" });
+    work.clear();
+    session.data = null;
+    session.expired = false;
+    await router.replace("/");
+  } catch (e) {
+    pendingError.value = (e as Error).message;
+  } finally {
+    pendingBusy.value = false;
   }
 }
 async function refreshSession() {
@@ -325,46 +336,15 @@ onBeforeUnmount(() => {
     :params="route.params"
   />
   <div v-else-if="booting" class="boot" role="status">正在開啟菁英作業台…</div>
-  <main v-else-if="!session.data" class="login-layout">
-    <section class="login-intro">
-      <div class="brand-mark">FK</div>
-      <p class="eyebrow">富康菁英業務網</p>
-      <h1>把工作留在<br />你正在處理的地方。</h1>
-      <p>巡店查詢、活動編輯，各自保留進度。<br />為總部日常作業而設計。</p>
-      <span class="environment">測試環境 · 與正式資料分離</span>
-    </section>
-    <section class="login-panel">
-      <p class="eyebrow">菁英作業台</p>
-      <h2>登入測試工作區</h2>
-      <p class="muted">使用原總務測試站帳號，或本次測試帳號登入。</p>
-      <div v-if="bootError" class="notice error" role="alert">
-        {{ bootError }}<button @click="boot">重新連線</button>
-      </div>
-      <form @submit.prevent="login">
-        <label
-          >帳號或電子郵件<input
-            v-model="email"
-            type="text"
-            autocomplete="username"
-            required
-            autofocus /></label
-        ><label
-          >密碼<input
-            v-model="password"
-            type="password"
-            autocomplete="current-password"
-            required
-        /></label>
-        <div v-if="loginError" class="notice error" role="alert">
-          {{ loginError }}
-        </div>
-        <button class="primary" :disabled="loggingIn">
-          {{ loggingIn ? "登入中…" : "登入工作台" }}
-        </button>
-      </form>
-      <small class="muted">測試區的變更不會寫入正式營運資料。</small>
-    </section>
-  </main>
+  <LoginForm v-else-if="!session.data" :boot-error="bootError" @success="loggedIn" @retry="boot" />
+  <PendingActivation
+    v-else-if="session.data.pendingActivation"
+    :name="session.data.user.name"
+    :busy="pendingBusy"
+    :error="pendingError"
+    @recheck="recheckPending"
+    @logout="pendingLogout"
+  />
   <div v-else class="app-shell catalog-shell" @keydown.esc="menuOpen && closeNavigation()">
     <header class="topbar">
       <button ref="menuButton" class="menu-toggle" aria-controls="workspace-menu" :aria-expanded="menuOpen" @click="toggleNavigation">

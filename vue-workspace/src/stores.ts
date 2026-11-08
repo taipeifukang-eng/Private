@@ -9,6 +9,8 @@ export type Session = {
   user: { id: string; name: string };
   stores: Store[];
   permissions: string[];
+  /** M5 Q15：沒有任何生效角色（且不是管理員）時為 true，畫面改顯示「帳號待管理員開通」。 */
+  pendingActivation?: boolean;
   capabilities: {
     employeePurchases: boolean;
     pharmacists: boolean;

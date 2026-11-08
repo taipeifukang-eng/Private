@@ -149,13 +149,13 @@ export async function context<T = undefined>(options: ContextOptions<T> = {}) {
   const assignments = checked(assignmentsResult);
   // 舊版 isAdminLikeUser 的 profiles.role==='admin' 保底需要 profiles.role；查詢失敗時與舊版一樣視為非 admin。
   const profileRole = (profileResult as any)?.data?.role ?? null;
-  const { permissions, roleCodes, isAdmin, has } = resolveAccess(
+  const { permissions, roleCodes, isAdmin, has, activeRoleCount } = resolveAccess(
     assignments as any,
     profileRole,
   );
   const profile =
     options.profile === false || !profileResult ? null : checked(profileResult);
-  return { auth, admin, user, profile, permissions, roleCodes, isAdmin, has, prefetched };
+  return { auth, admin, user, profile, permissions, roleCodes, isAdmin, has, activeRoleCount, prefetched };
 }
 export type Context = Awaited<ReturnType<typeof context<any>>>;
 export function requireCapability(ctx: Context, codes: string[]) {

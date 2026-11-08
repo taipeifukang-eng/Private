@@ -37,6 +37,7 @@ export function resolveAccess(
   const permissions = new Set<string>();
   const roleCodes = new Set<string>();
   let isAdmin = profileRole === "admin";
+  let activeRoleCount = 0;
   for (const assignment of assignments || []) {
     // user_roles.is_active（查詢端已篩，這裡再保險一次）與到期時間：與正式區 has_permission 相同。
     if (assignment.is_active === false) continue;
@@ -44,6 +45,7 @@ export function resolveAccess(
       continue;
     const role = one(assignment.role);
     if (!role) continue;
+    activeRoleCount += 1;
     // 刻意不檢查 roles.is_active：正式區 has_permission 與舊版 isAdminLikeUser 都不檢查。
     if (role.code) {
       roleCodes.add(role.code);
@@ -58,6 +60,7 @@ export function resolveAccess(
     permissions,
     roleCodes,
     isAdmin,
+    activeRoleCount,
     has: (...codes: string[]) =>
       isAdmin || codes.some((code) => permissions.has(code)),
   };
