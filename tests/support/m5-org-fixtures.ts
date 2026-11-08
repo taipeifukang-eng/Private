@@ -135,3 +135,46 @@ export async function createAuthUser(tag: string, opts: { ban?: boolean; profile
   }
   return { id, email, password };
 }
+
+// ---- 角色
+export const TEST_ROLE_DESCRIPTION = 'm5 p06 test role';
+/** 建立一般測試角色（代碼 m5p_test_ 開頭，cleanupM5Users 會清除）。 */
+export async function createPlainRole(tag: string, over: { name?: string; code?: string } = {}) {
+  const row = must(
+    await adminDb().from('roles').insert({ name: over.name || `M5P Test ${tag}`, code: over.code || `m5p_test_${tag}`, description: TEST_ROLE_DESCRIPTION, is_system: false, is_active: true }).select('id,code,name').single(),
+    `建立角色 ${tag}`,
+  ) as { id: string; code: string; name: string };
+  return row;
+}
+/**
+ * 建立管理員等級角色（代碼 owner_role，沒有任何權限）。DEV 若已有同代碼角色就回傳 null（測試略過，不動別人的角色）。
+ * 刪除只認自己的標記說明。
+ */
+export async function createAdminLevelRole(): Promise<{ id: string; code: string; name: string } | null> {
+  const db = adminDb();
+  const existing = (await db.from('roles').select('id,description').eq('code', 'owner_role')).data as any[];
+  if (existing?.length) return null;
+  const res = await db.from('roles').insert({ name: 'M5P Test owner role', code: 'owner_role', description: TEST_ROLE_DESCRIPTION, is_system: false, is_active: true }).select('id,code,name').single();
+  if (res.error) return null;
+  return res.data;
+}
+export async function deleteAdminLevelRole() {
+  const db = adminDb();
+  const rows = ((await db.from('roles').select('id').eq('code', 'owner_role').eq('description', TEST_ROLE_DESCRIPTION)).data || []) as any[];
+  for (const r of rows) {
+    await db.from('user_roles').delete().eq('role_id', r.id);
+    await db.from('role_permissions').delete().eq('role_id', r.id);
+    await db.from('roles').delete().eq('id', r.id);
+  }
+}
+export async function userRoleRows(userId: string, roleId?: string) {
+  let q = adminDb().from('user_roles').select('id,role_id,is_active,expires_at').eq('user_id', userId);
+  if (roleId) q = q.eq('role_id', roleId);
+  return must(await q, '讀取使用者角色') as any[];
+}
+export async function grantRole(userId: string, roleId: string, over: { is_active?: boolean; expires_at?: string | null } = {}) {
+  must(await adminDb().from('user_roles').insert({ user_id: userId, role_id: roleId, is_active: over.is_active ?? true, expires_at: over.expires_at ?? null }), '指派角色');
+}
+export async function profileRole(userId: string): Promise<string | null> {
+  return (must(await adminDb().from('profiles').select('role').eq('id', userId).single(), '讀取 profile') as any).role ?? null;
+}
