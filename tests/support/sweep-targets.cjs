@@ -20,6 +20,10 @@ const MARKER_TARGETS = [
   { table: 'templates', column: 'title', pattern: '[自動測試]M3 T%', action: 'delete', cascade: 'task-template' },
   // M3：刪除任務與模板的稽核紀錄（測試範本標題同上）。
   { table: 'workspace_task_delete_audit', column: 'template_title', pattern: '[自動測試]M3 T%', action: 'delete' },
+  // M5（W19/P05 活動排程、列表、特殊日期）：活動名稱與特殊日期說明帶「[自動測試]M5 <runId>」（子表 ON DELETE CASCADE）。帳號由 fixture 自行清除，這裡只回報孤兒。
+  { table: 'campaigns', column: 'name', pattern: '[自動測試]M5 T%', action: 'delete' },
+  { table: 'event_dates', column: 'description', pattern: '[自動測試]M5 T%', action: 'delete' },
+  { table: 'profiles', column: 'email', pattern: 'm5p-test-%', action: 'report' },
 ];
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
