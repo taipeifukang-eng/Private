@@ -35,6 +35,7 @@ import MovementManagement from "./pages/MovementManagement.vue";
 import MyTasks from "./pages/MyTasks.vue";
 import Dashboard from "./pages/Dashboard.vue";
 import Organization from "./pages/Organization.vue";
+import OrganizationCalendar from "./pages/OrganizationCalendar.vue";
 import OrganizationEditor from "./pages/OrganizationEditor.vue";
 import Performance from "./pages/Performance.vue";
 import PerformanceBonus from "./pages/PerformanceBonus.vue";
@@ -94,6 +95,7 @@ const components: Record<WorkTabKind, Component> = {
   "department-detail": DepartmentDetail,
   "department-work-editor": DepartmentWorkEditor,
   organization: Organization,
+  calendar: OrganizationCalendar,
   "organization-editor": OrganizationEditor,
   "store-map": StoreMap,
   "store-promotions": StorePromotions,
