@@ -1952,5 +1952,140 @@
       "entry": "access-rule",
       "key": "storeScope"
     }
+  },
+  {
+    "id": "m5-w19-q1-write-permission-role-only",
+    "page": "campaign-list",
+    "description": "活動新增、修改、刪除、儲存排程只看角色權限：有活動編輯權、但舊式身分（profiles.role）不是管理員或經理的人（例如營業助理），新版可寫、舊版被擋（403）。實測舊版對「舊式身分是經理但沒有編輯權」的人其實也寫不進去（資料庫 RLS 擋下，500），所以新舊不同的只有這一類。",
+    "reason": "M5 Q1：使用者選「只看角色權限（新版現況）」，上線前以 m5-sql/w19_q1_write_permission_diff.sql 列出實際名單核對。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q1)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "write-permission",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w19-q2-inactive-hidden-list",
+    "page": "campaign-list",
+    "description": "停用的活動：舊版列表與活動檢視不看停用旗標（停用的活動店長、督導仍看得到）；新版對沒有活動編輯／發布權限的人（店長、督導、檢視端）一律隱藏，只有編輯／發布權限者在列表仍看得到並標「停用」。",
+    "reason": "M5 Q2：使用者選「保留停用，且停用的活動對督導／店長／檢視端隱藏」（非建議項）。上線前以 m5-sql/w19_q2_inactive_campaigns.sql 查正式區有沒有誤設停用。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q2)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "list-visible-set",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w19-q2-inactive-hidden-view",
+    "page": "campaign-list",
+    "description": "活動檢視（每月人員狀態內）清單：停用的活動新版一律隱藏（含有查看全部權限者），舊版不會。明細與各分頁用活動編號直接讀取也回 404。",
+    "reason": "M5 Q2：同上，停用的活動對檢視端一律隱藏。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q2)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "activity-view-list",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w19-q3-delete-needs-name",
+    "page": "campaign-list",
+    "description": "刪除活動：舊版按一次確認就刪；新版畫面要輸入活動名稱並顯示將刪除的資料筆數，伺服器端也檢查名稱（沒帶或不符回 400）。",
+    "reason": "M5 Q3：使用者選「刪除前要輸入活動名稱，並顯示將刪除的資料筆數」，所有活動適用。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q3)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "delete-confirm",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w19-q4-outside-schedules-moved",
+    "page": "campaign-list",
+    "description": "活動日期改短或移動後，已排在新期間外的門市排程：舊版不檢查、排程留在資料庫；新版儲存前列出受影響門市，確認後一併移回「尚未安排」（沒確認不給存）。",
+    "reason": "M5 Q4：使用者選「儲存前列出會落在期間外的門市，確認後一併移回尚未安排」。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q4)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "date-change-outside",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w19-q5-warnings",
+    "page": "campaign-schedule",
+    "description": "三種誤操作提醒（舊版沒有任何提示）：(a) 同一天已有特殊日期再新增時顯示原內容並要求確認覆蓋；(b) 手動把門市排到禁止排程日或門市限制的星期時顯示警告（仍可安排）；(c) 已發布的活動儲存排程或活動資料時提示「儲存後立即生效」。",
+    "reason": "M5 Q5：使用者選「三種情況都加提醒並要求確認，但都仍允許」。畫面行為由 W19 e2e 驗證。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q5)"
+  },
+  {
+    "id": "m5-w19-overlap-days-blocked",
+    "page": "campaign-list",
+    "description": "門市活動設定：允許星期與禁止星期重疊（永遠排不進去）時，新版擋下不給存；舊版照存。",
+    "reason": "m5-spec 不需決策項目：明顯合理修正，列入差異清單。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "settings-overlap",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w19-schedule-entry-by-permission",
+    "page": "campaign-list",
+    "description": "活動列表「活動規劃／排程」入口：舊版只有活動編輯或門市細節編輯權者看到；新版改成任何持有活動編輯或發布權限者（含車次、Check List、行銷、商品）都看得到，純檢視者改走活動檢視。沒有人因此失去權限。",
+    "reason": "m5-spec 不需決策項目：讓負責部門找得到入口。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-type-label",
+    "page": "campaign-list",
+    "description": "活動類型文字：促銷類統一顯示「促銷（母親節／周年慶等）」（舊版顯示「母親節／周年慶」、新版先前顯示「促銷」），純文字，不影響資料。",
+    "reason": "m5-spec 不需決策項目。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-unpublished-tag",
+    "page": "campaign-list",
+    "description": "活動列表新增「未發布」標籤：有「查看全部」權限的人看得到未發布草稿（照舊版），列表加標籤避免誤以為已發給門市。狀態欄另依日期顯示未開始、進行中、已結束（舊版的綠色「進行中」只看啟用旗標、不看日期）。",
+    "reason": "m5-spec 不需決策項目與 Q2。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-list-buttons-view-only",
+    "page": "campaign-list",
+    "description": "活動列表的編輯／刪除按鈕：沒有編輯權的人只顯示「查看」且沒有刪除，沿用新版較嚴格作法（舊版按鈕對所有可進入者顯示、由 API 擋）。已發布與版本衝突保護（兩人同時存會擋下）保留。",
+    "reason": "m5-spec 不需決策項目。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-inventory-sections",
+    "page": "campaign-schedule",
+    "description": "盤點類活動只顯示活動排程、門市細節、規劃預覽三個分頁，隱藏設備車次、Check List、行銷、商品（補回舊版行為）。",
+    "reason": "m5-spec 不需決策項目：照舊版。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-calendar-monday-colors",
+    "page": "campaign-schedule",
+    "description": "月曆週一為首、督導區顏色固定分配（督導 ID 排序後依序取 12 色循環，與舊版同色序）；新版保留以選單安排門市的方式（舊版只有拖曳）。行銷部圖片補回拖曳排序（另有前移／後移鈕供手機使用），最多 8 張、單張不超過 5MB。",
+    "reason": "m5-spec 不需決策項目：補回舊版功能。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-special-dates-grouping",
+    "page": "campaign-list",
+    "description": "特殊日期列表依月份分組並顯示星期（補回舊版）。",
+    "reason": "m5-spec 不需決策項目。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
+  },
+  {
+    "id": "m5-w19-auto-schedule-no-dates-prompt",
+    "page": "campaign-schedule",
+    "description": "自動排程：活動期間內沒有可用日期（週三、週六、週日且未被阻擋）時，新版補上與舊版相同的提示並不產生排程。演算法本身經 200 組隨機資料對照，輸入相同則輸出相同（排程集合含順序、失敗門市）。",
+    "reason": "m5-spec 不需決策項目。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)"
   }
 ]

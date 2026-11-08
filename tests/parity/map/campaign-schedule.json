@@ -1,0 +1,38 @@
+{
+  "page": "campaign-schedule",
+  "legacyRoute": "/admin/activity-management/schedule/[id]",
+  "workItem": "W19",
+  "entries": [
+    {
+      "id": "auto-schedule-random",
+      "mechanism": "write-readback",
+      "description": "自動排程：舊版 autoSchedule 與新版 autoCampaignSchedule 對 200 組隨機資料同輸入同輸出（排程集合含順序、失敗門市、沒有可用日期的提示）。",
+      "legacy": {
+        "source": "app/admin/activity-management/schedule/[id]/page.tsx autoSchedule（tests/support/legacy-campaign-schedule.ts 逐行移植）"
+      },
+      "native": {
+        "source": "vue-workspace/src/campaign-scheduling.ts runAutoSchedule"
+      }
+    },
+    {
+      "id": "schedule-save",
+      "mechanism": "write-readback",
+      "description": "儲存排程：舊版逐筆 POST /api/campaign-schedules，新版整批 PUT（RPC）。相同輸入的最終排程列相同。",
+      "legacy": {
+        "api": {
+          "method": "POST",
+          "path": "/api/campaign-schedules"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "PUT",
+          "path": "/api/workspace/campaign-tools",
+          "query": {
+            "resource": "schedules"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -49,6 +49,7 @@ const addDays = (d: string, n: number) => {
 async function adminPage(browser: Browser, testInfo: import('@playwright/test').TestInfo, errors: string[]) {
   const ctx = await loginAs(browser, 'admin');
   const page = await ctx.newPage();
+  page.setDefaultTimeout(20_000);
   await applyProjectViewport(page, testInfo);
   page.on('pageerror', (e) => errors.push(String(e)));
   page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errors.push(m.text()));
@@ -242,7 +243,7 @@ test('排程頁：週一為首的月曆、督導區顏色圖例、手動排到�
       const save = dialogNamed(page, '儲存所有排程變更？');
       await expect(save).not.toContainText('立即生效');
       await save.getByRole('button', { name: '確認' }).click();
-      await expect.poll(async () => JSON.stringify(await scheduleRows(c.id))).toBe(JSON.stringify({ VW001: '2099-06-10', ZT01: '2099-06-06' }));
+      await expect.poll(async () => await scheduleRows(c.id)).toEqual({ VW001: '2099-06-10', ZT01: '2099-06-06' });
     });
     expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);
     expect(errors, errors.join('\n')).toEqual([]);
@@ -351,19 +352,21 @@ test('門市設定：允許與禁止同一個星期不給存', async ({ browser 
   const errors: string[] = [];
   const { ctx, page } = await adminPage(browser, testInfo, errors);
   try {
-    await withStoreSetting('ZT05', null, async () => {
+    await withStoreSetting('ZT05', null, async (storeId) => {
       await openFromMenu(page, '活動管理');
       await page.getByRole('button', { name: '門市設定' }).click();
-      const dlg = dialogNamed(page, '門市活動設定');
-      await dlg.getByLabel('門市', { exact: true }).selectOption({ label: (await dlg.getByLabel('門市', { exact: true }).locator('option').allTextContents()).find((t) => /ZT05/.test(t))! });
-      const allowed = dlg.locator('h3:has-text("可安排星期") + p + .days');
-      const forbidden = dlg.locator('h3:has-text("禁止安排星期") + .days');
-      await allowed.getByLabel('週三').check();
-      await forbidden.getByLabel('週三').check();
+      const dlg = page.locator('dialog[open]').last();
+      await expect(dlg.getByRole('heading', { name: '門市活動設定' })).toBeVisible();
+      await dlg.locator('select').first().selectOption(storeId);
+      const days = dlg.locator('.days');
+      await expect(days).toHaveCount(2);
+      const box = (group: number, day: string) => days.nth(group).locator('label', { hasText: day }).locator('input');
+      await box(0, '週三').check();
+      await box(1, '週三').check();
       await dlg.getByRole('button', { name: '儲存門市設定' }).click();
       await expect(dlg.getByRole('alert')).toContainText('永遠排不進去');
-      await forbidden.getByLabel('週三').uncheck();
-      await forbidden.getByLabel('週日').check();
+      await box(1, '週三').uncheck();
+      await box(1, '週日').check();
       await dlg.getByRole('button', { name: '儲存門市設定' }).click();
       await expect(dlg.getByRole('status')).toContainText('已儲存');
     });

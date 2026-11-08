@@ -1,0 +1,140 @@
+{
+  "page": "campaign-list",
+  "legacyRoute": "/admin/activity-management、/admin/activity-management/events、/admin/activity-management/settings",
+  "workItem": "P05",
+  "entries": [
+    {
+      "id": "list-visible-set",
+      "mechanism": "api-read",
+      "description": "活動列表可見的活動集合：舊 GET /api/campaigns 與新版 GET /api/workspace/campaigns（M5 Q2：停用的活動只對有編輯／發布權限者顯示）。",
+      "legacy": {
+        "api": {
+          "path": "/api/campaigns",
+          "pick": "campaigns"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/campaigns",
+          "query": {
+            "q": "[自動測試]M5"
+          },
+          "pick": "records"
+        }
+      },
+      "compareKey": "id"
+    },
+    {
+      "id": "activity-view-list",
+      "mechanism": "api-read",
+      "description": "活動檢視（每月人員狀態內）的活動清單：舊 GET /api/campaigns/published 與新版 monthly tools op=activity（M5 Q2：停用一律隱藏）。",
+      "legacy": {
+        "api": {
+          "path": "/api/campaigns/published",
+          "pick": "data"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly/tools",
+          "query": {
+            "op": "activity"
+          },
+          "pick": "data"
+        }
+      },
+      "compareKey": "id"
+    },
+    {
+      "id": "write-permission",
+      "mechanism": "write-readback",
+      "description": "新增活動的允許與否：舊版要 profiles.role 為 admin／manager 且資料庫有編輯權；新版只看角色權限（M5 Q1）。",
+      "legacy": {
+        "api": {
+          "method": "POST",
+          "path": "/api/campaigns"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "POST",
+          "path": "/api/workspace/campaigns"
+        }
+      }
+    },
+    {
+      "id": "delete-confirm",
+      "mechanism": "write-readback",
+      "description": "刪除活動：舊版按一次確認就刪；新版伺服器端要求輸入活動名稱（M5 Q3）。兩版刪除後所有子表都不留資料。",
+      "legacy": {
+        "api": {
+          "method": "DELETE",
+          "path": "/api/campaigns"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "DELETE",
+          "path": "/api/workspace/campaigns"
+        }
+      }
+    },
+    {
+      "id": "date-change-outside",
+      "mechanism": "write-readback",
+      "description": "活動改短期間後落在期間外的排程：舊版不檢查、排程仍留在資料庫；新版列出並在確認後移回尚未安排（M5 Q4）。",
+      "legacy": {
+        "api": {
+          "method": "PUT",
+          "path": "/api/campaigns"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "PUT",
+          "path": "/api/workspace/campaigns"
+        }
+      }
+    },
+    {
+      "id": "settings-overlap",
+      "mechanism": "write-readback",
+      "description": "門市活動設定：允許與禁止星期重疊——舊版照存、新版擋下（永遠排不進去）。",
+      "legacy": {
+        "api": {
+          "method": "POST",
+          "path": "/api/store-activity-settings"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "POST",
+          "path": "/api/workspace/campaign-tools",
+          "query": {
+            "resource": "settings"
+          }
+        }
+      }
+    },
+    {
+      "id": "event-overwrite",
+      "mechanism": "write-readback",
+      "description": "特殊日期同一天再儲存：兩版都以日期覆蓋（upsert），資料結果相同；新版畫面會先提醒（M5 Q5a，畫面行為由 e2e 驗證）。",
+      "legacy": {
+        "api": {
+          "method": "POST",
+          "path": "/api/event-dates"
+        }
+      },
+      "native": {
+        "api": {
+          "method": "POST",
+          "path": "/api/workspace/campaign-tools",
+          "query": {
+            "resource": "events"
+          }
+        }
+      }
+    }
+  ]
+}
