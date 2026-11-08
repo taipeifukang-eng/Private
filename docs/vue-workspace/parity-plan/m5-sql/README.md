@@ -17,6 +17,7 @@
 | `w21_q9_department_gate_preview.sql` | W21 Q9 | 部門管理入口新舊名單：`NEW_BLOCKED` 是 M5 之前的新版進得去、改回舊頁面條件後進不去的人（只有組織／成員／主管檢視類權限）；`MENU_BUT_BLOCKED` 是舊版選單看得到、點進去被導回儀表板的人。由你決定要不要幫這些角色補「部門檢視」或「部門工作檢視」。 |
 | `w21_q10_q11_org_state.sql` | W21 Q10、Q11 | 兩段查詢（分別貼上執行）：停用單位底下還有成員或主管的單位；人員資料部門文字與目前主要部門名稱不一致的人（改名後殘留的舊名稱、停用部門仍有文字）。 |
 | `p06_q12_q13_q14_admin_overview.sql` | P06 Q12、Q13、Q14 | 持有「建立使用者」（上線後只剩連到註冊頁）、「變更使用者角色」「指派使用者角色」（授予管理員前會有醒目確認）的人，以及舊式身分是管理員（唯一能重置密碼）和「角色是管理員等級但舊式身分不是管理員」（不能重置密碼）的人。 |
+| `w22_q15_registration_overview.sql` | W22 Q15 | 三段唯讀查詢：帳號狀態總覽（信箱驗證、是否登入過、是否有角色）、沒有角色帳號的信箱網域分佈（看有沒有外部信箱）、註冊超過 7 天仍未驗證也沒登入的帳號。公開註冊保留後，用來了解現在有多少自己註冊的空帳號；不刪任何資料。 |
 | `p06_q15_pending_users.sql` | P06 Q15 | 待開通名單（有登入帳號、沒有停用、沒有任何生效角色）。上線後使用者管理的「待開通 N 位」應等於這裡的筆數。 |
 
 ## 選用：把誤停用的活動改回啟用（需要寫入）
@@ -24,7 +25,16 @@
 1. `w19_q2_B_reactivate.sql`：以 `BEGIN;` 開頭，不會自動提交。把要改回啟用的活動 id 填進暫存表，先預覽、備份到 `m5_w19_campaign_backup`、再改，最後一段核對（`still_inactive` 應為 0），確認後另外執行 `COMMIT;`，有疑慮執行 `ROLLBACK;`。
 2. `w19_q2_C_rollback.sql`：上線後想撤回，依備份把啟用旗標還原。同樣以 `BEGIN;` 開頭。
 
+## W22 上線前設定檢查（不是 SQL，在 Supabase 後台與主機環境確認）
+
+1. 主機環境變數 `NEXT_PUBLIC_SITE_URL` 必須設定為正式網址（例如 https://xxx.com，不含路徑）。新版缺設定時忘記密碼會直接顯示「系統尚未設定網站網址」，不會再寄出 localhost 連結。
+2. Supabase Authentication 的 Redirect URLs 要包含 `<網站>/auth/callback`（重設信連結路徑不變，後台設定不需更動，只需確認仍在清單內）。
+3. Supabase Authentication 的最短密碼長度維持 6（Q16 照舊）；是否要求信箱驗證維持現狀。
+4. 公開頁轉址目前只在 DEV 工作台環境啟用（middleware.ts 的 isDevWorkspace）；正式切換時才開，開之前舊頁維持不變。
+5. 信件測試一律 mock：測試站以 `WORKSPACE_AUTH_MAIL_MOCK=true` 啟動（僅 tests/support/start-test-server.cjs 設定），只對 `@example.test` 信箱生效；正式環境不得設定這個旗標。
+
 ## 備註
+
 
 - W20 同樣沒有資料庫結構變更，也沒有寫入型 SQL；兩份名單都是唯讀。
 - W21、P06 的四份名單同樣全部唯讀（已在 DEV 資料庫跑過確認語法可執行，未在正式區執行）；沒有需要寫入正式區的 SQL。DEV 的結構變更放在 supabase/workspace-dev/20261109100000_m5_w21_org_inactive_members_no_unit_sync.sql（附 .rollback.sql，用 scripts/apply-workspace-m5-w21-org-dev.cjs 套用或 --rollback 回復）：Q10 停用單位仍可調整成員與主管、Q11 移除「部門改名／停用就改寫人員資料部門文字」的 trigger。正式區本來就沒有這個 trigger（規格 Q11 背景：只有成員異動才同步），所以正式區不需要任何對應的 SQL。
