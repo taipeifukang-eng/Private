@@ -1,0 +1,93 @@
+{
+  "page": "org-departments",
+  "legacyRoute": "/admin/organization、/admin/departments",
+  "workItem": "W21",
+  "entries": [
+    {
+      "id": "department-page-gate",
+      "mechanism": "navigation",
+      "description": "Q9：部門管理頁的進入條件。舊版頁面 app/admin/departments/page.tsx 沒有部門相關權限就導回儀表板；新版 session 的 departments 能力與選單入口必須相同。",
+      "legacy": { "source": "app/admin/departments/page.tsx（GET /admin/departments 的 200／導回）" },
+      "native": { "api": { "path": "/api/workspace/session", "pick": "capabilities.departments" } }
+    },
+    {
+      "id": "department-api-gate",
+      "mechanism": "api-read",
+      "description": "Q9：只有組織／成員／主管檢視權限的人。舊版職掌 API 仍回資料（頁面才擋）；新版 API 與頁面一致，一律擋下。",
+      "legacy": { "api": { "path": "/api/department-workspace/work-items", "query": { "department_id": "{deptA}" }, "pick": "items" } },
+      "native": { "api": { "path": "/api/workspace/department-work", "query": { "department": "{deptA}" }, "pick": "items" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "organization-units-read",
+      "mechanism": "api-read",
+      "description": "公司組織資料：舊 GET /api/organization/units?showInactive=true 與新 GET /api/workspace/organization，本次建立的單位、成員、主管集合必須相同（含停用單位）。",
+      "legacy": { "api": { "path": "/api/organization/units", "query": { "showInactive": "true" }, "pick": "units" } },
+      "native": { "api": { "path": "/api/workspace/organization", "pick": "units" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "person-stats",
+      "mechanism": "api-read",
+      "description": "人員職掌統計（主責／協作／代理）：舊版 PersonResponsibilityDrawer 的算法與新版 personResponsibilities 對同一份舊 API 資料與新 API 資料的結果必須相同（只算該部門、只看有效職掌）。",
+      "legacy": { "source": "components/admin/OrganizationManagementClient.tsx PersonResponsibilityDrawer／countUserAssignments" },
+      "native": { "api": { "path": "/api/workspace/department-work", "pick": "items" } }
+    },
+    {
+      "id": "inactive-member-write",
+      "mechanism": "write-readback",
+      "description": "Q10：停用部門調整成員與主管。舊 PATCH /api/organization/units（set_members／set_managers）與新 POST /api/workspace/organization，對停用單位寫入後回讀的成員與主管必須相同（含移出）。",
+      "legacy": { "api": { "method": "PATCH", "path": "/api/organization/units" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/organization" } }
+    },
+    {
+      "id": "unit-rename-profile-sync",
+      "mechanism": "write-readback",
+      "description": "Q11：部門改名、停用、啟用後，成員人員資料的部門文字；以及成員異動後的同步結果。舊版與新版回讀必須相同（只有成員異動才同步）。",
+      "legacy": { "api": { "method": "PATCH", "path": "/api/organization/units" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/organization" } }
+    },
+    {
+      "id": "hierarchy-guard",
+      "mechanism": "write-readback",
+      "description": "層級調整：把單位移到停用單位底下。舊版 move_unit 不檢查（照寫入）；新版擋下（Q10：停用單位不得掛子單位，其餘照新版）。",
+      "legacy": { "api": { "method": "PATCH", "path": "/api/organization/units" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/organization" } }
+    },
+    {
+      "id": "save-conflict-guard",
+      "mechanism": "write-readback",
+      "description": "組織儲存衝突：舊版後存蓋前存；新版用過期版本儲存回 409 並要求重新核對。",
+      "legacy": { "api": { "method": "PATCH", "path": "/api/organization/units" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/organization" } }
+    },
+    {
+      "id": "primary-conflict",
+      "mechanism": "write-readback",
+      "description": "把已有其他主要部門的人加進另一個部門：舊版資料庫唯一限制失敗，畫面是錯誤；新版回 409 並說明原因，資料不變。",
+      "legacy": { "api": { "method": "PATCH", "path": "/api/organization/units" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/organization" } }
+    },
+    {
+      "id": "handover-tab",
+      "mechanism": "ui-extract",
+      "description": "部門頁的「工作交接」分頁：舊版只是空白佔位，新版不復刻。",
+      "legacy": { "source": "components/admin/OrganizationManagementClient.tsx renderHandoverTab" },
+      "native": { "source": "vue-workspace/src/pages/DepartmentDetail.vue（概況、成員、工作職掌三個分頁）" }
+    },
+    {
+      "id": "org-navigator",
+      "mechanism": "ui-extract",
+      "description": "組織導覽器抽屜：舊版另有一個搜尋＋類型篩選的導覽抽屜，新版樹狀已有搜尋與類型篩選，不另做。",
+      "legacy": { "source": "components/admin/OrganizationManagementClient.tsx OrganizationNavigatorDrawer" },
+      "native": { "source": "vue-workspace/src/pages/Organization.vue（樹狀搜尋與類型篩選）" }
+    },
+    {
+      "id": "org-chart-card",
+      "mechanism": "ui-extract",
+      "description": "組織圖卡片：舊版卡片顯示名稱、代碼、下層數與含下層人數、停用標籤、無主管警示；新版唯讀卡片的欄位與統計必須涵蓋這些（拖曳與編輯只在樹狀）。",
+      "legacy": { "source": "components/admin/OrganizationManagementClient.tsx renderChartNode" },
+      "native": { "source": "vue-workspace/src/components/OrgChartNode.vue" }
+    }
+  ]
+}

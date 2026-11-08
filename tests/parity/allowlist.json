@@ -2160,5 +2160,98 @@
       "entry": "no-permission-page",
       "kind": "changed"
     }
+  },
+  {
+    "id": "m5-w21-q9-department-api-gate",
+    "page": "org-departments",
+    "description": "只有組織／成員／主管檢視權限的人：舊版部門管理頁會把他們導回儀表板，但舊版職掌 API（/api/department-workspace/work-items）仍回資料；新版 API 與頁面一致，一律 403。",
+    "reason": "M5 Q9：使用者選「照舊版頁面條件」。上線前以 m5-sql/w21_q9_department_gate_preview.sql 預覽正式區受影響的角色與帳號。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "department-api-gate",
+      "kind": "status",
+      "roles": [
+        "org_view",
+        "org_member_view",
+        "org_manager_view"
+      ]
+    }
+  },
+  {
+    "id": "m5-w21-q10-move-under-inactive",
+    "page": "org-departments",
+    "description": "把單位移到停用單位底下：舊版 move_unit 照寫入；新版擋下（400「上層單位不存在或已停用」）。",
+    "reason": "M5 Q10：停用後仍可調整成員與主管，其餘（停用單位不得新增子單位或職掌）照新版。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q10)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "hierarchy-guard",
+      "kind": "status",
+      "key": "move-under-inactive"
+    }
+  },
+  {
+    "id": "m5-w21-save-conflict-guard",
+    "page": "org-departments",
+    "description": "組織儲存衝突：舊版後存蓋前存；新版用過期版本儲存回 409 並要求重新核對，資料維持先存的內容。",
+    "reason": "m5-spec 不需決策項目（組織儲存衝突：別人先改過就擋下並要求重新核對，採新版）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "save-conflict-guard",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w21-primary-conflict-message",
+    "page": "org-departments",
+    "description": "成員已在其他部門：舊版資料庫唯一限制失敗（500、畫面是錯誤）；新版 409 並說明「所選人員已有其他主要組織，請先核對原組織的成員指派」，資料不變。",
+    "reason": "m5-spec 不需決策項目（成員已在其他部門時顯示清楚提示，採新版）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "primary-conflict",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m5-w21-handover-tab-not-ported",
+    "page": "org-departments",
+    "description": "部門頁「工作交接」分頁：舊版只是空白佔位，新版不復刻。",
+    "reason": "m5-spec 不需決策項目（「工作交接」分頁舊版只是空白佔位，不復刻）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "handover-tab",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w21-org-navigator-not-ported",
+    "page": "org-departments",
+    "description": "組織導覽器抽屜：舊版另有搜尋＋類型篩選抽屜，新版樹狀已有搜尋與類型篩選，不另做。",
+    "reason": "m5-spec 不需決策項目（組織導覽器與樹狀搜尋重複，不另做）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "org-navigator",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m5-w21-q9-manage-only-api",
+    "page": "org-departments",
+    "description": "只有「部門工作管理」權限的人：舊版部門管理頁放行（頁面條件含工作管理），但舊版職掌 API 的檢視檢查不含工作管理而回 403（頁面載入不到資料）；新版 API 與頁面同一個條件，讓他進得來也讀得到。",
+    "reason": "M5 Q9：使用者選「照舊版頁面條件」。舊版這群人進得了頁面卻是空的；新版讓資料與入口一致。上線前以 m5-sql/w21_q9_department_gate_preview.sql 預覽正式區是否有只持工作管理的角色。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "department-api-gate",
+      "kind": "status",
+      "roles": [
+        "dept_ws_manage"
+      ]
+    }
   }
 ]
