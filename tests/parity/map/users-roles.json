@@ -1,0 +1,71 @@
+{
+  "page": "users-roles",
+  "legacyRoute": "/admin/users、/admin/roles",
+  "workItem": "P06",
+  "entries": [
+    {
+      "id": "reset-password-gate",
+      "mechanism": "write-readback",
+      "description": "Q14：重置密碼只有舊式身分為管理員的人能用。舊 POST /api/admin/reset-password 與新 POST /api/workspace/users（action=reset）對同一帳號的允許與否必須相同。",
+      "legacy": { "api": { "method": "POST", "path": "/api/admin/reset-password" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/users" } }
+    },
+    {
+      "id": "add-user-entry",
+      "mechanism": "ui-extract",
+      "description": "Q12：「新增使用者」改回連到公開註冊頁（舊版 href=\"/register\"），沒有管理員直接建立。",
+      "legacy": { "source": "app/admin/users/page.tsx（新增使用者按鈕連到 /register）" },
+      "native": { "source": "vue-workspace/src/pages/Users.vue（add-user-link）" }
+    },
+    {
+      "id": "roles-list",
+      "mechanism": "api-read",
+      "description": "角色清單：舊 GET /api/roles 與新 GET /api/workspace/roles，預設與 includeDevRoles=true 兩種查詢的角色集合與隱藏數量必須相同（DEV 測試角色開關）。",
+      "legacy": { "api": { "path": "/api/roles", "pick": "roles" } },
+      "native": { "api": { "path": "/api/workspace/roles", "pick": "roles" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "roles-assign-user",
+      "mechanism": "write-readback",
+      "description": "把使用者加進角色／移出角色：舊 POST/DELETE /api/roles/[id]/users 與新 /api/workspace/roles/[id]/users，同一帳號的允許與否與回讀的指派必須相同（規則不變，Q13 只在畫面加確認）。",
+      "legacy": { "api": { "method": "POST", "path": "/api/roles/{id}/users" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/roles/{id}/users" } }
+    },
+    {
+      "id": "compat-role-rules",
+      "mechanism": "write-readback",
+      "description": "變更相容角色的規則：需要 user.user.change_role、只能是 admin／manager／member、不能改自己。舊版 updateUserProfile 與新版 PATCH /api/workspace/users 逐項相同。",
+      "legacy": { "source": "app/auth/actions.ts updateUserProfile" },
+      "native": { "api": { "method": "PATCH", "path": "/api/workspace/users" } }
+    },
+    {
+      "id": "ban-state",
+      "mechanism": "ui-extract",
+      "description": "帳號停用判定：舊版 Boolean(banned_until)（封鎖時間已過期仍算停用）；新版封鎖時間未到期才算停用。",
+      "legacy": { "source": "app/auth/actions.ts getAllUsers is_disabled" },
+      "native": { "source": "lib/workspace/user-management-rules.ts isBanActive" }
+    },
+    {
+      "id": "pending-activation",
+      "mechanism": "ui-extract",
+      "description": "Q15：使用者管理的「待開通 N 位」標籤與篩選。舊版沒有這個概念。",
+      "legacy": { "source": "components/admin/UserManagementTable.tsx（沒有待開通）" },
+      "native": { "source": "vue-workspace/src/pages/Users.vue（pending-filter／pending-tag）" }
+    },
+    {
+      "id": "admin-grant-confirm",
+      "mechanism": "ui-extract",
+      "description": "Q13：授予管理員前的醒目確認（使用者管理改相容角色、角色管理加進管理員等級角色）。舊版沒有。",
+      "legacy": { "source": "components/admin/UserManagementTable.tsx、app/admin/roles（沒有確認）" },
+      "native": { "source": "vue-workspace/src/pages/Users.vue、Roles.vue（admin-grant-warning）" }
+    },
+    {
+      "id": "dev-role-toggle",
+      "mechanism": "ui-extract",
+      "description": "角色清單的「顯示 DEV 測試角色」開關與「已隱藏 N 個 DEV 測試角色」提示、DEV測試標籤：新版與舊版相同。",
+      "legacy": { "source": "app/admin/roles/RoleListClient.tsx" },
+      "native": { "source": "vue-workspace/src/pages/Roles.vue" }
+    }
+  ]
+}

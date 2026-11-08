@@ -2253,5 +2253,41 @@
         "dept_ws_manage"
       ]
     }
+  },
+  {
+    "id": "m5-p06-q15-pending-activation",
+    "page": "users-roles",
+    "description": "使用者管理新增「待開通 N 位」標籤與篩選（沒有任何生效角色的有效帳號）；舊版沒有，註冊後的空帳號只能自己在清單裡找。",
+    "reason": "M5 Q15：保留公開註冊，「通知管理員」以站內方式做（待開通人數標籤與篩選），不另寄信。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q15)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "pending-activation",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m5-p06-q13-admin-grant-confirm",
+    "page": "users-roles",
+    "description": "把人改成管理員（使用者管理）或加進管理員等級角色（角色管理）之前，新版先跳出醒目確認「此人將擁有完整管理權限」；舊版直接送出。後端規則不變。",
+    "reason": "M5 Q13：規則照舊，授予管理員前加一道醒目確認。",
+    "approvedBy": "user (2026-11-08 survey/m5 Q13)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "admin-grant-confirm",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m5-p06-ban-state-expired",
+    "page": "users-roles",
+    "description": "帳號停用判定：舊版只要有封鎖時間就算停用（封鎖已過期仍顯示停用）；新版封鎖時間未到期才算停用。",
+    "reason": "m5-spec 不需決策項目（使用者管理：停用判定改為封鎖時間未到期才算停用，較正確，列入差異清單）。",
+    "approvedBy": "user (2026-11-08 survey/m5 assumptions)",
+    "match": {
+      "mechanism": "ui-extract",
+      "entry": "ban-state",
+      "kind": "changed"
+    }
   }
 ]
