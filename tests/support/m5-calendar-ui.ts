@@ -6,7 +6,7 @@ export async function contextFor(browser: Browser, user: M5User): Promise<Browse
   const api = await apiForUser(user);
   const state = await api.storageState();
   await api.dispose();
-  return browser.newContext({ baseURL: 'http://localhost:3002', storageState: state });
+  return browser.newContext({ baseURL: 'http://localhost:3002', storageState: state, serviceWorkers: 'block' }); // 離線用的 service worker 會吃掉 page.route 的攔截（D17 的 Google 攔截需要）
 }
 export function watchErrors(page: Page) {
   const errors: string[] = [];
