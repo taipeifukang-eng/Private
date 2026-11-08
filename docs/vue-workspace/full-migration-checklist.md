@@ -46,19 +46,19 @@
 | `/admin/archived` | `app/admin/archived/page.tsx` | 已原生化清單、唯讀明細、時間軌跡與複製；8 項整合及 3 項並行驗證；已接管理明細整批封存入口；範本其餘操作仍待遷移 |
 | `/admin/assign/[id]` | `app/admin/assign/[id]/page.tsx` | 已原生化獨立派發／重新指派、人員搜尋及日期；整份流程範圍確認、草稿、重試及版本衝突通過；其餘舊資料分支待驗收 |
 | `/admin/create` | `app/admin/create/page.tsx` | 已原生化範本／部門／人員／主子項／日期／原子指派；整合與復原驗證通過，舊資料及多區段完整驗收待補 |
-| `/admin/departments` | `app/admin/departments/page.tsx` | 待逐項盤點 |
+| `/admin/departments` | `app/admin/departments/page.tsx` | 已原生化；M5 W21 完成：進入條件照舊版頁面（Q9）、停用部門仍可調整成員與主管（Q10）、改名／停用不同步人員資料部門文字（Q11，DEV 已移除同步 trigger）、成員表主責／協作／代理計數與人員職掌統計抽屜；已核可差異見 tests/parity/allowlist.json m5-w21-*；上線前名單見 parity-plan/m5-sql/w21_q9_department_gate_preview.sql |
 | `/admin/edit/[id]` | `app/admin/edit/[id]/page.tsx` | 已原生化編輯、版本檢查、完成鎖定及協作同步；有紀錄區段刪除等分支仍待補 |
 | `/admin/employee-management` | `app/admin/employee-management/page.tsx` | 待逐項盤點 |
 | `/admin/employee-purchases` | `app/admin/employee-purchases/page.tsx` | 待逐項盤點 |
 | `/admin/export-monthly-status` | `app/admin/export-monthly-status/page.tsx` | 待逐項盤點 |
 | `/admin/import-employees` | `app/admin/import-employees/page.tsx` | 待逐項盤點 |
 | `/admin/inspection-templates` | `app/admin/inspection-templates/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/admin/organization` | `app/admin/organization/page.tsx` | 待逐項盤點 |
+| `/admin/organization` | `app/admin/organization/page.tsx` | 已原生化；M5 W21 完成：唯讀組織圖卡片模式（編輯仍只在樹狀）、人員職掌統計抽屜、停用部門仍可設定成員與主管；組織導覽器與工作交接分頁不復刻（已列差異）；已核可差異見 tests/parity/allowlist.json m5-w21-* |
 | `/admin/performance` | `app/admin/performance/page.tsx` | 已補月季獎金、活動日折減、完整明細、閾值、Excel、處方箋與每月獎金；完整角色／舊資料及並行寫入驗收仍待補 |
 | `/admin/pharmacist-management` | `app/admin/pharmacist-management/page.tsx` | 待逐項盤點 |
 | `/admin/promotion-management` | `app/admin/promotion-management/page.tsx` | 待逐項盤點 |
 | `/admin/roles/[id]` | `app/admin/roles/[id]/page.tsx` | 已整合同頁 Vue 角色設定跳窗；權限分組、變更確認與使用者指派／撤銷，DEV 驗證通過 |
-| `/admin/roles` | `app/admin/roles/page.tsx` | 已原生化名冊、搜尋篩選、新增／編輯／刪除；沿舊 RBAC 與系統角色保護 |
+| `/admin/roles` | `app/admin/roles/page.tsx` | 已原生化名冊、搜尋篩選、新增／編輯／刪除；沿舊 RBAC 與系統角色保護；M5 P06：「顯示 DEV 測試角色」開關（預設隱藏、提示隱藏數量、DEV測試標籤）、把人加進管理員等級角色前醒目確認（Q13，後端規則不變） |
 | `/admin/store-managers` | `app/admin/store-managers/page.tsx` | 已原生化搜尋、多門市指派、單店／全部解除；交易回滾、衝突、權限及瀏覽器草稿／關閉驗證通過，見 verification.md；整組織範圍見 organization-migration.md |
 | `/admin/stores/[id]/clone` | `app/admin/stores/[id]/clone/page.tsx` | 已原生化搬遷保留 ID、沿革補建／刪除／重填；交易回滾與瀏覽器驗證通過 |
 | `/admin/stores/[id]/edit` | `app/admin/stores/[id]/edit/page.tsx` | 已原生化完整主檔、GPS、停用確認、版本衝突與草稿；驗證見 verification.md |
@@ -71,7 +71,7 @@
 | `/admin/supervisors` | `app/admin/supervisors/page.tsx` | 已原生化清單、搜尋、統計、多店、代理確認／主責補位及兼任店長；交易、衝突、角色權限及瀏覽器流程通過，見 verification.md |
 | `/admin/template/[id]` | `app/admin/template/[id]/page.tsx` | 已接管理明細與實際進度、排程、歷史、封存、複製及重新指派；刪除待補 |
 | `/admin/templates` | `app/admin/templates/page.tsx` | 部分原生化：現行範本清單、全指派明細與整批封存；已接建立／編輯／複製／獨立派發；刪除及完整對等驗收待補 |
-| `/admin/users` | `app/admin/users/page.tsx` | 待逐項盤點 |
+| `/admin/users` | `app/admin/users/page.tsx` | 已原生化；M5 P06 完成：「新增使用者」連到公開註冊頁、管理員直接建立已移除（Q12）、改成管理員前醒目確認（Q13）、重置密碼維持只有舊式管理員（Q14）、「待開通 N 位」標籤與篩選（Q15）、停用判定改為封鎖時間未到期；已核可差異見 tests/parity/allowlist.json m5-p06-*；上線前名單見 parity-plan/m5-sql/p06_*.sql |
 | `/assignment/[id]` | `app/assignment/[id]/page.tsx` | 已接本人任務的原生勾選／備註／儲存；9 項整合與 4 項交易驗證通過；週甘特、協作提示及失敗復原已補；管理者非本人入口與其他角色分支待補 |
 | `/cross-dept/maintenance` | `app/cross-dept/maintenance/page.tsx` | 待逐項盤點 |
 | `/cross-dept/merchandise` | `app/cross-dept/merchandise/page.tsx` | 待逐項盤點 |

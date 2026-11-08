@@ -1,5 +1,7 @@
 # 組織、部門、行事曆、角色、使用者、登入註冊密碼
 
+> W21／P06 更新（2026-11-09）：公司組織已補唯讀組織圖卡片（components/OrgChartNode.vue、規則 lib/workspace/organization-rules.ts buildChart／chartCounts）與人員職掌統計抽屜（components/PersonDrawer.vue，公司組織與部門管理兩頁都能開）；部門管理成員表補組織角色與主責／協作／代理計數。Q9 部門管理（導覽、session.capabilities.departments、/api/workspace/department-work）改用舊版頁面條件 DEPARTMENT_PAGE_PERMISSION_CODES；Q10 停用單位的成員與主管可調整（DEV SQL 20261109100000_m5_w21_org_inactive_members_no_unit_sync，附 rollback 與 scripts/apply-workspace-m5-w21-org-dev.cjs）；Q11 DEV 同步 trigger workspace_organization_unit_sync_profiles 已移除（成員異動才同步）。使用者管理（lib/workspace/user-management-rules.ts）：Q12 新增使用者連到 /register、直接建立 API 移除；Q13 授予管理員前醒目確認；Q14 重置密碼不變；Q15 待開通標籤與篩選（API 回傳 is_pending_activation／pendingCount）。角色清單的「顯示 DEV 測試角色」開關原本就在 Roles.vue，本次補齊提示文字與標籤並加測試。下方「缺少或不同」中已完成的項目以此為準。登入頁註冊連結與「帳號待管理員開通」說明頁屬 W22，不在本批。
+
 ## 領域共用缺口
 
 - 路由機制：vue-workspace/src/main.ts 只有 hash router（/ 與 /work/:id），頁面以 tab.kind 在 App.vue 切換；公開頁（register/forgot/reset）不適合放進需登入的 tab 機制，需先決定是否以獨立 hash 路由或維持舊站頁面
