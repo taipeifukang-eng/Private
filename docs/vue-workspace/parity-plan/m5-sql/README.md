@@ -1,6 +1,6 @@
 # M5 正式區 SQL 草稿（尚未執行，僅供使用者審閱）
 
-對應 m5-spec.md 的 W19 活動排程（Q1 到 Q5）、W20、W21 組織與部門（Q9 到 Q11）、P06 使用者與角色（Q12 到 Q15）。這些檔案不得由 Claude 在 DEV 以外的環境執行，由使用者在正式區 SQL editor 自行審閱後執行。
+對應 m5-spec.md 的 W19 活動排程（Q1 到 Q5）、W20、W21 組織與部門（Q9 到 Q11）、P06 使用者與角色（Q12 到 Q15）、W23／W24 年度行事曆與 Google 同步（Q17 到 Q21）。這些檔案不得由 Claude 在 DEV 以外的環境執行，由使用者在正式區 SQL editor 自行審閱後執行。
 每個檔案都單獨貼上執行；唯讀檔案不會改任何資料。W20 到 W24、P06 的上線前名單（Q9、Q13、Q17 等）由各自的工作項補在這個資料夾。
 
 ## 上線前檢查（唯讀）
@@ -18,6 +18,10 @@
 | `w21_q10_q11_org_state.sql` | W21 Q10、Q11 | 兩段查詢（分別貼上執行）：停用單位底下還有成員或主管的單位；人員資料部門文字與目前主要部門名稱不一致的人（改名後殘留的舊名稱、停用部門仍有文字）。 |
 | `p06_q12_q13_q14_admin_overview.sql` | P06 Q12、Q13、Q14 | 持有「建立使用者」（上線後只剩連到註冊頁）、「變更使用者角色」「指派使用者角色」（授予管理員前會有醒目確認）的人，以及舊式身分是管理員（唯一能重置密碼）和「角色是管理員等級但舊式身分不是管理員」（不能重置密碼）的人。 |
 | `w22_q15_registration_overview.sql` | W22 Q15 | 三段唯讀查詢：帳號狀態總覽（信箱驗證、是否登入過、是否有角色）、沒有角色帳號的信箱網域分佈（看有沒有外部信箱）、註冊超過 7 天仍未驗證也沒登入的帳號。公開註冊保留後，用來了解現在有多少自己註冊的空帳號；不刪任何資料。 |
+| `w23_calendar_permission_holders.sql` | W23 權限 | 三段唯讀查詢：四個行事曆權限（新增公司行事、修改／取消、匯入假日、Google 管理）的持有者；舊式身分是管理員卻沒被授予某權限的人（舊版畫面會顯示按鈕但儲存被資料庫擋下，新版不顯示）；四個權限碼是否存在。缺的直接在角色上授予，不改程式。 |
+| `w23_calendar_schema_probe.sql` | W23 | 三段唯讀查詢：八張行事曆資料表是否都在、個人行程讀取規則與判斷函式的波動性、是否已有個人行程資料。用來判斷正式區「新增個人行程」是否和 DEV 一樣被 RLS 擋下（見下方備註）。 |
+| `w23_q21_holiday_state.sql` | W23 Q21 | 各年度目前已發布的假日版本與筆數、被取代過的版本數。 |
+| `w24_google_sync_state.sql` | W24 Q19、Q20 | Google 連線狀態（不讀授權金鑰）、連結成功與待重試筆數、尚未同步的有效公司行事與假日。上線後畫面頁頂的「N 筆待同步」應與第 3、4 段加上第 2 段錯誤筆數一致。 |
 | `p06_q15_pending_users.sql` | P06 Q15 | 待開通名單（有登入帳號、沒有停用、沒有任何生效角色）。上線後使用者管理的「待開通 N 位」應等於這裡的筆數。 |
 
 ## 選用：把誤停用的活動改回啟用（需要寫入）
@@ -34,6 +38,10 @@
 5. 信件測試一律 mock：測試站以 `WORKSPACE_AUTH_MAIL_MOCK=true` 啟動（僅 tests/support/start-test-server.cjs 設定），只對 `@example.test` 信箱生效；正式環境不得設定這個旗標。
 
 ## 備註
+
+- W23／W24 的 DEV 結構變更放在 supabase/workspace-dev/20261109110000_m5_w23_annual_calendar.sql、20261109110100_m5_w24_calendar_google_sync.sql（DEV 原本沒有這兩份 migration，內容與 supabase/migrations 的原檔相同）與 20261109110200_m5_w23_personal_event_owner_read.sql，三份都附 .rollback.sql，用 scripts/apply-workspace-m5-w23-calendar-dev.cjs 套用或加 --rollback 回復。正式區舊頁依賴前兩份，理論上已套用，先跑 `w23_calendar_schema_probe.sql` 確認。
+- 實測發現（不在問卷範圍）：依舊 migration 建立的規則下，新增個人行程後的回讀會被 RLS 擋下（`new row violates row-level security policy`），新增存不進去；DEV 已用 20261109110200 修正（讀取規則加上「建立者本人一律可讀」）。正式區是否同樣有問題未查證：先跑 `w23_calendar_schema_probe.sql`，確認後才決定要不要套 `w23_personal_event_owner_read_fix.sql`（需寫入，含備份、預覽、BEGIN，另有 `w23_personal_event_owner_read_rollback.sql`）。這兩個檔案都沒有執行過。
+- 年度行事曆權限：維持三個獨立權限，以資料庫規則為準。執行 `w23_calendar_permission_holders.sql` 後，缺權限的人由你決定在角色上補授予；程式不改。
 
 
 - W20 同樣沒有資料庫結構變更，也沒有寫入型 SQL；兩份名單都是唯讀。

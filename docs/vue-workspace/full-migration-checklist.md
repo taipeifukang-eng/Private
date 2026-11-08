@@ -130,7 +130,7 @@
 | `/monthly-status/edit/[id]` | `app/monthly-status/edit/[id]/page.tsx` | 部分原生化；未完成對等驗收 |
 | `/monthly-status` | `app/monthly-status/page.tsx` | 本輪已補新增人員、獎金津貼、匯入、統計／支援時數與匯出；異動歷程與完整進階對等仍待驗收，見文末本輪表 |
 | `/my-tasks` | `app/my-tasks/page.tsx` | 已接原生列表及篩選；本人範圍與開啟操作驗證通過，尚待空資料／失敗分支驗收 |
-| `/organization/calendar` | `app/organization/calendar/page.tsx` | 待逐項盤點 |
+| `/organization/calendar` | `app/organization/calendar/page.tsx` | 已原生化；M5 W23／W24 完成：所有登入者可看（Q17）、月檢視與全年清單、公司行事新增／修改／取消與異動紀錄、個人行程與分享（搜尋排除停用離職，Q18）、政府假日匯入（再匯入前顯示差異並二次確認，Q21）、Google 單向同步（取消時真的刪除並加註，Q19；頁頂警示待同步與授權失效，Q20）；舊網址在 DEV 工作台環境轉新版、OAuth 回調網址不變；Google 在測試全程 mock（D17）；已核可差異見 tests/parity/allowlist.json m5-w23-*、m5-w24-*（個人行程新增的 RLS 修正待核可） |
 | `/` | `app/page.tsx` | 待逐項盤點 |
 | `/register` | `app/register/page.tsx` | 待逐項盤點 |
 | `/reset-password` | `app/reset-password/page.tsx` | 待逐項盤點 |
