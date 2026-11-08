@@ -209,11 +209,17 @@ export function calendarLegacyTarget(pathname: string, search = ""): string | nu
 export const CALENDAR_TITLE_MAX = 160;
 export const CALENDAR_LOCATION_MAX = 500;
 export const CALENDAR_DESCRIPTION_MAX = 3000;
+/** 與舊版 isCalendarDate 相同：YYYY-MM-DD 且真的有這一天。 */
+const isCalendarDate = (v: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const parsed = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === v;
+};
 export function validateCalendarDraft(d: {
   title: string; start_date: string; end_date: string; is_all_day: boolean; start_time: string; end_time: string; location: string; description: string;
 }): string | null {
   if (!d.title.trim() || d.title.trim().length > CALENDAR_TITLE_MAX) return "請輸入行事名稱（最多 160 字）";
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d.start_date) || !/^\d{4}-\d{2}-\d{2}$/.test(d.end_date) || d.end_date < d.start_date) return "請確認行事日期範圍";
+  if (!isCalendarDate(d.start_date) || !isCalendarDate(d.end_date) || d.end_date < d.start_date) return "請確認行事日期範圍";
   if (d.location.trim().length > CALENDAR_LOCATION_MAX) return "地點最多 500 字";
   const validTime = (v: string) => /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(v);
   if (!d.is_all_day && (!validTime(d.start_time) || !validTime(d.end_time) || (d.start_date === d.end_date && d.end_time <= d.start_time))) {
