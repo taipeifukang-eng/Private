@@ -178,3 +178,6 @@ export async function grantRole(userId: string, roleId: string, over: { is_activ
 export async function profileRole(userId: string): Promise<string | null> {
   return (must(await adminDb().from('profiles').select('role').eq('id', userId).single(), '讀取 profile') as any).role ?? null;
 }
+
+/** 單位名稱互為前綴（A、A1）時，用「後面不能接英數字或 -」比對，避免多筆符合。 */
+export const orgNameRe = (tag: string) => new RegExp(`${orgName(tag).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w-])`);

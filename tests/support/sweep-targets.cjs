@@ -24,6 +24,8 @@ const MARKER_TARGETS = [
   { table: 'campaigns', column: 'name', pattern: '[自動測試]M5 T%', action: 'delete' },
   { table: 'event_dates', column: 'description', pattern: '[自動測試]M5 T%', action: 'delete' },
   { table: 'profiles', column: 'email', pattern: 'm5p-test-%', action: 'report' },
+  // M5 W21（組織與部門）：組織單位代碼 M5W21-<RUNID>-…（fixture 自行依標記清除；有成員與職掌參照，這裡只回報孤兒）。
+  { table: 'organization_units', column: 'code', pattern: 'M5W21-T%', action: 'report' },
 ];
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
