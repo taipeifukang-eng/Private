@@ -148,6 +148,10 @@ test('改善照片：中文「選擇照片」按鈕（原生 input 隱藏）、�
     await input.setInputFiles({ name: 'x.gif', mimeType: 'image/gif', buffer: Buffer.from('GIF89a') });
     await expect(work(page).getByText('請選擇 JPEG、PNG 或 WebP 圖片')).toBeVisible();
     await expect(thumbs).toHaveCount(4);
+    // 再選一張合法照片：成功加入後，上一次的紅字錯誤要消失
+    await input.setInputFiles({ name: 'ok.png', mimeType: 'image/png', buffer: makePng({ width: 640, height: 480, inkPixels: 99 }) });
+    await expect(thumbs).toHaveCount(5);
+    await expect(work(page).getByText('請選擇 JPEG、PNG 或 WebP 圖片')).toHaveCount(0);
     expect(await noPageOverflow(page)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`w17-photo-upload-${testInfo.project.name}.png`), fullPage: true });
   } finally {

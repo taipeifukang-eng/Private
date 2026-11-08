@@ -13,6 +13,7 @@ const emit = defineEmits<{
   remove: [index: number];
   preview: [index: number];
   error: [message: string];
+  select: [];
   busy: [busy: boolean];
 }>();
 const processing = ref(0);
@@ -37,6 +38,7 @@ function onChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files || []);
   input.value = "";
+  emit("select"); // 每次重新選檔先通知父層清掉上一次的錯誤訊息
   for (const file of files) {
     if (props.photos.length + queued >= MAX) {
       emit("error", "最多可上傳 5 張照片");

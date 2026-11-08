@@ -170,6 +170,7 @@ onBeforeUnmount(() => {
               @remove="photos.splice($event, 1)"
               @preview="show([photos[$event]])"
               @error="onPhotoError"
+              @select="error = ''"
               @busy="tab.busy = $event"
             />
           </div>
