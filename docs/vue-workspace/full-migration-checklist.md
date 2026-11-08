@@ -39,10 +39,10 @@
 | --- | --- | --- |
 | `/activity-management` | `app/activity-management/page.tsx` | 待逐項盤點 |
 | `/activity-view/[id]` | `app/activity-view/[id]/page.tsx` | 待逐項盤點 |
-| `/admin/activity-management/events` | `app/admin/activity-management/events/page.tsx` | 待逐項盤點 |
-| `/admin/activity-management` | `app/admin/activity-management/page.tsx` | 部分原生化；未完成對等驗收 |
-| `/admin/activity-management/schedule/[id]` | `app/admin/activity-management/schedule/[id]/page.tsx` | 部分原生化；只有店別日期，舊版七子頁／月曆拖拉／發布等缺漏見 feature-parity-review.md |
-| `/admin/activity-management/settings` | `app/admin/activity-management/settings/page.tsx` | 待逐項盤點 |
+| `/admin/activity-management/events` | `app/admin/activity-management/events/page.tsx` | 已原生化（活動管理頁的「特殊日期」視窗）；M5 P05 對等驗收完成（依月份分組與星期、同日覆蓋前提醒；已核可差異見 tests/parity/allowlist.json m5-w19-*） |
+| `/admin/activity-management` | `app/admin/activity-management/page.tsx` | 已原生化；M5 P05 對等驗收完成（列表狀態依日期、停用隱藏 Q2、刪除輸入名稱與筆數 Q3、改期移回尚未安排 Q4、寫入只看角色權限 Q1；已核可差異見 tests/parity/allowlist.json m5-w19-*） |
+| `/admin/activity-management/schedule/[id]` | `app/admin/activity-management/schedule/[id]/page.tsx` | 已原生化；M5 W19 完成（七個分區、盤點類三分頁、週一為首月曆、督導區顏色、自動排程與舊版 200 組隨機資料同輸入同輸出、行銷圖片拖曳排序、Q5 三種提醒） |
+| `/admin/activity-management/settings` | `app/admin/activity-management/settings/page.tsx` | 已原生化（活動管理頁的「門市設定」視窗）；M5 P05 對等驗收完成（允許與禁止星期重疊新版擋下，列入核可差異） |
 | `/admin/archived` | `app/admin/archived/page.tsx` | 已原生化清單、唯讀明細、時間軌跡與複製；8 項整合及 3 項並行驗證；已接管理明細整批封存入口；範本其餘操作仍待遷移 |
 | `/admin/assign/[id]` | `app/admin/assign/[id]/page.tsx` | 已原生化獨立派發／重新指派、人員搜尋及日期；整份流程範圍確認、草稿、重試及版本衝突通過；其餘舊資料分支待驗收 |
 | `/admin/create` | `app/admin/create/page.tsx` | 已原生化範本／部門／人員／主子項／日期／原子指派；整合與復原驗證通過，舊資料及多區段完整驗收待補 |

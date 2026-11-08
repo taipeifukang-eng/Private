@@ -150,7 +150,7 @@ test('刪除活動：舊版一次確認就刪、新版要輸入名稱；刪除�
       list.record({
         entry: e.id,
         mechanism: 'write-readback',
-        role: 'admin',
+        role: 'admin-no-name',
         title: '刪除活動（不輸入名稱）',
         legacy: { endpoint: 'DELETE /api/campaigns', status: l.status() },
         native: { endpoint: 'DELETE /api/workspace/campaigns', status: nNoName.status() },
@@ -171,7 +171,7 @@ test('刪除活動：舊版一次確認就刪、新版要輸入名稱；刪除�
       list.record({
         entry: e.id,
         mechanism: 'write-readback',
-        role: 'admin',
+        role: 'admin-residual',
         title: '刪除後子表殘留',
         legacy: { endpoint: 'DELETE /api/campaigns（回讀各子表）' },
         native: { endpoint: 'DELETE /api/workspace/campaigns?confirmName（回讀各子表）' },
