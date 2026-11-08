@@ -16,6 +16,7 @@ export const WORKSPACE_NAV_KINDS = [
   "employee-import",
   "departments",
   "organization",
+  "calendar",
   "stores",
   "supervisors",
   "store-managers",

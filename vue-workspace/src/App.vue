@@ -55,8 +55,8 @@ const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
 // M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
-const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail"];
-const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string } | null>(null);
+const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar"];
+const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string } } | null>(null);
 function capturePendingOpen() {
   if (!route.meta.open) return;
   const kind = String(route.params.kind || "") as WorkTab["kind"];
@@ -64,7 +64,13 @@ function capturePendingOpen() {
   if (!OPEN_LINK_KINDS.includes(kind)) return;
   if (kind === "activity-view-detail" && !id) return;
   const focus = String(route.query.focus || "");
-  pendingOpen.value = { kind, id, focus: focus === "marketing" || focus === "merchandise" ? focus : undefined };
+  // M5 W24：Google 授權回調由舊站轉過來時帶著結果（只接受固定三種結果，說明文字截 300 字）。
+  const googleResult = String(route.query.google_calendar || "");
+  const google =
+    kind === "calendar" && ["connected", "connected_with_errors", "error"].includes(googleResult)
+      ? { result: googleResult, detail: String(route.query.google_detail || "").slice(0, 300) }
+      : undefined;
+  pendingOpen.value = { kind, id, focus: focus === "marketing" || focus === "merchandise" ? focus : undefined, google };
 }
 function applyPendingOpen() {
   const p = pendingOpen.value;
@@ -72,6 +78,7 @@ function applyPendingOpen() {
   pendingOpen.value = null;
   const tab = work.open(p.kind, "", p.id);
   if (p.focus) tab.payload = { focus: p.focus };
+  if (p.google) tab.payload = { google: p.google };
 }
 function deniedMessage(tab: WorkTab) {
   if (session.expired) return "登入已過期，暫停顯示資料與儲存。";

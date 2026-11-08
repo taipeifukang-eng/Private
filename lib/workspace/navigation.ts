@@ -58,7 +58,7 @@ export function workspaceNavigation(
     {
       label: "組織與門市",
       items: [
-        item("年度行事曆", "/organization/calendar"),
+        item("年度行事曆", "/organization/calendar", [], "calendar"), // M5 W23：所有登入者都能看（Q17）
         item(
           "公司組織",
           "/admin/organization",

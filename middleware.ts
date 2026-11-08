@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { resolveWorkspacePublicRedirect } from '@/lib/workspace/public-routes';
 import { activityLegacyTarget } from '@/lib/workspace/activity-view-rules';
+import { calendarLegacyTarget } from '@/lib/workspace/calendar-rules';
 
 export async function middleware(request: NextRequest) {
   // For now, let's disable middleware to allow all routes
@@ -15,6 +16,9 @@ export async function middleware(request: NextRequest) {
     // M5 W20 Q8：舊網址 /activity-management、/activity-view/:id 自動轉到新版活動檢視（舊頁與舊 API 不動，僅 DEV 工作台環境啟用）。
     const activityTarget = activityLegacyTarget(request.nextUrl.pathname, request.nextUrl.search);
     if (activityTarget) return NextResponse.redirect(new URL(activityTarget, request.url), 307);
+    // M5 W23／W24：/organization/calendar（含 Google 授權回調帶來的 google_calendar／google_detail）轉到新版年度行事曆；回調網址本身（/api/organization/calendar/google/callback）不變。
+    const calendarTarget = calendarLegacyTarget(request.nextUrl.pathname, request.nextUrl.search);
+    if (calendarTarget) return NextResponse.redirect(new URL(calendarTarget, request.url), 307);
   }
   const response = NextResponse.next();
   // The DEV workspace entry must pick up the current hashed bundle after a rebuild.

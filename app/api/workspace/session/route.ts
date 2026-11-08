@@ -82,6 +82,7 @@ export async function GET() {
         employeeImport:ctx.has("employee.import"),
         departments: ctx.has(...DEPARTMENT_PAGE_PERMISSION_CODES), // M5 Q9：照舊版部門管理頁的進入條件
         organization: ctx.has(...ORGANIZATION_NAV_PERMISSION_CODES),
+        calendar: true, // M5 Q17：年度行事曆所有登入者都能看
         storeMap: ctx.has("store.store.view","store.store.view_inactive","store.manage"),
         storeManagement: ctx.has("store.store.view", "store.store.view_inactive", "store.store.create", "store.store.edit", "store.store.clone", "store.manage"),
         supervisors: ctx.has("store.supervisor.assign", "store.manager.assign", "store.manage"),

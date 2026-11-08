@@ -27,6 +27,15 @@ try {
 // M5 W22（D17）：註冊與忘記密碼對 @example.test 信箱改走不寄信路徑；只在測試站啟動時開啟。
 process.env.WORKSPACE_AUTH_MAIL_MOCK = 'true';
 
+// M5 W23／W24（D17）：Google 日曆與人事總處辦公日曆在測試站一律走假回應（lib/workspace/calendar-mock.ts），不連真實 Google。
+// 這裡同時把 Google 設定蓋成假值：即使 .env.development.local 有真實金鑰也不會被使用；加密金鑰每次啟動隨機產生，只存在這個程序。
+process.env.WORKSPACE_CALENDAR_MOCK = 'true';
+process.env.GOOGLE_CALENDAR_CLIENT_ID = 'mock-client-id.apps.googleusercontent.com';
+process.env.GOOGLE_CALENDAR_CLIENT_SECRET = 'mock-client-secret';
+process.env.GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:3002/api/organization/calendar/google/callback';
+process.env.GOOGLE_CALENDAR_ID = 'mock-calendar@group.calendar.google.com';
+process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('hex');
+
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const build = spawnSync(npm, ['--prefix', 'vue-workspace', 'run', 'build'], {
   cwd: root,

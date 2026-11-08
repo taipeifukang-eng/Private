@@ -36,6 +36,8 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "department-detail": meta("部門工作頁", ["departments"]),
   "department-work-editor": meta("工作職掌", ["departments"]),
   organization: meta("公司組織", ["organization"]),
+  // M5 W23／W24：年度行事曆，所有登入者都能看（Q17）；編輯與 Google 同步另有三個獨立權限。
+  calendar: meta("年度行事曆", ["calendar"]),
   "organization-editor": meta("組織單位", ["organization"]),
   "store-map": meta("門市整合地圖", ["storeMap"]),
   "store-promotions": meta("批次升遷", ["storeManagement"]),

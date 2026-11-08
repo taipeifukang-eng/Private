@@ -1,5 +1,7 @@
 import { createDecipheriv, createCipheriv, createHash, randomBytes } from 'crypto';
 import { createAdminClient } from '@/lib/supabase/server';
+import { googleFetch } from '@/lib/workspace/calendar-mock';
+import { withSyncNote } from '@/lib/workspace/calendar-rules';
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 type Connection = {
@@ -145,7 +147,7 @@ type RefreshedGoogleToken = {
 async function refreshGoogleAccessToken(value: Connection): Promise<RefreshedGoogleToken> {
   const config = getGoogleCalendarEnvironment();
   if (!config.clientId || !config.clientSecret) throw new Error('Google OAuth 用戶端尚未完成設定');
-  const response = await fetch(GOOGLE_TOKEN_URL, {
+  const response = await googleFetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -209,7 +211,7 @@ function companyPayload(event: CalendarEvent) {
   const lines = [EVENT_TYPE_LABELS[event.event_type] || '公司行事', event.description?.trim()].filter(Boolean);
   const payload: Record<string, unknown> = {
     summary: event.title,
-    description: lines.join('\n\n'),
+    description: withSyncNote(lines.join('\n\n')),
     location: event.location || '',
     extendedProperties: { private: { system_source: `company:${event.id}` } },
   };
@@ -226,7 +228,7 @@ function companyPayload(event: CalendarEvent) {
 function holidayPayload(holiday: Holiday) {
   return {
     summary: holiday.name,
-    description: `政府公告參考：${HOLIDAY_TYPE_LABELS[holiday.day_type] || '假日'}`,
+    description: withSyncNote(`政府公告參考：${HOLIDAY_TYPE_LABELS[holiday.day_type] || '假日'}`),
     start: { date: holiday.holiday_date },
     end: { date: dateAfter(holiday.holiday_date) },
     extendedProperties: { private: { system_source: `holiday:${holiday.holiday_date}` } },
@@ -234,7 +236,7 @@ function holidayPayload(holiday: Holiday) {
 }
 
 async function googleApi(token: string, path: string, method: string, body?: unknown) {
-  const response = await fetch(`${GOOGLE_API_BASE}${path}`, {
+  const response = await googleFetch(`${GOOGLE_API_BASE}${path}`, {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -474,7 +476,7 @@ export async function revokeGoogleCalendarConnection() {
   if (!current) return { disconnected: false };
   try {
     const refreshToken = decryptRefreshToken(current.refresh_token_ciphertext);
-    await fetch('https://oauth2.googleapis.com/revoke', {
+    await googleFetch('https://oauth2.googleapis.com/revoke', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ token: refreshToken }),

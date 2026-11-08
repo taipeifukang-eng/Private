@@ -26,6 +26,8 @@ export type Session = {
     employeeImport: boolean;
     departments: boolean;
     organization: boolean;
+    /** 年度行事曆：所有登入者（Q17）。 */
+    calendar: boolean;
     storeMap: boolean;
     storeManagement: boolean;
     storeManagers: boolean;
