@@ -1,4 +1,6 @@
 import crypto from 'node:crypto';
+import path from 'node:path';
+import { createRequire } from 'node:module';
 import { adminDb, apiForUser, runIdOrThrow, stores } from './m5-fixtures';
 
 /**
@@ -63,6 +65,50 @@ export async function seedEquipment(storeCode: string, categoryId: string, suffi
     await adminDb().from('ga_equipment').insert({ store_id: s[storeCode].id, category_id: categoryId, name: m7Name(suffix), brand: `EB-${suffix}`, model: `EM-${suffix}`, ...over }).select('*').single(),
     `建立設備 ${suffix}`,
   ) as any;
+}
+
+export async function seedFacility(storeCode: string, categoryId: string, suffix: string, over: Record<string, unknown> = {}) {
+  const s = await stores();
+  return must(
+    await adminDb().from('ga_facilities').insert({ store_id: s[storeCode].id, category_id: categoryId, name: m7Name(suffix), ...over }).select('*').single(),
+    `建立設施 ${suffix}`,
+  ) as any;
+}
+
+/** 報修單（REPAIR）：指向設備或設施，狀態可指定（未結案／已結案測試用）。 */
+export async function seedRepairRequest(storeCode: string, target: { equipmentId?: string; facilityId?: string }, suffix: string, status: string, userId: string, over: Record<string, unknown> = {}) {
+  const s = await stores();
+  return must(
+    await adminDb().from('ga_service_requests').insert({
+      store_id: s[storeCode].id, created_by: userId, request_type: 'REPAIR', title: m7Name(suffix), description: 'm7m8 測試',
+      resource_type: target.equipmentId ? 'EQUIPMENT' : 'FACILITY', equipment_id: target.equipmentId ?? null, facility_id: target.facilityId ?? null, main_status: status, ...over,
+    }).select('*').single(),
+    `建立報修單 ${suffix}`,
+  ) as any;
+}
+
+/**
+ * 以 role-matrix 帳號登入的 Supabase 客戶端（anon key + 該帳號 JWT），用來直接呼叫 ga_ws_* 資料庫函式，驗證資料庫端權限語意。
+ * 密碼來自 .tmp-check/test-credentials.json（gitignored），不輸出。
+ */
+export async function rpcClientFor(accountKey: string): Promise<any> {
+  const nodeRequire = createRequire(path.join(__dirname, 'm7m8-fixtures.ts'));
+  const guard = nodeRequire('./env-guard.cjs') as { assertDevEnvironment: (o: { root: string }) => { env: Record<string, string> } };
+  const { env } = guard.assertDevEnvironment({ root: path.resolve(__dirname, '..', '..') });
+  const { getAccount } = nodeRequire('./credentials.cjs') as { getAccount: (k: string) => { email: string; password: string } };
+  const { createClient } = nodeRequire('@supabase/supabase-js') as { createClient: (u: string, k: string, o: unknown) => any };
+  const acct = getAccount(accountKey);
+  const client = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const login = await client.auth.signInWithPassword({ email: acct.email, password: acct.password });
+  if (login.error) throw new Error(`帳號 ${accountKey} 登入失敗（${login.error.message}）`);
+  return client;
+}
+
+/** 呼叫 ga_ws_* 函式（回傳 {ok,status,data,error,...} 的 jsonb）；網路層錯誤直接丟出。 */
+export async function callFn(client: any, name: string, args: Record<string, unknown>): Promise<any> {
+  const r = await client.rpc(name, args);
+  if (r.error) return { ok: false, status: 0, error: r.error.message, code: r.error.code };
+  return r.data;
 }
 
 export async function seedLocation(storeCode: string | null, suffix: string) {
@@ -178,6 +224,21 @@ export async function cleanupM7M8(): Promise<string[]> {
   const locIds = await ids(db, 'ga_inventory_locations', 'name', MARK_LIKE);
   const reqIds = await ids(db, 'ga_service_requests', 'title', MARK_LIKE);
   const transferIds = await ids(db, 'ga_inventory_transfers', 'reason', MARK_LIKE);
+  const woIds = await ids(db, 'maintenance_requests', 'title', MARK_LIKE);
+
+  // 第 2 批：異動紀錄、轉移單（含照片檔）、匯入批次（先刪，資產之後才刪）
+  const transferIds2 = await ids(db, 'ga_asset_transfers', 'asset_name', MARK_LIKE);
+  const eventIds = await ids(db, 'ga_asset_events', 'asset_name', MARK_LIKE);
+  await del(db, 'ga_asset_events', 'id', eventIds, log);
+  if (transferIds2.length) {
+    await del(db, 'ga_asset_events', 'transfer_id', transferIds2, log);
+    const ph = await db.from('ga_asset_transfer_photos').select('storage_path').in('transfer_id', transferIds2);
+    const phPaths = (ph.data || []).map((x: { storage_path: string }) => x.storage_path);
+    if (phPaths.length) await db.storage.from('general-affairs-attachments').remove(phPaths);
+    await del(db, 'ga_asset_transfers', 'id', transferIds2, log);
+  }
+  const batchIds = await ids(db, 'ga_asset_import_batches', 'file_name', MARK_LIKE);
+  await del(db, 'ga_asset_import_batches', 'id', batchIds, log);
 
   // 附件（紀錄與實體檔；這些檔案是測試自己上傳的）
   const resourceIds = [...partIds, ...eqIds, ...facIds, ...reqIds];
@@ -202,6 +263,7 @@ export async function cleanupM7M8(): Promise<string[]> {
   await del(db, 'ga_inventory_balances', 'location_id', locIds, log);
   await del(db, 'ga_inventory_location_parts', 'part_id', partIds, log);
   await del(db, 'ga_service_requests', 'id', reqIds, log);
+  await del(db, 'maintenance_requests', 'id', woIds, log);
   await del(db, 'ga_equipment', 'id', eqIds, log);
   await del(db, 'ga_facilities', 'id', facIds, log);
   await del(db, 'ga_equipment_templates', 'id', eqTplIds, log);
@@ -229,7 +291,8 @@ export async function cleanupM7M8(): Promise<string[]> {
   }
   for (const [table, col, like] of [
     ['ga_parts', 'name', MARK_LIKE], ['ga_equipment_templates', 'name', MARK_LIKE], ['ga_facility_templates', 'name', MARK_LIKE],
-    ['ga_equipment', 'name', MARK_LIKE], ['ga_inventory_locations', 'name', MARK_LIKE], ['ga_service_requests', 'title', MARK_LIKE],
+    ['ga_equipment', 'name', MARK_LIKE], ['ga_facilities', 'name', MARK_LIKE], ['ga_inventory_locations', 'name', MARK_LIKE], ['ga_service_requests', 'title', MARK_LIKE],
+    ['ga_asset_transfers', 'asset_name', MARK_LIKE], ['ga_asset_events', 'asset_name', MARK_LIKE], ['ga_asset_import_batches', 'file_name', MARK_LIKE],
   ] as const) {
     const left = await ids(db, table, col, like);
     if (left.length) log.push(`${table} 殘留 ${left.length} 筆`);

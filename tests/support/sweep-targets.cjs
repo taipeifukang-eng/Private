@@ -57,6 +57,11 @@ MARKER_TARGETS.push(
   { table: 'ga_facility_categories', column: 'code', pattern: 'M7M8T%', action: 'report' },
   { table: 'ga_part_categories', column: 'code', pattern: 'M7M8T%', action: 'report' },
   { table: 'profiles', column: 'email', pattern: 'm7m8-test-%', action: 'report' },
+  // 第 2 批：轉移單、異動紀錄（資產名稱快照帶標記）、匯入批次（檔名帶標記）。異動紀錄不可被一般身分刪除，清除一律由 service role 的 fixture 處理。
+  { table: 'maintenance_requests', column: 'title', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_asset_transfers', column: 'asset_name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_asset_events', column: 'asset_name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_asset_import_batches', column: 'file_name', pattern: M7M8_MARKER, action: 'report' },
 );
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/

@@ -326,6 +326,17 @@
         "general_affairs.facility.manage"
       ],
       "delete": []
+    },
+    {
+      "key": "ga_equipment",
+      "label": "總務設備",
+      "view": [
+        "general_affairs.equipment.view"
+      ],
+      "edit": [
+        "general_affairs.equipment.manage"
+      ],
+      "delete": []
     }
   ],
   "accounts": [
@@ -6177,6 +6188,153 @@
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
           "gaFacilityTemplates": true
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/organization/calendar"
+        ],
+        "permissionCount": 2
+      }
+    },
+    {
+      "kind": "module",
+      "module": "ga_equipment",
+      "action": "view",
+      "key": "ga_equipment_view",
+      "email": "vue-workspace-ga-equipment-view@example.test",
+      "roleCode": "vue_workspace_ga_equipment_view",
+      "fullName": "測試 總務設備 view",
+      "profileRole": "member",
+      "jobTitle": "總務設備view",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.equipment.view"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/organization/calendar"
+        ],
+        "permissionCount": 1
+      }
+    },
+    {
+      "kind": "module",
+      "module": "ga_equipment",
+      "action": "edit",
+      "key": "ga_equipment_edit",
+      "email": "vue-workspace-ga-equipment-edit@example.test",
+      "roleCode": "vue_workspace_ga_equipment_edit",
+      "fullName": "測試 總務設備 edit",
+      "profileRole": "member",
+      "jobTitle": "總務設備edit",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.equipment.manage",
+        "general_affairs.equipment.view"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/general-affairs",
