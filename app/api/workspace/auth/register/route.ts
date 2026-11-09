@@ -10,6 +10,8 @@ import {
 import {
   friendlyAuthError,
   mailMockActive,
+  ONE_SHOT_CLIENT_OPTIONS,
+  signUpReal,
   validateRegister,
 } from "@/lib/workspace/auth-public";
 
@@ -45,14 +47,9 @@ export async function POST(request: Request) {
       const anon = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { auth: { persistSession: false, autoRefreshToken: false } },
+        ONE_SHOT_CLIENT_OPTIONS,
       );
-      const { error } = await anon.auth.signUp({
-        email: input.email,
-        password: input.password as string,
-        options: { data: { full_name: input.fullName } },
-      });
-      message = error?.message;
+      message = await signUpReal(anon, { fullName: input.fullName, email: input.email, password: input.password as string });
     }
     if (message) {
       const text = friendlyAuthError(message, "register");

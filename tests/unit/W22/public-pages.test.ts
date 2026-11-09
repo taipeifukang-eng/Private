@@ -93,7 +93,8 @@ describe('W22 公開頁與登入面板結構', () => {
 describe('W22 伺服端結構', () => {
   it('重設信連結缺網站網址直接報錯，不再退回 localhost', () => {
     const route = read('app/api/workspace/auth/forgot-password/route.ts');
-    expect(route).toContain('resetRedirectUrl(process.env.NEXT_PUBLIC_SITE_URL)');
+    expect(route).toContain('requestResetReal(sessionClient(), email, process.env.NEXT_PUBLIC_SITE_URL)');
+    expect(read('lib/workspace/auth-public.ts')).toContain('resetRedirectUrl(siteUrl)');
     expect(route).not.toContain('localhost:3000');
   });
   it('callback：next 只允許站內路徑，失敗只帶固定文字', () => {

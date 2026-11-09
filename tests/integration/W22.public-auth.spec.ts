@@ -1,5 +1,5 @@
 import { expect, test, request as pwRequest, type APIRequestContext } from '@playwright/test';
-import { adminDb, cleanupM5Users } from '../support/m5-fixtures';
+import { adminDb, cleanupM5Users, assertAuthMailMock } from '../support/m5-fixtures';
 import { createAuthUser, createPlainRole, grantRole } from '../support/m5-org-fixtures';
 import { TEST_ORIGIN } from '../support/auth';
 
@@ -23,6 +23,7 @@ async function loginAs(email: string, password: string) {
 const post = (c: APIRequestContext, path: string, data: unknown) => c.post(`/api/workspace/auth/${path}`, { data });
 
 test.beforeAll(async () => {
+  await assertAuthMailMock(TEST_ORIGIN);
   test.setTimeout(120_000);
   const left = await cleanupM5Users();
   if (left.length) throw new Error(`清除上次殘留失敗：${left.join('; ')}`);

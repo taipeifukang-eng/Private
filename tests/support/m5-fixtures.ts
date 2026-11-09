@@ -305,3 +305,9 @@ export async function setupM5Users(keys: string[] = Object.keys(M5_SCENARIOS)): 
   }
   return { users, teardown: () => cleanupM5Users(db) };
 }
+
+/** W22：確認測試站已開信件 mock（WORKSPACE_AUTH_MAIL_MOCK）。沿用手動啟動的 3002 時可能沒開，沒開就中止，避免對 DEV Supabase 真的寄信（D17）。 */
+export async function assertAuthMailMock(origin: string): Promise<void> {
+  const r = await fetch(`${origin}/api/workspace/auth/mail-mock`);
+  if (r.status !== 200) throw new Error(`測試站未開啟信件 mock（WORKSPACE_AUTH_MAIL_MOCK），HTTP ${r.status}。請關閉手動啟動的 3002 讓測試自行啟動，或用該旗標重啟。`);
+}

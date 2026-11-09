@@ -157,3 +157,29 @@ describe('W22 密碼強度（照舊版公式，只提示）', () => {
   const table: [string, string][] = [['', ''], ['abc', '弱'], ['abcdefgh', '弱'], ['abcdefg1', '中等'], ['Abcdefg1', '中等'], ['Abcdefg1!', '強'], ['Abcdefghijk1!', '強']];
   for (const [pw, label] of table) it(`${JSON.stringify(pw)} -> ${label || '(空)'}`, () => expect(passwordStrength(pw).label).toBe(label));
 });
+
+describe('W22 真實（非 mock）分支：註冊與忘記密碼對 Supabase 的呼叫內容', () => {
+  it('註冊：一次性 client 不保存 session；姓名以 full_name 帶進 user metadata；回傳錯誤訊息供轉中文', async () => {
+    const { ONE_SHOT_CLIENT_OPTIONS, signUpReal } = await import('@/lib/workspace/auth-public');
+    expect(ONE_SHOT_CLIENT_OPTIONS).toEqual({ auth: { persistSession: false, autoRefreshToken: false } });
+    const calls: any[] = [];
+    const ok = { auth: { signUp: async (a: any) => (calls.push(a), { error: null }), resetPasswordForEmail: async () => ({ error: null }) } };
+    expect(await signUpReal(ok, { fullName: '王小明', email: 'a@b.co', password: 'abcdef' })).toBeUndefined();
+    expect(calls).toEqual([{ email: 'a@b.co', password: 'abcdef', options: { data: { full_name: '王小明' } } }]);
+    const bad = { auth: { signUp: async () => ({ error: { message: 'User already registered' } }), resetPasswordForEmail: async () => ({ error: null }) } };
+    expect(await signUpReal(bad, { fullName: 'x', email: 'a@b.co', password: 'abcdef' })).toBe('User already registered');
+  });
+  it('忘記密碼：重設連結用網站網址；缺網址不呼叫 Supabase；只有寄太頻繁明講，其他失敗當成功', async () => {
+    const { requestResetReal } = await import('@/lib/workspace/auth-public');
+    const calls: any[] = [];
+    const mk = (message?: string) => ({ auth: { signUp: async () => ({ error: null }), resetPasswordForEmail: async (e: string, o: any) => (calls.push([e, o]), { error: message ? { message } : null }) } });
+    expect(await requestResetReal(mk(), 'a@b.co', 'https://site.example/')).toBe('sent');
+    expect(calls).toEqual([['a@b.co', { redirectTo: 'https://site.example/auth/callback?next=/reset-password' }]]);
+    calls.length = 0;
+    expect(await requestResetReal(mk(), 'a@b.co', '')).toBe('no-site-url');
+    expect(await requestResetReal(mk(), 'a@b.co', undefined)).toBe('no-site-url');
+    expect(calls).toEqual([]);
+    expect(await requestResetReal(mk('email rate limit exceeded'), 'a@b.co', 'https://site.example')).toBe('rate-limit');
+    expect(await requestResetReal(mk('User not found'), 'a@b.co', 'https://site.example')).toBe('sent');
+  });
+});

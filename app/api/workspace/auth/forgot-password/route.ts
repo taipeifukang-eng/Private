@@ -10,7 +10,7 @@ import {
   FORGOT_PASSWORD_NOTICE,
   isValidEmail,
   mailMockActive,
-  resetRedirectUrl,
+  requestResetReal,
 } from "@/lib/workspace/auth-public";
 
 // M5 W22：忘記密碼一律回同一句「若此信箱已註冊會收到重設信」，不透露帳號是否存在。
@@ -24,16 +24,11 @@ export async function POST(request: Request) {
     const email = typeof body?.email === "string" ? body.email.trim() : "";
     if (!isValidEmail(email)) throw new WorkspaceError(400, "請輸入有效的電子郵件");
     if (!mailMockActive(process.env.WORKSPACE_AUTH_MAIL_MOCK, email)) {
-      let redirectTo: string;
-      try {
-        redirectTo = resetRedirectUrl(process.env.NEXT_PUBLIC_SITE_URL);
-      } catch {
+      const result = await requestResetReal(sessionClient(), email, process.env.NEXT_PUBLIC_SITE_URL);
+      if (result === "no-site-url")
         throw new WorkspaceError(503, "系統尚未設定網站網址，暫時無法寄送重設信，請聯絡管理員");
-      }
-      const { error } = await sessionClient().auth.resetPasswordForEmail(email, { redirectTo });
       // 只有「寄太頻繁」會明講（與信箱是否存在無關）；其他失敗一律當作成功回覆，避免被拿來探測帳號。
-      if (error && /rate limit|too many|security purposes/i.test(error.message))
-        throw new WorkspaceError(429, "操作太頻繁，請稍後再試");
+      if (result === "rate-limit") throw new WorkspaceError(429, "操作太頻繁，請稍後再試");
     }
     return respond({ success: true, message: FORGOT_PASSWORD_NOTICE });
   } catch (error) {

@@ -132,3 +132,31 @@ export function resetRedirectUrl(siteUrl: string | undefined | null): string {
 export const MAIL_MOCK_DOMAIN = "@example.test";
 export const mailMockActive = (flag: string | undefined, email: string) =>
   flag === "true" && email.trim().toLowerCase().endsWith(MAIL_MOCK_DOMAIN);
+
+/** 註冊與忘記密碼用的一次性 client 設定：不保存、不更新 session，註冊不會順便登入。 */
+export const ONE_SHOT_CLIENT_OPTIONS = { auth: { persistSession: false, autoRefreshToken: false } } as const;
+
+type AuthLike = {
+  auth: {
+    signUp: (args: { email: string; password: string; options: { data: { full_name: string } } }) => PromiseLike<{ error: { message: string } | null }>;
+    resetPasswordForEmail: (email: string, options: { redirectTo: string }) => PromiseLike<{ error: { message: string } | null }>;
+  };
+};
+
+/** 真實註冊分支（非 mock）：姓名帶進 user metadata 供資料庫觸發建立人員資料。回傳錯誤訊息或 undefined。 */
+export async function signUpReal(client: AuthLike, input: { fullName: string; email: string; password: string }): Promise<string | undefined> {
+  const { error } = await client.auth.signUp({ email: input.email, password: input.password, options: { data: { full_name: input.fullName } } });
+  return error?.message;
+}
+
+/** 真實忘記密碼分支（非 mock）：缺網站網址 → "no-site-url"；只有寄太頻繁會明講（"rate-limit"），其他失敗一律當成功。 */
+export async function requestResetReal(client: AuthLike, email: string, siteUrl: string | undefined | null): Promise<"sent" | "no-site-url" | "rate-limit"> {
+  let redirectTo: string;
+  try {
+    redirectTo = resetRedirectUrl(siteUrl);
+  } catch {
+    return "no-site-url";
+  }
+  const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo });
+  return error && /rate limit|too many|security purposes/i.test(error.message) ? "rate-limit" : "sent";
+}

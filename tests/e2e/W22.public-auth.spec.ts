@@ -1,6 +1,7 @@
 import { expect, test, request as pwRequest, type Browser, type Page } from '@playwright/test';
-import { adminDb, apiForUser, cleanupM5Users } from '../support/m5-fixtures';
+import { adminDb, apiForUser, cleanupM5Users, assertAuthMailMock } from '../support/m5-fixtures';
 import { createAuthUser, createPlainRole, grantRole } from '../support/m5-org-fixtures';
+import { TEST_ORIGIN } from '../support/auth';
 import { applyProjectViewport } from '../support/w04-ui';
 import { fillAndSubmitLogin, loginViaUi, openLogin } from '../support/w22-ui';
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -19,6 +20,7 @@ const uniq = () => Math.random().toString(36).slice(2, 8);
 let role: { id: string };
 
 test.beforeAll(async () => {
+  await assertAuthMailMock(TEST_ORIGIN);
   test.setTimeout(120_000);
   expect(await cleanupM5Users(), '清除上次殘留').toEqual([]);
   role = await createPlainRole('w22e2e');

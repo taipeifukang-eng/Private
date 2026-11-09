@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { expect, test, request as pwRequest } from '@playwright/test';
 import { assertNoUnlistedDiffs, loadMap, ParityRecorder, type Diff } from '../support/parity';
-import { adminDb, cleanupM5Users } from '../support/m5-fixtures';
+import { adminDb, cleanupM5Users, assertAuthMailMock } from '../support/m5-fixtures';
 import { createAuthUser } from '../support/m5-org-fixtures';
 import { TEST_ORIGIN } from '../support/auth';
 import {
@@ -29,6 +29,7 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const uniq = () => Math.random().toString(36).slice(2, 8);
 
 test.beforeAll(async () => {
+  await assertAuthMailMock(TEST_ORIGIN);
   expect(await cleanupM5Users(), '清除上次殘留').toEqual([]);
 });
 test.afterAll(async () => {
@@ -247,6 +248,7 @@ test('Q15 新註冊者的人員資料：新版註冊 API vs 舊版 signUp 同樣
   const r = await api.post('/api/workspace/auth/register', { data: { fullName: 'W22 對等', email: nativeEmail, password, confirmPassword: password } });
   await api.dispose();
   expect(r.status()).toBe(200);
+  // 注意：測試站走 mock 分支，這裡只比對「人員資料觸發」結果；真實 signUp／重設信分支的呼叫內容由 tests/unit/W22/auth-public.test.ts（signUpReal、requestResetReal）驗證。
   // 舊版 signUp 等同於在 auth 建立一個帶 full_name 的使用者，人員資料由資料庫觸發建立（這裡用 admin 建立相同的使用者）
   const created = await db.auth.admin.createUser({ email: legacyEmail, password, email_confirm: true, user_metadata: { full_name: 'W22 對等' } });
   expect(created.error).toBeNull();
