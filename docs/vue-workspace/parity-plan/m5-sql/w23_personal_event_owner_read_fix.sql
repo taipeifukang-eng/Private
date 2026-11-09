@@ -12,6 +12,9 @@ CREATE TABLE IF NOT EXISTS m5_w23_policy_backup AS
 SELECT now() AS backed_up_at, policyname, cmd, qual, with_check
 FROM pg_policies
 WHERE schemaname = 'public' AND tablename = 'organization_personal_calendar_events' AND policyname = 'organization_personal_calendar_events_read';
+-- 備份表不外露：開啟 RLS 並收回 anon／authenticated（service role 與 postgres 仍可讀）
+ALTER TABLE m5_w23_policy_backup ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON m5_w23_policy_backup FROM anon, authenticated;
 
 -- 預覽：目前規則
 SELECT policyname, cmd, qual FROM pg_policies
