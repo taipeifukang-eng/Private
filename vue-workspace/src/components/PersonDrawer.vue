@@ -54,5 +54,5 @@ const personName = computed(() => [props.user.employee_code, props.user.full_nam
   </Modal>
 </template>
 <style scoped>
-.person-drawer{display:grid;gap:16px;min-width:min(520px,80vw)}h3,h4{margin:0}.muted,small{color:var(--muted)}.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;text-align:center}.stat-row div{border:1px solid var(--line);padding:12px}.stat-row small{display:block}.stat-row strong{font-size:24px}.empty{border:1px dashed var(--line);padding:24px;text-align:center}.group{border:1px solid var(--line);padding:12px}.row{display:grid;gap:4px;padding:8px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}
+.person-drawer{display:grid;gap:16px;width:min(520px,100%);min-width:0;box-sizing:border-box}.person-drawer>*{min-width:0}h3,h4{margin:0}.muted,small{color:var(--muted)}.stat-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;text-align:center}.stat-row div{border:1px solid var(--line);padding:12px;min-width:0;box-sizing:border-box}.stat-row small{display:block}.stat-row strong{font-size:24px}.empty{border:1px dashed var(--line);padding:24px;text-align:center}.group{border:1px solid var(--line);padding:12px;min-width:0;box-sizing:border-box}.row{display:grid;gap:4px;overflow-wrap:anywhere;min-width:0;padding:8px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}
 </style>
