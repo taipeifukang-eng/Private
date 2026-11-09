@@ -67,11 +67,11 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     const groups = nav(a);
     expect(groups.map((g) => g.id)).toEqual(expect.arrayContaining(['workspace', 'assets-inventory']));
     expect(kinds(a)).toEqual([
-      'ga-center', 'ga-equipment-categories', 'ga-equipment-templates', 'ga-facility-categories', 'ga-facility-templates', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
+      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-templates', 'ga-facility-categories', 'ga-facility-templates', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
     ]);
-    // 尚未移植的項目仍在（用舊頁網址另開），例如設備清冊
-    expect(flatten(groups).find((i) => i.id === 'equipment-list')).toMatchObject({ href: '/general-affairs/equipment' });
-    expect(flatten(groups).find((i) => i.id === 'equipment-list')?.kind).toBeUndefined();
+    // 第 2 批：設備清冊已移植；尚未移植的項目仍在（用舊頁網址另開），例如保固管理
+    expect(flatten(groups).find((i) => i.id === 'equipment-list')).toMatchObject({ href: '/general-affairs/equipment', kind: 'ga-equipment' });
+    expect(flatten(groups).find((i) => i.id === 'equipment-warranties')?.kind).toBeUndefined();
   });
   it('只有料件查看：已移植的頁面只列料件列表（新增、分類、適用料件設定都不列；服務首頁在舊版側欄需要服務中心入口權限）', () => {
     const a = access(['general_affairs.part.view']);
@@ -79,7 +79,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
   });
   it('店長身分：不列設施架型（API 會擋），仍可看料件列表', () => {
     const a = access([], { roleCode: 'store_manager' });
-    expect(kinds(a)).toEqual(['ga-parts']);
+    expect(kinds(a)).toEqual(['ga-equipment', 'ga-onboarding-tasks', 'ga-parts']);
     expect(flatten(nav(a)).find((i) => i.id === 'facility-templates')).toBeUndefined();
   });
   it('「規劃中」的項目照舊顯示成不可點', () => {
@@ -87,7 +87,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     const item = flatten(nav(a)).find((i) => i.id === 'inventory-count');
     expect(item?.disabled).toBeTruthy();
   });
-  it('頁面對照表涵蓋第 1 批的九個頁面', () => {
-    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(9);
+  it('頁面對照表涵蓋第 1 批九個頁面與第 2 批設備清冊、新增設備', () => {
+    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(11);
   });
 });

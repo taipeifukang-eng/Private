@@ -104,6 +104,10 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-part-compat": meta("適用料件設定", ["gaPartCompat"]),
   "ga-equipment-templates": meta("公司設備型號", ["gaEquipmentTemplates"]),
   "ga-facility-templates": meta("公司設施架型", ["gaFacilityTemplates"]),
+  "ga-equipment": meta("設備清冊", ["gaEquipment"]),
+  "ga-equipment-create": meta("新增設備", ["gaEquipmentCreate"]),
+  "ga-onboarding-tasks": meta("貼標待辦", ["gaOnboardingTasks"]),
+  "ga-onboarding-review": meta("貼標複核", ["gaOnboardingReview"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {

@@ -198,6 +198,21 @@ async function confirmDelete() {
         </tbody>
       </table>
     </div>
+    <ul class="part-cards" aria-label="料件清單">
+      <li v-for="p in rows" :key="p.id" class="part-card">
+        <div class="card-title"><strong>{{ p.name }}</strong><small>{{ [p.part_code, p.barcode].filter(Boolean).join(" / ") || "未設定代碼" }}</small></div>
+        <p class="card-line">{{ [p.brand, p.model, p.specification].filter(Boolean).join(" / ") || "—" }}</p>
+        <p class="card-line muted">{{ p.category?.name || "—" }} · 單位 {{ p.base_unit }}<template v-if="p.purchase_unit">（採購 {{ p.purchase_unit }} ×{{ p.purchase_to_base_rate }}）</template></p>
+        <p v-if="seeNotes && p.notes" class="card-line muted">內部備註：{{ p.notes }}</p>
+        <span class="state-text" :class="{ done: p.is_active }">{{ p.is_active ? "啟用中" : "已停用" }}</span>
+        <div v-if="canManage" class="card-actions">
+          <button type="button" @click="openEdit(p)">編輯</button>
+          <button type="button" @click="toggleActive(p)">{{ p.is_active ? "停用" : "啟用" }}</button>
+          <button type="button" class="danger" @click="askDelete(p)">刪除</button>
+        </div>
+      </li>
+      <li v-if="!rows.length && !loading" class="card-empty">{{ error ? "資料載入失敗" : search.trim() || categoryId || activeFilter ? "找不到符合的料件" : "還沒有料件" }}</li>
+    </ul>
     <footer class="pagination">
       <span>第 {{ page }} / {{ pages }} 頁</span>
       <button :disabled="page <= 1 || loading" @click="page--">上一頁</button>
@@ -238,4 +253,14 @@ async function confirmDelete() {
 .actions button { min-height: 30px; padding: 3px 10px; font-size: 12px; }
 .filter-cat { min-width: 240px; flex: 1; }
 .part-attachments { margin-top: 18px; }
+/* 解讀 (d)：手機（390 寬）料件列表一筆一張卡片，操作按鈕在卡片底部且高度不小於 44px。 */
+.part-cards { display: none; list-style: none; margin: 0; padding: 0; gap: 12px; }
+.part-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px; display: grid; gap: 6px; min-width: 0; }
+.card-title { display: grid; gap: 2px; overflow-wrap: anywhere; }
+.card-title small { color: var(--muted); }
+.card-line { margin: 0; overflow-wrap: anywhere; font-size: 13px; }
+.card-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px; }
+.card-actions button { min-height: 44px; }
+.card-empty { text-align: center; color: var(--muted); padding: 20px; }
+@media (max-width: 700px) { .part-table { display: none; } .part-cards { display: grid; } }
 </style>

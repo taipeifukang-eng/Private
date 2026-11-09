@@ -64,6 +64,11 @@ export type Session = {
     gaPartCompat: boolean;
     gaEquipmentTemplates: boolean;
     gaFacilityTemplates: boolean;
+    /** 第 2 批：設備清冊、新增設備、貼標待辦、貼標複核。 */
+    gaEquipment: boolean;
+    gaEquipmentCreate: boolean;
+    gaOnboardingTasks: boolean;
+    gaOnboardingReview: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

@@ -402,7 +402,11 @@
           "gaPartCreate": true,
           "gaPartCompat": true,
           "gaEquipmentTemplates": true,
-          "gaFacilityTemplates": true
+          "gaFacilityTemplates": true,
+          "gaEquipment": true,
+          "gaEquipmentCreate": true,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -584,7 +588,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": true,
-          "gaFacilityTemplates": true
+          "gaFacilityTemplates": true,
+          "gaEquipment": true,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -715,7 +723,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -828,7 +840,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -949,7 +965,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": true,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1056,7 +1076,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": true,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1161,7 +1185,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": true,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1246,7 +1274,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -1344,7 +1376,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1475,7 +1511,11 @@
           "gaPartCreate": true,
           "gaPartCompat": true,
           "gaEquipmentTemplates": true,
-          "gaFacilityTemplates": true
+          "gaFacilityTemplates": true,
+          "gaEquipment": true,
+          "gaEquipmentCreate": true,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -1562,7 +1602,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1639,7 +1683,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1709,7 +1757,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1782,7 +1834,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1858,7 +1914,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1933,7 +1993,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2005,7 +2069,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2081,7 +2149,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2155,7 +2227,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2228,7 +2304,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2305,7 +2385,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2379,7 +2463,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2452,7 +2540,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2528,7 +2620,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2603,7 +2699,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2678,7 +2778,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -2754,7 +2858,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -2829,7 +2937,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -2902,7 +3014,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -2976,7 +3092,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3050,7 +3170,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3125,7 +3249,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3204,7 +3332,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3282,7 +3414,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3356,7 +3492,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3432,7 +3572,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3506,7 +3650,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3582,7 +3730,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -3663,7 +3815,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -3738,7 +3894,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -3814,7 +3974,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -3888,7 +4052,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -3966,7 +4134,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -4041,7 +4213,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -4117,7 +4293,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -4190,7 +4370,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -4264,7 +4448,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -4338,7 +4526,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -4414,7 +4606,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -4489,7 +4685,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -4562,7 +4762,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4635,7 +4839,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4708,7 +4916,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4780,7 +4992,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4853,7 +5069,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/store-managers",
@@ -4928,7 +5148,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5000,7 +5224,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5074,7 +5302,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5145,7 +5377,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -5217,7 +5453,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/employee-management",
@@ -5289,7 +5529,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -5360,7 +5604,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5488,7 +5736,11 @@
           "gaPartCreate": true,
           "gaPartCompat": true,
           "gaEquipmentTemplates": true,
-          "gaFacilityTemplates": true
+          "gaFacilityTemplates": true,
+          "gaEquipment": true,
+          "gaEquipmentCreate": true,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -5590,7 +5842,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": true,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -5670,7 +5926,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5744,7 +6004,11 @@
           "gaPartCreate": true,
           "gaPartCompat": true,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5819,7 +6083,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5896,7 +6164,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5968,7 +6240,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": true,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6041,7 +6317,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": true,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6113,7 +6393,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": true
+          "gaFacilityTemplates": true,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6187,7 +6471,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": true
+          "gaFacilityTemplates": true,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": true
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6260,7 +6548,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": true,
+          "gaEquipmentCreate": false,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6334,7 +6626,11 @@
           "gaPartCreate": false,
           "gaPartCompat": false,
           "gaEquipmentTemplates": false,
-          "gaFacilityTemplates": false
+          "gaFacilityTemplates": false,
+          "gaEquipment": true,
+          "gaEquipmentCreate": true,
+          "gaOnboardingTasks": true,
+          "gaOnboardingReview": true
         },
         "navigationHrefs": [
           "/general-affairs",
