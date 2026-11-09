@@ -3700,5 +3700,70 @@
       "kind": "only-native",
       "key": "permissions"
     }
+  },
+  {
+    "id": "m7m8-g08-nav-facility-manage-conditions",
+    "page": "ga-assets",
+    "description": "總務側欄：舊版對沒有設施管理權限的設施查看者也顯示「新增設施」（只要有設施入口旗標就顯示，點進去才被擋）；新版只有具設施管理權限者看得到。",
+    "reason": "與「新增設備」「新增料件」同一個修正（舊版旗標判斷讓入口對不能用的人也顯示）的延伸，設施頁面第 2 批移植。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-legacy",
+      "key": "nav-facility-manage-conditions"
+    }
+  },
+  {
+    "id": "m7m8-g09-nav-warranty-view-conditions",
+    "page": "ga-assets",
+    "description": "總務側欄：舊版對店長也顯示設備「保固管理」；新版只有具設備查看或管理權限者看得到（店長只看基本欄位，保固頁含保固申請方式與保固文件，屬完整欄位）。",
+    "reason": "Q5 店長只看基本欄位的延伸。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-legacy",
+      "key": "nav-warranty-view-conditions"
+    }
+  },
+  {
+    "id": "m7m8-g09-nav-facility-warranties",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「設施管理」最後多了「保固管理」；舊版有設施保固頁（/general-affairs/facilities/warranties）但側欄沒有入口。",
+    "reason": "舊頁面存在但沒有入口，新版補上方便找到。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-native",
+      "key": "native-only:facility-warranties"
+    }
+  },
+  {
+    "id": "m7m8-g08-nav-facility-list-for-members",
+    "page": "ga-assets",
+    "description": "新版總務側欄對名單內身分（店長、督導、區經理）在「資產與庫存」多了「設施清冊」；舊版側欄的「設施管理」群組只有設施權限者看得到，但舊版設施頁本身對店長開放。",
+    "reason": "店長要在手機看自己門市的設施清單（解讀 (d)）。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-native",
+      "key": "native-only:facility-list-new"
+    }
+  },
+  {
+    "id": "m7m8-g09-nav-facility-history-for-members",
+    "page": "ga-assets",
+    "description": "新版總務側欄對名單內身分在「資產與庫存」多了「設施維修紀錄」；舊版側欄的「設施管理」群組只有設施權限者看得到。",
+    "reason": "店長只看自己門市的維修紀錄（Q11）。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-native",
+      "key": "native-only:facility-history-new"
+    }
   }
 ]

@@ -450,7 +450,9 @@ test('附件寫入：同一份檔案的資料庫列相同；Q3 超過 4MB 舊版
 const NAV_CATEGORY_TEMPLATE = new Set(['equipment-categories', 'facility-categories', 'part-categories', 'equipment-templates', 'facility-templates', 'equipment', 'facilities', 'parts']);
 const NAV_PART_MANAGE = new Set(['part-new', 'part-compatibilities', 'parts-list']);
 const NAV_EQUIPMENT_MANAGE = new Set(['equipment-new']); // 第 2 批：新增設備（舊版對沒有設備管理權限的店長也顯示）
-const navKey = (id: string) => (NAV_CATEGORY_TEMPLATE.has(id) ? 'nav-category-template-conditions' : NAV_PART_MANAGE.has(id) ? 'nav-part-manage-conditions' : NAV_EQUIPMENT_MANAGE.has(id) ? 'nav-equipment-manage-conditions' : `unexpected:${id}`);
+const NAV_FACILITY_MANAGE = new Set(['facility-new']); // 第 2 批 G08：新增設施（舊版對沒有設施管理權限的設施查看者也顯示）
+const NAV_WARRANTY_VIEW = new Set(['equipment-warranties']); // 第 2 批 G09：保固管理（舊版對店長也顯示；新版只給設備／設施查看或管理）
+const navKey = (id: string) => (NAV_CATEGORY_TEMPLATE.has(id) ? 'nav-category-template-conditions' : NAV_PART_MANAGE.has(id) ? 'nav-part-manage-conditions' : NAV_EQUIPMENT_MANAGE.has(id) ? 'nav-equipment-manage-conditions' : NAV_FACILITY_MANAGE.has(id) ? 'nav-facility-manage-conditions' : NAV_WARRANTY_VIEW.has(id) ? 'nav-warranty-view-conditions' : `unexpected:${id}`);
 test('總務側欄：每個角色的舊版規則項目 id 集合 vs 新版 gaNavigation（差異只有已移植頁面的 capability 把關與店長不列設施架型）', async () => {
   const e = entry('sidebar-visibility');
   const fixture = JSON.parse((await import('node:fs')).readFileSync((await import('node:path')).resolve(__dirname, '..', 'fixtures', 'role-matrix.json'), 'utf8')) as { accounts: any[] };
