@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import EmployeeManagementClient from './EmployeeManagementClient';
+import { canViewEmployeeManagement } from '@/lib/monthly-staff/employee-management-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,14 +62,8 @@ export default async function EmployeeManagementPage() {
     .eq('id', user.id)
     .single();
 
-  // 檢查是否為需要指派的職位
-  const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-
-  // 檢查權限：admin、營業部助理和營業部主管
-  const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-  const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-  
-  if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
+  // 檢查權限：admin、營業部助理和營業部主管（判斷抽到 lib，每月人數統計 API 共用同一個函式）
+  if (!canViewEmployeeManagement(profile)) {
     redirect('/dashboard');
   }
 
