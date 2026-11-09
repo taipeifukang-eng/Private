@@ -275,7 +275,8 @@ test('料件寫入：同一份輸入新增、編輯回讀相同；Q6 重複、�
   const dupL2 = await apis.ga_staff.post(`${L}/parts`, { data: input('DL2', { part_code: m7Code('DL2'), model: 'DUPM', specification: 'DUPS', brand: 'DUPB' }) });
   const dupN = await apis.ga_staff.post(`${N}/parts`, { data: input('DN', { part_code: m7Code('DN1'), model: 'DUPM2', specification: 'DUPS2', brand: 'DUPB2' }) });
   const dupN2 = await apis.ga_staff.post(`${N}/parts`, { data: input('DN2', { part_code: m7Code('DN2'), model: 'DUPM2', specification: 'DUPS2', brand: 'DUPB2' }) });
-  expect(dupL.status() && dupN.status()).toBe(201);
+  expect(dupL.status()).toBe(201);
+  expect(dupN.status()).toBe(201);
   if (dupL2.status() !== dupN2.status()) diffs.push({ kind: 'status', key: 'part-duplicate-create', legacy: dupL2.status(), native: dupN2.status() });
   // Q6 有庫存改單位、刪除
   const loc = await seedLocation(null, 'WL');

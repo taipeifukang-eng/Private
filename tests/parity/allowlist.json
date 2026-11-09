@@ -2547,27 +2547,42 @@
     }
   },
   {
-    "id": "m7m8-g02-category-read-extras",
+    "id": "m7m8-g02-category-read-extras-path",
     "page": "ga-assets",
     "description": "新版分類清單每筆多回 path（完整路徑，如「設備 › 冷氣」）與 child_count（直接子分類數）兩個欄位；舊版回全部分類、沒有這兩欄。",
     "reason": "新版改為逐層瀏覽、搜尋與分頁，畫面需要路徑與子分類數；資料內容（id、名稱、代碼、啟用狀態等）逐欄相同。",
-    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "approvedBy": null,
     "match": {
       "mechanism": "api-read",
       "entry": "categories-read",
-      "kind": "only-native"
+      "kind": "only-native",
+      "key": "path"
     }
   },
   {
-    "id": "m7m8-g03-parts-read-extras",
+    "id": "m7m8-g02-category-read-extras-child-count",
+    "page": "ga-assets",
+    "description": "新版分類清單每筆多回 path（完整路徑，如「設備 › 冷氣」）與 child_count（直接子分類數）兩個欄位；舊版回全部分類、沒有這兩欄。",
+    "reason": "新版改為逐層瀏覽、搜尋與分頁，畫面需要路徑與子分類數；資料內容（id、名稱、代碼、啟用狀態等）逐欄相同。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "entry": "categories-read",
+      "kind": "only-native",
+      "key": "child_count"
+    }
+  },
+  {
+    "id": "m7m8-g03-parts-read-extras-permissions",
     "page": "ga-assets",
     "description": "新版料件清單多回 permissions（可否管理、可否看內部備註）；舊版由頁面另外判斷。",
     "reason": "畫面依此決定顯示編輯按鈕與備註欄；料件資料本身逐欄相同。",
-    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "approvedBy": null,
     "match": {
       "mechanism": "api-read",
       "entry": "parts-read",
-      "kind": "only-native"
+      "kind": "only-native",
+      "key": "permissions"
     }
   },
   {
@@ -2597,15 +2612,16 @@
     }
   },
   {
-    "id": "m7m8-g04-templates-read-extras",
+    "id": "m7m8-g04-templates-read-extras-permissions",
     "page": "ga-assets",
     "description": "新版型號與架型清單多回 permissions（可否管理、可否設定適用料件）；設施架型改為分頁。",
     "reason": "畫面依此決定顯示按鈕；資料列逐欄相同（含使用筆數 asset_count、site_count）。",
-    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "approvedBy": null,
     "match": {
       "mechanism": "api-read",
       "entry": "templates-read",
-      "kind": "only-native"
+      "kind": "only-native",
+      "key": "permissions"
     }
   },
   {
@@ -2621,7 +2637,7 @@
     }
   },
   {
-    "id": "m7m8-g01-attachment-read-no-path",
+    "id": "m7m8-g01-attachment-read-no-path-storage-bucket",
     "page": "ga-assets",
     "description": "新版附件列表不回 storage_bucket、storage_path、storage_path_display（儲存路徑）。",
     "reason": "Q3：簽名網址改為每次開啟重新簽發的短效期連結，畫面不需要也不該拿到實體路徑；其餘欄位（id、檔名、格式、大小）逐欄相同。",
@@ -2629,7 +2645,34 @@
     "match": {
       "mechanism": "api-read",
       "entry": "attachments-read",
-      "kind": "only-legacy"
+      "kind": "only-legacy",
+      "key": "storage_bucket"
+    }
+  },
+  {
+    "id": "m7m8-g01-attachment-read-no-path-storage-path",
+    "page": "ga-assets",
+    "description": "新版附件列表不回 storage_bucket、storage_path、storage_path_display（儲存路徑）。",
+    "reason": "Q3：簽名網址改為每次開啟重新簽發的短效期連結，畫面不需要也不該拿到實體路徑；其餘欄位（id、檔名、格式、大小）逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "attachments-read",
+      "kind": "only-legacy",
+      "key": "storage_path"
+    }
+  },
+  {
+    "id": "m7m8-g01-attachment-read-no-path-storage-path-display",
+    "page": "ga-assets",
+    "description": "新版附件列表不回 storage_bucket、storage_path、storage_path_display（儲存路徑）。",
+    "reason": "Q3：簽名網址改為每次開啟重新簽發的短效期連結，畫面不需要也不該拿到實體路徑；其餘欄位（id、檔名、格式、大小）逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "attachments-read",
+      "kind": "only-legacy",
+      "key": "storage_path_display"
     }
   },
   {
@@ -2728,7 +2771,7 @@
     "page": "ga-assets",
     "description": "設施架型刪除：舊版沒有這個功能；新版新增，須填原因，沒有設施在用才能刪（與設備型號同規則）。",
     "reason": "Q7 決定把「沒人用才能刪」套用在型號與架型（問卷原文：有設備或設施在用的型號只能停用）；舊版架型沒有刪除，這是解讀後的補充，已在回報中請使用者確認。",
-    "approvedBy": "user (2026-11-09 survey/m7m8 Q7)",
+    "approvedBy": null,
     "match": {
       "mechanism": "write-readback",
       "entry": "template-write",
@@ -2767,7 +2810,7 @@
     "page": "ga-assets",
     "description": "舊版 /api/general-affairs 的回應都多帶 success: true；新版工作台 API 不帶（用 HTTP 狀態碼表示成功或失敗，錯誤時回 error 文字）。",
     "reason": "沿用工作台既有 API 慣例（與其他頁面一致）；內容欄位逐欄相同。",
-    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "approvedBy": null,
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -2775,7 +2818,7 @@
     }
   },
   {
-    "id": "m7m8-g04-template-usage-exact",
+    "id": "m7m8-g04-template-usage-exact-asset-count",
     "page": "ga-assets",
     "description": "型號清單的「使用中」筆數（asset_count、site_count）：舊版用檢視者自己的權限去數設備，沒有設備查看權限的人（例如只有型號權限）永遠看到 0；新版改為精確筆數（只回數字，不洩漏設備資料）。",
     "reason": "Q7 刪除規則要靠「有幾筆設備在用」判斷能不能刪，必須是精確數字；舊版少算會讓使用者誤以為沒人用。不用問事項：改為精確筆數。",
@@ -2783,7 +2826,21 @@
     "match": {
       "mechanism": "api-read",
       "entry": "templates-read",
-      "kind": "changed"
+      "kind": "changed",
+      "key": "asset_count"
+    }
+  },
+  {
+    "id": "m7m8-g04-template-usage-exact-site-count",
+    "page": "ga-assets",
+    "description": "型號清單的「使用中」筆數（asset_count、site_count）：舊版用檢視者自己的權限去數設備，沒有設備查看權限的人（例如只有型號權限）永遠看到 0；新版改為精確筆數（只回數字，不洩漏設備資料）。",
+    "reason": "Q7 刪除規則要靠「有幾筆設備在用」判斷能不能刪，必須是精確數字；舊版少算會讓使用者誤以為沒人用。不用問事項：改為精確筆數。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "templates-read",
+      "kind": "changed",
+      "key": "site_count"
     }
   },
   {
