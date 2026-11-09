@@ -459,7 +459,7 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.google-banner { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #b18b42; border-left-width: 4px; border-radius: 6px; background: #f6edd6; color: #4a3a12; position: sticky; top: 0; z-index: 5; }
+.google-banner { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: baseline; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #b18b42; border-radius: 6px; background: #f6edd6; color: #4a3a12; position: sticky; top: 0; z-index: 5; }
 :root[data-theme="dark"] .google-banner { background: #3a3220; color: #f1dfae; }
 .controls { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .nav { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
@@ -512,6 +512,8 @@ aside { border-left: 1px solid var(--line); padding-left: 20px; }
 .day-list { list-style: none; margin: 0; padding: 0; }
 .day-list li { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .entry { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.tag, .entry small.muted { white-space: nowrap; }
+.entry strong { overflow-wrap: anywhere; }
 .entry-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .entry-actions button { min-height: 30px; padding: 3px 9px; font-size: 12px; }
 .desc { white-space: pre-wrap; margin: 6px 0 0; }

@@ -128,7 +128,7 @@ p { margin: 0; }
 .pre { white-space: pre-wrap; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; }
 .meta { display: flex; flex-wrap: wrap; gap: 16px; }
-.link-button { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); text-decoration: none; }
+.link-button { display: inline-flex; align-items: center; min-height: 38px; padding: 9px 14px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); text-decoration: none; font-weight: 600; white-space: nowrap; box-sizing: border-box; }
 .link-button[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
 .link-button.attention { border-color: #b18b42; background: var(--soft); font-weight: 600; }
 .diagnosis { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 2px; }
