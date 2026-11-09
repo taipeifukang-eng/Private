@@ -233,6 +233,37 @@ test('Q4 活動期間往後移：開始日往後，開始日之前的排程也�
   expect(await scheduleRows(c.id)).toEqual({ ZT01: '2099-05-20' });
 });
 
+test('Q4 既有期間外舊排程：日期沒改時只改名稱、只停用都能存（不被 409 擋），排程原樣保留', async () => {
+  const c = await seedCampaign({ tag: 'q4-legacy-outside', start: '2099-05-10', end: '2099-05-31' });
+  await seedSchedules(c.id, [['VW001', '2099-05-03'], ['ZT01', '2099-05-20']]); // VW001 早於開始日
+  const editor = await as('editor_member');
+  const base = { id: c.id, start_date: '2099-05-10', end_date: '2099-05-31', campaign_type: 'promotion' };
+  const rename = await editor.put('/api/workspace/campaigns', { data: { ...base, version: (await campaignRow(c.id)).workspace_version, name: c.name + ' 改名', is_active: true } });
+  expect(rename.status()).toBe(200);
+  expect((await rename.json()).moved).toBe(0);
+  const off = await editor.put('/api/workspace/campaigns', { data: { ...base, version: (await campaignRow(c.id)).workspace_version, name: c.name + ' 改名', is_active: false } });
+  expect(off.status()).toBe(200);
+  expect(await scheduleRows(c.id), '舊排程原樣保留').toEqual({ VW001: '2099-05-03', ZT01: '2099-05-20' });
+  // 日期真的改了，期間外仍要確認
+  const shift = await editor.put('/api/workspace/campaigns', { data: { ...base, end_date: '2099-05-15', version: (await campaignRow(c.id)).workspace_version, name: c.name + ' 改名', is_active: false } });
+  expect(shift.status()).toBe(409);
+});
+
+test('Q2 停用：campaign-schedules 讀取與 campaign-tools 填報寫入對檢視者、店長、督導同樣 404；編輯者不受影響', async () => {
+  const off = await seedCampaign({ tag: 'q2-off-api', start: '2099-05-01', end: '2099-05-31', active: false, publish: { sup: true, sm: true, inv: true } });
+  const s = await stores();
+  await seedSchedules(off.id, [['VW001', '2099-05-06']]);
+  for (const key of ['viewer', 'store_manager', 'supervisor']) {
+    const api = await as(key);
+    expect((await api.get(`/api/workspace/campaign-schedules?campaign_id=${off.id}`)).status(), `${key} 排程讀取`).toBe(404);
+    for (const resource of ['ownStaff', 'completions', 'headcount']) {
+      const w = await api.post(`/api/workspace/campaign-tools?resource=${resource}`, { data: { campaign_id: off.id, store_id: s.VW001.id } });
+      expect(w.status(), `${key} ${resource} 寫入`).toBe(404);
+    }
+  }
+  expect((await (await as('editor_member')).get(`/api/workspace/campaign-schedules?campaign_id=${off.id}`)).status()).toBe(200);
+});
+
 test('Q4 版本過期時不會先移走排程（先擋版本衝突）', async () => {
   const c = await seedCampaign({ tag: 'q4-stale', start: '2099-05-01', end: '2099-05-31' });
   await seedSchedules(c.id, [['ZT01', '2099-05-25']]);
