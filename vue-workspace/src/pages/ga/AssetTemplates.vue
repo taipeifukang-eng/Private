@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
 import Modal from "../../components/Modal.vue";
 import AssetCategoryPicker from "../../components/ga/AssetCategoryPicker.vue";
+import AssetSitePicker from "../../components/ga/AssetSitePicker.vue";
 import GaShell from "../../components/ga/GaShell.vue";
 import PartMultiPicker, { type PickedPart } from "../../components/ga/PartMultiPicker.vue";
 import { useDebounced, useGaGuard, useLatest } from "../../lib/ga";
@@ -173,6 +174,7 @@ async function confirmDelete() {
 type Unlinked = { id: string; name: string; asset_code: string; brand: string | null; model: string | null; updated_at: string; store?: { store_code: string; short_name: string | null; store_name: string } | null };
 type PreviewItem = { id: string; asset_code: string; updated_at: string; already_linked: boolean; store?: Unlinked["store"]; diff: { field: string; label: string; from: string | null; to: string | null; changed: boolean }[] };
 const rehome = ref<Tpl | null>(null);
+const rhStore = ref("");
 const rhSearch = ref("");
 const rhDebounced = useDebounced(rhSearch, 300);
 const rhRows = ref<Unlinked[]>([]);
@@ -192,6 +194,7 @@ async function rhLoad() {
   try {
     const q = new URLSearchParams({ page: String(rhPage.value), pageSize: "20" });
     if (rhDebounced.value.trim()) q.set("search", rhDebounced.value.trim());
+    if (rhStore.value) q.set("storeId", rhStore.value);
     const res = await api<{ data: Unlinked[]; meta: { total: number } }>("general-affairs/unlinked-equipment?" + q);
     rhRows.value = res.data;
     rhTotal.value = res.meta.total;
@@ -204,13 +207,14 @@ async function rhLoad() {
 function openRehome(t: Tpl) {
   rehome.value = t;
   rhSearch.value = "";
+  rhStore.value = "";
   rhPage.value = 1;
   rhSelected.clear();
   rhPreview.value = null;
   rhConfirm.value = false;
   rhLoad();
 }
-watch([rhDebounced], () => { rhPage.value = 1; rhLoad(); });
+watch([rhDebounced, rhStore], () => { rhPage.value = 1; rhLoad(); });
 watch(rhPage, rhLoad);
 function rhToggle(e: Unlinked, on: boolean) {
   if (on) {
@@ -343,6 +347,7 @@ const storeLabel = (s?: Unlinked["store"]) => (s ? `${s.store_code} ${s.short_na
     <Modal v-if="rehome" :title="'整理既有設備歸戶：' + rehome.name" wide :busy="rhBusy" @cancel="rehome = null">
       <template v-if="!rhPreview">
         <p class="muted">挑選還沒歸戶的既有設備（最多 100 台，可跨頁挑選），下一步會逐台顯示「原值 → 新值」。</p>
+        <AssetSitePicker v-model="rhStore" label="據點（可不選，只看這個據點的設備）" />
         <label>搜尋設備<input v-model="rhSearch" type="search" placeholder="名稱、編號、品牌、型號、序號" /></label>
         <p v-if="rhError" class="field-error" role="alert">{{ rhError }}</p>
         <p v-if="rhLoading" class="muted" role="status">載入中…</p>

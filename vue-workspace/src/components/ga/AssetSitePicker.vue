@@ -24,7 +24,7 @@ const open = ref(false);
 const selected = ref<Site | null>(null);
 const latest = useLatest();
 const inputId = `site-${crypto.randomUUID()}`;
-const label = (s: Site) => (props.type === "store" ? `${s.store_code} ${s.short_name || s.store_name}` : `${s.code} ${s.name}`);
+const siteText = (s: Site) => (props.type === "store" ? `${s.store_code} ${s.short_name || s.store_name}` : `${s.code} ${s.name}`);
 
 async function load() {
   const n = latest.next();
@@ -53,6 +53,11 @@ async function resolveSelected() {
   // 已選的據點可能不在目前這一頁，用 id 找不到時至少顯示 id 的一部分，不影響送出。
   const found = rows.value.find((r) => r.id === props.modelValue);
   selected.value = found || { id: props.modelValue, store_code: props.modelValue.slice(0, 8), store_name: "", code: props.modelValue.slice(0, 8), name: "" };
+}
+function clear() {
+  selected.value = null;
+  emit("update:modelValue", "");
+  emit("select", null);
 }
 function choose(s: Site) {
   selected.value = s;
@@ -84,13 +89,13 @@ onMounted(resolveSelected);
       :placeholder="type === 'store' ? '搜尋據點代碼、名稱或簡稱' : '搜尋位置代碼或名稱'"
       @focus="open = true"
     />
-    <p v-if="selected" class="site-chosen"><MapPin :size="13" /> {{ label(selected) }}</p>
+    <p v-if="selected" class="site-chosen"><MapPin :size="13" /> {{ siteText(selected) }}<button v-if="!required" type="button" class="site-clear" :disabled="disabled" aria-label="清除據點" @click="clear">清除</button></p>
     <div v-if="open" class="site-pop" role="listbox" :aria-label="label + '選項'">
       <p v-if="loading" class="muted site-note" role="status">載入中…</p>
       <p v-else-if="error" class="field-error site-note" role="alert">{{ error }}</p>
       <p v-else-if="!rows.length" class="muted site-note">找不到符合的{{ type === "store" ? "據點" : "位置" }}，請確認資料是否已建立。</p>
       <ul v-else>
-        <li v-for="s in rows" :key="s.id" role="option" :aria-selected="s.id === modelValue"><button type="button" @click="choose(s)">{{ label(s) }}</button></li>
+        <li v-for="s in rows" :key="s.id" role="option" :aria-selected="s.id === modelValue"><button type="button" @click="choose(s)">{{ siteText(s) }}</button></li>
       </ul>
       <div v-if="pages > 1" class="site-pager">
         <button type="button" :disabled="page <= 1" @click="page--">上一頁</button>
@@ -105,6 +110,7 @@ onMounted(resolveSelected);
 <style scoped>
 .site-picker { position: relative; }
 .site-chosen { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; padding: 5px 10px; border-radius: 5px; background: var(--soft); font-size: 12px; font-weight: 600; }
+.site-clear { margin-left: auto; min-height: 24px; padding: 0 8px; font-size: 11px; }
 .site-pop { position: absolute; z-index: 20; inset: calc(100% + 4px) 0 auto; max-height: 300px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: 0 8px 20px #0002; padding: 6px; }
 .site-pop ul { list-style: none; margin: 0; padding: 0; }
 .site-pop li button { width: 100%; text-align: left; border: 0; background: none; white-space: normal; }

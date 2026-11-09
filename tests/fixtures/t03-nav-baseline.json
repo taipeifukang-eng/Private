@@ -1,5 +1,5 @@
 {
-  "count": 28,
+  "count": 29,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -303,6 +303,24 @@
       ],
       "hasTable": true,
       "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "服務中心首頁",
+      "tabTitle": "總務服務中心",
+      "headings": [
+        "總務服務中心",
+        "工作台",
+        "門市追蹤",
+        "作業管理",
+        "資產與庫存",
+        "費用管理",
+        "合作廠商",
+        "新版已可使用"
+      ],
+      "hasTable": false,
+      "hasForm": false,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },

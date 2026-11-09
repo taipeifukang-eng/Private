@@ -174,11 +174,24 @@ test('G03 料件畫面：新增、重複確認、編輯、單位鎖定、附件�
     await panel.getByRole('button', { name: /上傳 1 個檔案/ }).click();
     await expect(panel.locator('.notice.success')).toContainText('已上傳 1 個檔案');
     await expect(panel.locator('.attachment-grid li')).toHaveCount(1);
+    // 大照片（3000x2000）在瀏覽器端先縮小：畫面標示「已縮小」，儲存空間裡的檔案長邊不超過 2000 像素
+    await panel.getByTestId('upload-input').setInputFiles({ name: `${M7_FILE_PREFIX}huge.png`, mimeType: 'image/png', buffer: makePng({ width: 3000, height: 2000, inkPixels: 300 }) });
+    await expect(panel.locator('.upload-list')).toContainText('已從');
+    await expect(panel.locator('.upload-list')).toContainText(`${M7_FILE_PREFIX}huge.jpg`);
+    await panel.getByRole('button', { name: /上傳 1 個檔案/ }).click();
+    await expect(panel.locator('.attachment-grid li')).toHaveCount(2);
+    const huge = (await rowsWhere('ga_resource_attachments', 'resource_id', part.id)).find((r) => r.file_name === `${M7_FILE_PREFIX}huge.jpg`)!;
+    expect(huge.content_type).toBe('image/jpeg');
+    const bytes = Buffer.from(await (await adminDb().storage.from('general-affairs-attachments').download(huge.storage_path)).data!.arrayBuffer());
+    const meta = await (await import('sharp')).default(bytes).metadata();
+    expect(Math.max(meta.width!, meta.height!)).toBeLessThanOrEqual(2000);
+    expect(Math.max(meta.width!, meta.height!)).toBeGreaterThan(1500);
+    expect(bytes.length).toBeLessThan(4 * 1024 * 1024);
     await panel.getByTestId('upload-input').setInputFiles({ name: `${M7_FILE_PREFIX}big.pdf`, mimeType: 'application/pdf', buffer: Buffer.alloc(4 * 1024 * 1024 + 1, 1) });
     await expect(panel.getByRole('alert')).toContainText('超過 4MB');
     await expect(panel.getByRole('button', { name: /上傳 \d+ 個檔案/ })).toHaveCount(0);
-    expect((await rowsWhere('ga_resource_attachments', 'resource_id', part.id)).filter((r) => !r.deleted_at)).toHaveLength(1);
-    await panel.getByRole('button', { name: /^刪除 / }).click();
+    expect((await rowsWhere('ga_resource_attachments', 'resource_id', part.id)).filter((r) => !r.deleted_at)).toHaveLength(2);
+    await panel.getByRole('button', { name: new RegExp('^刪除 ' + M7_FILE_PREFIX + 'e2e') }).click();
     const del = dialog(page).last();
     await expect(del).toContainText('原始檔案仍保留');
     await del.getByRole('button', { name: '確認刪除' }).click();
@@ -186,7 +199,7 @@ test('G03 料件畫面：新增、重複確認、編輯、單位鎖定、附件�
     await del.getByLabel('刪除原因').fill('拍錯了');
     await del.getByRole('button', { name: '確認刪除' }).click();
     await expect(panel.locator('.notice.success')).toContainText('已標記刪除');
-    const att = (await rowsWhere('ga_resource_attachments', 'resource_id', part.id))[0];
+    const att = (await rowsWhere('ga_resource_attachments', 'resource_id', part.id)).find((r) => r.file_name === `${M7_FILE_PREFIX}e2e.png`)!;
     expect(att.deleted_at).toBeTruthy();
     expect((await adminDb().storage.from('general-affairs-attachments').download(att.storage_path)).error).toBeNull();
     await dialog(page).getByRole('button', { name: '取消' }).first().click();
@@ -275,7 +288,15 @@ test('G04 設備型號畫面：新增（含適用料件）、既有設備歸戶�
     const trow = page.locator('tr:visible', { hasText: tplName });
     await trow.getByRole('button', { name: '整理既有設備歸戶' }).click();
     const rh = dialog(page);
+    // 據點選擇器：只看 VW001 的設備（伺服端搜尋據點），清除後再看全部
+    const site = rh.getByRole('combobox', { name: /據點/ });
+    await site.fill('VW001');
+    await rh.getByRole('option').filter({ hasText: 'VW001' }).first().getByRole('button').click();
     await rh.getByLabel('搜尋設備').fill('E2E-RH');
+    await expect(rh.getByRole('checkbox', { name: new RegExp('選取 .*E2E-RH1') })).toBeVisible();
+    await expect(rh.getByRole('checkbox', { name: new RegExp('選取 .*E2E-RH2') })).toHaveCount(0);
+    await rh.getByRole('button', { name: '清除據點' }).click();
+    await expect(rh.getByRole('checkbox', { name: new RegExp('選取 .*E2E-RH2') })).toBeVisible();
     await rh.getByRole('checkbox', { name: new RegExp('選取 .*E2E-RH1') }).check();
     await rh.getByRole('checkbox', { name: new RegExp('選取 .*E2E-RH2') }).check();
     await rh.getByRole('button', { name: /預覽改動（2 台）/ }).click();
