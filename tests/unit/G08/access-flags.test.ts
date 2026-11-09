@@ -52,6 +52,26 @@ describe('側欄接線（舊網址對應新版頁面）', () => {
     expect(items.find((i) => i.id === 'facility-new')).toBeUndefined();
     expect(items.find((i) => i.id === 'facility-list')).toMatchObject({ kind: 'ga-facilities' });
   });
+  it('名單內身分（沒有 store_manager 角色代碼）沒有舊版的「設施管理」群組：新版把設施清冊與設施維修紀錄補在「資產與庫存」，沒有新增設施與保固管理', () => {
+    const groups = nav(access([]), true);
+    const items = flatten(groups);
+    expect(items.find((i) => i.id === 'facility-list-new')).toMatchObject({ kind: 'ga-facilities' });
+    expect(items.find((i) => i.id === 'facility-history-new')).toMatchObject({ kind: 'ga-facility-history' });
+    expect(items.find((i) => i.kind === 'ga-facility-create')).toBeUndefined();
+    expect(items.find((i) => i.kind === 'ga-facility-warranties')).toBeUndefined();
+    expect(groups.find((g) => g.id === 'assets-inventory')!.items.some((i) => i.id === 'facility-list-new')).toBe(true);
+  });
+  it('店長角色代碼：舊版側欄本來就有「設施管理」群組，不重複補', () => {
+    const items = flatten(nav(access([], { roleCode: 'store_manager' })));
+    expect(items.find((i) => i.id === 'facility-list')).toMatchObject({ kind: 'ga-facilities' });
+    expect(items.find((i) => i.id === 'facility-list-new')).toBeUndefined();
+  });
+  it('有設施權限時走舊版「設施管理」群組，不重複補；設施保固管理補在該群組最後', () => {
+    const items = flatten(nav(access(['general_affairs.service_center.access', 'general_affairs.facility.view'])));
+    expect(items.find((i) => i.id === 'facility-list-new')).toBeUndefined();
+    const fac = items.find((i) => i.id === 'facilities');
+    expect(fac.children.at(-1)).toMatchObject({ id: 'facility-warranties', kind: 'ga-facility-warranties' });
+  });
   it('設備查看者：保固管理與維修紀錄開新版頁籤', () => {
     const items = flatten(nav(access(['general_affairs.service_center.access', 'general_affairs.equipment.view'])));
     expect(items.find((i) => i.id === 'equipment-warranties')).toMatchObject({ kind: 'ga-equipment-warranties' });

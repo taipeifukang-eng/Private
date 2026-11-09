@@ -61,3 +61,11 @@ export async function sideLabels(page: Page): Promise<string[]> {
 }
 
 export const visibleHeading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true }).locator('visible=true').first();
+
+/** 點某個群組底下的項目（不同群組有同名項目時用，例如設備管理與設施管理都有「保固管理」「維修紀錄」）。 */
+export async function gaNavToIn(page: Page, group: string, label: string) {
+  await openGaSide(page);
+  await expandGroup(page, group);
+  const li = shell(page).locator('aside li').filter({ has: page.getByRole('button', { name: group, exact: true }) }).first();
+  await li.locator('.ga-sub').getByRole('button', { name: label, exact: true }).click();
+}

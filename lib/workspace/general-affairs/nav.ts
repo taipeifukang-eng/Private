@@ -107,8 +107,22 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
       items: g.items.map((i) => toItem(i, flags)).filter((i): i is GaNavItem => !!i && (!!i.href || !!i.disabled || !!i.children?.length)),
     }))
     .filter((g) => g.items.length);
+  // 設施保固管理：舊版有頁面（/general-affairs/facilities/warranties）但側欄沒有入口；新版補在「設施管理」最後一項，方便找到。
+  if (flags.gaFacilityWarranties) {
+    for (const g of out) {
+      const fac = g.items.find((i) => i.id === "facilities");
+      if (fac?.children) fac.children.push({ id: "facility-warranties", label: "保固管理", kind: "ga-facility-warranties" });
+    }
+  }
   // 第 2 批新頁面沒有舊網址（不改舊版側欄元件）：貼標待辦與複核追加在「資產與庫存」群組最後。
   const extra: GaNavItem[] = [];
+  // 店長身分：舊版側欄沒有「設施管理」群組（群組要設施權限），但舊版設施頁本身對店長開放（canAccessGeneralAffairsFacilities 含店長）；
+  // 新版店長要在手機看設施清冊與維修紀錄，所以舊側欄沒有列出時補在這裡。
+  const present = new Set<string>();
+  const collect = (items: GaNavItem[]) => items.forEach((i) => { if (i.kind) present.add(i.kind); if (i.children) collect(i.children); });
+  out.forEach((g) => collect(g.items));
+  if (flags.gaFacilities && !present.has("ga-facilities")) extra.push({ id: "facility-list-new", label: "設施清冊", kind: "ga-facilities" });
+  if (flags.gaFacilityHistory && !present.has("ga-facility-history")) extra.push({ id: "facility-history-new", label: "設施維修紀錄", kind: "ga-facility-history" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
   if (extra.length) {

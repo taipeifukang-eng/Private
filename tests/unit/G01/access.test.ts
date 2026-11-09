@@ -67,11 +67,11 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     const groups = nav(a);
     expect(groups.map((g) => g.id)).toEqual(expect.arrayContaining(['workspace', 'assets-inventory']));
     expect(kinds(a)).toEqual([
-      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-templates', 'ga-facility-categories', 'ga-facility-templates', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
+      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-history', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-history', 'ga-facility-templates', 'ga-facility-warranties', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
     ]);
     // 第 2 批：設備清冊已移植；尚未移植的項目仍在（用舊頁網址另開），例如保固管理
     expect(flatten(groups).find((i) => i.id === 'equipment-list')).toMatchObject({ href: '/general-affairs/equipment', kind: 'ga-equipment' });
-    expect(flatten(groups).find((i) => i.id === 'equipment-warranties')?.kind).toBeUndefined();
+    expect(flatten(groups).find((i) => i.id === 'equipment-warranties')?.kind).toBe('ga-equipment-warranties'); // G09 已移植
   });
   it('只有料件查看：已移植的頁面只列料件列表（新增、分類、適用料件設定都不列；服務首頁在舊版側欄需要服務中心入口權限）', () => {
     const a = access(['general_affairs.part.view']);
@@ -79,7 +79,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
   });
   it('店長身分：不列設施架型（API 會擋），仍可看料件列表', () => {
     const a = access([], { roleCode: 'store_manager' });
-    expect(kinds(a)).toEqual(['ga-equipment', 'ga-onboarding-tasks', 'ga-parts']);
+    expect(kinds(a)).toEqual(['ga-equipment', 'ga-equipment-history', 'ga-facilities', 'ga-facility-history', 'ga-onboarding-tasks', 'ga-parts']); // G08／G09：店長有設施清冊與兩種維修紀錄
     expect(flatten(nav(a)).find((i) => i.id === 'facility-templates')).toBeUndefined();
   });
   it('「規劃中」的項目照舊顯示成不可點', () => {
@@ -88,6 +88,6 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     expect(item?.disabled).toBeTruthy();
   });
   it('頁面對照表涵蓋第 1 批九個頁面與第 2 批設備清冊、新增設備', () => {
-    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(11);
+    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(17); // 第 2 批 G08／G09 再加 6 個（設施清冊、新增設施、設備與設施保固頁、維修紀錄）
   });
 });
