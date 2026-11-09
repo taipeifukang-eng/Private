@@ -580,6 +580,7 @@ test('Q3 附件：上傳、列表（短效期連結）、每次開啟重新簽�
   const fetched = await fetch(img.signed_url);
   expect(fetched.status).toBe(200);
   const open1 = await get('ga_part_edit', `attachments/${img.id}/url`);
+  await new Promise((r) => setTimeout(r, 1100)); // 簽名連結的發行時間以秒計，同一秒內兩次會相同
   const open2 = await get('ga_part_edit', `attachments/${img.id}/url`);
   expect(open1.status).toBe(200);
   expect(open1.body.expires_in).toBe(300);
