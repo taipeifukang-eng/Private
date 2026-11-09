@@ -67,6 +67,13 @@ export type Session = {
     /** 第 2 批：設備清冊、新增設備、貼標待辦、貼標複核。 */
     gaEquipment: boolean;
     gaEquipmentCreate: boolean;
+    /** G08／G09：設施清冊、新增設施、保固頁、維修紀錄。 */
+    gaFacilities: boolean;
+    gaFacilityCreate: boolean;
+    gaEquipmentWarranties: boolean;
+    gaFacilityWarranties: boolean;
+    gaEquipmentHistory: boolean;
+    gaFacilityHistory: boolean;
     gaOnboardingTasks: boolean;
     gaOnboardingReview: boolean;
   };

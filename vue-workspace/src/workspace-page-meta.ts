@@ -106,6 +106,12 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-facility-templates": meta("公司設施架型", ["gaFacilityTemplates"]),
   "ga-equipment": meta("設備清冊", ["gaEquipment"]),
   "ga-equipment-create": meta("新增設備", ["gaEquipmentCreate"]),
+  "ga-facilities": meta("設施清冊", ["gaFacilities"]),
+  "ga-facility-create": meta("新增設施", ["gaFacilityCreate"]),
+  "ga-equipment-warranties": meta("設備保固管理", ["gaEquipmentWarranties"]),
+  "ga-facility-warranties": meta("設施保固管理", ["gaFacilityWarranties"]),
+  "ga-equipment-history": meta("設備維修紀錄", ["gaEquipmentHistory"]),
+  "ga-facility-history": meta("設施維修紀錄", ["gaFacilityHistory"]),
   "ga-onboarding-tasks": meta("貼標待辦", ["gaOnboardingTasks"]),
   "ga-onboarding-review": meta("貼標複核", ["gaOnboardingReview"]),
 };

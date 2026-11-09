@@ -71,6 +71,10 @@ import PartCreate from "./pages/ga/PartCreate.vue";
 import Parts from "./pages/ga/Parts.vue";
 import Equipment from "./pages/ga/Equipment.vue";
 import EquipmentCreate from "./pages/ga/EquipmentCreate.vue";
+import Facilities from "./pages/ga/Facilities.vue";
+import FacilityCreate from "./pages/ga/FacilityCreate.vue";
+import AssetWarranties from "./pages/ga/AssetWarranties.vue";
+import AssetMaintenanceHistory from "./pages/ga/AssetMaintenanceHistory.vue";
 import OnboardingTasks from "./pages/ga/OnboardingTasks.vue";
 import OnboardingReview from "./pages/ga/OnboardingReview.vue";
 import UserManagement from "./pages/Users.vue";
@@ -166,6 +170,12 @@ const components: Record<WorkTabKind, Component> = {
   "ga-part-create": PartCreate,
   "ga-equipment": Equipment,
   "ga-equipment-create": EquipmentCreate,
+  "ga-facilities": Facilities,
+  "ga-facility-create": FacilityCreate,
+  "ga-equipment-warranties": AssetWarranties,
+  "ga-facility-warranties": AssetWarranties,
+  "ga-equipment-history": AssetMaintenanceHistory,
+  "ga-facility-history": AssetMaintenanceHistory,
   "ga-onboarding-tasks": OnboardingTasks,
   "ga-onboarding-review": OnboardingReview,
   "ga-part-compat": PartCompatibilities,
