@@ -25,6 +25,8 @@ const GA_CAPABILITY: Record<string, string> = {
   'ga-part-categories': 'gaPartCategories', 'ga-parts': 'gaParts', 'ga-part-create': 'gaPartCreate', 'ga-part-compat': 'gaPartCompat',
   'ga-equipment-templates': 'gaEquipmentTemplates', 'ga-facility-templates': 'gaFacilityTemplates',
   'ga-equipment': 'gaEquipment', 'ga-equipment-create': 'gaEquipmentCreate', 'ga-onboarding-tasks': 'gaOnboardingTasks', 'ga-onboarding-review': 'gaOnboardingReview',
+  'ga-facilities': 'gaFacilities', 'ga-facility-create': 'gaFacilityCreate', 'ga-equipment-warranties': 'gaEquipmentWarranties', 'ga-facility-warranties': 'gaFacilityWarranties',
+  'ga-equipment-history': 'gaEquipmentHistory', 'ga-facility-history': 'gaFacilityHistory',
 };
 
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
@@ -90,6 +92,8 @@ const LEGACY_TITLES: Record<string, string> = {
   'ga-center': '總務服務中心', 'ga-equipment-categories': '設備分類', 'ga-facility-categories': '設施分類', 'ga-part-categories': '料件分類', 'ga-parts': '料件列表',
   'ga-part-create': '新增料件', 'ga-part-compat': '適用料件設定', 'ga-equipment-templates': '公司設備型號', 'ga-facility-templates': '公司設施架型',
   'ga-equipment': '設備清冊', 'ga-equipment-create': '新增設備', 'ga-onboarding-tasks': '貼標待辦', 'ga-onboarding-review': '貼標複核', // M7/M8 G01 新增 kind
+  'ga-facilities': '設施清冊', 'ga-facility-create': '新增設施', 'ga-equipment-warranties': '設備保固管理', 'ga-facility-warranties': '設施保固管理',
+  'ga-equipment-history': '設備維修紀錄', 'ga-facility-history': '設施維修紀錄', // G08／G09
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');

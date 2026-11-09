@@ -4,6 +4,7 @@ import { categoryPermissions, gaFlags, GA_CENTER_CODES, dbCan, isStoreManagerRol
 import { equipmentApi, facilitiesApi } from "./assets";
 import { attachmentsApi } from "./attachments";
 import { categoriesApi } from "./categories";
+import { maintenanceApi } from "./history";
 import { isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { partsApi } from "./parts";
@@ -43,6 +44,8 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return equipmentApi(ctx, request, rest);
     case "facilities":
       return facilitiesApi(ctx, request, rest);
+    case "asset-maintenance":
+      return maintenanceApi(ctx, request, rest);
     case "onboarding":
       return onboardingApi(ctx, request, rest);
     case "sites":

@@ -30,6 +30,12 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/facilities/templates": { kind: "ga-facility-templates", flag: "gaFacilityTemplates" },
   "/general-affairs/equipment": { kind: "ga-equipment", flag: "gaEquipment" },
   "/general-affairs/equipment/new": { kind: "ga-equipment-create", flag: "gaEquipmentCreate" },
+  "/general-affairs/equipment/warranties": { kind: "ga-equipment-warranties", flag: "gaEquipmentWarranties" },
+  "/general-affairs/equipment/maintenance-history": { kind: "ga-equipment-history", flag: "gaEquipmentHistory" },
+  "/general-affairs/facilities": { kind: "ga-facilities", flag: "gaFacilities" },
+  "/general-affairs/facilities/new": { kind: "ga-facility-create", flag: "gaFacilityCreate" },
+  "/general-affairs/facilities/warranties": { kind: "ga-facility-warranties", flag: "gaFacilityWarranties" },
+  "/general-affairs/facilities/maintenance-history": { kind: "ga-facility-history", flag: "gaFacilityHistory" },
 };
 
 export type GaNavInput = {

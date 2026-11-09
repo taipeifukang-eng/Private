@@ -77,6 +77,12 @@ export type GaFlags = {
   gaFacilityTemplates: boolean;
   gaEquipment: boolean;
   gaEquipmentCreate: boolean;
+  gaFacilities: boolean;
+  gaFacilityCreate: boolean;
+  gaEquipmentWarranties: boolean;
+  gaFacilityWarranties: boolean;
+  gaEquipmentHistory: boolean;
+  gaFacilityHistory: boolean;
   gaOnboardingTasks: boolean;
   gaOnboardingReview: boolean;
 };
@@ -103,6 +109,13 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false):
     // 第 2 批：設備清冊（店長只看自己門市的基本欄位）、新增設備、建檔貼標待辦（店長與總務）與複核（管理權限）。
     gaEquipment: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage),
     gaEquipmentCreate: has(GA.equipmentManage),
+    // 第 2 批 G08／G09：設施清冊與新增設施、設備／設施保固頁、維修紀錄（店長只看自己門市，範圍由資料庫函式判斷）。
+    gaFacilities: storeManager || storeMember || has(GA.facilityView, GA.facilityManage),
+    gaFacilityCreate: has(GA.facilityManage),
+    gaEquipmentWarranties: has(GA.equipmentView, GA.equipmentManage),
+    gaFacilityWarranties: has(GA.facilityView, GA.facilityManage),
+    gaEquipmentHistory: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage),
+    gaFacilityHistory: storeManager || storeMember || has(GA.facilityView, GA.facilityManage),
     gaOnboardingTasks: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage, GA.facilityView, GA.facilityManage),
     gaOnboardingReview: has(GA.equipmentManage, GA.facilityManage),
   };

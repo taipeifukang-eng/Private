@@ -91,6 +91,13 @@ export const WORKSPACE_DETAIL_KINDS = [
   // 第 2 批：設備清冊、新增設備、建檔貼標待辦與複核。
   "ga-equipment",
   "ga-equipment-create",
+  // 第 2 批 G08／G09：設施清冊、新增設施、設備與設施的保固頁與維修紀錄。
+  "ga-facilities",
+  "ga-facility-create",
+  "ga-equipment-warranties",
+  "ga-facility-warranties",
+  "ga-equipment-history",
+  "ga-facility-history",
   "ga-onboarding-tasks",
   "ga-onboarding-review",
 ] as const;

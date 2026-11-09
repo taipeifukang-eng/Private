@@ -36,7 +36,7 @@ const CODE_COLUMN: Record<AssetKind, string> = { equipment: "asset_code", facili
 /** 詳情、新增、編輯回傳整列（與舊版相同）；清單用明確欄位。 */
 const SORT_COLUMNS: Record<AssetKind, Set<string>> = {
   equipment: new Set(["name", "asset_code", "status", "updated_at", "created_at", "warranty_end_date"]),
-  facilities: new Set(["name", "facility_code", "status", "area", "updated_at", "created_at", "installed_at", "last_renovated_at"]),
+  facilities: new Set(["name", "facility_code", "status", "area", "updated_at", "created_at", "installed_at", "last_renovated_at", "warranty_end_date"]),
 };
 const ATTENTION_STATUS: Record<AssetKind, string[]> = {
   equipment: ["TEMPORARILY_STOPPED", "RETIRED", "SCRAPPED"],
@@ -137,6 +137,29 @@ async function thumbnails(kind: AssetKind, rows: any[]) {
   for (const r of rows) r.thumbnail_url = signed.get(first.get(r.id) || "") || null;
 }
 
+/** 保固頁用：這一頁資產的保固文件（發票、單據、圖片、PDF），簽名網址每次重簽（Q3）。已通過列表範圍檢查的資產才會到這裡。 */
+async function warrantyDocuments(kind: AssetKind, rows: any[]) {
+  const ids = rows.map((r) => r.id);
+  for (const r of rows) r.warranty_documents = [];
+  if (!ids.length) return;
+  const admin: any = adminClient();
+  const res = await admin
+    .from("ga_resource_attachments")
+    .select("id,resource_id,storage_path,file_name,content_type,uploaded_at")
+    .eq("resource_type", ASSET_TYPE[kind]).in("resource_id", ids).eq("purpose", "WARRANTY_DOCUMENT").is("deleted_at", null)
+    .order("uploaded_at", { ascending: false });
+  if (res.error) return;
+  const paths = Array.from(new Set<string>((res.data || []).map((a: any) => a.storage_path)));
+  const signed = new Map<string, string>();
+  if (paths.length) {
+    const s = await admin.storage.from(BUCKET).createSignedUrls(paths, SIGNED_URL_SECONDS.list);
+    (s.data || []).forEach((item: any, i: number) => item?.signedUrl && signed.set(paths[i], item.signedUrl));
+  }
+  const byAsset = new Map<string, any[]>();
+  for (const a of res.data || []) byAsset.set(a.resource_id, [...(byAsset.get(a.resource_id) || []), { id: a.id, file_name: a.file_name, content_type: a.content_type, signed_url: signed.get(a.storage_path) || null }]);
+  for (const r of rows) r.warranty_documents = byAsset.get(r.id) || [];
+}
+
 /** 分類含子孫的 id（搜尋與篩選用）。 */
 async function categoryWithDescendants(ctx: Context, kind: AssetKind, id: string) {
   const rows = ((await must((ctx.auth as any).from(CATEGORY_TABLE[kind]).select("id,parent_id").is("deleted_at", null).range(0, 4999))) as any[]) || [];
@@ -216,10 +239,10 @@ async function list(ctx: Context, kind: AssetKind, url: URL) {
   const client: any = ctx.auth;
   const select = access.level === "full" ? FULL_SELECT[kind] : BASIC_SELECT[kind];
   const res = await applyFilters(client.from(ASSET_TABLE[kind]).select(select, { count: "exact" }), kind, access.level, access, f, range)
-    .order(sortBy, { ascending }).order("id").range(from, to);
+    .order(kind === "facilities" && sortBy === "warranty_end_date" ? SPEC_END : sortBy, { ascending }).order("id").range(from, to);
   if (res.error) throw dbError(res.error);
   const rows = ((res.data || []) as any[]).map((r) => ({ ...r }));
-  await Promise.all([relations(kind, rows, access.level), thumbnails(kind, rows)]);
+  await Promise.all([relations(kind, rows, access.level), thumbnails(kind, rows), access.level === "full" && url.searchParams.get("withWarrantyDocs") === "1" ? warrantyDocuments(kind, rows) : Promise.resolve()]);
 
   // 統計卡（符合目前篩選的精確筆數，不是只算這一頁）
   const count = async (extra?: (q: any) => any) => {
@@ -236,11 +259,22 @@ async function list(ctx: Context, kind: AssetKind, url: URL) {
     count((q) => q.or(`and(${hasKey},${endKey}.is.null),and(${hasKey},${endKey}.lte.${range.expiringEnd})`)),
   ]);
   const total = res.count || 0;
+  // 保固頁的統計卡：目前篩選（不含保固條件）下各保固狀態的精確筆數。
+  let warrantyBuckets: Record<string, number> | undefined;
+  if (url.searchParams.get("warrantyStats") === "1") {
+    const base = { ...f, warranty: "" as const };
+    const counts = await Promise.all(WARRANTY_FILTERS.map(async (w) => {
+      const r = await applyWarranty(applyFilters(client.from(ASSET_TABLE[kind]).select("id", { count: "exact", head: true }), kind, access.level, access, base, range), kind, w, range);
+      if (r.error) throw dbError(r.error);
+      return [w, r.count || 0] as const;
+    }));
+    warrantyBuckets = Object.fromEntries(counts);
+  }
   return respond({
     data: rows.map((r) => pickAssetFields(kind, r, access.level)),
     meta: pagingMeta(page, pageSize, total),
     total,
-    stats: { total, attention, warrantyAttention },
+    stats: { total, attention, warrantyAttention, ...(warrantyBuckets ? { warrantyBuckets } : {}) },
     permissions: { manage: access.manage, level: access.level, seeFull: access.level === "full" },
   });
 }
