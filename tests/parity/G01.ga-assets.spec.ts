@@ -466,7 +466,8 @@ test('總務側欄：每個角色的舊版規則項目 id 集合 vs 新版 gaNav
     const access = resolveAccess([{ is_active: true, role: { code: 'x', role_permissions: [...perms].map((c) => ({ is_allowed: true, permission: { code: c, is_active: true } })) } }], acc.profileRole);
     // 舊版規則（與 hooks/useNavbarPermissions.ts 旗標同一套，nav.ts 的 legacyNavFlags 是它的移植；這裡直接呼叫舊版 getVisible… 取舊版 id 集合）
     const { legacyNavFlags } = await import('../../lib/workspace/general-affairs/nav');
-    const flags = legacyNavFlags({ has: access.has, permissions: access.permissions as any, roleCodes, isAdmin });
+    const storeMember = (acc.stores || []).length > 0; // 第 2 批：設備與貼標入口認店長名單身分（正式區店長同時有 store_manager 角色，兩邊相同；測試帳號的角色代碼不同）
+    const flags = legacyNavFlags({ has: access.has, permissions: access.permissions as any, roleCodes, isAdmin, storeMember });
     const legacyIds = new Set(flattenGeneralAffairsNavItems(getVisibleGeneralAffairsNavGroups({ permissionCodes: perms, permissionFlags: flags, isAdminLike: isAdmin })).map((i) => i.id));
     const flat = (session.gaNavigation as any[]).flatMap((g) => g.items.flatMap((i: any) => [i, ...(i.children || [])])).map((i) => i.id);
     const nativeIds = new Set<string>(flat);
@@ -474,7 +475,7 @@ test('總務側欄：每個角色的舊版規則項目 id 集合 vs 新版 gaNav
     for (const id of legacyIds) if (!nativeIds.has(id)) diffs.push({ kind: 'only-legacy', key: navKey(id), legacy: `${role}:${id}` });
     for (const id of nativeIds) if (!legacyIds.has(id)) diffs.push({ kind: 'only-native', key: `native-only:${id}`, native: `${role}:${id}` });
     // session 的 gaNavigation 要和單元層的規則（nav.ts 以同一組輸入）一致：不能因為 session 組裝而漂移
-    const expected = gaNavigation({ has: access.has, permissions: access.permissions as any, roleCodes, isAdmin });
+    const expected = gaNavigation({ has: access.has, permissions: access.permissions as any, roleCodes, isAdmin, storeMember });
     const expectedIds = new Set(expected.flatMap((g) => g.items.flatMap((i) => [i, ...(i.children || [])])).map((i) => i.id));
     expect([...nativeIds].sort(), `${role}: session 與 nav.ts 規則不一致`).toEqual([...expectedIds].sort());
   }

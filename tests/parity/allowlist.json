@@ -3145,5 +3145,31 @@
       "kind": "changed",
       "key": "equipment-view-role-category-names"
     }
+  },
+  {
+    "id": "m7m8-g06-nav-onboarding-tasks",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「資產與庫存」群組最後多了「貼標待辦」；舊版側欄沒有這個項目（舊版貼標待辦只在首頁）。",
+    "reason": "第 2 批新頁面（建檔貼標流程，設備與設施共用）沒有舊網址，不改舊版側欄元件，由伺服端追加。主迴圈解讀 (b)，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-native",
+      "key": "native-only:onboarding-tasks"
+    }
+  },
+  {
+    "id": "m7m8-g06-nav-onboarding-review",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「資產與庫存」群組最後多了「貼標複核」；舊版側欄沒有這個項目（舊版貼標待辦只在首頁）。",
+    "reason": "第 2 批新頁面（建檔貼標流程，設備與設施共用）沒有舊網址，不改舊版側欄元件，由伺服端追加。主迴圈解讀 (b)，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-native",
+      "key": "native-only:onboarding-review"
+    }
   }
 ]

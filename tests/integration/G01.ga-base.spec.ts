@@ -65,12 +65,12 @@ test('G01 總務角色的 session：服務中心側欄照舊版分組，已移�
   const works = await (await apis.ga_works.get('/api/workspace/session')).json();
   expect(works.gaNavigation).toEqual(staff.gaNavigation);
   const ga = Object.fromEntries(Object.entries(staff.capabilities).filter(([k]) => k.startsWith('ga')));
-  expect(ga).toEqual({ gaCenter: true, gaEquipmentCategories: true, gaFacilityCategories: true, gaPartCategories: true, gaParts: true, gaPartCreate: true, gaPartCompat: true, gaEquipmentTemplates: true, gaFacilityTemplates: true });
+  expect(ga).toEqual({ gaCenter: true, gaEquipmentCategories: true, gaFacilityCategories: true, gaPartCategories: true, gaParts: true, gaPartCreate: true, gaPartCompat: true, gaEquipmentTemplates: true, gaFacilityTemplates: true, gaEquipment: true, gaEquipmentCreate: true, gaOnboardingTasks: true, gaOnboardingReview: true });
   const groups = staff.gaNavigation.map((g: any) => g.label);
   expect(groups).toEqual(expect.arrayContaining(['工作台', '作業管理', '資產與庫存', '費用管理', '合作廠商']));
   const flat = staff.gaNavigation.flatMap((g: any) => g.items.flatMap((i: any) => [i, ...(i.children || [])]));
   const kinds = flat.filter((i: any) => i.kind).map((i: any) => i.kind).sort();
-  expect(kinds).toEqual(['ga-center', 'ga-equipment-categories', 'ga-equipment-templates', 'ga-facility-categories', 'ga-facility-templates', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts']);
+  expect(kinds).toEqual(['ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-create', 'ga-equipment-templates', 'ga-facility-categories', 'ga-facility-templates', 'ga-onboarding-review', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts']);
   // 全域導覽的服務中心首頁入口改為新版頁籤（網址維持 /general-affairs）
   const home = staff.navigation.flatMap((g: any) => g.items).find((i: any) => i.href === '/general-affairs');
   expect(home).toMatchObject({ kind: 'ga-center' });

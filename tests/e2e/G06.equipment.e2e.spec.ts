@@ -351,7 +351,7 @@ test('解讀 (d) 料件列表：手機（390）一筆一張卡片、操作按鈕
       const card = page.locator('li.part-card:visible', { hasText: part.name });
       await expect(card).toBeVisible();
       await expect(card).toContainText('卡片品牌 / 卡片型號 / 卡片規格');
-      await expect(page.locator('.part-table:visible')).toHaveCount(0);
+      await expect(page.locator('tbody tr:visible')).toHaveCount(0); // 手機看不到表格列，只有卡片
       for (const name of ['編輯', '停用', '刪除']) {
         const box = await card.getByRole('button', { name, exact: true }).boundingBox();
         expect(box!.height, name).toBeGreaterThanOrEqual(44);

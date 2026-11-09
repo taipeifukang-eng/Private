@@ -177,7 +177,7 @@ async function confirmDelete() {
       <label>狀態<select v-model="activeFilter"><option value="">全部</option><option value="true">啟用中</option><option value="false">已停用</option></select></label>
     </div>
     <div class="list-meta"><span>共 {{ total }} 筆</span><span v-if="loading" role="status">載入中…</span></div>
-    <div class="table-scroll">
+    <div class="table-scroll part-table">
       <table>
         <thead><tr><th>料件</th><th>品牌／型號／規格</th><th>分類</th><th>單位</th><th>狀態</th><th v-if="seeNotes">內部備註</th><th v-if="canManage">操作</th></tr></thead>
         <tbody>
