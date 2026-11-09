@@ -6,7 +6,10 @@ import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/SignaturePad';
 import GpsGuideDialog from '@/components/inspection/GpsGuideDialog';
 import { getInspectionGpsCapturedAt, hasSuspiciousInspectionGpsTime } from '@/lib/inspection/date';
+import { usePermission } from '@/lib/permissions/hooks';
 import {
+  GPS_EXEMPT_LABEL,
+  GPS_EXEMPT_PERMISSION_CODE,
   GPS_HIGH_ACCURACY_FALLBACK_MS,
   classifyGeolocationError,
   classifyGpsDbError,
@@ -16,8 +19,10 @@ import {
   getGpsDbErrorMessage,
   getGpsFailureMessage,
   isGpsDbError,
+  toExemptGpsFix,
   validateGpsFix,
   type GpsFailureKind,
+  type GpsFix,
 } from '@/lib/inspection/gps-policy';
 import {
   ChevronDown,
@@ -238,13 +243,18 @@ function NewInspectionPage() {
   const [supervisorSignature, setSupervisorSignature] = useState<string>('');
   
   // GPS 定位狀態
-  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  // 'exempt'：使用者按了「使用定位例外送出」（需 inspection.gps_exempt 權限或系統管理員），表單解鎖但不具有效定位。
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'success' | 'error' | 'exempt'>('idle');
   const [gpsLocation, setGpsLocation] = useState<{ latitude: number; longitude: number; accuracy?: number; capturedAt?: string } | null>(null);
   const [gpsError, setGpsError] = useState<string>('');
   const [gpsFailureKind, setGpsFailureKind] = useState<GpsFailureKind | null>(null);
   const [gpsWarning, setGpsWarning] = useState(false);
   const [gpsNotice, setGpsNotice] = useState('');
   const [gpsGuideOpen, setGpsGuideOpen] = useState(false);
+  // 最近一次失敗的誤差與「有拿到但驗證沒過」的定位結果（定位例外時照樣存進去）
+  const [gpsFailureAccuracy, setGpsFailureAccuracy] = useState<number | null>(null);
+  const [gpsRejectedFix, setGpsRejectedFix] = useState<GpsFix | null>(null);
+  const { allowed: canUseGpsExempt } = usePermission(GPS_EXEMPT_PERMISSION_CODE);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   useEffect(() => {
     const device = detectGpsDevice(navigator.userAgent, { maxTouchPoints: navigator.maxTouchPoints });
@@ -252,7 +262,8 @@ function NewInspectionPage() {
   }, []);
   const gpsAttemptRef = useRef(0);
   // 定位成功（且通過精度與時間檢查）前，整張表單鎖住
-  const gpsLocked = gpsStatus !== 'success' || !gpsLocation;
+  const gpsExemptActive = gpsStatus === 'exempt' && canUseGpsExempt;
+  const gpsLocked = !gpsExemptActive && (gpsStatus !== 'success' || !gpsLocation);
   const [supervisorNotes, setSupervisorNotes] = useState('');
   const [indoorTemperature, setIndoorTemperature] = useState('');
 
@@ -608,8 +619,10 @@ function NewInspectionPage() {
     const attempt = ++gpsAttemptRef.current;
     const isCurrent = () => gpsAttemptRef.current === attempt;
 
-    const fail = (kind: GpsFailureKind, accuracy?: number | null) => {
+    const fail = (kind: GpsFailureKind, accuracy?: number | null, rejectedFix?: GpsFix | null) => {
       if (!isCurrent()) return;
+      setGpsFailureAccuracy(typeof accuracy === 'number' && Number.isFinite(accuracy) ? accuracy : null);
+      setGpsRejectedFix(rejectedFix ?? null);
       setGpsLocation(null);
       setGpsWarning(false);
       setGpsFailureKind(kind);
@@ -629,7 +642,7 @@ function NewInspectionPage() {
       };
       const check = validateGpsFix(fix);
       if (!check.ok) {
-        fail(check.kind, fix.accuracy);
+        fail(check.kind, fix.accuracy, fix);
         return;
       }
       setGpsLocation(fix);
@@ -637,6 +650,8 @@ function NewInspectionPage() {
       setGpsWarning(check.warning);
       setGpsFailureKind(null);
       setGpsError('');
+      setGpsFailureAccuracy(null);
+      setGpsRejectedFix(null);
       setGpsStatus('success');
       setGpsGuideOpen(false);
     };
@@ -651,6 +666,8 @@ function NewInspectionPage() {
     setGpsWarning(false);
     setGpsError('');
     setGpsFailureKind(null);
+    setGpsFailureAccuracy(null);
+    setGpsRejectedFix(null);
 
     let fallbackStarted = false;
     // Fallback: 使用一般定位（WiFi/基地台，適合桌機或室內）
@@ -685,6 +702,15 @@ function NewInspectionPage() {
         maximumAge: 0,
       }
     );
+  };
+
+  // 定位例外：只在定位失敗（含誤差超標）且有權限時可按；中止進行中的定位，表單解鎖，送出帶 gps_exempt = true。
+  const useGpsExempt = () => {
+    if (!canUseGpsExempt || gpsStatus !== 'error') return;
+    gpsAttemptRef.current += 1;
+    setGpsWarning(false);
+    setGpsGuideOpen(false);
+    setGpsStatus('exempt');
   };
 
   // 切換區塊展開/收合
@@ -896,11 +922,12 @@ function NewInspectionPage() {
     if (submitInFlightRef.current) {
       return;
     }
-    if (gpsLocked || !gpsLocation) {
+    if (gpsLocked) {
       alert('請先完成定位才能儲存或送出');
       return;
     }
-    if (!isGpsTimestampWithinWindow(gpsLocation.capturedAt)) {
+    const exemptFix = gpsExemptActive ? toExemptGpsFix(gpsRejectedFix) : null;
+    if (!gpsExemptActive && (!gpsLocation || !isGpsTimestampWithinWindow(gpsLocation.capturedAt))) {
       // 定位時間已過期（或裝置時鐘異常）：不等資料庫往返，直接重新定位
       setGpsWarning(false);
       setGpsFailureKind('time_invalid');
@@ -911,6 +938,19 @@ function NewInspectionPage() {
       requestGPSLocation();
       return;
     }
+    const insertGps = gpsExemptActive
+      ? {
+          gps_latitude: exemptFix?.latitude ?? null,
+          gps_longitude: exemptFix?.longitude ?? null,
+          gps_accuracy: exemptFix?.accuracy ?? null,
+          gps_timestamp: exemptFix?.capturedAt ?? null,
+        }
+      : {
+          gps_latitude: gpsLocation!.latitude,
+          gps_longitude: gpsLocation!.longitude,
+          gps_accuracy: gpsLocation!.accuracy ?? null,
+          gps_timestamp: gpsLocation!.capturedAt ?? null,
+        };
     if (!selectedStoreId) {
       alert('請選擇門市');
       return;
@@ -943,7 +983,8 @@ function NewInspectionPage() {
         inspectionDate: gpsInspectionDate,
         totals,
         itemScoresCount: itemScores.size,
-        hasGPS: !!gpsLocation,
+        hasGPS: gpsExemptActive ? !!exemptFix : !!gpsLocation,
+        gpsExempt: gpsExemptActive,
       });
 
       const { data: existingByRequestId, error: requestDuplicateError } = await supabase
@@ -1017,10 +1058,9 @@ function NewInspectionPage() {
           supervisor_signature_url: supervisorSignature || null,
           supervisor_notes: supervisorNotes.trim() || null,
           indoor_temperature: indoorTemperature ? parseFloat(indoorTemperature) : null,
-          gps_latitude: gpsLocation.latitude,
-          gps_longitude: gpsLocation.longitude,
-          gps_accuracy: gpsLocation.accuracy ?? null,
-          gps_timestamp: gpsLocation.capturedAt ?? null,
+          ...insertGps,
+          // 只有真的使用例外才帶 gps_exempt，一般送出的 payload 與舊版完全相同
+          ...(gpsExemptActive ? { gps_exempt: true } : {}),
         })
         .select()
         .single();
@@ -1118,6 +1158,8 @@ function NewInspectionPage() {
       // 資料庫 trigger 擋下的定位錯誤：直接顯示中文訊息，並要求重新定位
       if (isGpsDbError(error)) {
         const message = getGpsDbErrorMessage(error);
+        setGpsFailureAccuracy(gpsExemptActive ? null : gpsLocation?.accuracy ?? null);
+        setGpsRejectedFix(gpsExemptActive ? gpsRejectedFix : gpsLocation);
         setGpsLocation(null);
         setGpsWarning(false);
         setGpsFailureKind(classifyGpsDbError(message));
@@ -1262,11 +1304,12 @@ function NewInspectionPage() {
               <div className="flex items-center gap-2">
                 <MapPin className={`w-4 h-4 sm:w-5 sm:h-5 ${
                   gpsStatus === 'success' ? 'text-green-600' :
+                  gpsStatus === 'exempt' ? 'text-amber-600' :
                   gpsStatus === 'error' ? 'text-red-600' :
                   'text-gray-400'
                 }`} />
                 <span className="text-xs sm:text-sm font-medium text-gray-700">GPS 定位</span>
-                <span className="text-[10px] text-red-500">(必填)</span>
+                <span className="text-[10px] text-red-500">{gpsExemptActive ? `(${GPS_EXEMPT_LABEL})` : '(必填)'}</span>
               </div>
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 {(gpsStatus === 'loading' || gpsStatus === 'idle') && (
@@ -1308,6 +1351,36 @@ function NewInspectionPage() {
                     >
                       重新定位
                     </button>
+                    {canUseGpsExempt && (
+                      <button
+                        type="button"
+                        onClick={useGpsExempt}
+                        data-testid="gps-exempt-button"
+                        className="px-2 py-1 text-xs bg-amber-100 text-amber-900 border border-amber-400 rounded hover:bg-amber-200 transition-colors"
+                      >
+                        使用定位例外送出
+                      </button>
+                    )}
+                  </div>
+                )}
+                {gpsExemptActive && (
+                  <div className="flex flex-col items-end gap-0.5 min-w-0" data-testid="gps-exempt-status">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <span className="text-xs sm:text-sm text-amber-700 font-medium">⚠ 已使用{GPS_EXEMPT_LABEL}</span>
+                      <button
+                        type="button"
+                        onClick={requestGPSLocation}
+                        data-testid="gps-retry"
+                        className="px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                      >
+                        改回重新定位
+                      </button>
+                    </div>
+                    <span className="text-[10px] text-gray-500" data-testid="gps-exempt-fix">
+                      {gpsRejectedFix && toExemptGpsFix(gpsRejectedFix)
+                        ? `將一併記錄這次定位結果${gpsRejectedFix.accuracy != null ? `（精度 ±${Math.round(gpsRejectedFix.accuracy)}m）` : ''}`
+                        : '未取得定位，將不記錄座標'}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1317,6 +1390,7 @@ function NewInspectionPage() {
               {isMobileDevice
                 ? '💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內），請開啟「精確位置」。'
                 : '💡 所有人新增巡店都必須先定位成功（誤差需在 1000 公尺內）。桌機使用 WiFi 定位亦可，但實際巡店建議用手機開啟此頁面以獲得精確 GPS 座標。'}
+              {canUseGpsExempt && `你有「${GPS_EXEMPT_LABEL}」權限：定位失敗時可改用定位例外送出。`}
             </p>
             <button
               type="button"
@@ -1333,6 +1407,8 @@ function NewInspectionPage() {
           open={gpsGuideOpen}
           failureKind={gpsStatus === 'error' ? gpsFailureKind : null}
           failureMessage={gpsStatus === 'error' ? gpsError : ''}
+          failureAccuracy={gpsStatus === 'error' ? gpsFailureAccuracy : null}
+          onUseExempt={canUseGpsExempt && gpsStatus === 'error' ? useGpsExempt : undefined}
           onClose={() => setGpsGuideOpen(false)}
           onRetry={() => {
             setGpsGuideOpen(false);

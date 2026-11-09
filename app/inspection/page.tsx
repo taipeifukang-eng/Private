@@ -52,8 +52,10 @@ const getStatusLabel = (status: string) => {
 export default async function InspectionListPage({
   searchParams,
 }: {
-  searchParams: { tab?: string; month?: string };
+  searchParams: { tab?: string; month?: string; gps_exempt?: string };
 }) {
+  // 只看定位例外（?gps_exempt=1）：只影響下方巡店記錄列表，不影響統計與月曆。
+  const onlyGpsExempt = searchParams.gps_exempt === '1';
   const activeTab = searchParams.tab === 'manager' ? 'manager' : 'supervisor';
   const isManagerTab = activeTab === 'manager';
   // 把整個函數包在 try/catch 中，確保捕獲所有錯誤
@@ -115,7 +117,7 @@ export default async function InspectionListPage({
     // 第一步：獲取基本巡店記錄（根據分頁篩選類型）
     const { data: rawInspections, error: inspectionError } = await supabase
       .from('inspection_masters')
-      .select('id, inspection_no, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type, improvement_bonus')
+      .select('id, inspection_no, store_id, inspector_id, inspection_date, status, total_score, max_possible_score, grade, score_percentage, created_at, inspection_type, improvement_bonus, gps_exempt')
       .gte('inspection_date', sixMonthsAgo.toISOString())
       .or(isManagerTab
         ? 'inspection_type.eq.manager'
@@ -174,6 +176,17 @@ export default async function InspectionListPage({
       const inspectionMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       return inspectionMonth === exportMonth;
     });
+    const gpsExemptCount = monthlyInspections.filter((inspection: any) => inspection.gps_exempt === true).length;
+    const listInspections = onlyGpsExempt
+      ? monthlyInspections.filter((inspection: any) => inspection.gps_exempt === true)
+      : monthlyInspections;
+    const gpsExemptFilterHref = (on: boolean) => {
+      const query = new URLSearchParams();
+      query.set('tab', activeTab);
+      if (/^\d{4}-\d{2}$/.test(searchParams.month || '')) query.set('month', searchParams.month as string);
+      if (on) query.set('gps_exempt', '1');
+      return `/inspection?${query.toString()}`;
+    };
     const exportMonths = Array.from(
       new Set(
         normalizedInspections
@@ -378,6 +391,19 @@ export default async function InspectionListPage({
               <h2 className="text-lg font-semibold text-gray-900">
                 {isManagerTab ? '經理巡店記錄' : '巡店記錄'}
               </h2>
+              <div className="flex flex-wrap items-center gap-3">
+                <Link
+                  href={gpsExemptFilterHref(!onlyGpsExempt)}
+                  data-testid="gps-exempt-filter"
+                  aria-pressed={onlyGpsExempt}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm transition-colors ${
+                    onlyGpsExempt
+                      ? 'bg-amber-100 text-amber-900 border-amber-400'
+                      : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  只看定位例外（{gpsExemptCount}）
+                </Link>
               {isManagerTab && canCompare && normalizedInspections.length > 0 && (
                 <Link
                   href="/inspection/compare"
@@ -387,15 +413,18 @@ export default async function InspectionListPage({
                   督導 vs 經理 對比分析
                 </Link>
               )}
+              </div>
             </div>
 
-            {monthlyInspections.length === 0 ? (
+            {listInspections.length === 0 ? (
               <div className="px-6 py-12 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Store className="w-8 h-8 text-gray-400" />
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                  {isManagerTab ? `${exportMonth} 尚無經理巡店記錄` : `${exportMonth} 尚無巡店記錄`}
+                  {onlyGpsExempt
+                    ? `${exportMonth} 沒有定位例外的巡店記錄`
+                    : isManagerTab ? `${exportMonth} 尚無經理巡店記錄` : `${exportMonth} 尚無巡店記錄`}
                 </h3>
                 <p className="text-gray-600 mb-6">
                   {isManagerTab
@@ -428,7 +457,7 @@ export default async function InspectionListPage({
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {monthlyInspections.map((inspection: any) => (
+                    {listInspections.map((inspection: any) => (
                       <tr key={inspection.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center">
@@ -482,6 +511,14 @@ export default async function InspectionListPage({
                           <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getStatusBadgeStyle(inspection.status)}`}>
                             {getStatusLabel(inspection.status)}
                           </span>
+                          {inspection.gps_exempt === true && (
+                            <span
+                              data-testid="gps-exempt-badge"
+                              className="ml-2 inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium border bg-amber-50 text-amber-800 border-amber-300"
+                            >
+                              定位例外
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <div className="flex items-center justify-end gap-3">
@@ -509,7 +546,7 @@ export default async function InspectionListPage({
             )}
 
             <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-center text-sm text-gray-600">
-              {exportMonth} 共 {monthlyInspections.length} 筆記錄
+              {exportMonth} 共 {listInspections.length} 筆記錄{onlyGpsExempt ? '（僅定位例外）' : ''}
             </div>
           </div>
         </div>

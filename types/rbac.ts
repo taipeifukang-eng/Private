@@ -136,7 +136,7 @@ export const FEATURE_NAMES: Record<string, string> = {
   facility_category: '設施分類',
   import_performance: '業績匯入', import_stats: '匯入統計', inspection: '巡店紀錄',
   inspection_all: '全部巡店紀錄', inspection_compare: '巡店比較', inspection_improvement: '待改善追蹤',
-  inspection_manager: '巡店管理', inspection_store: '門市巡店資料', inspection_store_status: '門市巡店狀態',
+  inspection_gps: '巡店定位', inspection_manager: '巡店管理', inspection_store: '門市巡店資料', inspection_store_status: '門市巡店狀態',
   inspection_template: '巡店範本', inventory: '盤點作業',
   part: '料件管理',
   part_category: '料件分類',
