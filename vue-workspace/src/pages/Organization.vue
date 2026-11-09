@@ -7,7 +7,7 @@ let baseline='',requestId='',pendingKey='';
 const dragging=ref('');const viewMode=ref<'tree'|'chart'>('tree'),drawerUser=ref<any>(null);
 const chart=computed(()=>buildChart(units.value,inactive.value));
 const dim=computed(()=>search.value.trim()||type.value?matches.value:null);
-const canDrawer=computed(()=>current.value?.type==='department'&&!!session.data?.capabilities.departments);
+const canDrawer=computed(()=>current.value?.type==='department');
 function collapseTwo(){collapsed.value=new Set(units.value.filter(u=>u.parent_id!==null).map(u=>u.id));}
 function dragStart(event:DragEvent,id:string){if(!editing.value||props.tab.busy||conflict.value)return;dragging.value=id;event.dataTransfer?.setData('text/plain',id);if(event.dataTransfer)event.dataTransfer.effectAllowed='move';}
 function dropUnit(parent:string|null){const id=dragging.value;dragging.value='';if(!editing.value||props.tab.busy||conflict.value)return;if(!canMoveUnit(units.value,id,parent)){error.value='不可移到自己、下層或停用單位；公司固定為根節點。';return;}units.value.find(u=>u.id===id).parent_id=parent;collapsed.value=new Set([...collapsed.value].filter(x=>x!==parent));error.value='';}

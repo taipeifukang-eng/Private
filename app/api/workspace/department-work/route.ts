@@ -1,11 +1,14 @@
 import { checked, checkOrigin, context, failed, requireCapability, respond, uuid, WorkspaceError } from '@/lib/workspace/server';
-import { ORGANIZATION_DEPARTMENT_WORKSPACE_MANAGE_PERMISSION_CODES } from '@/lib/admin/organization-management';
+import { ORGANIZATION_DEPARTMENT_WORKSPACE_MANAGE_PERMISSION_CODES, ORGANIZATION_NAV_PERMISSION_CODES } from '@/lib/admin/organization-management';
 import { DEPARTMENT_PAGE_PERMISSION_CODES } from '@/lib/workspace/organization-rules';
 export const dynamic='force-dynamic';
 const manage=[...ORGANIZATION_DEPARTMENT_WORKSPACE_MANAGE_PERMISSION_CODES];
 export async function GET(request:Request){try{
- const ctx=await context();requireCapability(ctx,[...DEPARTMENT_PAGE_PERMISSION_CODES]); // M5 Q9：照舊版部門管理頁的進入條件（只有組織檢視或成員／主管檢視權限進不來）
- const query=new URL(request.url).searchParams;
+ const ctx=await context();const query=new URL(request.url).searchParams;
+ // 人員職掌統計（公司組織頁抽屜）：舊版 work-items 讀取閘門含組織檢視權限，這個唯讀請求只回職掌與分類，不含成員／主管。
+ const statsOnly=query.get('stats')==='true'&&!!query.get('department')&&query.get('people')!=='true';
+ requireCapability(ctx,statsOnly?[...DEPARTMENT_PAGE_PERMISSION_CODES,...ORGANIZATION_NAV_PERMISSION_CODES]:[...DEPARTMENT_PAGE_PERMISSION_CODES]); // M5 Q9：照舊版部門管理頁的進入條件（只有組織檢視或成員／主管檢視權限進不來）
+
  if(query.get('people')==='true'){
   requireCapability(ctx,manage);const people:any[]=[];
   for(let start=0;;start+=500){const rows=checked(await ctx.admin.from('profiles').select('id,full_name,email,employee_code,job_title,department').order('id').range(start,start+499))||[];people.push(...rows);if(rows.length<500)break;}
@@ -20,6 +23,7 @@ export async function GET(request:Request){try{
  const department=departments.find((u:any)=>u.id===id);
  if(!department)throw new WorkspaceError(404,'找不到此部門');
  const work=checked(await ctx.admin.rpc('workspace_department_catalog',{p_department:id}));
+ if(statsOnly)return respond({items:work.items||[],categories:work.categories||[]});
  return respond({...work,members:department.members,managers:department.managers,organizationCapabilities,canManage:ctx.has(...manage)&&work.department?.status==='active'});
 }catch(e){return failed(e);}}
 const invalid=()=>new WorkspaceError(400,'工作職掌資料格式不正確，請檢查分類、名稱及指派人員');

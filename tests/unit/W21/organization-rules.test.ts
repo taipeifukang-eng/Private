@@ -233,14 +233,15 @@ describe('W21 畫面與 API 結構', () => {
     const card = vue('components/OrgChartNode.vue');
     expect(card).not.toMatch(/draggable|dragstart|api\(|POST/);
   });
-  it('人員職掌抽屜：公司組織與部門管理兩頁都能開；只在有部門管理進入權限時才可點；成員表有主責／協作／代理欄', () => {
+  it('人員職掌抽屜：公司組織與部門管理兩頁都能開；公司組織頁只要看得到部門成員就能點（組織檢視即可，走唯讀 stats 請求）；成員表有主責／協作／代理欄', () => {
     expect(vue('pages/Organization.vue')).toContain('PersonDrawer');
-    expect(vue('pages/Organization.vue')).toContain('session.data?.capabilities.departments');
+    expect(vue('pages/Organization.vue')).not.toContain('capabilities.departments');
+    expect(read('app/api/workspace/department-work/route.ts')).toContain('ORGANIZATION_NAV_PERMISSION_CODES');
     const d = vue('pages/DepartmentDetail.vue');
     expect(d).toContain('PersonDrawer');
     for (const t of ['count-PRIMARY', 'count-COLLABORATOR', 'count-BACKUP', '<th>組織角色</th>']) expect(d).toContain(t);
     const drawer = vue('components/PersonDrawer.vue');
-    expect(drawer).toContain('department-work?department=');
+    expect(drawer).toContain('department-work?stats=true&department=');
     expect(drawer).toContain('person-drawer');
     expect(drawer).not.toContain('工作交接'); // 舊版只是空白佔位，不復刻
   });

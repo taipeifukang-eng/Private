@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // M5 W21 人員職掌統計抽屜：照舊版 PersonResponsibilityDrawer，只算該部門、只看有效職掌（主責／協作／代理）。
-// 部門管理頁已載入職掌時直接帶入 items；公司組織頁沒有職掌資料，打開時才向部門職掌 API 取得該部門資料（需部門管理的進入權限）。
+// 部門管理頁已載入職掌時直接帶入 items；公司組織頁沒有職掌資料，打開時才向部門職掌 API 取得該部門資料（組織檢視權限即可，只取職掌與分類）。
 import { ref, computed, onMounted } from "vue";
 import { api } from "../api";
 import Modal from "./Modal.vue";
@@ -16,7 +16,7 @@ async function load() {
   loading.value = true;
   error.value = "";
   try {
-    const d = await api("department-work?department=" + encodeURIComponent(props.departmentId));
+    const d = await api("department-work?stats=true&department=" + encodeURIComponent(props.departmentId));
     loaded.value = { items: d.items || [], categories: d.categories || [] };
   } catch (e) {
     error.value = (e as Error).message;

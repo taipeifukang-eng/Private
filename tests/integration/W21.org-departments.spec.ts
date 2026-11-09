@@ -78,6 +78,22 @@ test('Q9 部門管理資料：只有部門相關權限進得來；只有組織�
   }
 });
 
+test('人員職掌統計（stats=true）：只有組織／成員／主管檢視的人也能取得該部門職掌，且不含成員與主管；其他請求仍被擋', async () => {
+  for (const key of ['org_view', 'org_member_view', 'org_manager_view', 'dept_view', 'org_full']) {
+    const api = await as(key);
+    const res = await api.get(`/api/workspace/department-work?stats=true&department=${tree.deptA}`);
+    expect(res.status(), `${key} 統計`).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.items), `${key} items`).toBe(true);
+    expect(Array.isArray(body.categories), `${key} categories`).toBe(true);
+    expect(body.members, `${key} 不含成員`).toBeUndefined();
+    expect(body.managers, `${key} 不含主管`).toBeUndefined();
+  }
+  const orgOnly = await as('org_view');
+  expect((await orgOnly.get(`/api/workspace/department-work?department=${tree.deptA}`)).status(), '一般職掌請求仍被擋').toBe(403);
+  expect((await orgOnly.get('/api/workspace/department-work?stats=true&people=true&department=' + tree.deptA)).status(), 'people 仍被擋').toBe(403);
+});
+
 test('Q9 導覽與 session：部門管理入口與能力旗標跟 API 同一條件；公司組織入口不變', async () => {
   const cases: Record<string, { departments: boolean; organization: boolean }> = {
     org_view: { departments: false, organization: true },
