@@ -1,5 +1,5 @@
 {
-  "count": 26,
+  "count": 28,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -43,6 +43,17 @@
       ],
       "hasTable": true,
       "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "年度行事曆",
+      "tabTitle": "年度行事曆",
+      "headings": [
+        "年度行事曆"
+      ],
+      "hasTable": false,
+      "hasForm": false,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },
@@ -145,6 +156,17 @@
       ],
       "hasTable": true,
       "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "活動檢視",
+      "tabTitle": "活動檢視",
+      "headings": [
+        "活動檢視"
+      ],
+      "hasTable": false,
+      "hasForm": false,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },
