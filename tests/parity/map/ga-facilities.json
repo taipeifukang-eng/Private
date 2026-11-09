@@ -1,0 +1,30 @@
+{
+  "page": "ga-facilities",
+  "legacyRoute": "/general-affairs/facilities、/general-affairs/facilities/new",
+  "workItem": "G08",
+  "entries": [
+    {
+      "id": "facility-read",
+      "mechanism": "api-read",
+      "description": "設施清單：同一個登入者、同一個搜尋，舊 GET /api/general-affairs/facilities 與新版回傳的設施 id、欄位、筆數相同。差異：新版多回 warranty（台北時間保固狀態）、thumbnail_url、貼標進度欄位、qr_scan_path 之外的 total、stats、permissions；店長身分只看基本欄位（Q5）；搜尋輸入逗號或括號時舊版查詢壞掉、新版正常；沒有設施權限也不是名單店長的帳號舊版靠資料庫列級權限回空清單，新版回 403。",
+      "legacy": { "api": { "path": "/api/general-affairs/facilities", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/facilities", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } },
+      "compareKey": "id"
+    },
+    {
+      "id": "facility-detail-read",
+      "mechanism": "api-read",
+      "description": "設施詳情：同一個登入者讀同一筆設施，舊 GET /api/general-affairs/facilities/:id 與新版整列欄位相同。差異：新版多回 warranty、thumbnail_url、open_transfer、qr_scan_path 與 permissions；店長身分只看基本欄位（Q5）；他店設施回 404。",
+      "legacy": { "api": { "path": "/api/general-affairs/facilities/:id" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/facilities/:id" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "facility-write",
+      "mechanism": "write-readback",
+      "description": "設施新增、編輯、刪除：同一份輸入分別送舊 POST／PATCH／DELETE 與新版，service role 回讀資料庫整列逐欄比對。差異：編輯只更新有改的欄位（specs 合併，不再清空品牌型號等其他鍵）、編輯不能改所屬門市（改走轉移單或更正）、已退役要用恢復才能改回使用中、有未結案單時刪除被擋下並顯示張數。",
+      "legacy": { "source": "app/api/general-affairs/facilities/route.ts、app/api/general-affairs/facilities/[id]/route.ts" },
+      "native": { "source": "lib/workspace/general-affairs/assets.ts" }
+    }
+  ]
+}

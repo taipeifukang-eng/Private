@@ -3184,5 +3184,521 @@
       "kind": "only-legacy",
       "key": "nav-equipment-manage-conditions"
     }
+  },
+  {
+    "id": "m7m8-g08-extra-thumbnail-url",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 thumbnail_url（主圖縮圖網址，簽名連結每次重簽）；舊版沒有這個欄位。",
+    "reason": "新版清冊畫面需要；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "thumbnail_url"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-warranty",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 warranty（台北時間算出的保固狀態與到期日）；舊版沒有這個欄位。",
+    "reason": "設施保固存在 specs，新版統一算出（保固中、即將到期、已過保、保固日未填、無保固）供清冊與保固頁使用；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "warranty"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-open-transfer",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 open_transfer（進行中的轉移單摘要）；舊版沒有這個欄位。",
+    "reason": "新版畫面轉移提醒需要；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "open_transfer"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-qr-scan-path",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 qr_scan_path（QR 永久網址路徑；舊版只有清單與新增回應帶，詳情的整列沒有）；舊版沒有這個欄位。",
+    "reason": "新版詳情與清單一致帶出，格式與舊版相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "qr_scan_path"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-template",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 template（公司設施架型的名稱摘要）；舊版沒有這個欄位。",
+    "reason": "新版詳情顯示架型名稱；舊版詳情只有架型 id。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "template"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-has-warranty",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 has_warranty（店長基本欄位版本由 specs 取出的保固旗標（舊版只回整包 specs））；舊版沒有這個欄位。",
+    "reason": "Q5 基本欄位不含 specs 內容，保固狀態單獨取出。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "has_warranty"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-warranty-end-date",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 warranty_end_date（店長基本欄位版本由 specs 取出的保固到期日）；舊版沒有這個欄位。",
+    "reason": "Q5 基本欄位不含 specs 內容，保固狀態單獨取出。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "warranty_end_date"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-permissions",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 permissions（可否管理、欄位層級）；舊版沒有這個欄位。",
+    "reason": "畫面依此決定顯示按鈕與欄位；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-total",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 total（精確總筆數（與 meta.total 相同））；舊版沒有這個欄位。",
+    "reason": "新版畫面需要；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-stats",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 stats（統計卡（符合篩選的總數、需留意狀態、保固需確認））；舊版沒有這個欄位。",
+    "reason": "新版畫面需要；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-onboarding-status",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 onboarding_status（設施建檔貼標進度欄位）；舊版沒有這個欄位。",
+    "reason": "設施也要貼標待辦與標籤列印（Q29，主迴圈解讀 (b)），清冊顯示貼標進度。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_status"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-onboarding-review-note",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 onboarding_review_note（設施建檔貼標進度欄位）；舊版沒有這個欄位。",
+    "reason": "設施也要貼標待辦與標籤列印（Q29，主迴圈解讀 (b)），清冊顯示貼標進度。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_review_note"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-onboarding-reviewed-at",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 onboarding_reviewed_at（設施建檔貼標進度欄位）；舊版沒有這個欄位。",
+    "reason": "設施也要貼標待辦與標籤列印（Q29，主迴圈解讀 (b)），清冊顯示貼標進度。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_reviewed_at"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-onboarding-reviewed-by",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 onboarding_reviewed_by（設施建檔貼標進度欄位）；舊版沒有這個欄位。",
+    "reason": "設施也要貼標待辦與標籤列印（Q29，主迴圈解讀 (b)），清冊顯示貼標進度。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_reviewed_by"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-onboarding-requires-primary-photo",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 onboarding_requires_primary_photo（設施建檔貼標進度欄位）；舊版沒有這個欄位。",
+    "reason": "設施也要貼標待辦與標籤列印（Q29，主迴圈解讀 (b)），清冊顯示貼標進度。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_requires_primary_photo"
+    }
+  },
+  {
+    "id": "m7m8-g08-extra-onboarding-requires-label-photo",
+    "page": "ga-facilities",
+    "description": "新版設施清單或詳情多回 onboarding_requires_label_photo（設施建檔貼標進度欄位）；舊版沒有這個欄位。",
+    "reason": "設施也要貼標待辦與標籤列印（Q29，主迴圈解讀 (b)），清冊顯示貼標進度。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_requires_label_photo"
+    }
+  },
+  {
+    "id": "m7m8-g08-legacy-success-envelope",
+    "page": "ga-facilities",
+    "description": "舊版 API 回應最外層帶 success: true；新版以 HTTP 狀態碼表示成功或失敗，不帶 success。",
+    "reason": "與第 1 批已核可的 success 封包差異相同（m7m8-g01-legacy-success-envelope），套用到設施 API。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g08-q5-store-manager-basic-fields",
+    "page": "ga-facilities",
+    "description": "店長身分（沒有設施查看或管理權限）讀設施清單與詳情時，新版只回基本欄位（名稱、位置、狀態、保固、所屬門市等識別資訊）；舊版回整列，含金額、備註、規格（品牌型號、保固申請方式）與採購日。",
+    "reason": "Q5 決議：門市負責人只看基本欄位，由伺服端挑欄位（資料庫端也不取敏感欄位）；基本欄位本身逐欄與舊版相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "q5-store-manager-basic-fields"
+    }
+  },
+  {
+    "id": "m7m8-g08-search-special-chars",
+    "page": "ga-facilities",
+    "description": "搜尋輸入逗號、括號或雙引號時，舊版把輸入直接塞進查詢字串而壞掉；新版正常回傳。",
+    "reason": "修正舊版缺陷（不用問、直接照做的搜尋輸入處理）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "facility-search-special-chars"
+    }
+  },
+  {
+    "id": "m7m8-g08-detail-other-store-404",
+    "page": "ga-facilities",
+    "description": "店長讀其他門市的設施詳情：舊版因資料庫查不到資料而回 500（內部錯誤訊息）；新版回 404 找不到。",
+    "reason": "不存在或看不到的資料一律回 404（直接照做：作廢或不存在回 404），不外露內部錯誤。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "facility-detail-other-store"
+    }
+  },
+  {
+    "id": "m7m8-g08-view-role-store-names",
+    "page": "ga-facilities",
+    "description": "只有設施查看權限（沒有門市與分類的讀取權限）的帳號：舊版清單與詳情的 所屬門市 關聯資料因資料庫列級權限讀不到而是空的；新版由伺服端補上名稱。",
+    "reason": "門市與分類名稱不是敏感欄位，查看設施的人應該看得到所屬門市與分類。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "facility-view-role-store-names"
+    }
+  },
+  {
+    "id": "m7m8-g08-view-role-category-names",
+    "page": "ga-facilities",
+    "description": "只有設施查看權限的帳號：舊版清單與詳情的 分類 關聯資料因資料庫列級權限讀不到而是空的；新版由伺服端補上名稱。",
+    "reason": "同 m7m8-g08-view-role-store-names。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "facility-view-role-category-names"
+    }
+  },
+  {
+    "id": "m7m8-g08-no-permission-list",
+    "page": "ga-facilities",
+    "description": "沒有設施查看或管理權限、也不是店長名單內身分的帳號讀設施清單：舊版靠資料庫列級權限回空清單（200）；新版回 403 並說明沒有設施查看權限。",
+    "reason": "與設備清單同一個規則（導覽與 API 一致，不回「看似成功的空清單」）。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "facility-no-permission"
+    }
+  },
+  {
+    "id": "m7m8-g08-edit-specs-preserved",
+    "page": "ga-facilities",
+    "description": "編輯設施時，舊版把整包 specs 取代（沒提到的鍵，例如品牌、型號、保固申請方式會被清掉）；新版 specs 合併，沒提到的鍵保留，要清空才明確送 null。",
+    "reason": "直接照做：編輯只更新有改的欄位，不清掉沒碰的資料。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "facility-edit-specs-preserved"
+    }
+  },
+  {
+    "id": "m7m8-g08-edit-store-id",
+    "page": "ga-facilities",
+    "description": "編輯設施時帶所屬門市：舊版直接改；新版回 400，要求改走轉移單（平常換店）或「更正所屬門市」（建檔錯誤，必填原因並寫異動紀錄）。",
+    "reason": "Q10 與 Q28 的主迴圈解讀 (a)。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "facility-edit-store-id"
+    }
+  },
+  {
+    "id": "m7m8-g08-edit-restore-retired",
+    "page": "ga-facilities",
+    "description": "已退役的設施直接把狀態改回使用中：舊版可以（QR 仍作廢，要另外處理）；新版要用「恢復使用並重新啟用 QR」（必填原因、沿用原標籤、寫異動紀錄）。",
+    "reason": "Q8 的做法套用到設施退役（設施退役規則維持舊版：退役自動作廢 QR；恢復範圍見主迴圈解讀 (e)）。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "facility-edit-restore-retired"
+    }
+  },
+  {
+    "id": "m7m8-g08-q10-delete-with-open-orders",
+    "page": "ga-facilities",
+    "description": "設施有未結案的報修單或工單時：舊版允許刪除；新版回 409 並顯示未結案單張數，建議改為退役。",
+    "reason": "Q10 決議：有未結案單禁止刪除並顯示張數（可改報廢；設施對應為退役）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q10)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "facility-delete-with-open-orders"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-warranty",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 warranty（台北時間算出的保固狀態與到期日）；舊版沒有這個欄位。",
+    "reason": "保固頁與清冊共用的保固狀態；既有欄位逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "warranty"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-warranty-documents",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 warranty_documents（這一頁每台的保固文件與簽名網址，一次查完）；舊版沒有這個欄位。",
+    "reason": "舊版每台各送一次附件請求（N+1）；新版同一次清單回傳，簽名網址每次重簽。既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "warranty_documents"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-thumbnail-url",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 thumbnail_url（主圖縮圖網址）；舊版沒有這個欄位。",
+    "reason": "新版清冊與保固頁共用的清單查詢；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "thumbnail_url"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-onboarding-requires-primary-photo",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 onboarding_requires_primary_photo（貼標流程重拍旗標）；舊版沒有這個欄位。",
+    "reason": "新版清單查詢共用欄位；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_requires_primary_photo"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-onboarding-requires-label-photo",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 onboarding_requires_label_photo（貼標流程重拍旗標）；舊版沒有這個欄位。",
+    "reason": "新版清單查詢共用欄位；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_requires_label_photo"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-permissions",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 permissions（可否管理、欄位層級）；舊版沒有這個欄位。",
+    "reason": "畫面依此決定顯示按鈕與欄位；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-stats",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 stats（統計卡與各保固狀態的精確筆數）；舊版沒有這個欄位。",
+    "reason": "保固頁統計卡是整個查詢範圍的精確筆數，舊版只算已載入的前 100 筆。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats"
+    }
+  },
+  {
+    "id": "m7m8-g09-extra-total",
+    "page": "ga-asset-history",
+    "description": "新版設備保固頁的清單多回 total（精確總筆數）；舊版沒有這個欄位。",
+    "reason": "伺服端分頁與精確筆數取代舊版前 100 筆。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g09-legacy-success-envelope",
+    "page": "ga-asset-history",
+    "description": "舊版 API 回應最外層帶 success: true；新版以 HTTP 狀態碼表示成功或失敗，不帶 success。",
+    "reason": "與第 1 批已核可的 success 封包差異相同（m7m8-g01-legacy-success-envelope），套用到保固與維修紀錄頁。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g09-warranty-taipei-time",
+    "page": "ga-asset-history",
+    "description": "保固到期判斷：舊版在瀏覽器用 UTC 時間差算（台北時間清晨時，到期日前一天仍算保固中、距到期 30 天的那一天仍算保固中）；新版以台北日期為準，到期日當天結束才過期。",
+    "reason": "直接照做：保固到期用台北時間，到期日當天結束才算過期。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "warranty-taipei-time"
+    }
+  },
+  {
+    "id": "m7m8-g09-q11-history-linked-equipment",
+    "page": "ga-asset-history",
+    "description": "設備維修紀錄：舊頁讀工單並過濾 equipment_id（工單資料表沒有這個欄位，實際永遠沒有資料）；新版讀報修需求單與其工單，有資料。",
+    "reason": "Q11 決議：維修紀錄改讀需求單與其工單。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "count",
+      "key": "maintenance-history-linked-equipment-rows"
+    }
+  },
+  {
+    "id": "m7m8-g09-q11-history-linked-facility",
+    "page": "ga-asset-history",
+    "description": "設施維修紀錄：舊頁讀工單並過濾 facility_id（工單資料表沒有這個欄位，實際永遠沒有資料）；新版讀報修需求單與其工單，有資料。",
+    "reason": "Q11 決議：維修紀錄改讀需求單與其工單。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "count",
+      "key": "maintenance-history-linked-facility-rows"
+    }
+  },
+  {
+    "id": "m7m8-g09-q11-history-store-manager",
+    "page": "ga-asset-history",
+    "description": "店長讀維修紀錄：舊版沒有帶門市的全域查詢需要「查看全部維修回報」權限而回 403；新版只看自己有名單身分的門市（看不到處理人姓名）。",
+    "reason": "Q11 決議：門市負責人只看自己門市，總務看全部。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "maintenance-history-store-manager"
+    }
+  },
+  {
+    "id": "m7m8-g09-q11-history-total",
+    "page": "ga-asset-history",
+    "description": "新版維修紀錄回應多回 total（精確總筆數）。",
+    "reason": "Q11 決議：完整分頁與精確筆數（舊版只載入前 100 筆）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g09-q11-history-meta",
+    "page": "ga-asset-history",
+    "description": "新版維修紀錄回應多回 meta（頁碼、每頁筆數、總頁數）。",
+    "reason": "Q11 決議：完整分頁。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "meta"
+    }
+  },
+  {
+    "id": "m7m8-g09-history-permissions",
+    "page": "ga-asset-history",
+    "description": "新版維修紀錄回應多回 permissions（是否看全部、是否看得到處理人姓名）。",
+    "reason": "畫面依此決定顯示處理人欄位。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
   }
 ]
