@@ -23,6 +23,8 @@ import { workspaceNavigation } from "@/lib/workspace/navigation";
 import { loadExportAccess } from "@/lib/workspace/monthly-export-server";
 import { canEnterCampaignView } from "@/lib/campaign-access";
 import { canOpenMonthlyExport } from "@/lib/workspace/monthly-export";
+import { gaFlags, isStoreManagerRole } from "@/lib/workspace/general-affairs/access";
+import { gaNavigation } from "@/lib/workspace/general-affairs/nav";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
@@ -120,7 +122,10 @@ export async function GET() {
         campaigns: ctx.has(...CAMPAIGN_PAGE_CODES),
         campaignView,
         editCampaigns: ctx.has(...CAMPAIGN_EDIT_CODES),
+        // M7/M8 總務：入口與頁面旗標（has 含管理員後備；API 另以資料庫語意把關）
+        ...gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes)),
       },
+      gaNavigation: gaNavigation(ctx),
       stores: Array.from(stores.values()),
       environment: "DEV",
       integrated: process.env.WORKSPACE_USE_EXISTING_SESSION === "true",

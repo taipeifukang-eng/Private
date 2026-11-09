@@ -226,7 +226,7 @@ export function workspaceNavigation(
           "general_affairs.vendor.manage",
           "general_affairs.utility_bill.view",
           "general_affairs.utility_bill.manage",
-        ]),
+        ], "ga-center"),
         item("庫存管理", "/general-affairs/inventory", [
           "general_affairs.inventory_balance.view",
           "general_affairs.inventory_transaction.view",

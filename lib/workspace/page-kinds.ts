@@ -40,6 +40,8 @@ export const WORKSPACE_NAV_KINDS = [
   "relationships",
   "roles",
   "users",
+  // M7/M8 G01：總務服務中心（外殼與入口頁）。其餘總務頁由外殼側欄開啟（明細 kind）。
+  "ga-center",
 ] as const;
 
 /** 只能由其他頁面（列表、明細連結）開啟，不在導覽選單出現的 kind。 */
@@ -77,6 +79,15 @@ export const WORKSPACE_DETAIL_KINDS = [
   "performance-thresholds",
   "performance-prescription",
   "performance-bonus",
+  // M7/M8 第 1 批（G02-G05）：總務分類、料件、型號與架型、適用料件對照。
+  "ga-equipment-categories",
+  "ga-facility-categories",
+  "ga-part-categories",
+  "ga-parts",
+  "ga-part-create",
+  "ga-part-compat",
+  "ga-equipment-templates",
+  "ga-facility-templates",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];
