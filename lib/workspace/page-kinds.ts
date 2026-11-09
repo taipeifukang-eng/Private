@@ -88,6 +88,11 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-part-compat",
   "ga-equipment-templates",
   "ga-facility-templates",
+  // 第 2 批：設備清冊、新增設備、建檔貼標待辦與複核。
+  "ga-equipment",
+  "ga-equipment-create",
+  "ga-onboarding-tasks",
+  "ga-onboarding-review",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

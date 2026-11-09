@@ -25,6 +25,7 @@ import { canEnterCampaignView } from "@/lib/campaign-access";
 import { canOpenMonthlyExport } from "@/lib/workspace/monthly-export";
 import { gaFlags, isStoreManagerRole } from "@/lib/workspace/general-affairs/access";
 import { gaNavigation } from "@/lib/workspace/general-affairs/nav";
+import { isStoreMember } from "@/lib/workspace/general-affairs/members";
 export const dynamic = "force-dynamic";
 export async function GET() {
   try {
@@ -64,6 +65,7 @@ export async function GET() {
         if (ctx.has(...moduleCodes[module]))
           for (const s of await moduleStores(ctx, module)) stores.set(s.id, s);
     const monthlyExport = canOpenMonthlyExport(await loadExportAccess(ctx));
+    const gaStoreMember = await isStoreMember(ctx);
     return respond({
       user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
       permissions: Array.from(ctx.permissions),
@@ -123,9 +125,9 @@ export async function GET() {
         campaignView,
         editCampaigns: ctx.has(...CAMPAIGN_EDIT_CODES),
         // M7/M8 總務：入口與頁面旗標（has 含管理員後備；API 另以資料庫語意把關）
-        ...gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes)),
+        ...gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes), gaStoreMember),
       },
-      gaNavigation: gaNavigation(ctx),
+      gaNavigation: gaNavigation({ has: ctx.has, permissions: ctx.permissions as any, roleCodes: ctx.roleCodes, isAdmin: ctx.isAdmin, storeMember: gaStoreMember }),
       stores: Array.from(stores.values()),
       environment: "DEV",
       integrated: process.env.WORKSPACE_USE_EXISTING_SESSION === "true",

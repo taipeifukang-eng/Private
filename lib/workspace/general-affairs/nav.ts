@@ -28,6 +28,8 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/parts/compatibilities": { kind: "ga-part-compat", flag: "gaPartCompat" },
   "/general-affairs/equipment/templates": { kind: "ga-equipment-templates", flag: "gaEquipmentTemplates" },
   "/general-affairs/facilities/templates": { kind: "ga-facility-templates", flag: "gaFacilityTemplates" },
+  "/general-affairs/equipment": { kind: "ga-equipment", flag: "gaEquipment" },
+  "/general-affairs/equipment/new": { kind: "ga-equipment-create", flag: "gaEquipmentCreate" },
 };
 
 export type GaNavInput = {
@@ -35,6 +37,8 @@ export type GaNavInput = {
   permissions: { has(code: string): boolean } & Iterable<string>;
   roleCodes: { has(code: string): boolean };
   isAdmin: boolean;
+  /** 名單內任何身分（store_managers）；只影響設備清冊與貼標待辦入口。 */
+  storeMember?: boolean;
 };
 
 /** 舊 hooks/useNavbarPermissions.ts 的 canAccessGeneralAffairs* 旗標（同一套條件）。 */
@@ -51,7 +55,7 @@ export function legacyNavFlags(input: GaNavInput): Record<GeneralAffairsPermissi
         "general_affairs.inventory_balance.view", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage",
         "general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage",
       ),
-    canAccessGeneralAffairsEquipment: isAdmin || sm || any(GA.equipmentView, GA.equipmentManage),
+    canAccessGeneralAffairsEquipment: isAdmin || sm || !!input.storeMember || any(GA.equipmentView, GA.equipmentManage),
     canAccessGeneralAffairsFacilities: isAdmin || sm || any(GA.facilityView, GA.facilityManage),
     canAccessGeneralAffairsParts: isAdmin || sm || any(GA.partView, GA.partManage),
     canAccessGeneralAffairsVendors:
@@ -89,12 +93,22 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
     permissionFlags: legacyNavFlags(input),
     isAdminLike: input.isAdmin,
   });
-  const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes));
-  return groups
+  const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes), !!input.storeMember);
+  const out = groups
     .map((g) => ({
       id: g.id,
       label: g.label,
       items: g.items.map((i) => toItem(i, flags)).filter((i): i is GaNavItem => !!i && (!!i.href || !!i.disabled || !!i.children?.length)),
     }))
     .filter((g) => g.items.length);
+  // 第 2 批新頁面沒有舊網址（不改舊版側欄元件）：貼標待辦與複核追加在「資產與庫存」群組最後。
+  const extra: GaNavItem[] = [];
+  if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
+  if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
+  if (extra.length) {
+    const target = out.find((g) => g.id === "assets-inventory");
+    if (target) target.items.push(...extra);
+    else out.push({ id: "assets-inventory", label: "資產與庫存", items: extra });
+  }
+  return out;
 }

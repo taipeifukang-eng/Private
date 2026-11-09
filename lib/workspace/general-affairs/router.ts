@@ -1,8 +1,11 @@
 // /api/workspace/general-affairs/** 的分派。權限、驗證、資料規則都在各模組；這裡只負責把路徑對到處理函式。
 import { NextRequest } from "next/server";
 import { categoryPermissions, gaFlags, GA_CENTER_CODES, dbCan, isStoreManagerRole, type CategoryType } from "./access";
+import { equipmentApi, facilitiesApi } from "./assets";
 import { attachmentsApi } from "./attachments";
 import { categoriesApi } from "./categories";
+import { isStoreMember } from "./members";
+import { onboardingApi } from "./onboarding";
 import { partsApi } from "./parts";
 import { sitesApi } from "./pickers";
 import { compatApi, templatesApi, unlinkedEquipment } from "./templates";
@@ -13,7 +16,7 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
   switch (head) {
     case "access": {
       // 目前登入者在總務服務中心的可見旗標（與 /api/workspace/session 的 capabilities 同一套規則）與資料庫端實際可操作旗標。
-      const flags = gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes));
+      const flags = gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes), await isStoreMember(ctx));
       const cat = (t: CategoryType) => categoryPermissions(t, ctx.permissions);
       return respond({
         flags,
@@ -36,6 +39,12 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return compatApi(ctx, request);
     case "attachments":
       return attachmentsApi(ctx, request, rest);
+    case "equipment":
+      return equipmentApi(ctx, request, rest);
+    case "facilities":
+      return facilitiesApi(ctx, request, rest);
+    case "onboarding":
+      return onboardingApi(ctx, request, rest);
     case "sites":
       return sitesApi(ctx, request);
     default:

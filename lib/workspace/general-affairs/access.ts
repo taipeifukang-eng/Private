@@ -75,6 +75,10 @@ export type GaFlags = {
   gaPartCompat: boolean;
   gaEquipmentTemplates: boolean;
   gaFacilityTemplates: boolean;
+  gaEquipment: boolean;
+  gaEquipmentCreate: boolean;
+  gaOnboardingTasks: boolean;
+  gaOnboardingReview: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -82,7 +86,8 @@ export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
 }
 
 /** 導覽／頁面可見旗標（has 含管理員後備）。 */
-export function gaFlags(has: HasFn, storeManager: boolean): GaFlags {
+/** storeMember：名單內任何身分（store_managers）；只影響第 2 批的設備清冊與貼標待辦入口，第 1 批旗標維持只認角色代碼。 */
+export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false): GaFlags {
   return {
     gaCenter: storeManager || has(...GA_CENTER_CODES),
     gaEquipmentCategories: has(GA.equipmentCategoryView, GA.equipmentCategoryManage),
@@ -95,6 +100,11 @@ export function gaFlags(has: HasFn, storeManager: boolean): GaFlags {
     gaEquipmentTemplates: has(GA.equipmentTemplateView, GA.equipmentTemplateManage),
     // 設施架型的 API 只認設施查看／管理權限（店長不在內），入口條件對齊 API，避免進去才被擋。
     gaFacilityTemplates: has(GA.facilityView, GA.facilityManage),
+    // 第 2 批：設備清冊（店長只看自己門市的基本欄位）、新增設備、建檔貼標待辦（店長與總務）與複核（管理權限）。
+    gaEquipment: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage),
+    gaEquipmentCreate: has(GA.equipmentManage),
+    gaOnboardingTasks: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage, GA.facilityView, GA.facilityManage),
+    gaOnboardingReview: has(GA.equipmentManage, GA.facilityManage),
   };
 }
 
