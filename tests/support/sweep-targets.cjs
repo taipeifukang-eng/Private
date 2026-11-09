@@ -42,6 +42,23 @@ MARKER_TARGETS.push(
   { table: 'store_employees', column: 'employee_code', pattern: 'ZTTW23%', action: 'delete' },
 );
 
+// M7/M8 第 1 批（G01-G05 總務資產主檔）：總務資料名稱帶「[自動測試]M7M8 <runId>」、分類與架型代碼帶 M7M8T<runId> 前綴。
+// 總務表有軟刪除與多個關聯表，一律只回報孤兒（測試的 teardown 依標記自行清除；殘留時由人確認後處理）。帳號 m7m8-test-* 由 fixture 自行清除。
+const M7M8_MARKER = '[自動測試]M7M8 T%';
+MARKER_TARGETS.push(
+  { table: 'ga_parts', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_equipment_templates', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_facility_templates', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_equipment', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_facilities', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_inventory_locations', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_service_requests', column: 'title', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_equipment_categories', column: 'code', pattern: 'M7M8T%', action: 'report' },
+  { table: 'ga_facility_categories', column: 'code', pattern: 'M7M8T%', action: 'report' },
+  { table: 'ga_part_categories', column: 'code', pattern: 'M7M8T%', action: 'report' },
+  { table: 'profiles', column: 'email', pattern: 'm7m8-test-%', action: 'report' },
+);
+
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
 const RESERVED_MONTH_TABLES = [
   'monthly_store_summary',

@@ -4,6 +4,7 @@
 import { NextRequest } from "next/server";
 import { findDuplicateEquipmentTemplate, findDuplicateFacilityTemplate } from "../../general-affairs/catalog-identity";
 import { validateEquipmentTemplatePayload, validateDeletionReason } from "../../general-affairs/equipment/validation";
+import { adminClient } from "../server";
 import { dbCan, GA } from "./access";
 import { FILTERS_BOOL, isUuid, orIlike, pagingMeta, parsePaging, rehomeDiff } from "./rules";
 import { GaError, body, dbError, must, respond, rpc, validated, type Context } from "./server";
@@ -70,12 +71,14 @@ export async function templatesApi(ctx: Context, request: NextRequest, rest: str
   throw new GaError(404, "找不到這個功能");
 }
 
-async function usageCounts(ctx: Context, kind: Kind, ids: string[]) {
+// 使用筆數只回傳數字，不受檢視者的設備權限影響（型號頁要顯示精確的「使用中」筆數，用來判斷能不能刪除）。
+async function usageCounts(_ctx: Context, kind: Kind, ids: string[]) {
+  const admin: any = adminClient();
   const out = new Map<string, { assets: number; stores: Set<string> }>();
   if (!ids.length) return out;
   const [table, col] = kind === "equipment" ? ["ga_equipment", "template_id"] : ["ga_facilities", "facility_template_id"];
   for (let from = 0; ; from += 1000) {
-    const rows = (await must((ctx.auth as any).from(table).select(`id,${col},store_id`).in(col, ids).is("deleted_at", null).order("id").range(from, from + 999))) as any[];
+    const rows = (await must(admin.from(table).select(`id,${col},store_id`).in(col, ids).is("deleted_at", null).order("id").range(from, from + 999))) as any[];
     for (const r of rows || []) {
       const u = out.get(r[col]) || { assets: 0, stores: new Set<string>() };
       u.assets += 1;

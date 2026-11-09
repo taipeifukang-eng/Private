@@ -250,6 +250,7 @@ BEGIN
                       v_usage->>'open_requests', v_usage->>'open_transfers', v_usage->>'open_fulfillments'));
   END IF;
 
+  PERFORM set_config('app.ga_soft_delete_inventory_location_part', 'true', true);
   UPDATE ga_inventory_location_parts
      SET is_active = false, deleted_at = v_now, deleted_by = v_uid,
          deletion_reason = '父料件刪除衍生：' || v_reason, updated_by = v_uid
