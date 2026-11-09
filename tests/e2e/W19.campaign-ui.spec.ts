@@ -149,6 +149,33 @@ test('Q3 刪除：顯示將刪除的資料筆數，要輸入活動名稱才能�
   }
 });
 
+test('Q3 刪除：筆數計算失敗時顯示明確訊息、仍不能刪除，重新計算後恢復', async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const c = await seedCampaign({ tag: 'ui-delete-fail', start: '2099-05-01', end: '2099-05-31' });
+  const errors: string[] = [];
+  const { ctx, page } = await adminPage(browser, testInfo, errors);
+  try {
+    await openList(page, c.name);
+    let fail = true;
+    await page.route('**/api/workspace/campaigns?*preview=delete*', (route) =>
+      fail ? route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: '資料讀取失敗，請稍後重試' }) }) : route.continue());
+    await rowOf(page, c.name).getByRole('button', { name: '刪除活動' }).click();
+    const dlg = dialogNamed(page, '刪除活動檔期？');
+    await expect(dlg.getByText(/無法計算將刪除的資料筆數：資料讀取失敗/)).toBeVisible();
+    await expect(dlg.getByText('正在計算將刪除的資料筆數')).toHaveCount(0);
+    const confirm = dlg.getByRole('button', { name: '確認刪除活動' });
+    await dlg.getByLabel('輸入活動名稱確認刪除').fill(c.name);
+    await expect(confirm).toBeDisabled();
+    fail = false;
+    await dlg.getByRole('button', { name: '重新計算' }).click();
+    await expect(dlg.getByText(/將刪除共 \d+ 筆資料/)).toBeVisible();
+    await expect(confirm).toBeEnabled();
+    expect(await campaignRow(c.id)).not.toBeNull();
+  } finally {
+    await ctx.close();
+  }
+});
+
 test('Q4 改短活動期間：列出落在期間外的門市，確認後移回尚未安排，期間內的保留', async ({ browser }, testInfo) => {
   test.setTimeout(240_000);
   const c = await seedCampaign({ tag: 'ui-shorten', start: '2099-05-01', end: '2099-05-31' });

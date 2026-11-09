@@ -21,6 +21,8 @@ describe('活動列表 Campaigns.vue', () => {
     expect(s).toContain('preview=delete');
     expect(s).toContain('deleteNameMatches(deleteName,deleting.name)');
     expect(s).toContain('confirmName');
+    expect(s).toContain('重新計算');
+    expect(s).toContain('deleteSeq');
   });
 });
 

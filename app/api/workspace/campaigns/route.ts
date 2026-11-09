@@ -85,22 +85,22 @@ const validDate = (s: any) =>
   new Date(s).toISOString().slice(0, 10) === s;
 type Ctx = Awaited<ReturnType<typeof context>>;
 async function deleteCounts(ctx: Ctx, id: string) {
-  const out: { key: string; label: string; count: number }[] = [];
-  for (const t of CAMPAIGN_DELETE_TABLES) {
-    if (t.key === "completions") {
-      // 勾選紀錄掛在 Check List 項目底下，沒有 campaign_id。
-      const items = checked(await ctx.admin.from("campaign_checklist_items").select("id").eq("campaign_id", id)) as any[];
-      const ids = (items || []).map((r) => r.id);
-      const r = ids.length ? await ctx.admin.from(t.table).select("id", { count: "exact", head: true }).in("checklist_item_id", ids) : { count: 0, error: null };
-      if ((r as any).error) throw new WorkspaceError(503, "資料讀取失敗，請稍後重試");
-      out.push({ key: t.key, label: t.label, count: (r as any).count || 0 });
-      continue;
-    }
-    const r = await ctx.admin.from(t.table).select("id", { count: "exact", head: true }).eq("campaign_id", id);
-    if (r.error) throw new WorkspaceError(503, "資料讀取失敗，請稍後重試");
-    out.push({ key: t.key, label: t.label, count: r.count || 0 });
-  }
-  return out;
+  // 各表筆數彼此獨立，同時查詢（原本逐表串行，表一多就慢，畫面會停在「正在計算」很久）。
+  return Promise.all(
+    CAMPAIGN_DELETE_TABLES.map(async (t) => {
+      if (t.key === "completions") {
+        // 勾選紀錄掛在 Check List 項目底下，沒有 campaign_id。
+        const items = checked(await ctx.admin.from("campaign_checklist_items").select("id").eq("campaign_id", id)) as any[];
+        const ids = (items || []).map((r) => r.id);
+        const r = ids.length ? await ctx.admin.from(t.table).select("id", { count: "exact", head: true }).in("checklist_item_id", ids) : { count: 0, error: null };
+        if ((r as any).error) throw new WorkspaceError(503, "資料讀取失敗，請稍後重試");
+        return { key: t.key, label: t.label, count: (r as any).count || 0 };
+      }
+      const r = await ctx.admin.from(t.table).select("id", { count: "exact", head: true }).eq("campaign_id", id);
+      if (r.error) throw new WorkspaceError(503, "資料讀取失敗，請稍後重試");
+      return { key: t.key, label: t.label, count: r.count || 0 };
+    }),
+  );
 }
 async function outsideSchedules(ctx: Ctx, id: string, start: string, end: string) {
   const rows = (checked(await ctx.admin.from("campaign_schedules").select("store_id,activity_date,stores(store_code,store_name)").eq("campaign_id", id)) || []) as any[];
