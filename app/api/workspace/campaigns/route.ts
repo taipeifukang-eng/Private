@@ -207,7 +207,10 @@ export async function PUT(request: Request) {
     )
       throw new WorkspaceError(400, "活動版本不正確，請重新載入");
     // M5 Q4：期間外有排程時，必須明確確認「移回尚未安排」才能儲存，不留隱形資料。
-    const outside = await outsideSchedules(ctx, body.id, values.start_date, values.end_date);
+    // 只在開始或結束日實際變動時才檢查；僅改名稱或狀態時，既有的期間外舊排程維持原樣（與舊版一致）。
+    const current = checked(await ctx.admin.from("campaigns").select("start_date,end_date").eq("id", body.id).maybeSingle()) as any;
+    const datesChanged = !current || String(current.start_date).slice(0, 10) !== values.start_date || String(current.end_date).slice(0, 10) !== values.end_date;
+    const outside = datesChanged ? await outsideSchedules(ctx, body.id, values.start_date, values.end_date) : [];
     if (outside.length && body.moveOutside !== true)
       throw new WorkspaceError(409, `有 ${outside.length} 間門市的排程落在新的活動期間外，請確認後移回尚未安排再儲存。`);
     const record = checked(
