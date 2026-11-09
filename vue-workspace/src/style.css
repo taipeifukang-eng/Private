@@ -546,8 +546,9 @@ tbody tr:hover {
 .session-notice {
   padding: 13px 16px;
   margin-bottom: 20px;
-  border-left: 3px solid #b18b42;
-  background: var(--soft);
+  border: 1px solid #b18b42;
+  border-radius: 6px;
+  background: color-mix(in srgb, #b18b42 12%, var(--soft));
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -560,10 +561,12 @@ tbody tr:hover {
 }
 .notice.error {
   border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--soft));
   color: var(--danger);
 }
 .notice.success {
   border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, var(--soft));
 }
 .session-notice {
   margin: 0;

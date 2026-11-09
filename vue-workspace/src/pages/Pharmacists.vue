@@ -1140,7 +1140,8 @@ th {
 .notice {
   padding: 12px;
   background: var(--soft);
-  border-left: 3px solid var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
   white-space: pre-line;
 }
 fieldset {

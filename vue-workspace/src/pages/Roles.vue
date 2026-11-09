@@ -997,7 +997,9 @@ th {
 }
 .notice {
   padding: 12px;
-  border-left: 3px solid var(--primary);
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--primary) 12%, var(--soft));
   white-space: pre-line;
 }
 .danger {
