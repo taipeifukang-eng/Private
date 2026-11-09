@@ -98,10 +98,20 @@ test('T03 全站回歸：admin 導覽 kind 逐頁基準', async ({ browser }, te
   expect(snapshot.count).toBe(baseline.count);
   // 標題清單含 DEV 資料動態產生的項目（例如藥師姓名、督導區），因此以「基準標題都必須出現」比對，不要求完全相等；
   // 其餘欄位（標籤、頁籤標題、表格／表單／錯誤提示）維持完全比對。
+  // 巡店列表預設月份＝近 6 個月內最新有資料的月份（M4 Q4，伺服器決定），隨 DEV 資料與日期變動：
+  // 比對時把 YYYY-MM 正規化成佔位符（格式仍須符合），並忽略依資料有無才出現的空狀態標題。
+  const MONTH_RE = /20\d{2}-(0[1-9]|1[0-2])/g;
+  const norm = (v: string) => v.replace(MONTH_RE, 'YYYY-MM');
+  const DATA_DEPENDENT_HEADINGS = new Set(['這個月份沒有巡店紀錄']);
   for (let i = 0; i < baseline.pages.length; i++) {
     const { headings: baseHeadings, ...baseRest } = baseline.pages[i];
     const { headings: gotHeadings, ...gotRest } = snapshot.pages[i];
-    expect(gotRest, `頁面 ${baseline.pages[i].navLabel}`).toEqual(baseRest);
-    expect(gotHeadings, `頁面 ${baseline.pages[i].navLabel} 標題`).toEqual(expect.arrayContaining(baseHeadings));
+    if (baseRest.navLabel === '巡店列表') {
+      expect(gotRest.tabTitle, '巡店列表 頁籤標題月份格式').toMatch(/^巡店 · .+ · 20\d{2}-(0[1-9]|1[0-2])$/);
+    }
+    expect({ ...gotRest, tabTitle: norm(gotRest.tabTitle) }, `頁面 ${baseline.pages[i].navLabel}`).toEqual({ ...baseRest, tabTitle: norm(baseRest.tabTitle) });
+    expect(gotHeadings.map(norm), `頁面 ${baseline.pages[i].navLabel} 標題`).toEqual(
+      expect.arrayContaining(baseHeadings.filter((h) => !DATA_DEPENDENT_HEADINGS.has(h)).map(norm)),
+    );
   }
 });
