@@ -2551,7 +2551,7 @@
     "page": "ga-assets",
     "description": "新版分類清單每筆多回 path（完整路徑，如「設備 › 冷氣」）與 child_count（直接子分類數）兩個欄位；舊版回全部分類、沒有這兩欄。",
     "reason": "新版改為逐層瀏覽、搜尋與分頁，畫面需要路徑與子分類數；資料內容（id、名稱、代碼、啟用狀態等）逐欄相同。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "api-read",
       "entry": "categories-read",
@@ -2564,7 +2564,7 @@
     "page": "ga-assets",
     "description": "新版分類清單每筆多回 path（完整路徑，如「設備 › 冷氣」）與 child_count（直接子分類數）兩個欄位；舊版回全部分類、沒有這兩欄。",
     "reason": "新版改為逐層瀏覽、搜尋與分頁，畫面需要路徑與子分類數；資料內容（id、名稱、代碼、啟用狀態等）逐欄相同。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "api-read",
       "entry": "categories-read",
@@ -2577,7 +2577,7 @@
     "page": "ga-assets",
     "description": "新版料件清單多回 permissions（可否管理、可否看內部備註）；舊版由頁面另外判斷。",
     "reason": "畫面依此決定顯示編輯按鈕與備註欄；料件資料本身逐欄相同。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "api-read",
       "entry": "parts-read",
@@ -2616,7 +2616,7 @@
     "page": "ga-assets",
     "description": "新版型號與架型清單多回 permissions（可否管理、可否設定適用料件）；設施架型改為分頁。",
     "reason": "畫面依此決定顯示按鈕；資料列逐欄相同（含使用筆數 asset_count、site_count）。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "api-read",
       "entry": "templates-read",
@@ -2770,8 +2770,8 @@
     "id": "m7m8-g04-q7-facility-template-delete",
     "page": "ga-assets",
     "description": "設施架型刪除：舊版沒有這個功能；新版新增，須填原因，沒有設施在用才能刪（與設備型號同規則）。",
-    "reason": "Q7 決定把「沒人用才能刪」套用在型號與架型（問卷原文：有設備或設施在用的型號只能停用）；舊版架型沒有刪除，這是解讀後的補充，已在回報中請使用者確認。",
-    "approvedBy": null,
+    "reason": "Q7 決定把「沒人用才能刪」套用在型號與架型（問卷原文：有設備或設施在用的型號只能停用）；舊版架型沒有刪除，這是解讀後的補充，使用者已於 2026-11-10 第 1 批驗收時核可。",
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "write-readback",
       "entry": "template-write",
@@ -2810,7 +2810,7 @@
     "page": "ga-assets",
     "description": "舊版 /api/general-affairs 的回應都多帶 success: true；新版工作台 API 不帶（用 HTTP 狀態碼表示成功或失敗，錯誤時回 error 文字）。",
     "reason": "沿用工作台既有 API 慣例（與其他頁面一致）；內容欄位逐欄相同。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -2873,8 +2873,8 @@
     "id": "m7m8-g01-nav-part-manage-conditions",
     "page": "ga-assets",
     "description": "總務側欄：舊版對沒有料件管理權限的人也顯示「新增料件」「適用料件設定」；新版只有具料件管理權限者看得到。",
-    "reason": "與分類、型號的顯示條件是同一個修正（舊版旗標判斷永遠為真）；問卷只明列「分類與型號」，新增料件與適用料件設定是同樣原因的延伸，待使用者核可。",
-    "approvedBy": null,
+    "reason": "與分類、型號的顯示條件是同一個修正（舊版旗標判斷永遠為真）；問卷只明列「分類與型號」，新增料件與適用料件設定是同樣原因的延伸，使用者已於 2026-11-10 第 1 批驗收時核可。",
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
     "match": {
       "mechanism": "navigation",
       "entry": "sidebar-visibility",
