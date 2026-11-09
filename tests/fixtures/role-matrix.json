@@ -382,7 +382,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": true
+          "editCampaigns": true,
+          "gaCenter": true,
+          "gaEquipmentCategories": true,
+          "gaFacilityCategories": true,
+          "gaPartCategories": true,
+          "gaParts": true,
+          "gaPartCreate": true,
+          "gaPartCompat": true,
+          "gaEquipmentTemplates": true,
+          "gaFacilityTemplates": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -555,7 +564,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": true,
+          "gaFacilityCategories": true,
+          "gaPartCategories": true,
+          "gaParts": true,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": true,
+          "gaFacilityTemplates": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -677,7 +695,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -781,7 +808,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": true
+          "editCampaigns": true,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -893,7 +929,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -991,7 +1036,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1087,7 +1141,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1163,7 +1226,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -1252,7 +1324,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1374,7 +1455,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": true,
+          "gaFacilityCategories": true,
+          "gaPartCategories": true,
+          "gaParts": true,
+          "gaPartCreate": true,
+          "gaPartCompat": true,
+          "gaEquipmentTemplates": true,
+          "gaFacilityTemplates": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -1452,7 +1542,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1520,7 +1619,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1581,7 +1689,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1645,7 +1762,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1712,7 +1838,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1778,7 +1913,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1841,7 +1985,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -1908,7 +2061,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -1973,7 +2135,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2037,7 +2208,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2105,7 +2285,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2170,7 +2359,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2234,7 +2432,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2301,7 +2508,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": true
+          "editCampaigns": true,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2367,7 +2583,16 @@
           "campaigns": true,
           "campaignView": true,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2433,7 +2658,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -2500,7 +2734,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -2566,7 +2809,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -2630,7 +2882,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -2695,7 +2956,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -2760,7 +3030,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -2826,7 +3105,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -2896,7 +3184,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -2965,7 +3262,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3030,7 +3336,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3097,7 +3412,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3162,7 +3486,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3229,7 +3562,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -3301,7 +3643,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -3367,7 +3718,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -3434,7 +3794,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -3499,7 +3868,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -3568,7 +3946,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -3634,7 +4021,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -3701,7 +4097,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -3765,7 +4170,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -3830,7 +4244,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -3895,7 +4318,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -3962,7 +4394,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -4028,7 +4469,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -4092,7 +4542,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4156,7 +4615,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4220,7 +4688,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4283,7 +4760,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4347,7 +4833,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/store-managers",
@@ -4413,7 +4908,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4476,7 +4980,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -4541,7 +5054,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -4603,7 +5125,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -4666,7 +5197,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/employee-management",
@@ -4729,7 +5269,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -4791,7 +5340,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -4910,7 +5468,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": true,
+          "gaFacilityCategories": true,
+          "gaPartCategories": true,
+          "gaParts": true,
+          "gaPartCreate": true,
+          "gaPartCompat": true,
+          "gaEquipmentTemplates": true,
+          "gaFacilityTemplates": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -5003,7 +5570,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -5074,7 +5650,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": true,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5139,7 +5724,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": true,
+          "gaPartCreate": true,
+          "gaPartCompat": true,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5205,7 +5799,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": true,
+          "gaFacilityCategories": true,
+          "gaPartCategories": true,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5273,7 +5876,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": true,
+          "gaFacilityCategories": true,
+          "gaPartCategories": true,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5336,7 +5948,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": true,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5400,7 +6021,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": true,
+          "gaFacilityTemplates": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5463,7 +6093,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": true
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5528,7 +6167,16 @@
           "campaigns": false,
           "campaignView": false,
           "calendar": true,
-          "editCampaigns": false
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": true
         },
         "navigationHrefs": [
           "/general-affairs",

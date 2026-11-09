@@ -19,12 +19,19 @@ import {
 const root = path.resolve(__dirname, '..', '..', '..');
 const read = (...p: string[]) => fs.readFileSync(path.join(root, ...p), 'utf8');
 
+// M7/M8 G01 新增 kind：總務頁各自對應一個 capability（規則見 lib/workspace/general-affairs/access.ts）。
+const GA_CAPABILITY: Record<string, string> = {
+  'ga-center': 'gaCenter', 'ga-equipment-categories': 'gaEquipmentCategories', 'ga-facility-categories': 'gaFacilityCategories',
+  'ga-part-categories': 'gaPartCategories', 'ga-parts': 'gaParts', 'ga-part-create': 'gaPartCreate', 'ga-part-compat': 'gaPartCompat',
+  'ga-equipment-templates': 'gaEquipmentTemplates', 'ga-facility-templates': 'gaFacilityTemplates',
+};
+
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
 function legacyAllowed(kindArg: string, c: Capabilities | undefined, expired: boolean) {
   const tab = { kind: kindArg };
   return (
     !expired &&
-    (tab.kind === 'employee-purchases' ? c?.employeePurchases : tab.kind === 'pharmacists' ? c?.pharmacists : tab.kind === 'relationships' ? c?.relationships : tab.kind === 'roles' ? c?.roles : tab.kind === 'users' ? c?.users : tab.kind === 'movement-management' ? (c?.movementDraft || c?.movementHistory || c?.transfers) : tab.kind === 'transfers' ? c?.transfers : tab.kind === 'movement-draft' ? c?.movementDraft : tab.kind === 'movement-history' ? c?.movementHistory : tab.kind === 'employees' || tab.kind === 'employee-history' ? c?.employees : tab.kind === 'employee-create' ? c?.employeeCreate : tab.kind === 'employee-import' ? c?.employeeImport : tab.kind === 'employee-birthdays' ? c?.employeeBirthdays : tab.kind.startsWith('department') ? c?.departments : tab.kind.startsWith('organization') ? c?.organization : tab.kind === 'calendar' ? c?.calendar : tab.kind === 'store-map' ? c?.storeMap : tab.kind === 'store-promotions' || tab.kind === 'store-personnel' || tab.kind === 'store-personnel-history' || tab.kind === 'store-employees' || tab.kind === 'stores' || tab.kind === 'store-editor' || tab.kind === 'store-relocation' || tab.kind === 'store-history-editor' ? c?.storeManagement : tab.kind === 'supervisors' || tab.kind === 'supervisor-edit' ? c?.supervisors : tab.kind === 'store-managers' || tab.kind === 'store-manager-edit' ? c?.storeManagers : tab.kind === 'task-copy' || tab.kind === 'task-assign' || tab.kind === 'task-template-editor' ||
+    (tab.kind.startsWith('ga-') ? (c as any)?.[GA_CAPABILITY[tab.kind]] : tab.kind === 'employee-purchases' ? c?.employeePurchases : tab.kind === 'pharmacists' ? c?.pharmacists : tab.kind === 'relationships' ? c?.relationships : tab.kind === 'roles' ? c?.roles : tab.kind === 'users' ? c?.users : tab.kind === 'movement-management' ? (c?.movementDraft || c?.movementHistory || c?.transfers) : tab.kind === 'transfers' ? c?.transfers : tab.kind === 'movement-draft' ? c?.movementDraft : tab.kind === 'movement-history' ? c?.movementHistory : tab.kind === 'employees' || tab.kind === 'employee-history' ? c?.employees : tab.kind === 'employee-create' ? c?.employeeCreate : tab.kind === 'employee-import' ? c?.employeeImport : tab.kind === 'employee-birthdays' ? c?.employeeBirthdays : tab.kind.startsWith('department') ? c?.departments : tab.kind.startsWith('organization') ? c?.organization : tab.kind === 'calendar' ? c?.calendar : tab.kind === 'store-map' ? c?.storeMap : tab.kind === 'store-promotions' || tab.kind === 'store-personnel' || tab.kind === 'store-personnel-history' || tab.kind === 'store-employees' || tab.kind === 'stores' || tab.kind === 'store-editor' || tab.kind === 'store-relocation' || tab.kind === 'store-history-editor' ? c?.storeManagement : tab.kind === 'supervisors' || tab.kind === 'supervisor-edit' ? c?.supervisors : tab.kind === 'store-managers' || tab.kind === 'store-manager-edit' ? c?.storeManagers : tab.kind === 'task-copy' || tab.kind === 'task-assign' || tab.kind === 'task-template-editor' ||
     tab.kind.startsWith('task-management')
       ? c?.taskManagement
       : tab.kind.startsWith('task-archive')
@@ -79,6 +86,8 @@ const LEGACY_TITLES: Record<string, string> = {
   'performance-bonus': '每月獎金', 'performance-edit': '編輯業績', inventory: '盤點管理',
   'activity-view': '活動檢視', 'activity-view-detail': '活動排程檢視',
   calendar: '年度行事曆', // M5 W23 新增 kind
+  'ga-center': '總務服務中心', 'ga-equipment-categories': '設備分類', 'ga-facility-categories': '設施分類', 'ga-part-categories': '料件分類', 'ga-parts': '料件列表',
+  'ga-part-create': '新增料件', 'ga-part-compat': '適用料件設定', 'ga-equipment-templates': '公司設備型號', 'ga-facility-templates': '公司設施架型', // M7/M8 G01 新增 kind
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');
