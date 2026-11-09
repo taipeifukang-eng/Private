@@ -1990,6 +1990,13 @@
     }
   },
   {
+    "id": "m5-w19-q2-inactive-blocks-writes",
+    "page": "campaign-tools",
+    "description": "停用的活動：店長、督導等沒有活動編輯／發布權限的人，在活動填報（campaign-tools）的寫入也一律回 404；舊版不看停用旗標，停用的活動仍可填寫。比 Q2 原決定更嚴格（原決定只要求隱藏）。實作於 commit 0558dc35。",
+    "reason": "M5 Q2 延伸：停用等於下架，已看不到的活動也不應能寫入，使用者於 2026-11-09 對話核可此較嚴格行為。",
+    "approvedBy": "user (2026-11-09 chat, survey/m5 Q2 extension)"
+  },
+  {
     "id": "m5-w19-q3-delete-needs-name",
     "page": "campaign-list",
     "description": "刪除活動：舊版按一次確認就刪；新版畫面要輸入活動名稱並顯示將刪除的資料筆數，伺服器端也檢查名稱（沒帶或不符回 400）。",
@@ -2499,9 +2506,9 @@
   {
     "id": "m5-w23-personal-create-rls-fix",
     "page": "calendar",
-    "description": "個人行程「新增」：DEV 依舊 migration 建立的讀取規則會讓新增後的回讀失敗（new row violates row-level security policy），新增個人行程根本存不進去；配套的 DEV SQL（20261109110200）讓建立者本人一律可讀，其餘分享規則不變。正式區是否同樣有此問題尚未查證，已準備唯讀探測 SQL。",
-    "reason": "不在問卷範圍內的發現：這是修正舊規則的缺陷，不是使用者決定的差異，待使用者核可（正式區要不要套同一個修正）。",
-    "approvedBy": null
+    "description": "個人行程「新增」：DEV 依舊 migration 建立的讀取規則會讓新增後的回讀失敗（new row violates row-level security policy），新增個人行程根本存不進去；配套的 DEV SQL（20261109110200）讓建立者本人一律可讀，其餘分享規則不變。正式區已確認有同樣問題並已套用修正（2026-11-09）。",
+    "reason": "不在問卷範圍內的發現：這是修正舊規則的缺陷，不是使用者決定的差異。2026-11-09 已確認正式區同樣有此問題（讀取規則缺 owner_id = auth.uid()，從未有過任何個人行程），使用者已在正式區套用修正並驗證個人行程可儲存。",
+    "approvedBy": "user (2026-11-09 chat)"
   },
   {
     "id": "m5-w24-q19-description-note",

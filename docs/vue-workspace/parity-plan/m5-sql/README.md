@@ -19,7 +19,7 @@
 | `p06_q12_q13_q14_admin_overview.sql` | P06 Q12、Q13、Q14 | 持有「建立使用者」（上線後只剩連到註冊頁）、「變更使用者角色」「指派使用者角色」（授予管理員前會有醒目確認）的人，以及舊式身分是管理員（唯一能重置密碼）和「角色是管理員等級但舊式身分不是管理員」（不能重置密碼）的人。 |
 | `w22_q15_registration_overview.sql` | W22 Q15 | 三段唯讀查詢：帳號狀態總覽（信箱驗證、是否登入過、是否有角色）、沒有角色帳號的信箱網域分佈（看有沒有外部信箱）、註冊超過 7 天仍未驗證也沒登入的帳號。公開註冊保留後，用來了解現在有多少自己註冊的空帳號；不刪任何資料。 |
 | `w23_calendar_permission_holders.sql` | W23 權限 | 三段唯讀查詢：四個行事曆權限（新增公司行事、修改／取消、匯入假日、Google 管理）的持有者；舊式身分是管理員卻沒被授予某權限的人（舊版畫面會顯示按鈕但儲存被資料庫擋下，新版不顯示）；四個權限碼是否存在。缺的直接在角色上授予，不改程式。 |
-| `w23_calendar_schema_probe.sql` | W23 | 三段唯讀查詢：八張行事曆資料表是否都在、個人行程讀取規則與判斷函式的波動性、是否已有個人行程資料。用來判斷正式區「新增個人行程」是否和 DEV 一樣被 RLS 擋下（見下方備註）。 |
+| `w23_calendar_schema_probe.sql` | W23（修正已於 2026-11-09 在正式區套用，僅供事後核對） | 三段唯讀查詢：八張行事曆資料表是否都在、個人行程讀取規則與判斷函式的波動性、是否已有個人行程資料。用來判斷正式區「新增個人行程」是否和 DEV 一樣被 RLS 擋下（見下方備註）。 |
 | `w23_q21_holiday_state.sql` | W23 Q21 | 各年度目前已發布的假日版本與筆數、被取代過的版本數。 |
 | `w24_google_sync_state.sql` | W24 Q19、Q20 | Google 連線狀態（不讀授權金鑰）、連結成功與待重試筆數、尚未同步的有效公司行事與假日。上線後畫面頁頂的「N 筆待同步」應與第 3、4 段加上第 2 段錯誤筆數一致。 |
 | `p06_q15_pending_users.sql` | P06 Q15 | 待開通名單（有登入帳號、沒有停用、沒有任何生效角色）。上線後使用者管理的「待開通 N 位」應等於這裡的筆數。 |
@@ -40,7 +40,7 @@
 ## 備註
 
 - W23／W24 的 DEV 結構變更放在 supabase/workspace-dev/20261109110000_m5_w23_annual_calendar.sql、20261109110100_m5_w24_calendar_google_sync.sql（DEV 原本沒有這兩份 migration，內容與 supabase/migrations 的原檔相同）與 20261109110200_m5_w23_personal_event_owner_read.sql，三份都附 .rollback.sql，用 scripts/apply-workspace-m5-w23-calendar-dev.cjs 套用或加 --rollback 回復。正式區舊頁依賴前兩份，理論上已套用，先跑 `w23_calendar_schema_probe.sql` 確認。
-- 實測發現（不在問卷範圍）：依舊 migration 建立的規則下，新增個人行程後的回讀會被 RLS 擋下（`new row violates row-level security policy`），新增存不進去；DEV 已用 20261109110200 修正（讀取規則加上「建立者本人一律可讀」）。正式區是否同樣有問題未查證：先跑 `w23_calendar_schema_probe.sql`，確認後才決定要不要套 `w23_personal_event_owner_read_fix.sql`（需寫入，含備份、預覽、BEGIN，另有 `w23_personal_event_owner_read_rollback.sql`）。這兩個檔案都沒有執行過。
+- 實測發現（不在問卷範圍）：依舊 migration 建立的讀取規則缺「建立者本人可讀」（`owner_id = auth.uid()`），新增個人行程後的回讀被 RLS 擋下（`new row violates row-level security policy`）。DEV 已用 20261109110200 修正。正式區已確認同樣壞掉（從未有過任何個人行程），**使用者已於 2026-11-09 在正式區套用 `w23_personal_event_owner_read_fix.sql` 並驗證個人行程可儲存**，所以這個檔案「已於 2026-11-09 在正式區套用」，不要再放進上線執行清單（`w23_personal_event_owner_read_rollback.sql` 僅供撤回用）。
 - 年度行事曆權限：維持三個獨立權限，以資料庫規則為準。執行 `w23_calendar_permission_holders.sql` 後，缺權限的人由你決定在角色上補授予；程式不改。
 
 
