@@ -11,6 +11,8 @@ import { legacyAutoSchedule, randomCase } from '../support/legacy-campaign-sched
 
 const schedMap = loadMap('campaign-schedule');
 const sched = new ParityRecorder('campaign-schedule');
+// 與列順序、物件鍵順序無關的比較：以門市代碼排序後，逐筆（鍵,值）序列化
+const canonical = (rows: Record<string, string>) => JSON.stringify(Object.entries(rows).sort(([a, x], [b, y]) => (a < b ? -1 : a > b ? 1 : x < y ? -1 : x > y ? 1 : 0)));
 const entry = (map: typeof schedMap, id: string) => map.entries.find((e) => e.id === id)!;
 
 test.afterAll(async () => {
@@ -76,7 +78,7 @@ test('W19 儲存排程：舊版逐筆 POST 與新版整批 PUT，最終排程列
         legacy: { endpoint: 'POST /api/campaign-schedules ×3' },
         native: { endpoint: 'PUT /api/workspace/campaign-tools?resource=schedules' },
         compared: { legacy: Object.keys(l).length, native: Object.keys(n).length },
-        diffs: JSON.stringify(l) === JSON.stringify(n) ? [] : [{ kind: 'changed', key: 'schedules', legacy: l, native: n }],
+        diffs: canonical(l) === canonical(n) ? [] : [{ kind: 'changed', key: 'schedules', legacy: l, native: n }],
       }),
     );
   } finally {
