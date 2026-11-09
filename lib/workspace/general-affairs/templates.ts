@@ -120,7 +120,7 @@ export async function compatOf(ctx: Context, targetType: string, targetId: strin
   const rows = (await must(
     (ctx.auth as any)
       .from("ga_part_target_compatibilities")
-      .select("id,part_id,notes,part:ga_parts!inner(id,name,part_code,brand,model,specification,base_unit,is_active,deleted_at)")
+      .select("id,target_type,target_id,part_id,notes,part:ga_parts!inner(id,name,part_code,brand,model,specification,base_unit,is_active,deleted_at)")
       .eq("target_type", targetType)
       .eq("target_id", targetId)
       .is("deleted_at", null)

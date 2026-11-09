@@ -5,6 +5,7 @@ import Modal from "../../components/Modal.vue";
 import AssetCategoryPicker from "../../components/ga/AssetCategoryPicker.vue";
 import GaShell from "../../components/ga/GaShell.vue";
 import PartForm from "../../components/ga/PartForm.vue";
+import ResourceAttachmentPanel from "../../components/ga/ResourceAttachmentPanel.vue";
 import { openGaPage, useDebounced, useGaGuard, useLatest } from "../../lib/ga";
 import { partFromRow, partPayload, validatePartForm, type PartFormValue } from "../../lib/ga-parts";
 import type { WorkTab } from "../../stores";
@@ -212,6 +213,7 @@ async function confirmDelete() {
           <button type="submit" class="primary" :disabled="saving || detailBusy">{{ saving ? "儲存中…" : "儲存" }}</button>
         </div>
       </form>
+      <ResourceAttachmentPanel class="part-attachments" resource-type="PART" :resource-id="editing.id" title="料件照片與文件" :can-upload="canManage" :can-delete="canManage" />
     </Modal>
 
     <Modal v-if="deleting" title="刪除料件" :busy="deleteBusy" @cancel="deleting = null">
@@ -235,4 +237,5 @@ async function confirmDelete() {
 .actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .actions button { min-height: 30px; padding: 3px 10px; font-size: 12px; }
 .filter-cat { min-width: 240px; flex: 1; }
+.part-attachments { margin-top: 18px; }
 </style>
