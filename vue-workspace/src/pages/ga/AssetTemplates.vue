@@ -216,6 +216,7 @@ function openRehome(t: Tpl) {
 }
 watch([rhDebounced, rhStore], () => { rhPage.value = 1; rhLoad(); });
 watch(rhPage, rhLoad);
+let rhTemplateUpdatedAt = "";
 function rhToggle(e: Unlinked, on: boolean) {
   if (on) {
     if (rhSelected.size >= 100) { rhError.value = "單次最多整理 100 台設備"; return; }
@@ -228,8 +229,9 @@ async function rhShowPreview() {
   rhError.value = "";
   try {
     const ids = Array.from(rhSelected.keys()).join(",");
-    const res = await api<{ items: PreviewItem[] }>(`general-affairs/templates/equipment/${rehome.value.id}/link-preview?ids=${ids}`);
+    const res = await api<{ items: PreviewItem[]; template: { updated_at: string } }>(`general-affairs/templates/equipment/${rehome.value.id}/link-preview?ids=${ids}`);
     rhPreview.value = res.items;
+    rhTemplateUpdatedAt = res.template.updated_at;
     rhConfirm.value = false;
   } catch (e) {
     rhError.value = (e as Error).message;
@@ -243,7 +245,7 @@ async function rhApply() {
   rhError.value = "";
   try {
     const items = rhPreview.value.map((i) => ({ id: i.id, updated_at: i.updated_at }));
-    const res = await api<{ data: { linked_count: number } }>(`general-affairs/templates/equipment/${rehome.value.id}/link`, { method: "POST", body: JSON.stringify({ items, confirmed: true }) });
+    const res = await api<{ data: { linked_count: number } }>(`general-affairs/templates/equipment/${rehome.value.id}/link`, { method: "POST", body: JSON.stringify({ items, template_updated_at: rhTemplateUpdatedAt, confirmed: true }) });
     notice.value = `已將 ${res.data.linked_count} 台既有設備歸戶至「${rehome.value.name}」`;
     rehome.value = null;
     await load();

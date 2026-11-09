@@ -299,6 +299,53 @@ test('Q5 店長看料件但不含內部備註；有料件權限的人看得到�
   expect((await send('real_store_manager', 'delete', `parts/${part.id}`, { deletion_reason: 'x' })).status).toBe(403);
 });
 
+test('Q6 單位鎖定的另一半：只有庫存流水、餘額為 0 也鎖定（交易內暫時流水，驗完整個回復，不留資料）', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { spawnSync } = await import('node:child_process');
+  const root = path.resolve(__dirname, '..', '..');
+  const guard = require('../support/env-guard.cjs') as { assertDevEnvironment: (o: { root: string }) => { env: Record<string, string> } };
+  const { env } = guard.assertDevEnvironment({ root });
+  const ref = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split('.')[0];
+  const linked = fs.existsSync(path.join(root, 'supabase/.temp/project-ref')) ? fs.readFileSync(path.join(root, 'supabase/.temp/project-ref'), 'utf8').trim() : '';
+  test.skip(linked !== ref, 'supabase CLI 未連結到 DEV，無法在交易內驗證流水鎖定');
+  const part = (await send('ga_part_edit', 'post', 'parts', partBody('TX1'))).body.data;
+  const loc = await seedLocation(null, 'L-TX1');
+  // 前置：沒有流水、沒有庫存時單位可改（API）
+  expect((await get('ga_part_edit', `parts/${part.id}/usage`)).body.data).toMatchObject({ stock_locations: 0, transactions: 0, unit_locked: false });
+  // 庫存流水不可刪除（append-only），所以只在資料庫交易內插入一筆，驗完用 RAISE EXCEPTION 整個回復
+  const sql = `DO $$
+DECLARE u jsonb; r jsonb; r2 jsonb; cnt integer;
+BEGIN
+  INSERT INTO public.ga_inventory_transactions (transaction_no, transaction_type, location_id, part_id, quantity_input, input_unit_type, unit_conversion_rate, quantity_base, balance_before, balance_after, reason, created_by)
+  VALUES ('ZT-M7M8-TX-' || gen_random_uuid(), 'RECEIPT', '${loc.id}', '${part.id}', 1, 'BASE', 1, 1, 0, 1, 'ZT M7M8 unit lock', '${part.created_by}');
+  PERFORM set_config('request.jwt.claim.sub', '${part.created_by}', true);
+  PERFORM set_config('request.jwt.claims', '{"sub":"${part.created_by}","role":"authenticated"}', true);
+  u := ga_ws_part_usage('${part.id}');
+  r := ga_ws_update_part_guarded('${part.id}', '{"base_unit":"ZTX"}'::jsonb, NULL);
+  r2 := ga_ws_update_part_guarded('${part.id}', '{"description":"ZT only"}'::jsonb, NULL);
+  SELECT count(*) INTO cnt FROM public.ga_inventory_balances WHERE part_id = '${part.id}';
+  RAISE EXCEPTION 'G01RESULT:%', jsonb_build_object('stock', u->'data'->'stock_locations', 'tx', u->'data'->'transactions', 'locked', u->'data'->'unit_locked', 'status', r->'status', 'code', r->'code', 'other_ok', r2->'ok', 'balances', cnt);
+END $$;`;
+  const file = path.join(os.tmpdir(), `g01-tx-lock-${Math.random().toString(36).slice(2)}.sql`);
+  fs.writeFileSync(file, sql);
+  try {
+    const run = spawnSync('supabase', ['db', 'query', '--linked', '--file', file], { cwd: root, encoding: 'utf8', shell: true });
+    const out = `${run.stdout}
+${run.stderr}`.replace(/\\"/g, '"');
+    const m = /G01RESULT:(\{[^}]*\})/.exec(out);
+    expect(m, out.slice(0, 800)).not.toBeNull();
+    expect(JSON.parse(m![1])).toMatchObject({ stock: 0, tx: 1, locked: true, status: 409, code: 'UNIT_LOCKED', other_ok: true, balances: 0 });
+  } finally {
+    fs.rmSync(file, { force: true });
+  }
+  // 整個交易已回復：沒有留下流水，單位仍可改
+  const usage = await get('ga_part_edit', `parts/${part.id}/usage`);
+  expect(usage.body.data).toMatchObject({ transactions: 0, unit_locked: false });
+  expect((await row('ga_parts', part.id)).base_unit).not.toBe('ZTX');
+});
+
 test('Q6 料件編輯與停用：欄位更新、同時修改保護、停用後啟用回復；單位在有庫存或交易後鎖定', async () => {
   const part = (await send('ga_part_edit', 'post', 'parts', partBody('E1', { notes: '舊備註' }))).body.data;
   const edit = await send('ga_part_edit', 'patch', `parts/${part.id}`, { name: m7Name('E1-new'), brand: 'NB', description: '新說明', notes: '新備註', expected_updated_at: part.updated_at });
@@ -532,10 +579,10 @@ test('Q7 既有設備歸戶：預覽逐台列出原值與新值；確認後才�
   expect((await row('ga_equipment', e1.id)).template_id).toBeNull();
   // 沒勾確認不能送
   const items = prev.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at }));
-  expect((await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items })).status).toBe(400);
+  expect((await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items, template_updated_at: prev.body.template.updated_at })).status).toBe(400);
   // 預覽後 e2 被別人改了 -> 整批不變
   await adminDb().from('ga_equipment').update({ area: '被改過' }).eq('id', e2.id);
-  const stale = await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items, confirmed: true });
+  const stale = await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items, template_updated_at: prev.body.template.updated_at, confirmed: true });
   expect(stale.status).toBe(409);
   expect(stale.body.code).toBe('STALE');
   expect(stale.body.stale.map((s: any) => s.id)).toEqual([e2.id]);
@@ -543,13 +590,24 @@ test('Q7 既有設備歸戶：預覽逐台列出原值與新值；確認後才�
   expect((await row('ga_equipment', e1.id)).name).toBe(e1.name);
   // 重新預覽後成功
   const prev2 = await get('ga_staff', `templates/equipment/${tpl.id}/link-preview?ids=${e1.id},${e2.id}`);
-  const ok = await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items: prev2.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at })), confirmed: true });
+  const ok = await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items: prev2.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at })), template_updated_at: prev2.body.template.updated_at, confirmed: true });
   expect(ok.status).toBe(200);
   expect(ok.body.data.linked_count).toBe(2);
   for (const id of [e1.id, e2.id]) expect(await row('ga_equipment', id)).toMatchObject({ template_id: tpl.id, name: tpl.name, brand: tpl.brand, model: tpl.model });
   // 已歸戶不能再歸
-  const again = await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items: prev2.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at })), confirmed: true });
+  const again = await send('ga_staff', 'post', `templates/equipment/${tpl.id}/link`, { items: prev2.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at })), template_updated_at: prev2.body.template.updated_at, confirmed: true });
   expect(again.status).toBe(409);
+  // 預覽後型號被改名：用舊型號版本確認 -> 409 STALE，設備不被改成沒看過的值
+  const e4 = await seedEquipment('ZT02', eqCat2.id, 'RH4');
+  const tpl2 = await seedEquipmentTemplate(eqCat2.id, 'RHT2');
+  const prev4 = await get('ga_staff', `templates/equipment/${tpl2.id}/link-preview?ids=${e4.id}`);
+  expect(prev4.status).toBe(200);
+  await adminDb().from('ga_equipment_templates').update({ name: m7Name('RH-T2-renamed') }).eq('id', tpl2.id);
+  const staleTpl = await send('ga_staff', 'post', `templates/equipment/${tpl2.id}/link`, { items: prev4.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at })), template_updated_at: prev4.body.template.updated_at, confirmed: true });
+  expect(staleTpl.status).toBe(409);
+  expect(staleTpl.body.code).toBe('STALE');
+  expect((await row('ga_equipment', e4.id)).template_id).toBeNull();
+  expect((await send('ga_staff', 'post', `templates/equipment/${tpl2.id}/link`, { items: prev4.body.items.map((i: any) => ({ id: i.id, updated_at: i.updated_at })), confirmed: true })).status).toBe(400);
   // 上限 100 台、停用型號不可用
   expect((await get('ga_staff', `templates/equipment/${tpl.id}/link-preview?ids=${Array(101).fill(e1.id).join(',')}`)).status).toBe(400);
   await adminDb().from('ga_equipment_templates').update({ is_active: false }).eq('id', tpl.id);

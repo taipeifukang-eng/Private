@@ -112,8 +112,15 @@ async function update(ctx: Context, request: NextRequest, rawId: string) {
   if (!current) throw new GaError(404, "找不到料件");
   const unitChanges = changedUnitFields(current, patch);
   if (unitChanges.length) {
-    const u = await rpc(ctx, "ga_ws_part_usage", { p_part_id: rawId });
-    if (u.data.unit_locked) throw new GaError(409, UNIT_LOCK_MESSAGE, { code: "UNIT_LOCKED", fields: unitChanges, usage: u.data });
+    // 單位欄位：鎖列、檢查庫存與交易、更新在同一個資料庫交易內完成（不可拆成兩步）。
+    let r;
+    try {
+      r = await rpc(ctx, "ga_ws_update_part_guarded", { p_part_id: rawId, p_patch: patch, p_expected_updated_at: typeof b.expected_updated_at === "string" ? b.expected_updated_at : null });
+    } catch (e) {
+      if (e instanceof GaError && e.extra?.code === "UNIT_LOCKED") throw new GaError(409, UNIT_LOCK_MESSAGE, { ...e.extra, fields: unitChanges });
+      throw e;
+    }
+    return respond({ data: r.data, duplicates: await duplicatesOf(ctx, r.data, rawId) });
   }
   let query = (ctx.auth as any).from("ga_parts").update(patch).eq("id", rawId).is("deleted_at", null);
   if (typeof b.expected_updated_at === "string") query = query.eq("updated_at", b.expected_updated_at);

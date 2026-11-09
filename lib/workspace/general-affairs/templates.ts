@@ -220,7 +220,7 @@ async function linkPreview(ctx: Context, templateId: string, url: URL) {
   if (!ids.length) throw new GaError(400, "請至少選擇一台既有設備");
   if (ids.length > 100) throw new GaError(400, "單次最多整理 100 台設備");
   if (!ids.every(isUuid)) throw new GaError(400, "設備 id 格式錯誤");
-  const template = (await must((ctx.auth as any).from("ga_equipment_templates").select("id,category_id,name,brand,model,is_active").eq("id", templateId).is("deleted_at", null).maybeSingle())) as any;
+  const template = (await must((ctx.auth as any).from("ga_equipment_templates").select("id,category_id,name,brand,model,is_active,updated_at").eq("id", templateId).is("deleted_at", null).maybeSingle())) as any;
   if (!template) throw new GaError(404, "找不到公司設備型號");
   if (!template.is_active) throw new GaError(409, "停用的公司設備型號不可用於設備歸戶");
   const equipment = ((await must((ctx.auth as any).from("ga_equipment").select("id,name,asset_code,brand,model,category_id,template_id,updated_at,store:stores(store_code,short_name,store_name)").in("id", ids).is("deleted_at", null))) as any[]) || [];
@@ -251,8 +251,9 @@ async function link(ctx: Context, request: NextRequest, templateId: string) {
   const b = await body(request);
   const items = Array.isArray(b.items) ? b.items : [];
   if (!items.every((i: any) => isUuid(i?.id) && typeof i?.updated_at === "string")) throw new GaError(400, "歸戶清單格式錯誤，請重新預覽");
+  if (typeof b.template_updated_at !== "string" || !b.template_updated_at) throw new GaError(400, "缺少型號版本，請重新預覽");
   if (b.confirmed !== true) throw new GaError(400, "請先確認覆蓋內容（歸戶後不能還原）");
-  const r = await rpc(ctx, "ga_ws_link_equipment_to_template", { p_template_id: templateId, p_items: items });
+  const r = await rpc(ctx, "ga_ws_link_equipment_to_template", { p_template_id: templateId, p_items: items, p_template_updated_at: b.template_updated_at });
   return respond({ data: r.data });
 }
 

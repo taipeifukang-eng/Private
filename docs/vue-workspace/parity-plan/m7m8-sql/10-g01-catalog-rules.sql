@@ -1,13 +1,14 @@
 -- 10-g01-catalog-rules.sql
 -- M7/M8 第 1 批（G02-G05）：分類、料件、型號與架型、適用料件的「全成或全不變」資料庫函式（草稿，尚未在正式區執行；需要寫入，請使用者審閱後自行執行）。
 -- 內容與 DEV 已套用並測過的 supabase/workspace-dev/20261109130000_m7m8_g01_catalog_rules.sql 相同（DEV 整合、e2e、對等測試全綠）。
--- 這份只「新增 10 個以 ga_ws_ 開頭的函式」：不改任何資料表、觸發器、政策、資料，也不改舊版函式（ga_soft_delete_* 等），所以舊版 /api/general-affairs 行為不會變。
+-- 這份只「新增 11 個以 ga_ws_ 開頭的函式」：不改任何資料表、觸發器、政策、資料，也不改舊版函式（ga_soft_delete_* 等），所以舊版 /api/general-affairs 行為不會變。
 -- 為什麼新版需要它們：分類停用與刪除要看精確筆數、料件刪除要查庫存與未結單、型號與適用料件要同一個交易儲存、設備歸戶要整批全成或全不變——這些在應用程式裡分好幾步做會留半套資料。
 -- 用法：
 --   1. 先跑 11-g01-preview-before-apply.sql（唯讀），確認現況與先決條件。
---   2. 整份貼上執行（會開 BEGIN，不會自動 COMMIT）。
---   3. 看最後的核對查詢：應該列出 10 個函式、各自的權限（authenticated 可執行、anon 不可）。
---   4. 沒問題另外執行 COMMIT;；有疑慮執行 ROLLBACK;（整份撤回，什麼都沒改）。
+--   2. 整份貼上、一次 Run。檔案自己 BEGIN ... COMMIT：先決條件檢查失敗或任何一句出錯，整份不生效（交易自動撤回）；全部成功才在檔案內 COMMIT。
+--      （不需要、也不要再另外執行 COMMIT; —— SQL 編輯器每次 Run 不保證沿用同一個交易，所以交易與 COMMIT 都寫在同一份檔案裡。）
+--   3. 最後的核對查詢（在 COMMIT 之後）：應該列出 11 個函式、各自的權限（authenticated 可執行、anon 不可）。
+--   4. 這份只新增函式（CREATE OR REPLACE，另外只移除新版自己的舊簽章 ga_ws_link_equipment_to_template(uuid, jsonb)），重複執行也安全。
 -- 已套用後想撤掉：10-g01-catalog-rules-rollback.sql。
 -- 備份：這份只新增函式，沒有改到任何既有資料，所以沒有資料要備份；函式本身的原始碼就是這份檔案，rollback 檔會把它們移除。
 
@@ -300,6 +301,60 @@ BEGIN
 END;
 $$;
 
+-- 修改料件單位欄位（Q6）：鎖住料件列後再檢查「有庫存或交易」並更新，兩步在同一交易內；
+-- FOR UPDATE 與庫存交易寫入（對料件列的外鍵檢查）互斥，檢查後不會有人在更新前插入第一筆交易。
+CREATE OR REPLACE FUNCTION public.ga_ws_update_part_guarded(p_part_id uuid, p_patch jsonb, p_expected_updated_at timestamptz)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_uid uuid := auth.uid();
+  v_cur ga_parts%ROWTYPE;
+  v_usage jsonb;
+  v_allowed text[] := ARRAY['category_id','name','part_code','barcode','brand','model','specification','description','notes','base_unit',
+    'purchase_unit','purchase_to_base_rate','minimum_issue_qty','allow_fractional_issue','allow_unpacking','is_active','specs','tags','image_path'];
+  v_unit text[] := ARRAY['base_unit','purchase_unit','purchase_to_base_rate'];
+  v_key text;
+  v_sets text := '';
+  v_changed boolean := false;
+  v_row jsonb;
+BEGIN
+  IF v_uid IS NULL THEN RETURN jsonb_build_object('ok', false, 'status', 401, 'error', '未登入'); END IF;
+  IF NOT has_permission(v_uid, 'general_affairs.part.manage') THEN
+    RETURN jsonb_build_object('ok', false, 'status', 403, 'error', '沒有料件管理權限');
+  END IF;
+  IF jsonb_typeof(p_patch) IS DISTINCT FROM 'object' THEN RETURN jsonb_build_object('ok', false, 'status', 400, 'error', '修改內容格式錯誤'); END IF;
+  SELECT * INTO v_cur FROM ga_parts WHERE id = p_part_id AND deleted_at IS NULL FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'status', 404, 'error', '找不到料件'); END IF;
+  IF p_expected_updated_at IS NOT NULL AND v_cur.updated_at IS DISTINCT FROM p_expected_updated_at THEN
+    RETURN jsonb_build_object('ok', false, 'status', 409, 'code', 'STALE', 'error', '這個料件已被其他人修改，請重新載入後再儲存');
+  END IF;
+  FOR v_key IN SELECT k FROM jsonb_object_keys(p_patch) AS k LOOP
+    IF NOT (v_key = ANY(v_allowed)) THEN RETURN jsonb_build_object('ok', false, 'status', 400, 'error', format('不可修改的欄位：%s', v_key)); END IF;
+    v_sets := v_sets || CASE WHEN v_sets = '' THEN '' ELSE ', ' END || format('%I = r.%I', v_key, v_key);
+    IF v_key = ANY(v_unit) AND (to_jsonb(v_cur) -> v_key) IS DISTINCT FROM (p_patch -> v_key)
+       AND NOT (v_key = 'purchase_to_base_rate' AND (to_jsonb(v_cur) ->> v_key) IS NOT NULL AND (p_patch ->> v_key) IS NOT NULL
+                AND (to_jsonb(v_cur) ->> v_key)::numeric = (p_patch ->> v_key)::numeric) THEN
+      v_changed := true;
+    END IF;
+  END LOOP;
+  IF v_sets = '' THEN RETURN jsonb_build_object('ok', false, 'status', 400, 'error', '沒有要修改的欄位'); END IF;
+  IF v_changed THEN
+    v_usage := (ga_ws_part_usage(p_part_id))->'data';
+    IF (v_usage->>'unit_locked')::boolean THEN
+      RETURN jsonb_build_object('ok', false, 'status', 409, 'code', 'UNIT_LOCKED', 'usage', v_usage,
+        'error', '這個料件已有庫存或庫存交易紀錄，基本單位、採購單位與換算率不能再修改；若單位真的要改，請新增另一個料件。');
+    END IF;
+  END IF;
+  EXECUTE format('UPDATE ga_parts p SET %s, updated_by = $2 FROM jsonb_populate_record(NULL::ga_parts, $1) r WHERE p.id = $3', v_sets)
+    USING p_patch, v_uid, p_part_id;
+  SELECT to_jsonb(p) INTO v_row FROM ga_parts p WHERE p.id = p_part_id;
+  RETURN jsonb_build_object('ok', true, 'status', 200, 'data', v_row);
+END;
+$$;
+
 -- 適用料件版本碼：同一對象目前有效對照的指紋，用來偵測「載入後被別人改過」。
 CREATE OR REPLACE FUNCTION public.ga_ws_target_compat_version(p_target_type text, p_target_id uuid)
 RETURNS text
@@ -512,7 +567,10 @@ $$;
 
 -- 既有設備歸戶到設備型號（Q7）：全部成功或全部不變；任何一台自預覽後被改過、已歸戶或已刪除，整批回 409 並列出是哪幾台。
 -- p_items: [{"id": "...", "updated_at": "預覽時看到的 updated_at"}]
-CREATE OR REPLACE FUNCTION public.ga_ws_link_equipment_to_template(p_template_id uuid, p_items jsonb)
+-- 舊簽章（沒有型號版本）移除，避免留下可繞過型號比對的舊入口
+DROP FUNCTION IF EXISTS public.ga_ws_link_equipment_to_template(uuid, jsonb);
+-- p_template_updated_at：預覽當下看到的型號 updated_at；確認時型號被改過（名稱、品牌、型號、分類）就回 409 STALE，整批不變。
+CREATE OR REPLACE FUNCTION public.ga_ws_link_equipment_to_template(p_template_id uuid, p_items jsonb, p_template_updated_at timestamptz)
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -534,9 +592,14 @@ BEGIN
   IF jsonb_array_length(p_items) > 100 THEN
     RETURN jsonb_build_object('ok', false, 'status', 400, 'error', '單次最多整理 100 台設備');
   END IF;
-  SELECT * INTO v_t FROM ga_equipment_templates WHERE id = p_template_id AND deleted_at IS NULL;
+  -- FOR SHARE：與 ga_ws_delete_template 的 FOR UPDATE 互斥，避免「刪除型號」與「歸戶到該型號」同時成功
+  SELECT * INTO v_t FROM ga_equipment_templates WHERE id = p_template_id AND deleted_at IS NULL FOR SHARE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'status', 404, 'error', '找不到公司設備型號'); END IF;
   IF NOT v_t.is_active THEN RETURN jsonb_build_object('ok', false, 'status', 409, 'error', '停用的公司設備型號不可用於設備歸戶'); END IF;
+  IF p_template_updated_at IS NULL OR v_t.updated_at IS DISTINCT FROM p_template_updated_at THEN
+    RETURN jsonb_build_object('ok', false, 'status', 409, 'code', 'STALE',
+      'error', '公司設備型號自預覽後已被修改，整批沒有變更，請重新預覽');
+  END IF;
 
   PERFORM 1 FROM ga_equipment e WHERE e.id IN (SELECT (x->>'id')::uuid FROM jsonb_array_elements(p_items) x) FOR UPDATE;
   SELECT COALESCE(jsonb_agg(jsonb_build_object('id', x.id, 'reason',
@@ -564,23 +627,26 @@ REVOKE ALL ON FUNCTION public.ga_ws_set_category_active(public.ga_category_kind,
 REVOKE ALL ON FUNCTION public.ga_ws_delete_category(public.ga_category_kind, uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_part_usage(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_delete_part(uuid, text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.ga_ws_update_part_guarded(uuid, jsonb, timestamptz) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_target_compat_version(text, uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_replace_target_compat(text, uuid, uuid[], text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_save_template(text, uuid, jsonb, uuid[], timestamptz, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_delete_template(text, uuid, text) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.ga_ws_link_equipment_to_template(uuid, jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.ga_ws_link_equipment_to_template(uuid, jsonb, timestamptz) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.ga_ws_category_usage(public.ga_category_kind, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_set_category_active(public.ga_category_kind, uuid, boolean, timestamptz) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_delete_category(public.ga_category_kind, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_part_usage(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_delete_part(uuid, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ga_ws_update_part_guarded(uuid, jsonb, timestamptz) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_target_compat_version(text, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_replace_target_compat(text, uuid, uuid[], text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_save_template(text, uuid, jsonb, uuid[], timestamptz, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_delete_template(text, uuid, text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.ga_ws_link_equipment_to_template(uuid, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.ga_ws_link_equipment_to_template(uuid, jsonb, timestamptz) TO authenticated;
+COMMIT;
 
--- 核對（請看結果再決定 COMMIT 或 ROLLBACK）：應列出 10 列；anon_can_execute 全部為 false，authenticated_can_execute 全部為 true
+-- 核對：應列出 11 列；anon_can_execute 全部為 false，authenticated_can_execute 全部為 true
 SELECT p.proname AS function_name,
        has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_can_execute,
        has_function_privilege('authenticated', p.oid, 'EXECUTE') AS authenticated_can_execute
@@ -588,4 +654,4 @@ FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname = 'public' AND p.proname LIKE 'ga_ws_%'
 ORDER BY p.proname;
 
--- 確認後：COMMIT;   （有疑慮：ROLLBACK;）
+-- 若核對結果不對：執行 10-g01-catalog-rules-rollback.sql 即可撤回。
