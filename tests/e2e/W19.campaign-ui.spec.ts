@@ -169,6 +169,8 @@ test('Q3 刪除：筆數計算失敗時顯示明確訊息、仍不能刪除，�
     fail = false;
     await dlg.getByRole('button', { name: '重新計算' }).click();
     await expect(dlg.getByText(/將刪除共 \d+ 筆資料/)).toBeVisible();
+    // 重新計算會重置對話框（含已輸入的名稱），所以要重新輸入
+    await dlg.getByLabel('輸入活動名稱確認刪除').fill(c.name);
     await expect(confirm).toBeEnabled();
     expect(await campaignRow(c.id)).not.toBeNull();
   } finally {
