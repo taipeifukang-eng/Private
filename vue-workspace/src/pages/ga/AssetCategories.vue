@@ -76,11 +76,13 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 // ---- 新增與編輯
 const form = reactive<any>({});
 const editing = ref<Cat | null>(null);
+const formParent = ref<Cat | null>(null); // 新增時的上層分類（null = 最上層）
 const showForm = ref(false);
 const formError = ref("");
 const saving = ref(false);
-function openCreate() {
+function openCreate(under: Cat | null = null) {
   editing.value = null;
+  formParent.value = under ?? (debounced.value.trim() ? null : parent.value);
   Object.assign(form, { name: "", code: "", description: "", sort_order: 10, requires_brand: false, requires_model: false, requires_serial_number: false, requires_warranty: false, default_base_unit: "", is_recyclable_default: false, manage_compatibility: false });
   formError.value = "";
   showForm.value = true;
@@ -107,7 +109,7 @@ async function save() {
       body.expected_updated_at = editing.value.updated_at;
       await api(`general-affairs/categories/${editing.value.id}`, { method: "PATCH", body: JSON.stringify(body) });
     } else {
-      body.parent_id = parent.value?.id || null;
+      body.parent_id = formParent.value?.id || null;
       await api("general-affairs/categories", { method: "POST", body: JSON.stringify(body) });
     }
     showForm.value = false;
@@ -168,7 +170,7 @@ async function confirmAction() {
       <h1>{{ noun }}分類</h1>
       <p class="muted">逐層瀏覽或用關鍵字搜尋分類。停用前會顯示底下的精確筆數；底下還有啟用中的子分類或項目時不能停用。</p>
     </div>
-    <button v-if="canManage" class="primary" @click="openCreate">新增{{ parent ? "子" : "" }}分類</button>
+    <button v-if="canManage" class="primary" @click="openCreate()">新增{{ parent && !debounced.trim() ? "子" : "" }}分類</button>
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', noun + '分類']">
     <p v-if="error" class="notice error" role="alert">{{ error }}</p>
@@ -197,7 +199,7 @@ async function confirmAction() {
               <button v-if="c.is_active" type="button" :disabled="actionBusy" @click="askAction('disable', c)">停用</button>
               <button v-else type="button" :disabled="actionBusy" @click="askAction('enable', c)">啟用</button>
               <button type="button" class="danger" :disabled="actionBusy" @click="askAction('delete', c)">刪除</button>
-              <button v-if="!debounced.trim() && !c.child_count" type="button" @click="enter(c)">新增子分類…</button>
+              <button type="button" @click="openCreate(c)">新增子分類</button>
             </td>
           </tr>
           <tr v-if="!rows.length && !loading"><td :colspan="canManage ? 6 : 5" class="empty">{{ error ? "資料載入失敗" : debounced.trim() ? "找不到符合的分類" : "這一層還沒有分類" }}</td></tr>
@@ -210,8 +212,8 @@ async function confirmAction() {
       <button :disabled="page >= pages || loading" @click="page++">下一頁</button>
     </footer>
 
-    <Modal v-if="showForm" :title="editing ? '編輯分類' : '新增' + (parent ? '子' : '') + '分類'" :busy="saving" @cancel="showForm = false">
-      <p v-if="!editing && parent" class="muted">上層：{{ parent.path }}</p>
+    <Modal v-if="showForm" :title="editing ? '編輯分類' : '新增' + (formParent ? '子' : '') + '分類'" :busy="saving" @cancel="showForm = false">
+      <p v-if="!editing && formParent" class="muted">上層：{{ formParent.path }}</p>
       <form class="ga-form" @submit.prevent="save">
         <label>名稱<span class="required"> 必填</span><input v-model="form.name" maxlength="80" autocomplete="off" /></label>
         <label>代碼<span class="required"> 必填（全公司唯一，含已停用的分類）</span><input v-model="form.code" maxlength="40" autocomplete="off" /></label>
