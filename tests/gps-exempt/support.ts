@@ -195,3 +195,32 @@ export async function roleLeftoverCount(): Promise<number> {
   const r = await db.from('roles').select('id', { count: 'exact', head: true }).eq('code', `zt_gpsex_${RUN_ID.toLowerCase()}`);
   return r.count ?? 0;
 }
+
+// ---------------------------------------------------------------------------
+// 管理員樣式角色（lib/permissions/check.ts 的 admin-like 代碼）暫時指派給帳號，且帳號的 profiles.role 不是 admin。
+// 只依 id 還原：本次若新建了角色就刪角色，否則只刪指派列。回傳 cleanup。
+// ---------------------------------------------------------------------------
+export async function grantAdminLikeRole(who: Who): Promise<() => Promise<void>> {
+  const db = adminDb();
+  const code = 'dev_full_admin';
+  let roleId: string | null = null;
+  let createdRole = false;
+  const existing = await db.from('roles').select('id').eq('code', code).maybeSingle();
+  if (existing.data) {
+    roleId = existing.data.id;
+  } else {
+    const ins = await db.from('roles').insert({ code, name: `ZT 管理員樣式角色 ${RUN_ID}`, description: '巡店定位例外自動測試用，測完即刪', is_active: true }).select('id').single();
+    if (ins.error) throw new Error(`建立管理員樣式角色失敗：${ins.error.message}`);
+    roleId = ins.data.id;
+    createdRole = true;
+  }
+  const ur = await db.from('user_roles').insert({ user_id: userIdOf(who), role_id: roleId, is_active: true }).select('id').single();
+  if (ur.error) {
+    if (createdRole) await db.from('roles').delete().eq('id', roleId);
+    throw new Error(`指派管理員樣式角色失敗：${ur.error.message}`);
+  }
+  return async () => {
+    await db.from('user_roles').delete().eq('id', ur.data.id);
+    if (createdRole) await db.from('roles').delete().eq('id', roleId);
+  };
+}

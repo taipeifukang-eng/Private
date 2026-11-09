@@ -187,6 +187,13 @@ export default async function InspectionListPage({
       if (on) query.set('gps_exempt', '1');
       return `/inspection?${query.toString()}`;
     };
+    const tabHref = (tab: 'supervisor' | 'manager') => {
+      const query = new URLSearchParams();
+      query.set('tab', tab);
+      if (/^\d{4}-\d{2}$/.test(searchParams.month || '')) query.set('month', searchParams.month as string);
+      if (onlyGpsExempt) query.set('gps_exempt', '1');
+      return `/inspection?${query.toString()}`;
+    };
     const exportMonths = Array.from(
       new Set(
         normalizedInspections
@@ -292,7 +299,7 @@ export default async function InspectionListPage({
             {/* 分頁切換 */}
             <div className="mt-6 flex border-b border-gray-200">
               <Link
-                href="/inspection?tab=supervisor"
+                href={tabHref('supervisor')}
                 className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                   !isManagerTab
                     ? 'border-blue-600 text-blue-600'
@@ -303,7 +310,7 @@ export default async function InspectionListPage({
               </Link>
               {canViewManagerTab && (
                 <Link
-                  href="/inspection?tab=manager"
+                  href={tabHref('manager')}
                   className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
                     isManagerTab
                       ? 'border-emerald-600 text-emerald-600'

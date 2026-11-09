@@ -6,10 +6,8 @@ import { createClient } from '@/lib/supabase/client';
 import SignaturePad from '@/components/SignaturePad';
 import GpsGuideDialog from '@/components/inspection/GpsGuideDialog';
 import { getInspectionGpsCapturedAt, hasSuspiciousInspectionGpsTime } from '@/lib/inspection/date';
-import { usePermission } from '@/lib/permissions/hooks';
 import {
   GPS_EXEMPT_LABEL,
-  GPS_EXEMPT_PERMISSION_CODE,
   GPS_HIGH_ACCURACY_FALLBACK_MS,
   classifyGeolocationError,
   classifyGpsDbError,
@@ -254,7 +252,16 @@ function NewInspectionPage() {
   // 最近一次失敗的誤差與「有拿到但驗證沒過」的定位結果（定位例外時照樣存進去）
   const [gpsFailureAccuracy, setGpsFailureAccuracy] = useState<number | null>(null);
   const [gpsRejectedFix, setGpsRejectedFix] = useState<GpsFix | null>(null);
-  const { allowed: canUseGpsExempt } = usePermission(GPS_EXEMPT_PERMISSION_CODE);
+  // 與資料庫 trigger 同一來源（can_use_inspection_gps_exempt）：profiles.role = 'admin' 或 inspection.gps_exempt 權限
+  const [canUseGpsExempt, setCanUseGpsExempt] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/inspection/gps-exempt-eligibility', { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data) => { if (!cancelled) setCanUseGpsExempt(data?.allowed === true); })
+      .catch(() => { if (!cancelled) setCanUseGpsExempt(false); });
+    return () => { cancelled = true; };
+  }, []);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
   useEffect(() => {
     const device = detectGpsDevice(navigator.userAgent, { maxTouchPoints: navigator.maxTouchPoints });

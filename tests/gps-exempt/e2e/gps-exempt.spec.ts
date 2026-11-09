@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
-import { ACCOUNTS, BASE_URL, ROLE_STATE_FILE, account, insertMaster, marker, readMaster, registerInspection, taipeiDate, type Who } from '../support';
+import { ACCOUNTS, BASE_URL, ROLE_STATE_FILE, account, grantAdminLikeRole, insertMaster, marker, readMaster, registerInspection, taipeiDate, type Who } from '../support';
 
 // 巡店定位例外 e2e（桌機 1920x1080，對 DEV 與本機 legacy dev server）。
 // 以 Playwright 模擬定位：誤差 25000 公尺（只接網路線的桌機）、權限被拒、成功（誤差 20）。
@@ -288,6 +288,43 @@ test('角色權限頁：巡店定位例外以「巡店定位」功能下的「�
     await login(page, 'admin');
     await page.goto(`/admin/roles/${roleId}`);
     await expect(page.getByText('巡店定位例外').first()).toBeVisible({ timeout: 60_000 });
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('管理員樣式角色代碼（profiles.role 不是 admin、沒有明確授權）：前端與資料庫一致，不出現例外按鈕', async ({ browser }) => {
+  const cleanup = await grantAdminLikeRole('denied');
+  try {
+    const { ctx, page } = await openNew(browser, 'denied', FAR);
+    try {
+      await expect(panel(page)).toHaveAttribute('data-gps-status', 'error', { timeout: 30_000 });
+      await expect(dialog(page)).toBeVisible();
+      await expect(page.getByTestId('gps-guide-exempt')).toHaveCount(0);
+      await closeGuide(page);
+      await expect(page.getByTestId('gps-exempt-button')).toHaveCount(0);
+      await expect(lockMain(page)).toHaveJSProperty('disabled', true);
+      // API 與資料庫判斷同一來源
+      const res = await page.request.get('/api/inspection/gps-exempt-eligibility');
+      expect(await res.json()).toEqual({ allowed: false });
+    } finally {
+      await ctx.close();
+    }
+  } finally {
+    await cleanup();
+  }
+});
+
+test('清單：切換督導／經理分頁時保留「只看定位例外」與月份', async ({ browser }) => {
+  const ctx = await newContext(browser, null);
+  const page = await ctx.newPage();
+  watch(page, 'tabs');
+  try {
+    await login(page, 'admin');
+    await page.goto('/inspection?tab=supervisor&month=2026-11&gps_exempt=1');
+    const manager = page.getByRole('link', { name: '經理巡店', exact: true });
+    await expect(manager).toHaveAttribute('href', '/inspection?tab=manager&month=2026-11&gps_exempt=1');
+    await expect(page.getByRole('link', { name: '督導巡店', exact: true })).toHaveAttribute('href', '/inspection?tab=supervisor&month=2026-11&gps_exempt=1');
   } finally {
     await ctx.close();
   }
