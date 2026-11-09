@@ -69,7 +69,7 @@ export function draftKeysToClear(
   const keys = [draftKey(userId, type, null, slot)];
   if (previousRecordId) keys.push(draftKey(userId, type, previousRecordId));
   if (recordId) keys.push(draftKey(userId, type, recordId));
-  return [...new Set(keys)];
+  return Array.from(new Set(keys));
 }
 /** 編輯暫存：伺服器上的草稿版本已不同（其他裝置更新過）。 */
 export const serverMovedOn = (draft: OfflineDraft, serverVersion: number) =>

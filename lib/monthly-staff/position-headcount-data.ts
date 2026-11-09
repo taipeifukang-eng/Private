@@ -1,0 +1,88 @@
+/**
+ * 每月門市職位人數統計：資料讀取（唯讀）。
+ * db 必須是已通過權限檢查後的 service client（呼叫端負責檢查；見 app/api/admin/position-headcount/route.ts）。
+ * 一次批次抓取，分頁 1000 筆（Supabase 預設上限），不會每間門市各查一次。
+ */
+import { assignSupervisorsToStores } from '@/lib/stores/supervisor-assignment';
+import {
+  findUnfinalizedStores,
+  monthsEndingAt,
+  type HeadcountRecord,
+  type HeadcountStore,
+  type StoreSummaryRow,
+} from '@/lib/monthly-staff/position-headcount';
+
+export const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+export interface PositionHeadcountPayload {
+  yearMonth: string;
+  trend: boolean;
+  months: string[];
+  stores: HeadcountStore[];
+  records: HeadcountRecord[];
+  unfinalizedStores: HeadcountStore[];
+}
+
+async function fetchAllPages<T>(createQuery: (from: number, to: number) => any): Promise<T[]> {
+  const pageSize = 1000;
+  const rows: T[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await createQuery(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...((data || []) as T[]));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows;
+}
+
+export async function loadPositionHeadcountData(db: any, yearMonth: string, trend: boolean): Promise<PositionHeadcountPayload> {
+  if (!YEAR_MONTH_PATTERN.test(yearMonth)) throw new Error('月份格式錯誤，需為 YYYY-MM');
+  const months = trend ? monthsEndingAt(yearMonth, 12) : [yearMonth];
+
+  const [allStores, managers, records, summaries] = await Promise.all([
+    fetchAllPages<{ id: string; store_code: string; store_name: string; is_active: boolean | null }>((from, to) =>
+      db.from('stores').select('id, store_code, store_name, is_active').order('store_code').order('id').range(from, to),
+    ),
+    fetchAllPages<any>((from, to) =>
+      db
+        .from('store_managers')
+        .select('store_id, user_id, role_type, user:profiles!store_managers_user_id_fkey(full_name, employee_code, job_title)')
+        .order('store_id')
+        .order('user_id')
+        .range(from, to),
+    ),
+    fetchAllPages<HeadcountRecord>((from, to) =>
+      db
+        .from('monthly_staff_status')
+        .select('year_month, store_id, employee_code, employee_name, position, newbie_level, monthly_status, is_acting_manager, is_dual_position, employment_type')
+        .in('year_month', months)
+        .order('year_month')
+        .order('id')
+        .range(from, to),
+    ),
+    fetchAllPages<StoreSummaryRow>((from, to) =>
+      db.from('monthly_store_summary').select('store_id, store_status').eq('year_month', yearMonth).order('store_id').range(from, to),
+    ),
+  ]);
+
+  // 督導區沿用舊版 stores-with-supervisors 的認定方式（只對啟用中的門市判斷；停用門市歸「未分區」）
+  const activeStores = allStores.filter((s) => s.is_active !== false);
+  const assigned = assignSupervisorsToStores(activeStores, managers);
+  const supMap = new Map(assigned.map((s) => [s.id, s]));
+  const stores: HeadcountStore[] = allStores.map((s) => ({
+    id: s.id,
+    store_code: s.store_code,
+    store_name: s.store_name,
+    supervisor_id: supMap.get(s.id)?.supervisor_id ?? null,
+    supervisor_name: supMap.get(s.id)?.supervisor_name ?? null,
+  }));
+
+  return {
+    yearMonth,
+    trend,
+    months,
+    stores,
+    records,
+    unfinalizedStores: findUnfinalizedStores(records, stores, summaries, yearMonth),
+  };
+}

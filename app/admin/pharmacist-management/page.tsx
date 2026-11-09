@@ -1,4 +1,5 @@
 import { hasMissingPharmacistCarry } from '@/lib/pharmacist-snapshot-carry';
+import { findMissingOnboardingPharmacists } from '@/lib/pharmacist/onboarding-backfill';
 import { readReconciledPharmacistMonth } from '@/lib/pharmacist-transfer-reconciliation';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
@@ -196,6 +197,14 @@ export default async function PharmacistManagementPage({
     const skipInitialGeneration = (snapshotCount || 0) > 0;
     const lastSyncedAt: string | null = (syncLog as any)?.last_synced_at ?? null;
 
+    // 入職未同步而漏掉的在職藥師：不受 sync_log 增量跳過影響（固定批次查詢）
+    let missingOnboardingRows: Awaited<ReturnType<typeof findMissingOnboardingPharmacists>> = [];
+    try {
+      missingOnboardingRows = await findMissingOnboardingPharmacists(adminSupabase, targetYearMonth, storeIds);
+    } catch (e) {
+      console.error('[pharmacist-management] onboarding backfill lookup failed', e);
+    }
+
     if (skipInitialGeneration && lastSyncedAt) {
       // 上次同步後有 新登錄 / 事後修改 / 生效日到了 任一種異動才重算
       let hasTriggeringMovement = true; // 查詢失敗時降級為需要重算
@@ -211,7 +220,7 @@ export default async function PharmacistManagementPage({
       } catch (e) {
         console.error('[pharmacist-management] trigger query failed, falling back to recompute', e);
       }
-      if (!hasTriggeringMovement &&
+      if (!hasTriggeringMovement && missingOnboardingRows.length === 0 &&
           !(await hasMissingPharmacistCarry(adminSupabase, baseYearMonth, targetYearMonth, storeIds))) return;
     }
 
@@ -388,6 +397,13 @@ export default async function PharmacistManagementPage({
           notes: `backfilled from ${baseYearMonth}`,
         });
       });
+    }
+
+    // 補上「入職未同步」漏掉的在職藥師（已關帳月份在函式開頭已返回，不會走到這裡）
+    for (const r of missingOnboardingRows) {
+      if (nextByCode.has(r.employee_code)) continue;
+      hasBackfilledRows = true;
+      nextByCode.set(r.employee_code, { ...r });
     }
 
     // === 階段 2：應用當月異動（無條件執行，無論快照是否已存在）===

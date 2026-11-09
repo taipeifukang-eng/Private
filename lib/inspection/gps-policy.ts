@@ -13,6 +13,13 @@ export const GPS_MAX_FUTURE_MS = 5 * 60 * 1000;
 /** 高精度定位等待多久（毫秒）才改用一般定位。 */
 export const GPS_HIGH_ACCURACY_FALLBACK_MS = 8000;
 
+/** 誤差達此值（公尺）以上，教學改提示「這台電腦可能沒有 WiFi」並建議改用手機或定位例外。 */
+export const GPS_FAR_ACCURACY_M = 5000;
+
+/** 巡店定位例外權限代碼（顯示名稱「巡店定位例外」）。系統管理員（profiles.role = 'admin'）一律可用。 */
+export const GPS_EXEMPT_PERMISSION_CODE = 'inspection.gps_exempt';
+export const GPS_EXEMPT_LABEL = '巡店定位例外';
+
 /** 資料庫 trigger 錯誤訊息的固定前綴，前端用它辨識並直接顯示。 */
 export const GPS_DB_ERROR_PREFIX = '【巡店定位】';
 
@@ -24,6 +31,7 @@ export type GpsFailureKind =
   | 'accuracy_too_large'
   | 'invalid_fix'
   | 'time_invalid'
+  | 'exempt_forbidden'
   | 'unknown';
 
 export interface GpsFix {
@@ -67,6 +75,8 @@ export function getGpsFailureMessage(kind: GpsFailureKind, accuracy?: number | n
       return '定位資料不完整或座標超出範圍';
     case 'time_invalid':
       return '定位時間異常，請重新定位';
+    case 'exempt_forbidden':
+      return '你沒有「巡店定位例外」權限';
     default:
       return '定位失敗';
   }
@@ -123,6 +133,7 @@ export function validateGpsFix(fix: GpsFix | null | undefined, now: number = Dat
 /** 由 trigger 中文訊息判斷失敗類型：缺漏與資料不正確優先，再判斷誤差過大與時間。 */
 export function classifyGpsDbError(message: string | null | undefined): GpsFailureKind {
   const m = message || '';
+  if (/沒有.*權限/.test(m)) return 'exempt_forbidden';
   if (/缺少|必須先完成定位/.test(m)) return 'invalid_fix';
   if (/資料不正確|超出範圍/.test(m)) return 'invalid_fix';
   if (/過大/.test(m)) return 'accuracy_too_large';
@@ -248,7 +259,14 @@ export const GPS_GUIDE_TABS: GpsGuideTab[] = [
 ];
 
 /** 依失敗原因加註的重點提示。 */
-export function getGpsFailureNote(kind: GpsFailureKind | null | undefined, isMobile: boolean = false): string {
+export function getGpsFailureNote(
+  kind: GpsFailureKind | null | undefined,
+  isMobile: boolean = false,
+  accuracy?: number | null
+): string {
+  if (kind === 'accuracy_too_large' && isGpsAccuracyFar(accuracy)) {
+    return GPS_FAR_ACCURACY_NOTE;
+  }
   switch (kind) {
     case 'permission_denied':
       return '這次失敗的原因是「權限被拒絕」：請先允許本網站使用定位，再重新定位。';
@@ -263,6 +281,8 @@ export function getGpsFailureNote(kind: GpsFailureKind | null | undefined, isMob
       return '這次失敗的原因是「定位時間異常」：請確認裝置日期時間為自動設定，再重新定位。';
     case 'unsupported':
       return '這個瀏覽器不支援定位，請改用 Safari、Chrome 或 Edge 開啟。';
+    case 'exempt_forbidden':
+      return '你沒有「巡店定位例外」權限，請改用手機定位，或請有權限的主管協助。';
     default:
       return '';
   }
@@ -270,3 +290,37 @@ export function getGpsFailureNote(kind: GpsFailureKind | null | undefined, isMob
 
 export const GPS_LINE_BROWSER_NOTICE =
   '偵測到你正在使用 LINE 內建瀏覽器，定位常被限制。請改用 Safari 或 Chrome 開啟本頁。';
+
+/** 誤差是否達「數公里」等級（>= 5000 公尺）。缺值或非數字為 false。 */
+export function isGpsAccuracyFar(accuracy: number | null | undefined): boolean {
+  return typeof accuracy === 'number' && Number.isFinite(accuracy) && accuracy >= GPS_FAR_ACCURACY_M;
+}
+
+export const GPS_FAR_ACCURACY_NOTE =
+  '誤差達數公里，這台電腦可能沒有 WiFi（只接網路線無法精準定位），請改用手機；或請有「巡店定位例外」權限的主管使用定位例外。';
+
+// ---------------------------------------------------------------------------
+// 定位例外
+// ---------------------------------------------------------------------------
+
+export interface GpsExemptFix {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  capturedAt: string | null;
+}
+
+/**
+ * 使用定位例外時，把「驗證沒過但有拿到」的定位結果整理成可寫入的欄位：定到什麼存什麼。
+ * 座標不在範圍內或缺值 → 回傳 null（gps 欄位留空）；誤差缺值、NaN、負數 → accuracy 存 null；時間不是有效日期 → 存 null。
+ */
+export function toExemptGpsFix(fix: GpsFix | null | undefined): GpsExemptFix | null {
+  if (!fix || !isCoordinateInRange(fix.latitude, fix.longitude)) return null;
+  const accuracy =
+    typeof fix.accuracy === 'number' && Number.isFinite(fix.accuracy) && fix.accuracy >= 0 ? fix.accuracy : null;
+  const capturedAt =
+    typeof fix.capturedAt === 'string' && Number.isFinite(Date.parse(fix.capturedAt))
+      ? new Date(fix.capturedAt).toISOString()
+      : null;
+  return { latitude: fix.latitude, longitude: fix.longitude, accuracy, capturedAt };
+}

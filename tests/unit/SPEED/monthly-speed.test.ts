@@ -90,7 +90,7 @@ describe('B 舊版共用 helper 向下相容、context 並行', () => {
     expect(actions).toMatch(/if \(caller\.supabase && caller\.user\)/);
   });
   it('名冊 helper 的四個互不相依查詢並行', () => {
-    expect(actions).toMatch(/const \[staffRes, bonusRes, franchiseRes, currentStoreRes\] = await Promise\.all\(/);
+    expect(actions).toMatch(/\{ data: franchiseStores, error: franchiseError \},\s*\{ data: currentStoreInfo, error: currentStoreError \}\s*\] = await Promise\.all\(/);
   });
   it('context：user_roles、profiles、預取並行，profile 可略過', () => {
     const server = read('lib/workspace/server.ts');

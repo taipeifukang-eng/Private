@@ -5,7 +5,8 @@ import { authorizeMonthlyRegistration } from '@/lib/permissions/monthly-registra
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
-import { canEnterCampaignView } from '@/lib/campaign-access';
+import { canEnterCampaignViewWithSnapshot, CAMPAIGN_PERM } from '@/lib/campaign-access';
+import { loadPermissionSnapshot, loadLegacyPermissionSnapshot, type PermissionSnapshot } from '@/lib/permissions/snapshot';
 import { buildHistoricalStoreCodeMap } from '@/lib/store/historical';
 import type { 
   Store, 
@@ -637,6 +638,44 @@ export async function createStoreRelocationHistory(data: {
 }
 
 /**
+ * 每月人員狀態相關權限用：一次載入目前使用者的 profile / 角色 / 權限快照。
+ * 判斷結果與逐項呼叫 hasPermission() 完全相同（見 lib/permissions/snapshot.ts）。
+ */
+const MONTHLY_SNAPSHOT_PERMISSION_CODES = [
+  'monthly.status.view_all',
+  'monthly.status.view_own',
+  'monthly.status.view_stats',
+  'monthly.allowance.view_support_hours',
+  'monthly.allowance.edit_support_hours',
+  'monthly.allowance.edit_support_bonus',
+  'monthly.status.add_employee',
+  'monthly.status.view_performance',
+  'monthly.status.bonus_detail.view',
+  'monthly.status.confirm',
+  'monthly.status.revert',
+  'monthly.status.unconfirm',
+  'monthly.export.download',
+  CAMPAIGN_PERM.viewAll,
+  CAMPAIGN_PERM.viewOwn,
+  CAMPAIGN_PERM.legacyView,
+] as const;
+
+async function loadMonthlyPermissionSnapshot(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string
+): Promise<PermissionSnapshot> {
+  let adminDb: ReturnType<typeof createAdminClient>;
+  try {
+    adminDb = createAdminClient();
+  } catch (error) {
+    // 缺 SUPABASE_SERVICE_ROLE_KEY 等情況：退回改前行為（逐項 hasPermission），避免整個 action 失敗
+    console.error('無法建立 service client，權限快照改用逐項 hasPermission:', error);
+    return loadLegacyPermissionSnapshot(supabase, userId, MONTHLY_SNAPSHOT_PERMISSION_CODES, hasPermission);
+  }
+  return loadPermissionSnapshot(supabase, adminDb, userId);
+}
+
+/**
  * 獲取用戶可管理的門市列表
  * - admin: 所有門市
  * - manager (督導/區經理): 被指派的門市
@@ -651,9 +690,27 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
       return { success: false, error: '未登入', data: [] };
     }
 
-    // 使用 RBAC 權限檢查
-    const canViewAllStores = await hasPermission(user.id, 'monthly.status.view_all');
-    const canViewOwnStores = await hasPermission(user.id, 'monthly.status.view_own');
+    return await resolveManagedStores(supabase, user.id, options);
+  } catch (error: any) {
+    console.error('Unexpected error:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+}
+
+/**
+ * 解析使用者可管理的門市（getUserManagedStores 與 getMonthlyStoreSummaries 共用，只載入一次權限）。
+ * 呼叫端需已確認 userId 為目前登入者。
+ */
+async function resolveManagedStores(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  options?: { include_inactive?: boolean }
+) {
+  try {
+    // 使用 RBAC 權限檢查（一次載入 profile / 角色 / 權限，在記憶體判斷）
+    const snapshot = await loadMonthlyPermissionSnapshot(supabase, userId);
+    const canViewAllStores = snapshot.has('monthly.status.view_all');
+    const canViewOwnStores = snapshot.has('monthly.status.view_own');
 
     if (!canViewOwnStores && !canViewAllStores) {
       return { success: false, error: '權限不足', data: [] };
@@ -664,12 +721,8 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
       canViewOwnStores
     });
 
-    // 獲取用戶基本資料（僅用於回傳，不用於權限判斷）
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
+    // 用戶基本資料（僅用於回傳，不用於權限判斷）
+    const profile = snapshot.profile;
 
     const includeInactive = options?.include_inactive ?? false;
 
@@ -708,7 +761,7 @@ export async function getUserManagedStores(options?: { include_inactive?: boolea
         *,
         store:stores(*)
       `)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) {
       console.error('Error fetching managed stores:', error);
@@ -908,14 +961,25 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string, 
       return { success: false, error: '未登入', data: [] };
     }
 
-    // 四個查詢互不相依，並行送出（原本循序 4 趟）；只有員工列失敗才中止，其餘失敗維持原本「記錄後略過」。
-    const [staffRes, bonusRes, franchiseRes, currentStoreRes] = await Promise.all([
+    const extractStoreCode = (raw: string | null | undefined): string => {
+      const text = String(raw || '').toUpperCase();
+      const matched = text.match(/\d{4}[A-Z]?/);
+      return matched ? matched[0] : text.trim();
+    };
+
+    // 彼此不相依的四個查詢並行：人員狀態、上個月單品獎金、加盟店門市代碼集合、目前頁面門市代碼
+    const [
+      { data, error },
+      { data: bonusData, error: bonusError },
+      { data: franchiseStores, error: franchiseError },
+      { data: currentStoreInfo, error: currentStoreError }
+    ] = await Promise.all([
       supabase
         .from('monthly_staff_status')
         .select(`
-        *,
-        user:profiles!monthly_staff_status_user_id_fkey(id, email, full_name)
-      `)
+          *,
+          user:profiles!monthly_staff_status_user_id_fkey(id, email, full_name)
+        `)
         .eq('year_month', yearMonth)
         .eq('store_id', storeId)
         .order('employee_code'),
@@ -935,27 +999,17 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string, 
         .from('stores')
         .select('store_code')
         .eq('id', storeId)
-        .single(),
+        .single()
     ]);
-    const { data, error } = staffRes;
 
     if (error) {
       console.error('Error fetching monthly staff status:', error);
       return { success: false, error: error.message, data: [] };
     }
 
-    const { data: bonusData, error: bonusError } = bonusRes;
     if (bonusError) {
       console.error('Error fetching bonus data:', bonusError);
     }
-
-    const extractStoreCode = (raw: string | null | undefined): string => {
-      const text = String(raw || '').toUpperCase();
-      const matched = text.match(/\d{4}[A-Z]?/);
-      return matched ? matched[0] : text.trim();
-    };
-
-    const { data: franchiseStores, error: franchiseError } = franchiseRes;
 
     if (franchiseError) {
       console.error('Error fetching franchise stores:', franchiseError);
@@ -966,8 +1020,6 @@ export async function getMonthlyStaffStatus(yearMonth: string, storeId: string, 
         .map((s: any) => extractStoreCode(s.store_code))
         .filter(Boolean)
     );
-
-    const { data: currentStoreInfo, error: currentStoreError } = currentStoreRes;
 
     if (currentStoreError) {
       console.error('Error fetching current store info:', currentStoreError);
@@ -2333,7 +2385,46 @@ export async function unconfirmStoreStatus(yearMonth: string, storeId: string) {
 }
 
 /**
+ * 月度摘要查詢用的門市欄位（頁面只用 summary 本身的欄位；store 關聯只保留識別用的明確欄位）
+ */
+const MONTHLY_SUMMARY_STORE_COLUMNS = 'id, store_code, store_name, is_active, is_franchise';
+
+/**
+ * 讀取指定門市範圍的月度摘要。門市範圍由伺服器端呼叫端算好後傳入（不重複做可管門市判斷）。
+ */
+async function fetchMonthlyStoreSummaries(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  yearMonth: string,
+  stores: Array<{ id: string }>
+) {
+  const storeIds = stores.map((s) => s.id);
+
+  if (storeIds.length === 0) {
+    return { success: true, data: [] };
+  }
+
+  const { data, error } = await supabase
+    .from('monthly_store_summary')
+    .select(`
+      *,
+      store:stores(${MONTHLY_SUMMARY_STORE_COLUMNS})
+    `)
+    .eq('year_month', yearMonth)
+    .in('store_id', storeIds)
+    .order('store_id');
+
+  if (error) {
+    console.error('Error fetching monthly store summaries:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+
+  return { success: true, data: data || [] };
+}
+
+/**
  * 獲取所有門市的月度摘要
+ * 可管門市在伺服器端只算一次（不再透過 getUserManagedStores 重複驗證登入與權限）。
+ * 門市範圍一律由伺服器依登入者權限決定，不接受前端傳入門市清單（避免越權讀取他店資料）。
  */
 export async function getMonthlyStoreSummaries(yearMonth: string) {
   try {
@@ -2345,33 +2436,12 @@ export async function getMonthlyStoreSummaries(yearMonth: string) {
     }
 
     // 獲取用戶可管理的門市
-    const managedResult = await getUserManagedStores();
+    const managedResult = await resolveManagedStores(supabase, user.id);
     if (!managedResult.success) {
       return { success: false, error: managedResult.error, data: [] };
     }
 
-    const storeIds = managedResult.data.map((s: any) => s.id);
-
-    if (storeIds.length === 0) {
-      return { success: true, data: [] };
-    }
-
-    const { data, error } = await supabase
-      .from('monthly_store_summary')
-      .select(`
-        *,
-        store:stores(*)
-      `)
-      .eq('year_month', yearMonth)
-      .in('store_id', storeIds)
-      .order('store_id');
-
-    if (error) {
-      console.error('Error fetching monthly store summaries:', error);
-      return { success: false, error: error.message, data: [] };
-    }
-
-    return { success: true, data: data || [] };
+    return await fetchMonthlyStoreSummaries(supabase, yearMonth, managedResult.data as Array<{ id: string }>);
   } catch (error: any) {
     console.error('Unexpected error:', error);
     return { success: false, error: error.message, data: [] };
@@ -2917,34 +2987,21 @@ export async function checkMonthlyStatusPermissions() {
       };
     }
 
-    const [
-      canViewStats,
-      canViewSupportHours,
-      canEditSupportHours,
-      canEditSupportBonus,
-      canAddEmployee,
-      canAccessActivityManagement,
-      canViewPerformance,
-      canViewMonthlyBonusDetail,
-      canConfirmStatus,
-      canRevertStatus,
-      canUnconfirmStatus,
-      canExportMonthlyDownload
-    ] = await Promise.all([
-      hasPermission(user.id, 'monthly.status.view_stats'),
-      hasPermission(user.id, 'monthly.allowance.view_support_hours'),
-      hasPermission(user.id, 'monthly.allowance.edit_support_hours'),
-      hasPermission(user.id, 'monthly.allowance.edit_support_bonus'),
-      hasPermission(user.id, 'monthly.status.add_employee'),
-      // 活動檢視入口：view_all，或 view_own（第一階段含舊 view）且至少有一筆 store_managers 任命
-      canEnterCampaignView(supabase, user.id),
-      hasPermission(user.id, 'monthly.status.view_performance'),
-      hasPermission(user.id, 'monthly.status.bonus_detail.view'),
-      hasPermission(user.id, 'monthly.status.confirm'),
-      hasPermission(user.id, 'monthly.status.revert'),
-      hasPermission(user.id, 'monthly.status.unconfirm'),
-      hasPermission(user.id, 'monthly.export.download')
-    ]);
+    // 一次載入權限快照，12 個旗標在記憶體內判斷（原本每個旗標各 2–3 次資料庫往返）
+    const snapshot = await loadMonthlyPermissionSnapshot(supabase, user.id);
+    const canViewStats = snapshot.has('monthly.status.view_stats');
+    const canViewSupportHours = snapshot.has('monthly.allowance.view_support_hours');
+    const canEditSupportHours = snapshot.has('monthly.allowance.edit_support_hours');
+    const canEditSupportBonus = snapshot.has('monthly.allowance.edit_support_bonus');
+    const canAddEmployee = snapshot.has('monthly.status.add_employee');
+    // 活動檢視入口：view_all，或 view_own（第一階段含舊 view）且至少有一筆 store_managers 任命
+    const canAccessActivityManagement = await canEnterCampaignViewWithSnapshot(supabase, user.id, snapshot);
+    const canViewPerformance = snapshot.has('monthly.status.view_performance');
+    const canViewMonthlyBonusDetail = snapshot.has('monthly.status.bonus_detail.view');
+    const canConfirmStatus = snapshot.has('monthly.status.confirm');
+    const canRevertStatus = snapshot.has('monthly.status.revert');
+    const canUnconfirmStatus = snapshot.has('monthly.status.unconfirm');
+    const canExportMonthlyDownload = snapshot.has('monthly.export.download');
 
     return {
       success: true,

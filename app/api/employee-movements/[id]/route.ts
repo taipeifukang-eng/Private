@@ -2,6 +2,7 @@ import { getMovementDateError } from '@/lib/employee-movement-date';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission, requirePermission } from '@/lib/permissions/check';
+import { syncOnboardingPharmacistToEmployeeMaster } from '@/lib/pharmacist/onboarding-master-sync';
 import {
   resolveOfficialPositionBeforeDate,
   syncOnboardingPharmacistToMonthlyStaffStatus,
@@ -233,6 +234,21 @@ export async function PATCH(
         affectedFromDate,
         movement.movement_type === 'acting_manager' || movement.new_value === '代理店長' || updated.new_value === '代理店長'
       );
+    }
+
+    // 入職勾「是藥師」同步員工主檔（只改成 true；改回「否」不自動動主檔）
+    if (movement.movement_type === 'onboarding' && updated.onboarding_is_pharmacist === true) {
+      try {
+        await syncOnboardingPharmacistToEmployeeMaster(adminSupabase, [{
+          employee_code: movement.employee_code,
+          is_pharmacist: true,
+        }]);
+      } catch (masterSyncError) {
+        return NextResponse.json(
+          { success: false, error: masterSyncError instanceof Error ? masterSyncError.message : '同步員工主檔藥師身分失敗' },
+          { status: 500 }
+        );
+      }
     }
 
     if (
