@@ -137,7 +137,7 @@ const dateText = (iso: string) => new Date(iso).toLocaleDateString("zh-TW", { ti
 h3 { margin: 0 0 6px; font-size: 15px; }
 h3 small { margin-left: 8px; color: var(--muted); font-weight: 400; }
 p { margin: 0; }
-.diff { border: 1px solid var(--line); border-left: 3px solid #b18b42; border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; }
+.diff { border: 1px solid #b18b42; background: var(--soft); border-radius: 6px; padding: 12px 14px; display: grid; gap: 6px; }
 .diff ul, .preview ul { list-style: none; margin: 0; padding: 0; display: grid; }
 .diff li { padding: 3px 0; }
 .preview li { display: flex; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); }
