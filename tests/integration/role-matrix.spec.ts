@@ -50,8 +50,9 @@ test.describe('角色矩陣：每個帳號都能登入且 session 與 role-matri
         if (account.key === 'admin') expect(caps.every(Boolean)).toBe(true);
         // monthlyRelease（W04 版更說明頁）是「登入即可看」，所有登入帳號都為 true，不算角色權限。
         expect(body.capabilities.monthlyRelease).toBe(true);
+        expect(body.capabilities.calendar).toBe(true); // M5 Q17：年度行事曆所有登入者都能看
         if (account.key === 'denied') {
-          expect(Object.entries(body.capabilities as Record<string, boolean>).filter(([k, v]) => v && k !== 'monthlyRelease')).toEqual([]);
+          expect(Object.entries(body.capabilities as Record<string, boolean>).filter(([k, v]) => v && k !== 'monthlyRelease' && k !== 'calendar')).toEqual([]);
         }
       } finally {
         await api.dispose();

@@ -333,6 +333,7 @@
           "managerInspections": true,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": true
         },
         "navigationHrefs": [
@@ -505,6 +506,7 @@
           "managerInspections": false,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -626,6 +628,7 @@
           "managerInspections": true,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -729,6 +732,7 @@
           "managerInspections": false,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": true
         },
         "navigationHrefs": [
@@ -840,6 +844,7 @@
           "managerInspections": false,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -937,6 +942,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1032,6 +1038,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1107,6 +1114,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1195,6 +1203,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1316,6 +1325,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1393,6 +1403,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1460,6 +1471,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1520,6 +1532,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1583,6 +1596,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1649,6 +1663,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1714,6 +1729,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1776,6 +1792,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1842,6 +1859,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1906,6 +1924,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -1969,6 +1988,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2036,6 +2056,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2100,6 +2121,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2163,6 +2185,7 @@
           "managerInspections": false,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2229,6 +2252,7 @@
           "managerInspections": false,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": true
         },
         "navigationHrefs": [
@@ -2294,6 +2318,7 @@
           "managerInspections": false,
           "campaigns": true,
           "campaignView": true,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2359,6 +2384,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2425,6 +2451,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2490,6 +2517,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2553,6 +2581,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2617,6 +2646,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2681,6 +2711,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2746,6 +2777,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2815,6 +2847,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2883,6 +2916,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -2947,6 +2981,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3013,6 +3048,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3077,6 +3113,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3143,6 +3180,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3214,6 +3252,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3279,6 +3318,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3345,6 +3385,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3409,6 +3450,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3477,6 +3519,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3542,6 +3585,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3608,6 +3652,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3671,6 +3716,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3735,6 +3781,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3799,6 +3846,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3865,6 +3913,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3930,6 +3979,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -3993,6 +4043,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4056,6 +4107,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4119,6 +4171,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4181,6 +4234,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4244,6 +4298,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4309,6 +4364,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4371,6 +4427,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4435,6 +4492,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4496,6 +4554,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4558,6 +4617,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4620,6 +4680,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
@@ -4681,6 +4742,7 @@
           "managerInspections": false,
           "campaigns": false,
           "campaignView": false,
+          "calendar": true,
           "editCampaigns": false
         },
         "navigationHrefs": [
