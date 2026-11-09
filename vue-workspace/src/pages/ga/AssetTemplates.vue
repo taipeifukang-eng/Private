@@ -286,12 +286,12 @@ const storeLabel = (s?: Unlinked["store"]) => (s ? `${s.store_code} ${s.short_na
             <td v-if="kind === 'facility'">{{ [t.width_cm, t.height_cm, t.depth_cm].map((v) => v ?? "—").join(" × ") }}</td>
             <td>{{ t.asset_count }} 筆{{ assetNoun }}<small>{{ t.site_count }} 個據點</small></td>
             <td><span class="state-text" :class="{ done: t.is_active }">{{ t.is_active ? "啟用中" : "已停用" }}</span></td>
-            <td v-if="canManage" class="actions">
+            <td v-if="canManage"><div class="actions">
               <button type="button" @click="openForm(t)">編輯</button>
               <button type="button" @click="toggleActive(t)">{{ t.is_active ? "停用" : "啟用" }}</button>
               <button v-if="kind === 'equipment' && t.is_active" type="button" @click="openRehome(t)">整理既有設備歸戶</button>
               <button type="button" class="danger" @click="askDelete(t)">刪除</button>
-            </td>
+            </div></td>
           </tr>
           <tr v-if="!rows.length && !loading"><td :colspan="canManage ? 7 : 6" class="empty">{{ error ? "資料載入失敗" : search.trim() || categoryId || activeFilter ? "找不到符合的" + noun : "還沒有" + noun }}</td></tr>
         </tbody>
@@ -305,8 +305,8 @@ const storeLabel = (s?: Unlinked["store"]) => (s ? `${s.store_code} ${s.short_na
 
     <Modal v-if="showForm" :title="(editing ? '編輯' : '新增') + noun" wide :busy="saving" @cancel="showForm = false">
       <form class="ga-form" @submit.prevent="save">
-        <label>{{ noun }}名稱<span class="required"> 必填</span><input v-model="form.name" maxlength="120" autocomplete="off" /></label>
-        <label v-if="kind === 'facility'">架型代碼<span class="required"> 必填</span><input v-model="form.code" maxlength="40" autocomplete="off" /></label>
+        <label><span>{{ noun }}名稱<span class="required"> 必填</span></span><input v-model="form.name" maxlength="120" autocomplete="off" /></label>
+        <label v-if="kind === 'facility'"><span>架型代碼<span class="required"> 必填</span></span><input v-model="form.code" maxlength="40" autocomplete="off" /></label>
         <AssetCategoryPicker v-model="form.category_id" :type="kind" :label="(kind === 'equipment' ? '設備' : '設施') + '分類'" :required="kind === 'equipment'" />
         <div class="two"><label>品牌<input v-model="form.brand" maxlength="60" /></label><label>型號<input v-model="form.model" maxlength="60" /></label></div>
         <label v-if="kind === 'equipment'">預設保固月數<input v-model="form.default_warranty_months" type="number" min="0" step="1" /></label>

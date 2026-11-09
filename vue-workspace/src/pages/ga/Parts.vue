@@ -188,11 +188,11 @@ async function confirmDelete() {
             <td>{{ p.base_unit }}<small v-if="p.purchase_unit">採購：{{ p.purchase_unit }}（×{{ p.purchase_to_base_rate }}）</small></td>
             <td><span class="state-text" :class="{ done: p.is_active }">{{ p.is_active ? "啟用中" : "已停用" }}</span></td>
             <td v-if="seeNotes">{{ p.notes || "—" }}</td>
-            <td v-if="canManage" class="actions">
+            <td v-if="canManage"><div class="actions">
               <button type="button" @click="openEdit(p)">編輯</button>
               <button type="button" @click="toggleActive(p)">{{ p.is_active ? "停用" : "啟用" }}</button>
               <button type="button" class="danger" @click="askDelete(p)">刪除</button>
-            </td>
+            </div></td>
           </tr>
           <tr v-if="!rows.length && !loading"><td :colspan="4 + (seeNotes ? 1 : 0) + (canManage ? 1 : 0) + 1" class="empty">{{ error ? "資料載入失敗" : search.trim() || categoryId || activeFilter ? "找不到符合的料件" : "還沒有料件" }}</td></tr>
         </tbody>

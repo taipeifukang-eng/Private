@@ -13,7 +13,7 @@ defineProps<{ unitLocked?: boolean; canSeeNotes?: boolean; disabled?: boolean; e
 <template>
   <div class="part-form">
     <AssetCategoryPicker v-model="model.category_id" type="part" label="料件分類" required :disabled="disabled" :error="errors?.category_id" />
-    <label>料件名稱<span class="required"> 必填</span><input v-model="model.name" maxlength="120" :disabled="disabled" autocomplete="off" /><span v-if="errors?.name" class="field-error">{{ errors.name }}</span></label>
+    <label><span>料件名稱<span class="required"> 必填</span></span><input v-model="model.name" maxlength="120" :disabled="disabled" autocomplete="off" /><span v-if="errors?.name" class="field-error">{{ errors.name }}</span></label>
     <div class="two">
       <label>料件代碼<input v-model="model.part_code" maxlength="60" :disabled="disabled" autocomplete="off" /></label>
       <label>條碼<input v-model="model.barcode" maxlength="60" :disabled="disabled" autocomplete="off" /></label>
@@ -28,7 +28,7 @@ defineProps<{ unitLocked?: boolean; canSeeNotes?: boolean; disabled?: boolean; e
       <legend>庫存單位</legend>
       <p v-if="unitLocked" class="notice" role="status">這個料件已有庫存或庫存交易紀錄，基本單位、採購單位與換算率已鎖定，不能修改；若單位真的要改，請新增另一個料件。</p>
       <div class="three">
-        <label>基本庫存單位<span class="required"> 必填</span><input v-model="model.base_unit" maxlength="20" :disabled="disabled || unitLocked" placeholder="例如 個、箱" /><span v-if="errors?.base_unit" class="field-error">{{ errors.base_unit }}</span></label>
+        <label><span>基本庫存單位<span class="required"> 必填</span></span><input v-model="model.base_unit" maxlength="20" :disabled="disabled || unitLocked" placeholder="例如 個、箱" /><span v-if="errors?.base_unit" class="field-error">{{ errors.base_unit }}</span></label>
         <label>採購單位<input v-model="model.purchase_unit" maxlength="20" :disabled="disabled || unitLocked" placeholder="例如 箱" /></label>
         <label>採購換算率<input v-model="model.purchase_to_base_rate" inputmode="decimal" :disabled="disabled || unitLocked || !model.purchase_unit" placeholder="1 個採購單位 = 幾個基本單位" /><span v-if="errors?.purchase_to_base_rate" class="field-error">{{ errors.purchase_to_base_rate }}</span></label>
       </div>

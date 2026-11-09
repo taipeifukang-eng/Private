@@ -194,13 +194,13 @@ async function confirmAction() {
             <td><span class="state-text" :class="{ done: c.is_active }">{{ c.is_active ? "啟用中" : "已停用" }}</span></td>
             <td><button v-if="c.child_count" type="button" @click="enter(c)">{{ c.child_count }} 個 ›</button><template v-else>無</template></td>
             <td>{{ c.sort_order }}</td>
-            <td v-if="canManage" class="actions">
+            <td v-if="canManage"><div class="actions">
               <button type="button" @click="openEdit(c)">編輯</button>
               <button v-if="c.is_active" type="button" :disabled="actionBusy" @click="askAction('disable', c)">停用</button>
               <button v-else type="button" :disabled="actionBusy" @click="askAction('enable', c)">啟用</button>
               <button type="button" class="danger" :disabled="actionBusy" @click="askAction('delete', c)">刪除</button>
               <button type="button" @click="openCreate(c)">新增子分類</button>
-            </td>
+            </div></td>
           </tr>
           <tr v-if="!rows.length && !loading"><td :colspan="canManage ? 6 : 5" class="empty">{{ error ? "資料載入失敗" : debounced.trim() ? "找不到符合的分類" : "這一層還沒有分類" }}</td></tr>
         </tbody>
@@ -215,8 +215,8 @@ async function confirmAction() {
     <Modal v-if="showForm" :title="editing ? '編輯分類' : '新增' + (formParent ? '子' : '') + '分類'" :busy="saving" @cancel="showForm = false">
       <p v-if="!editing && formParent" class="muted">上層：{{ formParent.path }}</p>
       <form class="ga-form" @submit.prevent="save">
-        <label>名稱<span class="required"> 必填</span><input v-model="form.name" maxlength="80" autocomplete="off" /></label>
-        <label>代碼<span class="required"> 必填（全公司唯一，含已停用的分類）</span><input v-model="form.code" maxlength="40" autocomplete="off" /></label>
+        <label><span>名稱<span class="required"> 必填</span></span><input v-model="form.name" maxlength="80" autocomplete="off" /></label>
+        <label><span>代碼<span class="required"> 必填（全公司唯一，含已停用的分類）</span></span><input v-model="form.code" maxlength="40" autocomplete="off" /></label>
         <label>說明<input v-model="form.description" maxlength="200" /></label>
         <label>排序<input v-model="form.sort_order" type="number" step="1" /></label>
         <template v-if="type === 'equipment'">
