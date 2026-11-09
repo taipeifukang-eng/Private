@@ -85,6 +85,8 @@ function applyPendingOpen() {
 function deniedMessage(tab: WorkTab) {
   if (session.expired) return "登入已過期，暫停顯示資料與儲存。";
   if (tab.kind.startsWith("activity-view")) return "您沒有權限查看活動檢視。如需使用，請聯絡管理員。";
+  // M7/M8 G01：總務頁進頁前先擋，說明哪一頁、為什麼、找誰（舊版是先進頁才被擋）。
+  if (tab.kind.startsWith("ga-")) return `您沒有「${tab.title}」的使用權限（總務服務中心需要對應的總務權限）。如需使用，請聯絡管理員或總務主管開通。`;
   return "此功能權限已變更，無法繼續查看或編輯。";
 }
 // 公開頁（D14）：不需登入，不啟動工作階段與頁籤機制。

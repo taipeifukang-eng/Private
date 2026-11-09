@@ -94,6 +94,16 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   relationships: meta("關係會員", ["relationships"]),
   roles: meta("角色權限管理", ["roles"]),
   users: meta("使用者管理", ["users"]),
+  // M7/M8 第 1 批（G01-G05）：總務服務中心外殼與資產主檔頁；進頁前先依 capability 擋下並說明。
+  "ga-center": meta("總務服務中心", ["gaCenter"]),
+  "ga-equipment-categories": meta("設備分類", ["gaEquipmentCategories"]),
+  "ga-facility-categories": meta("設施分類", ["gaFacilityCategories"]),
+  "ga-part-categories": meta("料件分類", ["gaPartCategories"]),
+  "ga-parts": meta("料件列表", ["gaParts"]),
+  "ga-part-create": meta("新增料件", ["gaPartCreate"]),
+  "ga-part-compat": meta("適用料件設定", ["gaPartCompat"]),
+  "ga-equipment-templates": meta("公司設備型號", ["gaEquipmentTemplates"]),
+  "ga-facility-templates": meta("公司設施架型", ["gaFacilityTemplates"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {

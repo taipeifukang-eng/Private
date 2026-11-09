@@ -63,6 +63,12 @@ import TaskManagementDetail from "./pages/TaskManagementDetail.vue";
 import TaskRunner from "./pages/TaskRunner.vue";
 import TaskTemplateEditor from "./pages/TaskTemplateEditor.vue";
 import Transfers from "./pages/Transfers.vue";
+import GaCenter from "./pages/ga/GaCenter.vue";
+import AssetCategories from "./pages/ga/AssetCategories.vue";
+import AssetTemplates from "./pages/ga/AssetTemplates.vue";
+import PartCompatibilities from "./pages/ga/PartCompatibilities.vue";
+import PartCreate from "./pages/ga/PartCreate.vue";
+import Parts from "./pages/ga/Parts.vue";
 import UserManagement from "./pages/Users.vue";
 import PublicDemo from "./pages/PublicDemo.vue";
 import Login from "./pages/Login.vue";
@@ -148,6 +154,15 @@ const components: Record<WorkTabKind, Component> = {
   pharmacists: Pharmacists,
   relationships: Relationships,
   roles: RoleManagement,
+  "ga-center": GaCenter,
+  "ga-equipment-categories": AssetCategories,
+  "ga-facility-categories": AssetCategories,
+  "ga-part-categories": AssetCategories,
+  "ga-parts": Parts,
+  "ga-part-create": PartCreate,
+  "ga-part-compat": PartCompatibilities,
+  "ga-equipment-templates": AssetTemplates,
+  "ga-facility-templates": AssetTemplates,
   users: UserManagement,
 };
 

@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { api, taiwanMonth, type Store } from "./api";
 import type { WorkTabKind, WorkspaceNavKind } from "../../lib/workspace/page-kinds";
 import { pageTitle } from "./workspace-page-meta";
+import type { GaNavGroup } from "../../lib/workspace/general-affairs/nav-types";
 export type Session = {
   integrated: boolean;
   navigation: { label: string; items: NavItem[] }[];
@@ -53,7 +54,19 @@ export type Session = {
     /** 活動檢視入口（canEnterCampaignView）。 */
     campaignView: boolean;
     editCampaigns: boolean;
+    /** M7/M8 總務：服務中心入口、三種分類、料件、型號與架型、適用料件設定（規則見 lib/workspace/general-affairs/access.ts）。 */
+    gaCenter: boolean;
+    gaEquipmentCategories: boolean;
+    gaFacilityCategories: boolean;
+    gaPartCategories: boolean;
+    gaParts: boolean;
+    gaPartCreate: boolean;
+    gaPartCompat: boolean;
+    gaEquipmentTemplates: boolean;
+    gaFacilityTemplates: boolean;
   };
+  /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
+  gaNavigation?: GaNavGroup[];
   environment: string;
 };
 export type NavItem = {
