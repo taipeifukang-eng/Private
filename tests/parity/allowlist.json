@@ -2545,5 +2545,284 @@
       "entry": "status-pending",
       "kind": "only-native"
     }
+  },
+  {
+    "id": "m7m8-g02-category-read-extras",
+    "page": "ga-assets",
+    "description": "新版分類清單每筆多回 path（完整路徑，如「設備 › 冷氣」）與 child_count（直接子分類數）兩個欄位；舊版回全部分類、沒有這兩欄。",
+    "reason": "新版改為逐層瀏覽、搜尋與分頁，畫面需要路徑與子分類數；資料內容（id、名稱、代碼、啟用狀態等）逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "categories-read",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g03-parts-read-extras",
+    "page": "ga-assets",
+    "description": "新版料件清單多回 permissions（可否管理、可否看內部備註）；舊版由頁面另外判斷。",
+    "reason": "畫面依此決定顯示編輯按鈕與備註欄；料件資料本身逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "parts-read",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g03-q5-store-manager-notes",
+    "page": "ga-assets",
+    "description": "只有店長身分（沒有料件查看或管理權限）時，新版料件清單與明細不含內部備註 notes；舊版店長可以看到全部啟用料件的完整資料包含內部備註。",
+    "reason": "Q5 決定：店長看料件但不含內部備註（備註可能寫採購價或廠商交涉）。屬收緊權限。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "parts-read",
+      "kind": "only-legacy",
+      "key": "q5-store-manager-notes"
+    }
+  },
+  {
+    "id": "m7m8-g01-search-special-chars",
+    "page": "ga-assets",
+    "description": "搜尋框輸入逗號、括號或雙引號時，舊版料件查詢直接壞掉（HTTP 500 或 400）；新版正常查詢。",
+    "reason": "不用問、直接照做事項：搜尋框輸入逗號或括號會壞掉的問題一併修正。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "parts-read",
+      "kind": "status",
+      "key": "parts-search-special-chars"
+    }
+  },
+  {
+    "id": "m7m8-g04-templates-read-extras",
+    "page": "ga-assets",
+    "description": "新版型號與架型清單多回 permissions（可否管理、可否設定適用料件）；設施架型改為分頁。",
+    "reason": "畫面依此決定顯示按鈕；資料列逐欄相同（含使用筆數 asset_count、site_count）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "templates-read",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g05-compat-version",
+    "page": "ga-assets",
+    "description": "新版適用料件讀取多回 version（版本碼）。",
+    "reason": "適用料件被他人同時修改時提示重新載入需要；料件 id 集合與對照列欄位逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "compat-read",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-g01-attachment-read-no-path",
+    "page": "ga-assets",
+    "description": "新版附件列表不回 storage_bucket、storage_path、storage_path_display（儲存路徑）。",
+    "reason": "Q3：簽名網址改為每次開啟重新簽發的短效期連結，畫面不需要也不該拿到實體路徑；其餘欄位（id、檔名、格式、大小）逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "attachments-read",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-g01-attachment-signed-url-ttl",
+    "page": "ga-assets",
+    "description": "附件列表的簽名網址有效期：舊版 24 小時、新版 10 分鐘（點開或下載時再另外簽發 5 分鐘連結）。",
+    "reason": "Q3 沿用項目：簽名連結改為每次開啟重新簽發短效期。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "attachments-read",
+      "kind": "changed",
+      "key": "signed_url_ttl"
+    }
+  },
+  {
+    "id": "m7m8-g02-q4-deactivate-in-use",
+    "page": "ga-assets",
+    "description": "分類底下還有啟用中的子分類或項目時：舊版仍可停用（只提示警告），新版擋下（HTTP 409）並說明筆數。",
+    "reason": "Q4 決定：底下還有啟用中的項目或子分類時不可停用（舊版停用後底下資料每一筆都改不動）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q4)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "category-write",
+      "kind": "status",
+      "key": "category-deactivate-in-use"
+    }
+  },
+  {
+    "id": "m7m8-g02-q4-delete-with-items",
+    "page": "ga-assets",
+    "description": "分類底下有料件、型號等項目（子分類已清空）時：舊版 RPC 只檢查子分類，仍會刪除分類；新版擋下（HTTP 409），限完全沒有子分類與項目才可刪。",
+    "reason": "Q4 決定：新增「刪除分類」，限完全沒有項目與子分類的分類（精確筆數檢查）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q4)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "category-write",
+      "kind": "status",
+      "key": "category-delete-with-items"
+    }
+  },
+  {
+    "id": "m7m8-g03-q6-duplicate-confirm",
+    "page": "ga-assets",
+    "description": "新增料件時品牌、型號、規格都與既有未刪除料件相同：舊版直接建立（只在回應附警告、畫面沒顯示）；新版回 409 並列出既有料件，使用者確認後才建立。",
+    "reason": "Q6 決定：新增遇重複顯示既有料件確認後才建（避免庫存被拆成兩筆）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q6)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "part-write",
+      "kind": "status",
+      "key": "part-duplicate-create"
+    }
+  },
+  {
+    "id": "m7m8-g03-q6-unit-lock",
+    "page": "ga-assets",
+    "description": "料件已有庫存或庫存交易後修改基本單位、採購單位或換算率：舊版後端不檢查（帳上數字不變、意思卻變了）；新版擋下（HTTP 409）。",
+    "reason": "Q6 決定：有庫存或交易後單位欄位鎖定。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q6)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "part-write",
+      "kind": "status",
+      "key": "part-unit-change-with-stock"
+    }
+  },
+  {
+    "id": "m7m8-g03-q6-delete-with-stock",
+    "page": "ga-assets",
+    "description": "料件在任何位置仍有庫存時刪除：舊版可刪；新版擋下（HTTP 409）。有未結單（需求單、調撥單、料件處理單）同樣擋下。沒有庫存也沒有未結單時兩邊行為相同。",
+    "reason": "Q6 決定（選 b）：補刪除，須填原因，且無庫存、無未結單才可刪。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q6)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "part-write",
+      "kind": "status",
+      "key": "part-delete-with-stock"
+    }
+  },
+  {
+    "id": "m7m8-g04-q7-template-delete-in-use",
+    "page": "ga-assets",
+    "description": "有設備在用的設備型號刪除：舊版照刪（設備仍指向已刪型號並繼續繼承它的適用料件）；新版擋下（HTTP 409），只能停用，沒人用才能刪。",
+    "reason": "Q7 決定：有設備或設施在用的型號只能停用，沒人用才能刪。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q7)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "template-write",
+      "kind": "status",
+      "key": "template-delete-in-use"
+    }
+  },
+  {
+    "id": "m7m8-g04-q7-facility-template-delete",
+    "page": "ga-assets",
+    "description": "設施架型刪除：舊版沒有這個功能；新版新增，須填原因，沒有設施在用才能刪（與設備型號同規則）。",
+    "reason": "Q7 決定把「沒人用才能刪」套用在型號與架型（問卷原文：有設備或設施在用的型號只能停用）；舊版架型沒有刪除，這是解讀後的補充，已在回報中請使用者確認。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q7)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "template-write",
+      "kind": "status",
+      "key": "facility-template-delete"
+    }
+  },
+  {
+    "id": "m7m8-g01-q3-attachment-over-4mb",
+    "page": "ga-assets",
+    "description": "單一檔案超過 4MB（例如大 PDF）：舊版接受（上限 20MB，實際可能被主機大小限制擋）；新版直接擋下（HTTP 400）並提示壓縮。照片會先在瀏覽器縮小再傳。",
+    "reason": "Q3 決定：照片自動縮小（長邊約 2000 像素），PDF 等其他檔最大 4MB。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "attachment-write",
+      "kind": "status",
+      "key": "attachment-over-4mb"
+    }
+  },
+  {
+    "id": "m7m8-g01-q3-attachment-delete-keeps-file",
+    "page": "ga-assets",
+    "description": "刪除附件：舊版把紀錄標記刪除、同時立刻永久刪掉儲存空間裡的實體檔；新版只標記，實體檔保留。",
+    "reason": "Q3 決定：刪除時只標記，實際檔案保留（誤刪保固單、貼標照片還找得回來）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "attachment-write",
+      "kind": "changed",
+      "key": "attachment-delete-storage-object"
+    }
+  },
+  {
+    "id": "m7m8-g01-legacy-success-envelope",
+    "page": "ga-assets",
+    "description": "舊版 /api/general-affairs 的回應都多帶 success: true；新版工作台 API 不帶（用 HTTP 狀態碼表示成功或失敗，錯誤時回 error 文字）。",
+    "reason": "沿用工作台既有 API 慣例（與其他頁面一致）；內容欄位逐欄相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g04-template-usage-exact",
+    "page": "ga-assets",
+    "description": "型號清單的「使用中」筆數（asset_count、site_count）：舊版用檢視者自己的權限去數設備，沒有設備查看權限的人（例如只有型號權限）永遠看到 0；新版改為精確筆數（只回數字，不洩漏設備資料）。",
+    "reason": "Q7 刪除規則要靠「有幾筆設備在用」判斷能不能刪，必須是精確數字；舊版少算會讓使用者誤以為沒人用。不用問事項：改為精確筆數。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "entry": "templates-read",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-g05-compat-replace-removal-fix",
+    "page": "ga-assets",
+    "description": "適用料件整批取代、需要移除舊對照時：舊版回 HTTP 500 失敗（舊版直接更新資料列，資料庫的讀取規則不允許把列改成已刪除）；新版改用資料庫函式，成功，被取代的列標記 REPLACED_BY_COMPATIBILITY_MANAGEMENT，與舊版設計意圖相同。只新增不移除時兩邊相同。",
+    "reason": "不用問事項：適用料件對照沿用「整批取代」語意，改為失敗可回復；舊版移除失敗是缺陷，新版修正。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "compat-write",
+      "kind": "status",
+      "key": "compat-replace-removes-rows"
+    }
+  },
+  {
+    "id": "m7m8-g01-nav-category-template-conditions",
+    "page": "ga-assets",
+    "description": "總務側欄：舊版把只寫權限碼的項目（設備分類、設施分類、料件分類、公司設備型號、公司設施架型，以及因此出現的設備管理、設施管理群組）對所有進得了服務中心的人都顯示，沒權限的人點進去才被擋；新版依權限決定是否顯示。",
+    "reason": "不用問事項：導覽補上分類與型號的顯示條件，不新增資料庫權限；進頁前先擋並顯示無權限說明。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-legacy",
+      "key": "nav-category-template-conditions"
+    }
+  },
+  {
+    "id": "m7m8-g01-nav-part-manage-conditions",
+    "page": "ga-assets",
+    "description": "總務側欄：舊版對沒有料件管理權限的人也顯示「新增料件」「適用料件設定」；新版只有具料件管理權限者看得到。",
+    "reason": "與分類、型號的顯示條件是同一個修正（舊版旗標判斷永遠為真）；問卷只明列「分類與型號」，新增料件與適用料件設定是同樣原因的延伸，待使用者核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-legacy",
+      "key": "nav-part-manage-conditions"
+    }
   }
 ]

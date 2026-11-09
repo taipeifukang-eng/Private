@@ -11,10 +11,12 @@ const { validateFixture, parseLegacyFile } = require(path.join(root, 'scripts/se
 const REQUIRED_ROLE_KEYS = [
   'admin', 'navigation', 'ops_manager', 'ops_assistant', 'supervisor', 'store_manager', 'acting_manager',
   'pharmacist', 'inventory_team', 'ga_staff', 'ga_vendor_manager', 'employee', 'denied',
+  // M7/M8 第 1 批準備：工務（Q25，與總務同權限）與綁 VW001 的第二位店長（別間門市看不到的測試）
+  'ga_works', 'ga_store_manager_b',
 ];
 
 describe('T01 role-matrix.json', () => {
-  it('包含 D06 的 13 個角色', () => {
+  it('包含 D06 的 13 個角色，加上 M7/M8 的工務與第二位店長', () => {
     const keys = fixture.accounts.filter((a: { kind: string; key: string }) => a.kind === 'role' && !a.key.endsWith('_only')).map((a: { key: string }) => a.key);
     expect(keys).toEqual(REQUIRED_ROLE_KEYS);
   });
