@@ -19,6 +19,7 @@ import * as employees from '@/app/api/monthly-staff-by-store/route';
 import * as search from '@/app/api/monthly-staff-by-store/search/route';
 import {authorizeCampaignStoreWrite,CAMPAIGN_PERM} from '@/lib/campaign-access';
 import {CAMPAIGN_INACTIVE_VISIBLE_CODES} from '@/lib/workspace/campaign-rules';
+import {assertCampaignNotHidden,bodyCampaignId} from '@/lib/workspace/campaign-guard';
 export const dynamic='force-dynamic';
 const handlers:Record<string,any>={schedules,settings,events,stores,details,ownStaff,requests,supportStaff,headcount,checklist,completions,trips,departments,assets,publish,employees,search};
 const edits:Record<string,string[]>={schedules:['activity.campaign.edit','activity.manage'],settings:['activity.campaign.edit','activity.manage'],events:['activity.campaign.edit','activity.manage'],details:['activity.store_detail.edit'],ownStaff:['activity.support_assign.edit','activity.manage'],requests:['activity.support_request.edit'],supportStaff:['activity.support_assign.edit','activity.manage'],headcount:['activity.store_detail.edit'],'checklist-order':['activity.checklist.edit'],checklist:['activity.checklist.edit'],completions:['activity.checklist.edit','activity.store_detail.edit'],trips:['activity.equipment_trip.edit'],departments:['activity.marketing.publish','activity.merchandise.publish','activity.checklist.edit'],assets:['activity.marketing.publish','activity.checklist.edit'],publish:['activity.campaign.edit','activity.manage']};
@@ -38,6 +39,8 @@ async function handle(request:NextRequest){try{
  // 整批 PUT（ownStaff／supportStaff）走 service role RPC，必須先套用與舊 POST 相同的授權與任命門市範圍。
  const scopedBatch=request.method==='PUT'&&['ownStaff','supportStaff'].includes(resource);
  if(request.method!=='GET'){checkOrigin(request);if(!legacyScopedWrite&&!scopedBatch)requireCapability(ctx,edits[resource]||[]);}
+ // M5 Q2：停用等於下架，填報寫入（body 帶 campaign_id）也不給沒有編輯／發布權限的人寫。
+ if(request.method!=='GET'&&resource!=='assets')await assertCampaignNotHidden(ctx,await bodyCampaignId(request));
  if(resource==='checklist-order'&&request.method==='PUT'){const b=await request.json();if(!uuid(b.campaign_id)||!Array.isArray(b.ids)||b.ids.some((id:any)=>!uuid(id)))throw new WorkspaceError(400,'排序格式不正確');return respond(checked(await ctx.admin.rpc('workspace_campaign_checklist_order',{p_actor:ctx.user.id,p_campaign:b.campaign_id,p_ids:b.ids})));}
  if(resource==='details'&&request.method==='POST'){
   const b=await request.json();if(!uuid(b.campaign_id)||!uuid(b.store_id))throw new WorkspaceError(400,'活動或門市識別不正確');
