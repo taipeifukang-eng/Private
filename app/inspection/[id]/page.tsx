@@ -122,6 +122,7 @@ export default async function InspectionDetailPage({
         gps_longitude,
         gps_accuracy,
         gps_timestamp,
+        gps_exempt,
         created_at,
         updated_at
       `)
@@ -401,6 +402,14 @@ export default async function InspectionDetailPage({
                 >
                   {getStatusLabel(inspection.status)}
                 </span>
+                {inspection.gps_exempt === true && (
+                  <span
+                    data-testid="gps-exempt-badge"
+                    className="mt-1.5 flex w-fit items-center whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium border bg-amber-50 text-amber-800 border-amber-300"
+                  >
+                    定位例外
+                  </span>
+                )}
               </div>
             </div>
 
@@ -432,7 +441,7 @@ export default async function InspectionDetailPage({
                     )}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 mt-0.5">未記錄</p>
+                  <p className="text-sm text-gray-400 mt-0.5">{inspection.gps_exempt === true ? '未記錄（定位例外）' : '未記錄'}</p>
                 )}
               </div>
             </div>

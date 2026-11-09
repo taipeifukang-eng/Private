@@ -17,12 +17,16 @@ interface GpsGuideDialogProps {
   open: boolean;
   failureKind?: GpsFailureKind | null;
   failureMessage?: string;
+  /** 失敗當下的定位誤差（公尺）；>= 5000 時改提示電腦可能沒有 WiFi。 */
+  failureAccuracy?: number | null;
+  /** 有「巡店定位例外」權限者才傳入：在教學視窗底部提供「使用定位例外送出」。 */
+  onUseExempt?: () => void;
   onClose: () => void;
   onRetry: () => void;
 }
 
 // 開啟定位的教學視窗：依裝置預設分頁、依失敗原因加註、LINE 內建瀏覽器提示。
-export default function GpsGuideDialog({ open, failureKind, failureMessage, onClose, onRetry }: GpsGuideDialogProps) {
+export default function GpsGuideDialog({ open, failureKind, failureMessage, failureAccuracy, onUseExempt, onClose, onRetry }: GpsGuideDialogProps) {
   const [tab, setTab] = useState<GpsGuideTabId>('windows');
   const [inLine, setInLine] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -39,7 +43,7 @@ export default function GpsGuideDialog({ open, failureKind, failureMessage, onCl
   if (!open) return null;
 
   const current = GPS_GUIDE_TABS.find((t) => t.id === tab) || GPS_GUIDE_TABS[0];
-  const note = getGpsFailureNote(failureKind, isMobile);
+  const note = getGpsFailureNote(failureKind, isMobile, failureAccuracy);
 
   return (
     <div
@@ -115,6 +119,16 @@ export default function GpsGuideDialog({ open, failureKind, failureMessage, onCl
           >
             關閉
           </button>
+          {onUseExempt && (
+            <button
+              type="button"
+              onClick={onUseExempt}
+              data-testid="gps-guide-exempt"
+              className="px-4 py-2 text-sm rounded-lg border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+            >
+              使用定位例外送出
+            </button>
+          )}
           <button
             type="button"
             onClick={onRetry}

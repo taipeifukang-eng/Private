@@ -88,6 +88,7 @@ const HIGH_IMPACT_PERMISSION_ACTIONS = new Set([
 const BROAD_SCOPE_PERMISSION_ACTIONS = new Set(['view_all']);
 const HIGH_IMPACT_PERMISSION_CODES = new Set([
   'monthly.allowance.edit_support_bonus',
+  'inspection.gps_exempt',
 ]);
 
 function isHighImpactPermission(permission: PermissionWithGrant) {
@@ -108,6 +109,7 @@ function getPermissionActionLabel(permission: PermissionWithGrant) {
   // 活動專案：舊 view 第一階段仍有效（視同 view_own），第二階段停用
   if (permission.code === 'activity.campaign.view') return '（舊）查看，將停用';
   if (permission.code === 'activity.campaign.view_own') return '查看自己管理門市';
+  if (permission.code === 'inspection.gps_exempt') return '巡店定位例外';
   return ACTION_NAMES[permission.action] || permission.action;
 }
 
