@@ -21,5 +21,5 @@ const emit = defineEmits<{ select: [id: string] }>();
   </li>
 </template>
 <style scoped>
-.chart-node{list-style:none;position:relative;padding:12px 8px 0}.chart-card{display:grid;gap:4px;text-align:left;min-width:170px;max-width:220px;padding:10px 12px;background:var(--surface);border:1px solid var(--line)}.chart-card.selected{border:2px solid var(--primary);background:var(--soft)}.chart-card.inactive{opacity:.65;border-style:dashed}.chart-card.dim{opacity:.4}.chart-card small,.chart-card span{color:var(--muted);font-size:13px}.chart-children{display:flex;gap:8px;padding:0;margin:0;border-top:1px solid var(--line);margin-top:12px;align-items:flex-start}
+.chart-node{list-style:none;position:relative;padding:12px 8px 0}.chart-card{display:grid;gap:4px;text-align:left;min-width:170px;max-width:220px;box-sizing:border-box;padding:10px 12px;background:var(--surface);border:1px solid var(--line)}.chart-card.selected{border:2px solid var(--primary);background:var(--soft)}.chart-card.inactive{opacity:.65;border-style:dashed}.chart-card.dim{opacity:.4}.chart-card small,.chart-card span,.chart-card strong{overflow-wrap:anywhere;min-width:0;white-space:normal}.chart-card small,.chart-card span{color:var(--muted);font-size:13px}.chart-children{display:flex;gap:8px;padding:0;margin:0;border-top:1px solid var(--line);margin-top:12px;align-items:flex-start}
 </style>
