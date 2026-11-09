@@ -4,7 +4,7 @@ import { Download, FileText, Trash2 } from "lucide-vue-next";
 import { api } from "../../api";
 import Modal from "../Modal.vue";
 import UploadPicker from "../UploadPicker.vue";
-import { formatBytes, isPreviewableImage, type PreparedFile } from "../../lib/upload";
+import { checkTotalSize, formatBytes, isPreviewableImage, type PreparedFile } from "../../lib/upload";
 
 // G01 附件面板：設備、設施、料件、維修回報、需求單、水電網費帳單共用。
 // Q3：照片先縮小再傳、其他檔最大 4MB、刪除只標記（實體檔保留）。HEIC 多數電腦不能預覽，顯示檔名與下載連結。
@@ -55,6 +55,8 @@ async function upload() {
   error.value = "";
   notice.value = "";
   try {
+    const total = checkTotalSize(picked.value.map((p) => p.file.size));
+    if (!total.ok) throw new Error(total.message);
     const form = new FormData();
     form.set("resource_type", props.resourceType);
     form.set("resource_id", props.resourceId);

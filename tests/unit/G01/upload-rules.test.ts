@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checkFile, checkFileCount, fileExtension, isPreviewableImage, normalizePurpose, scaledSize, storagePath, UPLOAD_LIMITS, SIGNED_URL_SECONDS,
+  checkFile, checkFileCount, checkTotalSize, REQUEST_TOTAL_BYTES, fileExtension, isPreviewableImage, normalizePurpose, scaledSize, storagePath, UPLOAD_LIMITS, SIGNED_URL_SECONDS,
 } from '@/lib/workspace/general-affairs/upload-rules';
 
 const MB = 1024 * 1024;
+describe('單次請求合計上限（主機約 4.5MB）', () => {
+  it('3 個 2MB、2 個 3MB 都超過；單檔 4MB 剛好可以', () => {
+    expect(checkTotalSize([2 * MB, 2 * MB, 2 * MB]).ok).toBe(false);
+    expect(checkTotalSize([3 * MB, 3 * MB]).ok).toBe(false);
+    expect(checkTotalSize([4 * MB]).ok).toBe(true);
+    expect(checkTotalSize([2 * MB, 2 * MB]).ok).toBe(true);
+    expect(REQUEST_TOTAL_BYTES).toBeLessThan(4.5 * MB);
+    const r = checkTotalSize([3 * MB, 3 * MB]);
+    expect(!r.ok && r.message).toContain('分批');
+  });
+});
 describe('Q3 附件規則：4MB 上限、格式、數量', () => {
   it('上限固定為 4MB、照片長邊 2000、一次 10 個', () => {
     expect(UPLOAD_LIMITS).toEqual({ maxFileBytes: 4 * MB, imageLongEdge: 2000, maxFilesPerRequest: 10 });

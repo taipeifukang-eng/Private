@@ -3,6 +3,7 @@
 // 規則本體在 lib/workspace/general-affairs/upload-rules.ts（伺服端用同一份檢查）。日後 M6 的改善單、巡店照片改接這裡即可。
 import {
   checkFile,
+  checkTotalSize,
   isPreviewableImage,
   isImageType,
   QUALITY_STEPS,
@@ -10,7 +11,7 @@ import {
   UPLOAD_LIMITS,
 } from "../../../lib/workspace/general-affairs/upload-rules";
 
-export { UPLOAD_LIMITS, isImageType, isPreviewableImage };
+export { checkTotalSize, UPLOAD_LIMITS, isImageType, isPreviewableImage };
 
 export type PreparedFile = {
   id: string;

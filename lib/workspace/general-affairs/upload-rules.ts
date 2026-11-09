@@ -42,6 +42,18 @@ export function checkFile(file: { name: string; type: string; size: number }): F
   return { ok: true };
 }
 
+/** 單次請求檔案合計上限：主機單次請求約 4.5MB，扣掉 multipart 開銷留 0.25MB 餘裕。 */
+export const REQUEST_TOTAL_BYTES = 4 * 1024 * 1024 + 256 * 1024;
+
+/** 一次請求的檔案總量檢查（前後端同一套）；超過請分批上傳。 */
+export function checkTotalSize(sizes: number[]): FileCheck {
+  const total = sizes.reduce((a, b) => a + b, 0);
+  if (total > REQUEST_TOTAL_BYTES) {
+    return { ok: false, message: `這次選的檔案合計 ${(total / 1024 / 1024).toFixed(1)}MB，單次上傳合計不能超過 4.25MB，請分批上傳（每次少選幾個檔案）` };
+  }
+  return { ok: true };
+}
+
 export function checkFileCount(count: number): FileCheck {
   if (count <= 0) return { ok: false, message: "請選擇要上傳的附件" };
   if (count > UPLOAD_LIMITS.maxFilesPerRequest) return { ok: false, message: `單次最多上傳 ${UPLOAD_LIMITS.maxFilesPerRequest} 個附件` };

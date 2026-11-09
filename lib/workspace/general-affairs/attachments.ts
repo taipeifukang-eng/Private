@@ -7,7 +7,7 @@ import { adminClient } from "../server";
 import { dbCan, GA } from "./access";
 import { isUuid } from "./rules";
 import {
-  checkFile, checkFileCount, fileExtension, isResourceType, normalizePurpose, SIGNED_URL_SECONDS, storagePath, UPLOAD_LIMITS,
+  checkFile, checkFileCount, checkTotalSize, fileExtension, isResourceType, normalizePurpose, SIGNED_URL_SECONDS, storagePath, UPLOAD_LIMITS,
 } from "./upload-rules";
 import { GaError, dbError, must, respond, type Context } from "./server";
 
@@ -86,6 +86,8 @@ async function upload(ctx: Context, request: NextRequest) {
     const c = checkFile({ name: f.name, type: f.type || "application/octet-stream", size: f.size });
     if (!c.ok) throw new GaError(400, c.message);
   }
+  const total = checkTotalSize(files.map((f) => f.size));
+  if (!total.ok) throw new GaError(413, total.message);
   const useAdmin = await utilityGate(ctx, resourceType, resourceId, true);
   const admin = adminClient();
   const uploaded: string[] = [];
