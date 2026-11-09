@@ -2881,5 +2881,269 @@
       "kind": "only-legacy",
       "key": "nav-part-manage-conditions"
     }
+  },
+  {
+    "id": "m7m8-g06-q5-store-manager-basic-fields",
+    "page": "ga-equipment",
+    "description": "店長身分（沒有設備查看或管理權限）讀設備清單與詳情時，新版只回基本欄位（名稱、位置、狀態、保固、所屬門市等識別資訊）；舊版回整列，含金額、供應商、備註、序號、條碼與採購日。",
+    "reason": "Q5 決議：門市負責人只看基本欄位，由伺服端挑欄位（資料庫端也不取敏感欄位）；基本欄位本身逐欄與舊版相同。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "q5-store-manager-basic-fields"
+    }
+  },
+  {
+    "id": "m7m8-g06-search-special-chars",
+    "page": "ga-equipment",
+    "description": "搜尋輸入逗號、括號或雙引號時，舊版把輸入直接塞進查詢字串而壞掉；新版正常回傳。",
+    "reason": "修正舊版缺陷（不用問、直接照做的搜尋輸入處理）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "equipment-search-special-chars"
+    }
+  },
+  {
+    "id": "m7m8-g06-detail-other-store-404",
+    "page": "ga-equipment",
+    "description": "店長讀其他門市的設備詳情：舊版因資料庫查不到資料而回 500（內部錯誤訊息）；新版回 404 找不到。",
+    "reason": "不存在或看不到的資料一律回 404（直接照做：作廢或不存在回 404），不外露內部錯誤。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "equipment-detail-other-store"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-warranty",
+    "page": "ga-equipment",
+    "description": "新版每筆設備多回 warranty（保固狀態、剩餘天數、顯示文字），以台北時間計算，到期日當天結束才算過期；舊版由瀏覽器用 UTC 時間差自己算，到期日當天就被判過保。",
+    "reason": "直接照做：保固到期改用台北時間，到期日當天結束才過期。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "warranty"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-thumbnail-url",
+    "page": "ga-equipment",
+    "description": "新版設備清單或詳情多回 thumbnail_url（設備主圖縮圖的簽名網址，每次重簽）；舊版清單沒有這個欄位。",
+    "reason": "新版畫面需要（清冊縮圖、轉移提醒、貼標退回提示）；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "thumbnail_url"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-open-transfer",
+    "page": "ga-equipment",
+    "description": "新版設備清單或詳情多回 open_transfer（進行中的轉移單摘要）；舊版清單沒有這個欄位。",
+    "reason": "新版畫面需要（清冊縮圖、轉移提醒、貼標退回提示）；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "open_transfer"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-qr-scan-path",
+    "page": "ga-equipment",
+    "description": "新版設備清單或詳情多回 qr_scan_path（詳情也帶 QR 永久網址路徑）；舊版清單沒有這個欄位。",
+    "reason": "新版畫面需要（清冊縮圖、轉移提醒、貼標退回提示）；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "qr_scan_path"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-onboarding-requires-primary-photo",
+    "page": "ga-equipment",
+    "description": "新版設備清單或詳情多回 onboarding_requires_primary_photo（總務退回後是否要重傳設備照片）；舊版清單沒有這個欄位。",
+    "reason": "新版畫面需要（清冊縮圖、轉移提醒、貼標退回提示）；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_requires_primary_photo"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-onboarding-requires-label-photo",
+    "page": "ga-equipment",
+    "description": "新版設備清單或詳情多回 onboarding_requires_label_photo（總務退回後是否要重傳貼標照片）；舊版清單沒有這個欄位。",
+    "reason": "新版畫面需要（清冊縮圖、轉移提醒、貼標退回提示）；既有欄位逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_requires_label_photo"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-top-total",
+    "page": "ga-equipment",
+    "description": "新版設備清單最外層多回 total（符合條件的精確筆數）；詳情只多回 permissions。",
+    "reason": "新版畫面需要；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-top-stats",
+    "page": "ga-equipment",
+    "description": "新版設備清單最外層多回 stats（統計卡（符合篩選的總數、需留意狀態、保固需確認））；詳情只多回 permissions。",
+    "reason": "新版畫面需要；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats"
+    }
+  },
+  {
+    "id": "m7m8-g06-extra-top-permissions",
+    "page": "ga-equipment",
+    "description": "新版設備清單最外層多回 permissions（可否管理與可見欄位層級）；詳情只多回 permissions。",
+    "reason": "新版畫面需要；資料本身逐欄相同。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
+  },
+  {
+    "id": "m7m8-g06-legacy-success-envelope",
+    "page": "ga-equipment",
+    "description": "舊版 API 回應最外層帶 success: true；新版以 HTTP 狀態碼表示成功或失敗，不帶 success。",
+    "reason": "與第 1 批已核可的 success 封包差異相同（m7m8-g01-legacy-success-envelope），套用到設備 API。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g06-edit-specs-preserved",
+    "page": "ga-equipment",
+    "description": "編輯設備時，舊版把整包 specs 取代（編輯畫面送 specs: {}，會清空「購買來源供應商」與「保固申請方式」）；新版 specs 合併，沒提到的鍵保留，要清空才明確送 null。",
+    "reason": "直接照做：編輯設備保留「購買來源供應商」「保固申請方式」，只更新有改的欄位。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "equipment-edit-specs-preserved"
+    }
+  },
+  {
+    "id": "m7m8-g06-edit-store-id",
+    "page": "ga-equipment",
+    "description": "編輯設備時帶所屬門市：舊版直接改；新版回 400，要求改走轉移單（平常換店）或「更正所屬門市」（建檔錯誤，必填原因並寫異動紀錄）。",
+    "reason": "Q10 與 Q28 的主迴圈解讀 (a)。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "equipment-edit-store-id"
+    }
+  },
+  {
+    "id": "m7m8-g06-edit-restore-scrapped",
+    "page": "ga-equipment",
+    "description": "已報廢的設備：舊版可以直接在編輯把狀態改回使用中（QR 仍作廢，造成「使用中卻掃不到」）；新版要用「恢復使用並重新啟用 QR」，才會沿用原標籤並留下異動紀錄。",
+    "reason": "Q8 恢復使用的配套規則，為主迴圈解讀 (e) 的延伸。主迴圈解讀或自行延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "equipment-edit-restore-scrapped"
+    }
+  },
+  {
+    "id": "m7m8-g06-q10-delete-with-open-orders",
+    "page": "ga-equipment",
+    "description": "設備有未結案的報修單或工單時：舊版允許刪除；新版回 409 並顯示未結案單張數，建議改為報廢。",
+    "reason": "Q10 決議：有未結案單禁止刪除並顯示張數（可改報廢）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q10)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "equipment-delete-with-open-orders"
+    }
+  },
+  {
+    "id": "m7m8-g06-onboarding-reject-both",
+    "page": "ga-equipment",
+    "description": "貼標複核退回：舊版可以只退貼標照片一項（回到待上傳貼標照）；新版一律設備照片與貼標位置照片兩項都要求重拍（回到待上傳設備照片）。",
+    "reason": "直接照做：退回同時勾兩種照片的小問題改為兩項都要求（主迴圈解讀 (f)）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "onboarding-reject-label-only"
+    }
+  },
+  {
+    "id": "m7m8-g06-onboarding-reject-no-choice",
+    "page": "ga-equipment",
+    "description": "貼標複核退回：舊版沒勾選要重補的照片時回 400；新版不需要勾選（兩項都要求），只要有原因就可以退回。",
+    "reason": "同上，退回一律兩項都要求，介面不再提供個別勾選。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "onboarding-reject-without-photo-choice"
+    }
+  },
+  {
+    "id": "m7m8-g06-q3-onboarding-photo-4mb",
+    "page": "ga-equipment",
+    "description": "貼標流程上傳照片：舊版單檔上限 20MB；新版照片在手機先縮小，伺服端單檔上限 4MB（主機單次請求約 4.5MB）。",
+    "reason": "Q3 決議：照片縮小後上傳、單檔上限 4MB。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q3)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "onboarding-photo-over-4mb"
+    }
+  },
+  {
+    "id": "m7m8-g06-view-role-store-names",
+    "page": "ga-equipment",
+    "description": "只有設備查看權限（沒有門市與分類的讀取權限）的帳號：舊版清單與詳情的 所屬門市 關聯資料因資料庫列級權限讀不到而是空的（畫面顯示「-」）；新版由伺服端補上名稱，一定顯示。",
+    "reason": "主迴圈延伸：門市與分類名稱不是敏感欄位，查看設備的人應該看得到所屬門市與分類。驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "equipment-view-role-store-names"
+    }
+  },
+  {
+    "id": "m7m8-g06-view-role-category-names",
+    "page": "ga-equipment",
+    "description": "只有設備查看權限（沒有門市與分類的讀取權限）的帳號：舊版清單與詳情的 分類 關聯資料因資料庫列級權限讀不到而是空的（畫面顯示「-」）；新版由伺服端補上名稱，一定顯示。",
+    "reason": "主迴圈延伸：門市與分類名稱不是敏感欄位，查看設備的人應該看得到所屬門市與分類。驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "equipment-view-role-category-names"
+    }
   }
 ]

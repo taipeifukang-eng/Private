@@ -1,0 +1,45 @@
+{
+  "page": "ga-equipment",
+  "legacyRoute": "/general-affairs/equipment、/general-affairs/equipment/new（含首頁的貼標待辦與複核）",
+  "workItem": "G06",
+  "entries": [
+    {
+      "id": "equipment-read",
+      "mechanism": "api-read",
+      "description": "設備清單：同一個登入者、同一個搜尋，舊 GET /api/general-affairs/equipment 與新版回傳的設備 id、欄位、筆數相同。差異：新版多回 warranty（台北時間保固狀態）、thumbnail_url、貼標重拍旗標與 total、stats、permissions；店長身分只看基本欄位（Q5）；搜尋輸入逗號或括號時舊版查詢壞掉、新版正常。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/equipment", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } },
+      "compareKey": "id"
+    },
+    {
+      "id": "equipment-detail-read",
+      "mechanism": "api-read",
+      "description": "設備詳情：同一個登入者讀同一台設備，舊 GET /api/general-affairs/equipment/:id 與新版整列欄位相同。差異：新版多回 warranty、thumbnail_url、open_transfer、qr_scan_path 與 permissions；店長身分只看基本欄位（Q5）；他店設備回 404。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment/:id" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/equipment/:id" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "equipment-write",
+      "mechanism": "write-readback",
+      "description": "設備新增與編輯：同一份輸入分別送舊 POST／PATCH 與新版，service role 回讀資料庫整列逐欄比對。差異：編輯只更新有改的欄位（specs 合併，不再清空供應商與保固申請方式）、編輯不能改所屬門市（改走轉移單或更正）、已報廢要用恢復才能改回使用中、有未結案單時刪除被擋下並顯示張數。",
+      "legacy": { "source": "app/api/general-affairs/equipment/route.ts、app/api/general-affairs/equipment/[id]/route.ts" },
+      "native": { "source": "lib/workspace/general-affairs/assets.ts" }
+    },
+    {
+      "id": "onboarding-read",
+      "mechanism": "api-read",
+      "description": "店長貼標待辦：舊 GET /api/general-affairs/equipment/store-onboarding-tasks（只載入 100 筆、只含設備）與新版 GET /onboarding/tasks（設備，分頁與精確筆數）同一個登入者的待辦設備 id 集合、狀態、重拍旗標、退回原因相同。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment/store-onboarding-tasks" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/onboarding/tasks", "query": { "assetType": "EQUIPMENT", "pageSize": "100" } } },
+      "compareKey": "id"
+    },
+    {
+      "id": "onboarding-write",
+      "mechanism": "write-readback",
+      "description": "貼標複核與照片上傳：同一份輸入分別送舊 POST /api/general-affairs/equipment/:id/onboarding-review 與新版 POST /onboarding/review，回讀資料庫貼標欄位逐欄比對。差異：退回一律兩項照片都要求（舊版可只退一項）、退回不再需要勾選要重補的照片、照片上限 4MB（舊 20MB，使用者在 Q3 核可）、重傳主圖不再撞唯一索引。",
+      "legacy": { "source": "app/api/general-affairs/equipment/[id]/onboarding-review/route.ts、store-onboarding-tasks/route.ts" },
+      "native": { "source": "lib/workspace/general-affairs/onboarding.ts" }
+    }
+  ]
+}

@@ -398,9 +398,9 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
         </section>
         <div class="dialog-actions">
           <template v-if="canManage">
-            <button type="button" class="danger" @click="askDelete(detail)">刪除</button>
-            <button type="button" @click="askCorrect(detail)">更正所屬門市</button>
-            <button v-if="needsRestore(detail)" type="button" @click="askRestore(detail)">恢復使用並重新啟用 QR</button>
+            <button type="button" class="danger" :disabled="detailBusy" @click="askDelete(detail)">刪除</button>
+            <button type="button" :disabled="detailBusy" @click="askCorrect(detail)">更正所屬門市</button>
+            <button v-if="needsRestore(detail)" type="button" :disabled="detailBusy" @click="askRestore(detail)">恢復使用並重新啟用 QR</button>
             <button type="button" class="primary" :disabled="detailBusy" @click="startEdit">編輯</button>
           </template>
           <button type="button" @click="closeDetail">關閉</button>

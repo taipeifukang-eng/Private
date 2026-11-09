@@ -31,6 +31,8 @@ test.afterAll(async () => {
 
 const heading = (page: Page, name: string) => page.getByRole('heading', { name, exact: true }).locator('visible=true').first();
 const dialog = (page: Page) => page.locator('dialog[open]');
+/** 料件列：桌機是表格列，手機（390）是卡片（解讀 (d)）。 */
+const partRow = (page: Page, text: string) => page.locator('tr:visible, li.part-card:visible', { hasText: text });
 const notice = (page: Page, text: string | RegExp) => page.locator('.notice:visible', { hasText: text }).first();
 /** 在分類選擇器裡用代碼搜尋並選取。 */
 async function pickCategory(page: Page, scope: ReturnType<Page['locator']>, label: string, code: string) {
@@ -150,7 +152,7 @@ test('G03 料件畫面：新增、重複確認、編輯、單位鎖定、附件�
     await expect(heading(page, '料件列表')).toBeVisible();
     const search = page.getByRole('searchbox', { name: /搜尋/ }).locator('visible=true').first();
     await search.fill(name1);
-    const row = page.locator('tr:visible', { hasText: name1 });
+    const row = partRow(page, name1);
     await expect(row).toBeVisible();
     await expect(row).toContainText('E2E 內部備註 99 元'); // 總務看得到內部備註
     await row.getByRole('button', { name: '編輯' }).click();
@@ -165,7 +167,7 @@ test('G03 料件畫面：新增、重複確認、編輯、單位鎖定、附件�
 
     // 附件：照片上傳（縮小後）、PDF 超過 4MB 被擋、只標記刪除
     await search.fill(m7Name('E2E-甲料件-改'));
-    await page.locator('tr:visible', { hasText: m7Name('E2E-甲料件-改') }).getByRole('button', { name: '編輯' }).click();
+    await partRow(page, m7Name('E2E-甲料件-改')).getByRole('button', { name: '編輯' }).click();
     const panel = dialog(page).getByRole('region', { name: '料件照片與文件' });
     await expect(panel).toBeVisible();
     await expect(panel).toContainText('目前沒有附件');
@@ -207,16 +209,16 @@ test('G03 料件畫面：新增、重複確認、編輯、單位鎖定、附件�
     // 有庫存：單位鎖定、刪除被擋並說明；庫存歸零後可刪
     const loc = await seedLocation(null, 'E2E-L');
     const bal = await seedBalance(loc.id, part.id, 4);
-    await page.locator('tr:visible', { hasText: m7Name('E2E-甲料件-改') }).getByRole('button', { name: '編輯' }).click();
+    await partRow(page, m7Name('E2E-甲料件-改')).getByRole('button', { name: '編輯' }).click();
     await expect(dialog(page)).toContainText('基本單位、採購單位與換算率已鎖定');
     await expect(dialog(page).getByLabel('基本庫存單位')).toBeDisabled();
     await dialog(page).getByRole('button', { name: '取消' }).first().click();
-    await page.locator('tr:visible', { hasText: m7Name('E2E-甲料件-改') }).getByRole('button', { name: '刪除' }).click();
+    await partRow(page, m7Name('E2E-甲料件-改')).getByRole('button', { name: '刪除' }).click();
     await expect(dialog(page)).toContainText('仍有庫存');
     await expect(dialog(page).getByRole('button', { name: '確認刪除' })).toHaveCount(0);
     await dialog(page).getByRole('button', { name: '關閉' }).click();
     await adminDb().from('ga_inventory_balances').update({ quantity_base: 0 }).eq('id', bal.id);
-    await page.locator('tr:visible', { hasText: m7Name('E2E-甲料件-改') }).getByRole('button', { name: '刪除' }).click();
+    await partRow(page, m7Name('E2E-甲料件-改')).getByRole('button', { name: '刪除' }).click();
     await dialog(page).getByLabel('刪除原因').fill('E2E 建錯了');
     await dialog(page).getByRole('button', { name: '確認刪除' }).click();
     await expect(notice(page, '已刪除料件')).toBeVisible();
@@ -241,7 +243,7 @@ test('Q5 店長看料件：只有基本資料（沒有內部備註欄、沒有�
     await gaNavTo(page, '料件列表', '料件管理');
     await expect(heading(page, '料件列表')).toBeVisible();
     await page.getByRole('searchbox', { name: /搜尋/ }).locator('visible=true').first().fill(part.name);
-    await expect(page.locator('tr:visible', { hasText: part.name })).toBeVisible();
+    await expect(partRow(page, part.name)).toBeVisible();
     await expect(page.getByRole('columnheader', { name: '內部備註' }).locator('visible=true')).toHaveCount(0);
     await expect(page.getByRole('columnheader', { name: '操作' }).locator('visible=true')).toHaveCount(0);
     await expect(page.getByText('採購價 99 元')).toHaveCount(0);
