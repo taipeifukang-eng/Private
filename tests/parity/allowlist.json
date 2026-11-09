@@ -3171,5 +3171,18 @@
       "kind": "only-native",
       "key": "native-only:onboarding-review"
     }
+  },
+  {
+    "id": "m7m8-g06-nav-equipment-manage-conditions",
+    "page": "ga-assets",
+    "description": "總務側欄：舊版對沒有設備管理權限的店長也顯示「新增設備」（只要有設備入口旗標就顯示，點進去才被擋）；新版只有具設備管理權限者看得到。",
+    "reason": "與第 1 批「新增料件」「適用料件設定」同一個修正（舊版旗標判斷讓入口對不能用的人也顯示）的延伸，設備頁面第 2 批才移植。驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-legacy",
+      "key": "nav-equipment-manage-conditions"
+    }
   }
 ]

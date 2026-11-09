@@ -449,7 +449,8 @@ test('附件寫入：同一份檔案的資料庫列相同；Q3 超過 4MB 舊版
 // 舊版把「只寫權限碼」的側欄項目對所有人顯示（旗標判斷寫成永遠為真）；新版已移植的頁面依 capability 把關。差異聚合成兩種：分類與型號的顯示條件（問卷已核可）、新增料件與適用料件設定的顯示條件（同一個修正的延伸，待核可）。
 const NAV_CATEGORY_TEMPLATE = new Set(['equipment-categories', 'facility-categories', 'part-categories', 'equipment-templates', 'facility-templates', 'equipment', 'facilities', 'parts']);
 const NAV_PART_MANAGE = new Set(['part-new', 'part-compatibilities', 'parts-list']);
-const navKey = (id: string) => (NAV_CATEGORY_TEMPLATE.has(id) ? 'nav-category-template-conditions' : NAV_PART_MANAGE.has(id) ? 'nav-part-manage-conditions' : `unexpected:${id}`);
+const NAV_EQUIPMENT_MANAGE = new Set(['equipment-new']); // 第 2 批：新增設備（舊版對沒有設備管理權限的店長也顯示）
+const navKey = (id: string) => (NAV_CATEGORY_TEMPLATE.has(id) ? 'nav-category-template-conditions' : NAV_PART_MANAGE.has(id) ? 'nav-part-manage-conditions' : NAV_EQUIPMENT_MANAGE.has(id) ? 'nav-equipment-manage-conditions' : `unexpected:${id}`);
 test('總務側欄：每個角色的舊版規則項目 id 集合 vs 新版 gaNavigation（差異只有已移植頁面的 capability 把關與店長不列設施架型）', async () => {
   const e = entry('sidebar-visibility');
   const fixture = JSON.parse((await import('node:fs')).readFileSync((await import('node:path')).resolve(__dirname, '..', 'fixtures', 'role-matrix.json'), 'utf8')) as { accounts: any[] };
