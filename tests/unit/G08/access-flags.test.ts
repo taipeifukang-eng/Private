@@ -70,7 +70,8 @@ describe('側欄接線（舊網址對應新版頁面）', () => {
     const items = flatten(nav(access(['general_affairs.service_center.access', 'general_affairs.facility.view'])));
     expect(items.find((i) => i.id === 'facility-list-new')).toBeUndefined();
     const fac = items.find((i) => i.id === 'facilities');
-    expect(fac.children.at(-1)).toMatchObject({ id: 'facility-warranties', kind: 'ga-facility-warranties' });
+    expect(fac.children.find((c: any) => c.id === 'facility-warranties')).toMatchObject({ kind: 'ga-facility-warranties' });
+    expect(fac.children.at(-1)).toMatchObject({ id: 'facility-labels', kind: 'ga-facility-labels' }); // G10 設施 QR 標籤列印接在最後
   });
   it('設備查看者：保固管理與維修紀錄開新版頁籤', () => {
     const items = flatten(nav(access(['general_affairs.service_center.access', 'general_affairs.equipment.view'])));

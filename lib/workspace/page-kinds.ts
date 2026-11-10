@@ -100,6 +100,10 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-facility-history",
   "ga-onboarding-tasks",
   "ga-onboarding-review",
+  // 第 2 批 G10：QR 標籤列印（設備、設施）與資產掃描頁（QR 永久網址的新版頁面）。
+  "ga-equipment-labels",
+  "ga-facility-labels",
+  "ga-asset-scan",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

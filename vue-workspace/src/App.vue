@@ -55,14 +55,14 @@ const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
 // M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
-const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar"];
+const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan"];
 const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string }; date?: string } | null>(null);
 function capturePendingOpen() {
   if (!route.meta.open) return;
   const kind = String(route.params.kind || "") as WorkTab["kind"];
   const id = route.params.id ? String(route.params.id) : undefined;
   if (!OPEN_LINK_KINDS.includes(kind)) return;
-  if (kind === "activity-view-detail" && !id) return;
+  if ((kind === "activity-view-detail" || kind === "ga-asset-scan") && !id) return;
   const focus = String(route.query.focus || "");
   // M5 W24：Google 授權回調由舊站轉過來時帶著結果（只接受固定三種結果，說明文字截 300 字）。
   const googleResult = String(route.query.google_calendar || "");

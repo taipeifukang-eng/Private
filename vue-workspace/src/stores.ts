@@ -76,6 +76,9 @@ export type Session = {
     gaFacilityHistory: boolean;
     gaOnboardingTasks: boolean;
     gaOnboardingReview: boolean;
+    /** G10：QR 標籤列印。 */
+    gaEquipmentLabels: boolean;
+    gaFacilityLabels: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

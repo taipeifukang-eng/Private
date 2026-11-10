@@ -85,6 +85,8 @@ export type GaFlags = {
   gaFacilityHistory: boolean;
   gaOnboardingTasks: boolean;
   gaOnboardingReview: boolean;
+  gaEquipmentLabels: boolean;
+  gaFacilityLabels: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -118,6 +120,9 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false):
     gaFacilityHistory: storeManager || storeMember || has(GA.facilityView, GA.facilityManage),
     gaOnboardingTasks: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage, GA.facilityView, GA.facilityManage),
     gaOnboardingReview: has(GA.equipmentManage, GA.facilityManage),
+    // G10 QR 標籤列印：設備／設施查看或管理（店長不能列印）。
+    gaEquipmentLabels: has(GA.equipmentView, GA.equipmentManage),
+    gaFacilityLabels: has(GA.facilityView, GA.facilityManage),
   };
 }
 

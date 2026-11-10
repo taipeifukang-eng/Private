@@ -67,7 +67,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     const groups = nav(a);
     expect(groups.map((g) => g.id)).toEqual(expect.arrayContaining(['workspace', 'assets-inventory']));
     expect(kinds(a)).toEqual([
-      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-history', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-history', 'ga-facility-templates', 'ga-facility-warranties', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
+      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-history', 'ga-equipment-labels', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-history', 'ga-facility-labels', 'ga-facility-templates', 'ga-facility-warranties', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
     ]);
     // 第 2 批：設備清冊已移植；尚未移植的項目仍在（用舊頁網址另開），例如保固管理
     expect(flatten(groups).find((i) => i.id === 'equipment-list')).toMatchObject({ href: '/general-affairs/equipment', kind: 'ga-equipment' });
@@ -88,6 +88,6 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     expect(item?.disabled).toBeTruthy();
   });
   it('頁面對照表涵蓋第 1 批九個頁面與第 2 批設備清冊、新增設備', () => {
-    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(17); // 第 2 批 G08／G09 再加 6 個（設施清冊、新增設施、設備與設施保固頁、維修紀錄）
+    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(18); // 第 2 批 G08／G09 再加 6 個（設施清冊、新增設施、設備與設施保固頁、維修紀錄），G10 再加設備 QR 標籤列印
   });
 });

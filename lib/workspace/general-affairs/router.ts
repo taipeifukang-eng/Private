@@ -9,6 +9,8 @@ import { isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { partsApi } from "./parts";
 import { sitesApi } from "./pickers";
+import { qrApi } from "./qr";
+import { scanApi } from "./scan";
 import { compatApi, templatesApi, unlinkedEquipment } from "./templates";
 import { GaError, respond, type Context } from "./server";
 
@@ -48,6 +50,10 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return maintenanceApi(ctx, request, rest);
     case "onboarding":
       return onboardingApi(ctx, request, rest);
+    case "qr":
+      return qrApi(ctx, request, rest);
+    case "assets":
+      return scanApi(ctx, request, rest);
     case "sites":
       return sitesApi(ctx, request);
     default:

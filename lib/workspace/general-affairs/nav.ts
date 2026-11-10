@@ -31,6 +31,7 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/equipment": { kind: "ga-equipment", flag: "gaEquipment" },
   "/general-affairs/equipment/new": { kind: "ga-equipment-create", flag: "gaEquipmentCreate" },
   "/general-affairs/equipment/warranties": { kind: "ga-equipment-warranties", flag: "gaEquipmentWarranties" },
+  "/general-affairs/equipment/labels": { kind: "ga-equipment-labels", flag: "gaEquipmentLabels" },
   "/general-affairs/equipment/maintenance-history": { kind: "ga-equipment-history", flag: "gaEquipmentHistory" },
   "/general-affairs/facilities": { kind: "ga-facilities", flag: "gaFacilities" },
   "/general-affairs/facilities/new": { kind: "ga-facility-create", flag: "gaFacilityCreate" },
@@ -112,6 +113,13 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
     for (const g of out) {
       const fac = g.items.find((i) => i.id === "facilities");
       if (fac?.children) fac.children.push({ id: "facility-warranties", label: "保固管理", kind: "ga-facility-warranties" });
+    }
+  }
+  // 設施 QR 標籤列印（解讀 (b)）：舊版沒有，新頁補在「設施管理」最後一項。
+  if (flags.gaFacilityLabels) {
+    for (const g of out) {
+      const fac = g.items.find((i) => i.id === "facilities");
+      if (fac?.children) fac.children.push({ id: "facility-labels", label: "QR 標籤列印", kind: "ga-facility-labels" });
     }
   }
   // 第 2 批新頁面沒有舊網址（不改舊版側欄元件）：貼標待辦與複核追加在「資產與庫存」群組最後。
