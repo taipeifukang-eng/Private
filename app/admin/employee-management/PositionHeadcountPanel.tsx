@@ -236,8 +236,9 @@ export default function PositionHeadcountPanel() {
       {view === 'month' && result && (
         <>
           <p className="text-sm text-gray-600">
-            只統計「月底仍在職」的人（不含當月離職、留職停薪、調出、支援卡班，也不含督導卡班）。全公司合計每人只算一次；各門市與督導區照實際登記顯示，
-            跨店的人會在每間門市各出現一次，所以門市／督導區加總可能大於全公司合計。點任一數字可看名單。
+            只統計「月底仍在職」的人（不含當月離職、留職停薪、調出、支援卡班，也不含督導卡班）。同一人同月在兩間以上門市都有登記時，只算在一間「主要歸屬門市」
+            （依序：該月是代理店長的那間 → 他自己督導區的門市 → 非雙店長／雙職 → 職等較高 → 門市代號較小），其他門市的登記列入「不計入」，原因寫「已計入○○」。
+            所以各門市加總 = 督導區小計、各督導區小計加總 = 全公司合計。點任一數字可看名單。
           </p>
           {result.excluded.length > 0 && (
             <div>
@@ -288,7 +289,7 @@ export default function PositionHeadcountPanel() {
 
       {view === 'trend' && trend && (
         <>
-          <p className="text-sm text-gray-600">全公司近 12 個月（到 {month} 為止）每月各欄人數（不含督導卡班），每人只算一次，口徑同全公司合計。沒有資料的月份顯示「—」。</p>
+          <p className="text-sm text-gray-600">全公司近 12 個月（到 {month} 為止）每月各欄人數（不含督導卡班），跨店的人只算在主要歸屬門市，口徑同全公司合計。沒有資料的月份顯示「—」。</p>
           <div className={SCROLL_BOX} data-testid="headcount-trend-scroll">
             <table className="min-w-full text-sm border-separate border-spacing-0">
               <thead className="text-gray-700">
@@ -363,7 +364,7 @@ export default function PositionHeadcountPanel() {
                       <td className="px-3 py-2 whitespace-nowrap">{e.newbie_level || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{e.statusLabel}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
-                        {[e.crossStore ? '跨店' : '', e.isDual ? '雙' : '', e.supervisorActing ? '督導代理' : '', e.isRotation ? '督導卡班（不計入）' : '', e.rotationActing ? '卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
+                        {[e.crossStore ? (e.crossStoreNote ? `跨店，${e.crossStoreNote}` : '跨店') : '', e.isDual ? '雙' : '', e.supervisorActing ? '督導代理' : '', e.isRotation ? '督導卡班（不計入）' : '', e.rotationActing ? '卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
                           .filter(Boolean)
                           .join('、')}
                       </td>
