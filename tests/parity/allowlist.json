@@ -3765,5 +3765,511 @@
       "kind": "only-native",
       "key": "native-only:facility-history-new"
     }
+  },
+  {
+    "id": "m7m8-g10-legacy-success-envelope",
+    "page": "ga-qr",
+    "description": "舊版掃描 API 外層有 success 欄位，新版直接回資料或錯誤訊息。",
+    "reason": "新版前端不需要這個外層；主迴圈判斷同第 2 批其他頁面的信封差異。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g10-q5-scan-basic-brand",
+    "page": "ga-qr",
+    "description": "門市負責人（店長）掃 QR 只看到設備基本欄位，不含品牌。（Q5）",
+    "reason": "Q5：門市負責人只看基本欄位；金額、供應商、備註、序號與採購資料只給有設備／設施查看權限者。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "brand",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q5-scan-basic-model",
+    "page": "ga-qr",
+    "description": "門市負責人（店長）掃 QR 只看到設備基本欄位，不含型號。（Q5）",
+    "reason": "Q5：門市負責人只看基本欄位。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "model",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-extra-serial-number",
+    "page": "ga-qr",
+    "description": "新版掃描頁對有設備查看或管理權限者另顯示序號。",
+    "reason": "現場辨識設備用；只給完整層級。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "serial_number",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-extra-installed-at",
+    "page": "ga-qr",
+    "description": "新版掃描資料對完整層級另帶安裝日期。",
+    "reason": "現場辨識用；只給完整層級。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "installed_at",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-extra-onboarding-status",
+    "page": "ga-qr",
+    "description": "新版掃描資料另帶建檔貼標進度。",
+    "reason": "貼標流程狀態（Q29），讓現場知道這台是否已完成貼標。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "onboarding_status",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-photos-renamed-photo",
+    "page": "ga-qr",
+    "description": "舊版掃描資料的主照片欄位 photo 改為 photos 清單（主圖排最前，最多 8 張）。",
+    "reason": "新版掃描頁一次顯示多張照片；只給現場辨識用照片，排除發票、收據、保固文件。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "photo",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-photos-renamed-attachments",
+    "page": "ga-qr",
+    "description": "舊版掃描資料的附件清單 attachments 改為 photos（只含現場辨識用照片）。",
+    "reason": "舊版把所有圖片附件都給店長看（可能含發票與收據照片）；新版排除這類用途。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "attachments",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-photos-renamed-photos",
+    "page": "ga-qr",
+    "description": "新版掃描資料用 photos 清單取代舊版的 photo 與 attachments。",
+    "reason": "同上。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "photos",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q11-scan-maintenance-records",
+    "page": "ga-qr",
+    "description": "舊版掃描頁的維修紀錄讀 maintenance_requests（工單表沒有設備欄位，實際永遠空白）；新版改讀需求單與工單。（Q11）",
+    "reason": "Q11：維修紀錄改讀需求單與工單。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "maintenance_records",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q11-scan-repairs",
+    "page": "ga-qr",
+    "description": "新版掃描資料帶最近 5 筆報修紀錄與總筆數（範圍由資料庫函式判斷，店長只看自己門市且看不到處理人）。（Q11）",
+    "reason": "Q11：維修紀錄改讀需求單與工單。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q11)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "repairs",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-fields-renamed-path",
+    "page": "ga-qr",
+    "description": "舊版 repair_request_path 改為 reportPath（仍連到舊版建單頁）。",
+    "reason": "欄位改名；報修目前連到舊版建單頁。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "repair_request_path",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-fields-renamed-management",
+    "page": "ga-qr",
+    "description": "舊版 management_path 改為 managementKind（開新版設備／設施清冊）。",
+    "reason": "舊版連到舊清冊頁，新版開新版頁籤。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "management_path",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-fields-renamed-access",
+    "page": "ga-qr",
+    "description": "舊版 access（範圍、可開主檔、可建報修單、可看完整附件）改為 access（層級、範圍）加 canReport。",
+    "reason": "欄位改名；報修按鈕改為「有建單權限且能替該門市建單」才可按。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "access",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-fields-canreport",
+    "page": "ga-qr",
+    "description": "新版掃描資料帶 canReport：有建單權限，且能替任何門市建單或本人是該門市名單內人員。",
+    "reason": "規格：只有真的能替該門市建需求單的人才看到報修按鈕。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "canReport",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-fields-reportpath",
+    "page": "ga-qr",
+    "description": "新版掃描資料帶 reportPath（舊版建單頁網址，canReport 為 true 才有）。",
+    "reason": "同上。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "reportPath",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-fields-managementkind",
+    "page": "ga-qr",
+    "description": "新版掃描資料帶 managementKind（完整層級才有）。",
+    "reason": "同上。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "managementKind",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-report-reason",
+    "page": "ga-qr",
+    "description": "沒有報修權限或不是該門市名單內人員時，新版按鈕停用並顯示原因。",
+    "reason": "規格直接照做：無報修權限者按鈕停用並說明。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 assumptions)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "reportReason",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-warranty-label",
+    "page": "ga-qr",
+    "description": "保固狀態文字：舊版「保固中／保固已到期／無保固」，新版沿用保固頁的分類（到期日、已過保、N 天內到期、無保固、保固日未填）。",
+    "reason": "保固到期改用台北時間、當日結束才過期（已核可）；文字沿用保固頁分類為主迴圈延伸。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "warranty.label",
+      "entry": "scan-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q5-scan-no-access-message-other-store",
+    "page": "ga-qr",
+    "description": "無權限者看到的說明：舊版一整段提示，新版改為白話並列出聯絡人。（Q5）",
+    "reason": "Q5：無權限者看到白話說明與聯絡方式。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "error-message-no-access-other-store",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-q5-scan-no-access-message-no-permission",
+    "page": "ga-qr",
+    "description": "沒有任何權限的人掃到：說明改為白話。（Q5）",
+    "reason": "Q5：無權限者看到白話說明與聯絡方式。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q5)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "error-message-no-access-no-permission",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-not-found-message",
+    "page": "ga-qr",
+    "description": "找不到 QR 的說明文字改為白話，指出標籤可能不是本系統印製。",
+    "reason": "文字調整為主迴圈延伸。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "error-message-not-found",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-q8-scan-revoked-message-scrapped",
+    "page": "ga-qr",
+    "description": "已作廢（報廢、退役、刪除）的 QR：舊版與「找不到」同一句，新版顯示作廢的友善說明。（Q8）",
+    "reason": "Q8：報廢或刪除後仍作廢，掃到時顯示友善說明。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q8)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "error-message-revoked-scrapped",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-q8-scan-revoked-message-store-manager",
+    "page": "ga-qr",
+    "description": "店長掃到已作廢的 QR，新版顯示作廢的友善說明（不含資產名稱）。（Q8）",
+    "reason": "Q8：報廢或刪除後仍作廢，掃到時顯示友善說明。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q8)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "error-message-revoked-for-store-manager",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-error-code",
+    "page": "ga-qr",
+    "description": "新版掃描失敗回應帶固定 code（BAD_TOKEN、NOT_FOUND、REVOKED、NO_ACCESS），畫面依它顯示對應說明。",
+    "reason": "實作用；前端依 code 分辨「找不到」「已作廢」「無權限」。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "error-code",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-error-contacts",
+    "page": "ga-qr",
+    "description": "無權限者的回應帶該門市店長姓名（只有姓名，不含電話與帳號）。（解讀 l）",
+    "reason": "聯絡方式內容為主迴圈解讀 (l)：列出該門市店長姓名。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "error-contacts",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-error-storename",
+    "page": "ga-qr",
+    "description": "無權限者的回應帶門市名稱，讓說明寫出聯絡哪一間門市的店長。",
+    "reason": "同上。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "error-storeName",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-scan-error-asset",
+    "page": "ga-qr",
+    "description": "已作廢的 QR：看得到該類資產的人（設備／設施查看或管理）會看到資產名稱與編號。",
+    "reason": "讓總務確認是哪一台；店長與無權限者不帶。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "error-asset",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-q8-scan-error-can-restore",
+    "page": "ga-qr",
+    "description": "已報廢或退役而作廢的 QR，有管理權限者會看到「到清冊恢復使用並重新啟用 QR」。（Q8；範圍為解讀 e：已刪除的不提供恢復）",
+    "reason": "Q8：總務可恢復並沿用原標籤。已刪除不提供恢復為主迴圈解讀 (e)，待使用者確認。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q8)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "error-canRestore",
+      "entry": "scan-errors"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-scrapped-excluded",
+    "page": "ga-qr",
+    "description": "標籤頁排除已報廢設備（舊版會印出報廢設備的標籤），並說明排除原因。（Q9）",
+    "reason": "Q9：排除已報廢、已作廢並提示。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "scrapped-label-excluded",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-watermark",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 watermark：非正式環境標籤加「測試」浮水印。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#watermark",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-baseurl",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 baseUrl：標籤網址網域取環境設定 NEXT_PUBLIC_SITE_URL（不取瀏覽器網址）並在頁面顯示。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#baseUrl",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-limit",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 limit：單次上限 300 張。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#limit",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-truncated",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 truncated：超過上限時標示並提示分批。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#truncated",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-matched",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 matched：回精確符合筆數。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#matched",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-excluded",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 excluded：列出被排除的資料與原因。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#excluded",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-q9-label-extra-excludedtotal",
+    "page": "ga-qr",
+    "description": "新版標籤 API 另帶 excludedTotal：被排除的總筆數。（Q9）",
+    "reason": "Q9：QR 網域由伺服端環境變數決定、測試浮水印、排除作廢並提示、單次上限 300 張。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q9)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "labels#excludedTotal",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-facility-labels",
+    "page": "ga-qr",
+    "description": "新增設施 QR 標籤列印與標籤 API（舊版只有設備標籤）。（解讀 b）",
+    "reason": "主迴圈解讀 (b)：Q29 的決定覆蓋「設施標籤列印這次不做」。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "facility-labels",
+      "entry": "labels-read"
+    }
+  },
+  {
+    "id": "m7m8-g10-permanent-url-redirect-flag",
+    "page": "ga-qr",
+    "description": "QR 永久網址 /general-affairs/assets/scan/{token}：環境旗標 WORKSPACE_SCAN_REDIRECT=true 時轉到新版掃描頁，預設關閉（舊版頁面行為完全不變，token 沿用不重發）。（解讀 k）",
+    "reason": "主迴圈解讀 (k)：避免違反「舊版 Next 頁面行為不可更動」；上線當天依部署清單打開旗標並用舊標籤實掃驗證。主迴圈自行延伸或解讀，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "permanent-url-redirect",
+      "entry": "scan-permanent-url"
+    }
   }
 ]

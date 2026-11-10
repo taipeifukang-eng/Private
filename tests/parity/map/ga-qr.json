@@ -1,0 +1,75 @@
+{
+  "page": "ga-qr",
+  "legacyRoute": "/general-affairs/equipment/labels、/general-affairs/assets/scan/{token}",
+  "workItem": "G10",
+  "entries": [
+    {
+      "id": "scan-read",
+      "mechanism": "api-read",
+      "description": "資產掃描資料：同一個登入者、同一個 QR token，舊版 GET /api/general-affairs/assets/scan/:token 與新版 GET /api/workspace/general-affairs/assets/scan/:token 的資產識別、門市、分類、位置、保固結束日、報修按鈕權限逐欄相同。差異：新版沒有 success 外層；店長只看基本欄位（Q5：不含品牌、型號）；欄位改名與新增（照片、維修紀錄改讀需求單 Q11、報修說明、主檔入口）；保固狀態文字改用台北時間（到期日當天結束才算過期）。",
+      "legacy": {
+        "api": {
+          "path": "/api/general-affairs/assets/scan/:token"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/general-affairs/assets/scan/:token"
+        }
+      },
+      "compareKey": "id"
+    },
+    {
+      "id": "scan-errors",
+      "mechanism": "api-read",
+      "description": "資產掃描失敗情形：格式錯誤 400、未登入 401、找不到 404、無權限 403、已作廢 404，舊版與新版狀態碼相同。差異：新版沒有 success 外層、帶固定 code；找不到、無權限、作廢的說明文字改成白話（Q5、Q8）；無權限者另有該門市店長姓名當聯絡方式。",
+      "legacy": {
+        "api": {
+          "path": "/api/general-affairs/assets/scan/:token"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/general-affairs/assets/scan/:token"
+        }
+      }
+    },
+    {
+      "id": "labels-read",
+      "mechanism": "api-read",
+      "description": "設備標籤：舊版標籤頁由設備清單 API 取得每台的 qr_scan_path，再用瀏覽器網址組成 QR 網址；新版由標籤 API 回伺服端用環境設定網域組成的網址。同一組設備，永久路徑 /general-affairs/assets/scan/{token} 與資料庫 token 逐台相同。差異：新版排除已報廢設備並說明（Q9）、單次上限 300 張（Q9）、網域取環境設定（Q9）、新增設施標籤（解讀 b）。",
+      "legacy": {
+        "api": {
+          "path": "/api/general-affairs/equipment",
+          "query": {
+            "search": "[自動測試]M7M8"
+          }
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/general-affairs/qr/labels",
+          "query": {
+            "type": "equipment"
+          }
+        }
+      },
+      "compareKey": "id"
+    },
+    {
+      "id": "scan-permanent-url",
+      "mechanism": "api-read",
+      "description": "QR 永久網址 /general-affairs/assets/scan/{token}：舊版直接顯示舊版 Next 頁面；新版在環境旗標 WORKSPACE_SCAN_REDIRECT=true 時轉到新版掃描頁（預設關閉，舊頁面行為完全不變；測試站開啟）。token 沿用不重發。",
+      "legacy": {
+        "api": {
+          "path": "/general-affairs/assets/scan/:token"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/general-affairs/assets/scan/:token"
+        }
+      }
+    }
+  ]
+}
