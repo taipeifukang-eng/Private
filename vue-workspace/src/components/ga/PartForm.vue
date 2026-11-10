@@ -49,8 +49,8 @@ defineProps<{ unitLocked?: boolean; canSeeNotes?: boolean; disabled?: boolean; e
 .part-form label { display: grid; gap: 4px; }
 .part-form .check-row { display: flex; align-items: center; gap: 8px; }
 .part-form .check-row input { width: auto; }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 .units { border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 12px; margin: 0; }
 textarea { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; font: inherit; background: var(--surface); color: var(--ink); resize: vertical; }
 @media (max-width: 640px) { .two, .three { grid-template-columns: 1fr; } }

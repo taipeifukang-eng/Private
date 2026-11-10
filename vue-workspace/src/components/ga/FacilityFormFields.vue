@@ -79,8 +79,8 @@ legend { font-size: 13px; font-weight: 700; padding: 0 8px; }
 label { display: grid; gap: 4px; min-width: 0; }
 label.check { display: flex; align-items: center; gap: 8px; }
 label.check input { width: auto; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
 textarea { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; font: inherit; background: var(--surface); color: var(--ink); resize: vertical; }
 @media (max-width: 640px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
 </style>
