@@ -156,15 +156,18 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
 
     // 5.2 QR 沿用：舊 token 掃描頁，B 店看到設備與報修入口，A 店只看到白話說明
     expect((await row('ga_equipment', eq.id)).qr_token).toBe(eq.qr_token);
-    await b.page.goto(`/workspace/index.html#/open/ga-asset-scan/${eq.qr_token}`, { waitUntil: 'networkidle' });
-    const scanB = b.page.getByTestId('asset-scan').locator('visible=true');
+    // 掃描深連結要用新頁面開（QR 掃出來就是全新開啟）。
+    const scanPageB = await b.ctx.newPage();
+    await scanPageB.goto(`/workspace/index.html#/open/ga-asset-scan/${eq.qr_token}`, { waitUntil: 'networkidle' });
+    const scanB = scanPageB.getByTestId('asset-scan').locator('visible=true');
     await expect(scanB.getByTestId('scan-store')).toContainText('VW001');
     await expect(scanB).toContainText(eq.name);
     await expect(scanB.getByTestId('scan-report')).toBeVisible();
     await expect(scanB.getByTestId('scan-report')).toBeEnabled();
-    expect(await noPageOverflow(b.page)).toBe(true);
-    await a.page.goto(`/workspace/index.html#/open/ga-asset-scan/${eq.qr_token}`, { waitUntil: 'networkidle' });
-    const failA = a.page.getByTestId('scan-failure').locator('visible=true');
+    expect(await noPageOverflow(scanPageB)).toBe(true);
+    const scanPageA = await a.ctx.newPage();
+    await scanPageA.goto(`/workspace/index.html#/open/ga-asset-scan/${eq.qr_token}`, { waitUntil: 'networkidle' });
+    const failA = scanPageA.getByTestId('scan-failure').locator('visible=true');
     await expect(failA).toBeVisible();
     await expect(failA).toHaveAttribute('data-code', 'NO_ACCESS');
     await expect(failA).not.toContainText(eq.name);

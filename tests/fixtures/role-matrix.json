@@ -415,7 +415,7 @@
           "gaOnboardingReview": true,
           "gaEquipmentLabels": true,
           "gaFacilityLabels": true,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1014,7 +1014,7 @@
           "gaOnboardingReview": false,
           "gaEquipmentLabels": false,
           "gaFacilityLabels": false,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1134,7 +1134,7 @@
           "gaOnboardingReview": false,
           "gaEquipmentLabels": false,
           "gaFacilityLabels": false,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1252,7 +1252,7 @@
           "gaOnboardingReview": false,
           "gaEquipmentLabels": false,
           "gaFacilityLabels": false,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1605,7 +1605,7 @@
           "gaOnboardingReview": true,
           "gaEquipmentLabels": true,
           "gaFacilityLabels": true,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -6307,7 +6307,7 @@
           "gaOnboardingReview": true,
           "gaEquipmentLabels": true,
           "gaFacilityLabels": true,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -6422,7 +6422,7 @@
           "gaOnboardingReview": false,
           "gaEquipmentLabels": false,
           "gaFacilityLabels": false,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/dashboard",
@@ -7123,7 +7123,7 @@
           "gaOnboardingReview": true,
           "gaEquipmentLabels": false,
           "gaFacilityLabels": true,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7296,7 +7296,7 @@
           "gaOnboardingReview": true,
           "gaEquipmentLabels": true,
           "gaFacilityLabels": false,
-          "gaTransfers": false
+          "gaTransfers": true
         },
         "navigationHrefs": [
           "/general-affairs",

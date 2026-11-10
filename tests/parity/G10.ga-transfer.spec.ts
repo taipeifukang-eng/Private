@@ -75,7 +75,7 @@ test('轉移完成後：舊版設備詳情、舊版掃描範圍與新版回讀�
     expect([lr2.status(), nr2.status()], `轉移後 ${role}`).toEqual([expected, expected]);
   }
   // 舊版設備清單（總務）依門市：換店後出現在 B 店、不在 A 店
-  const inStore = async (store: string) => (((await body(await apis.ga_works.get(`${L}/equipment?store_id=${store}&search=${encodeURIComponent('PT-EQ')}&pageSize=100`))).data || []) as any[]).some((r) => r.id === eq.id);
+  const inStore = async (store: string) => (((await body(await apis.ga_works.get(`${L}/equipment?storeId=${store}&search=${encodeURIComponent('PT-EQ')}&pageSize=100`))).data || []) as any[]).some((r) => r.id === eq.id);
   if ((await inStore(s.VW001.id)) !== true) diffs.push({ kind: 'changed', key: 'legacy-list-new-store', legacy: false, native: true });
   if ((await inStore(s.ZT01.id)) !== false) diffs.push({ kind: 'changed', key: 'legacy-list-old-store', legacy: true, native: false });
 

@@ -95,7 +95,9 @@ const photos = ref<PreparedFile[]>([]);
 const pickerBusy = ref(false);
 const actionBusy = ref(false);
 
+let openSeq = 0;
 async function open(row: TransferRow, m: Mode = "view") {
+  const seq = ++openSeq;
   current.value = { ...row, events: [], photos: [] };
   mode.value = m;
   note.value = "";
@@ -104,15 +106,18 @@ async function open(row: TransferRow, m: Mode = "view") {
   detailError.value = "";
   detailBusy.value = true;
   try {
-    current.value = (await api<{ data: TransferDetail }>(`general-affairs/transfers/${row.id}`)).data;
+    const fresh = (await api<{ data: TransferDetail }>(`general-affairs/transfers/${row.id}`)).data;
+    // 詳情回來前使用者可能已經送出或關掉視窗：不能讓晚到的回應把視窗又打開。
+    if (seq === openSeq && current.value?.id === row.id) current.value = fresh;
   } catch (e) {
-    detailError.value = (e as Error).message;
+    if (seq === openSeq) detailError.value = (e as Error).message;
   } finally {
-    detailBusy.value = false;
+    if (seq === openSeq) detailBusy.value = false;
   }
 }
 function close() {
   if (actionBusy.value) return;
+  openSeq++;
   current.value = null;
 }
 const stepPhotos = (t: TransferDetail, step: "HANDOVER" | "RECEIVE") => t.photos.filter((p) => p.step === step);
@@ -132,6 +137,7 @@ async function confirmStep() {
     notice.value = mode.value === "handover"
       ? `已確認交出「${t.asset_name}」，等 ${t.to_store_name} 店長確認收到`
       : `已確認收到「${t.asset_name}」，這${assetNoun(t.asset_type)}現在屬於 ${t.to_store_name}，原 QR 標籤繼續可用`;
+    openSeq++;
     current.value = null;
     await load();
   } catch (e) {
@@ -151,6 +157,7 @@ async function confirmCancel() {
   try {
     await api(`general-affairs/transfers/${t.id}/cancel`, { method: "POST", body: JSON.stringify({ reason: reason.value.trim() }) });
     notice.value = `已取消轉移單 ${t.transfer_no}，${assetNoun(t.asset_type)}仍屬於 ${t.from_store_name}`;
+    openSeq++;
     current.value = null;
     await load();
   } catch (e) {
