@@ -1,7 +1,7 @@
 import { expect, type Browser, type BrowserContext, type Page, test } from '@playwright/test';
-import { adminDb, assertGaBaseline, cleanupM7M8, m7Code, row, rowsWhere, seedCategory, seedEquipment, seedRepairRequest, stores } from '../support/m7m8-fixtures';
+import { adminDb, assertGaBaseline, cleanupM7M8, m7Code, m7Name, row, rowsWhere, seedCategory, seedEquipment, seedRepairRequest, stores } from '../support/m7m8-fixtures';
 import { apiAs, storageStateFor, TEST_ORIGIN } from '../support/auth';
-import { gaNavTo, noPageOverflow, openGaCenter } from '../support/g01-ui';
+import { gaNavTo, gaNavToIn, noPageOverflow, openGaCenter } from '../support/g01-ui';
 import { makePng } from '../support/png';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -215,6 +215,23 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     await expect(dialog(ga.page).locator('.event-list li')).toHaveCount(3);
     await expect(dialog(ga.page).locator('.event-list')).toContainText('轉移完成');
     await dialog(ga.page).getByRole('button', { name: '關閉' }).click();
+
+    // 步驟 6（B6 補充）：B 店店長手機開「設備維修紀錄」，看得到 A 店時期那張報修單（單上門市仍是 ZT01）；A 店店長仍看得到自己門市時期的單；看不到處理人
+    await openGaCenter(b.page);
+    await gaNavToIn(b.page, '設備管理', '維修紀錄');
+    await expect(heading(b.page, '設備維修紀錄')).toBeVisible();
+    await searchBox(b.page).fill(m7Name('J-未結報修'));
+    await expect(b.page.getByText('共 1 筆').locator('visible=true').first()).toBeVisible();
+    const histB = b.page.locator('li.asset-card:visible', { hasText: m7Name('J-未結報修') });
+    await expect(histB).toBeVisible();
+    await expect(histB).toContainText('ZT01'); // 報修當時的門市
+    await expect(b.page.locator('th:visible', { hasText: '處理人' })).toHaveCount(0);
+    expect(await noPageOverflow(b.page)).toBe(true);
+    await openGaCenter(a.page);
+    await gaNavToIn(a.page, '設備管理', '維修紀錄');
+    await expect(heading(a.page, '設備維修紀錄')).toBeVisible();
+    await searchBox(a.page).fill(m7Name('J-未結報修'));
+    await expect(a.page.locator('li.asset-card:visible', { hasText: m7Name('J-未結報修') })).toBeVisible();
 
     for (const w of [ga, a, b]) expect(w.errors).toEqual([]);
   } finally {

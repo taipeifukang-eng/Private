@@ -156,3 +156,54 @@ test('範圍：門市負責人只看自己門市且看不到處理人；他店�
   expect((await anon.get(`${BASE}/history?type=equipment`)).status()).toBe(401);
   await anon.dispose();
 });
+
+test('B6 補充：資產轉到新門市後，新門市店長看得到該資產所有歷史報修（含舊門市時期），原門市店長仍看得到自己門市的單，第三間門市店長看不到；店長看不到處理人；設施同規則', async () => {
+  const eq = await seedEquipment('ZT01', eqCat.id, 'M-EQ');
+  const fac = await seedFacility('ZT01', facCat.id, 'M-FAC');
+  const eqOld = await seedRepairRequest('ZT01', { equipmentId: eq.id }, 'M-eqold', 'COMPLETED', managerA);
+  const facOld = await seedRepairRequest('ZT01', { facilityId: fac.id }, 'M-facold', 'IN_PROGRESS', managerA);
+  await withWo(eqOld.id, 'ZT01', 'M-wo', 'ACCEPTED');
+  const q = (t: string) => `type=${t}&q=${encodeURIComponent(m7Name('M-'))}&pageSize=100`;
+  const ids = async (k: string, t: string, extra = '') => (await get(k, `history?${q(t)}${extra}`)).body.data.map((r: any) => r.id).sort();
+  // 轉移前：B 店店長（VW001）看不到
+  expect(await ids('ga_store_manager_b', 'equipment')).toEqual([]);
+  expect(await ids('store_manager', 'equipment')).toEqual([eqOld.id]);
+  // 轉到 B 店（VW001，與轉移單完成後的資料狀態相同）；之後在 B 店又報修一張
+  await adminDb().from('ga_equipment').update({ store_id: sid.VW001 }).eq('id', eq.id);
+  await adminDb().from('ga_facilities').update({ store_id: sid.VW001 }).eq('id', fac.id);
+  const eqNew = await seedRepairRequest('VW001', { equipmentId: eq.id }, 'M-eqnew', 'IN_PROGRESS', managerA);
+  // B 店店長：舊門市時期與新門市的單都看得到；單上的門市仍是報修當時的門市
+  const b = await get('ga_store_manager_b', `history?${q('equipment')}`);
+  expect(b.body.data.map((r: any) => r.id).sort()).toEqual([eqOld.id, eqNew.id].sort());
+  expect(b.body.data.find((r: any) => r.id === eqOld.id).store_code).toBe('ZT01');
+  expect(b.body.permissions).toEqual({ seeAll: false, seeAssignee: false });
+  expect(JSON.stringify(b.body)).not.toContain('王處理'); // 店長看不到處理人
+  expect(b.body.data.find((r: any) => r.id === eqOld.id).work_order.assignee_name ?? null).toBeNull();
+  // 用「新門市」篩選也看得到舊門市時期的單
+  expect(await ids('ga_store_manager_b', 'equipment', `&storeId=${sid.VW001}`)).toEqual([eqOld.id, eqNew.id].sort());
+  // 指定資產：B 店店長看該設備的完整維修歷程
+  expect((await get('ga_store_manager_b', `history?type=equipment&assetId=${eq.id}&pageSize=100`)).body.total).toBe(2);
+  // A 店店長：仍看得到自己門市時期的單，看不到 B 店時期的
+  expect(await ids('store_manager', 'equipment')).toEqual([eqOld.id]);
+  // 總務看全部
+  expect(await ids('ga_works', 'equipment')).toEqual([eqOld.id, eqNew.id].sort());
+  // 每台次數：B 店店長 2 次（含舊門市時期）；A 店店長 1 次（只有自己門市時期的單）
+  const sumB = await get('ga_store_manager_b', `summary?type=equipment&q=${encodeURIComponent(m7Name('M-'))}`);
+  expect(sumB.body.data.map((r: any) => [r.asset_id, r.repair_count, r.store_code])).toEqual([[eq.id, 2, 'VW001']]);
+  const sumA = await get('store_manager', `summary?type=equipment&q=${encodeURIComponent(m7Name('M-'))}`);
+  expect(sumA.body.data.map((r: any) => [r.asset_id, r.repair_count])).toEqual([[eq.id, 1]]);
+  // 設施同規則
+  expect(await ids('ga_store_manager_b', 'facility')).toEqual([facOld.id]);
+  expect(await ids('store_manager', 'facility')).toEqual([facOld.id]);
+  const sumF = await get('ga_store_manager_b', `summary?type=facility&q=${encodeURIComponent(m7Name('M-'))}`);
+  expect(sumF.body.data.map((r: any) => [r.asset_id, r.repair_count])).toEqual([[fac.id, 1]]);
+  // 第三間門市（資產再轉到 VW002）：B 店（VW001）店長看不到；A 店店長仍看自己門市的單
+  await adminDb().from('ga_equipment').update({ store_id: sid.VW002 }).eq('id', eq.id);
+  expect(await ids('ga_store_manager_b', 'equipment')).toEqual([eqNew.id]); // 自己門市時期的單（eqNew 當時在 VW001）仍看得到
+  expect(await ids('store_manager', 'equipment')).toEqual([eqOld.id]);
+  expect((await get('ga_store_manager_b', `history?type=equipment&assetId=${eq.id}&pageSize=100`)).body.total).toBe(1);
+  // 完全無關的資產：B 店店長看不到（A 店資產、A 店時期的單）
+  const other = await seedEquipment('ZT01', eqCat.id, 'M-OTHER');
+  await seedRepairRequest('ZT01', { equipmentId: other.id }, 'M-other', 'IN_PROGRESS', managerA);
+  expect((await ids('ga_store_manager_b', 'equipment')).length).toBe(1);
+});

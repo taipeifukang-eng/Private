@@ -348,3 +348,9 @@
 - 測試：單元 `tests/unit/G07/`（欄位轉換與 Excel 讀取、旗標與側欄）；整合 `G07.import-api.spec.ts`；冒煙 `G07.import.spec.ts`、`G10.progress.spec.ts`；e2e `G07.import.e2e.spec.ts`、`G10.progress.e2e.spec.ts`（桌機與手機）與劇本 `G10.journey-onboarding.spec.ts`（Q26「上線貼標」，只在桌機 project 跑一次，內部自行指定總務桌機、店長手機）；對等 `G07.ga-asset-import.spec.ts`（map：`tests/parity/map/ga-asset-import.json`）。共用工具 `tests/support/m7m8-import.ts`。
 - 白名單：Excel 匯入新增（兩條）填 Q29；設施貼標待辦、兩個側欄入口填 `null` 並列入 `STILL_PENDING`。
 - 自行解讀（規格沒寫）：匯入頁只收 `.xlsx`；設備列不能填設施欄位（設施代碼、數量、單位）、設施列不能填設備欄位（品牌、型號、序號、資產編號），填了就標錯而不是默默忽略；狀態與重要程度可填中文或資料庫英文代碼，留空視為「使用中」「一般」；進度頁預設收起已 100% 的門市（可勾選顯示）、沒有任何資產的門市不列；「看卡在哪一台」最多列 100 筆；進度頁的「印標籤」設備與設施各一個按鈕。
+
+## 17. 驗收後補強實作紀錄（2026-11-10）
+
+- **B9 轉移中不可報廢／退役**：資料庫觸發器 `ga_block_terminal_status_with_open_transfer`（設備擋報廢、退役，設施擋退役；只在狀態改變時檢查；`supabase/workspace-dev/20261110130000_m7m8_b9_...`、正式區草稿 `m7m8-sql/24-*`）。編輯 API 先查轉移單回 409（`code: OPEN_TRANSFER`，訊息「這台設備有進行中的轉移單 AT…，請先取消轉移單再報廢」），觸發器為最後防線（`dbError` 把 `OPEN_TRANSFER:` 訊息對應成 409）。刪除既有規則不變。前端：編輯畫面狀態下拉的報廢／退役停用並附提示與「到轉移單取消」連結；刪除對話框有轉移單時轉移單提示優先，「改為報廢／退役」停用。`confirm_receive` 對報廢／QR 作廢的既有防線保留。
+- **B10 Excel 匯入可能重複**：`lib/workspace/general-affairs/import-duplicates.ts`（NFKC、全半形空白、大小寫正規化）；`asset-import.ts` 預檢時讀相關門市既有未刪除資產比對；回傳每列 `warnings`/`duplicate` 與摘要 `duplicateCount`；頁面黃色列、摘要「可能重複 N」，有重複列時確認匯入先跳「其中 N 列可能與既有資料重複，確定仍要匯入？」。不擋匯入；只在預檢計算。
+- **B6 補充 維修紀錄依資產目前門市**：`ga_ws_asset_maintenance_history`、`ga_ws_asset_repair_summary` 範圍改為「報修單門市 或 資產目前門市」屬於名單成員（`workspace-dev/20261110140000_m7m8_b6_...`、草稿 `25-*`）。逐筆的門市篩選同時接受兩者。第 4 批讓進行中單子跟著設備轉移後，這個規則仍然成立。
