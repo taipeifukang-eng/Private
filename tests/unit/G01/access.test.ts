@@ -79,7 +79,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
   });
   it('店長身分：不列設施架型（API 會擋），仍可看料件列表', () => {
     const a = access([], { roleCode: 'store_manager' });
-    expect(kinds(a)).toEqual(['ga-equipment', 'ga-equipment-history', 'ga-facilities', 'ga-facility-history', 'ga-onboarding-tasks', 'ga-parts']); // G08／G09：店長有設施清冊與兩種維修紀錄
+    expect(kinds(a)).toEqual(['ga-equipment', 'ga-equipment-history', 'ga-facilities', 'ga-facility-history', 'ga-onboarding-tasks', 'ga-parts', 'ga-transfers']); // G08／G09：店長有設施清冊與兩種維修紀錄
     expect(flatten(nav(a)).find((i) => i.id === 'facility-templates')).toBeUndefined();
   });
   it('「規劃中」的項目照舊顯示成不可點', () => {

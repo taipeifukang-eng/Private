@@ -104,6 +104,8 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-equipment-labels",
   "ga-facility-labels",
   "ga-asset-scan",
+  // 第 2 批 Q28：設備／設施轉移單。
+  "ga-transfers",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

@@ -87,6 +87,7 @@ export type GaFlags = {
   gaOnboardingReview: boolean;
   gaEquipmentLabels: boolean;
   gaFacilityLabels: boolean;
+  gaTransfers: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -123,6 +124,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false):
     // G10 QR 標籤列印：設備／設施查看或管理（店長不能列印）。
     gaEquipmentLabels: has(GA.equipmentView, GA.equipmentManage),
     gaFacilityLabels: has(GA.facilityView, GA.facilityManage),
+    // Q28 轉移單：總務（設備或設施管理）發起與取消；店長確認交出／收到。純查看權限者不給入口（API 的讀取範圍另由資料庫列級權限限制）。
+    gaTransfers: storeManager || storeMember || has(GA.equipmentManage, GA.facilityManage),
   };
 }
 

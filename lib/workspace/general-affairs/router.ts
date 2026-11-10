@@ -12,6 +12,7 @@ import { sitesApi } from "./pickers";
 import { qrApi } from "./qr";
 import { scanApi } from "./scan";
 import { compatApi, templatesApi, unlinkedEquipment } from "./templates";
+import { transfersApi } from "./transfers";
 import { GaError, respond, type Context } from "./server";
 
 export async function dispatch(ctx: Context, request: NextRequest, segments: string[]) {
@@ -50,6 +51,8 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return maintenanceApi(ctx, request, rest);
     case "onboarding":
       return onboardingApi(ctx, request, rest);
+    case "transfers":
+      return transfersApi(ctx, request, rest);
     case "qr":
       return qrApi(ctx, request, rest);
     case "assets":

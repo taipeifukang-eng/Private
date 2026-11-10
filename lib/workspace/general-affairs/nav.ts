@@ -131,6 +131,7 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   out.forEach((g) => collect(g.items));
   if (flags.gaFacilities && !present.has("ga-facilities")) extra.push({ id: "facility-list-new", label: "設施清冊", kind: "ga-facilities" });
   if (flags.gaFacilityHistory && !present.has("ga-facility-history")) extra.push({ id: "facility-history-new", label: "設施維修紀錄", kind: "ga-facility-history" });
+  if (flags.gaTransfers) extra.push({ id: "asset-transfers", label: "轉移單", kind: "ga-transfers" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
   if (extra.length) {
