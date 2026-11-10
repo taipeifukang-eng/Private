@@ -83,7 +83,7 @@ BEGIN
   v_n := jsonb_array_length(p_rows);
   IF v_n = 0 THEN RETURN jsonb_build_object('ok', false, 'status', 400, 'error', '沒有可匯入的資料列'); END IF;
   IF v_n > 500 THEN RETURN jsonb_build_object('ok', false, 'status', 400, 'error', '單次最多匯入 500 列，請分檔'); END IF;
-  SELECT bool_or(upper(COALESCE(x->>'kind', '')) = 'EQUIPMENT'), bool_or(upper(COALESCE(x->>'kind', '')) = 'FACILITY')
+  SELECT bool_or(upper(btrim(COALESCE(x->>'kind', ''))) = 'EQUIPMENT'), bool_or(upper(btrim(COALESCE(x->>'kind', ''))) = 'FACILITY')
     INTO v_need_eq, v_need_fac FROM jsonb_array_elements(p_rows) x;
   IF COALESCE(v_need_eq, false) AND NOT has_permission(v_uid, 'general_affairs.equipment.manage') THEN
     RETURN jsonb_build_object('ok', false, 'status', 403, 'error', '沒有設備管理權限，不能匯入設備');

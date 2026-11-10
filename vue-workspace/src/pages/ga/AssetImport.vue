@@ -26,7 +26,17 @@ const onlyErrors = ref(false);
 const input = ref<HTMLInputElement>();
 const caps = computed(() => session.data?.capabilities as Record<string, boolean> | undefined);
 
-function pick(event: Event) {
+// 防重複識別碼由檔案內容的 SHA-256 決定：同一個檔案內容再匯一次不會重複建立資產（要再建一份請先修改內容）。
+async function keyOf(f: File) {
+  try {
+    const d = await crypto.subtle.digest("SHA-256", await f.arrayBuffer());
+    return "f-" + Array.from(new Uint8Array(d)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+async function pick(event: Event) {
   const el = event.target as HTMLInputElement;
   const f = el.files?.[0] || null;
   el.value = "";
@@ -37,7 +47,7 @@ function pick(event: Event) {
   if (!/\.xlsx$/i.test(f.name)) { file.value = null; error.value = "只收 Excel（.xlsx）檔，請使用下載的範本"; return; }
   if (f.size > MAX_BYTES) { file.value = null; error.value = "檔案太大，上限 2MB"; return; }
   file.value = f;
-  key.value = crypto.randomUUID();
+  key.value = await keyOf(f);
   void check();
 }
 
@@ -120,7 +130,7 @@ function reset() { file.value = null; result.value = null; done.value = null; er
 
     <section v-if="done" class="done" role="status" data-testid="import-done">
       <h2>匯入完成</h2>
-      <p v-if="done.alreadyImported">這個檔案剛才已經匯入過了（不會重複新增）。</p>
+      <p v-if="done.alreadyImported">這個檔案內容已經匯入過了，沒有重複新增。如果要再建一份，請先修改檔案內容。</p>
       <p data-testid="done-summary">共匯入 {{ done.summary.total }} 筆：設備 {{ done.summary.equipmentCount }} 台、設施 {{ done.summary.facilityCount }} 項，涵蓋 {{ done.summary.storeCount }} 間門市。</p>
       <p class="muted">這些設備與設施已進入各店的「貼標待辦」。接下來：依門市列印 QR 標籤，貼好後請店長用手機上傳照片，再由總務複核。</p>
       <div class="buttons">

@@ -378,6 +378,9 @@ BEGIN
   v_manage := has_permission(v_uid, CASE p_type WHEN 'EQUIPMENT' THEN 'general_affairs.equipment.manage' ELSE 'general_affairs.facility.manage' END);
   v_member := EXISTS (SELECT 1 FROM store_managers WHERE user_id = v_uid AND store_id = v_store);
   IF NOT (v_manage OR v_member) THEN RETURN jsonb_build_object('ok', false, 'status', 403, 'error', '只能處理自己管理門市的照片任務'); END IF;
+  IF p_path IS NULL OR left(p_path, length(lower(p_type) || '/' || p_id::text || '/' || lower(p_purpose) || '/')) <> lower(p_type) || '/' || p_id::text || '/' || lower(p_purpose) || '/' THEN
+    RETURN jsonb_build_object('ok', false, 'status', 400, 'error', '檔案路徑不屬於這項資產');
+  END IF;
   IF p_purpose = 'PRIMARY_IMAGE' AND v_status <> 'NEEDS_EQUIPMENT_PHOTO' THEN
     RETURN jsonb_build_object('ok', false, 'status', 409, 'code', 'STALE', 'error', '目前不需要補設備／設施照片，請重新載入');
   END IF;

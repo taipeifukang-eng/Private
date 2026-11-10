@@ -290,6 +290,13 @@ for (const type of ['EQUIPMENT', 'FACILITY'] as const) {
     expect((await sub(clients.store_manager, 'LABEL_POSITION_IMAGE', 'x')).code).toBe('STALE'); // 先要主照片
     expect((await callFn(clients.store_manager, 'ga_ws_submit_onboarding_photo', { p_type: type, p_id: asset.id, p_purpose: 'PRIMARY_IMAGE', p_path: `${type.toLowerCase()}/${asset.id}/a.pdf`, p_file_name: 'a.pdf', p_content_type: 'application/pdf', p_size_bytes: 10 })).status).toBe(400);
 
+    // 路徑必須在這項資產自己的資料夾底下（不能把別人的檔案登錄成自己的附件）
+    const foreign = (p: string) => callFn(clients.store_manager, 'ga_ws_submit_onboarding_photo', { p_type: type, p_id: asset.id, p_purpose: 'PRIMARY_IMAGE', p_path: p, p_file_name: 'f.jpg', p_content_type: 'image/jpeg', p_size_bytes: 10 });
+    expect((await foreign('equipment/00000000-0000-0000-0000-000000000000/primary_image/x.jpg')).status).toBe(400);
+    expect((await foreign(`${type.toLowerCase()}/${asset.id}/label_position_image/x.jpg`)).status).toBe(400);
+    expect((await foreign('receipts/someone-else.jpg')).status).toBe(400);
+    expect(await status()).toBe('NEEDS_EQUIPMENT_PHOTO');
+
     expect((await sub(clients.store_manager, 'PRIMARY_IMAGE', 'p1')).ok).toBe(true);
     expect(await status()).toBe('NEEDS_LABEL_PHOTO');
     expect((await sub(clients.store_manager, 'PRIMARY_IMAGE', 'p1b')).code).toBe('STALE');
@@ -397,6 +404,11 @@ test('Q29 匯入：預檢不留資料；任何一列有錯整批不寫入；全�
   expect((await callFn(clients.store_manager, 'ga_ws_import_assets', { p_rows: good, p_file_name: file, p_idempotency_key: 'k-p', p_dry_run: true })).status).toBe(403);
   const facOnly = await callFn(clients.ga_facility_edit, 'ga_ws_import_assets', { p_rows: [good[2]], p_file_name: file, p_idempotency_key: 'k-fac', p_dry_run: true });
   expect(facOnly.data.errors).toEqual([]);
+  // kind 前後帶空白也要走同一個權限檢查（預檢與寫入用同一種正規化）
+  const padded = good.map((r: any) => ({ ...r, kind: ` ${r.kind} ` }));
+  expect((await callFn(clients.store_manager, 'ga_ws_import_assets', { p_rows: padded, p_file_name: file, p_idempotency_key: 'k-pad-sm', p_dry_run: false })).status).toBe(403);
+  expect((await callFn(clients.ga_facility_edit, 'ga_ws_import_assets', { p_rows: padded, p_file_name: file, p_idempotency_key: 'k-pad-fe', p_dry_run: false })).status).toBe(403);
+  expect(await count()).toBe(0);
   expect((await callFn(clients.ga_works, 'ga_ws_import_assets', { p_rows: [], p_file_name: file, p_idempotency_key: 'k-e', p_dry_run: false })).status).toBe(400);
   expect((await callFn(clients.ga_works, 'ga_ws_import_assets', { p_rows: good, p_file_name: file, p_idempotency_key: '', p_dry_run: false })).status).toBe(400);
 

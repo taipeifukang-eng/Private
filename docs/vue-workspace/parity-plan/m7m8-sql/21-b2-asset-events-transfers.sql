@@ -526,6 +526,9 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'status', 409, 'error', '這項資產的所屬門市已被更正，請通知總務取消並重新發起');
   END IF;
   IF NOT ga_is_store_active(t.to_store_id) THEN RETURN jsonb_build_object('ok', false, 'status', 409, 'error', '轉入門市已停用'); END IF;
+  IF (v_a->>'qr_revoked_at') IS NOT NULL OR (t.asset_type = 'EQUIPMENT' AND v_a->>'status' = 'SCRAPPED') OR (t.asset_type = 'FACILITY' AND v_a->>'status' = 'RETIRED') THEN
+    RETURN jsonb_build_object('ok', false, 'status', 409, 'error', '這項資產已報廢／作廢，不能再轉移，請通知總務取消轉移單');
+  END IF;
   v_counts := ga_ws_open_order_count(t.asset_type, t.asset_id);
   IF t.asset_type = 'EQUIPMENT' THEN UPDATE ga_equipment SET store_id = t.to_store_id WHERE id = t.asset_id;
   ELSE UPDATE ga_facilities SET store_id = t.to_store_id WHERE id = t.asset_id; END IF;

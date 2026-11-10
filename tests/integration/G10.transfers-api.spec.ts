@@ -284,3 +284,14 @@ test('清單：篩選、搜尋（逗號括號不壞）、分頁、參數錯誤',
   const y = await get('store_manager', `transfers?q=${encodeURIComponent('TR-清單甲')}`);
   expect(y.body.total).toBe(1); // A 是轉出門市
 });
+
+test('交出後設備被改為報廢（QR 作廢）：確認收到被擋，資產不換店；總務取消後可收尾', async () => {
+  const eq = await seedEquipment('ZT01', eqCat.id, 'TR-報廢');
+  const id = (await create('ga_works', 'EQUIPMENT', eq.id, 'VW001')).body.data.id as string;
+  expect((await step('store_manager', id, 'handover', {})).status).toBe(200);
+  await adminDb().from('ga_equipment').update({ status: 'SCRAPPED', qr_token_revoked_at: new Date().toISOString() }).eq('id', eq.id);
+  const rec = await step('ga_store_manager_b', id, 'receive', { files: photo() });
+  expect(rec.status).toBe(409);
+  expect((await eqRow(eq.id)).store_id).toBe(sid.ZT01);
+  expect((await get('ga_works', `transfers/${id}`)).body.data.status).toBe('PENDING_RECEIVE');
+});

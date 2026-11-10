@@ -90,6 +90,15 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     // 總務沒有代替店長的按鈕
     await expect(transferRow(ga.page, eq.name).getByRole('button', { name: /確認交出|確認收到/ })).toHaveCount(0);
 
+    // 步驟 1 對 B 店的畫面：A 店還沒交出，B 店的「待我處理」不該出現這張單，也不能有「確認收到」按鈕
+    await openGaCenter(b.page);
+    await gaNavTo(b.page, '轉移單');
+    await tab(b.page, /待我處理/).click();
+    await expect(tab(b.page, /待我處理/)).toHaveAttribute('aria-selected', 'true');
+    await expect(transferRow(b.page, eq.name)).toHaveCount(0);
+    await tab(b.page, '進行中').click();
+    await expect(b.page.getByRole('button', { name: '確認收到' }).locator('visible=true')).toHaveCount(0);
+
     // ---------------------------------------------------------------- 步驟 2：A 店店長（手機）看到並確認交出
     await openGaCenter(a.page);
     await gaNavTo(a.page, '轉移單');
@@ -123,6 +132,7 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     await dialog(ga.page).getByRole('button', { name: '關閉' }).click();
 
     // ---------------------------------------------------------------- 步驟 4：B 店店長（手機）看到並確認收到
+    await b.page.reload({ waitUntil: 'networkidle' });
     await openGaCenter(b.page);
     await gaNavTo(b.page, '轉移單');
     await expect(tab(b.page, /待我處理/)).toHaveAttribute('aria-selected', 'true');

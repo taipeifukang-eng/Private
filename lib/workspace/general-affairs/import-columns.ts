@@ -73,9 +73,35 @@ function valid(y: number, mo: number, day: number): string | null {
   return `${y}-${String(mo).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+export const MAX_UNZIPPED_BYTES = 30 * 1024 * 1024;
+export const MAX_ZIP_ENTRIES = 200;
+
+/** 解析前先看壓縮檔目錄：檔案數與解壓後總大小過大（壓縮炸彈）、目錄毀損或使用 ZIP64 都直接拒絕，不交給解析套件。 */
+export function assertSafeZip(buffer: Buffer): void {
+  const bad = () => new ImportFileError("這個 Excel 檔的內容不合規定（解壓後過大或結構異常），請重新下載範本填寫");
+  let eocd = -1;
+  for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 22 - 65535); i -= 1) {
+    if (buffer.readUInt32LE(i) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw bad();
+  const entries = buffer.readUInt16LE(eocd + 10);
+  let offset = buffer.readUInt32LE(eocd + 16);
+  if (entries === 0xffff || offset === 0xffffffff || entries > MAX_ZIP_ENTRIES) throw bad();
+  let total = 0;
+  for (let n = 0; n < entries; n += 1) {
+    if (offset + 46 > buffer.length || buffer.readUInt32LE(offset) !== 0x02014b50) throw bad();
+    const size = buffer.readUInt32LE(offset + 24);
+    if (size === 0xffffffff) throw bad();
+    total += size;
+    if (total > MAX_UNZIPPED_BYTES) throw bad();
+    offset += 46 + buffer.readUInt16LE(offset + 28) + buffer.readUInt16LE(offset + 30) + buffer.readUInt16LE(offset + 32);
+  }
+}
+
 /** 讀 Excel 第一個工作表：第一列為表頭，空白列略過。回傳每列（含 Excel 列號）的原始文字。檔案層級的問題丟 ImportFileError。 */
 export function parseImportWorkbook(buffer: Buffer): RawRow[] {
   if (buffer.length < 4 || buffer[0] !== 0x50 || buffer[1] !== 0x4b) throw new ImportFileError("檔案不是 Excel（.xlsx）格式，請下載範本後填寫");
+  assertSafeZip(buffer);
   let book: XLSX.WorkBook;
   try {
     book = XLSX.read(buffer, { type: "buffer", cellDates: false, sheetRows: MAX_IMPORT_ROWS * 2 + 2 });

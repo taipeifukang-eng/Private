@@ -32,6 +32,17 @@ describe('parseImportWorkbook', () => {
     expect(rows.map((r) => r.row_no)).toEqual([2, 4]);
     expect(rows[0].cells.store_code).toBe('ZT01');
   });
+  it('壓縮檔目錄宣告解壓後過大（壓縮炸彈）或目錄毀損：解析前就拒絕', () => {
+    const buf = Buffer.from(book([line({ 類型: '設備', 門市代碼: 'A', 分類代碼: 'B', 名稱: 'x' })]));
+    const cd = buf.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+    expect(cd).toBeGreaterThan(0);
+    const bomb = Buffer.from(buf);
+    bomb.writeUInt32LE(40 * 1024 * 1024, cd + 24);
+    expect(() => parseImportWorkbook(bomb)).toThrow(ImportFileError);
+    const broken = Buffer.from(buf);
+    broken.writeUInt32LE(0, buf.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06])));
+    expect(() => parseImportWorkbook(broken)).toThrow(ImportFileError);
+  });
   it('日期格是 Excel 序號時轉成 YYYY-MM-DD 文字', () => {
     const rows = parseImportWorkbook(book([line({ 類型: '設備', 門市代碼: 'A', 分類代碼: 'B', 名稱: 'x', 購置日期: 46027 })]));
     expect(rows[0].cells.purchased_at).toBe('2026-01-05');
