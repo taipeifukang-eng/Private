@@ -269,6 +269,11 @@ test('B9 設施畫面：有進行中轉移單時，編輯畫面的退役選項�
     await expect(status.locator('option[value="RETIRED"]')).toHaveJSProperty('disabled', true);
     await expect(status.locator('option[value="OUT_OF_SERVICE"]')).toHaveJSProperty('disabled', false);
     await expect(dialog(page).getByTestId('status-locked-hint')).toContainText(t.transfer_no);
+    // 版面：提示在狀態欄下方，同排的重要程度與設施編號上緣仍與狀態欄對齊（桌機三欄；手機直排不比對）
+    if ((page.viewportSize()?.width ?? 0) > 700) {
+      const tops = await Promise.all([status, dialog(page).getByLabel('重要程度'), dialog(page).getByLabel('設施編號')].map(async (l) => (await l.boundingBox())!.y));
+      expect(Math.max(...tops) - Math.min(...tops), `同排欄位上緣差 ${tops.join('/')}`).toBeLessThan(4);
+    }
     await dialog(page).getByRole('button', { name: '取消' }).click();
     await dialog(page).getByRole('button', { name: '刪除', exact: true }).click();
     const del = dialog(page);
@@ -281,6 +286,33 @@ test('B9 設施畫面：有進行中轉移單時，編輯畫面的退役選項�
     expect(errors.filter((e) => !/status of 40[49]/.test(e))).toEqual([]);
   } finally {
     await api.dispose();
+    await c.close();
+  }
+});
+
+test('編輯設施：已有分類（即使是停用、又在子層的分類）要顯示分類名稱，不動分類直接儲存不會清掉或改掉分類（PATCH 不送 category_id）', async ({ browser }, testInfo) => {
+  const parent = await seedCategory('facility', 'FPAR');
+  const child = await seedCategory('facility', 'FCHD', { parent_id: parent.id });
+  const f = await seedFacility('ZT04', child.id, 'E2E-分類顯示設施', { location_detail: '入口' });
+  expect((await adminDb().from('ga_facility_categories').update({ is_active: false }).eq('id', child.id)).error).toBeNull();
+  const { ctx: c, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    await gaNavToIn(page, '設施管理', '設施清冊');
+    await openFacility(page, f.name);
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
+    await expect(dialog(page).getByRole('combobox', { name: /設施分類/ })).toHaveCount(0);
+    await expect(dialog(page).locator('.cat-pop')).toHaveCount(0);
+    expect((await adminDb().from('ga_facility_categories').update({ is_active: true }).eq('id', child.id)).error).toBeNull(); // 資料庫對停用分類下的設施任何更新都會擋，重新啟用後再驗證儲存
+    await dialog(page).getByLabel('詳細位置').fill('櫃台後方');
+    const patch = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().includes(`/facilities/${f.id}`));
+    await dialog(page).getByRole('button', { name: '儲存' }).click();
+    expect(Object.keys((await patch).postDataJSON())).not.toContain('category_id');
+    await expect(dialog(page)).toContainText(child.name);
+    expect(await row('ga_facilities', f.id)).toMatchObject({ category_id: child.id });
+    expect(errors).toEqual([]);
+  } finally {
     await c.close();
   }
 });

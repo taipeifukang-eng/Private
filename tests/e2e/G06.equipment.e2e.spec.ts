@@ -392,6 +392,11 @@ test('B9 畫面：有進行中轉移單時，編輯畫面的報廢／退役選�
     const hint = dialog(page).getByTestId('status-locked-hint');
     await expect(hint).toContainText(t.transfer_no);
     await expect(hint.getByRole('link', { name: '到轉移單取消' })).toHaveAttribute('href', '#/open/ga-transfers');
+    // 版面：提示在狀態欄下方，同排的重要程度與條碼上緣仍與狀態欄對齊（桌機三欄；手機一欄直排，不比對）
+    if ((page.viewportSize()?.width ?? 0) > 700) {
+      const tops = await Promise.all([status, dialog(page).getByLabel('重要程度'), dialog(page).getByLabel('條碼')].map(async (l) => (await l.boundingBox())!.y));
+      expect(Math.max(...tops) - Math.min(...tops), `同排欄位上緣差 ${tops.join('/')}`).toBeLessThan(4);
+    }
     await dialog(page).getByRole('button', { name: '取消' }).click();
     // 刪除對話框：有未結案單又有轉移單時，轉移單提示優先，「改為報廢」停用，沒有「確認刪除」
     await dialog(page).getByRole('button', { name: '刪除', exact: true }).click();
@@ -414,6 +419,47 @@ test('B9 畫面：有進行中轉移單時，編輯畫面的報廢／退役選�
     expect(errors.filter((e) => !/status of 40[49]/.test(e))).toEqual([]);
   } finally {
     await api.dispose();
+    await c.close();
+  }
+});
+
+test('編輯設備：已有分類（即使是停用、又在子層的分類）要顯示分類名稱，不動分類直接儲存不會清掉或改掉分類（PATCH 不送 category_id）', async ({ browser }, testInfo) => {
+  const parent = await seedCategory('equipment', 'EPAR');
+  const child = await seedCategory('equipment', 'ECHD', { parent_id: parent.id }); // 在子層：不在最上層瀏覽清單內
+  const eq = await seedEquipment('ZT04', child.id, 'E2E-分類顯示', { location_detail: '倉庫' });
+  expect((await adminDb().from('ga_equipment_categories').update({ is_active: false }).eq('id', child.id)).error).toBeNull(); // 建檔後才停用：停用的分類不會出現在選單
+  const { ctx: c, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    await gaNavTo(page, '設備清冊', '設備管理');
+    await openAsset(page, eq.name);
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    await expect(dialog(page).getByRole('heading', { name: '編輯設備' })).toBeVisible();
+    // 顯示分類名稱，不是搜尋框提示，也沒有自動展開的選單
+    await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
+    await expect(dialog(page).getByRole('combobox', { name: /設備分類/ })).toHaveCount(0);
+    await expect(dialog(page).locator('.cat-pop')).toHaveCount(0);
+    // 完全沒改就儲存：不送出任何欄位（不會呼叫伺服器，所以分類停用也沒關係）
+    await dialog(page).getByRole('button', { name: '儲存' }).click();
+    await expect(notice(page, '沒有修改任何欄位')).toBeVisible();
+    expect((await row('ga_equipment', eq.id)).category_id).toBe(child.id);
+    // 資料庫對「分類已停用的設備」任何更新都會擋（既有行為），所以重新啟用後再驗證儲存
+    expect((await adminDb().from('ga_equipment_categories').update({ is_active: true }).eq('id', child.id)).error).toBeNull();
+    // 只改位置再儲存：PATCH 內容沒有 category_id，資料庫分類不變
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
+    await dialog(page).getByLabel('放置位置').fill('收銀台旁');
+    const patch = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().includes(`/equipment/${eq.id}`));
+    await dialog(page).getByRole('button', { name: '儲存' }).click();
+    expect(Object.keys((await patch).postDataJSON())).not.toContain('category_id');
+    await expect(notice(page, `已儲存設備「${eq.name}」`)).toBeVisible();
+    expect(await row('ga_equipment', eq.id)).toMatchObject({ category_id: child.id, location_detail: '收銀台旁' });
+    // 詳情與再次編輯仍顯示分類名稱
+    await expect(dialog(page)).toContainText(child.name);
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
+    expect(errors).toEqual([]);
+  } finally {
     await c.close();
   }
 });
