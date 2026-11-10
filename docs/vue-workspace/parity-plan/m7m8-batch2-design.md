@@ -327,3 +327,12 @@
 - Vue：`AssetLabels.vue`（設備與設施共用，列印走獨立視窗，版型 60 x 25 mm 一張一頁）、`AssetScan.vue`（手機優先）。掃描頁走 `/open/ga-asset-scan/{token}` 深連結（`App.vue` 白名單），未登入先登入再開同一頁；清冊（`Equipment.vue`、`Facilities.vue`）可由頁籤 payload 帶入搜尋字串。
 - Next 端：`app/general-affairs/assets/scan/[token]/page.tsx` 只加一行旗標轉址（`WORKSPACE_SCAN_REDIRECT=true`），其餘程式不動。測試站啟動器（`tests/support/start-test-server.cjs`）固定設定 `NEXT_PUBLIC_SITE_URL=http://localhost:3002` 與轉址旗標。
 - 測試：單元 `tests/unit/G10`；整合 `G10.qr-api.spec.ts`；冒煙 `G10.qr.spec.ts`；e2e `G10.qr.e2e.spec.ts`；對等 `G10.ga-qr.spec.ts`（map：`tests/parity/map/ga-qr.json`）；驗收截圖 `tests/smoke/G10.screens.spec.ts`（設定 `M7M8_SHOT_DIR` 才執行）。「缺網域設定報錯」只有單元測試涵蓋（測試站固定有設定，無法在同一站切換）。
+
+## 15. Q28 轉移單實作紀錄
+
+- 伺服端：`lib/workspace/general-affairs/transfers.ts`（`transfersApi`），`router.ts` 加 `transfers` case。清單 `GET /transfers`（`mine=1` 只列「待我處理」：我是轉出門市店長且待交出，或我是轉入門市店長且待收到；回 `todoCount` 給手機分頁角標，每列帶 `canHandover`／`canReceive`／`canCancel`）、詳情 `GET /transfers/:id`（時間軸、兩段照片簽名網址每次重簽）、`POST /transfers`（總務發起，不換店）、`POST /transfers/:id/handover`、`/receive`（multipart：`note`、`files` 最多 3 張圖片、合計 4.25MB；先預檢身分與步驟，再傳儲存空間，資料庫函式失敗就移除剛傳的檔案）、`POST /transfers/:id/cancel`（原因必填）。讀取範圍：設備／設施查看或管理，或轉移單上的店長；其餘 403。
+- 旗標 `gaTransfers`：設備或設施管理，或店長身分／名單內人員；純查看者沒有入口（API 可讀）。頁面 kind `ga-transfers`，側欄「資產與庫存」群組加「轉移單」（在貼標待辦之前）。
+- Vue：`AssetTransfers.vue`（桌機表格、手機一筆一張卡；分頁「待我處理／進行中／已完成／已取消／全部」，店長第一次進來若有待辦就停在「待我處理」；詳情含歷程與照片；確認交出／收到可拍照）、`TransferCreateDialog.vue`（從轉移單頁或設備／設施詳情的「發起轉移」進入）、`lib/ga-transfers.ts`。設備與設施詳情在總務有管理權限、沒有進行中轉移單、非報廢／退役時顯示「發起轉移」。
+- 測試：單元 `tests/unit/G10/transfers.test.ts`；整合 `G10.transfers-api.spec.ts`；冒煙 `G10.transfers.spec.ts`；e2e `G10.transfers.e2e.spec.ts`（桌機與手機）與劇本 `G10.journey-transfer.spec.ts`（Q26「設備轉移」，只在桌機 project 跑一次，內部自行指定總務桌機 1440、兩位店長手機 390，含「無權限者做不到」）；對等 `G10.ga-transfer.spec.ts`（map：`tests/parity/map/ga-transfer.json`）。
+- 白名單（page `ga-transfer`、`ga-assets`）：轉移單 API 新增填 Q28；(g) 確認身分限制、(h) 未結案單不搬、側欄入口填 `null` 並列入 `STILL_PENDING`。
+- 自行解讀（規格沒寫）：轉移單清單對「只有設備查看權限」者可讀不可寫；總務有任一類管理權限即可取消（資料庫再依資產類別判斷）；取消的轉移單保留在「已取消」分頁；轉移單照片放 `asset-transfers/{id}/{handover|receive}/`，只收圖片；店長手機介面一律「確認」兩段式（先開確認視窗再送出）。

@@ -7,6 +7,7 @@ import AssetOnboardingBar from "../../components/ga/AssetOnboardingBar.vue";
 import AssetSitePicker from "../../components/ga/AssetSitePicker.vue";
 import EquipmentFormFields from "../../components/ga/EquipmentFormFields.vue";
 import GaShell from "../../components/ga/GaShell.vue";
+import TransferCreateDialog from "../../components/ga/TransferCreateDialog.vue";
 import ResourceAttachmentPanel from "../../components/ga/ResourceAttachmentPanel.vue";
 import {
   CRITICALITY_LABEL, EQUIPMENT_STATUS_LABEL, equipmentFormFromRow, equipmentPatch, formatDate, formatMoney, ONBOARDING_LABEL, ONBOARDING_STATUSES, storeLabel,
@@ -26,6 +27,7 @@ const page = ref(1);
 const pageSize = 20;
 const stats = ref({ total: 0, attention: 0, warrantyAttention: 0 });
 const canManage = ref(false);
+const transferring = ref(false);
 const seeFull = ref(false);
 const search = ref(String(props.tab.payload?.search || ""));
 const debounced = useDebounced(search, 300);
@@ -399,6 +401,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
         <div class="dialog-actions">
           <template v-if="canManage">
             <button type="button" class="danger" :disabled="detailBusy" @click="askDelete(detail)">刪除</button>
+            <button v-if="!detail.open_transfer && !needsRestore(detail)" type="button" :disabled="detailBusy" @click="transferring = true">發起轉移</button>
             <button type="button" :disabled="detailBusy" @click="askCorrect(detail)">更正所屬門市</button>
             <button v-if="needsRestore(detail)" type="button" :disabled="detailBusy" @click="askRestore(detail)">恢復使用並重新啟用 QR</button>
             <button type="button" class="primary" :disabled="detailBusy" @click="startEdit">編輯</button>
@@ -418,6 +421,14 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
         </div>
       </form>
     </Modal>
+
+    <TransferCreateDialog
+      v-if="transferring && detail"
+      :asset="{ id: detail.id, name: detail.name, code: detail.asset_code || null, store_id: detail.store_id, store: detail.store, type: 'EQUIPMENT' }"
+      :can-equipment="true" :can-facility="false"
+      @close="transferring = false"
+      @created="(info) => { transferring = false; openDetail(detail!); notice = `已發起轉移單 ${info.transfer_no}，等轉出門市店長確認交出`; }"
+    />
 
     <Modal v-if="deleting" title="刪除設備" :busy="deleteBusy" @cancel="deleting = null">
       <p><strong>{{ deleting.name }}</strong>（{{ deleting.asset_code || "尚無資產編號" }}）</p>

@@ -1,0 +1,22 @@
+{
+  "page": "ga-transfer",
+  "legacyRoute": "/general-affairs/equipment、/general-affairs/assets/scan/{token}",
+  "workItem": "G10",
+  "entries": [
+    {
+      "id": "transfer-readback",
+      "mechanism": "api-read",
+      "description": "轉移單完成後的回讀比對：同一台設備，用新版轉移單 API 換店後，舊版設備詳情 API（GET /api/general-affairs/equipment/:id）與新版設備詳情 API 的所屬門市、QR token、編號、狀態逐欄相同；舊版資產掃描 API 對轉入門市店長回 200、對轉出門市店長回 403，與新版掃描 API 狀態碼相同；資料庫 qr_token 沿用沒有重發。差異：舊版沒有轉移單 API（新增，Q28）、確認交出與收到只認店長身分（解讀 g）、進行中的報修單換店後仍屬原門市（解讀 h）。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment/:id" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/equipment/:id" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "transfer-rules",
+      "mechanism": "api-read",
+      "description": "轉移單規則（新功能，舊版沒有對應）：舊版沒有轉移單相關 API，新版 /api/workspace/general-affairs/transfers 為新增；確認交出與確認收到只認 store_managers 的店長身分（督導、區經理不算）；進行中的報修單與工單換店後留在原門市。",
+      "legacy": { "source": "舊版設備編輯頁可直接改所屬門市，沒有轉移單；見 app/api/general-affairs/equipment/[id]/route.ts" },
+      "native": { "api": { "path": "/api/workspace/general-affairs/transfers" } }
+    }
+  ]
+}

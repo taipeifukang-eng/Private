@@ -4297,5 +4297,70 @@
       "kind": "only-legacy",
       "key": "nav-labels-view-conditions"
     }
+  },
+  {
+    "id": "m7m8-g10-transfer-readback-transfers-api",
+    "page": "ga-transfer",
+    "description": "新增設備／設施轉移單 API 與頁面（舊版沒有轉移單，舊版換店是在設備編輯畫面直接改所屬門市）。",
+    "reason": "Q28 已由使用者決定：平常換店走轉移單（總務發起 → 轉出門市店長確認交出 → 轉入門市店長確認收到才換店，QR 沿用，全程留紀錄）。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q28)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "transfers-api",
+      "entry": "transfer-readback"
+    }
+  },
+  {
+    "id": "m7m8-g10-transfer-rules-transfers-api",
+    "page": "ga-transfer",
+    "description": "新增設備／設施轉移單 API（舊版沒有）。",
+    "reason": "Q28 已由使用者決定。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q28)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "transfers-api",
+      "entry": "transfer-rules"
+    }
+  },
+  {
+    "id": "m7m8-g10-transfer-open-requests-stay",
+    "page": "ga-transfer",
+    "description": "換店後，進行中的報修單與工單留在原門市，介面顯示警示張數；不自動搬到新門市。（解讀 h）",
+    "reason": "與現行「進行中報修仍掛舊門市」一致；若希望單子跟著設備走，需另行決定（會動到需求單門市欄位，屬第 4 批）。主迴圈自行解讀或延伸，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "open-requests-stay-in-origin-store",
+      "entry": "transfer-readback"
+    }
+  },
+  {
+    "id": "m7m8-g10-transfer-confirm-role-store-manager-only",
+    "page": "ga-transfer",
+    "description": "轉移單「確認交出／確認收到」只認 store_managers.role_type = store_manager 的人（督導、區經理與總務都不能代按）。（解讀 g）",
+    "reason": "貼標待辦沿用舊版（名單內任何身分），轉移單比較嚴格；上線前要確認每間有資產的門市都有店長名單身分。主迴圈自行解讀或延伸，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "confirm-role-store-manager-only",
+      "entry": "transfer-rules"
+    }
+  },
+  {
+    "id": "m7m8-g10-nav-transfers",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「資產與庫存」多一項「轉移單」（總務管理者與店長可見；舊版沒有這個項目）。",
+    "reason": "Q28 新頁沒有舊網址，不改舊版側欄元件；入口位置與可見條件為主迴圈設計。主迴圈自行解讀或延伸，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:asset-transfers",
+      "entry": "sidebar-visibility"
+    }
   }
 ]

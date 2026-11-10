@@ -118,6 +118,7 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-facility-labels": meta("設施 QR 標籤列印", ["gaFacilityLabels"]),
   // 掃描頁：登入者皆可進（資料範圍與無權限說明由 API 判斷）。
   "ga-asset-scan": meta("資產掃描", ["monthlyRelease"]),
+  "ga-transfers": meta("設備轉移單", ["gaTransfers"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {
