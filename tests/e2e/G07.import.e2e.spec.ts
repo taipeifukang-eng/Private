@@ -28,6 +28,23 @@ const upload = (page: Page, tag: string, buffer: Buffer) => fileInput(page).setI
 const rowsOf = (page: Page) => page.getByTestId('import-row').locator('visible=true');
 const countRows = async (names: string[]) => (((await adminDb().from('ga_equipment').select('id').in('name', names)).data || []).length) + (((await adminDb().from('ga_facilities').select('id').in('name', names)).data || []).length);
 
+/** 「確認匯入」按鈕列不能蓋在結果表格的資料列上：每一列捲到畫面中後，列與按鈕列的方框都不重疊，按鈕可見且可點到。 */
+async function expectNoBarOverlap(page: Page, rows: number) {
+  const bar = page.locator('.buttons:visible', { has: page.getByTestId('commit-import') });
+  await expect(bar).toBeVisible();
+  for (let i = 0; i < rows; i += 1) {
+    const r = rowsOf(page).nth(i);
+    await r.scrollIntoViewIfNeeded();
+    const rb = (await r.boundingBox())!;
+    const bb = (await bar.boundingBox())!;
+    const overlap = rb.y < bb.y + bb.height && bb.y < rb.y + rb.height && rb.x < bb.x + bb.width && bb.x < rb.x + rb.width;
+    expect(overlap, `第 ${i + 1} 列（y=${rb.y}～${rb.y + rb.height}）與按鈕列（y=${bb.y}～${bb.y + bb.height}）重疊`).toBe(false);
+    // 該列的每個儲存格中心點最上層都是這一列自己，沒有被別的元素蓋住
+    const covered = await r.evaluate((tr) => [...tr.querySelectorAll('td')].some((td) => { const b = td.getBoundingClientRect(); const el = document.elementFromPoint(b.x + b.width / 2, b.y + Math.min(b.height / 2, 8)); return !!el && !tr.contains(el); }));
+    expect(covered, `第 ${i + 1} 列被其他元素蓋住`).toBe(false);
+  }
+}
+
 test('總務：下載範本 -> 上傳有錯的檔案（標出列與原因、不能提交、資料庫沒有新增）-> 改好重傳 -> 確認匯入 -> 完成摘要 -> 讀回資料庫', async ({ browser }, testInfo) => {
   const { ctx, page, errors } = await pageFor(browser, 'ga_works', testInfo);
   try {
@@ -60,6 +77,7 @@ test('總務：下載範本 -> 上傳有錯的檔案（標出列與原因、不�
     await expect(rowsOf(page).nth(1)).toContainText('3'); // Excel 列號
     await expect(rowsOf(page).nth(2)).toContainText('「安裝日期」「2026-02-31」不是有效日期');
     await expect(page.getByTestId('commit-import').locator('visible=true')).toBeDisabled();
+    await expectNoBarOverlap(page, 3);
     await expectTidyCheckbox(page, '只看有問題的列');
     await page.getByLabel('只看有問題的列').locator('visible=true').check();
     await expect(rowsOf(page)).toHaveCount(2);
@@ -173,6 +191,7 @@ test('B10 可能重複：預檢標黃色提醒與摘要計數；確認匯入時�
     await expect(rowsOf(page).nth(1).getByTestId('dup-text')).toHaveText('可能重複：與第 4 列同名');
     await expect(rowsOf(page).nth(2).getByTestId('dup-text')).toHaveText('可能重複：與第 3 列同名');
     await expect(rowsOf(page).nth(3)).toHaveAttribute('data-dup', '0');
+    await expectNoBarOverlap(page, 4);
     expect(await noPageOverflow(page)).toBe(true);
     // 確認匯入：跳出提醒，取消不寫入
     const commit = page.getByTestId('commit-import').locator('visible=true');

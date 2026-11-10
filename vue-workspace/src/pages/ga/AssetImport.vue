@@ -179,6 +179,10 @@ function reset() { file.value = null; result.value = null; done.value = null; er
         <p v-else class="notice success" role="status">全部 {{ result.summary.total }} 列都通過檢查，可以匯入。匯入後會自動產生各店的貼標待辦。</p>
         <p v-if="result.rows.some((r) => r.ok && r.kind === 'EQUIPMENT' && !r.code)" class="notice warn" role="note">有些設備沒有資產編號（沒填購置日期，系統無法自動產生）：可以匯入，但列印標籤時會警告，建議之後補編號。</p>
         <p v-if="dupCount > 0" class="notice warn" role="note" data-testid="dup-notice">可能重複 {{ dupCount }} 列（沒填編號，且同門市已有同名的設備或設施，或同一份檔案內重複）：不影響匯入，請確認不是重複建檔；確定要建立新的就照常匯入。</p>
+        <div class="buttons">
+          <button type="button" class="primary big" data-testid="commit-import" :disabled="!result.canCommit || busy" @click="askCommit">{{ busy ? "處理中…" : `確認匯入 ${result.summary.total} 筆` }}</button>
+          <button type="button" class="big" :disabled="busy" @click="reset">取消</button>
+        </div>
         <label class="check"><input v-model="onlyErrors" type="checkbox" :disabled="!result.summary.errorCount" /> 只看有問題的列</label>
         <div class="table-wrap">
           <table class="grid-table">
@@ -192,10 +196,6 @@ function reset() { file.value = null; result.value = null; done.value = null; er
               <tr v-if="!shownRows.length"><td colspan="7" class="empty">沒有符合的資料列</td></tr>
             </tbody>
           </table>
-        </div>
-        <div class="buttons sticky">
-          <button type="button" class="primary big" data-testid="commit-import" :disabled="!result.canCommit || busy" @click="askCommit">{{ busy ? "處理中…" : `確認匯入 ${result.summary.total} 筆` }}</button>
-          <button type="button" class="big" :disabled="busy" @click="reset">取消</button>
         </div>
       </section>
     </template>
@@ -230,8 +230,7 @@ tr.bad { background: #fdecec; }
 .ok { color: var(--primary); font-weight: 600; }
 .errs { margin: 0; padding-left: 16px; color: var(--danger); }
 .empty { text-align: center; color: var(--muted); padding: 18px; }
-.buttons { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
-.sticky { position: sticky; bottom: 0; background: var(--surface); padding: 10px 0; }
+.buttons { display: flex; gap: 10px; flex-wrap: wrap; margin: 4px 0 8px; }
 .big { min-height: 44px; font-weight: 700; }
 .done { border: 1px solid var(--primary); border-radius: 10px; background: var(--soft); padding: 16px; display: grid; gap: 8px; }
 .done h2 { margin: 0; }
