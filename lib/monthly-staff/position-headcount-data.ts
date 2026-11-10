@@ -54,7 +54,7 @@ export async function loadPositionHeadcountData(db: any, yearMonth: string, tren
     fetchAllPages<HeadcountRecord>((from, to) =>
       db
         .from('monthly_staff_status')
-        .select('year_month, store_id, employee_code, employee_name, position, newbie_level, monthly_status, is_acting_manager, is_dual_position, employment_type')
+        .select('year_month, store_id, employee_code, employee_name, position, newbie_level, monthly_status, is_acting_manager, is_dual_position, is_supervisor_rotation, employment_type')
         .in('year_month', months)
         .order('year_month')
         .order('id')
