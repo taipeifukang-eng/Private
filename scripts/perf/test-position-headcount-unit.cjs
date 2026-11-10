@@ -486,6 +486,16 @@ t('未定稿橫幅：切換月份讀取中（舊 payload）不顯示上月名單
 });
 t('未定稿橫幅：payload 為 null 回傳空', () => assert.deepEqual(H.unfinalizedStoresForMonth(null, '2026-09'), []));
 
+t('匯出欄寬：每個表頭都有對應寬度，卡班代理欄不被擠壓、總人數維持 10', () => {
+  const r = H.computeMonthHeadcount([rec({ position: '專員' })], STORES, YM);
+  const headers = Object.keys(H.buildHeadcountExportRows(r).summaryRows[0]);
+  const w = H.summarySheetColumnWidths(headers);
+  assert.equal(w.length, headers.length);
+  assert.ok(w[headers.indexOf('督導卡班代理（不計入）')].wch >= 22);
+  assert.equal(w[headers.indexOf('總人數')].wch, 10);
+  assert.equal(w[headers.indexOf('其中由督導代理店長')].wch, 18);
+});
+
 console.log(`通過 ${passed} 項`);
 if (failures.length) {
   console.error(`失敗 ${failures.length} 項：\n- ${failures.join('\n- ')}`);

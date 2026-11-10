@@ -496,6 +496,12 @@ export function findUnfinalizedStores(records: HeadcountRecord[], stores: Headco
 
 // ───────────────────────── Excel 列 ─────────────────────────
 
+/** 「人數統計」工作表欄寬：依表頭名稱決定，欄位增減時不會錯位。 */
+export function summarySheetColumnWidths(headers: string[]): { wch: number }[] {
+  const fixed: Record<string, number> = { 督導區: 14, 門市: 24, 其中由督導代理店長: 18, '督導卡班代理（不計入）': 24, 總人數: 10 };
+  return headers.map((h) => ({ wch: fixed[h] ?? 12 }));
+}
+
 export function buildHeadcountExportRows(result: MonthHeadcount): {
   summaryRows: Record<string, string | number>[];
   detailRows: Record<string, string | number>[];

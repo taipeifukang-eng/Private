@@ -8,6 +8,7 @@ import {
   buildHeadcountExportRows,
   computeHeadcountTrend,
   computeMonthHeadcount,
+  summarySheetColumnWidths,
   unfinalizedStoresForMonth,
   type AreaHeadcount,
   type ColumnKey,
@@ -84,7 +85,7 @@ export default function PositionHeadcountPanel() {
     const { summaryRows, detailRows } = buildHeadcountExportRows(result);
     const wb = XLSX.utils.book_new();
     const s1 = XLSX.utils.json_to_sheet(summaryRows);
-    s1['!cols'] = [{ wch: 14 }, { wch: 24 }, ...HEADCOUNT_COLUMNS.map(() => ({ wch: 12 })), { wch: 18 }, { wch: 10 }];
+    s1['!cols'] = summarySheetColumnWidths(Object.keys(summaryRows[0] ?? {}));
     const s2 = XLSX.utils.json_to_sheet(detailRows);
     s2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 22 }, { wch: 12 }, { wch: 24 }];
     XLSX.utils.book_append_sheet(wb, s1, '人數統計');
