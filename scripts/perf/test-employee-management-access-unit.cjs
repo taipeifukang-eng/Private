@@ -105,6 +105,24 @@ const GRANT = { data: true, error: null };
       assert.equal(await A.canAccessEmployeeManagement(null, { role: 'admin' }), false);
       assert.equal(await A.canAccessEmployeeManagement(undefined, null), false);
     });
+    // 入口接線（靜態檢查原始碼）：頁面與門市詳情頁不能改回舊條件
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const read = (f) => fs.readFileSync(path.join(__dirname, '..', '..', f), 'utf8');
+    await t('員工管理頁、人數統計 API、access 路由都呼叫 canAccessEmployeeManagement，且不含舊條件', async () => {
+      for (const f of ['app/admin/employee-management/page.tsx', 'app/api/admin/position-headcount/route.ts', 'app/api/admin/employee-management/access/route.ts']) {
+        const src = read(f);
+        assert.match(src, /await canAccessEmployeeManagement\(user\.id, profile\)/, f);
+        assert.doesNotMatch(src, /canViewEmployeeManagement|job_title|department/, f);
+      }
+    });
+    await t('門市詳情員工管理頁用 access API（res.ok 且 allowed===true 才放行），不含舊條件', async () => {
+      const src = read('app/admin/stores/[id]/employee-management/page.tsx');
+      assert.match(src, /fetch\('\/api\/admin\/employee-management\/access'/);
+      assert.match(src, /res\.ok && \(await res\.json\(\)\)\?\.allowed === true/);
+      assert.match(src, /if \(!allowed\) \{[\s\S]*?router\.push\('\/admin\/stores'\)/);
+      assert.doesNotMatch(src, /job_title|\.startsWith\('營業'\)|canViewEmployeeManagement/);
+    });
   } finally {
     console.error = origError;
   }
