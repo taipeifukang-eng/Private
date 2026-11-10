@@ -9,7 +9,7 @@ import { validateDeletionReason as facilityReason, validateFacilityPayload } fro
 import { adminClient } from "../server";
 import { dbCan, GA } from "./access";
 import {
-  ASSET_TABLE, ASSET_TYPE, basicSelect, diffAssetPatch, LABEL_REPRINT_MESSAGE, pickAssetFields, RESTORE_REQUIRED_MESSAGE, STORE_ID_EDIT_MESSAGE, TERMINAL_STATUS,
+  ASSET_TABLE, ASSET_TYPE, basicSelect, diffAssetPatch, LABEL_REPRINT_MESSAGE, OPEN_TRANSFER_BLOCKED_STATUS, openTransferBlockMessage, pickAssetFields, RESTORE_REQUIRED_MESSAGE, STORE_ID_EDIT_MESSAGE, TERMINAL_STATUS,
   warrantyInput, warrantyRanges, warrantyState, WARRANTY_FILTERS, type AssetKind, type AssetLevel, type WarrantyFilter,
 } from "./asset-fields";
 import { isUuid, orIlike, pagingMeta, parsePaging } from "./rules";
@@ -370,6 +370,12 @@ async function update(ctx: Context, kind: AssetKind, request: NextRequest, rawId
   const terminal = TERMINAL_STATUS[kind];
   if (current.status === terminal && normalized.status && normalized.status !== terminal) throw new GaError(400, RESTORE_REQUIRED_MESSAGE, { code: "USE_RESTORE" });
   const changed = diffAssetPatch(current, normalized);
+  // B9：有進行中的轉移單（待交出、待收到）時不能改成報廢／退役，要先取消轉移單（資料庫觸發器同規則，這裡先擋以回傳白話訊息）。
+  if (changed.status && changed.status !== current.status && OPEN_TRANSFER_BLOCKED_STATUS[kind].includes(String(changed.status))) {
+    const open = (await must((adminClient() as any).from("ga_asset_transfers").select("transfer_no").eq("asset_type", ASSET_TYPE[kind]).eq("asset_id", rawId)
+      .in("status", ["PENDING_HANDOVER", "PENDING_RECEIVE"]).limit(1))) as any[];
+    if (open?.length) throw new GaError(409, openTransferBlockMessage(kind, String(changed.status), open[0].transfer_no), { code: "OPEN_TRANSFER", transfer_no: open[0].transfer_no });
+  }
   if (changed.status === terminal) changed.qr_token_revoked_at = new Date().toISOString();
   const codeKey = CODE_COLUMN[kind];
   const codeChanged = codeKey in changed && !!current[codeKey];

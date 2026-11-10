@@ -133,6 +133,12 @@ export const STORE_ID_EDIT_MESSAGE = "不能直接修改所屬門市：平常換
 /** 已報廢（設備）或已退役（設施）會自動作廢 QR，狀態要恢復請用「恢復使用並重新啟用 QR」。 */
 export const TERMINAL_STATUS: Record<AssetKind, string> = { equipment: "SCRAPPED", facilities: "RETIRED" };
 export const RESTORE_REQUIRED_MESSAGE = "已報廢或已退役的資產要用「恢復使用並重新啟用 QR」，才能沿用原標籤";
+/** B9：有進行中轉移單時不能改成的狀態（設備：退役、報廢；設施：退役）。與資料庫觸發器 ga_block_terminal_status_with_open_transfer 相同。 */
+export const OPEN_TRANSFER_BLOCKED_STATUS: Record<AssetKind, string[]> = { equipment: ["RETIRED", "SCRAPPED"], facilities: ["RETIRED"] };
+export function openTransferBlockMessage(kind: AssetKind, status: string, transferNo: string): string {
+  const noun = kind === "equipment" ? "設備" : "設施";
+  return `這台${noun}有進行中的轉移單 ${transferNo}，請先取消轉移單再${status === "SCRAPPED" ? "報廢" : "退役"}`;
+}
 export const LABEL_REPRINT_MESSAGE = "已修改資產編號：已印出的 QR 標籤上的編號要重新列印";
 
 // --------------------------------------------------------------------------- 貼標進度

@@ -411,7 +411,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
       </template>
       <form v-else @submit.prevent="save">
         <p class="notice" role="note">所屬門市（{{ storeLabel(detail.store) }}）不能在這裡修改：平常換店請發起「轉移單」，建檔選錯門市請用「更正所屬門市」。只會送出你有改的欄位。</p>
-        <EquipmentFormFields v-model="form" mode="edit" :disabled="saving" :errors="errors" />
+        <EquipmentFormFields v-model="form" mode="edit" :disabled="saving" :errors="errors" :open-transfer-no="detail.open_transfer?.transfer_no || null" />
         <p v-if="discardAsk" class="notice" role="alertdialog" aria-label="放棄未儲存的修改">有尚未儲存的修改。要放棄這些修改嗎？
           <button type="button" class="danger" @click="discardAsk = false; mode = 'view'">放棄修改</button>
           <button type="button" @click="discardAsk = false">繼續編輯</button></p>
@@ -433,8 +433,8 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
     <Modal v-if="deleting" title="刪除設備" :busy="deleteBusy" @cancel="deleting = null">
       <p><strong>{{ deleting.name }}</strong>（{{ deleting.asset_code || "尚無資產編號" }}）</p>
       <p v-if="deleteBusy && !deleteOrders" class="muted" role="status">檢查未結案單中…</p>
-      <p v-if="deleteOrders && deleteOrders.open_count > 0" class="notice error" role="alert">還有 {{ deleteOrders.open_count }} 張未結案單，不能刪除（可改為「報廢」）。</p>
-      <p v-else-if="deleteOrders?.open_transfer_id" class="notice error" role="alert">這台設備有進行中的轉移單，請先完成或取消轉移單再刪除。</p>
+      <p v-if="deleteOrders?.open_transfer_id" class="notice error" role="alert" data-testid="delete-open-transfer">這台設備有進行中的轉移單，請先<a href="#/open/ga-transfers">到轉移單取消</a>，才能刪除或報廢。</p>
+      <p v-else-if="deleteOrders && deleteOrders.open_count > 0" class="notice error" role="alert">還有 {{ deleteOrders.open_count }} 張未結案單，不能刪除（可改為「報廢」）。</p>
       <template v-else-if="deleteOrders">
         <p class="muted">刪除後這台設備不會再出現在清冊，QR 標籤同時作廢，也不能還原。請填寫刪除原因。</p>
         <label>刪除原因<input v-model="deleteReason" maxlength="200" aria-label="刪除原因" /></label>
@@ -442,7 +442,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
       <p v-if="deleteError" class="field-error" role="alert">{{ deleteError }}</p>
       <div class="dialog-actions">
         <button type="button" :disabled="deleteBusy" @click="deleting = null">{{ deleteOrders && (deleteOrders.open_count > 0 || deleteOrders.open_transfer_id) ? "關閉" : "取消" }}</button>
-        <button v-if="deleteOrders && deleteOrders.open_count > 0" type="button" :disabled="deleteBusy" @click="scrapInstead">改為報廢</button>
+        <button v-if="deleteOrders && (deleteOrders.open_count > 0 || deleteOrders.open_transfer_id)" type="button" :disabled="deleteBusy || !!deleteOrders.open_transfer_id" :title="deleteOrders.open_transfer_id ? '有進行中的轉移單，請先取消轉移單' : undefined" @click="scrapInstead">改為報廢</button>
         <button v-else-if="deleteOrders && !deleteOrders.open_transfer_id" type="button" class="primary danger" :disabled="deleteBusy" @click="confirmDelete">{{ deleteBusy ? "處理中…" : "確認刪除" }}</button>
       </div>
     </Modal>

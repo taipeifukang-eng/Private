@@ -1,8 +1,9 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
-  adminDb, apiForUser, assertGaBaseline, cleanupM7M8, m7Name, row, rowsWhere, seedCategory, seedFacility, seedFacilityTemplate, seedRepairRequest, setupM7Users, type M7User,
+  adminDb, apiForUser, assertGaBaseline, cleanupM7M8, m7Name, row, rowsWhere, seedCategory, seedFacility, seedFacilityTemplate, seedRepairRequest, setupM7Users, stores, type M7User,
 } from '../support/m7m8-fixtures';
 import { gaNavToIn, noPageOverflow, openGaCenter, pageFor, pageForUser } from '../support/g01-ui';
+import { apiAs } from '../support/auth';
 
 // M7/M8 第 2 批 G08 e2e：新增設施（驗證提示、架型必選、新購要購買日期、保固起訖、貼標預設待上傳設施照片、離開未儲存確認）、設施清冊（搜尋含逗號括號、
 // 詳情、編輯只送有改的欄位且保固與品牌保留、不能改所屬門市、版本衝突）、Q10／Q8（有未結案單不能刪除並顯示張數、可改退役、恢復並沿用 QR、更正所屬門市、結案後可刪除）、
@@ -245,6 +246,41 @@ test('Q5 店長看設施清冊：只有自己門市設施的基本資料（沒�
     expect(await noPageOverflow(page)).toBe(true);
     expect(errors).toEqual([]);
   } finally {
+    await c.close();
+  }
+});
+
+test('B9 設施畫面：有進行中轉移單時，編輯畫面的退役選項停用並提示、刪除對話框的「改為退役」停用並提示', async ({ browser }, testInfo) => {
+  const f = await seedFacility('ZT04', facCat.id, 'E2E-B9設施');
+  await seedRepairRequest('ZT04', { facilityId: f.id }, 'E2E-B9fopen', 'IN_PROGRESS', users.real_store_manager.id);
+  const api = await apiAs('ga_works');
+  const toStore = (await stores()).VW002.id;
+  const made = await api.post('/api/workspace/general-affairs/transfers', { data: { assetType: 'FACILITY', assetId: f.id, toStoreId: toStore, reason: 'E2E B9' } });
+  expect(made.status()).toBe(201);
+  const t = (await made.json()).data as { id: string; transfer_no: string };
+  const { ctx: c, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    await gaNavToIn(page, '設施管理', '設施清冊');
+    await openFacility(page, f.name);
+    await expect(dialog(page)).toContainText(t.transfer_no);
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    const status = dialog(page).locator('select[aria-label="狀態"]');
+    await expect(status.locator('option[value="RETIRED"]')).toHaveJSProperty('disabled', true);
+    await expect(status.locator('option[value="OUT_OF_SERVICE"]')).toHaveJSProperty('disabled', false);
+    await expect(dialog(page).getByTestId('status-locked-hint')).toContainText(t.transfer_no);
+    await dialog(page).getByRole('button', { name: '取消' }).click();
+    await dialog(page).getByRole('button', { name: '刪除', exact: true }).click();
+    const del = dialog(page);
+    await expect(del.getByTestId('delete-open-transfer')).toContainText('有進行中的轉移單');
+    await expect(del.getByRole('button', { name: '改為退役' })).toBeDisabled();
+    await expect(del.getByRole('button', { name: '確認刪除' })).toHaveCount(0);
+    await del.getByRole('button', { name: '關閉' }).click();
+    expect((await row('ga_facilities', f.id)).status).toBe('ACTIVE');
+    expect(await noPageOverflow(page)).toBe(true);
+    expect(errors.filter((e) => !/status of 40[49]/.test(e))).toEqual([]);
+  } finally {
+    await api.dispose();
     await c.close();
   }
 });

@@ -1,10 +1,11 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
-  adminDb, apiForUser, assertGaBaseline, cleanupM7M8, m7Name, row, rowsWhere, seedCategory, seedEquipment, seedFacility, seedPart, seedRepairRequest, setupM7Users,
+  adminDb, apiForUser, assertGaBaseline, cleanupM7M8, m7Name, row, rowsWhere, seedCategory, seedEquipment, seedFacility, seedPart, seedRepairRequest, setupM7Users, stores,
   type M7User,
 } from '../support/m7m8-fixtures';
 import { gaNavTo, noPageOverflow, openGaCenter, pageFor, pageForUser } from '../support/g01-ui';
 import { makePng } from '../support/png';
+import { apiAs } from '../support/auth';
 
 // M7/M8 第 2 批 G06／G07 e2e：設備清冊、新增設備、Q5 店長基本欄位、Q8 恢復、Q10 刪除被擋／更正門市、貼標待辦（店長手機）與貼標複核（總務）、料件手機卡片。
 // 桌機 1440 與手機 390 各跑一次；店長一律是真正的 store_manager 角色（VW001），總務是 ga_works。
@@ -364,6 +365,55 @@ test('解讀 (d) 料件列表：手機（390）一筆一張卡片、操作按鈕
     expect(await noPageOverflow(page)).toBe(true);
     expect(errors).toEqual([]);
   } finally {
+    await c.close();
+  }
+});
+
+test('B9 畫面：有進行中轉移單時，編輯畫面的報廢／退役選項停用並提示（附轉移單連結）、刪除對話框的「改為報廢」停用並提示；取消轉移單後恢復可用', async ({ browser }, testInfo) => {
+  const eq = await seedEquipment('ZT04', eqCat.id, 'E2E-B9');
+  await seedRepairRequest('ZT04', { equipmentId: eq.id }, 'E2E-B9open', 'IN_PROGRESS', users.real_store_manager.id);
+  const api = await apiAs('ga_works');
+  const toStore = (await stores()).VW002.id;
+  const made = await api.post('/api/workspace/general-affairs/transfers', { data: { assetType: 'EQUIPMENT', assetId: eq.id, toStoreId: toStore, reason: 'E2E B9' } });
+  expect(made.status()).toBe(201);
+  const t = (await made.json()).data as { id: string; transfer_no: string };
+  const { ctx: c, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    await gaNavTo(page, '設備清冊', '設備管理');
+    await openAsset(page, eq.name);
+    await expect(dialog(page)).toContainText(t.transfer_no);
+    // 編輯畫面：報廢與退役停用，其他狀態可選；提示附轉移單連結
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    const status = dialog(page).locator('select[aria-label="狀態"]');
+    await expect(status.locator('option[value="SCRAPPED"]')).toHaveJSProperty('disabled', true);
+    await expect(status.locator('option[value="RETIRED"]')).toHaveJSProperty('disabled', true);
+    await expect(status.locator('option[value="TEMPORARILY_STOPPED"]')).toHaveJSProperty('disabled', false);
+    const hint = dialog(page).getByTestId('status-locked-hint');
+    await expect(hint).toContainText(t.transfer_no);
+    await expect(hint.getByRole('link', { name: '到轉移單取消' })).toHaveAttribute('href', '#/open/ga-transfers');
+    await dialog(page).getByRole('button', { name: '取消' }).click();
+    // 刪除對話框：有未結案單又有轉移單時，轉移單提示優先，「改為報廢」停用，沒有「確認刪除」
+    await dialog(page).getByRole('button', { name: '刪除', exact: true }).click();
+    const del = dialog(page);
+    await expect(del.getByTestId('delete-open-transfer')).toContainText('有進行中的轉移單');
+    await expect(del.getByRole('button', { name: '改為報廢' })).toBeDisabled();
+    await expect(del.getByRole('button', { name: '確認刪除' })).toHaveCount(0);
+    await del.getByRole('button', { name: '關閉' }).click();
+    expect((await row('ga_equipment', eq.id)).status).toBe('ACTIVE');
+    // 取消轉移單後：編輯畫面的報廢選項可用、沒有提示
+    expect((await api.post(`/api/workspace/general-affairs/transfers/${t.id}/cancel`, { data: { reason: 'E2E 取消' } })).status()).toBe(200);
+    await page.reload({ waitUntil: 'networkidle' });
+    await openGaCenter(page);
+    await gaNavTo(page, '設備清冊', '設備管理');
+    await openAsset(page, eq.name);
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    await expect(dialog(page).locator('select[aria-label="狀態"] option[value="SCRAPPED"]')).toHaveJSProperty('disabled', false);
+    await expect(dialog(page).getByTestId('status-locked-hint')).toHaveCount(0);
+    expect(await noPageOverflow(page)).toBe(true);
+    expect(errors.filter((e) => !/status of 40[49]/.test(e))).toEqual([]);
+  } finally {
+    await api.dispose();
     await c.close();
   }
 });

@@ -28,6 +28,7 @@ export function dbError(error: any): GaError {
   // 資料庫觸發器訊息常帶「CODE_NAME: 白話說明」，只保留白話說明；權限類（PERMISSION_DENIED）一律 403。
   if (/PERMISSION_DENIED/.test(raw)) return new GaError(403, raw.replace(/^[A-Z0-9_]+:\s*/, "") || "沒有權限執行這個操作");
   const message = raw.replace(/^[A-Z0-9_]+:\s*/, "");
+  if (/^OPEN_TRANSFER:/.test(raw)) return new GaError(409, message, { code: "OPEN_TRANSFER" });
   if (code === "23505") return new GaError(409, "代碼或資料重複，已有相同的資料（含已停用的）");
   if (code === "23503") return new GaError(409, "這筆資料仍被其他資料使用，不能這樣處理");
   if (code === "P0409") return new GaError(409, message || "資料已被其他人修改，請重新載入", { code: "STALE" });

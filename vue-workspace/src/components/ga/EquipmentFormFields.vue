@@ -4,7 +4,7 @@ import { CRITICALITY_LABEL, EQUIPMENT_STATUS_LABEL, WARRANTY_CLAIM_METHODS, type
 
 // 設備欄位表單（新增頁與清冊編輯視窗共用）。所屬門市不在這裡：新增時由頁面選擇，編輯時不能改（改走轉移單或「更正所屬門市」）。
 const model = defineModel<EquipmentForm>({ required: true });
-defineProps<{ mode: "create" | "edit"; disabled?: boolean; errors?: Record<string, string>; codeHint?: string }>();
+defineProps<{ mode: "create" | "edit"; disabled?: boolean; errors?: Record<string, string>; codeHint?: string; openTransferNo?: string | null }>();
 </script>
 
 <template>
@@ -19,7 +19,7 @@ defineProps<{ mode: "create" | "edit"; disabled?: boolean; errors?: Record<strin
         <label>序號<input v-model="model.serial_number" maxlength="80" :disabled="disabled" /></label>
       </div>
       <div class="grid3">
-        <label>狀態<select v-model="model.status" :disabled="disabled"><option v-for="(label, value) in EQUIPMENT_STATUS_LABEL" :key="value" :value="value">{{ label }}</option></select></label>
+        <label>狀態<select v-model="model.status" :disabled="disabled" aria-label="狀態"><option v-for="(label, value) in EQUIPMENT_STATUS_LABEL" :key="value" :value="value" :disabled="!!openTransferNo && (value === 'SCRAPPED' || value === 'RETIRED') && model.status !== value">{{ label }}</option></select><small v-if="openTransferNo" class="muted" data-testid="status-locked-hint">有進行中的轉移單 {{ openTransferNo }}，要報廢或退役請先<a href="#/open/ga-transfers">到轉移單取消</a>。</small></label>
         <label>重要程度<select v-model="model.criticality" :disabled="disabled"><option v-for="(label, value) in CRITICALITY_LABEL" :key="value" :value="value">{{ label }}</option></select></label>
         <label>條碼<input v-model="model.barcode" maxlength="60" :disabled="disabled" /></label>
       </div>

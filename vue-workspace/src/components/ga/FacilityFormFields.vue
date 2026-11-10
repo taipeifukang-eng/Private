@@ -5,7 +5,7 @@ import { CRITICALITY_LABEL, FACILITY_STATUS_LABEL, FACILITY_STORE_AREAS, WARRANT
 
 // 設施欄位表單（新增頁與清冊編輯視窗共用）。所屬門市不在這裡：新增時由頁面選擇，編輯時不能改（改走轉移單或「更正所屬門市」）。
 const model = defineModel<FacilityForm>({ required: true });
-defineProps<{ mode: "create" | "edit"; disabled?: boolean; errors?: Record<string, string> }>();
+defineProps<{ mode: "create" | "edit"; disabled?: boolean; errors?: Record<string, string>; openTransferNo?: string | null }>();
 const months = computed(() => warrantyMonths(model.value.warranty_start_date, model.value.warranty_end_date));
 </script>
 
@@ -16,7 +16,7 @@ const months = computed(() => warrantyMonths(model.value.warranty_start_date, mo
       <AssetCategoryPicker v-model="model.category_id" type="facility" label="設施分類" required :disabled="disabled" :error="errors?.category_id" />
       <label><span>設施名稱<span class="required"> 必填</span></span><input v-model="model.name" maxlength="120" :disabled="disabled" autocomplete="off" /><span v-if="errors?.name" class="field-error">{{ errors.name }}</span></label>
       <div class="grid3">
-        <label>狀態<select v-model="model.status" :disabled="disabled"><option v-for="(label, value) in FACILITY_STATUS_LABEL" :key="value" :value="value">{{ label }}</option></select></label>
+        <label>狀態<select v-model="model.status" :disabled="disabled" aria-label="狀態"><option v-for="(label, value) in FACILITY_STATUS_LABEL" :key="value" :value="value" :disabled="!!openTransferNo && value === 'RETIRED' && model.status !== value">{{ label }}</option></select><small v-if="openTransferNo" class="muted" data-testid="status-locked-hint">有進行中的轉移單 {{ openTransferNo }}，要退役請先<a href="#/open/ga-transfers">到轉移單取消</a>。</small></label>
         <label>重要程度<select v-model="model.criticality" :disabled="disabled"><option v-for="(label, value) in CRITICALITY_LABEL" :key="value" :value="value">{{ label }}</option></select></label>
         <label>設施編號<input v-model="model.facility_code" maxlength="60" :disabled="disabled" autocomplete="off" /><small class="muted">{{ mode === "create" ? "留空表示尚無編號" : "可修改；修改後已印出的 QR 標籤編號要重新列印" }}</small></label>
       </div>

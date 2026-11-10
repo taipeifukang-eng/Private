@@ -285,13 +285,66 @@ test('清單：篩選、搜尋（逗號括號不壞）、分頁、參數錯誤',
   expect(y.body.total).toBe(1); // A 是轉出門市
 });
 
-test('交出後設備被改為報廢（QR 作廢）：確認收到被擋，資產不換店；總務取消後可收尾', async () => {
+test('交出後設備 QR 被作廢：確認收到被擋，資產不換店；總務取消後可收尾', async () => {
   const eq = await seedEquipment('ZT01', eqCat.id, 'TR-報廢');
   const id = (await create('ga_works', 'EQUIPMENT', eq.id, 'VW001')).body.data.id as string;
   expect((await step('store_manager', id, 'handover', {})).status).toBe(200);
-  await adminDb().from('ga_equipment').update({ status: 'SCRAPPED', qr_token_revoked_at: new Date().toISOString() }).eq('id', eq.id);
+  // B9 之後有進行中轉移單時不能把狀態改成報廢（見下一個測試）；這裡只模擬「QR 被作廢」（例如舊資料或其他路徑），確認收到的既有防線仍在。
+  await adminDb().from('ga_equipment').update({ qr_token_revoked_at: new Date().toISOString() }).eq('id', eq.id);
   const rec = await step('ga_store_manager_b', id, 'receive', { files: photo() });
   expect(rec.status).toBe(409);
   expect((await eqRow(eq.id)).store_id).toBe(sid.ZT01);
   expect((await get('ga_works', `transfers/${id}`)).body.data.status).toBe('PENDING_RECEIVE');
+});
+
+test('B9 有進行中轉移單不能報廢／退役：API 409 白話訊息、資料庫觸發器也擋；取消轉移單後可報廢；其他狀態與欄位照常可改', async () => {
+  const eq = await seedEquipment('ZT01', eqCat.id, 'TR-B9設備');
+  const fac = await seedFacility('ZT01', facCat.id, 'TR-B9設施');
+  const t1 = (await create('ga_works', 'EQUIPMENT', eq.id, 'VW001')).body.data;
+  const t2 = (await create('ga_works', 'FACILITY', fac.id, 'VW001')).body.data;
+  const patch = async (path: string, data: Record<string, unknown>) => {
+    const cur = path.startsWith('equipment') ? await eqRow(eq.id) : await facRow(fac.id);
+    return j(await apis.ga_works.patch(`${BASE}/${path}`, { data: { ...data, expected_updated_at: cur.updated_at } }));
+  };
+  // 設備：報廢、退役都擋，訊息帶轉移單號
+  for (const [status, verb] of [['SCRAPPED', '報廢'], ['RETIRED', '退役']] as const) {
+    const r = await patch(`equipment/${eq.id}`, { status });
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe('OPEN_TRANSFER');
+    expect(r.body.error ?? r.body.message).toBe(`這台設備有進行中的轉移單 ${t1.transfer_no}，請先取消轉移單再${verb}`);
+  }
+  // 設施：退役擋
+  const rf = await patch(`facilities/${fac.id}`, { status: 'RETIRED' });
+  expect(rf.status).toBe(409);
+  expect(rf.body.error ?? rf.body.message).toBe(`這台設施有進行中的轉移單 ${t2.transfer_no}，請先取消轉移單再退役`);
+  expect((await eqRow(eq.id)).status).toBe('ACTIVE');
+  expect((await eqRow(eq.id)).qr_token_revoked_at).toBeNull();
+  expect((await facRow(fac.id)).status).toBe('ACTIVE');
+  // 資料庫層也擋（直接更新，不經 API）
+  const direct = await adminDb().from('ga_equipment').update({ status: 'SCRAPPED' }).eq('id', eq.id);
+  expect(direct.error?.message).toContain(t1.transfer_no);
+  const directF = await adminDb().from('ga_facilities').update({ status: 'RETIRED' }).eq('id', fac.id);
+  expect(directF.error?.message).toContain(t2.transfer_no);
+  expect((await eqRow(eq.id)).status).toBe('ACTIVE');
+  // 刪除也擋（既有規則）
+  const cur = await eqRow(eq.id);
+  const del = await j(await apis.ga_works.delete(`${BASE}/equipment/${eq.id}`, { data: { reason: '測', expected_updated_at: cur.updated_at } }));
+  expect(del.status).toBe(409);
+  // 其他狀態與欄位照常可改
+  expect((await patch(`equipment/${eq.id}`, { status: 'TEMPORARILY_STOPPED' })).status).toBe(200);
+  expect((await patch(`equipment/${eq.id}`, { notes: '轉移中也能改備註' })).status).toBe(200);
+  // 取消轉移單後可報廢
+  expect((await post('ga_works', `transfers/${t1.id}/cancel`, { reason: '改報廢' })).status).toBe(200);
+  expect((await patch(`equipment/${eq.id}`, { status: 'SCRAPPED' })).status).toBe(200);
+  expect((await eqRow(eq.id)).qr_token_revoked_at).not.toBeNull();
+  expect((await post('ga_works', `transfers/${t2.id}/cancel`, { reason: '改退役' })).status).toBe(200);
+  expect((await patch(`facilities/${fac.id}`, { status: 'RETIRED' })).status).toBe(200);
+  // 轉移完成換店不受影響（沒有狀態變更）
+  const eq2 = await seedEquipment('ZT01', eqCat.id, 'TR-B9完成');
+  const t3 = (await create('ga_works', 'EQUIPMENT', eq2.id, 'VW001')).body.data;
+  await step('store_manager', t3.id, 'handover', {});
+  expect((await step('ga_store_manager_b', t3.id, 'receive', {})).status).toBe(200);
+  expect((await eqRow(eq2.id)).store_id).toBe(sid.VW001);
+  // 完成後（沒有進行中轉移單）可以報廢
+  expect((await adminDb().from('ga_equipment').update({ status: 'SCRAPPED' }).eq('id', eq2.id)).error).toBeNull();
 });
