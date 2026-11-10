@@ -16,6 +16,9 @@ const total = ref(0);
 const loading = ref(false);
 const error = ref("");
 const open = ref(false);
+// 使用者有沒有主動操作過搜尋框。對話框開啟時瀏覽器會自動把焦點放到第一個欄位（就是這個搜尋框），
+// 那時已選分類的名稱還在載入；若把那次自動聚焦當成「要換分類」，名稱載入完成後也不會顯示。
+let touched = false;
 const selected = ref<Option | null>(null);
 const latest = useLatest();
 const inputId = `cat-${crypto.randomUUID()}`;
@@ -47,11 +50,13 @@ async function resolveSelected() {
   try {
     const res = await api<{ data: Option }>(`general-affairs/categories/${props.modelValue}?type=${props.type}`);
     selected.value = res.data;
+    if (!touched && !query.value) open.value = false; // 只是自動聚焦展開的，名稱載入後收起來顯示已選分類
   } catch {
     selected.value = null;
   }
 }
 function choose(o: Option) {
+  touched = true;
   selected.value = o;
   emit("update:modelValue", o.id);
   emit("select", o);
@@ -83,7 +88,7 @@ onMounted(resolveSelected);
     <div v-if="selected && !open" class="cat-selected">
       <span><strong>{{ selected.name }}</strong><small class="muted"> {{ selected.path }}</small></span>
       <span class="cat-actions">
-        <button type="button" :disabled="disabled" @click="open = true">更換</button>
+        <button type="button" :disabled="disabled" @click="touched = true; open = true">更換</button>
         <button v-if="!required" type="button" :disabled="disabled" @click="clear">清除</button>
       </span>
     </div>
@@ -98,6 +103,9 @@ onMounted(resolveSelected);
       :disabled="disabled"
       :placeholder="'搜尋或瀏覽' + label + '（名稱、代碼）'"
       @focus="open = true"
+      @input="touched = true"
+      @keydown="touched = true"
+      @pointerdown="touched = true"
     />
     <div v-if="open" class="cat-pop" role="listbox" :aria-label="label + '選項'">
       <div v-if="parent && !debounced.trim()" class="cat-crumb">
