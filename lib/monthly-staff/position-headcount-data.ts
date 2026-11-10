@@ -69,12 +69,21 @@ export async function loadPositionHeadcountData(db: any, yearMonth: string, tren
   const activeStores = allStores.filter((s) => s.is_active !== false);
   const assigned = assignSupervisorsToStores(activeStores, managers);
   const supMap = new Map(assigned.map((s) => [s.id, s]));
+  // 督導員編：用 assignSupervisorsToStores 的 supervisor_id 對應 store_managers 帶出的 profiles.employee_code
+  const codeByUser = new Map<string, string>();
+  for (const m of managers) {
+    const u = Array.isArray(m.user) ? m.user[0] : m.user;
+    const code = String(u?.employee_code ?? '').trim();
+    if (code) codeByUser.set(m.user_id, code);
+  }
   const stores: HeadcountStore[] = allStores.map((s) => ({
     id: s.id,
     store_code: s.store_code,
     store_name: s.store_name,
     supervisor_id: supMap.get(s.id)?.supervisor_id ?? null,
     supervisor_name: supMap.get(s.id)?.supervisor_name ?? null,
+    supervisor_employee_code:
+      supMap.get(s.id)?.supervisor_code ?? (supMap.get(s.id)?.supervisor_id ? codeByUser.get(supMap.get(s.id)!.supervisor_id as string) ?? null : null),
   }));
 
   return {
