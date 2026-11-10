@@ -53,6 +53,7 @@ async function check() {
   busy.value = true;
   error.value = "";
   result.value = null;
+  onlyErrors.value = false;
   try {
     result.value = await send("check");
   } catch (e) {
@@ -100,7 +101,7 @@ async function downloadTemplate() {
   }
 }
 
-const shownRows = computed(() => (result.value ? (onlyErrors.value ? result.value.rows.filter((r) => !r.ok) : result.value.rows) : []));
+const shownRows = computed(() => (result.value ? (onlyErrors.value && result.value.summary.errorCount > 0 ? result.value.rows.filter((r) => !r.ok) : result.value.rows) : []));
 const kindText = (k: string | null) => (k === "EQUIPMENT" ? "設備" : k === "FACILITY" ? "設施" : "—");
 function reset() { file.value = null; result.value = null; done.value = null; error.value = ""; }
 </script>
