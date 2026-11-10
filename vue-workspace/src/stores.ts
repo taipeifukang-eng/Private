@@ -80,6 +80,8 @@ export type Session = {
     gaEquipmentLabels: boolean;
     gaFacilityLabels: boolean;
     gaTransfers: boolean;
+    gaOnboardingProgress: boolean;
+    gaAssetImport: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

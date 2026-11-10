@@ -33,7 +33,7 @@ describe('第 2 批旗標：設備清冊、新增設備、貼標待辦、貼標�
     const a = access(['general_affairs.service_center.access', 'general_affairs.equipment.manage']);
     const groups = nav(a);
     const group = groups.find((g) => g.id === 'assets-inventory')!;
-    expect(group.items.slice(-2).map((i: any) => i.kind)).toEqual(['ga-onboarding-tasks', 'ga-onboarding-review']);
+    expect(group.items.slice(-4).map((i: any) => i.kind)).toEqual(['ga-onboarding-tasks', 'ga-onboarding-review', 'ga-onboarding-progress', 'ga-asset-import']);
     expect(flatten(groups).find((i) => i.id === 'equipment-new')).toMatchObject({ kind: 'ga-equipment-create' });
   });
   it('店長側欄只有貼標待辦、沒有複核', () => {

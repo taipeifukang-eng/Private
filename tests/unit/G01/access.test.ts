@@ -67,7 +67,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     const groups = nav(a);
     expect(groups.map((g) => g.id)).toEqual(expect.arrayContaining(['workspace', 'assets-inventory']));
     expect(kinds(a)).toEqual([
-      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-history', 'ga-equipment-labels', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-history', 'ga-facility-labels', 'ga-facility-templates', 'ga-facility-warranties', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
+      'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-history', 'ga-equipment-labels', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-history', 'ga-facility-labels', 'ga-facility-templates', 'ga-facility-warranties', 'ga-onboarding-progress', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts',
     ]);
     // 第 2 批：設備清冊已移植；尚未移植的項目仍在（用舊頁網址另開），例如保固管理
     expect(flatten(groups).find((i) => i.id === 'equipment-list')).toMatchObject({ href: '/general-affairs/equipment', kind: 'ga-equipment' });
@@ -79,7 +79,7 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
   });
   it('店長身分：不列設施架型（API 會擋），仍可看料件列表', () => {
     const a = access([], { roleCode: 'store_manager' });
-    expect(kinds(a)).toEqual(['ga-equipment', 'ga-equipment-history', 'ga-facilities', 'ga-facility-history', 'ga-onboarding-tasks', 'ga-parts', 'ga-transfers']); // G08／G09：店長有設施清冊與兩種維修紀錄
+    expect(kinds(a)).toEqual(['ga-equipment', 'ga-equipment-history', 'ga-facilities', 'ga-facility-history', 'ga-onboarding-progress', 'ga-onboarding-tasks', 'ga-parts', 'ga-transfers']); // G08／G09：店長有設施清冊與兩種維修紀錄
     expect(flatten(nav(a)).find((i) => i.id === 'facility-templates')).toBeUndefined();
   });
   it('「規劃中」的項目照舊顯示成不可點', () => {

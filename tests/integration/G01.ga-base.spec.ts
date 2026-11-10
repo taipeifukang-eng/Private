@@ -65,7 +65,7 @@ test('G01 總務角色的 session：服務中心側欄照舊版分組，已移�
   const works = await (await apis.ga_works.get('/api/workspace/session')).json();
   expect(works.gaNavigation).toEqual(staff.gaNavigation);
   const ga = Object.fromEntries(Object.entries(staff.capabilities).filter(([k]) => k.startsWith('ga')));
-  expect(ga).toEqual({ gaCenter: true, gaEquipmentCategories: true, gaFacilityCategories: true, gaPartCategories: true, gaParts: true, gaPartCreate: true, gaPartCompat: true, gaEquipmentTemplates: true, gaFacilityTemplates: true, gaEquipment: true, gaEquipmentCreate: true, gaFacilities: true, gaFacilityCreate: true, gaEquipmentWarranties: true, gaFacilityWarranties: true, gaEquipmentHistory: true, gaFacilityHistory: true, gaOnboardingTasks: true, gaOnboardingReview: true, gaEquipmentLabels: true, gaFacilityLabels: true, gaTransfers: true });
+  expect(ga).toEqual({ gaCenter: true, gaEquipmentCategories: true, gaFacilityCategories: true, gaPartCategories: true, gaParts: true, gaPartCreate: true, gaPartCompat: true, gaEquipmentTemplates: true, gaFacilityTemplates: true, gaEquipment: true, gaEquipmentCreate: true, gaFacilities: true, gaFacilityCreate: true, gaEquipmentWarranties: true, gaFacilityWarranties: true, gaEquipmentHistory: true, gaFacilityHistory: true, gaOnboardingTasks: true, gaOnboardingReview: true, gaEquipmentLabels: true, gaFacilityLabels: true, gaTransfers: true, gaOnboardingProgress: true, gaAssetImport: true });
   const groups = staff.gaNavigation.map((g: any) => g.label);
   expect(groups).toEqual(expect.arrayContaining(['工作台', '作業管理', '資產與庫存', '費用管理', '合作廠商']));
   const flat = staff.gaNavigation.flatMap((g: any) => g.items.flatMap((i: any) => [i, ...(i.children || [])]));

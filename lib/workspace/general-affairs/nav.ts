@@ -134,6 +134,8 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   if (flags.gaTransfers) extra.push({ id: "asset-transfers", label: "轉移單", kind: "ga-transfers" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
+  if (flags.gaOnboardingProgress) extra.push({ id: "onboarding-progress", label: "上線貼標進度", kind: "ga-onboarding-progress" });
+  if (flags.gaAssetImport) extra.push({ id: "asset-import", label: "Excel 匯入", kind: "ga-asset-import" });
   if (extra.length) {
     const target = out.find((g) => g.id === "assets-inventory");
     if (target) target.items.push(...extra);

@@ -88,6 +88,8 @@ export type GaFlags = {
   gaEquipmentLabels: boolean;
   gaFacilityLabels: boolean;
   gaTransfers: boolean;
+  gaOnboardingProgress: boolean;
+  gaAssetImport: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -126,6 +128,9 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false):
     gaFacilityLabels: has(GA.facilityView, GA.facilityManage),
     // Q28 轉移單：總務（設備或設施管理）發起與取消；店長確認交出／收到。純查看權限者不給入口（API 的讀取範圍另由資料庫列級權限限制）。
     gaTransfers: storeManager || storeMember || has(GA.equipmentManage, GA.facilityManage),
+    // Q29 上線貼標進度（總務看全部門市、店長只看自己門市）與 Excel 匯入（設備或設施管理）。
+    gaOnboardingProgress: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage, GA.facilityView, GA.facilityManage),
+    gaAssetImport: has(GA.equipmentManage, GA.facilityManage),
   };
 }
 

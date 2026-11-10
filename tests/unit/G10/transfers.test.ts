@@ -32,7 +32,7 @@ describe('導覽與頁面註冊', () => {
   it('側欄「轉移單」放在資產與庫存群組，先於貼標待辦', () => {
     const groups = nav(access(['general_affairs.service_center.access', 'general_affairs.equipment.manage']));
     const kinds = groups.find((g) => g.id === 'assets-inventory')!.items.map((i: any) => i.kind);
-    expect(kinds.slice(-3)).toEqual(['ga-transfers', 'ga-onboarding-tasks', 'ga-onboarding-review']);
+    expect(kinds.slice(-5)).toEqual(['ga-transfers', 'ga-onboarding-tasks', 'ga-onboarding-review', 'ga-onboarding-progress', 'ga-asset-import']);
   });
   it('店長側欄有轉移單', () => {
     expect(flatten(nav(access([], { roleCode: 'store_manager' }), true)).some((i) => i.kind === 'ga-transfers')).toBe(true);

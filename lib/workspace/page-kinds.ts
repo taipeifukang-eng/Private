@@ -106,6 +106,9 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-asset-scan",
   // 第 2 批 Q28：設備／設施轉移單。
   "ga-transfers",
+  // 第 2 批 Q29：上線貼標進度、Excel 匯入既有設備與設施。
+  "ga-onboarding-progress",
+  "ga-asset-import",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

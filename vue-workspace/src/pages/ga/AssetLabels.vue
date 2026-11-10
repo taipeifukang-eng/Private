@@ -19,7 +19,9 @@ const type = computed(() => (isFacility.value ? "facility" : "equipment"));
 type Excluded = { id: string; name: string; reason: string; message: string };
 type Res = { items: LabelItem[]; excluded: Excluded[]; excludedTotal: number; watermark: boolean; baseUrl: string; limit: number; truncated: boolean; matched: number; noCodeCount: number };
 
-const storeId = ref("");
+// 從「上線貼標進度」按「印標籤」進來時，頁籤 payload 會帶門市 id，直接依該門市篩選。
+const storeId = ref(typeof props.tab.payload?.storeId === "string" ? props.tab.payload.storeId : "");
+const presetStore = typeof props.tab.payload?.storeLabel === "string" ? props.tab.payload.storeLabel : "";
 const search = ref("");
 const debounced = useDebounced(search, 300);
 const status = ref("");
@@ -60,6 +62,8 @@ async function load() {
   }
 }
 watch([storeId, debounced, status], load);
+// 頁籤已開著時再從進度頁按「印標籤」：payload 換了就跟著換門市。
+watch(() => props.tab.payload?.storeId, (v) => { if (typeof v === "string") storeId.value = v; });
 onMounted(load);
 
 function print() {
@@ -99,6 +103,7 @@ function print() {
       <label>狀態<select v-model="status"><option value="">全部（不含已作廢）</option><option v-for="s in statuses" :key="s[0]" :value="s[0]">{{ s[1] }}</option></select></label>
     </div>
 
+    <p v-if="presetStore" class="muted" data-testid="label-preset-store">已依門市「{{ presetStore }}」篩選；可在上方重新選擇門市。</p>
     <template v-if="data">
       <p v-if="data.watermark" class="notice warn" role="status" data-testid="label-watermark-note">
         目前是測試環境：印出的標籤會加上「測試」浮水印，請不要貼到實體{{ noun }}上。正式標籤請在正式網站列印。

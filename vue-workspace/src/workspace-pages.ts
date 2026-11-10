@@ -80,6 +80,8 @@ import OnboardingReview from "./pages/ga/OnboardingReview.vue";
 import AssetLabels from "./pages/ga/AssetLabels.vue";
 import AssetScan from "./pages/ga/AssetScan.vue";
 import AssetTransfers from "./pages/ga/AssetTransfers.vue";
+import OnboardingProgress from "./pages/ga/OnboardingProgress.vue";
+import AssetImport from "./pages/ga/AssetImport.vue";
 import UserManagement from "./pages/Users.vue";
 import PublicDemo from "./pages/PublicDemo.vue";
 import Login from "./pages/Login.vue";
@@ -185,6 +187,8 @@ const components: Record<WorkTabKind, Component> = {
   "ga-facility-labels": AssetLabels,
   "ga-asset-scan": AssetScan,
   "ga-transfers": AssetTransfers,
+  "ga-onboarding-progress": OnboardingProgress,
+  "ga-asset-import": AssetImport,
   "ga-part-compat": PartCompatibilities,
   "ga-equipment-templates": AssetTemplates,
   "ga-facility-templates": AssetTemplates,
