@@ -19,6 +19,8 @@
     "test:permission-snapshot-unit": "node scripts/perf/test-permission-snapshot-unit.cjs",
     "test:position-headcount-unit": "node scripts/perf/test-position-headcount-unit.cjs",
     "test:position-headcount-dev": "node scripts/perf/test-position-headcount-dev.cjs",
+    "test:employee-management-access-unit": "node scripts/perf/test-employee-management-access-unit.cjs",
+    "test:employee-management-access-dev": "node scripts/perf/test-employee-management-access-dev.cjs",
     "test:monthly-status-equivalence": "node scripts/perf/test-monthly-status-equivalence.cjs",
     "measure:monthly-status": "node scripts/perf/measure-monthly-status.cjs",
     "test:general-affairs-production-isolation": "node scripts/test-general-affairs-production-isolation.js",

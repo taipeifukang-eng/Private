@@ -53,21 +53,15 @@ export default function EmployeeManagementPage() {
       return;
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role, department, job_title')
-      .eq('id', user.id)
-      .single();
-
-    // 判斷是否為需要指派的職位
-    const needsAssignment = ['督導', '店長', '代理店長', '督導(代理店長)'].includes(profile?.job_title || '');
-    
-    // 判斷是否為營業部助理或主管
-    const isBusinessAssistant = profile?.department?.startsWith('營業') && profile?.role === 'member' && !needsAssignment;
-    const isBusinessSupervisor = profile?.department?.startsWith('營業') && profile?.role === 'manager' && !needsAssignment;
-    
-    // 檢查權限：只有 admin、營業部助理和營業部主管可以訪問
-    if (!profile || (profile.role !== 'admin' && !isBusinessAssistant && !isBusinessSupervisor)) {
+    // 檢查權限：admin 或擁有 employee.manage（伺服器端判斷，與員工管理頁、導覽列選單同一套）
+    let allowed = false;
+    try {
+      const res = await fetch('/api/admin/employee-management/access', { cache: 'no-store' });
+      allowed = res.ok && (await res.json())?.allowed === true;
+    } catch (error) {
+      console.error('員工管理權限檢查失敗:', error);
+    }
+    if (!allowed) {
       alert('權限不足');
       router.push('/admin/stores');
       return;

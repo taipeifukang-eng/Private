@@ -8,7 +8,6 @@ const assert = require('node:assert/strict');
 const { loadProjectModule } = require('./ms-harness.cjs');
 
 const H = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount.ts', {});
-const A = loadProjectModule('worktree', 'lib/monthly-staff/employee-management-access.ts', {});
 
 const YM = '2099-01';
 const STORES = [
@@ -459,24 +458,7 @@ t('督導卡班：(f) 匯出列 — 統計列不計入、代理標註欄、明�
   assert.match(d['備註'], /督導卡班代理店長/);
 });
 
-// ── 11. 權限（與員工管理頁相同）
-const ACCESS = [
-  ['admin', { role: 'admin' }, true],
-  ['營業部 member 助理', { role: 'member', department: '營業部', job_title: '助理' }, true],
-  ['營業部 manager 主管', { role: 'manager', department: '營業一部', job_title: '經理' }, true],
-  ['營業部 member 但職稱店長', { role: 'member', department: '營業部', job_title: '店長' }, false],
-  ['營業部 manager 但職稱督導', { role: 'manager', department: '營業部', job_title: '督導' }, false],
-  ['營業部 manager 職稱督導(代理店長)', { role: 'manager', department: '營業部', job_title: '督導(代理店長)' }, false],
-  ['非營業部 member', { role: 'member', department: '行政部', job_title: '助理' }, false],
-  ['非營業部 manager', { role: 'manager', department: '人資部' }, false],
-  ['supervisor 角色', { role: 'supervisor', department: '營業部' }, false],
-  ['Admin 大小寫不同', { role: 'Admin' }, false],
-  ['null profile', null, false],
-  ['undefined profile', undefined, false],
-];
-for (const [name, p, ok] of ACCESS) {
-  t(`權限：${name} → ${ok ? '可看' : '不可看'}`, () => assert.equal(A.canViewEmployeeManagement(p), ok));
-}
+// ── 11. 權限（已改為 employee.manage，測試見 test-employee-management-access-unit.cjs / -dev.cjs）
 
 t('未定稿橫幅：payload 月份與所選月份相同才顯示', () => {
   const payload = { yearMonth: '2026-10', unfinalizedStores: STORES.slice(0, 3) };
