@@ -148,3 +148,58 @@ test('沒有權限者：設備查看者、店長、無權限者側欄沒有「Ex
     await ctx.close();
   }
 });
+
+test('B10 可能重複：預檢標黃色提醒與摘要計數；確認匯入時多一句提醒，取消不寫入、仍要匯入才寫入；沒有重複就不跳提醒', async ({ browser }, testInfo) => {
+  const existing = await adminDb().from('ga_equipment').insert({ store_id: (await adminDb().from('stores').select('id').eq('store_code', 'ZT01').single()).data!.id, category_id: eqCat.id, name: m7Name('E2E-既有'), brand: 'B', model: 'M' }).select('*').single();
+  expect(existing.error).toBeNull();
+  const { ctx, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    await gaNavTo(page, 'Excel 匯入');
+    const dupExisting = importEquipmentLine('E2E-既有', 'ZT01', eqCat.code, { 名稱: ` ${m7Name('E2E-既有').toUpperCase()} `, 資產編號: '' });
+    const dupA = importEquipmentLine('E2E-同檔', 'ZT01', eqCat.code, { 資產編號: '' });
+    const dupB = importEquipmentLine('E2E-同檔', 'ZT01', eqCat.code, { 資產編號: '' });
+    const fine = importEquipmentLine('E2E-不重複', 'ZT01', eqCat.code);
+    await upload(page, 'dup', buildImportXlsx([dupExisting, dupA, dupB, fine]));
+    const preview = page.getByTestId('import-preview').locator('visible=true');
+    await expect(preview).toBeVisible();
+    await expect(preview.getByTestId('error-count')).toHaveText('0');
+    await expect(preview.getByTestId('dup-count')).toHaveText('3');
+    await expect(preview.getByTestId('dup-notice')).toContainText('可能重複 3 列');
+    await expect(rowsOf(page)).toHaveCount(4);
+    await expect(rowsOf(page).nth(0)).toHaveAttribute('data-dup', '1');
+    await expect(rowsOf(page).nth(0).getByTestId('dup-text')).toContainText('可能重複：與既有');
+    await expect(rowsOf(page).nth(0).getByTestId('dup-text')).toContainText('尚無編號');
+    await expect(rowsOf(page).nth(1).getByTestId('dup-text')).toHaveText('可能重複：與第 4 列同名');
+    await expect(rowsOf(page).nth(2).getByTestId('dup-text')).toHaveText('可能重複：與第 3 列同名');
+    await expect(rowsOf(page).nth(3)).toHaveAttribute('data-dup', '0');
+    expect(await noPageOverflow(page)).toBe(true);
+    // 確認匯入：跳出提醒，取消不寫入
+    const commit = page.getByTestId('commit-import').locator('visible=true');
+    await expect(commit).toBeEnabled();
+    await commit.click();
+    await expect(page.getByTestId('dup-confirm-text')).toHaveText('其中 3 列可能與既有資料重複，確定仍要匯入？');
+    await page.getByTestId('dup-confirm-cancel').click();
+    await expect(page.getByTestId('dup-confirm-text')).toHaveCount(0);
+    expect(await countRows([m7Name('E2E-同檔'), m7Name('E2E-不重複')])).toBe(0);
+    // 仍要匯入：不擋，全部寫入
+    await commit.click();
+    await page.getByTestId('dup-confirm-ok').click();
+    const done = page.getByTestId('import-done').locator('visible=true');
+    await expect(done.getByTestId('done-summary')).toContainText('共匯入 4 筆');
+    expect(await countRows([m7Name('E2E-同檔'), m7Name('E2E-不重複')])).toBe(3);
+    // 沒有重複：直接匯入，不跳提醒
+    await page.reload({ waitUntil: 'networkidle' });
+    await openGaCenter(page);
+    await gaNavTo(page, 'Excel 匯入');
+    await upload(page, 'nodup', buildImportXlsx([importEquipmentLine('E2E-全新', 'ZT01', eqCat.code, { 資產編號: '' })]));
+    await expect(page.getByTestId('import-preview').locator('visible=true').getByTestId('dup-count')).toHaveText('0');
+    await expect(page.getByTestId('dup-notice')).toHaveCount(0);
+    await page.getByTestId('commit-import').locator('visible=true').click();
+    await expect(page.getByTestId('dup-confirm-text')).toHaveCount(0);
+    await expect(page.getByTestId('import-done').locator('visible=true')).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
+});

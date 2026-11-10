@@ -254,3 +254,44 @@ test('未登入、跨站請求：401、403', async ({ playwright, baseURL }) => 
     await anon.dispose();
   }
 });
+
+test('B10 可能重複：沒填編號且同類型同門市同名（與既有資料、同檔其他列）→ 預檢標提醒並計數，不擋提交；有填編號、他店、他類型不標；正式寫入照常成功', async () => {
+  const existing = await seedEquipment('ZT01', eqCat.id, 'dupEx');
+  await seedEquipment('ZT02', eqCat.id, 'dupOther'); // 他店同名：不算
+  const nm = existing.name as string;
+  const lines: Line[] = [
+    eqLine('d1', { 名稱: `  ${nm.toUpperCase()}　`, 資產編號: '' }), // 第 2 列：與既有同名（大小寫、頭尾空白、全形空白）
+    eqLine('d2', { 名稱: nm, 資產編號: m7Code('dupHasCode') }), // 第 3 列：有填編號，不標記
+    eqLine('d3', { 名稱: m7Name('dupOther'), 資產編號: '' }), // 第 4 列：只有他店有同名，不標記
+    eqLine('d4', { 名稱: m7Name('dupFile'), 資產編號: '' }), // 第 5 列
+    eqLine('d5', { 名稱: ` ${m7Name('dupFile')} `, 資產編號: '' }), // 第 6 列：與第 5 列同名
+    facLine('d6', { 名稱: nm }), // 第 7 列：設施同名但類型不同，不標記
+  ];
+  const buf = xlsx(lines);
+  const r = await check('ga_works', buf, 'dup');
+  expect(r.status).toBe(200);
+  expect(r.body.canCommit).toBe(true);
+  expect(r.body.summary.errorCount).toBe(0);
+  expect(r.body.summary.duplicateCount).toBe(3);
+  const byNo = Object.fromEntries(r.body.rows.map((x: any) => [x.row_no, x]));
+  expect(byNo[2].ok).toBe(true);
+  expect(byNo[2].warnings[0]).toMatch(/^可能重複：與既有 「.+」（尚無編號，建立 \d{4}-\d{2}-\d{2}）同名$/);
+  expect(byNo[2].duplicate.type).toBe('existing');
+  expect(byNo[3].warnings).toEqual([]);
+  expect(byNo[4].warnings).toEqual([]);
+  expect(byNo[5].warnings).toEqual(['可能重複：與第 6 列同名']);
+  expect(byNo[6].warnings).toEqual(['可能重複：與第 5 列同名']);
+  expect(byNo[7].warnings).toEqual([]);
+  // 預檢不寫入
+  expect((await eqByName([lines[3].名稱 as string])).length).toBe(0);
+  // 不擋：正式寫入成功（全部 6 列），回應不再帶提醒計算
+  const c = await commit('ga_works', buf, newKey(), 'dup');
+  expect(c.status).toBe(200);
+  expect(c.body.committed).toBe(true);
+  expect(c.body.summary.total).toBe(6);
+  expect((await eqByName([m7Name('dupFile')])).length).toBe(2);
+  // 匯入後再預檢同一份：同檔重複仍標記，且多了與剛匯入（已有同名）的既有資料
+  const again = await check('ga_works', xlsx([eqLine('d9', { 名稱: m7Name('dupFile'), 資產編號: '' })]), 'dup2');
+  expect(again.body.summary.duplicateCount).toBe(1);
+  expect(again.body.rows[0].warnings[0]).toContain('共 2 筆');
+});

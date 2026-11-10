@@ -2,6 +2,7 @@
 import { computed, ref } from "vue";
 import { api, ApiError } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
+import Modal from "../../components/Modal.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
 import { useSession, type WorkTab } from "../../stores";
 
@@ -10,8 +11,8 @@ import { useSession, type WorkTab } from "../../stores";
 const props = defineProps<{ tab: WorkTab }>();
 useGaGuard(props.tab); // 沒有權限時 App.vue 會顯示說明，頁面本身不會有任何請求（沒有自動載入）
 const session = useSession();
-type Row = { row_no: number; kind: "EQUIPMENT" | "FACILITY" | null; store_code: string; category_code: string; name: string; code: string | null; ok: boolean; errors: string[] };
-type Summary = { total: number; okCount: number; errorCount: number; equipmentCount: number; facilityCount: number; storeCount: number };
+type Row = { row_no: number; kind: "EQUIPMENT" | "FACILITY" | null; store_code: string; category_code: string; name: string; code: string | null; ok: boolean; errors: string[]; warnings?: string[] };
+type Summary = { total: number; okCount: number; errorCount: number; equipmentCount: number; facilityCount: number; storeCount: number; duplicateCount?: number };
 type Result = { dryRun: boolean; committed: boolean; alreadyImported: boolean; batchId: string | null; fileName: string; canCommit: boolean; summary: Summary; rows: Row[] };
 
 const MAX_ROWS = 500;
@@ -73,7 +74,16 @@ async function check() {
   }
 }
 
+const confirmingDup = ref(false);
+const dupCount = computed(() => result.value?.summary.duplicateCount ?? 0);
+/** B10：有「可能重複」列時，先跳確認對話框多一句提醒；沒有就直接匯入。 */
+function askCommit() {
+  if (!file.value || !result.value?.canCommit || busy.value) return;
+  if (dupCount.value > 0) { confirmingDup.value = true; return; }
+  commit();
+}
 async function commit() {
+  confirmingDup.value = false;
   if (!file.value || !result.value?.canCommit || busy.value) return;
   busy.value = true;
   error.value = "";
@@ -163,34 +173,49 @@ function reset() { file.value = null; result.value = null; done.value = null; er
           <div><span class="muted">設施</span><strong>{{ result.summary.facilityCount }}</strong></div>
           <div><span class="muted">門市數</span><strong>{{ result.summary.storeCount }}</strong></div>
           <div :class="{ bad: result.summary.errorCount > 0 }"><span class="muted">有問題的列</span><strong data-testid="error-count">{{ result.summary.errorCount }}</strong></div>
+          <div :class="{ warned: dupCount > 0 }"><span class="muted">可能重複</span><strong data-testid="dup-count">{{ dupCount }}</strong></div>
         </div>
         <p v-if="result.summary.errorCount" class="notice error" role="alert">有 {{ result.summary.errorCount }} 列沒有通過檢查，整批都不會匯入。請依下方原因修改 Excel 後重新上傳。</p>
         <p v-else class="notice success" role="status">全部 {{ result.summary.total }} 列都通過檢查，可以匯入。匯入後會自動產生各店的貼標待辦。</p>
         <p v-if="result.rows.some((r) => r.ok && r.kind === 'EQUIPMENT' && !r.code)" class="notice warn" role="note">有些設備沒有資產編號（沒填購置日期，系統無法自動產生）：可以匯入，但列印標籤時會警告，建議之後補編號。</p>
+        <p v-if="dupCount > 0" class="notice warn" role="note" data-testid="dup-notice">可能重複 {{ dupCount }} 列（沒填編號，且同門市已有同名的設備或設施，或同一份檔案內重複）：不影響匯入，請確認不是重複建檔；確定要建立新的就照常匯入。</p>
         <label class="check"><input v-model="onlyErrors" type="checkbox" :disabled="!result.summary.errorCount" /> 只看有問題的列</label>
         <div class="table-wrap">
           <table class="grid-table">
             <caption class="sr-only">逐列預檢結果</caption>
             <thead><tr><th>Excel 列</th><th>類型</th><th>門市</th><th>分類</th><th>名稱</th><th>預計編號</th><th>結果</th></tr></thead>
             <tbody>
-              <tr v-for="r in shownRows" :key="r.row_no" :class="{ bad: !r.ok }" data-testid="import-row" :data-ok="r.ok ? '1' : '0'">
+              <tr v-for="r in shownRows" :key="r.row_no" :class="{ bad: !r.ok, dup: r.ok && !!r.warnings?.length }" data-testid="import-row" :data-ok="r.ok ? '1' : '0'" :data-dup="r.warnings?.length ? '1' : '0'">
                 <td>{{ r.row_no }}</td><td>{{ kindText(r.kind) }}</td><td>{{ r.store_code }}</td><td>{{ r.category_code }}</td><td>{{ r.name }}</td><td>{{ r.code || "—" }}</td>
-                <td><template v-if="r.ok"><span class="ok">通過</span></template><template v-else><ul class="errs"><li v-for="(m, i) in r.errors" :key="i">{{ m }}</li></ul></template></td>
+                <td><template v-if="r.ok"><span class="ok">通過</span><span v-if="r.warnings?.length" class="dup-text" data-testid="dup-text">{{ r.warnings[0] }}</span></template><template v-else><ul class="errs"><li v-for="(m, i) in r.errors" :key="i">{{ m }}</li></ul></template></td>
               </tr>
               <tr v-if="!shownRows.length"><td colspan="7" class="empty">沒有符合的資料列</td></tr>
             </tbody>
           </table>
         </div>
         <div class="buttons sticky">
-          <button type="button" class="primary big" data-testid="commit-import" :disabled="!result.canCommit || busy" @click="commit">{{ busy ? "處理中…" : `確認匯入 ${result.summary.total} 筆` }}</button>
+          <button type="button" class="primary big" data-testid="commit-import" :disabled="!result.canCommit || busy" @click="askCommit">{{ busy ? "處理中…" : `確認匯入 ${result.summary.total} 筆` }}</button>
           <button type="button" class="big" :disabled="busy" @click="reset">取消</button>
         </div>
       </section>
     </template>
+    <Modal v-if="confirmingDup" title="確認匯入" :busy="busy" @cancel="confirmingDup = false">
+      <p>準備匯入 {{ result?.summary.total }} 筆。</p>
+      <p class="notice warn" role="alert" data-testid="dup-confirm-text">其中 {{ dupCount }} 列可能與既有資料重複，確定仍要匯入？</p>
+      <div class="dialog-actions">
+        <button type="button" data-testid="dup-confirm-cancel" @click="confirmingDup = false">取消</button>
+        <button type="button" class="primary" data-testid="dup-confirm-ok" :disabled="busy" @click="commit">仍要匯入</button>
+      </div>
+    </Modal>
   </GaShell>
 </template>
 
 <style scoped>
+.summary .warned { border-color: #ca8a04; }
+tr.dup { background: #fefce8; }
+:root[data-theme="dark"] tr.dup { background: #422006; }
+.dup-text { display: block; color: #854d0e; font-size: 13px; }
+:root[data-theme="dark"] .dup-text { color: #fde68a; }
 .steps { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 14px; display: grid; gap: 12px; margin-bottom: 14px; }
 .steps ol { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 8px; }
 .steps li { display: grid; gap: 2px; }

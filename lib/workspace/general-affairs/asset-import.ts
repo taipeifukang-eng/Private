@@ -10,6 +10,7 @@ import {
   CRITICALITY_BY_LABEL, EQUIPMENT_STATUS_BY_LABEL, FACILITY_STATUS_BY_LABEL, IMPORT_COLUMNS, IMPORT_SHEET_NAME, ImportFileError, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS,
   mapImportRows, parseImportWorkbook, type MappedRow,
 } from "./import-columns";
+import { findPossibleDuplicates, type DupResult, type ExistingAsset } from "./import-duplicates";
 import { GaError, must, respond, rpc, type Context } from "./server";
 
 const KEY_RE = /^[A-Za-z0-9_-]{8,80}$/;
@@ -128,9 +129,16 @@ async function run(ctx: Context, request: NextRequest, dryRun: boolean) {
   }
   const dbErrors = new Map<number, string>(db.errors.map((e) => [e.row_no, e.error]));
   const dbRows = new Map<number, { code?: string | null }>(db.rows.map((x) => [x.row_no, x]));
+  // B10：沒填編號且「同類型＋同門市＋名稱」與既有資料或同檔其他列相同 -> 可能重複提醒（只提醒，不擋；只在預檢計算）。
+  let dups = new Map<number, DupResult>();
+  if (dryRun) {
+    const dupRows = good.map((g) => ({ row_no: g.row_no, kind: g.kind as "EQUIPMENT" | "FACILITY", store_code: g.store_code, name: g.name, hasCode: !!(g.row && (g.kind === "EQUIPMENT" ? g.row.asset_code : g.row.facility_code)) }));
+    dups = findPossibleDuplicates(dupRows, await loadExistingForDuplicates(dupRows));
+  }
   const rows = mapped.map((r) => {
     const errors = r.row ? (dbErrors.has(r.row_no) ? [dbErrors.get(r.row_no)!] : []) : r.errors;
-    return { row_no: r.row_no, kind: r.kind, store_code: r.store_code, category_code: r.category_code, name: r.name, code: dbRows.get(r.row_no)?.code ?? null, ok: !errors.length, errors };
+    const duplicate = dups.get(r.row_no) ?? null;
+    return { row_no: r.row_no, kind: r.kind, store_code: r.store_code, category_code: r.category_code, name: r.name, code: dbRows.get(r.row_no)?.code ?? null, ok: !errors.length, errors, warnings: duplicate ? [duplicate.message] : [], duplicate };
   });
   const summary = summarize(rows);
   return respond({
@@ -139,11 +147,34 @@ async function run(ctx: Context, request: NextRequest, dryRun: boolean) {
   });
 }
 
-function summarize(rows: { ok: boolean; kind: string | null; store_code: string }[]) {
+/** B10：讀出相關門市的既有（未刪除）設備與設施，供「可能重複」比對（分頁讀完，不受單次 1000 筆上限影響）。 */
+async function loadExistingForDuplicates(rows: { kind: string; store_code: string }[]): Promise<ExistingAsset[]> {
+  const admin: any = adminClient();
+  const codes = Array.from(new Set(rows.map((r) => r.store_code.trim().toUpperCase())));
+  if (!codes.length) return [];
+  const stores = ((await must(admin.from("stores").select("id,store_code").limit(5000))) as any[]) || [];
+  const byId = new Map<string, string>();
+  for (const st of stores) if (codes.includes(String(st.store_code).toUpperCase())) byId.set(st.id, String(st.store_code).toUpperCase());
+  if (!byId.size) return [];
+  const ids = Array.from(byId.keys());
+  const out: ExistingAsset[] = [];
+  for (const [kind, table, codeCol] of [["EQUIPMENT", "ga_equipment", "asset_code"], ["FACILITY", "ga_facilities", "facility_code"]] as const) {
+    if (!rows.some((r) => r.kind === kind)) continue;
+    for (let from = 0; ; from += 1000) {
+      const page = ((await must(admin.from(table).select(`id,store_id,name,${codeCol},created_at`).in("store_id", ids).is("deleted_at", null).order("created_at").order("id").range(from, from + 999))) as any[]) || [];
+      for (const a of page) out.push({ kind, store_code: byId.get(a.store_id) || "", name: String(a.name || ""), code: a[codeCol] || null, created_at: a.created_at || null });
+      if (page.length < 1000) break;
+    }
+  }
+  return out;
+}
+
+function summarize(rows: { ok: boolean; kind: string | null; store_code: string; duplicate?: DupResult | null }[]) {
   const errorCount = rows.filter((r) => !r.ok).length;
   return {
     total: rows.length, okCount: rows.length - errorCount, errorCount,
     equipmentCount: rows.filter((r) => r.kind === "EQUIPMENT").length, facilityCount: rows.filter((r) => r.kind === "FACILITY").length,
     storeCount: new Set(rows.map((r) => r.store_code.trim().toUpperCase())).size,
+    duplicateCount: rows.filter((r) => r.duplicate).length,
   };
 }
