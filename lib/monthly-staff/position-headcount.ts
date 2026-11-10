@@ -17,7 +17,7 @@
  *   is_supervisor_rotation=true（每月人員狀態編輯頁「督導卡班」勾選）的那一筆不計入人數
  *   （門市、督導區小計、全公司合計、近 12 個月趨勢都不算），列入「不計入」名單，原因「督導卡班」。
  *   即使 monthly_status 是 full_month 也排除（判斷順序：督導卡班 > monthly_status）。
- *   同一位督導同月在其他門市沒勾卡班的正常資料，照常計入（全公司合計仍只算一次）。
+ *   同一位督導同月在其他門市沒勾卡班的正常資料，照常計入（若兩間都計入，依下方跨店規則只算主要歸屬一間）。
  *   督導卡班同時是代理店長（is_acting_manager=true 或 position=督導(代理店長)）：同樣不計入，
  *   但在該門市（及其督導區小計、全公司合計）的「代理店長」欄標註「督導卡班代理 N 位」，
  *   與「其中 N 位由督導代理」並列、不加進代理店長人數；點開名單可看到是誰。
@@ -33,14 +33,23 @@
  *   position 的「-雙」後綴（雙店長/雙職）先移除再歸類
  *   其他任何職位（兼職助理、兼職藥師、資深專員、空白…）→ 「其他／兼職」，可點開看職位
  *
- * ── 去重 ──
+ * ── 跨店：每人每月只算在一間「主要歸屬門市」（2026-11 起）──
+ *   同一人同月在 2 間以上門市有「計入」的登記時，只有主要歸屬門市那（幾）筆計入；
+ *   其他門市的登記改列「不計入」名單，原因「已計入 {門市代號} {門市名稱}」。套用到所有人（督導、雙店長、雙職…）。
+ *   主要歸屬門市依序比較（先分出高下者勝）：
+ *     1. 該月在那間是代理店長的登記優先（is_acting_manager=true、position=督導(代理店長)、或歸類為代理店長欄）
+ *     2. 屬於他自己督導區的門市優先（門市督導員編 = 此人員編，大小寫/空白正規化後比對）
+ *     3. 非雙店長/非雙職優先（is_dual_position、monthly_status=dual_store_manager、position 帶「-雙」者為雙）
+ *     4. 職等較高的欄位優先（RANK_ORDER）
+ *     5. 門市代號較小者（確保結果固定）
+ *   督導卡班那筆（原因「督導卡班」）早已不計入，不參與主要歸屬選擇。
+ *
+ * ── 去重與三層一致 ──
  *   門市層：同一人在同一門市、同一欄只算一次。
- *   督導區小計：同一人在同一督導區、同一欄只算一次。
- *   全公司合計：每人只算一次，只取一個「主要歸屬」：
- *     1. 非雙店長/非雙職的那筆優先（is_dual_position、monthly_status=dual_store_manager、position 帶「-雙」者為雙）
- *     2. 職等較高的欄位優先（RANK_ORDER）
- *     3. 門市代號較小者（確保結果固定）
- *   各門市明細照實際登記顯示，跨店的人標「跨店」，所以門市加總可能大於全公司合計。
+ *   督導區小計、全公司合計：同樣只算一次（同一人、同一欄）。
+ *   因為每人只剩一間門市計入，所以「各門市明細加總 = 督導區小計」「各督導區小計加總 = 全公司合計」（人數與各欄皆然）。
+ *   同一人在「同一間」主要歸屬門市有兩筆不同職位時，兩欄都保留（維持原行為），總人數仍只算一人。
+ *   跨店的人在主要歸屬那筆的備註標「跨店，另於 X 不計入」。
  */
 
 export type ColumnKey =
@@ -129,6 +138,8 @@ export interface HeadcountStore {
   store_name: string;
   supervisor_id?: string | null;
   supervisor_name?: string | null;
+  /** 門市督導的員編（profiles.employee_code），判斷「屬於自己督導區」用 */
+  supervisor_employee_code?: string | null;
 }
 
 export interface HeadcountEntry {
@@ -149,8 +160,12 @@ export interface HeadcountEntry {
   supervisorActing: boolean;
   unknownStatus: boolean;
   crossStore: boolean;
-  /** 全公司合計是否以這一筆為主要歸屬 */
+  /** 是否為該人當月的主要歸屬那一筆（跨店時其他門市的登記不計入） */
   isPrimary: boolean;
+  /** 該月在此筆是否為代理店長（is_acting_manager、督導(代理店長)、代理店長欄） */
+  isActingEntry: boolean;
+  /** 跨店備註：主要歸屬那筆記錄「另於 X 不計入」 */
+  crossStoreNote: string;
   /** 不計入時的原因（計入者為空字串） */
   excludedReason: string;
   /** 督導卡班（is_supervisor_rotation=true）：不計入人數 */
@@ -309,12 +324,25 @@ export function groupCount(g: HeadcountGroup, col: ColumnKey): number {
   return g.people[col].length;
 }
 
-function compareEntries(a: HeadcountEntry, b: HeadcountEntry): number {
+function normCode(c: string | null | undefined): string {
+  return String(c ?? '').replace(/\s+/g, '').toUpperCase();
+}
+
+function storeLabel(e: Pick<HeadcountEntry, 'store_code' | 'store_name'>): string {
+  return `${e.store_code} ${e.store_name}`.trim();
+}
+
+/** 主要歸屬比較：負數表示 a 較優先 */
+function comparePrimary(a: HeadcountEntry, b: HeadcountEntry, ownArea: (e: HeadcountEntry) => boolean): number {
+  if (a.isActingEntry !== b.isActingEntry) return a.isActingEntry ? -1 : 1;
+  const oa = ownArea(a);
+  const ob = ownArea(b);
+  if (oa !== ob) return oa ? -1 : 1;
   if (a.isDual !== b.isDual) return a.isDual ? 1 : -1;
   const ra = RANK_ORDER.indexOf(a.column);
   const rb = RANK_ORDER.indexOf(b.column);
   if (ra !== rb) return ra - rb;
-  return a.store_code.localeCompare(b.store_code);
+  return a.store_code.localeCompare(b.store_code) || a.store_id.localeCompare(b.store_id);
 }
 
 function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], yearMonth: string) {
@@ -347,6 +375,8 @@ function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], year
       unknownStatus: st.unknown,
       crossStore: false,
       isPrimary: false,
+      isActingEntry: rec.is_acting_manager === true || cls.supervisorActing || cls.column === 'acting',
+      crossStoreNote: '',
       excludedReason: st.excludedReason,
       isRotation,
       rotationActing: isRotation && (rec.is_acting_manager === true || cls.supervisorActing),
@@ -354,36 +384,48 @@ function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], year
     (st.counted ? counted : excluded).push(entry);
   });
 
-  // 跨店：同一人在計入的筆數中出現於 2 間以上門市
-  const storesOf = new Map<string, Set<string>>();
-  for (const e of counted) {
-    if (!storesOf.has(e.key)) storesOf.set(e.key, new Set());
-    storesOf.get(e.key)!.add(e.store_id);
-  }
-  for (const e of counted) e.crossStore = (storesOf.get(e.key)?.size ?? 0) > 1;
-
-  // 主要歸屬
+  // 跨店：每人只算在一間主要歸屬門市，其他門市的計入筆改列不計入
+  const ownArea = (e: HeadcountEntry) => {
+    const sup = normCode(storeMap.get(e.store_id)?.supervisor_employee_code);
+    return !!sup && sup === normCode(e.employee_code);
+  };
   const byPerson = new Map<string, HeadcountEntry[]>();
   for (const e of counted) {
     if (!byPerson.has(e.key)) byPerson.set(e.key, []);
     byPerson.get(e.key)!.push(e);
   }
-  const primaries: HeadcountEntry[] = [];
+  const keptCounted: HeadcountEntry[] = [];
   byPerson.forEach((list) => {
-    const best = [...list].sort(compareEntries)[0];
+    const best = [...list].sort((x, y) => comparePrimary(x, y, ownArea))[0];
     best.isPrimary = true;
-    primaries.push(best);
+    const kept = list.filter((e) => e.store_id === best.store_id);
+    const demoted = list.filter((e) => e.store_id !== best.store_id);
+    keptCounted.push(...kept);
+    if (demoted.length > 0) {
+      const others = Array.from(new Set(demoted.map((d) => storeLabel(d) || '（未知門市）')));
+      for (const e of kept) {
+        e.crossStore = true;
+        e.crossStoreNote = `另於 ${others.join('、')} 不計入`;
+      }
+      for (const d of demoted) {
+        d.crossStore = true;
+        d.excludedReason = `已計入 ${storeLabel(best) || '（未知門市）'}`;
+        excluded.push(d);
+      }
+    }
   });
-  return { counted, excluded, primaries, storeMap, rotationActing: excluded.filter((e) => e.rotationActing) };
+  counted.length = 0;
+  counted.push(...keptCounted);
+  return { counted, excluded, storeMap, rotationActing: excluded.filter((e) => e.rotationActing) };
 }
 
 export function computeMonthHeadcount(records: HeadcountRecord[], stores: HeadcountStore[], yearMonth: string): MonthHeadcount {
-  const { counted, excluded, primaries, storeMap, rotationActing } = buildEntries(records, stores, yearMonth);
+  const { counted, excluded, storeMap, rotationActing } = buildEntries(records, stores, yearMonth);
   const sortEntries = (list: HeadcountEntry[]) =>
     [...list].sort((a, b) => a.store_code.localeCompare(b.store_code) || a.employee_code.localeCompare(b.employee_code));
 
   const sortedRotation = sortEntries(rotationActing);
-  const company = buildGroup(sortEntries(primaries), () => '', sortedRotation);
+  const company = buildGroup(sortEntries(counted), () => '', sortedRotation);
 
   // 門市 / 督導區
   const storeIds = new Set<string>();
@@ -463,7 +505,7 @@ export interface TrendRow {
   hasData: boolean;
 }
 
-/** 全公司近 N 個月（以 endMonth 為結尾）每月各欄人數（每人只算一次的全公司口徑） */
+/** 全公司近 N 個月（以 endMonth 為結尾）每月各欄人數（每人只算在主要歸屬門市的全公司口徑） */
 export function computeHeadcountTrend(records: HeadcountRecord[], stores: HeadcountStore[], endMonth: string, n = 12): TrendRow[] {
   const byMonth = new Map<string, HeadcountRecord[]>();
   for (const r of records) {
@@ -472,8 +514,8 @@ export function computeHeadcountTrend(records: HeadcountRecord[], stores: Headco
   }
   return monthsEndingAt(endMonth, n).map((ym) => {
     const recs = byMonth.get(ym) ?? [];
-    const { primaries, rotationActing } = buildEntries(recs, stores, ym);
-    const g = buildGroup(primaries, () => '', rotationActing);
+    const { counted, rotationActing } = buildEntries(recs, stores, ym);
+    const g = buildGroup(counted, () => '', rotationActing);
     const counts = Object.fromEntries(HEADCOUNT_COLUMNS.map((c) => [c.key, g.people[c.key].length])) as Record<ColumnKey, number>;
     return { yearMonth: ym, counts, actingBySupervisor: g.actingBySupervisor.length, rotationActing: g.rotationActing.length, totalPeople: g.totalPeople, hasData: recs.length > 0 };
   });
@@ -541,8 +583,8 @@ export function buildHeadcountExportRows(result: MonthHeadcount): {
     月狀態: e.statusLabel,
     是否計入: counted ? '是' : '否',
     不計入原因: excludedReasonLabel(e),
-    全公司主要歸屬: counted ? (e.isPrimary ? '是' : '否') : '',
-    備註: [e.crossStore ? '跨店' : '', e.isDual ? '雙店長/雙職' : '', e.supervisorActing ? '督導代理店長' : '', e.isRotation ? '督導卡班' : '', e.rotationActing ? '督導卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
+    主要歸屬: counted ? (e.isPrimary ? '是' : '否') : '',
+    備註: [e.crossStore ? (e.crossStoreNote ? `跨店，${e.crossStoreNote}` : '跨店') : '', e.isDual ? '雙店長/雙職' : '', e.supervisorActing ? '督導代理店長' : '', e.isRotation ? '督導卡班' : '', e.rotationActing ? '督導卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
       .filter(Boolean)
       .join('、'),
   });
