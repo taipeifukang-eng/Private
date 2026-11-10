@@ -205,7 +205,7 @@ async function main() {
     });
     check('督導卡班：Excel 明細看得出督導卡班', () => {
       const { detailRows } = H.buildHeadcountExportRows(r9);
-      assert.equal(detailRows.filter((d) => d['不計入原因'] === '督導卡班').length, 2);
+      assert.equal(detailRows.filter((d) => String(d['不計入原因']).startsWith('督導卡班')).length, 2);
     });
 
     // ── 趨勢（一次批次查詢 12 個月）
