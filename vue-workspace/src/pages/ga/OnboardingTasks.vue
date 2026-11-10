@@ -5,7 +5,7 @@ import UploadPicker from "../../components/UploadPicker.vue";
 import AssetOnboardingBar from "../../components/ga/AssetOnboardingBar.vue";
 import GaShell from "../../components/ga/GaShell.vue";
 import { ONBOARDING_LABEL } from "../../lib/ga-assets";
-import { useDebounced, useGaGuard, useLatest } from "../../lib/ga";
+import { useDebounced, useGaGuard, useRefreshOnActivate, useLatest } from "../../lib/ga";
 import type { PreparedFile } from "../../lib/upload";
 import type { WorkTab } from "../../stores";
 
@@ -67,6 +67,7 @@ async function load() {
 watch([view, type, debounced], () => { page.value = 1; load(); });
 watch(page, load);
 onMounted(load);
+useRefreshOnActivate(props.tab, load);
 
 const purposeOf = (t: Task) => (t.onboarding_status === "NEEDS_EQUIPMENT_PHOTO" ? "PRIMARY_IMAGE" : t.onboarding_status === "NEEDS_LABEL_PHOTO" ? "LABEL_POSITION_IMAGE" : "");
 const stepText = (t: Task) => (t.onboarding_status === "NEEDS_EQUIPMENT_PHOTO" ? `第 1 步：拍${noun(t)}照片` : t.onboarding_status === "NEEDS_LABEL_PHOTO" ? "第 2 步：拍貼標位置照片（標籤貼好後拍）" : "");

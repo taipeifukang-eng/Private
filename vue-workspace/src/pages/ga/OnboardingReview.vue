@@ -4,7 +4,7 @@ import { api } from "../../api";
 import Modal from "../../components/Modal.vue";
 import AssetSitePicker from "../../components/ga/AssetSitePicker.vue";
 import GaShell from "../../components/ga/GaShell.vue";
-import { useDebounced, useGaGuard, useLatest } from "../../lib/ga";
+import { useDebounced, useGaGuard, useRefreshOnActivate, useLatest } from "../../lib/ga";
 import type { WorkTab } from "../../stores";
 
 // 貼標複核（總務，桌機）：設備／設施照片與貼標位置照片並排，通過或退回。退回必須填原因，且兩張照片都要店長重傳（解讀 (f)）。
@@ -58,6 +58,7 @@ async function load() {
 watch([type, storeId, debounced], () => { page.value = 1; load(); });
 watch(page, load);
 onMounted(load);
+useRefreshOnActivate(props.tab, load);
 
 const acting = ref<{ item: Item; action: "approve" | "reject" } | null>(null);
 const note = ref("");

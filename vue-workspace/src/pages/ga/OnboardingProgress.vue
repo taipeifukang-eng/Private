@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
-import { openGaPage, useGaGuard, useLatest } from "../../lib/ga";
+import { openGaPage, useGaGuard, useRefreshOnActivate, useLatest } from "../../lib/ga";
 import { useSession, type WorkTab } from "../../stores";
 
 // 上線貼標進度（Q29）：每店設備與設施總數、各階段數量、完成率；點進某店可看卡在哪一台；可依門市批次印標籤（設備、設施各自一頁）。
@@ -43,6 +43,7 @@ async function load() {
 }
 onMounted(load);
 watch(allowed, load);
+useRefreshOnActivate(props.tab, load);
 
 const shown = computed(() => (showDone.value ? rows.value : rows.value.filter((r) => r.completion_rate !== 100)));
 const totals = computed(() => {

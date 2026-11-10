@@ -27,6 +27,14 @@ export function legacyUrl(href: string, integrated: boolean | undefined) {
   return integrated ? href : "http://localhost:3002" + href;
 }
 
+/** 頁籤從背景切回前景時重新載入（頁籤用 v-show 保留，資料會過時；貼標待辦、複核、進度這類多人接力的頁面需要）。 */
+export function useRefreshOnActivate(tab: WorkTab, load: () => unknown) {
+  const work = useWorkspace();
+  watch(() => work.active, (id, old) => {
+    if (id === tab.id && old !== tab.id) void load();
+  });
+}
+
 /** 搜尋輸入防抖：回傳實際用來查詢的值。 */
 export function useDebounced<T>(source: Ref<T>, ms = 300) {
   const out = ref(source.value) as Ref<T>;

@@ -139,7 +139,7 @@ function reset() { file.value = null; result.value = null; done.value = null; er
           <li><strong>3. 確認預檢結果，再按「確認匯入」</strong><span class="muted">有錯誤的列會標出原因，改好 Excel 重新上傳即可。</span></li>
         </ol>
         <div class="pick">
-          <input ref="input" type="file" class="sr-only" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-testid="import-file" aria-label="選擇 Excel 檔" @change="pick" />
+          <input ref="input" type="file" class="sr-only" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-testid="import-file" aria-hidden="true" tabindex="-1" @change="pick" />
           <button type="button" class="primary" :disabled="busy" @click="input?.click()">{{ file ? "重新選擇檔案" : "選擇 Excel 檔" }}</button>
           <span v-if="file" class="muted" data-testid="import-file-name">{{ file.name }}</span>
           <span v-if="busy" role="status" class="muted">處理中…</span>
