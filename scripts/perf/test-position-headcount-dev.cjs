@@ -19,7 +19,7 @@ const db = makeServiceClient(ENV);
 const D = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount-data.ts', {});
 const H = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount.ts', {});
 
-const MONTHS = ['2099-03', '2099-05', '2099-07', '2099-09'];
+const MONTHS = ['2038-06', '2099-03', '2099-05', '2099-07', '2099-09'];
 const TEST_STORES = ['ZT01', 'ZT02', 'VW001', 'ZT03'];
 const createdStatusIds = [];
 const createdSummaryIds = [];
@@ -88,6 +88,12 @@ async function main() {
     mk('2099-09', 'ZT02', 'HCT902', '督導', { is_supervisor_rotation: true, is_acting_manager: true }),
     mk('2099-09', 'ZT01', 'HCT903', '專員'),
   );
+  // 跨店主要歸屬（2038-06）：同一督導在 VW001（普通）與 ZT02（督導(代理店長)）都有登記 → 只算 ZT02（代理優先，即使不是代號最小）
+  seed.push(
+    mk('2038-06', 'VW001', 'HCT801', '督導'),
+    mk('2038-06', 'ZT02', 'HCT801', '督導(代理店長)'),
+    mk('2038-06', 'ZT01', 'HCT802', '專員'),
+  );
   // 分頁測試：2099-07 在 ZT03 建 1100 筆（超過 Supabase 單頁 1000 筆上限）
   for (let i = 0; i < 1100; i++) seed.push(mk('2099-07', 'ZT03', `HCT7${String(i).padStart(4, '0')}`, '專員'));
 
@@ -141,11 +147,11 @@ async function main() {
       assert.equal(m.store_code, 'ZT01');
       assert.equal(m.crossStore, true);
     });
-    check('各門市：ZT01=13、ZT02=3、VW001=2，加總 18 大於全公司 17（跨店）', () => {
+    check('各門市：ZT01=13、ZT02=2、VW001=2，加總 17 = 全公司 17（跨店只算主要歸屬一間）', () => {
       const flat = r5.areas.flatMap((a) => a.stores);
       const by = Object.fromEntries(flat.map((s) => [s.store.store_code, s.totalPeople]));
-      assert.deepEqual(by, { ZT01: 13, ZT02: 3, VW001: 2 });
-      assert.equal(flat.reduce((n, s) => n + s.totalPeople, 0), 18);
+      assert.deepEqual(by, { ZT01: 13, ZT02: 2, VW001: 2 });
+      assert.equal(flat.reduce((n, s) => n + s.totalPeople, 0), 17);
     });
     check('各門市：離職/留停/調出/支援卡班不計入、同人同店重複只算 1 次', () => {
       const flat = r5.areas.flatMap((a) => a.stores);
@@ -155,7 +161,8 @@ async function main() {
       assert.equal(cnt(vw, 'specialist'), 1); // 只有調入的 HCT016
       assert.equal(vw.people.specialist[0].employee_code, 'HCT016');
       const ex = r5.excluded.map((e) => `${e.employee_code}:${e.monthly_status}`).sort();
-      assert.deepEqual(ex, ['HCT014:resigned', 'HCT015:leave_of_absence', 'HCT016:transferred_out', 'HCT017:support_rotation']);
+      // 新規則：HCT001 在 ZT02 的雙店長登記改列不計入（已計入 ZT01）
+      assert.deepEqual(ex, ['HCT001:dual_store_manager', 'HCT014:resigned', 'HCT015:leave_of_absence', 'HCT016:transferred_out', 'HCT017:support_rotation']);
     });
     check('督導區：每間有資料的門市都在某個督導區內，且與讀到的督導對應一致', () => {
       const storeArea = new Map();
@@ -179,10 +186,11 @@ async function main() {
       assert.equal(r5.company.people.other[0].position, '兼職助理');
       assert.equal(r5.unknownStatusPeople.length, 0);
     });
-    check('Excel 列：全公司合計 17、明細含 4 筆不計入', () => {
+    check('Excel 列：全公司合計 17、明細含 5 筆不計入（含 HCT001 已計入 ZT01）', () => {
       const { summaryRows, detailRows } = H.buildHeadcountExportRows(r5);
       assert.equal(summaryRows[0]['總人數'], 17);
-      assert.equal(detailRows.filter((d) => d['是否計入'] === '否').length, 4);
+      assert.equal(detailRows.filter((d) => d['是否計入'] === '否').length, 5);
+      assert.ok(detailRows.some((d) => d['員編'] === 'HCT001' && d['是否計入'] === '否' && /^已計入 ZT01/.test(d['不計入原因'])));
     });
 
     // ── 督導卡班
@@ -206,6 +214,32 @@ async function main() {
     check('督導卡班：Excel 明細看得出督導卡班', () => {
       const { detailRows } = H.buildHeadcountExportRows(r9);
       assert.equal(detailRows.filter((d) => String(d['不計入原因']).startsWith('督導卡班')).length, 2);
+    });
+
+    // ── 跨店主要歸屬：督導兩店登記（其中一店代理）
+    const p38 = await D.loadPositionHeadcountData(db, '2038-06', false);
+    const r38 = H.computeMonthHeadcount(p38.records, p38.stores, '2038-06');
+    check('跨店主要歸屬：只在代理那間（ZT02）計入，另一間（VW001）在不計入名單、原因「已計入 ZT02 …」', () => {
+      const flat = r38.areas.flatMap((a) => a.stores);
+      const where = flat.filter((s) => Object.values(s.people).some((l) => l.some((e) => e.employee_code === 'HCT801'))).map((s) => s.store.store_code);
+      assert.deepEqual(where, ['ZT02']);
+      const ex = r38.excluded.filter((e) => e.employee_code === 'HCT801');
+      assert.equal(ex.length, 1);
+      assert.equal(ex[0].store_code, 'VW001');
+      const zt02 = p38.stores.find((s) => s.store_code === 'ZT02');
+      assert.equal(H.excludedReasonLabel(ex[0]), `已計入 ${zt02.store_code} ${zt02.store_name}`.trim());
+      assert.equal(r38.company.totalPeople, 2);
+      assert.equal(r38.company.actingBySupervisor.length, 1);
+    });
+    check('跨店主要歸屬：三層加總一致、Excel 明細有不計入原因', () => {
+      let sum = 0;
+      for (const a of r38.areas) {
+        assert.equal(a.stores.reduce((n, s) => n + s.totalPeople, 0), a.subtotal.totalPeople);
+        sum += a.subtotal.totalPeople;
+      }
+      assert.equal(sum, r38.company.totalPeople);
+      const { detailRows } = H.buildHeadcountExportRows(r38);
+      assert.ok(detailRows.some((d) => d['員編'] === 'HCT801' && d['是否計入'] === '否' && /^已計入 ZT02/.test(d['不計入原因'])));
     });
 
     // ── 趨勢（一次批次查詢 12 個月）
