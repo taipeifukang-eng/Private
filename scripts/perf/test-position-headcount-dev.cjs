@@ -19,7 +19,7 @@ const db = makeServiceClient(ENV);
 const D = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount-data.ts', {});
 const H = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount.ts', {});
 
-const MONTHS = ['2099-03', '2099-05', '2099-07'];
+const MONTHS = ['2099-03', '2099-05', '2099-07', '2099-09'];
 const TEST_STORES = ['ZT01', 'ZT02', 'VW001', 'ZT03'];
 const createdStatusIds = [];
 const createdSummaryIds = [];
@@ -81,6 +81,13 @@ async function main() {
     mk('2099-03', 'ZT01', 'HCT001', '店長'),
     mk('2099-03', 'ZT01', 'HCT005', '專員'),
   ];
+  // 督導卡班（2099-09）：卡班列不計入；同督導另一門市正常列照常計入；卡班+代理店長只標註；full_month 也排除
+  seed.push(
+    mk('2099-09', 'ZT01', 'HCT901', '督導', { is_supervisor_rotation: true }),
+    mk('2099-09', 'VW001', 'HCT901', '督導'),
+    mk('2099-09', 'ZT02', 'HCT902', '督導', { is_supervisor_rotation: true, is_acting_manager: true }),
+    mk('2099-09', 'ZT01', 'HCT903', '專員'),
+  );
   // 分頁測試：2099-07 在 ZT03 建 1100 筆（超過 Supabase 單頁 1000 筆上限）
   for (let i = 0; i < 1100; i++) seed.push(mk('2099-07', 'ZT03', `HCT7${String(i).padStart(4, '0')}`, '專員'));
 
@@ -176,6 +183,29 @@ async function main() {
       const { summaryRows, detailRows } = H.buildHeadcountExportRows(r5);
       assert.equal(summaryRows[0]['總人數'], 17);
       assert.equal(detailRows.filter((d) => d['是否計入'] === '否').length, 4);
+    });
+
+    // ── 督導卡班
+    const p9 = await D.loadPositionHeadcountData(db, '2099-09', false);
+    const r9 = H.computeMonthHeadcount(p9.records, p9.stores, '2099-09');
+    check('督導卡班：資料讀取帶回 is_supervisor_rotation 欄位', () => {
+      assert.equal(p9.records.length, 4);
+      assert.equal(p9.records.filter((r) => r.is_supervisor_rotation === true).length, 2);
+    });
+    check('督導卡班：卡班列不計入，列在不計入名單（原因督導卡班）；全公司 2 人（HCT901 只算一次 + HCT903）', () => {
+      assert.equal(r9.company.totalPeople, 2);
+      assert.equal(cnt(r9.company, 'supervisor'), 1);
+      assert.equal(r9.company.people.supervisor[0].store_code, 'VW001');
+      assert.deepEqual(r9.excluded.map((e) => `${e.employee_code}:${e.excludedReason}`).sort(), ['HCT901:督導卡班', 'HCT902:督導卡班']);
+    });
+    check('督導卡班：卡班代理店長只標註（全公司 1 位），不加進代理店長人數', () => {
+      assert.equal(r9.company.rotationActing.length, 1);
+      assert.equal(r9.company.rotationActing[0].employee_code, 'HCT902');
+      assert.equal(cnt(r9.company, 'acting'), 0);
+    });
+    check('督導卡班：Excel 明細看得出督導卡班', () => {
+      const { detailRows } = H.buildHeadcountExportRows(r9);
+      assert.equal(detailRows.filter((d) => d['不計入原因'] === '督導卡班').length, 2);
     });
 
     // ── 趨勢（一次批次查詢 12 個月）
