@@ -352,6 +352,111 @@ t('匯出：人數統計首列為全公司合計、人員明細含不計入者�
   assert.match(detailRows.find((d) => d['員編'] === 'E1' && d['門市代號'] === 'ZT02')['備註'], /跨店/);
 });
 
+// ── 10b. 督導卡班（is_supervisor_rotation）
+const ROT = (o) => rec({ position: '督導', is_supervisor_rotation: true, ...o });
+t('督導卡班：(a) 卡班列不計入任何層級，列在不計入名單，原因「督導卡班」', () => {
+  const r = H.computeMonthHeadcount([ROT({ employee_code: 'R1', store_id: 's1' }), rec({ employee_code: 'N1', store_id: 's1' })], STORES, YM);
+  assert.equal(cnt(r.company, 'supervisor'), 0);
+  assert.equal(r.company.totalPeople, 1);
+  assert.equal(r.areas[0].stores[0].totalPeople, 1);
+  assert.equal(r.areas[0].subtotal.totalPeople, 1);
+  assert.equal(r.excluded.length, 1);
+  assert.equal(r.excluded[0].employee_code, 'R1');
+  assert.equal(r.excluded[0].excludedReason, '督導卡班');
+  assert.equal(r.storeEntries.some((e) => e.employee_code === 'R1'), false);
+});
+t('督導卡班：(b) 同督導同月另一門市正常列照常計入，全公司只算一次', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'R2', store_id: 's1' }), rec({ employee_code: 'R2', store_id: 's3', position: '督導' })],
+    STORES, YM,
+  );
+  assert.equal(r.company.totalPeople, 1);
+  assert.equal(cnt(r.company, 'supervisor'), 1);
+  assert.equal(r.company.people.supervisor[0].store_code, 'VW001');
+  const s1 = r.areas.find((a) => a.name === '王督導').stores[0];
+  assert.equal(s1.totalPeople, 0);
+  assert.equal(r.areas.find((a) => a.name === '李督導').stores[0].totalPeople, 1);
+  assert.equal(r.excluded.length, 1);
+  assert.equal(r.company.people.supervisor[0].crossStore, false);
+});
+t('督導卡班：(c) 卡班 + 代理店長 → 不計入人數，代理店長欄標註 N 位並可看名單', () => {
+  const r = H.computeMonthHeadcount(
+    [
+      ROT({ employee_code: 'R3', store_id: 's1', is_acting_manager: true }),
+      ROT({ employee_code: 'R4', store_id: 's1', position: '督導(代理店長)' }),
+      ROT({ employee_code: 'R5', store_id: 's1' }),
+      rec({ employee_code: 'A1', store_id: 's1', position: '代理店長' }),
+      rec({ employee_code: 'R3', store_id: 's2', position: '專員' }),
+    ],
+    STORES, YM,
+  );
+  const st = r.areas[0].stores[0];
+  assert.equal(cnt(st, 'acting'), 1);
+  assert.equal(cnt(st, 'supervisor'), 0);
+  assert.equal(st.actingBySupervisor.length, 0);
+  assert.deepEqual(st.rotationActing.map((e) => e.employee_code).sort(), ['R3', 'R4']);
+  assert.equal(r.areas[0].subtotal.rotationActing.length, 2);
+  assert.equal(r.company.rotationActing.length, 2);
+  assert.equal(r.areas[0].stores[1].rotationActing.length, 0);
+  assert.equal(r.company.totalPeople, 2); // A1 + R3（乙店專員）
+});
+t('督導卡班：(c2) 同一人兩間門市都卡班代理，全公司標註只算 1 位', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'R6', store_id: 's1', is_acting_manager: true }), ROT({ employee_code: 'R6', store_id: 's2', is_acting_manager: true })],
+    STORES, YM,
+  );
+  assert.equal(r.company.rotationActing.length, 1);
+  assert.equal(r.areas[0].subtotal.rotationActing.length, 1);
+  assert.equal(r.company.totalPeople, 0);
+});
+t('督導卡班：(d) monthly_status 為 full_month 也排除（卡班優先）', () => {
+  const r = H.computeMonthHeadcount([ROT({ employee_code: 'R7', monthly_status: 'full_month' })], STORES, YM);
+  assert.equal(r.company.totalPeople, 0);
+  assert.equal(r.excluded[0].excludedReason, '督導卡班');
+  assert.equal(r.unknownStatusPeople.length, 0);
+});
+t('督導卡班：(d2) 狀態空白的卡班列不列入狀態待確認', () => {
+  const r = H.computeMonthHeadcount([ROT({ employee_code: 'R8', monthly_status: '' })], STORES, YM);
+  assert.equal(r.unknownStatusPeople.length, 0);
+  assert.equal(r.excluded.length, 1);
+});
+t('督導卡班：is_supervisor_rotation=false/null 不受影響', () => {
+  const g = company([rec({ position: '督導', is_supervisor_rotation: false }), rec({ position: '督導', is_supervisor_rotation: null })]);
+  assert.equal(cnt(g, 'supervisor'), 2);
+  assert.equal(g.rotationActing.length, 0);
+});
+t('督導卡班：(e) 趨勢套用（不計入、卡班代理另列）', () => {
+  const recs = [
+    ROT({ employee_code: 'T1', year_month: '2099-01', is_acting_manager: true }),
+    rec({ employee_code: 'T2', year_month: '2099-01' }),
+    ROT({ employee_code: 'T3', year_month: '2099-02' }),
+  ];
+  const tr = H.computeHeadcountTrend(recs, STORES, '2099-02', 3);
+  const jan = tr.find((x) => x.yearMonth === '2099-01');
+  const feb = tr.find((x) => x.yearMonth === '2099-02');
+  assert.equal(jan.totalPeople, 1);
+  assert.equal(jan.counts.supervisor, 0);
+  assert.equal(jan.rotationActing, 1);
+  assert.equal(feb.totalPeople, 0);
+  assert.equal(feb.counts.supervisor, 0);
+  assert.equal(feb.hasData, true);
+});
+t('督導卡班：(f) 匯出列 — 統計列不計入、代理標註欄、明細看得出督導卡班', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'X1', store_id: 's1', is_acting_manager: true }), rec({ employee_code: 'X2', store_id: 's1' })],
+    STORES, YM,
+  );
+  const { summaryRows, detailRows } = H.buildHeadcountExportRows(r);
+  assert.equal(summaryRows[0]['督導'], 0);
+  assert.equal(summaryRows[0]['總人數'], 1);
+  assert.equal(summaryRows[0]['督導卡班代理（不計入）'], 1);
+  const d = detailRows.find((x) => x['員編'] === 'X1');
+  assert.equal(d['是否計入'], '否');
+  assert.equal(d['不計入原因'], '督導卡班（兼代理店長）');
+  assert.match(d['備註'], /督導卡班/);
+  assert.match(d['備註'], /督導卡班代理店長/);
+});
+
 // ── 11. 權限（與員工管理頁相同）
 const ACCESS = [
   ['admin', { role: 'admin' }, true],
@@ -380,6 +485,27 @@ t('未定稿橫幅：切換月份讀取中（舊 payload）不顯示上月名單
   assert.deepEqual(H.unfinalizedStoresForMonth(payload, '2026-09'), []);
 });
 t('未定稿橫幅：payload 為 null 回傳空', () => assert.deepEqual(H.unfinalizedStoresForMonth(null, '2026-09'), []));
+
+t('匯出欄寬：每個表頭都有對應寬度，卡班代理欄不被擠壓、總人數維持 10', () => {
+  const r = H.computeMonthHeadcount([rec({ position: '專員' })], STORES, YM);
+  const headers = Object.keys(H.buildHeadcountExportRows(r).summaryRows[0]);
+  const w = H.summarySheetColumnWidths(headers);
+  assert.equal(w.length, headers.length);
+  assert.ok(w[headers.indexOf('督導卡班代理（不計入）')].wch >= 22);
+  assert.equal(w[headers.indexOf('總人數')].wch, 10);
+  assert.equal(w[headers.indexOf('其中由督導代理店長')].wch, 18);
+});
+
+t('不計入原因顯示：督導卡班、兼代理店長、離職', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'X1', store_id: 's1' }), ROT({ employee_code: 'X2', store_id: 's1', is_acting_manager: true }), rec({ employee_code: 'X3', store_id: 's1', monthly_status: 'resigned' })],
+    STORES, YM,
+  );
+  const by = (c) => H.excludedReasonLabel(r.excluded.find((e) => e.employee_code === c));
+  assert.equal(by('X1'), '督導卡班');
+  assert.equal(by('X2'), '督導卡班（兼代理店長）');
+  assert.ok(by('X3'));
+});
 
 console.log(`通過 ${passed} 項`);
 if (failures.length) {

@@ -8,6 +8,8 @@ import {
   buildHeadcountExportRows,
   computeHeadcountTrend,
   computeMonthHeadcount,
+  excludedReasonLabel,
+  summarySheetColumnWidths,
   unfinalizedStoresForMonth,
   type AreaHeadcount,
   type ColumnKey,
@@ -23,9 +25,18 @@ function currentMonthTaipei(): string {
   return `${y}-${m}`;
 }
 
+/** 表格容器：可內部垂直捲動（約視窗高度減上方區塊），標題列用 sticky 固定 */
+const SCROLL_BOX = 'bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-18rem)] min-h-[16rem]';
+/** 標題儲存格：背景不透明、底線用 inset 陰影（不增加列高，第二列 top 才會剛好等於第一列高度） */
+const TH = 'bg-gray-50 shadow-[inset_0_-1px_0_0_#e5e7eb]';
+/** 第一列（群組列）高度；第二列 sticky top 必須等於它 */
+const GROUP_ROW_H = 28;
+
 interface ListModal {
   title: string;
   entries: HeadcountEntry[];
+  /** 不計入名單：多顯示「不計入原因」欄 */
+  showReason?: boolean;
 }
 
 export default function PositionHeadcountPanel() {
@@ -70,14 +81,23 @@ export default function PositionHeadcountPanel() {
     [payload, month],
   );
 
-  const openList = (title: string, entries: HeadcountEntry[]) => setModal({ title, entries });
+  const openList = (title: string, entries: HeadcountEntry[], showReason = false) => setModal({ title, entries, showReason });
+  const excludedByStore = useMemo(() => {
+    const m = new Map<string, HeadcountEntry[]>();
+    (result?.excluded ?? []).forEach((e) => {
+      const arr = m.get(e.store_id) ?? [];
+      arr.push(e);
+      m.set(e.store_id, arr);
+    });
+    return m;
+  }, [result]);
 
   const handleExport = () => {
     if (!result) return;
     const { summaryRows, detailRows } = buildHeadcountExportRows(result);
     const wb = XLSX.utils.book_new();
     const s1 = XLSX.utils.json_to_sheet(summaryRows);
-    s1['!cols'] = [{ wch: 14 }, { wch: 24 }, ...HEADCOUNT_COLUMNS.map(() => ({ wch: 12 })), { wch: 18 }, { wch: 10 }];
+    s1['!cols'] = summarySheetColumnWidths(Object.keys(summaryRows[0] ?? {}));
     const s2 = XLSX.utils.json_to_sheet(detailRows);
     s2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 22 }, { wch: 12 }, { wch: 24 }];
     XLSX.utils.book_append_sheet(wb, s1, '人數統計');
@@ -109,6 +129,15 @@ export default function PositionHeadcountPanel() {
             className="block mx-auto text-xs text-amber-700 hover:underline"
           >
             其中 {supActing} 位由督導代理
+          </button>
+        )}
+        {col === 'acting' && g.rotationActing.length > 0 && (
+          <button
+            type="button"
+            onClick={() => openList(`${scopeTitle}｜督導卡班代理（${g.rotationActing.length} 位，不計入人數）`, g.rotationActing)}
+            className="block mx-auto text-xs text-purple-700 hover:underline"
+          >
+            督導卡班代理 {g.rotationActing.length} 位
           </button>
         )}
       </td>
@@ -207,32 +236,44 @@ export default function PositionHeadcountPanel() {
       {view === 'month' && result && (
         <>
           <p className="text-sm text-gray-600">
-            只統計「月底仍在職」的人（不含當月離職、留職停薪、調出、支援卡班）。全公司合計每人只算一次；各門市與督導區照實際登記顯示，
+            只統計「月底仍在職」的人（不含當月離職、留職停薪、調出、支援卡班，也不含督導卡班）。全公司合計每人只算一次；各門市與督導區照實際登記顯示，
             跨店的人會在每間門市各出現一次，所以門市／督導區加總可能大於全公司合計。點任一數字可看名單。
           </p>
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
+          {result.excluded.length > 0 && (
+            <div>
+              <button
+                type="button"
+                data-testid="headcount-excluded-btn"
+                onClick={() => openList(`不計入名單（${result.excluded.length} 人）`, result.excluded, true)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                不計入 {result.excluded.length} 人
+              </button>
+            </div>
+          )}
+          <div className={SCROLL_BOX} data-testid="headcount-month-scroll">
+            <table className="min-w-full text-sm border-separate border-spacing-0">
+              <thead className="text-gray-700">
                 <tr>
-                  <th rowSpan={2} className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10 whitespace-nowrap">門市</th>
+                  <th rowSpan={2} className={`${TH} px-3 py-2 text-left sticky left-0 top-0 z-30 whitespace-nowrap`}>門市</th>
                   {groupHeads.map((g) => (
-                    <th key={g.label} colSpan={g.span} className="px-3 py-1 text-center border-l border-gray-200">{g.label}</th>
+                    <th key={g.label} colSpan={g.span} style={{ height: GROUP_ROW_H }} className={`${TH} px-3 py-1 text-center border-l border-gray-200 sticky top-0 z-20`}>{g.label}</th>
                   ))}
-                  <th rowSpan={2} className="px-3 py-2 text-center border-l border-gray-200 whitespace-nowrap">總人數</th>
+                  <th rowSpan={2} className={`${TH} px-3 py-2 text-center border-l border-gray-200 whitespace-nowrap sticky top-0 z-20`}>總人數</th>
                 </tr>
                 <tr>
                   {HEADCOUNT_COLUMNS.map((c) => (
-                    <th key={c.key} className="px-3 py-1 text-center font-medium whitespace-nowrap">{c.label}</th>
+                    <th key={c.key} style={{ top: GROUP_ROW_H, height: GROUP_ROW_H }} className={`${TH} px-3 py-1 text-center font-medium whitespace-nowrap sticky z-20`}>{c.label}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="[&>tr>td]:border-b [&>tr>td]:border-gray-100">
                 <tr className="bg-blue-50 font-semibold">
                   <td className="px-3 py-2 sticky left-0 bg-blue-50 z-10 whitespace-nowrap">全公司合計</td>
                   {rowCells(result.company, '全公司')}
                 </tr>
                 {result.areas.map((a) => (
-                  <AreaRows key={a.key} area={a} rowCells={rowCells} />
+                  <AreaRows key={a.key} area={a} rowCells={rowCells} excludedByStore={excludedByStore} onOpenExcluded={(t, e) => openList(t, e, true)} />
                 ))}
                 {result.areas.length === 0 && (
                   <tr>
@@ -247,20 +288,21 @@ export default function PositionHeadcountPanel() {
 
       {view === 'trend' && trend && (
         <>
-          <p className="text-sm text-gray-600">全公司近 12 個月（到 {month} 為止）每月各欄人數，每人只算一次，口徑同全公司合計。沒有資料的月份顯示「—」。</p>
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700">
+          <p className="text-sm text-gray-600">全公司近 12 個月（到 {month} 為止）每月各欄人數（不含督導卡班），每人只算一次，口徑同全公司合計。沒有資料的月份顯示「—」。</p>
+          <div className={SCROLL_BOX} data-testid="headcount-trend-scroll">
+            <table className="min-w-full text-sm border-separate border-spacing-0">
+              <thead className="text-gray-700">
                 <tr>
-                  <th className="px-3 py-2 text-left sticky left-0 bg-gray-50 z-10 whitespace-nowrap">月份</th>
+                  <th className={`${TH} px-3 py-2 text-left sticky left-0 top-0 z-30 whitespace-nowrap`}>月份</th>
                   {HEADCOUNT_COLUMNS.map((c) => (
-                    <th key={c.key} className="px-3 py-2 text-center whitespace-nowrap">{c.label}</th>
+                    <th key={c.key} className={`${TH} px-3 py-2 text-center whitespace-nowrap sticky top-0 z-20`}>{c.label}</th>
                   ))}
-                  <th className="px-3 py-2 text-center whitespace-nowrap">其中督導代理</th>
-                  <th className="px-3 py-2 text-center whitespace-nowrap">總人數</th>
+                  <th className={`${TH} px-3 py-2 text-center whitespace-nowrap sticky top-0 z-20`}>其中督導代理</th>
+                  <th className={`${TH} px-3 py-2 text-center whitespace-nowrap sticky top-0 z-20`}>督導卡班代理（不計入）</th>
+                  <th className={`${TH} px-3 py-2 text-center whitespace-nowrap sticky top-0 z-20`}>總人數</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="[&>tr>td]:border-b [&>tr>td]:border-gray-100">
                 {trend.map((t) => (
                   <tr key={t.yearMonth}>
                     <td className="px-3 py-2 sticky left-0 bg-white z-10 whitespace-nowrap font-medium">{t.yearMonth}</td>
@@ -268,6 +310,7 @@ export default function PositionHeadcountPanel() {
                       <td key={c.key} className="px-3 py-2 text-center">{t.hasData ? t.counts[c.key] : '—'}</td>
                     ))}
                     <td className="px-3 py-2 text-center">{t.hasData ? t.actingBySupervisor : '—'}</td>
+                    <td className="px-3 py-2 text-center">{t.hasData ? t.rotationActing : '—'}</td>
                     <td className="px-3 py-2 text-center font-semibold">{t.hasData ? t.totalPeople : '—'}</td>
                   </tr>
                 ))}
@@ -291,17 +334,27 @@ export default function PositionHeadcountPanel() {
                 <X size={20} />
               </button>
             </div>
-            <div className="overflow-auto p-4">
-              <table className="min-w-full text-sm">
-                <thead className="bg-gray-50 text-gray-700">
+            <div className="overflow-auto px-4 pb-4">
+              <table className="min-w-full text-sm border-separate border-spacing-0">
+                <thead className="text-gray-700">
                   <tr>
-                    {['員編', '姓名', '門市', '職位', '階段', '月狀態', '備註'].map((h) => (
-                      <th key={h} className="px-3 py-2 text-left whitespace-nowrap">{h}</th>
+                    {(modal.showReason ? ['門市', '員編', '姓名', '職位', '月狀態', '不計入原因'] : ['員編', '姓名', '門市', '職位', '階段', '月狀態', '備註']).map((h) => (
+                      <th key={h} className={`${TH} px-3 py-2 text-left whitespace-nowrap sticky top-0 z-20`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="[&>tr>td]:border-b [&>tr>td]:border-gray-100">
                   {modal.entries.map((e, i) => (
+                    modal.showReason ? (
+                    <tr key={`${e.key}-${e.store_id}-${i}`}>
+                      <td className="px-3 py-2 whitespace-nowrap">{`${e.store_code} ${e.store_name}`.trim()}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.employee_code}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.employee_name}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.position || '（未填）'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.statusLabel}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{excludedReasonLabel(e)}</td>
+                    </tr>
+                    ) : (
                     <tr key={`${e.key}-${e.store_id}-${i}`}>
                       <td className="px-3 py-2 whitespace-nowrap">{e.employee_code}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{e.employee_name}</td>
@@ -310,11 +363,12 @@ export default function PositionHeadcountPanel() {
                       <td className="px-3 py-2 whitespace-nowrap">{e.newbie_level || '—'}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{e.statusLabel}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-600">
-                        {[e.crossStore ? '跨店' : '', e.isDual ? '雙' : '', e.supervisorActing ? '督導代理' : '', e.unknownStatus ? '狀態待確認' : '']
+                        {[e.crossStore ? '跨店' : '', e.isDual ? '雙' : '', e.supervisorActing ? '督導代理' : '', e.isRotation ? '督導卡班（不計入）' : '', e.rotationActing ? '卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
                           .filter(Boolean)
                           .join('、')}
                       </td>
                     </tr>
+                    )
                   ))}
                 </tbody>
               </table>
@@ -330,9 +384,13 @@ export default function PositionHeadcountPanel() {
 function AreaRows({
   area,
   rowCells,
+  excludedByStore,
+  onOpenExcluded,
 }: {
   area: AreaHeadcount;
   rowCells: (g: HeadcountGroup, scopeTitle: string) => JSX.Element;
+  excludedByStore: Map<string, HeadcountEntry[]>;
+  onOpenExcluded: (title: string, entries: HeadcountEntry[]) => void;
 }) {
   return (
     <>
@@ -342,7 +400,18 @@ function AreaRows({
       </tr>
       {area.stores.map((s) => (
         <tr key={s.store.id}>
-          <td className="px-3 py-2 sticky left-0 bg-white z-10 whitespace-nowrap">{`${s.store.store_code} ${s.store.store_name}`.trim()}</td>
+          <td className="px-3 py-2 sticky left-0 bg-white z-10 whitespace-nowrap">
+            {`${s.store.store_code} ${s.store.store_name}`.trim()}
+            {(excludedByStore.get(s.store.id)?.length ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => onOpenExcluded(`${`${s.store.store_code} ${s.store.store_name}`.trim()}｜不計入名單`, excludedByStore.get(s.store.id)!)}
+                className="ml-2 text-xs text-gray-500 hover:underline"
+              >
+                不計入 {excludedByStore.get(s.store.id)!.length}
+              </button>
+            )}
+          </td>
           {rowCells(s, `${s.store.store_code} ${s.store.store_name}`.trim())}
         </tr>
       ))}

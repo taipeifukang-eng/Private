@@ -13,6 +13,15 @@
  *     support_rotation 支援卡班（不算在被支援門市）
  *   未知狀態（空白或不在上表）：不丟掉，照常計入，並列入「狀態待確認」名單。
  *
+ * ── 督導卡班（優先於 monthly_status）──
+ *   is_supervisor_rotation=true（每月人員狀態編輯頁「督導卡班」勾選）的那一筆不計入人數
+ *   （門市、督導區小計、全公司合計、近 12 個月趨勢都不算），列入「不計入」名單，原因「督導卡班」。
+ *   即使 monthly_status 是 full_month 也排除（判斷順序：督導卡班 > monthly_status）。
+ *   同一位督導同月在其他門市沒勾卡班的正常資料，照常計入（全公司合計仍只算一次）。
+ *   督導卡班同時是代理店長（is_acting_manager=true 或 position=督導(代理店長)）：同樣不計入，
+ *   但在該門市（及其督導區小計、全公司合計）的「代理店長」欄標註「督導卡班代理 N 位」，
+ *   與「其中 N 位由督導代理」並列、不加進代理店長人數；點開名單可看到是誰。
+ *
  * ── 欄位歸類 ──
  *   行政：newbie_level=過階行政 → 行政（過階）；未過階行政 → 行政（未過階）；空白/無法辨識 → 階段未登記
  *   新人：未過階新人 / 一階新人 / 二階新人；空白/無法辨識 → 階段未登記（不猜測）
@@ -110,6 +119,7 @@ export interface HeadcountRecord {
   monthly_status: string | null;
   is_acting_manager?: boolean | null;
   is_dual_position?: boolean | null;
+  is_supervisor_rotation?: boolean | null;
   employment_type?: string | null;
 }
 
@@ -143,12 +153,18 @@ export interface HeadcountEntry {
   isPrimary: boolean;
   /** 不計入時的原因（計入者為空字串） */
   excludedReason: string;
+  /** 督導卡班（is_supervisor_rotation=true）：不計入人數 */
+  isRotation: boolean;
+  /** 督導卡班且同時代理店長：不計入，但在代理店長欄標註「督導卡班代理 N 位」 */
+  rotationActing: boolean;
 }
 
 export interface HeadcountGroup {
   people: Record<ColumnKey, HeadcountEntry[]>;
   /** 督導兼代理店長（已算在「督導」欄，不在代理店長人數內） */
   actingBySupervisor: HeadcountEntry[];
+  /** 督導卡班且代理店長（不計入人數，只在代理店長欄標註） */
+  rotationActing: HeadcountEntry[];
   totalPeople: number;
 }
 
@@ -168,7 +184,7 @@ export interface MonthHeadcount {
   company: HeadcountGroup;
   areas: AreaHeadcount[];
   unknownStatusPeople: HeadcountEntry[];
-  /** 當月有登記但月底不計入的人（離職、留停、調出、支援卡班） */
+  /** 當月有登記但月底不計入的人（離職、留停、調出、支援卡班、督導卡班） */
   excluded: HeadcountEntry[];
   /** 所有計入的門市層級筆數（已做門市層去重），供匯出「人員明細」 */
   storeEntries: HeadcountEntry[];
@@ -242,6 +258,12 @@ export function classifyHeadcountRecord(rec: Pick<HeadcountRecord, 'position' | 
   }
 }
 
+/** 不計入名單顯示用的原因：督導卡班兼代理店長者註明「（兼代理店長）」 */
+export function excludedReasonLabel(e: Pick<HeadcountEntry, 'excludedReason' | 'isRotation' | 'rotationActing'>): string {
+  if (e.isRotation && e.rotationActing) return '督導卡班（兼代理店長）';
+  return e.excludedReason || (e.isRotation ? '督導卡班' : '');
+}
+
 export function resolveStatus(status: string | null | undefined): { counted: boolean; unknown: boolean; label: string; excludedReason: string } {
   const s = String(status ?? '').trim();
   if (COUNTED_STATUSES.includes(s)) return { counted: true, unknown: false, label: MONTHLY_STATUS_LABELS_ZH[s] || s, excludedReason: '' };
@@ -258,7 +280,7 @@ function personKey(rec: HeadcountRecord, idx: number): string {
   return `?${rec.store_id ?? ''}|${name || `row${idx}`}`;
 }
 
-function buildGroup(entries: HeadcountEntry[], dedupeBy: (e: HeadcountEntry) => string): HeadcountGroup {
+function buildGroup(entries: HeadcountEntry[], dedupeBy: (e: HeadcountEntry) => string, rotationEntries: HeadcountEntry[] = []): HeadcountGroup {
   const people = emptyPeople();
   const seen = new Set<string>();
   const keys = new Set<string>();
@@ -271,7 +293,16 @@ function buildGroup(entries: HeadcountEntry[], dedupeBy: (e: HeadcountEntry) => 
     keys.add(e.key);
     if (e.column === 'supervisor' && e.supervisorActing) acting.push(e);
   }
-  return { people, actingBySupervisor: acting, totalPeople: keys.size };
+  const rotSeen = new Set<string>();
+  const rotationActing: HeadcountEntry[] = [];
+  for (const e of rotationEntries) {
+    if (!e.rotationActing) continue;
+    const dk = `${dedupeBy(e)}|${e.key}`;
+    if (rotSeen.has(dk)) continue;
+    rotSeen.add(dk);
+    rotationActing.push(e);
+  }
+  return { people, actingBySupervisor: acting, rotationActing, totalPeople: keys.size };
 }
 
 export function groupCount(g: HeadcountGroup, col: ColumnKey): number {
@@ -294,7 +325,10 @@ function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], year
     if (rec.year_month !== yearMonth) return;
     const store = rec.store_id ? storeMap.get(rec.store_id) : undefined;
     const cls = classifyHeadcountRecord(rec);
-    const st = resolveStatus(rec.monthly_status);
+    const st0 = resolveStatus(rec.monthly_status);
+    // 督導卡班優先於 monthly_status：一律不計入
+    const isRotation = rec.is_supervisor_rotation === true;
+    const st = isRotation ? { ...st0, counted: false, unknown: false, excludedReason: '督導卡班' } : st0;
     const entry: HeadcountEntry = {
       key: personKey(rec, idx),
       employee_code: String(rec.employee_code ?? '').trim(),
@@ -314,6 +348,8 @@ function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], year
       crossStore: false,
       isPrimary: false,
       excludedReason: st.excludedReason,
+      isRotation,
+      rotationActing: isRotation && (rec.is_acting_manager === true || cls.supervisorActing),
     };
     (st.counted ? counted : excluded).push(entry);
   });
@@ -338,15 +374,16 @@ function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], year
     best.isPrimary = true;
     primaries.push(best);
   });
-  return { counted, excluded, primaries, storeMap };
+  return { counted, excluded, primaries, storeMap, rotationActing: excluded.filter((e) => e.rotationActing) };
 }
 
 export function computeMonthHeadcount(records: HeadcountRecord[], stores: HeadcountStore[], yearMonth: string): MonthHeadcount {
-  const { counted, excluded, primaries, storeMap } = buildEntries(records, stores, yearMonth);
+  const { counted, excluded, primaries, storeMap, rotationActing } = buildEntries(records, stores, yearMonth);
   const sortEntries = (list: HeadcountEntry[]) =>
     [...list].sort((a, b) => a.store_code.localeCompare(b.store_code) || a.employee_code.localeCompare(b.employee_code));
 
-  const company = buildGroup(sortEntries(primaries), () => '');
+  const sortedRotation = sortEntries(rotationActing);
+  const company = buildGroup(sortEntries(primaries), () => '', sortedRotation);
 
   // 門市 / 督導區
   const storeIds = new Set<string>();
@@ -370,10 +407,10 @@ export function computeMonthHeadcount(records: HeadcountRecord[], stores: Headco
       const sortedStores = a.stores.sort((x, y) => x.store_code.localeCompare(y.store_code));
       const storeRows: StoreHeadcount[] = sortedStores.map((store) => ({
         store,
-        ...buildGroup(sortedCounted.filter((e) => e.store_id === store.id), (e) => e.store_id),
+        ...buildGroup(sortedCounted.filter((e) => e.store_id === store.id), (e) => e.store_id, sortedRotation.filter((e) => e.store_id === store.id)),
       }));
       const ids = new Set(sortedStores.map((s) => s.id));
-      const subtotal = buildGroup(sortedCounted.filter((e) => ids.has(e.store_id)), () => '');
+      const subtotal = buildGroup(sortedCounted.filter((e) => ids.has(e.store_id)), () => '', sortedRotation.filter((e) => ids.has(e.store_id)));
       return { key, name: a.name, stores: storeRows, subtotal };
     })
     .sort((a, b) => {
@@ -420,6 +457,8 @@ export interface TrendRow {
   yearMonth: string;
   counts: Record<ColumnKey, number>;
   actingBySupervisor: number;
+  /** 督導卡班代理（不計入人數，只作標註） */
+  rotationActing: number;
   totalPeople: number;
   hasData: boolean;
 }
@@ -433,10 +472,10 @@ export function computeHeadcountTrend(records: HeadcountRecord[], stores: Headco
   }
   return monthsEndingAt(endMonth, n).map((ym) => {
     const recs = byMonth.get(ym) ?? [];
-    const { primaries } = buildEntries(recs, stores, ym);
-    const g = buildGroup(primaries, () => '');
+    const { primaries, rotationActing } = buildEntries(recs, stores, ym);
+    const g = buildGroup(primaries, () => '', rotationActing);
     const counts = Object.fromEntries(HEADCOUNT_COLUMNS.map((c) => [c.key, g.people[c.key].length])) as Record<ColumnKey, number>;
-    return { yearMonth: ym, counts, actingBySupervisor: g.actingBySupervisor.length, totalPeople: g.totalPeople, hasData: recs.length > 0 };
+    return { yearMonth: ym, counts, actingBySupervisor: g.actingBySupervisor.length, rotationActing: g.rotationActing.length, totalPeople: g.totalPeople, hasData: recs.length > 0 };
   });
 }
 
@@ -463,6 +502,12 @@ export function findUnfinalizedStores(records: HeadcountRecord[], stores: Headco
 
 // ───────────────────────── Excel 列 ─────────────────────────
 
+/** 「人數統計」工作表欄寬：依表頭名稱決定，欄位增減時不會錯位。 */
+export function summarySheetColumnWidths(headers: string[]): { wch: number }[] {
+  const fixed: Record<string, number> = { 督導區: 14, 門市: 24, 其中由督導代理店長: 18, '督導卡班代理（不計入）': 24, 總人數: 10 };
+  return headers.map((h) => ({ wch: fixed[h] ?? 12 }));
+}
+
 export function buildHeadcountExportRows(result: MonthHeadcount): {
   summaryRows: Record<string, string | number>[];
   detailRows: Record<string, string | number>[];
@@ -472,6 +517,7 @@ export function buildHeadcountExportRows(result: MonthHeadcount): {
     const row: Record<string, string | number> = { 督導區: area, 門市: store };
     for (const c of HEADCOUNT_COLUMNS) row[c.label] = g.people[c.key].length;
     row['其中由督導代理店長'] = g.actingBySupervisor.length;
+    row['督導卡班代理（不計入）'] = g.rotationActing.length;
     row['總人數'] = g.totalPeople;
     return row;
   };
@@ -494,9 +540,9 @@ export function buildHeadcountExportRows(result: MonthHeadcount): {
     統計欄位: counted ? e.columnLabel : '',
     月狀態: e.statusLabel,
     是否計入: counted ? '是' : '否',
-    不計入原因: e.excludedReason,
+    不計入原因: excludedReasonLabel(e),
     全公司主要歸屬: counted ? (e.isPrimary ? '是' : '否') : '',
-    備註: [e.crossStore ? '跨店' : '', e.isDual ? '雙店長/雙職' : '', e.supervisorActing ? '督導代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
+    備註: [e.crossStore ? '跨店' : '', e.isDual ? '雙店長/雙職' : '', e.supervisorActing ? '督導代理店長' : '', e.isRotation ? '督導卡班' : '', e.rotationActing ? '督導卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
       .filter(Boolean)
       .join('、'),
   });
