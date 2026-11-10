@@ -4271,5 +4271,31 @@
       "key": "permanent-url-redirect",
       "entry": "scan-permanent-url"
     }
+  },
+  {
+    "id": "m7m8-g10-nav-facility-labels",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「設施管理」最後多一項「QR 標籤列印」（設施標籤列印；舊版只有設備標籤列印，沒有設施版）。",
+    "reason": "主迴圈解讀 (b)：Q29 的決定覆蓋「設施標籤列印這次不做」，設施也要標籤列印與貼標待辦。主迴圈延伸，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-native",
+      "key": "native-only:facility-labels"
+    }
+  },
+  {
+    "id": "m7m8-g10-nav-labels-view-conditions",
+    "page": "ga-assets",
+    "description": "QR 標籤列印的側欄項目：舊版對只有店長身分的人也顯示；新版只給有設備／設施查看或管理權限者（店長不能列印標籤）。",
+    "reason": "標籤是實體貼在設備上的永久入口，印製與重印由總務控管；主迴圈依設計表（權限對照 §8）收斂，驗收時請使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "entry": "sidebar-visibility",
+      "kind": "only-legacy",
+      "key": "nav-labels-view-conditions"
+    }
   }
 ]

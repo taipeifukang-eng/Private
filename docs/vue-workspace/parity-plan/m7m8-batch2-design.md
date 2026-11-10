@@ -317,3 +317,13 @@
 - API 補充（`assets.ts`）：清單可加 `withWarrantyDocs=1`（回這一頁每台的保固文件與簽名網址，只限完整層級）、`warrantyStats=1`（回各保固狀態的精確筆數，不受保固篩選影響）；設施可依 `warranty_end_date`（specs 內日期）排序。維修紀錄 API（`history.ts`）回 `permissions.seeAssignee`，另外在 API 層擋掉「只有另一類資產權限的人用 type 參數讀這一類」。
 - 側欄：設施保固管理補在「設施管理」群組最後；沒有舊版「設施管理」群組的名單內身分（只有店長名單身分、沒有 `store_manager` 角色代碼者）在「資產與庫存」補「設施清冊」「設施維修紀錄」。這些新增或收斂的入口都列在 `tests/parity/allowlist.json`（`m7m8-g08-nav-*`、`m7m8-g09-nav-*`，approvedBy 為 null，待使用者確認）。
 - 舊版事實：舊維修紀錄頁讀 `maintenance_requests` 並過濾 `equipment_id`／`facility_id`，但工單資料表沒有這兩欄，實際永遠沒有資料；Q11 改讀需求單與其工單。
+
+## 14. G10 實作紀錄（QR 標籤列印與資產掃描）
+
+- 伺服端：`qr-url.ts`（網域取 `NEXT_PUBLIC_SITE_URL`、非正式環境浮水印、排除與上限規則、轉址旗標，純函式）、`qr.ts`（`GET /qr/labels`）、`scan.ts`（`GET /assets/scan/:token`）。`router.ts` 加 `qr`、`assets` 兩個 case；`access.ts` 加 `gaEquipmentLabels`、`gaFacilityLabels`（設備／設施查看或管理，店長不行）。
+- 標籤 API：`ids` 最多 150 筆（網址長度限制，更多請用篩選）；篩選模式用資料庫計數，只取前 300 張；`excluded` 最多回 20 筆說明，`excludedTotal` 為精確筆數；標籤上的網址缺 `NEXT_PUBLIC_SITE_URL` 或格式不符回 500 `code=QR_CONFIG`，不退回瀏覽器網址。
+- 掃描 API：不存在 404 `NOT_FOUND`、作廢 404 `REVOKED`（只有看得到該類資產者帶資產名稱，有管理權限且未刪除者帶 `canRestore`）、無權限 403 `NO_ACCESS`（`contacts` 只有該門市 `role_type=store_manager` 的姓名）。範圍沿用舊版「看全部」權限清單；欄位層級（完整／基本）依設備／設施查看或管理權限（Q5）。照片只給現場辨識用，排除發票、收據、保固、合約類用途。維修紀錄取最近 5 筆，範圍由資料庫函式判斷。
+- `canReport`：建單權限沿用舊版掃描頁與舊版「新增需求」選單的清單（`request.create`、`maintenance_request.create`、`cross_dept.maintenance.submit`），再加門市範圍（可替任何門市建單的 `request.manage`／`store.manage`／`employee.manage`，或本人是該門市名單內人員）。DEV 的店長角色只有 `maintenance_request.create`；正式區店長角色另有 `request.create`。
+- Vue：`AssetLabels.vue`（設備與設施共用，列印走獨立視窗，版型 60 x 25 mm 一張一頁）、`AssetScan.vue`（手機優先）。掃描頁走 `/open/ga-asset-scan/{token}` 深連結（`App.vue` 白名單），未登入先登入再開同一頁；清冊（`Equipment.vue`、`Facilities.vue`）可由頁籤 payload 帶入搜尋字串。
+- Next 端：`app/general-affairs/assets/scan/[token]/page.tsx` 只加一行旗標轉址（`WORKSPACE_SCAN_REDIRECT=true`），其餘程式不動。測試站啟動器（`tests/support/start-test-server.cjs`）固定設定 `NEXT_PUBLIC_SITE_URL=http://localhost:3002` 與轉址旗標。
+- 測試：單元 `tests/unit/G10`；整合 `G10.qr-api.spec.ts`；冒煙 `G10.qr.spec.ts`；e2e `G10.qr.e2e.spec.ts`；對等 `G10.ga-qr.spec.ts`（map：`tests/parity/map/ga-qr.json`）；驗收截圖 `tests/smoke/G10.screens.spec.ts`（設定 `M7M8_SHOT_DIR` 才執行）。「缺網域設定報錯」只有單元測試涵蓋（測試站固定有設定，無法在同一站切換）。
