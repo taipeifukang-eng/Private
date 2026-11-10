@@ -25,8 +25,8 @@ function currentMonthTaipei(): string {
 
 /** 表格容器：可內部垂直捲動（約視窗高度減上方區塊），標題列用 sticky 固定 */
 const SCROLL_BOX = 'bg-white rounded-lg shadow overflow-auto max-h-[calc(100vh-18rem)] min-h-[16rem]';
-/** 標題儲存格：背景不透明、底線 */
-const TH = 'bg-gray-50 border-b border-gray-200';
+/** 標題儲存格：背景不透明、底線用 inset 陰影（不增加列高，第二列 top 才會剛好等於第一列高度） */
+const TH = 'bg-gray-50 shadow-[inset_0_-1px_0_0_#e5e7eb]';
 /** 第一列（群組列）高度；第二列 sticky top 必須等於它 */
 const GROUP_ROW_H = 28;
 
