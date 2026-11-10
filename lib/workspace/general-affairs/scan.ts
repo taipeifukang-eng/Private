@@ -3,7 +3,7 @@
 //   400 格式錯誤、401 未登入（由共用 context 回）、404 NOT_FOUND 不存在、404 REVOKED 已作廢（Q8：已報廢／退役／刪除，友善說明）、
 //   403 NO_ACCESS 無權限（Q5：白話說明＋該門市店長姓名當聯絡方式，解讀 (l)）、200 成功。
 // 欄位經 pickAssetFields：只有設備／設施查看或管理權限者看得到完整欄位；其餘（名單內店長等）只看基本欄位（Q5）。
-// 報修按鈕：只有真的能替「這間門市」建需求單的人 canReport 才是 true（有 request.create，且能替任何門市或本人是該門市名單內）。
+// 報修按鈕：只有真的能替「這間門市」建需求單的人 canReport 才是 true（有建單權限，且能替任何門市或本人是該門市名單內；舊版只看權限，不看門市）。
 import { NextRequest } from "next/server";
 import { adminClient } from "../server";
 import { dbCan, GA } from "./access";
@@ -24,7 +24,8 @@ const SCAN_VIEW_ALL = [
   GA.equipmentManage, GA.facilityManage, "general_affairs.request.manage", "general_affairs.work_order.manage", "store.manage",
   GA.equipmentView, GA.facilityView, "general_affairs.request.view_all", "general_affairs.maintenance_request.view_all", "general_affairs.work_order.view_all", "cross_dept.maintenance.view_all",
 ];
-const REQUEST_CREATE = "general_affairs.request.create";
+/** 與舊版掃描頁、舊版「新增需求」選單相同的建單權限（DEV 的店長角色只有 maintenance_request.create，正式區店長角色另有 request.create）。 */
+const REQUEST_CREATE = ["general_affairs.request.create", "general_affairs.maintenance_request.create", "cross_dept.maintenance.submit"];
 /** 與舊版 canCreateServiceRequestForAnyStore 相同：可替任何門市建需求單。 */
 const CREATE_ANY_STORE = ["general_affairs.request.manage", "store.manage", "employee.manage"];
 /** 掃描頁只給現場辨識用的照片：排除發票、收據、保固文件、合約類附件（避免店長看到採購資料）。 */
@@ -145,7 +146,7 @@ async function scan(ctx: Context, rawToken: string) {
     detail.installed_at = row.installed_at ?? null;
   }
 
-  const hasCreate = dbCan(ctx.permissions, REQUEST_CREATE);
+  const hasCreate = dbCan(ctx.permissions, ...REQUEST_CREATE);
   const canReport = hasCreate && (dbCan(ctx.permissions, ...CREATE_ANY_STORE) || isMember);
   const [photoList, repairs] = await Promise.all([photos(kind, row.id), recentRepairs(ctx, kind, row.id)]);
 

@@ -16,7 +16,7 @@ const CODE_COLUMN: Record<AssetKind, string> = { equipment: "asset_code", facili
 const CATEGORY_TABLE: Record<AssetKind, string> = { equipment: "ga_equipment_categories", facilities: "ga_facility_categories" };
 const TERMINAL: Record<AssetKind, string> = { equipment: "SCRAPPED", facilities: "RETIRED" };
 const NOUN: Record<AssetKind, string> = { equipment: "設備", facilities: "設施" };
-const MAX_IDS = 1000;
+const MAX_IDS = 150; // 網址長度限制（每個 id 37 字元）；更多請改用篩選條件
 const EXCLUDED_SAMPLE = 20;
 
 export async function qrApi(ctx: Context, request: NextRequest, rest: string[]) {

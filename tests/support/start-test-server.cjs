@@ -36,6 +36,11 @@ process.env.GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:3002/api/organizati
 process.env.GOOGLE_CALENDAR_ID = 'mock-calendar@group.calendar.google.com';
 process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('hex');
 
+// M7/M8 G10：QR 標籤網址的網域由 NEXT_PUBLIC_SITE_URL 決定（Q9，缺值就報錯，不退回瀏覽器網址）。測試站固定用自己的網址；
+// 永久網址轉到新版掃描頁的旗標只在測試站開啟（正式與一般開發預設關閉，舊版 Next 掃描頁行為不變）。
+process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3002';
+process.env.WORKSPACE_SCAN_REDIRECT = 'true';
+
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const build = spawnSync(npm, ['--prefix', 'vue-workspace', 'run', 'build'], {
   cwd: root,
