@@ -258,6 +258,12 @@ export function classifyHeadcountRecord(rec: Pick<HeadcountRecord, 'position' | 
   }
 }
 
+/** 不計入名單顯示用的原因：督導卡班兼代理店長者註明「（兼代理店長）」 */
+export function excludedReasonLabel(e: Pick<HeadcountEntry, 'excludedReason' | 'isRotation' | 'rotationActing'>): string {
+  if (e.isRotation && e.rotationActing) return '督導卡班（兼代理店長）';
+  return e.excludedReason || (e.isRotation ? '督導卡班' : '');
+}
+
 export function resolveStatus(status: string | null | undefined): { counted: boolean; unknown: boolean; label: string; excludedReason: string } {
   const s = String(status ?? '').trim();
   if (COUNTED_STATUSES.includes(s)) return { counted: true, unknown: false, label: MONTHLY_STATUS_LABELS_ZH[s] || s, excludedReason: '' };
@@ -534,7 +540,7 @@ export function buildHeadcountExportRows(result: MonthHeadcount): {
     統計欄位: counted ? e.columnLabel : '',
     月狀態: e.statusLabel,
     是否計入: counted ? '是' : '否',
-    不計入原因: e.excludedReason,
+    不計入原因: excludedReasonLabel(e),
     全公司主要歸屬: counted ? (e.isPrimary ? '是' : '否') : '',
     備註: [e.crossStore ? '跨店' : '', e.isDual ? '雙店長/雙職' : '', e.supervisorActing ? '督導代理店長' : '', e.isRotation ? '督導卡班' : '', e.rotationActing ? '督導卡班代理店長' : '', e.unknownStatus ? '狀態待確認' : '']
       .filter(Boolean)

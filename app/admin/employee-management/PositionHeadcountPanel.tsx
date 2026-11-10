@@ -8,6 +8,7 @@ import {
   buildHeadcountExportRows,
   computeHeadcountTrend,
   computeMonthHeadcount,
+  excludedReasonLabel,
   summarySheetColumnWidths,
   unfinalizedStoresForMonth,
   type AreaHeadcount,
@@ -34,6 +35,8 @@ const GROUP_ROW_H = 28;
 interface ListModal {
   title: string;
   entries: HeadcountEntry[];
+  /** 不計入名單：多顯示「不計入原因」欄 */
+  showReason?: boolean;
 }
 
 export default function PositionHeadcountPanel() {
@@ -78,7 +81,16 @@ export default function PositionHeadcountPanel() {
     [payload, month],
   );
 
-  const openList = (title: string, entries: HeadcountEntry[]) => setModal({ title, entries });
+  const openList = (title: string, entries: HeadcountEntry[], showReason = false) => setModal({ title, entries, showReason });
+  const excludedByStore = useMemo(() => {
+    const m = new Map<string, HeadcountEntry[]>();
+    (result?.excluded ?? []).forEach((e) => {
+      const arr = m.get(e.store_id) ?? [];
+      arr.push(e);
+      m.set(e.store_id, arr);
+    });
+    return m;
+  }, [result]);
 
   const handleExport = () => {
     if (!result) return;
@@ -227,6 +239,18 @@ export default function PositionHeadcountPanel() {
             只統計「月底仍在職」的人（不含當月離職、留職停薪、調出、支援卡班，也不含督導卡班）。全公司合計每人只算一次；各門市與督導區照實際登記顯示，
             跨店的人會在每間門市各出現一次，所以門市／督導區加總可能大於全公司合計。點任一數字可看名單。
           </p>
+          {result.excluded.length > 0 && (
+            <div>
+              <button
+                type="button"
+                data-testid="headcount-excluded-btn"
+                onClick={() => openList(`不計入名單（${result.excluded.length} 人）`, result.excluded, true)}
+                className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                不計入 {result.excluded.length} 人
+              </button>
+            </div>
+          )}
           <div className={SCROLL_BOX} data-testid="headcount-month-scroll">
             <table className="min-w-full text-sm border-separate border-spacing-0">
               <thead className="text-gray-700">
@@ -249,7 +273,7 @@ export default function PositionHeadcountPanel() {
                   {rowCells(result.company, '全公司')}
                 </tr>
                 {result.areas.map((a) => (
-                  <AreaRows key={a.key} area={a} rowCells={rowCells} />
+                  <AreaRows key={a.key} area={a} rowCells={rowCells} excludedByStore={excludedByStore} onOpenExcluded={(t, e) => openList(t, e, true)} />
                 ))}
                 {result.areas.length === 0 && (
                   <tr>
@@ -310,17 +334,27 @@ export default function PositionHeadcountPanel() {
                 <X size={20} />
               </button>
             </div>
-            <div className="overflow-auto p-4">
+            <div className="overflow-auto px-4 pb-4">
               <table className="min-w-full text-sm border-separate border-spacing-0">
                 <thead className="text-gray-700">
                   <tr>
-                    {['員編', '姓名', '門市', '職位', '階段', '月狀態', '備註'].map((h) => (
+                    {(modal.showReason ? ['門市', '員編', '姓名', '職位', '月狀態', '不計入原因'] : ['員編', '姓名', '門市', '職位', '階段', '月狀態', '備註']).map((h) => (
                       <th key={h} className={`${TH} px-3 py-2 text-left whitespace-nowrap sticky top-0 z-20`}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="[&>tr>td]:border-b [&>tr>td]:border-gray-100">
                   {modal.entries.map((e, i) => (
+                    modal.showReason ? (
+                    <tr key={`${e.key}-${e.store_id}-${i}`}>
+                      <td className="px-3 py-2 whitespace-nowrap">{`${e.store_code} ${e.store_name}`.trim()}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.employee_code}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.employee_name}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.position || '（未填）'}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{e.statusLabel}</td>
+                      <td className="px-3 py-2 whitespace-nowrap">{excludedReasonLabel(e)}</td>
+                    </tr>
+                    ) : (
                     <tr key={`${e.key}-${e.store_id}-${i}`}>
                       <td className="px-3 py-2 whitespace-nowrap">{e.employee_code}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{e.employee_name}</td>
@@ -334,6 +368,7 @@ export default function PositionHeadcountPanel() {
                           .join('、')}
                       </td>
                     </tr>
+                    )
                   ))}
                 </tbody>
               </table>
@@ -349,9 +384,13 @@ export default function PositionHeadcountPanel() {
 function AreaRows({
   area,
   rowCells,
+  excludedByStore,
+  onOpenExcluded,
 }: {
   area: AreaHeadcount;
   rowCells: (g: HeadcountGroup, scopeTitle: string) => JSX.Element;
+  excludedByStore: Map<string, HeadcountEntry[]>;
+  onOpenExcluded: (title: string, entries: HeadcountEntry[]) => void;
 }) {
   return (
     <>
@@ -361,7 +400,18 @@ function AreaRows({
       </tr>
       {area.stores.map((s) => (
         <tr key={s.store.id}>
-          <td className="px-3 py-2 sticky left-0 bg-white z-10 whitespace-nowrap">{`${s.store.store_code} ${s.store.store_name}`.trim()}</td>
+          <td className="px-3 py-2 sticky left-0 bg-white z-10 whitespace-nowrap">
+            {`${s.store.store_code} ${s.store.store_name}`.trim()}
+            {(excludedByStore.get(s.store.id)?.length ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={() => onOpenExcluded(`${`${s.store.store_code} ${s.store.store_name}`.trim()}｜不計入名單`, excludedByStore.get(s.store.id)!)}
+                className="ml-2 text-xs text-gray-500 hover:underline"
+              >
+                不計入 {excludedByStore.get(s.store.id)!.length}
+              </button>
+            )}
+          </td>
           {rowCells(s, `${s.store.store_code} ${s.store.store_name}`.trim())}
         </tr>
       ))}

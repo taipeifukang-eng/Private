@@ -452,7 +452,7 @@ t('督導卡班：(f) 匯出列 — 統計列不計入、代理標註欄、明�
   assert.equal(summaryRows[0]['督導卡班代理（不計入）'], 1);
   const d = detailRows.find((x) => x['員編'] === 'X1');
   assert.equal(d['是否計入'], '否');
-  assert.equal(d['不計入原因'], '督導卡班');
+  assert.equal(d['不計入原因'], '督導卡班（兼代理店長）');
   assert.match(d['備註'], /督導卡班/);
   assert.match(d['備註'], /督導卡班代理店長/);
 });
@@ -494,6 +494,17 @@ t('匯出欄寬：每個表頭都有對應寬度，卡班代理欄不被擠壓�
   assert.ok(w[headers.indexOf('督導卡班代理（不計入）')].wch >= 22);
   assert.equal(w[headers.indexOf('總人數')].wch, 10);
   assert.equal(w[headers.indexOf('其中由督導代理店長')].wch, 18);
+});
+
+t('不計入原因顯示：督導卡班、兼代理店長、離職', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'X1', store_id: 's1' }), ROT({ employee_code: 'X2', store_id: 's1', is_acting_manager: true }), rec({ employee_code: 'X3', store_id: 's1', monthly_status: 'resigned' })],
+    STORES, YM,
+  );
+  const by = (c) => H.excludedReasonLabel(r.excluded.find((e) => e.employee_code === c));
+  assert.equal(by('X1'), '督導卡班');
+  assert.equal(by('X2'), '督導卡班（兼代理店長）');
+  assert.ok(by('X3'));
 });
 
 console.log(`通過 ${passed} 項`);
