@@ -1,0 +1,22 @@
+{
+  "page": "ga-asset-import",
+  "legacyRoute": "/general-affairs/equipment、/general-affairs/facilities、首頁貼標待辦",
+  "workItem": "G07",
+  "entries": [
+    {
+      "id": "import-readback",
+      "mechanism": "api-read",
+      "description": "Excel 匯入後的回讀比對：用新版匯入 API 一次寫入設備與設施後，舊版設備詳情（GET /api/general-affairs/equipment/:id）、舊版設施詳情（GET /api/general-affairs/facilities/:id）讀到的名稱、門市、分類、狀態、重要程度、編號、金額、保固、數量與單位逐欄等於 Excel 填的值；舊版店長待辦（GET /api/general-affairs/equipment/store-onboarding-tasks）對匯入的設備列出「待上傳設備照片」。差異：舊版沒有 Excel 匯入（新增，Q29）；舊版店長待辦只有設備、沒有設施（設施待辦為解讀 b）。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment/:id" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/asset-import/commit" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "import-atomic",
+      "mechanism": "api-read",
+      "description": "整批寫入全成或全不變：同一個檔案裡有一列錯誤時，新版整批不寫入，舊版設備清單（GET /api/general-affairs/equipment）查不到任何一列；舊版新增設備 API 一次也只收單一請求，沒有整批匯入。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/asset-import/commit" } }
+    }
+  ]
+}

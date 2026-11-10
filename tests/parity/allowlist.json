@@ -4362,5 +4362,70 @@
       "key": "native-only:asset-transfers",
       "entry": "sidebar-visibility"
     }
+  },
+  {
+    "id": "m7m8-g07-import-readback-asset-import-api",
+    "page": "ga-asset-import",
+    "description": "新增 Excel 匯入既有設備與設施（下載範本、伺服端解析、逐列預檢、整批寫入全成或全不變）；舊版沒有 Excel 匯入。",
+    "reason": "Q29 已由使用者決定：總務用 Excel 匯入既有設備與設施，匯入後自動產生各店貼標待辦。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q29)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "asset-import-api",
+      "entry": "import-readback"
+    }
+  },
+  {
+    "id": "m7m8-g07-import-atomic-asset-import-api",
+    "page": "ga-asset-import",
+    "description": "新增 Excel 整批匯入，任何一列有錯整批都不寫入（舊版沒有整批匯入）。",
+    "reason": "Q29 已由使用者決定。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q29)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "asset-import-api",
+      "entry": "import-atomic"
+    }
+  },
+  {
+    "id": "m7m8-g07-import-facility-onboarding-tasks",
+    "page": "ga-asset-import",
+    "description": "設施也有貼標待辦（舊版店長待辦只有設備）；Excel 匯入的設施會進入店長手機的貼標待辦。（解讀 b）",
+    "reason": "Q29 的決定覆蓋「設施標籤列印這次不做」：設施比照設備走貼標流程。主迴圈自行解讀或延伸，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "facility-onboarding-tasks",
+      "entry": "import-readback"
+    }
+  },
+  {
+    "id": "m7m8-g07-nav-asset-import",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「資產與庫存」多一項「Excel 匯入」（設備或設施管理者可見；舊版沒有這個項目）。",
+    "reason": "Q29 新頁沒有舊網址，不改舊版側欄元件；入口位置與可見條件為主迴圈設計。主迴圈自行解讀或延伸，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:asset-import",
+      "entry": "sidebar-visibility"
+    }
+  },
+  {
+    "id": "m7m8-g10-nav-onboarding-progress",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「資產與庫存」多一項「上線貼標進度」（設備／設施查看或管理者與店長可見；舊版沒有這個項目）。",
+    "reason": "Q29 已決定要有上線貼標進度頁；側欄入口位置與可見條件為主迴圈設計，新頁沒有舊網址，不改舊版側欄元件。主迴圈自行解讀或延伸，列入回報的待使用者確認清單，驗收時請確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:onboarding-progress",
+      "entry": "sidebar-visibility"
+    }
   }
 ]
