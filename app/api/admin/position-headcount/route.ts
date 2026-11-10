@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
-import { canViewEmployeeManagement } from '@/lib/monthly-staff/employee-management-access';
+import { canAccessEmployeeManagement } from '@/lib/monthly-staff/employee-management-access';
 import { loadPositionHeadcountData, YEAR_MONTH_PATTERN } from '@/lib/monthly-staff/position-headcount-data';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/admin/position-headcount?month=YYYY-MM[&trend=1]
-// 唯讀。權限與員工管理頁相同（admin、營業部助理、營業部主管），在伺服器端檢查。
+// 唯讀。權限與員工管理頁相同（admin 或擁有 employee.manage），在伺服器端檢查。
 export async function GET(request: Request) {
   try {
     const supabase = await createClient();
@@ -15,10 +15,10 @@ export async function GET(request: Request) {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role, department, job_title')
+      .select('role')
       .eq('id', user.id)
       .single();
-    if (!canViewEmployeeManagement(profile)) {
+    if (!(await canAccessEmployeeManagement(user.id, profile))) {
       return NextResponse.json({ success: false, error: '沒有權限' }, { status: 403 });
     }
 
