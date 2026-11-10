@@ -16,11 +16,12 @@ test('總務角色：從全站選單進入服務中心；側欄分組照舊版�
     await expandGroup(page, '料件管理');
     await expect(side.getByRole('button', { name: '料件列表', exact: true })).toBeVisible();
     await expandGroup(page, '設備管理');
-    // 第 2 批已移植設備清冊（按鈕、新版頁籤）；保固管理還沒移植，照舊用連結另開舊頁
+    // 第 2 批已移植設備清冊與保固管理（按鈕、新版頁籤）；QR 標籤列印還沒移植，照舊用連結另開舊頁
     await expect(side.getByRole('button', { name: '設備清冊', exact: true })).toBeVisible();
-    const legacy = side.getByRole('link', { name: /保固管理/ });
+    await expect(side.getByRole('button', { name: '保固管理', exact: true }).first()).toBeVisible();
+    const legacy = side.getByRole('link', { name: /QR 標籤列印/ });
     await expect(legacy).toHaveAttribute('target', '_blank');
-    await expect(legacy).toHaveAttribute('href', /\/general-affairs\/equipment\/warranties$/);
+    await expect(legacy).toHaveAttribute('href', /\/general-affairs\/equipment\/labels$/);
     // 「規劃中」的項目照舊顯示且不可點
     await expandGroup(page, '庫存管理');
     await expect(side.locator('.ga-link.disabled', { hasText: '盤點' }).first()).toBeVisible();
