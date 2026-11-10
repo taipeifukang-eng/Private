@@ -60,6 +60,7 @@ watch(page, load);
 onMounted(load);
 useRefreshOnActivate(props.tab, load);
 
+const zoom = ref<{ url: string; name: string } | null>(null);
 const acting = ref<{ item: Item; action: "approve" | "reject" } | null>(null);
 const note = ref("");
 const actError = ref("");
@@ -109,8 +110,8 @@ async function confirm() {
           <p class="muted">{{ t.code || "尚無編號" }} · {{ t.store_code }} {{ t.store_name }}<template v-if="t.area || t.location_detail"> · {{ [t.area, t.location_detail].filter(Boolean).join(" / ") }}</template></p>
         </div>
         <div class="shots">
-          <figure><img v-if="t.photos.primary?.url" :src="t.photos.primary.url" :alt="`${noun(t)}照片`" /><span v-else class="muted">{{ t.photos.primary ? t.photos.primary.file_name : "沒有照片" }}</span><figcaption>{{ noun(t) }}照片</figcaption></figure>
-          <figure><img v-if="t.photos.label?.url" :src="t.photos.label.url" alt="貼標位置照片" /><span v-else class="muted">{{ t.photos.label ? t.photos.label.file_name : "沒有照片" }}</span><figcaption>貼標位置照片</figcaption></figure>
+          <figure><button v-if="t.photos.primary?.url" type="button" class="zoom" :aria-label="`放大${noun(t)}照片`" @click="zoom = { url: t.photos.primary.url, name: `${noun(t)}照片` }"><img :src="t.photos.primary.url" :alt="`${noun(t)}照片`" /></button><span v-else class="muted">{{ t.photos.primary ? t.photos.primary.file_name : "沒有照片" }}</span><figcaption>{{ noun(t) }}照片</figcaption></figure>
+          <figure><button v-if="t.photos.label?.url" type="button" class="zoom" aria-label="放大貼標位置照片" @click="zoom = { url: t.photos.label.url, name: '貼標位置照片' }"><img :src="t.photos.label.url" alt="貼標位置照片" /></button><span v-else class="muted">{{ t.photos.label ? t.photos.label.file_name : "沒有照片" }}</span><figcaption>貼標位置照片</figcaption></figure>
         </div>
         <div v-if="canReview" class="actions">
           <button type="button" class="primary" @click="ask(t, 'approve')">通過</button>
@@ -124,6 +125,11 @@ async function confirm() {
       <button :disabled="page <= 1 || loading" @click="page--">上一頁</button>
       <button :disabled="page >= pages || loading" @click="page++">下一頁</button>
     </footer>
+
+    <Modal v-if="zoom" :title="zoom.name" wide @cancel="zoom = null">
+      <img class="zoomed" :src="zoom.url" :alt="zoom.name" />
+      <div class="dialog-actions"><button type="button" class="primary" @click="zoom = null">關閉</button></div>
+    </Modal>
 
     <Modal v-if="acting" :title="acting.action === 'approve' ? '通過貼標複核' : '退回重拍'" :busy="busy" @cancel="acting = null">
       <p><strong>{{ acting.item.name }}</strong>（{{ acting.item.code || "尚無編號" }}）</p>
@@ -146,7 +152,9 @@ async function confirm() {
 .badge { border: 1px solid var(--line); border-radius: 10px; padding: 0 9px; font-size: 12px; background: var(--soft); }
 .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .shots figure { margin: 0; display: grid; gap: 4px; }
-.shots img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
+.shots .zoom { display: block; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; min-height: 0; }
+.shots img { display: block; width: 100%; height: 240px; object-fit: contain; background: var(--soft); border-radius: 6px; border: 1px solid var(--line); }
+.zoomed { display: block; max-width: 100%; max-height: 70dvh; margin: 0 auto; object-fit: contain; }
 .shots figcaption { font-size: 12px; color: var(--muted); }
 .actions { display: grid; gap: 8px; }
 .empty { text-align: center; color: var(--muted); padding: 24px; }

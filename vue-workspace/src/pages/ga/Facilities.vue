@@ -484,7 +484,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
 .stat-cards strong { font-size: 22px; }
 .filter-pick { min-width: 220px; flex: 1; }
 .who { display: flex; align-items: center; gap: 10px; }
-.who img { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; }
+.who img { width: 44px; height: 44px; flex: none; object-fit: cover; border-radius: 6px; border: 1px solid #b9c4b2; background: var(--soft); }
 .who-text { display: grid; min-width: 0; }
 .who-text small, .card-title small { color: var(--muted); display: block; }
 .row-btn { min-height: 30px; padding: 3px 12px; font-size: 12px; }
@@ -508,7 +508,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
 .asset-cards { display: none; list-style: none; margin: 0; padding: 0; gap: 12px; }
 .asset-card { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 12px; display: grid; gap: 10px; }
 .card-top { display: flex; gap: 10px; align-items: center; min-width: 0; }
-.card-top img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; }
+.card-top img { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; flex: none; border: 1px solid #b9c4b2; background: var(--soft); }
 .card-title { min-width: 0; display: grid; gap: 2px; overflow-wrap: anywhere; }
 .card-tags { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .card-btn { min-height: 44px; width: 100%; font-weight: 600; }
