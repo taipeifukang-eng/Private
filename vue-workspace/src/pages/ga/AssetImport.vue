@@ -201,7 +201,7 @@ function reset() { file.value = null; result.value = null; done.value = null; er
     </template>
     <Modal v-if="confirmingDup" title="確認匯入" :busy="busy" @cancel="confirmingDup = false">
       <p>準備匯入 {{ result?.summary.total }} 筆。</p>
-      <p class="notice warn" role="alert" data-testid="dup-confirm-text">其中 {{ dupCount }} 列可能與既有資料重複，確定仍要匯入？</p>
+      <p class="notice warn" role="alert" data-testid="dup-confirm-text">其中 {{ dupCount }} 列可能重複（含同檔重複），確定仍要匯入？</p>
       <div class="dialog-actions">
         <button type="button" data-testid="dup-confirm-cancel" @click="confirmingDup = false">取消</button>
         <button type="button" class="primary" data-testid="dup-confirm-ok" :disabled="busy" @click="commit">仍要匯入</button>

@@ -25,7 +25,7 @@ describe('B10 可能重複', () => {
   it('與既有同類型同門市同名（正規化後）標記，訊息含名稱、編號與建立日', () => {
     const r = findPossibleDuplicates([row(2, ' ＡＩＲ　con ')], [ex('Air Con')]);
     expect(r.get(2)).toMatchObject({ type: 'existing', count: 1 });
-    expect(r.get(2)!.message).toBe('可能重複：與既有 「Air Con」（編號 IC01-2026-0001，建立 2026-10-02）同名');
+    expect(r.get(2)!.message).toBe('可能重複：與既有「Air Con」（編號 IC01-2026-0001，建立 2026-10-02）同名');
   });
   it('既有沒編號顯示尚無編號；多筆顯示共幾筆', () => {
     const r = findPossibleDuplicates([row(2, 'A')], [ex('A', { code: null }), ex('a')]);

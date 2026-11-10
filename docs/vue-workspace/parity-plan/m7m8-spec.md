@@ -242,7 +242,7 @@
 | B9 | 轉移途中不能報廢／退役，要先取消轉移單（畫面提示，伺服端 409，資料庫層也擋）。 |
 | B10 | Excel 匯入：同類型＋同門市＋名稱相同且沒填編號（與既有資料或同檔其他列）→ 預覽標黃色「可能重複」，總務確認後仍可匯入（不擋）。 |
 | B11 | xlsx 套件升級先不做，記入待辦（見下）。 |
-| B12–B15 | 新舊版差異 79 項（`tests/parity/allowlist.json` 中 `m7m8-*` 且原 `approvedBy` 為 null 者）全部同意，`approvedBy` 已設為 `user (2026-11-10 batch 2 acceptance)`。 |
+| B12–B15 | 新舊版差異 79 項（`tests/parity/allowlist.json` 中 `m7m8-*` 且原 `approvedBy` 為 null 者）全部同意（依頁面群組：G06 設備 16 項、G07 匯入 2 項、G08 設施 24 項、G09 設施維修／保固 10 項、G10 掃描／轉移 27 項；問卷原題 B12–B15 的逐題分組未留存於 repo，以此群組對照），`approvedBy` 已設為 `user (2026-11-10 batch 2 acceptance)`。 |
 
 ### 待辦（由這次驗收產生）
 

@@ -76,7 +76,8 @@ BEGIN
 END;
 $$;
 
--- 每台設備／設施修過幾次（只列有報修紀錄的資產）
+-- 每台設備／設施修過幾次（只列有報修紀錄的資產）。門市篩選與逐筆一致：報修單門市或資產目前門市等於所選門市的單才計入。
+-- 次數依檢視者可見範圍計算：同一台轉店後，原門市店長只算到自己門市時期的單，新門市店長與看全部者算全部。
 CREATE OR REPLACE FUNCTION public.ga_ws_asset_repair_summary(
   p_type text, p_store_id uuid DEFAULT NULL, p_search text DEFAULT NULL, p_limit integer DEFAULT 50, p_offset integer DEFAULT 0)
 RETURNS jsonb
@@ -111,6 +112,7 @@ BEGIN
       LEFT JOIN ga_facilities cf ON cf.id = sr.facility_id AND p_type = 'FACILITY'
      WHERE sr.deleted_at IS NULL AND sr.request_type = 'REPAIR'
        AND ((p_type = 'EQUIPMENT' AND sr.equipment_id IS NOT NULL) OR (p_type = 'FACILITY' AND sr.facility_id IS NOT NULL))
+       AND (p_store_id IS NULL OR sr.store_id = p_store_id OR COALESCE(ce.store_id, cf.store_id) = p_store_id)
        AND (v_full OR sr.store_id = ANY(v_mine) OR COALESCE(ce.store_id, cf.store_id) = ANY(v_mine))
      GROUP BY COALESCE(sr.equipment_id, sr.facility_id)
   ), base AS (
@@ -118,8 +120,7 @@ BEGIN
            COALESCE(e.name, f.name) AS asset_name, COALESCE(e.asset_code, f.facility_code) AS asset_code, COALESCE(e.store_id, f.store_id) AS store_id
       FROM agg g LEFT JOIN ga_equipment e ON e.id = g.asset_id AND p_type = 'EQUIPMENT'
                  LEFT JOIN ga_facilities f ON f.id = g.asset_id AND p_type = 'FACILITY'
-     WHERE (p_store_id IS NULL OR COALESCE(e.store_id, f.store_id) = p_store_id)
-       AND (v_q IS NULL OR position(v_q IN lower(COALESCE(e.name, f.name, '') || ' ' || COALESCE(e.asset_code, f.facility_code, ''))) > 0)
+     WHERE (v_q IS NULL OR position(v_q IN lower(COALESCE(e.name, f.name, '') || ' ' || COALESCE(e.asset_code, f.facility_code, ''))) > 0)
   ), counted AS (SELECT count(*)::integer AS n FROM base),
   paged AS (SELECT * FROM base ORDER BY repair_count DESC, last_reported_at DESC, asset_id LIMIT v_limit OFFSET v_offset)
   SELECT (SELECT n FROM counted),

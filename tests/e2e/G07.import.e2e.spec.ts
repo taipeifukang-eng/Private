@@ -178,7 +178,7 @@ test('B10 可能重複：預檢標黃色提醒與摘要計數；確認匯入時�
     const commit = page.getByTestId('commit-import').locator('visible=true');
     await expect(commit).toBeEnabled();
     await commit.click();
-    await expect(page.getByTestId('dup-confirm-text')).toHaveText('其中 3 列可能與既有資料重複，確定仍要匯入？');
+    await expect(page.getByTestId('dup-confirm-text')).toHaveText('其中 3 列可能重複（含同檔重複），確定仍要匯入？');
     await page.getByTestId('dup-confirm-cancel').click();
     await expect(page.getByTestId('dup-confirm-text')).toHaveCount(0);
     expect(await countRows([m7Name('E2E-同檔'), m7Name('E2E-不重複')])).toBe(0);

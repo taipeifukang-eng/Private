@@ -192,6 +192,15 @@ test('B6 補充：資產轉到新門市後，新門市店長看得到該資產�
   expect(sumB.body.data.map((r: any) => [r.asset_id, r.repair_count, r.store_code])).toEqual([[eq.id, 2, 'VW001']]);
   const sumA = await get('store_manager', `summary?type=equipment&q=${encodeURIComponent(m7Name('M-'))}`);
   expect(sumA.body.data.map((r: any) => [r.asset_id, r.repair_count])).toEqual([[eq.id, 1]]);
+  // 每台次數的門市篩選與逐筆一致：選 A 店（ZT01）時，A 店店長與總務都看得到這台（A 店時期 1 次）；選 B 店（VW001）時 B 店店長看到 2 次
+  const sumQ = encodeURIComponent(m7Name('M-'));
+  const rowsOf = async (k: string, store: string) => (await get(k, `summary?type=equipment&q=${sumQ}&storeId=${sid[store]}`)).body.data.map((r: any) => [r.asset_id, r.repair_count]);
+  expect(await rowsOf('store_manager', 'ZT01')).toEqual([[eq.id, 1]]);
+  expect(await rowsOf('ga_works', 'ZT01')).toEqual([[eq.id, 1]]);
+  expect(await rowsOf('ga_store_manager_b', 'VW001')).toEqual([[eq.id, 2]]);
+  expect(await rowsOf('ga_works', 'VW001')).toEqual([[eq.id, 2]]);
+  expect(await rowsOf('ga_store_manager_b', 'ZT01')).toEqual([[eq.id, 1]]); // B 店店長選 A 店：只算 A 店時期的單
+  expect(await rowsOf('store_manager', 'VW001')).toEqual([[eq.id, 1]]); // A 店店長選 B 店：資產目前在 B 店但只看得到自己時期的單
   // 設施同規則
   expect(await ids('ga_store_manager_b', 'facility')).toEqual([facOld.id]);
   expect(await ids('store_manager', 'facility')).toEqual([facOld.id]);

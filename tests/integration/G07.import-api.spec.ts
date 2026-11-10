@@ -275,7 +275,7 @@ test('B10 可能重複：沒填編號且同類型同門市同名（與既有資�
   expect(r.body.summary.duplicateCount).toBe(3);
   const byNo = Object.fromEntries(r.body.rows.map((x: any) => [x.row_no, x]));
   expect(byNo[2].ok).toBe(true);
-  expect(byNo[2].warnings[0]).toMatch(/^可能重複：與既有 「.+」（尚無編號，建立 \d{4}-\d{2}-\d{2}）同名$/);
+  expect(byNo[2].warnings[0]).toMatch(/^可能重複：與既有「.+」（尚無編號，建立 \d{4}-\d{2}-\d{2}）同名$/);
   expect(byNo[2].duplicate.type).toBe('existing');
   expect(byNo[3].warnings).toEqual([]);
   expect(byNo[4].warnings).toEqual([]);

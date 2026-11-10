@@ -55,7 +55,7 @@ export function findPossibleDuplicates(rows: DupInputRow[], existing: ExistingAs
       const first = ex[0];
       const createdDate = taipeiDate(first.created_at);
       const label = `「${first.name.trim()}」（${first.code ? `編號 ${first.code}` : "尚無編號"}${createdDate ? `，建立 ${createdDate}` : ""}）`;
-      out.set(r.row_no, { type: "existing", count: ex.length, name: first.name, code: first.code, createdDate, message: `可能重複：與既有 ${label}同名${ex.length > 1 ? `（共 ${ex.length} 筆）` : ""}` });
+      out.set(r.row_no, { type: "existing", count: ex.length, name: first.name, code: first.code, createdDate, message: `可能重複：與既有${label}同名${ex.length > 1 ? `（共 ${ex.length} 筆）` : ""}` });
       continue;
     }
     const others = (fileBy.get(k) || []).filter((n) => n !== r.row_no);
