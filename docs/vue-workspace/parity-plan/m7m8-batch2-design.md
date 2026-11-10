@@ -309,3 +309,11 @@
 5. **正式建置的 `NEXT_PUBLIC_SITE_URL`**：Vercel 正式環境需設定為正式網址並用舊標籤實掃驗證（已列入部署清單）。
 6. 異動紀錄不可被一般身分修改或刪除；測試資料清理由 service role fixture 處理（資料庫觸發器只放行 `service_role`／資料庫管理者的刪除）。
 7. 本批不做 Q27、庫存、需求單頁、工單頁；轉移、貼標與維修紀錄頁需要的需求單資料只讀取，不寫入。
+
+## 13. G08／G09 實作紀錄（設施、保固、維修紀錄）
+
+- 頁面：`Facilities.vue`、`FacilityCreate.vue`、`FacilityFormFields.vue`、`AssetWarranties.vue`（設備與設施共用，依頁籤 kind 區分）、`AssetMaintenanceHistory.vue`（逐筆與每台修過幾次兩個分頁）。設備清冊的刪除、更正所屬門市、恢復使用、異動紀錄等流程在設施清冊用同樣的畫面。
+- 新增旗標：`gaFacilities`、`gaFacilityCreate`、`gaEquipmentWarranties`、`gaFacilityWarranties`、`gaEquipmentHistory`、`gaFacilityHistory`（規則見 `access.ts`，單元測試 `tests/unit/G08`、`G09`）。
+- API 補充（`assets.ts`）：清單可加 `withWarrantyDocs=1`（回這一頁每台的保固文件與簽名網址，只限完整層級）、`warrantyStats=1`（回各保固狀態的精確筆數，不受保固篩選影響）；設施可依 `warranty_end_date`（specs 內日期）排序。維修紀錄 API（`history.ts`）回 `permissions.seeAssignee`，另外在 API 層擋掉「只有另一類資產權限的人用 type 參數讀這一類」。
+- 側欄：設施保固管理補在「設施管理」群組最後；沒有舊版「設施管理」群組的名單內身分（只有店長名單身分、沒有 `store_manager` 角色代碼者）在「資產與庫存」補「設施清冊」「設施維修紀錄」。這些新增或收斂的入口都列在 `tests/parity/allowlist.json`（`m7m8-g08-nav-*`、`m7m8-g09-nav-*`，approvedBy 為 null，待使用者確認）。
+- 舊版事實：舊維修紀錄頁讀 `maintenance_requests` 並過濾 `equipment_id`／`facility_id`，但工單資料表沒有這兩欄，實際永遠沒有資料；Q11 改讀需求單與其工單。

@@ -116,6 +116,7 @@ test('G08 設施清冊畫面：搜尋（含逗號括號）、詳情、編輯只�
     await expect(page.getByText('找不到符合的設施').locator('visible=true').first()).toBeVisible();
     await openFacility(page, f.name);
     await expect(dialog(page)).toContainText('原品牌 / 原型號');
+    await expect(dialog(page)).toContainText('待上傳設施照片'); // 貼標進度（設施用「設施照片」的說法）
     await expect(dialog(page)).toContainText('申請保固方式');
     await expect(dialog(page)).toContainText('上網登錄保固');
     // 編輯：改位置，沒碰品牌與保固申請方式

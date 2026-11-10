@@ -384,7 +384,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
             <div class="wide"><dt>備註</dt><dd>{{ detail.notes || "—" }}</dd></div>
           </template>
         </dl>
-        <div class="onb-box"><AssetOnboardingBar :status="detail.onboarding_status" />
+        <div class="onb-box"><AssetOnboardingBar :status="detail.onboarding_status" type="facility" />
           <p v-if="detail.onboarding_review_note" class="muted">總務複核說明：{{ detail.onboarding_review_note }}</p></div>
         <ResourceAttachmentPanel v-if="seeFull" class="equip-attachments" resource-type="FACILITY" :resource-id="detail.id" title="設施照片與文件" :can-upload="canManage" :can-delete="canManage" />
         <section v-if="seeFull" class="events">
