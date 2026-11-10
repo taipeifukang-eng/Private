@@ -539,6 +539,22 @@ t('跨店：其中一店屬自己督導區 → 算自己區那間（員編大小
   assert.equal(exOf(r, 'SUP1')[0].store_code, 'VW001');
   assert.equal(r.company.totalPeople, 1);
 });
+t('跨店：督導員編內部空白正規化（SU P1 = SUP1）', () => {
+  const st = [
+    { id: 'n1', store_code: 'ZT11', store_name: '一店', supervisor_id: 'u9', supervisor_name: '某督導', supervisor_employee_code: 'SU P1' },
+    { id: 'n2', store_code: 'ZT12', store_name: '二店', supervisor_id: null, supervisor_name: null },
+  ];
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'SUP1', store_id: 'n2', position: '督導' }), rec({ employee_code: 'SUP1', store_id: 'n1', position: '督導' })], st, YM);
+  assert.deepEqual(XS(r, 'SUP1'), ['ZT11']);
+});
+t('跨店：含 S 的不同員編不會被誤判為自己督導區（HS01 vs H01）', () => {
+  const st = [
+    { id: 'm1', store_code: 'ZT29', store_name: '一店', supervisor_id: 'u8', supervisor_name: '某督導', supervisor_employee_code: 'HS01' },
+    { id: 'm2', store_code: 'ZT22', store_name: '二店', supervisor_id: null, supervisor_name: null },
+  ];
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'H01', store_id: 'm2', position: '督導' }), rec({ employee_code: 'H01', store_id: 'm1', position: '督導' })], st, YM);
+  assert.deepEqual(XS(r, 'H01'), ['ZT22']);
+});
 t('跨店：代理優先於自己區', () => {
   const r = H.computeMonthHeadcount([rec({ employee_code: 'SUP1', store_id: 's2', position: '督導' }), rec({ employee_code: 'SUP1', store_id: 's3', position: '督導(代理店長)' })], STORES, YM);
   assert.deepEqual(XS(r, 'SUP1'), ['VW001']);

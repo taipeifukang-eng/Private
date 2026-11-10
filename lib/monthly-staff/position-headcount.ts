@@ -325,7 +325,7 @@ export function groupCount(g: HeadcountGroup, col: ColumnKey): number {
 }
 
 function normCode(c: string | null | undefined): string {
-  return String(c ?? '').replace(/s+/g, '').toUpperCase();
+  return String(c ?? '').replace(/\s+/g, '').toUpperCase();
 }
 
 function storeLabel(e: Pick<HeadcountEntry, 'store_code' | 'store_name'>): string {
