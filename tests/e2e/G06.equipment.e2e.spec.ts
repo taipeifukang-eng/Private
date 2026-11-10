@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
-  adminDb, apiForUser, assertGaBaseline, cleanupM7M8, m7Name, row, rowsWhere, seedCategory, seedEquipment, seedFacility, seedPart, seedRepairRequest, setupM7Users, stores,
+  adminDb, apiForUser, assertGaBaseline, cleanupM7M8, m7Name, row, rowsWhere, seedCategory, seedEquipment, seedEquipmentTemplate, seedFacility, seedPart, seedRepairRequest, setupM7Users, stores,
   type M7User,
 } from '../support/m7m8-fixtures';
 import { gaNavTo, noPageOverflow, openGaCenter, pageFor, pageForUser } from '../support/g01-ui';
@@ -363,6 +363,42 @@ test('解讀 (d) 料件列表：手機（390）一筆一張卡片、操作按鈕
       await expect(page.locator('li.part-card:visible')).toHaveCount(0);
     }
     expect(await noPageOverflow(page)).toBe(true);
+    expect(errors).toEqual([]);
+  } finally {
+    await c.close();
+  }
+});
+
+test('編輯料件、編輯公司設備型號：已有分類在子層時也要顯示分類名稱（不是搜尋框提示、沒有自動展開的選單），不改分類直接儲存分類不變', async ({ browser }, testInfo) => {
+  const pParent = await seedCategory('part', 'PPAR');
+  const pChild = await seedCategory('part', 'PCHD', { parent_id: pParent.id });
+  const part = await seedPart(pChild.id, 'E2E-分類顯示料件');
+  const eParent = await seedCategory('equipment', 'TPAR');
+  const eChild = await seedCategory('equipment', 'TCHD', { parent_id: eParent.id });
+  const tpl = await seedEquipmentTemplate(eChild.id, 'E2E-分類顯示型號');
+  const { ctx: c, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    // 料件
+    await gaNavTo(page, '料件列表', '料件管理');
+    await searchBox(page).fill(part.name);
+    await page.locator('tr:visible, li.part-card:visible', { hasText: part.name }).getByRole('button', { name: '編輯', exact: true }).click();
+    await expect(dialog(page).getByRole('heading', { name: '編輯料件' })).toBeVisible();
+    await expect(dialog(page).locator('.cat-selected')).toContainText(pChild.name);
+    await expect(dialog(page).getByRole('combobox', { name: /料件分類/ })).toHaveCount(0);
+    await expect(dialog(page).locator('.cat-pop')).toHaveCount(0);
+    await dialog(page).getByLabel('品牌', { exact: true }).fill('分類顯示品牌');
+    const patch = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().includes(`/parts/${part.id}`));
+    await dialog(page).getByRole('button', { name: '儲存' }).click();
+    expect((await patch).postDataJSON().category_id).toBe(pChild.id); // 料件編輯本來就整份送出：送的是原本的分類，沒有被清掉或改掉
+    await expect(notice(page, `已儲存料件「${part.name}」`)).toBeVisible();
+    expect(await row('ga_parts', part.id)).toMatchObject({ category_id: pChild.id, brand: '分類顯示品牌' });
+    // 公司設備型號
+    await gaNavTo(page, '公司設備型號', '設備管理');
+    await page.locator('tr:visible, li:visible', { hasText: tpl.name }).getByRole('button', { name: '編輯', exact: true }).first().click();
+    await expect(dialog(page).locator('.cat-selected')).toContainText(eChild.name);
+    await expect(dialog(page).getByRole('combobox', { name: /設備分類/ })).toHaveCount(0);
+    await expect(dialog(page).locator('.cat-pop')).toHaveCount(0);
     expect(errors).toEqual([]);
   } finally {
     await c.close();

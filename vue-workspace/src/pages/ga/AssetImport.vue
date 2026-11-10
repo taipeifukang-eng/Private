@@ -197,6 +197,10 @@ function reset() { file.value = null; result.value = null; done.value = null; er
             </tbody>
           </table>
         </div>
+        <div v-if="shownRows.length > 8" class="buttons" data-testid="import-bar-bottom">
+          <button type="button" class="primary big" data-testid="commit-import-bottom" :disabled="!result.canCommit || busy" @click="askCommit">{{ busy ? "處理中…" : `確認匯入 ${result.summary.total} 筆` }}</button>
+          <button type="button" class="big" :disabled="busy" @click="reset">取消</button>
+        </div>
       </section>
     </template>
     <Modal v-if="confirmingDup" title="確認匯入" :busy="busy" @cancel="confirmingDup = false">

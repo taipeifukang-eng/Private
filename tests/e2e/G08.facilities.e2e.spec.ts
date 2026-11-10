@@ -304,6 +304,12 @@ test('編輯設施：已有分類（即使是停用、又在子層的分類）�
     await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
     await expect(dialog(page).getByRole('combobox', { name: /設施分類/ })).toHaveCount(0);
     await expect(dialog(page).locator('.cat-pop')).toHaveCount(0);
+    // 完全沒改就儲存：不送出任何欄位（不會呼叫伺服器，所以分類停用也沒關係），分類不變
+    await dialog(page).getByRole('button', { name: '儲存' }).click();
+    await expect(page.locator('.notice:visible', { hasText: '沒有修改任何欄位' }).first()).toBeVisible();
+    expect((await row('ga_facilities', f.id)).category_id).toBe(child.id);
+    await dialog(page).getByRole('button', { name: '編輯' }).click();
+    await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
     expect((await adminDb().from('ga_facility_categories').update({ is_active: true }).eq('id', child.id)).error).toBeNull(); // 資料庫對停用分類下的設施任何更新都會擋，重新啟用後再驗證儲存
     await dialog(page).getByLabel('詳細位置').fill('櫃台後方');
     const patch = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().includes(`/facilities/${f.id}`));

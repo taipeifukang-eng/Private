@@ -45,6 +45,34 @@ async function expectNoBarOverlap(page: Page, rows: number) {
   }
 }
 
+test('預檢結果列數多（40 列，超過一屏）：每一列捲到畫面中都不被按鈕列蓋住；表格下方另有一組確認匯入按鈕，不用捲回頂端；預檢不寫入', async ({ browser }, testInfo) => {
+  const { ctx, page, errors } = await pageFor(browser, 'ga_works', testInfo);
+  try {
+    await openGaCenter(page);
+    await gaNavTo(page, 'Excel 匯入');
+    const lines = Array.from({ length: 40 }, (_, i) => importEquipmentLine(`E2E-多列${i}`, 'ZT01', eqCat.code, { 資產編號: '' }));
+    await upload(page, 'many', buildImportXlsx(lines));
+    await expect(rowsOf(page)).toHaveCount(40);
+    // 頁面確實比一屏長，才測得出按鈕列黏在畫面上蓋住資料列的問題
+    expect(await page.evaluate(() => [...document.querySelectorAll('table.grid-table')].some((t) => t.getBoundingClientRect().height > window.innerHeight * 1.5))).toBe(true);
+    await expectNoBarOverlap(page, 40);
+    // 最後一列捲到畫面中後，下方那組按鈕就在表格後面（不蓋住任何列），而且可見、可點、不小於 44px
+    const bottom = page.getByTestId('commit-import-bottom').locator('visible=true');
+    await bottom.scrollIntoViewIfNeeded();
+    await expect(bottom).toBeEnabled();
+    await expect(bottom).toContainText('確認匯入 40 筆');
+    const bb = (await bottom.boundingBox())!;
+    const last = (await rowsOf(page).nth(39).boundingBox())!;
+    expect(bb.y).toBeGreaterThanOrEqual(last.y + last.height);
+    expect(bb.height).toBeGreaterThanOrEqual(44);
+    expect(await countRows(lines.map((l) => l.名稱 as string))).toBe(0);
+    expect(await noPageOverflow(page)).toBe(true);
+    expect(errors).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
+});
+
 test('總務：下載範本 -> 上傳有錯的檔案（標出列與原因、不能提交、資料庫沒有新增）-> 改好重傳 -> 確認匯入 -> 完成摘要 -> 讀回資料庫', async ({ browser }, testInfo) => {
   const { ctx, page, errors } = await pageFor(browser, 'ga_works', testInfo);
   try {

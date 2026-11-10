@@ -16,8 +16,9 @@ const total = ref(0);
 const loading = ref(false);
 const error = ref("");
 const open = ref(false);
-// 使用者有沒有主動操作過搜尋框。對話框開啟時瀏覽器會自動把焦點放到第一個欄位（就是這個搜尋框），
+// 使用者有沒有主動操作過搜尋框（輸入文字、點選搜尋框或按「更換」）。對話框開啟時瀏覽器會自動把焦點放到第一個欄位（就是這個搜尋框），
 // 那時已選分類的名稱還在載入；若把那次自動聚焦當成「要換分類」，名稱載入完成後也不會顯示。
+// 不看按鍵：Tab、Enter 這類按鍵不代表要換分類（真的要找分類一定會輸入文字或點選）。
 let touched = false;
 const selected = ref<Option | null>(null);
 const latest = useLatest();
@@ -104,7 +105,6 @@ onMounted(resolveSelected);
       :placeholder="'搜尋或瀏覽' + label + '（名稱、代碼）'"
       @focus="open = true"
       @input="touched = true"
-      @keydown="touched = true"
       @pointerdown="touched = true"
     />
     <div v-if="open" class="cat-pop" role="listbox" :aria-label="label + '選項'">
