@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import { categoryPermissions, gaFlags, GA_CENTER_CODES, dbCan, isStoreManagerRole, type CategoryType } from "./access";
 import { equipmentApi, facilitiesApi } from "./assets";
+import { assetImportApi } from "./asset-import";
 import { attachmentsApi } from "./attachments";
 import { categoriesApi } from "./categories";
 import { maintenanceApi } from "./history";
@@ -51,6 +52,8 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return maintenanceApi(ctx, request, rest);
     case "onboarding":
       return onboardingApi(ctx, request, rest);
+    case "asset-import":
+      return assetImportApi(ctx, request, rest);
     case "transfers":
       return transfersApi(ctx, request, rest);
     case "qr":
