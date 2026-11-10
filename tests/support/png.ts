@@ -19,7 +19,7 @@ function chunk(type: string, data: Buffer) {
   crc.writeUInt32BE(crc32(body));
   return Buffer.concat([len, body, crc]);
 }
-export function makePng(opts: { width?: number; height?: number; inkPixels?: number; transparent?: boolean } = {}): Buffer {
+export function makePng(opts: { width?: number; height?: number; inkPixels?: number; transparent?: boolean; colorful?: boolean } = {}): Buffer {
   const width = opts.width ?? 200;
   const height = opts.height ?? 60;
   const stride = width * 4;
@@ -29,6 +29,17 @@ export function makePng(opts: { width?: number; height?: number; inkPixels?: num
     raw[y * (stride + 1)] = 0; // filter none
     for (let x = 0; x < width; x++) {
       const o = y * (stride + 1) + 1 + x * 4;
+      if (opts.colorful) {
+        // 紅、綠、藍、黃色塊加對角線，一眼就看得出圖有沒有載入
+        const band = Math.floor((x * 4) / width);
+        const [r, g, b] = [[220, 40, 40], [40, 170, 60], [40, 80, 220], [240, 190, 30]][band];
+        const diag = Math.abs(x - y * (width / height)) < 4;
+        raw[o] = diag ? 255 : r;
+        raw[o + 1] = diag ? 255 : g;
+        raw[o + 2] = diag ? 255 : b;
+        raw[o + 3] = 255;
+        continue;
+      }
       const drawn = ink > 0 && y === Math.floor(height / 2);
       if (drawn) {
         raw[o] = 20;

@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test';
 import * as XLSX from 'xlsx';
 import { adminDb, assertGaBaseline, cleanupM7M8, m7Name, seedCategory } from '../support/m7m8-fixtures';
 import { buildImportXlsx, importEquipmentLine, importFacilityLine, importFileName, IMPORT_HEADERS } from '../support/m7m8-import';
-import { gaNavTo, noPageOverflow, openGaCenter, pageFor, sideLabels, visibleHeading } from '../support/g01-ui';
+import { expectTidyCheckbox, gaNavTo, noPageOverflow, openGaCenter, pageFor, sideLabels, visibleHeading } from '../support/g01-ui';
 
 // M7/M8 第 2 批 Q29 Excel 匯入 e2e（桌機 1440 與手機 390 各跑一次，使用 project 的視窗大小）：
 //   下載範本 -> 上傳有錯的檔案（逐列標出原因、整批不能提交、資料庫沒有任何新增）-> 改好重傳 -> 確認匯入 -> 完成摘要 -> 資料庫讀回（自動進入貼標待辦）-> 前往上線貼標進度。
@@ -60,6 +60,7 @@ test('總務：下載範本 -> 上傳有錯的檔案（標出列與原因、不�
     await expect(rowsOf(page).nth(1)).toContainText('3'); // Excel 列號
     await expect(rowsOf(page).nth(2)).toContainText('「安裝日期」「2026-02-31」不是有效日期');
     await expect(page.getByTestId('commit-import').locator('visible=true')).toBeDisabled();
+    await expectTidyCheckbox(page, '只看有問題的列');
     await page.getByLabel('只看有問題的列').locator('visible=true').check();
     await expect(rowsOf(page)).toHaveCount(2);
     expect(await noPageOverflow(page)).toBe(true);

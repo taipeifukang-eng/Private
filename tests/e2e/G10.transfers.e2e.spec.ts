@@ -29,6 +29,15 @@ const dialog = (page: Page) => page.locator('dialog[open]').last();
 const notice = (page: Page, text: string | RegExp) => page.locator('.notice:visible', { hasText: text }).first();
 /** 轉移單列：桌機是表格列，手機是卡片。 */
 const transferRow = (page: Page, text: string) => page.locator('tr[data-testid="transfer-row"]:visible, li[data-testid="transfer-card"]:visible', { hasText: text });
+/** 對話框的主按鈕與「返回」要一開啟就在視窗內（手機 390×844 內容很長時按鈕列固定在底部，不用捲動）。 */
+async function expectActionsInViewport(page: Page, primary: string) {
+  const vh = page.viewportSize()!.height;
+  for (const b of [dialog(page).getByRole('button', { name: primary }).last(), dialog(page).getByRole('button', { name: '返回' })]) {
+    await expect(b).toBeInViewport({ ratio: 1 });
+    const box = await b.boundingBox();
+    expect(box!.y + box!.height).toBeLessThanOrEqual(vh);
+  }
+}
 const tab = (page: Page, name: string | RegExp) => page.getByRole('tab', { name }).locator('visible=true').first();
 
 async function pickStore(scope: ReturnType<Page['locator']>, label: string, code: string) {
@@ -155,9 +164,11 @@ test('店長（ZT01 帳號）：待我處理 → 確認交出（附照片）→ 
     }
     await ra.getByRole('button', { name: '確認交出' }).click();
     await expect(dialog(a.page)).toContainText('確認交出');
+    await expectActionsInViewport(a.page, '確認交出');
     await dialog(a.page).getByLabel('備註').fill('E2E 已裝箱');
     await dialog(a.page).getByTestId('upload-input').setInputFiles({ name: 'm7m8t-handover.png', mimeType: 'image/png', buffer: png() });
     await expect(dialog(a.page).getByRole('list', { name: '待上傳的檔案' })).toContainText('m7m8t-handover.png');
+    await expectActionsInViewport(a.page, '確認交出');
     await dialog(a.page).getByRole('button', { name: '確認交出' }).last().click();
     await expect(notice(a.page, '已確認交出')).toBeVisible();
     await expect(transferRow(a.page, eq.name)).toHaveCount(0); // 已不在待我處理
@@ -172,7 +183,9 @@ test('店長（ZT01 帳號）：待我處理 → 確認交出（附照片）→ 
     await expect(transferRow(b.page, fac.name)).toHaveCount(0);
     await expect(transferRow(b.page, eq.name).getByRole('button', { name: '確認交出' })).toHaveCount(0);
     await transferRow(b.page, eq.name).getByRole('button', { name: '確認收到' }).click();
+    await expectActionsInViewport(b.page, '確認收到');
     await dialog(b.page).getByTestId('upload-input').setInputFiles({ name: 'm7m8t-receive.png', mimeType: 'image/png', buffer: png() });
+    await expectActionsInViewport(b.page, '確認收到');
     await dialog(b.page).getByRole('button', { name: '確認收到' }).last().click();
     await expect(notice(b.page, /已確認收到.*原 QR 標籤繼續可用/)).toBeVisible();
     expect((await row('ga_equipment', eq.id)).store_id).toBe(s.VW001.id);

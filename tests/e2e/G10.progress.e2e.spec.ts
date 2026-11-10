@@ -2,7 +2,7 @@ import { expect, type APIRequestContext, type Page, test } from '@playwright/tes
 import { apiAs } from '../support/auth';
 import { assertGaBaseline, cleanupM7M8, seedCategory, seedEquipment, seedFacility } from '../support/m7m8-fixtures';
 import { driveTo } from '../support/m7m8-import';
-import { gaNavTo, noPageOverflow, openGaCenter, pageFor, visibleHeading } from '../support/g01-ui';
+import { expectTidyCheckbox, gaNavTo, noPageOverflow, openGaCenter, pageFor, visibleHeading } from '../support/g01-ui';
 
 // M7/M8 第 2 批 Q29 上線貼標進度頁 e2e（桌機 1440 與手機 390 各跑一次）：
 //   每店設備與設施總數、各階段數量、完成率；點進某店看卡在哪一台；已 100% 的門市預設收起；依門市批次印標籤（帶門市篩選進標籤頁）；
@@ -62,6 +62,7 @@ test('總務：各店設備與設施數量、階段、完成率；點進看卡�
     await expect(zt.getByTestId('stage-COMPLETED')).toHaveText('1');
     // 已 100% 的乙店預設不顯示，勾選後出現
     await expect(card(page, 'VW001')).toHaveCount(0);
+    await expectTidyCheckbox(page, '也顯示已 100% 完成的門市');
     await page.getByLabel('也顯示已 100% 完成的門市').locator('visible=true').check();
     await expect(card(page, 'VW001').getByTestId('progress-rate')).toHaveText('100%');
     expect(await noPageOverflow(page)).toBe(true);

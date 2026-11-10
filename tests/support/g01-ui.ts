@@ -69,3 +69,16 @@ export async function gaNavToIn(page: Page, group: string, label: string) {
   const li = shell(page).locator('aside li').filter({ has: page.getByRole('button', { name: group, exact: true }) }).first();
   await li.locator('.ga-sub').getByRole('button', { name: label, exact: true }).click();
 }
+
+/** 勾選框要是一般大小（寬高 <= 24px），所屬標籤要單行（高度 <= 1.6 倍行高），避免全域 input 樣式把它放大成方塊。 */
+export async function expectTidyCheckbox(page: Page, label: string) {
+  const box = page.getByLabel(label).locator('visible=true').first();
+  const m = await box.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const lab = el.closest('label') as HTMLElement;
+    const lr = lab.getBoundingClientRect();
+    return { w: r.width, h: r.height, labelH: lr.height, line: parseFloat(getComputedStyle(lab).lineHeight) || parseFloat(getComputedStyle(lab).fontSize) * 1.4 };
+  });
+  if (m.w > 24 || m.h > 24) throw new Error(`勾選框「${label}」太大：${m.w}x${m.h}`);
+  if (m.labelH > Math.max(m.line * 1.6, 44)) throw new Error(`勾選框「${label}」的標籤不是單行：高度 ${m.labelH}`);
+}
