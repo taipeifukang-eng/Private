@@ -336,3 +336,13 @@
 - 測試：單元 `tests/unit/G10/transfers.test.ts`；整合 `G10.transfers-api.spec.ts`；冒煙 `G10.transfers.spec.ts`；e2e `G10.transfers.e2e.spec.ts`（桌機與手機）與劇本 `G10.journey-transfer.spec.ts`（Q26「設備轉移」，只在桌機 project 跑一次，內部自行指定總務桌機 1440、兩位店長手機 390，含「無權限者做不到」）；對等 `G10.ga-transfer.spec.ts`（map：`tests/parity/map/ga-transfer.json`）。
 - 白名單（page `ga-transfer`、`ga-assets`）：轉移單 API 新增填 Q28；(g) 確認身分限制、(h) 未結案單不搬、側欄入口填 `null` 並列入 `STILL_PENDING`。
 - 自行解讀（規格沒寫）：轉移單清單對「只有設備查看權限」者可讀不可寫；總務有任一類管理權限即可取消（資料庫再依資產類別判斷）；取消的轉移單保留在「已取消」分頁；轉移單照片放 `asset-transfers/{id}/{handover|receive}/`，只收圖片；店長手機介面一律「確認」兩段式（先開確認視窗再送出）。
+
+## 16. Q29 Excel 匯入與上線貼標進度實作紀錄
+
+- 伺服端：`lib/workspace/general-affairs/import-columns.ts`（欄位定義、xlsx 讀取、中文值轉資料庫值，純函式）、`asset-import.ts`（`assetImportApi`）。路徑 `GET /asset-import/reference`、`GET /asset-import/template`（xlsx 範本：「匯入資料」只有表頭，代碼與編號欄預設文字格式；「填寫說明」「代碼對照」兩個分頁）、`POST /asset-import/check`（預檢）、`POST /asset-import/commit`（整批寫入）。檔案用 multipart 上傳到伺服端，由伺服端用專案既有 `xlsx` 套件解析（不信任瀏覽器解析結果；與設計 §5.2 的「前端解析」不同，依本批任務改為伺服端解析）；限 `.xlsx`、2MB、500 列（空白列不算）。`commit` 會重新讀檔、重新檢查，格式有錯一律不呼叫寫入；有格式錯誤時 `check` 仍把沒問題的列送資料庫預檢，讓使用者一次看到全部問題。回傳逐列 `{row_no, kind, store_code, category_code, name, code, ok, errors[]}`、統計與 `canCommit`。防重複識別碼由前端每選一次檔產生一個，`commit` 必填。權限：設備或設施管理才進得來；設備列需要設備管理、設施列需要設施管理（資料庫函式判斷，被擋整批不寫入）。
+- 匯入後的設備與設施依資料庫預設進入「待上傳照片」，也就是各店店長手機上的貼標待辦；批次紀錄在 `ga_asset_import_batches`，每列 `specs.import_batch_id` 指到批次。
+- 頁面：`AssetImport.vue`（桌機優先；下載範本、選檔後立刻預檢、有問題的列標紅與原因、可只看有問題的列、有錯不能提交、提交後顯示完成摘要與下一步按鈕）、`OnboardingProgress.vue`（一店一張卡：完成率條、設備與設施各完成數、四個階段數量；「看卡在哪一台」列出未完成的每一台與退回原因；「印設備／設施標籤」帶門市篩選開標籤頁）。`AssetLabels.vue` 支援頁籤 payload 的 `storeId`、`storeLabel`。貼標待辦、複核、進度三頁在頁籤切回前景時自動重新載入（`useRefreshOnActivate`），避免接力流程看到過時資料。
+- 旗標：`gaOnboardingProgress`（設備／設施查看或管理、店長身分、名單內人員）、`gaAssetImport`（設備或設施管理）；側欄在「資產與庫存」最後依序追加「上線貼標進度」「Excel 匯入」。
+- 測試：單元 `tests/unit/G07/`（欄位轉換與 Excel 讀取、旗標與側欄）；整合 `G07.import-api.spec.ts`；冒煙 `G07.import.spec.ts`、`G10.progress.spec.ts`；e2e `G07.import.e2e.spec.ts`、`G10.progress.e2e.spec.ts`（桌機與手機）與劇本 `G10.journey-onboarding.spec.ts`（Q26「上線貼標」，只在桌機 project 跑一次，內部自行指定總務桌機、店長手機）；對等 `G07.ga-asset-import.spec.ts`（map：`tests/parity/map/ga-asset-import.json`）。共用工具 `tests/support/m7m8-import.ts`。
+- 白名單：Excel 匯入新增（兩條）填 Q29；設施貼標待辦、兩個側欄入口填 `null` 並列入 `STILL_PENDING`。
+- 自行解讀（規格沒寫）：匯入頁只收 `.xlsx`；設備列不能填設施欄位（設施代碼、數量、單位）、設施列不能填設備欄位（品牌、型號、序號、資產編號），填了就標錯而不是默默忽略；狀態與重要程度可填中文或資料庫英文代碼，留空視為「使用中」「一般」；進度頁預設收起已 100% 的門市（可勾選顯示）、沒有任何資產的門市不列；「看卡在哪一台」最多列 100 筆；進度頁的「印標籤」設備與設施各一個按鈕。
