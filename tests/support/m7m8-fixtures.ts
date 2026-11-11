@@ -272,6 +272,9 @@ export async function cleanupM7M8(): Promise<string[]> {
   await del(db, 'ga_part_compatibilities', 'part_id', partIds, log);
   await del(db, 'ga_inventory_transfer_items', 'transfer_id', transferIds, log);
   await del(db, 'ga_inventory_transfers', 'id', transferIds, log);
+  // 測試真的過帳（呼叫過帳函式）留下的流水有不可改刪觸發器：用 DEV 專用清除函式（只處理名稱帶標記的位置與料件）清掉，之後才能刪餘額、位置與料件。
+  const swept = await db.rpc('ga_dev_cleanup_m7m8_inventory');
+  if (swept.error && swept.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_inventory: ${swept.error.message}`);
   await del(db, 'ga_inventory_balances', 'part_id', partIds, log);
   await del(db, 'ga_inventory_balances', 'location_id', locIds, log);
   await del(db, 'ga_inventory_location_parts', 'part_id', partIds, log);

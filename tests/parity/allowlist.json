@@ -4836,5 +4836,329 @@
       "key": "native-only:inventory-locations-new",
       "entry": "sidebar-visibility"
     }
+  },
+  {
+    "id": "m7m8-g12-extra-low-stock-level",
+    "page": "ga-inventory",
+    "description": "新版餘額清單每列多回 level（低庫存標示：red／yellow）；舊版沒有。",
+    "reason": "C7：餘額表紅標（低於安全庫存）、黃標（低於補貨點）與「只看需補貨」篩選，需要資料庫端算好標示。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "level"
+    }
+  },
+  {
+    "id": "m7m8-g12-extra-safety-stock",
+    "page": "ga-inventory",
+    "description": "新版餘額清單多回 safety_stock_qty（安全庫存）。",
+    "reason": "C7 低庫存標示的門檻值。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "safety_stock_qty"
+    }
+  },
+  {
+    "id": "m7m8-g12-extra-reorder-point",
+    "page": "ga-inventory",
+    "description": "新版餘額清單多回 reorder_point_qty（補貨點）。",
+    "reason": "C7 低庫存標示的門檻值。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "reorder_point_qty"
+    }
+  },
+  {
+    "id": "m7m8-g12-extra-maximum-stock",
+    "page": "ga-inventory",
+    "description": "新版餘額清單多回 maximum_stock_qty（最高庫存）。",
+    "reason": "與安全庫存、補貨點同一筆位置料件設定一起帶出。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "maximum_stock_qty"
+    }
+  },
+  {
+    "id": "m7m8-g12-extra-total",
+    "page": "ga-inventory",
+    "description": "新版清單多回 total（符合條件的精確總筆數）。",
+    "reason": "C5 分頁與精確筆數（核可 assumptions：清單、統計卡伺服端精確筆數）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g12-extra-stats",
+    "page": "ga-inventory",
+    "description": "新版餘額清單多回 stats（資料庫端精確統計：有庫存項目、低於安全庫存、低於補貨點、負庫存、持有狀態加總）。",
+    "reason": "C4 持有狀態統計改全量、C7 統計卡；舊版只算載入的 50 筆。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats"
+    }
+  },
+  {
+    "id": "m7m8-g12-extra-permissions",
+    "page": "ga-inventory",
+    "description": "新版清單多回 permissions（是否唯讀、能否過帳、缺哪個權限的說明）。",
+    "reason": "頁面依權限顯示按鈕與說明（兩個權限缺哪個講清楚，Q13）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
+  },
+  {
+    "id": "m7m8-g12-legacy-success-envelope",
+    "page": "ga-inventory",
+    "description": "舊版清單回應多一層 success 外殼；新版直接回 data／meta。",
+    "reason": "與第 1 批驗收核可的回應格式一致（新版 API 不再包 success 外殼）。",
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g12-balance-last-transaction-id",
+    "page": "ga-inventory",
+    "description": "新版餘額列不回傳 last_transaction_id（最後一筆流水 id）；舊版有。",
+    "reason": "畫面用不到，只回需要的欄位。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "last_transaction_id"
+    }
+  },
+  {
+    "id": "m7m8-g12-balance-created-at",
+    "page": "ga-inventory",
+    "description": "新版餘額列不回傳 created_at；舊版有。",
+    "reason": "畫面只用最後異動時間，不顯示建立時間。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "created_at"
+    }
+  },
+  {
+    "id": "m7m8-g12-notes-masked",
+    "page": "ga-inventory",
+    "description": "名單身分（店長、督導、區經理）看不到持有狀態調整原因與流水備註（伺服端遮蔽成 null）；舊版店長看得到。",
+    "reason": "C12：內部備註、原因由伺服端挑欄位遮蔽。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "notes"
+    }
+  },
+  {
+    "id": "m7m8-g12-reason-masked",
+    "page": "ga-inventory",
+    "description": "名單身分看不到交易原因（伺服端遮蔽成 null，畫面改顯示來源標籤）；舊版店長看得到。",
+    "reason": "C12：調撥原因等內部說明遮蔽，只顯示白話標籤。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "reason"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-hidden-reference-id",
+    "page": "ga-inventory",
+    "description": "新版流水不回傳 reference_id（參考單據 id）；舊版有。",
+    "reason": "來源改用 source_label／transfer_no 白話顯示，不外露內部 id。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "reference_id"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-hidden-idempotency-key",
+    "page": "ga-inventory",
+    "description": "新版流水不回傳識別碼（連遮罩版也不回）；舊版回遮罩後的識別碼。",
+    "reason": "識別碼是防重複用的內部資訊，畫面不需要。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "idempotency_key"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-hidden-created-by",
+    "page": "ga-inventory",
+    "description": "新版流水不回傳 created_by（使用者 id）；舊版有。",
+    "reason": "改回記錄人姓名 creator_name。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "created_by"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-creator-email",
+    "page": "ga-inventory",
+    "description": "新版流水不回傳記錄人的 email（creator 物件）；舊版回 id、姓名與 email。",
+    "reason": "只顯示姓名，不外露 email。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "creator"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-extra-creator-name",
+    "page": "ga-inventory",
+    "description": "新版流水多回 creator_name（記錄人姓名）。",
+    "reason": "C5／核可 assumptions：「流水加記錄人」。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "creator_name"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-extra-source-label",
+    "page": "ga-inventory",
+    "description": "新版流水多回 source_label（手動過帳、調撥單號、調撥退回來源庫存）。",
+    "reason": "Q12：流水頁要能辨識「調撥退回來源庫存」的流水。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "source_label"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-extra-transfer-no",
+    "page": "ga-inventory",
+    "description": "新版流水多回 transfer_no（調撥單號）。",
+    "reason": "Q12：流水頁能辨識調撥來源。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "transfer_no"
+    }
+  },
+  {
+    "id": "m7m8-g12-txn-extra-return-stock",
+    "page": "ga-inventory",
+    "description": "新版流水多回 return_stock（是否為調撥退回來源庫存）。",
+    "reason": "Q12：交出後取消或異常可退回來源庫存，流水要能辨識。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "return_stock"
+    }
+  },
+  {
+    "id": "m7m8-g12-date-filter-taipei",
+    "page": "ga-inventory",
+    "description": "流水日期篩選：舊版把 YYYY-MM-DD 當成 UTC 的 0 點（台北早上 8 點），新版用台北時間的整天。",
+    "reason": "C5 流水加日期區間；用台北整天是為了符合使用者直覺。主迴圈實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "count",
+      "key": "date-filter-taipei"
+    }
+  },
+  {
+    "id": "m7m8-g12-export-csv",
+    "page": "ga-inventory",
+    "description": "新版餘額與流水可匯出 CSV（目前篩選條件下的全部資料）；舊版沒有匯出。",
+    "reason": "C5：餘額與流水都可匯出 CSV。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "export-csv"
+    }
+  },
+  {
+    "id": "m7m8-g12-options-paginated",
+    "page": "ga-inventory",
+    "description": "過帳選項：舊版一次回全部（超過 1000 筆被靜默截斷）；新版搜尋加分頁（預設一頁 20 筆）。",
+    "reason": "核可 assumptions：選項 API 搜尋加分頁。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "count",
+      "key": "options-paginated"
+    }
+  },
+  {
+    "id": "m7m8-g12-holding-update-requires-version",
+    "page": "ga-inventory",
+    "description": "調整持有狀態：新版一定要帶 expected_updated_at（版本檢查，衝突 409 STALE）；舊版不用，可能蓋掉別人的調整。",
+    "reason": "核可 assumptions：多人同時編輯回 409 STALE。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "update-without-version"
+    }
+  },
+  {
+    "id": "m7m8-g12-post-replay-status",
+    "page": "ga-inventory",
+    "description": "同識別同內容重送：舊版回 201，新版回 200 並標示 replay（沒有再過帳一次）。",
+    "reason": "核可 assumptions：過帳固定識別防重複，成功回「庫存 A → B」與是否重送。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "replay-status"
+    }
+  },
+  {
+    "id": "m7m8-g12-post-future-occurred-at",
+    "page": "ga-inventory",
+    "description": "發生時間在未來：舊版接受，新版擋下（400）。",
+    "reason": "Q14：發生時間不可填未來。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "future-occurred-at-status"
+    }
+  },
+  {
+    "id": "m7m8-g12-post-last-transaction-not-regress",
+    "page": "ga-inventory",
+    "description": "補登舊日期的交易：舊版把餘額的最後異動時間倒退成舊日期，新版不倒退。",
+    "reason": "核可 assumptions：補登舊日期不設下限、「最後異動時間」不倒退。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "last-transaction-not-regress"
+    }
   }
 ]

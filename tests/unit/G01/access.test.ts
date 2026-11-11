@@ -88,6 +88,6 @@ describe('G01 側欄：沿用舊版分組與權限顯示', () => {
     expect(item?.disabled).toBeTruthy();
   });
   it('頁面對照表涵蓋第 1 批九個頁面與第 2 批設備清冊、新增設備', () => {
-    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(19); // 第 2 批 G08／G09 再加 6 個（設施清冊、新增設施、設備與設施保固頁、維修紀錄），G10 再加設備 QR 標籤列印，第 3 批 G11 加庫存位置
+    expect(Object.keys(GA_PAGE_BY_HREF)).toHaveLength(21); // 第 2 批 G08／G09 再加 6 個（設施清冊、新增設施、設備與設施保固頁、維修紀錄），G10 再加設備 QR 標籤列印，第 3 批 G11 加庫存位置、G12 加庫存總覽與庫存流水兩個 href
   });
 });

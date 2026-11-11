@@ -31,6 +31,7 @@ const GA_CAPABILITY: Record<string, string> = {
   'ga-transfers': 'gaTransfers', // Q28 轉移單
   'ga-onboarding-progress': 'gaOnboardingProgress', 'ga-asset-import': 'gaAssetImport', // Q29
   'ga-inventory-locations': 'gaInventoryLocations', // 第 3 批 G11
+  'ga-inventory': 'gaInventory', // 第 3 批 G12
 };
 
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
@@ -100,6 +101,7 @@ const LEGACY_TITLES: Record<string, string> = {
   'ga-equipment-history': '設備維修紀錄', 'ga-facility-history': '設施維修紀錄', // G08／G09
   'ga-equipment-labels': '設備 QR 標籤列印', 'ga-facility-labels': '設施 QR 標籤列印', 'ga-asset-scan': '資產掃描', 'ga-transfers': '設備轉移單', 'ga-onboarding-progress': '上線貼標進度', 'ga-asset-import': '設備設施 Excel 匯入', // G10、Q28、Q29
   'ga-inventory-locations': '庫存位置與料件設定', // 第 3 批 G11
+  'ga-inventory': '庫存餘額與流水', // 第 3 批 G12
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');
