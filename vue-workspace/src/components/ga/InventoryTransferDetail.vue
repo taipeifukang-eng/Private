@@ -233,5 +233,5 @@ h3 { margin: 4px 0 0; font-size: 15px; }
 .radios input, .check input { width: auto; }
 .warn-text { color: var(--danger, #b3261e); font-weight: 600; }
 .return-box { display: grid; gap: 6px; }
-@media (max-width: 700px) { .facts { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .facts { grid-template-columns: 1fr; } .actions button, .panel .dialog-actions button { min-height: 44px; } }
 </style>

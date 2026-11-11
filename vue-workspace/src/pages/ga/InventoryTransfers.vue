@@ -271,6 +271,7 @@ td span + span::before { content: "、"; }
 @media (max-width: 700px) {
   .tr-table { display: none; }
   .tr-cards { display: grid; }
+  .tr-card button { min-height: 44px; }
   .stat-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
