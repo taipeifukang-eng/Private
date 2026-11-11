@@ -221,3 +221,21 @@ approvedBy 規則：問卷已核可的決定（下列對應 C1 至 C13 與核可
   8. 門市名單身分的入口：`gaInventoryLocations` 在名單內任何身分為真，側欄入口補在「資產與庫存」。**限制**：「總務服務中心」選單入口（`gaCenter`）仍要總務相關權限或店長角色，沒有任何總務入口權限的督導與區經理看不到入口；若要讓他們也能進，需另外決定是否把名單身分納入 `gaCenter`（會動全站導覽基準）。
   9. 分類停用提示：設備與設施編輯畫面的分類選擇器顯示「這個分類已停用：不換分類仍可儲存其他欄位；要換分類只能選啟用中的分類。」
 - 新發現、問卷未涵蓋的差異共 9 項，`allowlist.json` 的 `approvedBy` 為 null，待使用者確認：位置設定清單料件關聯多回 `is_active`、詳情不回傳 5 個系統欄位（`created_by`、`updated_by`、`deleted_at`、`deleted_by`、`deletion_reason`）、只有位置權限者的偏好領用單位名稱由伺服端補上、名稱代碼長度限制、位置刪除連帶移除設定的原因加前綴。
+
+
+### 10.2 G12 庫存餘額、流水、過帳、持有狀態（2026-11-11 完成，DEV 驗證）
+- 資料庫（DEV 已套用，各附 rollback，已在 DEV 以「撤回 → 套用」跑過一輪）：`20261111110000_m7m8_b3_inventory_post.sql`（4 個函式：`ga_inv_map_error` 核心錯誤換白話、`ga_ws_inv_post` 過帳包裝、`ga_ws_inv_set_holding` 持有狀態調整、`ga_ws_inv_balance_page` 餘額清單＋精確統計）；**不改**過帳核心 `ga_post_inventory_transaction` 與 `ga_set_inventory_holding_allocation`。另有 **DEV 專用** `20261111111000_m7m8_b3_dev_test_cleanup.sql`（`ga_dev_cleanup_m7m8_inventory`，只清名稱帶 `[自動測試]M7M8 T` 的位置與料件的流水，只給 service_role，不套正式區）。正式區草稿 `28-b3-inventory-post.sql`（附 rollback，README 套用順序已更新為 26 → 27 → 28 → 30）。
+- API（`lib/workspace/general-affairs/inventory-stock.ts`、`inventory-stock-rules.ts`；`inventory.ts` 分派 locations 與 stock 兩組）：`GET /access`、`GET /options?type=locations|parts|location-parts`、`GET /balances`、`GET /balances/export`、`GET /transactions`、`GET /transactions/export`、`POST /transactions/post`、`GET /holding`、`PATCH /holding/:balanceId`、`GET /holding/:balanceId/events`。非 GET 驗 Origin、用使用者身分、分頁上限 100；持有狀態調整帶 `expected_updated_at`（`409 STALE`）；過帳帶固定識別（同內容重送回 200 並標示 replay，內容不同 409）。
+- 頁面：`pages/ga/GaInventory.vue`（餘額、流水、持有狀態三個分頁，用 `payload.view` 區分）、`components/ga/InventoryBalances.vue`、`InventoryTransactions.vue`、`InventoryHolding.vue`、`InventoryPostDialog.vue`、`InventoryPicker.vue`（位置／料件／位置料件搜尋加分頁選擇器）、`lib/ga-inventory-stock.ts`。導覽：`gaInventory` 旗標；`nav.ts` 以完整 href 對應 `/general-affairs/inventory`（payload `{view:'balances'}`）與 `/general-affairs/inventory?view=transactions`（payload `{view:'transactions'}`），`GaNavItem` 新增 `payload`，側欄高亮同時比對 `payload.view`。
+- 行為：C4 持有狀態統計全量（資料庫端加總）、前 3 名、逐列調整帶原因（寫入事件表 `notes`）、可看修改紀錄；C5 餘額與流水分頁、流水加日期（台北）、記錄人、原因關鍵字、來源篩選、匯出 CSV（目前篩選條件下的全部資料，上限 50,000 筆，公式開頭補單引號、UTF-8 BOM）；C6 只有出庫、調減、或會變負才顯示摘要與過帳後餘額並要再按一次確認（會變負而位置不允許負庫存直接擋）；C7 紅黃標與「只看需補貨」；C12 名單身分唯讀，流水原因與備註、持有狀態調整原因由伺服端遮蔽，原因搜尋對唯讀身分無效；Q12 流水可辨識「調撥退回來源庫存」；Q13 兩權限缺哪個講清楚；Q14 發生時間不可晚於現在。
+- 設計上的自行決定與修正（與上文第 2、3 節的差異）：
+  1. 餘額清單函式用 `SECURITY DEFINER`，但每一列都用餘額表 RLS 同一個可見性函式 `ga_inventory_balance_is_visible` 過濾（看得到哪些位置與原本相同），位置與料件名稱用資料庫身分讀公開欄位；原因是只有「交易管理」的帳號沒有位置查看權限，若用 RLS 直接 join 位置會整列消失（舊版同樣讀不到位置名稱）。
+  2. 過帳選項的位置與料件設定改由伺服端用服務身分、依權限範圍讀取（有交易管理的人看全部啟用中的位置；名單身分只看自己門市）；過帳用的料件選項只給有「庫存交易管理」的人，缺「料件查看」時回說明。
+  3. 流水不回傳識別碼、參考單據 id、使用者 id 與記錄人 email，只回記錄人姓名與來源說明；`metadata` 只在伺服端用來判斷來源。
+  4. 發生時間容許比現在晚 1 分鐘（時鐘誤差）；前端與資料庫函式用同一個規則。
+  5. 持有狀態調整原因為選填；「待確認」＝持有量減使用中與閒置（自動計算，不能手動填）。
+  6. 持有狀態只列庫存大於 0 的項目；負庫存或 0 沒有可分配的持有量。
+  7. 「庫存流水」側欄入口與「庫存總覽」共用同一個頁籤（`ga-inventory`），再點另一個入口只切換分頁，不另開頁籤。
+- 新發現、問卷未涵蓋的差異共 7 項，`allowlist.json`（page `ga-inventory`）的 `approvedBy` 為 null，待使用者確認：餘額列不回傳 `last_transaction_id`、`created_at`；流水不回傳參考單據 id、識別碼、`created_by`、記錄人 email；日期篩選改用台北時間整天。
+- 測試：unit 33（過帳驗證、單位換算、C6 風險、C7 紅黃標、CSV、遮蔽、持有狀態、導覽）、smoke 10（桌機＋手機）、integration 17（權限矩陣與 Origin、400／409／422、冪等、併發、最後異動時間、餘額清單與統計核對、持有狀態 STALE、流水篩選與匯出、選項、C12 遮蔽，全部 DB 回讀）、e2e 10（主流程、缺權限、名單身分唯讀、角色接力、版面；桌機＋手機）、parity 6；回歸 G11 45、G01、T03、role-matrix 80、G06／G08／G09／G10 smoke 全過。
+- 測試輔助：`ga_dev_cleanup_m7m8_inventory`（DEV 專用）掛在 `cleanupM7M8`，測試真的過帳留下的流水才清得掉；餘額一律用 `seedBalance` 直接種。
