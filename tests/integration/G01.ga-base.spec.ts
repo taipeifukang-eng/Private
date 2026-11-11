@@ -373,7 +373,7 @@ test('Q6 料件編輯與停用：欄位更新、同時修改保護、停用後�
   expect((await send('ga_part_edit', 'patch', `parts/${part.id}`, { base_unit: '箱', description: '同值不算變更' })).status).toBe(200);
   // 停用與啟用（第 3 批 C2：料件在任何位置仍有庫存時不能停用；清空庫存後才可以）
   const blocked = await send('ga_part_edit', 'patch', `parts/${part.id}`, { is_active: false });
-  expect(blocked.status).toBe(400);
+  expect(blocked.status).toBe(409);
   expect(blocked.body.error).toContain('仍有庫存');
   expect((await row('ga_parts', part.id)).is_active).toBe(true);
   await adminDb().from('ga_inventory_balances').update({ quantity_base: 0 }).eq('id', bal.id);
