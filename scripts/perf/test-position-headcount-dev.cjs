@@ -19,7 +19,7 @@ const db = makeServiceClient(ENV);
 const D = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount-data.ts', {});
 const H = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount.ts', {});
 
-const MONTHS = ['2038-06', '2038-07', '2099-03', '2099-05', '2099-07', '2099-09'];
+const MONTHS = ['2038-06', '2038-07', '2038-08', '2099-03', '2099-05', '2099-07', '2099-09'];
 const TEST_STORES = ['ZT01', 'ZT02', 'VW001', 'ZT03'];
 const createdStatusIds = [];
 const createdSummaryIds = [];
@@ -104,6 +104,11 @@ async function main() {
     mk('2038-07', 'ZT01', 'HCT814', '專員'), mk('2038-07', 'ZT02', 'HCT814', '組長'), // 主要 ZT02（直營）
     mk('2038-07', 'ZT01', 'HCT815', '組長'), mk('2038-07', 'VW001', 'HCT815', '專員'), // 主要 ZT01（加盟）
     mk('2038-07', 'ZT01', 'HCT816', '專員', { monthly_status: 'resigned' }),
+  );
+  // 審查修正（2038-08）：卡班代理在加盟 ZT01、人另有計入在直營 ZT02；專員跨店主要在直營 → ZT01 只剩被隱藏的人
+  seed.push(
+    mk('2038-08', 'ZT01', 'HCT901', '督導', { is_supervisor_rotation: true, is_acting_manager: true }), mk('2038-08', 'ZT02', 'HCT901', '督導'),
+    mk('2038-08', 'ZT01', 'HCT902', '專員'), mk('2038-08', 'ZT02', 'HCT902', '組長'),
   );
   // 分頁測試：2099-07 在 ZT03 建 1100 筆（超過 Supabase 單頁 1000 筆上限）
   for (let i = 0; i < 1100; i++) seed.push(mk('2099-07', 'ZT03', `HCT7${String(i).padStart(4, '0')}`, '專員'));
@@ -254,8 +259,10 @@ async function main() {
     });
 
     // ── 加盟店篩選（DEV：暫時設定 is_franchise，結束還原原值）
-    await must(db.from('stores').update({ is_franchise: true }).eq('id', sid.ZT01).select('id'));
-    await must(db.from('stores').update({ is_franchise: false }).in('id', [sid.ZT02, sid.VW001]).select('id'));
+    const upd = await must(db.from('stores').update({ is_franchise: true }).eq('id', sid.ZT01).select('id'));
+    assert.equal(upd.length, 1, '設定 ZT01 加盟失敗');
+    const upd2 = await must(db.from('stores').update({ is_franchise: false }).in('id', [sid.ZT02, sid.VW001]).select('id'));
+    assert.equal(upd2.length, 2, '設定 ZT02/VW001 直營失敗');
     const pa = await D.loadPositionHeadcountData(db, '2038-07', true, 'all');
     const po = await D.loadPositionHeadcountData(db, '2038-07', true, 'only');
     const px = await D.loadPositionHeadcountData(db, '2038-07', true, 'exclude');
@@ -314,6 +321,22 @@ async function main() {
       assert.deepEqual(po.unfinalizedStores.map((s) => s.store_code), ['ZT01']);
       assert.deepEqual(px.unfinalizedStores.map((s) => s.store_code).sort(), ['VW001', 'ZT02']);
     });
+    const q8 = await Promise.all(['all', 'only', 'exclude'].map((f) => D.loadPositionHeadcountData(db, '2038-08', false, f)));
+    const [r8a, r8o, r8x] = q8.map((p) => H.computeMonthHeadcount(p.records, p.stores, '2038-08'));
+    check('篩選 2038-08：卡班代理欄與各欄恆等', () => {
+      assert.equal(r8a.company.rotationActing.length, 1);
+      assert.equal(r8o.company.rotationActing.length, 1);
+      assert.equal(r8x.company.rotationActing.length, 0);
+      for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(r8o.company, c.key) + cnt(r8x.company, c.key), cnt(r8a.company, c.key), c.key);
+      assert.equal(r8o.company.totalPeople + r8x.company.totalPeople, r8a.company.totalPeople);
+      assert.equal(r8o.company.actingBySupervisor.length + r8x.company.actingBySupervisor.length, r8a.company.actingBySupervisor.length);
+    });
+    check('篩選 2038-08：只剩被隱藏的人的門市，未定稿清單仍照列（只看＋不含＝全部）', () => {
+      const codes = (p) => p.unfinalizedStores.map((s) => s.store_code).filter((c) => c === 'ZT01' || c === 'ZT02').sort();
+      assert.deepEqual(codes(q8[0]), ['ZT01', 'ZT02']);
+      assert.deepEqual(codes(q8[1]), ['ZT01']);
+      assert.deepEqual(codes(q8[2]), ['ZT02']);
+    });
     check('篩選：Excel 三種檔名、合計列名稱、實際寫出並讀回', () => {
       const XLSX = require('xlsx');
       const exp = { all: ['每月職位人數統計_2038-07.xlsx', '全公司'], only: ['每月職位人數統計_2038-07_只看加盟店.xlsx', '加盟店合計'], exclude: ['每月職位人數統計_2038-07_不含加盟店.xlsx', '直營店合計'] };
@@ -367,7 +390,13 @@ async function main() {
     console.log(results.join('\n'));
   } finally {
     // 還原測試門市 is_franchise 原值
-    for (const b of franchiseBackup || []) await db.from('stores').update({ is_franchise: b.is_franchise }).eq('id', b.id);
+    for (const b of franchiseBackup || []) {
+      const { error: restoreErr } = await db.from('stores').update({ is_franchise: b.is_franchise }).eq('id', b.id);
+      if (restoreErr) {
+        console.error(`還原 is_franchise 失敗（${b.id}）：${restoreErr.message}`);
+        process.exitCode = 1;
+      }
+    }
     // 只刪自己建立的 id
     for (let i = 0; i < createdStatusIds.length; i += 200) {
       await db.from('monthly_staff_status').delete().in('id', createdStatusIds.slice(i, i + 200));

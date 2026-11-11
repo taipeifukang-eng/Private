@@ -94,7 +94,8 @@ export async function loadPositionHeadcountData(db: any, yearMonth: string, tren
   // 加盟店篩選在伺服器端做：先用全部門市決定主要歸屬，再篩選（見 filterRecordsByFranchise）
   const filteredRecords = filterRecordsByFranchise(records, stores, franchise);
   const storeById = new Map(stores.map((s) => [s.id, s]));
-  const unfinalizedStores = findUnfinalizedStores(filteredRecords, stores, summaries, yearMonth).filter((s) => storeKept(storeById.get(s.id), franchise));
+  // 未定稿是門市本身的狀態：用篩選前的紀錄判斷，只依門市是否留下決定列不列，避免「只看＋不含」少列門市
+  const unfinalizedStores = findUnfinalizedStores(records, stores, summaries, yearMonth).filter((s) => storeKept(storeById.get(s.id), franchise));
 
   return {
     yearMonth,

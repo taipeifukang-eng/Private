@@ -10,6 +10,7 @@ import {
   computeMonthHeadcount,
   excludedReasonLabel,
   FRANCHISE_FILTER_LABELS,
+  buildFilterSheetRows,
   franchiseTotalLabel,
   headcountExportFileName,
   nextFranchiseFilter,
@@ -108,8 +109,9 @@ export default function PositionHeadcountPanel() {
     s2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 22 }, { wch: 12 }, { wch: 24 }];
     XLSX.utils.book_append_sheet(wb, s1, '人數統計');
     XLSX.utils.book_append_sheet(wb, s2, '人員明細');
-    if (franchise !== 'all') {
-      const s0 = XLSX.utils.aoa_to_sheet([['篩選條件', FRANCHISE_FILTER_LABELS[franchise]], ['月份', month], ['說明', '先以全部門市決定每人的主要歸屬門市，再篩選；被篩掉門市歸屬的人不列入。']]);
+    const filterRows = buildFilterSheetRows(franchise, month);
+    if (filterRows) {
+      const s0 = XLSX.utils.aoa_to_sheet(filterRows);
       s0['!cols'] = [{ wch: 12 }, { wch: 60 }];
       XLSX.utils.book_append_sheet(wb, s0, '篩選條件');
     }

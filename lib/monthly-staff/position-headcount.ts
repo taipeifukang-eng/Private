@@ -52,7 +52,8 @@
  *   跨店的人在主要歸屬那筆的備註標「跨店，另於 X 不計入」。
  *
  * ── 加盟店篩選（all / only / exclude，primary_first）──
- *   先用全部門市決定每人每月的主要歸屬，再篩選：主要歸屬門市被篩掉的人，整個不出現（含他在留下門市的「已計入」登記）。
+ *   先用全部門市決定每人每月的主要歸屬，再篩選：計入人數的人，主要歸屬門市被篩掉就整個不出現（含他在留下門市的「已計入」登記）；
+ *   不計入的登記（離職、督導卡班…）只看自己的門市。
  *   所以「只看加盟店」＋「不含加盟店」＝「全部」（每欄每月）。趨勢用門市目前的 is_franchise。
  */
 
@@ -524,10 +525,12 @@ export function storeKept(store: Pick<HeadcountStore, 'is_franchise'> | undefine
 }
 
 /**
- * 篩選人員紀錄（F1 primary_first）：每個月先用全部門市算出每人的主要歸屬門市，
- * 只保留「屬於留下門市」且「主要歸屬也在留下門市」的人的紀錄。
+ * 篩選人員紀錄（F1 primary_first）：每個月先用全部門市算出每人的主要歸屬門市。
+ *  - 「計入狀態」的登記（含被降為「已計入 X」的那些）：本門市要留下，且此人主要歸屬門市也要留下。
+ *  - 「不計入狀態」的登記（離職、留停、調出、支援卡班、督導卡班…）：只看它自己的門市，不受主要歸屬影響，
+ *    這樣「只看＋不含＝全部」連督導卡班代理欄與不計入名單都成立。
+ *  - 同一人同月在多間門市都有「督導卡班代理」：公司層只算一次，篩選時只保留門市代號最小那一筆，維持加總恆等。
  * 留下的紀錄再丟給 computeMonthHeadcount / computeHeadcountTrend，各層加總自然一致。
- * 沒有任何計入登記的人（離職、督導卡班…）依該筆門市決定去留。
  */
 export function filterRecordsByFranchise(records: HeadcountRecord[], stores: HeadcountStore[], f: FranchiseFilter): HeadcountRecord[] {
   if (f === 'all') return records;
@@ -542,15 +545,45 @@ export function filterRecordsByFranchise(records: HeadcountRecord[], stores: Hea
     const { counted } = buildEntries(recs, stores, ym);
     const primaryStore = new Map<string, string>();
     for (const e of counted) primaryStore.set(e.key, e.store_id);
+    const isRotationActing = (rec: HeadcountRecord) => rec.is_supervisor_rotation === true && (rec.is_acting_manager === true || classifyHeadcountRecord(rec).supervisorActing);
+    const storeSortKey = (rec: HeadcountRecord) => `${storeMap.get(rec.store_id ?? '')?.store_code ?? ''}|${rec.store_id ?? ''}`;
+    // 每人「督導卡班代理」只認門市代號最小的那一筆
+    const rotationOwner = new Map<string, string>();
+    recs.forEach((rec, idx) => {
+      if (!isRotationActing(rec)) return;
+      const k = personKey(rec, idx);
+      const cur = rotationOwner.get(k);
+      if (cur === undefined || storeSortKey(rec) < cur) rotationOwner.set(k, storeSortKey(rec));
+    });
     recs.forEach((rec, idx) => {
       const store = rec.store_id ? storeMap.get(rec.store_id) : undefined;
       if (!storeKept(store, f)) return;
-      const ps = primaryStore.get(personKey(rec, idx));
+      const key = personKey(rec, idx);
+      if (rec.is_supervisor_rotation === true) {
+        if (isRotationActing(rec) && rotationOwner.get(key) !== storeSortKey(rec)) return;
+        out.push(rec);
+        return;
+      }
+      if (!resolveStatus(rec.monthly_status).counted) {
+        out.push(rec);
+        return;
+      }
+      const ps = primaryStore.get(key);
       if (ps !== undefined && !storeKept(storeMap.get(ps), f)) return;
       out.push(rec);
     });
   });
   return out;
+}
+
+/** Excel「篩選條件」工作表內容（只有篩選時才輸出；all 回傳 null） */
+export function buildFilterSheetRows(f: FranchiseFilter, month: string): string[][] | null {
+  if (f === 'all') return null;
+  return [
+    ['篩選條件', FRANCHISE_FILTER_LABELS[f]],
+    ['月份', month],
+    ['說明', '先以全部門市決定每人的主要歸屬門市，再篩選；計入人數的人若主要歸屬門市被篩掉就不列入。離職、卡班等不計入的登記只看它自己的門市。'],
+  ];
 }
 
 // ───────────────────────── 趨勢 ─────────────────────────
