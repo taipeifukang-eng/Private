@@ -8,13 +8,17 @@ import { fmtNum, locationText, partText } from "../../lib/ga-inventory-stock";
 // kind=locations：啟用中的位置；parts：啟用中的料件（篩選用）；location-parts：指定位置已設定的料件（過帳用，顯示目前庫存）。
 const props = defineProps<{
   modelValue: string;
-  kind: "locations" | "parts" | "location-parts";
+  kind: "locations" | "parts" | "location-parts" | "transfer-locations" | "transfer-parts";
   label: string;
   locationId?: string;
+  /** transfer-parts 用：目的位置（用來標示目的位置是否已設定這個料件）。 */
+  destinationId?: string;
   required?: boolean;
   clearable?: boolean;
   disabled?: boolean;
   placeholder?: string;
+  /** 預填用：已知的選項物件（和選擇後得到的物件同形狀），畫面直接顯示為已選。 */
+  initial?: any | null;
 }>();
 const emit = defineEmits<{ "update:modelValue": [string]; pick: [any | null]; message: [string] }>();
 
@@ -31,27 +35,31 @@ const latest = useLatest();
 const message = ref("");
 
 const textOf = (it: any) => {
-  if (props.kind === "locations") return locationText(it, it.store);
+  if (props.kind === "locations" || props.kind === "transfer-locations") return locationText(it, it.store);
   if (props.kind === "parts") return partText(it);
   return partText(it.part);
 };
 const sub = (it: any) => {
+  if (props.kind === "transfer-parts") return `來源庫存 ${fmtNum(it.source_balance)} ${it.part?.base_unit || ""}${it.destination_configured === false ? "　目的位置尚未設定這個料件" : ""}`;
   if (props.kind === "location-parts") return `目前庫存 ${fmtNum(it.currentBalance?.quantity_base ?? 0)} ${it.part?.base_unit || ""}`;
   if (props.kind === "parts") return it.base_unit || "";
   return it.is_default ? "預設位置" : "";
 };
-const idOf = (it: any) => (props.kind === "location-parts" ? it.part_id : it.id);
+const needsLocation = () => props.kind === "location-parts" || props.kind === "transfer-parts";
+const idOf = (it: any) => (needsLocation() ? it.part_id : it.id);
 
 async function load(append = false) {
-  if (props.kind === "location-parts" && !props.locationId) { items.value = []; total.value = 0; return; }
+  if (needsLocation() && !props.locationId) { items.value = []; total.value = 0; return; }
   const n = latest.next();
   loading.value = true;
   error.value = "";
   try {
-    const qs = new URLSearchParams({ type: props.kind, page: String(page.value), pageSize: "20" });
+    const transfer = props.kind.startsWith("transfer-");
+    const qs = new URLSearchParams({ type: transfer ? props.kind.slice(9) : props.kind, page: String(page.value), pageSize: "20" });
     if (debounced.value.trim()) qs.set("search", debounced.value.trim());
-    if (props.kind === "location-parts") qs.set("locationId", props.locationId!);
-    const res = await api<{ data: any[]; total: number; message?: string; partCatalogAccess?: boolean }>("general-affairs/inventory/options?" + qs);
+    if (needsLocation()) qs.set("locationId", props.locationId!);
+    if (props.kind === "transfer-parts" && props.destinationId) qs.set("destinationLocationId", props.destinationId);
+    const res = await api<{ data: any[]; total: number; message?: string; partCatalogAccess?: boolean }>((transfer ? "general-affairs/inventory/transfers/options?" : "general-affairs/inventory/options?") + qs);
     if (!latest.isLatest(n)) return;
     items.value = append ? [...items.value, ...res.data] : res.data;
     total.value = res.total;
@@ -65,6 +73,8 @@ async function load(append = false) {
 }
 watch(debounced, () => { page.value = 1; if (open.value) load(); });
 watch(() => props.locationId, () => { selected.value = null; emit("update:modelValue", ""); emit("pick", null); items.value = []; page.value = 1; q.value = ""; if (open.value) load(); });
+watch(() => props.initial, (v) => { if (v) selected.value = v; }, { immediate: true });
+watch(() => props.destinationId, () => { items.value = []; if (open.value) load(); });
 watch(() => props.modelValue, (v) => { if (!v) selected.value = null; });
 function openList() {
   if (props.disabled) return;
@@ -105,7 +115,7 @@ const inputId = `pk-${Math.random().toString(36).slice(2, 8)}`;
           <li v-for="it in items" :key="idOf(it)" role="option">
             <button type="button" class="pk-item" @click="choose(it)"><strong>{{ textOf(it) }}</strong><small v-if="sub(it)">{{ sub(it) }}</small></button>
           </li>
-          <li v-if="!items.length && !loading && !error" class="pk-empty">{{ kind === "location-parts" && !locationId ? "請先選擇位置" : "找不到符合的項目" }}</li>
+          <li v-if="!items.length && !loading && !error" class="pk-empty">{{ needsLocation() && !locationId ? "請先選擇位置" : "找不到符合的項目" }}</li>
         </ul>
         <div class="pk-foot">
           <span class="muted">共 {{ total }} 筆<template v-if="loading">，載入中…</template></span>

@@ -113,6 +113,8 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-inventory-locations",
   // 第 3 批 G12：庫存餘額、流水、過帳、持有狀態（庫存總覽與庫存流水同一頁）。
   "ga-inventory",
+  // 第 3 批 G13：庫存調撥單（調撥與收貨）。
+  "ga-inventory-transfers",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

@@ -86,6 +86,8 @@ export type Session = {
     gaInventoryLocations: boolean;
     /** 第 3 批 G12：庫存餘額、流水、過帳、持有狀態（含門市名單身分的唯讀入口）。 */
     gaInventory: boolean;
+    /** 第 3 批 G13：庫存調撥單（調撥與收貨，含門市名單身分的唯讀入口）。 */
+    gaInventoryTransfers: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

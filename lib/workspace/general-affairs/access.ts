@@ -92,6 +92,7 @@ export type GaFlags = {
   gaAssetImport: boolean;
   gaInventoryLocations: boolean;
   gaInventory: boolean;
+  gaInventoryTransfers: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -138,6 +139,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     gaInventoryLocations: rosterMember || has("general_affairs.inventory_location.view", "general_affairs.inventory_location.manage"),
     // 第 3 批 G12 庫存餘額、流水、過帳、持有狀態：餘額／流水查看或交易管理，或門市名單任何身分（唯讀）。
     gaInventory: rosterMember || has("general_affairs.inventory_balance.view", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage"),
+    // 第 3 批 G13 庫存調撥單：調撥／流水查看或管理、餘額查看（舊版 API 讀取條件），或門市名單任何身分（唯讀；可見範圍由資料庫列級權限決定）。
+    gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }
 

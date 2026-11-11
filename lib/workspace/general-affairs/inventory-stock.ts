@@ -83,17 +83,17 @@ async function access(ctx: Context) {
 }
 
 // ---------------------------------------------------------------- 共用：把位置與料件、門市補到列上
-const LOCATION_PUBLIC = "id,code,name,location_type,store_id,allow_negative_stock,is_default";
-const PART_PUBLIC = "id,name,part_code,barcode,brand,model,specification,base_unit,purchase_unit,purchase_to_base_rate,minimum_issue_qty,allow_fractional_issue,allow_unpacking";
+export const LOCATION_PUBLIC = "id,code,name,location_type,store_id,allow_negative_stock,is_default";
+export const PART_PUBLIC = "id,name,part_code,barcode,brand,model,specification,base_unit,purchase_unit,purchase_to_base_rate,minimum_issue_qty,allow_fractional_issue,allow_unpacking";
 
-async function lookup(table: string, columns: string, ids: string[]) {
+export async function lookup(table: string, columns: string, ids: string[]) {
   const unique = Array.from(new Set(ids.filter(Boolean)));
   if (!unique.length) return new Map<string, any>();
   const rows: any[] = [];
   for (let i = 0; i < unique.length; i += 100) rows.push(...(((await must((adminClient() as any).from(table).select(columns).in("id", unique.slice(i, i + 100)))) as any[]) || []));
   return new Map(rows.map((r) => [r.id as string, r]));
 }
-async function creatorNames(ids: string[]) {
+export async function creatorNames(ids: string[]) {
   const m = await lookup("profiles", "id,full_name", ids);
   return new Map(Array.from(m, ([k, v]) => [k, (v.full_name as string) || "（未命名）"]));
 }

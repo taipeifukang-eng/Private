@@ -41,6 +41,7 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   // 庫存總覽與庫存流水是同一頁（ga-inventory），舊網址 ?view=transactions 以完整 href 對應到 payload.view。
   "/general-affairs/inventory": { kind: "ga-inventory", flag: "gaInventory", payload: { view: "balances" } },
   "/general-affairs/inventory?view=transactions": { kind: "ga-inventory", flag: "gaInventory", payload: { view: "transactions" } },
+  "/general-affairs/inventory/transfers": { kind: "ga-inventory-transfers", flag: "gaInventoryTransfers" },
 };
 
 export type GaNavInput = {
@@ -144,6 +145,8 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   if (flags.gaInventoryLocations && !present.has("ga-inventory-locations")) extra.push({ id: "inventory-locations-new", label: "庫存位置", kind: "ga-inventory-locations" });
   // G12 庫存總覽：舊側欄要餘額／流水／記帳權限才列；只憑門市名單身分的人舊側欄不列，補在「資產與庫存」最上層（唯讀）。
   if (flags.gaInventory && !present.has("ga-inventory")) extra.push({ id: "inventory-overview-new", label: "庫存總覽", kind: "ga-inventory", payload: { view: "balances" } });
+  // G13 調撥與收貨：舊側欄要調撥／記帳權限才列；只憑門市名單身分（店長、督導、區經理）的人舊側欄不列，補在這裡（唯讀）。
+  if (flags.gaInventoryTransfers && !present.has("ga-inventory-transfers")) extra.push({ id: "inventory-transfers-new", label: "調撥與收貨", kind: "ga-inventory-transfers" });
   if (flags.gaTransfers) extra.push({ id: "asset-transfers", label: "轉移單", kind: "ga-transfers" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
