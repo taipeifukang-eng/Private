@@ -229,7 +229,7 @@ h3 { margin: 4px 0 0; font-size: 15px; }
 .panel p { margin: 0; }
 .panel label { display: grid; gap: 4px; }
 .radios { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; display: grid; gap: 6px; margin: 0; }
-.radios label, .check { display: flex; gap: 8px; align-items: center; }
+.radios label, .panel label.check { display: flex; gap: 8px; align-items: center; }
 .radios input, .check input { width: auto; }
 .warn-text { color: var(--danger, #b3261e); font-weight: 600; }
 .return-box { display: grid; gap: 6px; }

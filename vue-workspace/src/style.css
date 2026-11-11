@@ -83,6 +83,18 @@ button:disabled {
 .danger {
   color: var(--danger);
 }
+/* 主色按鈕同時是危險動作時：實心危險色底、反白字（亮色約 7:1，深色約 7:1） */
+button.primary.danger,
+button.primary.danger-outline {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+button.primary.danger:hover:not(:disabled),
+button.primary.danger-outline:hover:not(:disabled) {
+  background: var(--danger);
+  filter: brightness(0.93);
+}
 input,
 select {
   border: 1px solid var(--line);
