@@ -5509,5 +5509,18 @@
       "kind": "status",
       "key": "action-without-version-status"
     }
+  },
+  {
+    "id": "m7m8-g13-nav-inventory-transfers",
+    "page": "ga-assets",
+    "description": "新版總務側欄為門市名單身分（店長、督導、區經理）補上「調撥與收貨」入口（唯讀）；舊版側欄要有調撥、流水或餘額權限才列出該項目。",
+    "reason": "C12（2026-11-11 第 3 批問卷）：名單內店長、督導、區經理三種身分都可唯讀看自己門市的調撥單，店長可回報問題（C10）；新頁入口補在「資產與庫存」群組（不改舊版側欄元件）。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:inventory-transfers-new",
+      "entry": "sidebar-visibility"
+    }
   }
 ]

@@ -239,3 +239,22 @@ approvedBy 規則：問卷已核可的決定（下列對應 C1 至 C13 與核可
 - 新發現、問卷未涵蓋的差異共 7 項，`allowlist.json`（page `ga-inventory`）的 `approvedBy` 為 null，待使用者確認：餘額列不回傳 `last_transaction_id`、`created_at`；流水不回傳參考單據 id、識別碼、`created_by`、記錄人 email；日期篩選改用台北時間整天。
 - 測試：unit 33（過帳驗證、單位換算、C6 風險、C7 紅黃標、CSV、遮蔽、持有狀態、導覽）、smoke 10（桌機＋手機）、integration 17（權限矩陣與 Origin、400／409／422、冪等、併發、最後異動時間、餘額清單與統計核對、持有狀態 STALE、流水篩選與匯出、選項、C12 遮蔽，全部 DB 回讀）、e2e 10（主流程、缺權限、名單身分唯讀、角色接力、版面；桌機＋手機）、parity 6；回歸 G11 45、G01、T03、role-matrix 80、G06／G08／G09／G10 smoke 全過。
 - 測試輔助：`ga_dev_cleanup_m7m8_inventory`（DEV 專用）掛在 `cleanupM7M8`，測試真的過帳留下的流水才清得掉；餘額一律用 `seedBalance` 直接種。
+
+### 10.3 G13 庫存調撥單（2026-11-11 完成，DEV 驗證）
+- 資料庫（DEV 已套用，附 rollback，已在 DEV 以「撤回 → 套用」跑過，正式區草稿 `29` 也在 DEV 跑過一輪）：`20261111120000_m7m8_b3_inventory_transfers.sql`。
+  - 調撥單新增 9 個欄位（`exception_type`、`unreceived_note`／`unreceived_marked_at`／`unreceived_marked_by`、`store_report_type`／`store_report_note`／`store_reported_at`／`store_reported_by`、`create_key`），明細新增 `return_transaction_id`，全部可為空，舊單免回填。新增 `ga_inventory_transfer_events`（時間軸：動作、前後狀態、備註、固定識別、記錄人）與 `ga_inventory_transfer_settings`（單列，逾期天數，預設 3）。
+  - 函式（都用 `auth.uid()` 與 `has_permission`，不檢查管理員放行）：`ga_ws_inv_transfer_create`（建單）、`ga_ws_inv_transfer_action`（確認交出／運送中／收貨／取消／未收註記）、`ga_ws_inv_transfer_store_report`（店長回報）、`ga_ws_inv_transfer_set_overdue_days`（逾期天數）、內部輔助 4 個。過帳核心與 G12 的 `ga_ws_inv_post` 都不改，只呼叫。
+- API（`lib/workspace/general-affairs/inventory-transfers.ts`、`inventory-transfer-rules.ts`；`inventory.ts` 分派加 `transfers`）：`GET/POST /transfers`、`GET /transfers/:id`（含時間軸與 abilities）、`POST /transfers/:id/actions`（`confirm_source`、`ship`、`receive`、`cancel`〔`return_stock`、`exception_type`〕、`mark_unreceived`、`store_report`）、`GET/PATCH /transfers/settings`、`GET /transfers/prefill`（網址參數驗證與預填）、`GET /transfers/options?type=locations|parts`（建單選項，料件附目的位置是否已設定）。非 GET 驗 Origin；寫入帶 `expected_updated_at`（衝突 409 `STALE`）與固定識別（上限 60 字）；分頁上限 100。
+- 頁面：`pages/ga/InventoryTransfers.vue`、`components/ga/InventoryTransferCreate.vue`、`InventoryTransferDetail.vue`、`TransferStatusBadge.vue`、`lib/ga-inventory-transfers.ts`；`InventoryPicker.vue` 加 `transfer-locations`／`transfer-parts` 兩種選項與 `initial`（預填顯示）。導覽：`gaInventoryTransfers` 旗標、`nav.ts` 對應 `/general-affairs/inventory/transfers`（舊側欄在「作業管理」與「庫存管理」各有一個入口，都指向同一頁；只憑名單身分的人舊側欄不列，補一個「調撥與收貨」）；`page-kinds.ts`、`workspace-page-meta.ts`、`workspace-pages.ts`、`stores.ts`、`App.vue` 登錄。舊網址參數以深連結 `#/open/ga-inventory-transfers?fromRequestId=…&requestNo=…&partId=…&quantity=…&sourceLocationId=…&destinationStoreId=…&reason=…&notes=…` 完整保留，頁面開啟後由伺服端驗證預填；Next 舊路徑不轉址（照 Q 決定先不動）。
+- 行為：C8 目的位置缺設定直接擋（建單前就標示、送出被擋，並附「前往位置設定」）；Q14 來源庫存不足只警告仍可建單；C9「未收」只註記（`mark_unreceived`），單子仍待收貨、可重複註記、之後照常收貨，沒有 `reopen`；少收、損壞、品項錯誤、遺失、其他走「取消／異常終結」；Q12 取消可勾退回來源庫存（未勾有紅字提醒；沒交出就勾退回回 422）；C10 只有目的門市（STORE 位置）名單上 `role_type='store_manager'` 的店長可回報，只寫標記與時間軸；C11 已交出超過設定天數（以交出時間起算，剛好 N 天不算）未收貨標紅、卡片與篩選；C12 名單身分看不到內部備註、未收註記與時間軸備註（店長自己的回報說明保留），搜尋不能搜備註；Q13 一張單一個料件、調撥操作要「調撥管理」＋「庫存交易管理」＋「料件查看」三個都有（缺哪個講清楚），收貨只有同時有三個權限的人能按；Q15 動作帶固定識別，連點、重送、兩人同時按都只處理一次，單據過帳與處理單同步與時間軸同一個交易，任何一步失敗整張回復。
+- 設計上的自行決定與修正（與上文第 2、3 節的差異）：
+  1. 「未收」註記用獨立動作 `mark_unreceived`（問卷動作清單只有五個；`store_report` 是店長專用，總務註記需要另一個動作）。
+  2. 取消退回庫存的流水關聯放在明細（`return_transaction_id`），不是調撥單（舊版允許一張單多個料件，退回要逐筆對應）；舊畫面仍可建多料件單，新版一張單一個料件。
+  3. 需求單連結：單據數量以「需求單的單位」記錄（調撥用基本單位而需求單用採購單位時換算），剩餘需求量在沒有處理單時也用需求單的需求量檢查；處理單處於「待決定／調撥／異常」才改成調撥，進行中的領用、採購、等待確認不覆蓋，只加單據連結；已結案、取消、退回的需求單不能再連結。
+  4. 網址預填用深連結，需求單頁（第 4 批）之後直接呼叫 `openGaPage('ga-inventory-transfers', undefined, { prefill })` 即可。
+  5. 異常終結（取消）不填說明也可以（類型不是「其他」時）；取消原因格式沿用舊版「調撥異常：類型｜說明」，另存結構化 `exception_type`。
+  6. 督導與區經理唯讀：C10 的「店長」解讀為 `store_managers.role_type='store_manager'`（問卷沒明講，寫在第 8 節風險欄，待使用者確認）。
+- 新發現、問卷未涵蓋的差異共 2 項，`allowlist.json`（page `ga-inventory-transfers`）的 `approvedBy` 為 null，待使用者確認：舊版建單在 DEV 建不起來（新增列再讀回時被列級權限擋下，回 500；新版以資料庫函式建單不受影響）、明細多回 `transfer_id`。其餘 26 筆登記中，25 筆為問卷已核可，1 筆（success 外殼）沿用第 1 批驗收核可。
+- 測試：unit 32（建單與動作驗證、abilities 含三權限缺一與 C10、逾期判斷、預填與單位換算、遮蔽與搜尋跳脫、導覽旗標與四個 href）、smoke 12（桌機＋手機）、integration 21（權限矩陣與 Origin、資料庫函式直呼叫、400／409／422、建單與動作 DB 回讀、冪等、併發、失敗整體回復、取消退回、C9、C10、C11、列表統計、C12 遮蔽、需求單連結、預填、選項、位置停用卡單）、e2e 12（角色接力、異常路線、逾期與設定、沒權限做不到、網址預填、版面）、parity 3（清單、建單、動作；舊版建單失敗，動作的前置單用資料庫直接寫入）。
+- 測試輔助：`g12-ui.ts` 加 `trRow`、`openTransferLink`；`invNavTo` 支援「調撥與收貨」；調撥單用 `reason` 帶測試標記，`cleanupM7M8` 先刪調撥單（時間軸與明細連帶刪除）再呼叫 DEV 專用清除函式。
+- 仍待處理：督導、區經理在「總務服務中心」入口的限制（同 10.1）；正式區上線前用 `26` 的 5 區確認既有調撥單與庫存，`29` 對舊單相容（新欄位為空）。
