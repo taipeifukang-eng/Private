@@ -122,6 +122,7 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-onboarding-progress": meta("上線貼標進度", ["gaOnboardingProgress"]),
   "ga-asset-import": meta("設備設施 Excel 匯入", ["gaAssetImport"]),
   "ga-inventory-locations": meta("庫存位置與料件設定", ["gaInventoryLocations"]),
+  "ga-inventory": meta("庫存餘額與流水", ["gaInventory"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {

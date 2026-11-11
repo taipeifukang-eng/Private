@@ -6,7 +6,7 @@ import { assetImportApi } from "./asset-import";
 import { attachmentsApi } from "./attachments";
 import { categoriesApi } from "./categories";
 import { maintenanceApi } from "./history";
-import { inventoryApi } from "./inventory-locations";
+import { inventoryApi } from "./inventory";
 import { isRosterMember, isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { partsApi } from "./parts";

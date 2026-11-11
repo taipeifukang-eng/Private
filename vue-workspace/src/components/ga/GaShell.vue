@@ -25,7 +25,9 @@ onMounted(() => {
   for (const g of groups.value) for (const i of g.items) if (containsCurrent(i)) openGroups.value[i.id] = true;
 });
 
-const containsCurrent = (item: GaNavItem): boolean => item.kind === props.tab.kind || !!item.children?.some(containsCurrent);
+// 同一個 kind 有多個檢視（庫存總覽／庫存流水）時，再比對 payload.view。
+const isCurrent = (item: GaNavItem): boolean => item.kind === props.tab.kind && (!item.payload?.view || item.payload.view === ((props.tab.payload as any)?.view || "balances"));
+const containsCurrent = (item: GaNavItem): boolean => isCurrent(item) || !!item.children?.some(containsCurrent);
 function toggleCollapsed() {
   collapsed.value = !collapsed.value;
   try {
@@ -36,7 +38,7 @@ function toggleCollapsed() {
 }
 function go(item: GaNavItem) {
   drawer.value = false;
-  if (item.kind) openGaPage(item.kind);
+  if (item.kind) openGaPage(item.kind, undefined, item.payload ? { ...item.payload } : undefined);
 }
 const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.integrated);
 </script>
@@ -67,14 +69,14 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
                 </button>
                 <ul v-show="openGroups[item.id]" class="ga-sub">
                   <li v-for="child in item.children" :key="child.id">
-                    <button v-if="child.kind" type="button" class="ga-link" :class="{ current: child.kind === tab.kind }" :aria-current="child.kind === tab.kind ? 'page' : undefined" @click="go(child)">{{ child.label }}</button>
+                    <button v-if="child.kind" type="button" class="ga-link" :class="{ current: isCurrent(child) }" :aria-current="isCurrent(child) ? 'page' : undefined" @click="go(child)">{{ child.label }}</button>
                     <a v-else-if="child.href" class="ga-link" :href="href(child)" target="_blank" rel="noopener" :title="child.label + '（原測試頁，另開分頁）'">{{ child.label }} <ExternalLink :size="12" /></a>
                     <span v-else class="ga-link disabled" :title="child.disabled">{{ child.label }}<small>規劃中</small></span>
                   </li>
                 </ul>
               </template>
               <template v-else>
-                <button v-if="item.kind" type="button" class="ga-link" :class="{ current: item.kind === tab.kind }" :aria-current="item.kind === tab.kind ? 'page' : undefined" @click="go(item)">{{ item.label }}</button>
+                <button v-if="item.kind" type="button" class="ga-link" :class="{ current: isCurrent(item) }" :aria-current="isCurrent(item) ? 'page' : undefined" @click="go(item)">{{ item.label }}</button>
                 <a v-else-if="item.href" class="ga-link" :href="href(item)" target="_blank" rel="noopener" :title="item.label + '（原測試頁，另開分頁）'">{{ item.label }} <ExternalLink :size="12" /></a>
                 <span v-else class="ga-link disabled" :title="item.disabled">{{ item.label }}<small>規劃中</small></span>
               </template>

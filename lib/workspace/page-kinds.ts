@@ -111,6 +111,8 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-asset-import",
   // 第 3 批 G11：庫存位置與料件設定（G12、G13 之後補）。
   "ga-inventory-locations",
+  // 第 3 批 G12：庫存餘額、流水、過帳、持有狀態（庫存總覽與庫存流水同一頁）。
+  "ga-inventory",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

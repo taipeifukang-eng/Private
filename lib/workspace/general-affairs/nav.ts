@@ -18,7 +18,7 @@ import { gaFlags, GA, isStoreManagerRole, type GaFlags } from "./access";
 export type { GaNavGroup, GaNavItem } from "./nav-types";
 
 /** 舊網址 -> 新版頁面 kind 與所需 capability（已移植的頁面才有）。 */
-export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof GaFlags }> = {
+export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof GaFlags; payload?: Record<string, string> }> = {
   "/general-affairs": { kind: "ga-center", flag: "gaCenter" },
   "/general-affairs/equipment/categories": { kind: "ga-equipment-categories", flag: "gaEquipmentCategories" },
   "/general-affairs/facilities/categories": { kind: "ga-facility-categories", flag: "gaFacilityCategories" },
@@ -38,6 +38,9 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/facilities/warranties": { kind: "ga-facility-warranties", flag: "gaFacilityWarranties" },
   "/general-affairs/facilities/maintenance-history": { kind: "ga-facility-history", flag: "gaFacilityHistory" },
   "/general-affairs/inventory/locations": { kind: "ga-inventory-locations", flag: "gaInventoryLocations" },
+  // 庫存總覽與庫存流水是同一頁（ga-inventory），舊網址 ?view=transactions 以完整 href 對應到 payload.view。
+  "/general-affairs/inventory": { kind: "ga-inventory", flag: "gaInventory", payload: { view: "balances" } },
+  "/general-affairs/inventory?view=transactions": { kind: "ga-inventory", flag: "gaInventory", payload: { view: "transactions" } },
 };
 
 export type GaNavInput = {
@@ -88,7 +91,10 @@ function toItem(item: GeneralAffairsNavItem, flags: GaFlags): GaNavItem | null {
   const out: GaNavItem = { id: item.id, label: item.label };
   if (item.href) {
     out.href = item.href;
-    if (page) out.kind = page.kind;
+    if (page) {
+      out.kind = page.kind;
+      if (page.payload) out.payload = page.payload;
+    }
   } else if (feature && feature.status !== "available") {
     out.disabled = feature.message || "規劃中，尚未開放";
   }
@@ -136,6 +142,8 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   if (flags.gaFacilityHistory && !present.has("ga-facility-history")) extra.push({ id: "facility-history-new", label: "設施維修紀錄", kind: "ga-facility-history" });
   // G11 庫存位置：舊側欄要位置查看／管理權限才列，但店長、督導、區經理（門市名單身分）也能唯讀看自己門市（C12），所以舊側欄沒列時補在這裡。
   if (flags.gaInventoryLocations && !present.has("ga-inventory-locations")) extra.push({ id: "inventory-locations-new", label: "庫存位置", kind: "ga-inventory-locations" });
+  // G12 庫存總覽：舊側欄要餘額／流水／記帳權限才列；只憑門市名單身分的人舊側欄不列，補在「資產與庫存」最上層（唯讀）。
+  if (flags.gaInventory && !present.has("ga-inventory")) extra.push({ id: "inventory-overview-new", label: "庫存總覽", kind: "ga-inventory", payload: { view: "balances" } });
   if (flags.gaTransfers) extra.push({ id: "asset-transfers", label: "轉移單", kind: "ga-transfers" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });

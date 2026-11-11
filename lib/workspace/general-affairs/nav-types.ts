@@ -8,6 +8,8 @@ export type GaNavItem = {
   href?: string;
   /** 已移植到新版的頁面 kind。 */
   kind?: WorkTabKind;
+  /** 同一個頁面 kind 的不同檢視（例如庫存總覽與庫存流水共用 ga-inventory，以 payload.view 區分）。 */
+  payload?: Record<string, string>;
   /** 尚未開放的項目（舊版顯示為「規劃中」），不可點。 */
   disabled?: string;
   children?: GaNavItem[];

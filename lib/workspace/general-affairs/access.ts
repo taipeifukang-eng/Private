@@ -91,6 +91,7 @@ export type GaFlags = {
   gaOnboardingProgress: boolean;
   gaAssetImport: boolean;
   gaInventoryLocations: boolean;
+  gaInventory: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -135,6 +136,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     gaAssetImport: has(GA.equipmentManage, GA.facilityManage),
     // 第 3 批 G11 庫存位置與料件設定：位置查看／管理權限，或門市名單任何身分（唯讀，內部欄位由伺服端遮蔽）。
     gaInventoryLocations: rosterMember || has("general_affairs.inventory_location.view", "general_affairs.inventory_location.manage"),
+    // 第 3 批 G12 庫存餘額、流水、過帳、持有狀態：餘額／流水查看或交易管理，或門市名單任何身分（唯讀）。
+    gaInventory: rosterMember || has("general_affairs.inventory_balance.view", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage"),
   };
 }
 

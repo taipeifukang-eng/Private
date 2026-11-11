@@ -43,12 +43,6 @@ const locationSelect = (internal: boolean) => (internal ? LOCATION_COLUMNS + ",d
 const PART_COLUMNS = "id,category_id,name,part_code,barcode,brand,model,specification,base_unit,purchase_unit,purchase_to_base_rate,is_active,category:ga_part_categories(id,name,code)";
 const SETTING_COLUMNS = "id,location_id,part_id,is_active,safety_stock_qty,reorder_point_qty,maximum_stock_qty,preferred_issue_unit_type,notes,created_at,updated_at";
 
-export async function inventoryApi(ctx: Context, request: NextRequest, rest: string[]) {
-  const [head, ...tail] = rest;
-  if (head === "locations") return locationsApi(ctx, request, tail);
-  throw new GaError(404, "找不到這個功能");
-}
-
 export async function locationsApi(ctx: Context, request: NextRequest, rest: string[]) {
   const [id, sub, subId] = rest;
   const m = request.method;
@@ -91,7 +85,7 @@ function reasonOf(b: Record<string, any>, label: string) {
   return reason;
 }
 
-async function storeNames(ids: string[]) {
+export async function storeNames(ids: string[]) {
   const unique = Array.from(new Set(ids.filter(Boolean)));
   if (!unique.length) return new Map<string, any>();
   const rows = ((await must((adminClient() as any).from("stores").select("id,store_code,store_name,short_name").in("id", unique))) as any[]) || [];
