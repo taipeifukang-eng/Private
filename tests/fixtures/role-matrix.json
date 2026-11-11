@@ -417,7 +417,8 @@
           "gaFacilityLabels": true,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": true
+          "gaAssetImport": true,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -614,7 +615,8 @@
           "gaFacilityLabels": true,
           "gaTransfers": false,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -760,7 +762,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -888,7 +891,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1024,7 +1028,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1146,7 +1151,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1266,7 +1272,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1366,7 +1373,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -1479,7 +1487,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1625,7 +1634,8 @@
           "gaFacilityLabels": true,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": true
+          "gaAssetImport": true,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -1727,7 +1737,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1819,7 +1830,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1904,7 +1916,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -1992,7 +2005,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2083,7 +2097,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2173,7 +2188,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2260,7 +2276,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2351,7 +2368,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2440,7 +2458,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2528,7 +2547,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2620,7 +2640,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2709,7 +2730,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2797,7 +2819,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2888,7 +2911,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2978,7 +3002,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -3068,7 +3093,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3159,7 +3185,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3249,7 +3276,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3337,7 +3365,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3426,7 +3455,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3515,7 +3545,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3605,7 +3636,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3699,7 +3731,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3792,7 +3825,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3881,7 +3915,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -3972,7 +4007,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4061,7 +4097,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4152,7 +4189,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -4248,7 +4286,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -4338,7 +4377,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -4429,7 +4469,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -4518,7 +4559,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -4611,7 +4653,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -4701,7 +4744,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -4792,7 +4836,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -4880,7 +4925,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -4969,7 +5015,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -5058,7 +5105,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5149,7 +5197,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5239,7 +5288,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5327,7 +5377,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5415,7 +5466,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5503,7 +5555,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5590,7 +5643,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5678,7 +5732,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/store-managers",
@@ -5768,7 +5823,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5855,7 +5911,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -5944,7 +6001,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6030,7 +6088,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -6117,7 +6176,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/employee-management",
@@ -6204,7 +6264,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -6290,7 +6351,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6433,7 +6495,8 @@
           "gaFacilityLabels": true,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": true
+          "gaAssetImport": true,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -6550,7 +6613,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
         },
         "navigationHrefs": [
           "/dashboard",
@@ -6645,7 +6709,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6734,7 +6799,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6824,7 +6890,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6916,7 +6983,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7003,7 +7071,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7091,7 +7160,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": false,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7178,7 +7248,8 @@
           "gaFacilityLabels": true,
           "gaTransfers": false,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7267,7 +7338,8 @@
           "gaFacilityLabels": true,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": true
+          "gaAssetImport": true,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7355,7 +7427,8 @@
           "gaFacilityLabels": false,
           "gaTransfers": false,
           "gaOnboardingProgress": true,
-          "gaAssetImport": false
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7444,13 +7517,367 @@
           "gaFacilityLabels": false,
           "gaTransfers": true,
           "gaOnboardingProgress": true,
-          "gaAssetImport": true
+          "gaAssetImport": true,
+          "gaInventoryLocations": false
         },
         "navigationHrefs": [
           "/general-affairs",
           "/organization/calendar"
         ],
         "permissionCount": 2
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_inv_location_view",
+      "email": "vue-workspace-ga-inv-location-view@example.test",
+      "roleCode": "vue_workspace_ga_inv_location_view",
+      "fullName": "測試 庫存位置查看",
+      "profileRole": "member",
+      "jobTitle": "庫存位置查看",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_location.view",
+        "general_affairs.service_center.access"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/organization/calendar"
+        ],
+        "permissionCount": 2
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_inv_location_edit",
+      "email": "vue-workspace-ga-inv-location-edit@example.test",
+      "roleCode": "vue_workspace_ga_inv_location_edit",
+      "fullName": "測試 庫存位置管理",
+      "profileRole": "member",
+      "jobTitle": "庫存位置管理",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_location.manage",
+        "general_affairs.inventory_location.view",
+        "general_affairs.service_center.access"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": true
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/organization/calendar"
+        ],
+        "permissionCount": 3
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_inv_txn_only",
+      "email": "vue-workspace-ga-inv-txn-only@example.test",
+      "roleCode": "vue_workspace_ga_inv_txn_only",
+      "fullName": "測試 只有庫存記帳管理",
+      "profileRole": "member",
+      "jobTitle": "只有庫存記帳管理",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_transaction.manage"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/general-affairs/inventory",
+          "/organization/calendar"
+        ],
+        "permissionCount": 1
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_inv_transfer_only",
+      "email": "vue-workspace-ga-inv-transfer-only@example.test",
+      "roleCode": "vue_workspace_ga_inv_transfer_only",
+      "fullName": "測試 只有庫存調撥管理",
+      "profileRole": "member",
+      "jobTitle": "只有庫存調撥管理",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_transfer.manage"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": false
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/general-affairs/inventory",
+          "/organization/calendar"
+        ],
+        "permissionCount": 1
       }
     }
   ],

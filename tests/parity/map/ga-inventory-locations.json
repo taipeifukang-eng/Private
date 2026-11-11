@@ -1,0 +1,59 @@
+{
+  "page": "ga-inventory-locations",
+  "legacyRoute": "/general-affairs/inventory/locations",
+  "workItem": "G11",
+  "entries": [
+    {
+      "id": "location-list-read",
+      "mechanism": "api-read",
+      "description": "同一個登入者、同一個搜尋，舊版 GET /api/general-affairs/inventory/locations 與新版同路徑清單逐列比對（id、欄位、門市關聯、筆數）。角色：總務（全部可見）、位置查看者、店長（名單身分，只看自己門市）。差異：新版回 total／stats／permissions 與每列料件設定數等筆數；名單身分的描述由伺服端遮蔽（C12）；搜尋含逗號括號舊版壞掉。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/locations" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/locations" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "location-detail-read",
+      "mechanism": "api-read",
+      "description": "位置詳情：同一位置兩邊回的欄位與門市關聯逐欄比對；他店位置、不存在的位置、壞 id 的狀態碼比對。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/locations/:id" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/locations/:id" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "location-parts-read",
+      "mechanism": "api-read",
+      "description": "位置料件設定清單：同一位置兩邊的設定列（id、料件、三個數量、偏好單位、啟用、備註）逐列比對；舊版搜尋是在載入後的那一頁內過濾（筆數與總數不準），新版改伺服端搜尋。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/locations/:id/parts" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/locations/:id/parts" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "location-write-readback",
+      "mechanism": "write-readback",
+      "description": "新增、修改位置後，以 service role 回讀資料庫列比對（代碼轉大寫、名稱修剪、預設位置、負庫存、門市）。同一份輸入分別用舊版與新版寫入，兩邊的資料庫欄位相同。新規則差異：修改要帶 expected_updated_at、預設衝突要確認、有交易後鎖定類型／門市／代碼（C3）、名稱與代碼長度限制。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/locations", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/locations", "method": "POST" } }
+    },
+    {
+      "id": "location-delete-readback",
+      "mechanism": "write-readback",
+      "description": "刪除位置：舊版直接軟刪除（不查庫存與調撥）；新版先查影響範圍，進行中調撥一律擋、有庫存擋（C2），清空後刪除。同一份資料回讀 deleted_at、設定是否一併軟刪除。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/locations/:id", "method": "DELETE" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/locations/:id", "method": "DELETE" } }
+    },
+    {
+      "id": "location-part-write-readback",
+      "mechanism": "write-readback",
+      "description": "位置料件設定新增、修改、移除後回讀資料庫列比對。舊版一次新增一筆、新增後不能改料件之外的設定（畫面沒有修改）、移除不查庫存；新版可批次新增（全成或全不變）、修改與停用、移除時有庫存或進行中調撥擋（C1、C2）。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/locations/:id/parts", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/locations/:id/parts", "method": "POST" } }
+    },
+    {
+      "id": "category-keep-inactive",
+      "mechanism": "write-readback",
+      "description": "C13：設備與設施分類停用後，不換分類的修改在舊版 API 與新版 API 都成功（同一條資料庫規則）；換到停用分類兩邊都被擋，訊息相同。舊版行為（任何修改都被擋）已被問卷核可為新規則，舊 Next 版同步放寬。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment/:id", "method": "PATCH" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/equipment/:id", "method": "PATCH" } }
+    }
+  ]
+}

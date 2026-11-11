@@ -65,12 +65,12 @@ test('G01 總務角色的 session：服務中心側欄照舊版分組，已移�
   const works = await (await apis.ga_works.get('/api/workspace/session')).json();
   expect(works.gaNavigation).toEqual(staff.gaNavigation);
   const ga = Object.fromEntries(Object.entries(staff.capabilities).filter(([k]) => k.startsWith('ga')));
-  expect(ga).toEqual({ gaCenter: true, gaEquipmentCategories: true, gaFacilityCategories: true, gaPartCategories: true, gaParts: true, gaPartCreate: true, gaPartCompat: true, gaEquipmentTemplates: true, gaFacilityTemplates: true, gaEquipment: true, gaEquipmentCreate: true, gaFacilities: true, gaFacilityCreate: true, gaEquipmentWarranties: true, gaFacilityWarranties: true, gaEquipmentHistory: true, gaFacilityHistory: true, gaOnboardingTasks: true, gaOnboardingReview: true, gaEquipmentLabels: true, gaFacilityLabels: true, gaTransfers: true, gaOnboardingProgress: true, gaAssetImport: true });
+  expect(ga).toEqual({ gaCenter: true, gaEquipmentCategories: true, gaFacilityCategories: true, gaPartCategories: true, gaParts: true, gaPartCreate: true, gaPartCompat: true, gaEquipmentTemplates: true, gaFacilityTemplates: true, gaEquipment: true, gaEquipmentCreate: true, gaFacilities: true, gaFacilityCreate: true, gaEquipmentWarranties: true, gaFacilityWarranties: true, gaEquipmentHistory: true, gaFacilityHistory: true, gaOnboardingTasks: true, gaOnboardingReview: true, gaEquipmentLabels: true, gaFacilityLabels: true, gaTransfers: true, gaOnboardingProgress: true, gaAssetImport: true, gaInventoryLocations: true });
   const groups = staff.gaNavigation.map((g: any) => g.label);
   expect(groups).toEqual(expect.arrayContaining(['工作台', '作業管理', '資產與庫存', '費用管理', '合作廠商']));
   const flat = staff.gaNavigation.flatMap((g: any) => g.items.flatMap((i: any) => [i, ...(i.children || [])]));
   const kinds = flat.filter((i: any) => i.kind).map((i: any) => i.kind).sort();
-  expect(kinds).toEqual(['ga-asset-import', 'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-create', 'ga-equipment-history', 'ga-equipment-labels', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-create', 'ga-facility-history', 'ga-facility-labels', 'ga-facility-templates', 'ga-facility-warranties', 'ga-onboarding-progress', 'ga-onboarding-review', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts', 'ga-transfers']);
+  expect(kinds).toEqual(['ga-asset-import', 'ga-center', 'ga-equipment', 'ga-equipment-categories', 'ga-equipment-create', 'ga-equipment-history', 'ga-equipment-labels', 'ga-equipment-templates', 'ga-equipment-warranties', 'ga-facilities', 'ga-facility-categories', 'ga-facility-create', 'ga-facility-history', 'ga-facility-labels', 'ga-facility-templates', 'ga-facility-warranties', 'ga-inventory-locations', 'ga-onboarding-progress', 'ga-onboarding-review', 'ga-onboarding-tasks', 'ga-part-categories', 'ga-part-compat', 'ga-part-create', 'ga-parts', 'ga-transfers']);
   // 全域導覽的服務中心首頁入口改為新版頁籤（網址維持 /general-affairs）
   const home = staff.navigation.flatMap((g: any) => g.items).find((i: any) => i.href === '/general-affairs');
   expect(home).toMatchObject({ kind: 'ga-center' });
@@ -361,7 +361,7 @@ test('Q6 料件編輯與停用：欄位更新、同時修改保護、停用後�
   expect((await row('ga_parts', part.id)).base_unit).toBe('箱');
   // 有庫存後鎖定單位，但其他欄位照樣可以改
   const loc = await seedLocation(null, 'L-E1');
-  await seedBalance(loc.id, part.id, 5);
+  const bal = await seedBalance(loc.id, part.id, 5);
   const usage = await get('ga_part_edit', `parts/${part.id}/usage`);
   expect(usage.body.data).toMatchObject({ stock_locations: 1, unit_locked: true });
   const locked = await send('ga_part_edit', 'patch', `parts/${part.id}`, { base_unit: '個' });
@@ -371,7 +371,12 @@ test('Q6 料件編輯與停用：欄位更新、同時修改保護、停用後�
   expect((await row('ga_parts', part.id)).base_unit).toBe('箱');
   expect((await send('ga_part_edit', 'patch', `parts/${part.id}`, { purchase_unit: '袋', purchase_to_base_rate: 3 })).status).toBe(409);
   expect((await send('ga_part_edit', 'patch', `parts/${part.id}`, { base_unit: '箱', description: '同值不算變更' })).status).toBe(200);
-  // 停用與啟用
+  // 停用與啟用（第 3 批 C2：料件在任何位置仍有庫存時不能停用；清空庫存後才可以）
+  const blocked = await send('ga_part_edit', 'patch', `parts/${part.id}`, { is_active: false });
+  expect(blocked.status).toBe(400);
+  expect(blocked.body.error).toContain('仍有庫存');
+  expect((await row('ga_parts', part.id)).is_active).toBe(true);
+  await adminDb().from('ga_inventory_balances').update({ quantity_base: 0 }).eq('id', bal.id);
   expect((await send('ga_part_edit', 'patch', `parts/${part.id}`, { is_active: false })).status).toBe(200);
   expect((await row('ga_parts', part.id)).is_active).toBe(false);
   expect((await send('ga_part_edit', 'patch', `parts/${part.id}`, { is_active: true })).status).toBe(200);

@@ -13,6 +13,8 @@ const REQUIRED_ROLE_KEYS = [
   'pharmacist', 'inventory_team', 'ga_staff', 'ga_vendor_manager', 'employee', 'denied',
   // M7/M8 第 1 批準備：工務（Q25，與總務同權限）與綁 VW001 的第二位店長（別間門市看不到的測試）
   'ga_works', 'ga_store_manager_b',
+  // M7/M8 第 3 批 G11：庫存位置只有查看／管理（沒有料件查看）的測試帳號（記帳與調撥的 *_only 帳號在下面的單一權限清單）
+  'ga_inv_location_view', 'ga_inv_location_edit',
 ];
 
 describe('T01 role-matrix.json', () => {
@@ -21,7 +23,7 @@ describe('T01 role-matrix.json', () => {
     expect(keys).toEqual(REQUIRED_ROLE_KEYS);
   });
 
-  it('W06 單一權限帳號（*_only）各自只持有一個異動相關權限', () => {
+  it('單一權限帳號（*_only）各自只持有一個權限（W06 異動、第 3 批庫存記帳與調撥）', () => {
     const single = Object.fromEntries(
       fixture.accounts.filter((a: { key: string }) => a.key.endsWith('_only')).map((a: { key: string; permissions: string[] }) => [a.key, a.permissions]),
     );
@@ -30,6 +32,8 @@ describe('T01 role-matrix.json', () => {
       employee_manage_only: ['employee.manage'],
       promotion_batch_only: ['employee.promotion.batch'],
       promotion_delete_only: ['employee.promotion.delete'],
+      ga_inv_txn_only: ['general_affairs.inventory_transaction.manage'],
+      ga_inv_transfer_only: ['general_affairs.inventory_transfer.manage'],
     });
   });
 

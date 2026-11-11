@@ -479,7 +479,7 @@ test('總務側欄：每個角色的舊版規則項目 id 集合 vs 新版 gaNav
     for (const id of legacyIds) if (!nativeIds.has(id)) diffs.push({ kind: 'only-legacy', key: navKey(id), legacy: `${role}:${id}` });
     for (const id of nativeIds) if (!legacyIds.has(id)) diffs.push({ kind: 'only-native', key: `native-only:${id}`, native: `${role}:${id}` });
     // session 的 gaNavigation 要和單元層的規則（nav.ts 以同一組輸入）一致：不能因為 session 組裝而漂移
-    const expected = gaNavigation({ has: access.has, permissions: access.permissions as any, roleCodes, isAdmin, storeMember });
+    const expected = gaNavigation({ has: access.has, permissions: access.permissions as any, roleCodes, isAdmin, storeMember, rosterMember: storeMember }); // 第 3 批 G11：名單任何身分都有庫存位置唯讀入口
     const expectedIds = new Set(expected.flatMap((g) => g.items.flatMap((i) => [i, ...(i.children || [])])).map((i) => i.id));
     expect([...nativeIds].sort(), `${role}: session 與 nav.ts 規則不一致`).toEqual([...expectedIds].sort());
   }

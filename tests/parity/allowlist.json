@@ -4427,5 +4427,414 @@
       "key": "native-only:onboarding-progress",
       "entry": "sidebar-visibility"
     }
+  },
+  {
+    "id": "m7m8-g11-extra-parts-count",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 每列料件設定數；舊版沒有這個欄位。",
+    "reason": "清單每列顯示料件設定數（精確筆數），方便判斷位置是否已設定；伺服端用資料庫函式一次查整頁（核可 assumptions：清單、統計卡伺服端精確筆數）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "parts_count"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-stock-items",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 每列有庫存的項數；舊版沒有這個欄位。",
+    "reason": "停用與刪除前要看庫存項數（C2），清單也顯示，讓總務知道哪些位置還有庫存。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stock_items"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-open-transfers",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 每列進行中調撥張數；舊版沒有這個欄位。",
+    "reason": "進行中調撥一律擋停用與刪除（C2），清單顯示張數讓總務先看到。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "open_transfers"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-has-history",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 位置是否已有交易或餘額；舊版沒有這個欄位。",
+    "reason": "有交易後鎖定類型、門市、代碼（C3），編輯畫面依此顯示鎖定說明。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "has_history"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-total",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 回傳精確總筆數 total；舊版沒有這個欄位。",
+    "reason": "分頁與精確筆數（核可 assumptions）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-stats",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 回傳伺服端精確統計 stats（全部、啟用、停用、預設）；舊版沒有這個欄位。",
+    "reason": "統計卡改伺服端精確筆數，舊版只算載入的 50 筆（核可 assumptions）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-permissions",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 回傳目前登入者的操作權限 permissions（可管理、可看內部欄位、可新增位置料件）；舊版沒有這個欄位。",
+    "reason": "頁面依權限顯示按鈕與唯讀說明（C12 三種身分唯讀）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-stock-qty",
+    "page": "ga-inventory-locations",
+    "description": "新版位置清單／詳情／設定清單多回 位置料件設定列帶目前庫存 stock_qty（有餘額查看或記帳管理權限者）；舊版沒有這個欄位。",
+    "reason": "移除、停用設定被擋時要看得到目前庫存（C2）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stock_qty"
+    }
+  },
+  {
+    "id": "m7m8-g11-legacy-success-envelope",
+    "page": "ga-inventory-locations",
+    "description": "舊版 /api/general-affairs 回應多一層 success: true；新版工作台 API 依 HTTP 狀態碼判斷成功或失敗，錯誤時回 error 文字。",
+    "reason": "工作台 API 慣例（與其他頁一致）；內容欄位逐欄相同。與第 1 批驗收核可的 m7m8-g01-legacy-success-envelope 同一慣例（2026-11-10 第 1 批驗收核可）。",
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g11-description-masked",
+    "page": "ga-inventory-locations",
+    "description": "店長、督導、區經理（門市名單身分）讀位置時，位置描述由伺服端遮蔽；舊版原樣回傳。",
+    "reason": "C12（2026-11-11 第 3 批問卷）：三種身分可唯讀看自己門市，內部欄位（位置描述、位置料件備註）由伺服端挑欄位遮蔽。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "description"
+    }
+  },
+  {
+    "id": "m7m8-g11-notes-masked",
+    "page": "ga-inventory-locations",
+    "description": "店長、督導、區經理（門市名單身分）讀位置料件設定時，備註由伺服端遮蔽；舊版原樣回傳。",
+    "reason": "C12（2026-11-11 第 3 批問卷）內部欄位遮蔽。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "notes"
+    }
+  },
+  {
+    "id": "m7m8-g11-search-special-chars",
+    "page": "ga-inventory-locations",
+    "description": "搜尋含逗號、括號、引號：舊版把輸入直接拼進查詢條件而回 500，新版跳脫後正常搜尋。",
+    "reason": "舊版缺陷修正（核可 assumptions：搜尋跳脫、搜尋加分頁；2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "location-search-special-chars"
+    }
+  },
+  {
+    "id": "m7m8-g11-parts-search-server-side",
+    "page": "ga-inventory-locations",
+    "description": "位置料件設定的搜尋：舊版先取一頁再在瀏覽器端過濾（總數與筆數不準），新版改伺服端搜尋與分頁（精確總數）。",
+    "reason": "舊版缺陷修正（核可 assumptions：清單、位置料件、選擇器皆搜尋加分頁；2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "count",
+      "key": "location-parts-search-total"
+    }
+  },
+  {
+    "id": "m7m8-g11-extra-part-is-active",
+    "page": "ga-inventory-locations",
+    "description": "新版設定清單的料件關聯多回 is_active（料件是否啟用）；舊版沒有。",
+    "reason": "頁面要標示「料件已停用」的設定；只讀欄位。主迴圈自行延伸，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_active"
+    }
+  },
+  {
+    "id": "m7m8-g11-detail-system-columns",
+    "page": "ga-inventory-locations",
+    "description": "新版位置詳情不回傳 created_by／updated_by／deleted_at／deleted_by／deletion_reason 這些系統欄位；舊版整列回傳。",
+    "reason": "頁面用不到、且含使用者 id；新版只挑需要的欄位。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "created_by"
+    }
+  },
+  {
+    "id": "m7m8-g11-detail-system-columns-updated-by",
+    "page": "ga-inventory-locations",
+    "description": "新版位置詳情不回傳系統欄位 updated_by；舊版整列回傳。",
+    "reason": "同 m7m8-g11-detail-system-columns：頁面用不到、含使用者 id，新版只挑需要的欄位。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "updated_by"
+    }
+  },
+  {
+    "id": "m7m8-g11-detail-system-columns-deleted-at",
+    "page": "ga-inventory-locations",
+    "description": "新版位置詳情不回傳系統欄位 deleted_at；舊版整列回傳。",
+    "reason": "同 m7m8-g11-detail-system-columns：頁面用不到、含使用者 id，新版只挑需要的欄位。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "deleted_at"
+    }
+  },
+  {
+    "id": "m7m8-g11-detail-system-columns-deleted-by",
+    "page": "ga-inventory-locations",
+    "description": "新版位置詳情不回傳系統欄位 deleted_by；舊版整列回傳。",
+    "reason": "同 m7m8-g11-detail-system-columns：頁面用不到、含使用者 id，新版只挑需要的欄位。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "deleted_by"
+    }
+  },
+  {
+    "id": "m7m8-g11-detail-system-columns-deletion-reason",
+    "page": "ga-inventory-locations",
+    "description": "新版位置詳情不回傳系統欄位 deletion_reason；舊版整列回傳。",
+    "reason": "同 m7m8-g11-detail-system-columns：頁面用不到、含使用者 id，新版只挑需要的欄位。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "deletion_reason"
+    }
+  },
+  {
+    "id": "m7m8-g11-resolved-unit-view-role",
+    "page": "ga-inventory-locations",
+    "description": "只有位置查看權限（沒有料件查看）的帳號，舊版因資料庫列級權限讀不到料件而偏好領用單位名稱為空；新版由伺服端補上料件名稱與單位。",
+    "reason": "新版位置料件設定要讓位置管理者看得到是哪個料件、領用單位是什麼（只取料件公開欄位）。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "resolvedPreferredIssueUnit"
+    }
+  },
+  {
+    "id": "m7m8-g11-update-requires-version",
+    "page": "ga-inventory-locations",
+    "description": "修改位置一定要帶 expected_updated_at（缺少回 400）；舊版不用，可能蓋掉別人剛改的內容。",
+    "reason": "多人同時編輯回 409 STALE（核可 assumptions；2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "update-without-version"
+    }
+  },
+  {
+    "id": "m7m8-g11-default-conflict-confirm",
+    "page": "ga-inventory-locations",
+    "description": "預設位置衝突時，新版回 409 DEFAULT_CONFLICT 並帶出既有預設位置，畫面確認後自動改由新位置接手；舊版只回資料庫唯一索引錯誤。",
+    "reason": "核可 assumptions：換預設位置跳確認後自動換（2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "default-conflict-confirm"
+    }
+  },
+  {
+    "id": "m7m8-g11-locked-by-history-status",
+    "page": "ga-inventory-locations",
+    "description": "位置已有庫存或交易後修改類型、門市、代碼：新版回 409 LOCKED_BY_HISTORY；舊版畫面沒有檢查，資料庫觸發器現在也擋但回 500。",
+    "reason": "C3 鎖定（2026-11-11 第 3 批問卷，代碼一併鎖定為核可的 assumption）；資料庫觸發器同時保護舊版畫面。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "locked-by-history-status"
+    }
+  },
+  {
+    "id": "m7m8-g11-locked-by-history-message",
+    "page": "ga-inventory-locations",
+    "description": "鎖定時的訊息：新版白話說明並建議新增位置後調撥；舊版顯示資料庫原文。",
+    "reason": "C3 與錯誤白話化（核可 assumptions；2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "locked-by-history-message"
+    }
+  },
+  {
+    "id": "m7m8-g11-name-length-limit",
+    "page": "ga-inventory-locations",
+    "description": "新版位置名稱不可超過 100 字（代碼 40 字、描述 500 字）；舊版沒有長度限制。",
+    "reason": "輸入長度保護。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "name-length-limit"
+    }
+  },
+  {
+    "id": "m7m8-g11-delete-with-stock",
+    "page": "ga-inventory-locations",
+    "description": "刪除仍有庫存的位置：舊版直接軟刪除；新版擋下（C2）。",
+    "reason": "C2（2026-11-11 第 3 批問卷）：有庫存的位置不能刪除，只能停用。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "delete-with-stock-status"
+    }
+  },
+  {
+    "id": "m7m8-g11-delete-with-stock-result",
+    "page": "ga-inventory-locations",
+    "description": "刪除仍有庫存的位置後的資料庫結果：舊版已刪除、新版保留。",
+    "reason": "C2（2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "delete-with-stock-result"
+    }
+  },
+  {
+    "id": "m7m8-g11-delete-with-open-transfer",
+    "page": "ga-inventory-locations",
+    "description": "刪除有進行中調撥的位置：舊版資料庫觸發器擋下但回 500；新版先擋並回 409 帶單號。",
+    "reason": "C2（2026-11-11 第 3 批問卷）：進行中調撥一律擋、不留例外；資料庫觸發器同時保護舊版畫面。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "delete-with-open-transfer-status"
+    }
+  },
+  {
+    "id": "m7m8-g11-delete-child-reason",
+    "page": "ga-inventory-locations",
+    "description": "位置刪除連帶軟刪除的料件設定，刪除原因欄位新版加前綴「位置刪除衍生：」；舊版原樣複製。",
+    "reason": "和第 1 批料件刪除的「父料件刪除衍生：」一致，查紀錄時看得出是連帶刪除。主迴圈自行決定，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "delete-child-row#deletion_reason"
+    }
+  },
+  {
+    "id": "m7m8-g11-part-batch-create",
+    "page": "ga-inventory-locations",
+    "description": "位置料件設定可一次批次新增（items 陣列、全成或全不變）；舊版一次一筆。",
+    "reason": "C1（2026-11-11 第 3 批問卷）：新增時可多選料件共用預設數字。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "part-batch-create"
+    }
+  },
+  {
+    "id": "m7m8-g11-part-remove-with-stock-status",
+    "page": "ga-inventory-locations",
+    "description": "移除仍有庫存的位置料件設定：舊版直接移除；新版擋下（C2）。",
+    "reason": "C2（2026-11-11 第 3 批問卷）：移除或停用設定，位置仍有庫存就擋。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "part-remove-with-stock-status"
+    }
+  },
+  {
+    "id": "m7m8-g11-part-remove-with-stock-result",
+    "page": "ga-inventory-locations",
+    "description": "移除仍有庫存的設定後的資料庫結果：舊版已移除、新版保留。",
+    "reason": "C2（2026-11-11 第 3 批問卷）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "part-remove-with-stock-result"
+    }
+  },
+  {
+    "id": "m7m8-g11-category-inactive-edit-allowed",
+    "page": "ga-inventory-locations",
+    "description": "設備與設施的分類被停用後，不換分類的修改可以儲存；舊規則是任何修改都被資料庫擋下。新增或換到停用分類仍被擋。舊版 API 與畫面同一條資料庫規則，一併放寬。",
+    "reason": "C13（2026-11-11 第 3 批問卷）：分類停用後，設備與設施只要不換分類仍可修改；舊版也一起適用。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "category-inactive-edit-allowed"
+    }
+  },
+  {
+    "id": "m7m8-g11-nav-inventory-locations",
+    "page": "ga-assets",
+    "description": "新版總務側欄為門市名單身分（店長、督導、區經理）補上「庫存位置」入口（唯讀）；舊版側欄要有位置查看或管理權限才列出該項目。",
+    "reason": "C12（2026-11-11 第 3 批問卷）：名單內店長、督導、區經理三種身分都可唯讀看自己門市的庫存位置，選單對有權看的人顯示庫存入口；新頁入口補在「資產與庫存」群組（不改舊版側欄元件）。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:inventory-locations-new",
+      "entry": "sidebar-visibility"
+    }
   }
 ]

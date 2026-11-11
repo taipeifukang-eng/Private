@@ -111,12 +111,17 @@ export async function callFn(client: any, name: string, args: Record<string, unk
   return r.data;
 }
 
-export async function seedLocation(storeCode: string | null, suffix: string) {
+export async function seedLocation(storeCode: string | null, suffix: string, over: Record<string, unknown> = {}) {
   const s = storeCode ? await stores() : null;
   return must(
-    await adminDb().from('ga_inventory_locations').insert({ code: m7Code(suffix), name: m7Name(suffix), location_type: storeCode ? 'STORE' : 'CENTRAL_WAREHOUSE', ...(s ? { store_id: s[storeCode!].id } : {}) }).select('*').single(),
+    await adminDb().from('ga_inventory_locations').insert({ code: m7Code(suffix), name: m7Name(suffix), location_type: storeCode ? 'STORE' : 'CENTRAL_WAREHOUSE', ...(s ? { store_id: s[storeCode!].id } : {}), ...over }).select('*').single(),
     `建立庫存位置 ${suffix}`,
   ) as any;
+}
+
+/** 位置料件設定（直接寫入，測試前置資料；API 的新增另有專門測試）。 */
+export async function seedLocationPart(locationId: string, partId: string, over: Record<string, unknown> = {}) {
+  return must(await adminDb().from('ga_inventory_location_parts').insert({ location_id: locationId, part_id: partId, ...over }).select('*').single(), '建立位置料件設定') as any;
 }
 
 export async function seedBalance(locationId: string, partId: string, qty: number) {
@@ -143,7 +148,7 @@ export async function seedTransfer(sourceId: string, destId: string, partId: str
 export type M7User = { key: string; id: string; email: string; password: string };
 
 /** 建立測試帳號：real_store_manager（DEV 既有的真正 store_manager 角色 + 指派 VW001）、admin_ungranted（舊式管理員，沒掛任何角色）。 */
-export async function setupM7Users(keys: ('real_store_manager' | 'admin_ungranted' | 'plain_member')[]): Promise<{ users: Record<string, M7User>; teardown: () => Promise<string[]> }> {
+export async function setupM7Users(keys: ('real_store_manager' | 'admin_ungranted' | 'plain_member' | 'roster_supervisor' | 'roster_area_manager')[]): Promise<{ users: Record<string, M7User>; teardown: () => Promise<string[]> }> {
   runIdOrThrow();
   const db = adminDb();
   const left = await cleanupM7Users(db);
@@ -163,6 +168,14 @@ export async function setupM7Users(keys: ('real_store_manager' | 'admin_ungrante
       if (!role) throw new Error('DEV 沒有 store_manager 角色');
       must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
       must(await db.from('store_managers').insert({ user_id: uid, store_id: s.VW001.id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
+    }
+    // 只在門市名單上（督導、區經理），沒有任何角色：用來驗證 C12「三種名單身分都能唯讀看自己門市」。
+    if (key === 'roster_supervisor' || key === 'roster_area_manager') {
+      // 掛 DEV 既有的 store_manager 角色只是為了有總務服務中心的入口（service_center.access）；名單身分仍是督導／區經理。
+      const role = must(await db.from('roles').select('id').eq('code', 'store_manager').maybeSingle(), '讀取 store_manager 角色') as { id: string } | null;
+      if (!role) throw new Error('DEV 沒有 store_manager 角色');
+      must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
+      must(await db.from('store_managers').insert({ user_id: uid, store_id: s.ZT01.id, role_type: key === 'roster_supervisor' ? 'supervisor' : 'area_manager', is_primary: false }), `store_managers ${key}`);
     }
   }
   return { users, teardown: () => cleanupM7Users(db) };
@@ -262,6 +275,7 @@ export async function cleanupM7M8(): Promise<string[]> {
   await del(db, 'ga_inventory_balances', 'part_id', partIds, log);
   await del(db, 'ga_inventory_balances', 'location_id', locIds, log);
   await del(db, 'ga_inventory_location_parts', 'part_id', partIds, log);
+  await del(db, 'ga_inventory_location_parts', 'location_id', locIds, log);
   await del(db, 'ga_service_requests', 'id', reqIds, log);
   await del(db, 'maintenance_requests', 'id', woIds, log);
   await del(db, 'ga_equipment', 'id', eqIds, log);

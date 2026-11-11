@@ -310,13 +310,16 @@ test('編輯設施：已有分類（即使是停用、又在子層的分類）�
     expect((await row('ga_facilities', f.id)).category_id).toBe(child.id);
     await dialog(page).getByRole('button', { name: '編輯' }).click();
     await expect(dialog(page).locator('.cat-selected')).toContainText(child.name);
-    expect((await adminDb().from('ga_facility_categories').update({ is_active: true }).eq('id', child.id)).error).toBeNull(); // 資料庫對停用分類下的設施任何更新都會擋，重新啟用後再驗證儲存
+    // C13（第 3 批）：分類停用後，不換分類仍可修改其他欄位；畫面提示這個分類已停用，分類維持停用
+    await expect(dialog(page).getByTestId('category-inactive-hint')).toContainText('這個分類已停用');
     await dialog(page).getByLabel('詳細位置').fill('櫃台後方');
     const patch = page.waitForRequest((r) => r.method() === 'PATCH' && r.url().includes(`/facilities/${f.id}`));
     await dialog(page).getByRole('button', { name: '儲存' }).click();
     expect(Object.keys((await patch).postDataJSON())).not.toContain('category_id');
+    await expect(page.locator('.notice:visible', { hasText: `已儲存設施「${f.name}」` }).first()).toBeVisible();
     await expect(dialog(page)).toContainText(child.name);
-    expect(await row('ga_facilities', f.id)).toMatchObject({ category_id: child.id });
+    expect(await row('ga_facilities', f.id)).toMatchObject({ category_id: child.id, location_detail: '櫃台後方' });
+    expect((await row('ga_facility_categories', child.id)).is_active).toBe(false); // 分類仍是停用，修改照樣成功（C13）
     expect(errors).toEqual([]);
   } finally {
     await c.close();
