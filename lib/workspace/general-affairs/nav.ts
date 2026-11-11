@@ -37,6 +37,7 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/facilities/new": { kind: "ga-facility-create", flag: "gaFacilityCreate" },
   "/general-affairs/facilities/warranties": { kind: "ga-facility-warranties", flag: "gaFacilityWarranties" },
   "/general-affairs/facilities/maintenance-history": { kind: "ga-facility-history", flag: "gaFacilityHistory" },
+  "/general-affairs/inventory/locations": { kind: "ga-inventory-locations", flag: "gaInventoryLocations" },
 };
 
 export type GaNavInput = {
@@ -46,6 +47,8 @@ export type GaNavInput = {
   isAdmin: boolean;
   /** 名單內任何身分（store_managers）；只影響設備清冊與貼標待辦入口。 */
   storeMember?: boolean;
+  /** 門市名單任何身分（G11 庫存位置唯讀入口）。 */
+  rosterMember?: boolean;
 };
 
 /** 舊 hooks/useNavbarPermissions.ts 的 canAccessGeneralAffairs* 旗標（同一套條件）。 */
@@ -100,7 +103,7 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
     permissionFlags: legacyNavFlags(input),
     isAdminLike: input.isAdmin,
   });
-  const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes), !!input.storeMember);
+  const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes), !!input.storeMember, !!input.rosterMember);
   const out = groups
     .map((g) => ({
       id: g.id,
@@ -131,6 +134,8 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   out.forEach((g) => collect(g.items));
   if (flags.gaFacilities && !present.has("ga-facilities")) extra.push({ id: "facility-list-new", label: "設施清冊", kind: "ga-facilities" });
   if (flags.gaFacilityHistory && !present.has("ga-facility-history")) extra.push({ id: "facility-history-new", label: "設施維修紀錄", kind: "ga-facility-history" });
+  // G11 庫存位置：舊側欄要位置查看／管理權限才列，但店長、督導、區經理（門市名單身分）也能唯讀看自己門市（C12），所以舊側欄沒列時補在這裡。
+  if (flags.gaInventoryLocations && !present.has("ga-inventory-locations")) extra.push({ id: "inventory-locations-new", label: "庫存位置", kind: "ga-inventory-locations" });
   if (flags.gaTransfers) extra.push({ id: "asset-transfers", label: "轉移單", kind: "ga-transfers" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });

@@ -109,6 +109,8 @@ export const WORKSPACE_DETAIL_KINDS = [
   // 第 2 批 Q29：上線貼標進度、Excel 匯入既有設備與設施。
   "ga-onboarding-progress",
   "ga-asset-import",
+  // 第 3 批 G11：庫存位置與料件設定（G12、G13 之後補）。
+  "ga-inventory-locations",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

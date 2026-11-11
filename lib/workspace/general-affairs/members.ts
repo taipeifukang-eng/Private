@@ -10,3 +10,9 @@ export async function isStoreMember(ctx: Context): Promise<boolean> {
   const { data, error } = await (adminClient() as any).from("store_managers").select("id").eq("user_id", ctx.user.id).limit(1);
   return !error && (data || []).length > 0;
 }
+
+/** 登入者是否在門市名單（store_managers）上，任何身分都算（C12：庫存唯讀入口）。每次都查，不因角色或權限略過。 */
+export async function isRosterMember(ctx: Context): Promise<boolean> {
+  const { data, error } = await (adminClient() as any).from("store_managers").select("id").eq("user_id", ctx.user.id).limit(1);
+  return !error && (data || []).length > 0;
+}

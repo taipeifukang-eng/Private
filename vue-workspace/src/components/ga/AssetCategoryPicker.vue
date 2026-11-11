@@ -123,6 +123,7 @@ onMounted(resolveSelected);
       </ul>
       <p v-if="total > options.length" class="muted cat-note">共 {{ total }} 筆，只顯示前 {{ options.length }} 筆，請輸入關鍵字縮小範圍。</p>
     </div>
+    <small v-if="selected && !open && selected.is_active === false && type !== 'part'" class="cat-inactive muted" role="status" data-testid="category-inactive-hint">這個分類已停用：不換分類仍可儲存其他欄位；要換分類只能選啟用中的分類。</small>
     <span v-if="error && !open" class="field-error">{{ error }}</span>
     <span v-if="props.error" class="field-error" role="alert">{{ props.error }}</span>
   </div>
@@ -132,6 +133,7 @@ onMounted(resolveSelected);
 .cat-picker { position: relative; }
 .cat-selected { display: flex; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 5px; padding: 6px 10px; background: var(--surface); }
 .cat-selected small { display: block; }
+.cat-inactive { display: block; margin-top: 4px; }
 .cat-actions { display: flex; gap: 6px; }
 .cat-actions button { min-height: 30px; padding: 3px 10px; font-size: 12px; }
 .cat-pop { position: absolute; z-index: 20; inset: calc(100% + 4px) 0 auto; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); box-shadow: 0 8px 20px #0002; padding: 6px; }

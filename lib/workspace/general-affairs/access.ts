@@ -90,6 +90,7 @@ export type GaFlags = {
   gaTransfers: boolean;
   gaOnboardingProgress: boolean;
   gaAssetImport: boolean;
+  gaInventoryLocations: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -98,7 +99,8 @@ export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
 
 /** 導覽／頁面可見旗標（has 含管理員後備）。 */
 /** storeMember：名單內任何身分（store_managers）；只影響第 2 批的設備清冊與貼標待辦入口，第 1 批旗標維持只認角色代碼。 */
-export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false): GaFlags {
+/** rosterMember：門市名單（store_managers）任何身分，G11 庫存位置唯讀入口用（C12：店長、督導、區經理）。 */
+export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, rosterMember = false): GaFlags {
   return {
     gaCenter: storeManager || has(...GA_CENTER_CODES),
     gaEquipmentCategories: has(GA.equipmentCategoryView, GA.equipmentCategoryManage),
@@ -131,6 +133,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false):
     // Q29 上線貼標進度（總務看全部門市、店長只看自己門市）與 Excel 匯入（設備或設施管理）。
     gaOnboardingProgress: storeManager || storeMember || has(GA.equipmentView, GA.equipmentManage, GA.facilityView, GA.facilityManage),
     gaAssetImport: has(GA.equipmentManage, GA.facilityManage),
+    // 第 3 批 G11 庫存位置與料件設定：位置查看／管理權限，或門市名單任何身分（唯讀，內部欄位由伺服端遮蔽）。
+    gaInventoryLocations: rosterMember || has("general_affairs.inventory_location.view", "general_affairs.inventory_location.manage"),
   };
 }
 

@@ -6,7 +6,8 @@ import { assetImportApi } from "./asset-import";
 import { attachmentsApi } from "./attachments";
 import { categoriesApi } from "./categories";
 import { maintenanceApi } from "./history";
-import { isStoreMember } from "./members";
+import { inventoryApi } from "./inventory-locations";
+import { isRosterMember, isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { partsApi } from "./parts";
 import { sitesApi } from "./pickers";
@@ -21,7 +22,7 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
   switch (head) {
     case "access": {
       // 目前登入者在總務服務中心的可見旗標（與 /api/workspace/session 的 capabilities 同一套規則）與資料庫端實際可操作旗標。
-      const flags = gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes), await isStoreMember(ctx));
+      const flags = gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes), await isStoreMember(ctx), await isRosterMember(ctx));
       const cat = (t: CategoryType) => categoryPermissions(t, ctx.permissions);
       return respond({
         flags,
@@ -60,6 +61,8 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return qrApi(ctx, request, rest);
     case "assets":
       return scanApi(ctx, request, rest);
+    case "inventory":
+      return inventoryApi(ctx, request, rest);
     case "sites":
       return sitesApi(ctx, request);
     default:
