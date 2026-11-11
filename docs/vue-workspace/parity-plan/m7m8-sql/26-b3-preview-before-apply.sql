@@ -22,7 +22,8 @@ new_objs AS (
                                       'ga_ws_inv_add_location_parts', 'ga_ws_inv_update_location_part', 'ga_ws_inv_remove_location_part',
                                       'ga_inv_location_has_history', 'ga_inv_location_impact_json', 'ga_inv_setting_impact_json', 'ga_inv_jsonb_key_count',
                                       'ga_inventory_locations_guard', 'ga_parts_block_deactivate_with_stock',
-                                      'ga_inv_map_error', 'ga_ws_inv_post', 'ga_ws_inv_set_holding', 'ga_ws_inv_balance_page']) o
+                                      'ga_inv_map_error', 'ga_ws_inv_post', 'ga_ws_inv_set_holding', 'ga_ws_inv_balance_page',
+                                      'ga_inv_tr_err', 'ga_inv_tr_perm_error', 'ga_inv_tr_sync_fulfillment', 'ga_inv_tr_data', 'ga_ws_inv_transfer_create', 'ga_ws_inv_transfer_action', 'ga_ws_inv_transfer_store_report', 'ga_ws_inv_transfer_set_overdue_days']) o
 ),
 open_transfers AS (
   SELECT t.* FROM public.ga_inventory_transfers t WHERE t.deleted_at IS NULL AND t.status IN ('REQUESTED', 'SOURCE_CONFIRMED', 'IN_TRANSIT')
@@ -69,6 +70,8 @@ UNION ALL
 SELECT '2 新增物件現況', n.name, (SELECT count(*)::text FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public' AND p.proname = n.name),
        CASE WHEN EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public' AND p.proname = n.name) THEN 'ALREADY' ELSE 'OK' END
   FROM new_objs n
+UNION ALL
+SELECT '2 新增物件現況', 'ga_inventory_transfer_events／ga_inventory_transfer_settings（29 建立；有就代表 29 已套過）', COALESCE(to_regclass('public.ga_inventory_transfer_events')::text, '') || ' ' || COALESCE(to_regclass('public.ga_inventory_transfer_settings')::text, ''), 'INFO'
 UNION ALL
 SELECT '2 新增物件現況', 'ga_m7m8_function_backups（第 2 批 22 或本批 30 建立；有就代表已備份過函式）', to_regclass('public.ga_m7m8_function_backups')::text, 'INFO'
 UNION ALL
