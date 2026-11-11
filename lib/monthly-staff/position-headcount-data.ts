@@ -6,6 +6,8 @@
 import { assignSupervisorsToStores } from '@/lib/stores/supervisor-assignment';
 import {
   findUnfinalizedStores,
+  storeKept,
+  type FranchiseFilter,
   monthsEndingAt,
   type HeadcountRecord,
   type HeadcountStore,
@@ -17,6 +19,7 @@ export const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 export interface PositionHeadcountPayload {
   yearMonth: string;
   trend: boolean;
+  franchise: FranchiseFilter;
   months: string[];
   stores: HeadcountStore[];
   records: HeadcountRecord[];
@@ -35,13 +38,13 @@ async function fetchAllPages<T>(createQuery: (from: number, to: number) => any):
   return rows;
 }
 
-export async function loadPositionHeadcountData(db: any, yearMonth: string, trend: boolean): Promise<PositionHeadcountPayload> {
+export async function loadPositionHeadcountData(db: any, yearMonth: string, trend: boolean, franchise: FranchiseFilter = 'all'): Promise<PositionHeadcountPayload> {
   if (!YEAR_MONTH_PATTERN.test(yearMonth)) throw new Error('月份格式錯誤，需為 YYYY-MM');
   const months = trend ? monthsEndingAt(yearMonth, 12) : [yearMonth];
 
   const [allStores, managers, records, summaries] = await Promise.all([
-    fetchAllPages<{ id: string; store_code: string; store_name: string; is_active: boolean | null }>((from, to) =>
-      db.from('stores').select('id, store_code, store_name, is_active').order('store_code').order('id').range(from, to),
+    fetchAllPages<{ id: string; store_code: string; store_name: string; is_active: boolean | null; is_franchise: boolean | null }>((from, to) =>
+      db.from('stores').select('id, store_code, store_name, is_active, is_franchise').order('store_code').order('id').range(from, to),
     ),
     fetchAllPages<any>((from, to) =>
       db
@@ -80,18 +83,25 @@ export async function loadPositionHeadcountData(db: any, yearMonth: string, tren
     id: s.id,
     store_code: s.store_code,
     store_name: s.store_name,
+    is_franchise: s.is_franchise === true,
     supervisor_id: supMap.get(s.id)?.supervisor_id ?? null,
     supervisor_name: supMap.get(s.id)?.supervisor_name ?? null,
     supervisor_employee_code:
       supMap.get(s.id)?.supervisor_code ?? (supMap.get(s.id)?.supervisor_id ? codeByUser.get(supMap.get(s.id)!.supervisor_id as string) ?? null : null),
   }));
 
+  // 加盟店篩選：先用全部門市分類、再依門市篩，所以這裡一律回傳全部紀錄，由 computeMonthHeadcount / computeHeadcountTrend 帶入 franchise 篩選
+  const storeById = new Map(stores.map((s) => [s.id, s]));
+  // 未定稿是門市本身的狀態：只依門市是否留下決定列不列，避免「只看＋不含」少列門市
+  const unfinalizedStores = findUnfinalizedStores(records, stores, summaries, yearMonth).filter((s) => storeKept(storeById.get(s.id), franchise));
+
   return {
     yearMonth,
     trend,
+    franchise,
     months,
     stores,
     records,
-    unfinalizedStores: findUnfinalizedStores(records, stores, summaries, yearMonth),
+    unfinalizedStores,
   };
 }

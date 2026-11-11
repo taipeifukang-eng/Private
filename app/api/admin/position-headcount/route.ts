@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { canAccessEmployeeManagement } from '@/lib/monthly-staff/employee-management-access';
+import { parseFranchiseFilter } from '@/lib/monthly-staff/position-headcount';
 import { loadPositionHeadcountData, YEAR_MONTH_PATTERN } from '@/lib/monthly-staff/position-headcount-data';
 
 export const dynamic = 'force-dynamic';
 
-// GET /api/admin/position-headcount?month=YYYY-MM[&trend=1]
+// GET /api/admin/position-headcount?month=YYYY-MM[&trend=1][&franchise=all|only|exclude]
 // 唯讀。權限與員工管理頁相同（admin 或擁有 employee.manage），在伺服器端檢查。
 export async function GET(request: Request) {
   try {
@@ -29,7 +30,12 @@ export async function GET(request: Request) {
     }
     const trend = url.searchParams.get('trend') === '1';
 
-    const data = await loadPositionHeadcountData(createAdminClient(), month, trend);
+    const franchise = parseFranchiseFilter(url.searchParams.get('franchise'));
+    if (!franchise) {
+      return NextResponse.json({ success: false, error: 'franchise 參數無效，需為 all、only 或 exclude' }, { status: 400 });
+    }
+
+    const data = await loadPositionHeadcountData(createAdminClient(), month, trend, franchise);
     return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error('position-headcount error:', error);

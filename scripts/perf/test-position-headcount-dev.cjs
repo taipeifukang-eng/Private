@@ -19,10 +19,11 @@ const db = makeServiceClient(ENV);
 const D = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount-data.ts', {});
 const H = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount.ts', {});
 
-const MONTHS = ['2038-06', '2099-03', '2099-05', '2099-07', '2099-09'];
+const MONTHS = ['2038-06', '2038-07', '2038-08', '2099-03', '2099-05', '2099-07', '2099-09'];
 const TEST_STORES = ['ZT01', 'ZT02', 'VW001', 'ZT03'];
 const createdStatusIds = [];
 const createdSummaryIds = [];
+let franchiseBackup = null; // 測試門市 is_franchise 原值，結束還原
 
 async function must(p) {
   const { data, error } = await p;
@@ -31,7 +32,8 @@ async function must(p) {
 }
 
 async function main() {
-  const stores = await must(db.from('stores').select('id, store_code, store_name').in('store_code', TEST_STORES));
+  const stores = await must(db.from('stores').select('id, store_code, store_name, is_franchise').in('store_code', TEST_STORES));
+  franchiseBackup = stores.map((s) => ({ id: s.id, is_franchise: s.is_franchise }));
   const sid = Object.fromEntries(stores.map((s) => [s.store_code, s.id]));
   for (const c of TEST_STORES) assert.ok(sid[c], `DEV 找不到測試門市 ${c}`);
 
@@ -93,6 +95,20 @@ async function main() {
     mk('2038-06', 'VW001', 'HCT801', '督導'),
     mk('2038-06', 'ZT02', 'HCT801', '督導(代理店長)'),
     mk('2038-06', 'ZT01', 'HCT802', '專員'),
+  );
+  // 加盟店篩選（2038-07）：ZT01 設加盟，ZT02/VW001 設直營
+  seed.push(
+    mk('2038-07', 'ZT01', 'HCT811', '專員'),
+    mk('2038-07', 'ZT02', 'HCT812', '專員'),
+    mk('2038-07', 'VW001', 'HCT813', '專員'),
+    mk('2038-07', 'ZT01', 'HCT814', '專員'), mk('2038-07', 'ZT02', 'HCT814', '組長'), // 主要 ZT02（直營）
+    mk('2038-07', 'ZT01', 'HCT815', '組長'), mk('2038-07', 'VW001', 'HCT815', '專員'), // 主要 ZT01（加盟）
+    mk('2038-07', 'ZT01', 'HCT816', '專員', { monthly_status: 'resigned' }),
+  );
+  // 審查修正（2038-08）：卡班代理在加盟 ZT01、人另有計入在直營 ZT02；專員跨店主要在直營 → ZT01 只剩被隱藏的人
+  seed.push(
+    mk('2038-08', 'ZT01', 'HCT901', '督導', { is_supervisor_rotation: true, is_acting_manager: true }), mk('2038-08', 'ZT02', 'HCT901', '督導'),
+    mk('2038-08', 'ZT01', 'HCT902', '專員'), mk('2038-08', 'ZT02', 'HCT902', '組長'),
   );
   // 分頁測試：2099-07 在 ZT03 建 1100 筆（超過 Supabase 單頁 1000 筆上限）
   for (let i = 0; i < 1100; i++) seed.push(mk('2099-07', 'ZT03', `HCT7${String(i).padStart(4, '0')}`, '專員'));
@@ -242,6 +258,123 @@ async function main() {
       assert.ok(detailRows.some((d) => d['員編'] === 'HCT801' && d['是否計入'] === '否' && /^已計入 ZT02/.test(d['不計入原因'])));
     });
 
+    // ── 加盟店篩選（DEV：暫時設定 is_franchise，結束還原原值）
+    const upd = await must(db.from('stores').update({ is_franchise: true }).eq('id', sid.ZT01).select('id'));
+    assert.equal(upd.length, 1, '設定 ZT01 加盟失敗');
+    const upd2 = await must(db.from('stores').update({ is_franchise: false }).in('id', [sid.ZT02, sid.VW001]).select('id'));
+    assert.equal(upd2.length, 2, '設定 ZT02/VW001 直營失敗');
+    const pa = await D.loadPositionHeadcountData(db, '2038-07', true, 'all');
+    const po = await D.loadPositionHeadcountData(db, '2038-07', true, 'only');
+    const px = await D.loadPositionHeadcountData(db, '2038-07', true, 'exclude');
+    const pd = await D.loadPositionHeadcountData(db, '2038-07', true);
+    const rAll = H.computeMonthHeadcount(pa.records, pa.stores, '2038-07', pa.franchise);
+    const rOnly = H.computeMonthHeadcount(po.records, po.stores, '2038-07', po.franchise);
+    const rEx = H.computeMonthHeadcount(px.records, px.stores, '2038-07', px.franchise);
+    const mine = (r) => r.storeEntries.map((e) => e.employee_code).filter((c) => c.startsWith('HCT8')).sort();
+    check('篩選：不帶參數 = all，payload 標明 franchise', () => {
+      assert.equal(pd.franchise, 'all');
+      assert.equal(po.franchise, 'only');
+      assert.equal(px.franchise, 'exclude');
+      assert.equal(pd.records.length, pa.records.length);
+      assert.equal(po.records.length, pa.records.length, '先分類再篩選：伺服器回傳全部紀錄，篩選在計算時依門市做');
+    });
+    check('篩選：stores 帶回 is_franchise（ZT01 加盟、ZT02 直營）', () => {
+      assert.equal(pa.stores.find((s) => s.store_code === 'ZT01').is_franchise, true);
+      assert.equal(pa.stores.find((s) => s.store_code === 'ZT02').is_franchise, false);
+    });
+    check('篩選 all：HCT811~815 各算一次（5 人）', () => {
+      assert.deepEqual(mine(rAll), ['HCT811', 'HCT812', 'HCT813', 'HCT814', 'HCT815']);
+      assert.equal(rAll.company.totalPeople, 5);
+    });
+    check('只看加盟店：計入只有 ZT01 的 HCT811、HCT815；HCT814 主要在直營，不計入，ZT01 那筆在不計入名單寫「已計入 ZT02 …」', () => {
+      assert.deepEqual(mine(rOnly), ['HCT811', 'HCT815']);
+      assert.equal(rOnly.company.totalPeople, 2);
+      assert.ok(!rOnly.storeEntries.some((e) => e.employee_code === 'HCT814'));
+      const ex14 = rOnly.excluded.filter((e) => e.employee_code === 'HCT814');
+      assert.equal(ex14.length, 1);
+      assert.equal(ex14[0].store_code, 'ZT01');
+      assert.match(ex14[0].excludedReason, /^已計入 ZT02 /);
+      assert.deepEqual(rOnly.areas.flatMap((a) => a.stores).map((s) => s.store.store_code), ['ZT01']);
+    });
+    check('不含加盟店：計入 HCT812、HCT813、HCT814；HCT815 主要在加盟，VW001 那筆寫「已計入 ZT01 …」；離職的 HCT816（ZT01）不出現', () => {
+      assert.deepEqual(mine(rEx), ['HCT812', 'HCT813', 'HCT814']);
+      assert.equal(rEx.company.totalPeople, 3);
+      assert.ok(!rEx.storeEntries.some((e) => e.employee_code === 'HCT815'));
+      const ex15 = rEx.excluded.filter((e) => e.employee_code === 'HCT815');
+      assert.equal(ex15.length, 1);
+      assert.equal(ex15[0].store_code, 'VW001');
+      assert.match(ex15[0].excludedReason, /^已計入 ZT01 /);
+      assert.ok(!rEx.excluded.some((e) => e.employee_code === 'HCT816'));
+      assert.ok(rOnly.excluded.some((e) => e.employee_code === 'HCT816'), '離職登記在加盟 ZT01，只看加盟時列在不計入名單');
+    });
+    check('只看加盟 + 不含加盟 = 全部：每欄人數、總人數恆等', () => {
+      for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(rOnly.company, c.key) + cnt(rEx.company, c.key), cnt(rAll.company, c.key), c.key);
+      assert.equal(rOnly.company.totalPeople + rEx.company.totalPeople, rAll.company.totalPeople);
+    });
+    check('不計入名單：只看 ∪ 不含 ＝ 全部；每門市所有欄位與全部模式相同', () => {
+      const sg = (e) => `${e.store_code}|${e.employee_code}|${e.excludedReason}|${e.statusLabel}`;
+      assert.deepEqual([...rOnly.excluded, ...rEx.excluded].map(sg).sort(), rAll.excluded.map(sg).sort());
+      const all = new Map(rAll.areas.flatMap((a) => a.stores).map((s) => [s.store.id, s]));
+      for (const r of [rOnly, rEx]) for (const s of r.areas.flatMap((a) => a.stores)) {
+        const a0 = all.get(s.store.id);
+        assert.equal(s.totalPeople, a0.totalPeople);
+        for (const c of H.HEADCOUNT_COLUMNS) assert.deepEqual(s.people[c.key].map((e) => e.employee_code), a0.people[c.key].map((e) => e.employee_code), `${s.store.store_code} ${c.key}`);
+        assert.equal(s.rotationActing.length, a0.rotationActing.length);
+      }
+    });
+    check('篩選：三層加總一致（每種模式）', () => {
+      for (const r of [rAll, rOnly, rEx]) {
+        let sum = 0;
+        for (const a of r.areas) {
+          assert.equal(a.stores.reduce((n, s) => n + s.totalPeople, 0), a.subtotal.totalPeople);
+          sum += a.subtotal.totalPeople;
+        }
+        assert.equal(sum, r.company.totalPeople);
+      }
+    });
+    check('篩選：趨勢跟著篩選且恆等；未定稿門市只含留下的門市', () => {
+      const pick = (p) => H.computeHeadcountTrend(p.records, p.stores, '2038-07', 12, p.franchise).find((x) => x.yearMonth === '2038-07');
+      const ta = pick(pa);
+      const to = pick(po);
+      const tx = pick(px);
+      assert.equal(ta.totalPeople, 5);
+      assert.equal(to.totalPeople + tx.totalPeople, ta.totalPeople);
+      for (const c of H.HEADCOUNT_COLUMNS) assert.equal(to.counts[c.key] + tx.counts[c.key], ta.counts[c.key], c.key);
+      assert.deepEqual(po.unfinalizedStores.map((s) => s.store_code), ['ZT01']);
+      assert.deepEqual(px.unfinalizedStores.map((s) => s.store_code).sort(), ['VW001', 'ZT02']);
+    });
+    const q8 = await Promise.all(['all', 'only', 'exclude'].map((f) => D.loadPositionHeadcountData(db, '2038-08', false, f)));
+    const [r8a, r8o, r8x] = q8.map((p) => H.computeMonthHeadcount(p.records, p.stores, '2038-08', p.franchise));
+    check('篩選 2038-08：卡班代理欄與各欄恆等', () => {
+      assert.equal(r8a.company.rotationActing.length, 1);
+      assert.equal(r8o.company.rotationActing.length, 1);
+      assert.equal(r8x.company.rotationActing.length, 0);
+      for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(r8o.company, c.key) + cnt(r8x.company, c.key), cnt(r8a.company, c.key), c.key);
+      assert.equal(r8o.company.totalPeople + r8x.company.totalPeople, r8a.company.totalPeople);
+      assert.equal(r8o.company.actingBySupervisor.length + r8x.company.actingBySupervisor.length, r8a.company.actingBySupervisor.length);
+    });
+    check('篩選 2038-08：只剩被隱藏的人的門市，未定稿清單仍照列（只看＋不含＝全部）', () => {
+      const codes = (p) => p.unfinalizedStores.map((s) => s.store_code).filter((c) => c === 'ZT01' || c === 'ZT02').sort();
+      assert.deepEqual(codes(q8[0]), ['ZT01', 'ZT02']);
+      assert.deepEqual(codes(q8[1]), ['ZT01']);
+      assert.deepEqual(codes(q8[2]), ['ZT02']);
+    });
+    check('篩選：Excel 三種檔名、合計列名稱、實際寫出並讀回', () => {
+      const XLSX = require('xlsx');
+      const exp = { all: ['每月職位人數統計_2038-07.xlsx', '全公司'], only: ['每月職位人數統計_2038-07_只看加盟店.xlsx', '加盟店合計'], exclude: ['每月職位人數統計_2038-07_不含加盟店.xlsx', '直營店合計'] };
+      for (const [f, r] of [['all', rAll], ['only', rOnly], ['exclude', rEx]]) {
+        assert.equal(H.headcountExportFileName('2038-07', f), exp[f][0]);
+        const { summaryRows, detailRows } = H.buildHeadcountExportRows(r, f);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), '人數統計');
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailRows), '人員明細');
+        const back = XLSX.read(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }), { type: 'buffer' });
+        const rows = XLSX.utils.sheet_to_json(back.Sheets['人數統計']);
+        assert.equal(rows[0]['督導區'], exp[f][1]);
+        assert.equal(rows[0]['總人數'], r.company.totalPeople);
+      }
+    });
+
     // ── 趨勢（一次批次查詢 12 個月）
     fromCalls = 0;
     const pt = await D.loadPositionHeadcountData(counted, '2099-05', true);
@@ -278,6 +411,14 @@ async function main() {
 
     console.log(results.join('\n'));
   } finally {
+    // 還原測試門市 is_franchise 原值
+    for (const b of franchiseBackup || []) {
+      const { error: restoreErr } = await db.from('stores').update({ is_franchise: b.is_franchise }).eq('id', b.id);
+      if (restoreErr) {
+        console.error(`還原 is_franchise 失敗（${b.id}）：${restoreErr.message}`);
+        process.exitCode = 1;
+      }
+    }
     // 只刪自己建立的 id
     for (let i = 0; i < createdStatusIds.length; i += 200) {
       await db.from('monthly_staff_status').delete().in('id', createdStatusIds.slice(i, i + 200));
@@ -287,6 +428,12 @@ async function main() {
     const { count: o1 } = await db.from('monthly_staff_status').select('id', { count: 'exact', head: true }).like('employee_code', 'HCT%');
     const { count: o2 } = await db.from('monthly_staff_status').select('id', { count: 'exact', head: true }).in('year_month', MONTHS);
     const { count: o3 } = await db.from('monthly_store_summary').select('id', { count: 'exact', head: true }).in('year_month', MONTHS);
+    if (franchiseBackup) {
+      const { data: now } = await db.from('stores').select('id, is_franchise').in('id', franchiseBackup.map((b) => b.id));
+      const bad = (now || []).filter((n) => n.is_franchise !== franchiseBackup.find((b) => b.id === n.id).is_franchise);
+      console.log(`is_franchise 還原檢查：${bad.length === 0 ? '全部已還原原值' : '未還原 ' + bad.length + ' 間'}`);
+      if (bad.length) process.exitCode = 1;
+    }
     console.log(`孤兒檢查：人員狀態(員編 HCT%)=${o1}、人員狀態(保留月份)=${o2}、門市摘要(保留月份)=${o3}`);
     if (o1 || o2 || o3) process.exitCode = 1;
   }
