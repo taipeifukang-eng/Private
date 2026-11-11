@@ -75,8 +75,8 @@ async function submit() {
     const res = await api<{ data: any; replay: boolean }>(`general-affairs/inventory/transfers/${t.value.id}/actions`, { method: "POST", body: JSON.stringify(payload) });
     done.value = res.replay ? "這個動作已經處理過了（重複送出），沒有再處理一次。" : `${ACTION_LABEL[panel.value]}完成。`;
     panel.value = "";
+    emit("changed"); // 先通知清單重新整理：使用者若在詳情重新載入完成前就關閉視窗，清單仍會更新
     await load();
-    emit("changed");
   } catch (e) {
     error.value = (e as Error).message;
     if (e instanceof ApiError && e.data?.code === "STALE") stale.value = true;
@@ -89,8 +89,8 @@ async function reloadAfterStale() {
   panel.value = "";
   stale.value = false;
   error.value = "";
-  await load();
   emit("changed");
+  await load();
 }
 const panelTitle = computed(() => (panel.value ? ACTION_LABEL[panel.value] : ""));
 const submitLabel = computed(() => ({ confirm_source: "確認交出（扣來源庫存）", ship: "標記運送中", receive: "確認收貨（增加目的庫存）", cancel: cancelKind.value === "exception" ? "異常終結並取消" : "取消調撥單", mark_unreceived: "註記未收", store_report: "送出回報", "": "" })[panel.value]);
