@@ -148,7 +148,7 @@ export async function seedTransfer(sourceId: string, destId: string, partId: str
 export type M7User = { key: string; id: string; email: string; password: string };
 
 /** 建立測試帳號：real_store_manager（DEV 既有的真正 store_manager 角色 + 指派 VW001）、admin_ungranted（舊式管理員，沒掛任何角色）。 */
-export async function setupM7Users(keys: ('real_store_manager' | 'admin_ungranted' | 'plain_member' | 'roster_supervisor' | 'roster_area_manager')[]): Promise<{ users: Record<string, M7User>; teardown: () => Promise<string[]> }> {
+export async function setupM7Users(keys: ('real_store_manager' | 'admin_ungranted' | 'plain_member' | 'roster_supervisor' | 'roster_area_manager' | 'bare_supervisor' | 'bare_area_manager')[]): Promise<{ users: Record<string, M7User>; teardown: () => Promise<string[]> }> {
   runIdOrThrow();
   const db = adminDb();
   const left = await cleanupM7Users(db);
@@ -169,7 +169,15 @@ export async function setupM7Users(keys: ('real_store_manager' | 'admin_ungrante
       must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
       must(await db.from('store_managers').insert({ user_id: uid, store_id: s.VW001.id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
     }
-    // 只在門市名單上（督導、區經理），沒有任何角色：用來驗證 C12「三種名單身分都能唯讀看自己門市」。
+    // 決定 A：只有無權限的 member 角色、沒有任何總務權限，只在 ZT01 門市名單上的督導／區經理（總務中心入口只靠名單身分）。
+    if (key === 'bare_supervisor' || key === 'bare_area_manager') {
+      // 掛沒有任何權限的 member 角色：完全沒有角色的帳號會被擋在「帳號待管理員開通」說明頁，真實的督導與區經理一定有角色。
+      const memberRole = must(await db.from('roles').select('id').eq('code', 'member').maybeSingle(), '讀取 member 角色') as { id: string } | null;
+      if (!memberRole) throw new Error('DEV 沒有 member 角色');
+      must(await db.from('user_roles').insert({ user_id: uid, role_id: memberRole.id, is_active: true }), `user_roles ${key}`);
+      must(await db.from('store_managers').insert({ user_id: uid, store_id: s.ZT01.id, role_type: key === 'bare_supervisor' ? 'supervisor' : 'area_manager', is_primary: false }), `store_managers ${key}`);
+    }
+    // 在門市名單上（督導、區經理），掛 store_manager 角色：用來驗證 C12「三種名單身分都能唯讀看自己門市」。
     if (key === 'roster_supervisor' || key === 'roster_area_manager') {
       // 掛 DEV 既有的 store_manager 角色只是為了有總務服務中心的入口（service_center.access）；名單身分仍是督導／區經理。
       const role = must(await db.from('roles').select('id').eq('code', 'store_manager').maybeSingle(), '讀取 store_manager 角色') as { id: string } | null;

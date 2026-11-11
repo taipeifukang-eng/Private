@@ -63,7 +63,7 @@
 | C7 | `mark_and_filter` | 餘額表紅標（低於安全庫存）、黃標（低於補貨點）；「只看需補貨」篩選。純顯示、不動帳、不發通知、無需正式區 SQL。 |
 | C8 | `block_with_shortcut` | 建單時目的位置未設定（或未啟用）該料件，直接擋，提供「前往位置設定」捷徑；無位置管理權限者只看到說明請總務設定。不自動開啟設定。 |
 | C9 | `unreceived_note_only` | 「未收」只是註記，單子仍停在待收貨（SOURCE_CONFIRMED／IN_TRANSIT），貨到了照常確認收貨。少收、破損、收錯、取消才終結（不可恢復）。因此**不做 reopen 動作**。 |
-| C10 | `store_report_flag` | 目的門市的店長（名單內 `store_manager` 身分）可在自己門市為目的地的單上按「回報問題」（沒收到、少收、破損，可加說明）；只做標記，不改庫存也不改單子狀態；不發通知。總務列表顯示紅色「門市回報有問題」，由總務決定是否標異常或取消。 |
+| C10 | `store_report_flag` | 目的門市名單上的店長、督導、區經理（`store_managers` 任何身分；2026-11-11 驗收決定 B）可在自己門市為目的地的單上按「回報問題」（沒收到、少收、破損，可加說明）；只做標記，不改庫存也不改單子狀態；不發通知。總務列表顯示紅色「門市回報有問題」，由總務決定是否標異常或取消。 |
 | C11 | `mark_red_filter` | 已交出（SOURCE_CONFIRMED／IN_TRANSIT）超過 N 天（預設 3，總務可設定）未收貨的單在調撥頁標紅，並有一鍵篩選「逾期未收」；不發通知、不碰首頁待辦（第 6 批決定）。 |
 | C12 | `all_identities_hide_internal` | 名單內店長、督導、區經理三種身分都可唯讀看自己門市（來源與目的雙方皆看得到自己相關的單）；位置描述、位置料件備註、調撥原因、總務備註、異常內部說明由伺服端挑欄位遮蔽，只顯示白話標籤（如「異常：少收」）。選單對有權看的人顯示庫存入口（唯讀）。 |
 | C13 | `allow_keep` | 設備分類被停用後，設備與設施只要「不換分類」就允許儲存其他欄位；新增或換分類仍只能選啟用中、未刪除且祖先路徑有效的分類。舊版網站同一條資料庫規則一併放寬，需 DEV SQL＋正式區草稿。 |
@@ -159,7 +159,7 @@ DEV（`supabase/workspace-dev/`，各附 `.rollback.sql`）：
 | 過帳、調整持有狀態 | `inventory_transaction.manage` ＋（`part.view` 或 `part.manage`） |
 | 看調撥單 | `inventory_transfer.view`／`manage`、`inventory_transaction.view`／`manage`，或來源／目的位置可見 |
 | 建單、交出、運送中、收貨、取消、退回庫存 | `inventory_transfer.manage` ＋ `inventory_transaction.manage` ＋ `part.view`（Q13，缺哪個畫面說清楚） |
-| 店長回報問題 [C10] | 目的門市名單內 `store_managers.role_type = 'store_manager'` 的店長；只寫標記 |
+| 店長回報問題 [C10] | 目的門市名單上任何身分（店長、督導、區經理）；只寫標記 |
 | 逾期天數設定 [C11] | `inventory_transfer.manage` |
 
 導覽沿用舊版 legacyNavFlags（管理員、店長角色或任一庫存權限）；舊式管理員沒掛管理員角色者維持「看得到被擋」並顯示白話說明。角色矩陣新增 `ga_inventory` 模組與帳號 `ga_inv_txn_only`、`ga_inv_transfer_only`、`ga_inv_location_edit`（`seed-workspace-role-matrix-dev.cjs`，只動 `vue_workspace_*` 與 `@example.test`）。
@@ -196,7 +196,7 @@ approvedBy 規則：問卷已核可的決定（下列對應 C1 至 C13 與核可
 - Q13 的 role-matrix 細分帳號需先補，否則「缺一個權限」測不到。
 - 所有 `ga_ws_inv_*` 函式簽名在做 DEV 與正式區 `pg_get_functiondef` 差異比對前視為草稿。
 - C13 改的是既有設備與設施驗證觸發器，影響第 2 批頁面與舊 Next 版，須同批回歸測試 G06、G08。
-- C10 回報權限限 `role_type = 'store_manager'`（督導與區經理僅唯讀）是依問卷文字「店長」的解讀，若使用者另有意見再調整。
+- C10 回報權限：原依問卷文字限店長，2026-11-11 驗收後使用者決定改為目的門市名單上的店長、督導、區經理皆可（已實作）。
 
 ## 9. 建議實作分組（供後續工作拆分）
 1. SQL：A、B、C、D 四包（DEV 套用、整合測試、正式區草稿 26 至 30 與 README）。
@@ -246,15 +246,20 @@ approvedBy 規則：問卷已核可的決定（下列對應 C1 至 C13 與核可
   - 函式（都用 `auth.uid()` 與 `has_permission`，不檢查管理員放行）：`ga_ws_inv_transfer_create`（建單）、`ga_ws_inv_transfer_action`（確認交出／運送中／收貨／取消／未收註記）、`ga_ws_inv_transfer_store_report`（店長回報）、`ga_ws_inv_transfer_set_overdue_days`（逾期天數）、內部輔助 4 個。過帳核心與 G12 的 `ga_ws_inv_post` 都不改，只呼叫。
 - API（`lib/workspace/general-affairs/inventory-transfers.ts`、`inventory-transfer-rules.ts`；`inventory.ts` 分派加 `transfers`）：`GET/POST /transfers`、`GET /transfers/:id`（含時間軸與 abilities）、`POST /transfers/:id/actions`（`confirm_source`、`ship`、`receive`、`cancel`〔`return_stock`、`exception_type`〕、`mark_unreceived`、`store_report`）、`GET/PATCH /transfers/settings`、`GET /transfers/prefill`（網址參數驗證與預填）、`GET /transfers/options?type=locations|parts`（建單選項，料件附目的位置是否已設定）。非 GET 驗 Origin；寫入帶 `expected_updated_at`（衝突 409 `STALE`）與固定識別（上限 60 字）；分頁上限 100。
 - 頁面：`pages/ga/InventoryTransfers.vue`、`components/ga/InventoryTransferCreate.vue`、`InventoryTransferDetail.vue`、`TransferStatusBadge.vue`、`lib/ga-inventory-transfers.ts`；`InventoryPicker.vue` 加 `transfer-locations`／`transfer-parts` 兩種選項與 `initial`（預填顯示）。導覽：`gaInventoryTransfers` 旗標、`nav.ts` 對應 `/general-affairs/inventory/transfers`（舊側欄在「作業管理」與「庫存管理」各有一個入口，都指向同一頁；只憑名單身分的人舊側欄不列，補一個「調撥與收貨」）；`page-kinds.ts`、`workspace-page-meta.ts`、`workspace-pages.ts`、`stores.ts`、`App.vue` 登錄。舊網址參數以深連結 `#/open/ga-inventory-transfers?fromRequestId=…&requestNo=…&partId=…&quantity=…&sourceLocationId=…&destinationStoreId=…&reason=…&notes=…` 完整保留，頁面開啟後由伺服端驗證預填；Next 舊路徑不轉址（照 Q 決定先不動）。
-- 行為：C8 目的位置缺設定直接擋（建單前就標示、送出被擋，並附「前往位置設定」）；Q14 來源庫存不足只警告仍可建單；C9「未收」只註記（`mark_unreceived`），單子仍待收貨、可重複註記、之後照常收貨，沒有 `reopen`；少收、損壞、品項錯誤、遺失、其他走「取消／異常終結」；Q12 取消可勾退回來源庫存（未勾有紅字提醒；沒交出就勾退回回 422）；C10 只有目的門市（STORE 位置）名單上 `role_type='store_manager'` 的店長可回報，只寫標記與時間軸；C11 已交出超過設定天數（以交出時間起算，剛好 N 天不算）未收貨標紅、卡片與篩選；C12 名單身分看不到內部備註、未收註記與時間軸備註（店長自己的回報說明保留），搜尋不能搜備註；Q13 一張單一個料件、調撥操作要「調撥管理」＋「庫存交易管理」＋「料件查看」三個都有（缺哪個講清楚），收貨只有同時有三個權限的人能按；Q15 動作帶固定識別，連點、重送、兩人同時按都只處理一次，單據過帳與處理單同步與時間軸同一個交易，任何一步失敗整張回復。
+- 行為：C8 目的位置缺設定直接擋（建單前就標示、送出被擋，並附「前往位置設定」）；Q14 來源庫存不足只警告仍可建單；C9「未收」只註記（`mark_unreceived`），單子仍待收貨、可重複註記、之後照常收貨，沒有 `reopen`；少收、損壞、品項錯誤、遺失、其他走「取消／異常終結」；Q12 取消可勾退回來源庫存（未勾有紅字提醒；沒交出就勾退回回 422）；C10 目的門市（STORE 位置）名單上任何身分（店長、督導、區經理）可回報（驗收決定 B），只寫標記與時間軸；C11 已交出超過設定天數（以交出時間起算，剛好 N 天不算）未收貨標紅、卡片與篩選；C12 名單身分看不到內部備註、未收註記與時間軸備註（店長自己的回報說明保留），搜尋不能搜備註；Q13 一張單一個料件、調撥操作要「調撥管理」＋「庫存交易管理」＋「料件查看」三個都有（缺哪個講清楚），收貨只有同時有三個權限的人能按；Q15 動作帶固定識別，連點、重送、兩人同時按都只處理一次，單據過帳與處理單同步與時間軸同一個交易，任何一步失敗整張回復。
 - 設計上的自行決定與修正（與上文第 2、3 節的差異）：
   1. 「未收」註記用獨立動作 `mark_unreceived`（問卷動作清單只有五個；`store_report` 是店長專用，總務註記需要另一個動作）。
   2. 取消退回庫存的流水關聯放在明細（`return_transaction_id`），不是調撥單（舊版允許一張單多個料件，退回要逐筆對應）；舊畫面仍可建多料件單，新版一張單一個料件。
   3. 需求單連結：單據數量以「需求單的單位」記錄（調撥用基本單位而需求單用採購單位時換算），剩餘需求量在沒有處理單時也用需求單的需求量檢查；處理單處於「待決定／調撥／異常」才改成調撥，進行中的領用、採購、等待確認不覆蓋，只加單據連結；已結案、取消、退回的需求單不能再連結。
   4. 網址預填用深連結，需求單頁（第 4 批）之後直接呼叫 `openGaPage('ga-inventory-transfers', undefined, { prefill })` 即可。
   5. 異常終結（取消）不填說明也可以（類型不是「其他」時）；取消原因格式沿用舊版「調撥異常：類型｜說明」，另存結構化 `exception_type`。
-  6. 督導與區經理唯讀：C10 的「店長」解讀為 `store_managers.role_type='store_manager'`（問卷沒明講，寫在第 8 節風險欄，待使用者確認）。
+  6. C10 回報權限已於驗收後放寬到名單上任何身分（見 10.4）。
 - 新發現、問卷未涵蓋的差異共 2 項，`allowlist.json`（page `ga-inventory-transfers`）的 `approvedBy` 為 null，待使用者確認：舊版建單在 DEV 建不起來（新增列再讀回時被列級權限擋下，回 500；新版以資料庫函式建單不受影響）、明細多回 `transfer_id`。其餘 26 筆登記中，25 筆為問卷已核可，1 筆（success 外殼）沿用第 1 批驗收核可。
 - 測試：unit 32（建單與動作驗證、abilities 含三權限缺一與 C10、逾期判斷、預填與單位換算、遮蔽與搜尋跳脫、導覽旗標與四個 href）、smoke 12（桌機＋手機）、integration 21（權限矩陣與 Origin、資料庫函式直呼叫、400／409／422、建單與動作 DB 回讀、冪等、併發、失敗整體回復、取消退回、C9、C10、C11、列表統計、C12 遮蔽、需求單連結、預填、選項、位置停用卡單）、e2e 12（角色接力、異常路線、逾期與設定、沒權限做不到、網址預填、版面）、parity 3（清單、建單、動作；舊版建單失敗，動作的前置單用資料庫直接寫入）。
 - 測試輔助：`g12-ui.ts` 加 `trRow`、`openTransferLink`；`invNavTo` 支援「調撥與收貨」；調撥單用 `reason` 帶測試標記，`cleanupM7M8` 先刪調撥單（時間軸與明細連帶刪除）再呼叫 DEV 專用清除函式。
 - 仍待處理：督導、區經理在「總務服務中心」入口的限制（同 10.1）；正式區上線前用 `26` 的 5 區確認既有調撥單與庫存，`29` 對舊單相容（新欄位為空）。
+
+### 10.4 第 3 批驗收決定 A、B、C（2026-11-11 使用者驗收，2026-11-12 實作）
+- A 總務服務中心入口：`gaFlags` 的 `gaCenter` 納入門市名單身分（督導、區經理）；導覽（`navigation.ts`、`session` API）傳入 `gaRosterMember`。只憑名單身分進來的人（沒有店長角色、沒有總務權限、非管理員），總務側欄只留已移植且旗標為 true 的新版頁面（庫存總覽、調撥、庫存位置、自己門市清冊），不留舊版外連與停用項目；`GaCenter.vue` 在沒有舊版項目時不顯示舊版說明與連結。伺服端資料 API 授權不看 `gaCenter`，名單身分仍只讀得到自己門市的資料。
+- B C10 回報：`ga_ws_inv_transfer_store_report` 改為目的門市名單（`store_managers`）上任何身分即可（CHECK 只允許店長、督導、區經理三種）；API `managerStoreIds` 同步放寬；UI 按鈕仍看 `abilities.store_report`，唯讀提示文字改為「店長、督導、區經理」。DEV SQL 檔直接修改（`CREATE OR REPLACE`）並用 `apply-workspace-m7m8-b3-inventory-dev.cjs` 套用；正式區草稿 29 同步（rollback 為整批移除，不需另改）。內部備註、取消原因的遮蔽不因此放寬。
+- C allowlist：所有 `approvedBy` 為 null 的條目改為「user (2026-11-11 batch 3 acceptance)」，並新增 A、B 兩筆差異條目。

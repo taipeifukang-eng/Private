@@ -8,7 +8,7 @@
 --      ga_ws_inv_transfer_create：建單（鎖定、驗位置與料件與單位、目的位置須有設定 C8、驗需求單與剩餘量、不覆蓋進行中處理單、台北日期單號、固定識別）。
 --      ga_ws_inv_transfer_action：確認交出／運送中／收貨／取消（可退回來源庫存、結構化異常類型）／未收註記；鎖列＋以目前狀態為條件＋版本檢查＋固定識別；
 --                                  交出與收貨過帳、取消退回庫存、同步處理單與單據都在同一個交易，任何一步失敗整張回復。
---      ga_ws_inv_transfer_store_report：目的門市店長回報問題（只寫標記與時間軸，不動庫存與狀態）。
+--      ga_ws_inv_transfer_store_report：目的門市店長、督導、區經理回報問題（只寫標記與時間軸，不動庫存與狀態）。
 --      ga_ws_inv_transfer_set_overdue_days：總務設定逾期天數（版本檢查）。
 --      ga_inv_tr_sync_fulfillment：（內部）同步料件處理中心，只在處理單處於調撥相關狀態時才更新，不覆蓋進行中的其他處理方式。
 -- 過帳核心 ga_post_inventory_transaction 與 G12 的 ga_ws_inv_post 都不改，這裡只呼叫。
@@ -479,10 +479,10 @@ BEGIN
   SELECT * INTO v_t FROM public.ga_inventory_transfers WHERE id = p_transfer_id AND deleted_at IS NULL FOR UPDATE;
   IF NOT FOUND THEN RETURN public.ga_inv_tr_err(404, 'TRANSFER_NOT_FOUND', '找不到這張調撥單'); END IF;
   SELECT * INTO v_dst FROM public.ga_inventory_locations WHERE id = v_t.destination_location_id;
-  -- 只有目的門市（STORE 位置）名單上、身分為店長（role_type = store_manager）的人可以回報；督導與區經理只能唯讀。
+  -- 目的門市（STORE 位置）名單上負責該門市的人（店長、督導、區經理，store_managers 任何身分）可以回報；其他人不行（2026-11-11 驗收決定 B）。
   IF v_dst.location_type <> 'STORE' OR v_dst.store_id IS NULL OR NOT EXISTS (
-       SELECT 1 FROM public.store_managers sm WHERE sm.user_id = v_uid AND sm.store_id = v_dst.store_id AND sm.role_type = 'store_manager') THEN
-    RETURN public.ga_inv_tr_err(403, 'ONLY_DESTINATION_STORE_MANAGER', '只有目的門市的店長可以回報這張調撥單的問題');
+       SELECT 1 FROM public.store_managers sm WHERE sm.user_id = v_uid AND sm.store_id = v_dst.store_id) THEN
+    RETURN public.ga_inv_tr_err(403, 'ONLY_DESTINATION_STORE_MANAGER', '只有目的門市的店長、督導或區經理可以回報這張調撥單的問題');
   END IF;
   SELECT * INTO v_ev FROM public.ga_inventory_transfer_events WHERE transfer_id = p_transfer_id AND idempotency_key = v_key;
   IF FOUND THEN

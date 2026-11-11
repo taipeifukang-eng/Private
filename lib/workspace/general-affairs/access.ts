@@ -104,7 +104,8 @@ export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
 /** rosterMember：門市名單（store_managers）任何身分，G11 庫存位置唯讀入口用（C12：店長、督導、區經理）。 */
 export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, rosterMember = false): GaFlags {
   return {
-    gaCenter: storeManager || has(...GA_CENTER_CODES),
+    // 門市名單身分（督導、區經理，不限店長）也進得了中心：只看得到自己門市的庫存總覽與調撥（唯讀），側欄只列旗標為 true 的項目（2026-11-11 驗收決定 A）。
+    gaCenter: storeManager || rosterMember || has(...GA_CENTER_CODES),
     gaEquipmentCategories: has(GA.equipmentCategoryView, GA.equipmentCategoryManage),
     gaFacilityCategories: has(GA.facilityCategoryView, GA.facilityCategoryManage),
     gaPartCategories: has(GA.partCategoryView, GA.partCategoryManage),

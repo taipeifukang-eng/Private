@@ -13,7 +13,7 @@ import {
   GA_MAINTENANCE_MODULE_CODES,
   GA_WORK_ORDER_MODULE_CODES,
 } from "../../general-affairs/maintenance-permissions";
-import { gaFlags, GA, isStoreManagerRole, type GaFlags } from "./access";
+import { gaFlags, GA, GA_CENTER_CODES, isStoreManagerRole, type GaFlags } from "./access";
 
 export type { GaNavGroup, GaNavItem } from "./nav-types";
 
@@ -111,12 +111,21 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
     isAdminLike: input.isAdmin,
   });
   const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes), !!input.storeMember, !!input.rosterMember);
+  // 只憑門市名單身分（督導、區經理）進中心的人（2026-11-11 驗收決定 A）：沒有店長角色、沒有任何總務權限，也不是管理員。
+  // 舊側欄的項目只要沒設旗標就會對任何進得了中心的人顯示（需求工作台、料件處理中心、盤點等），這些對他們都是點了被擋的壞入口，
+  // 所以只留已移植且旗標為 true 的新版頁面（庫存總覽、調撥、庫存位置、自己門市的清冊等），不留舊網址外連與停用說明。
+  const rosterOnly = !!input.rosterMember && !isStoreManagerRole(input.roleCodes) && !input.isAdmin && !input.has(...GA_CENTER_CODES);
+  const keepPorted = (i: GaNavItem): GaNavItem | null => {
+    const children = i.children?.map(keepPorted).filter((c): c is GaNavItem => !!c);
+    if (i.kind) return children?.length ? { ...i, children } : { ...i, children: undefined };
+    return children?.length ? { id: i.id, label: i.label, children } : null;
+  };
   const out = groups
-    .map((g) => ({
-      id: g.id,
-      label: g.label,
-      items: g.items.map((i) => toItem(i, flags)).filter((i): i is GaNavItem => !!i && (!!i.href || !!i.disabled || !!i.children?.length)),
-    }))
+    .map((g) => {
+      let items = g.items.map((i) => toItem(i, flags)).filter((i): i is GaNavItem => !!i && (!!i.href || !!i.disabled || !!i.children?.length));
+      if (rosterOnly) items = items.map(keepPorted).filter((i): i is GaNavItem => !!i).map((i) => { if (!i.children) delete i.children; return i; });
+      return { id: g.id, label: g.label, items };
+    })
     .filter((g) => g.items.length);
   // 設施保固管理：舊版有頁面（/general-affairs/facilities/warranties）但側欄沒有入口；新版補在「設施管理」最後一項，方便找到。
   if (flags.gaFacilityWarranties) {

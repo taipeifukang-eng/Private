@@ -2,7 +2,7 @@
 // 讀取：用使用者自己的登入身分查調撥單（RLS 決定看得到哪些單：有調撥／流水權限，或來源／目的位置在自己的門市名單內）；位置、料件名稱補欄位用服務身分只取公開欄位。
 // 寫入：全部走資料庫函式（ga_ws_inv_transfer_create／action／store_report／set_overdue_days）——
 //      鎖列、以目前狀態為條件、版本檢查（expected_updated_at，衝突回 409 STALE）、固定識別防重複扣帳、過帳與同步處理單同一個交易，任何一步失敗整張回復。
-// 權限（資料庫語意，無管理員後備）：建單、交出、運送中、收貨、取消、未收註記＝調撥管理＋庫存交易管理＋料件查看（缺哪個講清楚）；店長回報＝目的門市名單上的店長（role_type=store_manager）；逾期天數＝調撥管理。
+// 權限（資料庫語意，無管理員後備）：建單、交出、運送中、收貨、取消、未收註記＝調撥管理＋庫存交易管理＋料件查看（缺哪個講清楚）；門市回報＝目的門市名單上的店長、督導或區經理（任何身分）；逾期天數＝調撥管理。
 // C12：唯讀名單身分（店長、督導、區經理）看不到內部備註與未收註記；共通：非 GET 的 Origin 檢查在 runGa；分頁上限 100。
 import { NextRequest } from "next/server";
 import { adminClient } from "../server";
@@ -22,9 +22,9 @@ const ITEM_COLUMNS = "id,transfer_id,part_id,quantity_input,input_unit_type,note
 const SELECT = `${TRANSFER_COLUMNS},items:ga_inventory_transfer_items(${ITEM_COLUMNS})`;
 const NIL = "00000000-0000-0000-0000-000000000000";
 
-/** 登入者在哪些門市是「店長」（role_type=store_manager；督導與區經理不算，C10）。 */
+/** 登入者在哪些門市的名單上（店長、督導、區經理任何身分都算；C10 回報問題用，2026-11-11 驗收決定 B）。 */
 async function managerStoreIds(ctx: Context): Promise<string[]> {
-  const rows = ((await must((adminClient() as any).from("store_managers").select("store_id").eq("user_id", ctx.user.id).eq("role_type", "store_manager"))) as any[]) || [];
+  const rows = ((await must((adminClient() as any).from("store_managers").select("store_id").eq("user_id", ctx.user.id))) as any[]) || [];
   return Array.from(new Set(rows.map((r) => r.store_id as string)));
 }
 

@@ -9,7 +9,7 @@ import {
   ACTION_LABEL, EXCEPTION_LABEL, EXCEPTION_TYPES, REPORT_LABEL, REPORT_TYPES, SHIPPING_METHODS, reportSummary, transferNextStep, validateActionPayload,
 } from "../../../../lib/workspace/general-affairs/inventory-transfer-rules";
 
-// G13 調撥單詳情與動作：確認交出、運送中、收貨、取消（可勾退回來源庫存、結構化異常類型）、「未收」註記（只註記，單子仍待收貨 C9）、店長回報問題（C10，只寫標記）。
+// G13 調撥單詳情與動作：確認交出、運送中、收貨、取消（可勾退回來源庫存、結構化異常類型）、「未收」註記（只註記，單子仍待收貨 C9）、目的門市名單身分（店長、督導、區經理）回報問題（C10，只寫標記）。
 // 每個動作帶 expected_updated_at（別人先處理過回 409 STALE，可重新載入）與固定識別（連點、重送只會處理一次）；按鈕依伺服端算好的 abilities 顯示。
 const props = defineProps<{ transferId: string; overdueDays: number }>();
 const emit = defineEmits<{ close: []; changed: [] }>();

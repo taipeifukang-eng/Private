@@ -14,7 +14,7 @@ import type { WorkTab } from "../../stores";
 
 // G13 庫存調撥單（料件庫存從一個位置搬到另一個位置；不是設備轉移單）。
 // 狀態：待來源確認交出 → 來源已交出（扣來源庫存）→ 運送中 → 已收貨（增加目的庫存）；未收貨前可取消（可勾「退回來源庫存」）。「未收」只是註記，單子仍待收貨（C9）。
-// 逾期（已交出超過 N 天還沒收貨）標紅並可篩選（C11）；目的門市店長可回報問題（C10）；唯讀名單身分（店長、督導、區經理）看不到內部備註（C12）。
+// 逾期（已交出超過 N 天還沒收貨）標紅並可篩選（C11）；目的門市名單上的店長、督導、區經理可回報問題（C10）；唯讀名單身分（店長、督導、區經理）看不到內部備註（C12）。
 const props = defineProps<{ tab: WorkTab }>();
 const allowed = useGaGuard(props.tab);
 
@@ -171,7 +171,7 @@ const cards = computed(() => [
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', '庫存管理', '調撥與收貨']">
     <p v-if="prefillError" class="notice error" role="alert" data-testid="prefill-error">網址帶入的內容沒有開啟建單視窗：{{ prefillError }}</p>
-    <p v-if="!perms.canCreate && loaded && !perms.internal" class="notice" role="status" data-testid="readonly-note">您目前是唯讀檢視：只會看到跟自己門市有關的調撥單，內部備註不顯示。目的門市的店長可以在已交出的調撥單上「回報問題」。</p>
+    <p v-if="!perms.canCreate && loaded && !perms.internal" class="notice" role="status" data-testid="readonly-note">您目前是唯讀檢視：只會看到跟自己門市有關的調撥單，內部備註不顯示。目的門市名單上的店長、督導、區經理可以在已交出的調撥單上「回報問題」。</p>
     <p v-else-if="!perms.canCreate && loaded && perms.problem" class="notice" role="status" data-testid="readonly-note">您不能建立或處理調撥單。{{ perms.problem }}</p>
     <p v-if="notice" class="notice success" role="status" data-testid="tr-notice">{{ notice }}</p>
 

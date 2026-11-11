@@ -11,6 +11,8 @@ defineProps<{ tab: WorkTab }>();
 const session = useSession();
 const flat = (items: GaNavItem[]): GaNavItem[] => items.flatMap((i) => [i, ...(i.children ? flat(i.children) : [])]);
 const ported = computed(() => flat((session.data?.gaNavigation || []).flatMap((g) => g.items)).filter((i) => i.kind && i.kind !== "ga-center"));
+// 只憑門市名單身分進來的人（督導、區經理）側欄不留舊版項目，也不一定進得了舊版首頁，所以沒有舊版項目時不放舊版說明與連結。
+const hasLegacy = computed(() => flat((session.data?.gaNavigation || []).flatMap((g) => g.items)).some((i) => !i.kind && !i.children?.length));
 </script>
 
 <template>
@@ -18,7 +20,8 @@ const ported = computed(() => flat((session.data?.gaNavigation || []).flatMap((g
     <div>
       <p class="eyebrow">總務服務中心</p>
       <h1>總務服務中心</h1>
-      <p class="muted">資產與料件主檔的新版頁面已開放；其他功能（需求單、工單、庫存、廠商、費用）仍在舊版，從左側選單另開分頁。</p>
+      <p v-if="hasLegacy" class="muted">資產與料件主檔的新版頁面已開放；其他功能（需求單、工單、庫存、廠商、費用）仍在舊版，從左側選單另開分頁。</p>
+      <p v-else class="muted">這裡列出您可以查看的新版頁面（唯讀範圍以您負責的門市為限）。</p>
     </div>
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心']">
@@ -30,7 +33,7 @@ const ported = computed(() => flat((session.data?.gaNavigation || []).flatMap((g
         </li>
       </ul>
       <p v-else class="muted">你目前沒有可用的新版總務功能。如需使用，請聯絡管理員開通權限。</p>
-      <p>
+      <p v-if="hasLegacy">
         <a :href="legacyUrl('/general-affairs', session.data?.integrated)" target="_blank" rel="noopener">開啟舊版服務中心首頁 <ExternalLink :size="13" /></a>
       </p>
     </section>

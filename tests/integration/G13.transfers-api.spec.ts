@@ -111,7 +111,8 @@ test('讀取權限矩陣：未登入 401；無相關權限也不在門市名單 
   expect(missing(trOnly.problem)).toBe('庫存交易管理、料件查看');
   expect(missing((await perm('navigation')).problem)).toContain('調撥管理');
   expect(await perm('store_manager')).toMatchObject({ canCreate: false, internal: false, canReport: true });
-  expect(await perm('roster_supervisor')).toMatchObject({ canCreate: false, internal: false, canReport: false });
+  expect(await perm('roster_supervisor')).toMatchObject({ canCreate: false, internal: false, canReport: true }); // 決定 B：名單上的督導也可回報（實際能不能回報另看目的門市與單據狀態）
+  expect(await perm('roster_area_manager')).toMatchObject({ canCreate: false, internal: false, canReport: true });
 });
 
 test('寫入權限矩陣：缺哪個權限講清楚且資料庫沒有任何寫入；資料庫函式本身也檢查（直接呼叫）；Origin 不符 403', async () => {
@@ -577,7 +578,7 @@ test('C9「未收」只是註記：單子仍待收貨、不動庫存、可重複
 });
 
 // ----------------------------------------------------------------------------- C10 店長回報
-test('C10 目的門市店長可回報問題（只寫標記與時間軸，不動狀態與庫存）；非目的門市店長、督導、區經理、總務都不能用門市回報；回報後列表與統計看得到', async () => {
+test('C10 目的門市店長可回報問題（只寫標記與時間軸，不動狀態與庫存）；非目的門市的店長、總務與沒權限的人都不能用門市回報；回報後列表與統計看得到', async () => {
   const m = await mk('C10'); // 目的 = ZT01 門市位置；store_manager 是 ZT01 店長
   const t = await newTransfer(m);
   const tag = (await dbT(t.id)).reason as string;
@@ -587,7 +588,7 @@ test('C10 目的門市店長可回報問題（只寫標記與時間軸，不動�
   const v = c.body.data.updated_at as string;
   const balBefore = [await bal(m.src.id, m.part.id), await dbBal(m.dest.id, m.part.id)];
   // 沒權限的人
-  for (const k of ['ga_store_manager_b', 'supervisor', 'roster_supervisor', 'roster_area_manager', 'ga_works', 'navigation', 'denied']) {
+  for (const k of ['ga_store_manager_b', 'ga_works', 'navigation', 'denied']) {
     const r = await act(k, t.id, 'store_report', v, { report_type: 'NOT_ARRIVED', note: '偷偷回報' });
     expect([403, 404], k).toContain(r.status);
   }
@@ -629,11 +630,69 @@ test('C10 目的門市店長可回報問題（只寫標記與時間軸，不動�
   const other = await get('ga_store_manager_b', `/${t.id}`);
   expect(other.status).toBe(404);
   const sup = await get('roster_supervisor', `/${t.id}`);
-  expect(sup.body.data.abilities.store_report).toBe(false);
+  expect(sup.body.data.abilities.store_report).toBe(true); // 決定 B：目的門市（ZT01）名單上的督導看得到回報能力
+  expect(sup.body.data.abilities).toMatchObject({ receive: false, cancel: false, confirm_source: false, ship: false, mark_unreceived: false });
   // 收貨後仍可回報（例如點收後才發現數量不足），已取消不行
   const rc = await act('ga_works', t.id, 'receive', (await dbT(t.id)).updated_at);
   expect(rc.status).toBe(200);
   expect((await act('store_manager', t.id, 'store_report', rc.body.data.updated_at, { report_type: 'SHORT_QUANTITY' })).status).toBe(200);
+});
+
+test('決定 B：目的門市名單上的督導、區經理也可回報（DB 讀回標記與回報人、不動庫存與狀態）；非負責門市的督導 403；店長仍可；各單各自回報', async () => {
+  const bals = async (m: Made) => [await bal(m.src.id, m.part.id), await bal(m.dest.id, m.part.id), (await dbTx(m.src.id, m.part.id)).length, (await dbTx(m.dest.id, m.part.id)).length];
+  // 目的都是 ZT01（roster_supervisor、roster_area_manager、矩陣 supervisor 都在 ZT01 名單上）
+  for (const [who, type] of [['roster_supervisor', 'DAMAGED'], ['roster_area_manager', 'WRONG_ITEM'], ['supervisor', 'NOT_ARRIVED'], ['store_manager', 'SHORT_QUANTITY']] as const) {
+    const m = await mk(`C10B-${who}`);
+    const t = await newTransfer(m);
+    const c = await act('ga_works', t.id, 'confirm_source', t.v);
+    expect(c.status, JSON.stringify(c.body)).toBe(200);
+    const v = c.body.data.updated_at as string;
+    const before = await bals(m);
+    const note = `${who} 回報-${type}`;
+    const r = await act(who, t.id, 'store_report', v, { report_type: type, note });
+    expect(r.status, `${who} ${JSON.stringify(r.body)}`).toBe(200);
+    const row = await dbT(t.id);
+    expect(row, who).toMatchObject({ status: 'SOURCE_CONFIRMED', store_report_type: type, store_report_note: note });
+    expect(row.store_reported_at, who).not.toBeNull();
+    expect(row.store_reported_by, who).not.toBeNull();
+    if (users[who]) expect(row.store_reported_by, who).toBe(users[who].id);
+    expect(await bals(m), `${who} 回報不動庫存與流水`).toEqual(before);
+    const ev = (await dbEvents(t.id)).pop();
+    expect(ev, who).toMatchObject({ action: 'store_report', note, from_status: 'SOURCE_CONFIRMED', to_status: 'SOURCE_CONFIRMED' });
+    expect(ev.created_by, who).toBe(row.store_reported_by);
+    const d = await get(who, `/${t.id}`);
+    expect(d.body.data.abilities, who).toMatchObject({ store_report: true, receive: false, cancel: false, confirm_source: false });
+    expect(ids(await get('ga_works', `?reported=true&search=${encodeURIComponent(row.reason as string)}`)), who).toContain(t.id);
+  }
+  // 非負責門市：目的是 VW001（只有 ga_store_manager_b 是店長；roster_*、supervisor 都不在 VW001 名單）
+  const other = await mk('C10B-other', { destStore: 'VW001' });
+  const ot = await newTransfer(other);
+  const oc = await act('ga_works', ot.id, 'confirm_source', ot.v);
+  const ov = oc.body.data.updated_at as string;
+  const obefore = await bals(other);
+  for (const k of ['roster_supervisor', 'roster_area_manager', 'supervisor']) {
+    const r = await act(k, ot.id, 'store_report', ov, { report_type: 'NOT_ARRIVED', note: '不是我的門市' });
+    expect([403, 404], k).toContain(r.status); // 別店的單列級權限看不到（404）或明確 403，兩者都是擋下
+    expect((await get(k, `/${ot.id}`)).status, `${k} 別店的單看不到`).toBe(404);
+  }
+  expect((await dbT(ot.id)).store_report_type).toBeNull();
+  expect(await bals(other)).toEqual(obefore);
+  // 直接打資料庫函式（不經 API 的範圍過濾）：非負責門市的督導被函式本身擋下，錯誤是 403
+  const client = await rpcClientFor('supervisor');
+  const direct = await callFn(client, 'ga_ws_inv_transfer_store_report', { p_transfer_id: ot.id, p_type: 'NOT_ARRIVED', p_note: '直接呼叫', p_expected_updated_at: ov, p_idempotency_key: key() });
+  expect(direct).toMatchObject({ ok: false, status: 403 });
+  expect((await dbT(ot.id)).store_report_type).toBeNull();
+  // 該門市店長仍可
+  const sm = await act('ga_store_manager_b', ot.id, 'store_report', ov, { report_type: 'DAMAGED', note: 'VW001 店長回報' });
+  expect(sm.status, JSON.stringify(sm.body)).toBe(200);
+  expect(await bals(other)).toEqual(obefore);
+  // 直接呼叫函式：目的門市（ZT01）的督導成功，與 API 一致
+  const z = await mk('C10B-direct');
+  const zt = await newTransfer(z);
+  const zc = await act('ga_works', zt.id, 'confirm_source', zt.v);
+  const ok = await callFn(client, 'ga_ws_inv_transfer_store_report', { p_transfer_id: zt.id, p_type: 'OTHER', p_note: '直接呼叫成功', p_expected_updated_at: zc.body.data.updated_at, p_idempotency_key: key() });
+  expect(ok, JSON.stringify(ok)).toMatchObject({ ok: true, status: 200 });
+  expect((await dbT(zt.id)).store_report_type).toBe('OTHER');
 });
 
 // ----------------------------------------------------------------------------- C11 逾期

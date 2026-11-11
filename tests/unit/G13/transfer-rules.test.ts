@@ -105,7 +105,7 @@ describe('abilities：每張單我能做什麼（Q13 缺哪個權限講清楚）
     }
     expect(permissionProblem(all)).toBe('');
   });
-  it('C10：只有目的門市店長可以回報，且單子已交出或已收貨；與調撥三權限無關', () => {
+  it('C10：目的門市名單上的人（店長、督導、區經理）可以回報，且單子已交出或已收貨；與調撥三權限無關', () => {
     const sm = { transferManage: false, transactionManage: false, partView: false, destinationStoreManager: true };
     expect(transferAbilities(sm, { status: 'SOURCE_CONFIRMED' }).store_report).toBe(true);
     expect(transferAbilities(sm, { status: 'IN_TRANSIT' }).store_report).toBe(true);

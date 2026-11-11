@@ -117,6 +117,7 @@ export function validateActionPayload(input: unknown): ActionPayload {
 }
 
 // ---------------------------------------------------------------- abilities（Q13）：每張單「我能做什麼」
+/** destinationStoreManager：目的門市名單上負責該門市的人（店長、督導、區經理任何身分，C10）。 */
 export type Who = { transferManage: boolean; transactionManage: boolean; partView: boolean; destinationStoreManager: boolean };
 /** 調撥操作需要的三個權限：缺哪個講清楚。 */
 export function missingPermissions(w: Pick<Who, "transferManage" | "transactionManage" | "partView">): string[] {

@@ -145,6 +145,7 @@ export async function GET() {
         taskManagement,
         monthlyExport,
         campaignView,
+        gaRosterMember,
       }),
     });
   } catch (error) {

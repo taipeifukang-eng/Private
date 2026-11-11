@@ -253,7 +253,7 @@ test('角色接力：總務從需求單網址建單（C8 被擋→前往位置�
     await works.ctx.close();
   }
 
-  // ---- 6. 督導（名單身分）唯讀
+  // ---- 6. 督導（名單身分）唯讀，只多一個「回報問題」（2026-11-11 決定 B）
   const sup = await pageForUser(browser, await stateOf(users.roster_supervisor), testInfo);
   try {
     const page = sup.page;
@@ -263,9 +263,21 @@ test('角色接力：總務從需求單網址建單（C8 被擋→前往位置�
     await openDetail(page, no);
     const d = dialog(page);
     await expect(statusBadge(page)).toHaveText('已收貨');
-    for (const a of ['confirm_source', 'ship', 'receive', 'cancel', 'mark_unreceived', 'store_report']) await expect(d.getByTestId(`act-${a}`), a).toHaveCount(0);
+    for (const a of ['confirm_source', 'ship', 'receive', 'cancel', 'mark_unreceived']) await expect(d.getByTestId(`act-${a}`), a).toHaveCount(0);
     await expect(d).not.toContainText(NOTE_SECRET);
     await expect(d).not.toContainText('已電話確認目的門市未收到');
+    // 決定 B：目的門市的督導也能回報（已收貨後點收才發現數量不足）
+    await expect(d.getByTestId('act-store_report')).toBeVisible();
+    const balBefore = [await dbBal(m.src.id, m.part.id), await dbBal(m.dest.id, m.part.id)];
+    await d.getByTestId('act-store_report').click();
+    await d.getByTestId('report-type').selectOption('SHORT_QUANTITY');
+    await d.getByTestId('action-note').fill('督導點收少一件-G13');
+    await d.getByTestId('action-submit').click();
+    await expect(d.getByTestId('action-done')).toContainText('完成');
+    await expect(d.getByTestId('flag-reported')).toBeVisible();
+    const rep = await dbTransfer(no);
+    expect(rep).toMatchObject({ status: 'RECEIVED', store_report_type: 'SHORT_QUANTITY', store_report_note: '督導點收少一件-G13', store_reported_by: users.roster_supervisor.id });
+    expect([await dbBal(m.src.id, m.part.id), await dbBal(m.dest.id, m.part.id)]).toEqual(balBefore); // 回報不動庫存
     expect(real(sup.errors)).toEqual([]);
   } finally {
     await sup.ctx.close();

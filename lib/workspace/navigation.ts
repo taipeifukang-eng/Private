@@ -29,6 +29,8 @@ export function workspaceNavigation(
     monthlyExport?: boolean;
     /** 活動檢視入口：canEnterCampaignView（view_all，或 view_own 且有 store_managers 任命／盤點組）。 */
     campaignView?: boolean;
+    /** 門市名單任何身分（店長、督導、區經理）：總務服務中心入口（唯讀庫存總覽與調撥，2026-11-11 驗收決定 A）。 */
+    gaRosterMember?: boolean;
   } = {},
 ) {
   const has = (...codes: string[]) => ctx.has(...codes);
@@ -272,6 +274,7 @@ export function workspaceNavigation(
   const ga = groups.find((g) => g.label === "總務服務中心")!;
   ga.items[0].allowed ||=
     storeManager ||
+    !!features.gaRosterMember ||
     has(
       ...GA_MAINTENANCE_MODULE_CODES,
       ...GA_WORK_ORDER_MODULE_CODES,

@@ -473,10 +473,10 @@ BEGIN
   SELECT * INTO v_t FROM public.ga_inventory_transfers WHERE id = p_transfer_id AND deleted_at IS NULL FOR UPDATE;
   IF NOT FOUND THEN RETURN public.ga_inv_tr_err(404, 'TRANSFER_NOT_FOUND', '找不到這張調撥單'); END IF;
   SELECT * INTO v_dst FROM public.ga_inventory_locations WHERE id = v_t.destination_location_id;
-  -- 只有目的門市（STORE 位置）名單上、身分為店長（role_type = store_manager）的人可以回報；督導與區經理只能唯讀。
+  -- 目的門市（STORE 位置）名單上負責該門市的人（店長、督導、區經理，store_managers 任何身分）可以回報；其他人不行（2026-11-11 驗收決定 B）。
   IF v_dst.location_type <> 'STORE' OR v_dst.store_id IS NULL OR NOT EXISTS (
-       SELECT 1 FROM public.store_managers sm WHERE sm.user_id = v_uid AND sm.store_id = v_dst.store_id AND sm.role_type = 'store_manager') THEN
-    RETURN public.ga_inv_tr_err(403, 'ONLY_DESTINATION_STORE_MANAGER', '只有目的門市的店長可以回報這張調撥單的問題');
+       SELECT 1 FROM public.store_managers sm WHERE sm.user_id = v_uid AND sm.store_id = v_dst.store_id) THEN
+    RETURN public.ga_inv_tr_err(403, 'ONLY_DESTINATION_STORE_MANAGER', '只有目的門市的店長、督導或區經理可以回報這張調撥單的問題');
   END IF;
   SELECT * INTO v_ev FROM public.ga_inventory_transfer_events WHERE transfer_id = p_transfer_id AND idempotency_key = v_key;
   IF FOUND THEN
