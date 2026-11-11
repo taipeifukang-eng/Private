@@ -349,7 +349,7 @@ const hasFilter = computed(() => !!(search.value.trim() || typeFilter.value || s
           <label>位置名稱<input v-model="form.name" :disabled="saving || readonlyForm" maxlength="100" aria-label="位置名稱" /><small v-if="formErrors.name" class="field-error">{{ formErrors.name }}</small></label>
           <label>位置代碼<input v-model="form.code" :disabled="saving || readonlyForm || lockedByHistory" maxlength="40" aria-label="位置代碼" placeholder="選填，存檔轉大寫，全公司唯一" /><small v-if="formErrors.code" class="field-error">{{ formErrors.code }}</small></label>
           <div v-if="form.location_type === 'STORE'" class="store-field">
-            <AssetSitePicker v-model="form.store_id" label="所屬門市" required :disabled="saving || readonlyForm || lockedByHistory" :error="formErrors.store_id" />
+            <AssetSitePicker v-model="form.store_id" label="所屬門市" required :initial="editing?.store" :disabled="saving || readonlyForm || lockedByHistory" :error="formErrors.store_id" />
           </div>
           <label class="wide" v-if="internal || dialog === 'create'">描述<input v-model="form.description" :disabled="saving || readonlyForm" maxlength="500" aria-label="位置描述" /></label>
         </div>

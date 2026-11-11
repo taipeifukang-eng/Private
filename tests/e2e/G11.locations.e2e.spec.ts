@@ -228,6 +228,7 @@ test('版本衝突：別人先改了位置，儲存時顯示「已被其他人�
   try {
     await openPage(page);
     await openEdit(page, stale.name);
+    await expect(dialog(page).locator('.site-chosen')).toContainText('ZT04'); // 編輯門市位置要顯示門市代碼與名稱，不是 id 的一小段
     await adminDb().from('ga_inventory_locations').update({ description: '別人先改的描述' }).eq('id', stale.id);
     await sub(dialog(page), '位置描述').fill('我的描述');
     await dialog(page).getByRole('button', { name: '儲存位置' }).click();

@@ -8,7 +8,7 @@ import { useDebounced, useLatest } from "../../lib/ga";
 // type=store：門市（scope=mine 只列自己被指派的門市）；type=location：庫存位置。modelValue 是 id。
 type Site = { id: string; store_code?: string; store_name?: string; short_name?: string | null; code?: string; name?: string };
 const props = withDefaults(
-  defineProps<{ modelValue: string; type?: "store" | "location"; scope?: "all" | "mine"; label?: string; required?: boolean; disabled?: boolean; error?: string }>(),
+  defineProps<{ modelValue: string; type?: "store" | "location"; scope?: "all" | "mine"; label?: string; required?: boolean; disabled?: boolean; error?: string; initial?: Site | null }>(),
   { type: "store", scope: "all", label: "所在據點", required: false, disabled: false },
 );
 const emit = defineEmits<{ "update:modelValue": [id: string]; select: [site: Site | null] }>();
@@ -50,6 +50,11 @@ async function resolveSelected() {
     return;
   }
   if (selected.value?.id === props.modelValue) return;
+  // 呼叫端已經知道這個據點的名稱（例如編輯時列表資料帶了門市）：直接用，不要顯示 id 的一小段。
+  if (props.initial && props.initial.id === props.modelValue) {
+    selected.value = props.initial;
+    return;
+  }
   // 已選的據點可能不在目前這一頁，用 id 找不到時至少顯示 id 的一部分，不影響送出。
   const found = rows.value.find((r) => r.id === props.modelValue);
   selected.value = found || { id: props.modelValue, store_code: props.modelValue.slice(0, 8), store_name: "", code: props.modelValue.slice(0, 8), name: "" };
