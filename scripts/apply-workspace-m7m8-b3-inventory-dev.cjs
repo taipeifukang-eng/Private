@@ -16,6 +16,7 @@ const rollback = process.argv.includes("--rollback");
 const base = [
   "20261111100000_m7m8_b3_inventory_rules",
   "20261111110000_m7m8_b3_inventory_post",
+  "20261111111000_m7m8_b3_dev_test_cleanup",
   "20261111120000_m7m8_b3_inventory_transfers",
   "20261111130000_m7m8_b3_category_keep_inactive",
 ];

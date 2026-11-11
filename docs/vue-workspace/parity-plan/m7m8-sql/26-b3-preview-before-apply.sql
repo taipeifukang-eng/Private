@@ -21,7 +21,8 @@ new_objs AS (
   SELECT o AS name FROM unnest(ARRAY['ga_ws_inv_location_impact', 'ga_ws_inv_location_counts', 'ga_ws_inv_save_location', 'ga_ws_inv_delete_location',
                                       'ga_ws_inv_add_location_parts', 'ga_ws_inv_update_location_part', 'ga_ws_inv_remove_location_part',
                                       'ga_inv_location_has_history', 'ga_inv_location_impact_json', 'ga_inv_setting_impact_json', 'ga_inv_jsonb_key_count',
-                                      'ga_inventory_locations_guard', 'ga_parts_block_deactivate_with_stock']) o
+                                      'ga_inventory_locations_guard', 'ga_parts_block_deactivate_with_stock',
+                                      'ga_inv_map_error', 'ga_ws_inv_post', 'ga_ws_inv_set_holding', 'ga_ws_inv_balance_page']) o
 ),
 open_transfers AS (
   SELECT t.* FROM public.ga_inventory_transfers t WHERE t.deleted_at IS NULL AND t.status IN ('REQUESTED', 'SOURCE_CONFIRMED', 'IN_TRANSIT')
