@@ -266,7 +266,11 @@ async function options(ctx: Context, url: URL) {
 // ---------------------------------------------------------------- 網址參數預填（fromRequestId、requestNo、partId、quantity、sourceLocationId、destinationStoreId、reason、notes）
 async function prefill(ctx: Context, url: URL) {
   const s = await transferScope(ctx);
-  if (!s.transferManage && !s.transactionManage) throw new GaError(403, "沒有調撥管理權限，不能建立調撥單");
+  // 預填會讀需求單與來源餘額，門檻與建單相同（三個權限都要有），避免只有其中一個權限的人探測任意需求單與庫存。
+  if (!s.canOperate) {
+    const missing = [!s.transferManage && "調撥管理", !s.transactionManage && "庫存交易管理", !s.partView && "料件查看"].filter(Boolean).join("、");
+    throw new GaError(403, `調撥需要「調撥管理」、「庫存交易管理」與「料件查看」三個權限，您缺少：${missing}`);
+  }
   const input = parsePrefill(url.searchParams);
   const db = adminClient() as any;
   const unresolved: { field: string; label: string; reason: string }[] = [];

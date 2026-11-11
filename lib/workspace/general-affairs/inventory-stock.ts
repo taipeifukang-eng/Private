@@ -310,7 +310,19 @@ async function options(ctx: Context, url: URL) {
     // 篩選用：有庫存或有設定過的料件不限，直接搜尋啟用中的料件（只回公開欄位）。
     if (!s.canPart && !s.balances && !s.transactions) throw new GaError(403, "沒有料件查看權限");
     let q = db.from("ga_parts").select("id,name,part_code,brand,model,specification,base_unit", { count: "exact" }).eq("is_active", true).is("deleted_at", null);
-    if (search) q = q.or(orIlike(["name", "part_code", "barcode", "brand", "model", "specification"], search));
+    // 只憑門市名單身分（沒有料件查看、也沒有內部餘額／流水權限）：不能搜尋整個料件目錄，只回自己門市位置有設定的料件，也不能用條碼搜尋。
+    const catalogAccess = s.canPart || internal;
+    if (!catalogAccess) {
+      const locIds = rosterStores && rosterStores.length
+        ? (((await must(db.from("ga_inventory_locations").select("id").eq("location_type", "STORE").in("store_id", rosterStores).is("deleted_at", null))) as any[]) || []).map((r) => r.id as string)
+        : [];
+      const partIds = locIds.length
+        ? Array.from(new Set((((await must(db.from("ga_inventory_location_parts").select("part_id").in("location_id", locIds).eq("is_active", true).is("deleted_at", null))) as any[]) || []).map((r) => r.part_id as string)))
+        : [];
+      if (!partIds.length) return respond({ data: [], total: 0, meta: pagingMeta(page, pageSize, 0) });
+      q = q.in("id", partIds);
+    }
+    if (search) q = q.or(orIlike(catalogAccess ? ["name", "part_code", "barcode", "brand", "model", "specification"] : ["name", "part_code", "brand", "model", "specification"], search));
     const res = await q.order("name").order("id").range(from, to);
     if (res.error) throw dbError(res.error);
     return respond({ data: res.data || [], total: res.count || 0, meta: pagingMeta(page, pageSize, res.count || 0) });

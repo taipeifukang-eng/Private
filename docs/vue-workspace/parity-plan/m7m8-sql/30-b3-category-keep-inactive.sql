@@ -1,4 +1,5 @@
 -- 30-b3-category-keep-inactive.sql
+-- 30 只能跑一次：套用後函式 md5 已變，再跑會被 md5 防護中止；要重來請先跑 rollback。
 -- 正式區草稿（尚未執行，僅供使用者審閱）。內容與 DEV 已測過的 supabase/workspace-dev/20261111130000_m7m8_b3_category_keep_inactive.sql 相同。
 -- C13（2026-11-11 第 3 批問卷）：設備分類或設施分類被停用後，設備與設施只要「不換分類」就允許儲存其他欄位；新增或換分類仍只能選啟用中、未刪除且祖先路徑有效的分類。
 -- 性質：會寫入——重新定義 2 個既有的驗證觸發器函式 ga_validate_equipment()、ga_validate_facility()（觸發器本身不動），不改資料表或資料。

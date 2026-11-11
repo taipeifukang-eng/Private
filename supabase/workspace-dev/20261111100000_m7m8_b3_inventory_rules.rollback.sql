@@ -1,7 +1,9 @@
 -- 還原 20261111100000_m7m8_b3_inventory_rules.sql：移除第 3 批 A 新增的觸發器與函式。不改任何資料（只有函式與觸發器，沒有資料表變更）。
 -- 注意：還原後，位置有交易仍可改類型／門市／代碼、有進行中調撥仍可停用位置、有庫存的料件可被停用（回到舊版行為）。
+DROP TRIGGER IF EXISTS trg_ga_inventory_location_parts_guard ON public.ga_inventory_location_parts;
 DROP TRIGGER IF EXISTS trg_ga_parts_block_deactivate_with_stock ON public.ga_parts;
 DROP TRIGGER IF EXISTS trg_ga_inventory_locations_guard ON public.ga_inventory_locations;
+DROP FUNCTION IF EXISTS public.ga_inventory_location_parts_guard();
 DROP FUNCTION IF EXISTS public.ga_parts_block_deactivate_with_stock();
 DROP FUNCTION IF EXISTS public.ga_inventory_locations_guard();
 DROP FUNCTION IF EXISTS public.ga_ws_inv_remove_location_part(uuid, text, timestamptz);

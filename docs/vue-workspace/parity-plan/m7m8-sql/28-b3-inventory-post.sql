@@ -104,6 +104,13 @@ BEGIN
   IF p_occurred_at IS NOT NULL AND p_occurred_at > now() + interval '1 minute' THEN
     RETURN jsonb_build_object('ok', false, 'status', 400, 'code', 'FUTURE_OCCURRED_AT', 'error', '發生時間不可晚於現在');
   END IF;
+  -- 審查補強：參考單據（類型、編號、附加資料）只能由調撥等資料庫內部流程帶入，登入者直接呼叫不能偽造「調撥來源」的流水。
+  -- 內部流程在同一個交易內先設定 app.ga_inv_internal_post；這個設定無法由前端 RPC 設定。
+  -- 注意：過帳核心 ga_post_inventory_transaction 在舊版就開放給已登入者（舊版畫面直接呼叫），本包裝無法也不改變這一點。
+  IF (p_reference_type IS NOT NULL OR p_reference_id IS NOT NULL OR (p_metadata IS NOT NULL AND p_metadata <> '{}'::jsonb))
+     AND COALESCE(current_setting('app.ga_inv_internal_post', true), '') <> 'true' THEN
+    RETURN jsonb_build_object('ok', false, 'status', 403, 'code', 'REFERENCE_NOT_ALLOWED', 'error', '參考單據只能由調撥等系統流程寫入，不能手動帶入');
+  END IF;
 
   -- 與核心相同的鎖（交易內可重入）：先鎖住這個位置與料件，才讀得到穩定的「上次異動時間」。
   PERFORM pg_advisory_xact_lock(hashtextextended('ga_inventory_location_part:' || p_location_id::text || ':' || p_part_id::text, 0));

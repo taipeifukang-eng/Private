@@ -212,7 +212,9 @@ export function toRequestUnit(quantity: number, inputUnit: "BASE" | "PURCHASE", 
 /** 唯讀名單身分（店長、督導、區經理）看不到內部備註、未收註記，時間軸只留動作與時間（店長自己的回報除外）。 */
 export function maskTransfer<T extends Record<string, any>>(row: T, internal: boolean): T {
   if (internal) return row;
-  const out: Record<string, any> = { ...row, notes: null, unreceived_note: null };
+  // 取消原因是總務填的內部備註（與時間軸的遮蔽一致）：唯讀身分只留異常類型的標籤（「調撥異常：少收」），「｜」後的備註一律不給。
+  const cancel = typeof row.cancel_reason === "string" && row.exception_type ? row.cancel_reason.split("｜")[0] : null;
+  const out: Record<string, any> = { ...row, notes: null, unreceived_note: null, cancel_reason: cancel };
   if (Array.isArray(row.items)) out.items = row.items.map((i: any) => ({ ...i, notes: null }));
   return out as T;
 }

@@ -134,7 +134,15 @@ BEGIN
   IF p_status = 'RECEIVED' THEN
     IF v_req > 0 AND v_recv >= v_req THEN v_state := 'WAITING_STORE_CONFIRMATION'; v_step := '調撥已全數收貨，等待門市確認';
     ELSE v_state := 'TRANSFER'; v_step := '已調撥收貨 ' || v_recv::text || ' / ' || v_req::text || '，繼續處理剩餘數量'; END IF;
-  ELSIF p_status = 'CANCELED' THEN v_state := 'EXCEPTION'; v_step := '調撥已取消，請重新決定處理方式';
+  ELSIF p_status = 'CANCELED' THEN
+    -- 同一張需求單還有其他調撥單進行中時，取消其中一張不應把處理單標成異常。
+    IF EXISTS (SELECT 1 FROM public.ga_part_fulfillment_documents d2
+                WHERE d2.fulfillment_id = v_doc.fulfillment_id AND d2.document_type = 'TRANSFER' AND d2.id <> v_doc.id
+                  AND COALESCE(d2.status, '') NOT IN ('CANCELED', 'RECEIVED')) THEN
+      v_state := 'TRANSFER'; v_step := '有一張調撥已取消，其他調撥單仍在進行中';
+    ELSE
+      v_state := 'EXCEPTION'; v_step := '調撥已取消，請重新決定處理方式';
+    END IF;
   ELSIF p_status = 'IN_TRANSIT' THEN v_state := 'TRANSFER'; v_step := '調撥運送中';
   ELSIF p_status = 'SOURCE_CONFIRMED' THEN v_state := 'TRANSFER'; v_step := '來源已交出，等待運送';
   ELSE v_state := 'TRANSFER'; v_step := '等待來源確認'; END IF;
@@ -204,7 +212,7 @@ BEGIN
   IF FOUND THEN
     SELECT * INTO v_item FROM public.ga_inventory_transfer_items WHERE transfer_id = v_t.id ORDER BY created_at LIMIT 1;
     IF v_t.source_location_id <> p_source_location_id OR v_t.destination_location_id <> p_destination_location_id
-       OR v_item.part_id <> p_part_id OR v_item.quantity_input <> p_quantity THEN
+       OR v_item.part_id <> p_part_id OR v_item.quantity_input <> p_quantity OR v_item.input_unit_type <> v_unit THEN
       RETURN public.ga_inv_tr_err(409, 'IDEMPOTENCY_CONFLICT', '這個送出識別碼已被另一張不同內容的調撥單使用，請重新整理畫面後再送出');
     END IF;
     RETURN jsonb_build_object('ok', true, 'status', 200, 'replay', true, 'data', public.ga_inv_tr_data(v_t.id));
@@ -232,12 +240,25 @@ BEGIN
       jsonb_build_object('shortcut', 'locations', 'location_id', p_destination_location_id));
   END IF;
   v_base := CASE WHEN v_unit = 'PURCHASE' THEN p_quantity * v_part.purchase_to_base_rate ELSE p_quantity END;
+  -- 預先驗證領用規則（與過帳核心相同的檢查），避免建單成功、確認交出時才失敗。
+  IF round(v_base, 4) <> v_base THEN RETURN public.ga_inv_tr_err(422, 'INVALID_QUANTITY', '換算成基本單位後超過 4 位小數，請調整數量'); END IF;
+  IF v_part.allow_fractional_issue IS DISTINCT FROM true AND v_base <> trunc(v_base) THEN
+    RETURN public.ga_inv_tr_err(422, 'FRACTIONAL_NOT_ALLOWED', '這個料件不允許小數數量，請輸入整數');
+  END IF;
+  IF v_part.minimum_issue_qty IS NOT NULL AND v_base < v_part.minimum_issue_qty THEN
+    RETURN public.ga_inv_tr_err(422, 'MINIMUM_ISSUE_NOT_MET', '低於這個料件的最小領用量（基本單位 ' || trim(trailing '.' FROM trim(trailing '0' FROM round(v_part.minimum_issue_qty, 4)::text)) || '）');
+  END IF;
+  IF v_part.allow_unpacking IS DISTINCT FROM true AND v_part.purchase_unit IS NOT NULL AND v_part.purchase_to_base_rate IS NOT NULL
+     AND v_part.purchase_to_base_rate > 0 AND mod(v_base, v_part.purchase_to_base_rate) <> 0 THEN
+    RETURN public.ga_inv_tr_err(422, 'UNPACKING_NOT_ALLOWED', '這個料件不允許拆包領用，調撥數量必須是採購單位的整數倍');
+  END IF;
   SELECT quantity_base INTO v_bal FROM public.ga_inventory_balances WHERE location_id = p_source_location_id AND part_id = p_part_id;
   v_bal := COALESCE(v_bal, 0);
 
   -- 連結需求單：驗證需求單存在、剩餘需求量，不覆蓋進行中的其他處理方式。
   IF p_request_id IS NOT NULL THEN
-    SELECT * INTO v_req FROM public.ga_service_requests WHERE id = p_request_id AND deleted_at IS NULL;
+    -- 先鎖需求單列：同一張需求單還沒有處理單時，兩個人同時建單會在這裡排隊，後到的看得到先到的處理單，不會撞唯一鍵。
+    SELECT * INTO v_req FROM public.ga_service_requests WHERE id = p_request_id AND deleted_at IS NULL FOR UPDATE;
     IF NOT FOUND THEN RETURN public.ga_inv_tr_err(404, 'REQUEST_NOT_FOUND', '找不到來源需求單（可能已被刪除）'); END IF;
     IF v_req.main_status IN ('COMPLETED', 'REJECTED', 'CANCELED') THEN RETURN public.ga_inv_tr_err(409, 'REQUEST_CLOSED', '這張需求單已結案、退回或取消，不能再建立調撥單'); END IF;
     IF v_req.part_id IS NOT NULL AND v_req.part_id <> p_part_id THEN RETURN public.ga_inv_tr_err(422, 'REQUEST_PART_MISMATCH', '調撥的料件和需求單指定的料件不同'); END IF;
@@ -357,6 +378,8 @@ BEGIN
   SELECT * INTO v_dst FROM public.ga_inventory_locations WHERE id = v_t.destination_location_id;
 
   BEGIN
+    -- 內部流程旗標：ga_ws_inv_post 只在這個旗標存在時才接受參考單據（交易內有效，結束即消失）。
+    PERFORM set_config('app.ga_inv_internal_post', 'true', true);
     IF v_action = 'confirm_source' THEN
       IF v_src.deleted_at IS NOT NULL OR NOT v_src.is_active THEN RAISE EXCEPTION USING ERRCODE = 'P0A13', MESSAGE = public.ga_inv_tr_err(409, 'LOCATION_INACTIVE', '來源位置已停用，不能確認交出')::text; END IF;
       FOR v_item IN SELECT * FROM public.ga_inventory_transfer_items WHERE transfer_id = v_t.id AND source_transaction_id IS NULL ORDER BY id LOOP
@@ -411,6 +434,7 @@ BEGIN
       v_to := v_t.status;
     END IF;
 
+    PERFORM set_config('app.ga_inv_internal_post', 'false', true);
     INSERT INTO public.ga_inventory_transfer_events (transfer_id, action, from_status, to_status, note, idempotency_key, created_by, metadata)
     VALUES (v_t.id, v_action, v_t.status, v_to, v_note, v_key, v_uid,
             jsonb_build_object('return_stock', COALESCE(p_return_stock, false) AND v_returned > 0, 'exception_type', v_exc, 'shipping_method', v_ship));

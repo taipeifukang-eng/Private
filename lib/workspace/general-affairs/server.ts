@@ -29,6 +29,9 @@ export function dbError(error: any): GaError {
   if (/PERMISSION_DENIED/.test(raw)) return new GaError(403, raw.replace(/^[A-Z0-9_]+:\s*/, "") || "沒有權限執行這個操作");
   const message = raw.replace(/^[A-Z0-9_]+:\s*/, "");
   if (/^OPEN_TRANSFER:/.test(raw)) return new GaError(409, message, { code: "OPEN_TRANSFER" });
+  // 庫存規則觸發器（位置／料件／位置料件設定守衛）：舊版畫面直接更新被擋時也回 409 與代碼。
+  if (/^OPEN_TRANSFERS:/.test(raw)) return new GaError(409, message, { code: "OPEN_TRANSFERS" });
+  if (/^HAS_STOCK:/.test(raw)) return new GaError(409, message, { code: "HAS_STOCK" });
   if (code === "23505") return new GaError(409, "代碼或資料重複，已有相同的資料（含已停用的）");
   if (code === "23503") return new GaError(409, "這筆資料仍被其他資料使用，不能這樣處理");
   if (code === "P0409") return new GaError(409, message || "資料已被其他人修改，請重新載入", { code: "STALE" });

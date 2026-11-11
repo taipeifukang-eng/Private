@@ -244,7 +244,7 @@ BEGIN
 
     v_impact := public.ga_inv_location_impact_json(p_location_id);
     -- C3：有庫存或交易後，位置類型、所屬門市、代碼鎖定
-    IF (v_e_type IS DISTINCT FROM v_cur.location_type OR v_e_store IS DISTINCT FROM v_cur.store_id OR v_e_code IS DISTINCT FROM v_cur.code)
+    IF (v_e_type IS DISTINCT FROM v_cur.location_type OR v_e_store IS DISTINCT FROM v_cur.store_id OR v_e_code IS DISTINCT FROM upper(v_cur.code))
        AND (v_impact->>'has_history')::boolean THEN
       RETURN jsonb_build_object('ok', false, 'status', 409, 'code', 'LOCKED_BY_HISTORY',
         'error', '這個位置已有庫存或交易紀錄，位置類型、所屬門市與代碼不能再修改；要換店請新增位置，再用調撥搬移庫存', 'impact', v_impact);
@@ -548,6 +548,13 @@ BEGIN
     IF public.ga_inv_location_has_history(OLD.id) THEN
       RAISE EXCEPTION 'LOCKED_BY_HISTORY: 這個位置已有庫存或交易紀錄，位置類型、所屬門市與代碼不能再修改；要換店請新增位置，再用調撥搬移庫存';
     END IF;
+    -- 審查補強：進行中調撥（尚無流水的待處理單）使用的位置也不能換類型、門市、代碼，否則單據的目的門市會跟著變。
+    SELECT count(*)::integer, string_agg(transfer_no, '、') INTO v_open, v_nos FROM public.ga_inventory_transfers
+     WHERE deleted_at IS NULL AND status IN ('REQUESTED', 'SOURCE_CONFIRMED', 'IN_TRANSIT')
+       AND (source_location_id = OLD.id OR destination_location_id = OLD.id);
+    IF v_open > 0 THEN
+      RAISE EXCEPTION 'OPEN_TRANSFERS: 有 % 張進行中的調撥單使用這個位置（%），位置類型、所屬門市與代碼先不能修改，請先完成或取消調撥單', v_open, v_nos;
+    END IF;
   END IF;
   IF (OLD.is_active AND NOT NEW.is_active) OR (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
     SELECT count(*)::integer, string_agg(transfer_no, '、') INTO v_open, v_nos FROM public.ga_inventory_transfers
@@ -555,6 +562,12 @@ BEGIN
        AND (source_location_id = OLD.id OR destination_location_id = OLD.id);
     IF v_open > 0 THEN
       RAISE EXCEPTION 'OPEN_TRANSFERS: 有 % 張進行中的調撥單使用這個位置（%），請先完成或取消調撥單再停用或刪除', v_open, v_nos;
+    END IF;
+  END IF;
+  -- 審查補強：刪除位置（軟刪除）時，任何路徑（含舊版畫面）都不能在仍有庫存時刪除；停用仍可（停用後庫存保留）。
+  IF OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM public.ga_inventory_balances WHERE location_id = OLD.id AND quantity_base <> 0) THEN
+      RAISE EXCEPTION 'HAS_STOCK: 這個位置還有庫存，不能刪除；請先出庫或調整庫存為 0，或改用停用';
     END IF;
   END IF;
   RETURN NEW;
@@ -574,11 +587,21 @@ SET search_path TO 'public', 'pg_temp'
 AS $$
 DECLARE
   v_locations integer;
+  v_open integer;
+  v_nos text;
 BEGIN
-  IF OLD.is_active AND NOT NEW.is_active AND NEW.deleted_at IS NULL THEN
+  -- 審查補強：停用或軟刪除都檢查；除了「仍有庫存」，還要沒有進行中調撥——
+  -- 調撥交出後來源餘額是 0，但單子還在途中，此時停用料件會讓收貨與退回都失敗（PART_INACTIVE），單子卡死。
+  IF (OLD.is_active AND NOT NEW.is_active) OR (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
     SELECT count(*)::integer INTO v_locations FROM public.ga_inventory_balances WHERE part_id = OLD.id AND quantity_base <> 0;
     IF v_locations > 0 THEN
-      RAISE EXCEPTION 'HAS_STOCK: 這個料件在 % 個位置仍有庫存，不能停用；請先出庫或調整庫存為 0', v_locations;
+      RAISE EXCEPTION 'HAS_STOCK: 這個料件在 % 個位置仍有庫存，不能停用或刪除；請先出庫或調整庫存為 0', v_locations;
+    END IF;
+    SELECT count(DISTINCT t.id)::integer, string_agg(DISTINCT t.transfer_no, '、') INTO v_open, v_nos
+      FROM public.ga_inventory_transfer_items i JOIN public.ga_inventory_transfers t ON t.id = i.transfer_id
+     WHERE i.part_id = OLD.id AND t.deleted_at IS NULL AND t.status IN ('REQUESTED', 'SOURCE_CONFIRMED', 'IN_TRANSIT');
+    IF v_open > 0 THEN
+      RAISE EXCEPTION 'OPEN_TRANSFERS: 這個料件有 % 張進行中的調撥單（%），不能停用或刪除；請先完成或取消調撥單', v_open, v_nos;
     END IF;
   END IF;
   RETURN NEW;
@@ -586,12 +609,43 @@ END;
 $$;
 DROP TRIGGER IF EXISTS trg_ga_parts_block_deactivate_with_stock ON public.ga_parts;
 CREATE TRIGGER trg_ga_parts_block_deactivate_with_stock
-  BEFORE UPDATE OF is_active ON public.ga_parts
+  BEFORE UPDATE OF is_active, deleted_at ON public.ga_parts
   FOR EACH ROW EXECUTE FUNCTION public.ga_parts_block_deactivate_with_stock();
+
+-- ---------------------------------------------------------------- 8b. 位置料件設定守衛（審查補強）
+-- 位置有守衛觸發器，位置料件設定也要有：任何路徑（含舊版畫面直接更新）停用或刪除設定時，該位置該料件仍有庫存或有進行中調撥就擋。
+-- 否則收貨會回 LOCATION_PART_NOT_CONFIGURED、調撥單卡死，餘額列也會變成沒有設定的庫存。
+CREATE OR REPLACE FUNCTION public.ga_inventory_location_parts_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_impact jsonb;
+BEGIN
+  IF (OLD.is_active AND NOT NEW.is_active) OR (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN
+    v_impact := public.ga_inv_setting_impact_json(OLD.location_id, OLD.part_id);
+    IF (v_impact->>'has_stock')::boolean THEN
+      RAISE EXCEPTION 'HAS_STOCK: 這個位置還有此料件的庫存（%），不能停用或移除設定；請先出庫或調整庫存為 0', v_impact->>'stock_qty';
+    END IF;
+    IF (v_impact->>'open_transfers')::integer > 0 THEN
+      RAISE EXCEPTION 'OPEN_TRANSFERS: 有 % 張進行中的調撥單使用此料件與位置（%），不能停用或移除設定',
+        v_impact->>'open_transfers', (SELECT string_agg(x, '、') FROM jsonb_array_elements_text(v_impact->'open_transfer_nos') x);
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_ga_inventory_location_parts_guard ON public.ga_inventory_location_parts;
+CREATE TRIGGER trg_ga_inventory_location_parts_guard
+  BEFORE UPDATE OF is_active, deleted_at ON public.ga_inventory_location_parts
+  FOR EACH ROW EXECUTE FUNCTION public.ga_inventory_location_parts_guard();
 
 -- ---------------------------------------------------------------- 授權
 REVOKE ALL ON FUNCTION public.ga_inventory_locations_guard() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.ga_parts_block_deactivate_with_stock() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.ga_inventory_location_parts_guard() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.ga_ws_inv_location_impact(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_inv_location_counts(uuid[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.ga_ws_inv_save_location(uuid, jsonb, timestamptz, jsonb) FROM PUBLIC, anon;
