@@ -203,3 +203,21 @@ approvedBy 規則：問卷已核可的決定（下列對應 C1 至 C13 與核可
 2. API：locations、balances／transactions／post／holding、transfers 三組（含 `abilities()`、欄位遮蔽、CSV）。
 3. 前端：G11、G12、G13 三頁與導覽接線、role-matrix 與測試帳號。
 4. 測試：G11 至 G13 四層加 parity 與角色接力 e2e；C13 回歸；allowlist 登記。
+
+## 10. 實作紀錄
+
+### 10.1 G11 位置與料件設定＋C13（2026-11-11 完成，DEV 驗證）
+- 資料庫（DEV 已套用，各附 rollback，並已在 DEV 以「撤回 → 套用」跑過一輪）：`20261111100000_m7m8_b3_inventory_rules.sql`（7 個 `ga_ws_inv_*` 位置函式、4 個內部輔助函式、位置守衛觸發器、料件停用保護觸發器）、`20261111130000_m7m8_b3_category_keep_inactive.sql`（C13，重新定義 `ga_validate_equipment`、`ga_validate_facility`，原函式備份在 `ga_m7m8_function_backups`）；套用腳本 `scripts/apply-workspace-m7m8-b3-inventory-dev.cjs`（檔案不存在的階段會略過）。正式區草稿 `26`（唯讀預覽）、`27`、`30` 與各自 rollback、README 套用順序已寫好；`28`、`29` 編號保留給 G12、G13。
+- API：`lib/workspace/general-affairs/inventory-locations.ts`（位置、影響範圍、位置料件；`router.ts` 的 `inventory` 分派，G12、G13 之後在同一分派下加）、`inventory-rules.ts`（純函式）。頁面：`pages/ga/InventoryLocations.vue`、`components/ga/InventoryLocationParts.vue`、`lib/ga-inventory.ts`；`access.ts` 新增 `gaInventoryLocations` 旗標，`nav.ts` 對照 `/general-affairs/inventory/locations`。
+- 測試：unit 30、smoke 10（桌機＋手機）、integration 14、e2e 14（桌機＋手機）、parity 7；C13 回歸 `G06C`（整合 6、e2e 4）；G06、G08 重跑。
+- 設計上的自行決定與修正（與上文第 2、3 節的差異）：
+  1. 停用位置不另填原因（資料表沒有可存停用原因的欄位）；刪除位置、移除位置料件設定要填原因。
+  2. 移除或停用位置料件設定，除了「該位置有該料件庫存」，也擋「有進行中調撥使用該料件與位置（來源或目的）」，避免收貨時卡單。
+  3. 刪除位置只擋「有庫存」與「進行中調撥」（照 Q14），不因「曾有交易紀錄但庫存為 0」而擋。
+  4. 「已有交易」＝該位置有任何交易或任何餘額列（即使餘額 0）；C3 鎖定類型、門市、代碼用這個判斷，資料庫觸發器同時保護舊版畫面。
+  5. 位置守衛觸發器（進行中調撥不能停用或刪除、有交易後不能改類型／門市／代碼）與料件停用保護（任何位置仍有庫存就不能停用料件）是資料庫層規則，舊版畫面也受影響。
+  6. 位置料件設定清單用服務身分讀取（位置本身先以使用者身分確認看得到），讓只有位置權限（沒有料件查看）的人也看得到是哪個料件；只取料件公開欄位，不含內部備註。
+  7. 名稱 100 字、代碼 40 字、描述與備註 500 字的長度限制（舊版沒有）。
+  8. 門市名單身分的入口：`gaInventoryLocations` 在名單內任何身分為真，側欄入口補在「資產與庫存」。**限制**：「總務服務中心」選單入口（`gaCenter`）仍要總務相關權限或店長角色，沒有任何總務入口權限的督導與區經理看不到入口；若要讓他們也能進，需另外決定是否把名單身分納入 `gaCenter`（會動全站導覽基準）。
+  9. 分類停用提示：設備與設施編輯畫面的分類選擇器顯示「這個分類已停用：不換分類仍可儲存其他欄位；要換分類只能選啟用中的分類。」
+- 新發現、問卷未涵蓋的差異共 9 項，`allowlist.json` 的 `approvedBy` 為 null，待使用者確認：位置設定清單料件關聯多回 `is_active`、詳情不回傳 5 個系統欄位（`created_by`、`updated_by`、`deleted_at`、`deleted_by`、`deletion_reason`）、只有位置權限者的偏好領用單位名稱由伺服端補上、名稱代碼長度限制、位置刪除連帶移除設定的原因加前綴。
