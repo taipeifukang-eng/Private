@@ -9,10 +9,15 @@ import {
   computeHeadcountTrend,
   computeMonthHeadcount,
   excludedReasonLabel,
+  FRANCHISE_FILTER_LABELS,
+  franchiseTotalLabel,
+  headcountExportFileName,
+  nextFranchiseFilter,
   summarySheetColumnWidths,
   unfinalizedStoresForMonth,
   type AreaHeadcount,
   type ColumnKey,
+  type FranchiseFilter,
   type HeadcountEntry,
   type HeadcountGroup,
 } from '@/lib/monthly-staff/position-headcount';
@@ -45,6 +50,7 @@ export default function PositionHeadcountPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState<PositionHeadcountPayload | null>(null);
+  const [franchise, setFranchise] = useState<FranchiseFilter>('all');
   const [modal, setModal] = useState<ListModal | null>(null);
 
   useEffect(() => {
@@ -52,7 +58,7 @@ export default function PositionHeadcountPanel() {
     let cancelled = false;
     setLoading(true);
     setError('');
-    fetch(`/api/admin/position-headcount?month=${month}${view === 'trend' ? '&trend=1' : ''}`)
+    fetch(`/api/admin/position-headcount?month=${month}${view === 'trend' ? '&trend=1' : ''}&franchise=${franchise}`)
       .then(async (res) => {
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.success) throw new Error(json?.error || `讀取失敗（${res.status}）`);
@@ -70,15 +76,15 @@ export default function PositionHeadcountPanel() {
     return () => {
       cancelled = true;
     };
-  }, [month, view]);
+  }, [month, view, franchise]);
 
   const result = useMemo(
-    () => (payload && payload.yearMonth === month ? computeMonthHeadcount(payload.records, payload.stores, month) : null),
-    [payload, month],
+    () => (payload && payload.yearMonth === month && payload.franchise === franchise ? computeMonthHeadcount(payload.records, payload.stores, month) : null),
+    [payload, month, franchise],
   );
   const trend = useMemo(
-    () => (payload && payload.yearMonth === month && payload.trend ? computeHeadcountTrend(payload.records, payload.stores, month, 12) : null),
-    [payload, month],
+    () => (payload && payload.yearMonth === month && payload.franchise === franchise && payload.trend ? computeHeadcountTrend(payload.records, payload.stores, month, 12) : null),
+    [payload, month, franchise],
   );
 
   const openList = (title: string, entries: HeadcountEntry[], showReason = false) => setModal({ title, entries, showReason });
@@ -94,7 +100,7 @@ export default function PositionHeadcountPanel() {
 
   const handleExport = () => {
     if (!result) return;
-    const { summaryRows, detailRows } = buildHeadcountExportRows(result);
+    const { summaryRows, detailRows } = buildHeadcountExportRows(result, franchise);
     const wb = XLSX.utils.book_new();
     const s1 = XLSX.utils.json_to_sheet(summaryRows);
     s1['!cols'] = summarySheetColumnWidths(Object.keys(summaryRows[0] ?? {}));
@@ -102,7 +108,12 @@ export default function PositionHeadcountPanel() {
     s2['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 16 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 8 }, { wch: 22 }, { wch: 12 }, { wch: 24 }];
     XLSX.utils.book_append_sheet(wb, s1, '人數統計');
     XLSX.utils.book_append_sheet(wb, s2, '人員明細');
-    XLSX.writeFile(wb, `每月職位人數統計_${month}.xlsx`);
+    if (franchise !== 'all') {
+      const s0 = XLSX.utils.aoa_to_sheet([['篩選條件', FRANCHISE_FILTER_LABELS[franchise]], ['月份', month], ['說明', '先以全部門市決定每人的主要歸屬門市，再篩選；被篩掉門市歸屬的人不列入。']]);
+      s0['!cols'] = [{ wch: 12 }, { wch: 60 }];
+      XLSX.utils.book_append_sheet(wb, s0, '篩選條件');
+    }
+    XLSX.writeFile(wb, headcountExportFileName(month, franchise));
   };
 
   const cell = (g: HeadcountGroup, col: ColumnKey, scopeTitle: string) => {
@@ -195,6 +206,21 @@ export default function PositionHeadcountPanel() {
               近 12 個月趨勢
             </button>
           </div>
+          <button
+            type="button"
+            data-testid="headcount-franchise-btn"
+            onClick={() => setFranchise(nextFranchiseFilter(franchise))}
+            title="點一下切換：全部 → 只看加盟店 → 不含加盟店"
+            className={`px-4 py-2 rounded-lg border text-sm font-medium ${
+              franchise === 'all'
+                ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                : franchise === 'only'
+                  ? 'bg-orange-500 text-white border-orange-500'
+                  : 'bg-teal-600 text-white border-teal-600'
+            }`}
+          >
+            加盟店：{FRANCHISE_FILTER_LABELS[franchise]}
+          </button>
           {loading && <span className="text-sm text-gray-500">讀取中…</span>}
         </div>
         <button
@@ -204,7 +230,7 @@ export default function PositionHeadcountPanel() {
           className="flex items-center justify-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-40 font-semibold"
         >
           <Download size={18} />
-          匯出 Excel（{month}）
+          匯出 Excel（{month}{franchise === 'all' ? '' : `・${FRANCHISE_FILTER_LABELS[franchise]}`}）
         </button>
       </div>
 
@@ -239,6 +265,12 @@ export default function PositionHeadcountPanel() {
             只統計「月底仍在職」的人（不含當月離職、留職停薪、調出、支援卡班，也不含督導卡班）。同一人同月在兩間以上門市都有登記時，只算在一間「主要歸屬門市」
             （依序：該月是代理店長的那間 → 他自己督導區的門市 → 非雙店長／雙職 → 職等較高 → 門市代號較小），其他門市的登記列入「不計入」，原因寫「已計入○○」。
             所以各門市加總 = 督導區小計、各督導區小計加總 = 全公司合計。點任一數字可看名單。
+            {franchise !== 'all' && (
+              <span data-testid="headcount-franchise-note" className="block mt-1 text-orange-700">
+                目前只顯示「{franchise === 'only' ? '加盟店' : '直營店'}」：先用全部門市決定每人的主要歸屬，再篩選，主要歸屬在{franchise === 'only' ? '直營' : '加盟'}店的人不列入；
+                合計列、督導區小計與匯出都只算留下的門市（整區都被篩掉的督導區不顯示）。「只看加盟店」加「不含加盟店」等於「全部」。
+              </span>
+            )}
           </p>
           {result.excluded.length > 0 && (
             <div>
@@ -270,8 +302,8 @@ export default function PositionHeadcountPanel() {
               </thead>
               <tbody className="[&>tr>td]:border-b [&>tr>td]:border-gray-100">
                 <tr className="bg-blue-50 font-semibold">
-                  <td className="px-3 py-2 sticky left-0 bg-blue-50 z-10 whitespace-nowrap">全公司合計</td>
-                  {rowCells(result.company, '全公司')}
+                  <td className="px-3 py-2 sticky left-0 bg-blue-50 z-10 whitespace-nowrap">{franchiseTotalLabel(franchise)}</td>
+                  {rowCells(result.company, franchiseTotalLabel(franchise))}
                 </tr>
                 {result.areas.map((a) => (
                   <AreaRows key={a.key} area={a} rowCells={rowCells} excludedByStore={excludedByStore} onOpenExcluded={(t, e) => openList(t, e, true)} />
@@ -289,7 +321,7 @@ export default function PositionHeadcountPanel() {
 
       {view === 'trend' && trend && (
         <>
-          <p className="text-sm text-gray-600">全公司近 12 個月（到 {month} 為止）每月各欄人數（不含督導卡班），跨店的人只算在主要歸屬門市，口徑同全公司合計。沒有資料的月份顯示「—」。</p>
+          <p className="text-sm text-gray-600">{franchise === 'all' ? '全公司' : franchise === 'only' ? '加盟店' : '直營店'}近 12 個月（到 {month} 為止）每月各欄人數（不含督導卡班），跨店的人只算在主要歸屬門市，口徑同全公司合計。沒有資料的月份顯示「—」。{franchise !== 'all' && '趨勢依門市目前的加盟／直營設定歸類。'}</p>
           <div className={SCROLL_BOX} data-testid="headcount-trend-scroll">
             <table className="min-w-full text-sm border-separate border-spacing-0">
               <thead className="text-gray-700">
