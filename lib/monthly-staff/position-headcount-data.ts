@@ -5,7 +5,6 @@
  */
 import { assignSupervisorsToStores } from '@/lib/stores/supervisor-assignment';
 import {
-  filterRecordsByFranchise,
   findUnfinalizedStores,
   storeKept,
   type FranchiseFilter,
@@ -91,10 +90,9 @@ export async function loadPositionHeadcountData(db: any, yearMonth: string, tren
       supMap.get(s.id)?.supervisor_code ?? (supMap.get(s.id)?.supervisor_id ? codeByUser.get(supMap.get(s.id)!.supervisor_id as string) ?? null : null),
   }));
 
-  // 加盟店篩選在伺服器端做：先用全部門市決定主要歸屬，再篩選（見 filterRecordsByFranchise）
-  const filteredRecords = filterRecordsByFranchise(records, stores, franchise);
+  // 加盟店篩選：先用全部門市分類、再依門市篩，所以這裡一律回傳全部紀錄，由 computeMonthHeadcount / computeHeadcountTrend 帶入 franchise 篩選
   const storeById = new Map(stores.map((s) => [s.id, s]));
-  // 未定稿是門市本身的狀態：用篩選前的紀錄判斷，只依門市是否留下決定列不列，避免「只看＋不含」少列門市
+  // 未定稿是門市本身的狀態：只依門市是否留下決定列不列，避免「只看＋不含」少列門市
   const unfinalizedStores = findUnfinalizedStores(records, stores, summaries, yearMonth).filter((s) => storeKept(storeById.get(s.id), franchise));
 
   return {
@@ -103,7 +101,7 @@ export async function loadPositionHeadcountData(db: any, yearMonth: string, tren
     franchise,
     months,
     stores,
-    records: filteredRecords,
+    records,
     unfinalizedStores,
   };
 }

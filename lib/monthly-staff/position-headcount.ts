@@ -51,10 +51,10 @@
  *   同一人在「同一間」主要歸屬門市有兩筆不同職位時，兩欄都保留（維持原行為），總人數仍只算一人。
  *   跨店的人在主要歸屬那筆的備註標「跨店，另於 X 不計入」。
  *
- * ── 加盟店篩選（all / only / exclude，primary_first）──
- *   先用全部門市決定每人每月的主要歸屬，再篩選：計入人數的人，主要歸屬門市被篩掉就整個不出現（含他在留下門市的「已計入」登記）；
- *   不計入的登記（離職、督導卡班…）只看自己的門市。
- *   所以「只看加盟店」＋「不含加盟店」＝「全部」（每欄每月）。趨勢用門市目前的 is_franchise。
+ * ── 加盟店篩選（all / only / exclude，先分類再篩選）──
+ *   每月先用全部門市的紀錄跑完分類（主要歸屬、不計入原因、督導卡班…），再只依「該筆紀錄所在門市是否留下」決定顯示，
+ *   不會重算歸屬。主要歸屬在直營店的人，「只看加盟店」時他在加盟店的登記列入不計入名單（原因「已計入 直營店」），不算任何人數。
+ *   所以「只看加盟店」＋「不含加盟店」＝「全部」（每欄每月）；不計入名單依門市分開、聯集等於全部。趨勢用門市目前的 is_franchise。
  */
 
 export type ColumnKey =
@@ -426,13 +426,15 @@ function buildEntries(records: HeadcountRecord[], stores: HeadcountStore[], year
   return { counted, excluded, storeMap, rotationActing: excluded.filter((e) => e.rotationActing) };
 }
 
-export function computeMonthHeadcount(records: HeadcountRecord[], stores: HeadcountStore[], yearMonth: string): MonthHeadcount {
-  const { counted, excluded, storeMap, rotationActing } = buildEntries(records, stores, yearMonth);
+export function computeMonthHeadcount(records: HeadcountRecord[], stores: HeadcountStore[], yearMonth: string, franchise: FranchiseFilter = 'all'): MonthHeadcount {
+  const built = buildEntries(records, stores, yearMonth);
+  const storeMap = built.storeMap;
+  const { counted, excluded, rotationActing, companyRotationActing } = applyFranchise(built, franchise);
   const sortEntries = (list: HeadcountEntry[]) =>
     [...list].sort((a, b) => a.store_code.localeCompare(b.store_code) || a.employee_code.localeCompare(b.employee_code));
 
   const sortedRotation = sortEntries(rotationActing);
-  const company = buildGroup(sortEntries(counted), () => '', sortedRotation);
+  const company = buildGroup(sortEntries(counted), () => '', sortEntries(companyRotationActing));
 
   // 門市 / 督導區
   const storeIds = new Set<string>();
@@ -525,55 +527,32 @@ export function storeKept(store: Pick<HeadcountStore, 'is_franchise'> | undefine
 }
 
 /**
- * 篩選人員紀錄（F1 primary_first）：每個月先用全部門市算出每人的主要歸屬門市。
- *  - 「計入狀態」的登記（含被降為「已計入 X」的那些）：本門市要留下，且此人主要歸屬門市也要留下。
- *  - 「不計入狀態」的登記（離職、留停、調出、支援卡班、督導卡班…）：只看它自己的門市，不受主要歸屬影響，
- *    這樣「只看＋不含＝全部」連督導卡班代理欄與不計入名單都成立。
- *  - 同一人同月在多間門市都有「督導卡班代理」：公司層只算一次，篩選時只保留門市代號最小那一筆，維持加總恆等。
- * 留下的紀錄再丟給 computeMonthHeadcount / computeHeadcountTrend，各層加總自然一致。
+ * 加盟店篩選（F1：先分類、再依門市篩）：每月先用全部門市的紀錄跑完既有分類
+ * （主要歸屬、不計入原因、督導卡班…），再只依「該筆紀錄所在門市是否留下」決定顯示。
+ * 不可先篩紀錄再重算歸屬，否則次要那筆會被重算成主要。
+ * 公司層「督導卡班代理」本來每人只算一次（取門市代號最小那筆）；篩選時沿用全部模式的結果，該筆所在門市留下才顯示，
+ * 所以「只看＋不含＝全部」在每欄成立。
  */
-export function filterRecordsByFranchise(records: HeadcountRecord[], stores: HeadcountStore[], f: FranchiseFilter): HeadcountRecord[] {
-  if (f === 'all') return records;
-  const storeMap = new Map(stores.map((s) => [s.id, s]));
-  const byMonth = new Map<string, HeadcountRecord[]>();
-  for (const r of records) {
-    if (!byMonth.has(r.year_month)) byMonth.set(r.year_month, []);
-    byMonth.get(r.year_month)!.push(r);
+function applyFranchise(
+  built: ReturnType<typeof buildEntries>,
+  f: FranchiseFilter,
+): { counted: HeadcountEntry[]; excluded: HeadcountEntry[]; rotationActing: HeadcountEntry[]; companyRotationActing: HeadcountEntry[] } {
+  const kept = (e: HeadcountEntry) => storeKept(built.storeMap.get(e.store_id), f);
+  const sortByStore = (list: HeadcountEntry[]) =>
+    [...list].sort((a, b) => a.store_code.localeCompare(b.store_code) || a.employee_code.localeCompare(b.employee_code));
+  const seen = new Set<string>();
+  const companyAll: HeadcountEntry[] = [];
+  for (const e of sortByStore(built.rotationActing)) {
+    if (seen.has(e.key)) continue;
+    seen.add(e.key);
+    companyAll.push(e);
   }
-  const out: HeadcountRecord[] = [];
-  byMonth.forEach((recs, ym) => {
-    const { counted } = buildEntries(recs, stores, ym);
-    const primaryStore = new Map<string, string>();
-    for (const e of counted) primaryStore.set(e.key, e.store_id);
-    const isRotationActing = (rec: HeadcountRecord) => rec.is_supervisor_rotation === true && (rec.is_acting_manager === true || classifyHeadcountRecord(rec).supervisorActing);
-    const storeSortKey = (rec: HeadcountRecord) => `${storeMap.get(rec.store_id ?? '')?.store_code ?? ''}|${rec.store_id ?? ''}`;
-    // 每人「督導卡班代理」只認門市代號最小的那一筆
-    const rotationOwner = new Map<string, string>();
-    recs.forEach((rec, idx) => {
-      if (!isRotationActing(rec)) return;
-      const k = personKey(rec, idx);
-      const cur = rotationOwner.get(k);
-      if (cur === undefined || storeSortKey(rec) < cur) rotationOwner.set(k, storeSortKey(rec));
-    });
-    recs.forEach((rec, idx) => {
-      const store = rec.store_id ? storeMap.get(rec.store_id) : undefined;
-      if (!storeKept(store, f)) return;
-      const key = personKey(rec, idx);
-      if (rec.is_supervisor_rotation === true) {
-        if (isRotationActing(rec) && rotationOwner.get(key) !== storeSortKey(rec)) return;
-        out.push(rec);
-        return;
-      }
-      if (!resolveStatus(rec.monthly_status).counted) {
-        out.push(rec);
-        return;
-      }
-      const ps = primaryStore.get(key);
-      if (ps !== undefined && !storeKept(storeMap.get(ps), f)) return;
-      out.push(rec);
-    });
-  });
-  return out;
+  return {
+    counted: built.counted.filter(kept),
+    excluded: built.excluded.filter(kept),
+    rotationActing: built.rotationActing.filter(kept),
+    companyRotationActing: companyAll.filter(kept),
+  };
 }
 
 /** Excel「篩選條件」工作表內容（只有篩選時才輸出；all 回傳 null） */
@@ -582,7 +561,7 @@ export function buildFilterSheetRows(f: FranchiseFilter, month: string): string[
   return [
     ['篩選條件', FRANCHISE_FILTER_LABELS[f]],
     ['月份', month],
-    ['說明', '先以全部門市決定每人的主要歸屬門市，再篩選；計入人數的人若主要歸屬門市被篩掉就不列入。離職、卡班等不計入的登記只看它自己的門市。'],
+    ['說明', '先用全部門市決定每人的主要歸屬與不計入原因，再依每筆登記所在的門市篩選。例如主要歸屬在直營店的人，只看加盟店時不計入人數，他在加盟店的登記會出現在不計入名單，原因寫「已計入○○店」。'],
   ];
 }
 
@@ -609,7 +588,7 @@ export interface TrendRow {
 }
 
 /** 全公司近 N 個月（以 endMonth 為結尾）每月各欄人數（每人只算在主要歸屬門市的全公司口徑） */
-export function computeHeadcountTrend(records: HeadcountRecord[], stores: HeadcountStore[], endMonth: string, n = 12): TrendRow[] {
+export function computeHeadcountTrend(records: HeadcountRecord[], stores: HeadcountStore[], endMonth: string, n = 12, franchise: FranchiseFilter = 'all'): TrendRow[] {
   const byMonth = new Map<string, HeadcountRecord[]>();
   for (const r of records) {
     if (!byMonth.has(r.year_month)) byMonth.set(r.year_month, []);
@@ -617,8 +596,8 @@ export function computeHeadcountTrend(records: HeadcountRecord[], stores: Headco
   }
   return monthsEndingAt(endMonth, n).map((ym) => {
     const recs = byMonth.get(ym) ?? [];
-    const { counted, rotationActing } = buildEntries(recs, stores, ym);
-    const g = buildGroup(counted, () => '', rotationActing);
+    const { counted, companyRotationActing } = applyFranchise(buildEntries(recs, stores, ym), franchise);
+    const g = buildGroup(counted, () => '', companyRotationActing);
     const counts = Object.fromEntries(HEADCOUNT_COLUMNS.map((c) => [c.key, g.people[c.key].length])) as Record<ColumnKey, number>;
     return { yearMonth: ym, counts, actingBySupervisor: g.actingBySupervisor.length, rotationActing: g.rotationActing.length, totalPeople: g.totalPeople, hasData: recs.length > 0 };
   });

@@ -80,11 +80,11 @@ export default function PositionHeadcountPanel() {
   }, [month, view, franchise]);
 
   const result = useMemo(
-    () => (payload && payload.yearMonth === month && payload.franchise === franchise ? computeMonthHeadcount(payload.records, payload.stores, month) : null),
+    () => (payload && payload.yearMonth === month && payload.franchise === franchise ? computeMonthHeadcount(payload.records, payload.stores, month, franchise) : null),
     [payload, month, franchise],
   );
   const trend = useMemo(
-    () => (payload && payload.yearMonth === month && payload.franchise === franchise && payload.trend ? computeHeadcountTrend(payload.records, payload.stores, month, 12) : null),
+    () => (payload && payload.yearMonth === month && payload.franchise === franchise && payload.trend ? computeHeadcountTrend(payload.records, payload.stores, month, 12, franchise) : null),
     [payload, month, franchise],
   );
 
@@ -269,7 +269,8 @@ export default function PositionHeadcountPanel() {
             所以各門市加總 = 督導區小計、各督導區小計加總 = 全公司合計。點任一數字可看名單。
             {franchise !== 'all' && (
               <span data-testid="headcount-franchise-note" className="block mt-1 text-orange-700">
-                目前只顯示「{franchise === 'only' ? '加盟店' : '直營店'}」：先用全部門市決定每人的主要歸屬，再篩選，主要歸屬在{franchise === 'only' ? '直營' : '加盟'}店的人不列入；
+                目前只顯示「{franchise === 'only' ? '加盟店' : '直營店'}」：先用全部門市決定每人的主要歸屬與不計入原因，再依每筆登記所在的門市篩選。
+                主要歸屬在{franchise === 'only' ? '直營' : '加盟'}店的人不計入人數，但他在{franchise === 'only' ? '加盟' : '直營'}店的登記仍會出現在該店的不計入名單（原因寫「已計入○○店」）。
                 合計列、督導區小計與匯出都只算留下的門市（整區都被篩掉的督導區不顯示）。「只看加盟店」加「不含加盟店」等於「全部」。
               </span>
             )}

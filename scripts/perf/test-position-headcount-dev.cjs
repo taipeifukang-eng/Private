@@ -267,15 +267,16 @@ async function main() {
     const po = await D.loadPositionHeadcountData(db, '2038-07', true, 'only');
     const px = await D.loadPositionHeadcountData(db, '2038-07', true, 'exclude');
     const pd = await D.loadPositionHeadcountData(db, '2038-07', true);
-    const rAll = H.computeMonthHeadcount(pa.records, pa.stores, '2038-07');
-    const rOnly = H.computeMonthHeadcount(po.records, po.stores, '2038-07');
-    const rEx = H.computeMonthHeadcount(px.records, px.stores, '2038-07');
+    const rAll = H.computeMonthHeadcount(pa.records, pa.stores, '2038-07', pa.franchise);
+    const rOnly = H.computeMonthHeadcount(po.records, po.stores, '2038-07', po.franchise);
+    const rEx = H.computeMonthHeadcount(px.records, px.stores, '2038-07', px.franchise);
     const mine = (r) => r.storeEntries.map((e) => e.employee_code).filter((c) => c.startsWith('HCT8')).sort();
     check('篩選：不帶參數 = all，payload 標明 franchise', () => {
       assert.equal(pd.franchise, 'all');
       assert.equal(po.franchise, 'only');
       assert.equal(px.franchise, 'exclude');
       assert.equal(pd.records.length, pa.records.length);
+      assert.equal(po.records.length, pa.records.length, '先分類再篩選：伺服器回傳全部紀錄，篩選在計算時依門市做');
     });
     check('篩選：stores 帶回 is_franchise（ZT01 加盟、ZT02 直營）', () => {
       assert.equal(pa.stores.find((s) => s.store_code === 'ZT01').is_franchise, true);
@@ -285,20 +286,41 @@ async function main() {
       assert.deepEqual(mine(rAll), ['HCT811', 'HCT812', 'HCT813', 'HCT814', 'HCT815']);
       assert.equal(rAll.company.totalPeople, 5);
     });
-    check('只看加盟店：只有 ZT01 的 HCT811、HCT815（HCT814 主要在直營，不出現）', () => {
+    check('只看加盟店：計入只有 ZT01 的 HCT811、HCT815；HCT814 主要在直營，不計入，ZT01 那筆在不計入名單寫「已計入 ZT02 …」', () => {
       assert.deepEqual(mine(rOnly), ['HCT811', 'HCT815']);
       assert.equal(rOnly.company.totalPeople, 2);
-      assert.ok(![...rOnly.storeEntries, ...rOnly.excluded].some((e) => e.employee_code === 'HCT814'));
+      assert.ok(!rOnly.storeEntries.some((e) => e.employee_code === 'HCT814'));
+      const ex14 = rOnly.excluded.filter((e) => e.employee_code === 'HCT814');
+      assert.equal(ex14.length, 1);
+      assert.equal(ex14[0].store_code, 'ZT01');
+      assert.match(ex14[0].excludedReason, /^已計入 ZT02 /);
       assert.deepEqual(rOnly.areas.flatMap((a) => a.stores).map((s) => s.store.store_code), ['ZT01']);
     });
-    check('不含加盟店：HCT812、HCT813、HCT814（HCT815、離職的 HCT816 不出現）', () => {
+    check('不含加盟店：計入 HCT812、HCT813、HCT814；HCT815 主要在加盟，VW001 那筆寫「已計入 ZT01 …」；離職的 HCT816（ZT01）不出現', () => {
       assert.deepEqual(mine(rEx), ['HCT812', 'HCT813', 'HCT814']);
       assert.equal(rEx.company.totalPeople, 3);
-      assert.ok(![...rEx.storeEntries, ...rEx.excluded].some((e) => e.employee_code === 'HCT815' || e.employee_code === 'HCT816'));
+      assert.ok(!rEx.storeEntries.some((e) => e.employee_code === 'HCT815'));
+      const ex15 = rEx.excluded.filter((e) => e.employee_code === 'HCT815');
+      assert.equal(ex15.length, 1);
+      assert.equal(ex15[0].store_code, 'VW001');
+      assert.match(ex15[0].excludedReason, /^已計入 ZT01 /);
+      assert.ok(!rEx.excluded.some((e) => e.employee_code === 'HCT816'));
+      assert.ok(rOnly.excluded.some((e) => e.employee_code === 'HCT816'), '離職登記在加盟 ZT01，只看加盟時列在不計入名單');
     });
     check('只看加盟 + 不含加盟 = 全部：每欄人數、總人數恆等', () => {
       for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(rOnly.company, c.key) + cnt(rEx.company, c.key), cnt(rAll.company, c.key), c.key);
       assert.equal(rOnly.company.totalPeople + rEx.company.totalPeople, rAll.company.totalPeople);
+    });
+    check('不計入名單：只看 ∪ 不含 ＝ 全部；每門市所有欄位與全部模式相同', () => {
+      const sg = (e) => `${e.store_code}|${e.employee_code}|${e.excludedReason}|${e.statusLabel}`;
+      assert.deepEqual([...rOnly.excluded, ...rEx.excluded].map(sg).sort(), rAll.excluded.map(sg).sort());
+      const all = new Map(rAll.areas.flatMap((a) => a.stores).map((s) => [s.store.id, s]));
+      for (const r of [rOnly, rEx]) for (const s of r.areas.flatMap((a) => a.stores)) {
+        const a0 = all.get(s.store.id);
+        assert.equal(s.totalPeople, a0.totalPeople);
+        for (const c of H.HEADCOUNT_COLUMNS) assert.deepEqual(s.people[c.key].map((e) => e.employee_code), a0.people[c.key].map((e) => e.employee_code), `${s.store.store_code} ${c.key}`);
+        assert.equal(s.rotationActing.length, a0.rotationActing.length);
+      }
     });
     check('篩選：三層加總一致（每種模式）', () => {
       for (const r of [rAll, rOnly, rEx]) {
@@ -311,7 +333,7 @@ async function main() {
       }
     });
     check('篩選：趨勢跟著篩選且恆等；未定稿門市只含留下的門市', () => {
-      const pick = (p) => H.computeHeadcountTrend(p.records, p.stores, '2038-07', 12).find((x) => x.yearMonth === '2038-07');
+      const pick = (p) => H.computeHeadcountTrend(p.records, p.stores, '2038-07', 12, p.franchise).find((x) => x.yearMonth === '2038-07');
       const ta = pick(pa);
       const to = pick(po);
       const tx = pick(px);
@@ -322,7 +344,7 @@ async function main() {
       assert.deepEqual(px.unfinalizedStores.map((s) => s.store_code).sort(), ['VW001', 'ZT02']);
     });
     const q8 = await Promise.all(['all', 'only', 'exclude'].map((f) => D.loadPositionHeadcountData(db, '2038-08', false, f)));
-    const [r8a, r8o, r8x] = q8.map((p) => H.computeMonthHeadcount(p.records, p.stores, '2038-08'));
+    const [r8a, r8o, r8x] = q8.map((p) => H.computeMonthHeadcount(p.records, p.stores, '2038-08', p.franchise));
     check('篩選 2038-08：卡班代理欄與各欄恆等', () => {
       assert.equal(r8a.company.rotationActing.length, 1);
       assert.equal(r8o.company.rotationActing.length, 1);
