@@ -5173,5 +5173,341 @@
       "kind": "changed",
       "key": "last-transaction-not-regress"
     }
+  },
+  {
+    "id": "m7m8-g13-extra-exception-type",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 exception_type（取消時的結構化異常類型：少收、損壞、品項錯誤、遺失、其他）。舊版把「調撥異常：類型｜說明」塞在取消原因字串裡。",
+    "reason": "C9 異常類型結構化欄位（第 3 批規格，設計文件第 7 節第 10 項）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "exception_type"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-unreceived-note",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 unreceived_note（「未收」註記內容）。",
+    "reason": "C9：「未收」只是註記，單子仍待收貨。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "unreceived_note"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-unreceived-at",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 unreceived_marked_at（「未收」註記時間）。",
+    "reason": "C9：「未收」只是註記，單子仍待收貨。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "unreceived_marked_at"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-store-report-type",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 store_report_type（目的門市店長回報的問題類型）。",
+    "reason": "C10：目的門市店長可回報問題，只做標記。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "store_report_type"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-store-report-note",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 store_report_note（店長回報說明）。",
+    "reason": "C10：目的門市店長可回報問題，只做標記。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "store_report_note"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-store-reported-at",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 store_reported_at（店長回報時間）。",
+    "reason": "C10：目的門市店長可回報問題，只做標記。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "store_reported_at"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-has-store-report",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 has_store_report（清單紅標與篩選用）。",
+    "reason": "C10：清單「門市回報有問題」紅標與篩選。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "has_store_report"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-is-overdue",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 is_overdue（已交出超過設定天數未收貨）。",
+    "reason": "C11：逾期未收標紅並可篩選。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_overdue"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-days-since-issued",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 days_since_issued（已交出幾天）。",
+    "reason": "C11：逾期未收標紅並可篩選。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "days_since_issued"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-abilities",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥單多回 abilities（每張單目前登入者能做什麼，以及缺哪個權限的說明）。",
+    "reason": "Q13：每個動作按鈕依伺服端算好的 abilities，兩個權限缺哪個講清楚。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "abilities"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-return-transaction",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥明細多回 return_transaction_id（取消退回來源庫存時的流水）。",
+    "reason": "Q12：取消可勾「退回來源庫存」，流水與調撥單關聯。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "return_transaction_id"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-item-transfer-id",
+    "page": "ga-inventory-transfers",
+    "description": "新版調撥明細多回 transfer_id（所屬調撥單）。",
+    "reason": "明細列多回所屬單據 id，純資訊欄位，沒有行為差異。實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "transfer_id"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-total",
+    "page": "ga-inventory-transfers",
+    "description": "新版清單多回 total（符合條件的精確總筆數）。",
+    "reason": "分頁與精確筆數（核可 assumptions：清單、統計卡伺服端精確筆數）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-stats",
+    "page": "ga-inventory-transfers",
+    "description": "新版清單多回 stats（資料庫端精確的各狀態筆數、逾期筆數、門市回報筆數）；舊版只算載入的 50 筆。",
+    "reason": "G13 清單：伺服端狀態卡計數。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-settings",
+    "page": "ga-inventory-transfers",
+    "description": "新版清單多回 settings（逾期天數與版本）。",
+    "reason": "C11：逾期天數可設定（預設 3 天）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "settings"
+    }
+  },
+  {
+    "id": "m7m8-g13-extra-permissions",
+    "page": "ga-inventory-transfers",
+    "description": "新版清單多回 permissions（能否建單、能否設定逾期天數、能否回報、缺哪個權限的說明）。",
+    "reason": "頁面依權限顯示按鈕與說明（三個權限缺哪個講清楚，Q13）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions"
+    }
+  },
+  {
+    "id": "m7m8-g13-legacy-success-envelope",
+    "page": "ga-inventory-transfers",
+    "description": "舊版清單回應多一層 success 外殼；新版直接回 data／meta。",
+    "reason": "與第 1 批驗收核可的回應格式一致（新版 API 不再包 success 外殼）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-10 batch 1 acceptance)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success"
+    }
+  },
+  {
+    "id": "m7m8-g13-roster-list-status",
+    "page": "ga-inventory-transfers",
+    "description": "店長（門市名單身分）呼叫調撥單清單：舊版 403（要有調撥、流水或餘額權限），新版 200（只看跟自己門市有關的單，內部備註遮蔽）。",
+    "reason": "C12：店長、督導、區經理三種名單身分可唯讀查看自己門市的庫存與調撥。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "status",
+      "key": "store_manager:status"
+    }
+  },
+  {
+    "id": "m7m8-g13-legacy-create-fails",
+    "page": "ga-inventory-transfers",
+    "description": "舊版建單（POST /api/general-affairs/inventory/transfers）在 DEV 回 500：新增調撥單後立刻讀回時被列級權限擋下（讀取規則的可見性函式看不到同一個語句剛新增的列），所以舊版畫面在 DEV 建不起調撥單；新版改用資料庫函式建單，回 201。",
+    "reason": "舊版缺陷（RLS 回讀問題），新版以資料庫函式 ga_ws_inv_transfer_create 建單、不依賴回讀。實作中新發現、問卷未涵蓋，待使用者確認；若正式區舊版建單其實可用，請告知，新舊並存期間舊畫面行為不變。實作中新發現、問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "create-status"
+    }
+  },
+  {
+    "id": "m7m8-g13-create-no-taipei-date",
+    "page": "ga-inventory-transfers",
+    "description": "調撥單號的日期：舊版用 UTC 日期，新版用台北日期（台北 00:00 到 08:00 之間兩者相差一天）。",
+    "reason": "設計文件第 7 節第 10 項：調撥單號改台北日期（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "transfer-no-date"
+    }
+  },
+  {
+    "id": "m7m8-g13-notes-not-cleared-confirm",
+    "page": "ga-inventory-transfers",
+    "description": "確認交出：舊版每次動作都把調撥單備註改成這次填的內容（沒填就清成空白）；新版備註不再被清空，每次動作的備註記在時間軸。",
+    "reason": "設計文件第 7 節第 10 項：備註不再被清空（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "confirm:transfer#notes"
+    }
+  },
+  {
+    "id": "m7m8-g13-notes-not-cleared-ship",
+    "page": "ga-inventory-transfers",
+    "description": "標記運送中：舊版每次動作都把調撥單備註改成這次填的內容（沒填就清成空白）；新版備註不再被清空，每次動作的備註記在時間軸。",
+    "reason": "設計文件第 7 節第 10 項：備註不再被清空（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "ship:transfer#notes"
+    }
+  },
+  {
+    "id": "m7m8-g13-notes-not-cleared-receive",
+    "page": "ga-inventory-transfers",
+    "description": "確認收貨：舊版每次動作都把調撥單備註改成這次填的內容（沒填就清成空白）；新版備註不再被清空，每次動作的備註記在時間軸。",
+    "reason": "設計文件第 7 節第 10 項：備註不再被清空（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "receive:transfer#notes"
+    }
+  },
+  {
+    "id": "m7m8-g13-cancel-after-receive-status",
+    "page": "ga-inventory-transfers",
+    "description": "已收貨的調撥單再取消：舊版回 400（英文訊息），新版回 409 並用白話說明。",
+    "reason": "設計文件第 7 節第 12 項：錯誤訊息白話化並給對的狀態碼（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "cancel-after-receive-status"
+    }
+  },
+  {
+    "id": "m7m8-g13-receive-before-confirm-status",
+    "page": "ga-inventory-transfers",
+    "description": "還沒交出就收貨：舊版回 500（英文訊息），新版回 409 並用白話說明。",
+    "reason": "設計文件第 7 節第 12 項：錯誤訊息白話化並給對的狀態碼（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "receive-before-confirm-status"
+    }
+  },
+  {
+    "id": "m7m8-g13-cancel-return-stock",
+    "page": "ga-inventory-transfers",
+    "description": "已交出後取消：舊版不退回來源庫存（來源庫存維持被扣），新版取消時可勾「退回來源庫存」，勾了就在來源位置入庫一筆並與調撥單關聯。",
+    "reason": "Q12：取消可勾退回來源庫存（m7m8-spec 已決定）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "cancel-return-stock-balance"
+    }
+  },
+  {
+    "id": "m7m8-g13-resend-same-key",
+    "page": "ga-inventory-transfers",
+    "description": "同一個動作用同一個識別碼重送：舊版回 500（狀態已改變的英文訊息；舊版每次點擊都是新的隨機識別，無法防重複扣帳），新版回 200 並標示 replay，不再扣帳。",
+    "reason": "Q15 與設計文件第 7 節第 10 項：固定識別取代隨機識別，防重複扣帳（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "resend-same-key-status"
+    }
+  },
+  {
+    "id": "m7m8-g13-action-requires-version",
+    "page": "ga-inventory-transfers",
+    "description": "動作沒帶版本與識別碼：舊版照做（可能蓋掉別人剛處理的結果），新版回 400，要求帶 expected_updated_at 與固定識別（版本衝突回 409 STALE）。",
+    "reason": "核可 assumptions：多人同時編輯回 409 STALE；Q15 固定識別（使用者已核可）。主迴圈依2026-11-11 第 3 批問卷決定實作，使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "action-without-version-status"
+    }
   }
 ]
