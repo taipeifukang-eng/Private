@@ -546,7 +546,7 @@ test('C2：料件在任何位置仍有庫存時不能停用（新版料件 API �
   const bal = await seedBalance(loc.id, part.id, 4);
   const cur = (await row('ga_parts', part.id)).updated_at;
   const api = await apis.ga_works.patch(`/api/workspace/general-affairs/parts/${part.id}`, { data: { is_active: false, expected_updated_at: cur } });
-  expect(api.status()).toBe(400);
+  expect(api.status()).toBe(409); // 審查補強後資料庫守衛回 HAS_STOCK，伺服器統一對應 409
   expect((await api.json()).error).toContain('仍有庫存');
   expect((await row('ga_parts', part.id)).is_active).toBe(true);
   const direct = await adminDb().from('ga_parts').update({ is_active: false }).eq('id', part.id);

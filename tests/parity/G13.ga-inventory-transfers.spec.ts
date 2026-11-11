@@ -159,6 +159,9 @@ test('建單：舊版 POST 在這個資料庫設定下建不起來（新增列�
   const n2 = await setup('WCN2', { destCfg: false });
   const nx = await apis.ga_works.post(`${N}/transfers`, { data: nativeCreate(n2, { reason: reasonN }) });
   expect(nx.status()).toBe(422);
+  const l2 = await setup('WCL2', { destCfg: false });
+  const lx = await apis.ga_works.post(`${L}/transfers`, { data: legacyCreate(l2, { reason: reasonL }) });
+  statusDiff(diffs, 'dest-part-not-configured-status', lx.status(), nx.status());
   // 重送同一份輸入：新版以固定識別只建一張
   const n3 = await setup('WCN3');
   const reasonN3 = m7Name('CR-N3');
@@ -170,6 +173,15 @@ test('建單：舊版 POST 在這個資料庫設定下建不起來（新增列�
   const m2 = await setup('WCM');
   const nm = await apis.ga_works.post(`${N}/transfers`, { data: { ...nativeCreate(m2, { reason: reasonN }), items: [{ partId: m2.part.id }] } });
   expect(nm.status()).toBe(400);
+  const lm = await apis.ga_works.post(`${L}/transfers`, { data: legacyCreate(m2, { reason: reasonL, items: [{ partId: m2.part.id, quantity: 1, inputUnitType: 'BASE' }, { partId: m2.part.id, quantity: 2, inputUnitType: 'BASE' }] }) });
+  statusDiff(diffs, 'multi-item-create-status', lm.status(), nm.status());
+  // 建單沒帶固定識別：新版 400（要求防重複識別碼）
+  const n5 = await setup('WCN5');
+  const nk = await apis.ga_works.post(`${N}/transfers`, { data: { ...nativeCreate(n5, { reason: reasonN }), idempotency_key: undefined } });
+  expect(nk.status()).toBe(400);
+  const l5 = await setup('WCL5');
+  const lk = await apis.ga_works.post(`${L}/transfers`, { data: legacyCreate(l5, { reason: reasonL }) });
+  statusDiff(diffs, 'create-without-key-status', lk.status(), nk.status());
   // 沒有三個權限：只有交易管理的人被擋，說明缺哪個
   const txnOnly = await apiAs('ga_inv_txn_only');
   const n4 = await setup('WCN4');

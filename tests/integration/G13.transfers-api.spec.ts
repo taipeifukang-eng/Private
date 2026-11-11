@@ -460,18 +460,14 @@ test('失敗整體回復：來源庫存不足交出失敗、單子維持原狀�
   const tn = await newTransfer(neg);
   expect((await act('ga_works', tn.id, 'confirm_source', tn.v)).status).toBe(200);
   expect(await bal(neg.src.id, neg.part.id)).toBe(-19);
-  // 收貨失敗：目的位置的料件設定被停用
+  // 收貨時目的設定被停用：審查補強後資料庫在調撥進行中就擋下停用（OPEN_TRANSFERS，細節見「審查補強 1」），所以改驗：停用被擋、狀態與庫存不變、仍可收貨
   const rv = await act('ga_works', t.id, 'ship', ok.body.data.updated_at);
-  await adminDb().from('ga_inventory_location_parts').update({ is_active: false }).eq('location_id', m.dest.id).eq('part_id', m.part.id);
-  const rf = await act('ga_works', t.id, 'receive', rv.body.data.updated_at);
-  expect(rf.status).toBe(422);
-  expect(rf.body.code).toBe('LOCATION_PART_NOT_CONFIGURED');
+  const off = await adminDb().from('ga_inventory_location_parts').update({ is_active: false }).eq('location_id', m.dest.id).eq('part_id', m.part.id);
+  expect(off.error?.message ?? '').toContain('OPEN_TRANSFERS');
   expect((await dbT(t.id)).status).toBe('IN_TRANSIT');
   expect(await dbBal(m.dest.id, m.part.id)).toBeNull();
   expect(await dbTx(m.dest.id, m.part.id)).toEqual([]);
   expect((await dbItems(t.id))[0].receipt_transaction_id).toBeNull();
-  // 設定恢復後可收貨
-  await adminDb().from('ga_inventory_location_parts').update({ is_active: true }).eq('location_id', m.dest.id).eq('part_id', m.part.id);
   expect((await act('ga_works', t.id, 'receive', rv.body.data.updated_at)).status).toBe(200);
   expect(await bal(m.dest.id, m.part.id)).toBe(24);
 });
@@ -876,7 +872,10 @@ test('網址預填 API：驗證並帶入需求單、料件、數量與單位換�
   // 長度截斷與沒有權限
   expect((await get('ga_works', qs({ reason: 'x'.repeat(400), notes: 'y'.repeat(900) }))).body.values.reason).toHaveLength(200);
   for (const k of ['navigation', 'store_manager', 'denied', 'ga_inv_location_view']) expect((await get(k, qs({ partId: m.part.id }))).status, k).toBe(403);
-  expect((await get('ga_inv_transfer_only', qs({ partId: m.part.id }))).status).toBe(200);
+  // 審查補強後預填門檻與建單相同（調撥管理、庫存交易管理、料件查看三個都要有），只有調撥管理的人也是 403 並說明缺哪個權限。
+  const only = await get('ga_inv_transfer_only', qs({ partId: m.part.id }));
+  expect(only.status).toBe(403);
+  expect(JSON.stringify(only.body)).toContain('三個權限');
 });
 
 test('建單選項：位置搜尋與分頁；來源位置的料件與目的位置是否已設定（C8）、來源庫存；沒有料件查看時說明；權限與壞參數', async () => {
@@ -929,4 +928,169 @@ test('C2 位置停用卡單：有進行中調撥的位置不能停用（G11 守�
   const r2 = await j(await apis.ga_works.patch(`${BASE}/locations/${m.dest.id}`, { data: { is_active: false, expected_updated_at: cur2 } }));
   expect(r2.status, JSON.stringify(r2.body)).toBe(200);
   expect(((await adminDb().from('ga_inventory_locations').select('is_active').eq('id', m.dest.id).single()).data as any).is_active).toBe(false);
+});
+
+// ----------------------------------------------------------------------------- 審查補強（2026-11-11 第 3 批審查）
+test('審查補強 1：進行中調撥使用的料件不能停用或軟刪除（交出後來源餘額 0 也一樣），否則收貨會 PART_INACTIVE 卡死；位置料件設定同理；完成後才放行', async () => {
+  const m = await mk('RV1', { srcQty: 24 });
+  const t = await newTransfer(m, { quantity: 2 });
+  const c = await act('ga_works', t.id, 'confirm_source', t.v);
+  expect(c.status, JSON.stringify(c.body)).toBe(200);
+  expect(await bal(m.src.id, m.part.id)).toBe(0); // 來源餘額已 0，但單子在途中
+  const off = await adminDb().from('ga_parts').update({ is_active: false }).eq('id', m.part.id);
+  expect(off.error?.message ?? '').toContain('OPEN_TRANSFERS');
+  // 軟刪除一律同時把 is_active 設為 false（正式刪除料件的資料庫函式也是）；只改 deleted_at 的直接更新會被料件驗證函式忽略，不算刪除。
+  const del = await adminDb().from('ga_parts').update({ is_active: false, deleted_at: new Date().toISOString(), deleted_by: gaUserId, deletion_reason: '審查補強測試' }).eq('id', m.part.id);
+  expect(del.error?.message ?? '').toContain('OPEN_TRANSFERS');
+  expect((await adminDb().from('ga_parts').select('is_active,deleted_at').eq('id', m.part.id).single()).data as any).toMatchObject({ is_active: true, deleted_at: null });
+  // 位置料件設定：用資料表直接更新（等同舊版畫面）也被擋（來源有進行中、目的有進行中）
+  for (const loc of [m.src.id, m.dest.id]) {
+    const lp = (await adminDb().from('ga_inventory_location_parts').select('id').eq('location_id', loc).eq('part_id', m.part.id).single()).data as any;
+    const a = await adminDb().from('ga_inventory_location_parts').update({ is_active: false }).eq('id', lp.id);
+    expect(a.error?.message ?? '', 'is_active').toContain('OPEN_TRANSFERS');
+    const b = await adminDb().from('ga_inventory_location_parts').update({ is_active: false, deleted_at: new Date().toISOString() }).eq('id', lp.id);
+    expect(b.error?.message ?? '', 'deleted').toContain('OPEN_TRANSFERS');
+  }
+  // 位置換門市：進行中的待處理單也鎖住（目的門市不能被偷換）
+  const vw = (await adminDb().from('stores').select('id').eq('store_code', 'VW001').single()).data as any;
+  const mv = await adminDb().from('ga_inventory_locations').update({ store_id: vw.id }).eq('id', m.dest.id);
+  expect(mv.error?.message ?? '').toContain('OPEN_TRANSFERS');
+  // 收貨仍能完成
+  const r = await act('ga_works', t.id, 'receive', c.body.data.updated_at);
+  expect(r.status, JSON.stringify(r.body)).toBe(200);
+  expect(await bal(m.dest.id, m.part.id)).toBe(24);
+  // 收貨後目的有庫存：停用料件改被庫存擋
+  const after = await adminDb().from('ga_parts').update({ is_active: false }).eq('id', m.part.id);
+  expect(after.error?.message ?? '').toContain('HAS_STOCK');
+  // 沒有庫存也沒有進行中調撥的料件可以停用
+  const free = await mk('RV1F', { srcQty: 0 });
+  const ok = await adminDb().from('ga_parts').update({ is_active: false }).eq('id', free.part.id);
+  expect(ok.error).toBeNull();
+});
+
+test('審查補強 3：同一張需求單第一次連結時三人同時建單，三張都成功、只有一個處理單、三筆單據連結（不會撞唯一鍵 500）', async () => {
+  const m = await mk('RV3');
+  const req = await seedServiceRequest('ZT01', m.part.id, 'RV3-A', 'IN_PROGRESS', gaUserId);
+  await adminDb().from('ga_service_requests').update({ desired_quantity: 36, desired_unit: '個' }).eq('id', req.id);
+  const tag = m7Name('RV3-REASON');
+  const rs = await Promise.all([
+    create('ga_works', m, { request_id: req.id, reason: tag, quantity: 1 }),
+    create('ga_staff', m, { request_id: req.id, reason: tag, quantity: 1 }),
+    create('ga_works', m, { request_id: req.id, reason: tag, quantity: 1 }),
+  ]);
+  expect(rs.map((r) => r.status), JSON.stringify(rs.map((r) => r.body))).toEqual([201, 201, 201]);
+  const fuls = ((await adminDb().from('ga_part_fulfillments').select('id').eq('request_id', req.id)).data || []) as any[];
+  expect(fuls).toHaveLength(1);
+  const docs = ((await adminDb().from('ga_part_fulfillment_documents').select('quantity').eq('fulfillment_id', fuls[0].id)).data || []) as any[];
+  expect(docs).toHaveLength(3);
+  expect(docs.reduce((s, d) => s + Number(d.quantity), 0)).toBe(36); // 3 箱 = 36 個，剛好等於需求量
+  // 第四張超過剩餘量：整筆被擋、不多一張單
+  const over = await create('ga_works', m, { request_id: req.id, reason: tag, quantity: 1 });
+  expect(over.status).toBe(422);
+  expect(await countTransfers(tag)).toBe(3);
+});
+
+test('審查補強 6、13：建單預先驗證領用規則（不允許拆包、最小領用量、不允許小數），不會建單成功才在交出時失敗；同識別但單位不同視為衝突', async () => {
+  const m = await mk('RV6', { partOver: { allow_unpacking: false, allow_fractional_issue: false, minimum_issue_qty: 6 } });
+  const tag = m7Name('RV6-REASON');
+  const unpack = await create('ga_works', m, { reason: tag, quantity: 18, input_unit_type: 'BASE' }); // 18 個 = 1.5 箱
+  expect(unpack.status).toBe(422);
+  expect(unpack.body.code).toBe('UNPACKING_NOT_ALLOWED');
+  const min = await create('ga_works', m, { reason: tag, quantity: 4, input_unit_type: 'BASE' });
+  expect(min.body.code).toBe('MINIMUM_ISSUE_NOT_MET');
+  const frac = await create('ga_works', m, { reason: tag, quantity: 12.5, input_unit_type: 'BASE' });
+  expect(frac.body.code).toBe('FRACTIONAL_NOT_ALLOWED');
+  expect(await countTransfers(tag)).toBe(0);
+  // 整箱可以，也能順利交出（建單時沒被擋的單，交出不會因領用規則失敗）
+  const ok = await create('ga_works', m, { reason: tag, quantity: 1, input_unit_type: 'PURCHASE' });
+  expect(ok.status, JSON.stringify(ok.body)).toBe(201);
+  const c = await act('ga_works', ok.body.data.id, 'confirm_source', ok.body.data.updated_at);
+  expect(c.status, JSON.stringify(c.body)).toBe(200);
+  // 一般料件：同識別、同數量、單位不同 -> 識別衝突
+  const m2 = await mk('RV6B');
+  const k2 = key();
+  expect((await create('ga_works', m2, { quantity: 2, input_unit_type: 'PURCHASE', idempotency_key: k2 })).status).toBe(201);
+  const diff = await create('ga_works', m2, { quantity: 2, input_unit_type: 'BASE', idempotency_key: k2 });
+  expect(diff.status).toBe(409);
+  expect(diff.body.code).toBe('IDEMPOTENCY_CONFLICT');
+  const same = await create('ga_works', m2, { quantity: 2, input_unit_type: 'PURCHASE', idempotency_key: k2 });
+  expect(same.body.replay).toBe(true);
+});
+
+test('審查補強 8：同一張需求單有兩張調撥單時，取消其中一張，處理單仍是調撥中；兩張都取消才變異常', async () => {
+  const m = await mk('RV8');
+  const req = await seedServiceRequest('ZT01', m.part.id, 'RV8-A', 'IN_PROGRESS', gaUserId);
+  await adminDb().from('ga_service_requests').update({ desired_quantity: 36, desired_unit: '個' }).eq('id', req.id);
+  const a = await create('ga_works', m, { request_id: req.id, quantity: 1 });
+  const b = await create('ga_works', m, { request_id: req.id, quantity: 1 });
+  expect([a.status, b.status]).toEqual([201, 201]);
+  const ful = async () => (await adminDb().from('ga_part_fulfillments').select('status,current_step').eq('request_id', req.id).single()).data as any;
+  const ca = await act('ga_works', a.body.data.id, 'cancel', a.body.data.updated_at, { note: '先取消一張' });
+  expect(ca.status, JSON.stringify(ca.body)).toBe(200);
+  expect(await ful()).toMatchObject({ status: 'TRANSFER' });
+  expect((await ful()).current_step).toContain('其他調撥單仍在進行中');
+  const cb = await act('ga_works', b.body.data.id, 'cancel', b.body.data.updated_at, { note: '全部取消' });
+  expect(cb.status).toBe(200);
+  expect(await ful()).toMatchObject({ status: 'EXCEPTION' });
+});
+
+test('審查補強 B1：取消原因（總務填的內部備註）對唯讀名單身分遮蔽，只留異常類型標籤；總務看得到全部', async () => {
+  const m = await mk('RVB1');
+  const t1 = await newTransfer(m, { reason: m7Name('RVB1-R1') });
+  const c1 = await act('ga_works', t1.id, 'confirm_source', t1.v);
+  const x1 = await act('ga_works', t1.id, 'cancel', c1.body.data.updated_at, { exception_type: 'DAMAGED', note: '內部取消備註-廠商出貨錯誤-RVB1' });
+  expect(x1.status, JSON.stringify(x1.body)).toBe(200);
+  const t2 = await newTransfer(m, { reason: m7Name('RVB1-R2') });
+  const x2 = await act('ga_works', t2.id, 'cancel', t2.v, { note: '內部純取消備註-RVB1' });
+  expect(x2.status).toBe(200);
+  for (const k of ['store_manager', 'supervisor', 'roster_supervisor', 'roster_area_manager']) {
+    const d1 = await get(k, `/${t1.id}`);
+    expect(d1.status, k).toBe(200);
+    expect(JSON.stringify(d1.body), `${k} detail`).not.toContain('內部取消備註');
+    expect(d1.body.data.cancel_reason, k).toBe('調撥異常：損壞');
+    const d2 = await get(k, `/${t2.id}`);
+    expect(JSON.stringify(d2.body), `${k} detail2`).not.toContain('內部純取消備註');
+    expect(d2.body.data.cancel_reason, k).toBeNull();
+    const list = await get(k, `?search=${encodeURIComponent(m7Name('RVB1'))}`);
+    expect(JSON.stringify(list.body), `${k} list`).not.toContain('內部取消備註');
+    expect(JSON.stringify(list.body), `${k} list2`).not.toContain('內部純取消備註');
+  }
+  const ga1 = (await get('ga_works', `/${t1.id}`)).body.data;
+  expect(ga1.cancel_reason).toContain('內部取消備註-廠商出貨錯誤-RVB1');
+  expect((await get('ga_works', `/${t2.id}`)).body.data.cancel_reason).toBe('內部純取消備註-RVB1');
+});
+
+test('審查補強 B6：網址預填讀需求單與餘額，門檻與建單相同（三個權限都要有）；缺哪個講清楚', async () => {
+  const m = await mk('RVB6');
+  const req = await seedServiceRequest('ZT01', m.part.id, 'RVB6-A', 'IN_PROGRESS', gaUserId);
+  const q = `/prefill?${new URLSearchParams({ fromRequestId: req.id, sourceLocationId: m.src.id })}`;
+  expect((await get('ga_works', q)).status).toBe(200);
+  const a = await get('ga_inv_transfer_only', q);
+  expect(a.status).toBe(403);
+  expect(a.body.error).toContain('庫存交易管理');
+  const b = await get('ga_inv_txn_only', q);
+  expect(b.status).toBe(403);
+  expect(b.body.error).toContain('調撥管理');
+  for (const k of ['navigation', 'store_manager', 'roster_supervisor', 'denied']) expect((await get(k, q)).status, k).toBe(403);
+});
+
+test('審查補強 B4：過帳包裝不接受登入者直接帶參考單據（不能偽造調撥流水）；一般過帳與調撥動作的內部呼叫不受影響', async () => {
+  const m = await mk('RVB4', { srcQty: 10 });
+  const client = await rpcClientFor('ga_works');
+  const fake = await callFn(client, 'ga_ws_inv_post', { p_transaction_type: 'ISSUE', p_location_id: m.src.id, p_part_id: m.part.id, p_quantity: 1, p_input_unit_type: 'BASE', p_reason: '偽造', p_notes: null, p_idempotency_key: key(), p_reference_type: 'INVENTORY_TRANSFER', p_reference_id: crypto.randomUUID(), p_metadata: {} });
+  expect(fake).toMatchObject({ ok: false, status: 403, code: 'REFERENCE_NOT_ALLOWED' });
+  const fake2 = await callFn(client, 'ga_ws_inv_post', { p_transaction_type: 'ISSUE', p_location_id: m.src.id, p_part_id: m.part.id, p_quantity: 1, p_input_unit_type: 'BASE', p_reason: '偽造', p_notes: null, p_idempotency_key: key(), p_metadata: { transfer_no: 'GAT-FAKE' } });
+  expect(fake2.code).toBe('REFERENCE_NOT_ALLOWED');
+  expect(await dbTx(m.src.id, m.part.id)).toEqual([]);
+  expect(await bal(m.src.id, m.part.id)).toBe(10);
+  // 一般過帳（沒有參考單據）仍可
+  const okPost = await callFn(client, 'ga_ws_inv_post', { p_transaction_type: 'ISSUE', p_location_id: m.src.id, p_part_id: m.part.id, p_quantity: 1, p_input_unit_type: 'BASE', p_reason: '一般領用', p_notes: null, p_idempotency_key: key() });
+  expect(okPost.ok, JSON.stringify(okPost)).toBe(true);
+  // 調撥動作交出：流水帶調撥參考
+  const t = await newTransfer(m, { quantity: 1, input_unit_type: 'BASE' });
+  const c = await act('ga_works', t.id, 'confirm_source', t.v);
+  expect(c.status, JSON.stringify(c.body)).toBe(200);
+  const tx = (await dbTx(m.src.id, m.part.id)).filter((x) => x.reference_type === 'INVENTORY_TRANSFER');
+  expect(tx).toHaveLength(1);
+  expect(tx[0].reference_id).toBe(t.id);
 });

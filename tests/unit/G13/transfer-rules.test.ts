@@ -190,6 +190,14 @@ describe('C12 遮蔽與顯示', () => {
     expect(m.items[0]).toMatchObject({ notes: null, part_id: 'p' });
     expect(maskTransfer(row, true)).toBe(row);
   });
+  it('取消原因是總務的內部備註：唯讀身分只留異常類型標籤（「｜」之後的備註遮蔽），沒有異常類型的取消原因整個遮蔽', () => {
+    const withType = { id: 'x', exception_type: 'DAMAGED', cancel_reason: '調撥異常：損壞｜內部：廠商出貨錯誤' };
+    expect(maskTransfer(withType, false).cancel_reason).toBe('調撥異常：損壞');
+    expect(maskTransfer({ id: 'x', exception_type: 'OTHER', cancel_reason: '調撥異常：其他｜內部說明' }, false).cancel_reason).toBe('調撥異常：其他');
+    expect(maskTransfer({ id: 'x', exception_type: null, cancel_reason: '內部：客訴勿外傳' }, false).cancel_reason).toBeNull();
+    expect(maskTransfer({ id: 'x', exception_type: null, cancel_reason: null }, false).cancel_reason).toBeNull();
+    expect(maskTransfer(withType, true).cancel_reason).toBe('調撥異常：損壞｜內部：廠商出貨錯誤');
+  });
   it('時間軸：唯讀身分看不到內部備註，但店長自己的回報說明保留', () => {
     expect(maskEvent({ action: 'receive', note: '內部' }, false).note).toBeNull();
     expect(maskEvent({ action: 'store_report', note: '破損' }, false).note).toBe('破損');

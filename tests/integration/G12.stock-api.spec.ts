@@ -510,11 +510,22 @@ test('流水：類型、位置、料件、日期（台北）、記錄人、原�
 test('調撥相關流水的來源顯示：調撥單號、「調撥退回來源庫存」（Q12）；來源與參考欄位不能由過帳 API 指定', async () => {
   const { loc, part } = await setup('SRC');
   await seedBalance(loc.id, part.id, 20);
-  // 流水不可直接寫入（只有過帳函式）；用資料庫函式帶參考單據與 metadata，模擬第 4 批／調撥動作的同交易呼叫
+  // 過帳包裝不接受登入者直接帶參考單據（審查補強：不能偽造「調撥來源」的流水）；只有調撥動作等資料庫內部流程才能帶。
   const client = await rpcClientFor('ga_works');
   const ref = crypto.randomUUID();
-  const ship = await callFn(client, 'ga_ws_inv_post', { p_transaction_type: 'ISSUE', p_location_id: loc.id, p_part_id: part.id, p_quantity: 2, p_input_unit_type: 'BASE', p_reason: '調撥交出', p_notes: null, p_idempotency_key: key(), p_reference_type: 'INVENTORY_TRANSFER', p_reference_id: ref, p_metadata: { transfer_no: 'GAT-TEST-1', action: 'ship' } });
-  const back = await callFn(client, 'ga_ws_inv_post', { p_transaction_type: 'RECEIPT', p_location_id: loc.id, p_part_id: part.id, p_quantity: 2, p_input_unit_type: 'BASE', p_reason: '調撥取消退回', p_notes: null, p_idempotency_key: key(), p_reference_type: 'INVENTORY_TRANSFER', p_reference_id: ref, p_metadata: { transfer_no: 'GAT-TEST-1', action: 'return_stock' } });
+  const fake = await callFn(client, 'ga_ws_inv_post', { p_transaction_type: 'ISSUE', p_location_id: loc.id, p_part_id: part.id, p_quantity: 2, p_input_unit_type: 'BASE', p_reason: '偽造', p_notes: null, p_idempotency_key: key(), p_reference_type: 'INVENTORY_TRANSFER', p_reference_id: ref, p_metadata: { transfer_no: 'GAT-FAKE', action: 'ship' } });
+  expect(fake.ok).toBe(false);
+  expect(JSON.stringify(fake)).toContain('REFERENCE_NOT_ALLOWED');
+  expect((await adminDb().from('ga_inventory_transactions').select('id').eq('location_id', loc.id).eq('part_id', part.id)).data).toEqual([]);
+  // 顯示用的資料：用舊版就開放的過帳核心帶參考單據，模擬調撥動作留下的流水（來源標示只看流水本身的參考欄位）
+  const core = async (type: string, reason: string, action: string) => {
+    const r = await client.rpc('ga_post_inventory_transaction', { p_transaction_type: type, p_location_id: loc.id, p_part_id: part.id, p_quantity: 2, p_input_unit_type: 'BASE', p_reason: reason, p_notes: null, p_reference_type: 'INVENTORY_TRANSFER', p_reference_id: ref, p_idempotency_key: key(), p_occurred_at: null, p_metadata: { transfer_no: 'GAT-TEST-1', action } });
+    expect(r.error, JSON.stringify(r.error)).toBeNull();
+    const row = Array.isArray(r.data) ? r.data[0] : r.data;
+    return { ok: true, data: row };
+  };
+  const ship = await core('ISSUE', '調撥交出', 'ship');
+  const back = await core('RECEIPT', '調撥取消退回', 'return_stock');
   expect(ship.ok).toBe(true);
   expect(back.ok).toBe(true);
   const list = await get('ga_works', `/transactions?locationId=${loc.id}&sortOrder=asc&sort=created_at`);
@@ -601,6 +612,16 @@ test('選項：位置搜尋分頁；過帳用的位置料件（含目前庫存�
   // 過帳用的料件選項只給有交易管理權限的人（唯讀身分用不到）
   expect((await get('store_manager', `/options?type=location-parts&locationId=${mine.id}`)).status).toBe(403);
   expect((await get('navigation', `/options?type=location-parts&locationId=${mine.id}`)).status).toBe(403);
+  // 審查補強：門市名單身分（沒有料件查看）不能搜尋整個料件目錄，只回自己門市位置有設定的料件，也不能用條碼搜尋
+  const pMine = await seedPart(partCat.id, 'OPT-PM', { barcode: m7Name('BC-MINE').slice(-12) });
+  const pTheirs = await seedPart(partCat.id, 'OPT-PT');
+  await seedLocationPart(mine.id, pMine.id);
+  await seedLocationPart(theirs.id, pTheirs.id);
+  const rp = await get('store_manager', `/options?type=parts&search=${encodeURIComponent(m7Name('OPT-P'))}`);
+  expect(rp.status).toBe(200);
+  expect(ids(rp)).toEqual([pMine.id]);
+  expect(ids(await get('store_manager', `/options?type=parts&search=${encodeURIComponent(pMine.barcode)}`))).toEqual([]);
+  expect(ids(await get('ga_works', `/options?type=parts&search=${encodeURIComponent(m7Name('OPT-P'))}`)).sort()).toEqual([pMine.id, pTheirs.id].sort());
   expect(theirs.id).toBeTruthy();
 });
 

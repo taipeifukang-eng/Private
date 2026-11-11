@@ -5522,5 +5522,41 @@
       "key": "native-only:inventory-transfers-new",
       "entry": "sidebar-visibility"
     }
+  },
+  {
+    "id": "m7m8-g13-dest-part-not-configured-status",
+    "page": "ga-inventory-transfers",
+    "description": "新版建單時，目的位置沒有設定（或已停用）這個料件就直接擋下（422）並附前往位置設定的捷徑；舊版建單不檢查，等到收貨才失敗，單子卡在運送中。",
+    "reason": "C8（2026-11-11 第 3 批問卷）：目的位置缺設定，收貨一定失敗，所以建單時就擋。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "dest-part-not-configured-status"
+    }
+  },
+  {
+    "id": "m7m8-g13-multi-item-create-status",
+    "page": "ga-inventory-transfers",
+    "description": "舊版一張調撥單可以放多個料件；新版一張單只能一個料件，舊格式（items 陣列）被拒絕（400）。",
+    "reason": "2026-11-11 第 3 批問卷（一張單一個料件，過帳、收貨與處理單連結都以單一明細處理）。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "multi-item-create-status"
+    }
+  },
+  {
+    "id": "m7m8-g13-create-without-key-status",
+    "page": "ga-inventory-transfers",
+    "description": "建單沒帶防重複識別碼：舊版照做（連點會建出多張單），新版回 400，要求固定識別（同一識別碼重送只建一張，回原單）。",
+    "reason": "Q15 固定識別（2026-11-11 第 3 批問卷，使用者已核可）。",
+    "approvedBy": "user (2026-11-11 batch 3 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "create-without-key-status"
+    }
   }
 ]
