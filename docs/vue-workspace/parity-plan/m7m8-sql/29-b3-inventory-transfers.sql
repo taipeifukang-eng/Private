@@ -102,9 +102,9 @@ DECLARE
   v_missing text[] := ARRAY[]::text[];
 BEGIN
   IF v_transfer AND v_txn AND v_part THEN RETURN NULL; END IF;
-  IF NOT v_transfer THEN v_missing := v_missing || '調撥管理'; END IF;
-  IF NOT v_txn THEN v_missing := v_missing || '庫存交易管理'; END IF;
-  IF NOT v_part THEN v_missing := v_missing || '料件查看'; END IF;
+  IF NOT v_transfer THEN v_missing := array_append(v_missing, '調撥管理'::text); END IF;
+  IF NOT v_txn THEN v_missing := array_append(v_missing, '庫存交易管理'::text); END IF;
+  IF NOT v_part THEN v_missing := array_append(v_missing, '料件查看'::text); END IF;
   RETURN public.ga_inv_tr_err(403, CASE WHEN NOT v_transfer THEN 'PERMISSION_DENIED' WHEN NOT v_txn THEN 'TRANSACTION_PERMISSION_REQUIRED' ELSE 'PART_VIEW_REQUIRED' END,
     '調撥需要「調撥管理」、「庫存交易管理」與「料件查看」三個權限，您缺少：' || array_to_string(v_missing, '、'),
     jsonb_build_object('missing', to_jsonb(v_missing)));
@@ -181,6 +181,7 @@ DECLARE
   v_committed numeric;
   v_remaining numeric;
   v_qty_req_unit numeric;
+  v_requested numeric;
 BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_inv_tr_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
   v_perm := public.ga_inv_tr_perm_error(v_uid);
@@ -240,21 +241,25 @@ BEGIN
     IF NOT FOUND THEN RETURN public.ga_inv_tr_err(404, 'REQUEST_NOT_FOUND', '找不到來源需求單（可能已被刪除）'); END IF;
     IF v_req.main_status IN ('COMPLETED', 'REJECTED', 'CANCELED') THEN RETURN public.ga_inv_tr_err(409, 'REQUEST_CLOSED', '這張需求單已結案、退回或取消，不能再建立調撥單'); END IF;
     IF v_req.part_id IS NOT NULL AND v_req.part_id <> p_part_id THEN RETURN public.ga_inv_tr_err(422, 'REQUEST_PART_MISMATCH', '調撥的料件和需求單指定的料件不同'); END IF;
+    -- 需求量的單位以需求單的單位為準：調撥單位不同時換算成需求單位後再比較，單據也以需求單位記錄數量（與預填換算一致）。
+    v_qty_req_unit := p_quantity;
+    IF v_req.desired_unit IS NOT NULL AND v_part.purchase_unit IS NOT NULL AND v_part.purchase_to_base_rate > 0 THEN
+      IF v_req.desired_unit = v_part.purchase_unit AND v_req.desired_unit <> v_part.base_unit AND v_unit = 'BASE' THEN v_qty_req_unit := round(p_quantity / v_part.purchase_to_base_rate, 4);
+      ELSIF v_req.desired_unit = v_part.base_unit AND v_req.desired_unit <> v_part.purchase_unit AND v_unit = 'PURCHASE' THEN v_qty_req_unit := round(p_quantity * v_part.purchase_to_base_rate, 4); END IF;
+    END IF;
     SELECT * INTO v_ful FROM public.ga_part_fulfillments WHERE request_id = p_request_id FOR UPDATE;
-    IF FOUND THEN
-      IF v_ful.deleted_at IS NULL AND v_ful.status IN ('COMPLETED', 'CANCELED') THEN RETURN public.ga_inv_tr_err(409, 'REQUEST_CLOSED', '這張需求單的料件處理已結案或取消，不能再建立調撥單'); END IF;
+    IF FOUND AND v_ful.deleted_at IS NULL AND v_ful.status IN ('COMPLETED', 'CANCELED') THEN
+      RETURN public.ga_inv_tr_err(409, 'REQUEST_CLOSED', '這張需求單的料件處理已結案或取消，不能再建立調撥單');
+    END IF;
+    v_requested := COALESCE(CASE WHEN FOUND AND v_ful.deleted_at IS NULL THEN v_ful.requested_quantity END, v_req.desired_quantity, 0);
+    v_committed := 0;
+    IF v_ful.id IS NOT NULL AND v_ful.deleted_at IS NULL THEN
       SELECT COALESCE(sum(quantity), 0) INTO v_committed FROM public.ga_part_fulfillment_documents WHERE fulfillment_id = v_ful.id AND COALESCE(status, '') <> 'CANCELED';
-      -- 需求量的單位以需求單的單位為準；調撥單位不同時換算後比較（與預填換算一致）。
-      v_qty_req_unit := p_quantity;
-      IF v_req.desired_unit IS NOT NULL AND v_part.purchase_unit IS NOT NULL AND v_part.purchase_to_base_rate > 0 THEN
-        IF v_req.desired_unit = v_part.purchase_unit AND v_req.desired_unit <> v_part.base_unit AND v_unit = 'BASE' THEN v_qty_req_unit := p_quantity / v_part.purchase_to_base_rate;
-        ELSIF v_req.desired_unit = v_part.base_unit AND v_req.desired_unit <> v_part.purchase_unit AND v_unit = 'PURCHASE' THEN v_qty_req_unit := p_quantity * v_part.purchase_to_base_rate; END IF;
-      END IF;
-      v_remaining := GREATEST(0, COALESCE(v_ful.requested_quantity, 0) - v_committed);
-      IF COALESCE(v_ful.requested_quantity, 0) > 0 AND v_qty_req_unit > v_remaining + 0.00005 THEN
-        RETURN public.ga_inv_tr_err(422, 'EXCEEDS_REMAINING_REQUEST', '調撥數量不可超過需求單剩餘需求量 ' || trim(trailing '.' FROM trim(trailing '0' FROM round(v_remaining, 4)::text)) || COALESCE(v_req.desired_unit, ''),
-          jsonb_build_object('remaining', v_remaining));
-      END IF;
+    END IF;
+    v_remaining := GREATEST(0, v_requested - v_committed);
+    IF v_requested > 0 AND v_qty_req_unit > v_remaining + 0.00005 THEN
+      RETURN public.ga_inv_tr_err(422, 'EXCEEDS_REMAINING_REQUEST', '調撥數量不可超過需求單剩餘需求量 ' || trim(trailing '.' FROM trim(trailing '0' FROM round(v_remaining, 4)::text)) || COALESCE(v_req.desired_unit, ''),
+        jsonb_build_object('remaining', v_remaining));
     END IF;
   END IF;
 
@@ -280,7 +285,7 @@ BEGIN
       END IF;
     END IF;
     INSERT INTO public.ga_part_fulfillment_documents (fulfillment_id, document_type, document_id, document_no, quantity, status, created_by)
-    VALUES (v_ful.id, 'TRANSFER', v_t.id, v_t.transfer_no, p_quantity, 'REQUESTED', v_uid);
+    VALUES (v_ful.id, 'TRANSFER', v_t.id, v_t.transfer_no, v_qty_req_unit, 'REQUESTED', v_uid);
   END IF;
 
   RETURN jsonb_build_object('ok', true, 'status', 201, 'replay', false, 'data', public.ga_inv_tr_data(v_t.id),

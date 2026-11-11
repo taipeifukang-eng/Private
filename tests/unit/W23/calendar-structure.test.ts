@@ -155,7 +155,7 @@ describe('W23 畫面結構', () => {
   });
   it('App 深連結：只接受 calendar 並帶 Google 授權結果（三種固定結果）', () => {
     const app = read('vue-workspace/src/App.vue');
-    expect(app).toContain('"calendar", "ga-asset-scan"];'); // G10 掃描頁也走同一個深連結白名單
+    expect(app).toContain('"calendar", "ga-asset-scan", "ga-inventory-transfers"];'); // G10 掃描頁、G13 調撥單頁也走同一個深連結白名單
     expect(app).toContain('["connected", "connected_with_errors", "error"].includes(googleResult)');
   });
 });
