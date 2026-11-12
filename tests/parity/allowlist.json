@@ -6687,5 +6687,37 @@
       "key": "unexpected:maintenance",
       "entry": "sidebar-visibility"
     }
+  },
+  {
+    "id": "m7m8-b4-po-approve-permission-code-effective",
+    "page": "navigation",
+    "description": "管理員（擁有所有啟用權限碼）的有效權限，舊版權限清單含新權限碼 general_affairs.purchase_order.approve（採購核准），新版 session 的權限快照（角色矩陣）還沒有這個碼。",
+    "reason": "D6：第 4 批 33 新增採購核准權限碼（不指派給任何角色，由管理員在角色權限頁指派）。DEV 權限表已有此碼，角色矩陣快照不跟著新增碼更新。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "general_affairs.purchase_order.approve",
+      "entry": "effective-permissions",
+      "roles": [
+        "admin"
+      ]
+    }
+  },
+  {
+    "id": "m7m8-g13-nav-roster-center-entry",
+    "page": "navigation",
+    "description": "督導（門市名單身分，掛 store_manager 角色）新版側欄有「服務首頁」（/general-affairs），舊版 Navbar 規則沒有。",
+    "reason": "2026-11-11 第 3 批驗收決定 A：門市名單身分（督導、區經理，不限店長）也進得了總務服務中心，只看自己門市的庫存與調撥（唯讀）。使用者已核可。",
+    "approvedBy": "user (2026-11-11 batch 3 acceptance)",
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "/general-affairs",
+      "entry": "nav-visibility",
+      "roles": [
+        "supervisor"
+      ]
+    }
   }
 ]
