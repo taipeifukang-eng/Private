@@ -194,10 +194,13 @@ ALTER TABLE public.ga_equipment
   ADD COLUMN IF NOT EXISTS source_po_item_id uuid REFERENCES public.ga_purchase_order_items(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS source_receipt_item_id uuid REFERENCES public.ga_purchase_receipt_items(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS source_dispatch_id uuid REFERENCES public.ga_stock_dispatches(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS source_request_id uuid REFERENCES public.ga_service_requests(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS source_request_id uuid,
   ADD COLUMN IF NOT EXISTS vendor_id uuid REFERENCES public.ga_vendors(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS vendor_name_snapshot text,
   ADD COLUMN IF NOT EXISTS warranty_start_date date;
+-- source_request_id 不設外鍵：ga_equipment 與 ga_service_requests 之間若再多一條外鍵，舊版需求單 API 的 equipment:ga_equipment(...) 嵌入查詢會因「關聯不明確」(PGRST201) 整個失敗。
+-- 套用過舊版（有外鍵）的環境在這裡移除。需求單被刪除時此欄位會留下舊值（只用來顯示來源，不影響任何流程）。
+ALTER TABLE public.ga_equipment DROP CONSTRAINT IF EXISTS ga_equipment_source_request_id_fkey;
 CREATE INDEX IF NOT EXISTS idx_ga_equipment_source_po ON public.ga_equipment (source_purchase_order_id) WHERE source_purchase_order_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_ga_equipment_source_dispatch ON public.ga_equipment (source_dispatch_id) WHERE source_dispatch_id IS NOT NULL;
 COMMENT ON COLUMN public.ga_equipment.warranty_start_date IS '保固起算日（採購到貨日，台北）；到期日仍看 warranty_end_date。';

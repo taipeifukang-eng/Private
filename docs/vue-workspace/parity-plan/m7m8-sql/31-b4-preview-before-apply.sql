@@ -164,4 +164,26 @@ SELECT '9 34 預告', '欄位 ga_equipment.purchase_amount／purchased_at／warr
 UNION ALL
 SELECT '9 34 預告', '設備資產編號唯一索引 uq_ga_equipment_asset_code_active（舊版防重複規則；配發建立設備沿用）', (SELECT count(*)::text FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'uq_ga_equipment_asset_code_active'),
        CASE WHEN EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname = 'public' AND indexname = 'uq_ga_equipment_asset_code_active') THEN 'OK' ELSE 'WARN' END
+UNION ALL
+-- 10 第 4 批 A（32）預告：G14 至 G17 規則會碰到的現況
+SELECT '10 32 預告', '待門市確認的需求單數（32 會補上「待確認起算時間」，用更新時間當起算；超過逾期天數預設 7 天會標示逾期未確認）',
+       (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status = 'WAITING_STORE_CONFIRMATION'), 'INFO'
+UNION ALL
+SELECT '10 32 預告', '料件處理單中已達需求量、尚未送門市確認的筆數（32 套用後它們會顯示「待交付」）',
+       (SELECT count(*)::text FROM public.ga_part_fulfillments WHERE deleted_at IS NULL AND status IN ('STOCK_ISSUE', 'TRANSFER', 'PURCHASING', 'WAITING_ARRIVAL') AND COALESCE(requested_quantity, 0) > 0 AND fulfilled_quantity >= requested_quantity), 'INFO'
+UNION ALL
+SELECT '10 32 預告', '會被新規則擋到的進行中維修單（類型維修卻分流到採購評估，D4：受理時才擋，已受理的不受影響，只列出供人工處理）',
+       (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND request_type = 'REPAIR' AND intake_route = 'PURCHASE_REVIEW' AND main_status NOT IN ('COMPLETED', 'REJECTED', 'CANCELED')),
+       CASE WHEN EXISTS (SELECT 1 FROM public.ga_service_requests WHERE deleted_at IS NULL AND request_type = 'REPAIR' AND intake_route = 'PURCHASE_REVIEW' AND main_status NOT IN ('COMPLETED', 'REJECTED', 'CANCELED')) THEN 'WARN' ELSE 'OK' END
+UNION ALL
+SELECT '10 32 預告', '會被覆蓋的第 3 批函式 ga_inv_tr_sync_fulfillment 是否存在（32 覆蓋它：調撥全收後成為待交付；撤回檔會還原原版）',
+       (SELECT count(*)::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'ga_inv_tr_sync_fulfillment'),
+       CASE WHEN EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'ga_inv_tr_sync_fulfillment') THEN 'OK' ELSE 'MISSING' END
+UNION ALL
+SELECT '10 32 預告', 'ga_inv_tr_sync_fulfillment 目前版本 md5（與 DEV 第 3 批版本比對，撤回 32 時用得上）', md5(pg_get_functiondef(p.oid)), 'INFO'
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'ga_inv_tr_sync_fulfillment'
+UNION ALL
+SELECT '10 32 預告', '設備指向需求單的外鍵數（34 刻意不新增外鍵，避免舊版需求單 API 的 equipment 嵌入查詢出現關聯不明確；現況與 34 套用後都應為 0）',
+       (SELECT count(*)::text FROM pg_constraint c WHERE c.contype = 'f' AND c.conrelid = 'public.ga_equipment'::regclass AND c.confrelid = 'public.ga_service_requests'::regclass),
+       CASE WHEN (SELECT count(*) FROM pg_constraint c WHERE c.contype = 'f' AND c.conrelid = 'public.ga_equipment'::regclass AND c.confrelid = 'public.ga_service_requests'::regclass) = 0 THEN 'OK' ELSE 'WARN' END
 ORDER BY 1, 2;

@@ -11,17 +11,19 @@ const DRAFTS = [
   {
     no: "32-b4-request-rules",
     dev: "20261112100000_m7m8_b4_request_rules",
-    title: "第 4 批 A（需求單與處理單規則的資料結構）",
+    title: "第 4 批 A（需求單與處理單規則：資料結構與 G14 至 G17 規則函式）",
     summary:
-      "性質：會寫入，但只新增 2 張表（流程設定、設定變更紀錄）與 9 個可為空或有預設值的欄位（處理單待交付時間、單據作廢 3 欄、留言原文、事件代按標記、需求單取消原因與重新開啟次數、報價作廢標記），不改任何既有資料、函式與觸發器；舊版畫面完全不受影響。\n" +
-      "-- 設定表預設值：採購核准啟用、核准門檻 5000 元（含稅總額大於才需核准）、稅率 0.05、需求單待門市確認逾期天數 7、歷史價筆數 5。登入者不能直接讀寫設定表，只有 33 的函式（SECURITY DEFINER）與 service_role 能存取。\n" +
-      "-- 先決條件：需求單、處理單、單據、留言、事件、採購評估報價、profiles 資料表已存在（先跑 31 確認）。",
+      "性質：會寫入。新增 2 張表（流程設定、設定變更紀錄）、10 個可為空或有預設值的欄位（處理單待交付時間、單據作廢 3 欄、留言原文、事件代按標記、需求單取消原因、重新開啟次數、待門市確認起算時間、報價作廢標記）、2 個觸發器（需求單進入待門市確認時記錄起算時間、處理單達需求量時記錄待交付時間）、13 個 ga_ws_req_*／ga_ws_ful_* 函式（受理與 D4 擋、合法流轉、門市動作與總務代按標記、留言改刪保留原文、逾期天數設定、庫存出庫守衛、採購評估、處理單決定／異常／作廢／送門市確認）與內部輔助函式；\n" +
+      "--   採購單連結處理單的同步觸發器（有採購單表才會裝，先套 32 再套 33 或相反都行）。不改任何既有資料；舊版畫面與舊版 API 不受影響，只有一處行為改變（見下）。\n" +
+      "-- 行為改變（要使用者核可）：以 CREATE OR REPLACE 覆蓋第 3 批 ga_inv_tr_sync_fulfillment——調撥單全數收貨後，料件處理單維持「調撥」狀態並成為「待交付」，要總務按「送門市確認」處理單與需求單才一起往下（原本收貨後處理單會自動跳到等門市確認，需求單卻停在處理中，兩邊不同步）。\n" +
+      "-- 設定表預設值：採購核准啟用、核准門檻 5000 元（含稅總額大於才需核准）、稅率 0.05、需求單待門市確認逾期天數 7、歷史價筆數 5。登入者不能直接讀寫設定表，只有函式（SECURITY DEFINER）與 service_role 能存取。\n" +
+      "-- 先決條件：需求單、處理單、單據、留言、事件、採購評估報價、profiles、maintenance_requests 資料表已存在，第 3 批 28（ga_ws_inv_post、調撥同步）已套用（先跑 31 確認）。採購評估選「進入採購」要 33 的 ga_ws_po_from_review（沒套 33 時該決策會失敗，其餘功能不受影響）。",
     verify:
-      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND (table_name, column_name) IN (('ga_part_fulfillments', 'ready_to_deliver_at'), ('ga_part_fulfillment_documents', 'voided_at'), ('ga_part_fulfillment_documents', 'void_reason'), ('ga_part_fulfillment_documents', 'voided_by'), ('ga_service_request_comments', 'original_body'), ('ga_service_request_events', 'proxy_for_store'), ('ga_service_requests', 'cancel_reason'), ('ga_service_requests', 'reopened_count'), ('ga_purchase_review_quotes', 'superseded_at')) ORDER BY 1, 2;\n-- 核對：應列出 9 個欄位；設定表應有 5 列\nSELECT key, value_num FROM public.ga_workflow_settings ORDER BY key;",
+      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND (table_name, column_name) IN (('ga_part_fulfillments', 'ready_to_deliver_at'), ('ga_part_fulfillment_documents', 'voided_at'), ('ga_part_fulfillment_documents', 'void_reason'), ('ga_part_fulfillment_documents', 'voided_by'), ('ga_service_request_comments', 'original_body'), ('ga_service_request_events', 'proxy_for_store'), ('ga_service_requests', 'cancel_reason'), ('ga_service_requests', 'reopened_count'), ('ga_service_requests', 'waiting_confirm_since'), ('ga_purchase_review_quotes', 'superseded_at')) ORDER BY 1, 2;\n-- 核對：應列出 10 個欄位；設定表應有 5 列\nSELECT key, value_num FROM public.ga_workflow_settings ORDER BY key;\nSELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND (proname LIKE 'ga_ws_req_%' OR proname LIKE 'ga_ws_ful_%') ORDER BY 1;\n-- 核對：應列出 13 個函式",
     rollbackSummary:
-      "撤回 32：移除第 4 批 A 新增的 2 張表與 9 個欄位。會刪除：流程設定與變更紀錄、處理單待交付時間、單據作廢紀錄、留言原文、事件代按標記、需求單取消原因與重新開啟次數、報價作廢標記。需求單、處理單、單據、留言、事件、報價本身不動。要先撤回 33（採購單函式會讀設定表）。",
+      "撤回 32：移除第 4 批 A 新增的 2 張表、10 個欄位、觸發器與函式，並把第 3 批 ga_inv_tr_sync_fulfillment 還原成原版。會刪除：流程設定與變更紀錄、處理單待交付時間、單據作廢紀錄、留言原文、事件代按標記、需求單取消原因與重新開啟次數與待確認起算時間、報價作廢標記。需求單、處理單、單據、留言、事件、報價本身不動。要先撤回 33（採購單函式會讀設定表）。",
     backup:
-      "-- 撤回前備份（只備份會被刪掉的欄位與表）：\n--   CREATE TABLE public.zz_bak_b4_32_settings AS SELECT * FROM public.ga_workflow_settings;\n--   CREATE TABLE public.zz_bak_b4_32_setting_events AS SELECT * FROM public.ga_workflow_setting_events;\n--   CREATE TABLE public.zz_bak_b4_32_request_cols AS SELECT id, cancel_reason, reopened_count FROM public.ga_service_requests WHERE cancel_reason IS NOT NULL OR reopened_count > 0;",
+      "-- 撤回前備份（只備份會被刪掉的欄位與表）：\n--   CREATE TABLE public.zz_bak_b4_32_settings AS SELECT * FROM public.ga_workflow_settings;\n--   CREATE TABLE public.zz_bak_b4_32_setting_events AS SELECT * FROM public.ga_workflow_setting_events;\n--   CREATE TABLE public.zz_bak_b4_32_request_cols AS SELECT id, cancel_reason, reopened_count, waiting_confirm_since FROM public.ga_service_requests WHERE cancel_reason IS NOT NULL OR reopened_count > 0 OR waiting_confirm_since IS NOT NULL;\n--   CREATE TABLE public.zz_bak_b4_32_comment_orig AS SELECT id, original_body FROM public.ga_service_request_comments WHERE original_body IS NOT NULL;\n--   CREATE TABLE public.zz_bak_b4_32_doc_void AS SELECT id, voided_at, void_reason, voided_by FROM public.ga_part_fulfillment_documents WHERE voided_at IS NOT NULL;\n--   （ga_inv_tr_sync_fulfillment 的原版由撤回檔自帶；撤回前先 SELECT pg_get_functiondef 存一份更保險。）",
   },
   {
     no: "33-b4-purchase-orders",
