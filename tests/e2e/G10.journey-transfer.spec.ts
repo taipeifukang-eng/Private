@@ -10,7 +10,7 @@ import path from 'node:path';
 //   總務（桌機 1440，ga_works）發起 → A 店店長（ZT01 帳號 store_manager，手機 390）確認交出（附照片）
 //   → B 店店長（VW001 帳號 ga_store_manager_b，手機 390）確認收到（附照片）→ 設備改屬 B 店。
 //   每一步都檢查對方畫面有沒有收到、狀態對不對；最後檢查：B 店看得到（清冊、報修入口）、A 店看不到（清冊與掃描頁）、
-//   QR token 沿用（舊 token 掃描頁顯示 B 店）、轉移單時間軸與異動紀錄完整（發起、交出、收到、操作人、照片）、進行中的報修單仍屬原門市。
+//   QR token 沿用（舊 token 掃描頁顯示 B 店）、轉移單時間軸與異動紀錄完整（發起、交出、收到、操作人、照片）、進行中的維修單一起轉到新門市（第 4 批 G27）。
 //   另有「無權限者做不到」：總務不能代替店長、店長不能發起或取消、他店店長與無關人員、設備查看者、無權限者，API 與介面兩種方式都驗。
 // 這個劇本自己決定每個角色的視窗（總務桌機、店長手機），所以只在 desktop-1440 project 跑一次。
 const nodeRequire = createRequire(path.join(__dirname, 'G10.journey-transfer.spec.ts'));
@@ -78,7 +78,8 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     await dialog(ga.page).getByRole('searchbox', { name: '搜尋要轉移的資產' }).fill(eq.name);
     await dialog(ga.page).getByRole('button', { name: `選擇 ${eq.name}` }).click();
     await pickStore(dialog(ga.page), '轉入門市', 'VW001');
-    await expect(dialog(ga.page)).toContainText('目前有 1 張未結案單');
+    await expect(dialog(ga.page).getByTestId('move-follow-notice')).toContainText('進行中的單會一起轉到新門市');
+    await expect(dialog(ga.page).getByTestId('move-follow-notice')).toContainText('會一起轉走 1 張進行中的維修單');
     await dialog(ga.page).getByLabel('轉移原因').fill('B 店新開，調撥冰箱');
     await dialog(ga.page).getByRole('button', { name: '送出轉移單' }).click();
     await expect(notice(ga.page, /已發起轉移單 AT\d{8}-\d{4}/)).toBeVisible();
@@ -107,7 +108,7 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     await expect(cardA).toBeVisible();
     await expect(cardA).toContainText('ZT01');
     await expect(cardA).toContainText('VW001');
-    await expect(cardA).toContainText('還有 1 張未結案單，換店後仍屬原門市');
+    await expect(cardA).toContainText('還有 1 張未結案單；進行中的維修單會在確認收到時一起轉到新門市');
     await expect(cardA.getByRole('button', { name: '確認收到' })).toHaveCount(0);
     expect(await noPageOverflow(a.page)).toBe(true);
     expect((await cardA.getByRole('button', { name: '確認交出' }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
@@ -205,8 +206,8 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     const done = await row('ga_asset_transfers', transferId);
     expect(done).toMatchObject({ status: 'COMPLETED', handover_note: '冰箱已清空、已裝箱', receive_note: '已收到並插電' });
     expect(((await adminDb().from('ga_asset_transfer_photos').select('step').eq('transfer_id', transferId)).data || []).map((p: any) => p.step).sort()).toEqual(['HANDOVER', 'RECEIVE']);
-    // 進行中的報修單仍屬原門市（解讀 h）
-    expect((await row('ga_service_requests', repair.id)).store_id).toBe(s.ZT01.id);
+    // 進行中的維修單一起轉到新門市（第 4 批 G27，D20、D21；原解讀 h 作廢）
+    expect((await row('ga_service_requests', repair.id)).store_id).toBe(s.VW001.id);
     // 設備詳情（總務）異動紀錄也看得到
     await gaNavTo(ga.page, '設備清冊', '設備管理');
     await searchBox(ga.page).fill(eq.name);
@@ -216,7 +217,7 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     await expect(dialog(ga.page).locator('.event-list')).toContainText('轉移完成');
     await dialog(ga.page).getByRole('button', { name: '關閉' }).click();
 
-    // 步驟 6（B6 補充）：B 店店長手機開「設備維修紀錄」，看得到 A 店時期那張報修單（單上門市仍是 ZT01）；A 店店長仍看得到自己門市時期的單；看不到處理人
+    // 步驟 6（B6 補充；第 4 批 G27 後單子跟著設備走）：B 店店長手機開「設備維修紀錄」，看得到那張進行中的報修單（已轉到 VW001）；A 店只保留已結案的單，所以看不到；看不到處理人
     await openGaCenter(b.page);
     await gaNavToIn(b.page, '設備管理', '維修紀錄');
     await expect(heading(b.page, '設備維修紀錄')).toBeVisible();
@@ -224,14 +225,14 @@ test('劇本：設備轉移（總務發起 → A 店店長手機交出 → B 店
     await expect(b.page.getByText('共 1 筆').locator('visible=true').first()).toBeVisible();
     const histB = b.page.locator('li.asset-card:visible', { hasText: m7Name('J-未結報修') });
     await expect(histB).toBeVisible();
-    await expect(histB).toContainText('ZT01'); // 報修當時的門市
+    await expect(histB).toContainText('VW001'); // 單子已跟著設備轉到 B 店（D20、D21）
     await expect(b.page.locator('th:visible', { hasText: '處理人' })).toHaveCount(0);
     expect(await noPageOverflow(b.page)).toBe(true);
     await openGaCenter(a.page);
     await gaNavToIn(a.page, '設備管理', '維修紀錄');
     await expect(heading(a.page, '設備維修紀錄')).toBeVisible();
     await searchBox(a.page).fill(m7Name('J-未結報修'));
-    await expect(a.page.locator('li.asset-card:visible', { hasText: m7Name('J-未結報修') })).toBeVisible();
+    await expect(a.page.locator('li.asset-card:visible', { hasText: m7Name('J-未結報修') })).toHaveCount(0); // 進行中的單已轉走，舊店只留已結案單
 
     for (const w of [ga, a, b]) expect(w.errors).toEqual([]);
   } finally {

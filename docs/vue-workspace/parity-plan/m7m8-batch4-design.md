@@ -386,4 +386,35 @@
 3. 搜尋選擇器（料件、位置、型號、門市）的萬用字元（`%`、`_`）當字面字元處理。
 4. 設備型號選擇器在編輯既有採購單時，已選的型號只顯示「（已選型號）」（API 沒回型號名稱），重選即可看到名稱。
 5. 第 1 批料件清單頁沒有另加「可轉設備型號」欄位（料件表單已有選擇欄位，G26-db 完成）；清單是否要顯示該欄待確認。
-6. 搬單（G27）、`G27.journey-transfer-follow` 與 `130000`／`35` 仍未做。
+6. 搬單（G27）已於 12.5 完成。
+
+### 12.5 G27 資產移轉，單子跟著走（B6，2026-11-13）
+完成 `20261112130000_m7m8_b4_asset_transfer_follow`（DEV SQL，附 rollback）與正式區草稿 `35-b4-asset-transfer-follow.sql`／`-rollback.sql`、純函式 `lib/workspace/general-affairs/asset-move.ts`、畫面用的 `vue-workspace/src/lib/ga-asset-move.ts`、兩個共用元件（`MoveFollowNotice.vue` 確認告知、`MovedRequestsList.vue` 搬走明細），並改了既有的轉移單頁、發起轉移視窗、設備清冊與設施清冊的「更正所屬門市」視窗。
+
+**資料庫**
+- 新表 `ga_asset_transfer_moved_requests`（搬走的單與沒搬的舊式工單清單；登入者不能直接讀寫，只走函式）。欄位比設計文件 §3.2 多了 `doc_no`、`doc_title`、`doc_status`（搬走當下的單據摘要，清單不用再查、單子後來改標題也不影響），`transfer_id` 與 `asset_event_id` 至少有一個（轉移走轉移單，更正所屬門市只有異動紀錄）。
+- `ga_ws_asset_move_open_requests`（內部）：同一交易內只搬 `request_type = 'REPAIR'` 且 `main_status` 不是 `COMPLETED`、`REJECTED`、`CANCELED`、且目前在轉出門市的需求單，逐筆鎖列（`FOR UPDATE`）後把需求單與其工單的 `store_id` 改成新門市（`updated_at` 隨之更新，其他人畫面上的舊版本再按動作會得到 409 STALE）；需求單與工單時間軸各寫一筆公開事件（需求單事件類型 `ASSET_STORE_MOVED`、工單事件類型 `STORE_MOVED`），文字「因設備轉移，由 A 店轉到 B 店」，更正所屬門市則是「因設備所屬門市更正，由 A 店轉到 B 店」；不發通知；添購等其他類型與已結案的單不動。
+- 重新定義第 2 批的 `ga_ws_transfer_confirm_receive`（轉移單確認收到）與 `ga_ws_correct_asset_store`（更正所屬門市），簽章不變，只在原版換店之後多呼叫搬單函式，回應多 `moved_request_count`、`unlinked_work_order_count`；做法是先用 `pg_get_functiondef` 取出 DEV 當下版本，再由 `scripts/gen-m7m8-b4-130000.cjs` 插入呼叫並同時產生 rollback（原版逐字還原）。
+- `ga_ws_asset_move_preview`（確認視窗預覽：會搬哪幾張、留下哪幾張、舊式工單清單）與 `ga_ws_asset_moved_list`（依轉移單或依資產看搬走明細；雙方店長、設備或設施查看與管理權限者可看）。
+- 發起轉移與交出都不搬，**收到那一刻才搬**（與換店同一時間、同一交易）；取消的轉移單不搬。
+
+**API 與畫面**
+- `GET equipment|facilities/:id/open-orders` 回應多 `moving`、`staying`、`unlinked_work_orders` 與三個張數（舊欄位不變）；`GET transfers/:id` 多 `moved`（搬走明細）；`GET equipment|facilities/:id/events` 的換店事件多 `moved_request_count`、`unlinked_work_order_count`；`POST transfers/:id/receive` 與 `POST …/correct-store` 回應多搬單張數。
+- 發起轉移視窗與「更正所屬門市」視窗固定告知「進行中的單會一起轉到新門市，由新門市店長接手」並顯示張數與清單；轉移單卡片與詳情的舊警示（「換店後仍屬原門市」）改成新說法；轉移單詳情新增「搬走的單」區塊（搬走的維修單含工單，與沒搬、要人工處理的舊式工單）；確認收到與更正完成的提示訊息帶搬走張數。
+
+**舊式工單怎麼認（設計文件沒寫、實作取捨，待使用者確認）**：維修工單表沒有連到設備或設施的欄位，沒連到需求單的舊工單無法精確屬於哪一項資產，所以以「同門市、未完成、資源類型相符（工單的資源類型為空也算）、標題或說明提到資產編號（至少 3 字）或名稱（至少 2 字）」判斷，只列清單、不搬、不改。可能漏列（標題沒提到資產）或多列（名稱太常見）。
+
+**與第 2 批的關係**：第 2 批「解讀 h」（進行中的單換店後仍屬原門市）由本批取代，既有的 G10 整合、劇本、對等測試已同步改期望（舊白名單 `m7m8-g10-transfer-open-requests-stay` 改為 `m7m8-b4-mv-open-requests-follow-asset`，核准欄為問卷 D20、D21）。B6 歷史可見性（新店店長看得到資產所有歷史報修、舊店看得到自己門市時期的單）維持不變：進行中的單轉走後舊店看不到，只剩已結案單，符合 D21。
+
+**測試**
+- 單元：`tests/unit/G27/asset-move.test.ts` 13 項（哪些單搬、時間軸文字、舊式工單判斷、預覽正規化、搬走明細整理、確認視窗與結果文字）。
+- 整合：`tests/integration/G27.asset-transfer-follow-api.spec.ts` 6 項（全流程：搬與不搬的各類型與狀態、舊式工單清單、時間軸公開事件、轉移單明細、新店接手與舊店只剩已結案、重複確認冪等；更正所屬門市與設施；沒有單與取消；權限矩陣與 Origin 與 400 與 404 與內部函式不開放；STALE 併發與雙收；舊式工單判斷與純函式一致）。
+- 冒煙：`tests/smoke/G27.transfer-follow.spec.ts` 3 項（桌機 1440 與手機 390 各一遍）：發起轉移視窗、更正所屬門市視窗、已完成轉移單搬走明細。
+- 對等：`tests/parity/G27.ga-asset-move.spec.ts` 2 項（page `ga-asset-move`），登記 `m7m8-b4-mv-*` 共 7 筆（6 筆問卷 D20、D21 已核可，1 筆舊式工單判斷屬實作取捨，`approvedBy` 為 null，T02 待核可清單已同步）。
+- 劇本：`G27.journey-transfer-follow`（A 店有待門市確認的維修單含工單、添購單、已結案單與舊式工單 → 總務發起轉移，畫面告知 → A 店店長手機交出（單子仍在 A 店）→ B 店店長手機收到 → 維修單與工單轉到 B 店、B 店店長在「我的追蹤」看到並接手確認完成、時間軸有公開事件、沒有其他事件（不發通知）；添購與已結案留 A 店，A 店「我的追蹤」不再有進行中的維修單；轉移單詳情列出搬走的單與舊式工單；另有「更正所屬門市」一段與「沒有權限者做不到」一段）。
+
+**自行決定與待使用者確認**
+1. 舊式工單的判斷方式（見上）。
+2. 沒有通知：DEV 資料庫沒有任何通知資料表，搬單也不呼叫任何通知，測試以「需求單只多一筆公開時間軸事件」驗證。
+3. 搬單只搬「目前在轉出門市」的需求單；若需求單門市與資產門市本來就不一致（歷史資料）則不動。
+4. 正式區 `35` 的先決條件是 `32`（需要 `ga_rq_event`）；31 第 11 區列出影響預覽。

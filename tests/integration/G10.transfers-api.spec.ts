@@ -8,7 +8,7 @@ import { makePng } from '../support/png';
 // M7/M8 第 2 批 Q28 設備／設施轉移單 API（/api/workspace/general-affairs/transfers/**）整合層。
 // 流程：總務發起（不換店）→ A 店店長（ZT01）確認交出 → B 店店長（VW001）確認收到（同一交易換店）；QR 沿用；全程寫入異動紀錄。
 // 涵蓋：全流程與讀回資料庫、待我處理範圍、照片（張數／格式／失敗不留檔案）、越權（總務不能代替店長、他店店長、督導不算、無權限者 403）、
-//      重複發起 409、取消（原因必填、資產不動）、更正門市後收到 409、未結案單張數警示且單子不搬、設施同規則。
+//      重複發起 409、取消（原因必填、資產不動）、更正門市後收到 409、未結案單張數警示（第 4 批 G27 起維修類未結案單隨設備搬到新門市）、設施同規則。
 const nodeRequire = createRequire(path.join(__dirname, 'G10.transfers-api.spec.ts'));
 const accountId = (k: string) => (nodeRequire('../support/credentials.cjs') as { getAccount: (k: string) => { userId: string } }).getAccount(k).userId;
 const BASE = '/api/workspace/general-affairs';
@@ -235,7 +235,7 @@ test('交出後總務更正門市或刪除：收到被擋（整步不生效）�
   expect(await storageList(`asset-transfers/${id}/receive`)).toEqual([]);
 });
 
-test('未結案單張數：發起時記錄並顯示，換店後單子仍屬原門市；設施同規則', async () => {
+test('未結案單張數：發起時記錄並顯示，換店後維修類未結案單跟著轉到新門市（第 4 批 G27）；設施同規則', async () => {
   const eq = await seedEquipment('ZT01', eqCat.id, 'TR-未結');
   const uid = accountId('store_manager');
   const req = await seedRepairRequest('ZT01', { equipmentId: eq.id }, 'TR-未結單', 'IN_PROGRESS', uid);
@@ -246,7 +246,7 @@ test('未結案單張數：發起時記錄並顯示，換店後單子仍屬原�
   await step('store_manager', id, 'handover', {});
   expect((await step('ga_store_manager_b', id, 'receive', {})).status).toBe(200);
   const { data: reqAfter } = await adminDb().from('ga_service_requests').select('store_id').eq('id', req.id).single();
-  expect(reqAfter!.store_id).toBe(sid.ZT01); // 解讀 (h)：單子留在原門市
+  expect(reqAfter!.store_id).toBe(sid.VW001); // 第 4 批 G27（D20、D21）：維修類未結案單隨設備轉到新門市；舊解讀 (h) 作廢
   expect((await events(eq.id)).find((e) => e.event_type === 'STORE_TRANSFER').open_request_count).toBe(1);
 
   // 設施：設施管理者發起、店長交出收到、QR 沿用

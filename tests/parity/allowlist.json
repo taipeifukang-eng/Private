@@ -4325,15 +4325,15 @@
     }
   },
   {
-    "id": "m7m8-g10-transfer-open-requests-stay",
+    "id": "m7m8-b4-mv-open-requests-follow-asset",
     "page": "ga-transfer",
-    "description": "換店後，進行中的報修單與工單留在原門市，介面顯示警示張數；不自動搬到新門市。（解讀 h）",
-    "reason": "與現行「進行中報修仍掛舊門市」一致；若希望單子跟著設備走，需另行決定（會動到需求單門市欄位，屬第 4 批）。主迴圈自行解讀或延伸（2026-11-10 第 2 批驗收核可）（2026-11-10 第 2 批驗收核可）。",
-    "approvedBy": "user (2026-11-10 batch 2 acceptance)",
+    "description": "換店後（轉移單確認收到、更正所屬門市），維修類未結案需求單與其工單一起轉到新門市；添購等其他類型與已結案的單留在原門市。舊版改設備所屬門市時，單子一律留在原門市。（D20、D21，取代第 2 批解讀 h）",
+    "reason": "第 4 批問卷 D20（repair_all_open）、D21（timeline_no_notify）：單子跟著設備走，由新門市店長接手；舊店只保留已結案單。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
     "match": {
       "mechanism": "api-read",
       "kind": "changed",
-      "key": "open-requests-stay-in-origin-store",
+      "key": "open-requests-follow-asset",
       "entry": "transfer-readback"
     }
   },
@@ -6926,6 +6926,84 @@
       "kind": "only-native",
       "key": "native-only:purchase-orders-new",
       "entry": "sidebar-visibility"
+    }
+  },
+  {
+    "id": "m7m8-b4-mv-follow-readback",
+    "page": "ga-asset-move",
+    "description": "舊版更改設備所屬門市後，進行中的報修單仍留在舊門市；新版同樣換店時，維修類未結案需求單與工單一起轉到新門市。",
+    "reason": "問卷 D20、D21：單子跟著設備走。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "changed",
+      "key": "open-requests-follow-asset",
+      "entry": "transfer-follow-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-mv-follow-timeline-event",
+    "page": "ga-asset-move",
+    "description": "新版搬單時在需求單與工單時間軸寫一筆公開事件「因設備轉移，由 A 店轉到 B 店」（更正所屬門市則寫「因設備所屬門市更正…」），不發通知；舊版沒有。",
+    "reason": "問卷 D21：時間軸記一筆公開事件，不發通知。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "move-timeline-public-event",
+      "entry": "transfer-follow-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-mv-moved-list",
+    "page": "ga-asset-move",
+    "description": "新版轉移單詳情與設備異動紀錄可看「搬走了哪幾張單」（含沒搬、要人工處理的舊式工單清單）；舊版沒有。",
+    "reason": "問卷 D21：轉移單可點開看搬了哪幾張單；D20：舊式工單在轉移單上列出清單。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "transfer-moved-list",
+      "entry": "transfer-follow-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-mv-preview-notice",
+    "page": "ga-asset-move",
+    "description": "新版發起轉移與「更正所屬門市」的確認視窗明確告知「進行中的單會一起轉到新門市」並顯示受影響張數（open-orders 回應多了 moving、staying、unlinked 欄位）；舊版沒有。",
+    "reason": "問卷 D21：發起轉移前畫面明確告知。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "open-orders-move-preview",
+      "entry": "transfer-follow-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-mv-correction-also-moves",
+    "page": "ga-asset-move",
+    "description": "新版「更正所屬門市」也會帶走進行中的維修單（與轉移單同規則）；舊版直接改設備所屬門市不處理單子。",
+    "reason": "問卷 D21：「更正所屬門市」也帶走進行中的單。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "correction-also-moves",
+      "entry": "transfer-follow-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-mv-legacy-workorder-heuristic",
+    "page": "ga-asset-move",
+    "description": "沒連到需求單的舊式工單，維修工單表沒有連到設備或設施的欄位，新版以「同門市、未完成、資源類型相符、標題或說明提到資產編號（至少 3 字）或名稱（至少 2 字）」找出疑似的，只列清單不搬。",
+    "reason": "問卷 D20 只說「沒連到需求單的舊式工單列清單請人工處理」，沒說怎麼判斷屬於哪項資產；這是實作取捨，可能漏列（標題沒提到資產）或多列（名稱太常見），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "legacy-work-order-match",
+      "entry": "transfer-follow-rules"
     }
   }
 ]

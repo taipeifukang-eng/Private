@@ -21,6 +21,8 @@ export const PERM = {
   vendorView: 'general_affairs.vendor.view',
   vendorManage: 'general_affairs.vendor.manage',
   equipmentManage: 'general_affairs.equipment.manage',
+  equipmentView: 'general_affairs.equipment.view',
+  facilityManage: 'general_affairs.facility.manage',
   // 第 4 批 G14 至 G17：需求單與料件處理單
   serviceAccess: 'general_affairs.service_center.access',
   requestCreate: 'general_affairs.request.create',
@@ -56,6 +58,9 @@ export const PO_ACCOUNTS = {
   // 第 4 批 G26：設備管理權限（序號補填）、門市店長（只有名單身分，沒有任何權限；A = VW001、B = ZT01）
   eq_manage: [PERM.equipmentManage],
   purchaser_eq: [...THREE, PERM.equipmentManage],
+  // 第 4 批 G27：總務（設備管理＋需求單管理與看全部）、只有設備查看
+  tf_ga: [PERM.equipmentManage, PERM.facilityManage, PERM.equipmentView, PERM.requestManage, PERM.requestViewAll, PERM.requestViewOwn, PERM.serviceAccess],
+  tf_view: [PERM.equipmentView],
   storemgr_a: [] as string[],
   storemgr_b: [] as string[],
   // 第 4 批 G14 至 G17：總務（需求單與處理單管理＋採購三權限＋採購評估查看）、只有需求單管理（沒有採購與庫存權限）、只能看全部、門市店長（A = VW001、B = ZT01）、只能看自己門市、只有建立權限但不在任何門市名單

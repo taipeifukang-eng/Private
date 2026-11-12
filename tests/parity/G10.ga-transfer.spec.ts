@@ -79,11 +79,11 @@ test('轉移完成後：舊版設備詳情、舊版掃描範圍與新版回讀�
   if ((await inStore(s.VW001.id)) !== true) diffs.push({ kind: 'changed', key: 'legacy-list-new-store', legacy: false, native: true });
   if ((await inStore(s.ZT01.id)) !== false) diffs.push({ kind: 'changed', key: 'legacy-list-old-store', legacy: true, native: false });
 
-  // 新版才有：轉移單 API；進行中的報修單仍屬原門市
+  // 新版才有：轉移單 API；第 4 批 G27 起，維修類未結案報修單在確認收到時一起轉到新門市（D20、D21）
   const probe = await apis.ga_works.get(`${L}/equipment/transfers`);
   diffs.push({ kind: 'only-native', key: 'transfers-api', detail: `舊版沒有轉移單（舊版 /equipment/transfers 回 ${probe.status()}），新版 /transfers 為新增` });
-  expect((await row('ga_service_requests', repair.id)).store_id).toBe(s.ZT01.id);
-  diffs.push({ kind: 'changed', key: 'open-requests-stay-in-origin-store', detail: '換店後進行中的報修單仍屬原門市（解讀 h）' });
+  expect((await row('ga_service_requests', repair.id)).store_id).toBe(s.VW001.id);
+  diffs.push({ kind: 'changed', key: 'open-requests-follow-asset', detail: '換店後維修類未結案報修單與工單一起轉到新門市（D20、D21，取代第 2 批解讀 h；舊版改所屬門市時單子留在原門市）' });
   assertNoUnlistedDiffs(record({ entry: e.id, mechanism: 'api-read', title: '轉移單完成後回讀', legacy: { endpoint: `GET ${L}/equipment/:id` }, native: { endpoint: `GET ${N}/equipment/:id` }, compared: { rows: 1 }, diffs }));
 });
 
