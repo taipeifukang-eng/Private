@@ -6719,5 +6719,213 @@
         "supervisor"
       ]
     }
+  },
+  {
+    "id": "m7m8-b4-pu-vendor-opts-legacy-status",
+    "page": "ga-purchase-orders",
+    "description": "採購單的供應商選項只回合作中（active）的廠商，所以不回 status 欄位；舊版採購評估頁的廠商清單回 status（內容固定是 active）。",
+    "reason": "D8：採購單只能選已建好且合作中的供應商。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "status",
+      "entry": "vendor-options-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-vendor-opts-legacy-phone",
+    "page": "ga-purchase-orders",
+    "description": "採購單的供應商選項不回電話；舊版採購評估頁的廠商清單回電話。",
+    "reason": "實作取捨：採購單選擇器只需要名稱、別名、統編與付款條件，電話與聯絡人請到廠商管理頁看。待使用者確認是否要補回。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "phone",
+      "entry": "vendor-options-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-vendor-opts-legacy-contact",
+    "page": "ga-purchase-orders",
+    "description": "採購單的供應商選項不回聯絡人；舊版採購評估頁的廠商清單回聯絡人。",
+    "reason": "實作取捨：同上，採購單選擇器不帶聯絡人。待使用者確認是否要補回。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "contact_name",
+      "entry": "vendor-options-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-vendor-opts-tax-id",
+    "page": "ga-purchase-orders",
+    "description": "採購單的供應商選項多回統一編號；沒有廠商檢視或管理權限者，伺服端回空值（遮蔽）。",
+    "reason": "D8：統編、付款條件等帳務欄位只給有廠商管理或檢視權限者看，伺服端遮蔽。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "tax_id",
+      "entry": "vendor-options-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-vendor-opts-payment-terms",
+    "page": "ga-purchase-orders",
+    "description": "採購單的供應商選項多回付款條件；沒有廠商檢視或管理權限者，伺服端回空值（遮蔽）。",
+    "reason": "D8：帳務欄位依廠商權限遮蔽，下訂時複製快照。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "payment_terms",
+      "entry": "vendor-options-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-vendor-opts-vendor-type",
+    "page": "ga-purchase-orders",
+    "description": "採購單的供應商選項多回廠商類型（vendor_type）。",
+    "reason": "實作取捨：選擇器顯示用，沒有權限問題。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "vendor_type",
+      "entry": "vendor-options-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-review-progress-text",
+    "page": "ga-purchase-orders",
+    "description": "採購評估選「進入採購」儲存後，新版需求單的對外進度文字多一句「已產生草稿採購單，確認供應商與單價後才會下訂」。",
+    "reason": "D1：評估選進入採購時自動產生草稿採購單，確認供應商與單價後才下訂。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "public_progress",
+      "entry": "purchase-review-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-review-fulfillment-status",
+    "page": "ga-purchase-orders",
+    "description": "採購評估選「進入採購」後，新版處理單狀態是「採購中」（草稿採購單尚未下訂）；舊版直接是「等待到貨」。",
+    "reason": "D1／D10：採購單要下訂後才等待到貨；草稿、待核准、已核准待下訂都算採購中。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "fulfillment#status",
+      "entry": "purchase-review-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-review-fulfillment-step",
+    "page": "ga-purchase-orders",
+    "description": "處理單進度說明：新版「採購單尚未下訂（草稿、待核准或已核准待下訂）」，舊版「已建立採購單，等待到貨」。",
+    "reason": "D1／D10：同上。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "fulfillment#current_step",
+      "entry": "purchase-review-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-review-draft-po",
+    "page": "ga-purchase-orders",
+    "description": "採購評估選「進入採購」後，新版同交易產生一張草稿採購單並連回需求單；舊版沒有採購單這個東西。",
+    "reason": "D1：新增獨立採購單，評估自動產生草稿並連回需求單。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "purchase-order-count#linked",
+      "entry": "purchase-review-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-review-purchase-no",
+    "page": "ga-purchase-orders",
+    "description": "新版評估列不再產生舊版的評估採購編號（ga_next_purchase_order_no）；採購編號改為採購單的單號 PO-台北日期-流水號。",
+    "reason": "D7：單號 PO-台北日期-流水號。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "review#purchase_no-present",
+      "entry": "purchase-review-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-review-version-required",
+    "page": "ga-purchase-orders",
+    "description": "採購評估儲存沒帶版本（expected_updated_at）：舊版不檢查，新版 400；版本不符回 409 STALE。",
+    "reason": "通則：寫入帶版本、衝突回 409 STALE。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "missing-version-status",
+      "entry": "purchase-review-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-receipt-reference-type",
+    "page": "ga-purchase-orders",
+    "description": "採購到貨入庫的庫存流水，新版參考單據是採購單（GA_PURCHASE_ORDER），舊版是採購評估（GA_PURCHASE_REVIEW）；數量、類型與位置相同。",
+    "reason": "D1／D12：到貨、驗入都走採購單，登錄到貨即驗入。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "transaction#reference_type",
+      "entry": "purchase-receipt-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-receipt-fulfillment-step",
+    "page": "ga-purchase-orders",
+    "description": "採購部分到貨後處理單進度說明：新版「已下訂，等待到貨（已到貨 3 / 4）」，舊版「採購已到貨 3，繼續等待剩餘數量」；已處理量相同。",
+    "reason": "D1／D2：需求單頁與處理單顯示其所有採購單的進度。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "current_step",
+      "entry": "purchase-receipt-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-receipt-request-progress",
+    "page": "ga-purchase-orders",
+    "description": "採購到貨入庫後，新版不改需求單對外進度文字（到貨只更新採購單與處理單，達需求量後顯示「待交付」，由總務按「送門市確認」才一起往下）；舊版到貨會把需求單進度改成「採購已部分到貨入庫…」。",
+    "reason": "Q18：到貨／收貨後處理單顯示待交付，由總務按送門市確認，需求單與處理單才一起往下。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "public_progress",
+      "entry": "purchase-receipt-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-pu-nav-purchase-orders",
+    "page": "ga-assets",
+    "description": "新版總務側欄在「作業管理」多一個「採購單」入口（持採購評估檢視／管理或採購核准者），核准人另有「待簽核採購單」；舊版側欄沒有採購單頁面。",
+    "reason": "D1、D6：新增獨立採購單與核准流程；新頁入口補在「作業管理」群組（不改舊版側欄元件）。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:purchase-orders-new",
+      "entry": "sidebar-visibility"
+    }
   }
 ]

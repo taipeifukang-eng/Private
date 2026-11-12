@@ -1,0 +1,29 @@
+{
+  "page": "ga-purchase-orders",
+  "legacyRoute": "/general-affairs/requests",
+  "workItem": "G25-ui",
+  "entries": [
+    {
+      "id": "vendor-options-read",
+      "mechanism": "api-read",
+      "description": "採購單的供應商選項與舊版需求單採購評估頁的廠商清單（同一份 ga_vendors）：舊版 GET /api/general-affairs/requests/:id/purchase-review 的 vendors（合作中的全部廠商）與新版 GET /purchase-orders/vendor-options 逐筆比對（只比本次測試建立的廠商；停用廠商兩邊都不列）。差異：新版分頁、只回合作中、多回統編與付款條件（沒有廠商檢視權限者伺服端遮蔽為空）與廠商類型；舊版多回電話與聯絡人。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id/purchase-review" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/purchase-orders/vendor-options" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "purchase-review-write-readback",
+      "mechanism": "write-readback",
+      "description": "採購評估選「進入採購」後以 service role 回讀資料庫：同一份輸入分別用舊版 POST /api/general-affairs/requests/:id/purchase-review 與新版同路徑儲存（各用一張相同初始狀態的需求單），評估列、需求單狀態與對外進度、事件、處理單相同。新規則差異：新版同交易產生草稿採購單並連回需求單（D1），處理單為「採購中」直到下訂；舊版直接進入「等待到貨」並產生評估採購編號；新版必須帶版本（expected_updated_at）。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id/purchase-review", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/requests/:id/purchase-review", "method": "POST" } }
+    },
+    {
+      "id": "purchase-receipt-write-readback",
+      "mechanism": "write-readback",
+      "description": "採購到貨入庫後回讀庫存：舊版需求單頁「收貨」POST /api/general-affairs/requests/:id/purchase-receipt 與新版採購單「登錄到貨」POST /purchase-orders/:id/receipts，入庫同樣數量後，庫存餘額增加相同、流水為入庫、處理單已處理量相同。新規則差異：到貨要先有已下訂的採購單、到貨即驗入（合併一步）、可部分到貨與破損拒收、超收擋、流水參考單據改為採購單；評估已有採購單時舊版收貨被資料庫擋下，避免雙記庫存。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id/purchase-receipt", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/purchase-orders/:id/receipts", "method": "POST" } }
+    }
+  ]
+}

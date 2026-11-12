@@ -15,6 +15,8 @@ const REQUIRED_ROLE_KEYS = [
   'ga_works', 'ga_store_manager_b',
   // M7/M8 第 3 批 G11：庫存位置只有查看／管理（沒有料件查看）的測試帳號（記帳與調撥的 *_only 帳號在下面的單一權限清單）
   'ga_inv_location_view', 'ga_inv_location_edit',
+  // 第 4 批 G25：採購單測試帳號（採購人員、核准人、缺料件檢視；只有採購評估管理與只有庫存過帳的 *_only 帳號在下面的單一權限清單）
+  'ga_po_purchaser', 'ga_po_approver', 'ga_po_no_partview',
 ];
 
 describe('T01 role-matrix.json', () => {
@@ -34,6 +36,8 @@ describe('T01 role-matrix.json', () => {
       promotion_delete_only: ['employee.promotion.delete'],
       ga_inv_txn_only: ['general_affairs.inventory_transaction.manage'],
       ga_inv_transfer_only: ['general_affairs.inventory_transfer.manage'],
+      ga_po_review_only: ['general_affairs.purchase_review.manage'],
+      ga_po_stock_only: ['general_affairs.inventory_transaction.manage'],
     });
   });
 

@@ -424,7 +424,9 @@
           "gaReportCreate": true,
           "gaMyReports": true,
           "gaRequests": true,
-          "gaPartFulfillments": true
+          "gaPartFulfillments": true,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -463,7 +465,7 @@
           "/store/relationship-members",
           "/supervisor-management-log"
         ],
-        "permissionCount": 242
+        "permissionCount": 243
       }
     },
     {
@@ -628,7 +630,9 @@
           "gaReportCreate": false,
           "gaMyReports": true,
           "gaRequests": true,
-          "gaPartFulfillments": true
+          "gaPartFulfillments": true,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -781,7 +785,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -916,7 +922,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1059,7 +1067,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1189,7 +1199,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1316,7 +1328,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1423,7 +1437,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -1543,7 +1559,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1696,7 +1714,9 @@
           "gaReportCreate": true,
           "gaMyReports": true,
           "gaRequests": true,
-          "gaPartFulfillments": true
+          "gaPartFulfillments": true,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -1805,7 +1825,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1904,7 +1926,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1996,7 +2020,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2091,7 +2117,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2189,7 +2217,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2286,7 +2316,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2380,7 +2412,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2478,7 +2512,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2574,7 +2610,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2669,7 +2707,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2768,7 +2808,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2864,7 +2906,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2959,7 +3003,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -3057,7 +3103,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -3154,7 +3202,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -3251,7 +3301,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3349,7 +3401,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3446,7 +3500,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3541,7 +3597,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3637,7 +3695,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3733,7 +3793,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3830,7 +3892,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3931,7 +3995,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -4031,7 +4097,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -4127,7 +4195,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4225,7 +4295,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4321,7 +4393,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4419,7 +4493,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -4522,7 +4598,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -4619,7 +4697,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -4717,7 +4797,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -4813,7 +4895,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -4913,7 +4997,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -5010,7 +5096,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -5108,7 +5196,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -5203,7 +5293,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -5299,7 +5391,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -5395,7 +5489,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5493,7 +5589,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5590,7 +5688,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5685,7 +5785,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5780,7 +5882,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5875,7 +5979,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5969,7 +6075,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6064,7 +6172,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/store-managers",
@@ -6161,7 +6271,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6255,7 +6367,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6351,7 +6465,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6444,7 +6560,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -6538,7 +6656,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/employee-management",
@@ -6632,7 +6752,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -6725,7 +6847,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6875,7 +6999,9 @@
           "gaReportCreate": true,
           "gaMyReports": true,
           "gaRequests": true,
-          "gaPartFulfillments": true
+          "gaPartFulfillments": true,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -6999,7 +7125,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -7101,7 +7229,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7197,7 +7327,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7294,7 +7426,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7393,7 +7527,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7487,7 +7623,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7582,7 +7720,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7676,7 +7816,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7772,7 +7914,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7867,7 +8011,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7963,7 +8109,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -8057,7 +8205,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -8152,7 +8302,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -8245,7 +8397,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -8339,7 +8493,9 @@
           "gaReportCreate": false,
           "gaMyReports": false,
           "gaRequests": false,
-          "gaPartFulfillments": false
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -8347,6 +8503,498 @@
           "/organization/calendar"
         ],
         "permissionCount": 1
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_po_purchaser",
+      "email": "vue-workspace-ga-po-purchaser@example.test",
+      "roleCode": "vue_workspace_ga_purchaser",
+      "fullName": "測試 總務採購人員",
+      "profileRole": "member",
+      "jobTitle": "總務採購",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_balance.view",
+        "general_affairs.inventory_location.view",
+        "general_affairs.inventory_transaction.manage",
+        "general_affairs.inventory_transaction.view",
+        "general_affairs.part.view",
+        "general_affairs.part_fulfillment.manage",
+        "general_affairs.part_fulfillment.view",
+        "general_affairs.purchase_review.manage",
+        "general_affairs.purchase_review.view",
+        "general_affairs.request.manage",
+        "general_affairs.request.view_all",
+        "general_affairs.service_center.access",
+        "general_affairs.vendor.view"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": true,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": true,
+          "gaInventory": true,
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": true,
+          "gaRequests": true,
+          "gaPartFulfillments": true,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": false
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/general-affairs/inventory",
+          "/organization/calendar"
+        ],
+        "permissionCount": 13
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_po_approver",
+      "email": "vue-workspace-ga-po-approver@example.test",
+      "roleCode": "vue_workspace_ga_po_approver",
+      "fullName": "測試 採購核准人",
+      "profileRole": "member",
+      "jobTitle": "採購核准",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.purchase_order.approve",
+        "general_affairs.purchase_review.view",
+        "general_affairs.service_center.access"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": false,
+          "gaInventory": false,
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": true
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/organization/calendar"
+        ],
+        "permissionCount": 3
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_po_review_only",
+      "email": "vue-workspace-ga-po-review-only@example.test",
+      "roleCode": "vue_workspace_ga_po_review_only",
+      "fullName": "測試 只有採購評估管理",
+      "profileRole": "member",
+      "jobTitle": "只有採購評估管理",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.purchase_review.manage"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": false,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": false,
+          "gaInventory": false,
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": false
+        },
+        "navigationHrefs": [
+          "/organization/calendar"
+        ],
+        "permissionCount": 1
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_po_stock_only",
+      "email": "vue-workspace-ga-po-stock-only@example.test",
+      "roleCode": "vue_workspace_ga_po_stock_only",
+      "fullName": "測試 只有庫存過帳",
+      "profileRole": "member",
+      "jobTitle": "只有庫存過帳",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_transaction.manage"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": false,
+          "gaInventory": true,
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": false,
+          "gaPurchaseApprovals": false
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/general-affairs/inventory",
+          "/organization/calendar"
+        ],
+        "permissionCount": 1
+      }
+    },
+    {
+      "kind": "role",
+      "key": "ga_po_no_partview",
+      "email": "vue-workspace-ga-po-no-partview@example.test",
+      "roleCode": "vue_workspace_ga_po_no_partview",
+      "fullName": "測試 缺料件檢視",
+      "profileRole": "member",
+      "jobTitle": "缺料件檢視",
+      "systemRoles": [],
+      "permissions": [
+        "general_affairs.inventory_transaction.manage",
+        "general_affairs.purchase_review.manage"
+      ],
+      "stores": [],
+      "expected": {
+        "capabilities": {
+          "employeePurchases": false,
+          "pharmacists": false,
+          "relationships": false,
+          "roles": false,
+          "users": false,
+          "transfers": false,
+          "movementDraft": false,
+          "movementHistory": false,
+          "employees": false,
+          "employeeCreate": false,
+          "employeeBirthdays": false,
+          "employeeImport": false,
+          "departments": false,
+          "organization": false,
+          "storeMap": false,
+          "storeManagement": false,
+          "supervisors": false,
+          "storeManagers": false,
+          "tasks": false,
+          "dashboard": false,
+          "taskArchive": false,
+          "taskManagement": false,
+          "inspectionSettings": false,
+          "improvements": false,
+          "monthly": false,
+          "monthlyExport": false,
+          "monthlyRelease": true,
+          "performance": false,
+          "inventory": false,
+          "importInventory": false,
+          "deleteInventory": false,
+          "compareInspections": false,
+          "createInspections": false,
+          "inspections": false,
+          "managerInspections": false,
+          "campaigns": false,
+          "campaignView": false,
+          "calendar": true,
+          "editCampaigns": false,
+          "gaCenter": true,
+          "gaEquipmentCategories": false,
+          "gaFacilityCategories": false,
+          "gaPartCategories": false,
+          "gaParts": false,
+          "gaPartCreate": false,
+          "gaPartCompat": false,
+          "gaEquipmentTemplates": false,
+          "gaFacilityTemplates": false,
+          "gaEquipment": false,
+          "gaEquipmentCreate": false,
+          "gaFacilities": false,
+          "gaFacilityCreate": false,
+          "gaEquipmentWarranties": false,
+          "gaFacilityWarranties": false,
+          "gaEquipmentHistory": false,
+          "gaFacilityHistory": false,
+          "gaOnboardingTasks": false,
+          "gaOnboardingReview": false,
+          "gaEquipmentLabels": false,
+          "gaFacilityLabels": false,
+          "gaTransfers": false,
+          "gaOnboardingProgress": false,
+          "gaAssetImport": false,
+          "gaInventoryLocations": false,
+          "gaInventory": true,
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false,
+          "gaPurchaseOrders": true,
+          "gaPurchaseApprovals": false
+        },
+        "navigationHrefs": [
+          "/general-affairs",
+          "/general-affairs/inventory",
+          "/organization/calendar"
+        ],
+        "permissionCount": 2
       }
     }
   ],
