@@ -5,6 +5,8 @@ import Modal from "../../components/Modal.vue";
 import UploadPicker from "../../components/UploadPicker.vue";
 import GaShell from "../../components/ga/GaShell.vue";
 import TransferCreateDialog from "../../components/ga/TransferCreateDialog.vue";
+import MovedRequestsList from "../../components/ga/MovedRequestsList.vue";
+import { moveHeadline, moveResultText } from "../../lib/ga-asset-move";
 import { assetNoun, formatDateTime, TRANSFER_EVENT_LABEL, TRANSFER_STATUS_LABEL, TRANSFER_STATUS_SHORT, type TransferDetail, type TransferRow } from "../../lib/ga-transfers";
 import { useDebounced, useGaGuard, useLatest } from "../../lib/ga";
 import { checkTotalSize, type PreparedFile } from "../../lib/upload";
@@ -78,7 +80,7 @@ onMounted(load);
 const creating = ref(false);
 function created(info: { transfer_no: string; open_count: number }) {
   creating.value = false;
-  notice.value = `已發起轉移單 ${info.transfer_no}，等轉出門市店長確認交出` + (info.open_count ? `（還有 ${info.open_count} 張未結案單，換店後仍屬原門市）` : "");
+  notice.value = `已發起轉移單 ${info.transfer_no}，等轉出門市店長確認交出` + (info.open_count ? `（還有 ${info.open_count} 張未結案單；維修類進行中的單會在轉入門市確認收到時一起轉過去）` : "");
   view.value = "open";
   load();
 }
@@ -133,10 +135,10 @@ async function confirmStep() {
     const fd = new FormData();
     if (note.value.trim()) fd.set("note", note.value.trim());
     for (const p of photos.value) fd.append("files", p.file);
-    await api(`general-affairs/transfers/${t.id}/${mode.value}`, { method: "POST", body: fd });
+    const done = await api<{ data: { moved_request_count?: number; unlinked_work_order_count?: number } }>(`general-affairs/transfers/${t.id}/${mode.value}`, { method: "POST", body: fd });
     notice.value = mode.value === "handover"
       ? `已確認交出「${t.asset_name}」，等 ${t.to_store_name} 店長確認收到`
-      : `已確認收到「${t.asset_name}」，這${assetNoun(t.asset_type)}現在屬於 ${t.to_store_name}，原 QR 標籤繼續可用`;
+      : `已確認收到「${t.asset_name}」，這${assetNoun(t.asset_type)}現在屬於 ${t.to_store_name}，原 QR 標籤繼續可用${moveResultText(done?.data)}`;
     openSeq++;
     current.value = null;
     await load();
@@ -222,7 +224,7 @@ const route = (t: TransferRow) => `${t.from_store_name || "—"} → ${t.to_stor
         <p class="line muted">{{ t.transfer_no }} · {{ t.asset_code || "尚無編號" }}</p>
         <p class="route">{{ route(t) }}</p>
         <p><span class="state" :class="'s-' + t.status">{{ TRANSFER_STATUS_SHORT[t.status] }}</span> <span class="muted">{{ TRANSFER_STATUS_LABEL[t.status] }}</span></p>
-        <p v-if="t.open_request_count && (t.status === 'PENDING_HANDOVER' || t.status === 'PENDING_RECEIVE')" class="notice" role="note">還有 {{ t.open_request_count }} 張未結案單，換店後仍屬原門市。</p>
+        <p v-if="t.open_request_count && (t.status === 'PENDING_HANDOVER' || t.status === 'PENDING_RECEIVE')" class="notice" role="note">還有 {{ t.open_request_count }} 張未結案單；進行中的維修單會在確認收到時一起轉到新門市。</p>
         <button v-if="t.canHandover" type="button" class="primary big" @click="open(t, 'handover')">確認交出</button>
         <button v-if="t.canReceive" type="button" class="primary big" @click="open(t, 'receive')">確認收到</button>
         <button type="button" class="big" @click="open(t)">查看詳情</button>
@@ -248,10 +250,11 @@ const route = (t: TransferRow) => `${t.from_store_name || "—"} → ${t.to_stor
         <div><dt>轉出 → 轉入</dt><dd>{{ route(current) }}</dd></div>
         <div class="wide"><dt>轉移原因</dt><dd>{{ current.reason }}<template v-if="current.note">（{{ current.note }}）</template></dd></div>
       </dl>
-      <p v-if="current.open_request_count && (current.status === 'PENDING_HANDOVER' || current.status === 'PENDING_RECEIVE')" class="notice" role="note">發起時還有 {{ current.open_request_count }} 張未結案單；換店後這些單子仍屬原門市（{{ current.from_store_name }}）。</p>
+      <p v-if="current.open_request_count && (current.status === 'PENDING_HANDOVER' || current.status === 'PENDING_RECEIVE')" class="notice" role="note">發起時還有 {{ current.open_request_count }} 張未結案單；進行中的維修單會在確認收到時一起轉到 {{ current.to_store_name }}，添購等其他類型的單留在 {{ current.from_store_name }}。</p>
 
       <template v-if="mode === 'handover' || mode === 'receive'">
         <p class="notice" role="note">{{ mode === "handover" ? "確認後，這" + assetNoun(current.asset_type) + "會等 " + current.to_store_name + " 店長確認收到才換店。" : "確認後，這" + assetNoun(current.asset_type) + "會立刻改屬於 " + current.to_store_name + "，QR 標籤沿用。" }}</p>
+        <p class="notice" role="note" data-testid="transfer-move-note">{{ moveHeadline(current.to_store_name) }}{{ mode === "receive" ? "確認收到後，這些單會出現在你的門市；原門市只會留下已結案的單。" : "" }}</p>
         <label>備註（選填）<textarea v-model="note" rows="2" maxlength="500" aria-label="備註" /></label>
         <UploadPicker v-model="photos" :max="3" images-only :disabled="actionBusy" label="拍照／選擇照片（最多 3 張）" @busy="(b: boolean) => (pickerBusy = b)" />
         <div class="dialog-actions">
@@ -268,6 +271,7 @@ const route = (t: TransferRow) => `${t.from_store_name || "—"} → ${t.to_stor
         </div>
       </template>
       <template v-else>
+        <MovedRequestsList v-if="mode === 'view' && current.status !== 'CANCELLED'" :rows="current.moved || []" :completed="current.status === 'COMPLETED'" />
         <section class="timeline">
           <h4>歷程</h4>
           <ol v-if="current.events.length" aria-label="轉移歷程">

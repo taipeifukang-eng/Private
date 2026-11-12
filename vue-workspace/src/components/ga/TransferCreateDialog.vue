@@ -3,6 +3,8 @@ import { computed, ref, watch } from "vue";
 import { api } from "../../api";
 import Modal from "../Modal.vue";
 import AssetSitePicker from "./AssetSitePicker.vue";
+import MoveFollowNotice from "./MoveFollowNotice.vue";
+import type { MovePreview } from "../../lib/ga-asset-move";
 import { storeLabel } from "../../lib/ga-assets";
 import { assetNoun } from "../../lib/ga-transfers";
 import { useDebounced, useLatest } from "../../lib/ga";
@@ -27,6 +29,8 @@ const note = ref("");
 const error = ref("");
 const busy = ref(false);
 const openCount = ref<number | null>(null);
+const preview = ref<MovePreview | null>(null);
+const previewBusy = ref(false);
 
 async function find() {
   if (picked.value) return;
@@ -56,6 +60,7 @@ async function pick(r: Picked) {
 }
 async function loadOpen() {
   if (!picked.value) return;
+  void loadPreview();
   try {
     const kind = picked.value.type === "FACILITY" ? "facilities" : "equipment";
     openCount.value = (await api<{ data: { open_count: number } }>(`general-affairs/${kind}/${picked.value.id}/open-orders`)).data.open_count;
@@ -65,6 +70,18 @@ async function loadOpen() {
 }
 if (props.asset) loadOpen();
 
+async function loadPreview() {
+  if (!picked.value) return;
+  previewBusy.value = true;
+  try {
+    const kind = picked.value.type === "FACILITY" ? "facilities" : "equipment";
+    preview.value = (await api<{ data: MovePreview }>(`general-affairs/${kind}/${picked.value.id}/open-orders`)).data;
+  } catch {
+    preview.value = null;
+  } finally {
+    previewBusy.value = false;
+  }
+}
 const sameStore = computed(() => !!picked.value && !!toStoreId.value && toStoreId.value === picked.value.store_id);
 async function submit() {
   if (!picked.value || busy.value) return;
@@ -104,10 +121,10 @@ async function submit() {
     </template>
     <template v-else>
       <p class="picked" data-testid="transfer-picked"><strong>{{ picked.name }}</strong>（{{ picked.code || "尚無編號" }}）<br />目前所屬：{{ storeLabel(picked.store) }}
-        <button v-if="!asset" type="button" class="link" @click="picked = null; openCount = null">重新選擇</button></p>
+        <button v-if="!asset" type="button" class="link" @click="picked = null; openCount = null; preview = null">重新選擇</button></p>
       <AssetSitePicker v-model="toStoreId" label="轉入門市" required @select="(s) => (toStoreName = s ? `${s.store_code} ${s.short_name || s.store_name}` : '')" />
       <p v-if="toStoreId" class="notice" role="status">{{ storeLabel(picked.store) }} → {{ toStoreName }}</p>
-      <p v-if="openCount" class="notice" role="status">目前有 {{ openCount }} 張未結案單；依規定，進行中的報修單與工單換店後仍屬原門市。</p>
+      <MoveFollowNotice :preview="preview" :to-name="toStoreName" :loading="previewBusy" />
       <label>轉移原因（必填）<input v-model="reason" maxlength="200" aria-label="轉移原因" /></label>
       <label>備註（選填）<textarea v-model="note" maxlength="500" rows="2" aria-label="轉移備註" /></label>
     </template>

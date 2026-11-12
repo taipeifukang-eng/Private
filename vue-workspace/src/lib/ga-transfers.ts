@@ -20,7 +20,10 @@ export type TransferRow = {
   received_by_name: string | null; received_at: string | null; receive_note: string | null; cancelled_by_name: string | null; cancelled_at: string | null; cancel_reason: string | null;
   canHandover: boolean; canReceive: boolean; canCancel: boolean;
 };
+import type { MovedRow } from "./ga-asset-move";
 export type TransferDetail = TransferRow & {
+  /** 第 4 批 G27：確認收到時一起搬走的單（含沒搬、要人工處理的舊式工單）。 */
+  moved?: MovedRow[];
   events: { id: string; event_type: string; reason: string | null; note: string | null; open_request_count: number | null; actor_name: string | null; created_at: string }[];
   photos: { id: string; step: "HANDOVER" | "RECEIVE"; file_name: string; content_type: string; url: string | null }[];
 };

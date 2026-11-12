@@ -8,6 +8,8 @@ import AssetSitePicker from "../../components/ga/AssetSitePicker.vue";
 import FacilityFormFields from "../../components/ga/FacilityFormFields.vue";
 import GaShell from "../../components/ga/GaShell.vue";
 import TransferCreateDialog from "../../components/ga/TransferCreateDialog.vue";
+import MoveFollowNotice from "../../components/ga/MoveFollowNotice.vue";
+import { moveResultText, type MovePreview } from "../../lib/ga-asset-move";
 import ResourceAttachmentPanel from "../../components/ga/ResourceAttachmentPanel.vue";
 import {
   CRITICALITY_LABEL, FACILITY_STATUS_LABEL, facilityFormFromRow, facilityPatch, formatDate, formatMoney, ONBOARDING_LABEL, ONBOARDING_STATUSES, storeLabel,
@@ -165,7 +167,7 @@ const EVENT_LABEL: Record<string, string> = {
 };
 
 // ------------------------------------------------------------------------------------------ 刪除（Q10）
-type OpenOrders = { open_count: number; open_requests: number; open_work_orders: number; open_transfer_id: string | null };
+type OpenOrders = { open_count: number; open_requests: number; open_work_orders: number; open_transfer_id: string | null } & Partial<MovePreview>;
 const deleting = ref<Asset | null>(null);
 const deleteReason = ref("");
 const deleteError = ref("");
@@ -252,10 +254,10 @@ async function confirmCorrect() {
   correctBusy.value = true;
   correctError.value = "";
   try {
-    await api(`general-affairs/facilities/${correcting.value.id}/correct-store`, {
+    const done = await api<{ data: { moved_request_count?: number; unlinked_work_order_count?: number } }>(`general-affairs/facilities/${correcting.value.id}/correct-store`, {
       method: "POST", body: JSON.stringify({ to_store_id: toStoreId.value, reason: correctReason.value.trim(), expected_updated_at: correcting.value.updated_at }),
     });
-    notice.value = `已更正設施「${correcting.value.name}」的所屬門市為 ${toStoreName.value}，並寫入異動紀錄`;
+    notice.value = `已更正設施「${correcting.value.name}」的所屬門市為 ${toStoreName.value}，並寫入異動紀錄${moveResultText(done?.data)}`;
     correcting.value = null;
     detail.value = null;
     await load();
@@ -394,7 +396,7 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
           <template v-else>
             <h4>異動紀錄</h4>
             <p v-if="!events.length" class="muted">還沒有異動紀錄。</p>
-            <ul v-else class="event-list"><li v-for="e in events" :key="e.id"><strong>{{ EVENT_LABEL[e.event_type] || e.event_type }}</strong> {{ formatDate(e.created_at) }} · {{ e.actor_name || "—" }}<template v-if="e.from_store_name || e.to_store_name"> · {{ e.from_store_name }} → {{ e.to_store_name }}</template><template v-if="e.reason">　原因：{{ e.reason }}</template><template v-if="e.open_request_count">　（當時還有 {{ e.open_request_count }} 張未結案單）</template></li></ul>
+            <ul v-else class="event-list"><li v-for="e in events" :key="e.id"><strong>{{ EVENT_LABEL[e.event_type] || e.event_type }}</strong> {{ formatDate(e.created_at) }} · {{ e.actor_name || "—" }}<template v-if="e.from_store_name || e.to_store_name"> · {{ e.from_store_name }} → {{ e.to_store_name }}</template><template v-if="e.reason">　原因：{{ e.reason }}</template><template v-if="e.open_request_count">　（當時還有 {{ e.open_request_count }} 張未結案單）</template><template v-if="e.moved_request_count">　（{{ e.moved_request_count }} 張進行中的維修單一起轉到新門市）</template></li></ul>
           </template>
           <p v-if="eventsError" class="field-error" role="alert">{{ eventsError }}</p>
         </section>
@@ -454,7 +456,8 @@ const emptyText = computed(() => (error.value ? "資料載入失敗" : search.va
       <p v-if="correctOrders?.open_transfer_id" class="notice error" role="alert">這台設施有進行中的轉移單，請先完成或取消轉移單再更正。</p>
       <template v-else>
         <AssetSitePicker v-model="toStoreId" label="更正為" required @select="(s) => (toStoreName = s ? `${s.store_code} ${s.short_name || s.store_name}` : '')" />
-        <p v-if="toStoreId" class="notice" role="status">{{ storeLabel(correcting.store) }} → {{ toStoreName }}。目前還有 {{ correctOrders?.open_count ?? 0 }} 張未結案單<template v-if="correctOrders?.open_count">，這些單子仍屬原門市</template>。</p>
+        <p v-if="toStoreId" class="notice" role="status">{{ storeLabel(correcting.store) }} → {{ toStoreName }}。目前還有 {{ correctOrders?.open_count ?? 0 }} 張未結案單。</p>
+        <MoveFollowNotice :preview="correctOrders && correctOrders.moving ? (correctOrders as MovePreview) : null" :to-name="toStoreName" :loading="correctBusy" />
         <label>更正原因（必填）<input v-model="correctReason" maxlength="200" aria-label="更正原因" /></label>
       </template>
       <p v-if="correctError" class="field-error" role="alert">{{ correctError }}</p>

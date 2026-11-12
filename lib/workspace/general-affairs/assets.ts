@@ -12,6 +12,7 @@ import {
   ASSET_TABLE, ASSET_TYPE, basicSelect, diffAssetPatch, LABEL_REPRINT_MESSAGE, OPEN_TRANSFER_BLOCKED_STATUS, openTransferBlockMessage, pickAssetFields, RESTORE_REQUIRED_MESSAGE, STORE_ID_EDIT_MESSAGE, TERMINAL_STATUS,
   warrantyInput, warrantyRanges, warrantyState, WARRANTY_FILTERS, type AssetKind, type AssetLevel, type WarrantyFilter,
 } from "./asset-fields";
+import { normalizeMovePreview } from "./asset-move";
 import { isUuid, orIlike, pagingMeta, parsePaging } from "./rules";
 import { SIGNED_URL_SECONDS } from "./upload-rules";
 import { GaError, body, dbError, must, respond, rpc, validated, type Context } from "./server";
@@ -397,7 +398,9 @@ async function update(ctx: Context, kind: AssetKind, request: NextRequest, rawId
 async function openOrders(ctx: Context, kind: AssetKind, rawId: string) {
   requireUuid(rawId, `${NOUN[kind]} id`);
   const r = await rpc(ctx, "ga_ws_asset_open_orders", { p_type: ASSET_TYPE[kind], p_id: rawId });
-  return respond({ data: r.data });
+  // 第 4 批 G27：換店時哪些單會一起搬、哪些留下、哪些舊式工單要人工處理（發起轉移與更正所屬門市的確認視窗用）。
+  const preview = await rpc(ctx, "ga_ws_asset_move_preview", { p_type: ASSET_TYPE[kind], p_id: rawId });
+  return respond({ data: { ...r.data, ...normalizeMovePreview(preview.data) } });
 }
 
 async function remove(ctx: Context, kind: AssetKind, request: NextRequest, rawId: string) {
@@ -437,7 +440,24 @@ async function events(ctx: Context, kind: AssetKind, rawId: string) {
   const ids = Array.from(new Set(rows.flatMap((r) => [r.from_store_id, r.to_store_id]).filter(Boolean)));
   const stores = ids.length ? (((await must((adminClient() as any).from("stores").select("id,store_code,store_name,short_name").in("id", ids))) as any[]) || []) : [];
   const name = new Map(stores.map((s) => [s.id, `${s.store_code} ${s.short_name || s.store_name}`]));
-  return respond({ data: rows.map((r) => ({ ...r, from_store_name: name.get(r.from_store_id) || null, to_store_name: name.get(r.to_store_id) || null })) });
+  // 第 4 批 G27：換店事件（轉移完成、更正所屬門市）標上這次一起搬走的單數；看不到搬單明細的人（只是店長身分）略過，不影響異動紀錄本身。
+  const movedByEvent = new Map<string, { moved: number; unlinked: number }>();
+  const moved = await (ctx.auth as any).rpc("ga_ws_asset_moved_list", { p_type: ASSET_TYPE[kind], p_asset_id: rawId, p_transfer_id: null });
+  if (!moved.error && moved.data?.ok === true) {
+    for (const m of (moved.data.data || []) as any[]) {
+      if (!m.asset_event_id) continue;
+      const cur = movedByEvent.get(m.asset_event_id) || { moved: 0, unlinked: 0 };
+      if (m.kind === "REQUEST") cur.moved += 1;
+      if (m.kind === "UNLINKED_WORK_ORDER") cur.unlinked += 1;
+      movedByEvent.set(m.asset_event_id, cur);
+    }
+  }
+  return respond({
+    data: rows.map((r) => ({
+      ...r, from_store_name: name.get(r.from_store_id) || null, to_store_name: name.get(r.to_store_id) || null,
+      moved_request_count: movedByEvent.get(r.id)?.moved ?? 0, unlinked_work_order_count: movedByEvent.get(r.id)?.unlinked ?? 0,
+    })),
+  });
 }
 
 export { warrantyInput, warrantyState };

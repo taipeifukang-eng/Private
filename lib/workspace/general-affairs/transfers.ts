@@ -1,6 +1,6 @@
 // Q28 設備／設施轉移單 API（/api/workspace/general-affairs/transfers/**）。
 // 平常換店一律走轉移單：總務發起 → 轉出門市店長確認交出 → 轉入門市店長確認收到（可附照片），收到才正式換店；QR token 沿用不重發。
-// 解讀 (g)：確認交出／收到只認 store_managers.role_type = 'store_manager' 的人；解讀 (h)：進行中的報修單與工單留在原門市，只顯示警示張數。
+// 解讀 (g)：確認交出／收到只認 store_managers.role_type = 'store_manager' 的人；第 4 批 G27（D20、D21）取代原解讀 (h)：確認收到時，同一交易內把這項資產「維修類未結案」需求單與其工單一起轉到新門市（添購等其他類型不搬、舊式工單只列清單）。
 // 讀取：用使用者自己的身分查（RLS 決定看得到哪些）；寫入：全部走資料庫函式（多步驟在同一交易，全成或全不變）；照片先傳儲存空間，函式失敗就移除剛傳的檔案。
 import { NextRequest } from "next/server";
 import { adminClient } from "../server";
@@ -119,8 +119,11 @@ async function one(ctx: Context, rawId: string) {
     const s = await (adminClient() as any).storage.from(BUCKET).createSignedUrls(paths, SIGNED_URL_SECONDS.list);
     (s.data || []).forEach((item: any, i: number) => item?.signedUrl && signed.set(paths[i], item.signedUrl));
   }
+  // 第 4 批 G27：搬走了哪些單（D21：轉移單可點開看）；沒有權限看明細時當作沒有，不讓整張詳情失敗。
+  const movedRes = await (ctx.auth as any).rpc("ga_ws_asset_moved_list", { p_transfer_id: rawId, p_type: null, p_asset_id: null });
+  const moved = !movedRes.error && movedRes.data?.ok === true ? ((movedRes.data.data || []) as any[]) : [];
   return respond({
-    data: { ...row, events: events || [], photos: photos.map((x) => ({ id: x.id, step: x.step, file_name: x.file_name, content_type: x.content_type, url: signed.get(x.storage_path) || null })) },
+    data: { ...row, moved, events: events || [], photos: photos.map((x) => ({ id: x.id, step: x.step, file_name: x.file_name, content_type: x.content_type, url: signed.get(x.storage_path) || null })) },
   });
 }
 
