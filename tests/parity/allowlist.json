@@ -6622,5 +6622,70 @@
       "key": "is_overdue_confirm",
       "entry": "request-detail-read"
     }
+  },
+  {
+    "id": "m7m8-b4-rc-part-equipment-template-id",
+    "page": "ga-assets",
+    "description": "新版料件清單與詳情多回 equipment_template_id（料件採購入庫後可轉成的設備型號）；舊版料件沒有這個欄位。",
+    "reason": "D14：一個料件對應一個設備型號，配發時帶入。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "equipment_template_id",
+      "entry": "parts-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-nav-requests-conditions",
+    "page": "ga-assets",
+    "description": "舊側欄的「總務需求工作台」「料件處理中心」對進得了服務中心、但沒有需求單查看全部／管理或處理單查看／管理權限的角色（例如只有料件或分類權限的人）也會列出，點進去被 API 擋；新版已移植的頁面只在有對應權限時才列。",
+    "reason": "把入口對齊 API（舊版是壞入口）。G14 至 G17 實作時的取捨，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "unexpected:service-requests-intake",
+      "entry": "sidebar-visibility"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-nav-fulfillments-conditions",
+    "page": "ga-assets",
+    "description": "同上：舊側欄的「料件處理中心」對沒有處理單查看／管理權限的角色也會列出，新版不列。",
+    "reason": "把入口對齊 API。G14 至 G17 實作時的取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "unexpected:part-request-review",
+      "entry": "sidebar-visibility"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-nav-report-create-conditions",
+    "page": "ga-assets",
+    "description": "舊側欄的「新增需求」要求維修模組權限（維修回報建立或查看全部）之一；只有維修模組權限、沒有「需求單建立」權限的人舊版看得到入口，進去建立被 API 擋。新版入口只認「需求單建立」。",
+    "reason": "把入口對齊 API。上線前請確認店長角色有 request.create、view_own_store、comment_own_store、confirm_own_store（舊版頁面本來就需要）。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "unexpected:new-maintenance-report",
+      "entry": "sidebar-visibility"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-nav-my-reports-conditions",
+    "page": "ga-assets",
+    "description": "舊側欄的「我的追蹤」要求維修模組權限之一；只有維修模組權限、沒有需求單查看（自己門市、全部或管理）的人舊版看得到入口，進去被 API 擋。新版入口只認需求單查看權限。",
+    "reason": "把入口對齊 API。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "unexpected:maintenance",
+      "entry": "sidebar-visibility"
+    }
   }
 ]
