@@ -87,6 +87,9 @@ import GaInventory from "./pages/ga/GaInventory.vue";
 import InventoryTransfers from "./pages/ga/InventoryTransfers.vue";
 import MyReports from "./pages/ga/MyReports.vue";
 import PartFulfillments from "./pages/ga/PartFulfillments.vue";
+import PurchaseApprovals from "./pages/ga/PurchaseApprovals.vue";
+import PurchaseOrderEdit from "./pages/ga/PurchaseOrderEdit.vue";
+import PurchaseOrders from "./pages/ga/PurchaseOrders.vue";
 import ReportCreate from "./pages/ga/ReportCreate.vue";
 import Requests from "./pages/ga/Requests.vue";
 import UserManagement from "./pages/Users.vue";
@@ -203,6 +206,9 @@ const components: Record<WorkTabKind, Component> = {
   "ga-my-reports": MyReports,
   "ga-requests": Requests,
   "ga-part-fulfillments": PartFulfillments,
+  "ga-purchase-orders": PurchaseOrders,
+  "ga-purchase-order-edit": PurchaseOrderEdit,
+  "ga-purchase-approvals": PurchaseApprovals,
   "ga-part-compat": PartCompatibilities,
   "ga-equipment-templates": AssetTemplates,
   "ga-facility-templates": AssetTemplates,

@@ -7,8 +7,9 @@ import { adminClient } from "../server";
 import { dbCan, GA } from "./access";
 import { ONBOARDING_STATUSES } from "./asset-fields";
 import { isUuid } from "./rules";
+import { validateSerialPayload } from "./purchase-receipt-rules";
 import { checkFile, fileExtension, isImageType, SIGNED_URL_SECONDS, storagePath } from "./upload-rules";
-import { GaError, body, must, respond, rpc, type Context } from "./server";
+import { GaError, body, must, respond, rpc, validated, type Context } from "./server";
 
 const BUCKET = "general-affairs-attachments";
 const PURPOSES = ["PRIMARY_IMAGE", "LABEL_POSITION_IMAGE"] as const;
@@ -19,6 +20,7 @@ export async function onboardingApi(ctx: Context, request: NextRequest, rest: st
   const m = request.method;
   if (head === "tasks" && m === "GET") return tasks(ctx, new URL(request.url), false);
   if (head === "photo" && m === "POST") return photo(ctx, request);
+  if (head === "serial" && m === "POST") return serial(ctx, request);
   if (head === "review" && m === "GET") return tasks(ctx, new URL(request.url), true);
   if (head === "review" && m === "POST") return review(ctx, request);
   if (head === "progress" && m === "GET") return progress(ctx, new URL(request.url));
@@ -67,6 +69,26 @@ async function attachPhotos(rows: any[]) {
   return out;
 }
 
+/** 第 4 批（G26）：配發建立的設備序號可以空白，由店長貼標時補填；待辦卡片需要目前序號（資料庫待辦函式不回，這裡依已限縮範圍的 id 補上）。 */
+async function attachSerials(rows: any[]) {
+  const ids = rows.filter((r) => r.asset_type === "EQUIPMENT").map((r) => r.id as string);
+  if (!ids.length) return rows;
+  const res = await (adminClient() as any).from("ga_equipment").select("id,serial_number").in("id", ids);
+  const serial = new Map<string, string | null>(((res.data as any[]) || []).map((r) => [r.id as string, r.serial_number as string | null]));
+  return rows.map((r) => (r.asset_type === "EQUIPMENT" ? { ...r, serial_number: serial.get(r.id) ?? null } : r));
+}
+
+/** 序號補填：限該門市店長與設備管理權限者（資料庫函式判斷）；已有序號要改須填原因，同型號序號不可重複。 */
+async function serial(ctx: Context, request: NextRequest) {
+  const b = await body(request);
+  const id = String(b.equipmentId ?? b.assetId ?? "").trim();
+  if (!isUuid(id)) throw new GaError(400, "缺少或錯誤的設備 id");
+  const { assetId: _a, equipmentId: _e, ...rest } = b;
+  const v = validated(() => validateSerialPayload(rest));
+  const r = await rpc(ctx, "ga_ws_onboarding_set_serial", { p_equipment_id: id, p_serial: v.serial, p_reason: v.reason });
+  return respond({ data: r.data });
+}
+
 /** 待辦範圍（與資料庫函式相同）：設備／設施查看或管理、需求單管理或全部、門市管理者，或店長名單內任何身分；其餘 403（函式本身對沒範圍的人只會回空清單）。 */
 async function requireTaskScope(ctx: Context) {
   if (dbCan(ctx.permissions, GA.equipmentView, GA.equipmentManage, GA.facilityView, GA.facilityManage, "general_affairs.request.manage", "general_affairs.request.view_all", "store.manage")) return;
@@ -90,7 +112,7 @@ async function tasks(ctx: Context, url: URL, reviewOnly: boolean) {
     p_statuses: statuses, p_asset_type: type, p_store_id: storeId || null, p_search: (p.get("q") || p.get("search") || "").trim().slice(0, 100) || null,
     p_limit: pageSize, p_offset: (page - 1) * pageSize,
   });
-  const rows = await attachPhotos(r.data.rows || []);
+  const rows = await attachSerials(await attachPhotos(r.data.rows || []));
   const total = Number(r.data.total || 0);
   return respond({
     data: rows, total, meta: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },

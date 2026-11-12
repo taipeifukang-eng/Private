@@ -11,6 +11,7 @@ import { isRosterMember, isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { fulfillmentsApi } from "./part-fulfillments";
 import { partsApi } from "./parts";
+import { purchaseOrdersApi } from "./purchase-orders";
 import { sitesApi } from "./pickers";
 import { qrApi } from "./qr";
 import { reportsApi, requestTargets, requestsApi } from "./requests";
@@ -74,6 +75,8 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return requestsApi(ctx, request, rest);
     case "part-fulfillments":
       return fulfillmentsApi(ctx, request, rest);
+    case "purchase-orders":
+      return purchaseOrdersApi(ctx, request, rest);
     case "sites":
       return sitesApi(ctx, request);
     default:

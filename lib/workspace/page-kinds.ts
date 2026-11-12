@@ -120,6 +120,10 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-my-reports",
   "ga-requests",
   "ga-part-fulfillments",
+  // 第 4 批 G25：採購單清單（含詳情、到貨、配發）、新增與編輯草稿、待簽核清單。
+  "ga-purchase-orders",
+  "ga-purchase-order-edit",
+  "ga-purchase-approvals",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

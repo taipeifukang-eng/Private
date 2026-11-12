@@ -46,6 +46,9 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/reports/mine": { kind: "ga-my-reports", flag: "gaMyReports" },
   "/general-affairs/requests": { kind: "ga-requests", flag: "gaRequests" },
   "/general-affairs/part-fulfillments": { kind: "ga-part-fulfillments", flag: "gaPartFulfillments" },
+  // 第 4 批 G25：採購單清單與待簽核清單（?view=approvals 以完整 href 對應到獨立頁面）。
+  "/general-affairs/purchase-orders": { kind: "ga-purchase-orders", flag: "gaPurchaseOrders" },
+  "/general-affairs/purchase-orders?view=approvals": { kind: "ga-purchase-approvals", flag: "gaPurchaseApprovals" },
 };
 
 export type GaNavInput = {
@@ -171,6 +174,9 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   if (flags.gaMyReports && !present.has("ga-my-reports")) ensure("requests", "門市追蹤", { id: "my-reports-new", label: "我的追蹤", kind: "ga-my-reports" });
   if (flags.gaRequests && !present.has("ga-requests")) ensure("operations", "作業管理", { id: "requests-new", label: "總務需求工作台", kind: "ga-requests" });
   if (flags.gaPartFulfillments && !present.has("ga-part-fulfillments")) ensure("operations", "作業管理", { id: "part-fulfillments-new", label: "料件處理中心", kind: "ga-part-fulfillments" });
+  // 第 4 批 G25：舊版沒有採購單頁；補在「作業管理」。待簽核清單只給持採購核准權限者。
+  if (flags.gaPurchaseOrders && !present.has("ga-purchase-orders")) ensure("operations", "作業管理", { id: "purchase-orders-new", label: "採購單", href: "/general-affairs/purchase-orders", kind: "ga-purchase-orders" });
+  if (flags.gaPurchaseApprovals && !present.has("ga-purchase-approvals")) ensure("operations", "作業管理", { id: "purchase-approvals-new", label: "待簽核採購單", href: "/general-affairs/purchase-orders?view=approvals", kind: "ga-purchase-approvals" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
   if (flags.gaOnboardingProgress) extra.push({ id: "onboarding-progress", label: "上線貼標進度", kind: "ga-onboarding-progress" });

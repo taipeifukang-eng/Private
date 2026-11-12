@@ -17,6 +17,8 @@ type Task = {
   asset_type: "EQUIPMENT" | "FACILITY"; id: string; store_code: string; store_name: string; name: string; code: string | null; area: string | null; location_detail: string | null;
   onboarding_status: string; requires_primary_photo: boolean; requires_label_photo: boolean; review_note: string | null;
   photos: { primary: { url: string | null; file_name: string } | null; label: { url: string | null; file_name: string } | null };
+  /** 設備才有（第 4 批：配發建立的設備序號可先空白，店長貼標時補）。 */
+  serial_number?: string | null;
 };
 const TABS = [
   { key: "todo", label: "待我處理", statuses: "NEEDS_EQUIPMENT_PHOTO,NEEDS_LABEL_PHOTO" },
@@ -39,6 +41,31 @@ const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const picked = reactive<Record<string, PreparedFile[]>>({});
 const busyKey = ref("");
 const rowError = reactive<Record<string, string>>({});
+const serialDraft = reactive<Record<string, string>>({});
+const serialReason = reactive<Record<string, string>>({});
+const serialError = reactive<Record<string, string>>({});
+const serialBusy = ref("");
+async function saveSerial(t: Task) {
+  const k = key(t);
+  const serial = (serialDraft[k] ?? "").trim();
+  serialError[k] = "";
+  if (!serial) { serialError[k] = "請輸入序號"; return; }
+  if (serialBusy.value) return;
+  serialBusy.value = k;
+  try {
+    const res = await api<{ data: { serial_number: string; changed: boolean } }>("general-affairs/onboarding/serial", {
+      method: "POST", body: JSON.stringify({ equipmentId: t.id, serial, reason: (serialReason[k] || "").trim() || undefined }),
+    });
+    t.serial_number = res.data.serial_number;
+    serialDraft[k] = "";
+    serialReason[k] = "";
+    notice.value = res.data.changed ? `已記錄「${t.name}」的序號 ${res.data.serial_number}` : "序號沒有變更";
+  } catch (e) {
+    serialError[k] = (e as Error).message;
+  } finally {
+    serialBusy.value = "";
+  }
+}
 const key = (t: Task) => `${t.asset_type}:${t.id}`;
 const noun = (t: Task) => (t.asset_type === "FACILITY" ? "設施" : "設備");
 
@@ -133,6 +160,13 @@ async function upload(t: Task) {
           <figure v-if="t.photos.primary"><img v-if="t.photos.primary.url" :src="t.photos.primary.url" :alt="`${noun(t)}照片`" /><span v-else class="muted">{{ t.photos.primary.file_name }}</span><figcaption>{{ noun(t) }}照片</figcaption></figure>
           <figure v-if="t.photos.label"><img v-if="t.photos.label.url" :src="t.photos.label.url" alt="貼標位置照片" /><span v-else class="muted">{{ t.photos.label.file_name }}</span><figcaption>貼標位置照片</figcaption></figure>
         </div>
+        <div v-if="t.asset_type === 'EQUIPMENT' && t.serial_number !== undefined && t.onboarding_status !== 'COMPLETED'" class="serial" data-testid="serial-row">
+          <p class="line" data-testid="serial-current">序號：<strong>{{ t.serial_number || "尚未填寫（請貼標時對照機身補上）" }}</strong></p>
+          <label>{{ t.serial_number ? "修改序號" : "填寫序號" }}<input v-model="serialDraft[key(t)]" maxlength="100" data-testid="serial-input" /></label>
+          <label v-if="t.serial_number">修改原因（已有序號，修改必填）<input v-model="serialReason[key(t)]" maxlength="200" data-testid="serial-reason" /></label>
+          <p v-if="serialError[key(t)]" class="field-error" role="alert" data-testid="serial-error">{{ serialError[key(t)] }}</p>
+          <button type="button" :disabled="serialBusy === key(t)" data-testid="serial-save" @click="saveSerial(t)">{{ serialBusy === key(t) ? "儲存中…" : "儲存序號" }}</button>
+        </div>
         <template v-if="purposeOf(t)">
           <p class="step"><strong>{{ stepText(t) }}</strong></p>
           <UploadPicker :model-value="picked[key(t)] || []" :max="1" @update:model-value="(v: PreparedFile[]) => (picked[key(t)] = v)" images-only :disabled="busyKey === key(t)" :label="purposeOf(t) === 'PRIMARY_IMAGE' ? `拍攝／選擇${noun(t)}照片` : '拍攝／選擇貼標位置照片'" />
@@ -167,6 +201,8 @@ async function upload(t: Task) {
 .shots img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
 .shots figcaption { font-size: 12px; color: var(--muted); }
 .step { margin: 0; }
+.serial { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 8px; }
+.serial label { display: grid; gap: 4px; }
 .big { min-height: 46px; width: 100%; font-weight: 700; }
 .empty { grid-column: 1 / -1; text-align: center; color: var(--muted); padding: 24px; }
 @media (max-width: 700px) { .task-list { grid-template-columns: 1fr; } }

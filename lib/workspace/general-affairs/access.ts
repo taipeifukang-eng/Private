@@ -97,6 +97,8 @@ export type GaFlags = {
   gaMyReports: boolean;
   gaRequests: boolean;
   gaPartFulfillments: boolean;
+  gaPurchaseOrders: boolean;
+  gaPurchaseApprovals: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -150,6 +152,9 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     gaMyReports: has("general_affairs.request.view_own_store", "general_affairs.request.view_all", "general_affairs.request.manage"),
     gaRequests: has("general_affairs.request.view_all", "general_affairs.request.manage"),
     gaPartFulfillments: has("general_affairs.part_fulfillment.view", "general_affairs.part_fulfillment.manage"),
+    // 第 4 批 G25：採購單（採購評估檢視／管理，或採購核准）與待簽核清單（只有採購核准）。
+    gaPurchaseOrders: has("general_affairs.purchase_review.view", "general_affairs.purchase_review.manage", "general_affairs.purchase_order.approve"),
+    gaPurchaseApprovals: has("general_affairs.purchase_order.approve"),
     gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }

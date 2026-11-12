@@ -128,6 +128,9 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-my-reports": meta("我的追蹤", ["gaMyReports"]),
   "ga-requests": meta("總務需求工作台", ["gaRequests"]),
   "ga-part-fulfillments": meta("料件處理中心", ["gaPartFulfillments"]),
+  "ga-purchase-orders": meta("採購單", ["gaPurchaseOrders"]),
+  "ga-purchase-order-edit": meta("採購單編輯", ["gaPurchaseOrders"]),
+  "ga-purchase-approvals": meta("待簽核採購單", ["gaPurchaseApprovals"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {
