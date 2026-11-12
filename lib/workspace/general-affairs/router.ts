@@ -9,9 +9,11 @@ import { maintenanceApi } from "./history";
 import { inventoryApi } from "./inventory";
 import { isRosterMember, isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
+import { fulfillmentsApi } from "./part-fulfillments";
 import { partsApi } from "./parts";
 import { sitesApi } from "./pickers";
 import { qrApi } from "./qr";
+import { reportsApi, requestTargets, requestsApi } from "./requests";
 import { scanApi } from "./scan";
 import { compatApi, templatesApi, unlinkedEquipment } from "./templates";
 import { transfersApi } from "./transfers";
@@ -63,6 +65,15 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return scanApi(ctx, request, rest);
     case "inventory":
       return inventoryApi(ctx, request, rest);
+    case "reports":
+      return reportsApi(ctx, request, rest);
+    case "request-targets":
+      if (request.method !== "GET") throw new GaError(405, "不支援的操作");
+      return requestTargets(ctx, new URL(request.url));
+    case "requests":
+      return requestsApi(ctx, request, rest);
+    case "part-fulfillments":
+      return fulfillmentsApi(ctx, request, rest);
     case "sites":
       return sitesApi(ctx, request);
     default:

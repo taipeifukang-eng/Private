@@ -33,6 +33,7 @@ const GA_CAPABILITY: Record<string, string> = {
   'ga-inventory-locations': 'gaInventoryLocations', // 第 3 批 G11
   'ga-inventory': 'gaInventory', // 第 3 批 G12
   'ga-inventory-transfers': 'gaInventoryTransfers', // 第 3 批 G13
+  'ga-report-create': 'gaReportCreate', 'ga-my-reports': 'gaMyReports', 'ga-requests': 'gaRequests', 'ga-part-fulfillments': 'gaPartFulfillments', // 第 4 批 G14 至 G17
 };
 
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
@@ -104,6 +105,7 @@ const LEGACY_TITLES: Record<string, string> = {
   'ga-inventory-locations': '庫存位置與料件設定', // 第 3 批 G11
   'ga-inventory': '庫存餘額與流水', // 第 3 批 G12
   'ga-inventory-transfers': '庫存調撥單', // 第 3 批 G13
+  'ga-report-create': '新增需求', 'ga-my-reports': '我的追蹤', 'ga-requests': '總務需求工作台', 'ga-part-fulfillments': '料件處理中心', // 第 4 批 G14 至 G17
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');

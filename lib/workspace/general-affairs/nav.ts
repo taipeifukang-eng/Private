@@ -42,6 +42,10 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/inventory": { kind: "ga-inventory", flag: "gaInventory", payload: { view: "balances" } },
   "/general-affairs/inventory?view=transactions": { kind: "ga-inventory", flag: "gaInventory", payload: { view: "transactions" } },
   "/general-affairs/inventory/transfers": { kind: "ga-inventory-transfers", flag: "gaInventoryTransfers" },
+  "/general-affairs/reports/new": { kind: "ga-report-create", flag: "gaReportCreate" },
+  "/general-affairs/reports/mine": { kind: "ga-my-reports", flag: "gaMyReports" },
+  "/general-affairs/requests": { kind: "ga-requests", flag: "gaRequests" },
+  "/general-affairs/part-fulfillments": { kind: "ga-part-fulfillments", flag: "gaPartFulfillments" },
 };
 
 export type GaNavInput = {
@@ -157,6 +161,16 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   // G13 調撥與收貨：舊側欄要調撥／記帳權限才列；只憑門市名單身分（店長、督導、區經理）的人舊側欄不列，補在這裡（唯讀）。
   if (flags.gaInventoryTransfers && !present.has("ga-inventory-transfers")) extra.push({ id: "inventory-transfers-new", label: "調撥與收貨", kind: "ga-inventory-transfers" });
   if (flags.gaTransfers) extra.push({ id: "asset-transfers", label: "轉移單", kind: "ga-transfers" });
+  // 第 4 批 G14 至 G17：舊側欄要求維修模組權限旗標才列「新增需求／我的追蹤」；只持需求單權限的人舊側欄不列，補在原本的群組（沒有該群組就建立）。
+  const ensure = (id: string, label: string, item: GaNavItem) => {
+    let g = out.find((x) => x.id === id);
+    if (!g) { g = { id, label, items: [] }; out.push(g); }
+    g.items.push(item);
+  };
+  if (flags.gaReportCreate && !present.has("ga-report-create")) ensure("requests", "門市追蹤", { id: "report-create-new", label: "新增需求", kind: "ga-report-create" });
+  if (flags.gaMyReports && !present.has("ga-my-reports")) ensure("requests", "門市追蹤", { id: "my-reports-new", label: "我的追蹤", kind: "ga-my-reports" });
+  if (flags.gaRequests && !present.has("ga-requests")) ensure("operations", "作業管理", { id: "requests-new", label: "總務需求工作台", kind: "ga-requests" });
+  if (flags.gaPartFulfillments && !present.has("ga-part-fulfillments")) ensure("operations", "作業管理", { id: "part-fulfillments-new", label: "料件處理中心", kind: "ga-part-fulfillments" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
   if (flags.gaOnboardingProgress) extra.push({ id: "onboarding-progress", label: "上線貼標進度", kind: "ga-onboarding-progress" });

@@ -115,6 +115,11 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-inventory",
   // 第 3 批 G13：庫存調撥單（調撥與收貨）。
   "ga-inventory-transfers",
+  // 第 4 批 G14 至 G17：回報建立、我的追蹤、需求單工作台、料件處理中心。
+  "ga-report-create",
+  "ga-my-reports",
+  "ga-requests",
+  "ga-part-fulfillments",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

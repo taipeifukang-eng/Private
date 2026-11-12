@@ -67,6 +67,9 @@ const title = computed(() => {
 });
 function report() {
   const path = asset.value?.reportPath;
+  // 第 4 批 G14：有新版「新增需求」頁時直接在新版開啟並帶入 assetToken（沿用舊版參數），沒有就開舊頁。
+  const token = path ? new URLSearchParams(path.split("?")[1] || "").get("assetToken") : null;
+  if (token && session.data?.capabilities?.gaReportCreate) { openGaPage("ga-report-create", undefined, { assetToken: token }); return; }
   if (path) window.open(legacyUrl(path, session.data?.integrated), "_blank", "noopener");
 }
 function openManagement() {

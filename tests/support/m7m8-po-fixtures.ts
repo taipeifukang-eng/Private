@@ -21,6 +21,15 @@ export const PERM = {
   vendorView: 'general_affairs.vendor.view',
   vendorManage: 'general_affairs.vendor.manage',
   equipmentManage: 'general_affairs.equipment.manage',
+  // 第 4 批 G14 至 G17：需求單與料件處理單
+  requestCreate: 'general_affairs.request.create',
+  requestManage: 'general_affairs.request.manage',
+  requestViewAll: 'general_affairs.request.view_all',
+  requestViewOwn: 'general_affairs.request.view_own_store',
+  requestCommentOwn: 'general_affairs.request.comment_own_store',
+  requestConfirmOwn: 'general_affairs.request.confirm_own_store',
+  fulfillView: 'general_affairs.part_fulfillment.view',
+  fulfillManage: 'general_affairs.part_fulfillment.manage',
 } as const;
 const THREE = [PERM.reviewManage, PERM.txnManage, PERM.partView];
 
@@ -48,6 +57,16 @@ export const PO_ACCOUNTS = {
   purchaser_eq: [...THREE, PERM.equipmentManage],
   storemgr_a: [] as string[],
   storemgr_b: [] as string[],
+  // 第 4 批 G14 至 G17：總務（需求單與處理單管理＋採購三權限＋採購評估查看）、只有需求單管理（沒有採購與庫存權限）、只能看全部、門市店長（A = VW001、B = ZT01）、只能看自己門市、只有建立權限但不在任何門市名單
+  rq_staff: [PERM.requestManage, PERM.requestViewAll, PERM.requestViewOwn, PERM.requestCreate, PERM.fulfillManage, PERM.fulfillView, ...THREE, PERM.reviewView],
+  rq_manage_only: [PERM.requestManage],
+  rq_view_all: [PERM.requestViewAll],
+  rq_store_a: [PERM.requestCreate, PERM.requestViewOwn, PERM.requestCommentOwn, PERM.requestConfirmOwn],
+  rq_store_b: [PERM.requestCreate, PERM.requestViewOwn, PERM.requestCommentOwn, PERM.requestConfirmOwn],
+  rq_store_viewonly: [PERM.requestViewOwn],
+  rq_create_nostore: [PERM.requestCreate],
+  ful_view: [PERM.fulfillView],
+  ful_manage_only: [PERM.fulfillManage],
 } satisfies Record<string, string[]>;
 export type PoKey = keyof typeof PO_ACCOUNTS;
 
@@ -101,9 +120,10 @@ export async function setupPoUsers(keys: PoKey[]): Promise<{ users: Record<strin
       must(await db.from('role_permissions').insert(perms.map((c) => ({ role_id: role.id, permission_id: permId.get(c), is_allowed: true }))), `角色權限 ${key}`);
       must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
     }
-    if (key === 'storemgr_a' || key === 'storemgr_b') {
+    if (key === 'storemgr_a' || key === 'storemgr_b' || key === 'rq_store_a' || key === 'rq_store_b' || key === 'rq_store_viewonly') {
       const st = await stores();
-      must(await db.from('store_managers').insert({ user_id: uid, store_id: (key === 'storemgr_a' ? st.VW001 : st.ZT01).id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
+      const vw = key === 'storemgr_a' || key === 'rq_store_a' || key === 'rq_store_viewonly';
+      must(await db.from('store_managers').insert({ user_id: uid, store_id: (vw ? st.VW001 : st.ZT01).id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
     }
     users[key] = { key, id: uid, email, password, client: await clientForCredentials(email, password) };
   }

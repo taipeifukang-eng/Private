@@ -1305,4 +1305,15 @@ GRANT EXECUTE ON FUNCTION public.ga_ws_po_settings_get() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_po_settings_set(jsonb, timestamptz) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_ws_po_request_remaining(uuid, uuid) TO authenticated;
 
+-- 採購單連結處理單的同步觸發器（函式在 20261112100000 第二段）：函式存在才裝，先套哪一份都能裝好。
+DO $$
+BEGIN
+  IF to_regprocedure('public.ga_ful_po_trg()') IS NOT NULL THEN
+    DROP TRIGGER IF EXISTS trg_ga_purchase_orders_ful_sync ON public.ga_purchase_orders;
+    CREATE TRIGGER trg_ga_purchase_orders_ful_sync AFTER INSERT OR UPDATE OF status, source_request_id ON public.ga_purchase_orders FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
+    DROP TRIGGER IF EXISTS trg_ga_purchase_order_items_ful_sync ON public.ga_purchase_order_items;
+    CREATE TRIGGER trg_ga_purchase_order_items_ful_sync AFTER INSERT OR UPDATE OF received_qty, quantity, request_id ON public.ga_purchase_order_items FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
+  END IF;
+END $$;
+
 NOTIFY pgrst, 'reload schema';

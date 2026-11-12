@@ -88,6 +88,11 @@ export type Session = {
     gaInventory: boolean;
     /** 第 3 批 G13：庫存調撥單（調撥與收貨，含門市名單身分的唯讀入口）。 */
     gaInventoryTransfers: boolean;
+    /** 第 4 批 G14 至 G17。 */
+    gaReportCreate: boolean;
+    gaMyReports: boolean;
+    gaRequests: boolean;
+    gaPartFulfillments: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

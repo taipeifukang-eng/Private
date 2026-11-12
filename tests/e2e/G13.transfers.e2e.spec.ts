@@ -244,8 +244,9 @@ test('角色接力：總務從需求單網址建單（C8 被擋→前往位置�
     expect(t.status).toBe('RECEIVED');
     expect(t.received_by).not.toBe(staffId);
     expect((await dbTx(m.dest.id, m.part.id)).map((x) => x.transaction_type)).toEqual(['RECEIPT']);
-    const ful = (await adminDb().from('ga_part_fulfillments').select('status,fulfilled_quantity').eq('request_id', req.id).single()).data as any;
-    expect(ful.status).toBe('WAITING_STORE_CONFIRMATION'); // 需求量全收，處理單等門市確認
+    const ful = (await adminDb().from('ga_part_fulfillments').select('status,fulfilled_quantity,ready_to_deliver_at').eq('request_id', req.id).single()).data as any;
+    expect(ful.status).toBe('TRANSFER'); // 第 4 批 Q18：需求量全收後是「待交付」，要總務按「送門市確認」處理單與需求單才一起往下（不再自動跳到等門市確認）
+    expect(ful.ready_to_deliver_at).toBeTruthy();
     expect(Number(ful.fulfilled_quantity)).toBe(5);
     await expect(dialog(page).getByTestId('timeline-item')).toHaveCount(6);
     expect(real(works.errors)).toEqual([]);

@@ -56,8 +56,8 @@ const closeDirty = computed(() => closeTabs.value.filter((t) => t.dirty));
 const current = computed(() => work.tabs.find((t) => t.id === work.active));
 const navigationSearch = ref("");
 // M5 W20 Q8：舊網址（/activity-management、/activity-view/:id）轉進來的深連結。只接受白名單頁面；未登入時先登入再開。
-const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers"];
-const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string }; date?: string; prefill?: Record<string, string> } | null>(null);
+const OPEN_LINK_KINDS: readonly WorkTab["kind"][] = ["activity-view", "activity-view-detail", "calendar", "ga-asset-scan", "ga-inventory-transfers", "ga-report-create", "ga-part-fulfillments"];
+const pendingOpen = ref<{ kind: WorkTab["kind"]; id?: string; focus?: string; google?: { result: string; detail: string }; date?: string; prefill?: Record<string, string>; assetToken?: string; fulfillmentId?: string } | null>(null);
 function capturePendingOpen() {
   if (!route.meta.open) return;
   const kind = String(route.params.kind || "") as WorkTab["kind"];
@@ -75,7 +75,10 @@ function capturePendingOpen() {
   const date = kind === "calendar" && /^\d{4}-\d{2}-\d{2}$/.test(String(route.query.date || "")) ? String(route.query.date) : undefined;
   // G13 庫存調撥單：舊網址參數（fromRequestId、requestNo、partId、quantity、sourceLocationId、destinationStoreId、reason、notes）完整保留，頁面開啟後由伺服端驗證並預填。
   const prefill = kind === "ga-inventory-transfers" ? parsePrefill(route.query as Record<string, unknown>) : undefined;
-  pendingOpen.value = { kind, id, focus: focus === "marketing" || focus === "merchandise" ? focus : undefined, google, date, prefill: prefill && Object.keys(prefill).length ? (prefill as Record<string, string>) : undefined };
+  // G14 新增需求（舊網址 ?assetToken=）、G17 料件處理中心（舊網址 ?fulfillmentId=）：參數契約沿用，頁面開啟後由伺服端驗證。
+  const assetToken = kind === "ga-report-create" ? String(route.query.assetToken || "").trim().slice(0, 200) || undefined : undefined;
+  const fulfillmentId = kind === "ga-part-fulfillments" && /^[0-9a-f-]{36}$/i.test(String(route.query.fulfillmentId || "")) ? String(route.query.fulfillmentId) : undefined;
+  pendingOpen.value = { assetToken, fulfillmentId, kind, id, focus: focus === "marketing" || focus === "merchandise" ? focus : undefined, google, date, prefill: prefill && Object.keys(prefill).length ? (prefill as Record<string, string>) : undefined };
 }
 function applyPendingOpen() {
   const p = pendingOpen.value;
@@ -84,6 +87,8 @@ function applyPendingOpen() {
   const tab = work.open(p.kind, "", p.id);
   if (p.focus) tab.payload = { focus: p.focus };
   if (p.prefill) tab.payload = { prefill: p.prefill };
+  if (p.assetToken) tab.payload = { assetToken: p.assetToken };
+  if (p.fulfillmentId) tab.payload = { fulfillmentId: p.fulfillmentId };
   if (p.google || p.date) tab.payload = { ...(p.google ? { google: p.google } : {}), ...(p.date ? { date: p.date } : {}) };
 }
 function deniedMessage(tab: WorkTab) {

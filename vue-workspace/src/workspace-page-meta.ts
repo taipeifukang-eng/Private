@@ -124,6 +124,10 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-inventory-locations": meta("庫存位置與料件設定", ["gaInventoryLocations"]),
   "ga-inventory": meta("庫存餘額與流水", ["gaInventory"]),
   "ga-inventory-transfers": meta("庫存調撥單", ["gaInventoryTransfers"]),
+  "ga-report-create": meta("新增需求", ["gaReportCreate"]),
+  "ga-my-reports": meta("我的追蹤", ["gaMyReports"]),
+  "ga-requests": meta("總務需求工作台", ["gaRequests"]),
+  "ga-part-fulfillments": meta("料件處理中心", ["gaPartFulfillments"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {
