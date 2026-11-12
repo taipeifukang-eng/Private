@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue";
+import { api } from "../../api";
 import AssetCategoryPicker from "./AssetCategoryPicker.vue";
 import type { PartFormValue } from "../../lib/ga-parts";
 
@@ -7,6 +9,19 @@ import type { PartFormValue } from "../../lib/ga-parts";
 // Q5：沒有內部備註權限時不顯示備註欄（canSeeNotes）。
 const model = defineModel<PartFormValue>({ required: true });
 defineProps<{ unitLocked?: boolean; canSeeNotes?: boolean; disabled?: boolean; errors?: Record<string, string> }>();
+
+// D14：採購入庫後可轉成的設備型號（只列啟用中的型號；一個料件只對應一個型號，可清空）。已設定但被停用的型號保留顯示，提醒改選。
+const templates = ref<{ id: string; name: string; brand: string | null; model: string | null }[]>([]);
+const templateError = ref("");
+onMounted(async () => {
+  try {
+    const res = await api<{ data: { id: string; name: string; brand: string | null; model: string | null }[] }>("general-affairs/templates/equipment?pageSize=100&active=true&sortBy=name&sortDir=asc");
+    templates.value = res.data || [];
+  } catch {
+    templateError.value = "設備型號清單暫時讀不到，不影響其他欄位";
+  }
+});
+const tplText = (t: { name: string; brand: string | null; model: string | null }) => [t.name, t.brand, t.model].filter(Boolean).join(" ");
 
 </script>
 
@@ -38,6 +53,15 @@ defineProps<{ unitLocked?: boolean; canSeeNotes?: boolean; disabled?: boolean; e
         <label class="check-row"><input v-model="model.allow_unpacking" type="checkbox" :disabled="disabled" /> 允許拆封</label>
       </div>
     </fieldset>
+    <label>採購入庫後可轉成的設備型號（選填）
+      <select v-model="model.equipment_template_id" :disabled="disabled" data-testid="part-equipment-template">
+        <option value="">沒有對應（不會轉成設備）</option>
+        <option v-if="model.equipment_template_id && !templates.some((t) => t.id === model.equipment_template_id)" :value="model.equipment_template_id">目前設定的型號（已停用或不在清單，配發時請改選）</option>
+        <option v-for="t in templates" :key="t.id" :value="t.id">{{ tplText(t) }}</option>
+      </select>
+      <span v-if="templateError" class="hint">{{ templateError }}</span>
+      <span v-else class="hint">例如印表機料件對應到「某品牌某型號」；採購到貨後配發給門市時，系統依這個型號建立設備。同一個型號可以被多個料件指向。</span>
+    </label>
     <label>標籤（以逗號分隔）<input v-model="model.tags" :disabled="disabled" /></label>
     <label v-if="canSeeNotes">內部備註<textarea v-model="model.notes" rows="3" maxlength="1000" :disabled="disabled" /></label>
     <label class="check-row"><input v-model="model.is_active" type="checkbox" :disabled="disabled" /> 啟用中</label>
@@ -51,6 +75,7 @@ defineProps<{ unitLocked?: boolean; canSeeNotes?: boolean; disabled?: boolean; e
 .part-form .check-row input { width: auto; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
 .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.hint { color: var(--muted); font-size: 13px; }
 .units { border: 1px solid var(--line); border-radius: 6px; padding: 14px; display: grid; gap: 12px; margin: 0; }
 textarea { border: 1px solid var(--line); border-radius: 5px; padding: 8px 10px; font: inherit; background: var(--surface); color: var(--ink); resize: vertical; }
 @media (max-width: 640px) { .two, .three { grid-template-columns: 1fr; } }

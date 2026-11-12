@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { adminDb, cleanupM7Users, M7_EMAIL_PREFIX, M7_ROLE_PREFIX, m7Name } from './m7m8-fixtures';
+import { adminDb, cleanupM7Users, M7_EMAIL_PREFIX, M7_ROLE_PREFIX, m7Name, stores } from './m7m8-fixtures';
 
 /**
  * M7/M8 第 4 批（G25 採購單）測試共用工具：採購與核准的測試帳號（每個帳號掛一個只含指定權限的臨時角色 m7m8_test_po_*）、供應商與需求單種子。
@@ -20,6 +20,7 @@ export const PERM = {
   approve: 'general_affairs.purchase_order.approve',
   vendorView: 'general_affairs.vendor.view',
   vendorManage: 'general_affairs.vendor.manage',
+  equipmentManage: 'general_affairs.equipment.manage',
 } as const;
 const THREE = [PERM.reviewManage, PERM.txnManage, PERM.partView];
 
@@ -42,6 +43,11 @@ export const PO_ACCOUNTS = {
   viewer: [PERM.reviewView],
   nobody: [] as string[],
   admin: [] as string[],
+  // 第 4 批 G26：設備管理權限（序號補填）、門市店長（只有名單身分，沒有任何權限；A = VW001、B = ZT01）
+  eq_manage: [PERM.equipmentManage],
+  purchaser_eq: [...THREE, PERM.equipmentManage],
+  storemgr_a: [] as string[],
+  storemgr_b: [] as string[],
 } satisfies Record<string, string[]>;
 export type PoKey = keyof typeof PO_ACCOUNTS;
 
@@ -94,6 +100,10 @@ export async function setupPoUsers(keys: PoKey[]): Promise<{ users: Record<strin
       const role = must(await db.from('roles').insert({ code: `${M7_ROLE_PREFIX}po_${key}`, name: `M7M8 測試 ${key}`, description: 'M7M8 第 4 批測試臨時角色', is_active: true, is_system: false }).select('id').single(), `建立角色 ${key}`) as { id: string };
       must(await db.from('role_permissions').insert(perms.map((c) => ({ role_id: role.id, permission_id: permId.get(c), is_allowed: true }))), `角色權限 ${key}`);
       must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
+    }
+    if (key === 'storemgr_a' || key === 'storemgr_b') {
+      const st = await stores();
+      must(await db.from('store_managers').insert({ user_id: uid, store_id: (key === 'storemgr_a' ? st.VW001 : st.ZT01).id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
     }
     users[key] = { key, id: uid, email, password, client: await clientForCredentials(email, password) };
   }

@@ -5739,5 +5739,173 @@
       "kind": "only-native",
       "key": "po-threshold-adjustable-by-approver"
     }
+  },
+  {
+    "id": "m7m8-b4-rc-one-step-receive",
+    "page": "purchase-orders",
+    "description": "登錄到貨（進貨紀錄）的同時驗入並加總部倉庫存，沒有「待驗收」中間狀態；可部分到貨，短收、破損填原因；同一交易、同識別重送回原結果。舊版需求單頁的「採購到貨入庫」一次整批、沒有進貨紀錄。",
+    "reason": "D12：到貨與驗入合併一步。使用者已核可（與建議不同）。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-one-step-receive"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-over-receive-block",
+    "page": "purchase-orders",
+    "description": "到貨量不得超過剩餘可收量（訂購量減已驗入量），超過直接擋；舊版沒有訂購量上限的概念。",
+    "reason": "D13：超收一律擋。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-over-receive-block"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-part-template-map",
+    "page": "purchase-orders",
+    "description": "料件新增「採購入庫後可轉成的設備型號」：一個料件只對應一個型號、同型號可被多個料件指向，只有啟用中的型號能新設定、可清空；型號被停用後既有對應保留，配發時提示改選。",
+    "reason": "D14：一料件一型號。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-part-template-map"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-dispatch-creates-assets",
+    "page": "purchase-orders",
+    "description": "配發＝總部倉出庫 N＋為門市建 N 筆設備，同一交易、可分次；設備連結採購單與進貨明細，帶入型號、購價、供應商、保固起算日；序號可空白由店長貼標時補；建立後該店立即有貼標待辦。印表機這類設備庫存與設備兩者都要（驗入先加庫存，配發給門市時轉設備）。",
+    "reason": "D15 與使用者 2026-11-12 補充決定。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-dispatch-creates-assets"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-both-paths-per-item",
+    "page": "purchase-orders",
+    "description": "每個採購品項選「入總部庫存」或「到貨時直接建設備送門市」，預設入庫存；直接建設備在到貨驗入那一步發生（因為到貨與驗入合併），整數量、不入庫存。",
+    "reason": "D16：兩條路逐項選擇。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-both-paths-per-item"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-purchase-amount-excl-tax",
+    "page": "purchase-orders",
+    "description": "配發與直接建設備建立的設備，購價（既有欄位 purchase_amount）填「未稅單價」（採購單位單價換算成每台），並在設備備註註明；舊版欄位沒有註明含稅與否。",
+    "reason": "設計補充：設計 §3.3 要求實作前核對含稅與否，欄位語意沒有定義，先採建議（未稅）。新發現，待使用者確認含稅與否。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-purchase-amount-excl-tax"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-warranty-start-and-end",
+    "page": "purchase-orders",
+    "description": "設備新增「保固起算日」欄位（採購到貨日）；型號有預設保固月數時由起算日推算保固到期日並標有保固，沒有則不標。舊版建立設備不會自動推算到期日，也沒有起算日欄位。",
+    "reason": "設計 §3.3 寫「舊版規則由型號保固月數算就沿用」，核對後舊版沒有這個規則，這是新做法。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-warranty-start-and-end"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-short-delivery-needs-reason",
+    "page": "purchase-orders",
+    "description": "到貨量小於剩餘可收量（短收）要填原因，破損或拒收（驗入量小於到貨量）也要；一般分批到貨也算短收，需要填原因（例如「分批到貨」）。",
+    "reason": "任務規格寫「短收或破損須原因」，對「短收」的解讀是到貨量小於剩餘量。新發現，待使用者確認是否分批到貨也要填。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-short-delivery-needs-reason"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-rejected-not-counted",
+    "page": "purchase-orders",
+    "description": "破損、拒收的數量不算已驗入：剩餘可收量以已驗入量計，供應商補送可再收；整批拒收時採購單狀態不變。",
+    "reason": "實作決定（問卷只說短收與破損要填原因）。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-rejected-not-counted"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-dispatch-no-equipment-manage",
+    "page": "purchase-orders",
+    "description": "配發建立設備不另要求設備管理權限，採購評估管理、庫存交易管理、料件查看三個權限就能做完所有步驟（含建立設備與貼標待辦）。",
+    "reason": "設計補充（依 D11 三個權限可做全部步驟）。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-dispatch-no-equipment-manage"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-dispatch-single-part-fifo",
+    "page": "purchase-orders",
+    "description": "配發依進貨明細先進先出分配（到貨日、登錄時間由舊到新），每台設備帶自己那批的保固起算日；一次配發只動同一種料件與同一個來源位置（以最早的可配發進貨明細決定，替代料與其他位置分次配發）。",
+    "reason": "實作決定：改收替代料或改位置後，同一品項可能有多種料件與位置的庫存，先進先出以最早一批為準。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-dispatch-single-part-fifo"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-dispatch-unpacking-rule",
+    "page": "purchase-orders",
+    "description": "配發沿用庫存出庫規則：料件有採購單位且不允許拆封時，配發量必須是整箱（換算率的整數倍），否則整筆擋下並回復；配發設備的料件通常以「個／台」為基本單位。",
+    "reason": "沿用庫存過帳既有規則，沒有為配發另開例外。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-dispatch-unpacking-rule"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-asset-code-needs-level2",
+    "page": "purchase-orders",
+    "description": "配發與直接建設備沿用舊版資產編號規則（分類第二層代碼＋購置日期＋三位流水，購置日期 = 到貨日）；型號所屬分類沒有第二層代碼時無法產生資產編號，整筆擋下並說明（舊版只在填購置日期卻取不到編號時丟出資料庫原文）。",
+    "reason": "沿用舊版規則，只是把錯誤改成白話並整筆回復。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-asset-code-needs-level2"
+    }
+  },
+  {
+    "id": "m7m8-b4-rc-serial-fill-rules",
+    "page": "purchase-orders",
+    "description": "序號補填（店長貼標時）：限該門市店長與設備管理權限者；已有序號要改須填原因並留紀錄；同型號（或同品牌加型號）序號不可重複（硬擋，舊版建立設備只提醒）。",
+    "reason": "D15 只決定「序號可空白由店長貼標時補」，補填的權限、原因與重複規則是設計 §3.3 補的。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "rc-serial-fill-rules"
+    }
   }
 ]

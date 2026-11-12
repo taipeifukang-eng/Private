@@ -27,7 +27,7 @@ export function pagingMeta(page: number, pageSize: number, total: number) {
 const PART_COLUMNS_BASE = [
   "id", "category_id", "name", "part_code", "barcode", "brand", "model", "specification", "description",
   "base_unit", "purchase_unit", "purchase_to_base_rate", "minimum_issue_qty", "allow_fractional_issue", "allow_unpacking",
-  "image_path", "specs", "tags", "is_active", "created_at", "updated_at",
+  "image_path", "specs", "tags", "is_active", "equipment_template_id", "created_at", "updated_at",
 ] as const;
 export function partColumns(canSeeNotes: boolean) {
   return (canSeeNotes ? [...PART_COLUMNS_BASE, "notes"] : [...PART_COLUMNS_BASE]).join(",");

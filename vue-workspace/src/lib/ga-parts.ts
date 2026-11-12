@@ -3,13 +3,15 @@ export type PartFormValue = {
   category_id: string; name: string; part_code: string; barcode: string; brand: string; model: string; specification: string; description: string;
   base_unit: string; purchase_unit: string; purchase_to_base_rate: string; minimum_issue_qty: string;
   allow_fractional_issue: boolean; allow_unpacking: boolean; tags: string; notes: string; is_active: boolean;
+  /** D14：採購入庫後可轉成的設備型號（空字串 = 沒有對應）。 */
+  equipment_template_id: string;
 };
 
 export function emptyPart(): PartFormValue {
   return {
     category_id: "", name: "", part_code: "", barcode: "", brand: "", model: "", specification: "", description: "",
     base_unit: "", purchase_unit: "", purchase_to_base_rate: "", minimum_issue_qty: "1",
-    allow_fractional_issue: false, allow_unpacking: false, tags: "", notes: "", is_active: true,
+    allow_fractional_issue: false, allow_unpacking: false, tags: "", notes: "", is_active: true, equipment_template_id: "",
   };
 }
 
@@ -20,7 +22,7 @@ export function partFromRow(row: Record<string, any>): PartFormValue {
     model: s(row.model), specification: s(row.specification), description: s(row.description), base_unit: s(row.base_unit),
     purchase_unit: s(row.purchase_unit), purchase_to_base_rate: s(row.purchase_to_base_rate), minimum_issue_qty: s(row.minimum_issue_qty || 1),
     allow_fractional_issue: !!row.allow_fractional_issue, allow_unpacking: !!row.allow_unpacking,
-    tags: Array.isArray(row.tags) ? row.tags.join(", ") : "", notes: s(row.notes), is_active: row.is_active !== false,
+    tags: Array.isArray(row.tags) ? row.tags.join(", ") : "", notes: s(row.notes), is_active: row.is_active !== false, equipment_template_id: s(row.equipment_template_id),
   };
 }
 
@@ -31,6 +33,7 @@ export function partPayload(v: PartFormValue, opts: { canSeeNotes: boolean; unit
     specification: v.specification, description: v.description, minimum_issue_qty: v.minimum_issue_qty,
     allow_fractional_issue: v.allow_fractional_issue, allow_unpacking: v.allow_unpacking,
     tags: v.tags.split(/[,，]/).map((t) => t.trim()).filter(Boolean), is_active: v.is_active,
+    equipment_template_id: v.equipment_template_id || null,
   };
   if (!opts.unitLocked) {
     out.base_unit = v.base_unit;

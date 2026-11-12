@@ -11,6 +11,12 @@ import {
 } from "./rules";
 import { GaError, body, dbError, must, respond, rpc, validated, type Context } from "./server";
 
+/** D14：設備型號對應被資料庫拒絕（不存在、已停用、已刪除）時回 422 與代碼，與修改單位欄位的路徑（資料庫函式）一致。 */
+function templateInvalid(e: unknown): never {
+  if (e instanceof GaError && e.status === 400 && /設備型號/.test(e.message)) throw new GaError(422, e.message, { code: "TEMPLATE_INVALID" });
+  throw e;
+}
+
 async function catalogAccess(ctx: Context) {
   const privileged = dbCan(ctx.permissions, GA.partView, GA.partManage);
   if (privileged) return { canSeeNotes: true, manage: dbCan(ctx.permissions, GA.partManage) };
@@ -99,7 +105,7 @@ async function create(ctx: Context, request: NextRequest) {
   if (duplicates.length && b.confirm_duplicate !== true) {
     throw new GaError(409, "已有品牌、型號與規格相同的料件，請確認是否仍要新增", { code: "DUPLICATE", duplicates });
   }
-  const row = await must((ctx.auth as any).from("ga_parts").insert(payload).select("*").single());
+  const row = await must((ctx.auth as any).from("ga_parts").insert(payload).select("*").single()).catch(templateInvalid);
   return respond({ data: row, duplicates }, 201);
 }
 
@@ -124,7 +130,7 @@ async function update(ctx: Context, request: NextRequest, rawId: string) {
   }
   let query = (ctx.auth as any).from("ga_parts").update(patch).eq("id", rawId).is("deleted_at", null);
   if (typeof b.expected_updated_at === "string") query = query.eq("updated_at", b.expected_updated_at);
-  const row = (await must(query.select("*").maybeSingle())) as any;
+  const row = (await must(query.select("*").maybeSingle()).catch(templateInvalid)) as any;
   if (!row) throw new GaError(409, "這個料件已被其他人修改，請重新載入後再儲存", { code: "STALE" });
   return respond({ data: row, duplicates: await duplicatesOf(ctx, row, rawId) });
 }
