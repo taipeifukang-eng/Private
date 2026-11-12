@@ -4,7 +4,7 @@ import { apiForUser } from '../support/cv01-fixtures';
 import { storageStateFor, TEST_ORIGIN } from '../support/auth';
 import { adminDb, assertGaBaseline, cleanupM7M8, m7Name, seedBalance, seedCategory, seedLocation, seedLocationPart, seedPart, stores } from '../support/m7m8-fixtures';
 import { seedRequest, setupPoUsers, type PoUser } from '../support/m7m8-po-fixtures';
-import { noPageOverflow, openGaCenter, openGaSide, shell } from '../support/g01-ui';
+import { noPageOverflow, openGaCenter, openGaSide, shell, sideLabels } from '../support/g01-ui';
 import { dialog, pick } from '../support/g12-ui';
 
 // M7/M8 第 4 批 G17 角色接力劇本 Q26「料件補貨」（店長手機 390、總務桌機 1440；桌機 project 跑一次）。採購與到貨段屬 G25 頁面，由 G25.journey-printers 補齊；調撥分支沿用第 3 批劇本。
@@ -30,7 +30,7 @@ test.beforeAll(async () => {
   await assertGaBaseline();
   const left = await cleanupM7M8();
   if (left.length) throw new Error(`清除上次殘留失敗：${left.join('; ')}`);
-  const made = await setupPoUsers(['rq_store_part']);
+  const made = await setupPoUsers(['rq_store_part', 'rq_store_b', 'rq_store_viewonly', 'ful_view', 'nobody']);
   users = made.users;
   teardown = made.teardown;
   const c = await apiForUser(users.rq_store_part as any);
@@ -272,5 +272,55 @@ test('分支：異常登記 → 逐筆作廢舊單據（填原因，釋放量、
     expect(real(ga.errors)).toEqual([]);
   } finally {
     await ga.ctx.close();
+  }
+});
+
+test('沒權限做不到：缺權限帳號、唯讀者、他店店長，介面與 API 都被擋；店長只看自己門市', async ({ browser }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1440', '劇本固定使用桌機，只在桌機 project 跑一次');
+  test.setTimeout(300_000);
+  const RX = '/api/workspace/general-affairs/requests';
+  const FX = '/api/workspace/general-affairs/part-fulfillments';
+  const r = await seedRequest(sid.VW001, users.rq_store_part.id, 'G17J-perm', { part_id: part.id, desired_unit: part.base_unit, desired_quantity: 2, main_status: 'IN_PROGRESS', intake_route: 'PURCHASE_REVIEW' });
+  const gaId = ((await adminDb().from('profiles').select('id').eq('email', 'vue-workspace-ga-works@example.test').single()).data as any).id;
+  const ins = await adminDb().from('ga_part_fulfillments').insert({ request_id: r.id, status: 'PURCHASING', requested_quantity: 2, fulfilled_quantity: 0, unit: part.base_unit, current_step: '採購評估', created_by: gaId }).select('*').single();
+  expect(ins.error).toBeNull();
+  const fid = (ins.data as any).id as string;
+  const mk = async (k: string) => apiForUser(users[k] as any);
+  const own = await mk('rq_store_part');
+  const other = await mk('rq_store_b');
+  const viewonly = await mk('rq_store_viewonly');
+  const fv = await mk('ful_view');
+  const nb = await mk('nobody');
+  try {
+    expect((await own.get(`${RX}/${r.id}`)).status()).toBe(200);
+    expect((await other.get(`${RX}/${r.id}`)).status()).toBe(404);
+    expect((await other.post(`${RX}/${r.id}/store-actions`, { data: { action: 'confirm_complete', note: 'x' } })).status()).toBe(403);
+    expect((await viewonly.post(`${RX}/${r.id}/store-actions`, { data: { action: 'confirm_complete', note: 'x' } })).status()).toBe(403);
+    expect((await viewonly.post(`${RX}/${r.id}/comments`, { data: { body: '沒有留言權限' } })).status()).toBe(403);
+    expect((await nb.get(RX)).status()).toBe(403);
+    expect((await nb.get(FX)).status()).toBe(403);
+    expect((await own.get(FX)).status()).toBe(403); // 店長不能進料件處理中心
+    // 只有查看權限：可讀、不能做決定
+    expect((await fv.get(`${FX}/${fid}`)).status()).toBe(200);
+    const d = await fv.post(`${FX}/${fid}/decision`, { data: { decision: 'STOCK_ISSUE', expected_updated_at: (ins.data as any).updated_at } });
+    expect(d.status()).toBe(403);
+    expect(((await adminDb().from('ga_part_fulfillments').select('status').eq('id', fid).single()).data as any).status).toBe('PURCHASING');
+    // 介面：他店店長（手機）看不到總務入口，也看不到他店的單
+    const m = await browser.newContext({ baseURL: TEST_ORIGIN, storageState: await other.storageState(), serviceWorkers: 'block', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const page = await m.newPage();
+    try {
+      await openGaCenter(page);
+      const labels = await sideLabels(page);
+      expect(labels).not.toContain('料件處理中心');
+      expect(labels).not.toContain('總務需求工作台');
+      await nav(page, '我的追蹤');
+      await searchBox(page).fill(r.request_no);
+      await expect(page.locator('[data-testid="mr-card"]:visible', { hasText: r.request_no })).toHaveCount(0);
+      expect(await noPageOverflow(page)).toBe(true);
+    } finally {
+      await m.close();
+    }
+  } finally {
+    for (const c of [own, other, viewonly, fv, nb]) await c.dispose();
   }
 });

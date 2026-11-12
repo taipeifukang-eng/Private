@@ -1,9 +1,9 @@
 import { expect, type Browser, type BrowserContext, type Page, test } from '@playwright/test';
 import { apiForUser } from '../support/cv01-fixtures';
 import { storageStateFor, TEST_ORIGIN } from '../support/auth';
-import { adminDb, assertGaBaseline, cleanupM7M8, m7Name, seedEquipmentTemplate, stores } from '../support/m7m8-fixtures';
+import { adminDb, assertGaBaseline, cleanupM7M8, m7Name, seedCategory, seedEquipmentTemplate, seedLocation, seedPart, stores } from '../support/m7m8-fixtures';
 import { seedRequest, seedVendor, setupPoUsers, type PoUser } from '../support/m7m8-po-fixtures';
-import { noPageOverflow, openGaCenter, openGaSide, shell } from '../support/g01-ui';
+import { noPageOverflow, openGaCenter, openGaSide, shell, sideLabels } from '../support/g01-ui';
 import { dialog, notice } from '../support/g12-ui';
 import { makePng } from '../support/png';
 
@@ -34,7 +34,7 @@ test.beforeAll(async () => {
   await assertGaBaseline();
   const left = await cleanupM7M8();
   if (left.length) throw new Error(`清除上次殘留失敗：${left.join('; ')}`);
-  const made = await setupPoUsers(['rq_store_a', 'rq_staff', 'purchaser_eq']);
+  const made = await setupPoUsers(['rq_store_a', 'rq_store_b', 'rq_staff', 'purchaser_eq', 'purchaser_approver', 'nobody']);
   users = made.users;
   teardown = made.teardown;
   const c = await apiForUser(users.rq_store_a as any);
@@ -442,4 +442,70 @@ test('採購、到貨、貼標：草稿改成直接建設備並下訂；D2 第�
   const done = await dbReq(shared.reqNo);
   expect(done.main_status).toBe('COMPLETED');
   expect((await db.from('ga_part_fulfillments').select('status').eq('request_id', shared.reqId).single()).data).toMatchObject({ status: 'COMPLETED' });
+});
+
+test('沒權限做不到：缺權限帳號、非核准人、開單人自己核准、店長只看自己門市，介面與 API 都被擋', async ({ browser }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1440', '劇本固定使用桌機，只在桌機 project 跑一次');
+  test.setTimeout(300_000);
+  const PX = '/api/workspace/general-affairs/purchase-orders';
+  const RX = '/api/workspace/general-affairs/requests';
+  const st = await stores();
+  const catP = await seedCategory('part', 'G16JP');
+  const partP = await seedPart(catP.id, 'G16JP-紙');
+  const locP = await seedLocation(null, 'G16JP-倉');
+  const mine = await seedRequest(st.VW001.id, users.rq_store_a.id, 'G16J-perm', { request_type: 'PURCHASE_SUPPLEMENT', resource_type: 'OTHER_PURCHASE', part_id: null, main_status: 'PENDING_INTAKE' });
+  const mk = async (k: string) => apiForUser(users[k] as any);
+  const sa = await mk('rq_store_a');
+  const sb = await mk('rq_store_b');
+  const nb = await mk('nobody');
+  const eq = await mk('purchaser_eq');
+  const pa = await mk('purchaser_approver');
+  try {
+    // 店長只看自己門市：他店店長讀不到、不能動作；本店店長讀得到
+    expect((await sa.get(`${RX}/${mine.id}`)).status()).toBe(200);
+    expect((await sb.get(`${RX}/${mine.id}`)).status()).toBe(404);
+    expect((await sb.post(`${RX}/${mine.id}/store-actions`, { data: { action: 'confirm_complete', note: 'x' } })).status()).toBe(403);
+    // 缺權限帳號：看不到需求單與採購單
+    expect((await nb.get(RX)).status()).toBe(403);
+    expect((await nb.get(PX)).status()).toBe(403);
+    expect((await sa.get(PX)).status()).toBe(403);
+    // 超過門檻的採購單：非核准人不能核准；開單人自己即使持核准權限也不能核准
+    const body = { header: { vendor_id: vendor.id, receiving_location_id: locP.id, notes: '[自動測試]M7M8 G16J-perm' }, items: [{ part_id: partP.id, quantity: 100, unit_price: 100 }], idempotency_key: `g16p-${Date.now()}` };
+    const c1 = await eq.post(PX, { data: body });
+    expect(c1.status(), await c1.text()).toBe(201);
+    const po1 = (await c1.json()).data;
+    const s1 = await eq.post(`${PX}/${po1.id}/actions`, { data: { action: 'submit', expected_updated_at: po1.updated_at } });
+    expect(s1.status(), await s1.text()).toBe(200);
+    const sub1 = (await s1.json()).data;
+    const ap1 = await eq.post(`${PX}/${po1.id}/actions`, { data: { action: 'approve', expected_updated_at: sub1.updated_at } });
+    expect(ap1.status()).toBe(403);
+    const c2 = await pa.post(PX, { data: { ...body, idempotency_key: `g16p2-${Date.now()}` } });
+    expect(c2.status(), await c2.text()).toBe(201);
+    const po2 = (await c2.json()).data;
+    const s2 = await pa.post(`${PX}/${po2.id}/actions`, { data: { action: 'submit', expected_updated_at: po2.updated_at } });
+    const sub2 = (await s2.json()).data;
+    const ap2 = await pa.post(`${PX}/${po2.id}/actions`, { data: { action: 'approve', expected_updated_at: sub2.updated_at } });
+    expect(ap2.status()).toBe(403);
+    expect((await ap2.json()).code).toBe('SELF_APPROVAL');
+    const row = (await adminDb().from('ga_purchase_orders').select('status').eq('id', po2.id).single()).data as any;
+    expect(row.status).toBe('PENDING_APPROVAL');
+    // 介面：他店店長（手機）看不到採購單與需求單工作台入口、看不到他店的單
+    const m = await browser.newContext({ baseURL: TEST_ORIGIN, storageState: await sb.storageState(), serviceWorkers: 'block', viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+    const page = await m.newPage();
+    try {
+      await openGaCenter(page);
+      const labels = await sideLabels(page);
+      expect(labels).not.toContain('採購單');
+      expect(labels).not.toContain('待簽核採購單');
+      expect(labels).not.toContain('總務需求工作台');
+      await nav(page, '我的追蹤');
+      await searchBox(page).fill(mine.request_no);
+      await expect(page.locator('[data-testid="mr-card"]:visible', { hasText: mine.request_no })).toHaveCount(0);
+      expect(await noPageOverflow(page)).toBe(true);
+    } finally {
+      await m.close();
+    }
+  } finally {
+    for (const c of [sa, sb, nb, eq, pa]) await c.dispose();
+  }
 });
