@@ -62,6 +62,10 @@ MARKER_TARGETS.push(
   { table: 'ga_asset_transfers', column: 'asset_name', pattern: M7M8_MARKER, action: 'report' },
   { table: 'ga_asset_events', column: 'asset_name', pattern: M7M8_MARKER, action: 'report' },
   { table: 'ga_asset_import_batches', column: 'file_name', pattern: M7M8_MARKER, action: 'report' },
+  // 第 4 批（G25 採購單）：採購單備註、測試供應商名稱帶標記；測試用臨時角色 m7m8_test_*。採購單事件有不可改刪觸發器，清除只走 DEV 專用函式 ga_dev_cleanup_m7m8_purchasing，這裡只回報孤兒。
+  { table: 'ga_purchase_orders', column: 'notes', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'ga_vendors', column: 'name', pattern: M7M8_MARKER, action: 'report' },
+  { table: 'roles', column: 'code', pattern: 'm7m8_test_%', action: 'report' },
 );
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/

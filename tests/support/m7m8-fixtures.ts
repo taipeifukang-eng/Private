@@ -12,6 +12,7 @@ import { adminDb, apiForUser, runIdOrThrow, stores } from './m5-fixtures';
 export { adminDb, apiForUser, stores };
 export const M7_EMAIL_PREFIX = 'm7m8-test-';
 export const M7_FILE_PREFIX = 'm7m8t-';
+export const M7_ROLE_PREFIX = 'm7m8_test_';
 
 export const m7Tag = () => `[自動測試]M7M8 ${runIdOrThrow()}`;
 export const m7Name = (tag: string) => `${m7Tag()} ${tag}`;
@@ -197,6 +198,15 @@ export async function cleanupM7Users(db: any = adminDb()): Promise<string[]> {
     await db.from('store_managers').delete().in('user_id', uids);
     await db.from('user_roles').delete().in('user_id', uids);
   }
+  // 第 4 批：測試用的臨時角色（m7m8_test_*，只有測試帳號掛用）
+  const tmpRoles = await db.from('roles').select('id').like('code', `${M7_ROLE_PREFIX}%`);
+  const roleIds = (tmpRoles.data || []).map((r: { id: string }) => r.id);
+  if (roleIds.length) {
+    await db.from('user_roles').delete().in('role_id', roleIds);
+    await db.from('role_permissions').delete().in('role_id', roleIds);
+    const dr = await db.from('roles').delete().in('id', roleIds);
+    if (dr.error) log.push(`roles: ${dr.error.message}`);
+  }
   for (let page = 1; ; page += 1) {
     const r = await db.auth.admin.listUsers({ page, perPage: 200 });
     if (r.error) {
@@ -281,6 +291,9 @@ export async function cleanupM7M8(): Promise<string[]> {
   await del(db, 'ga_inventory_transfer_items', 'transfer_id', transferIds, log);
   await del(db, 'ga_inventory_transfers', 'id', transferIds, log);
   // 測試真的過帳（呼叫過帳函式）留下的流水有不可改刪觸發器：用 DEV 專用清除函式（只處理名稱帶標記的位置與料件）清掉，之後才能刪餘額、位置與料件。
+  // 第 4 批：採購單、進貨、配發、測試供應商（事件表有不可改刪觸發器，用 DEV 專用函式；函式還沒套用時略過）
+  const sweptPo = await db.rpc('ga_dev_cleanup_m7m8_purchasing');
+  if (sweptPo.error && sweptPo.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_purchasing: ${sweptPo.error.message}`);
   const swept = await db.rpc('ga_dev_cleanup_m7m8_inventory');
   if (swept.error && swept.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_inventory: ${swept.error.message}`);
   await del(db, 'ga_inventory_balances', 'part_id', partIds, log);
@@ -318,6 +331,7 @@ export async function cleanupM7M8(): Promise<string[]> {
     ['ga_parts', 'name', MARK_LIKE], ['ga_equipment_templates', 'name', MARK_LIKE], ['ga_facility_templates', 'name', MARK_LIKE],
     ['ga_equipment', 'name', MARK_LIKE], ['ga_facilities', 'name', MARK_LIKE], ['ga_inventory_locations', 'name', MARK_LIKE], ['ga_service_requests', 'title', MARK_LIKE],
     ['ga_asset_transfers', 'asset_name', MARK_LIKE], ['ga_asset_events', 'asset_name', MARK_LIKE], ['ga_asset_import_batches', 'file_name', MARK_LIKE],
+    ['ga_vendors', 'name', MARK_LIKE], ['ga_purchase_orders', 'notes', MARK_LIKE],
   ] as const) {
     const left = await ids(db, table, col, like);
     if (left.length) log.push(`${table} 殘留 ${left.length} 筆`);

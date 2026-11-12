@@ -5583,5 +5583,161 @@
       "kind": "only-new",
       "key": "ga-center-roster-readonly"
     }
+  },
+  {
+    "id": "m7m8-b4-po-from-review-draft",
+    "page": "purchase-orders",
+    "description": "需求單採購評估選「進入採購」可自動產生一張草稿採購單並連回需求單與評估（重送回同一張，核准量大於剩餘需求量時只帶剩餘量）；舊版評估核准後直接進入「等待到貨」，沒有下訂動作。",
+    "reason": "D1：新增獨立採購單，草稿確認供應商與單價後才下訂。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-from-review-draft"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-request-sum-over-reason",
+    "page": "purchase-orders",
+    "description": "同一張需求單可對應多張採購單，需求量以所有未取消採購單的品項數量（換算基本單位）加總控管，超過須在品項填超量原因。",
+    "reason": "D2、D3：一對多與需求量加總控管，超過須填原因。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-request-sum-over-reason"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-approval-threshold",
+    "page": "purchase-orders",
+    "description": "採購單含稅總額「大於」門檻（預設 5000 元，剛好 5000 免核准，可由持核准權限者調整）必須在系統內核准才能下訂；新增「待核准」狀態與待簽核清單，駁回須填原因並退回草稿，已核准要改金額須先撤回核准。",
+    "reason": "D6：使用者選擇門檻制並要求以可指派的權限碼實作核決（不建採購單位角色）。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-approval-threshold"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-approver-not-creator",
+    "page": "purchase-orders",
+    "description": "新權限碼 general_affairs.purchase_order.approve（採購核准）：核准人不可是開單人也不可是最後送核准的人，管理員不繞過；核准人不需要採購三個寫入權限，只有三個權限的人不能核准。",
+    "reason": "D6 與 D11 的取捨（設計文件第 3.1 節）：採購各步驟不限同一人，核准是唯一例外。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-approver-not-creator"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-vendor-pick-snapshot-mask",
+    "page": "purchase-orders",
+    "description": "採購單只能選已建好、合作中（status = active）的供應商，不能臨時輸入名稱；下訂時複製名稱、統編、付款條件快照，廠商改資料不影響舊單；統編與付款條件只給有廠商檢視或管理權限者，其餘由資料庫函式遮蔽。",
+    "reason": "D8：使用者補充「要有建好的供應商資料再做採購單」，帳務欄位依權限遮蔽。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-vendor-pick-snapshot-mask"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-multi-items-one-vendor-po-no",
+    "page": "purchase-orders",
+    "description": "一張採購單一個供應商、多個品項（料件或自由品名，有數量與單價）；單號 PO-YYYYMMDD-NNN（台北日期、每日流水歸零、滿 999 擴為四位）。含稅總額四捨五入到整數元，稅率預設 5% 可調。",
+    "reason": "D7：一單一供應商多品項與單號格式。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-multi-items-po-no"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-price-history-recent5",
+    "page": "purchase-orders",
+    "description": "選了料件後顯示同料件最近 5 筆「已下訂以上」（已下訂、部分到貨、全部到貨、已結案）的採購：日期、供應商快照名稱、單價、數量、單號；草稿、待核准、已核准未下訂、已取消不算；筆數可調。",
+    "reason": "D9：從上線日起累積，不回推舊版評估。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-price-history-recent5"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-lock-after-order-cancel-rules",
+    "page": "purchase-orders",
+    "description": "下訂後品項、數量、單價與供應商鎖定，只能改備註與預計到貨日；下訂前取消原因選填、下訂後未到貨取消須填原因、已有到貨紀錄只能短收結案（須填原因）不能取消。",
+    "reason": "D10：下訂後鎖定與取消、短收結案規則。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-lock-after-order-cancel-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-step-actor-log",
+    "page": "purchase-orders",
+    "description": "採購單每一步動作（開單、送核准、核准、駁回、下訂、取消、結案等）都寫事件並記錄操作人與時間，事件不可修改或刪除；開單、下訂、到貨、配發不限制同一人。",
+    "reason": "D11：同一人可做全部步驟，記錄每步操作人與時間。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-step-actor-log"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-legacy-receipt-block",
+    "page": "purchase-orders",
+    "description": "舊版需求單「採購到貨入庫」（參考單據 GA_PURCHASE_REVIEW）遇到評估已有未取消的新版採購單時，資料庫層擋下並說明改到採購單登錄到貨；沒有新版採購單的評估不受影響。",
+    "reason": "設計文件第 8 節新舊並存風險：舊版收貨直接過帳，會與新版採購單到貨雙記庫存。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-legacy-receipt-block"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-no-stock-mode",
+    "page": "purchase-orders",
+    "description": "自由品名且非設備的品項用第三種處理方式「只登錄到貨」（NO_STOCK）：只記到貨，不入總部庫存也不建設備；問卷只問了入庫存與直接建設備兩條路。",
+    "reason": "設計文件第 3.2 節補的設計。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-no-stock-mode"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-draft-counts-as-active",
+    "page": "purchase-orders",
+    "description": "草稿採購單也算「有效採購單」：占用需求單的需求量、之後會擋住請門市補資料（D4）；要補資料須先取消草稿。",
+    "reason": "設計文件第 7 節第 16 項。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-draft-counts-as-active"
+    }
+  },
+  {
+    "id": "m7m8-b4-po-threshold-adjustable-by-approver",
+    "page": "purchase-orders",
+    "description": "持有採購核准權限的人可調整核准門檻、稅率、歷史價筆數與是否啟用核准，每次調整寫事件（誰、舊值、新值），只影響之後送出的單；沒有獨立的調整門檻權限。",
+    "reason": "設計文件第 8 節風險：持核准權限者可調高門檻繞過核准，以事件與門檻快照控管。新發現，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-threshold-adjustable-by-approver"
+    }
   }
 ]
