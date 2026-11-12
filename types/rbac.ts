@@ -152,7 +152,7 @@ export const FEATURE_NAMES: Record<string, string> = {
   service_category: '服務分類',
   service_region: '服務區域',
   cooperation_record: '合作紀錄',
-  purchase_review: '採購評估',
+  purchase_order: '採購單', purchase_review: '採購評估',
   utility_bill: '水電與網路費',
   performance: '業績管理', permission: '權限管理', pharmacist_management: '藥師管理',
   pharmacist_master: '藥師主檔', products_master: '商品主檔', promotion: '升遷管理',

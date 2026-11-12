@@ -263,3 +263,29 @@
 3. 前端：G25 三頁與導覽、G14 至 G17 四頁、移轉頁調整；role-matrix 與測試帳號。
 4. 測試：G14 至 G17、G25 至 G27 四層加 parity 與四支角色劇本；allowlist；全批驗收。
 5. 實作紀錄：每階段完成後在本文件新增「實作紀錄」小節（比照第 3 批 §10）。
+
+## 12. 實作紀錄
+
+### 12.1 G25-db 採購單資料庫層（2026-11-12）
+完成 `20261112100000`（A）、`20261112110000`（B）、DEV 專用 `140000`、`150000`、套用腳本 `scripts/apply-workspace-m7m8-b4-dev.cjs`、正式區草稿 `31`、`32`、`33` 與 README 第 4 批章節；純函式 `lib/workspace/general-affairs/purchase-order-rules.ts`；單元 42 項、整合 21 項（`tests/integration/G25-db.purchase-orders-rpc.spec.ts`，含 3 項在資料庫交易內執行且結束一律回復的測試）。C（`120000` 到貨驗入與配發）、D（`130000` 搬單）與 `34`、`35` 留待後續階段；套用腳本與清除函式已預留它們（檔案不存在就略過；清除函式遇到進貨、配發資料表存在才處理）。
+
+**第 9 節開工前核對結果**
+1. 舊頁與 API：已逐檔確認 `purchase-receipt` 的寫入路徑（第 6 項）；G14 至 G17 其餘舊版功能清單由後續階段補全。
+2. 舊版新增設備流程：資產編號由資料庫函式 `ga_next_equipment_asset_code(category_id, purchased_at)` 依分類第二層代碼與購置日期取號（序號表 `ga_asset_code_sequences`），資料庫有唯一索引 `uq_ga_equipment_asset_code_active`（啟用中資產編號不分大小寫不可重複）與 `uq_ga_equipment_barcode_active`；沒有購置日期就不自動產生編號。規則明確、沒有疑問，配發建立設備（C 階段）沿用，不需要先問使用者。
+3. `ga_equipment` 沒有「保固起算日」欄位：既有 `purchased_at`、`activated_at`、`purchase_amount`（購價，含稅與否沒有註明）、`has_warranty`、`warranty_end_date`；型號 `ga_equipment_templates.default_warranty_months` 可算到期日。`warranty_start_date` 與 `source_*` 欄位仍由 C 新增；`purchase_amount` 含稅與否到 C 階段前要決定（預設建議填未稅單價，並在設備備註註明）。`ga_parts` 沒有型號相關欄位，`ga_parts.equipment_template_id` 由 C 新增。
+4. 欄位現況：`ga_service_request_comments` 已有 `edited_at`、`deleted_at`，只缺 `original_body`；`ga_service_request_events` 已有 `visibility`（PUBLIC／INTERNAL）可當時間軸公開事件，所以**不另加 `public_to_store`**（與設計 §3.2 不同，避免重複語意），只加 `proxy_for_store`；`ga_service_requests` 加 `cancel_reason`、`reopened_count`；報價加 `superseded_at`。
+5. 權限碼註冊：`permissions` 表以 `(module, feature, code, action, description, is_active)` 新增（`ON CONFLICT (code)`）；角色權限頁（`app/admin/roles/[id]/RoleEditClient.tsx`）依資料表列出，顯示名稱來自 `types/rbac.ts` 的 `FEATURE_NAMES`／`ACTION_NAMES`（`approve` 本來就顯示「審核」），已補 `purchase_order: '採購單'`。
+6. 舊 `purchase-receipt`：是 Next API 路由，直接呼叫過帳核心 `ga_post_inventory_transaction`（參考單據 `GA_PURCHASE_REVIEW`、參考編號 = 評估 id），並直接更新需求單與處理單；不是資料表直寫，也沒有對應資料庫函式，所以無法在資料庫層擋整條路徑。採用的作法：在庫存流水表加觸發器，**只擋「評估已有未取消的新版採購單」的舊版收貨**（33）；舊版評估尚未開新版採購單的在途單由 `31` 第 5 區列出，上線說明要求採購只用新版。登記 allowlist 新發現 `m7m8-b4-po-legacy-receipt-block`（approvedBy null）。
+
+**與設計文件不同或補充之處**
+- 預設總部倉的位置類型實際是 `CENTRAL_WAREHOUSE`（設計寫 `WAREHOUSE`）；DEV 目前沒有預設的中央倉庫（`31` 第 3 區 WARN），採購單收貨位置要手動選或先建預設倉；剛好一個預設倉才會自動帶入。
+- `ga_vendors` 沒有 `deleted_at` 欄位，「啟用中、未刪除」以 `status = 'active'`（合作中；另有 `paused`、`inactive`）判斷。
+- 單號 `ga_next_po_no` 與舊版評估採購編號（`ga_next_purchase_order_no`，`PO-日期-四位流水`、共用序列）格式相近但不同表、不共用流水；為避免看起來相同，取號時會跳過與評估採購編號相同的號碼。
+- 三張採購表登入者完全不能直接讀寫（沒有 RLS 政策、撤銷授權），所有讀取走 `ga_ws_po_get／list`，才能依廠商權限遮蔽統編與付款條件；設計文件 §3.2 沒有明講。新增 `ga_ws_po_get`、`ga_ws_po_vendor_options` 兩個函式（設計函式清單沒列）。
+- 動作的版本檢查比照第 3 批：`expected_updated_at` 必填（缺少回 400 `EXPECTED_REQUIRED`）。核准、駁回與設定調整以外的動作要三個權限；`withdraw` 也要三個權限（核准人不能撤回）。
+- 核准與駁回都套用「不可是開單人、不可是最後送核准人」。送核准後撤回再由別人送，`submitted_by` 以最後一次為準。
+- 需求量超量：同一張需求單加總超過需求量時，本單內連到該需求單的**每個**品項都要填超量原因（設計寫「需填原因」，這裡定為每項）；從評估產生草稿時核准量大於剩餘量就只帶剩餘量，避免一建立就超量；單價由評估金額除以評估核准量推算（優先 final、negotiated、quoted、estimated），標明「請確認」。
+- 送核准時含稅總額未超過門檻回 409 `NO_APPROVAL_NEEDED`（說明免核准可直接下訂）；下訂時草稿超過門檻回 409 `APPROVAL_REQUIRED`。已核准的單下訂不再重新比對門檻。
+- 設定調整限持採購核准權限者，版本以 `po_*` 設定列的最新更新時間為準；每個有變動的鍵寫一筆 `ga_workflow_setting_events`（誰、舊值、新值）。逾期未確認天數的設定函式留給 G16 階段（需求單管理權限）。
+- 事件表不可改刪觸發器的唯一例外：帳號被刪除時外鍵把操作人設為空白。DEV 清除函式暫停觸發器、同交易內恢復。
+- 測試中發現並修正的兩個資料庫缺陷：單號滿 999 時 `lpad` 會截斷成三位（已改為四位以上不補零）、評估產生草稿時數量帶出過多小數位（已 `round` 到 4 位）。
