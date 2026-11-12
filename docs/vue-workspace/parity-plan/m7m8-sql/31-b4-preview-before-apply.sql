@@ -3,7 +3,7 @@
 -- 唯讀（只有 SELECT），整份可直接貼上執行，不會改任何資料。
 -- 每列有 section（區）、item（項目）、value（數字或內容）、status：OK＝正常；MISSING＝缺東西，不要套用；ALREADY＝已經有了（重複套用沒問題，但請確認是不是上次套的）；
 -- WARN＝需要你看一下；INFO＝只是現況，給你決定上線怎麼安排。只需要看 MISSING、WARN、ALREADY；INFO 是現況數字。
--- 目前涵蓋 32、33（本檔第 1 至 8 區）；34、35 的先決條件與新增物件在它們完成後補進第 2 區。
+-- 涵蓋 32、33（本檔第 1 至 8 區）、34（第 9 區）、32 的現況（第 10 區）與 35（第 11 區：設備換店時單子跟著搬的影響）。
 -- 在 DEV 已套用 32、33 之後再跑：第 2 區會出現 ALREADY、第 9 區的欄位與權限碼會是 ALREADY，都是預期的；正式區尚未套用時應全部 OK。
 WITH
 req_tables AS (
@@ -186,4 +186,21 @@ UNION ALL
 SELECT '10 32 預告', '設備指向需求單的外鍵數（34 刻意不新增外鍵，避免舊版需求單 API 的 equipment 嵌入查詢出現關聯不明確；現況與 34 套用後都應為 0）',
        (SELECT count(*)::text FROM pg_constraint c WHERE c.contype = 'f' AND c.conrelid = 'public.ga_equipment'::regclass AND c.confrelid = 'public.ga_service_requests'::regclass),
        CASE WHEN (SELECT count(*) FROM pg_constraint c WHERE c.contype = 'f' AND c.conrelid = 'public.ga_equipment'::regclass AND c.confrelid = 'public.ga_service_requests'::regclass) = 0 THEN 'OK' ELSE 'WARN' END
+UNION ALL
+-- 11 第 4 批 D（35）預告：設備換店時單子會跟著搬（D20、D21）
+SELECT '11 35 預告', '設備／設施上掛著「維修類、未結案」的需求單張數（35 套用後，這些單在設備換店時會一起轉到新門市；現在換店單子留在原門市）',
+       (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND request_type = 'REPAIR' AND main_status NOT IN ('COMPLETED', 'REJECTED', 'CANCELED') AND (equipment_id IS NOT NULL OR facility_id IS NOT NULL)), 'INFO'
+UNION ALL
+SELECT '11 35 預告', '進行中的轉移單數（35 套用時還沒收到的轉移單，收到時就會搬單；請先和總務、店長說明新行為）',
+       (SELECT count(*)::text FROM public.ga_asset_transfers WHERE status IN ('PENDING_HANDOVER', 'PENDING_RECEIVE')),
+       CASE WHEN EXISTS (SELECT 1 FROM public.ga_asset_transfers WHERE status IN ('PENDING_HANDOVER', 'PENDING_RECEIVE')) THEN 'WARN' ELSE 'OK' END
+UNION ALL
+SELECT '11 35 預告', '沒連到需求單、未完成的舊式維修工單張數（35 不搬它們，換店時只在轉移單上列清單；維修工單表沒有連到設備的欄位，以標題提到資產編號或名稱判斷）',
+       (SELECT count(*)::text FROM public.maintenance_requests WHERE ga_service_request_id IS NULL AND status <> 'COMPLETED'), 'INFO'
+UNION ALL
+SELECT '11 35 預告', '會被覆蓋的第 2 批函式 ga_ws_transfer_confirm_receive 目前版本 md5（撤回 35 時要還原成這個版本）', md5(pg_get_functiondef(p.oid)), 'INFO'
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'ga_ws_transfer_confirm_receive'
+UNION ALL
+SELECT '11 35 預告', '會被覆蓋的第 2 批函式 ga_ws_correct_asset_store 目前版本 md5（撤回 35 時要還原成這個版本）', md5(pg_get_functiondef(p.oid)), 'INFO'
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname = 'ga_ws_correct_asset_store'
 ORDER BY 1, 2;

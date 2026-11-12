@@ -1,4 +1,4 @@
-// 由 DEV 已測過的 SQL（supabase/workspace-dev/）產生第 4 批正式區草稿（docs/vue-workspace/parity-plan/m7m8-sql/ 的 32 至 35；目前做到 34，35 由後續階段新增）。
+// 由 DEV 已測過的 SQL（supabase/workspace-dev/）產生第 4 批正式區草稿（docs/vue-workspace/parity-plan/m7m8-sql/ 的 32 至 35）。
 // 規則：內容與 DEV 檔相同，只是換成草稿標頭、包 BEGIN ... COMMIT、結尾加核對查詢；rollback 同樣包交易。不連線任何資料庫。
 // 用法：node scripts/build-m7m8-b4-prod-drafts.cjs
 const fs = require("fs");
@@ -77,6 +77,25 @@ const DRAFTS = [
       "--   CREATE TABLE public.zz_bak_b4_34_serial_events AS SELECT * FROM public.ga_equipment_serial_events;\n" +
       "--   CREATE TABLE public.zz_bak_b4_34_part_templates AS SELECT id, equipment_template_id FROM public.ga_parts WHERE equipment_template_id IS NOT NULL;\n" +
       "--   CREATE TABLE public.zz_bak_b4_34_equipment_src AS SELECT id, source_purchase_order_id, source_po_item_id, source_receipt_item_id, source_dispatch_id, source_request_id, vendor_id, vendor_name_snapshot, warranty_start_date FROM public.ga_equipment WHERE source_purchase_order_id IS NOT NULL OR warranty_start_date IS NOT NULL;",
+  },
+  {
+    no: "35-b4-asset-transfer-follow",
+    dev: "20261112130000_m7m8_b4_asset_transfer_follow",
+    title: "第 4 批 D（G27 資產移轉，單子跟著走 B6；D20、D21）",
+    summary:
+      "性質：會寫入，新增 1 張表 ga_asset_transfer_moved_requests（搬走的單與舊式工單清單，登入者不能直接讀寫）與 4 個函式（ga_ws_asset_move_open_requests 內部搬單、ga_ws_asset_unlinked_work_orders 內部、ga_ws_asset_move_preview 確認視窗預覽、ga_ws_asset_moved_list 搬走明細），\n" +
+      "--   並以 CREATE OR REPLACE 覆蓋第 2 批兩個函式（簽章不變，只在原版後面多呼叫搬單函式；原版備份在 35 的撤回檔）：ga_ws_transfer_confirm_receive（轉移單 B 店店長確認收到）、ga_ws_correct_asset_store（更正所屬門市）。\n" +
+      "-- 行為改變（要使用者核可，問卷 D20、D21 已核可）：設備換店（轉移單確認收到、更正所屬門市）時，同一交易內把這項設備／設施的「維修類（REPAIR）且未結案（不是 COMPLETED、REJECTED、CANCELED，含待門市確認、待門市補資料）」需求單與其維修工單的 store_id 一起改成新門市（需求單 updated_at 隨之更新，其他人畫面上的舊版本會得到 409 STALE）；\n" +
+      "--   添購等其他類型不搬、已結案的單留在原門市；需求單與工單時間軸各寫一筆公開事件「因設備轉移，由 A 店轉到 B 店」（更正所屬門市則寫「因設備所屬門市更正，由 A 店轉到 B 店」）；不發通知。原本（第 2 批解讀 h）單子一律留在原門市。\n" +
+      "-- 沒連到需求單的舊式工單（maintenance_requests.ga_service_request_id 為空）：不搬、不改，只在 ga_asset_transfer_moved_requests 記一筆 UNLINKED_WORK_ORDER 讓總務人工處理。維修工單表沒有連到設備的欄位，所以以「同門市、未完成、資源類型相符、標題或說明提到資產編號（至少 3 字）或名稱（至少 2 字）」判斷，可能漏列或多列（待使用者確認）。\n" +
+      "-- 先決條件：先套 32（需求單事件函式 ga_rq_event）；第 2 批 21（轉移單與異動紀錄表、轉移函式）已套用。不改任何既有資料。",
+    verify:
+      "SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND proname IN ('ga_ws_asset_move_open_requests', 'ga_ws_asset_unlinked_work_orders', 'ga_ws_asset_move_preview', 'ga_ws_asset_moved_list') ORDER BY 1;\n-- 核對：應列出 4 個函式\nSELECT to_regclass('public.ga_asset_transfer_moved_requests') AS moved_table;\n-- 核對：不是空的\nSELECT proname, position('ga_ws_asset_move_open_requests' IN pg_get_functiondef(p.oid)) > 0 AS calls_move FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND proname IN ('ga_ws_transfer_confirm_receive', 'ga_ws_correct_asset_store') ORDER BY 1;\n-- 核對：兩個函式的 calls_move 都是 true",
+    rollbackSummary:
+      "撤回 35：把 ga_ws_transfer_confirm_receive 與 ga_ws_correct_asset_store 還原成第 2 批原版（備份自套用前的 pg_get_functiondef），移除搬單的 4 個函式與 ga_asset_transfer_moved_requests。會刪除：搬走的單與舊式工單清單紀錄。\n" +
+      "-- 已經被搬到新門市的需求單與工單不會搬回去（資料本身留在新門市）；撤回後換店恢復成「單子一律留在原門市」。時間軸上已寫的公開事件也保留。",
+    backup:
+      "-- 撤回前備份：\n--   CREATE TABLE public.zz_bak_b4_35_moved AS SELECT * FROM public.ga_asset_transfer_moved_requests;\n--   （兩個第 2 批函式的原版由撤回檔自帶；撤回前先 SELECT pg_get_functiondef 存一份更保險。）",
   },
 ];
 
