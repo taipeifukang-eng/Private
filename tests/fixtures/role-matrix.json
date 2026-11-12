@@ -420,7 +420,11 @@
           "gaAssetImport": true,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": true,
+          "gaMyReports": true,
+          "gaRequests": true,
+          "gaPartFulfillments": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -620,7 +624,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": true,
+          "gaRequests": true,
+          "gaPartFulfillments": true
         },
         "navigationHrefs": [
           "/activity-management",
@@ -769,7 +777,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -900,7 +912,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -1013,7 +1029,7 @@
           "campaignView": true,
           "calendar": true,
           "editCampaigns": false,
-          "gaCenter": false,
+          "gaCenter": true,
           "gaEquipmentCategories": false,
           "gaFacilityCategories": false,
           "gaPartCategories": false,
@@ -1039,13 +1055,18 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/activity-management",
           "/admin/activity-management",
           "/admin/stores",
           "/dashboard",
+          "/general-affairs",
           "/inspection",
           "/inspection/improvements",
           "/monthly-status",
@@ -1164,7 +1185,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1287,7 +1312,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1390,7 +1419,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -1506,7 +1539,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1655,7 +1692,11 @@
           "gaAssetImport": true,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": true,
+          "gaMyReports": true,
+          "gaRequests": true,
+          "gaPartFulfillments": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -1760,7 +1801,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1855,7 +1900,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -1943,7 +1992,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2034,7 +2087,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2128,7 +2185,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2221,7 +2282,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -2311,7 +2376,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2405,7 +2474,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2497,7 +2570,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/stores",
@@ -2588,7 +2665,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2683,7 +2764,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2775,7 +2860,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/inspection",
@@ -2866,7 +2955,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -2960,7 +3053,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -3053,7 +3150,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/activity-management",
@@ -3146,7 +3247,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3240,7 +3345,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3333,7 +3442,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/my-tasks",
@@ -3424,7 +3537,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3516,7 +3633,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3608,7 +3729,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar",
@@ -3701,7 +3826,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3798,7 +3927,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3894,7 +4027,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/roles",
@@ -3986,7 +4123,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4080,7 +4221,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4172,7 +4317,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/users",
@@ -4266,7 +4415,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -4365,7 +4518,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/departments",
@@ -4458,7 +4615,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -4552,7 +4713,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/pharmacist-management",
@@ -4644,7 +4809,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -4740,7 +4909,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/monthly-status",
@@ -4833,7 +5006,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -4927,7 +5104,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/performance",
@@ -5018,7 +5199,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -5110,7 +5295,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/employee-purchases",
@@ -5202,7 +5391,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5296,7 +5489,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5389,7 +5586,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/inventory",
@@ -5480,7 +5681,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5571,7 +5776,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5662,7 +5871,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5752,7 +5965,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -5843,7 +6060,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/store-managers",
@@ -5936,7 +6157,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6026,7 +6251,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6118,7 +6347,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6207,7 +6440,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -6297,7 +6534,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/employee-management",
@@ -6387,7 +6628,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/admin/promotion-management",
@@ -6476,7 +6721,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -6622,7 +6871,11 @@
           "gaAssetImport": true,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": true,
+          "gaMyReports": true,
+          "gaRequests": true,
+          "gaPartFulfillments": true
         },
         "navigationHrefs": [
           "/cross-dept/maintenance",
@@ -6742,7 +6995,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/dashboard",
@@ -6840,7 +7097,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -6932,7 +7193,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7025,7 +7290,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7120,7 +7389,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7210,7 +7483,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7301,7 +7578,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/organization/calendar"
@@ -7391,7 +7672,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7483,7 +7768,11 @@
           "gaAssetImport": true,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7574,7 +7863,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7666,7 +7959,11 @@
           "gaAssetImport": true,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7756,7 +8053,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7847,7 +8148,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": true,
           "gaInventory": false,
-          "gaInventoryTransfers": false
+          "gaInventoryTransfers": false,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -7936,7 +8241,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": true,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",
@@ -8026,7 +8335,11 @@
           "gaAssetImport": false,
           "gaInventoryLocations": false,
           "gaInventory": false,
-          "gaInventoryTransfers": true
+          "gaInventoryTransfers": true,
+          "gaReportCreate": false,
+          "gaMyReports": false,
+          "gaRequests": false,
+          "gaPartFulfillments": false
         },
         "navigationHrefs": [
           "/general-affairs",

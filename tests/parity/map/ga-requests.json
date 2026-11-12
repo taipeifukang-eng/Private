@@ -1,0 +1,51 @@
+{
+  "page": "ga-requests",
+  "legacyRoute": "/general-affairs/requests",
+  "workItem": "G14-G17",
+  "entries": [
+    {
+      "id": "request-list-read",
+      "mechanism": "api-read",
+      "description": "同一個登入者（總務）、同一個搜尋，舊版 GET /api/general-affairs/requests 與新版同功能清單逐列比對（id、單號、類型、標題、狀態、分流、承辦、進度、各時間與門市、設備、設施、料件關聯）。差異：新版多回內部欄位（總務看得到）、逾期未確認標示、統計與設定、可做的動作；總務的未讀留言欄位保留；伺服端精確統計與搜尋跳脫。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/requests" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "request-detail-read",
+      "mechanism": "api-read",
+      "description": "同一張需求單的詳情（總務身分）：舊版 GET /api/general-affairs/requests/:id 與新版比對需求欄位、事件、留言。差異：新版事件不再把留言事件混進時間軸（兩版都過濾）、留言多回已編輯／已刪除標示與原文（總務）、新版多回可做的動作、關聯採購單、處理單與單據摘要。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/requests/:id" } }
+    },
+    {
+      "id": "request-accept-write-readback",
+      "mechanism": "write-readback",
+      "description": "受理後以 service role 回讀資料庫列：同一份輸入分別用舊版與新版受理（各用一張相同初始狀態的需求單），狀態、分流、承辦角色、對外進度、內部備註、事件相同。新規則差異：已完成／已駁回的單不能再受理（舊版可以）、維修單不能走採購評估、非料件不能走庫存出庫（舊版可以）、新版必須帶版本（expected_updated_at）。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id", "method": "PATCH" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/requests/:id", "method": "PATCH" } }
+    },
+    {
+      "id": "request-store-action-write-readback",
+      "mechanism": "write-readback",
+      "description": "門市確認完成後回讀資料庫：舊版與新版對相同初始狀態的需求單由總務按「確認完成」。新規則差異：總務代門市按確認必須填說明並標「總務代門市操作」（舊版沒有標示也不要求說明）；對外進度文字改為代按版本。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id/store-actions", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/requests/:id/store-actions", "method": "POST" } }
+    },
+    {
+      "id": "fulfillment-list-read",
+      "mechanism": "api-read",
+      "description": "同一個登入者（總務）、同一張需求單的料件處理單：舊版 GET /api/general-affairs/part-fulfillments?requestId= 與新版比對處理單欄位、單據與事件。差異：新版分頁並回統計、待交付標示與時間、可做的動作；單據多回作廢欄位；舊版不分頁（上限 200）。",
+      "legacy": { "api": { "path": "/api/general-affairs/part-fulfillments" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/part-fulfillments" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "stock-issue-write-readback",
+      "mechanism": "write-readback",
+      "description": "需求單庫存出庫後回讀庫存與處理單：同一份輸入分別用舊版與新版出庫（各用一張需求單與一組位置料件）。新規則差異：出庫量不得超過剩餘需求量、料件須與需求相同（替代料須填原因）（舊版沒有這兩個限制，第一次出庫可以超量）。",
+      "legacy": { "api": { "path": "/api/general-affairs/requests/:id/stock-issue", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/requests/:id/stock-issue", "method": "POST" } }
+    }
+  ]
+}

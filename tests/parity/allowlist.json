@@ -5907,5 +5907,720 @@
       "kind": "only-native",
       "key": "rc-serial-fill-rules"
     }
+  },
+  {
+    "id": "m7m8-b4-rq-list-overdue-is-overdue-confirm",
+    "page": "ga-requests",
+    "description": "新版需求單清單多回逾期未確認標示（is_overdue_confirm）與進入待門市確認的起算時間（waiting_confirm_since，只有總務看得到）。舊版沒有逾期標示。",
+    "reason": "D5：待門市確認超過 7 天（設定可調）標逾期未確認並可一鍵篩選，只標示不自動結案、不通知。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_overdue_confirm",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-overdue-waiting-confirm-since",
+    "page": "ga-requests",
+    "description": "新版需求單清單多回逾期未確認標示（is_overdue_confirm）與進入待門市確認的起算時間（waiting_confirm_since，只有總務看得到）。舊版沒有逾期標示。",
+    "reason": "D5：待門市確認超過 7 天（設定可調）標逾期未確認並可一鍵篩選，只標示不自動結案、不通知。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "waiting_confirm_since",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-reopen-cancel-cancel-reason",
+    "page": "ga-requests",
+    "description": "新版需求單多回取消原因（cancel_reason）與重新開啟次數（reopened_count）。",
+    "reason": "Q17：總務取消須填原因、已完成或已駁回可重新開啟（須填原因）。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q17)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "cancel_reason",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-reopen-cancel-reopened-count",
+    "page": "ga-requests",
+    "description": "新版需求單多回取消原因（cancel_reason）與重新開啟次數（reopened_count）。",
+    "reason": "Q17：總務取消須填原因、已完成或已駁回可重新開啟（須填原因）。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q17)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "reopened_count",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-stats-envelope-stats",
+    "page": "ga-requests",
+    "description": "新版清單多回精確統計（各狀態與逾期筆數）、逾期天數設定、目前使用者的權限旗標與總筆數；分頁資訊放在 meta 與 total。",
+    "reason": "通則：伺服端分頁與精確筆數、統計卡數字不受篩選與分頁影響。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-stats-envelope-settings",
+    "page": "ga-requests",
+    "description": "新版清單多回精確統計（各狀態與逾期筆數）、逾期天數設定、目前使用者的權限旗標與總筆數；分頁資訊放在 meta 與 total。",
+    "reason": "通則：伺服端分頁與精確筆數、統計卡數字不受篩選與分頁影響。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "settings",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-stats-envelope-permissions",
+    "page": "ga-requests",
+    "description": "新版清單多回精確統計（各狀態與逾期筆數）、逾期天數設定、目前使用者的權限旗標與總筆數；分頁資訊放在 meta 與 total。",
+    "reason": "通則：伺服端分頁與精確筆數、統計卡數字不受篩選與分頁影響。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "permissions",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-stats-envelope-total",
+    "page": "ga-requests",
+    "description": "新版清單多回精確統計（各狀態與逾期筆數）、逾期天數設定、目前使用者的權限旗標與總筆數；分頁資訊放在 meta 與 total。",
+    "reason": "通則：伺服端分頁與精確筆數、統計卡數字不受篩選與分頁影響。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-stats-envelope-meta",
+    "page": "ga-requests",
+    "description": "新版清單多回精確統計（各狀態與逾期筆數）、逾期天數設定、目前使用者的權限旗標與總筆數；分頁資訊放在 meta 與 total。",
+    "reason": "通則：伺服端分頁與精確筆數、統計卡數字不受篩選與分頁影響。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "meta",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-envelope-success",
+    "page": "ga-requests",
+    "description": "舊版回應最外層有 success:true；新版錯誤用 HTTP 狀態碼與 error 欄位，成功時沒有 success。",
+    "reason": "workspace API 一貫格式（所有已移植頁面相同）。使用者於第 3 批問卷核可通則。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-assignee-user-id",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "assignee_user_id",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-internal-note",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "internal_note",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-completed-at",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "completed_at",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-contact-name",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "contact_name",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-contact-phone",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "contact_phone",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-temporary-workaround",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "temporary_workaround",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-created-by",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "created_by",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-created-by-name",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "created_by_name",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-list-extra-columns-base-unit",
+    "page": "ga-requests",
+    "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
+    "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "base_unit",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-new-sections-documents",
+    "page": "ga-requests",
+    "description": "新版詳情多回有效單據摘要（採購單、出庫、調撥、進行中工單）、處理單與關聯採購單清單（單號、狀態、已驗入量；有採購評估權限者另含供應商與含稅金額）。",
+    "reason": "D1、D2：需求單頁顯示所有連結採購單與進度；Q18 處理單與單據同步。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "documents",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-new-sections-fulfillment",
+    "page": "ga-requests",
+    "description": "新版詳情多回有效單據摘要（採購單、出庫、調撥、進行中工單）、處理單與關聯採購單清單（單號、狀態、已驗入量；有採購評估權限者另含供應商與含稅金額）。",
+    "reason": "D1、D2：需求單頁顯示所有連結採購單與進度；Q18 處理單與單據同步。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "fulfillment",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-new-sections-purchase-orders",
+    "page": "ga-requests",
+    "description": "新版詳情多回有效單據摘要（採購單、出庫、調撥、進行中工單）、處理單與關聯採購單清單（單號、狀態、已驗入量；有採購評估權限者另含供應商與含稅金額）。",
+    "reason": "D1、D2：需求單頁顯示所有連結採購單與進度；Q18 處理單與單據同步。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "purchase_orders",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-abilities",
+    "page": "ga-requests",
+    "description": "新版詳情回傳可按的動作（受理、駁回、補資料、取消、重新開啟、撤回、確認、庫存出庫、採購評估、留言等），由伺服端依狀態、單據與權限算好。",
+    "reason": "Q17：伺服端強制合法流轉，畫面只顯示可執行的動作。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q17)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "abilities",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-comment-marks-is-deleted",
+    "page": "ga-requests",
+    "description": "新版留言多回已編輯與已刪除標示、是否為自己的留言，總務另看得到被改刪前的原文；已刪除的留言只留占位。",
+    "reason": "Q16：門市留言可改刪但標示已編輯或已刪除，總務看得到原文。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_deleted",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-comment-marks-is-edited",
+    "page": "ga-requests",
+    "description": "新版留言多回已編輯與已刪除標示、是否為自己的留言，總務另看得到被改刪前的原文；已刪除的留言只留占位。",
+    "reason": "Q16：門市留言可改刪但標示已編輯或已刪除，總務看得到原文。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_edited",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-comment-marks-mine",
+    "page": "ga-requests",
+    "description": "新版留言多回已編輯與已刪除標示、是否為自己的留言，總務另看得到被改刪前的原文；已刪除的留言只留占位。",
+    "reason": "Q16：門市留言可改刪但標示已編輯或已刪除，總務看得到原文。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "mine",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-comment-marks-original-body",
+    "page": "ga-requests",
+    "description": "新版留言多回已編輯與已刪除標示、是否為自己的留言，總務另看得到被改刪前的原文；已刪除的留言只留占位。",
+    "reason": "Q16：門市留言可改刪但標示已編輯或已刪除，總務看得到原文。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "original_body",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-comment-marks-deleted-at",
+    "page": "ga-requests",
+    "description": "新版留言多回已編輯與已刪除標示、是否為自己的留言，總務另看得到被改刪前的原文；已刪除的留言只留占位。",
+    "reason": "Q16：門市留言可改刪但標示已編輯或已刪除，總務看得到原文。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "deleted_at",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-part-base-unit",
+    "page": "ga-requests",
+    "description": "新版詳情的料件資料多回基本單位。",
+    "reason": "出庫與採購數量換算要用。實作時補的欄位，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "base_unit",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-legacy-only-success",
+    "page": "ga-requests",
+    "description": "舊版詳情回應最外層有 success:true；新版沒有。",
+    "reason": "workspace API 一貫格式。使用者於第 3 批問卷核可通則。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-legacy-only-confirmed-at",
+    "page": "ga-requests",
+    "description": "舊版詳情回應含 success、需求單的 confirmed_at 與留言的 created_by（使用者 id）；新版不回。",
+    "reason": "新版不把使用者 id 傳給前端，確認時間改看事件。實作時的取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "confirmed_at",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-legacy-only-created-by",
+    "page": "ga-requests",
+    "description": "舊版詳情回應含 success、需求單的 confirmed_at 與留言的 created_by（使用者 id）；新版不回。",
+    "reason": "新版不把使用者 id 傳給前端，確認時間改看事件。實作時的取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "created_by",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-comment-attachments",
+    "page": "ga-requests",
+    "description": "舊版詳情會把留言上的附件（簽名網址）一併回傳；新版詳情的留言不帶附件，附件統一放在需求單的附件面板。",
+    "reason": "實作時的取捨：舊資料裡若有留言附件，新版暫時看不到（資料還在）。待使用者確認是否要補留言附件顯示。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "attachments",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-deleted-at",
+    "page": "ga-requests",
+    "description": "舊版詳情的需求單回傳整列（含 deleted_at 欄位）；新版只回明確列出的欄位。",
+    "reason": "新版不外露刪除標記欄位（查得到的單本來就是沒刪除的）。實作時的取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "deleted_at",
+      "entry": "request-detail-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-accept-no-completed-reaccept",
+    "page": "ga-requests",
+    "description": "已完成的需求單再受理：舊版成功（把狀態改回已受理），新版 409。要處理已完成的單請先重新開啟並填原因。",
+    "reason": "Q17：強制合法流轉；已完成與已駁回只能重新開啟。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q17)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "accept-completed-status",
+      "entry": "request-accept-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-accept-d4-accept-repair-purchase-status",
+    "page": "ga-requests",
+    "description": "受理時：維修單走採購評估、非料件需求走庫存出庫，舊版都放行；新版回 422 並說明原因。",
+    "reason": "D4：受理時伺服端擋不合理的類型、標的與處理方式組合。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "accept-repair-purchase-status",
+      "entry": "request-accept-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-accept-d4-accept-nonpart-stock-status",
+    "page": "ga-requests",
+    "description": "受理時：維修單走採購評估、非料件需求走庫存出庫，舊版都放行；新版回 422 並說明原因。",
+    "reason": "D4：受理時伺服端擋不合理的類型、標的與處理方式組合。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "accept-nonpart-stock-status",
+      "entry": "request-accept-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-accept-version",
+    "page": "ga-requests",
+    "description": "受理沒帶版本（expected_updated_at）：舊版不檢查，新版 400；版本不符回 409 STALE。",
+    "reason": "通則：寫入帶版本、衝突回 409 STALE。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "accept-without-version-status",
+      "entry": "request-accept-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-store-proxy",
+    "page": "ga-requests",
+    "description": "總務代門市按確認完成沒填說明：舊版直接成功，新版 400。",
+    "reason": "Q16：總務代門市按確認須填說明並標總務代門市操作。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "proxy-without-note-status",
+      "entry": "request-store-action-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-store-proxy-marks-proxy-for-store",
+    "page": "ga-requests",
+    "description": "總務代門市確認完成後，新版事件標總務代門市操作（proxy_for_store）、事件標題與對外進度文字改成代按版本；舊版與門市自己按完全相同。",
+    "reason": "Q16：總務代門市操作要標示。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "proxy_for_store",
+      "entry": "request-store-action-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-store-proxy-marks-public-progress",
+    "page": "ga-requests",
+    "description": "總務代門市確認完成後，新版事件標總務代門市操作（proxy_for_store）、事件標題與對外進度文字改成代按版本；舊版與門市自己按完全相同。",
+    "reason": "Q16：總務代門市操作要標示。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "public_progress",
+      "entry": "request-store-action-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-store-proxy-marks-title",
+    "page": "ga-requests",
+    "description": "總務代門市確認完成後，新版事件標總務代門市操作（proxy_for_store）、事件標題與對外進度文字改成代按版本；舊版與門市自己按完全相同。",
+    "reason": "Q16：總務代門市操作要標示。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q16)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "title",
+      "entry": "request-store-action-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-ready-is-ready-to-deliver",
+    "page": "ga-requests",
+    "description": "新版處理單多回待交付判斷（已處理量達需求量且還沒送門市確認）、達標時間與顯示用狀態文字。",
+    "reason": "Q18：到貨或收貨後處理單顯示待交付，由總務按送門市確認兩邊才一起往下。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_ready_to_deliver",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-ready-ready-to-deliver-at",
+    "page": "ga-requests",
+    "description": "新版處理單多回待交付判斷（已處理量達需求量且還沒送門市確認）、達標時間與顯示用狀態文字。",
+    "reason": "Q18：到貨或收貨後處理單顯示待交付，由總務按送門市確認兩邊才一起往下。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "ready_to_deliver_at",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-ready-status-label",
+    "page": "ga-requests",
+    "description": "新版處理單多回待交付判斷（已處理量達需求量且還沒送門市確認）、達標時間與顯示用狀態文字。",
+    "reason": "Q18：到貨或收貨後處理單顯示待交付，由總務按送門市確認兩邊才一起往下。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "status_label",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-void-fields-voided-at",
+    "page": "ga-requests",
+    "description": "新版處理單的單據多回作廢時間與作廢原因。",
+    "reason": "Q18：異常時可逐筆作廢舊單據後重選。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "voided_at",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-void-fields-void-reason",
+    "page": "ga-requests",
+    "description": "新版處理單的單據多回作廢時間與作廢原因。",
+    "reason": "Q18：異常時可逐筆作廢舊單據後重選。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "void_reason",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-abilities-stats-abilities",
+    "page": "ga-requests",
+    "description": "新版處理單清單多回可按的動作、各狀態精確統計與分頁資訊；舊版不分頁（上限 200 筆）。",
+    "reason": "通則：分頁與精確筆數、伺服端算好可按的動作。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "abilities",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-abilities-stats-stats",
+    "page": "ga-requests",
+    "description": "新版處理單清單多回可按的動作、各狀態精確統計與分頁資訊；舊版不分頁（上限 200 筆）。",
+    "reason": "通則：分頁與精確筆數、伺服端算好可按的動作。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stats",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-abilities-stats-meta",
+    "page": "ga-requests",
+    "description": "新版處理單清單多回可按的動作、各狀態精確統計與分頁資訊；舊版不分頁（上限 200 筆）。",
+    "reason": "通則：分頁與精確筆數、伺服端算好可按的動作。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "meta",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-abilities-stats-total",
+    "page": "ga-requests",
+    "description": "新版處理單清單多回可按的動作、各狀態精確統計與分頁資訊；舊版不分頁（上限 200 筆）。",
+    "reason": "通則：分頁與精確筆數、伺服端算好可按的動作。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "total",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-ful-envelope",
+    "page": "ga-requests",
+    "description": "舊版回應最外層有 success:true；新版沒有。",
+    "reason": "workspace API 一貫格式。使用者於第 3 批問卷核可通則。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "success",
+      "entry": "fulfillment-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-issue-over-first",
+    "page": "ga-requests",
+    "description": "第一次出庫就超過需求量：舊版成功（還沒有處理單時不檢查剩餘量），新版 409。",
+    "reason": "Q18：出庫不得超過需求量。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "issue-first-over-status",
+      "entry": "stock-issue-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-issue-substitute",
+    "page": "ga-requests",
+    "description": "出庫的料件和需求單的料件不同、沒填替代原因：舊版成功，新版 422；填替代原因才放行並記在事件。",
+    "reason": "Q18：料件須與需求相同（替代料須填原因）。使用者已核可。",
+    "approvedBy": "user (2026-11-09 survey/m7m8 Q18)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "issue-substitute-status",
+      "entry": "stock-issue-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rq-detail-overdue",
+    "page": "ga-requests",
+    "description": "新版詳情的需求單多回逾期未確認標示（is_overdue_confirm）。",
+    "reason": "D5：待門市確認超過 7 天（設定可調）標逾期未確認，只標示不自動結案、不通知。使用者已核可。",
+    "approvedBy": "user (2026-11-12 batch 4 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "is_overdue_confirm",
+      "entry": "request-detail-read"
+    }
   }
 ]

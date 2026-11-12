@@ -11,7 +11,7 @@ import { GaError, body, dbError, must, respond, rpc, type Context } from "./serv
 
 export const FUL = { view: "general_affairs.part_fulfillment.view", manage: "general_affairs.part_fulfillment.manage" } as const;
 const COLUMNS = "id,fulfillment_no,request_id,status,requested_quantity,fulfilled_quantity,unit,current_step,notes,ready_to_deliver_at,created_at,updated_at";
-const SELECT = `${COLUMNS},request:ga_service_requests(id,request_no,title,description,main_status,store_id,part_id,desired_quantity,desired_unit,store:stores(id,store_code,store_name,short_name),part:ga_parts(id,part_code,name,base_unit)),documents:ga_part_fulfillment_documents(id,document_type,document_id,document_no,quantity,status,created_at,voided_at,void_reason),events:ga_part_fulfillment_events(id,event_type,title,description,created_at)`;
+const SELECT = `${COLUMNS},request:ga_service_requests(id,request_no,title,description,main_status,store_id,part_id,desired_quantity,desired_unit,store:stores(id,store_code,store_name,short_name),part:ga_parts(id,part_code,name,base_unit)),documents:ga_part_fulfillment_documents(id,document_type,document_id,document_no,quantity,status,created_at,voided_at,void_reason),events:ga_part_fulfillment_events(id,event_type,title,description,metadata,created_at)`;
 
 export async function fulfillmentScope(ctx: Context) {
   const p = ctx.permissions;

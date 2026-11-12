@@ -154,26 +154,28 @@ export async function requestTargets(ctx: Context, url: URL) {
 }
 
 // ---------------------------------------------------------------- 列表
+type ReplyState = { last_store_comment_at: string | null; last_ga_response_at: string | null; last_store_read_at: string | null; last_store_read_by_name: string | null; unread_store_comment_count: number };
 async function replyState(rows: any[]) {
-  if (!rows.length) return new Map<string, { last_store_comment_at: string | null; last_ga_response_at: string | null; unread_store_comment_count: number }>();
+  if (!rows.length) return new Map<string, ReplyState>();
   const admin: any = adminClient();
   const ids = rows.map((r) => r.id);
   const [comments, events] = await Promise.all([
     must(admin.from("ga_service_request_comments").select("id,request_id,created_by,created_at").in("request_id", ids).eq("visibility", "PUBLIC").is("deleted_at", null)),
-    must(admin.from("ga_service_request_events").select("request_id,event_type,visibility,metadata,created_at,created_by").in("request_id", ids).in("event_type", ["PUBLIC_COMMENT_ADDED", "STORE_COMMENT_READ", "REQUEST_ACCEPTED", "REQUEST_PROGRESS_UPDATED", "SUPPLEMENT_REQUESTED"])),
+    must(admin.from("ga_service_request_events").select("request_id,event_type,visibility,metadata,created_at,created_by,created_by_name").in("request_id", ids).in("event_type", ["PUBLIC_COMMENT_ADDED", "STORE_COMMENT_READ", "REQUEST_ACCEPTED", "REQUEST_PROGRESS_UPDATED", "SUPPLEMENT_REQUESTED"])),
   ]);
   const byReq = new Map(rows.map((r) => [r.id, r]));
   const source = new Map<string, string>();
   const read = new Set<string>();
   const gaAt = new Map<string, string>();
+  const readAt = new Map<string, { at: string; by: string }>();
   for (const e of (events as any[]) || []) {
     const cid = e.metadata?.comment_id;
-    if (e.event_type === "STORE_COMMENT_READ" && cid) read.add(cid);
+    if (e.event_type === "STORE_COMMENT_READ" && cid) { read.add(cid); if (!readAt.get(e.request_id) || e.created_at > readAt.get(e.request_id)!.at) readAt.set(e.request_id, { at: e.created_at, by: e.created_by_name || "" }); }
     else if (e.event_type === "PUBLIC_COMMENT_ADDED" && cid && e.metadata?.source_context) source.set(cid, e.metadata.source_context);
     else if (e.visibility === "PUBLIC" && (!gaAt.get(e.request_id) || e.created_at > gaAt.get(e.request_id)!)) gaAt.set(e.request_id, e.created_at);
   }
-  const out = new Map<string, { last_store_comment_at: string | null; last_ga_response_at: string | null; unread_store_comment_count: number }>();
-  for (const r of rows) out.set(r.id, { last_store_comment_at: null, last_ga_response_at: gaAt.get(r.id) || null, unread_store_comment_count: 0 });
+  const out = new Map<string, ReplyState>();
+  for (const r of rows) out.set(r.id, { last_store_comment_at: null, last_ga_response_at: gaAt.get(r.id) || null, last_store_read_at: readAt.get(r.id)?.at || null, last_store_read_by_name: readAt.get(r.id)?.by || null, unread_store_comment_count: 0 });
   for (const c of (comments as any[]) || []) {
     const req = byReq.get(c.request_id);
     const st = out.get(c.request_id);
