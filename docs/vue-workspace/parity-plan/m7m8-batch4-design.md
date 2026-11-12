@@ -289,3 +289,27 @@
 - 設定調整限持採購核准權限者，版本以 `po_*` 設定列的最新更新時間為準；每個有變動的鍵寫一筆 `ga_workflow_setting_events`（誰、舊值、新值）。逾期未確認天數的設定函式留給 G16 階段（需求單管理權限）。
 - 事件表不可改刪觸發器的唯一例外：帳號被刪除時外鍵把操作人設為空白。DEV 清除函式暫停觸發器、同交易內恢復。
 - 測試中發現並修正的兩個資料庫缺陷：單號滿 999 時 `lpad` 會截斷成三位（已改為四位以上不補零）、評估產生草稿時數量帶出過多小數位（已 `round` 到 4 位）。
+
+### 12.2 G26-db 到貨驗入、配發轉設備、型號對應料件、序號補填（2026-11-12）
+完成 DEV 的 `20261112120000_m7m8_b4_receipt_dispatch`（含 rollback）、正式區草稿 `34-b4-receipt-dispatch`（含 rollback，README 第 4 批章節已更新）、純函式 `lib/workspace/general-affairs/purchase-receipt-rules.ts`、料件 API 與規則的 `equipment_template_id`（可清空、型號需啟用）、Vue 料件表單的型號欄位；單元 37 項、整合 22 項（`tests/integration/G26-db.receipt-dispatch-rpc.spec.ts`，含 1 項在資料庫交易內執行且結束一律回復的測試）。DEV 專用清除函式 `ga_dev_cleanup_m7m8_purchasing` 已擴充：一併清掉由測試採購單配發或到貨建立的設備與它們用掉的資產編號流水。Vue 的採購單頁與到貨、配發畫面、workspace API 路由留給後續階段。
+
+**實作的規則（與設計 §3.2、§3.3 對照）**
+- **到貨驗入（D12、D13、D3、D16）**：`ga_ws_po_receive(po_id, header, lines, key)`。採購單要是「已下訂」或「部分到貨」；三個採購權限缺哪個講清楚；識別必填（最長 64 字），鎖住採購單後先查識別（同識別同內容回原結果 `idempotent_replay`、同識別不同內容 409）。到貨日預設今天，不可晚於今天、不可早於下訂日。每一列：到貨量 > 0；驗入量預設等於到貨量、不可大於到貨量；到貨量不得超過剩餘可收量（訂購量減**已驗入量**，破損拒收不算已收）；驗入量小於到貨量或到貨量小於剩餘量（短收）要原因；STOCK 品項可改位置、改收替代料（都須變更原因，替代料單位須與品項單位相符）；DIRECT_ASSET 與 NO_STOCK 不能指定位置或料件。STOCK 以 `ga_ws_inv_post` 入庫（參考單據 `GA_PURCHASE_ORDER`、固定識別 = 到貨識別＋品項、過去的到貨日用該日中午當發生時間）；DIRECT_ASSET 直接建設備（驗入量換算基本單位須為整數）；NO_STOCK 只登錄。任何一列失敗整筆回復（包含先前已成功的入帳）。成功後更新品項已驗入量、採購單狀態（全部達訂購量 = 全部到貨、有驗入 = 部分到貨、整批拒收維持原狀）、寫事件 `receive`，並在連結的需求單時間軸加一筆內部事件。
+- **配發（D15、D14）**：`ga_ws_po_dispatch(po_item_id, store_id, quantity, template_id, template_reason, source_location_id, serials, notes, key)`。只有 STOCK 品項、且採購單已有驗入；數量 1 至 200 的整數；先依來源位置（預設採購單收貨位置）找最早的可配發進貨明細決定這次配發的料件，可配發量 = 同品項、同位置、同料件各進貨明細「驗入量 − 已配發量」的加總。型號：料件有對應就帶入，改選別的型號要原因；沒有對應必須手選；對應的型號被停用要改選。序號清單依順序給各台，可空，清單內與既有同型號設備序號不可重複。同一交易內：寫配發單 → `ga_ws_inv_post` ISSUE → 依先進先出每台建設備（保固起算日與購置日期 = 該批進貨日、連結進貨明細與配發單）→ 更新已配發量 → 事件 `dispatch`（含分配明細）。任一步失敗整筆回復（含已出庫的流水）。
+- **設備欄位**：型號帶入分類、名稱、品牌、型號、規格與用途；購價 = 品項單價換算成每台的**未稅**單價（見下）；供應商與名稱快照；`has_warranty` 與到期日只在型號有預設保固月數時帶出。資產編號沿用舊版（`ga_next_equipment_asset_code`，需分類有第二層分類代碼，購置日期 = 到貨日；QR 與舊版一樣第一次列印才發放）。建立後貼標狀態是 `NEEDS_EQUIPMENT_PHOTO`，該店店長立即在待辦清單看到。
+- **序號補填**：`ga_ws_onboarding_set_serial(equipment_id, serial, reason)`，限該門市店長（名單身分 `store_managers`）與設備管理權限者；已有序號要改須原因、同序號不算變更；同型號（或同品牌加型號）序號不可重複；每次變更寫 `ga_equipment_serial_events`。
+- **料件對應型號（D14）**：`ga_parts.equipment_template_id`＋觸發器（新設或更換時型號須存在、啟用、未刪除，可清空，型號之後被停用已設定的對應保留；改別的欄位不受影響）；`ga_ws_update_part_guarded` 的允許欄位清單加上它；API 回 422 `TEMPLATE_INVALID`。
+
+**第 9 節核對結果的補充（C 階段）**
+- `ga_equipment.purchase_amount` 含稅與否：欄位沒有註明，採建議填未稅單價並在備註註明；**待使用者確認**（allowlist `m7m8-b4-rc-purchase-amount-excl-tax`）。
+- 保固：舊版建立設備**沒有**依型號保固月數推算到期日的規則（設計寫「若舊版有就沿用」），所以這是新做法（allowlist `m7m8-b4-rc-warranty-start-and-end`）。
+- 資產編號：需要分類有第二層分類代碼；取不到時整筆擋下並說明（`ASSET_CODE_UNAVAILABLE`），不外露資料庫原文。
+- 庫存出庫沿用既有的拆封規則：有採購單位且不允許拆封的料件，配發量必須是整箱（`UNPACKING_NOT_ALLOWED`）；配發設備的料件通常以「個／台」為基本單位。
+
+**與設計文件不同或補充之處**
+- `dispatched_qty`（品項與進貨明細）一律是**基本單位**，`received_qty` 是**品項單位**；進貨明細另存 `accepted_base`（驗入量換算基本單位）供先進先出使用。
+- 購價重用既有 `purchase_amount`，不另加 `purchase_price`；`ga_equipment` 新增 8 欄（來源五個、`vendor_id`、`vendor_name_snapshot`、`warranty_start_date`）。
+- 到貨不另設 `expected_updated_at` 版本檢查（併發由「剩餘可收量」與採購單鎖保護，識別保證重送不重複）；配發同理由「可配發量」保護。
+- 「短收」解讀為到貨量小於剩餘可收量：一般分批到貨也要填原因（例如「分批到貨」）——待使用者確認是否放寬（allowlist `m7m8-b4-rc-short-delivery-needs-reason`）。
+- 一次配發只動同一種料件與同一個來源位置（改收替代料或改位置後，需分次配發）。
+- 新增 `ga_ws_po_receipts_get`（進貨、配發、各品項可配發量），設計函式清單沒列；四張新表登入者不能直接讀寫。

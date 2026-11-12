@@ -1,4 +1,4 @@
-// 由 DEV 已測過的 SQL（supabase/workspace-dev/）產生第 4 批正式區草稿（docs/vue-workspace/parity-plan/m7m8-sql/ 的 32 至 35）。
+// 由 DEV 已測過的 SQL（supabase/workspace-dev/）產生第 4 批正式區草稿（docs/vue-workspace/parity-plan/m7m8-sql/ 的 32 至 35；目前做到 34，35 由後續階段新增）。
 // 規則：內容與 DEV 檔相同，只是換成草稿標頭、包 BEGIN ... COMMIT、結尾加核對查詢；rollback 同樣包交易。不連線任何資料庫。
 // 用法：node scripts/build-m7m8-b4-prod-drafts.cjs
 const fs = require("fs");
@@ -43,6 +43,38 @@ const DRAFTS = [
       "-- 要先撤回 34（到貨驗入與配發參照這些表）。撤回後新版採購單頁無法使用；舊版畫面（含舊版收貨）恢復原行為。",
     backup:
       "-- 撤回前備份（採購單資料）：\n--   CREATE TABLE public.zz_bak_b4_33_orders AS SELECT * FROM public.ga_purchase_orders;\n--   CREATE TABLE public.zz_bak_b4_33_items AS SELECT * FROM public.ga_purchase_order_items;\n--   CREATE TABLE public.zz_bak_b4_33_events AS SELECT * FROM public.ga_purchase_order_events;",
+  },
+  {
+    no: "34-b4-receipt-dispatch",
+    dev: "20261112120000_m7m8_b4_receipt_dispatch",
+    title: "第 4 批 C（到貨驗入、配發轉設備、型號對應料件、序號補填；D3、D12 至 D16）",
+    summary:
+      "性質：會寫入，新增 4 張表（進貨紀錄、進貨明細、配發單、設備序號補填紀錄）、ga_parts 1 個欄位（equipment_template_id，料件對應設備型號）與 1 個觸發器、ga_equipment 8 個可為空的欄位（來源採購單／品項／進貨明細／配發單／需求單、供應商與名稱快照、保固起算日）、\n" +
+      "--   ga_ws_po_receive／ga_ws_po_dispatch／ga_ws_po_receipts_get／ga_ws_onboarding_set_serial 四個對外函式與內部輔助函式；並以 CREATE OR REPLACE 覆蓋 ga_ws_update_part_guarded（只在「允許修改的欄位」清單多一個 equipment_template_id，其餘與 10-g01 逐字相同；撤回時還原成 10-g01 的版本）。\n" +
+      "-- 不改任何既有資料；舊版畫面與舊版 API 完全不受影響（舊版建立設備、料件頁都不帶新欄位）。四張新表登入者不能直接讀寫，一律走函式。\n" +
+      "-- 重點規則：登錄到貨即驗入（同一交易以 ga_ws_inv_post 入總部倉庫存）；到貨量不得超過剩餘可收量（訂購量減已驗入量，破損拒收不算已驗入）；驗入量不得大於到貨量；\n" +
+      "--   驗入量小於到貨量（破損、拒收）或到貨量小於剩餘量（短收）須原因；改收貨位置或改收替代料須變更原因；同識別重送回原結果、併發不超收；STOCK 品項入庫存、DIRECT_ASSET 品項直接建設備送門市（整數量、不入庫）、NO_STOCK 只登錄。\n" +
+      "--   配發＝同一交易內出庫 N、建 N 筆設備（資產編號沿用舊版規則，需分類有第二層分類代碼）、依進貨明細先進先出（每台帶自己那批的到貨日當保固起算日與購置日期）、可分次、序號可空；任一步失敗整筆回復；不另要求設備管理權限（D11）。\n" +
+      "--   序號補填限該門市店長與設備管理權限者，已有值要改須原因並留紀錄，同型號序號不可重複。設備購價（既有 purchase_amount 欄位）填未稅單價並在備註註明（含稅與否待確認）。\n" +
+      "-- 先決條件：先套 32、33；設備與設備型號、庫存位置、廠商、需求單事件等既有資料表存在；ga_ws_inv_post（第 3 批）與 ga_ws_update_part_guarded（10-g01）已套用。",
+    verify:
+      "SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND proname IN ('ga_ws_po_receive', 'ga_ws_po_dispatch', 'ga_ws_po_receipts_get', 'ga_ws_onboarding_set_serial') ORDER BY 1;\n" +
+      "-- 核對：應列出 4 個函式\n" +
+      "SELECT table_name, column_name FROM information_schema.columns WHERE table_schema = 'public' AND ((table_name = 'ga_parts' AND column_name = 'equipment_template_id') OR (table_name = 'ga_equipment' AND column_name IN ('source_purchase_order_id', 'source_po_item_id', 'source_receipt_item_id', 'source_dispatch_id', 'source_request_id', 'vendor_id', 'vendor_name_snapshot', 'warranty_start_date'))) ORDER BY 1, 2;\n" +
+      "-- 核對：應列出 9 個欄位\n" +
+      "SELECT to_regclass('public.ga_purchase_receipts') AS receipts, to_regclass('public.ga_purchase_receipt_items') AS receipt_items, to_regclass('public.ga_stock_dispatches') AS dispatches, to_regclass('public.ga_equipment_serial_events') AS serial_events;\n" +
+      "-- 核對：四個都不是空的",
+    rollbackSummary:
+      "撤回 34：移除第 4 批 C 新增的 4 張表、ga_parts.equipment_template_id（含觸發器）、ga_equipment 的 8 個來源與保固欄位與相關函式，並把 ga_ws_update_part_guarded 還原成 10-g01 的版本。會刪除：進貨紀錄與明細、配發單、設備序號補填紀錄、料件的對應設備型號、設備的來源連結與保固起算日。\n" +
+      "-- 不會刪除：已經由配發或直接到貨建立的設備本身與庫存流水（只是失去來源連結與保固起算日）；庫存餘額不會被回沖。要先撤回 35，且撤回後採購單的「登錄到貨」與「配發」無法使用。",
+    backup:
+      "-- 撤回前備份（只備份會被刪掉的表與欄位）：\n" +
+      "--   CREATE TABLE public.zz_bak_b4_34_receipts AS SELECT * FROM public.ga_purchase_receipts;\n" +
+      "--   CREATE TABLE public.zz_bak_b4_34_receipt_items AS SELECT * FROM public.ga_purchase_receipt_items;\n" +
+      "--   CREATE TABLE public.zz_bak_b4_34_dispatches AS SELECT * FROM public.ga_stock_dispatches;\n" +
+      "--   CREATE TABLE public.zz_bak_b4_34_serial_events AS SELECT * FROM public.ga_equipment_serial_events;\n" +
+      "--   CREATE TABLE public.zz_bak_b4_34_part_templates AS SELECT id, equipment_template_id FROM public.ga_parts WHERE equipment_template_id IS NOT NULL;\n" +
+      "--   CREATE TABLE public.zz_bak_b4_34_equipment_src AS SELECT id, source_purchase_order_id, source_po_item_id, source_receipt_item_id, source_dispatch_id, source_request_id, vendor_id, vendor_name_snapshot, warranty_start_date FROM public.ga_equipment WHERE source_purchase_order_id IS NOT NULL OR warranty_start_date IS NOT NULL;",
   },
 ];
 
