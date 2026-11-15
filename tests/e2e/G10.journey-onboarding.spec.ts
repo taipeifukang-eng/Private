@@ -211,7 +211,15 @@ test('劇本：上線貼標（總務 Excel 匯入 → 依門市印標籤 → 店
     await expect(progressCard(ga.page, 'ZT01')).toContainText('共完成 4 / 4');
     await expect(progressCard(ga.page, 'VW001').getByTestId('progress-rate')).toHaveText('100%');
     await expect(progressCard(ga.page, 'VW001')).toContainText('共完成 2 / 2');
-    await expect(ga.page.getByTestId('overall-rate').locator('visible=true')).toHaveText('100%');
+    // 整體完成率含 DEV 上其他門市的真實資料（例如他人手動建立、尚未貼標的設備），不能假設全站剛好 100%；
+    // 兩個測試門市都 100%（上面已驗），整體則要等於畫面上「已完成 / 設備與設施」的比例。
+    const statTxt = async (label: string) => Number((await ga.page.locator('div:visible', { has: ga.page.locator('span.muted', { hasText: new RegExp(`^${label}$`) }) }).last().locator('strong').first().textContent())!.replace(/,/g, ''));
+    const doneN = await statTxt('已完成');
+    const totalN = await statTxt('設備與設施');
+    const rateNum = (doneN / totalN) * 100;
+    const rateTxt = `${Number.isInteger(rateNum) ? rateNum : rateNum.toFixed(1)}%`;
+    await expect(ga.page.getByTestId('overall-rate').locator('visible=true')).toHaveText(rateTxt);
+    expect(doneN).toBeGreaterThanOrEqual(6);
     for (const [k, table] of [['eqA1', 'ga_equipment'], ['eqA2', 'ga_equipment'], ['eqB1', 'ga_equipment'], ['facA1', 'ga_facilities'], ['facA2', 'ga_facilities'], ['facB1', 'ga_facilities']] as const) {
       expect((await status(table, N[k])).onboarding_status, k).toBe('COMPLETED');
     }
