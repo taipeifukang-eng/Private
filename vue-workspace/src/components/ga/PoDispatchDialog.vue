@@ -59,6 +59,7 @@ async function submit() {
     });
     emit("done", { order: res.order, receiving: res.receiving, replay: !!res.replay, data: res.data });
   } catch (e) {
+    if ((e as any)?.data?.code === "IDEMPOTENCY_CONFLICT") key.value = newKey();
     error.value = (e as Error).message;
   } finally {
     busy.value = false;

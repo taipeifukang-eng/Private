@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { api, ApiError } from "../../api";
 import Modal from "../Modal.vue";
 import InventoryPicker from "./InventoryPicker.vue";
@@ -8,7 +8,7 @@ import { newKey, num, type RequestRow } from "../../lib/ga-requests";
 // 需求單庫存出庫（Q18）：出庫量不得超過剩餘需求量；料件要和需求單相同，替代料須填原因。同一個畫面開啟期間用同一個固定識別，連點或重送不會重複扣庫存。
 const props = defineProps<{ request: RequestRow }>();
 const emit = defineEmits<{ close: []; done: [] }>();
-const key = newKey();
+const key = ref(newKey());
 const locationId = ref("");
 const partId = ref(props.request.part?.id || "");
 const pickedPart = ref<any | null>(props.request.part ? { part_id: props.request.part.id, part: props.request.part } : null);
@@ -19,6 +19,8 @@ const notes = ref("");
 const substitute = ref("");
 const busy = ref(false);
 const error = ref("");
+// 內容一變就換識別；若伺服端回「識別重複但內容不同」也換新，使用者可直接再送
+watch([locationId, partId, quantity, unitType, reason, notes, substitute], () => { key.value = newKey(); });
 const isSubstitute = computed(() => !!partId.value && !!props.request.part?.id && partId.value !== props.request.part.id);
 
 async function submit() {
@@ -35,11 +37,12 @@ async function submit() {
       method: "POST",
       body: JSON.stringify({
         location_id: locationId.value, part_id: partId.value, quantity: q, input_unit_type: unitType.value, reason: reason.value.trim() || undefined,
-        notes: notes.value.trim() || undefined, substitute_reason: isSubstitute.value ? substitute.value.trim() : undefined, idempotency_key: key,
+        notes: notes.value.trim() || undefined, substitute_reason: isSubstitute.value ? substitute.value.trim() : undefined, idempotency_key: key.value,
       }),
     });
     emit("done");
   } catch (e) {
+    if (e instanceof ApiError && (e as any).data?.code === "IDEMPOTENCY_CONFLICT") key.value = newKey();
     error.value = e instanceof ApiError ? e.message : "出庫失敗，請稍後重試";
   } finally {
     busy.value = false;

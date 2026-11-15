@@ -58,15 +58,10 @@ async function pick(r: Picked) {
   error.value = "";
   await loadOpen();
 }
+// 同一支 open-orders 同時回傳進行中張數與搬單預覽，只打一次
 async function loadOpen() {
   if (!picked.value) return;
-  void loadPreview();
-  try {
-    const kind = picked.value.type === "FACILITY" ? "facilities" : "equipment";
-    openCount.value = (await api<{ data: { open_count: number } }>(`general-affairs/${kind}/${picked.value.id}/open-orders`)).data.open_count;
-  } catch {
-    openCount.value = null;
-  }
+  await loadPreview();
 }
 if (props.asset) loadOpen();
 
@@ -75,9 +70,12 @@ async function loadPreview() {
   previewBusy.value = true;
   try {
     const kind = picked.value.type === "FACILITY" ? "facilities" : "equipment";
-    preview.value = (await api<{ data: MovePreview }>(`general-affairs/${kind}/${picked.value.id}/open-orders`)).data;
+    const data = (await api<{ data: MovePreview & { open_count?: number } }>(`general-affairs/${kind}/${picked.value.id}/open-orders`)).data;
+    preview.value = data;
+    openCount.value = data.open_count ?? null;
   } catch {
     preview.value = null;
+    openCount.value = null;
   } finally {
     previewBusy.value = false;
   }

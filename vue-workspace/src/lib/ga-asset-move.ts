@@ -34,9 +34,5 @@ export function moveResultText(d: { moved_request_count?: number; unlinked_work_
   return (n ? `，${n} 張進行中的維修單已一起轉到新門市` : "") + (u ? `，另有 ${u} 張舊式工單需人工處理` : "");
 }
 
-export function groupMoved(rows: MovedRow[]) {
-  const requests = rows.filter((r) => r.kind === "REQUEST");
-  const unlinked = rows.filter((r) => r.kind === "UNLINKED_WORK_ORDER");
-  const orderOf = (requestId: string | null) => rows.find((w) => w.kind === "WORK_ORDER" && w.request_id === requestId) || null;
-  return { requests: requests.map((r) => ({ ...r, work_order: orderOf(r.request_id) })), unlinked };
-}
+// 與伺服端共用同一份（以 request_id 加建立時間配對工單，同一張單來回搬過也不會配錯）
+export { groupMoved } from "../../../lib/workspace/general-affairs/asset-move";

@@ -678,11 +678,12 @@
   {
     "legacyRoute": "/general-affairs/part-fulfillments",
     "source": "app/general-affairs/part-fulfillments/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
     "imports": [
       "@/components/general-affairs/parts/PartFulfillmentCenterClient"
     ],
-    "apis": []
+    "apis": [],
+    "vue": "PartFulfillments.vue（G17）"
   },
   {
     "legacyRoute": "/general-affairs/part-requests/new",
@@ -737,29 +738,32 @@
   {
     "legacyRoute": "/general-affairs/reports/mine",
     "source": "app/general-affairs/reports/mine/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
     "imports": [
       "@/components/general-affairs/requests/ServiceRequestMyReportsClient"
     ],
-    "apis": []
+    "apis": [],
+    "vue": "MyReports.vue（G15）"
   },
   {
     "legacyRoute": "/general-affairs/reports/new",
     "source": "app/general-affairs/reports/new/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
     "imports": [
       "@/components/general-affairs/requests/ServiceRequestCreateClient"
     ],
-    "apis": []
+    "apis": [],
+    "vue": "ReportCreate.vue（G14）"
   },
   {
     "legacyRoute": "/general-affairs/requests",
     "source": "app/general-affairs/requests/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；M7/M8 第 4 批對等驗收（2026-11-13，差異已登記 allowlist，待確認項見 m7m8-batch4-design.md 12.6）",
     "imports": [
       "@/components/general-affairs/requests/ServiceRequestIntakeClient"
     ],
-    "apis": []
+    "apis": [],
+    "vue": "Requests.vue（G16）"
   },
   {
     "legacyRoute": "/general-affairs/utility-bills",
