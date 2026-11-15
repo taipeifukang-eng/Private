@@ -121,7 +121,7 @@ test('G10 標籤列印頁：超過 300 張只列前 300 並提示分批；設施
   }
 });
 
-test('G10 掃描頁：總務完整資訊並能開報修（舊版建單頁）；店長只看基本資訊（Q5）；設備查看者報修按鈕停用並說明；手機無水平溢出、按鈕夠大', async ({ browser }, testInfo) => {
+test('G10 掃描頁：總務完整資訊並能開報修（新版新增需求頁，帶入設備）；店長只看基本資訊（Q5）；設備查看者報修按鈕停用並說明；手機無水平溢出、按鈕夠大', async ({ browser }, testInfo) => {
   const eq = await seedEquipment('ZT01', eqCat.id, 'SCN-1', {
     asset_code: m7Code('S1'), serial_number: 'SN-E2E-SECRET', purchase_amount: 55555, notes: '備註-不外露', area: '前場營業區', location_detail: '冷藏櫃旁', has_warranty: true, warranty_end_date: '2099-06-30',
   });
@@ -143,10 +143,10 @@ test('G10 掃描頁：總務完整資訊並能開報修（舊版建單頁）；�
     const report = box.getByTestId('scan-report');
     await expect(report).toBeEnabled();
     if (mobile) expect((await report.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    const [popup] = await Promise.all([ga.page.waitForEvent('popup'), report.click()]);
-    await popup.waitForLoadState('domcontentloaded');
-    expect(decodeURIComponent(popup.url())).toContain(`/general-affairs/reports/new?assetToken=${eq.qr_token}`);
-    await popup.close();
+    // 第 4 批 G14 起：有「新增需求」權限就在新版工作台開「新增需求」頁（沿用 assetToken，帶入這台設備），不再開舊版彈出頁
+    await report.click();
+    await expect(ga.page.getByRole('heading', { name: '新增需求', exact: true }).locator('visible=true').first()).toBeVisible();
+    await expect(ga.page.locator('body')).toContainText(eq.asset_code);
     expect(await noPageOverflow(ga.page)).toBe(true);
     expect(ga.errors).toEqual([]);
   } finally {

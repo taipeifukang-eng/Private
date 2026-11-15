@@ -976,8 +976,8 @@ test('權限碼與設定的資料庫現況：採購核准權限碼存在、不�
   expect(perm.data).toMatchObject({ module: 'general_affairs', feature: 'purchase_order', action: 'approve', is_active: true });
   const granted = await db().from('role_permissions').select('role_id, roles!inner(code)').eq('permission_id', perm.data.id);
   const codes = ((granted.data || []) as any[]).map((r) => r.roles.code as string);
-  // 只有測試用角色（m7m8_test_*、DEV 種子角色 vue_workspace_ga_po_approver）掛了這個權限
-  expect(codes.every((c) => c.startsWith('m7m8_test_') || c === 'vue_workspace_ga_po_approver'), JSON.stringify(codes)).toBe(true);
+  // 只有測試用角色（m7m8_test_*、DEV 種子角色 vue_workspace_ga_po_approver、角色矩陣的測試管理員角色 vue_workspace_admin）掛了這個權限
+  expect(codes.every((c) => c.startsWith('m7m8_test_') || c === 'vue_workspace_ga_po_approver' || c === 'vue_workspace_admin'), JSON.stringify(codes)).toBe(true);
   const settings = Object.fromEntries(originalSettings.map((s: any) => [s.key, Number(s.value_num)]));
   expect(settings).toMatchObject({ po_approval_enabled: 1, po_approval_threshold: 5000, po_tax_rate: 0.05, request_overdue_confirm_days: 7, po_price_history_limit: 5 });
   // 登入者直接呼叫內部設定函式與清除函式被拒（只有 service_role）

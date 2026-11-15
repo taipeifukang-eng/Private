@@ -931,3 +931,15 @@ Vue build PASS；scripts/test-workspace-prescription-scroll.py 使用59店攔截
 - scripts/test-workspace-employee-purchases.py：真實空2099-11測試月份Excel兩筆匯入、跨月份400且無寫入、彙總300／商品200／數量2、職稱過濾、第二次單筆匯入覆蓋成200；401／Origin403／月份400。UI原生導航、三態排序降／升、職稱篩選、商品明細跳窗、覆蓋勾選前不可匯入、503檔案保留、取消草稿提示、390px無整頁溢出／無runtime error。finally清除唯一測試檔名的sales及batch，月份回到0筆且無batch。
 - 已檢視桌機名冊／明細及手機畫面。DUI核心價值review：查詢與匯入明確分工、統計來源真實、商品明細維持查詢位置、失敗可重試。Craft review：沿原工作台tokens、表格內捲動、原生控制項、金額與身分欄易讀。未遍測全部受限角色組合；後端直接沿用舊授權規則。
 - 第二輪改用DEV既有員編FK0008，確認實際人員比對成功1筆、未比對1筆及職稱篩選；相同整合測試再次PASS並清空2099-11。
+
+
+## 2026-11-13 M7/M8 第 4 批全批驗收（B4-ACCEPT）
+範圍：G14 回報建立、G15 我的追蹤、G16 需求單工作台、G17 料件處理中心、G25 採購單（含核准、到貨驗入、配發轉設備）、G26 型號對應與序號補填、G27 資產移轉單子跟著走。只連 DEV（專案代碼 mjpd 開頭），沒有連正式區，沒有 push，沒有動 `supabase/migrations`。
+- 靜態：`node --check` 三支腳本、`npx tsc --noEmit`、`vue-tsc --noEmit`、Vue build 都通過；`public/workspace` 由 run-all 自動 build 並同步（git 忽略的建置輸出）。
+- B4-ACCEPT 四層：單元 19 項（SQL 草稿 31 至 35 齊全且各有撤回、README 套用順序與核准人指派、差異登記核可欄位、待確認項列在設計文件 12.6、劇本與頁面登錄）、整合 5 項（DEV 專案、採購核准權限碼只有測試用角色持有、流程設定預設值、採購表與事件不可改刪、測試資料無殘留）、冒煙桌機 1440 與手機 390 各 3 項、e2e 桌機與手機（管理員逐一開第 4 批入口、核准人進待簽核）。
+- 四支角色劇本都含「沒權限做不到」段：缺權限帳號、非核准人、開單人自己核准被擋、店長只看自己門市（`G25.journey-printers`、`G16.journey-equipment-purchase`、`G17.journey-part-replenish`、`G27.journey-transfer-follow`）。
+- 修正：到貨、配發、庫存出庫三個對話框遇到「識別重複但內容不同」改換新識別可再送；發起轉移視窗兩次 `open-orders` 合成一次；畫面與伺服端共用 `groupMoved`；`G10.qr` 掃描頁的期望改成「回報維修」在新版開「新增需求」頁並帶入設備（G14 起的行為）。
+- 資料衛生：sweeper 孤兒前後都是基準 17 筆，保留年份清空，測試資料只放 VW／ZT 與保留年份。
+- 待使用者確認的新發現共 35 筆（`approvedBy` 為 null）與其他決定事項，列在 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.6。
+- 已知與本批無關：`I01.inspection-gps` 定位對等 6 項失敗；`G10.journey-onboarding` 完成率受 DEV 一台真實設備（門市 0002）等拍照影響；執行時主控台出現 `[pharmacist-management] findMissingOnboardingPharmacists is not defined`（藥師管理既有問題，未處理）。
+- 全量 `test:all` 共 2497 項，單一 worker 循序約 10 小時以上，這次在跑到約第 260 項（前面 unit、smoke、e2e、部分 integration 全綠，無失敗）時中止並清掉殘留，改以第 4 批相關頁面逐頁循序重跑；`run-all` 結束碼 1 皆只因 sweeper 基準 17 筆孤兒。

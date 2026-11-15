@@ -217,3 +217,17 @@
 | `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | exclude |
 | `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | exclude |
 | `/api/inspection-debug` | `app/api/inspection-debug/` | exclude |
+
+
+## M7/M8 第 4 批（總務：回報、需求單、料件處理、採購單、到貨配發、資產移轉搬單）
+
+狀態：實作與驗收完成於 DEV（2026-11-13），正式區草稿 `docs/vue-workspace/parity-plan/m7m8-sql/31` 至 `35` 待使用者核可後套用。
+
+| 項目 | 狀態 |
+|---|---|
+| G14 新增需求、G15 我的追蹤、G16 總務需求工作台、G17 料件處理中心 | 已原生化（Vue），規則寫入資料庫函式 |
+| G25 採購單（清單、編輯、待簽核、核准、下訂、到貨即驗入、配發轉設備、核准設定） | 已原生化；採購核准以新權限碼 `general_affairs.purchase_order.approve` 實作，由管理員在角色權限頁指派 |
+| G26 料件對應型號、設備序號補填 | 已完成 |
+| G27 設備換店時未結案維修單與工單跟著走 | 已完成；正式區套用前須先告知總務與店長 |
+| 第 4.5 批（進貨單憑證、發票、請款單） | 未做，只記在 `m7m8-batch4-design.md` §10 |
+| 待使用者確認項 | 35 筆新發現與其他決定，見設計文件 12.6 |

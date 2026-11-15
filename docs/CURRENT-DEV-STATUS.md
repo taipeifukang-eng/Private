@@ -8,6 +8,10 @@
 
 目前已可在 `/supervisor-management-log` 透過快速口述入口建立待確認草稿；AI / 本機規則只產生草稿，不會自動建立案件、結案或寫入正式紀錄。
 
+## M7/M8 總務工作台第 4 批（2026-11-13，DEV）
+
+第 4 批（回報、需求單、料件處理中心、採購單與核准、到貨即驗入、配發轉設備、設備換店單子跟著走）已在 DEV 完成並驗收，分支 `feature/vue-parity`，未 push。正式區 SQL 草稿在 `docs/vue-workspace/parity-plan/m7m8-sql/`（31 唯讀預覽，32 至 35 各附撤回檔），套用順序與核准人指派步驟見該資料夾 README。待使用者確認的新發現見 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.6。第 4.5 批（進貨單憑證、發票、請款）尚未開始。
+
 ## 最新已完成項目
 
 - SML-UX-2B：`supervisor_management_daily_plans` DB foundation 已正式推送 DEV 並通過 DB catalog test。
