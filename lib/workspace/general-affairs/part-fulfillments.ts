@@ -156,7 +156,9 @@ async function documentDetail(ctx: Context, type: string, id: string) {
     data = await must(db.from("ga_inventory_transfers").select("id,transfer_no,status,reason,shipped_at,received_at,canceled_at,cancel_reason,created_at").eq("id", id).maybeSingle());
   } else if (t === "PURCHASE") {
     const admin: any = adminClient();
-    const po = (await must(admin.from("ga_purchase_orders").select("id,po_no,status,expected_delivery_date,subtotal,tax_amount,total_amount,vendor_id,vendor_name_snapshot,created_at,items:ga_purchase_order_items(line_no,item_name,quantity,unit,unit_price,line_amount,received_qty)").eq("id", id).maybeSingle())) as any;
+    // 只回「這個人看得到的處理單」連著的採購單（用使用者身分查單據連結，列級權限決定），不能用任意採購單 id 讀。
+    const linked = ((await must(db.from("ga_part_fulfillment_documents").select("id").eq("document_type", "PURCHASE").eq("document_id", id).limit(1))) as any[]) || [];
+    const po: any = !linked.length ? null : (await must(admin.from("ga_purchase_orders").select("id,po_no,status,expected_delivery_date,subtotal,tax_amount,total_amount,vendor_id,vendor_name_snapshot,created_at,items:ga_purchase_order_items(line_no,item_name,quantity,unit,unit_price,line_amount,received_qty)").eq("id", id).maybeSingle())) as any;
     if (po) {
       if (s.purchaseView && po.vendor_id) {
         const v = (await must(admin.from("ga_vendors").select("name").eq("id", po.vendor_id).maybeSingle())) as any;

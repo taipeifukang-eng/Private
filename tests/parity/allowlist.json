@@ -7005,5 +7005,83 @@
       "key": "legacy-work-order-match",
       "entry": "transfer-follow-rules"
     }
+  },
+  {
+    "id": "m7m8-b4-rv-po-short-close-releases",
+    "page": "purchase-orders",
+    "description": "新版採購單短收結案後，沒到貨的數量從需求單的「已被採購單占用量」釋出，可再開單補足；評估再選「進入採購」會產生新草稿，不會誤判成重送。舊版沒有採購單。",
+    "reason": "審查補強（2026-11-16）：短收結案的單仍占滿需求量會讓剩餘量永遠補不回來。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-short-close-releases-qty",
+      "entry": "purchase-order-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-rv-po-direct-asset-serial-blocked",
+    "page": "purchase-orders",
+    "description": "新版採購單品項選「直接建設備」時，若設備型號的分類要求序號，送核准與下訂前就擋下並建議改走「入庫存再配發」（配發時可填序號）。舊版沒有採購單。",
+    "reason": "審查補強（2026-11-16）：到貨畫面沒有序號欄位，要求序號的分類直接建設備一定會在到貨時失敗，改成提早擋。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-direct-asset-serial-blocked",
+      "entry": "purchase-order-rules"
+    }
+  },
+  {
+    "id": "m7m8-b4-rv-po-direct-asset-limit-200",
+    "page": "purchase-orders",
+    "description": "新版直接建設備到貨，單次單一品項最多 200 台（與配發相同），超過請分次登錄到貨。舊版沒有採購單。",
+    "reason": "審查補強（2026-11-16）：避免誤填大量造成長時間鎖表。上限沿用配發的 200，實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "po-direct-asset-limit-200",
+      "entry": "purchase-receipt-write-readback"
+    }
+  },
+  {
+    "id": "m7m8-b4-rv-po-nav-db-semantics",
+    "page": "purchase-orders",
+    "description": "新版「採購單」「待簽核採購單」側欄入口只認資料庫語意的權限（沒有管理員後備）：帳號角色是管理員但沒勾採購相關權限者，看不到入口（舊版其他頁面管理員一律看得到入口）。",
+    "reason": "審查補強（2026-11-16）：採購單 API 由資料庫函式把關、沒有管理員放行，管理員看得到入口卻只會被 403，改成入口與 API 一致。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-native",
+      "key": "native-only:purchase-nav-db-semantics",
+      "entry": "sidebar-visibility"
+    }
+  },
+  {
+    "id": "m7m8-b4-rv-ful-non-part-no-fulfillment",
+    "page": "ga-part-fulfillments",
+    "description": "新版採購單連到非料件需求單（例如設備添購）時，不會自動建立料件處理單，只有料件需求單才建立。",
+    "reason": "審查補強（2026-11-16）：避免設備添購單混進料件處理中心。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "ful-non-part-no-fulfillment",
+      "entry": "request-list-read"
+    }
+  },
+  {
+    "id": "m7m8-b4-rv-legacy-receipt-block-by-request",
+    "page": "purchase-orders",
+    "description": "舊版需求單「採購到貨入庫」的保護範圍加大：除了評估已有新版採購單，只要該需求單有任何未取消的新版採購單（含只填來源需求單、沒連評估的手開單）也擋下。",
+    "reason": "審查補強（2026-11-16）：只擋有評估連結的單會讓手開採購單與舊版收貨雙記庫存。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "legacy-receipt-block-by-request",
+      "entry": "purchase-receipt-write-readback"
+    }
   }
 ]

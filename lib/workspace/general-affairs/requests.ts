@@ -201,7 +201,8 @@ async function list(ctx: Context, url: URL, mine: boolean) {
   if (storeId && !isUuid(storeId)) throw new GaError(400, "門市格式錯誤");
   if (storeId && !s.viewAll && !s.stores.includes(storeId)) throw new GaError(403, "沒有此門市的查看權限");
   const search = (p.get("search") || "").trim();
-  const overdueOnly = FILTERS_BOOL(p.get("overdue")) === true;
+  // 逾期篩選與逾期統計只給總務：門市不可用它反推哪些單逾期（D5：門市看不到逾期標示）。
+  const overdueOnly = s.manage && FILTERS_BOOL(p.get("overdue")) === true;
   const settings = await readSettings();
   const cutoff = overdueCutoff(settings.overdue_days);
   const sort = REQUEST_SORT.has(p.get("sort") || "") ? (p.get("sort") as string) : "created_at";
@@ -233,7 +234,7 @@ async function list(ctx: Context, url: URL, mine: boolean) {
   const now = new Date();
   const stats: Record<string, number> = { all: counts[0] as number };
   REQUEST_STATUSES.forEach((st, i) => { stats[st] = counts[i + 1] as number; });
-  stats.overdue = counts[REQUEST_STATUSES.length + 1] as number;
+  if (s.manage) stats.overdue = counts[REQUEST_STATUSES.length + 1] as number;
   const data = rows.map((r) => {
     const open: any = maskRequest(r, s.manage);
     return {

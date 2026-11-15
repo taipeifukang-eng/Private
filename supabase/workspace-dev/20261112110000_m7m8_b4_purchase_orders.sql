@@ -290,9 +290,11 @@ END;
 $$;
 
 -- 已被採購單占用的量（基本單位）：所有「未取消」採購單（含草稿）連到這張需求單的品項，可排除某一張（編輯中的那張）。
+-- 已結案（含短收結案）的單只算實際驗入量，短收沒到的部分釋出，可再開單補足。
 CREATE OR REPLACE FUNCTION public.ga_po_request_committed(p_request_id uuid, p_exclude_po uuid DEFAULT NULL)
 RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
-AS $$ SELECT COALESCE(sum(i.quantity_base), 0) FROM public.ga_purchase_order_items i JOIN public.ga_purchase_orders o ON o.id = i.po_id
+AS $$ SELECT COALESCE(sum(CASE WHEN o.status = 'CLOSED' THEN LEAST(i.quantity_base, round(i.received_qty * i.quantity_base / i.quantity, 4)) ELSE i.quantity_base END), 0)
+      FROM public.ga_purchase_order_items i JOIN public.ga_purchase_orders o ON o.id = i.po_id
       WHERE i.request_id = p_request_id AND o.status <> 'CANCELED' AND (p_exclude_po IS NULL OR o.id <> p_exclude_po); $$;
 
 -- 檢查一張採購單內連到某需求單的品項：加總（含其他採購單）超過需求量時，本單這些品項都要填超量原因。
@@ -530,6 +532,10 @@ BEGIN
       IF v_tpl IS NULL THEN PERFORM public.ga_po_raise(422, 'TEMPLATE_REQUIRED', '第 ' || v_it.line_no || ' 項要直接建立設備，請選擇設備型號（這個料件沒有設定對應型號）'); END IF;
       IF NOT EXISTS (SELECT 1 FROM public.ga_equipment_templates WHERE id = v_tpl AND deleted_at IS NULL AND is_active) THEN
         PERFORM public.ga_po_raise(422, 'TEMPLATE_INVALID', '第 ' || v_it.line_no || ' 項的設備型號已停用或刪除，請重新選擇');
+      END IF;
+      -- 到貨時沒有序號欄位：分類要求序號的型號不能直接建設備，要改走「入庫存再配發」（配發時可填序號）。
+      IF EXISTS (SELECT 1 FROM public.ga_equipment_templates t JOIN public.ga_equipment_categories c ON c.id = t.category_id WHERE t.id = v_tpl AND c.requires_serial_number) THEN
+        PERFORM public.ga_po_raise(422, 'SERIAL_REQUIRED_DIRECT', '第 ' || v_it.line_no || ' 項的設備型號所屬分類要求填寫序號，但直接建立設備在到貨時無法填序號，請改為入庫存後再配發（配發時可填序號）');
       END IF;
     END IF;
   END LOOP;
@@ -850,7 +856,7 @@ BEGIN
     SELECT * INTO v_review FROM public.ga_purchase_reviews WHERE id = p_review_id AND deleted_at IS NULL;
     IF NOT FOUND THEN RETURN public.ga_po_err(404, 'REVIEW_NOT_FOUND', '找不到採購評估'); END IF;
     IF v_review.decision <> 'PURCHASE' THEN RETURN public.ga_po_err(409, 'REVIEW_NOT_PURCHASE', '只有評估結果為「進入採購」才能產生採購單'); END IF;
-    SELECT id INTO v_exist FROM public.ga_purchase_orders WHERE purchase_review_id = p_review_id AND status <> 'CANCELED' ORDER BY created_at LIMIT 1;
+    SELECT id INTO v_exist FROM public.ga_purchase_orders WHERE purchase_review_id = p_review_id AND status NOT IN ('CANCELED', 'CLOSED') ORDER BY created_at LIMIT 1;
     IF FOUND THEN RETURN jsonb_build_object('ok', true, 'status', 200, 'replay', true, 'data', public.ga_po_data(v_exist)); END IF;
     SELECT * INTO v_req FROM public.ga_service_requests WHERE id = v_review.request_id AND deleted_at IS NULL;
     IF NOT FOUND THEN RETURN public.ga_po_err(404, 'REQUEST_NOT_FOUND', '找不到評估對應的需求單'); END IF;
@@ -1270,7 +1276,9 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', '
 AS $$
 BEGIN
   IF NEW.reference_type = 'GA_PURCHASE_REVIEW' AND NEW.reference_id IS NOT NULL
-     AND EXISTS (SELECT 1 FROM public.ga_purchase_orders WHERE purchase_review_id = NEW.reference_id AND status <> 'CANCELED') THEN
+     AND EXISTS (SELECT 1 FROM public.ga_purchase_orders o WHERE o.status <> 'CANCELED'
+                   AND (o.purchase_review_id = NEW.reference_id
+                        OR o.source_request_id = (SELECT r.request_id FROM public.ga_purchase_reviews r WHERE r.id = NEW.reference_id))) THEN
     RAISE EXCEPTION 'PURCHASE_ORDER_EXISTS: 這張需求單的採購評估已經有採購單，請到採購單用「登錄到貨」入庫，不能再用舊版收貨' USING ERRCODE = 'P0001';
   END IF;
   RETURN NEW;
@@ -1312,7 +1320,7 @@ BEGIN
     DROP TRIGGER IF EXISTS trg_ga_purchase_orders_ful_sync ON public.ga_purchase_orders;
     CREATE TRIGGER trg_ga_purchase_orders_ful_sync AFTER INSERT OR UPDATE OF status, source_request_id ON public.ga_purchase_orders FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
     DROP TRIGGER IF EXISTS trg_ga_purchase_order_items_ful_sync ON public.ga_purchase_order_items;
-    CREATE TRIGGER trg_ga_purchase_order_items_ful_sync AFTER INSERT OR UPDATE OF received_qty, quantity, request_id ON public.ga_purchase_order_items FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
+    CREATE TRIGGER trg_ga_purchase_order_items_ful_sync AFTER INSERT OR UPDATE OF received_qty, quantity, request_id OR DELETE ON public.ga_purchase_order_items FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
   END IF;
 END $$;
 

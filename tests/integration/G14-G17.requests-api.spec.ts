@@ -692,3 +692,30 @@ test('併發：兩人同時受理同一張需求單，只成功一次（另一�
   expect([a.status, b.status].sort()).toEqual([200, 409]);
   expect(((await dbEvents(q.id)).filter((e) => e.event_type === 'REQUEST_ACCEPTED'))).toHaveLength(1);
 });
+
+// ----------------------------------------------------------------------------- 審查補強（2026-11-16）
+test('審查：非總務（只有看全部）忽略逾期篩選、不回逾期統計；總務照常', async () => {
+  const old = await mk('VW001', { main_status: 'WAITING_STORE_CONFIRMATION' });
+  await db().from('ga_service_requests').update({ waiting_confirm_since: new Date(Date.now() - 30 * 86400_000).toISOString() }).eq('id', old.id);
+  const staff = await get('rq_staff', `${R}?overdue=true&pageSize=100`);
+  expect((staff.body.data as any[]).map((r) => r.id)).toContain(old.id);
+  expect(typeof staff.body.stats.overdue).toBe('number');
+  const viewer = await get('rq_view_all', `${R}?overdue=true&pageSize=100`);
+  expect(viewer.status).toBe(200);
+  const plain = await get('rq_view_all', `${R}?pageSize=100`);
+  expect(viewer.body.total).toBe(plain.body.total); // 篩選被忽略
+  expect('overdue' in viewer.body.stats).toBe(false);
+  expect(JSON.stringify(viewer.body.data)).not.toContain('waiting_confirm_since');
+});
+
+test('審查：處理單單據明細不能用任意採購單 id 讀（沒連到處理單的採購單回 404）', async () => {
+  const po = await callFn(users.rq_staff.client, 'ga_ws_po_create', { p_header: { notes: m7Name('RV-doc'), vendor_id: vendor.id, receiving_location_id: loc.id }, p_items: [{ part_id: part.id, quantity: 1, unit_price: 10 }], p_create_key: key() });
+  expect(po.ok, JSON.stringify(po)).toBe(true);
+  const stray = await get('rq_staff', `${F}/documents/PURCHASE/${po.data.id}`);
+  expect(stray.status).toBe(404);
+  // 連到需求單後才讀得到
+  const q = await mk('VW001', { main_status: 'ACCEPTED', intake_route: 'PURCHASE_REVIEW' });
+  const linked = await callFn(users.rq_staff.client, 'ga_ws_po_create', { p_header: { notes: m7Name('RV-doc2'), vendor_id: vendor.id, receiving_location_id: loc.id }, p_items: [{ part_id: part.id, quantity: 1, unit_price: 10, request_id: q.id }], p_create_key: key() });
+  expect(linked.ok, JSON.stringify(linked)).toBe(true);
+  expect((await get('rq_staff', `${F}/documents/PURCHASE/${linked.data.id}`)).status).toBe(200);
+});

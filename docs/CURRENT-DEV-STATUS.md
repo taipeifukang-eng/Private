@@ -117,3 +117,7 @@
 - 不得讓 AI 或語音辨識結果直接寫入正式紀錄；必須先產生草稿並由使用者確認。
 - 不得讓 LLM 自行產生正式資料 ID；正式 ID 必須由 application layer matching 並由使用者確認。
 - 不得用 `supervisor_management_cases` 或 `supervisor_management_records` 假裝今日管理規劃。
+
+### 第 4 批審查後補強（2026-11-16）
+
+兩份審查共 30 項已逐條處理（修 17、不屬實 1、其餘待使用者決定），DEV 已重新套用資料庫補強，正式區草稿 32 至 34 已重新產生（32 與 33 必須連續套用）。細節見 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.7。

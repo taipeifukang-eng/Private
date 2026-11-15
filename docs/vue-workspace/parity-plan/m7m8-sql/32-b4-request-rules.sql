@@ -2,7 +2,7 @@
 -- 正式區草稿（尚未執行，僅供使用者審閱）。內容與 DEV 已測過的 supabase/workspace-dev/20261112100000_m7m8_b4_request_rules.sql 相同。
 -- 第 4 批 A（需求單與處理單規則：資料結構與 G14 至 G17 規則函式）（2026-11-12 第 4 批問卷 D1 至 D21）。
 -- 性質：會寫入。新增 2 張表（流程設定、設定變更紀錄）、10 個可為空或有預設值的欄位（處理單待交付時間、單據作廢 3 欄、留言原文、事件代按標記、需求單取消原因、重新開啟次數、待門市確認起算時間、報價作廢標記）、2 個觸發器（需求單進入待門市確認時記錄起算時間、處理單達需求量時記錄待交付時間）、13 個 ga_ws_req_*／ga_ws_ful_* 函式（受理與 D4 擋、合法流轉、門市動作與總務代按標記、留言改刪保留原文、逾期天數設定、庫存出庫守衛、採購評估、處理單決定／異常／作廢／送門市確認）與內部輔助函式；
---   採購單連結處理單的同步觸發器（有採購單表才會裝，先套 32 再套 33 或相反都行）。不改任何既有資料；舊版畫面與舊版 API 不受影響，只有一處行為改變（見下）。
+--   採購單連結處理單的同步觸發器（有採購單表才會裝）。注意：32 內的庫存出庫（ga_ws_req_stock_issue）、採購評估「進入採購」（ga_ws_req_purchase_review）與採購連結同步會呼叫 33 才建立的 ga_po_fmt、ga_ws_po_from_review、ga_po_request_requested_base，所以 32 與 33 必須連續套用（中間不要讓使用者操作；只套 32 時這兩個功能會失敗並整筆回復）。不改任何既有資料；舊版畫面與舊版 API 不受影響，只有一處行為改變（見下）。
 -- 行為改變（要使用者核可）：以 CREATE OR REPLACE 覆蓋第 3 批 ga_inv_tr_sync_fulfillment——調撥單全數收貨後，料件處理單維持「調撥」狀態並成為「待交付」，要總務按「送門市確認」處理單與需求單才一起往下（原本收貨後處理單會自動跳到等門市確認，需求單卻停在處理中，兩邊不同步）。
 -- 設定表預設值：採購核准啟用、核准門檻 5000 元（含稅總額大於才需核准）、稅率 0.05、需求單待門市確認逾期天數 7、歷史價筆數 5。登入者不能直接讀寫設定表，只有函式（SECURITY DEFINER）與 service_role 能存取。
 -- 先決條件：需求單、處理單、單據、留言、事件、採購評估報價、profiles、maintenance_requests 資料表已存在，第 3 批 28（ga_ws_inv_post、調撥同步）已套用（先跑 31 確認）。採購評估選「進入採購」要 33 的 ga_ws_po_from_review（沒套 33 時該決策會失敗，其餘功能不受影響）。
@@ -229,6 +229,7 @@ DECLARE
   v_ful public.ga_part_fulfillments%ROWTYPE;
   v_total numeric := 0;
   v_po numeric := 0;
+  v_conv numeric := 1;
 BEGIN
   SELECT * INTO v_ful FROM public.ga_part_fulfillments WHERE id = p_ful_id;
   IF NOT FOUND THEN RETURN 0; END IF;
@@ -236,8 +237,12 @@ BEGIN
    WHERE d.fulfillment_id = p_ful_id AND d.voided_at IS NULL AND COALESCE(d.status, '') <> 'CANCELED'
      AND ((d.document_type = 'STOCK_ISSUE') OR (d.document_type = 'TRANSFER' AND d.status = 'RECEIVED'));
   IF to_regclass('public.ga_purchase_orders') IS NOT NULL THEN
-    EXECUTE 'SELECT COALESCE(sum(i.received_qty), 0) FROM public.ga_purchase_order_items i JOIN public.ga_purchase_orders o ON o.id = i.po_id WHERE i.request_id = $1 AND o.status <> ''CANCELED'''
+    -- 採購進貨量先換成基本單位，再換成需求單的單位（與出庫、調撥同單位才能相加）；需求單沒有數量或換算不出來時維持 1。
+    EXECUTE 'SELECT COALESCE(sum(i.received_qty * i.quantity_base / i.quantity), 0) FROM public.ga_purchase_order_items i JOIN public.ga_purchase_orders o ON o.id = i.po_id WHERE i.request_id = $1 AND o.status <> ''CANCELED'''
       INTO v_po USING v_ful.request_id;
+    EXECUTE 'SELECT COALESCE(public.ga_po_request_requested_base($1) / NULLIF((SELECT desired_quantity FROM public.ga_service_requests WHERE id = $1), 0), 1)' INTO v_conv USING v_ful.request_id;
+    IF v_conv IS NULL OR v_conv <= 0 THEN v_conv := 1; END IF;
+    v_po := round(v_po / v_conv, 4);
   END IF;
   v_total := v_total + COALESCE(v_po, 0);
   IF v_total IS DISTINCT FROM v_ful.fulfilled_quantity THEN
@@ -262,18 +267,22 @@ DECLARE
   v_state text;
   v_step text;
   v_got numeric;
+  v_linked uuid[] := ARRAY[]::uuid[];
 BEGIN
   IF p_request_id IS NULL OR to_regclass('public.ga_purchase_orders') IS NULL THEN RETURN; END IF;
   SELECT * INTO v_req FROM public.ga_service_requests WHERE id = p_request_id AND deleted_at IS NULL;
   IF NOT FOUND THEN RETURN; END IF;
   SELECT * INTO v_ful FROM public.ga_part_fulfillments WHERE request_id = p_request_id AND deleted_at IS NULL FOR UPDATE;
   IF NOT FOUND THEN
+    -- 只有料件需求單才建立料件處理單；設備添購等非料件需求不進料件處理中心。
+    IF COALESCE(v_req.resource_type, '') <> 'PART' THEN RETURN; END IF;
     INSERT INTO public.ga_part_fulfillments (request_id, status, requested_quantity, unit, current_step, created_by, updated_by)
     VALUES (p_request_id, 'PURCHASING', v_req.desired_quantity, v_req.desired_unit, '已產生採購單，請確認供應商與單價後下訂', COALESCE(auth.uid(), v_req.created_by), COALESCE(auth.uid(), v_req.created_by))
     RETURNING * INTO v_ful;
   END IF;
   FOR v_po IN EXECUTE 'SELECT o.id, o.po_no, o.status FROM public.ga_purchase_orders o WHERE o.source_request_id = $1 OR EXISTS (SELECT 1 FROM public.ga_purchase_order_items i WHERE i.po_id = o.id AND i.request_id = $1)' USING p_request_id LOOP
-    EXECUTE 'SELECT COALESCE(sum(quantity), 0) FROM public.ga_purchase_order_items WHERE po_id = $1 AND (request_id = $2 OR request_id IS NULL)' INTO v_qty USING v_po.id, p_request_id;
+    EXECUTE 'SELECT COALESCE(sum(quantity), 0) FROM public.ga_purchase_order_items WHERE po_id = $1 AND (request_id = $2 OR (request_id IS NULL AND EXISTS (SELECT 1 FROM public.ga_purchase_orders WHERE id = $1 AND source_request_id = $2)))' INTO v_qty USING v_po.id, p_request_id;
+    v_linked := array_append(v_linked, v_po.id);
     INSERT INTO public.ga_part_fulfillment_documents (fulfillment_id, document_type, document_id, document_no, quantity, status, created_by)
     VALUES (v_ful.id, 'PURCHASE', v_po.id, v_po.po_no, v_qty, v_po.status, COALESCE(auth.uid(), v_req.created_by))
     ON CONFLICT (fulfillment_id, document_type, document_id) DO UPDATE SET quantity = EXCLUDED.quantity, status = EXCLUDED.status;
@@ -281,6 +290,9 @@ BEGIN
     IF v_po.status IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED') THEN v_unordered := v_unordered + 1;
     ELSIF v_po.status IN ('ORDERED', 'PARTIALLY_RECEIVED') THEN v_open := v_open + 1; END IF;
   END LOOP;
+  -- 草稿被改掉、不再連到這張需求單的採購單：移除過時的單據列（已下訂的單品項鎖定，不會走到這裡）。
+  DELETE FROM public.ga_part_fulfillment_documents d
+   WHERE d.fulfillment_id = v_ful.id AND d.document_type = 'PURCHASE' AND NOT (d.document_id = ANY (v_linked));
   v_got := public.ga_ful_recompute(v_ful.id);
   IF v_ful.status IN ('PENDING_DECISION', 'PURCHASING', 'WAITING_ARRIVAL') AND v_total > 0 THEN
     IF v_unordered > 0 THEN v_state := 'PURCHASING'; v_step := '採購單尚未下訂（草稿、待核准或已核准待下訂）';
@@ -295,20 +307,26 @@ CREATE OR REPLACE FUNCTION public.ga_ful_po_trg() RETURNS trigger LANGUAGE plpgs
 AS $$
 DECLARE v_req uuid;
 BEGIN
-  IF TG_TABLE_NAME = 'ga_purchase_orders' THEN v_req := NEW.source_request_id; ELSE v_req := NEW.request_id; END IF;
+  IF TG_OP = 'DELETE' THEN v_req := OLD.request_id;
+  ELSIF TG_TABLE_NAME = 'ga_purchase_orders' THEN v_req := NEW.source_request_id; ELSE v_req := NEW.request_id; END IF;
   IF v_req IS NOT NULL THEN PERFORM public.ga_ful_sync_po(v_req); END IF;
+  -- 品項改連到別張需求單：原本那張的處理單也要同步。
+  IF TG_OP = 'UPDATE' AND TG_TABLE_NAME = 'ga_purchase_order_items' THEN
+    IF OLD.request_id IS NOT NULL AND OLD.request_id IS DISTINCT FROM NEW.request_id THEN PERFORM public.ga_ful_sync_po(OLD.request_id); END IF;
+  END IF;
   RETURN NULL;
 END;
 $$;
 
 -- 採購單表在第 33 才存在：兩邊都做同一段（先套 32 再套 33，或先有採購單表再套 32，都會裝好觸發器）。
+-- 注意：本檔的庫存出庫、採購評估與採購連結同步會呼叫 33 才建立的函式（ga_po_fmt、ga_ws_po_from_review、ga_po_request_requested_base），32 與 33 必須連續套用。
 DO $$
 BEGIN
   IF to_regclass('public.ga_purchase_orders') IS NOT NULL AND to_regclass('public.ga_purchase_order_items') IS NOT NULL THEN
     DROP TRIGGER IF EXISTS trg_ga_purchase_orders_ful_sync ON public.ga_purchase_orders;
     CREATE TRIGGER trg_ga_purchase_orders_ful_sync AFTER INSERT OR UPDATE OF status, source_request_id ON public.ga_purchase_orders FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
     DROP TRIGGER IF EXISTS trg_ga_purchase_order_items_ful_sync ON public.ga_purchase_order_items;
-    CREATE TRIGGER trg_ga_purchase_order_items_ful_sync AFTER INSERT OR UPDATE OF received_qty, quantity, request_id ON public.ga_purchase_order_items FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
+    CREATE TRIGGER trg_ga_purchase_order_items_ful_sync AFTER INSERT OR UPDATE OF received_qty, quantity, request_id OR DELETE ON public.ga_purchase_order_items FOR EACH ROW EXECUTE FUNCTION public.ga_ful_po_trg();
   END IF;
 END $$;
 
@@ -813,8 +831,10 @@ BEGIN
   BEGIN
     SELECT * INTO v_req FROM public.ga_service_requests WHERE id = p_id AND deleted_at IS NULL FOR UPDATE;
     IF NOT FOUND THEN RETURN public.ga_rq_err(404, 'NOT_FOUND', '找不到需求單'); END IF;
-    IF v_req.intake_route IS DISTINCT FROM 'STOCK_ISSUE' THEN RETURN public.ga_rq_err(409, 'INVALID_STATE', '此需求單尚未分流為庫存出庫，請先受理並選擇庫存出庫'); END IF;
-    IF v_req.main_status NOT IN ('ACCEPTED', 'IN_PROGRESS') THEN RETURN public.ga_rq_err(409, 'INVALID_STATE', '此需求單狀態目前不可執行庫存出庫'); END IF;
+    -- 同一個固定識別重送（流水已存在）：不看目前狀態、不重算剩餘量、不重寫事件，直接回原結果。
+    SELECT EXISTS (SELECT 1 FROM public.ga_inventory_transactions WHERE idempotency_key = p_key AND reference_type = 'GA_SERVICE_REQUEST' AND reference_id = p_id) INTO v_replay;
+    IF v_req.intake_route IS DISTINCT FROM 'STOCK_ISSUE' AND NOT v_replay THEN RETURN public.ga_rq_err(409, 'INVALID_STATE', '此需求單尚未分流為庫存出庫，請先受理並選擇庫存出庫'); END IF;
+    IF v_req.main_status NOT IN ('ACCEPTED', 'IN_PROGRESS') AND NOT v_replay THEN RETURN public.ga_rq_err(409, 'INVALID_STATE', '此需求單狀態目前不可執行庫存出庫'); END IF;
     IF COALESCE(v_req.resource_type, '') <> 'PART' OR v_req.part_id IS NULL THEN RETURN public.ga_rq_err(422, 'NOT_PART_STOCK', '只有料件需求可以走庫存出庫'); END IF;
     SELECT * INTO v_part FROM public.ga_parts WHERE id = p_part_id AND deleted_at IS NULL;
     IF NOT FOUND THEN RETURN public.ga_rq_err(404, 'PART_NOT_FOUND', '找不到料件'); END IF;
@@ -835,8 +855,6 @@ BEGIN
       v_in_req_unit := v_base / v_conv;
     END IF;
     SELECT * INTO v_ful FROM public.ga_part_fulfillments WHERE request_id = p_id AND deleted_at IS NULL FOR UPDATE;
-    -- 同一個固定識別重送（流水已存在）直接交給過帳包裝回原結果，不重算剩餘量。
-    SELECT EXISTS (SELECT 1 FROM public.ga_inventory_transactions WHERE idempotency_key = p_key AND reference_type = 'GA_SERVICE_REQUEST' AND reference_id = p_id) INTO v_replay;
     IF v_req.desired_quantity IS NOT NULL AND NOT v_replay THEN
       SELECT COALESCE(sum(d.quantity), 0) INTO v_committed FROM public.ga_part_fulfillment_documents d
        WHERE d.fulfillment_id = v_ful.id AND d.voided_at IS NULL AND COALESCE(d.status, '') <> 'CANCELED' AND d.document_type IN ('STOCK_ISSUE', 'TRANSFER');
@@ -855,6 +873,10 @@ BEGIN
       PERFORM public.ga_rq_raise(COALESCE((v_res->>'status')::integer, 500), COALESCE(v_res->>'code', 'POST_FAILED'), COALESCE(v_res->>'error', '庫存出庫失敗'), (v_res - 'ok' - 'status' - 'code' - 'error'));
     END IF;
     v_tx := v_res->'data';
+    IF v_replay THEN
+      RETURN jsonb_build_object('ok', true, 'status', 200, 'idempotent_replay', true,
+        'data', jsonb_build_object('request_id', p_id, 'main_status', v_req.main_status, 'fulfillment_id', v_ful.id, 'issued', COALESCE(v_ful.fulfilled_quantity, 0), 'transaction', v_tx));
+    END IF;
     v_old_status := v_req.main_status;
     UPDATE public.ga_service_requests SET main_status = 'IN_PROGRESS', public_progress = '總務已完成需求單庫存出庫，後續等待配送、領用或門市確認結果。' WHERE id = p_id;
     PERFORM public.ga_rq_event(p_id, 'STOCK_ISSUED', v_old_status, 'IN_PROGRESS', 'PUBLIC', '需求單庫存出庫', '總務已完成需求單庫存出庫，後續等待配送、領用或門市確認結果。',

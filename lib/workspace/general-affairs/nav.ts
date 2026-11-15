@@ -117,7 +117,7 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
     permissionFlags: legacyNavFlags(input),
     isAdminLike: input.isAdmin,
   });
-  const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes), !!input.storeMember, !!input.rosterMember);
+  const flags = gaFlags(input.has, isStoreManagerRole(input.roleCodes), !!input.storeMember, !!input.rosterMember, (...codes) => codes.some((c) => (input.permissions as any)?.has?.(c)));
   // 只憑門市名單身分（督導、區經理）進中心的人（2026-11-11 驗收決定 A）：沒有店長角色、沒有任何總務權限，也不是管理員。
   // 舊側欄的項目只要沒設旗標就會對任何進得了中心的人顯示（需求工作台、料件處理中心、盤點等），這些對他們都是點了被擋的壞入口，
   // 所以只留已移植且旗標為 true 的新版頁面（庫存總覽、調撥、庫存位置、自己門市的清冊等），不留舊網址外連與停用說明。

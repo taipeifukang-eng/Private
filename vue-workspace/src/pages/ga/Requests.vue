@@ -78,7 +78,7 @@ const activeCard = computed(() => (overdueOnly.value ? "overdue" : status.value 
 const cards = computed(() => [
   { id: "all", label: "全部", n: stats.value.all ?? 0, cls: "" },
   ...(["PENDING_INTAKE", "WAITING_STORE_SUPPLEMENT", "WAITING_GA_REVIEW", "ACCEPTED", "IN_PROGRESS", "WAITING_STORE_CONFIRMATION"] as const).map((s) => ({ id: s, label: REQUEST_STATUS_LABEL[s], n: stats.value[s] ?? 0, cls: "" })),
-  { id: "overdue", label: `逾期未確認（超過 ${settings.value.overdue_days} 天）`, n: stats.value.overdue ?? 0, cls: (stats.value.overdue ?? 0) > 0 ? "alert" : "" },
+  ...(perms.value.manage ? [{ id: "overdue", label: `逾期未確認（超過 ${settings.value.overdue_days} 天）`, n: stats.value.overdue ?? 0, cls: (stats.value.overdue ?? 0) > 0 ? "alert" : "" }] : []),
   ...(["COMPLETED", "REJECTED", "CANCELED"] as const).map((s) => ({ id: s, label: REQUEST_STATUS_LABEL[s], n: stats.value[s] ?? 0, cls: "" })),
 ]);
 

@@ -243,13 +243,17 @@ AS $$ SELECT CASE WHEN p.base_unit = p_unit THEN 'BASE' WHEN p.purchase_unit IS 
 
 -- 序號是否已被其他未刪除設備使用：同型號（template_id 相同），或同品牌＋同型號字樣。比對不分大小寫。
 CREATE OR REPLACE FUNCTION public.ga_po_serial_conflict(p_template_id uuid, p_serial text, p_exclude_equipment_id uuid DEFAULT NULL)
-RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$
-  SELECT EXISTS (
+BEGIN
+  -- 以序號取交易鎖：兩個交易同時登錄同一序號時，後到的等前一個提交後才檢查，不會雙雙通過。
+  PERFORM pg_advisory_xact_lock(hashtextextended('ga_serial:' || upper(btrim(p_serial)), 0));
+  RETURN EXISTS (
     SELECT 1 FROM public.ga_equipment e, public.ga_equipment_templates t
      WHERE t.id = p_template_id AND e.deleted_at IS NULL AND upper(btrim(e.serial_number)) = upper(btrim(p_serial))
        AND (p_exclude_equipment_id IS NULL OR e.id <> p_exclude_equipment_id)
        AND (e.template_id = t.id OR (t.brand IS NOT NULL AND t.model IS NOT NULL AND upper(e.brand) = upper(t.brand) AND upper(e.model) = upper(t.model))));
+END;
 $$;
 
 -- 建立一台設備（沿用舊版建立設備規則：資產編號由 ga_next_equipment_asset_code 依第二層分類代碼＋購置日期取號，資料庫有唯一索引防重複；QR 在第一次列印時才發放，與舊版相同）。
@@ -509,12 +513,17 @@ BEGIN
         IF v_utype IS NULL THEN
           PERFORM public.ga_po_raise(422, 'SUBSTITUTE_UNIT_MISMATCH', '料件「' || v_rpart.name || '」沒有「' || v_item.unit || '」這個單位（基本單位 ' || v_rpart.base_unit || COALESCE('、採購單位 ' || v_rpart.purchase_unit, '') || '），不能用來驗入這個品項');
         END IF;
+        -- 驗入的基本單位量用「實際入帳料件」現在的換算率，與庫存過帳一致（不用開單當時的換算比）。
+        v_acc_base := round(v_acc * CASE v_utype WHEN 'PURCHASE' THEN v_rpart.purchase_to_base_rate ELSE 1 END, 4);
       ELSE
         IF ga_normalize_optional_text(v_line->>'location_id') IS NOT NULL OR ga_normalize_optional_text(v_line->>'received_part_id') IS NOT NULL THEN
           PERFORM public.ga_po_raise(400, 'LINE_INVALID', '「' || v_item.item_name || '」不入庫存，不能指定收貨位置或收到的料件');
         END IF;
         IF v_item.fulfil_mode = 'DIRECT_ASSET' AND v_acc_base <> trunc(v_acc_base) THEN
           PERFORM public.ga_po_raise(422, 'ASSET_QUANTITY_INTEGER', '「' || v_item.item_name || '」要直接建立設備，驗入量換算成基本單位後必須是整數');
+        END IF;
+        IF v_item.fulfil_mode = 'DIRECT_ASSET' AND v_acc_base > 200 THEN
+          PERFORM public.ga_po_raise(422, 'ASSET_QUANTITY_LIMIT', '「' || v_item.item_name || '」單次直接建立設備最多 200 台，請分次登錄到貨');
         END IF;
       END IF;
 

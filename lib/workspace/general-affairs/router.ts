@@ -25,7 +25,7 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
   switch (head) {
     case "access": {
       // 目前登入者在總務服務中心的可見旗標（與 /api/workspace/session 的 capabilities 同一套規則）與資料庫端實際可操作旗標。
-      const flags = gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes), await isStoreMember(ctx), await isRosterMember(ctx));
+      const flags = gaFlags(ctx.has, isStoreManagerRole(ctx.roleCodes), await isStoreMember(ctx), await isRosterMember(ctx), (...codes) => dbCan(ctx.permissions, ...codes));
       const cat = (t: CategoryType) => categoryPermissions(t, ctx.permissions);
       return respond({
         flags,

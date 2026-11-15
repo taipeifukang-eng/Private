@@ -108,7 +108,8 @@ export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
 /** 導覽／頁面可見旗標（has 含管理員後備）。 */
 /** storeMember：名單內任何身分（store_managers）；只影響第 2 批的設備清冊與貼標待辦入口，第 1 批旗標維持只認角色代碼。 */
 /** rosterMember：門市名單（store_managers）任何身分，G11 庫存位置唯讀入口用（C12：店長、督導、區經理）。 */
-export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, rosterMember = false): GaFlags {
+/** dbHas：資料庫語意（沒有管理員後備），採購單入口用——採購單 API 只認資料庫權限，管理員沒勾也會被 403，入口不能比 API 寬。預設同 has。 */
+export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, rosterMember = false, dbHas: HasFn = has): GaFlags {
   return {
     // 門市名單身分（督導、區經理，不限店長）也進得了中心：只看得到自己門市的庫存總覽與調撥（唯讀），側欄只列旗標為 true 的項目（2026-11-11 驗收決定 A）。
     gaCenter: storeManager || rosterMember || has(...GA_CENTER_CODES),
@@ -153,8 +154,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     gaRequests: has("general_affairs.request.view_all", "general_affairs.request.manage"),
     gaPartFulfillments: has("general_affairs.part_fulfillment.view", "general_affairs.part_fulfillment.manage"),
     // 第 4 批 G25：採購單（採購評估檢視／管理，或採購核准）與待簽核清單（只有採購核准）。
-    gaPurchaseOrders: has("general_affairs.purchase_review.view", "general_affairs.purchase_review.manage", "general_affairs.purchase_order.approve"),
-    gaPurchaseApprovals: has("general_affairs.purchase_order.approve"),
+    gaPurchaseOrders: dbHas("general_affairs.purchase_review.view", "general_affairs.purchase_review.manage", "general_affairs.purchase_order.approve"),
+    gaPurchaseApprovals: dbHas("general_affairs.purchase_order.approve"),
     gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }

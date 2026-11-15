@@ -943,3 +943,9 @@ Vue build PASS；scripts/test-workspace-prescription-scroll.py 使用59店攔截
 - 待使用者確認的新發現共 35 筆（`approvedBy` 為 null）與其他決定事項，列在 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.6。
 - 已知與本批無關：`I01.inspection-gps` 定位對等 6 項失敗；`G10.journey-onboarding` 完成率受 DEV 一台真實設備（門市 0002）等拍照影響；執行時主控台出現 `[pharmacist-management] findMissingOnboardingPharmacists is not defined`（藥師管理既有問題，未處理）。
 - 全量 `test:all` 共 2497 項，單一 worker 循序約 10 小時以上，這次在跑到約第 260 項（前面 unit、smoke、e2e、部分 integration 全綠，無失敗）時中止並清掉殘留，改以第 4 批相關頁面逐頁循序重跑；`run-all` 結束碼 1 皆只因 sweeper 基準 17 筆孤兒。
+
+## 第 4 批審查後補強（2026-11-16，DEV）
+
+- 依兩份審查（SQL 與採購單 API、全批 commit）共 30 項逐條處理，結果見 `parity-plan/m7m8-batch4-design.md` 12.7：修 17 項（短收結案釋出需求量、驗入換算、處理單單位統一、直接建設備序號與 200 台上限、庫存出庫重送、序號併發鎖、舊版收貨保護、非料件不建處理單、單據列同步、採購單入口資料庫語意、單據明細範圍、逾期不外露、冒煙測試強化），不屬實 1 項，其餘列為待使用者決定。
+- 資料庫補強直接改 DEV 檔並重新產生草稿 32 至 34；DEV 已重新套用。
+- 測試：新增 `B4-REVIEW`（單元 10、整合 7）與 `G14-G17` 兩項；循序重跑 `G25-db` 63、`G26-db` 59、`G14-G17` 51、`G25-ui` 46、`G25` 劇本 2、`G16` 6、`G17` 7、`G27` 30、`B4-ACCEPT` 34，皆全過；`test:unit` 115 檔 1733 項全綠；`tsc`、`vue-tsc` 無錯誤。`run-all` 結束碼 1 皆只因 sweeper 基準 17 筆孤兒。
