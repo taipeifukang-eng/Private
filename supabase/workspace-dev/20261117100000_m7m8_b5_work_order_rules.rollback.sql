@@ -13,6 +13,7 @@ DROP FUNCTION IF EXISTS public.ga_ws_wo_get(uuid);
 DROP FUNCTION IF EXISTS public.ga_ws_wo_list(jsonb, integer, integer);
 DROP FUNCTION IF EXISTS public.ga_wo_abilities(uuid, uuid);
 DROP FUNCTION IF EXISTS public.ga_wo_row(uuid, boolean);
+DROP FUNCTION IF EXISTS public.ga_wo_sync_skipped(uuid, uuid, text, text, text, text);
 DROP FUNCTION IF EXISTS public.ga_wo_sync_request(uuid, text, text, text, uuid, jsonb);
 DROP FUNCTION IF EXISTS public.ga_wo_apply_supplement_reply(uuid, uuid, text, boolean, text);
 DROP FUNCTION IF EXISTS public.ga_wo_apply_supplement_request(uuid, uuid, text, text, text, text);

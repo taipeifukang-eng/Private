@@ -282,6 +282,7 @@ const requestStatusText = computed(() => (wo.value?.request_status ? REQUEST_STA
         </div>
         <ul class="wod-reasons" data-testid="wo-reasons">
           <li v-if="!ab.read_only && !ab.can_save_progress && ab.save_progress_reason" data-testid="reason-progress">不能更新進度：{{ ab.save_progress_reason }}</li>
+          <li v-if="!ab.read_only && !ab.can_request_completion && ab.request_completion_reason" data-testid="reason-completion">不能送門市確認：{{ ab.request_completion_reason }}</li>
           <li v-if="!ab.read_only && !ab.can_request_supplement && ab.request_supplement_reason && wo.status !== 'COMPLETED'" data-testid="reason-supplement">不能補資料：{{ ab.request_supplement_reason }}</li>
           <li v-if="!ab.can_issue_part && ab.issue_part_reason && (gaSide || !ab.read_only)" data-testid="reason-issue-part">不能領用料件：{{ ab.issue_part_reason }}</li>
           <li v-if="ab.force_close_missing" data-testid="reason-force-close">不能強制結案：缺少「{{ ab.force_close_missing }}」權限，請洽管理員授權</li>

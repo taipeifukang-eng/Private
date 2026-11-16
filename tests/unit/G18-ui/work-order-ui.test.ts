@@ -108,7 +108,7 @@ describe('G18 畫面用的階段選單、快捷鈕與文字表', () => {
   it('補資料類型六種、優先順序四種、事件文字涵蓋時間軸會出現的事件', () => {
     expect(Object.keys(SUPPLEMENT_LABEL).sort()).toEqual(['DESCRIPTION_INSUFFICIENT', 'MISSING_PHOTO', 'OTHER', 'PHOTO_UNCLEAR', 'QUANTITY_OR_SPEC_INSUFFICIENT', 'RESOURCE_SELECTION_WRONG']);
     expect(Object.keys(PRIORITY_LABEL)).toEqual(['low', 'normal', 'high', 'urgent']);
-    for (const e of ['CREATED', 'ACCEPT', 'MIGRATED', 'STORE_MOVED', 'PART_ISSUED', 'CATEGORY_CHANGED', 'FORCE_CLOSE_NOTICE']) expect(EVENT_LABEL[e], e).toBeTruthy();
+    for (const e of ['CREATED', 'ACCEPT', 'MIGRATED', 'STORE_MOVED', 'PART_ISSUED', 'CATEGORY_CHANGED', 'FORCE_CLOSE_NOTICE', 'REQUEST_SYNC_SKIPPED']) expect(EVENT_LABEL[e], e).toBeTruthy();
   });
   it('門市文字與工單編號', () => {
     expect(storeLabel({ store_code: 'VW001', store_name: '測試店' })).toBe('VW001 測試店');

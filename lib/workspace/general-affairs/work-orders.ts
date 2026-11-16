@@ -196,8 +196,15 @@ async function attachments(ctx: Context, request: NextRequest, id: string) {
     // 以使用者身分寫入：資料庫觸發器用 auth.uid() 檢查附件管理權限（工單更新／管理、回報人、該門市店長），服務身分會被擋。
     const res = await (ctx.auth as any).from("ga_resource_attachments").insert(records);
     if (res.error) throw res.error.message?.includes("RESOURCE_ATTACHMENT_PERMISSION_DENIED") ? new GaError(403, "沒有這張工單的附件管理權限") : dbError(res.error);
-    const rows = (await must((adminClient() as any).from("ga_resource_attachments").select("id,resource_type,resource_id,purpose,file_name,content_type,size_bytes,uploaded_at,storage_bucket,storage_path").in("storage_path", stored.map((x) => x.path)).is("deleted_at", null))) as any[];
-    const photos = await signPhotos(rows, []);
+    // 附件紀錄已寫入後，回讀失敗不能再刪儲存檔（否則紀錄會指向不存在的檔案）；改回空清單，畫面重新載入即可看到（審查：照片清理縫隙）。
+    let photos: any[] = [];
+    try {
+      const rows = (await must((adminClient() as any).from("ga_resource_attachments").select("id,resource_type,resource_id,purpose,file_name,content_type,size_bytes,uploaded_at,storage_bucket,storage_path").in("storage_path", stored.map((x) => x.path)).is("deleted_at", null))) as any[];
+      photos = await signPhotos(rows, []);
+    } catch {
+      photos = [];
+    }
+    uploaded.length = 0;
     return respond({ data: photos }, 201);
   } catch (error) {
     await removeUploaded(uploaded);

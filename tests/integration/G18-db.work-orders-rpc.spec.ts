@@ -1016,3 +1016,83 @@ BEGIN
   expect(m, out.slice(0, 1200)).not.toBeNull();
   expect(m![1]).toMatch(/^ws=12,int=\d+,def=\[\],path=\[\],anon=\[\],auth=\[\],internal=\[\]$/);
 });
+
+// ----------------------------------------------------------------------------- 第 5 批審查修正（2026-11-16 審查 #1、#2、#3、#7、#10）
+test('審查 #1：需求單在待總務複核時，工單不能先送門市確認（避免兩邊狀態分岔）；到需求單按「受理」複核後才可以', async () => {
+  const lk = await linked('REVIEW-GATE', 'IN_PROGRESS', { progress_stage: 'VENDOR_WORKING' });
+  expect((await tr('wo_works', lk.w, 'REQUEST_SUPPLEMENT', { supplement_type: 'PHOTO_UNCLEAR', supplement_note: '請補拍' })).ok).toBe(true);
+  const re = await callFn(users.wo_store_a.client, 'ga_ws_req_store_action', { p_id: lk.r.id, p_action: 'submit_supplement', p_note: '已補拍', p_expected_updated_at: null });
+  expect(re.ok, JSON.stringify(re)).toBe(true);
+  expect((await reqRow(lk.r.id)).main_status).toBe('WAITING_GA_REVIEW');
+  const w1 = await woRow(lk.w.id);
+  const ab = (await fn('wo_works', 'ga_ws_wo_get', { p_id: lk.w.id })).data.abilities;
+  expect(ab.can_request_completion).toBe(false);
+  expect(ab.request_completion_reason).toContain('受理');
+  const blocked = await tr('wo_works', w1, 'REQUEST_COMPLETION', {});
+  expect(blocked).toMatchObject({ ok: false, status: 409, code: 'REQUEST_REVIEW_REQUIRED' });
+  expect(blocked.error).toContain('受理');
+  // 兩邊都沒有動
+  expect(await woRow(lk.w.id)).toMatchObject({ status: 'PROCESSING', progress_stage: 'INITIAL_REVIEW', updated_at: w1.updated_at });
+  expect((await reqRow(lk.r.id)).main_status).toBe('WAITING_GA_REVIEW');
+  // 一般存進度仍可（需求單不翻轉，是第 5 批既有的護欄）
+  expect((await save('wo_works', await woRow(lk.w.id), { progress_stage: 'VENDOR_WORKING' })).ok).toBe(true);
+  expect((await reqRow(lk.r.id)).main_status).toBe('WAITING_GA_REVIEW');
+  // 總務在需求單按「受理」複核後，工單可送確認，兩邊一起進待門市確認
+  const acc = await callFn(users.rq_staff.client, 'ga_ws_req_accept', { p_id: lk.r.id, p_expected_updated_at: (await reqRow(lk.r.id)).updated_at, p_route: 'REPAIR_DISPATCH', p_role: 'WORKS', p_assignee_user: null, p_assignee_name: null, p_internal_note: null });
+  expect(acc.ok, JSON.stringify(acc)).toBe(true);
+  expect((await reqRow(lk.r.id)).main_status).toBe('ACCEPTED');
+  const ab2 = (await fn('wo_works', 'ga_ws_wo_get', { p_id: lk.w.id })).data.abilities;
+  expect(ab2.can_request_completion).toBe(true);
+  const done = await tr('wo_works', await woRow(lk.w.id), 'REQUEST_COMPLETION', {});
+  expect(done.ok, JSON.stringify(done)).toBe(true);
+  expect((await reqRow(lk.r.id)).main_status).toBe('WAITING_STORE_CONFIRMATION');
+  expect(await woRow(lk.w.id)).toMatchObject({ status: 'PROCESSING', progress_stage: 'WAITING_STORE_CONFIRMATION' });
+  // 舊式單（沒有需求單）不受影響
+  const old = await open('REVIEW-GATE-LEGACY');
+  expect((await tr('wo_works', old, 'REQUEST_COMPLETION', {})).ok).toBe(true);
+});
+
+test('審查 #2：同一個防重複識別同時送出（連點、網路重送）只會建一張工單', async () => {
+  const s = await stores();
+  const k = key();
+  const mk = (n: string) => fn('wo_store_a', 'ga_ws_wo_create_legacy', { p_payload: { id: crypto.randomUUID(), store_id: s.VW001.id, title: m7Name(`CONC-${n}-${(seq += 1)}`), description: '同時重送', attachments: [] }, p_key: k });
+  const res = await Promise.all([mk('a'), mk('b'), mk('c')]);
+  for (const r of res) expect(r.ok, JSON.stringify(r)).toBe(true);
+  const ids = new Set(res.map((r) => r.data.id as string));
+  expect(ids.size).toBe(1);
+  expect(res.filter((r) => r.idempotent_replay === true).length).toBe(2);
+  const evs = (await db().from('maintenance_ticket_events').select('ticket_id').eq('event_type', 'CREATED').eq('created_by', users.wo_store_a.id).filter('metadata->>create_key', 'eq', k)).data || [];
+  expect(evs).toHaveLength(1);
+});
+
+test('審查 #7：強制結案在詳情時間軸與列印只出現一次「總務已結案」；事件仍寫入供稽核', async () => {
+  const lk = await linked('FC-ONCE', 'IN_PROGRESS');
+  expect((await tr('wo_manager', lk.w, 'FORCE_CLOSE', { force_close_reason: '重複報修-內部原因' })).ok).toBe(true);
+  for (const who of ['wo_works', 'wo_store_a'] as PoKey[]) {
+    const got = (await fn(who, 'ga_ws_wo_get', { p_id: lk.w.id })).data;
+    expect((got.timeline as any[]).filter((t) => t.text === '總務已結案'), who).toHaveLength(1);
+  }
+  const pr = (await fn('wo_works', 'ga_ws_wo_print', { p_id: lk.w.id, p_include_internal: false })).data;
+  expect(JSON.stringify(pr)).not.toContain('重複報修-內部原因');
+  expect((pr.public_timeline as any[]).filter((t) => t.text === '總務已結案')).toHaveLength(1);
+  expect((await eventsOf(lk.w.id)).some((e) => e.event_type === 'FORCE_CLOSE_NOTICE')).toBe(true);
+});
+
+test('審查 #3、#10：需求單端同步被擋時工單留內部事件；列表頁碼上限不溢位', async () => {
+  // 工單已不在「等待門市補充資料」，需求單端回覆補資料：需求單照樣往下，工單留一筆內部「同步未完成」事件
+  const lk = await linked('SKIP', 'WAITING_STORE_SUPPLEMENT', { progress_stage: 'VENDOR_WORKING' });
+  const re = await callFn(users.wo_store_a.client, 'ga_ws_req_store_action', { p_id: lk.r.id, p_action: 'submit_supplement', p_note: '補了', p_expected_updated_at: null });
+  expect(re.ok, JSON.stringify(re)).toBe(true);
+  expect((await reqRow(lk.r.id)).main_status).toBe('WAITING_GA_REVIEW');
+  const sk = (await eventsOf(lk.w.id)).filter((e) => e.event_type === 'REQUEST_SYNC_SKIPPED');
+  expect(sk).toHaveLength(1);
+  expect(sk[0]).toMatchObject({ visibility: 'INTERNAL', metadata: { what: '門市回覆補資料' } });
+  const store = await fn('wo_store_a', 'ga_ws_wo_get', { p_id: lk.w.id });
+  expect(JSON.stringify(store.data.timeline)).not.toContain('同步');
+  const ga = (await fn('wo_works', 'ga_ws_wo_get', { p_id: lk.w.id })).data;
+  expect(ga.timeline.some((t: any) => t.event_type === 'REQUEST_SYNC_SKIPPED')).toBe(true);
+  // 極大的頁碼不溢位、回空列
+  const big = await fn('wo_works', 'ga_ws_wo_list', { p_filters: { q: m7Name('NO-SUCH-TITLE') }, p_page: 2147483647, p_page_size: 100 });
+  expect(big.ok, JSON.stringify(big)).toBe(true);
+  expect(big.data.rows).toHaveLength(0);
+});

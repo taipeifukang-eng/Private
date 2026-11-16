@@ -290,7 +290,7 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 **交付檔案**
 | 類別 | 檔案 |
 |---|---|
-| DEV SQL（各附 `.rollback.sql`） | `supabase/workspace-dev/20261117100000_m7m8_b5_work_order_rules`（12 個對外函式中的 11 個＋25 個內部輔助函式）、`…105000_m7m8_b5_request_supplement_sync`（覆蓋第 4 批 `ga_ws_req_transition`、`ga_ws_req_store_action`）、`…110000_m7m8_b5_work_order_parts`（`ga_ws_wo_issue_part`）、`…120000_m7m8_b5_work_order_rls`（三條政策收緊）、`…130000_m7m8_b5_dev_storage_and_seed`（DEV 專用） |
+| DEV SQL（各附 `.rollback.sql`） | `supabase/workspace-dev/20261117100000_m7m8_b5_work_order_rules`（12 個對外函式中的 11 個＋26 個內部輔助函式）、`…105000_m7m8_b5_request_supplement_sync`（覆蓋第 4 批 `ga_ws_req_transition`、`ga_ws_req_store_action`）、`…110000_m7m8_b5_work_order_parts`（`ga_ws_wo_issue_part`）、`…120000_m7m8_b5_work_order_rls`（三條政策收緊）、`…130000_m7m8_b5_dev_storage_and_seed`（DEV 專用） |
 | 備份 | `supabase/workspace-dev/_backup/20261117_b4_req_functions_before_b5.sql`（套用前 `pg_get_functiondef`，md5：`ga_ws_req_store_action=20a40759bb4488685c08cd885f785158`、`ga_ws_req_transition=a962e584ccd1679a2c246fddde688d3c`） |
 | 腳本 | `scripts/apply-workspace-m7m8-b5-dev.cjs [--rollback]`、`scripts/gen-m7m8-b5-105000.cjs`（由備份產生 105000，每個取代斷言只命中一次）、`scripts/build-m7m8-b5-prod-drafts.cjs`（由 DEV 檔產生 37–40） |
 | 正式區草稿 | `docs/vue-workspace/parity-plan/m7m8-sql/36-b5-preview-before-apply.sql`（唯讀）、`37-b5-work-order-rules`、`38-b5-request-supplement-sync`、`39-b5-work-order-parts`、`40-b5-work-order-rls`（37–40 各附 `-rollback`），README「第 5 批」章節與套用順序 36→37→38→39→40（40 要等名單確認） |
@@ -433,3 +433,30 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 - 舊照片上傳（`maintenance-photos`）的完整路徑只在測試中以直接寫入驗證（新版沒有舊 bucket 的上傳入口）。
 
 **測試數字（循序，只連 DEV）**：`npm run test:page -- G18-e2e`：單元 23、整合 9（G18.rls）、e2e 16（5 支劇本檔，桌機 1440 各跑一次，手機 390 project 另有 16 項因「劇本固定桌機＋店長手機」而略過）、對等 13，共 38 項 Playwright 全過；run-all 結束碼 1 只因 sweeper 基準 17 筆孤兒。
+
+### 11.6 審查修正紀錄（2026-11-16，對 11.5 之後兩份審查意見逐條查證）
+先說結論：兩份審查的重點都屬實，已修並補測試的有 #1、#2、#3、#4、#5、#6、#7、#8（文件與重送條件）、#10（頁碼上限、照片清理）；其餘列為待使用者決定。修改都在尚未上線的 100000／110000 與正式區草稿 37、38、39、40 內（草稿由 `scripts/build-m7m8-b5-prod-drafts.cjs` 重新產生，內容與 DEV 一致），沒有新增草稿編號。
+
+**已修**
+1. **複核前不能送門市確認**（工單分岔）：需求單在「待總務複核」時，工單 REQUEST_COMPLETION 回 409 `REQUEST_REVIEW_REQUIRED`（「門市已回覆補資料，請先到需求單按『受理』複核，再送門市確認」），abilities 的 `can_request_completion` 為 false 並帶 `request_completion_reason`，詳情頁顯示原因。一般存進度維持原護欄（待複核期間不翻轉需求單，工單照常記）。測試：G18-db「審查 #1」。
+2. **同時重送只建一張工單**：`ga_ws_wo_create_legacy` 在查重送前以 `pg_advisory_xact_lock(hashtextextended('wo_create:使用者:識別碼', 0))` 排隊，鎖完再查。測試：G18-db「審查 #2」三個請求同時送出，只有 1 張工單與 1 筆 CREATED 事件、2 個回 `idempotent_replay`。工單刪除後同識別碼可重新建單（事件隨工單刪除）仍維持，屬低風險取捨。
+3. **需求單端同步被擋要留紀錄**：新增內部函式 `ga_wo_sync_skipped`；第 4 批需求單端呼叫 `ga_wo_apply_*` 因工單狀態不符回 false 時，工單寫一筆內部事件 `REQUEST_SYNC_SKIPPED`（總務詳情時間軸看得到「需求單同步未完成」，門市看不到）。需求單照原行為往下，不 RAISE（避免擋住門市回覆）。工單端自己呼叫時由呼叫端直接報錯，不重複記。內部函式由 25 個變 26 個。測試：G18-db「審查 #3」。
+4. **37、39 先決檢查補齊**：37 補 `ga_rq_event`、`ga_rq_raise`、`ga_rq_catch`、`ga_rq_is_store_member`、`ga_po_like_escape`、`ga_po_fmt`；39 補 `ga_rq_err`、`ga_rq_raise`、`ga_rq_catch`、`ga_wo_event`、`ga_wo_no`、`ga_wo_can_update`。
+5. **38 加 md5 自動守衛**：草稿 38 檔頭 `DO $$` 比對兩個第 4 批函式 md5（store_action=20a40759…、transition=a962e584…），不符就中止（做法同 22 號）。只放在正式區草稿；DEV 檔因為已覆蓋過，不放守衛。
+6. **40 的撤回依據**：草稿 40 與其 rollback 檔頭要求套用前先存三條政策的 `qual`／`with_check`；rollback 內的 20260727021000 原文只在正式區現況與它相同時才能直接用，否則以存檔還原。
+7. **強制結案時間軸不再顯示兩次**：詳情與列印的事件白名單移除 `FORCE_CLOSE_NOTICE`（那一筆事件仍寫入，供稽核與對等比對）；公開進度紀錄那一筆「總務已結案」保留。測試：G18-db「審查 #7」（總務端、店長端詳情與列印都只出現一次，原因不外洩）。
+8. **領料重送條件**：重送判斷加上 `created_by = 目前使用者`（別人用同一個識別碼不再跳過狀態與版本檢查）。W2「超過庫存被擋」的正確說法：由該位置的「允許負庫存」設定決定（第 3 批語意），已改 39 草稿與 DEV 檔頭說明。
+9. **照片上傳清理縫隙**：附件紀錄寫入成功之後，回讀或簽名網址失敗不再刪儲存檔，改回空清單（畫面重新載入即可）；只有紀錄寫入前失敗才刪檔。
+10. **列表頁碼上限**：`ga_ws_wo_list` 的頁碼上限 100000，極大頁碼不再整數溢位（測試：頁碼 2147483647 回空列）。
+
+**不屬實或已是設計，不改**
+- 審查 #1 提到「PROGRESS 也不同步」：待複核期間一般進度不翻轉需求單是第 5 批明訂護欄（工單照記、需求單不動），複核受理後再往下就會同步，不會造成需求單卡死；真正會卡死的只有「送門市確認」，所以只擋這一個動作。
+
+**待使用者決定（未改）**
+- **view_all 是否算總務端**：目前只有「查看全部」的角色也看得到內部備註、處理人姓名、用料清單與強制結案原因，也能勾「列印內部備註」（唯讀稽核語意，與 Q20 一致）。若要改成只有更新／管理才看得到內部欄位，要改 `ga_wo_ga_side` 與 API `gaSide`。
+- **`maintenance_updates` 寫入政策缺口**（本人署名條款，任何登入者可對任何工單新增進度、可自選 PUBLIC）：這是 120000／40 的既有缺口，要補成「看得到該工單才能寫」會影響舊 Next 工單頁與正式區寫入者，需配合 36 第 6、7 區名單一起決定。
+- **手動選「門市反映仍有問題」（REOPENED）**：舊版就能手選，新版沿用；選了之後 `unresolved_reason` 不會自動清。要禁止手選或在離開該階段時清空，屬產品決定。
+- **單張工單的照片總量上限**（目前每次最多 5 張、無總量上限）。
+- **刪除工單沒有 DELETED 稽核事件**（事件表隨工單連帶刪除；本文件原本就寫明的取捨）。
+- **直接走 RLS 刪除未受理單**時附件不會被標記刪除、儲存檔不清：只影響舊 Next 頁直連路徑，隨 40 與舊頁退場一併處理。
+- 無角色管理員專屬唯讀畫面、1080P 截圖上傳 Remote Control、全站 `test:all` 整夜跑：維持 11.5「未完成／限制」所列。

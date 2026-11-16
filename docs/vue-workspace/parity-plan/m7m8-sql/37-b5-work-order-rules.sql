@@ -2,7 +2,7 @@
 -- 正式區草稿（尚未執行，僅供使用者審閱）。內容與 DEV 已測過的 supabase/workspace-dev/20261117100000_m7m8_b5_work_order_rules.sql 相同。
 -- 第 5 批 A（G18 工單中心規則函式：讀取、流轉、強制結案、補資料、刪除、新增舊式回報、改分類、列印資料）（2026-11-16 第 5 批問卷 W1 至 W9）。
 -- 性質：只新增函式、不改任何資料表結構與既有資料（Q19 不拆表）。12 個對外函式 ga_ws_wo_*（list、get、summary、print、transition、store_confirm、report_unresolved、reply_supplement、delete、create_legacy、category；領用料件在 39）
---   與 25 個內部輔助函式 ga_wo_*（登入者不能直接呼叫）。全部 SECURITY DEFINER、固定 search_path、權限一律用 has_permission（只看角色權限；profiles.role = admin 不是後備，沒有更新角色的管理員只能看）。
+--   與 26 個內部輔助函式 ga_wo_*（登入者不能直接呼叫）。全部 SECURITY DEFINER、固定 search_path、權限一律用 has_permission（只看角色權限；profiles.role = admin 不是後備，沒有更新角色的管理員只能看）。
 -- 行為（與舊版不同處已登記白名單、問卷 W1 至 W9 與 Q19 至 Q21 已核可）：伺服端檢查工單狀態與合法流轉；存進度「有填才更新」不覆蓋承辦人、處理方式、廠商；寫入同交易、失敗全回復、帶版本（409 STALE）；
 --   需求單已完成、退回、取消時工單存進度不翻回；強制結案原因只有內部看得到（門市只看到「總務已結案」）；已受理或已連需求單的工單不能刪、只能強制結案，刪除時附件只標記不實刪；
 --   列表伺服端分頁、精確筆數、焦點卡全量計數、搜尋跳脫；新增舊式回報（跨部門頁，最多 5 張圖片走共用附件）；舊式單送門市確認不再報錯。
@@ -18,6 +18,15 @@ BEGIN
   END IF;
   IF to_regprocedure('public.ga_rq_err(integer,text,text,jsonb)') IS NULL OR to_regprocedure('public.ga_rq_docs(uuid)') IS NULL THEN
     RAISE EXCEPTION 'Missing prerequisite function: 請先套用第 4 批 20261112100000_m7m8_b4_request_rules';
+  END IF;
+  -- plpgsql 晚綁定，缺函式要到執行才爆；這裡一次檢查本檔會呼叫的第 4 批輔助函式（B4 審查 #4）。
+  IF to_regprocedure('public.ga_rq_event(uuid,text,text,text,text,text,text,jsonb,uuid,boolean)') IS NULL
+     OR to_regprocedure('public.ga_rq_raise(integer,text,text,jsonb)') IS NULL
+     OR to_regprocedure('public.ga_rq_catch(text,text)') IS NULL
+     OR to_regprocedure('public.ga_rq_is_store_member(uuid,uuid)') IS NULL
+     OR to_regprocedure('public.ga_po_like_escape(text)') IS NULL
+     OR to_regprocedure('public.ga_po_fmt(numeric)') IS NULL THEN
+    RAISE EXCEPTION 'Missing prerequisite function: 請先套用第 4 批 32（ga_rq_*）與 33（ga_po_like_escape、ga_po_fmt）';
   END IF;
 END $$;
 
@@ -146,11 +155,26 @@ AS $$
 DECLARE v_wo public.maintenance_requests%ROWTYPE;
 BEGIN
   SELECT * INTO v_wo FROM public.maintenance_requests WHERE id = p_wo FOR UPDATE;
-  IF NOT FOUND OR v_wo.status NOT IN ('ACCEPTED', 'PROCESSING') OR v_wo.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_CONFIRMATION' THEN RETURN false; END IF;
+  IF NOT FOUND OR v_wo.status NOT IN ('ACCEPTED', 'PROCESSING') OR v_wo.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_CONFIRMATION' THEN
+    IF FOUND THEN PERFORM public.ga_wo_sync_skipped(p_wo, p_uid, '送門市確認', v_wo.status, v_wo.progress_stage, p_source); END IF;
+    RETURN false;
+  END IF;
   UPDATE public.maintenance_requests SET status = 'PROCESSING', progress_stage = 'WAITING_STORE_CONFIRMATION', completion_requested_at = now(), completion_requested_by = p_uid WHERE id = p_wo;
   PERFORM public.ga_wo_log(p_wo, 'PROCESSING', 'WAITING_STORE_CONFIRMATION', 'PUBLIC', p_text, p_uid);
   PERFORM public.ga_wo_event(p_wo, 'REQUEST_COMPLETION', v_wo.status, 'PROCESSING', v_wo.progress_stage, 'WAITING_STORE_CONFIRMATION', p_text, 'PUBLIC', p_uid, jsonb_build_object('source', p_source));
   RETURN true;
+END;
+$$;
+
+-- 需求單端呼叫工單同步函式卻因工單狀態不符而沒同步時，留一筆內部事件（不擋需求單，但事後查得到兩邊為什麼分岔；審查 #3）。
+CREATE OR REPLACE FUNCTION public.ga_wo_sync_skipped(p_wo uuid, p_uid uuid, p_what text, p_status text, p_stage text, p_source text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+AS $$
+BEGIN
+  IF p_source IS NOT DISTINCT FROM 'work_order_center' THEN RETURN; END IF; -- 工單端自己呼叫時，呼叫端會直接報錯，不需另記
+  IF NOT EXISTS (SELECT 1 FROM public.maintenance_requests WHERE id = p_wo) THEN RETURN; END IF;
+  PERFORM public.ga_wo_event(p_wo, 'REQUEST_SYNC_SKIPPED', p_status, p_status, p_stage, p_stage,
+    '需求單端的「' || p_what || '」沒有同步到這張工單（工單目前狀態不符），請總務確認兩邊進度', 'INTERNAL', p_uid, jsonb_build_object('what', p_what, 'source', p_source));
 END;
 $$;
 
@@ -162,7 +186,10 @@ DECLARE v_wo public.maintenance_requests%ROWTYPE; v_text text := '總務要求�
 BEGIN
   SELECT * INTO v_wo FROM public.maintenance_requests WHERE id = p_wo FOR UPDATE;
   IF NOT FOUND OR v_wo.status NOT IN ('ACCEPTED', 'PROCESSING') OR v_wo.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_INFO'
-     OR v_wo.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_CONFIRMATION' THEN RETURN false; END IF;
+     OR v_wo.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_CONFIRMATION' THEN
+    IF FOUND THEN PERFORM public.ga_wo_sync_skipped(p_wo, p_uid, '請門市補資料', v_wo.status, v_wo.progress_stage, p_source); END IF;
+    RETURN false;
+  END IF;
   UPDATE public.maintenance_requests SET status = 'PROCESSING', progress_stage = 'WAITING_STORE_INFO' WHERE id = p_wo;
   PERFORM public.ga_wo_log(p_wo, 'PROCESSING', 'WAITING_STORE_INFO', 'PUBLIC', v_text, p_uid);
   PERFORM public.ga_wo_event(p_wo, 'SUPPLEMENT_REQUESTED', v_wo.status, 'PROCESSING', v_wo.progress_stage, 'WAITING_STORE_INFO', v_text, 'PUBLIC', p_uid,
@@ -178,7 +205,10 @@ AS $$
 DECLARE v_wo public.maintenance_requests%ROWTYPE; v_text text;
 BEGIN
   SELECT * INTO v_wo FROM public.maintenance_requests WHERE id = p_wo FOR UPDATE;
-  IF NOT FOUND OR v_wo.status NOT IN ('ACCEPTED', 'PROCESSING') OR v_wo.progress_stage IS DISTINCT FROM 'WAITING_STORE_INFO' THEN RETURN false; END IF;
+  IF NOT FOUND OR v_wo.status NOT IN ('ACCEPTED', 'PROCESSING') OR v_wo.progress_stage IS DISTINCT FROM 'WAITING_STORE_INFO' THEN
+    IF FOUND THEN PERFORM public.ga_wo_sync_skipped(p_wo, p_uid, '門市回覆補資料', v_wo.status, v_wo.progress_stage, p_source); END IF;
+    RETURN false;
+  END IF;
   v_text := CASE WHEN COALESCE(p_proxy, false) THEN '【總務代門市操作】' ELSE '' END || '門市已補充資料：' || COALESCE(p_note, '');
   UPDATE public.maintenance_requests SET status = 'PROCESSING', progress_stage = 'INITIAL_REVIEW' WHERE id = p_wo;
   PERFORM public.ga_wo_log(p_wo, 'PROCESSING', 'INITIAL_REVIEW', 'PUBLIC', v_text, p_uid);
@@ -268,7 +298,7 @@ DECLARE
   v_ga boolean;
   v_all boolean;
   v_own boolean;
-  v_page integer := GREATEST(COALESCE(p_page, 1), 1);
+  v_page integer := LEAST(GREATEST(COALESCE(p_page, 1), 1), 100000);
   v_size integer := CASE WHEN COALESCE(p_page_size, 20) < 1 THEN 20 ELSE LEAST(p_page_size, 100) END;
   v_store uuid := public.ga_wo_try_uuid(ga_normalize_optional_text(v_f->>'store_id'));
   v_cat uuid := public.ga_wo_try_uuid(ga_normalize_optional_text(v_f->>'category_id'));
@@ -384,7 +414,8 @@ BEGIN
   RETURN jsonb_build_object(
     'read_only', NOT v_upd, 'read_only_reason', v_ro_reason,
     'can_save_progress', v_upd AND v_cur_block IS NULL, 'save_progress_reason', v_cur_block,
-    'can_request_completion', v_upd AND v_open AND NOT v_waiting_conf AND NOT COALESCE(v_req.main_status = 'WAITING_STORE_SUPPLEMENT', false),
+    'can_request_completion', v_upd AND v_open AND NOT v_waiting_conf AND NOT COALESCE(v_req.main_status IN ('WAITING_STORE_SUPPLEMENT', 'WAITING_GA_REVIEW'), false),
+    'request_completion_reason', CASE WHEN v_upd AND v_open AND NOT v_waiting_conf AND COALESCE(v_req.main_status = 'WAITING_GA_REVIEW', false) THEN '門市已回覆補資料，請先到需求單按「受理」複核，再送門市確認' END,
     'can_force_close', v_upd AND v_force AND v_open, 'force_close_missing', CASE WHEN v_upd AND NOT v_force THEN '強制結案' END,
     'can_request_supplement', v_sup_ok, 'request_supplement_reason', v_sup_reason,
     'can_issue_part', v_part_ok, 'issue_part_reason', v_part_reason, 'issue_part_missing', to_jsonb(v_missing),
@@ -426,7 +457,7 @@ BEGIN
     SELECT e.created_at, 2, jsonb_build_object('kind', 'event', 'id', e.id, 'at', e.created_at, 'event_type', e.event_type, 'visibility', e.visibility, 'text', e.description,
         'stage', e.new_progress_stage, 'by_name', CASE WHEN v_ga THEN (SELECT full_name FROM public.profiles WHERE id = e.created_by) END)
       FROM public.maintenance_ticket_events e
-     WHERE e.ticket_id = p_id AND e.event_type IN ('CREATED', 'ACCEPT', 'MIGRATED', 'STORE_MOVED', 'PART_ISSUED', 'CATEGORY_CHANGED', 'FORCE_CLOSE_NOTICE')
+     WHERE e.ticket_id = p_id AND e.event_type IN ('CREATED', 'ACCEPT', 'MIGRATED', 'STORE_MOVED', 'PART_ISSUED', 'CATEGORY_CHANGED', 'REQUEST_SYNC_SKIPPED')
        AND (v_ga OR e.visibility = 'PUBLIC')
   ) t;
   -- 用料清單（總務端）：由 PART_ISSUED 事件組成，數量以庫存流水為準（回查流水核對）。
@@ -517,7 +548,7 @@ BEGIN
       FROM public.maintenance_updates u WHERE u.request_id = p_id AND u.visibility = 'PUBLIC'
     UNION ALL
     SELECT e.created_at, 2, jsonb_build_object('at', e.created_at, 'stage_label', public.ga_wo_stage_label(e.new_progress_stage), 'status_label', NULL, 'text', e.description)
-      FROM public.maintenance_ticket_events e WHERE e.ticket_id = p_id AND e.visibility = 'PUBLIC' AND e.event_type IN ('CREATED', 'ACCEPT', 'MIGRATED', 'STORE_MOVED', 'FORCE_CLOSE_NOTICE')
+      FROM public.maintenance_ticket_events e WHERE e.ticket_id = p_id AND e.visibility = 'PUBLIC' AND e.event_type IN ('CREATED', 'ACCEPT', 'MIGRATED', 'STORE_MOVED')
   ) t;
   IF v_internal THEN
     SELECT COALESCE(jsonb_agg(jsonb_build_object('at', u.created_at, 'text', u.notes, 'by_name', u.updated_by_name) ORDER BY u.created_at), '[]'::jsonb) INTO v_internal_rows
@@ -636,6 +667,8 @@ BEGIN
       END IF;
       IF v_wo.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_CONFIRMATION' THEN RETURN public.ga_rq_err(409, 'WAITING_STORE_CONFIRMATION', '已經送門市確認了，請等門市回覆'); END IF;
       IF v_req.id IS NOT NULL AND v_req.main_status = 'WAITING_STORE_SUPPLEMENT' THEN RETURN public.ga_rq_err(409, 'WAITING_STORE_SUPPLEMENT', '已請門市補資料，請等門市回覆後再送門市確認'); END IF;
+      -- 審查 #1：門市補完資料後，需求單在「待總務複核」；要先到需求單按「受理」複核，否則工單送確認後需求單會停在待複核、門市看不到確認入口。
+      IF v_req.id IS NOT NULL AND v_req.main_status = 'WAITING_GA_REVIEW' THEN RETURN public.ga_rq_err(409, 'REQUEST_REVIEW_REQUIRED', '門市已回覆補資料，請先到需求單按「受理」複核，再送門市確認'); END IF;
       v_text := COALESCE(v_notes, '總務已標記處理完成，等待門市確認結果。');
       PERFORM public.ga_wo_apply_fields(p_id, v_p);
       v_ok := public.ga_wo_apply_completion_request(p_id, v_uid, v_text, 'work_order_center');
@@ -890,7 +923,8 @@ BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_rq_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
   IF jsonb_typeof(v_p) <> 'object' THEN RETURN public.ga_rq_err(400, 'PAYLOAD_INVALID', '送出的內容格式錯誤'); END IF;
   IF v_key IS NULL OR length(v_key) > 120 THEN RETURN public.ga_rq_err(400, 'IDEMPOTENCY_KEY_REQUIRED', '缺少防重複識別碼，請重新整理畫面後再送出'); END IF;
-  -- 同一人同一個識別碼重送：先回原工單（不重新驗證內容、不重複建立）。
+  -- 同一人同一個識別碼重送：先回原工單（不重新驗證內容、不重複建立）。同時重送（連點、網路重送）時用建議鎖排隊，鎖完再查一次（審查 #2）。
+  PERFORM pg_advisory_xact_lock(hashtextextended('wo_create:' || v_uid::text || ':' || v_key, 0));
   SELECT e.ticket_id INTO v_prev FROM public.maintenance_ticket_events e WHERE e.event_type = 'CREATED' AND e.created_by = v_uid AND e.metadata->>'create_key' = v_key LIMIT 1;
   IF v_prev IS NOT NULL THEN
     SELECT * INTO v_wo FROM public.maintenance_requests WHERE id = v_prev;
@@ -980,7 +1014,7 @@ REVOKE ALL ON FUNCTION public.ga_wo_no(uuid), public.ga_wo_stage_codes(), public
   public.ga_wo_can_delete_perm(uuid), public.ga_wo_can_enter(uuid), public.ga_wo_ga_side(uuid), public.ga_wo_can_see(uuid, uuid, uuid), public.ga_wo_store_actor(uuid, uuid, uuid),
   public.ga_wo_perm_error(uuid), public.ga_wo_log(uuid, text, text, text, text, uuid, date), public.ga_wo_event(uuid, text, text, text, text, text, text, text, uuid, jsonb),
   public.ga_wo_apply_fields(uuid, jsonb), public.ga_wo_apply_completion_request(uuid, uuid, text, text), public.ga_wo_apply_supplement_request(uuid, uuid, text, text, text, text),
-  public.ga_wo_apply_supplement_reply(uuid, uuid, text, boolean, text), public.ga_wo_sync_request(uuid, text, text, text, uuid, jsonb), public.ga_wo_row(uuid, boolean),
+  public.ga_wo_apply_supplement_reply(uuid, uuid, text, boolean, text), public.ga_wo_sync_skipped(uuid, uuid, text, text, text, text), public.ga_wo_sync_request(uuid, text, text, text, uuid, jsonb), public.ga_wo_row(uuid, boolean),
   public.ga_wo_abilities(uuid, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.ga_ws_wo_list(jsonb, integer, integer), public.ga_ws_wo_get(uuid), public.ga_ws_wo_summary(jsonb), public.ga_ws_wo_print(uuid, boolean),
   public.ga_ws_wo_transition(uuid, text, timestamptz, jsonb), public.ga_ws_wo_store_confirm(uuid, text, timestamptz), public.ga_ws_wo_report_unresolved(uuid, text, timestamptz),
@@ -997,7 +1031,7 @@ COMMIT;
 
 -- 核對
 SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND (proname LIKE 'ga_ws_wo_%' OR proname LIKE 'ga_wo_%') ORDER BY 1;
--- 核對：應列出 11 個 ga_ws_wo_*（38 之後再加領用料件 39 的 1 個）與 25 個 ga_wo_*
+-- 核對：應列出 11 個 ga_ws_wo_*（38 之後再加領用料件 39 的 1 個）與 26 個 ga_wo_*
 SELECT count(*) FILTER (WHERE has_function_privilege('anon', p.oid, 'EXECUTE')) AS anon_can_run, count(*) FILTER (WHERE proname LIKE 'ga_wo_%' AND has_function_privilege('authenticated', p.oid, 'EXECUTE')) AS internal_open_to_users
   FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND (proname LIKE 'ga_ws_wo_%' OR proname LIKE 'ga_wo_%');
 -- 核對：兩個數字都應是 0

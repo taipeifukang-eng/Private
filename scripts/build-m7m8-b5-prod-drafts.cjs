@@ -14,14 +14,14 @@ const DRAFTS = [
     title: "第 5 批 A（G18 工單中心規則函式：讀取、流轉、強制結案、補資料、刪除、新增舊式回報、改分類、列印資料）",
     summary:
       "性質：只新增函式、不改任何資料表結構與既有資料（Q19 不拆表）。12 個對外函式 ga_ws_wo_*（list、get、summary、print、transition、store_confirm、report_unresolved、reply_supplement、delete、create_legacy、category；領用料件在 39）\n" +
-      "--   與 25 個內部輔助函式 ga_wo_*（登入者不能直接呼叫）。全部 SECURITY DEFINER、固定 search_path、權限一律用 has_permission（只看角色權限；profiles.role = admin 不是後備，沒有更新角色的管理員只能看）。\n" +
+      "--   與 26 個內部輔助函式 ga_wo_*（登入者不能直接呼叫）。全部 SECURITY DEFINER、固定 search_path、權限一律用 has_permission（只看角色權限；profiles.role = admin 不是後備，沒有更新角色的管理員只能看）。\n" +
       "-- 行為（與舊版不同處已登記白名單、問卷 W1 至 W9 與 Q19 至 Q21 已核可）：伺服端檢查工單狀態與合法流轉；存進度「有填才更新」不覆蓋承辦人、處理方式、廠商；寫入同交易、失敗全回復、帶版本（409 STALE）；\n" +
       "--   需求單已完成、退回、取消時工單存進度不翻回；強制結案原因只有內部看得到（門市只看到「總務已結案」）；已受理或已連需求單的工單不能刪、只能強制結案，刪除時附件只標記不實刪；\n" +
       "--   列表伺服端分頁、精確筆數、焦點卡全量計數、搜尋跳脫；新增舊式回報（跨部門頁，最多 5 張圖片走共用附件）；舊式單送門市確認不再報錯。\n" +
       "-- 先決條件：先套第 4 批 32（ga_rq_* 輔助函式）、33（ga_po_like_escape、ga_po_fmt）；maintenance_*、ga_resource_attachments 資料表已存在。套用前先跑 36-b5-preview-before-apply.sql（不能有 MISSING）。",
     verify:
       "SELECT proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND (proname LIKE 'ga_ws_wo_%' OR proname LIKE 'ga_wo_%') ORDER BY 1;\n" +
-      "-- 核對：應列出 11 個 ga_ws_wo_*（38 之後再加領用料件 39 的 1 個）與 25 個 ga_wo_*\n" +
+      "-- 核對：應列出 11 個 ga_ws_wo_*（38 之後再加領用料件 39 的 1 個）與 26 個 ga_wo_*\n" +
       "SELECT count(*) FILTER (WHERE has_function_privilege('anon', p.oid, 'EXECUTE')) AS anon_can_run, count(*) FILTER (WHERE proname LIKE 'ga_wo_%' AND has_function_privilege('authenticated', p.oid, 'EXECUTE')) AS internal_open_to_users\n" +
       "  FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND (proname LIKE 'ga_ws_wo_%' OR proname LIKE 'ga_wo_%');\n" +
       "-- 核對：兩個數字都應是 0",
@@ -31,6 +31,14 @@ const DRAFTS = [
   },
   {
     no: "38-b5-request-supplement-sync",
+    guard:
+      "-- md5 守衛：兩個第 4 批函式的現有內容必須與 DEV 備份（第 4 批原定義）相同，不同就中止，避免覆蓋正式區的 hotfix（審查 #5）。\n" +
+      "DO $$\nDECLARE v_a text; v_b text;\nBEGIN\n" +
+      "  SELECT md5(pg_get_functiondef(p.oid)) INTO v_a FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'ga_ws_req_store_action';\n" +
+      "  SELECT md5(pg_get_functiondef(p.oid)) INTO v_b FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'ga_ws_req_transition';\n" +
+      "  IF v_a IS DISTINCT FROM '20a40759bb4488685c08cd885f785158' OR v_b IS DISTINCT FROM 'a962e584ccd1679a2c246fddde688d3c' THEN\n" +
+      "    RAISE EXCEPTION 'ga_ws_req_store_action / ga_ws_req_transition 與 DEV 備份的第 4 批原定義不同（store_action md5=%，transition md5=%），不要套用，請先比對差異並回報', v_a, v_b;\n" +
+      "  END IF;\nEND $$;\n\n",
     dev: "20261117105000_m7m8_b5_request_supplement_sync",
     title: "第 5 批 B（W1 補資料兩邊同步；覆蓋第 4 批 ga_ws_req_transition 與 ga_ws_req_store_action）",
     summary:
@@ -38,7 +46,7 @@ const DRAFTS = [
       "--   1. request_supplement：需求單進「待門市補資料」時，連結的維修工單同交易進「等待門市補充資料」；\n" +
       "--   2. request_store_confirmation：送門市確認改呼叫與工單端共用的 ga_wo_apply_completion_request（取代原本內嵌的工單更新，單一邏輯）；\n" +
       "--   3. submit_supplement：門市在「我的追蹤」回覆補資料時，連結的維修工單回到「初步評估」，需求單照原本進「待總務複核」。\n" +
-      "-- 套用前一定要先看 36 第 3 區：兩個函式現有 md5 必須與 DEV 備份一致（store_action=20a40759bb4488685c08cd885f785158、transition=a962e584ccd1679a2c246fddde688d3c），否則先比對差異再決定。\n" +
+      "-- 檔內有 md5 自動守衛（與 36 第 3 區同一組數字）：兩個函式現有 md5 必須與 DEV 備份一致（store_action=20a40759bb4488685c08cd885f785158、transition=a962e584ccd1679a2c246fddde688d3c），否則先比對差異再決定。\n" +
       "-- 套用前請用 pg_get_functiondef 把正式區現有兩個函式存檔備份（撤回檔內附 DEV 備份的第 4 批原定義，與正式區一致時可直接用）。\n" +
       "-- 先決條件：先套 37。套用後必須重跑第 4 批相關驗收（G16、G17、G27）與補資料往返。",
     verify:
@@ -57,7 +65,7 @@ const DRAFTS = [
     summary:
       "性質：只新增 1 個函式 ga_ws_wo_issue_part，不改表。同一交易呼叫第 3 批 ga_ws_inv_post 扣庫存（先設內部旗標 app.ga_inv_internal_post，用畢設回 false，做法同第 4 批 ga_ws_req_stock_issue），\n" +
       "--   庫存流水 reference_type = MAINTENANCE_REQUEST、reference_id = 工單 id、原因帶工單編號；工單用料紀錄寫成內部事件 PART_ISSUED（數量以庫存流水為準）。\n" +
-      "-- 規則：需要「工單更新」＋「庫存交易管理」＋「料件查看或料件管理」，缺哪個講清楚；工單需為已受理或處理中且不在待門市確認；不可超過庫存（位置不允許負庫存）；防重複識別必填，同識別重送回原結果。\n" +
+      "-- 規則：需要「工單更新」＋「庫存交易管理」＋「料件查看或料件管理」，缺哪個講清楚；工單需為已受理或處理中且不在待門市確認；超過庫存是否被擋由該位置的「允許負庫存」設定決定（與第 3 批庫存過帳同一語意：位置不允許負庫存才擋，允許的位置不擋）；防重複識別必填，同識別重送回原結果。\n" +
       "-- 不動第 4 批需求單規則（維修單仍不能走需求單的採購評估與需求單出庫）。36 第 10 區確認流水 reference_type 與事件類型沒有值域 CHECK。\n" +
       "-- 先決條件：先套 37；第 3 批 ga_ws_inv_post 已套用。",
     verify:
@@ -83,7 +91,9 @@ const DRAFTS = [
       "-- 核對：三條都應存在，still_has_view_all 都應是 false",
     rollbackSummary:
       "撤回 40：把 3 條政策還原成 20260727021000 的原定義（view_all 可改、可刪、回報人本人無條件可刪）。",
-    backup: "-- 撤回前不需要備份（只有政策；原定義在撤回檔內）。",
+    backup:
+      "-- 套用 40 之前必須先把三條政策的現況存檔（審查 #6）：SELECT policyname, cmd, qual, with_check FROM pg_policies WHERE schemaname = 'public' AND policyname IN ('p1e_maintenance_requests_update', 'p1e_maintenance_requests_delete', 'p1e_maintenance_updates_write');\n" +
+      "-- 撤回檔內的原定義是 20260727021000 的原文，只有正式區現況與它相同時才能直接用；不同就以存檔的 qual / with_check 還原。",
   },
 ];
 
@@ -101,7 +111,7 @@ for (const d of DRAFTS) {
   const head =
     `-- ${d.no}.sql\n-- 正式區草稿（尚未執行，僅供使用者審閱）。內容與 DEV 已測過的 supabase/workspace-dev/${d.dev}.sql 相同。\n` +
     `-- ${d.title}（2026-11-16 第 5 批問卷 W1 至 W9）。\n-- ${d.summary}\n` +
-    `-- 檔案自己 BEGIN ... COMMIT，一次 Run 即可，任何一句出錯整份不生效。撤回：${d.no}-rollback.sql。套用前先跑 36-b5-preview-before-apply.sql，備份後經使用者核可才執行。\nBEGIN;\n\n`;
+    `-- 檔案自己 BEGIN ... COMMIT，一次 Run 即可，任何一句出錯整份不生效。撤回：${d.no}-rollback.sql。套用前先跑 36-b5-preview-before-apply.sql，備份後經使用者核可才執行。\nBEGIN;\n\n${d.guard || ""}`;
   fs.writeFileSync(path.join(outDir, `${d.no}.sql`), `${head}${body}\nCOMMIT;\n\n-- 核對\n${d.verify}\n`);
   const rhead = `-- ${d.no}-rollback.sql\n-- ${d.rollbackSummary}\n${d.backup}\nBEGIN;\n\n`;
   fs.writeFileSync(path.join(outDir, `${d.no}-rollback.sql`), `${rhead}${rb}\nCOMMIT;\n`);

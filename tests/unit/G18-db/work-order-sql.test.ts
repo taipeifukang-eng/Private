@@ -52,10 +52,10 @@ describe('DEV 檔案與套用腳本', () => {
 describe('函式授權與安全規則', () => {
   const ws = [...fnsOf(rules), ...fnsOf(parts)].filter((f) => f.name.startsWith('ga_ws_wo_'));
   const internal = fnsOf(rules).filter((f) => f.name.startsWith('ga_wo_'));
-  it('對外函式共 12 個（11 + 領用料件），內部輔助函式 25 個', () => {
+  it('對外函式共 12 個（11 + 領用料件），內部輔助函式 26 個', () => {
     expect(ws.map((f) => f.name).sort()).toEqual(['ga_ws_wo_category', 'ga_ws_wo_create_legacy', 'ga_ws_wo_delete', 'ga_ws_wo_get', 'ga_ws_wo_issue_part', 'ga_ws_wo_list', 'ga_ws_wo_print',
       'ga_ws_wo_reply_supplement', 'ga_ws_wo_report_unresolved', 'ga_ws_wo_store_confirm', 'ga_ws_wo_summary', 'ga_ws_wo_transition']);
-    expect(internal).toHaveLength(25);
+    expect(internal).toHaveLength(26);
   });
   it('全部函式都固定 search_path；對外與主要內部函式是 SECURITY DEFINER', () => {
     const all = rules + parts;
@@ -250,5 +250,40 @@ describe('正式區草稿 36 至 40', () => {
     expect(r).toContain('→ `40`');
     expect(r).toMatch(/40[^\n]*不得套用|不得套用/);
     for (const n of ['36-b5-preview-before-apply.sql', '37-b5-work-order-rules.sql', '38-b5-request-supplement-sync.sql', '39-b5-work-order-parts.sql', '40-b5-work-order-rls.sql']) expect(r).toContain(n);
+  });
+});
+
+describe('審查修正（2026-11-16）靜態檢查', () => {
+  const rules = dev('20261117100000_m7m8_b5_work_order_rules.sql');
+  const parts = dev('20261117110000_m7m8_b5_work_order_parts.sql');
+  it('先決檢查：37 補第 4 批輔助函式、39 補內部函式', () => {
+    for (const f of ['ga_rq_event(uuid,text,text,text,text,text,text,jsonb,uuid,boolean)', 'ga_rq_raise(integer,text,text,jsonb)', 'ga_rq_catch(text,text)', 'ga_rq_is_store_member(uuid,uuid)', 'ga_po_like_escape(text)', 'ga_po_fmt(numeric)'])
+      expect(rules, f).toContain(`to_regprocedure('public.${f}')`);
+    for (const f of ['ga_rq_catch(text,text)', 'ga_wo_event(', 'ga_wo_no(uuid)', 'ga_wo_can_update(uuid)']) expect(parts, f).toContain(f);
+  });
+  it('需求單待複核擋送確認、同時重送建議鎖、時間軸不含 FORCE_CLOSE_NOTICE、頁碼上限、領料重送加使用者條件', () => {
+    expect(rules).toContain("'REQUEST_REVIEW_REQUIRED'");
+    expect(rules).toContain("'WAITING_STORE_SUPPLEMENT', 'WAITING_GA_REVIEW'");
+    expect(rules).toContain("pg_advisory_xact_lock(hashtextextended('wo_create:'");
+    const whitelists = [...rules.matchAll(/e\.event_type IN \(([^)]*)\)/g)].map((m) => m[1]);
+    expect(whitelists.length).toBeGreaterThanOrEqual(2);
+    for (const w of whitelists) expect(w).not.toContain('FORCE_CLOSE_NOTICE');
+    expect(rules).toContain('LEAST(GREATEST(COALESCE(p_page, 1), 1), 100000)');
+    expect(parts).toContain('idempotency_key = p_key AND created_by = v_uid');
+  });
+  it('同步被擋留內部事件：三個 apply 函式都呼叫 ga_wo_sync_skipped，且已加入授權收回', () => {
+    expect((rules.match(/PERFORM public\.ga_wo_sync_skipped\(/g) || []).length).toBe(3);
+    expect(rules).toContain('public.ga_wo_sync_skipped(uuid, uuid, text, text, text, text)');
+    expect(dev('20261117100000_m7m8_b5_work_order_rules.rollback.sql')).toContain('ga_wo_sync_skipped');
+  });
+  it('正式區草稿：38 有 md5 守衛、40 要求先存政策現況、草稿與 DEV 內容一致（含新增項目）', () => {
+    const d38 = draft('38-b5-request-supplement-sync.sql');
+    expect(d38).toContain('20a40759bb4488685c08cd885f785158');
+    expect(d38).toContain('a962e584ccd1679a2c246fddde688d3c');
+    expect(d38.indexOf('RAISE EXCEPTION \'ga_ws_req_store_action')).toBeGreaterThan(0);
+    expect(d38.indexOf('RAISE EXCEPTION \'ga_ws_req_store_action')).toBeLessThan(d38.indexOf('CREATE OR REPLACE FUNCTION public.ga_ws_req_transition'));
+    const r40 = draft('40-b5-work-order-rls-rollback.sql');
+    expect(r40).toContain('qual, with_check');
+    expect(draft('37-b5-work-order-rules.sql')).toContain('ga_wo_sync_skipped');
   });
 });

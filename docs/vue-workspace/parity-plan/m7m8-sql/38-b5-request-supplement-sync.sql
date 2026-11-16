@@ -5,11 +5,22 @@
 --   1. request_supplement：需求單進「待門市補資料」時，連結的維修工單同交易進「等待門市補充資料」；
 --   2. request_store_confirmation：送門市確認改呼叫與工單端共用的 ga_wo_apply_completion_request（取代原本內嵌的工單更新，單一邏輯）；
 --   3. submit_supplement：門市在「我的追蹤」回覆補資料時，連結的維修工單回到「初步評估」，需求單照原本進「待總務複核」。
--- 套用前一定要先看 36 第 3 區：兩個函式現有 md5 必須與 DEV 備份一致（store_action=20a40759bb4488685c08cd885f785158、transition=a962e584ccd1679a2c246fddde688d3c），否則先比對差異再決定。
+-- 檔內有 md5 自動守衛（與 36 第 3 區同一組數字）：兩個函式現有 md5 必須與 DEV 備份一致（store_action=20a40759bb4488685c08cd885f785158、transition=a962e584ccd1679a2c246fddde688d3c），否則先比對差異再決定。
 -- 套用前請用 pg_get_functiondef 把正式區現有兩個函式存檔備份（撤回檔內附 DEV 備份的第 4 批原定義，與正式區一致時可直接用）。
 -- 先決條件：先套 37。套用後必須重跑第 4 批相關驗收（G16、G17、G27）與補資料往返。
 -- 檔案自己 BEGIN ... COMMIT，一次 Run 即可，任何一句出錯整份不生效。撤回：38-b5-request-supplement-sync-rollback.sql。套用前先跑 36-b5-preview-before-apply.sql，備份後經使用者核可才執行。
 BEGIN;
+
+-- md5 守衛：兩個第 4 批函式的現有內容必須與 DEV 備份（第 4 批原定義）相同，不同就中止，避免覆蓋正式區的 hotfix（審查 #5）。
+DO $$
+DECLARE v_a text; v_b text;
+BEGIN
+  SELECT md5(pg_get_functiondef(p.oid)) INTO v_a FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'ga_ws_req_store_action';
+  SELECT md5(pg_get_functiondef(p.oid)) INTO v_b FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = 'ga_ws_req_transition';
+  IF v_a IS DISTINCT FROM '20a40759bb4488685c08cd885f785158' OR v_b IS DISTINCT FROM 'a962e584ccd1679a2c246fddde688d3c' THEN
+    RAISE EXCEPTION 'ga_ws_req_store_action / ga_ws_req_transition 與 DEV 備份的第 4 批原定義不同（store_action md5=%，transition md5=%），不要套用，請先比對差異並回報', v_a, v_b;
+  END IF;
+END $$;
 
 DO $$
 BEGIN

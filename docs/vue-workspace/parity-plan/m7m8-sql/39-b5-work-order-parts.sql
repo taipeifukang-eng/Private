@@ -3,7 +3,7 @@
 -- 第 5 批 C（W2 工單內領用料件）（2026-11-16 第 5 批問卷 W1 至 W9）。
 -- 性質：只新增 1 個函式 ga_ws_wo_issue_part，不改表。同一交易呼叫第 3 批 ga_ws_inv_post 扣庫存（先設內部旗標 app.ga_inv_internal_post，用畢設回 false，做法同第 4 批 ga_ws_req_stock_issue），
 --   庫存流水 reference_type = MAINTENANCE_REQUEST、reference_id = 工單 id、原因帶工單編號；工單用料紀錄寫成內部事件 PART_ISSUED（數量以庫存流水為準）。
--- 規則：需要「工單更新」＋「庫存交易管理」＋「料件查看或料件管理」，缺哪個講清楚；工單需為已受理或處理中且不在待門市確認；不可超過庫存（位置不允許負庫存）；防重複識別必填，同識別重送回原結果。
+-- 規則：需要「工單更新」＋「庫存交易管理」＋「料件查看或料件管理」，缺哪個講清楚；工單需為已受理或處理中且不在待門市確認；超過庫存是否被擋由該位置的「允許負庫存」設定決定（與第 3 批庫存過帳同一語意：位置不允許負庫存才擋，允許的位置不擋）；防重複識別必填，同識別重送回原結果。
 -- 不動第 4 批需求單規則（維修單仍不能走需求單的採購評估與需求單出庫）。36 第 10 區確認流水 reference_type 與事件類型沒有值域 CHECK。
 -- 先決條件：先套 37；第 3 批 ga_ws_inv_post 已套用。
 -- 檔案自己 BEGIN ... COMMIT，一次 Run 即可，任何一句出錯整份不生效。撤回：39-b5-work-order-parts-rollback.sql。套用前先跑 36-b5-preview-before-apply.sql，備份後經使用者核可才執行。
@@ -12,6 +12,10 @@ BEGIN;
 DO $$
 BEGIN
   IF to_regprocedure('public.ga_wo_log(uuid,text,text,text,text,uuid,date)') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite function: 請先套用 20261117100000_m7m8_b5_work_order_rules'; END IF;
+  IF to_regprocedure('public.ga_rq_err(integer,text,text,jsonb)') IS NULL OR to_regprocedure('public.ga_rq_raise(integer,text,text,jsonb)') IS NULL OR to_regprocedure('public.ga_rq_catch(text,text)') IS NULL
+     OR to_regprocedure('public.ga_wo_event(uuid,text,text,text,text,text,text,text,uuid,jsonb)') IS NULL OR to_regprocedure('public.ga_wo_no(uuid)') IS NULL OR to_regprocedure('public.ga_wo_can_update(uuid)') IS NULL THEN
+    RAISE EXCEPTION 'Missing prerequisite function: 請先套用第 4 批 32 與本批 37';
+  END IF;
   IF to_regprocedure('public.ga_ws_inv_post(text,uuid,uuid,numeric,text,text,text,text,timestamptz,text,uuid,jsonb)') IS NULL THEN RAISE EXCEPTION 'Missing prerequisite function: 第 3 批 ga_ws_inv_post'; END IF;
 END $$;
 
@@ -58,7 +62,7 @@ BEGIN
     SELECT * INTO v_wo FROM public.maintenance_requests WHERE id = p_id FOR UPDATE;
     IF NOT FOUND THEN RETURN public.ga_rq_err(404, 'NOT_FOUND', '找不到這張工單'); END IF;
     -- 同一個固定識別重送（流水已存在）：不看目前狀態與版本，直接回原結果（不重寫事件）。
-    SELECT EXISTS (SELECT 1 FROM public.ga_inventory_transactions WHERE idempotency_key = p_key AND reference_type = 'MAINTENANCE_REQUEST' AND reference_id = p_id) INTO v_replay;
+    SELECT EXISTS (SELECT 1 FROM public.ga_inventory_transactions WHERE idempotency_key = p_key AND created_by = v_uid AND reference_type = 'MAINTENANCE_REQUEST' AND reference_id = p_id) INTO v_replay;
     IF NOT v_replay THEN
       IF p_expected_updated_at IS NULL THEN RETURN public.ga_rq_err(400, 'EXPECTED_REQUIRED', '缺少版本資訊（expected_updated_at），請重新載入畫面'); END IF;
       IF v_wo.updated_at IS DISTINCT FROM p_expected_updated_at THEN RETURN public.ga_rq_err(409, 'STALE', '這張工單剛被其他人更新，請重新載入後再操作'); END IF;

@@ -17,7 +17,7 @@ export type WoTimelineItem = { kind: "update" | "event"; id: string; at: string;
 export type WoPart = { event_id: string; at: string; transaction_no: string | null; part_code: string | null; part_name: string | null; location_name: string | null; quantity: string | null; unit: string | null; reason: string | null; by_name: string | null; verified_quantity_base: number | null };
 export type WoPhotoView = { id: string; source: "attachment" | "legacy"; legacy: boolean; label: string | null; file_name: string; at: string | null; signed_url: string | null };
 export type WoAbilitiesDb = {
-  read_only: boolean; read_only_reason: string | null; can_save_progress: boolean; save_progress_reason: string | null; can_request_completion: boolean;
+  read_only: boolean; read_only_reason: string | null; can_save_progress: boolean; save_progress_reason: string | null; can_request_completion: boolean; request_completion_reason?: string | null;
   can_force_close: boolean; force_close_missing: string | null; can_request_supplement: boolean; request_supplement_reason: string | null;
   can_issue_part: boolean; issue_part_reason: string | null; issue_part_missing: string[] | null; can_delete: boolean; delete_reason: string | null; can_change_category: boolean;
   can_store_confirm: boolean; can_report_unresolved: boolean; store_use_request: boolean; can_reply_supplement: boolean; reply_supplement_use_request: boolean;
@@ -53,5 +53,5 @@ export const QUICK_PROGRESS = [
 export const isStaleWo = (e: unknown) => e instanceof ApiError && e.data?.code === "STALE";
 export const storeLabel = (r: { store_code?: string | null; store_name?: string | null }) => [r.store_code, r.store_name].filter(Boolean).join(" ") || "—";
 export const EVENT_LABEL: Record<string, string> = {
-  CREATED: "回報建立", ACCEPT: "受理", MIGRATED: "轉入工單", STORE_MOVED: "門市搬遷", PART_ISSUED: "領用料件", CATEGORY_CHANGED: "更換分類", FORCE_CLOSE_NOTICE: "總務已結案",
+  CREATED: "回報建立", ACCEPT: "受理", MIGRATED: "轉入工單", STORE_MOVED: "門市搬遷", PART_ISSUED: "領用料件", CATEGORY_CHANGED: "更換分類", FORCE_CLOSE_NOTICE: "總務已結案", REQUEST_SYNC_SKIPPED: "需求單同步未完成",
 };
