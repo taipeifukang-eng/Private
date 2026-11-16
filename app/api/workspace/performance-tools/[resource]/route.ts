@@ -7,6 +7,7 @@ import {POST as importPerformance} from '@/app/api/performance-data/import/route
 import {GET as readPrescription,POST as savePrescription} from '@/app/api/prescription-monthly/route';
 import {GET as prescriptionTemplate} from '@/app/api/prescription-monthly/template/route';
 import {POST as importPrescription} from '@/app/api/prescription-monthly/import/route';
+import {GET as readAliases,POST as createAlias} from '@/app/api/prescription-monthly/aliases/route';
 import {GET as readBonus} from '@/app/api/performance-bonus/route';
 import {GET as bonusAverages} from '@/app/api/performance-bonus/averages/route';
 import {POST as importBonus} from '@/app/api/performance-bonus/import/route';
@@ -39,8 +40,8 @@ async function run(request:NextRequest,{params}:Params,write:boolean){
    const build=(type:string,defaults:typeof MONTHLY_THRESHOLDS)=>defaults.map((d,i)=>{const saved=rows.find(r=>r.period_type===type&&r.threshold_level===i+1);return{level:i+1,multiplier:d.multiplier,baseAmount:saved?Number(saved.base_amount):d.baseAmount,label:d.label,isCustom:!!saved};});
    return respond({monthly:build('monthly',MONTHLY_THRESHOLDS),quarterly:build('quarterly',QUARTERLY_THRESHOLDS)});
   }
-  const reads:Record<string,(r:NextRequest)=>Promise<Response|undefined>>={prescription:readPrescription,'prescription-template':prescriptionTemplate,bonus:readBonus,'bonus-averages':bonusAverages,'bonus-stores':bonusStores};
-  const writes:Record<string,(r:NextRequest)=>Promise<Response|undefined>>={'performance-import':importPerformance,prescription:savePrescription,'prescription-import':importPrescription,'bonus-import':importBonus};
+  const reads:Record<string,(r:NextRequest)=>Promise<Response|undefined>>={prescription:readPrescription,'prescription-template':prescriptionTemplate,'prescription-aliases':readAliases,bonus:readBonus,'bonus-averages':bonusAverages,'bonus-stores':bonusStores};
+  const writes:Record<string,(r:NextRequest)=>Promise<Response|undefined>>={'performance-import':importPerformance,prescription:savePrescription,'prescription-import':importPrescription,'prescription-aliases':createAlias,'bonus-import':importBonus};
   const handler=(write?writes:reads)[resource];
   if(!handler)throw new WorkspaceError(404,'找不到此操作');
   const response=await handler(request);

@@ -66,7 +66,7 @@ describe('保留年份 2038 的 sweeper 目標', () => {
       'monthly_prescription_reports:year_month:like:2038-%',
       'monthly_bonus_records:year_month:like:2038-%',
     ]);
-    expect(targets.TEST_STORE_SETTING_TABLES.map((t) => t.table)).toEqual(['store_performance_thresholds']);
+    expect(targets.TEST_STORE_SETTING_TABLES.map((t) => t.table)).toEqual(['store_performance_thresholds', 'prescription_store_aliases']);
   });
 
   it('只有測試門市：刪除，且刪除條件帶年份與測試門市 id', async () => {

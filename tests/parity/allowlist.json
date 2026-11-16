@@ -7083,5 +7083,26 @@
       "key": "legacy-receipt-block-by-request",
       "entry": "purchase-receipt-write-readback"
     }
+  },
+  {
+    "id": "w03-rx-import-ui-presentation",
+    "page": "performance",
+    "description": "處方箋 Google Sheet 匯入的畫面呈現：舊版用「匯入 Excel」按鈕選檔後直接開出預覽視窗；新版是先選檔、再按「預覽匯入」，預覽在對話框中顯示（待選門市下拉、加總不符標黃），確認按鈕在沒選完門市前顯示「還有 N 間未選門市」。預覽內容、對應規則、加總核對與確認前不寫入的行為與舊版完全相同。",
+    "reason": "新版工作台的表單與對話框慣例（選檔與送出分開、Modal 元件）。流程與規則兩邊相同，只有操作步驟的呈現不同。使用者 2026-11-16 問卷核可。測試：tests/smoke、e2e、integration 的 W03.prescription-import。",
+    "approvedBy": "user (2026-11-16 rx import survey)"
+  },
+  {
+    "id": "w03-rx-alias-panel-presentation",
+    "page": "performance",
+    "description": "門市簡稱對照表區塊：舊版在處方箋分頁底部、預設收合；新版在單月檢視下方、預設收合，標題與按鈕文字依新版慣例（「新增簡稱」「儲存簡稱」）。新增、修改、刪除與「一個簡稱只對一家門市」的規則一致；只有查看權限者唯讀。",
+    "reason": "介面慣例差異，功能與權限相同（寫入需 performance.edit，非管理門市的簡稱唯讀）。使用者 2026-11-16 問卷核可。",
+    "approvedBy": "user (2026-11-16 rx import survey)"
+  },
+  {
+    "id": "w03-rx-alias-api-path",
+    "page": "performance",
+    "description": "簡稱對照表 API 路徑：舊版為 /api/prescription-monthly/aliases（與 [id]）；新版為 /api/workspace/performance-tools/prescription-aliases（與 [id]），並額外經過工作台的 DEV 守衛、Origin 檢查、業績模組與 performance.edit 檢查後才交給同一個處理函式。",
+    "reason": "新版所有 API 一律走 workspace 前綴與統一守衛，與其他業績工具（prescription、prescription-import）相同做法。使用者 2026-11-16 問卷核可。",
+    "approvedBy": "user (2026-11-16 rx import survey)"
   }
 ]

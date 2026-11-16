@@ -103,7 +103,7 @@ const RESERVED_YEAR_TABLES = [
  * 測試門市專屬設定表：沒有年份欄位。測試門市（ZT/VW）的列一律視為測試殘留並清除（還原為系統預設閾值）；
  * 非測試門市的真實設定完全不碰，也不算 foreign。
  */
-const TEST_STORE_SETTING_TABLES = [{ table: 'store_performance_thresholds' }];
+const TEST_STORE_SETTING_TABLES = [{ table: 'store_performance_thresholds' }, { table: 'prescription_store_aliases' }];
 
 /** 長駐基準資料：任何情況都不得被 sweeper 刪除。 */
 const BASELINE_VALUES = ['VW001', 'VW002', 'ZT01', 'ZT02', 'ZT03', 'ZT04', 'ZT05'];
