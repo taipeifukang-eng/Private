@@ -132,6 +132,32 @@
 
 **DEV 專用（不套正式區）**：`supabase/workspace-dev/20261112140000_m7m8_b4_dev_test_cleanup.sql` 的 `ga_dev_cleanup_m7m8_purchasing`（採購單事件表不可改刪，測試走完採購流程留下的資料靠這個函式清除，只清帶 `[自動測試]M7M8 T` 標記的資料，只給 service_role）與 `20261112150000_m7m8_b4_dev_roles.sql`（DEV 種子角色 `vue_workspace_ga_purchaser`、`vue_workspace_ga_po_approver`）。正式區沒有對應檔案，也不需要。
 
+## 第 5 批（G18 工單中心、G19 跨部門維修：工單規則函式、補資料同步、領用料件、RLS 收緊）
+
+設計文件：`../m7m8-batch5-design.md`（問卷 W1 至 W9 與 Q19 至 Q21 已核可）。DEV 對應檔在 `supabase/workspace-dev/20261117*`（`100000` 規則、`105000` 補資料同步、`110000` 領用料件、`120000` RLS、`130000` DEV 專用，套用腳本 `scripts/apply-workspace-m7m8-b5-dev.cjs [--rollback]`）；正式區草稿由 `scripts/build-m7m8-b5-prod-drafts.cjs` 從 DEV 已測過的檔案產生，**不連任何資料庫**。
+
+| 檔案 | 性質 | 白話說明 |
+|---|---|---|
+| `36-b5-preview-before-apply.sql` | 唯讀（只有 SELECT） | 套用前的現況檢查，整份貼上執行。1 先決（資料表、函式、權限碼）；2 第 5 批物件是否已存在；3 第 4 批兩個會被 38 覆蓋的函式 md5 與 DEV 備份比對；4 三條 RLS 政策現況；5 `maintenance-photos` 儲存空間（舊照片）與共用附件 bucket；**6 Q20 名單：只有「查看全部」、沒有更新或管理權限的角色與人**；**7 W9 名單：`profiles.role = admin` 但沒有更新角色的管理員**；8 工單資料現況（筆數、狀態、舊式單、需求單已結案但工單未完成、疑似被覆蓋的承辦人）；9 16 個進度階段；10 庫存流水與事件類型沒有值域限制。 |
+| `37-b5-work-order-rules.sql` | 只新增函式（12 個對外 `ga_ws_wo_*` 中的 11 個，另 25 個內部 `ga_wo_*`；不改表、不改既有資料） | 工單列表、詳情、各門市摘要、列印資料，以及存進度、送門市確認、強制結案、補資料、門市確認與仍有問題、舊式單回覆補資料、刪除、新增舊式回報、改分類。全部 SECURITY DEFINER、固定 search_path、權限用 `has_permission`（管理員沒有角色只能看）。 |
+| `37-b5-work-order-rules-rollback.sql` | 移除上述函式 | 撤回 37；沒有資料表變更。要先撤回 39、38。 |
+| `38-b5-request-supplement-sync.sql` | 覆蓋第 4 批 2 個函式（`CREATE OR REPLACE`，簽章不變） | W1：需求單端「要求補資料」同步工單進「等待門市補充資料」、店長在我的追蹤回覆後工單回「初步評估」；需求單端「送門市確認」改呼叫與工單端共用的內部函式。**套用前先看 36 第 3 區的 md5 必須與 DEV 備份一致**，並先用 `pg_get_functiondef` 備份正式區現有兩個函式。 |
+| `38-b5-request-supplement-sync-rollback.sql` | 還原兩個函式（內容是第 4 批原定義，DEV 套用前的備份） | 撤回 38。 |
+| `39-b5-work-order-parts.sql` | 只新增 1 個函式 `ga_ws_wo_issue_part` | W2：工單內領用料件，同交易扣庫存、流水記工單編號、不可超過庫存、需三個權限。 |
+| `39-b5-work-order-parts-rollback.sql` | 移除上述函式 | 撤回 39；已過帳的流水不會被回沖。 |
+| `40-b5-work-order-rls.sql` | 改 3 條 RLS 政策 | Q20／Q21：更新與刪除不再讓「只有查看全部」的人通過；回報人不能無條件刪，只能刪「未受理且沒連需求單」的自己的單。**名單（36 第 6、7 區）未經使用者確認與補授權前不得套用。** |
+| `40-b5-work-order-rls-rollback.sql` | 把 3 條政策還原成 `20260727021000` 的原定義 | 撤回 40。 |
+
+第 5 批套用順序：`36`（唯讀）→ 沒有 MISSING → `37` → `38` → `39` → 驗收（G18、G19、G28 與第 4 批 G16、G17、G27 回歸）→ 使用者確認 36 第 6、7 區名單並補授權 → `40`。撤回順序相反：40 → 39 → 38 → 37。
+
+- 先決條件：第 4 批 `32`（`ga_rq_*`）、`33`（`ga_po_like_escape`、`ga_po_fmt`）與第 3 批 `28`（`ga_ws_inv_post`）已套用；DEV 已實測流水 `reference_type` 與工單事件 `event_type` 都沒有值域 CHECK，不需要改表（36 第 10 區在正式區再確認一次）。
+- 不新增權限碼，也不新增資料表；強制結案原因寫在既有的進度紀錄與事件（內部可見），結案方式由工單 `completion_method` 帶出，`ga_service_requests` 不加欄位。
+- DEV 已用 100000 至 130000 與各自的 rollback 跑過「套用 → 撤回 → 再套用」：撤回後第 4 批兩個函式 md5 與備份完全一致，政策與函式完整還原；DEV 專用的 `maintenance-photos` bucket 因儲存空間保護觸發器不能用 SQL 刪除，撤回後會留著一個空 bucket（無害）。
+- 行為改變（問卷已核可，套用前仍請告知總務與店長）：工單狀態流轉由資料庫檢查；存進度不再覆蓋承辦人、處理方式、廠商；需求單已完成、退回、取消時工單存進度不翻回；強制結案按鈕改名「不處理，強制結案」且原因只有內部看得到；已受理或已連需求單的工單不能刪、只能強制結案；舊式單送門市確認不再報錯、完成後不能重新開啟；新增工單領用料件。
+- **上線前一定要做**：(1) 跑 36，處理第 6 區（只能查看全部的角色與人）與第 7 區（沒有更新角色的管理員）名單，補授權後才套 40；(2) 確認第 5 區 `maintenance-photos` 存在且為私有；(3) 第 8 區「需求單已結案但工單未完成」的筆數請總務決定如何處理（新版不會翻回需求單）；(4) 舊 Next 工單頁與跨部門頁仍可寫同一批表（舊版沒有流轉檢查），上線說明要求總務改用新版，套 40 後舊頁的更新與刪除也會被收緊。
+
+**DEV 專用（不套正式區）**：`20261117130000_m7m8_b5_dev_storage_and_seed.sql`（舊照片測試用私有 bucket、DEV 維修分類種子、測試角色 `vue_workspace_ga_wo_works`／`vue_workspace_ga_wo_viewer`／`vue_workspace_ga_wo_manager`（刻意用 `ga_wo_` 前綴，不碰角色矩陣既有的 `vue_workspace_ga_works`））；`_backup/20261117_b4_req_functions_before_b5.sql` 是套用 105000 之前 DEV 上第 4 批兩個函式的 `pg_get_functiondef` 備份（不是 migration）。
+
 ## 上線部署清單（不是 SQL，是主機與設定）
 
 只列已確定要在上線當天做的設定與驗證；之後各批次會繼續往下加。
