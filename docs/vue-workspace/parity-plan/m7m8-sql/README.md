@@ -158,6 +158,13 @@
 
 **DEV 專用（不套正式區）**：`20261117130000_m7m8_b5_dev_storage_and_seed.sql`（舊照片測試用私有 bucket、DEV 維修分類種子、測試角色 `vue_workspace_ga_wo_works`／`vue_workspace_ga_wo_viewer`／`vue_workspace_ga_wo_manager`（刻意用 `ga_wo_` 前綴，不碰角色矩陣既有的 `vue_workspace_ga_works`））；`_backup/20261117_b4_req_functions_before_b5.sql` 是套用 105000 之前 DEV 上第 4 批兩個函式的 `pg_get_functiondef` 備份（不是 migration）。
 
+**第 5 批驗收（G18-e2e，2026-11-16，只連 DEV）**：驗收清單、Q20 與 W9 名單、bucket 與 36 號預覽的 DEV 結果寫在設計文件 §11.5（`../m7m8-batch5-design.md`）。套用到正式區前的確認事項：
+1. 先跑 `36`（唯讀）：第 1 區沒有 MISSING；第 3 區第 4 批兩個函式 md5 留存（38 的 rollback 是第 4 批原文）。
+2. 套 `37` → `38` → `39`，用 G18、G19、G28 與第 4 批 G16、G17、G27 驗收（DEV 已全過）。
+3. **`40` 要等名單確認**：使用者逐一確認 36 第 6 區（Q20：只能查看全部的角色與人）與第 7 區（W9：沒有更新角色的管理員），需要改的補授權後才套 40；套了之後這些人在舊頁不能再改、不能再刪，新版頁面只能唯讀。
+4. 第 5 區確認 `maintenance-photos` 是否存在、是否私有；本批 SQL 不建它（DEV 專用的測試 bucket 在 `20261117130000`，不套正式區）。
+5. 待使用者確認的 allowlist 條目（`approvedBy` 為 null）共 46 筆：`m7m8-b5-wo-*`、`m7m8-b5-api-*`、`m7m8-b5-ui-*`、`m7m8-b5-par-*` 中 `approvedBy` 為 null 者；既有缺口「`maintenance_updates` 本人署名」尚未收緊，需使用者決定。
+
 ## 上線部署清單（不是 SQL，是主機與設定）
 
 只列已確定要在上線當天做的設定與驗證；之後各批次會繼續往下加。

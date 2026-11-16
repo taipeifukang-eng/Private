@@ -378,3 +378,58 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 **測試（循序，只連 DEV）**：`npm run test:page -- G18-ui`：單元 23、冒煙 12（6 項 × 桌機 1440／手機 390）、e2e 10（5 項 × 兩種寬度），全過；run-all 結束碼 1 只因 sweeper 基準 17 筆孤兒（前後都是 17）。`test:unit` 119 檔 1856 項、`tsc`、`vue-tsc`、Vue build 與同步皆通過。回歸：G14-G17、G25-ui 見回報。allowlist 新增 8 筆 `m7m8-b5-ui-*`（4 筆已核可、4 筆 approvedBy 為 null 待確認）。
 
 **留給後面階段**：角色劇本 e2e（G18 三支、G19、G28）、G18 對舊 API 的 parity、`G18.print.e2e` 的 PDF 輸出檢查、列印預覽表格最後一列邊框被裁一點的小瑕疵、管理員無角色時的專屬唯讀畫面。
+
+### 11.5 驗收紀錄（第四階段 G18-e2e，2026-11-16）
+只連 DEV（專案 ref 以 mjpd 開頭）；本階段沒有改任何 SQL、第 4 批函式、Vue 畫面與 `supabase/migrations`，只新增測試、對等 map、allowlist 條目與文件。沒有 push，沒有動 `_preview.html`。測試一律循序，3002 測試站由 Playwright 啟停（我手動啟動的那一個已用 PID 關閉）。
+
+**新增檔案**
+| 測試編號 | 檔案 | 內容 |
+|---|---|---|
+| 單元（驗收靜態檢查） | `tests/unit/G18-e2e/acceptance.test.ts` | 測試編號對應檔案、劇本只跑桌機一次且清自己資料、只用 VW／ZT、parity map 與 allowlist 合法、核可欄位只有兩種值、36 號草稿唯讀、37 至 40 各有 rollback、文件有驗收章節 |
+| **G18.rls** | `tests/integration/G18-e2e.rls.spec.ts`（9 項） | 以真實角色直連資料庫：列表不空白、店長只看自己門市、INTERNAL 進度只有總務端看得到、只有查看全部／店長／沒有角色的管理員改不到也刪不掉（被擋是 0 列、資料不變）、新版 API 對同一批人明確回 403／409、W9 管理員以角色權限為準、舊照片 bucket 私有、需求單與工單可見性一致、`maintenance_updates` 本人署名缺口現況 |
+| **G18.parity** | `tests/parity/G18-e2e.ga-work-orders.spec.ts`＋`tests/parity/map/ga-work-orders.json`、`cross-dept-maintenance.json`（13 項） | 同帳號呼叫舊 `/api/maintenance-requests*`、`maintenance-updates`、`maintenance-categories`、summary 與新 API，共同欄位、筆數、寫入後回讀工單、需求單、進度紀錄與事件 |
+| **G18.journey-repair** | `tests/e2e/G18-e2e.journey-repair.e2e.spec.ts`（2 項） | 第一輪：店長手機報修 → 總務受理轉工單 → 工務進度、照片、工內領料（超量被擋、缺庫存交易與缺料件查看被擋、扣庫存、流水記工單編號）→ 送確認 → 店長確認 → 結案；第二輪：仍有問題 → 重新處理 → 再確認 |
+| **G18.journey-exceptions** | `tests/e2e/G18-e2e.journey-exceptions.e2e.spec.ts`（4 項） | 強制結案（原因不外洩）、需求單已退回／取消時工單存進度不翻回、刪除規則（附件只標記）、轉店帶單回歸（STORE_MOVED） |
+| **G19.journey-legacy** | `tests/e2e/G18-e2e.journey-legacy.e2e.spec.ts`（4 項） | 總務組頁：新增回報含照片、刪自己未受理的單、處理人存進度與分類與送確認、不能代按確認、回報人確認與仍有問題、無重新開啟、管理員有無更新角色的唯讀 |
+| **G28.supplement-roundtrip** | `tests/e2e/G18-e2e.g28-supplement-roundtrip.e2e.spec.ts`（4 項） | 補資料往返：工單端發起、需求單端發起、守衛（已出庫、已有採購單、狀態不對、版本衝突、他店店長）、舊式單由回報人回覆 |
+| **G18.print.e2e** | `tests/e2e/G18-e2e.print.e2e.spec.ts`（2 項） | A4 表單預設無內部備註、勾選後才出現、列印媒體只留表單、A4 版面不超出、輸出 PDF（A4、一頁）、店長沒有勾選且 API 擋 |
+| 共用輔助 | `tests/support/g18-journey.ts` | 各角色視窗（店長手機 390、總務與工務桌機 1440）、工單中心與我的追蹤操作、資料庫回讀 |
+| G27 回歸 | `tests/e2e/G27.journey-transfer-follow.e2e.spec.ts` | 兩個劇本都加上工單 `STORE_MOVED` 公開事件斷言 |
+
+**Definition of Done 驗收清單（`parity-plan/README.md`）**
+| 項目 | 結果 |
+|---|---|
+| 功能 | 舊版工單頁與總務組頁的使用者可見功能都在新版（見 §7 差異與 allowlist）；對等比對 13 項全過，差異都登記 |
+| 導覽 | `page-kinds.ts`、`access.ts`、`nav.ts`、`navigation.ts`、`stores.ts` 已登記（G18-ui 階段完成並由 G18.smoke 驗證） |
+| 靜態檢查 | `tsc --noEmit`、`vue-tsc --noEmit` 無錯誤（2026-11-16 實跑；本階段沒有動 Vue 與 public/workspace，Vue build 由測試站啟動時自動 build 並同步，git 無差異） |
+| 單元測試 | `test:unit` 120 檔 1879 項全綠（本階段新增 G18-e2e 驗收 23 項、T02 待核可清單更新） |
+| 冒煙測試 | G18.smoke 6 項 × 桌機 1440／手機 390 全過（G18-ui 階段）；無權限帳號沒有入口、API 回 403／401 |
+| 整合測試 | G18-api（20）、G18-db（20）、本階段 G18.rls（9）全過；每支寫入驗權限矩陣、Origin、400、409 STALE 或冪等並以 service role 回讀 |
+| E2E | 桌機 1440 與手機 390 都走完主要流程（劇本各角色自選視窗；G18-ui.layout 兩種寬度各跑一次）；空資料與失敗分支（超量、缺權限、沒填原因、版本衝突、已受理刪不掉） |
+| 對等 | `parity-report.json` 沒有未列白名單的差異：13 項：pass 1、allowed 2、待核可 10（對應 33 筆 null 條目）、must-fix 0、fail 0 |
+| 資料衛生 | 每支測試結束只清自己的（cleanupM7M8）；run-all 的 sweeper 前後孤兒都是基準 17 筆（見下） |
+| 安全 | 守衛通過、只連 DEV；日誌、報表與 commit 沒有密碼、JWT、cookie 或金鑰；沒有讀 `.env.local`、`.env.production*`、`*.bak` |
+| 回歸 | 第 4 批 G16、G17、G27 與 G14-G17 重跑：G16 6、G17 7、G27 單元 13＋17、G14-G17 單元 18＋33 全過（G27 兩個劇本新增工單 STORE_MOVED 斷言）；run-all 結束碼 1 皆只因 sweeper 基準 17 筆孤兒（G18-e2e 最後一次另有 sweeper(post) 一次 fetch failed，屬暫時性連線錯誤，視為通過） |
+| 審查 | 見最終回報（Sonnet 子代理審查由主迴圈安排） |
+
+**上線前名單（DEV 實測，只列角色代碼與人數，不列個資；正式區要用 36 號預覽重跑）**
+- **Q20 名單**（只有「查看全部」、沒有更新或管理權限的角色與人；套 40 之後在舊頁不能再改、不能再刪）：DEV 兩個角色——`vue_workspace_ga_wo_viewer`（DEV 專用測試角色，有效成員 0 人）、`vue_workspace_navigation`（全站導覽唯讀角色，有效成員 1 人，`profiles.role=member`）。正式區名單要使用者逐一確認，需要改的補授權後才可套 40。
+- **W9 名單**（`profiles.role=admin` 但沒有任何帶更新或管理權限的有效角色）：DEV `profiles.role=admin` 共 2 人，其中沒有更新角色者 **0 人**（兩人都有帶更新權限的有效角色）。正式區名單同樣要使用者確認；名單內的管理員套用後只能看、不能改。
+- **bucket**：`maintenance-photos` 在 DEV 是私有（`public=false`）、檔案 0 個、`storage.objects` 沒有針對它的政策（使用者不能自己簽網址，只有新版 API 以服務身分簽短效網址，G18.rls 已驗）；共用附件 bucket `general-affairs-attachments` 也是私有。**正式區要先確認 `maintenance-photos` 是否存在、是否私有、舊照片檔案數**（36 第 5 區）；不存在時舊照片區塊只會該張網址為 null、不讓整頁失敗（G18-api 已驗），但要補建請使用者決定。
+- **36 號預覽在 DEV 的結果**：第 1 區先決全部 OK；第 2 區第 5 批 16 個函式皆 ALREADY；第 3 區第 4 批兩個函式現況 md5 與 DEV 備份不同是預期（105000 由產生器統一成 LF）；第 4 區三條政策都已收緊；第 5 區 bucket 如上；第 6 區 Q20 與第 7 區 W9 如上。
+
+**實作中的發現與自行決定**
+1. **對等比對發現舊版三個「假成功」**：(a) 店長按確認完成或仍有問題：進度有記，但工單更新被資料庫政策靜默擋下（舊版回 201、工單沒完成）；(b) 回報人刪已受理的單：舊版回成功、資料還在；(c) 已完成的工單再存進度：舊版放行並把狀態改回處理中。新版一律明確拒絕並白話說明。
+2. **舊版維修分類「重名」只擋啟用中的同名**（DEV 實測已停用同名可重複新增，並非英文資料庫錯誤）；新版一律擋（含已停用）並白話說明。
+3. **只有查看全部角色的管理員，唯讀說明是「您只有查看工單的權限…」**（缺哪個權限）；「您的帳號沒有可修改工單的角色」只出現在完全沒有查看碼的管理員。兩者皆與 W9「以角色權限為準」一致，沿用 G18-api 單元測試。
+4. **回報人本人永遠看得到自己的單**（G18-db 已決定）：轉店劇本因此要讓回報人是第三人，才能驗「舊門市店長看不到」。
+5. 對等比對新增 **61 筆 allowlist（`m7m8-b5-par-*`）**，其中 28 筆屬問卷或 m7m8-spec 已核可（`approvedBy` 為 `user (2026-11-16 batch 5 spec survey)`），33 筆為缺陷修正或實作取捨、`approvedBy` 為 null 待使用者確認（已加入 T02 待核可清單）。
+6. **既有缺口（再次列出，待使用者決定）**：`maintenance_updates` 的「本人署名」條款讓任何登入者都能用自己名義對任何工單新增進度（G18.rls 以註記鎖住現況，日後收緊時該斷言要改成被擋）。
+
+**未完成／限制**
+- 管理員沒有任何角色時，列表以白話 403 說明，沒有另做專屬唯讀畫面（G18-ui 已記）。
+- 列印預覽資訊表「最後一列（標題）下緣邊框被裁」：本階段以祖先容器 overflow 檢查與 PDF 輸出檢查（A4、一頁），沒有重現被裁；若使用者在實機仍看到，請提供截圖。
+- PDF 只驗尺寸、頁數與檔案有效性；PDF 內文字因壓縮不逐字驗，內文以列印媒體下的 DOM 文字驗證。
+- 舊照片上傳（`maintenance-photos`）的完整路徑只在測試中以直接寫入驗證（新版沒有舊 bucket 的上傳入口）。
+
+**測試數字（循序，只連 DEV）**：`npm run test:page -- G18-e2e`：單元 23、整合 9（G18.rls）、e2e 16（5 支劇本檔，桌機 1440 各跑一次，手機 390 project 另有 16 項因「劇本固定桌機＋店長手機」而略過）、對等 13，共 38 項 Playwright 全過；run-all 結束碼 1 只因 sweeper 基準 17 筆孤兒。
