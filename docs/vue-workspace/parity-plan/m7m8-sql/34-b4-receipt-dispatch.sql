@@ -5,7 +5,7 @@
 --   ga_ws_po_receive／ga_ws_po_dispatch／ga_ws_po_receipts_get／ga_ws_onboarding_set_serial 四個對外函式與內部輔助函式；並以 CREATE OR REPLACE 覆蓋 ga_ws_update_part_guarded（只在「允許修改的欄位」清單多一個 equipment_template_id，其餘與 10-g01 逐字相同；撤回時還原成 10-g01 的版本）。
 -- 不改任何既有資料；舊版畫面與舊版 API 完全不受影響（舊版建立設備、料件頁都不帶新欄位）。四張新表登入者不能直接讀寫，一律走函式。
 -- 重點規則：登錄到貨即驗入（同一交易以 ga_ws_inv_post 入總部倉庫存）；到貨量不得超過剩餘可收量（訂購量減已驗入量，破損拒收不算已驗入）；驗入量不得大於到貨量；
---   驗入量小於到貨量（破損、拒收）或到貨量小於剩餘量（短收）須原因；改收貨位置或改收替代料須變更原因；同識別重送回原結果、併發不超收；STOCK 品項入庫存、DIRECT_ASSET 品項直接建設備送門市（整數量、不入庫）、NO_STOCK 只登錄。
+--   驗入量小於到貨量（破損、拒收）須原因（分批到貨不用填）；改收貨位置或改收替代料須變更原因；同識別重送回原結果、併發不超收；STOCK 品項入庫存、DIRECT_ASSET 品項直接建設備送門市（整數量、不入庫）、NO_STOCK 只登錄。
 --   配發＝同一交易內出庫 N、建 N 筆設備（資產編號沿用舊版規則，需分類有第二層分類代碼）、依進貨明細先進先出（每台帶自己那批的到貨日當保固起算日與購置日期）、可分次、序號可空；任一步失敗整筆回復；不另要求設備管理權限（D11）。
 --   序號補填限該門市店長與設備管理權限者，已有值要改須原因並留紀錄，同型號序號不可重複。設備購價（既有 purchase_amount 欄位）填未稅單價並在備註註明（含稅與否待確認）。
 -- 先決條件：先套 32、33；設備與設備型號、庫存位置、廠商、需求單事件等既有資料表存在；ga_ws_inv_post（第 3 批）與 ga_ws_update_part_guarded（10-g01）已套用。
@@ -478,11 +478,11 @@ BEGIN
         PERFORM public.ga_po_raise(409, 'OVER_RECEIVE', '「' || v_item.item_name || '」的到貨量 ' || public.ga_po_fmt(v_deliv) || ' 超過剩餘可收量 ' || public.ga_po_fmt(v_remain) || '（訂購 ' || public.ga_po_fmt(v_item.quantity) || '、已驗入 ' || public.ga_po_fmt(v_item.received_qty) || '）',
           jsonb_build_object('po_item_id', v_iid, 'remaining', v_remain));
       END IF;
-      -- 原因：破損或拒收（驗入量小於到貨量）或短收（到貨量小於剩餘可收量）都要填
+      -- 原因：只有破損或拒收（驗入量小於到貨量）要填；分批到貨（到貨量小於剩餘可收量）不用填（2026-11-16 驗收決定）
       v_reason := ga_normalize_optional_text(v_line->>'reason');
       IF v_reason IS NOT NULL AND length(v_reason) > 200 THEN PERFORM public.ga_po_raise(400, 'REASON_TOO_LONG', '原因不可超過 200 字'); END IF;
-      IF (v_acc < v_deliv OR v_deliv < v_remain) AND v_reason IS NULL THEN
-        PERFORM public.ga_po_raise(400, 'REASON_REQUIRED', '「' || v_item.item_name || '」' || CASE WHEN v_acc < v_deliv THEN '有破損或拒收（驗入量小於到貨量）' ELSE '到貨量小於剩餘可收量（短收）' END || '，必須填寫原因');
+      IF v_acc < v_deliv AND v_reason IS NULL THEN
+        PERFORM public.ga_po_raise(400, 'REASON_REQUIRED', '「' || v_item.item_name || '」有破損或拒收（驗入量小於到貨量），必須填寫原因');
       END IF;
       v_chg := ga_normalize_optional_text(v_line->>'change_reason');
       IF v_chg IS NOT NULL AND length(v_chg) > 200 THEN PERFORM public.ga_po_raise(400, 'REASON_TOO_LONG', '變更原因不可超過 200 字'); END IF;

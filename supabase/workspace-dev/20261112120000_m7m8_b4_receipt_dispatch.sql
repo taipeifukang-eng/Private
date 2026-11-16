@@ -8,7 +8,7 @@
 --      四張表都不開放登入者直接讀寫，一律走函式。
 --   4. ga_ws_po_receive（登錄到貨並驗入）、ga_ws_po_dispatch（配發：庫存出庫＋建設備，同一交易）、ga_ws_po_receipts_get（進貨與配發明細）、ga_ws_onboarding_set_serial（序號補填）。
 -- 規則重點：
---   - 到貨量不得超過剩餘可收量（剩餘 = 訂購量 − 已驗入量）；驗入量不得大於到貨量；驗入量小於到貨量（破損、拒收）或到貨量小於剩餘量（短收）須填原因；
+--   - 到貨量不得超過剩餘可收量（剩餘 = 訂購量 − 已驗入量）；驗入量不得大於到貨量；驗入量小於到貨量（破損、拒收）須填原因（分批到貨不用填；短收結案另在採購單動作要原因）；
 --     改收貨位置或改收替代料件須填「變更原因」並留在進貨明細。
 --   - 同一交易內：STOCK 品項以 ga_ws_inv_post 入庫存（固定識別、發生時間不可未來）；DIRECT_ASSET 品項直接建設備送 target_store_id（整數量、不入庫存）；NO_STOCK 只登錄。
 --   - 配發：ISSUE 出庫 N、建 N 筆設備、依進貨明細先進先出分配（每台帶自己那批的到貨日當保固起算日）、可分次、序號可空；任一步失敗整筆回復；同識別重送回原結果。
@@ -483,11 +483,11 @@ BEGIN
         PERFORM public.ga_po_raise(409, 'OVER_RECEIVE', '「' || v_item.item_name || '」的到貨量 ' || public.ga_po_fmt(v_deliv) || ' 超過剩餘可收量 ' || public.ga_po_fmt(v_remain) || '（訂購 ' || public.ga_po_fmt(v_item.quantity) || '、已驗入 ' || public.ga_po_fmt(v_item.received_qty) || '）',
           jsonb_build_object('po_item_id', v_iid, 'remaining', v_remain));
       END IF;
-      -- 原因：破損或拒收（驗入量小於到貨量）或短收（到貨量小於剩餘可收量）都要填
+      -- 原因：只有破損或拒收（驗入量小於到貨量）要填；分批到貨（到貨量小於剩餘可收量）不用填（2026-11-16 驗收決定）
       v_reason := ga_normalize_optional_text(v_line->>'reason');
       IF v_reason IS NOT NULL AND length(v_reason) > 200 THEN PERFORM public.ga_po_raise(400, 'REASON_TOO_LONG', '原因不可超過 200 字'); END IF;
-      IF (v_acc < v_deliv OR v_deliv < v_remain) AND v_reason IS NULL THEN
-        PERFORM public.ga_po_raise(400, 'REASON_REQUIRED', '「' || v_item.item_name || '」' || CASE WHEN v_acc < v_deliv THEN '有破損或拒收（驗入量小於到貨量）' ELSE '到貨量小於剩餘可收量（短收）' END || '，必須填寫原因');
+      IF v_acc < v_deliv AND v_reason IS NULL THEN
+        PERFORM public.ga_po_raise(400, 'REASON_REQUIRED', '「' || v_item.item_name || '」有破損或拒收（驗入量小於到貨量），必須填寫原因');
       END IF;
       v_chg := ga_normalize_optional_text(v_line->>'change_reason');
       IF v_chg IS NOT NULL AND length(v_chg) > 200 THEN PERFORM public.ga_po_raise(400, 'REASON_TOO_LONG', '變更原因不可超過 200 字'); END IF;

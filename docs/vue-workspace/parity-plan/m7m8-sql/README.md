@@ -72,7 +72,7 @@
 - 到貨驗入的庫存位置：採購單的收貨位置要先在「庫存位置」設定好該料件（位置料件設定），否則驗入會被擋並說明「請先到庫存位置加入料件設定」。
 - 配發轉設備要用到「資產編號」：型號所屬的設備分類必須有第二層分類代碼（例如印表機的 `IC02`），否則配發整筆擋下並說明；資產編號沿用舊版規則（分類代碼＋到貨日＋三位流水，資料庫有防重複索引）。
 - 配發設備的料件請以「個／台」為基本單位：有採購單位（箱）且不允許拆封的料件，配發量必須是整箱（庫存出庫的既有規則）。
-- 設備購價（`purchase_amount`）填的是**未稅單價**，並在設備備註註明；含稅與否待使用者確認（allowlist `m7m8-b4-rc-purchase-amount-excl-tax`）。
+- 設備購價（`purchase_amount`）填的是**未稅單價**，並在設備備註註明（使用者 2026-11-16 驗收確認記未稅，allowlist `m7m8-b4-rc-purchase-amount-excl-tax`）。
 - 保固：設備新增「保固起算日」（到貨日）；型號有預設保固月數才會自動帶出到期日。
 - 舊版需求單頁的「收貨」按鈕仍會直接過帳（見 `33` 的說明）；新版到貨驗入走採購單，兩邊不要同時對同一張評估操作。
 - 撤回 `34` 之前先確認沒有進行中的配發與到貨需求；撤回後已建立的設備保留，只是失去來源連結。
@@ -90,7 +90,7 @@
 | `32-b4-request-rules-rollback.sql` | 會寫入（移除上述表與欄位） | 撤回 32；會刪除設定與其變更紀錄與新欄位內容，檔頭附備份指令。要先撤回 33。 |
 | `33-b4-purchase-orders.sql` | 會寫入（新增 3 張表、1 個權限碼、2 個觸發器、11 個對外函式與內部輔助函式；另在庫存流水表加 1 個觸發器） | 採購單、品項、事件紀錄（事件不可修改或刪除）；權限碼 `general_affairs.purchase_order.approve`（採購核准，**不指派給任何角色**）；單號 `PO-YYYYMMDD-NNN`（台北日期、每日流水、滿 999 擴位）；`ga_ws_po_create／update／from_review／action／get／list／price_history／vendor_options／settings_get／settings_set／request_remaining`。三張表登入者不能直接讀寫（供應商統編與付款條件是帳務欄位，依廠商權限遮蔽）。庫存流水表的觸發器 `trg_ga_inventory_transactions_block_legacy_po_receipt` 是本批唯一對舊版也生效的規則。先決：先套 32。檔案自己 BEGIN ... COMMIT。 |
 | `33-b4-purchase-orders-rollback.sql` | 會寫入（移除上述物件） | 撤回 33；會刪除全部採購單、品項與事件，檔頭附備份指令。若已有角色勾選「採購核准」會先中止，請先到角色權限頁取消勾選。要先撤回 34。 |
-| `34-b4-receipt-dispatch.sql` | 會寫入（新增 4 張表、`ga_parts` 1 欄與 1 個觸發器、`ga_equipment` 8 個可為空的欄位、4 個對外函式與內部輔助函式；覆蓋 1 個舊函式） | 進貨紀錄與明細（`ga_purchase_receipts`、`ga_purchase_receipt_items`，預留給第 4.5 批擴充憑證）、配發單（`ga_stock_dispatches`）、設備序號補填紀錄；`ga_parts.equipment_template_id`（料件對應設備型號，一料件一型號，只有啟用中的型號能新設定、可清空）；設備的來源採購單、品項、進貨明細、配發單、需求單連結、供應商與名稱快照、保固起算日；`ga_ws_po_receive`（登錄到貨即驗入：同一交易入總部倉庫存、超收擋、短收與破損與改位置要原因、直接建設備、冪等）、`ga_ws_po_dispatch`（配發：出庫 N、建 N 筆設備、先進先出、整筆回復）、`ga_ws_po_receipts_get`、`ga_ws_onboarding_set_serial`（店長貼標補序號）。**覆蓋 `ga_ws_update_part_guarded`**（10-g01 的料件修改函式，只在允許修改欄位清單多一個 `equipment_template_id`；撤回時還原成 10-g01 的版本，所以套用前要確認正式區已套過 10）。購價重用既有 `purchase_amount`（填未稅單價）。先決：先套 32、33；第 3 批庫存過帳（28）已套用。檔案自己 BEGIN ... COMMIT。 |
+| `34-b4-receipt-dispatch.sql` | 會寫入（新增 4 張表、`ga_parts` 1 欄與 1 個觸發器、`ga_equipment` 8 個可為空的欄位、4 個對外函式與內部輔助函式；覆蓋 1 個舊函式） | 進貨紀錄與明細（`ga_purchase_receipts`、`ga_purchase_receipt_items`，預留給第 4.5 批擴充憑證）、配發單（`ga_stock_dispatches`）、設備序號補填紀錄；`ga_parts.equipment_template_id`（料件對應設備型號，一料件一型號，只有啟用中的型號能新設定、可清空）；設備的來源採購單、品項、進貨明細、配發單、需求單連結、供應商與名稱快照、保固起算日；`ga_ws_po_receive`（登錄到貨即驗入：同一交易入總部倉庫存、超收擋、破損拒收與改位置要原因（分批到貨不用）、直接建設備、冪等）、`ga_ws_po_dispatch`（配發：出庫 N、建 N 筆設備、先進先出、整筆回復）、`ga_ws_po_receipts_get`、`ga_ws_onboarding_set_serial`（店長貼標補序號）。**覆蓋 `ga_ws_update_part_guarded`**（10-g01 的料件修改函式，只在允許修改欄位清單多一個 `equipment_template_id`；撤回時還原成 10-g01 的版本，所以套用前要確認正式區已套過 10）。購價重用既有 `purchase_amount`（填未稅單價）。先決：先套 32、33；第 3 批庫存過帳（28）已套用。檔案自己 BEGIN ... COMMIT。 |
 | `34-b4-receipt-dispatch-rollback.sql` | 會寫入（移除上述物件） | 撤回 34；會刪除進貨紀錄、配發單、序號補填紀錄、料件的對應型號、設備的來源連結與保固起算日，檔頭附備份指令。**不會**刪除已經建立的設備與庫存流水（庫存餘額也不回沖）。要先撤回 35。 |
 | `35-b4-asset-transfer-follow.sql` | 會寫入（新增 1 張表 `ga_asset_transfer_moved_requests` 與 4 個函式；覆蓋第 2 批 2 個函式） | 設備換店（轉移單 B 店店長確認收到、總務「更正所屬門市」）時，同一交易內把這項設備／設施「維修類且未結案」的需求單與其工單一起轉到新門市（問卷 D20、D21），並在時間軸寫公開事件、不發通知；添購等其他類型與已結案的單留在原門市；沒連到需求單的舊式工單只列清單。覆蓋 `ga_ws_transfer_confirm_receive` 與 `ga_ws_correct_asset_store`（簽章不變，原版備份在撤回檔）。 |
 | `35-b4-asset-transfer-follow-rollback.sql` | 會寫入（移除上述物件並還原兩個第 2 批函式） | 撤回 35；會刪除搬走明細紀錄。已搬到新門市的單不會搬回去。檔頭附備份指令。 |
