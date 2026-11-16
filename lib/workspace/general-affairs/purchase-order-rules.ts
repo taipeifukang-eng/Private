@@ -161,7 +161,18 @@ export function approverBlock(who: Pick<PoWho, "userId">, po: Pick<PoLike, "crea
   return "";
 }
 
-export type PoAbilities = Record<PoAction | "edit" | "editNotesOnly", boolean> & { problem: string; approveBlocked: string; showAmounts: boolean; showVendorBilling: boolean };
+export type PoAbilities = Record<PoAction | "edit" | "editNotesOnly", boolean> & { problem: string; problemNotice: string; approveBlocked: string; showAmounts: boolean; showVendorBilling: boolean };
+/**
+ * 詳情視窗頂端要不要提示「缺哪些採購權限」（problem 仍照舊給 API 預檢用，不受影響）。
+ * 只有「有部分採購權限、但缺其他」時才提示（他可能會試圖做需要三個權限的動作）；
+ * 完全沒有這三個權限的人（只有檢視、或只有採購核准的核准人）不提示——核准不需要這些權限，提示只會誤導。
+ * 另外能核准這張單的人也不提示。
+ */
+export function permissionNotice(who: Pick<PoWho, "reviewManage" | "transactionManage" | "partView">, canApproveThis: boolean): string {
+  const has = [who.reviewManage, who.transactionManage, who.partView].filter(Boolean).length;
+  if (has === 0 || has === 3 || canApproveThis) return "";
+  return permissionProblem(who);
+}
 export function poAbilities(who: PoWho, po: PoLike): PoAbilities {
   const problem = permissionProblem(who);
   const writer = problem === "";
@@ -183,6 +194,7 @@ export function poAbilities(who: PoWho, po: PoLike): PoAbilities {
     edit: writer && s === "DRAFT",
     editNotesOnly: writer && (LOCKED_AFTER_ORDER as readonly string[]).includes(s),
     problem,
+    problemNotice: permissionNotice(who, who.approve && can("approve") && block === ""),
     approveBlocked: who.approve && canTransition(s, "approve") ? block : "",
     showAmounts: canViewPo(who),
     showVendorBilling: who.vendorView,

@@ -115,7 +115,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
           <div v-if="po.notes"><dt>備註</dt><dd class="pre">{{ po.notes }}</dd></div>
         </dl>
         <p v-if="!po.vendor_billing_visible" class="muted" data-testid="pd-billing-masked">您沒有廠商檢視權限，不顯示統編與付款條件。</p>
-        <p v-if="a.problem" class="notice" role="status" data-testid="pd-problem">{{ a.problem }}</p>
+        <p v-if="a.problemNotice" class="notice" role="status" data-testid="pd-problem">{{ a.problemNotice }}</p>
         <p v-if="a.approveBlocked" class="notice" role="status" data-testid="approve-blocked">{{ a.approveBlocked }}</p>
 
         <div class="pd-actions">

@@ -1,6 +1,6 @@
 // 總務採購單到貨驗入與配發轉設備（M7/M8 第 4 批 G26）共用規則：純函式，無相依，單元測試直接引用，Next API 與 Vue 頁面共用同一份。
 // 與資料庫函式（supabase/workspace-dev/20261112120000_m7m8_b4_receipt_dispatch.sql）的規則一致，改一邊要同步改另一邊。
-// 涵蓋：剩餘可收量（以「已驗入量」計）、到貨明細驗證（超收、驗入不得大於到貨、短收或破損須原因、改位置或改收替代料須變更原因）、
+// 涵蓋：剩餘可收量（以「已驗入量」計）、到貨明細驗證（超收、驗入不得大於到貨、破損或拒收須原因、改位置或改收替代料須變更原因）、
 //      採購單到貨後的狀態、先進先出分配（配發跨進貨明細）、保固起算與到期日、單價換算每台購價、序號清單正規化與重複、型號決定（料件對應或手動並填原因）、
 //      以及登錄到貨與配發的輸入驗證（與 Next API、資料庫共用同一套錯誤說明）。
 
@@ -25,7 +25,7 @@ export type ReceiptLineContext = { item_name: string; ordered_qty: number; recei
 
 /**
  * 單一品項到貨明細的規則檢查（回傳白話錯誤；沒有問題回 null）。順序與資料庫一致：
- * 1 超過剩餘可收量（D13 擋）→ 2 驗入量大於到貨量 → 3 原因（破損或拒收、短收）→ 4 變更原因（改位置、改收替代料；只有入庫存的品項能改）。
+ * 1 超過剩餘可收量（D13 擋）→ 2 驗入量大於到貨量 → 3 原因（破損或拒收；分批到貨不用）→ 4 變更原因（改位置、改收替代料；只有入庫存的品項能改）。
  */
 export function receiptLineProblem(line: ReceiptLineInput, ctx: ReceiptLineContext): { code: string; message: string } | null {
   if (!(line.delivered_qty > 0)) return { code: "INVALID_QUANTITY", message: `「${ctx.item_name}」的到貨量必須大於 0，最多 4 位小數` };
@@ -38,10 +38,9 @@ export function receiptLineProblem(line: ReceiptLineInput, ctx: ReceiptLineConte
   if (ctx.fulfil_mode !== "STOCK" && (line.location_id || line.received_part_id)) {
     return { code: "LINE_INVALID", message: `「${ctx.item_name}」不入庫存，不能指定收貨位置或收到的料件` };
   }
-  const rejected = line.accepted_qty < line.delivered_qty;
-  const short = line.delivered_qty < remain - 1e-9;
-  if ((rejected || short) && !line.reason) {
-    return { code: "REASON_REQUIRED", message: `「${ctx.item_name}」${rejected ? "有破損或拒收（驗入量小於到貨量）" : "到貨量小於剩餘可收量（短收）"}，必須填寫原因` };
+  // 只有破損或拒收（驗入量小於到貨量）要原因；分批到貨（到貨量小於剩餘可收量）不用填（2026-11-16 驗收決定）。
+  if (line.accepted_qty < line.delivered_qty && !line.reason) {
+    return { code: "REASON_REQUIRED", message: `「${ctx.item_name}」有破損或拒收（驗入量小於到貨量），必須填寫原因` };
   }
   if (ctx.fulfil_mode === "STOCK") {
     const loc = line.location_id ?? ctx.po_location_id;

@@ -7,7 +7,7 @@ import { FULFIL_TEXT, newKey, num, taipeiToday, type PoDetail, type Receiving } 
 import { receiptLineProblem } from "../../../../lib/workspace/general-affairs/purchase-receipt-rules";
 
 // 登錄到貨（D12 到貨與驗入合併一步）：登錄的同時驗入，入庫存的品項立刻增加總部倉庫存，直接建設備的品項直接建立設備送門市。
-// 到貨量不得超過剩餘可收量（D13）；短收、破損要填原因；改收貨位置或改收替代料要填變更原因（D3）。送出時帶固定識別，重送不會重複入帳。
+// 到貨量不得超過剩餘可收量（D13）；破損或拒收要填原因（分批到貨不用）；改收貨位置或改收替代料要填變更原因（D3）。送出時帶固定識別，重送不會重複入帳。
 const props = defineProps<{ order: PoDetail; receiving: Receiving }>();
 const emit = defineEmits<{ close: []; done: [{ order: PoDetail; receiving: Receiving; replay: boolean }] }>();
 type Line = { po_item_id: string; on: boolean; delivered: string; accepted: string; reason: string; change: boolean; location_id: string; part_id: string; change_reason: string };
@@ -39,8 +39,8 @@ async function submit() {
   error.value = "";
   if (!picked.value.length) { error.value = "請至少勾選一個品項"; return; }
   for (const l of picked.value) {
-    const m = problem(l);
-    if (m) { error.value = m; return; }
+    // 品項的問題已顯示在該品項下方，這裡不重複放到表單底部（底部只放非品項的錯誤）。
+    if (problem(l)) return;
   }
   busy.value = true;
   try {
@@ -68,7 +68,7 @@ async function submit() {
 <template>
   <Modal :title="`登錄到貨　${order.po_no}`" :busy="busy" wide @cancel="emit('close')">
     <form class="rc" data-testid="receipt-form" @submit.prevent="submit">
-      <p class="muted">登錄到貨的同時就是驗入：入庫存的品項會立刻增加總部倉庫存。到貨量不能超過剩餘可收量；短收或有破損要填原因。</p>
+      <p class="muted">登錄到貨的同時就是驗入：入庫存的品項會立刻增加總部倉庫存。到貨量不能超過剩餘可收量；有破損或拒收要填原因，分批到貨不用填。</p>
       <div class="rc-head">
         <label>到貨日期<input v-model="header.received_date" type="date" :max="taipeiToday()" required data-testid="rc-date" /></label>
         <label>廠商送貨單號（選填）<input v-model="header.delivery_note_no" maxlength="60" data-testid="rc-note-no" /></label>
@@ -82,7 +82,7 @@ async function submit() {
             <div class="rc-nums">
               <label>到貨量<input v-model="l.delivered" inputmode="decimal" :data-testid="'rc-delivered-' + idx" @input="onDelivered(l)" /></label>
               <label>驗入量（破損拒收的不算）<input v-model="l.accepted" inputmode="decimal" :data-testid="'rc-accepted-' + idx" /></label>
-              <label class="grow">原因（短收或破損必填）<input v-model="l.reason" maxlength="200" :data-testid="'rc-reason-' + idx" /></label>
+              <label class="grow">原因（有破損拒收時必填）<input v-model="l.reason" maxlength="200" :data-testid="'rc-reason-' + idx" /></label>
             </div>
             <template v-if="info(l.po_item_id).fulfil_mode === 'STOCK'">
               <label class="rc-check"><input v-model="l.change" type="checkbox" :data-testid="'rc-change-' + idx" /> 要改收貨位置或改收替代料（須填變更原因）</label>
