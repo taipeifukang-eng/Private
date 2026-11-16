@@ -36,6 +36,7 @@ for (const role of ['admin', 'performance_view']) {
 
       if (canEdit) {
         await expect(rx.getByRole('button', { name: '預覽匯入' })).toBeDisabled();
+        await expect(rx.locator('[data-rx-import-hint]')).toContainText('貼到 D3 起');
         await rx.locator('input[type=file]').setInputFiles(rxFile(rxSheetBuffer()));
         await rx.getByRole('button', { name: '預覽匯入' }).click();
         const dialog = page.getByRole('dialog', { name: '匯入預覽' });
@@ -48,6 +49,7 @@ for (const role of ['admin', 'performance_view']) {
         await expect(dialog).toHaveCount(0);
       } else {
         await expect(rx.getByRole('button', { name: '預覽匯入' })).toHaveCount(0);
+        await expect(rx.locator('[data-rx-import-hint]')).toHaveCount(0);
       }
       await page.waitForLoadState('networkidle');
       expect(await noPageOverflow(page), '頁面層級水平溢出').toBe(true);

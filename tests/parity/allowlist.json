@@ -7087,16 +7087,16 @@
   {
     "id": "w03-rx-import-ui-presentation",
     "page": "performance",
-    "description": "處方箋 Google Sheet 匯入的畫面呈現：舊版用「匯入 Excel」按鈕選檔後直接開出預覽視窗；新版是先選檔、再按「預覽匯入」，預覽在對話框中顯示（待選門市下拉、加總不符標黃），確認按鈕在沒選完門市前顯示「還有 N 間未選門市」。預覽內容、對應規則、加總核對與確認前不寫入的行為與舊版完全相同。",
+    "description": "處方箋 Google Sheet 匯入的畫面呈現：舊版用「匯入 Excel」按鈕選檔後直接開出預覽視窗；新版是先選檔、再按「預覽匯入」，預覽在對話框中顯示（待選門市下拉、加總不符標黃），確認按鈕在沒選完門市前顯示「還有 N 間未選門市」。本月範本（有門市代號欄）以代號直接對門市、Google Sheet 原檔走簡稱對照表，舊的一門市一列格式兩邊都已停用並回同一個錯誤；預覽內容、對應規則、加總核對與確認前不寫入的行為與舊版完全相同。",
     "reason": "新版工作台的表單與對話框慣例（選檔與送出分開、Modal 元件）。流程與規則兩邊相同，只有操作步驟的呈現不同。使用者 2026-11-16 問卷核可。測試：tests/smoke、e2e、integration 的 W03.prescription-import。",
-    "approvedBy": "user (2026-11-16 rx import survey)"
+    "approvedBy": "user (2026-11-16 rx template survey)"
   },
   {
     "id": "w03-rx-alias-panel-presentation",
     "page": "performance",
-    "description": "門市簡稱對照表區塊：舊版在處方箋分頁底部、預設收合；新版在單月檢視下方、預設收合，標題與按鈕文字依新版慣例（「新增簡稱」「儲存簡稱」）。新增、修改、刪除與「一個簡稱只對一家門市」的規則一致；只有查看權限者唯讀。",
+    "description": "門市簡稱對照表區塊：舊版在處方箋分頁底部、預設收合；新版在單月檢視下方、預設收合，標題與按鈕文字依新版慣例（「新增簡稱」「儲存簡稱」）。新增、修改、刪除與「一個簡稱只對一家門市」的規則一致；只有查看權限者唯讀。簡稱對照表只用於 Google Sheet 原檔（沒有門市代號欄），本月範本以代號直接對門市。",
     "reason": "介面慣例差異，功能與權限相同（寫入需 performance.edit，非管理門市的簡稱唯讀）。使用者 2026-11-16 問卷核可。",
-    "approvedBy": "user (2026-11-16 rx import survey)"
+    "approvedBy": "user (2026-11-16 rx template survey)"
   },
   {
     "id": "w03-rx-alias-api-path",

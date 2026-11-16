@@ -28,7 +28,7 @@ export default function PrescriptionImportDialog({ file, yearMonth, plan: initia
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const isGsheet = plan.format === 'gsheet';
+  const byCode = plan.hasCodeColumn;
 
   async function request(mode: 'preview' | 'commit', chosen: Record<string, string>) {
     const formData = new FormData();
@@ -94,7 +94,8 @@ export default function PrescriptionImportDialog({ file, yearMonth, plan: initia
     switch (row.status) {
       case 'mapped': return '對照表';
       case 'auto': return '自動對上';
-      case 'matched': return isGsheet ? '你選的' : '門市代號';
+      case 'matched': return '你選的';
+      case 'coded': return '門市代號';
       case 'ambiguous': return '有多家可能，請選擇';
       case 'unknown': return '找不到，請選擇';
       default: return '需修正';
@@ -108,9 +109,9 @@ export default function PrescriptionImportDialog({ file, yearMonth, plan: initia
           <div>
             <h3 id="rx-import-title" className="text-base font-semibold text-slate-900">匯入預覽：{yearMonth} 處方箋</h3>
             <p className="mt-1 text-sm text-slate-600">
-              {isGsheet
-                ? `檔案：${file.name}（Google Sheet 格式，讀取工作表「${plan.sheetName}」的「${plan.monthLabel}」那一組）。確認前不會寫入任何資料。`
-                : `檔案：${file.name}（一門市一列的範本格式）。確認前不會寫入任何資料。`}
+              {byCode
+                ? `檔案：${file.name}（本月範本，以門市代號對門市，讀取工作表「${plan.sheetName}」的「${plan.monthLabel}」那一組）。確認前不會寫入任何資料。`
+                : `檔案：${file.name}（Google Sheet 格式，讀取工作表「${plan.sheetName}」的「${plan.monthLabel}」那一組，店別簡稱對照門市）。確認前不會寫入任何資料。`}
             </p>
           </div>
           <button type="button" onClick={onClose} disabled={busy} aria-label="關閉預覽" className="rounded p-1 text-slate-500 hover:bg-slate-100 disabled:opacity-50"><X size={18} /></button>
@@ -124,7 +125,7 @@ export default function PrescriptionImportDialog({ file, yearMonth, plan: initia
             {errorRows.length > 0 && <span className="rounded bg-red-100 px-2 py-1 text-red-800">有錯誤 {errorRows.length}</span>}
           </div>
 
-          {isGsheet && mismatchRows.length > 0 && (
+          {mismatchRows.length > 0 && (
             <p className="flex items-start gap-2 rounded border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
               標黃的門市：表上「一般＋連續」和「加總」那一列對不起來。這只是提醒，仍可匯入，匯入的是一般與連續兩列的數字（加總列不寫入）。
@@ -144,7 +145,7 @@ export default function PrescriptionImportDialog({ file, yearMonth, plan: initia
             <table className="w-full min-w-[860px] border-collapse text-sm">
               <thead className="sticky top-0 bg-slate-50 text-left text-xs font-medium text-slate-600">
                 <tr>
-                  <th className="px-3 py-2">{isGsheet ? '簡稱' : '門市代號'}</th>
+                  <th className="px-3 py-2">{byCode ? '店別' : '簡稱'}</th>
                   <th className="px-3 py-2">對應門市</th>
                   <th className="px-3 py-2 text-right">一般箋（張數／點值）</th>
                   <th className="px-3 py-2 text-right">慢箋（張數／點值）</th>
@@ -196,9 +197,9 @@ export default function PrescriptionImportDialog({ file, yearMonth, plan: initia
                         <ul className="space-y-0.5 text-red-700">{row.errors.map(e => <li key={e}>{e}</li>)}</ul>
                       ) : row.mismatches.length > 0 ? (
                         <ul className="space-y-0.5 text-yellow-900">{row.mismatches.map(m => <li key={m}>{m}</li>)}</ul>
-                      ) : isGsheet ? (
+                      ) : (
                         <span className="inline-flex items-center gap-1 text-emerald-700"><Check size={13} />相符</span>
-                      ) : <span className="text-slate-400">—</span>}
+                      )}
                     </td>
                   </tr>
                 ))}

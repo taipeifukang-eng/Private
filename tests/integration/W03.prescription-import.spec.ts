@@ -1,4 +1,6 @@
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import * as XLSX from 'xlsx';
+import { buildPrescriptionTemplateWorkbook, writePrescriptionTemplate } from '../../lib/performance/prescription-template';
 import { apiAs } from '../support/auth';
 import { readRowsAsServiceRole } from '../support/parity';
 import { adminDb } from '../support/m5-fixtures';
@@ -9,7 +11,7 @@ import { RX_TOOLS, rxClearAliases, rxPost, rxSheetBuffer } from '../support/rx-h
 // W03 追加整合層：處方箋 Google Sheet 匯入（預覽／確認匯入／簡稱對照表）。
 // 規格：使用者 2026-11-16 問卷（R1~R7）。資料：2038-10、VW／ZT 測試門市；簡稱用完自己刪；月報由 sweeper 清除。
 // 涵蓋：角色與權限、預覽自動比對（自動／多候選／找不到／加總不符）、預覽不寫入、找不到月份、確認匯入時伺服端重驗（缺選擇、選到範圍外、同店選兩次）、
-// 整批原子寫入（資料庫函式中途失敗整批還原，簡稱一併還原）、表上沒有的門市不動、對照表優先、對照表新增／重複／修改／刪除、舊格式自動判斷。
+// 整批原子寫入（資料庫函式中途失敗整批還原，簡稱一併還原）、表上沒有的門市不動、對照表優先、對照表新增／重複／修改／刪除、本月範本（代號對門市）與舊格式停用。
 
 const MONTH = `${W03_YEAR}-10`;
 let admin: APIRequestContext;
@@ -205,19 +207,98 @@ test.describe('簡稱對照表', () => {
   });
 });
 
-test.describe('舊格式（一門市一列）', () => {
-  test('自動判斷格式，預覽與匯入照舊；年月不符與找不到門市會擋', async () => {
-    const good = legacyBuffer([[MONTH, 'VW001', 'Vue 測試一店', 11, 111, 2, '22.5'], [MONTH, 'ZT02', '', 5, 50, 1, 10]]);
-    const pv = await rxPost(admin, good, MONTH, 'preview');
-    expect(pv.json.plan.format).toBe('legacy');
+test.describe('本月範本與舊格式停用', () => {
+  const TM = `${W03_YEAR}-08`; // 與上面各組（10 月）及 e2e（02、07、11、12 月）用不同月份，互不影響
+  const reportsIn = (month: string, storeIds: string[]) => readRowsAsServiceRole('monthly_prescription_reports', { eq: { year_month: month }, in: { store_id: storeIds } });
+  const sheetName = '處方箋月報';
+  const codes = ['VW001', 'ZT01', 'ZT02'] as const;
+
+  /** 只留 VW／ZT 測試門市的範本檔（用同一個產生器），再改 D/E 欄模擬「從 Google Sheet 貼上」。 */
+  async function pastedTemplate(mutate?: (sheet: XLSX.WorkSheet) => void) {
+    const res = await admin.get(`${RX_TOOLS}/prescription-template`, { params: { year_month: TM } });
+    expect(res.status()).toBe(200);
+    const names = new Map<string, string>();
+    const sheet = XLSX.read(await res.body(), { type: 'buffer' }).Sheets[sheetName];
+    for (let r = 3; sheet[`A${r}`]; r += 3) names.set(String(sheet[`A${r}`].v), String(sheet[`B${r}`]?.v ?? ''));
+    const stores = codes.map((code) => ({ id: ids[code], store_code: code, store_name: names.get(code) || code }));
+    const wb = buildPrescriptionTemplateWorkbook(TM, stores, new Map());
+    const out = wb.Sheets[sheetName];
+    out['D3'] = { t: 'n', v: 11 }; out['E3'] = { t: 's', v: '1,111.5' };
+    out['D4'] = { t: 'n', v: 2 }; out['E4'] = { t: 'n', v: 22.5 };
+    out['D5'] = { t: 'n', v: 13 }; out['E5'] = { t: 'n', v: 1134 };
+    out['D6'] = { t: 'n', v: 5 }; out['E6'] = { t: 'n', v: 50 };
+    out['D7'] = { t: 'n', v: 1 }; out['E7'] = { t: 'n', v: 10 };
+    out['D8'] = { t: 'n', v: 7 }; out['E8'] = { t: 'n', v: 60 }; // ZT01 加總不符（張數 6 ≠ 7）
+    out['D9'] = { t: 'n', v: 3 }; out['E9'] = { t: 'n', v: 30 };
+    out['D10'] = { t: 'n', v: 4 }; out['E10'] = { t: 'n', v: 40 };
+    out['D11'] = { t: 'n', v: 7 }; out['E11'] = { t: 'n', v: 70 };
+    mutate?.(out);
+    return Buffer.from(writePrescriptionTemplate(wb));
+  }
+
+  test('下載的範本：標題、三列一店、順序與公式；整份下載檔直接匯入預覽全部以代號對上', async () => {
+    const res = await admin.get(`${RX_TOOLS}/prescription-template`, { params: { year_month: TM } });
+    expect(res.status()).toBe(200);
+    const body = await res.body();
+    const wb = XLSX.read(body, { type: 'buffer' });
+    expect(wb.SheetNames).toEqual([sheetName]);
+    const sheet = wb.Sheets[sheetName];
+    expect([sheet['A1'].v, sheet['B1'].v, sheet['C1'].v, sheet['D1'].v, sheet['D2'].v, sheet['E2'].v]).toEqual(['門市代號', '店別', '項目', '8月', '張數', '金額']);
+    const codeList: string[] = [];
+    for (let r = 3; sheet[`A${r}`]; r += 3) {
+      codeList.push(String(sheet[`A${r}`].v));
+      expect([sheet[`C${r}`].v, sheet[`C${r + 1}`].v, sheet[`C${r + 2}`].v]).toEqual(['一般', '連續', '加總']);
+      expect(sheet[`D${r + 2}`].f).toBe(`D${r}+D${r + 1}`);
+    }
+    expect(codeList).toEqual(expect.arrayContaining([...codes]));
+    expect(codeList).not.toContain('0000');
+    expect(new Set(codeList).size).toBe(codeList.length);
+    const pv = await rxPost(admin, Buffer.from(body), TM, 'preview');
+    expect(pv.status).toBe(200);
+    expect(pv.json.plan.hasCodeColumn).toBe(true);
+    expect(pv.json.plan.rows).toHaveLength(codeList.length);
+    expect(pv.json.plan.rows.every((r: { status: string }) => r.status === 'coded')).toBe(true);
     expect(pv.json.importable).toBe(true);
-    const bad = await rxPost(admin, legacyBuffer([[`${W03_YEAR}-09`, 'VW001', '', 1, 1, 1, 1], [MONTH, 'NOPE99', '', 1, 1, 1, 1]]), MONTH, 'commit');
-    expect(bad.status).toBe(400);
-    const c = await rxPost(admin, good, MONTH, 'commit');
+  });
+
+  test('貼上數字後匯入：以代號對門市（不寫簡稱）、加總不符只提醒、資料寫入正確', async () => {
+    const file = await pastedTemplate();
+    const pv = await rxPost(admin, file, TM, 'preview');
+    expect(pv.status).toBe(200);
+    expect(pv.json.plan.rows.map((r: { status: string }) => r.status)).toEqual(['coded', 'coded', 'coded']);
+    expect(pv.json.plan.rows.map((r: { mismatches: string[] }) => r.mismatches.length)).toEqual([0, 1, 0]);
+    expect(pv.json.importable).toBe(true);
+    expect((await reportsIn(TM, [ids.VW001, ids.ZT01, ids.ZT02])).length).toBe(0);
+    const c = await rxPost(admin, file, TM, 'commit');
     expect(c.status).toBe(200);
+    expect(c.json.imported).toBe(3);
     expect(c.json.saved_aliases).toBe(0);
-    const row = (await reports([ids.VW001]))[0];
-    expect(row).toMatchObject({ regular_prescription_count: 11, chronic_prescription_count: 2 });
-    expect(Number(row.chronic_prescription_point_value)).toBe(22.5);
+    expect(c.json.mismatch_count).toBe(1);
+    const rows = Object.fromEntries((await reportsIn(TM, [ids.VW001, ids.ZT01, ids.ZT02])).map((r) => [r.store_id as string, r]));
+    expect(rows[ids.VW001]).toMatchObject({ regular_prescription_count: 11, chronic_prescription_count: 2 });
+    expect(Number(rows[ids.VW001].regular_prescription_point_value)).toBe(1111.5);
+    expect(Number(rows[ids.VW001].chronic_prescription_point_value)).toBe(22.5);
+    expect(rows[ids.ZT01]).toMatchObject({ regular_prescription_count: 5, chronic_prescription_count: 1 });
+    expect(rows[ids.ZT02]).toMatchObject({ regular_prescription_count: 3, chronic_prescription_count: 4 });
+  });
+
+  test('代號找不到：預覽標錯誤、確認匯入被擋且不寫入', async () => {
+    const file = await pastedTemplate((s) => { s['A3'] = { t: 's', v: 'NOPE99' }; });
+    const pv = await rxPost(admin, file, TM, 'preview');
+    expect(pv.json.plan.rows[0].status).toBe('error');
+    expect(pv.json.importable).toBe(false);
+    const c = await rxPost(admin, file, TM, 'commit');
+    expect(c.status).toBe(400);
+    expect(String(c.json.errors?.[0])).toContain('NOPE99');
+  });
+
+  test('舊格式（一門市一列）：預覽與確認都回停用錯誤，不寫入', async () => {
+    const old = legacyBuffer([[TM, 'ZT03', '', 99, 99, 9, '9.5']]);
+    for (const mode of ['preview', 'commit'] as const) {
+      const r = await rxPost(admin, old, TM, mode);
+      expect(r.status).toBe(400);
+      expect(r.json.error).toBe('這是舊版範本格式，已停用，請重新下載本月範本');
+    }
+    expect((await reportsIn(TM, [ids.ZT03])).length).toBe(0);
   });
 });

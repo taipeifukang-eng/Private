@@ -193,7 +193,10 @@ async function openPreview() {
     props.tab.busy = false;
   }
 }
+// 連續選多家門市時，較早送出的預覽回應可能較晚回來；只採用最新一次的結果。
+let previewSeq = 0;
 async function pickStore(key: string, storeId: string) {
+  const seq = ++previewSeq;
   const next = { ...selections.value };
   if (storeId) next[key] = storeId;
   else delete next[key];
@@ -203,7 +206,7 @@ async function pickStore(key: string, storeId: string) {
       method: "POST",
       body: importBody("preview"),
     });
-    preview.value = r.plan;
+    if (seq === previewSeq) preview.value = r.plan;
   } catch {
     /* 重算失敗不影響已顯示的內容，確認匯入時伺服端會再驗證 */
   }
@@ -227,7 +230,8 @@ const statusText = (r: any) =>
   ({
     mapped: "對照表",
     auto: "自動對上",
-    matched: preview.value?.format === "gsheet" ? "你選的" : "門市代號",
+    matched: "你選的",
+    coded: "門市代號",
     ambiguous: "有多家可能，請選擇",
     unknown: "找不到，請選擇",
   })[r.status as string] || "需修正";
@@ -375,9 +379,9 @@ onMounted(() => {
         @submit.prevent="openPreview"
       >
         <button type="button" :disabled="tab.busy" @click="download">
-          下載 Excel 範本</button
+          下載本月範本</button
         ><label
-          >處方箋 Excel（範本或 Google Sheet 下載的 xlsx）<input
+          >處方箋 Excel（本月範本或 Google Sheet 下載的 xlsx）<input
             type="file"
             accept=".xlsx,.xls"
             :disabled="tab.busy || tab.dirty"
@@ -386,6 +390,9 @@ onMounted(() => {
             " /></label
         ><button :disabled="!file || tab.dirty || tab.busy">預覽匯入</button>
       </form>
+      <p v-if="canEdit" class="muted" data-rx-import-hint>
+        匯入方式：下載本月範本 → 從 Google Sheet 複製當月張數、金額貼到 D3 起 → 存檔上傳。每店一般／連續／加總三列；舊版「一門市一列」範本已停用。
+      </p>
       <form @submit.prevent="save">
         <TopScrollTable label="處方箋表格">
           <table>
@@ -473,7 +480,7 @@ onMounted(() => {
       </button>
     </h2>
     <p class="muted">
-      匯入 Google Sheet 時，表上的簡稱靠這張表對到門市。一個簡稱只對一家門市；一家門市可以有好幾個簡稱。
+      直接上傳 Google Sheet 下載的 xlsx（沒有門市代號欄）時，表上的簡稱靠這張表對到門市；使用本月範本則直接以門市代號對門市，不會用到這張表。一個簡稱只對一家門市；一家門市可以有好幾個簡稱。
     </p>
     <template v-if="aliasOpen">
       <form v-if="canEdit" class="module-filters" @submit.prevent="addAlias">
@@ -579,9 +586,9 @@ onMounted(() => {
   >
     <p class="muted">
       {{ loaded }} · {{ file?.name }}（{{
-        preview.format === "gsheet"
-          ? `Google Sheet 格式，讀取工作表「${preview.sheetName}」的「${preview.monthLabel}」那一組`
-          : "一門市一列的範本格式"
+        preview.hasCodeColumn
+          ? `本月範本，以門市代號對門市，讀取工作表「${preview.sheetName}」的「${preview.monthLabel}」那一組`
+          : `Google Sheet 格式，讀取工作表「${preview.sheetName}」的「${preview.monthLabel}」那一組，店別簡稱對照門市`
       }}）。確認前不會寫入任何資料；表上沒有出現的門市不會被更動。
     </p>
     <p role="status">
@@ -604,7 +611,7 @@ onMounted(() => {
       <table>
         <thead>
           <tr>
-            <th>{{ preview.format === "gsheet" ? "簡稱" : "門市代號" }}</th>
+            <th>{{ preview.hasCodeColumn ? "店別" : "簡稱" }}</th>
             <th>對應門市</th>
             <th>一般箋（張數／點值）</th>
             <th>慢箋（張數／點值）</th>
@@ -667,9 +674,7 @@ onMounted(() => {
               <template v-else-if="r.mismatches.length"
                 ><div v-for="m in r.mismatches" :key="m">{{ m }}</div></template
               >
-              <template v-else>{{
-                preview.format === "gsheet" ? "相符" : "—"
-              }}</template>
+              <template v-else>相符</template>
             </td>
           </tr>
         </tbody>

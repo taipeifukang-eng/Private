@@ -1,6 +1,8 @@
 // 處方箋匯入的純函式（不連資料庫、不讀環境變數）：
-//   - Google Sheet 下載的 xlsx：每店三列（一般／連續／加總）、每月一組「張數／金額」
-//   - 舊的「一門市一列」範本
+//   - 每店三列（一般／連續／加總）、每月一組「張數／金額」的版面：
+//       * 系統下載的「本月範本」（有「門市代號」欄，直接用代號對門市）
+//       * Google Sheet 下載的 xlsx（沒有代號欄，用簡稱對照表）
+//   - 舊的「一門市一列」範本已停用，匯入時回明確錯誤
 //   - 簡稱正規化與自動比對、加總核對
 import * as XLSX from 'xlsx';
 
@@ -14,6 +16,8 @@ export type StoreLite = { id: string; store_code: string; store_name: string };
 export type Money = { count: number | null; points: number | null };
 
 export type SheetRow = {
+  /** 新範本的門市代號；沒有代號欄（Google Sheet 原檔）為 null */
+  code: string | null;
   /** 表上原本的店別文字 */
   rawAlias: string;
   /** 正規化後的簡稱（對照表的 key） */
@@ -30,7 +34,7 @@ export type SheetRow = {
 };
 
 export type ParseSheetResult =
-  | { ok: true; sheetName: string; monthLabel: string; foundMonths: string[]; rows: SheetRow[]; ignoredLabels: string[] }
+  | { ok: true; sheetName: string; monthLabel: string; foundMonths: string[]; rows: SheetRow[]; ignoredLabels: string[]; hasCodeColumn: boolean }
   | { ok: false; error: string; foundMonths?: string[] };
 
 // ---------------------------------------------------------------- 基本工具
@@ -98,29 +102,41 @@ export function findStoreHeader(grid: Grid, maxRows = 30): { row: number; col: n
   return null;
 }
 
-function isLegacyHeaderGrid(grid: Grid): boolean {
+const CODE_HEADERS = ['門市代號', '分店代號', 'store_code'];
+const LEGACY_HEADERS = [...CODE_HEADERS, '年月', '一般箋張數', '一般箋點值', '慢箋張數', '慢箋點值'];
+
+export const LEGACY_FORMAT_DISABLED_ERROR = '這是舊版範本格式，已停用，請重新下載本月範本';
+
+/** 第一列像舊版「一門市一列」範本（有門市代號／一般箋張數之類的標題，卻沒有「店別」）。 */
+function looksLikeLegacyGrid(grid: Grid): boolean {
   const first = (grid[0] || []).map(cell => text(cell).toLowerCase());
-  return first.includes('門市代號') || first.includes('分店代號') || first.includes('store_code');
+  return first.some(v => LEGACY_HEADERS.includes(v));
+}
+
+/** 找「門市代號」欄（新範本才有）；只在標題區（店別標題列往下 2 列內）找。 */
+function findCodeColumn(grid: Grid, storeHeaderRow: number): number {
+  for (let r = 0; r <= Math.min(storeHeaderRow + 2, grid.length - 1, 29); r++) {
+    const row = grid[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (CODE_HEADERS.includes(text(row[c]).toLowerCase())) return c;
+    }
+  }
+  return -1;
 }
 
 export type DetectResult =
   | { format: 'gsheet'; sheetName: string }
-  | { format: 'legacy' };
+  | { format: 'legacy'; looksLegacy: boolean };
 
-/** 自動判斷格式：第一張表有「門市代號」標題 → 舊範本；否則找含「店別」的工作表 → Google Sheet；都沒有就走舊範本（由它回報缺欄位）。 */
+/** 自動判斷格式：找含「店別」的工作表 → 新範本／Google Sheet；找不到 → 不支援（舊範本會被點名為已停用）。 */
 export function detectFormat(workbook: XLSX.WorkBook): DetectResult {
-  const firstName = workbook.SheetNames[0];
-  const firstSheet = firstName ? workbook.Sheets[firstName] : undefined;
-  if (firstSheet && isLegacyHeaderGrid(workbook2grid(firstSheet))) return { format: 'legacy' };
   for (const name of workbook.SheetNames) {
     const sheet = workbook.Sheets[name];
-    if (sheet && findStoreHeader(workbook2grid(sheet))) return { format: 'gsheet', sheetName: name };
+    if (sheet && findStoreHeader(workbookToGrid(sheet))) return { format: 'gsheet', sheetName: name };
   }
-  return { format: 'legacy' };
-}
-
-function workbook2grid(sheet: XLSX.WorkSheet) {
-  return workbookToGrid(sheet);
+  const firstName = workbook.SheetNames[0];
+  const firstSheet = firstName ? workbook.Sheets[firstName] : undefined;
+  return { format: 'legacy', looksLegacy: !!firstSheet && looksLikeLegacyGrid(workbookToGrid(firstSheet)) };
 }
 
 // ---------------------------------------------------------------- Google Sheet 解析
@@ -210,11 +226,12 @@ export function parseGoogleSheet(workbook: XLSX.WorkBook, yearMonth: string, pre
     }
 
     const dataStart = Math.max(subRow, storeHeader.row) + 1;
+    const codeCol = findCodeColumn(grid, storeHeader.row);
     const rows = collectStoreRows(grid, {
-      storeCol: storeHeader.col, countCol, amountCol, dataStart,
+      storeCol: storeHeader.col, codeCol, countCol, amountCol, dataStart,
       merges,
     });
-    return { ok: true, sheetName, monthLabel: group.label, foundMonths: monthCells.map(c => c.label), rows: rows.rows, ignoredLabels: rows.ignored };
+    return { ok: true, sheetName, monthLabel: group.label, foundMonths: monthCells.map(c => c.label), rows: rows.rows, ignoredLabels: rows.ignored, hasCodeColumn: codeCol >= 0 };
   }
 
   if (!storeHeaderSeen) return { ok: false, error: '找不到含「店別」欄位的工作表' };
@@ -235,9 +252,9 @@ function toChineseMonth(m: number) {
 
 function collectStoreRows(
   grid: Grid,
-  opts: { storeCol: number; countCol: number; amountCol: number; dataStart: number; merges: XLSX.Range[] },
+  opts: { storeCol: number; codeCol: number; countCol: number; amountCol: number; dataStart: number; merges: XLSX.Range[] },
 ) {
-  const { storeCol, countCol, amountCol, dataStart } = opts;
+  const { storeCol, codeCol, countCol, amountCol, dataStart } = opts;
   const labelCandidates = (row: Cell[]): RowKind => {
     // 該組標籤欄＝「張數」左邊那欄
     if (countCol - 1 !== storeCol && countCol - 1 >= 0) {
@@ -253,7 +270,7 @@ function collectStoreRows(
     return '';
   };
 
-  type Acc = { rawAlias: string; rowNo: number; regular?: Money; chronic?: Money; total?: Money; errors: string[] };
+  type Acc = { rawAlias: string; code: string | null; rowNo: number; regular?: Money; chronic?: Money; total?: Money; errors: string[] };
   const order: Acc[] = [];
   let current: Acc | null = null;
   const ignored: string[] = [];
@@ -263,6 +280,13 @@ function collectStoreRows(
     const row = grid[r] || [];
     // 合併儲存格只有第一列有值：有值才換店，空白就沿用上一個店別（往下補）
     const storeText = text(row[storeCol]);
+    const codeText = codeCol >= 0 ? text(row[codeCol]) : '';
+    // 代號欄有值且和目前這家不同，視為換店（即使店名相同）
+    const codeChanged = !!codeText && !!current && current.code !== null && current.code !== '' && codeText !== current.code;
+    if (!storeText && codeChanged) {
+      current = { rawAlias: current!.rawAlias, code: codeText, rowNo: r + 1, errors: [] };
+      order.push(current);
+    }
     if (storeText) {
       if (IGNORED_STORE_LABELS.includes(normalizeAlias(storeText))) {
         ignoringBlock = true;
@@ -271,8 +295,8 @@ function collectStoreRows(
         continue;
       }
       ignoringBlock = false;
-      if (!current || normalizeAlias(current.rawAlias) !== normalizeAlias(storeText)) {
-        current = { rawAlias: storeText, rowNo: r + 1, errors: [] };
+      if (!current || codeChanged || normalizeAlias(current.rawAlias) !== normalizeAlias(storeText)) {
+        current = { rawAlias: storeText, code: codeCol >= 0 ? codeText : null, rowNo: r + 1, errors: [] };
         order.push(current);
       }
     }
@@ -297,6 +321,7 @@ function collectStoreRows(
       const regular = acc.regular || { count: null, points: null };
       const chronic = acc.chronic || { count: null, points: null };
       return {
+        code: acc.code,
         rawAlias: acc.rawAlias,
         alias: normalizeAlias(acc.rawAlias),
         rowNo: acc.rowNo,
@@ -358,10 +383,10 @@ export function matchAlias(alias: string, aliasMap: AliasMap, stores: StoreLite[
 
 export type PreviewRow = {
   key: string;
-  /** 表上的簡稱，或舊格式的門市代號 */
+  /** 表上的店別（簡稱）；新範本列的對照以門市代號為準 */
   label: string;
   rowNo: number;
-  status: 'mapped' | 'auto' | 'ambiguous' | 'unknown' | 'matched' | 'error';
+  status: 'mapped' | 'auto' | 'ambiguous' | 'unknown' | 'matched' | 'coded' | 'error';
   store: StoreLite | null;
   candidates: StoreLite[];
   regular: Money;
@@ -371,7 +396,9 @@ export type PreviewRow = {
 };
 
 export type ImportPlan = {
-  format: 'gsheet' | 'legacy';
+  format: 'gsheet';
+  /** 新範本（有門市代號欄）：用代號對門市；否則走簡稱對照表 */
+  hasCodeColumn: boolean;
   yearMonth: string;
   sheetName?: string;
   monthLabel?: string;
@@ -387,13 +414,31 @@ export function buildGsheetPreview(
   selections: Record<string, string> = {},
 ): ImportPlan {
   const seen = new Map<string, string>();
+  const byCode = parsed.hasCodeColumn;
   const rows: PreviewRow[] = parsed.rows.map(row => {
-    const match = matchAlias(row.alias, aliasMap, stores);
-    let status: PreviewRow['status'] = match.status;
-    let store: StoreLite | null = 'store' in match ? match.store : null;
-    const candidates = 'candidates' in match ? match.candidates : [];
     const errors = [...row.errors];
-    if (!store && selections[row.alias]) {
+    let status: PreviewRow['status'];
+    let store: StoreLite | null;
+    let candidates: StoreLite[] = [];
+    let key = row.alias;
+    if (byCode) {
+      // 新範本：以門市代號直接對門市，不看簡稱對照表；代號空白或找不到都算錯誤，請使用者修正檔案
+      status = 'coded';
+      store = null;
+      key = `code:${normalizeStoreCode(row.code || '')}`;
+      if (!row.code) errors.push(`「${row.rawAlias}」缺少門市代號`);
+      else {
+        const resolved = resolveStoreByCode(row.code, stores);
+        if (resolved.store) store = resolved.store;
+        else errors.push(resolved.error || `找不到或無權限的門市代號「${row.code}」`);
+      }
+    } else {
+      const match = matchAlias(row.alias, aliasMap, stores);
+      status = match.status;
+      store = 'store' in match ? match.store : null;
+      candidates = 'candidates' in match ? match.candidates : [];
+    }
+    if (!byCode && !store && selections[row.alias]) {
       const chosen = stores.find(s => s.id === selections[row.alias]);
       if (chosen) { store = chosen; status = 'matched'; }
       else errors.push(`你選的門市「${selections[row.alias]}」不在可匯入的門市清單內`);
@@ -404,20 +449,20 @@ export function buildGsheetPreview(
       else seen.set(store.id, row.rawAlias);
     }
     return {
-      key: row.alias, label: row.rawAlias, rowNo: row.rowNo, status: errors.length ? 'error' : status,
+      key, label: row.rawAlias, rowNo: row.rowNo, status: errors.length ? 'error' : status,
       store, candidates, regular: row.regular, chronic: row.chronic, mismatches: row.mismatches, errors,
     };
   });
-  // 同一簡稱在檔案中出現兩次
+  // 同一簡稱在檔案中出現兩次（新範本以代號判斷，重複的門市已在上面標示）
   const aliasCount = new Map<string, number>();
   parsed.rows.forEach(r => aliasCount.set(r.alias, (aliasCount.get(r.alias) || 0) + 1));
   rows.forEach(r => {
-    if ((aliasCount.get(r.key) || 0) > 1 && !r.errors.some(e => e.includes('重複'))) {
+    if (!byCode && (aliasCount.get(r.key) || 0) > 1 && !r.errors.some(e => e.includes('重複'))) {
       r.errors.push(`店別「${r.label}」在檔案中出現多次`);
       r.status = 'error';
     }
   });
-  return { format: 'gsheet', yearMonth, sheetName: parsed.sheetName, monthLabel: parsed.monthLabel, rows, ignoredLabels: parsed.ignoredLabels };
+  return { format: 'gsheet', hasCodeColumn: byCode, yearMonth, sheetName: parsed.sheetName, monthLabel: parsed.monthLabel, rows, ignoredLabels: parsed.ignoredLabels };
 }
 
 /** 可以寫入嗎？所有列都已對上門市、沒有錯誤。 */
@@ -425,28 +470,7 @@ export function planIsImportable(plan: ImportPlan): boolean {
   return plan.rows.length > 0 && plan.rows.every(r => r.store && r.status !== 'error' && r.errors.length === 0);
 }
 
-// ---------------------------------------------------------------- 舊格式（一門市一列）
-
-function getCell(row: Record<string, unknown>, aliases: string[]) {
-  const header = Object.keys(row).find(key => aliases.includes(key.trim().toLowerCase()));
-  return header ? row[header] : undefined;
-}
-
-function parseYearMonthCell(value: unknown, fallback: string) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
-  }
-  if (typeof value === 'number' && value > 20000 && value < 80000) {
-    const date = XLSX.SSF.parse_date_code(value);
-    if (date?.y && date?.m) return `${date.y}-${String(date.m).padStart(2, '0')}`;
-  }
-  const raw = text(value);
-  if (!raw) return fallback;
-  const normalized = raw.replace(/年/g, '-').replace(/月/g, '').replace(/[/.]/g, '-').replace(/\s+/g, '');
-  const match = normalized.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
-  if (!match) return '';
-  return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}`;
-}
+// ---------------------------------------------------------------- 門市代號對照（新範本）
 
 function normalizeStoreCode(value: string) {
   return value.trim().toUpperCase().replace(/\s+/g, '');
@@ -476,57 +500,6 @@ export function resolveStoreByCode(code: string, stores: StoreLite[]): { store?:
   return { error: `找不到或無權限的門市代號「${code}」` };
 }
 
-export function parseLegacySheet(workbook: XLSX.WorkBook, yearMonth: string, stores: StoreLite[]): { ok: true; plan: ImportPlan } | { ok: false; error: string } {
-  const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-  if (!firstSheet) return { ok: false, error: 'Excel 檔案沒有工作表' };
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '', raw: true });
-  if (rows.length === 0) return { ok: false, error: 'Excel 工作表沒有資料' };
-
-  const seen = new Set<string>();
-  const out: PreviewRow[] = [];
-  rows.forEach((row, index) => {
-    if (Object.values(row).every(value => text(value) === '')) return;
-    const rowNo = index + 2;
-    const errors: string[] = [];
-    const rowMonth = parseYearMonthCell(getCell(row, ['年月', '年月份', 'year_month']), yearMonth);
-    if (!YEAR_MONTH_PATTERN.test(rowMonth)) errors.push('年月格式需為 YYYY-MM');
-    else if (rowMonth !== yearMonth) errors.push(`資料年月 ${rowMonth} 與目前選擇的 ${yearMonth} 不同`);
-
-    const rawCode = text(getCell(row, ['門市代號', '分店代號', 'store_code']));
-    let store: StoreLite | null = null;
-    if (!rawCode) errors.push('缺少門市代號');
-    else {
-      const resolved = resolveStoreByCode(rawCode, stores);
-      if (resolved.store) {
-        store = resolved.store;
-        if (seen.has(store.id)) errors.push(`門市 ${store.store_code} 在檔案中重複`);
-        seen.add(store.id);
-      } else errors.push(resolved.error || '找不到門市');
-    }
-
-    const regularCount = parseAmount(getCell(row, ['一般箋張數', '一般處方箋張數', 'regular_prescription_count']), false);
-    const regularPoints = parseAmount(getCell(row, ['一般箋點值', '一般處方箋點值', 'regular_prescription_point_value']), true);
-    const chronicCount = parseAmount(getCell(row, ['慢箋張數', '慢性處方箋張數', 'chronic_prescription_count']), false);
-    const chronicPoints = parseAmount(getCell(row, ['慢箋點值', '慢性處方箋點值', 'chronic_prescription_point_value']), true);
-    if ([regularCount, regularPoints, chronicCount, chronicPoints].includes(undefined)) {
-      errors.push('張數需為非負整數，點值最多四位小數');
-    }
-    out.push({
-      key: store ? store.id : `row-${rowNo}`,
-      label: rawCode || '（空白）',
-      rowNo,
-      status: errors.length ? 'error' : 'matched',
-      store,
-      candidates: [],
-      regular: { count: regularCount ?? null, points: regularPoints ?? null },
-      chronic: { count: chronicCount ?? null, points: chronicPoints ?? null },
-      mismatches: [],
-      errors,
-    });
-  });
-  return { ok: true, plan: { format: 'legacy', yearMonth, rows: out, ignoredLabels: [] } };
-}
-
 // ---------------------------------------------------------------- 一次完成：判斷格式 → 解析 → 對照
 
 export function buildImportPlan(
@@ -537,7 +510,12 @@ export function buildImportPlan(
   selections: Record<string, string> = {},
 ): { ok: true; plan: ImportPlan } | { ok: false; error: string } {
   const detected = detectFormat(workbook);
-  if (detected.format === 'legacy') return parseLegacySheet(workbook, yearMonth, stores);
+  if (detected.format === 'legacy') {
+    return {
+      ok: false,
+      error: detected.looksLegacy ? LEGACY_FORMAT_DISABLED_ERROR : '找不到含「店別」欄位的工作表，請使用下載的本月範本或 Google Sheet 的 xlsx',
+    };
+  }
   const parsed = parseGoogleSheet(workbook, yearMonth, detected.sheetName);
   if (!parsed.ok) {
     // 該工作表找不到月份時，再試其他含「店別」的工作表
