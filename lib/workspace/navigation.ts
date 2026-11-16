@@ -246,11 +246,16 @@ export function workspaceNavigation(
           "cross_dept.stockout.respond",
           "cross_dept.stockout.submit",
         ]),
-        item("總務組", "/cross-dept/maintenance", [
-          "cross_dept.maintenance.view_all",
-          "cross_dept.maintenance.submit",
-          "cross_dept.maintenance.update",
-        ]),
+        item(
+          "總務組",
+          "/cross-dept/maintenance",
+          [
+            "cross_dept.maintenance.view_all",
+            "cross_dept.maintenance.submit",
+            "cross_dept.maintenance.update",
+          ],
+          "cross-dept-maintenance",
+        ),
       ],
     },
     {

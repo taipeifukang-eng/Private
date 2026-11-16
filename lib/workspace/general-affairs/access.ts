@@ -63,6 +63,9 @@ export const GA_CENTER_CODES: readonly string[] = [
   "general_affairs.cooperation_record.view",
 ];
 
+import { WO_OWN_CODES, WO_UPDATE_CODES, WO_VIEW_ALL_CODES } from "./work-order-rules";
+const WO_ENTER_CODES = [...WO_VIEW_ALL_CODES, ...WO_UPDATE_CODES, ...WO_OWN_CODES] as const;
+
 export type HasFn = (...codes: string[]) => boolean;
 
 export type GaFlags = {
@@ -99,6 +102,9 @@ export type GaFlags = {
   gaPartFulfillments: boolean;
   gaPurchaseOrders: boolean;
   gaPurchaseApprovals: boolean;
+  /** 第 5 批 G18／G19：工單中心與跨部門維修頁（入口條件與工單 API 的 canEnter 相同）。 */
+  gaWorkOrders: boolean;
+  gaCrossDeptMaintenance: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -156,6 +162,9 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     // 第 4 批 G25：採購單（採購評估檢視／管理，或採購核准）與待簽核清單（只有採購核准）。
     gaPurchaseOrders: dbHas("general_affairs.purchase_review.view", "general_affairs.purchase_review.manage", "general_affairs.purchase_order.approve"),
     gaPurchaseApprovals: dbHas("general_affairs.purchase_order.approve"),
+    // 第 5 批 G18／G19：看工單（全部、自己門市、回報權限）或更新；兩頁共用同一組條件（Q19：跨部門頁也認新總務權限）。
+    gaWorkOrders: has(...WO_ENTER_CODES),
+    gaCrossDeptMaintenance: has(...WO_ENTER_CODES),
     gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }

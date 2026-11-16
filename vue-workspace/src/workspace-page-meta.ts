@@ -131,6 +131,9 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-purchase-orders": meta("採購單", ["gaPurchaseOrders"]),
   "ga-purchase-order-edit": meta("採購單編輯", ["gaPurchaseOrders"]),
   "ga-purchase-approvals": meta("待簽核採購單", ["gaPurchaseApprovals"]),
+  // 第 5 批 G18／G19：工單中心與跨部門維修頁（總務組）。
+  "ga-work-orders": meta("工單中心", ["gaWorkOrders"]),
+  "cross-dept-maintenance": meta("總務組維修", ["gaCrossDeptMaintenance"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {

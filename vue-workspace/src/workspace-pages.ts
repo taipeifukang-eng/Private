@@ -92,6 +92,8 @@ import PurchaseOrderEdit from "./pages/ga/PurchaseOrderEdit.vue";
 import PurchaseOrders from "./pages/ga/PurchaseOrders.vue";
 import ReportCreate from "./pages/ga/ReportCreate.vue";
 import Requests from "./pages/ga/Requests.vue";
+import WorkOrderCenter from "./pages/ga/WorkOrderCenter.vue";
+import CrossDeptMaintenance from "./pages/CrossDeptMaintenance.vue";
 import UserManagement from "./pages/Users.vue";
 import PublicDemo from "./pages/PublicDemo.vue";
 import Login from "./pages/Login.vue";
@@ -209,6 +211,8 @@ const components: Record<WorkTabKind, Component> = {
   "ga-purchase-orders": PurchaseOrders,
   "ga-purchase-order-edit": PurchaseOrderEdit,
   "ga-purchase-approvals": PurchaseApprovals,
+  "ga-work-orders": WorkOrderCenter,
+  "cross-dept-maintenance": CrossDeptMaintenance,
   "ga-part-compat": PartCompatibilities,
   "ga-equipment-templates": AssetTemplates,
   "ga-facility-templates": AssetTemplates,

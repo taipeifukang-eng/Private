@@ -42,6 +42,8 @@ export const WORKSPACE_NAV_KINDS = [
   "users",
   // M7/M8 G01：總務服務中心（外殼與入口頁）。其餘總務頁由外殼側欄開啟（明細 kind）。
   "ga-center",
+  // 第 5 批 G19：跨部門「總務組」維修頁（舊 /cross-dept/maintenance，最小移植）。
+  "cross-dept-maintenance",
 ] as const;
 
 /** 只能由其他頁面（列表、明細連結）開啟，不在導覽選單出現的 kind。 */
@@ -124,6 +126,8 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-purchase-orders",
   "ga-purchase-order-edit",
   "ga-purchase-approvals",
+  // 第 5 批 G18：工單中心。
+  "ga-work-orders",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

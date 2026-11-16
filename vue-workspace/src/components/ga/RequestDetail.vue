@@ -5,6 +5,7 @@ import Modal from "../Modal.vue";
 import ResourceAttachmentPanel from "./ResourceAttachmentPanel.vue";
 import RequestStockIssue from "./RequestStockIssue.vue";
 import RequestPurchaseReview from "./RequestPurchaseReview.vue";
+import WorkOrderSummary from "./WorkOrderSummary.vue";
 import { openGaPage } from "../../lib/ga";
 import { fmtTime } from "../../lib/ga-inventory-stock";
 import { PO_STATUS_LABEL, money, num, storeText, targetText, type CommentView, type EventView, type LinkedOrder, type RequestAbilities, type RequestRow } from "../../lib/ga-requests";
@@ -202,6 +203,7 @@ const blockedHint = computed(() => {
           <span class="muted">{{ REQUEST_TYPE_LABEL[row.request_type] }}　{{ storeText(row.store) }}　提出 {{ fmtTime(row.created_at) }}{{ row.created_by_name ? "（" + row.created_by_name + "）" : "" }}</span>
         </section>
         <p v-if="row.public_progress" class="rd-progress" data-testid="detail-progress">{{ row.public_progress }}</p>
+        <WorkOrderSummary v-if="row.maintenance_request_id" :key="row.maintenance_request_id + row.updated_at" :work-order-id="row.maintenance_request_id" @goto="emit('close')" />
         <dl class="rd-grid">
           <div><dt>標的</dt><dd>{{ (row.resource_type ? RESOURCE_LABEL[row.resource_type] + "：" : "") + (targetText(row) || "—") }}</dd></div>
           <div v-if="row.desired_quantity"><dt>希望數量</dt><dd>{{ num(row.desired_quantity) }} {{ row.desired_unit }}</dd></div>

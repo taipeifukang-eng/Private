@@ -96,6 +96,9 @@ export type Session = {
     /** 第 4 批 G25：採購單、待簽核清單。 */
     gaPurchaseOrders: boolean;
     gaPurchaseApprovals: boolean;
+    /** 第 5 批 G18／G19：工單中心、跨部門維修頁。 */
+    gaWorkOrders: boolean;
+    gaCrossDeptMaintenance: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

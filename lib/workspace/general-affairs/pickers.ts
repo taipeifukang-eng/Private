@@ -2,6 +2,7 @@
 import { NextRequest } from "next/server";
 import { adminClient } from "../server";
 import { dbCan, GA_CENTER_CODES } from "./access";
+import { WO_UPDATE_CODES, WO_VIEW_ALL_CODES } from "./work-order-rules";
 import { orIlike, pagingMeta, parsePaging, FILTERS_BOOL } from "./rules";
 import { GaError, dbError, must, respond, type Context } from "./server";
 
@@ -41,7 +42,7 @@ export async function sitesApi(ctx: Context, request: NextRequest) {
     const ids = Array.from(new Set(mine.map((r) => r.store_id)));
     if (!ids.length) return respond({ data: [], meta: pagingMeta(page, pageSize, 0) });
     q = q.in("id", ids);
-  } else if (!dbCan(ctx.permissions, ...GA_CENTER_CODES) && !ctx.roleCodes.has("store_manager") && !ctx.roleCodes.has("store_manager_role")) {
+  } else if (!dbCan(ctx.permissions, ...GA_CENTER_CODES, ...WO_UPDATE_CODES, ...WO_VIEW_ALL_CODES) && !ctx.roleCodes.has("store_manager") && !ctx.roleCodes.has("store_manager_role")) {
     throw new GaError(403, "沒有查看據點的權限");
   }
   if (search) q = q.or(orIlike(["store_code", "store_name", "short_name"], search));
