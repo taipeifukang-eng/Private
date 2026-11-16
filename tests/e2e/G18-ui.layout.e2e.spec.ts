@@ -80,6 +80,31 @@ async function inViewport(page: Page, testid: string) {
   expect(box!.y + box!.height).toBeLessThanOrEqual(vp.height);
   expect(box!.x + box!.width).toBeLessThanOrEqual(vp.width);
 }
+/** A4 表單每個儲存格四邊框線都要畫出來（全域 tbody tr:last-child td{border-bottom:0} 曾吃掉最後一列的下框線）；每張表最後一列的底邊要落在表格裡。 */
+async function sheetBordersDrawn(page: Page, rootSelector: string) {
+  const r = await page.evaluate((root) => {
+    const bad: string[] = [];
+    let cells = 0;
+    for (const t of Array.from(document.querySelectorAll(`${root} table`))) {
+      const tb = t.getBoundingClientRect();
+      const rows = Array.from(t.querySelectorAll('tr'));
+      const lastBottom = rows[rows.length - 1].getBoundingClientRect().bottom;
+      if (lastBottom > tb.bottom + 0.5) bad.push(`最後一列超出表格 ${t.className}`);
+      for (const c of Array.from(t.querySelectorAll('td,th'))) {
+        cells += 1;
+        const cs = getComputedStyle(c);
+        for (const side of ['Bottom', 'Right', 'Top', 'Left'] as const) {
+          const w = parseFloat(cs[`border${side}Width` as 'borderBottomWidth']);
+          const st = cs[`border${side}Style` as 'borderBottomStyle'];
+          if (!(w >= 1) || st === 'none' || st === 'hidden') bad.push(`${(c.textContent || '').slice(0, 10)} ${side} ${w}px ${st}`);
+        }
+      }
+    }
+    return { bad, cells };
+  }, rootSelector);
+  expect(r.cells).toBeGreaterThan(8);
+  expect(r.bad).toEqual([]);
+}
 async function dialogFits(page: Page) {
   const vp = page.viewportSize()!;
   const m = await dialog(page).evaluate((el) => {
@@ -299,8 +324,10 @@ test('列印工單表單：預覽不含內部備註（預設不勾），勾選�
     await expect(dialog(page).getByTestId('sheet-internal-title')).toBeVisible();
     await expect(dialog(page).getByTestId('sheet-force-reason')).toContainText('門市已自行處理完畢');
     await inViewport(page, 'print-go');
+    await sheetBordersDrawn(page, '.wo-print-preview .wo-sheet'); // 螢幕預覽：每格四邊框線都在（含標題列、進度表與內部備註表的最後一列）
     // 列印媒體：只留 .wo-print-output，其餘都隱藏
     await page.emulateMedia({ media: 'print' });
+    await sheetBordersDrawn(page, '.wo-print-output .wo-sheet'); // 列印樣式：同樣每格框線都在
     const m = await page.evaluate(() => {
       const out = document.querySelector('.wo-print-output') as HTMLElement | null;
       const others = Array.from(document.body.children).filter((e) => !e.matches('.wo-print-output'));

@@ -6,7 +6,7 @@ import { openGaCenter, noPageOverflow } from '../support/g01-ui';
 import { dialog, pick } from '../support/g12-ui';
 import { makePng } from '../support/png';
 import {
-  attachments, balanceOf, db, dialogFits, gaNav, isPhone, ledgerOf, openAs, openCenter, openMyRequest, openWo, openWorkbenchRequest, realErrors, reqByNo, reqRow, submitForm, vis, woEvents, woRow, woUpdates,
+  actionFormInView, attachments, balanceOf, db, dialogFits, gaNav, isPhone, ledgerOf, openAs, openCenter, openMyRequest, openWo, openWorkbenchRequest, realErrors, reqByNo, reqRow, submitForm, vis, woEvents, woRow, woUpdates,
 } from '../support/g18-journey';
 
 // M7/M8 第 5 批 G18.journey-repair 角色接力劇本「店長報修 → 總務受理轉工單 → 工務處理領料 → 門市確認結案」（桌機 project 跑一次；店長手機 390、總務與工務桌機 1440）。
@@ -218,6 +218,7 @@ test('第一輪：店長（手機）報修 → 總務受理轉工單 → 工務�
     await expect(dialog(store2.page).getByTestId('wo-summary')).toBeVisible(); // 工單摘要：階段與最新公開進度
     await dialogFits(store2.page);
     await store2.page.getByTestId('act-confirm_complete').click();
+    await actionFormInView(store2.page); // 手機 390：表單自動捲進畫面、焦點在第一個輸入框
     await store2.page.getByTestId('action-submit').click();
     await expect(store2.page.getByTestId('detail-notice')).toBeVisible();
     expect(await reqRow(reqId)).toMatchObject({ main_status: 'COMPLETED' });
@@ -324,6 +325,7 @@ test('第二輪：待門市確認 → 店長回報仍有問題（須原因）→
     await store2.page.getByLabel('狀態').selectOption('WAITING_STORE_CONFIRMATION');
     await openMyRequest(store2.page, no);
     await store2.page.getByTestId('act-confirm_complete').click();
+    await actionFormInView(store2.page); // 手機 390：表單自動捲進畫面、焦點在第一個輸入框
     await store2.page.getByTestId('action-submit').click();
     await expect(store2.page.getByTestId('detail-notice')).toBeVisible();
     expect(await reqRow(reqId)).toMatchObject({ main_status: 'COMPLETED' });

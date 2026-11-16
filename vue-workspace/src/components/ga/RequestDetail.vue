@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, nextTick, onMounted, reactive, ref } from "vue";
 import { api, ApiError } from "../../api";
 import Modal from "../Modal.vue";
 import ResourceAttachmentPanel from "./ResourceAttachmentPanel.vue";
@@ -61,11 +61,22 @@ const ACTION_TITLE: Record<string, string> = {
   accept: "受理需求", reject: "駁回需求", request_supplement: "請門市補資料", update_progress: "更新處理進度", request_store_confirmation: "送門市確認", assign: "轉派承辦角色",
   cancel: "取消需求單", reopen: "重新開啟", withdraw: "撤回需求", submit_supplement: "補充資料", confirm_complete: "確認完成", report_problem: "回報仍有問題",
 };
-function openAction(a: ActionId) {
+const formEl = ref<HTMLFormElement | null>(null);
+async function openAction(a: ActionId) {
   pending.value = a;
   formError.value = "";
   form.note = ""; form.internal_note = ""; form.assignee_name = "";
   form.route = row.value?.request_type === "REPAIR" ? "REPAIR_DISPATCH" : row.value?.resource_type === "PART" ? "STOCK_ISSUE" : "PURCHASE_REVIEW";
+  // 表單展開後捲進可視範圍（手機的對話框裡表單常在畫面下方），並把焦點移到第一個輸入框。
+  await nextTick();
+  const el = formEl.value;
+  if (!el) return;
+  el.scrollIntoView({ block: "nearest" });
+  el.querySelector<HTMLElement>("select:not([disabled]), input:not([disabled]), textarea:not([disabled])")?.focus();
+}
+// 工單摘要晚一步載入會把表單往下推，載入完再捲一次（表單已在畫面內時不會動）。
+function keepFormInView() {
+  formEl.value?.scrollIntoView({ block: "nearest" });
 }
 const routeOptions = computed(() => Object.keys(ROUTE_LABEL).map((k) => ({ id: k, label: ROUTE_LABEL[k], block: row.value ? acceptConflict(row.value, k) : null })));
 const noteLabel = computed(() => (pending.value === "cancel" || pending.value === "reopen" ? "原因（必填）" : pending.value === "withdraw" ? "撤回原因（選填）" : pending.value === "confirm_complete" ? (abilities.value?.confirmIsProxy ? "代門市確認的說明（必填，例如：店長電話確認收到）" : "補充說明（選填）") : "說明（必填）"));
@@ -203,7 +214,7 @@ const blockedHint = computed(() => {
           <span class="muted">{{ REQUEST_TYPE_LABEL[row.request_type] }}　{{ storeText(row.store) }}　提出 {{ fmtTime(row.created_at) }}{{ row.created_by_name ? "（" + row.created_by_name + "）" : "" }}</span>
         </section>
         <p v-if="row.public_progress" class="rd-progress" data-testid="detail-progress">{{ row.public_progress }}</p>
-        <WorkOrderSummary v-if="row.maintenance_request_id" :key="row.maintenance_request_id + row.updated_at" :work-order-id="row.maintenance_request_id" @goto="emit('close')" />
+        <WorkOrderSummary v-if="row.maintenance_request_id" :key="row.maintenance_request_id + row.updated_at" :work-order-id="row.maintenance_request_id" @goto="emit('close')" @loaded="keepFormInView" />
         <dl class="rd-grid">
           <div><dt>標的</dt><dd>{{ (row.resource_type ? RESOURCE_LABEL[row.resource_type] + "：" : "") + (targetText(row) || "—") }}</dd></div>
           <div v-if="row.desired_quantity"><dt>希望數量</dt><dd>{{ num(row.desired_quantity) }} {{ row.desired_unit }}</dd></div>
@@ -240,7 +251,7 @@ const blockedHint = computed(() => {
             <span v-if="!showActions.length && !abilities.stockIssue && !abilities.purchaseReview" class="muted" data-testid="no-actions">目前沒有可執行的動作。</span>
           </div>
           <p v-if="blockedHint" class="muted" data-testid="blocked-hint">{{ blockedHint }}。</p>
-          <form v-if="pending" class="rd-form" novalidate data-testid="action-form" @submit.prevent="submitAction">
+          <form v-if="pending" ref="formEl" class="rd-form" novalidate data-testid="action-form" @submit.prevent="submitAction">
             <h4>{{ ACTION_TITLE[pending] }}</h4>
             <p v-if="pending === 'request_store_confirmation'" class="muted">確認後需求單會進入「待門市確認」。</p>
             <p v-if="pending === 'confirm_complete' && abilities.confirmIsProxy" class="notice" role="status" data-testid="proxy-hint">您不是這間門市的店長，這會記為「總務代門市操作」，必須說明原因。</p>
@@ -336,7 +347,7 @@ const blockedHint = computed(() => {
 .rd-block { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; min-width: 0; }
 .rd-block h3 { margin: 0; font-size: 15px; }
 .rd-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.rd-form { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
+.rd-form { scroll-margin-bottom: 96px; display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; }
 .rd-form h4 { margin: 0; }
 .rd-form label { display: grid; gap: 4px; }
 .rd-orders { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }

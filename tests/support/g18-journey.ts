@@ -67,6 +67,40 @@ export async function openWorkbenchRequest(page: Page, no: string) {
   await row.getByTestId('open-detail').click();
   await expect(dialog(page).getByTestId('request-detail')).toBeVisible();
 }
+/**
+ * 我的追蹤／需求單詳情的內嵌動作表單展開後：第一個輸入框要真的看得到（落在 viewport 內、在對話框可視範圍內、沒被底部固定的按鈕列蓋住），
+ * 焦點在表單裡；等延遲載入的內容（工單摘要）都進來、再等一下之後仍然看得到（手機 390 會自動捲過去）。
+ */
+export async function actionFormInView(page: Page) {
+  const form = page.getByTestId('action-form').locator('visible=true');
+  await expect(form).toBeVisible();
+  await page.waitForLoadState('networkidle');
+  const field = form.locator('textarea, input, select').first();
+  const check = async () => {
+    const r = await page.evaluate(() => {
+      const d = document.querySelector('dialog[open]') as HTMLElement;
+      const f = d.querySelector('[data-testid=action-form]') as HTMLElement;
+      const t = f.querySelector('textarea, input, select') as HTMLElement;
+      const tr = t.getBoundingClientRect();
+      const dr = d.getBoundingClientRect();
+      const bars = Array.from(d.querySelectorAll('.dialog-actions')).filter((e) => !f.contains(e));
+      const footTop = bars.length ? bars[bars.length - 1].getBoundingClientRect().top : dr.bottom;
+      return { top: tr.top, bottom: tr.bottom, vh: window.innerHeight, dTop: dr.top, footTop, focused: f.contains(document.activeElement) };
+    });
+    return r;
+  };
+  const first = await check();
+  expect(first.top, '輸入框上緣在對話框內').toBeGreaterThanOrEqual(first.dTop - 1);
+  expect(first.bottom, '輸入框下緣在 viewport 內').toBeLessThanOrEqual(first.vh);
+  expect(first.bottom, '輸入框沒被底部按鈕列蓋住').toBeLessThanOrEqual(first.footTop + 1);
+  expect(first.focused, '焦點在表單裡').toBe(true);
+  await expect(field).toBeInViewport({ ratio: 1 });
+  await page.waitForTimeout(800);
+  const later = await check();
+  expect(later.bottom, '延遲載入後輸入框仍在 viewport 內').toBeLessThanOrEqual(later.vh);
+  expect(later.bottom, '延遲載入後輸入框仍沒被底部按鈕列蓋住').toBeLessThanOrEqual(later.footTop + 1);
+}
+
 export async function dialogFits(page: Page) {
   const vp = page.viewportSize()!;
   const m = await dialog(page).evaluate((el) => {

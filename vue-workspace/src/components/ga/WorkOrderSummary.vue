@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref } from "vue";
 import { api } from "../../api";
 import { openGaPage } from "../../lib/ga";
 import { fmtTime } from "../../lib/ga-inventory-stock";
@@ -9,7 +9,7 @@ import type { WoDetail } from "../../lib/ga-work-orders";
 // G18 需求單詳情與「我的追蹤」的工單摘要：階段名、最新公開進度、結案方式、前往工單。
 // 店長端看不到處理人與內部內容（伺服端已遮蔽）；沒有工單查看權限（例如只有需求單權限的人）時整塊不顯示，不影響需求單本身。
 const props = defineProps<{ workOrderId: string }>();
-const emit = defineEmits<{ goto: [] }>();
+const emit = defineEmits<{ goto: []; loaded: [] }>();
 const session = useSession();
 const data = ref<WoDetail | null>(null);
 const canOpen = computed(() => !!session.data?.capabilities?.gaWorkOrders);
@@ -17,6 +17,8 @@ const lastPublic = computed(() => [...(data.value?.timeline || [])].reverse().fi
 
 onMounted(async () => {
   try { data.value = (await api<{ data: WoDetail }>(`general-affairs/work-orders/${props.workOrderId}`)).data; } catch { data.value = null; }
+  await nextTick();
+  emit("loaded"); // 摘要載入後內容變高，讓上層把已展開的表單重新捲進畫面
 });
 function go() { openGaPage("ga-work-orders", undefined, { workOrderId: props.workOrderId }); emit("goto"); }
 </script>

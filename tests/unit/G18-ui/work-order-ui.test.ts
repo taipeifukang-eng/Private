@@ -158,8 +158,13 @@ describe('G18 畫面原始碼規則（文案與可見條件）', () => {
     expect(print).toContain('? "?include_internal=1" : ""');
     expect(print).toContain('window.print()');
     const css = read('vue-workspace/src/style.css');
-    expect(css).toMatch(/@page\{size:A4;margin:15mm\}html:has\(\.wo-print-output\)/);
-    expect(css).toContain('body:has(>.wo-print-output)>*:not(.wo-print-output){display:none!important}');
+    expect(css).toMatch(/^tbody tr:last-child td \{\s*border-bottom: 0/m);
+    expect(css).toContain('.inspection-report tbody tr:last-child td{border-bottom:1px solid #aaa}');
+    const rd = read('vue-workspace/src/components/ga/RequestDetail.vue');
+    expect(rd).toContain('ref="formEl"');
+    expect(rd).toContain('scrollIntoView({ block: "nearest" })');
+    expect(rd).toContain('@loaded="keepFormInView"'); // 工單摘要晚載入把表單往下推時要再捲一次
+    expect(rd).toContain('scroll-margin-bottom');
     const sheet = read('vue-workspace/src/components/ga/WorkOrderSheet.vue');
     expect(sheet).toContain('v-if="data.include_internal"');
   });

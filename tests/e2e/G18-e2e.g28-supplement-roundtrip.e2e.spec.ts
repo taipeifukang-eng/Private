@@ -5,7 +5,7 @@ import { assertGaBaseline, cleanupM7M8, m7Name, seedWorkOrder, stores } from '..
 import { seedVendor, setupPoUsers, type PoUser } from '../support/m7m8-po-fixtures';
 import { noPageOverflow, openGaCenter } from '../support/g01-ui';
 import { dialog } from '../support/g12-ui';
-import { db, dialogFits, gaNav, openAs, openCenter, openMyRequest, openWo, openWorkbenchRequest, realErrors, reqEvents, reqRow, submitForm, vis, woEvents, woRow } from '../support/g18-journey';
+import { actionFormInView, db, dialogFits, gaNav, openAs, openCenter, openMyRequest, openWo, openWorkbenchRequest, realErrors, reqEvents, reqRow, submitForm, vis, woEvents, woRow } from '../support/g18-journey';
 
 // M7/M8 第 5 批 G28.supplement-roundtrip 補資料往返（W1「兩邊同步」；桌機 project 跑一次；總務桌機 1440、店長手機 390）。因為改了第 4 批 request_supplement／submit_supplement，也當作第 4 批補資料的回歸。
 //  A. 工單端發起：總務在工單中心按「補資料」→ 工單與需求單同進「待門市補資料」→ 店長（手機）在我的追蹤回覆 → 工單回「初步評估」、需求單進入「待總務複核」→ 總務可以繼續存進度。
@@ -99,6 +99,7 @@ test('A 工單端發起：總務按補資料 → 兩邊進待門市補資料 →
     await store.page.getByLabel('狀態').selectOption('WAITING_STORE_SUPPLEMENT');
     await openMyRequest(store.page, r.request_no);
     await store.page.getByTestId('act-submit_supplement').click();
+    await actionFormInView(store.page); // 手機 390：表單展開後自動捲進畫面、焦點在第一個輸入框
     await store.page.getByTestId('action-submit').click();
     expect(await reqRow(r.id)).toMatchObject({ main_status: 'WAITING_STORE_SUPPLEMENT' }); // 沒填說明：沒送出
     await dialog(store.page).locator('textarea').first().fill('已重拍，漏水位置在水龍頭下方 A');
