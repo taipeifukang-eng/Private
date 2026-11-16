@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertCircle, CalendarDays, Check, Download, Pencil, Save, Upload, X } from 'lucide-react';
+import PrescriptionImportDialog from '@/components/performance/PrescriptionImportDialog';
+import PrescriptionAliasPanel from '@/components/performance/PrescriptionAliasPanel';
+import type { ImportPlan, StoreLite } from '@/lib/performance/prescription-import';
 
 type PrescriptionRow = {
   store_id: string;
@@ -120,6 +123,8 @@ export default function PrescriptionTab({
   const [annualScrollPosition, setAnnualScrollPosition] = useState(0);
   const [annualScrollMax, setAnnualScrollMax] = useState(0);
   const [importing, setImporting] = useState(false);
+  const [importPreview, setImportPreview] = useState<{ file: File; plan: ImportPlan; stores: StoreLite[] } | null>(null);
+  const [aliasRefresh, setAliasRefresh] = useState(0);
   const yearMonth = `${selectedYear}-${selectedMonth.padStart(2, '0')}`;
   const years = Array.from({ length: now.getFullYear() - 2018 + 3 }, (_, index) => 2018 + index);
 
@@ -360,7 +365,7 @@ export default function PrescriptionTab({
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
-    if (dirtyRows.length > 0 && !window.confirm('目前有尚未儲存的手動修改，匯入後會以 Excel 內容取代本月資料。確定繼續？')) return;
+    if (dirtyRows.length > 0 && !window.confirm('目前有尚未儲存的手動修改，匯入後會以 Excel 內容取代表上有的門市資料。確定繼續？')) return;
 
     setImporting(true);
     setError('');
@@ -369,18 +374,16 @@ export default function PrescriptionTab({
       const formData = new FormData();
       formData.append('file', file);
       formData.append('year_month', yearMonth);
+      formData.append('mode', 'preview');
       const response = await fetch('/api/prescription-monthly/import', { method: 'POST', body: formData });
       const json = await response.json();
       if (!response.ok || !json.success) {
         const details = Array.isArray(json.errors) ? json.errors.join('\n') : '';
-        throw new Error([json.error || 'Excel 匯入失敗', details].filter(Boolean).join('\n'));
+        throw new Error([json.error || 'Excel 讀取失敗', details].filter(Boolean).join('\n'));
       }
-
-      setIsEditing(false);
-      await loadData();
-      setSuccess(`已匯入 ${json.imported} 間門市的 ${yearMonth} 處方箋資料`);
+      setImportPreview({ file, plan: json.plan, stores: json.stores || [] });
     } catch (importError: any) {
-      setError(importError.message || 'Excel 匯入失敗');
+      setError(importError.message || 'Excel 讀取失敗');
     } finally {
       setImporting(false);
     }
@@ -453,7 +456,7 @@ export default function PrescriptionTab({
                 disabled={loading || importing || saving}
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-orange-700 bg-orange-700 px-3 text-sm font-medium text-white hover:bg-orange-800 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Upload size={16} />{importing ? '匯入中…' : '匯入 Excel'}
+                <Upload size={16} />{importing ? '讀取中…' : '匯入 Excel'}
               </button>
               {isEditing ? (
                 <div className="flex items-center gap-2">
@@ -697,7 +700,7 @@ export default function PrescriptionTab({
           點值最多四位小數；處方箋報表獨立於每月人員狀態與門市統計。{canEdit
             ? isEditing
               ? '手動修改只會更新這份報表。'
-              : '可下載本月 Excel 範本填寫後匯入，也可直接編輯單一門市。'
+              : '可下載本月 Excel 範本填寫後匯入，也可以直接匯入 Google Sheet 下載的 xlsx（每店一般／連續／加總三列），或直接編輯單一門市。'
             : permissionLoading
               ? '正在確認帳號的編輯權限。'
               : '目前是唯讀；需由管理者開啟「編輯業績資料」權限後才能輸入。'}
@@ -728,6 +731,31 @@ export default function PrescriptionTab({
             </span>
           </div>
         </div>
+      )}
+
+      {viewMode === 'month' && !permissionLoading && (
+        <PrescriptionAliasPanel
+          stores={rows.map(row => ({ id: row.store_id, store_code: row.store_code, store_name: row.store_name }))}
+          canEdit={canEdit}
+          refreshKey={aliasRefresh}
+        />
+      )}
+
+      {importPreview && (
+        <PrescriptionImportDialog
+          file={importPreview.file}
+          yearMonth={yearMonth}
+          plan={importPreview.plan}
+          stores={importPreview.stores}
+          onClose={() => setImportPreview(null)}
+          onImported={async message => {
+            setImportPreview(null);
+            setIsEditing(false);
+            await loadData();
+            setAliasRefresh(value => value + 1);
+            setSuccess(message);
+          }}
+        />
       )}
     </main>
   );
