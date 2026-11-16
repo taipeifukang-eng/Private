@@ -1,6 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import * as XLSX from 'xlsx';
+import { buildPrescriptionTemplateWorkbook, writePrescriptionTemplate } from '../../../lib/performance/prescription-template';
 import { ACCOUNTS, TEST_YEAR_MONTH, account, adminDb, cleanup, testStores, type Who } from '../support';
 import { gsheetBuffer, legacyBuffer, type FixtureStore } from '../fixtures';
 
@@ -164,18 +166,118 @@ test('對照表 API：新增、重複擋下、修改、刪除', async ({ page })
   expect((await page.request.delete(`/api/prescription-monthly/aliases/${id}`)).status()).toBe(404);
 });
 
-test('舊的一門市一列範本照樣可預覽與匯入', async ({ page }) => {
+const TEMPLATE_MONTH = '2038-08';
+const TEMPLATE_UI_MONTH = '2038-09';
+
+/** 下載的範本（驗證 API），再用同一個產生器只留測試門市並「貼上」數字（改 D/E 欄）。 */
+async function pastedTemplate(page: Page, month: string) {
+  const res = await page.request.get('/api/prescription-monthly/template', { params: { year_month: month } });
+  expect(res.status()).toBe(200);
+  const body = await res.body();
+  const dl = XLSX.read(body, { type: 'buffer' }).Sheets['處方箋月報'];
+  const names = new Map<string, string>();
+  for (let r = 3; dl[`A${r}`]; r += 3) names.set(String(dl[`A${r}`].v), String(dl[`B${r}`]?.v ?? ''));
+  const stores = ['VW001', 'ZT01', 'ZT02'].map(code => ({ id: ids[code], store_code: code, store_name: names.get(code) || code }));
+  const wb = buildPrescriptionTemplateWorkbook(month, stores, new Map());
+  const out = wb.Sheets['處方箋月報'];
+  out['D3'] = { t: 'n', v: 11 }; out['E3'] = { t: 's', v: '1,111.5' };
+  out['D4'] = { t: 'n', v: 2 }; out['E4'] = { t: 'n', v: 22.5 };
+  out['D5'] = { t: 'n', v: 13 }; out['E5'] = { t: 'n', v: 1134 };
+  out['D6'] = { t: 'n', v: 5 }; out['E6'] = { t: 'n', v: 50 };
+  out['D7'] = { t: 'n', v: 1 }; out['E7'] = { t: 'n', v: 10 };
+  out['D8'] = { t: 'n', v: 7 }; out['E8'] = { t: 'n', v: 60 }; // ZT01 加總不符（張數 6 ≠ 7）
+  out['D9'] = { t: 'n', v: 3 }; out['E9'] = { t: 'n', v: 30 };
+  out['D10'] = { t: 'n', v: 4 }; out['E10'] = { t: 'n', v: 40 };
+  out['D11'] = { t: 'n', v: 7 }; out['E11'] = { t: 'n', v: 70 };
+  return { downloaded: Buffer.from(body), pasted: Buffer.from(writePrescriptionTemplate(wb)), names };
+}
+
+test('本月範本 API：下載版面、整份下載檔預覽全以代號對上；貼上數字後確認匯入（不寫簡稱）', async ({ page }) => {
   await login(page, 'admin');
-  const buf = legacyBuffer([[TEST_YEAR_MONTH, 'VW001', 'Vue 測試一店', 11, 111, 2, '22.5'], [TEST_YEAR_MONTH, 'ZT02', '', 5, 50, 1, 10]]);
-  const pv = await post(page, buf, 'preview');
-  expect(pv.json.plan.format).toBe('legacy');
-  expect(pv.json.importable).toBe(true);
-  const c = await post(page, buf, 'commit');
+  const { downloaded, pasted } = await pastedTemplate(page, TEMPLATE_MONTH);
+  const sheet = XLSX.read(downloaded, { type: 'buffer' }).Sheets['處方箋月報'];
+  expect([sheet['A1'].v, sheet['B1'].v, sheet['C1'].v, sheet['D1'].v, sheet['D2'].v, sheet['E2'].v]).toEqual(['門市代號', '店別', '項目', '8月', '張數', '金額']);
+  const codes: string[] = [];
+  for (let r = 3; sheet[`A${r}`]; r += 3) {
+    codes.push(String(sheet[`A${r}`].v));
+    expect([sheet[`C${r}`].v, sheet[`C${r + 1}`].v, sheet[`C${r + 2}`].v]).toEqual(['一般', '連續', '加總']);
+    expect(sheet[`D${r + 2}`].f).toBe(`D${r}+D${r + 1}`);
+  }
+  expect(codes).toEqual(expect.arrayContaining(['VW001', 'ZT01', 'ZT02']));
+  expect(codes).not.toContain('0000');
+  const whole = await post(page, downloaded, 'preview', {}, TEMPLATE_MONTH);
+  expect(whole.status).toBe(200);
+  expect(whole.json.plan.hasCodeColumn).toBe(true);
+  expect(whole.json.plan.rows.every((r: { status: string }) => r.status === 'coded')).toBe(true);
+  expect(whole.json.importable).toBe(true);
+
+  const pv = await post(page, pasted, 'preview', {}, TEMPLATE_MONTH);
+  expect(pv.json.plan.rows.map((r: { mismatches: string[] }) => r.mismatches.length)).toEqual([0, 1, 0]);
+  const c = await post(page, pasted, 'commit', {}, TEMPLATE_MONTH);
   expect(c.status).toBe(200);
+  expect(c.json.imported).toBe(3);
   expect(c.json.saved_aliases).toBe(0);
-  const rows = await reportsOf([ids.VW001]);
-  expect(rows[0].regular_prescription_count).toBe(11);
-  expect(Number(rows[0].chronic_prescription_point_value)).toBe(22.5);
+  const r = await adminDb().from('monthly_prescription_reports').select('*').eq('year_month', TEMPLATE_MONTH).in('store_id', [ids.VW001, ids.ZT01, ids.ZT02]);
+  const rows = Object.fromEntries((r.data || []).map((x: Record<string, unknown>) => [x.store_id as string, x]));
+  expect(rows[ids.VW001]).toMatchObject({ regular_prescription_count: 11, chronic_prescription_count: 2 });
+  expect(Number(rows[ids.VW001].regular_prescription_point_value)).toBe(1111.5);
+  expect(rows[ids.ZT02]).toMatchObject({ regular_prescription_count: 3, chronic_prescription_count: 4 });
+
+  // 代號找不到：確認匯入被擋
+  const wb = XLSX.read(pasted, { type: 'buffer' });
+  wb.Sheets['處方箋月報']['A3'] = { t: 's', v: 'NOPE99' };
+  const bad = await post(page, Buffer.from(XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer), 'commit', {}, TEMPLATE_MONTH);
+  expect(bad.status).toBe(400);
+  expect(String(bad.json.errors?.[0])).toContain('NOPE99');
+});
+
+test('舊的一門市一列範本已停用：預覽與確認都回停用錯誤，不寫入', async ({ page }) => {
+  await login(page, 'admin');
+  const buf = legacyBuffer([[TEST_YEAR_MONTH, 'ZT03', '', 99, 99, 9, '9.5']]);
+  const before = JSON.stringify(await reportsOf([ids.ZT03]));
+  for (const mode of ['preview', 'commit']) {
+    const r = await post(page, buf, mode);
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe('這是舊版範本格式，已停用，請重新下載本月範本');
+  }
+  expect(JSON.stringify(await reportsOf([ids.ZT03]))).toBe(before); // 沒有任何寫入
+});
+
+test('畫面：本月範本上傳→預覽（代號對上、加總不符標黃）→確認；舊格式看到停用說明', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', e => { if (!/hydrat|Text content does not match/i.test(String(e))) errors.push(String(e).slice(0, 200)); });
+  await login(page, 'admin');
+  const { pasted } = await pastedTemplate(page, TEMPLATE_UI_MONTH);
+  await page.goto('/admin/performance');
+  await page.getByRole('button', { name: '處方箋' }).first().click();
+  await page.getByLabel('選擇處方箋年份').waitFor();
+  await page.getByLabel('選擇處方箋年份').evaluate(el => { const o = document.createElement('option'); o.value = '2038'; o.textContent = '2038 年'; (el as HTMLSelectElement).appendChild(o); });
+  await page.getByLabel('選擇處方箋年份').selectOption('2038');
+  await page.getByLabel('選擇處方箋月份').selectOption('9');
+  await expect(page.getByText('讀取中…')).toHaveCount(0);
+  await expect(page.getByText('下載本月範本 → 從 Google Sheet 複製當月張數、金額貼到 D3 起 → 存檔上傳')).toBeVisible();
+
+  // 舊格式：看到停用說明，不開預覽
+  const legacyFile = path.join(__dirname, '..', '.results', 'legacy.xlsx');
+  fs.mkdirSync(path.dirname(legacyFile), { recursive: true });
+  fs.writeFileSync(legacyFile, legacyBuffer([['2038-09', 'ZT03', '', 1, 1, 1, 1]]));
+  await page.locator('input[type="file"]').setInputFiles(legacyFile);
+  await expect(page.getByText('這是舊版範本格式，已停用，請重新下載本月範本')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: /匯入預覽/ })).toHaveCount(0);
+
+  const file = path.join(__dirname, '..', '.results', 'template.xlsx');
+  fs.writeFileSync(file, pasted);
+  await page.locator('input[type="file"]').setInputFiles(file);
+  const dialog = page.getByRole('dialog', { name: /匯入預覽/ });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('本月範本，以門市代號對門市');
+  await expect(dialog.getByTestId('rx-preview-row')).toHaveCount(3);
+  await expect(dialog.locator('tr[data-status="coded"]')).toHaveCount(3);
+  await expect(dialog.locator('tr.bg-yellow-100')).toHaveCount(1);
+  await shot(page, '01-template-preview.png');
+  await dialog.getByRole('button', { name: '確認匯入 3 間' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '已匯入 3 間門市' })).toBeVisible();
+  expect(errors).toEqual([]);
 });
 
 test('畫面：上傳→預覽（黃色提醒＋待選門市）→選門市→確認→對照表', async ({ page }) => {
