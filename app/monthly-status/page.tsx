@@ -2833,6 +2833,12 @@ function QuarterPerformanceDetail({ summary }: { summary: QuarterPerformanceSumm
                     <div className="text-xs text-amber-600 mt-0.5">活動日折減80%</div>
                   )}
                 </>
+              ) : br ? (
+                <>
+                  {performanceThresholdBadge(0)}
+                  <div className="text-xs font-medium text-amber-600 mt-1">未達門檻</div>
+                  <div className="text-xs text-gray-400">達成 {formatRate(br.gpAchievementRate)}</div>
+                </>
               ) : (
                 <div className="text-xs text-gray-400 mt-2">無資料</div>
               )}
