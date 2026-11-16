@@ -283,4 +283,54 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 | W9 名單（DEV） | `profiles.role=admin` 共 2 人，**兩人都有帶更新或管理權限的有效角色，沒有「只能唯讀」的管理員**；只有查看全部、沒有更新碼的角色 1 個：`vue_workspace_navigation`（有效成員 1 人，DEV 導覽測試角色） | DEV 無需補授權；正式區名單由 36 號預覽產出，上線前經使用者確認 |
 
 ### 11.2 實作進度
-（尚未開工；SQL、API、畫面、測試依 §10 四階段進行，完成後在此補記）
+
+#### 第 1 階段（資料庫層，G18-db，2026-11-16）：已完成
+**範圍**：只做資料庫（DEV SQL＋rollback、套用腳本、正式區草稿 36–40、README、DB 層測試）；API、lib 純函式、畫面、導覽、角色劇本與 parity 在後面三個階段。**沒有 push，沒有動 `supabase/migrations`，沒有連正式區，沒有動 `_preview.html`。**
+
+**交付檔案**
+| 類別 | 檔案 |
+|---|---|
+| DEV SQL（各附 `.rollback.sql`） | `supabase/workspace-dev/20261117100000_m7m8_b5_work_order_rules`（12 個對外函式中的 11 個＋25 個內部輔助函式）、`…105000_m7m8_b5_request_supplement_sync`（覆蓋第 4 批 `ga_ws_req_transition`、`ga_ws_req_store_action`）、`…110000_m7m8_b5_work_order_parts`（`ga_ws_wo_issue_part`）、`…120000_m7m8_b5_work_order_rls`（三條政策收緊）、`…130000_m7m8_b5_dev_storage_and_seed`（DEV 專用） |
+| 備份 | `supabase/workspace-dev/_backup/20261117_b4_req_functions_before_b5.sql`（套用前 `pg_get_functiondef`，md5：`ga_ws_req_store_action=20a40759bb4488685c08cd885f785158`、`ga_ws_req_transition=a962e584ccd1679a2c246fddde688d3c`） |
+| 腳本 | `scripts/apply-workspace-m7m8-b5-dev.cjs [--rollback]`、`scripts/gen-m7m8-b5-105000.cjs`（由備份產生 105000，每個取代斷言只命中一次）、`scripts/build-m7m8-b5-prod-drafts.cjs`（由 DEV 檔產生 37–40） |
+| 正式區草稿 | `docs/vue-workspace/parity-plan/m7m8-sql/36-b5-preview-before-apply.sql`（唯讀）、`37-b5-work-order-rules`、`38-b5-request-supplement-sync`、`39-b5-work-order-parts`、`40-b5-work-order-rls`（37–40 各附 `-rollback`），README「第 5 批」章節與套用順序 36→37→38→39→40（40 要等名單確認） |
+| 測試 | `tests/integration/G18-db.work-orders-rpc.spec.ts`、`tests/unit/G18-db/work-order-sql.test.ts`、`tests/support/m7m8-po-fixtures.ts`（工單測試帳號 16 組）、`tests/support/m7m8-fixtures.ts`（`seedWorkOrder`、`seedMaintenanceCategory`、`cleanupM7M8` 擴充）、`tests/parity/allowlist.json`（22 筆 `m7m8-b5-*`） |
+
+**實作與設計的對應（§3、§5）**
+- 對外函式 12 個：`ga_ws_wo_list／get／summary／print／transition／store_confirm／report_unresolved／reply_supplement／delete／create_legacy／category／issue_part`。`transition` 是 SAVE_PROGRESS、REQUEST_COMPLETION、FORCE_CLOSE、REQUEST_SUPPLEMENT 的單一寫入入口。全部 SECURITY DEFINER、固定 `search_path`、回 `{ok,status,data,error,code}`、錯誤白話中文；只用 `has_permission(auth.uid(), …)`，沒有任何 `profiles.role` 後備（`ADMIN_WITHOUT_ROLE` 只是把「沒有可修改工單的角色」講清楚）。
+- 同步：內部函式 `ga_wo_sync_request`（護欄：需求單已完成／退回／取消不翻回；待總務複核與待補資料期間一般進度不翻轉）、`ga_wo_apply_completion_request`（送確認，**第 4 批 `request_store_confirmation` 改呼叫同一個函式**）、`ga_wo_apply_supplement_request`／`ga_wo_apply_supplement_reply`（W1 補資料往返，第 4 批 `request_supplement`／`submit_supplement` 呼叫）。
+- 鎖定順序與第 4 批一致（先需求單、後工單），避免死鎖；所有錯誤在寫入前回傳，寫入後的失敗用 RAISE 讓整段子交易回復。
+- 105000 只多三處呼叫，其餘與備份逐行相同（單元測試逐行比對）；rollback 是備份原文，DEV 實測「套用 → 撤回 → 再套用」後撤回狀態 md5 與備份完全相同。
+- 領用料件：先設 `app.ga_inv_internal_post='true'`，過帳後立即設回 `'false'`；流水 `reference_type=MAINTENANCE_REQUEST`、`reference_id=工單 id`、`reason=維修工單領用 WO-xxxxxxxx｜原因`；冪等重送回原結果（不重寫事件）；超庫存回 409 `INSUFFICIENT_STOCK`。
+
+**自行決定之處（設計沒寫死，列給使用者看；allowlist 中 `approvedBy` 為 null 的 7 筆就是這些）**
+1. **新增 `ga_ws_wo_reply_supplement`**：設計 §4.2 有「舊式單回覆」API 但函式清單沒有，補一個（回報人或該門市店長，需求單端的回覆仍走第 4 批 `submit_supplement`）。
+2. **存進度的額外阻擋**（`wo-state-blocks`）：待門市確認期間不能存進度、領料、補資料；需求單在待門市補資料期間工單不能存進度或送確認；不能直接把階段選成「待門市確認」（要按送確認）、連結單不能直接選「等待門市補充資料」（要按補資料）。目的：避免工單與需求單狀態分岔。
+3. **強制結案寫兩筆進度、兩筆事件**：內部（原因，`FORCE_CLOSE`）與公開（「總務已結案」，`FORCE_CLOSE_NOTICE`），店長的時間軸只看到後者。強制結案只限已受理或處理中（未受理的單請直接刪除或先受理）。
+4. **刪除不留 DELETED 事件**（`wo-delete-no-audit-event`）：事件表 FK 是 `ON DELETE CASCADE`（DEV 實測所有子表都是），事件會跟工單一起消失；可追溯的只有共用附件上的刪除標記（刪除人、原因含工單編號）。要不要另建稽核紀錄請使用者決定。刪除同意權限＝`work_order.manage`、`maintenance_request.update`、`cross_dept.maintenance.update` 或回報人本人（單純 `work_order.update` 不能刪，與舊版刪除政策相同、去掉 view_all）。
+5. **送門市確認說明可留白**（`wo-completion-note-optional`），預設「總務已標記處理完成，等待門市確認結果。」（舊版必填）。
+6. **新增舊式回報的權限**（`wo-create-legacy-perm`）：該門市店長且有 `maintenance_request.create` 或 `cross_dept.maintenance.submit`，或有工單更新權限；只有查看全部的人不能新增。需要防重複識別碼（同人同識別碼重送回原工單，先於內容驗證）；附件只收圖片、最多 5 張、路徑必須是 `maintenance_request/<工單id>/…` 且檔案已在儲存空間。
+7. **舊式單總務不能代按確認／仍有問題／回覆補資料**（`wo-legacy-no-proxy`）：設計只列回報人與店長；有需求單者的代按走第 4 批。
+8. **列表**：回報人永遠看得到自己的單（即使不是該門市店長）；`pageSize` 小於 1 用 20、大於 100 用 100；焦點卡計數不受焦點篩選影響、受其他篩選影響。
+9. **`ga_wo_apply_completion_request` 要求工單已受理或處理中**：第 4 批原本無條件把工單改成待確認（連已完成的也會），改為只套用於已受理／處理中的工單。
+10. **需求單端要求補資料**時，需求單處於「待總務複核」也允許（沿用第 4 批規則），工單端同樣允許。
+11. **120000 RLS**：刪除政策對所有人（含更新者）都加上「未受理且沒連需求單」，與 W4 一致；`maintenance_updates` 寫入政策只拿掉 view_all，**「本人署名」條款維持**（見下方發現）。
+12. **DEV 專用角色改名為 `vue_workspace_ga_wo_works`／`_viewer`／`_manager`**（見下方事故）。
+
+**實作中的發現**
+- **DEV 事故與修復（已處理）**：原本把 DEV 測試角色命名為 `vue_workspace_ga_works`，與角色矩陣既有的「測試工務」角色撞名；`ON CONFLICT (code) DO UPDATE` 把它的權限覆蓋成 8 個，之後我測 rollback 時又把整個角色連同成員指派刪掉，導致 `ga_works` 測試帳號全部 403（G14-G17 parity 與 smoke 失敗）。已用 `scripts/seed-workspace-role-matrix-dev.cjs --skip-legacy` 還原（`vue_workspace_ga_works` 回到 58 權限、1 位成員），DEV 專用角色改名為 `ga_wo_*` 前綴並確認不碰既有角色。教訓：DEV 專用角色代碼不可與 `tests/fixtures/role-matrix.json` 的 `vue_workspace_*` 撞名。
+- **子表「本人署名」條款是既有缺口**：`maintenance_updates` 寫入政策的 `updated_by = auth.uid()` 讓任何已登入者都能用自己的名義對任何工單新增進度（RLS 不檢查工單可見性）。新版函式不依賴它；120000 只拿掉 view_all，沒有再收緊（不在 Q20 範圍）。建議之後加上「工單看得到才能寫」的條件，需使用者決定。
+- **DEV 與正式區 `has_permission` 不同**：DEV 版檢查 `roles.is_active` 並有 RBAC `admin` 角色後備，正式區不檢查 `is_active`（記憶筆記）；本批函式一律呼叫 `has_permission`，語意跟著環境走，測試用的角色都是啟用狀態，沒有依賴差異。
+- **共用附件不能由 service role 直接寫入**：觸發器 `ga_validate_resource_attachment` 以 `auth.uid()` 當上傳人並驗證管理權限，service role 沒有 `auth.uid()` 會失敗；測試只能經 `ga_ws_wo_create_legacy`（以使用者身分）建立附件。刪除工單用 `app.ga_resource_attachment_soft_delete='on'` 標記刪除（本批函式內設定並設回）。
+- **Supabase 儲存空間保護**：不能用 SQL 刪 bucket，130000 的 rollback 會留下空的 `maintenance-photos` bucket（無害，已寫在 README）。
+- **第 4 批函式本體是 CRLF 換行**（migration 以 CRLF 貼入），105000 由產生器統一成 LF，所以套用後 md5 與備份不同是預期的（內容比對以單元測試為準）；rollback 直接用備份原文。
+- **36 預覽在 DEV 的結果**：第 6 區（只能查看全部）現在會列出測試帳號與 `vue_workspace_navigation`；第 7 區（沒有更新角色的管理員）會列出測試用的 `m7m8-test-po-admin`，都屬 DEV 測試資料，正式區的名單要使用者上線前確認。
+
+**驗證結果（2026-11-16，只連 DEV，循序執行）**
+- `npm run test:page -- G18-db`：單元 24（SQL 靜態檢查：授權、search_path、階段與焦點常數對齊 `lib/maintenance/status.ts`、105000 逐行比對、rollback 完整、草稿與 DEV 檔一致、36 唯讀）＋整合 20（權限矩陣讀寫、流轉表、有填才更新、需求單護欄、INTERNAL 不外洩、送確認與第 4 批結果一致、門市確認與仍有問題、強制結案、補資料往返含代按與需求單端入口、領用料件、刪除、新增舊式回報、改分類、列表分頁與焦點卡、時間軸與列印、RLS 直連、`BEGIN…ROLLBACK` 連帶刪除與函式目錄）全過。run-all 結束碼 1 只因 sweeper 基準 17 筆孤兒。
+- 第 4 批回歸（改了 `ga_ws_req_transition`、`ga_ws_req_store_action`）：`G14-G17` 33（單元 18、smoke 10、整合 17、parity 6）、`G16` 6、`G17` 7、`G27` 單元 13＋17、`G26-db` 單元 37＋22、`G25-db` 單元 43＋21、`G25` 劇本 2，全部通過；結束碼 1 皆只因 sweeper 基準 17 筆孤兒。補資料往返的專門劇本（G28）在後面階段。
+- `npm run test:unit`：117 檔 1790 項全綠；`npx tsc --noEmit`、`vue-tsc --noEmit` 無錯誤。本階段沒有動 Vue、API 或 `public/workspace`，所以沒有跑 Vue build 與同步。
+- 正式區：全部只出草稿；`36` 已在 DEV 以唯讀方式跑過（語法與欄位正確）。
+
+**未完成／留給後面階段**：規則與 API（`lib/workspace/general-affairs/work-orders*.ts`、`router.ts`、abilities、附件簽名、列印資料）、畫面（工單中心、跨部門頁、需求單與我的追蹤的工單摘要、列印）、角色劇本（G18、G19、G28）、G18 parity 對舊 `/api/maintenance-requests*`、版面與列印 e2e、Q20 名單與 W9 名單的正式區確認、上線前使用者核可。
+
