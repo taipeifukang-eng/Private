@@ -54,9 +54,11 @@ describe('到貨明細規則（D12、D13）', () => {
     expect(receiptLineProblem(line({ accepted_qty: 4, reason: '1 台外箱破損' }), ctx())).toBeNull();
     expect(receiptLineProblem(line({ accepted_qty: 0, reason: '整批退回' }), ctx())).toBeNull();
   });
-  it('短收（到貨小於剩餘可收量）必須原因', () => {
-    expect(receiptLineProblem(line({ delivered_qty: 3, accepted_qty: 3 }), ctx())?.code).toBe('REASON_REQUIRED');
+  it('分批到貨（到貨小於剩餘可收量、驗入等於到貨）不用填原因（2026-11-16 驗收決定）', () => {
+    expect(receiptLineProblem(line({ delivered_qty: 3, accepted_qty: 3 }), ctx())).toBeNull();
     expect(receiptLineProblem(line({ delivered_qty: 3, accepted_qty: 3, reason: '分兩批到' }), ctx())).toBeNull();
+    // 分批但同時有破損：仍要原因
+    expect(receiptLineProblem(line({ delivered_qty: 3, accepted_qty: 2 }), ctx())?.code).toBe('REASON_REQUIRED');
   });
   it('到貨量必須大於 0；驗入量不可為負', () => {
     expect(receiptLineProblem(line({ delivered_qty: 0, accepted_qty: 0 }), ctx())?.code).toBe('INVALID_QUANTITY');

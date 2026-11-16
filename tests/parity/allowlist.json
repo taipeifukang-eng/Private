@@ -5732,8 +5732,8 @@
     "id": "m7m8-b4-po-threshold-adjustable-by-approver",
     "page": "purchase-orders",
     "description": "持有採購核准權限的人可調整核准門檻、稅率、歷史價筆數與是否啟用核准，每次調整寫事件（誰、舊值、新值），只影響之後送出的單；沒有獨立的調整門檻權限。",
-    "reason": "設計文件第 8 節風險：持核准權限者可調高門檻繞過核准，以事件與門檻快照控管。新發現，待使用者確認。",
-    "approvedBy": null,
+    "reason": "使用者 2026-11-16 第 4 批驗收決定維持現狀：持核准權限者可調整門檻，靠事件紀錄（誰、舊值、新值）與送核准時的門檻快照控管。",
+    "approvedBy": "user (2026-11-16 batch 4 acceptance)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5804,8 +5804,8 @@
     "id": "m7m8-b4-rc-purchase-amount-excl-tax",
     "page": "purchase-orders",
     "description": "配發與直接建設備建立的設備，購價（既有欄位 purchase_amount）填「未稅單價」（採購單位單價換算成每台），並在設備備註註明；舊版欄位沒有註明含稅與否。",
-    "reason": "設計補充：設計 §3.3 要求實作前核對含稅與否，欄位語意沒有定義，先採建議（未稅）。新發現，待使用者確認含稅與否。",
-    "approvedBy": null,
+    "reason": "使用者 2026-11-16 第 4 批驗收確認：設備購價記未稅單價（舊欄位語意沒有註明，維持現狀並在設備備註註明）。",
+    "approvedBy": "user (2026-11-16 batch 4 acceptance)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5827,9 +5827,9 @@
   {
     "id": "m7m8-b4-rc-short-delivery-needs-reason",
     "page": "purchase-orders",
-    "description": "到貨量小於剩餘可收量（短收）要填原因，破損或拒收（驗入量小於到貨量）也要；一般分批到貨也算短收，需要填原因（例如「分批到貨」）。",
-    "reason": "任務規格寫「短收或破損須原因」，對「短收」的解讀是到貨量小於剩餘量。新發現，待使用者確認是否分批到貨也要填。",
-    "approvedBy": null,
+    "description": "到貨量小於剩餘可收量（分批到貨）不用填原因；只有破損或拒收（驗入量小於到貨量）、改收貨位置或替代料（變更原因）、短收結案要填原因。",
+    "reason": "使用者 2026-11-16 第 4 批驗收決定：分批到貨不用填原因。已改資料庫函式、API、畫面與測試。",
+    "approvedBy": "user (2026-11-16 batch 4 acceptance)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",

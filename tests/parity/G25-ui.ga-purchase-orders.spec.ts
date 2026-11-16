@@ -151,7 +151,7 @@ test('採購到貨入庫：同樣數量入庫後庫存餘額、流水、處理�
   const lr = await ga.post(`${L}/requests/${l.id}/purchase-receipt`, { data: { locationId: loc.id, partId: part.id, quantity: 3, inputUnitType: 'BASE', idempotencyKey: key() } });
   expect(lr.status(), JSON.stringify(await body(lr))).toBe(201);
   const afterLegacy = await dbBal();
-  // 新版：採購單登錄到貨 3（短收：剩餘 4，原因必填）
+  // 新版：採購單登錄到貨 3（分批：剩餘 4，不用填原因）
   const item = (await body(placed)).data.items[0];
   const nr = await ga.post(`${N}/purchase-orders/${po.id}/receipts`, { data: { header: {}, lines: [{ po_item_id: item.id, delivered_qty: 3, reason: '分批到貨' }], idempotency_key: key() } });
   statusDiff(diffs, 'receipt-status', lr.status(), nr.status());

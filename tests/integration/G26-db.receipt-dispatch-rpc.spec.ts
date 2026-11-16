@@ -274,14 +274,15 @@ test('登錄到貨即驗入：入帳、流水、餘額、進貨明細、事件�
   expect([g.data.items[0].received_qty, g.data.items[0].remaining_qty, g.data.items[0].received_base, g.data.items[0].dispatched_base, g.data.items[0].dispatchable_base].map(Number)).toEqual([5, 0, 5, 0, 5]);
 });
 
-test('部分到貨與補送：部分到貨要填原因；超過剩餘可收量擋（D13）；補滿才變全部到貨；短收結案後不能取消', async () => {
+test('部分到貨與補送：分批到貨不用填原因；超過剩餘可收量擋（D13）；補滿才變全部到貨；短收結案後不能取消', async () => {
   const po = await ordered(items(partB.id, 5, 100));
   const it = itemId(po);
   const b0 = await balance(loc.id, partB.id);
-  expectErr(await recv('purchaser', po, [{ po_item_id: it, delivered_qty: 2 }]), 400, 'REASON_REQUIRED', '短收');
+  // 破損（驗入小於到貨）不填原因仍被擋；分批到貨（到貨小於剩餘）不填原因可以成功（2026-11-16 驗收決定）
+  expectErr(await recv('purchaser', po, [{ po_item_id: it, delivered_qty: 2, accepted_qty: 1 }]), 400, 'REASON_REQUIRED', '破損或拒收');
   expect(await balance(loc.id, partB.id)).toBe(b0);
   expect(await dbReceipts(po.id)).toHaveLength(0);
-  const p1 = await recv('purchaser', po, [{ po_item_id: it, delivered_qty: 2, reason: '廠商分批出貨' }]);
+  const p1 = await recv('purchaser', po, [{ po_item_id: it, delivered_qty: 2 }]);
   expect(p1.status).toBe(201);
   expect(p1.po.status).toBe('PARTIALLY_RECEIVED');
   expect(Number((await dbItem(it)).received_qty)).toBe(2);
@@ -299,8 +300,9 @@ test('部分到貨與補送：部分到貨要填原因；超過剩餘可收量�
   expect((await dbEvents(po.id)).filter((e) => e.event_type === 'receive').map((e) => [e.from_status, e.to_status])).toEqual([['ORDERED', 'PARTIALLY_RECEIVED'], ['PARTIALLY_RECEIVED', 'RECEIVED']]);
   // 短收結案：部分到貨後以原因結案；有到貨紀錄的單不能取消
   const po2 = await ordered(items(partB.id, 4, 100));
-  const q = await recv('purchaser', po2, [{ po_item_id: itemId(po2), delivered_qty: 1, reason: '其餘廠商缺貨' }]);
+  const q = await recv('purchaser', po2, [{ po_item_id: itemId(po2), delivered_qty: 1 }]);
   expectErr(await act('purchaser', q.po, 'cancel', '想取消'), 409, 'HAS_RECEIPTS');
+  expectErr(await act('purchaser', q.po, 'short_close', ''), 400, 'REASON_REQUIRED'); // 短收結案仍要原因
   const sc = await act('purchaser', q.po, 'short_close', '廠商停產');
   expect(sc.data.status).toBe('CLOSED');
   expectErr(await recv('purchaser', po2, [{ po_item_id: itemId(po2), delivered_qty: 3, reason: 'x' }]), 409, 'INVALID_STATE');

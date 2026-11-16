@@ -44,7 +44,7 @@
 | D9 | `recent5_new_only` | 選了料件後，該品項旁顯示同料件最近 5 筆「已下訂以上」（`ORDERED`、`PARTIALLY_RECEIVED`、`RECEIVED`、`CLOSED`）採購：日期（台北）、供應商（快照名稱）、單價、數量、單號。草稿、待核准、已核准未下訂、已取消不算；不回推舊版評估，從上線日起累積。自由品名無歷史價。 |
 | D10 | `lock_after_order` | 狀態：草稿 → 已下訂 → 部分到貨 → 全部到貨 → 已結案，另有已取消，加 D6 的待核准、已核准待下訂（§3.1）。下訂後品項、數量、單價鎖定，只能改備註與預計到貨日。下訂前可取消（原因選填）；下訂後尚未到貨可取消但須填原因；已有到貨紀錄只能「短收結案」（須填原因），不能取消。 |
 | D11 | `same_person_ok` | 開單、下訂、到貨驗入、配發不限制不同人；有三個權限的總務可以做全部步驟。系統記錄每一步操作人與時間（事件表），採購單上顯示。**與 D6 的取捨**：D11 只放寬「採購流程各步驟」，核准是唯一例外——核准／駁回須持採購核准權限，且核准人不可是開單人，也不可是最後一次送核准的人（`created_by`、`submitted_by`）。管理員（`profiles.role==='admin'`）不繞過核准（DB 無 admin bypass，與第 3 批帳務寫入一致）。若公司只有一位核准人又是開單人，該人要核准自己開的單時需另一位持核准權限者。核准人**不需**持有三個採購權限（只需核准權限即可看到單與金額並核准／駁回），反之持三個權限者沒有核准權限不能核准。 |
-| D12 | `one_step`（**與建議不同**） | 到貨與驗入合併一步：登錄到貨（即進貨紀錄 `ga_purchase_receipts`）的同時驗入，總部倉庫存立即增加（入庫過帳）。可部分到貨；短收、破損須填原因。因此**沒有**「待驗收」狀態，也沒有獨立的驗入動作。 |
+| D12 | `one_step`（**與建議不同**） | 到貨與驗入合併一步：登錄到貨（即進貨紀錄 `ga_purchase_receipts`）的同時驗入，總部倉庫存立即增加（入庫過帳）。可部分到貨（分批不用填原因，2026-11-16 驗收決定）；破損、拒收與短收結案須填原因。因此**沒有**「待驗收」狀態，也沒有獨立的驗入動作。 |
 | D13 | `block_over` | 廠商多送貨一律擋：本次到貨量不得超過該品項剩餘可收量（訂購量減已驗入量）。真要多收，先修改採購單（已下訂則取消重開）。 |
 | D14 | `one_part_one_model` | 料件上標記「採購入庫後可轉成哪個設備型號」：`ga_parts.equipment_template_id`（一個料件一個型號，一個型號可有多個料件）。找不到對應時，配發當下手動選型號。**不使用**舊的 `ga_part_target_compatibilities`（適用對象相容設定，另作他用不變）。 |
 | D15 | `dispatch_creates_assets` | 配發 = 總部倉出庫 N ＋ 為該門市建 N 筆設備，在同一個資料庫交易內完成，失敗全部不算；可分次配發；每台設備連結回採購單與進貨紀錄，帶入型號、購價、供應商、保固起算日；序號可空白，由店長貼標時補填；建立後該店立刻收到貼標待辦。 |
@@ -101,7 +101,7 @@
 - `ga_purchase_order_items`：`id`、`po_id`、`line_no`、`part_id`（可空）、`item_name`、`spec`、`unit`、`quantity`、`quantity_base`、`unit_price`、`line_amount`、`request_id`（連結需求單，可空）、`fulfil_mode`（`STOCK`、`DIRECT_ASSET`、`NO_STOCK`）、`target_store_id`（`DIRECT_ASSET` 必填）、`equipment_template_id`（`DIRECT_ASSET` 在料件沒有對應時必填）、`over_request_reason`、`received_qty`、`dispatched_qty`、`notes`。CHECK：`part_id` 與 `item_name` 至少一個；`STOCK` 必須有 `part_id`。**自由品名且非設備者用 `NO_STOCK`（只登錄到貨，不入庫不建設備）——這是設計補的第三種，問卷只問兩條路，列入差異清單 `approvedBy` null 待使用者確認。**
 - `ga_purchase_order_events`：每個動作一筆（`event_type`、`from_status`、`to_status`、`actor_id`、`note`、`payload jsonb`、`created_at`）；D11 的「每步操作人與時間」來源；不可改刪觸發器。
 - `ga_purchase_receipts`（進貨紀錄，D12 的「登錄到貨」）：`receipt_no`（`RC-YYYYMMDD-NNN`）、`po_id`、`received_date`（台北，不可未來）、`delivery_note_no`（廠商送貨單號，選填）、`notes`、`idempotency_key`（UNIQUE）、`created_by/at`。
-- `ga_purchase_receipt_items`：`receipt_id`、`po_item_id`、`delivered_qty`、`accepted_qty`、`rejected_qty`、`reason`（短收或破損必填）、`received_part_id`（預設等於品項料件）、`location_id`、`change_reason`（位置或料件與採購單不同時必填）、`inventory_transaction_id`（`STOCK`）、`dispatched_qty`（FIFO 配發用）。**第 4.5 批的「進貨單憑證、發票」將重用本兩表，不得讓本批結構妨礙擴充（預留 `voucher_*` 由 4.5 再加）。**
+- `ga_purchase_receipt_items`：`receipt_id`、`po_item_id`、`delivered_qty`、`accepted_qty`、`rejected_qty`、`reason`（破損或拒收必填；分批到貨不用）、`received_part_id`（預設等於品項料件）、`location_id`、`change_reason`（位置或料件與採購單不同時必填）、`inventory_transaction_id`（`STOCK`）、`dispatched_qty`（FIFO 配發用）。**第 4.5 批的「進貨單憑證、發票」將重用本兩表，不得讓本批結構妨礙擴充（預留 `voucher_*` 由 4.5 再加）。**
 - `ga_stock_dispatches`（配發單）：`dispatch_no`（`DSP-YYYYMMDD-NNN`）、`po_item_id`、`part_id`、`store_id`、`quantity`、`equipment_template_id`、`source_location_id`、`issue_transaction_id`、`request_id`（可空）、`idempotency_key`（UNIQUE）、`notes`、`created_by/at`。
 - `ga_workflow_settings`：`key`、`value_num`、`value_text`、`updated_by/at`；鍵：`po_approval_enabled`（1）、`po_approval_threshold`（5000）、`po_tax_rate`（0.05）、`request_overdue_confirm_days`（7）、`po_price_history_limit`（5）。
 - `ga_asset_transfer_moved_requests`（35）：`id`、`transfer_id`（可空）、`asset_event_id`（更正所屬門市時用）、`asset_type`、`asset_id`、`kind`（`REQUEST`、`WORK_ORDER`、`UNLINKED_WORK_ORDER`）、`request_id`、`work_order_id`、`from_store_id`、`to_store_id`、`moved`（boolean，`UNLINKED_WORK_ORDER` 為 false，只列清單）、`created_at`。
@@ -294,14 +294,14 @@
 完成 DEV 的 `20261112120000_m7m8_b4_receipt_dispatch`（含 rollback）、正式區草稿 `34-b4-receipt-dispatch`（含 rollback，README 第 4 批章節已更新）、純函式 `lib/workspace/general-affairs/purchase-receipt-rules.ts`、料件 API 與規則的 `equipment_template_id`（可清空、型號需啟用）、Vue 料件表單的型號欄位；單元 37 項、整合 22 項（`tests/integration/G26-db.receipt-dispatch-rpc.spec.ts`，含 1 項在資料庫交易內執行且結束一律回復的測試）。DEV 專用清除函式 `ga_dev_cleanup_m7m8_purchasing` 已擴充：一併清掉由測試採購單配發或到貨建立的設備與它們用掉的資產編號流水。Vue 的採購單頁與到貨、配發畫面、workspace API 路由留給後續階段。
 
 **實作的規則（與設計 §3.2、§3.3 對照）**
-- **到貨驗入（D12、D13、D3、D16）**：`ga_ws_po_receive(po_id, header, lines, key)`。採購單要是「已下訂」或「部分到貨」；三個採購權限缺哪個講清楚；識別必填（最長 64 字），鎖住採購單後先查識別（同識別同內容回原結果 `idempotent_replay`、同識別不同內容 409）。到貨日預設今天，不可晚於今天、不可早於下訂日。每一列：到貨量 > 0；驗入量預設等於到貨量、不可大於到貨量；到貨量不得超過剩餘可收量（訂購量減**已驗入量**，破損拒收不算已收）；驗入量小於到貨量或到貨量小於剩餘量（短收）要原因；STOCK 品項可改位置、改收替代料（都須變更原因，替代料單位須與品項單位相符）；DIRECT_ASSET 與 NO_STOCK 不能指定位置或料件。STOCK 以 `ga_ws_inv_post` 入庫（參考單據 `GA_PURCHASE_ORDER`、固定識別 = 到貨識別＋品項、過去的到貨日用該日中午當發生時間）；DIRECT_ASSET 直接建設備（驗入量換算基本單位須為整數）；NO_STOCK 只登錄。任何一列失敗整筆回復（包含先前已成功的入帳）。成功後更新品項已驗入量、採購單狀態（全部達訂購量 = 全部到貨、有驗入 = 部分到貨、整批拒收維持原狀）、寫事件 `receive`，並在連結的需求單時間軸加一筆內部事件。
+- **到貨驗入（D12、D13、D3、D16）**：`ga_ws_po_receive(po_id, header, lines, key)`。採購單要是「已下訂」或「部分到貨」；三個採購權限缺哪個講清楚；識別必填（最長 64 字），鎖住採購單後先查識別（同識別同內容回原結果 `idempotent_replay`、同識別不同內容 409）。到貨日預設今天，不可晚於今天、不可早於下訂日。每一列：到貨量 > 0；驗入量預設等於到貨量、不可大於到貨量；到貨量不得超過剩餘可收量（訂購量減**已驗入量**，破損拒收不算已收）；驗入量小於到貨量（破損、拒收）要原因，分批到貨（到貨量小於剩餘量）不用填原因；STOCK 品項可改位置、改收替代料（都須變更原因，替代料單位須與品項單位相符）；DIRECT_ASSET 與 NO_STOCK 不能指定位置或料件。STOCK 以 `ga_ws_inv_post` 入庫（參考單據 `GA_PURCHASE_ORDER`、固定識別 = 到貨識別＋品項、過去的到貨日用該日中午當發生時間）；DIRECT_ASSET 直接建設備（驗入量換算基本單位須為整數）；NO_STOCK 只登錄。任何一列失敗整筆回復（包含先前已成功的入帳）。成功後更新品項已驗入量、採購單狀態（全部達訂購量 = 全部到貨、有驗入 = 部分到貨、整批拒收維持原狀）、寫事件 `receive`，並在連結的需求單時間軸加一筆內部事件。
 - **配發（D15、D14）**：`ga_ws_po_dispatch(po_item_id, store_id, quantity, template_id, template_reason, source_location_id, serials, notes, key)`。只有 STOCK 品項、且採購單已有驗入；數量 1 至 200 的整數；先依來源位置（預設採購單收貨位置）找最早的可配發進貨明細決定這次配發的料件，可配發量 = 同品項、同位置、同料件各進貨明細「驗入量 − 已配發量」的加總。型號：料件有對應就帶入，改選別的型號要原因；沒有對應必須手選；對應的型號被停用要改選。序號清單依順序給各台，可空，清單內與既有同型號設備序號不可重複。同一交易內：寫配發單 → `ga_ws_inv_post` ISSUE → 依先進先出每台建設備（保固起算日與購置日期 = 該批進貨日、連結進貨明細與配發單）→ 更新已配發量 → 事件 `dispatch`（含分配明細）。任一步失敗整筆回復（含已出庫的流水）。
 - **設備欄位**：型號帶入分類、名稱、品牌、型號、規格與用途；購價 = 品項單價換算成每台的**未稅**單價（見下）；供應商與名稱快照；`has_warranty` 與到期日只在型號有預設保固月數時帶出。資產編號沿用舊版（`ga_next_equipment_asset_code`，需分類有第二層分類代碼，購置日期 = 到貨日；QR 與舊版一樣第一次列印才發放）。建立後貼標狀態是 `NEEDS_EQUIPMENT_PHOTO`，該店店長立即在待辦清單看到。
 - **序號補填**：`ga_ws_onboarding_set_serial(equipment_id, serial, reason)`，限該門市店長（名單身分 `store_managers`）與設備管理權限者；已有序號要改須原因、同序號不算變更；同型號（或同品牌加型號）序號不可重複；每次變更寫 `ga_equipment_serial_events`。
 - **料件對應型號（D14）**：`ga_parts.equipment_template_id`＋觸發器（新設或更換時型號須存在、啟用、未刪除，可清空，型號之後被停用已設定的對應保留；改別的欄位不受影響）；`ga_ws_update_part_guarded` 的允許欄位清單加上它；API 回 422 `TEMPLATE_INVALID`。
 
 **第 9 節核對結果的補充（C 階段）**
-- `ga_equipment.purchase_amount` 含稅與否：欄位沒有註明，採建議填未稅單價並在備註註明；**待使用者確認**（allowlist `m7m8-b4-rc-purchase-amount-excl-tax`）。
+- `ga_equipment.purchase_amount` 含稅與否：使用者 2026-11-16 驗收確認記未稅單價並在備註註明（allowlist `m7m8-b4-rc-purchase-amount-excl-tax`，已核可）。
 - 保固：舊版建立設備**沒有**依型號保固月數推算到期日的規則（設計寫「若舊版有就沿用」），所以這是新做法（allowlist `m7m8-b4-rc-warranty-start-and-end`）。
 - 資產編號：需要分類有第二層分類代碼；取不到時整筆擋下並說明（`ASSET_CODE_UNAVAILABLE`），不外露資料庫原文。
 - 庫存出庫沿用既有的拆封規則：有採購單位且不允許拆封的料件，配發量必須是整箱（`UNPACKING_NOT_ALLOWED`）；配發設備的料件通常以「個／台」為基本單位。
@@ -368,7 +368,7 @@
 - 採購單清單：11 張統計卡（全部、各狀態、逾期未到貨、我開的，點卡片即篩選）、搜尋、卡片清單；詳情視窗含品項、金額與未稅／稅額、核准資訊與最近駁回原因、時間軸（每步操作人與時間）、進貨紀錄、配發紀錄（含建立的設備與序號），以及依 `abilities` 顯示的動作。草稿只留一條路：含稅總額超過門檻只顯示「送核准」，未超過只顯示「下訂」。核准人才看得到「核准設定」。
 - 新增與編輯草稿：供應商只能選已建好且合作中的（附「去舊版新增供應商」連結，開舊版廠商管理頁）、收貨位置、預計到貨日；品項可選料件或自由品名，選了料件顯示同料件最近 5 筆已下訂以上的歷史價；每品項選「入總部庫存」「到貨直接建設備」或「只登錄到貨」；連到需求單的品項超過需求量要填原因；金額即時試算（同一份純函式）。已下訂只能改備註與預計到貨日。資料（設定與採購單）載完才顯示表單。
 - 待簽核清單：只有持採購核准者；核准、駁回（原因必填）。
-- 登錄到貨視窗：每個還有剩餘可收量的品項一列，預設帶剩餘量；短收、破損、改位置、改收替代料的原因規則與資料庫共用同一份純函式（送出前就提示）；固定識別防重複。配發視窗：品項、門市（選擇器）、數量、型號（料件有對應就沿用、要改須原因、沒對應必選）、序號（每行一個，可空白）。
+- 登錄到貨視窗：每個還有剩餘可收量的品項一列，預設帶剩餘量；破損拒收、改位置、改收替代料的原因規則（分批到貨不用原因）與資料庫共用同一份純函式（送出前就提示）；固定識別防重複。配發視窗：品項、門市（選擇器）、數量、型號（料件有對應就沿用、要改須原因、沒對應必選）、序號（每行一個，可空白）。
 - 貼標待辦：設備卡片加序號欄位（店長補填、已有序號要改須填原因）。
 
 **測試**
@@ -439,9 +439,9 @@
 
 **到貨驗入與配發（G26-db），9 筆**
 
-- `m7m8-b4-rc-purchase-amount-excl-tax`：設計補充：設計 §3.3 要求實作前核對含稅與否，欄位語意沒有定義，先採建議（未稅）。新發現，待使用者確認含稅與否。
+- `m7m8-b4-rc-purchase-amount-excl-tax`：設備購價記未稅，使用者 2026-11-16 驗收確認，已核可。
 - `m7m8-b4-rc-warranty-start-and-end`：設計 §3.3 寫「舊版規則由型號保固月數算就沿用」，核對後舊版沒有這個規則，這是新做法。新發現，待使用者確認。
-- `m7m8-b4-rc-short-delivery-needs-reason`：任務規格寫「短收或破損須原因」，對「短收」的解讀是到貨量小於剩餘量。新發現，待使用者確認是否分批到貨也要填。
+- `m7m8-b4-rc-short-delivery-needs-reason`：使用者 2026-11-16 驗收決定分批到貨不用填原因；仍要原因的只有破損或拒收、改位置或改收替代料、短收結案。已依此改資料庫、API、畫面與測試，已核可。
 - `m7m8-b4-rc-rejected-not-counted`：實作決定（問卷只說短收與破損要填原因）。新發現，待使用者確認。
 - `m7m8-b4-rc-dispatch-no-equipment-manage`：設計補充（依 D11 三個權限可做全部步驟）。新發現，待使用者確認。
 - `m7m8-b4-rc-dispatch-single-part-fifo`：實作決定：改收替代料或改位置後，同一品項可能有多種料件與位置的庫存，先進先出以最早一批為準。新發現，待使用者確認。
@@ -482,7 +482,7 @@
 
 **其他需要使用者決定的事項（彙整自前五個階段）**
 
-- 購價含稅與否：設備購價重用 `purchase_amount`，目前填每台未稅單價並在備註註明（`m7m8-b4-rc-purchase-amount-excl-tax`）。
+- 購價含稅與否：設備購價重用 `purchase_amount`，填每台未稅單價並在備註註明（使用者 2026-11-16 確認未稅，`m7m8-b4-rc-purchase-amount-excl-tax`）。
 - 分批到貨是否也要填原因：目前到貨量小於剩餘量就要填原因（`m7m8-b4-rc-short-delivery-needs-reason`）。
 - 核准人入口：只持「採購核准」權限的角色，若沒有「總務服務中心入口」權限，從主選單進不了服務中心；目前在 README 寫明核准角色要另外勾選，若要放寬請告知（會動到導覽對等）。
 - 店長角色上線前需有 `request.create`、`view_own_store`、`comment_own_store`、`confirm_own_store`（舊版頁面本來就需要，DEV 的 `store_manager` 測試帳號沒有）。
@@ -530,9 +530,9 @@
 
 **屬實但為有意設計，列為待使用者決定（沒有改程式）**
 - SQL 審查 2（到貨明細沒有更正機制）：需新增「作廢進貨明細」功能，屬新功能，建議列入第 4.5 批；現況限制：填錯只能走庫存調整與人工處理。
-- 7、15（持核准權限者可調門檻、利益迴避較窄）：已有 `m7m8-b4-po-threshold-adjustable-by-approver` 登記；上線風險寫入 README（調整會留紀錄，建議上線後定期稽核；至少兩位核准人）。要不要改成「調整門檻須第二人複核」或「參與編輯與送簽者都不可核准」，請使用者決定。
+- 7、15（持核准權限者可調門檻、利益迴避較窄）：使用者 2026-11-16 驗收決定維持現狀（靠事件紀錄與門檻快照控管），`m7m8-b4-po-threshold-adjustable-by-approver` 已核可；上線風險仍寫在 README（調整會留紀錄，建議上線後定期稽核；至少兩位核准人）。
 - 9（各通路需求量未統一控管）：庫存出庫、調撥、採購各自控管，要合併成共用承諾量屬規則變更，請使用者決定。
-- 12、13（金額進位位置、評估金額含稅與否）：現行規則是品項各自進位、評估金額視為未稅，請使用者確認後再改。
+- 12、13（金額進位位置、評估金額含稅與否）：使用者 2026-11-16 驗收決定維持現行規則（品項各自進位、金額記未稅），不改。
 - 18（正式區函式被覆蓋）：草稿 31 已列兩個被覆蓋函式的目前 md5；正式區是否手改過只有使用者能判斷，套用前請先用 `pg_get_functiondef` 備份四個被覆蓋函式。
 - 19（舊式工單比對是啟發式）：已有 `m7m8-b4-mv-legacy-workorder-heuristic` 登記，畫面標「疑似」可另案。
 - 20、程式審查 6（選擇器對任何可看採購單者全開）：只回公開欄位；是否改成依型別要求對應檢視權限，請使用者決定。
@@ -541,3 +541,12 @@
 - 程式審查 9（單元測試只檢查檔案與格式）：屬實，那組測試定位是文件與檔案齊全檢查，功能驗收由整合、冒煙、e2e 負責；本次另補 `B4-REVIEW` 單元與整合測試。
 
 **本次新登記待確認（`approvedBy` 為 null）**：`m7m8-b4-rv-po-short-close-releases`、`m7m8-b4-rv-po-direct-asset-serial-blocked`、`m7m8-b4-rv-po-direct-asset-limit-200`、`m7m8-b4-rv-po-nav-db-semantics`、`m7m8-b4-rv-ful-non-part-no-fulfillment`、`m7m8-b4-rv-legacy-receipt-block-by-request`。
+
+## 12.8 第 4 批驗收後決定與修正（2026-11-16）
+
+使用者驗收第 4 批後的決定與已做的修正：
+1. **分批到貨不用填原因**：登錄到貨時，到貨量小於剩餘可收量（分批）不再要求原因。仍要原因的只有：破損或拒收（驗入量小於到貨量）、改收貨位置或改收替代料（變更原因）、短收結案。已改資料庫函式 `ga_ws_po_receive`（只剩 `acc < deliv` 才要 `reason`）、共用規則 `receiptLineProblem`、登錄到貨視窗（欄位標籤「原因（有破損拒收時必填）」），單元、整合與劇本測試同步，並新增三個證明：分批不填原因可成功、破損不填原因仍被擋、短收結案不填原因仍被擋。allowlist `m7m8-b4-rc-short-delivery-needs-reason` 已核可。正式區草稿 34 已重產。
+2. **購入價格記未稅（維持現狀）**：`m7m8-b4-rc-purchase-amount-excl-tax` 已核可；審查 SQL 12、13 維持現行規則。
+3. **核准權限者可調高門檻（維持現狀）**：`m7m8-b4-po-threshold-adjustable-by-approver` 已核可，靠事件紀錄與門檻快照控管。
+4. **畫面瑕疵 A**：到貨超過剩餘可收量被擋時，同一句錯誤只顯示在品項下方；表單底部只放非品項的錯誤。
+5. **畫面瑕疵 B**：採購單詳情頂端的缺權限黃色提示改為 `abilities.problemNotice`：完全沒有三個採購權限的人（只有核准的核准人、只有檢視者）不提示；能核准這張單的人不提示；只有「有部分採購權限但缺其他」才提示。`abilities.problem` 保持原樣，仍供 API 預檢與按鈕判斷使用。

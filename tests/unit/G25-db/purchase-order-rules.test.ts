@@ -219,6 +219,25 @@ describe('abilities：三個權限缺哪個講清楚、核准人限制', () => {
     expect(a).toMatchObject({ approve: true, reject: true, edit: false, place_order: false, showAmounts: true });
     expect(canViewPo(who)).toBe(true);
   });
+  it('頂端缺權限提示：核准人與只有檢視者不提示；有部分採購權限但缺其他才提示', () => {
+    const none = { ...full, reviewManage: false, transactionManage: false, partView: false };
+    // 只有採購核准：能核准別人的單、也看已下訂的單，都不提示（但 problem 仍保留給 API 預檢）
+    const approverOnly: PoWho = { ...none, approve: true };
+    expect(poAbilities(approverOnly, { status: 'PENDING_APPROVAL', created_by: OTHER, submitted_by: OTHER }).problemNotice).toBe('');
+    const viewing = poAbilities(approverOnly, { status: 'ORDERED', created_by: OTHER });
+    expect(viewing.problemNotice).toBe('');
+    expect(viewing.problem).toContain('缺少');
+    // 僅檢視（採購評估檢視）：不提示
+    expect(poAbilities({ ...none, reviewView: true }, { status: 'DRAFT', created_by: OTHER }).problemNotice).toBe('');
+    // 三個權限都有：不提示
+    expect(poAbilities(full, { status: 'DRAFT', created_by: ME }).problemNotice).toBe('');
+    // 有部分採購權限但缺其他：提示缺哪個
+    expect(poAbilities({ ...full, partView: false }, { status: 'DRAFT', created_by: ME }).problemNotice).toContain('料件查看');
+    expect(poAbilities({ ...none, reviewManage: true }, { status: 'DRAFT', created_by: ME }).problemNotice).toContain('庫存交易管理、料件查看');
+    // 部分採購權限同時是能核准這張單的核准人：不提示；核准人但是開單人（核准被擋）且有部分權限：提示
+    expect(poAbilities({ ...none, reviewManage: true, approve: true }, { status: 'PENDING_APPROVAL', created_by: OTHER, submitted_by: OTHER }).problemNotice).toBe('');
+    expect(poAbilities({ ...none, reviewManage: true, approve: true }, { status: 'PENDING_APPROVAL', created_by: ME, submitted_by: ME }).problemNotice).toContain('缺少');
+  });
   it('核准人不可是開單人、也不可是最後送核准的人；管理員不繞過（abilities 沒有 admin 旗標）', () => {
     const who: PoWho = { ...full, approve: true };
     const own = poAbilities(who, { status: 'PENDING_APPROVAL', created_by: ME, submitted_by: OTHER });

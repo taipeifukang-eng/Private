@@ -408,22 +408,22 @@ test('到貨登錄：Origin、權限矩陣、400、超收擋、短收／破損�
   expect(await bad({ idempotency_key: '' })).toBe(400);
   expect(await bad({ foo: 1 })).toBe(400);
   expect((await send('purchaser', 'post', `${P}/not-a-uuid/receipts`, body)).status).toBe(400);
-  // 超收（剩餘 5，到貨 6）：擋；短收（到貨 3 < 剩餘 5）沒原因：擋；破損沒原因：擋
+  // 超收（剩餘 5，到貨 6）：擋；破損沒原因：擋；分批（到貨 3 < 剩餘 5）不填原因可成功（2026-11-16）
   const over = await send('purchaser', 'post', R, { ...body, lines: [lineOf(6)], idempotency_key: key() });
   expect([400, 409]).toContain(over.status);
   expect(over.body.error).toContain('剩餘可收量');
-  const short = await send('purchaser', 'post', R, { ...body, idempotency_key: key() });
-  expect(short.status).toBe(400);
-  expect(short.body.code).toBe('REASON_REQUIRED');
+  const broken = await send('purchaser', 'post', R, { ...body, lines: [lineOf(3, { accepted_qty: 2 })], idempotency_key: key() });
+  expect(broken.status).toBe(400);
+  expect(broken.body.code).toBe('REASON_REQUIRED');
   expect(await dbBal(loc.id, partPrinter.id)).toBe(base);
-  // 部分到貨 3（短收原因：分批）
-  const r1 = await send('purchaser', 'post', R, { ...body, lines: [lineOf(3, { reason: '廠商分批出貨' })] });
+  // 部分到貨 3（分批不用填原因）
+  const r1 = await send('purchaser', 'post', R, { ...body, lines: [lineOf(3)] });
   expect(r1.status, JSON.stringify(r1.body)).toBe(201);
   expect(r1.body.order.status).toBe('PARTIALLY_RECEIVED');
   expect(await dbBal(loc.id, partPrinter.id)).toBe(base + 3);
   expect(r1.body.receiving.items[0]).toMatchObject({ remaining_qty: 2, dispatchable_base: 3 });
   // 冪等：同識別同內容重送，不會重複入帳
-  const again = await send('purchaser', 'post', R, { ...body, lines: [lineOf(3, { reason: '廠商分批出貨' })] });
+  const again = await send('purchaser', 'post', R, { ...body, lines: [lineOf(3)] });
   expect([200, 201]).toContain(again.status);
   expect(again.body.replay).toBe(true);
   expect(await dbBal(loc.id, partPrinter.id)).toBe(base + 3);

@@ -212,6 +212,7 @@ test('主線：總務建單（歷史價、含稅超過門檻）→ 送核准 →
     await expect(d.getByTestId('po-detail')).toBeVisible();
     await expect(d.getByTestId('act-approve')).toBeVisible();
     await expect(d.getByTestId('act-place_order')).toHaveCount(0); // 核准人沒有採購寫入權限
+    await expect(d.getByTestId('pd-problem')).toHaveCount(0); // 核准人做核准不需要採購三權限，不顯示缺權限提示
     await d.getByTestId('act-reject').click();
     await d.getByTestId('action-submit').click();
     await expect(d.getByTestId('action-error')).toContainText('必須填寫'); // 駁回原因必填
@@ -276,12 +277,9 @@ test('主線：總務建單（歷史價、含稅超過門檻）→ 送核准 →
     // 下訂後鎖定：沒有編輯草稿，只能改備註與預計到貨日
     await expect(dialog(ga.page).getByTestId('act-edit')).toHaveText('改備註與預計到貨日');
     const base = await dbBal();
-    // 第一次到貨 3 台：到貨量小於剩餘量（短收）要原因
+    // 第一次到貨 3 台：分批到貨（到貨量小於剩餘量）不用填原因
     let form = await receive(ga.page, { delivered: '3' });
-    await expect(form.getByTestId('rc-problem-0')).toContainText('必須填寫原因');
-    await form.getByTestId('rc-submit').click();
-    await expect(form.getByTestId('rc-error')).toContainText('必須填寫原因');
-    await form.getByTestId('rc-reason-0').fill('廠商分批出貨');
+    await expect(form.getByTestId('rc-problem-0')).toHaveCount(0);
     await form.getByTestId('rc-submit').click();
     await expect(dialog(ga.page).getByTestId('pd-notice')).toContainText('到貨已登錄並驗入');
     expect(await dbBal()).toBe(base + 3);
@@ -298,7 +296,9 @@ test('主線：總務建單（歷史價、含稅超過門檻）→ 送核准 →
     form = await receive(ga.page, { delivered: '2' });
     await expect(form.getByTestId('rc-problem-0')).toContainText('超過剩餘可收量');
     await form.getByTestId('rc-submit').click();
-    await expect(form.getByTestId('rc-error')).toContainText('剩餘可收量');
+    // 同一句只出現在品項下方，表單底部不重複
+    await expect(form.getByTestId('rc-error')).toHaveCount(0);
+    await expect(form.getByTestId('rc-problem-0')).toContainText('超過剩餘可收量');
     expect(await dbBal()).toBe(base + 4);
     await form.getByTestId('rc-cancel').click();
     // 配發 2 台到 ZT01（序號空白）
