@@ -35,6 +35,7 @@ const GA_CAPABILITY: Record<string, string> = {
   'ga-inventory-transfers': 'gaInventoryTransfers', // 第 3 批 G13
   'ga-report-create': 'gaReportCreate', 'ga-my-reports': 'gaMyReports', 'ga-requests': 'gaRequests', 'ga-part-fulfillments': 'gaPartFulfillments', // 第 4 批 G14 至 G17
   'ga-purchase-orders': 'gaPurchaseOrders', 'ga-purchase-order-edit': 'gaPurchaseOrders', 'ga-purchase-approvals': 'gaPurchaseApprovals', // 第 4 批 G25
+  'ga-work-orders': 'gaWorkOrders', // 第 5 批 G18
 };
 
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
@@ -42,7 +43,8 @@ function legacyAllowed(kindArg: string, c: Capabilities | undefined, expired: bo
   const tab = { kind: kindArg };
   return (
     !expired &&
-    (tab.kind.startsWith('ga-') ? (c as any)?.[GA_CAPABILITY[tab.kind]] : tab.kind === 'employee-purchases' ? c?.employeePurchases : tab.kind === 'pharmacists' ? c?.pharmacists : tab.kind === 'relationships' ? c?.relationships : tab.kind === 'roles' ? c?.roles : tab.kind === 'users' ? c?.users : tab.kind === 'movement-management' ? (c?.movementDraft || c?.movementHistory || c?.transfers) : tab.kind === 'transfers' ? c?.transfers : tab.kind === 'movement-draft' ? c?.movementDraft : tab.kind === 'movement-history' ? c?.movementHistory : tab.kind === 'employees' || tab.kind === 'employee-history' ? c?.employees : tab.kind === 'employee-create' ? c?.employeeCreate : tab.kind === 'employee-import' ? c?.employeeImport : tab.kind === 'employee-birthdays' ? c?.employeeBirthdays : tab.kind.startsWith('department') ? c?.departments : tab.kind.startsWith('organization') ? c?.organization : tab.kind === 'calendar' ? c?.calendar : tab.kind === 'store-map' ? c?.storeMap : tab.kind === 'store-promotions' || tab.kind === 'store-personnel' || tab.kind === 'store-personnel-history' || tab.kind === 'store-employees' || tab.kind === 'stores' || tab.kind === 'store-editor' || tab.kind === 'store-relocation' || tab.kind === 'store-history-editor' ? c?.storeManagement : tab.kind === 'supervisors' || tab.kind === 'supervisor-edit' ? c?.supervisors : tab.kind === 'store-managers' || tab.kind === 'store-manager-edit' ? c?.storeManagers : tab.kind === 'task-copy' || tab.kind === 'task-assign' || tab.kind === 'task-template-editor' ||
+    (tab.kind === 'cross-dept-maintenance' ? (c as any)?.gaCrossDeptMaintenance // 第 5 批 G19 新增 nav kind：跨部門總務組維修頁
+      : tab.kind.startsWith('ga-') ? (c as any)?.[GA_CAPABILITY[tab.kind]] : tab.kind === 'employee-purchases' ? c?.employeePurchases : tab.kind === 'pharmacists' ? c?.pharmacists : tab.kind === 'relationships' ? c?.relationships : tab.kind === 'roles' ? c?.roles : tab.kind === 'users' ? c?.users : tab.kind === 'movement-management' ? (c?.movementDraft || c?.movementHistory || c?.transfers) : tab.kind === 'transfers' ? c?.transfers : tab.kind === 'movement-draft' ? c?.movementDraft : tab.kind === 'movement-history' ? c?.movementHistory : tab.kind === 'employees' || tab.kind === 'employee-history' ? c?.employees : tab.kind === 'employee-create' ? c?.employeeCreate : tab.kind === 'employee-import' ? c?.employeeImport : tab.kind === 'employee-birthdays' ? c?.employeeBirthdays : tab.kind.startsWith('department') ? c?.departments : tab.kind.startsWith('organization') ? c?.organization : tab.kind === 'calendar' ? c?.calendar : tab.kind === 'store-map' ? c?.storeMap : tab.kind === 'store-promotions' || tab.kind === 'store-personnel' || tab.kind === 'store-personnel-history' || tab.kind === 'store-employees' || tab.kind === 'stores' || tab.kind === 'store-editor' || tab.kind === 'store-relocation' || tab.kind === 'store-history-editor' ? c?.storeManagement : tab.kind === 'supervisors' || tab.kind === 'supervisor-edit' ? c?.supervisors : tab.kind === 'store-managers' || tab.kind === 'store-manager-edit' ? c?.storeManagers : tab.kind === 'task-copy' || tab.kind === 'task-assign' || tab.kind === 'task-template-editor' ||
     tab.kind.startsWith('task-management')
       ? c?.taskManagement
       : tab.kind.startsWith('task-archive')
@@ -108,6 +110,7 @@ const LEGACY_TITLES: Record<string, string> = {
   'ga-inventory-transfers': '庫存調撥單', // 第 3 批 G13
   'ga-report-create': '新增需求', 'ga-my-reports': '我的追蹤', 'ga-requests': '總務需求工作台', 'ga-part-fulfillments': '料件處理中心', // 第 4 批 G14 至 G17
   'ga-purchase-orders': '採購單', 'ga-purchase-order-edit': '採購單編輯', 'ga-purchase-approvals': '待簽核採購單', // 第 4 批 G25
+  'ga-work-orders': '工單中心', 'cross-dept-maintenance': '總務組維修', // 第 5 批 G18、G19
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');

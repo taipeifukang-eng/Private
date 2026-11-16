@@ -358,3 +358,23 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 - 新增 allowlist 7 筆（5 筆 `approvedBy` 為問卷與 spec 已核可、2 筆待確認）。
 
 **留給後面階段**：畫面（工單中心、跨部門頁、需求單與我的追蹤的工單摘要、列印）、角色劇本 e2e（G18 三支、G19、G28）、G18 對舊 API 的 parity、版面與列印 e2e、`GaCenter.vue` 提示與 `nav.ts` 登錄。
+
+
+### 11.4 畫面實作紀錄（第三階段 G18-ui，2026-11-16）
+只連 DEV；本階段沒有改 SQL、第 4 批函式與 `supabase/migrations`（只動導覽、畫面、一處選擇器權限與測試）。
+
+**新增與修改**
+- 導覽：`page-kinds.ts` 加 `ga-work-orders`（明細 kind）與 `cross-dept-maintenance`（導覽 kind）；`access.ts` 加 `gaWorkOrders`、`gaCrossDeptMaintenance`（條件＝任一工單查看、更新或回報權限，與 API 的 canEnter 相同）；`nav.ts` 的 `GA_PAGE_BY_HREF` 加 `/general-affairs/work-orders`，舊側欄沒列者補入口；`navigation.ts` 的「總務組」掛 kind；`stores.ts`、`workspace-page-meta.ts`、`workspace-pages.ts` 登錄。
+- 畫面：`pages/ga/WorkOrderCenter.vue`、`pages/CrossDeptMaintenance.vue`（兩頁共用 `components/ga/WorkOrderBoard.vue`＋`WorkOrderDetail.vue`）、`WorkOrderCreate.vue`（新增舊式回報）、`MaintenanceCategories.vue`、`WorkOrderPrint.vue`／`WorkOrderSheet.vue`（A4 列印，樣式在 `style.css` 的 `.wo-print-output`）、`WorkOrderSummary.vue`（需求單詳情與我的追蹤的工單摘要）、`lib/ga-work-orders.ts`；`GaCenter.vue` 移除「工單仍在舊版」。
+- 一處 API 調整：`pickers.ts` 的門市選擇器（scope=all）也認工單更新與查看全部權限，否則只有舊跨部門權限的總務在新增回報時門市清單是空的。
+- 列表統一用卡片（原本表格在雙欄下太窄會橫向捲動）；焦點卡數字來自資料庫全量計數，會隨搜尋與篩選條件變動。
+
+**自行決定**
+1. 進度照片在進度儲存後，以同一人剛存的那筆進度（依說明文字）綁定；找不到會提示重新上傳（進度 API 沒回進度 id）。
+2. 管理員沒有任何角色時，頁面可開（導覽有管理員後備）但列表回 403 白話說明，沒有另做唯讀畫面。
+3. 窄螢幕（約 1100px 以下）單欄、點列表進詳情；手機卡片按鈕高度 44px 以上。
+4. 重新開啟不提供（W8），完成後只顯示白話說明。
+
+**測試（循序，只連 DEV）**：`npm run test:page -- G18-ui`：單元 23、冒煙 12（6 項 × 桌機 1440／手機 390）、e2e 10（5 項 × 兩種寬度），全過；run-all 結束碼 1 只因 sweeper 基準 17 筆孤兒（前後都是 17）。`test:unit` 119 檔 1856 項、`tsc`、`vue-tsc`、Vue build 與同步皆通過。回歸：G14-G17、G25-ui 見回報。allowlist 新增 8 筆 `m7m8-b5-ui-*`（4 筆已核可、4 筆 approvedBy 為 null 待確認）。
+
+**留給後面階段**：角色劇本 e2e（G18 三支、G19、G28）、G18 對舊 API 的 parity、`G18.print.e2e` 的 PDF 輸出檢查、列印預覽表格最後一列邊框被裁一點的小瑕疵、管理員無角色時的專屬唯讀畫面。

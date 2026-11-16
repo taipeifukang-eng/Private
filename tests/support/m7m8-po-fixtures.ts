@@ -105,6 +105,8 @@ export const PO_ACCOUNTS = {
   wo_store_b: [PERM.mrCreate, PERM.woViewOwn, PERM.requestCreate, PERM.requestViewOwn, PERM.requestCommentOwn, PERM.requestConfirmOwn],
   wo_store_a_viewonly: [PERM.woViewOwn],
   wo_cross_store_a: [PERM.crossSubmit],
+  // 第 5 批 G19 畫面：總務組頁的管理者（舊跨部門更新＋查看全部＋回報＋維修分類編輯）。
+  wo_cross_manager: [PERM.crossUpdate, PERM.crossViewAll, PERM.crossSubmit, PERM.crossCategoryEdit],
   wo_outsider_own: [PERM.woViewOwn, PERM.mrCreate],
 } satisfies Record<string, string[]>;
 export type PoKey = keyof typeof PO_ACCOUNTS;

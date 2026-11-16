@@ -7307,5 +7307,61 @@
     "description": "工單照片上傳權限：可修改工單者可加回報照片與進度照片；回報人只能在未完成的自己工單加回報照片；同店其他店長與只有查看權限者不能上傳。舊版任何看得到工單的人可呼叫共用附件上傳。",
     "reason": "新發現的權限收緊（以共用附件資料庫觸發器為底線，伺服端再加一層），待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-ui-force-close-label",
+    "page": "ga-work-orders",
+    "description": "工單詳情的強制結案按鈕改名「不處理，強制結案」，必須填原因並說明「原因只有總務看得到，門市只會看到總務已結案」。舊版按鈕叫「強制結案」且原因門市看得到。",
+    "reason": "W3。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-ui-completion-method-label",
+    "page": "ga-work-orders",
+    "description": "工單詳情與列表以「結案方式」標示（門市確認完成／強制結案）；需求單詳情的工單摘要也顯示結案方式。舊版只顯示「已完成」。",
+    "reason": "W3（報表與列表用「結案方式」標示強制結案）。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-ui-print-a4-sheet",
+    "page": "ga-work-orders",
+    "description": "工單詳情新增「列印工單表單」：A4 專用列印樣式（基本資料、問題描述、公開進度、照片），預覽即列印內容；「包含內部備註與強制結案原因」預設不勾，只有總務端看得到勾選。舊版沒有工單列印。",
+    "reason": "W7、Q21。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-ui-cross-dept-minimal-port",
+    "page": "cross-dept-maintenance",
+    "description": "跨部門「總務組」頁移植為新版頁面（kind cross-dept-maintenance），與工單中心用同一套工單元件：新增舊式回報（標題、說明、最多 5 張照片）、展開看進度與更新、刪除、改分類、維修分類管理，並補回報人「確認完成／仍有問題」按鈕（只在待門市確認時可按，仍有問題須原因）；不增欄位、不加新功能；完成後不提供重新開啟。",
+    "reason": "W6、Q19、Q21。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-ui-request-work-order-summary",
+    "page": "ga-work-orders",
+    "description": "需求單詳情（含「我的追蹤」）新增「維修工單」摘要：工單編號、階段名、最新公開進度、結案方式與「前往工單」；沒有工單查看權限的人（例如只有需求單權限）整塊不顯示，店長端看不到處理人與內部內容。舊版需求單頁沒有工單摘要。",
+    "reason": "設計 4.1 的畫面做法；顯示條件為實作取捨，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-ui-mobile-single-column",
+    "page": "ga-work-orders",
+    "description": "工單中心與總務組頁在窄螢幕（約 1100px 以下）改成單欄：點列表進詳情、按「回到列表」返回；手機（700px 以下）列表改卡片，按鈕高度至少 44px。桌機左列表右詳情。舊版工單頁是整頁表格加展開列。",
+    "reason": "設計 4.1 手機單欄；斷點與卡片版型為實作取捨，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-ui-progress-photo-binding",
+    "page": "ga-work-orders",
+    "description": "更新進度時附的照片，畫面在進度儲存後以同一使用者剛存的那筆進度（依說明文字找最新一筆）綁定為「進度照片」；找不到時提示到照片區重新上傳。因為進度 API 沒有回進度識別碼。舊版是先建進度再用回傳的 id 上傳。",
+    "reason": "實作取捨（不改已完成的 API 與資料庫函式），問卷未涵蓋，待使用者確認；之後若讓進度 API 回傳進度識別碼即可改成直接綁定。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-ui-ga-center-hint-removed",
+    "page": "ga-work-orders",
+    "description": "總務服務中心首頁移除「工單仍在舊版」的提示（只剩廠商、費用仍在舊版），側欄「工單中心」改開新版頁籤；側欄補上沒有舊工單旗標但有工單查看或回報權限者的「工單中心」入口。",
+    "reason": "工單中心上線後的入口調整，補入口的條件為實作取捨，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
   }
 ]
