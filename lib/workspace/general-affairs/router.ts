@@ -5,6 +5,7 @@ import { equipmentApi, facilitiesApi } from "./assets";
 import { assetImportApi } from "./asset-import";
 import { attachmentsApi } from "./attachments";
 import { categoriesApi } from "./categories";
+import { crossDeptMaintenanceApi, maintenanceCategoriesApi } from "./cross-dept-maintenance";
 import { maintenanceApi } from "./history";
 import { inventoryApi } from "./inventory";
 import { isRosterMember, isStoreMember } from "./members";
@@ -18,6 +19,7 @@ import { reportsApi, requestTargets, requestsApi } from "./requests";
 import { scanApi } from "./scan";
 import { compatApi, templatesApi, unlinkedEquipment } from "./templates";
 import { transfersApi } from "./transfers";
+import { workOrdersApi } from "./work-orders";
 import { GaError, respond, type Context } from "./server";
 
 export async function dispatch(ctx: Context, request: NextRequest, segments: string[]) {
@@ -77,6 +79,12 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return fulfillmentsApi(ctx, request, rest);
     case "purchase-orders":
       return purchaseOrdersApi(ctx, request, rest);
+    case "work-orders":
+      return workOrdersApi(ctx, request, rest);
+    case "cross-dept-maintenance":
+      return crossDeptMaintenanceApi(ctx, request, rest);
+    case "maintenance-categories":
+      return maintenanceCategoriesApi(ctx, request, rest);
     case "sites":
       return sitesApi(ctx, request);
     default:
