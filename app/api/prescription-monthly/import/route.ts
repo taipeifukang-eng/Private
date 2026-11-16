@@ -2,81 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { hasPermission } from '@/lib/permissions/check';
 import { getPrescriptionReportContext } from '@/lib/performance/prescription-report-context';
+import { buildImportPlan, planIsImportable, YEAR_MONTH_PATTERN } from '@/lib/performance/prescription-import';
+import { loadAliasRecords, toAliasMap } from '@/lib/performance/prescription-import-server';
 
-const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-function getCell(row: Record<string, unknown>, aliases: string[]) {
-  const header = Object.keys(row).find(key => aliases.includes(key.trim().toLowerCase()));
-  return header ? row[header] : undefined;
-}
-
-function getText(value: unknown) {
-  return value === null || value === undefined ? '' : String(value).trim();
-}
-
-function parseYearMonth(value: unknown, fallback: string) {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}`;
-  }
-  if (typeof value === 'number' && value > 20000 && value < 80000) {
-    const date = XLSX.SSF.parse_date_code(value);
-    if (date?.y && date?.m) return `${date.y}-${String(date.m).padStart(2, '0')}`;
-  }
-  const raw = getText(value);
-  if (!raw) return fallback;
-  const normalized = raw
-    .replace(/年/g, '-')
-    .replace(/月/g, '')
-    .replace(/[/.]/g, '-')
-    .replace(/\s+/g, '');
-  const match = normalized.match(/^(\d{4})-(\d{1,2})(?:-\d{1,2})?$/);
-  if (!match) return '';
-  return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}`;
-}
-
-function parseNumber(value: unknown, allowDecimal: boolean): number | null | undefined {
-  const raw = getText(value).replace(/,/g, '');
-  if (!raw) return null;
-  const pattern = allowDecimal ? /^\d+(\.\d{1,4})?$/ : /^\d+$/;
-  if (!pattern.test(raw)) return undefined;
-  const number = Number(raw);
-  if (!Number.isFinite(number) || number > (allowDecimal ? 99999999.9999 : 2147483647)) return undefined;
-  return number;
-}
-
-function normalizeStoreCode(value: string) {
-  return value.trim().toUpperCase().replace(/\s+/g, '');
-}
-
-function resolveStore(code: string, stores: Array<{ id: string; store_code: string; store_name: string }>) {
-  const normalized = normalizeStoreCode(code);
-  const exact = stores.find(store => normalizeStoreCode(store.store_code) === normalized);
-  if (exact) return { store: exact };
-
-  const codePrefix = normalized.match(/^(\d{3,4}[A-Z]?)/)?.[1];
-  if (!codePrefix) return { error: `找不到或無權限的門市代號「${code}」` };
-
-  const candidates = new Map<string, typeof stores[number]>();
-  for (const store of stores) {
-    const storeCode = normalizeStoreCode(store.store_code);
-    const storeDigits = storeCode.match(/^\d+/)?.[0] || '';
-    const prefixDigits = codePrefix.match(/^\d+/)?.[0] || '';
-    const normalizedDigits = prefixDigits.length === 3 ? prefixDigits.padStart(4, '0') : prefixDigits;
-    const storeBase = storeCode.replace(/[A-Z]+$/, '');
-    const sameBase = storeBase === normalizedDigits || storeBase === prefixDigits;
-    const sameExactPrefix = storeCode === codePrefix;
-    if (sameBase || sameExactPrefix || storeDigits === normalizedDigits && storeCode === normalizedDigits) {
-      candidates.set(store.id, store);
-    }
-  }
-
-  if (candidates.size === 1) return { store: Array.from(candidates.values())[0] };
-  if (candidates.size > 1) {
-    return { error: `門市代號「${code}」對應多間門市，請使用完整門市代號：${Array.from(candidates.values()).map(store => store.store_code).join('、')}` };
-  }
-  return { error: `找不到或無權限的門市代號「${code}」` };
-}
-
+// 處方箋 Excel 匯入。mode=preview：只解析並回傳預覽，不寫入；mode=commit：伺服端重新解析（不信任前端資料）後整批原子寫入。
+// 支援兩種格式：Google Sheet（每店三列、每月一組張數／金額）與舊的一門市一列範本，由程式自動判斷。
 export async function POST(request: NextRequest) {
   try {
     const context = await getPrescriptionReportContext();
@@ -88,94 +18,94 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file');
     const selectedMonth = String(formData.get('year_month') || '');
+    const mode = String(formData.get('mode') || 'preview');
+    if (mode !== 'preview' && mode !== 'commit') return NextResponse.json({ error: '不支援的匯入模式' }, { status: 400 });
     if (!(file instanceof File)) return NextResponse.json({ error: '請選擇 Excel 檔案' }, { status: 400 });
     if (file.size > 10 * 1024 * 1024) return NextResponse.json({ error: '檔案不可超過 10 MB' }, { status: 400 });
     if (!YEAR_MONTH_PATTERN.test(selectedMonth)) {
       return NextResponse.json({ error: '請先選擇正確的匯入年月' }, { status: 400 });
     }
 
-    const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
-    const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-    if (!firstSheet) return NextResponse.json({ error: 'Excel 檔案沒有工作表' }, { status: 400 });
-
-    const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(firstSheet, { defval: '', raw: true });
-    if (rows.length === 0) return NextResponse.json({ error: 'Excel 工作表沒有資料' }, { status: 400 });
-
-    const seenStores = new Set<string>();
-    const errors: string[] = [];
-    const payload: Record<string, unknown>[] = [];
-    const updatedAt = new Date().toISOString();
-
-    rows.forEach((row, index) => {
-      if (Object.values(row).every(value => getText(value) === '')) return;
-      const rowLabel = `第 ${index + 2} 列`;
-      const rowMonth = parseYearMonth(getCell(row, ['年月', '年月份', 'year_month']), selectedMonth);
-      if (!YEAR_MONTH_PATTERN.test(rowMonth)) {
-        errors.push(`${rowLabel}：年月格式需為 YYYY-MM`);
-        return;
+    // 預覽也接受使用者目前的選擇，這樣選完門市後畫面可以即時重算；寫入一律在 commit 時用伺服端重算的結果
+    let selections: Record<string, string> = {};
+    const rawSelections = formData.get('selections');
+    if (typeof rawSelections === 'string' && rawSelections.trim()) {
+      try {
+        const parsed = JSON.parse(rawSelections);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('bad');
+        for (const [key, value] of Object.entries(parsed)) {
+          if (typeof value === 'string' && value) selections[key] = value;
+        }
+      } catch {
+        return NextResponse.json({ error: '門市選擇資料格式不正確' }, { status: 400 });
       }
-      if (rowMonth !== selectedMonth) {
-        errors.push(`${rowLabel}：資料年月 ${rowMonth} 與目前選擇的 ${selectedMonth} 不同`);
-        return;
-      }
+    }
 
-      const rawStoreCode = getText(getCell(row, ['門市代號', '分店代號', 'store_code']));
-      if (!rawStoreCode) {
-        errors.push(`${rowLabel}：缺少門市代號`);
-        return;
-      }
-      const resolved = resolveStore(rawStoreCode, context.stores);
-      if (!resolved.store) {
-        errors.push(`${rowLabel}：${resolved.error}`);
-        return;
-      }
-      if (seenStores.has(resolved.store.id)) {
-        errors.push(`${rowLabel}：門市 ${resolved.store.store_code} 在檔案中重複`);
-        return;
-      }
-      seenStores.add(resolved.store.id);
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true });
+    } catch {
+      return NextResponse.json({ error: '無法讀取這個檔案，請確認是 Excel（.xlsx）檔' }, { status: 400 });
+    }
 
-      const regularCount = parseNumber(getCell(row, ['一般箋張數', '一般處方箋張數', 'regular_prescription_count']), false);
-      const regularPoints = parseNumber(getCell(row, ['一般箋點值', '一般處方箋點值', 'regular_prescription_point_value']), true);
-      const chronicCount = parseNumber(getCell(row, ['慢箋張數', '慢性處方箋張數', 'chronic_prescription_count']), false);
-      const chronicPoints = parseNumber(getCell(row, ['慢箋點值', '慢性處方箋點值', 'chronic_prescription_point_value']), true);
-      if ([regularCount, regularPoints, chronicCount, chronicPoints].includes(undefined)) {
-        errors.push(`${rowLabel}：${resolved.store.store_code} 的張數需為非負整數，點值最多四位小數`);
-        return;
-      }
+    const aliasResult = await loadAliasRecords(context.admin);
+    if (aliasResult.error) return NextResponse.json({ error: aliasResult.error }, { status: 500 });
 
-      payload.push({
-        year_month: selectedMonth,
-        store_id: resolved.store.id,
-        regular_prescription_count: regularCount,
-        regular_prescription_point_value: regularPoints,
-        chronic_prescription_count: chronicCount,
-        chronic_prescription_point_value: chronicPoints,
-        prescription_data_updated_at: updatedAt,
-        prescription_data_updated_by: context.user.id,
-        updated_at: updatedAt,
+    const built = buildImportPlan(workbook, selectedMonth, context.stores, toAliasMap(aliasResult.data), selections);
+    if (!built.ok) return NextResponse.json({ success: false, error: built.error }, { status: 400 });
+    const { plan } = built;
+    const importable = planIsImportable(plan);
+
+    if (mode === 'preview') {
+      return NextResponse.json({ success: true, mode, plan, importable, stores: context.stores });
+    }
+
+    if (!importable) {
+      const errors = plan.rows.flatMap(row => {
+        const label = `${row.label}（第 ${row.rowNo} 列）`;
+        if (row.errors.length) return row.errors.map(message => `${label}：${message}`);
+        if (!row.store) return [`${label}：還沒有選擇對應的門市`];
+        return [];
       });
-    });
-
-    if (errors.length > 0) {
       return NextResponse.json({
         success: false,
-        error: `Excel 有 ${errors.length} 筆資料需修正，未匯入任何資料`,
+        error: plan.rows.length === 0 ? '檔案裡沒有可匯入的門市資料' : `有 ${errors.length} 項需要處理，未匯入任何資料`,
         errors: errors.slice(0, 50),
         error_count: errors.length,
       }, { status: 400 });
     }
-    if (payload.length === 0) return NextResponse.json({ error: 'Excel 沒有可匯入的門市資料' }, { status: 400 });
 
-    const { error } = await context.admin
-      .from('monthly_prescription_reports')
-      .upsert(payload, { onConflict: 'year_month,store_id' });
+    const reports = plan.rows.map(row => ({
+      store_id: row.store!.id,
+      regular_prescription_count: row.regular.count,
+      regular_prescription_point_value: row.regular.points,
+      chronic_prescription_count: row.chronic.count,
+      chronic_prescription_point_value: row.chronic.points,
+    }));
+    // 只把使用者這次手動選的門市存進對照表（自動對上或對照表已有的不重存）
+    const aliases = plan.format === 'gsheet'
+      ? plan.rows.filter(row => row.status === 'matched').map(row => ({ alias: row.key, store_id: row.store!.id }))
+      : [];
+
+    const { data, error } = await context.admin.rpc('import_prescription_report_batch', {
+      p_year_month: selectedMonth,
+      p_reports: reports,
+      p_aliases: aliases,
+      p_user: context.user.id,
+    });
     if (error) {
       console.error('[Prescription report] Excel import failed:', error);
       return NextResponse.json({ error: '處方箋 Excel 寫入失敗，資料未匯入' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, imported: payload.length, year_month: selectedMonth });
+    return NextResponse.json({
+      success: true,
+      mode,
+      imported: typeof data === 'number' ? data : reports.length,
+      year_month: selectedMonth,
+      saved_aliases: aliases.length,
+      mismatch_count: plan.rows.filter(row => row.mismatches.length > 0).length,
+    });
   } catch (error: any) {
     console.error('[Prescription report] Excel import error:', error);
     return NextResponse.json({ error: error.message || '處方箋 Excel 匯入失敗' }, { status: 500 });
