@@ -285,6 +285,34 @@ export async function cleanupM7M8(): Promise<string[]> {
     if (rm.error) log.push(`storage: ${rm.error.message}`);
   }
 
+  // 第 5 批（G18 工單）：工單附件（含刪除工單後只標記刪除、資源已不存在的，以檔名前綴 m7m8t- 辨識）、儲存檔、舊照片列與舊 bucket 檔
+  {
+    const attPaths: string[] = [];
+    const attIds: string[] = [];
+    const ar = await db.from('ga_resource_attachments').select('id,storage_path').in('resource_type', ['MAINTENANCE_REQUEST', 'MAINTENANCE_UPDATE']).like('file_name', `${M7_FILE_PREFIX}%`);
+    if (ar.error) log.push(`wo attachments: ${ar.error.message}`);
+    for (const x of ar.data || []) { attIds.push(x.id); attPaths.push(x.storage_path); }
+    await del(db, 'ga_resource_attachments', 'id', attIds, log);
+    if (attPaths.length) {
+      const rm = await db.storage.from('general-affairs-attachments').remove(attPaths);
+      if (rm.error) log.push(`wo storage: ${rm.error.message}`);
+    }
+    if (woIds.length) {
+      const legacy: string[] = [];
+      const p1 = await db.from('maintenance_photos').select('storage_path').in('request_id', woIds);
+      for (const x of p1.data || []) legacy.push(x.storage_path);
+      const ups = await db.from('maintenance_updates').select('id').in('request_id', woIds);
+      const upIds = (ups.data || []).map((x: { id: string }) => x.id);
+      if (upIds.length) {
+        const p2 = await db.from('maintenance_update_photos').select('storage_path').in('update_id', upIds);
+        for (const x of p2.data || []) legacy.push(x.storage_path);
+      }
+      if (legacy.length) {
+        const rm = await db.storage.from('maintenance-photos').remove(legacy);
+        if (rm.error) log.push(`legacy photo storage: ${rm.error.message}`);
+      }
+    }
+  }
   await del(db, 'ga_part_target_compatibilities', 'part_id', partIds, log);
   await del(db, 'ga_part_target_compatibilities', 'target_id', [...eqTplIds, ...facTplIds, ...eqIds, ...facIds], log);
   await del(db, 'ga_part_compatibilities', 'part_id', partIds, log);
@@ -302,6 +330,7 @@ export async function cleanupM7M8(): Promise<string[]> {
   await del(db, 'ga_inventory_location_parts', 'location_id', locIds, log);
   await del(db, 'ga_service_requests', 'id', reqIds, log);
   await del(db, 'maintenance_requests', 'id', woIds, log);
+  await del(db, 'maintenance_categories', 'id', await ids(db, 'maintenance_categories', 'name', MARK_LIKE), log);
   await del(db, 'ga_equipment', 'id', eqIds, log);
   await del(db, 'ga_facilities', 'id', facIds, log);
   await del(db, 'ga_equipment_templates', 'id', eqTplIds, log);
@@ -355,4 +384,24 @@ export async function row(table: string, id: string): Promise<any | null> {
 }
 export async function rowsWhere(table: string, col: string, value: string): Promise<any[]> {
   return (must(await adminDb().from(table).select('*').eq(col, value), `讀取 ${table}`) as any[]) || [];
+}
+
+// ------------------------------------------------------------------ 第 5 批（G18／G19）工單種子
+/**
+ * 維修工單種子（直接寫入，測試前置資料；工單函式另有專門測試）。標題帶 [自動測試]M7M8 標記，只用 VW／ZT 測試門市。
+ * over 可指定 status、progress_stage、reported_by、ga_service_request_id、category_id 等欄位；預設回報人是 reporterId。
+ */
+export async function seedWorkOrder(storeCode: string, suffix: string, reporterId: string, over: Record<string, unknown> = {}) {
+  const s = await stores();
+  return must(
+    await adminDb().from('maintenance_requests').insert({
+      store_id: s[storeCode].id, title: m7Name(suffix), description: 'm7m8 工單測試', reported_by: reporterId, reporter_name: 'M7M8 回報人', status: 'UNACCEPTED', priority: 'normal', ...over,
+    }).select('*').single(),
+    `建立工單 ${suffix}`,
+  ) as any;
+}
+
+/** 維修分類（DEV 專用種子之外，測試自己的；名稱帶標記，cleanupM7M8 清除）。 */
+export async function seedMaintenanceCategory(suffix: string, over: Record<string, unknown> = {}) {
+  return must(await adminDb().from('maintenance_categories').insert({ name: m7Name(suffix), sort_order: 900, ...over }).select('*').single(), `建立維修分類 ${suffix}`) as any;
 }

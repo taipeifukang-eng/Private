@@ -33,6 +33,20 @@ export const PERM = {
   requestConfirmOwn: 'general_affairs.request.confirm_own_store',
   fulfillView: 'general_affairs.part_fulfillment.view',
   fulfillManage: 'general_affairs.part_fulfillment.manage',
+  // 第 5 批 G18／G19：工單中心與跨部門維修
+  woViewOwn: 'general_affairs.work_order.view_own_store',
+  woViewAll: 'general_affairs.work_order.view_all',
+  woUpdate: 'general_affairs.work_order.update',
+  woManage: 'general_affairs.work_order.manage',
+  mrCreate: 'general_affairs.maintenance_request.create',
+  mrViewOwn: 'general_affairs.maintenance_request.view_own_store',
+  mrViewAll: 'general_affairs.maintenance_request.view_all',
+  mrUpdate: 'general_affairs.maintenance_request.update',
+  crossSubmit: 'cross_dept.maintenance.submit',
+  crossViewAll: 'cross_dept.maintenance.view_all',
+  crossUpdate: 'cross_dept.maintenance.update',
+  crossCategoryEdit: 'cross_dept.maintenance.category.edit',
+  forceClose: 'general_affairs.service_center.force_close',
 } as const;
 const THREE = [PERM.reviewManage, PERM.txnManage, PERM.partView];
 
@@ -74,6 +88,24 @@ export const PO_ACCOUNTS = {
   rq_create_nostore: [PERM.requestCreate],
   ful_view: [PERM.fulfillView, PERM.serviceAccess],
   ful_manage_only: [PERM.fulfillManage],
+  // 第 5 批 G18／G19：工務（工單更新＋庫存交易＋料件查看）、缺庫存交易、缺料件查看、總務工單管理（含強制結案與分類管理）、更新但沒有強制結案、只有各種「查看全部」、舊權限更新、
+  // 店長（A = VW001、B = ZT01；回報＋查看自己門市）、只有查看自己門市的店長、舊跨部門回報的店長、不在任何門市名單但有查看自己門市權限的人
+  wo_works: [PERM.serviceAccess, PERM.woUpdate, PERM.woViewAll, PERM.txnManage, PERM.partView],
+  wo_works_notxn: [PERM.woUpdate, PERM.woViewAll, PERM.partView],
+  wo_works_nopart: [PERM.woUpdate, PERM.woViewAll, PERM.txnManage],
+  wo_manager: [PERM.serviceAccess, PERM.woManage, PERM.woUpdate, PERM.woViewAll, PERM.forceClose, PERM.crossCategoryEdit, PERM.requestManage, PERM.requestViewAll],
+  wo_update_noforce: [PERM.woUpdate, PERM.woViewAll],
+  wo_viewall: [PERM.woViewAll],
+  wo_mr_viewall: [PERM.mrViewAll],
+  wo_cross_viewall: [PERM.crossViewAll],
+  wo_mr_update: [PERM.mrUpdate],
+  wo_cross_update: [PERM.crossUpdate],
+  wo_store_a: [PERM.mrCreate, PERM.woViewOwn, PERM.requestCreate, PERM.requestViewOwn, PERM.requestCommentOwn, PERM.requestConfirmOwn],
+  wo_store_a2: [PERM.mrCreate, PERM.woViewOwn],
+  wo_store_b: [PERM.mrCreate, PERM.woViewOwn, PERM.requestCreate, PERM.requestViewOwn, PERM.requestCommentOwn, PERM.requestConfirmOwn],
+  wo_store_a_viewonly: [PERM.woViewOwn],
+  wo_cross_store_a: [PERM.crossSubmit],
+  wo_outsider_own: [PERM.woViewOwn, PERM.mrCreate],
 } satisfies Record<string, string[]>;
 export type PoKey = keyof typeof PO_ACCOUNTS;
 
@@ -127,9 +159,10 @@ export async function setupPoUsers(keys: PoKey[]): Promise<{ users: Record<strin
       must(await db.from('role_permissions').insert(perms.map((c) => ({ role_id: role.id, permission_id: permId.get(c), is_allowed: true }))), `角色權限 ${key}`);
       must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
     }
-    if (key === 'storemgr_a' || key === 'storemgr_b' || key === 'rq_store_a' || key === 'rq_store_b' || key === 'rq_store_viewonly' || key === 'rq_store_part') {
+    if (key === 'storemgr_a' || key === 'storemgr_b' || key === 'rq_store_a' || key === 'rq_store_b' || key === 'rq_store_viewonly' || key === 'rq_store_part'
+        || key === 'wo_store_a' || key === 'wo_store_a2' || key === 'wo_store_b' || key === 'wo_store_a_viewonly' || key === 'wo_cross_store_a') {
       const st = await stores();
-      const vw = key === 'storemgr_a' || key === 'rq_store_a' || key === 'rq_store_viewonly' || key === 'rq_store_part';
+      const vw = key === 'storemgr_a' || key === 'rq_store_a' || key === 'rq_store_viewonly' || key === 'rq_store_part' || key === 'wo_store_a' || key === 'wo_store_a2' || key === 'wo_store_a_viewonly' || key === 'wo_cross_store_a';
       must(await db.from('store_managers').insert({ user_id: uid, store_id: (vw ? st.VW001 : st.ZT01).id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
     }
     users[key] = { key, id: uid, email, password, client: await clientForCredentials(email, password) };

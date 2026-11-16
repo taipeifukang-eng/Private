@@ -7104,5 +7104,159 @@
     "description": "簡稱對照表 API 路徑：舊版為 /api/prescription-monthly/aliases（與 [id]）；新版為 /api/workspace/performance-tools/prescription-aliases（與 [id]），並額外經過工作台的 DEV 守衛、Origin 檢查、業績模組與 performance.edit 檢查後才交給同一個處理函式。",
     "reason": "新版所有 API 一律走 workspace 前綴與統一守衛，與其他業績工具（prescription、prescription-import）相同做法。使用者 2026-11-16 問卷核可。",
     "approvedBy": "user (2026-11-16 rx import survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-valid-transitions",
+    "page": "ga-work-orders",
+    "description": "工單狀態由資料庫檢查合法流轉：已完成不能再存進度、門市確認與仍有問題只在「待門市確認」可按、強制結案與送門市確認只限已受理或處理中；舊版伺服端不檢查，任何狀態都能被按確認完成、已完成可被存進度改回處理中，且兩條門市確認路徑不一致。",
+    "reason": "Q21（二）與設計 §3.1 合法流轉表：單一 SQL 函式 ga_ws_wo_transition／store_confirm／report_unresolved，非法回 409 並用白話說明。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-progress-keep-fields",
+    "page": "ga-work-orders",
+    "description": "存進度「有填才更新」：沒給或留白的承辦人、處理方式、廠商、分類不會被清掉；舊版每次存進度都把承辦人改成操作者、處理方式與廠商清成空值。",
+    "reason": "設計 §1.3 缺陷 2；屬缺陷修正，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-atomic-write",
+    "page": "ga-work-orders",
+    "description": "工單寫入（進度、事件、需求單同步、庫存扣減、刪除與附件標記）全在同一資料庫交易，失敗全回復，並帶 expected_updated_at（版本衝突回 409 STALE）；舊版多步驟非交易（例如舊式單送門市確認在工單寫入後才丟錯），也沒有並發控制。",
+    "reason": "spec 第 31 行、Q21（三）、第 4 批通則。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-request-guard",
+    "page": "ga-work-orders",
+    "description": "需求單已完成、退回、取消時，工單存進度只記在工單、不翻回需求單；需求單在待門市補資料或待總務複核期間，一般進度不翻轉需求單；舊版工單端寫入會把已結案的需求單翻回處理中。",
+    "reason": "spec 第 53 行與設計 §3.4 護欄表。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-view-only-no-write",
+    "page": "ga-work-orders",
+    "description": "只有「查看全部」（work_order.view_all、maintenance_request.view_all、cross_dept.maintenance.view_all）的人不能改、不能刪工單；修改與刪除需要更新或管理權限；舊版 RLS 讓 view_all 也能改能刪。管理員（profiles.role=admin）沒有帶更新權限的有效角色只能看。",
+    "reason": "Q20（一、三）、W9：以角色權限為準，資料庫沒有管理員後備；正式區套 40 前先出名單。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-own-store-readonly",
+    "page": "ga-work-orders",
+    "description": "只有「查看自己門市」的店長可以唯讀看自己門市（含回報人本人）的工單；舊版只認 maintenance_request.* 且打開工單中心被擋。",
+    "reason": "Q20（二）。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-delete-rules",
+    "page": "ga-work-orders",
+    "description": "刪除工單：只有未受理且沒連需求單的單可刪（回報人只能刪自己的，總務需更新或管理權限）；已受理或已連需求單只能「不處理，強制結案」；刪除時附件只標記刪除、不實刪儲存檔。舊版回報人本人可隨時刪、歷程永久消失、需求單被孤立、儲存檔清不乾淨。",
+    "reason": "Q21（一）、W4。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-delete-no-audit-event",
+    "page": "ga-work-orders",
+    "description": "刪除工單後，時間軸事件隨工單連帶刪除（資料表是 ON DELETE CASCADE），不會留下「已刪除」事件；可追溯的只有共用附件上的刪除標記（刪除人、原因含工單編號）。設計原列 DELETED 事件，實測無法保留。",
+    "reason": "實作發現（設計 §3.2 的 DELETED 事件類型無處可存），待使用者確認是否要另建稽核紀錄。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-legacy-confirm-unresolved",
+    "page": "cross-dept-maintenance",
+    "description": "舊式回報（沒有需求單）補上回報人「確認完成」與「仍有問題」（只在待門市確認、仍有問題必須填原因），由 ga_ws_wo_store_confirm／report_unresolved 處理；舊版跨部門頁完全沒有這兩顆按鈕，送門市確認時還會在工單寫入後才丟錯。",
+    "reason": "Q21（三）、W6。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-force-close-internal-reason",
+    "page": "ga-work-orders",
+    "description": "強制結案：按鈕改名「不處理，強制結案」；工單與需求單都標已完成；原因寫在內部進度與內部事件，門市與非總務端只看到公開的「總務已結案」；結案方式（門市確認完成／強制結案）由工單 completion_method 帶出。舊版原因混在進度文字、需求單端「駁回」鈕其實把需求單標成已完成。",
+    "reason": "spec 第 53 行、W3。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-list-server-paging",
+    "page": "ga-work-orders",
+    "description": "工單列表伺服端分頁、精確筆數、焦點卡由資料庫算全量、搜尋字元跳脫、各門市摘要由資料庫 group by；舊版只載入 50 筆、N+1 請求、搜尋字串直接拼進 or()、摘要超過 1000 列失真。",
+    "reason": "spec 第 31 行。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-timeline-merge",
+    "page": "ga-work-orders",
+    "description": "工單時間軸合併進度紀錄與公開事件（含受理、新增、設備轉店 STORE_MOVED）；總務端另含內部進度與用料事件；舊版事件歷程只寫不讀。",
+    "reason": "第 4 批 D21。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-photos-shared-attachments",
+    "page": "cross-dept-maintenance",
+    "description": "新增舊式回報的照片走共用附件（最多 5 張、只收圖片、路徑與檔案必須存在、失敗整體回復）；舊 maintenance_photos 與 maintenance_update_photos 唯讀合併顯示、不搬；舊版副檔名由 MIME 推斷、不驗內容、失敗留孤兒檔。",
+    "reason": "spec 第 29 行、W5。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-location-asset-from-request",
+    "page": "ga-work-orders",
+    "description": "工單詳情的「發生位置」「設備資訊」改讀連結需求單的設備或設施名稱（不改工單表）；舊版「發生位置」永遠空白。",
+    "reason": "Q19（不拆表）；設計 §1.3 缺陷 15，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-supplement-two-way",
+    "page": "ga-work-orders",
+    "description": "補資料兩邊同步：工單按補資料時需求單同進「待門市補資料」，店長在我的追蹤回覆後工單回「初步評估」、需求單進待總務複核；已出庫或已有採購單的需求單不可補資料，改用留言。舊版只把工單標成等門市補資料並改需求單進度文字，門市沒有回覆入口。",
+    "reason": "W1；覆蓋第 4 批 ga_ws_req_transition／ga_ws_req_store_action 兩段（20261117105000）。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-issue-part",
+    "page": "ga-work-orders",
+    "description": "工單詳情新增「領用料件」：同交易扣庫存、庫存流水記工單編號與工單 id、不可超過庫存、需工單更新＋庫存交易管理＋料件查看，用料清單由內部事件組成；舊版「出庫」快捷鈕只預填階段並導去庫存頁，庫存流水與工單沒有關聯。",
+    "reason": "W2。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-no-reopen-legacy",
+    "page": "ga-work-orders",
+    "description": "沒有需求單的舊式工單完成後不提供重新開啟，需要時另開新單；有需求單者維持由需求單端重新開啟。",
+    "reason": "W8。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-wo-state-blocks",
+    "page": "ga-work-orders",
+    "description": "待門市確認期間工單不能存進度、領用料件、補資料；需求單在待門市補資料期間工單不能存進度或送確認；存進度不能直接選「待門市確認」（要按送門市確認）、連結單不能直接選「等待門市補充資料」（要按補資料）。舊版這些階段都可直接選。",
+    "reason": "設計 §3.1 的合法流轉表延伸（避免工單與需求單狀態分岔），屬實作細則，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-completion-note-optional",
+    "page": "ga-work-orders",
+    "description": "送門市確認的處理說明可留白（預設「總務已標記處理完成，等待門市確認結果。」）；舊版必填。",
+    "reason": "與需求單端送確認（第 4 批）一致；屬實作細則，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-create-legacy-perm",
+    "page": "cross-dept-maintenance",
+    "description": "新增舊式回報需要「該門市店長且有回報權限（maintenance_request.create 或 cross_dept.maintenance.submit）」或工單更新權限；只有「查看全部」的人不能代門市新增。舊版 RLS 新增政策讓 view_all 也能新增。",
+    "reason": "Q20 精神（view_all 不能寫），新增部分設計未明說，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-legacy-no-proxy",
+    "page": "cross-dept-maintenance",
+    "description": "舊式工單（沒有需求單）的門市確認、仍有問題與補資料回覆，只有回報人或該門市店長可按，總務不能代按；有需求單的工單總務代按走第 4 批需求單端（標記代門市操作）。",
+    "reason": "設計 §3.3 只列回報人與店長；是否開放總務代按待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-wo-error-plain-language",
+    "page": "ga-work-orders",
+    "description": "工單相關錯誤一律白話中文（含舊版英文資料庫錯誤如分類重名、權限不足），並回 {ok,status,code,error}；舊版直接丟資料庫錯誤訊息。",
+    "reason": "通則。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
   }
 ]
