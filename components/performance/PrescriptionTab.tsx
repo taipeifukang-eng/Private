@@ -700,7 +700,7 @@ export default function PrescriptionTab({
           點值最多四位小數；處方箋報表獨立於每月人員狀態與門市統計。{canEdit
             ? isEditing
               ? '手動修改只會更新這份報表。'
-              : '可下載本月 Excel 範本填寫後匯入，也可以直接匯入 Google Sheet 下載的 xlsx（每店一般／連續／加總三列），或直接編輯單一門市。'
+              : '匯入方式：下載本月範本 → 從 Google Sheet 複製當月張數、金額貼到 D3 起 → 存檔上傳（每店一般／連續／加總三列；也可直接上傳 Google Sheet 下載的 xlsx）。舊版「一門市一列」範本已停用。也可以直接編輯單一門市。'
             : permissionLoading
               ? '正在確認帳號的編輯權限。'
               : '目前是唯讀；需由管理者開啟「編輯業績資料」權限後才能輸入。'}

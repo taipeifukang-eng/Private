@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as XLSX from 'xlsx';
 import { hasPermission } from '@/lib/permissions/check';
 import { getPrescriptionReportContext } from '@/lib/performance/prescription-report-context';
+import { buildPrescriptionTemplateWorkbook, writePrescriptionTemplate } from '@/lib/performance/prescription-template';
 
 const YEAR_MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -29,31 +29,11 @@ export async function GET(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: '讀取處方箋資料失敗：' + error.message }, { status: 500 });
     const byStore = new Map((existing || []).map(row => [row.store_id, row]));
-    const rows = [
-      ['年月', '門市代號', '門市名稱', '一般箋張數', '一般箋點值', '慢箋張數', '慢箋點值'],
-      ...context.stores.map(store => {
-        const report = byStore.get(store.id);
-        return [
-          yearMonth,
-          store.store_code,
-          store.store_name,
-          report?.regular_prescription_count ?? '',
-          report?.regular_prescription_point_value ?? '',
-          report?.chronic_prescription_count ?? '',
-          report?.chronic_prescription_point_value ?? '',
-        ];
-      }),
-    ];
-    const worksheet = XLSX.utils.aoa_to_sheet(rows);
-    worksheet['!cols'] = [
-      { wch: 12 }, { wch: 14 }, { wch: 20 },
-      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, '處方箋月報');
-    const buffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' });
+    // 門市順序沿用 context.stores（與 Google Sheet 的門市順序一致）；已有的數值帶入一般／連續兩列
+    const workbook = buildPrescriptionTemplateWorkbook(yearMonth, context.stores, byStore);
+    const buffer = writePrescriptionTemplate(workbook);
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Blob([buffer as BlobPart]), {
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(`處方箋匯入範本_${yearMonth}.xlsx`)}`,
