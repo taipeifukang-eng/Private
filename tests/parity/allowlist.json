@@ -7363,5 +7363,737 @@
     "description": "總務服務中心首頁移除「工單仍在舊版」的提示（只剩廠商、費用仍在舊版），側欄「工單中心」改開新版頁籤；側欄補上沒有舊工單旗標但有工單查看或回報權限者的「工單中心」入口。",
     "reason": "工單中心上線後的入口調整，補入口的條件為實作取捨，問卷未涵蓋，待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-focus",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "focus"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-wo-no",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "wo_no"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-source",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "source"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-stage-label",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "stage_label"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-status-label",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "status_label"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-waiting-store-confirmation",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "waiting_store_confirmation"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-display-columns-top-focus-counts",
+    "page": "ga-work-orders",
+    "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
+    "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#focus_counts"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-completion-label",
+    "page": "ga-work-orders",
+    "description": "新版多回結案方式中文標示（門市確認完成、強制結案、…）。",
+    "reason": "W3：報表與列表用「結案方式」標示強制結案。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "completion_method_label"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-request-no",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "request_no"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-request-status",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "request_status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-request-public-progress",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "request_public_progress"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-request-resource-type",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "request_resource_type"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-equipment-id",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "equipment_id"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-equipment-name",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "equipment_name"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-facility-id",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "facility_id"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-location-from-request-facility-name",
+    "page": "ga-work-orders",
+    "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
+    "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "facility_name"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-list-columns-reshaped-store",
+    "page": "ga-work-orders",
+    "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
+    "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "store"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-list-columns-reshaped-category",
+    "page": "ga-work-orders",
+    "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
+    "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "category"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-list-columns-reshaped-completion-requested-by",
+    "page": "ga-work-orders",
+    "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
+    "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "completion_requested_by"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-list-columns-reshaped-pending",
+    "page": "ga-work-orders",
+    "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
+    "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "pending"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-list-columns-reshaped-in-progress",
+    "page": "ga-work-orders",
+    "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
+    "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "in_progress"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-sections-top-timeline",
+    "page": "ga-work-orders",
+    "description": "新版詳情多回時間軸（進度加公開事件）、照片（新舊合併）與用料清單。",
+    "reason": "第 5 批 §3.6、W2、W5、D21：時間軸合併、照片合併、工單內領用料件。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#timeline"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-sections-top-photos",
+    "page": "ga-work-orders",
+    "description": "新版詳情多回時間軸（進度加公開事件）、照片（新舊合併）與用料清單。",
+    "reason": "第 5 批 §3.6、W2、W5、D21：時間軸合併、照片合併、工單內領用料件。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#photos"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-sections-top-parts",
+    "page": "ga-work-orders",
+    "description": "新版詳情多回時間軸（進度加公開事件）、照片（新舊合併）與用料清單。",
+    "reason": "第 5 批 §3.6、W2、W5、D21：時間軸合併、照片合併、工單內領用料件。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#parts"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-abilities-top-abilities",
+    "page": "ga-work-orders",
+    "description": "新版回傳每個動作能不能做與不能做的原因（含只有查看權限、沒有角色的管理員唯讀）。",
+    "reason": "Q20、W9：缺哪個權限講清楚；管理員以角色權限為準。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#abilities"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-abilities-top-page-abilities",
+    "page": "ga-work-orders",
+    "description": "新版回傳每個動作能不能做與不能做的原因（含只有查看權限、沒有角色的管理員唯讀）。",
+    "reason": "Q20、W9：缺哪個權限講清楚；管理員以角色權限為準。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#page_abilities"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-abilities-top-ga-side",
+    "page": "ga-work-orders",
+    "description": "新版回傳每個動作能不能做與不能做的原因（含只有查看權限、沒有角色的管理員唯讀）。",
+    "reason": "Q20、W9：缺哪個權限講清楚；管理員以角色權限為準。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#ga_side"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-abilities-top-permissions",
+    "page": "ga-work-orders",
+    "description": "新版回傳每個動作能不能做與不能做的原因（含只有查看權限、沒有角色的管理員唯讀）。",
+    "reason": "Q20、W9：缺哪個權限講清楚；管理員以角色權限為準。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#permissions"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-detail-wrapper",
+    "page": "ga-work-orders",
+    "description": "新版詳情把工單欄位放在 work_order 下（旁邊是時間軸、用料、照片）；舊版沒有單張詳情 API，工單欄位來自列表。",
+    "reason": "第 5 批 §4.2 回應形狀。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#work_order"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-progress-keep-assignee",
+    "page": "ga-work-orders",
+    "description": "存進度、送確認、強制結案時，舊版把承辦人改成操作者；新版沒填就保留。",
+    "reason": "設計 §1.3 缺陷 2（有填才更新）；缺陷修正，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "assignee_name"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-progress-keep-handling",
+    "page": "ga-work-orders",
+    "description": "存進度、送確認、強制結案時，舊版把處理方式清成空值；新版沒填就保留。",
+    "reason": "設計 §1.3 缺陷 2（有填才更新）；缺陷修正，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "handling_method"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-success-code-progress-status",
+    "page": "ga-work-orders",
+    "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（progress-status）",
+    "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "progress-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-success-code-completion-status",
+    "page": "ga-work-orders",
+    "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（completion-status）",
+    "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "completion-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-success-code-force-status",
+    "page": "ga-work-orders",
+    "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（force-status）",
+    "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "force-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-success-code-unresolved-status",
+    "page": "cross-dept-maintenance",
+    "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（unresolved-status）",
+    "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "unresolved-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-success-code-confirm-status",
+    "page": "cross-dept-maintenance",
+    "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（confirm-status）",
+    "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "confirm-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-progress-expected-required",
+    "page": "ga-work-orders",
+    "description": "新版存進度必須帶 expected_updated_at（沒帶回 400）；舊版不需要。",
+    "reason": "第 4 批通則（寫入帶版本、衝突回 409）。實作沿用，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "progress-no-version"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-progress-completed-blocked",
+    "page": "ga-work-orders",
+    "description": "已完成的工單再存進度：舊版放行（甚至把狀態改回處理中），新版回 409。",
+    "reason": "Q21、第 5 批 §7 項 1：伺服端檢查工單狀態與合法流轉。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "progress-completed"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-progress-completed-state-progress-completed-status",
+    "page": "ga-work-orders",
+    "description": "已完成的工單再存進度：舊版把狀態與階段改掉，新版保持已完成。",
+    "reason": "Q21、第 5 批 §7 項 1。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "progress-completed#status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-progress-completed-state-progress-completed-progress-stage",
+    "page": "ga-work-orders",
+    "description": "已完成的工單再存進度：舊版把狀態與階段改掉，新版保持已完成。",
+    "reason": "Q21、第 5 批 §7 項 1。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "progress-completed#progress_stage"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-completion-legacy-order",
+    "page": "ga-work-orders",
+    "description": "沒有連需求單的舊式單送門市確認：舊版回 500 英文錯誤，新版成功並讓回報人確認。",
+    "reason": "Q21、第 5 批 §7 項 7：舊式回報補確認與仍有問題；送確認不再報錯。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "completion-legacy-order-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-force-close-internal-force-events",
+    "page": "ga-work-orders",
+    "description": "強制結案：舊版把原因寫進公開進度（店長看得到）；新版原因只記內部，另寫一筆公開的「總務已結案」。",
+    "reason": "W3、spec 第 53 行：強制結案原因僅內部可見，門市只看到「總務已結案」。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "force#events"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-force-close-internal-force-update0-notes",
+    "page": "ga-work-orders",
+    "description": "強制結案：舊版把原因寫進公開進度（店長看得到）；新版原因只記內部，另寫一筆公開的「總務已結案」。",
+    "reason": "W3、spec 第 53 行：強制結案原因僅內部可見，門市只看到「總務已結案」。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "force:update0#notes"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-force-close-internal-force-update0-visibility",
+    "page": "ga-work-orders",
+    "description": "強制結案：舊版把原因寫進公開進度（店長看得到）；新版原因只記內部，另寫一筆公開的「總務已結案」。",
+    "reason": "W3、spec 第 53 行：強制結案原因僅內部可見，門市只看到「總務已結案」。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "force:update0#visibility"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-force-close-internal-force-reason-public",
+    "page": "ga-work-orders",
+    "description": "強制結案：舊版把原因寫進公開進度（店長看得到）；新版原因只記內部，另寫一筆公開的「總務已結案」。",
+    "reason": "W3、spec 第 53 行：強制結案原因僅內部可見，門市只看到「總務已結案」。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "force-reason-public"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-force-close-count",
+    "page": "ga-work-orders",
+    "description": "強制結案：舊版寫一筆進度，新版寫兩筆（內部原因、公開通知）。",
+    "reason": "W3、spec 第 53 行。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "count",
+      "key": "force#updates"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-category-missing-code",
+    "page": "ga-work-orders",
+    "description": "改成不存在的分類：舊版回 400，新版回 404 並用白話說明。",
+    "reason": "通則：錯誤訊息白話、狀態碼對應。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "category-missing-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-confirm-blocked-confirm-status",
+    "page": "cross-dept-maintenance",
+    "description": "店長在「待門市確認」的舊式單按確認完成：舊版進度有記、但工單更新被資料庫政策靜默擋下（工單沒完成）；新版工單真的完成。",
+    "reason": "Q21、第 5 批 §7 項 7：舊式回報補確認；設計 §11.1 實測：店長在 maintenance_requests 沒有 UPDATE 路徑。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "confirm#status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-confirm-blocked-confirm-completed-at",
+    "page": "cross-dept-maintenance",
+    "description": "店長在「待門市確認」的舊式單按確認完成：舊版進度有記、但工單更新被資料庫政策靜默擋下（工單沒完成）；新版工單真的完成。",
+    "reason": "Q21、第 5 批 §7 項 7：舊式回報補確認；設計 §11.1 實測：店長在 maintenance_requests 沒有 UPDATE 路徑。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "confirm#completed_at"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-confirm-blocked-confirm-completed-by",
+    "page": "cross-dept-maintenance",
+    "description": "店長在「待門市確認」的舊式單按確認完成：舊版進度有記、但工單更新被資料庫政策靜默擋下（工單沒完成）；新版工單真的完成。",
+    "reason": "Q21、第 5 批 §7 項 7：舊式回報補確認；設計 §11.1 實測：店長在 maintenance_requests 沒有 UPDATE 路徑。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "confirm#completed_by"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-confirm-blocked-confirm-completion-method",
+    "page": "cross-dept-maintenance",
+    "description": "店長在「待門市確認」的舊式單按確認完成：舊版進度有記、但工單更新被資料庫政策靜默擋下（工單沒完成）；新版工單真的完成。",
+    "reason": "Q21、第 5 批 §7 項 7：舊式回報補確認；設計 §11.1 實測：店長在 maintenance_requests 沒有 UPDATE 路徑。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "confirm#completion_method"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-confirm-guard",
+    "page": "cross-dept-maintenance",
+    "description": "不是待門市確認時按確認完成：舊版照樣記錄（201），新版擋下（409）。",
+    "reason": "Q21：門市確認只在待門市確認時可按。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "confirm-not-waiting-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-unresolved-blocked-unresolved-progress-stage",
+    "page": "cross-dept-maintenance",
+    "description": "店長按仍有問題：舊版工單更新被政策擋下（沒回到重新處理、沒記原因）；新版回到「重新處理」並記錄原因。",
+    "reason": "Q21、第 5 批 §7 項 7。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "unresolved#progress_stage"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-unresolved-blocked-unresolved-unresolved-reason",
+    "page": "cross-dept-maintenance",
+    "description": "店長按仍有問題：舊版工單更新被政策擋下（沒回到重新處理、沒記原因）；新版回到「重新處理」並記錄原因。",
+    "reason": "Q21、第 5 批 §7 項 7。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "unresolved#unresolved_reason"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-delete-silent",
+    "page": "cross-dept-maintenance",
+    "description": "回報人刪已受理的單：舊版回成功但被政策擋下（資料還在），新版明確拒絕並說明改用強制結案。",
+    "reason": "Q21、W4：已受理或已連需求單只能強制結案。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "delete-accepted-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-legacy-delete-silent-flag",
+    "page": "cross-dept-maintenance",
+    "description": "同上：舊版「假成功」。",
+    "reason": "Q21、W4。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "changed",
+      "key": "delete-accepted#silent-success"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-category-duplicate-code",
+    "page": "cross-dept-maintenance",
+    "description": "維修分類重名（含已停用的）：舊版只擋啟用中的同名（已停用同名可重複新增），新版一律擋並用白話說明。",
+    "reason": "通則：舊版英文資料庫錯誤改白話；重名規則見 m7m8-b5-api-category-plain-duplicate。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)",
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "cat-duplicate-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-category-length-code",
+    "page": "cross-dept-maintenance",
+    "description": "維修分類名稱超過 50 字：舊版放行，新版回 400。",
+    "reason": "待使用者確認（m7m8-b5-api-category-name-rules）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "write-readback",
+      "kind": "status",
+      "key": "cat-name-length-status"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-category-audit-columns-created-by",
+    "page": "cross-dept-maintenance",
+    "description": "維修分類清單：舊版回建立人與更新人，新版不回。",
+    "reason": "新版只回畫面需要的欄位。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "created_by"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-category-audit-columns-updated-by",
+    "page": "cross-dept-maintenance",
+    "description": "維修分類清單：舊版回建立人與更新人，新版不回。",
+    "reason": "新版只回畫面需要的欄位。實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "key": "updated_by"
+    }
+  },
+  {
+    "id": "m7m8-b5-par-category-page-permissions",
+    "page": "cross-dept-maintenance",
+    "description": "維修分類清單：新版多回頁面權限（能不能新增、改名、停用）。",
+    "reason": "實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-native",
+      "key": "top#permissions"
+    }
   }
 ]

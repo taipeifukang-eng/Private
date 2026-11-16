@@ -154,6 +154,8 @@ test('劇本：總務發起轉移（告知單子一起轉）→ A 店交出 → 
     // ---------------------------------------------------------------- 步驟 4：結果檢查（資料庫）
     expect((await reqRow(R.req.id)).store_id).toBe(sid.VW001);
     expect((await woRow(R.wo.id)).store_id).toBe(sid.VW001);
+    // 第 5 批：工單時間軸多一筆公開的 STORE_MOVED（工單中心與需求單詳情共用）
+    expect(((await db().from('maintenance_ticket_events').select('event_type,visibility').eq('ticket_id', R.wo.id).eq('event_type', 'STORE_MOVED')).data || []) as any[]).toEqual([{ event_type: 'STORE_MOVED', visibility: 'PUBLIC' }]);
     expect((await reqRow(R.req.id)).main_status).toBe('WAITING_STORE_CONFIRMATION');
     expect((await reqRow(P.req.id)).store_id).toBe(sid.ZT01);
     expect((await reqRow(D.req.id)).store_id).toBe(sid.ZT01);
@@ -233,6 +235,8 @@ test('劇本：更正所屬門市也帶走進行中的維修單（桌機）；�
     await expect(notice(ga.page, /已更正設備.*1 張進行中的維修單已一起轉到新門市/)).toBeVisible();
     expect((await reqRow(R.req.id)).store_id).toBe(sid.VW001);
     expect((await woRow(R.wo.id)).store_id).toBe(sid.VW001);
+    // 第 5 批：工單時間軸多一筆公開的 STORE_MOVED（工單中心與需求單詳情共用）
+    expect(((await db().from('maintenance_ticket_events').select('event_type,visibility').eq('ticket_id', R.wo.id).eq('event_type', 'STORE_MOVED')).data || []) as any[]).toEqual([{ event_type: 'STORE_MOVED', visibility: 'PUBLIC' }]);
     expect((await reqRow(R.req.id)).main_status).toBe('WAITING_STORE_SUPPLEMENT');
     expect((await reqRow(P.req.id)).store_id).toBe(sid.ZT01);
     const ev = ((await db().from('ga_service_request_events').select('title,visibility').eq('request_id', R.req.id).eq('event_type', 'ASSET_STORE_MOVED')).data || []) as any[];
