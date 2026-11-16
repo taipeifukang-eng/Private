@@ -7258,5 +7258,54 @@
     "description": "工單相關錯誤一律白話中文（含舊版英文資料庫錯誤如分類重名、權限不足），並回 {ok,status,code,error}；舊版直接丟資料庫錯誤訊息。",
     "reason": "通則。",
     "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-api-photo-image-only",
+    "page": "ga-work-orders",
+    "description": "工單新照片上傳只收圖片（JPEG、PNG、WebP、HEIC），同時檢查 Content-Type 與檔頭，非圖片或偽裝副檔名一律 400；單次最多 5 張、合計不超過 4.25MB，失敗時移除剛傳的檔案。舊版照片上傳沒有檔頭檢查。",
+    "reason": "設計 §7 第 12 項（spec 第 29 行：非圖片擋下、失敗回復）與 W5。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-api-print-internal-ga-only",
+    "page": "ga-work-orders",
+    "description": "列印工單表單的「包含內部備註」只有總務端可用；非總務端帶 include_internal 回 403，資料也一律不含內部備註與強制結案原因。舊版沒有 A4 專用表單。",
+    "reason": "W7（內部備註與強制結案原因預設不印、只有總務端可勾選）。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-api-category-no-admin-bypass",
+    "page": "ga-cross-dept-maintenance",
+    "description": "維修分類管理（GET／POST／PATCH／DELETE）改用資料庫權限語意：看需要任一維修查看碼、編輯需要 cross_dept.maintenance.category.edit，profiles.role=admin 不再自動放行。舊版 /api/maintenance-categories 以管理員後備放行。",
+    "reason": "Q20（管理員由伺服端一致處理，以角色權限為準）；W9。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-api-category-plain-duplicate",
+    "page": "ga-cross-dept-maintenance",
+    "description": "維修分類重名回 409 白話說明「已有相同名稱的維修分類（含已停用的）」，並支援版本衝突 409；舊版回 500 與英文資料庫錯誤。",
+    "reason": "通則：錯誤訊息白話（設計 §7 第 16 項）。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-api-category-name-rules",
+    "page": "ga-cross-dept-maintenance",
+    "description": "維修分類名稱新增規則：最長 50 字、比對重名時忽略大小寫與前後空白（含已停用的）、排序必須是數字；舊版只檢查非空。",
+    "reason": "新發現的輸入驗證補強，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b5-api-list-filter-400",
+    "page": "ga-work-orders",
+    "description": "工單列表與摘要的篩選值（狀態、焦點、來源、門市、分類）格式錯誤回 400 與白話說明；page／pageSize 以 100 為上限；舊版忽略不認得的篩選值。",
+    "reason": "設計 §4.2 通則（page/pageSize ≤ 100、輸入驗證）。",
+    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+  },
+  {
+    "id": "m7m8-b5-api-attachment-reporter-scope",
+    "page": "ga-work-orders",
+    "description": "工單照片上傳權限：可修改工單者可加回報照片與進度照片；回報人只能在未完成的自己工單加回報照片；同店其他店長與只有查看權限者不能上傳。舊版任何看得到工單的人可呼叫共用附件上傳。",
+    "reason": "新發現的權限收緊（以共用附件資料庫觸發器為底線，伺服端再加一層），待使用者確認。",
+    "approvedBy": null
   }
 ]

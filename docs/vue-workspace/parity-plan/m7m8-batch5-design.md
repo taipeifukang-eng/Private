@@ -334,3 +334,27 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 
 **未完成／留給後面階段**：規則與 API（`lib/workspace/general-affairs/work-orders*.ts`、`router.ts`、abilities、附件簽名、列印資料）、畫面（工單中心、跨部門頁、需求單與我的追蹤的工單摘要、列印）、角色劇本（G18、G19、G28）、G18 parity 對舊 `/api/maintenance-requests*`、版面與列印 e2e、Q20 名單與 W9 名單的正式區確認、上線前使用者核可。
 
+
+### 11.3 規則與 API 實作紀錄（第二階段 G18-api，2026-11-16）
+只連 DEV；本階段沒有改任何 SQL、第 4 批函式與 `supabase/migrations`，也沒有動 Vue 與 `public/workspace`。
+
+**新增檔案（`lib/workspace/general-affairs/`）**
+- `work-order-rules.ts`（純函式，無相依）：16 階段常數（碼、名稱、排序、是否執行類，與 DB 種子逐列相同，OTHER 為 990）、工單編號、焦點卡分類、合法流轉表 `checkWoAction`（存進度、送確認、強制結案、補資料、門市確認、仍有問題、舊式回覆補資料、領用料件、刪除；非法回 409／422 與白話）、`workOrderAbilities()`（頁面層級能力，缺哪個權限講清楚；`profiles.role=admin` 沒有任何更新角色時只作說明用的唯讀）、搜尋整形與 LIKE 跳脫、輸入驗證（有填才更新）、伺服端欄位遮蔽、列印資料整形、新舊照片合併、圖片檔頭檢查。
+- `work-order-photos.ts`：照片簽名（每次開啟短效重簽；舊 bucket 缺失時該張網址為 null、不讓整頁失敗）、圖片檢查（Content-Type 與檔頭都要是圖片）、上傳與失敗移除。
+- `work-orders.ts`：`/work-orders/**`（GET 列表、摘要、詳情、列印；POST progress、request-completion、force-close、request-supplement、store-confirm、report-unresolved、reply-supplement、issue-part、attachments；PATCH category；DELETE）。
+- `cross-dept-maintenance.ts`：`POST /cross-dept-maintenance`（multipart 或 JSON，標題、說明、最多 5 張照片，同識別碼重送回原工單）與 `/maintenance-categories`（GET／POST／PATCH／DELETE，維持舊權限碼）。
+- `router.ts` 加 `work-orders`、`cross-dept-maintenance`、`maintenance-categories` 三個入口。
+
+**實作中的發現**
+- **共用附件要用使用者身分寫入**：附件資料表的觸發器用 `auth.uid()` 檢查管理權限，服務身分寫入會回「沒有附件管理權限」；所以 `work-orders/:id/attachments` 以使用者身分寫入（觸發器本身已認得工單更新／管理、回報人、該門市店長），上傳到儲存空間仍用服務身分，失敗時移除剛傳的檔案。
+- **管理員沒有角色看不到列表**：與 DB 函式一致（`ga_wo_can_enter` 不看 `profiles.role`），API 在進資料庫前就回 403「沒有查看工單的權限」；有查看碼但沒有更新碼的管理員，詳情的 abilities 會白話說明「您的帳號沒有可修改工單的角色，請洽管理員授權」。
+- **工單照片上傳多一層收緊**：可修改工單者可加回報照片與進度照片；回報人只能在未完成的自己的工單加回報照片；同店其他店長只有查看權限者不能上傳（`m7m8-b5-api-attachment-reporter-scope`，待使用者確認）。
+- 維修分類新增規則：名稱最長 50 字、重名比對忽略大小寫與前後空白（含已停用的）、排序必須是數字（`m7m8-b5-api-category-name-rules`，待使用者確認）；刪除維持舊版「停用」語意。
+- 工單領用料件的 `expected_updated_at` 第一次送出必填（DB 回 400），同防重複識別碼重送時 DB 不看版本直接回原結果，所以 API 不強制必填。
+
+**驗證結果（只連 DEV，循序執行）**
+- `npm run test:page -- G18-api`：單元 43（流轉表全覆蓋、焦點卡、abilities、搜尋跳脫、階段常數與 DB 16 列一致、驗證、遮蔽、照片、列印）＋整合 20（G18 十五支、G19 五支），全過；結束碼 1 只因 sweeper 基準 17 筆孤兒。
+- `npm run test:unit`：118 檔 1833 項全綠；`npx tsc --noEmit` 無錯誤。
+- 新增 allowlist 7 筆（5 筆 `approvedBy` 為問卷與 spec 已核可、2 筆待確認）。
+
+**留給後面階段**：畫面（工單中心、跨部門頁、需求單與我的追蹤的工單摘要、列印）、角色劇本 e2e（G18 三支、G19、G28）、G18 對舊 API 的 parity、版面與列印 e2e、`GaCenter.vue` 提示與 `nav.ts` 登錄。
