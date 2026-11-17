@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref } from "vue";
 import { api, ApiError } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import PoPicker from "../../components/ga/PoPicker.vue";
-import { legacyUrl, openGaPage, useGaGuard } from "../../lib/ga";
+import { openGaPage, useGaGuard } from "../../lib/ga";
 import { FULFIL_TEXT, dateText, money, newKey, num, type PoDetail } from "../../lib/ga-purchase";
 import { computeTotals, needsApproval, validateHeader, validateItems } from "../../../../lib/workspace/general-affairs/purchase-order-rules";
 import { useSession, useWorkspace, type WorkTab } from "../../stores";
@@ -37,7 +37,8 @@ const createKey = ref(newKey());
 const readOnlyBody = computed(() => !!detail.value && !detail.value.abilities.edit);
 const notesOnly = computed(() => !!detail.value && !detail.value.abilities.edit && detail.value.abilities.editNotesOnly);
 const cannotEdit = computed(() => !!detail.value && !detail.value.abilities.edit && !detail.value.abilities.editNotesOnly);
-const legacyVendorUrl = computed(() => legacyUrl("/general-affairs/vendors", session.data?.integrated));
+// 只有廠商管理權限者看得到「到廠商資料新增」；其他人（例如只有採購權限者）顯示「請洽總務新增」。
+const canManageVendor = computed(() => !!session.data?.capabilities?.gaVendorManage);
 
 onMounted(async () => {
   if (!allowed.value) { loading.value = false; return; }
@@ -180,7 +181,8 @@ const overRequired = (i: Item) => !!i.request_id;
         <h2>基本資料</h2>
         <div class="pe-vendor">
           <PoPicker v-model="form.vendor_id" kind="vendor" label="供應商（只能選已建好且合作中的）" required testid="pe-vendor" :disabled="readOnlyBody" :initial="form.vendor" @pick="dirty" />
-          <a class="legacy-link" :href="legacyVendorUrl" target="_blank" rel="noopener" data-testid="legacy-vendor-link">去舊版新增供應商</a>
+          <button v-if="canManageVendor" type="button" class="link legacy-link" data-testid="legacy-vendor-link" @click="openGaPage('ga-vendors')">到廠商資料新增供應商</button>
+          <span v-else class="muted legacy-link" data-testid="vendor-ask-ga">找不到供應商？請洽總務新增。</span>
         </div>
         <PoPicker v-model="form.receiving_location_id" kind="location" label="收貨位置（入庫存的品項到貨後放這裡）" clearable testid="pe-location" :disabled="readOnlyBody" :initial="form.location" @pick="dirty" />
         <label>預計到貨日<input v-model="form.expected_delivery_date" type="date" :disabled="cannotEdit" data-testid="pe-expected" @input="dirty" /></label>

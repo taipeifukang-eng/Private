@@ -51,6 +51,10 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/purchase-orders?view=approvals": { kind: "ga-purchase-approvals", flag: "gaPurchaseApprovals" },
   // 第 5 批 G18：工單中心。
   "/general-affairs/work-orders": { kind: "ga-work-orders", flag: "gaWorkOrders" },
+  // 第 6 批 G20／G21：廠商資料、服務分類、服務區域（合作紀錄與採購分析本批後段才移植，維持舊版連結）。
+  "/general-affairs/vendors": { kind: "ga-vendors", flag: "gaVendors" },
+  "/general-affairs/vendors/categories": { kind: "ga-vendor-categories", flag: "gaVendorCategories" },
+  "/general-affairs/vendors/regions": { kind: "ga-vendor-regions", flag: "gaVendorRegions" },
 };
 
 export type GaNavInput = {

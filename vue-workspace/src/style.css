@@ -1479,3 +1479,18 @@ tbody tr:hover {
 /* 全域的 tbody tr:last-child td{border-bottom:0} 會吃掉報表表格最後一列的下框線，這裡補回來（螢幕預覽與列印都適用）。 */
 .inspection-report tbody tr:last-child td{border-bottom:1px solid #aaa}
 @media print{@page{size:A4;margin:15mm}html:has(.wo-print-output){background:#fff!important}body:has(>.wo-print-output)>*:not(.wo-print-output){display:none!important}body:has(>.wo-print-output){background:#fff!important;height:auto!important;overflow:visible!important}.wo-print-output{display:block!important}.wo-print-output .inspection-report{padding:0;font-size:10pt;max-width:none}.wo-print-output table{break-inside:auto}.wo-print-output tr{break-inside:avoid}.wo-print-output thead{display:table-header-group}.wo-print-output h2{break-after:avoid}.wo-print-output img{max-height:60mm}.wo-print-output *{print-color-adjust:exact;-webkit-print-color-adjust:exact}}
+
+/* G21 廠商填寫表（A4 空白表單）：列印時只留 .vendor-print-output。 */
+.vendor-print-output{display:none}
+@media print{@page{size:A4 portrait;margin:10mm}html:has(.vendor-print-output){background:#fff!important}body:has(>.vendor-print-output)>*:not(.vendor-print-output){display:none!important}body:has(>.vendor-print-output){background:#fff!important;height:auto!important;overflow:visible!important}
+.vendor-print-output{display:block!important;color:#111827;font-family:Arial,"Noto Sans TC",sans-serif;font-size:10pt;line-height:1.4}
+.vendor-print-output .vp-page{min-height:277mm;break-after:page}.vendor-print-output .vp-page:last-child{break-after:auto}
+.vendor-print-output .vp-title{border-bottom:2px solid #111827;padding-bottom:4mm}.vendor-print-output .vp-title h1{margin:0;font-size:18pt}.vendor-print-output .vp-title p{margin:1mm 0 0;color:#4b5563;font-size:9pt}
+.vendor-print-output .vp-section{margin-top:5mm;break-inside:avoid}.vendor-print-output .vp-section h2{margin:0 0 2.5mm;border-bottom:1px solid #9ca3af;padding-bottom:1.5mm;font-size:11pt}
+.vendor-print-output .vp-grid{display:grid;grid-template-columns:1fr 1fr;gap:3mm 7mm}.vendor-print-output .vp-field{display:grid;grid-template-columns:auto 1fr;align-items:end;gap:2mm;min-height:8mm}
+.vendor-print-output .vp-field span{white-space:nowrap;font-weight:700}.vendor-print-output .vp-field i{display:block;min-width:20mm;border-bottom:1px solid #374151}.vendor-print-output .vp-wide{grid-column:1/-1}
+.vendor-print-output .vp-options{display:flex;flex-wrap:wrap;gap:2.5mm 6mm}.vendor-print-output .vp-check{white-space:nowrap}
+.vendor-print-output .vp-lines{min-height:18mm;background:repeating-linear-gradient(to bottom,transparent 0,transparent 7mm,#9ca3af 7mm,#9ca3af 7.2mm)}
+.vendor-print-output .vp-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2.5mm 4mm}.vendor-print-output .vp-note{margin-top:3mm;color:#4b5563;font-size:8.5pt}
+.vendor-print-output .vp-sign{margin-top:8mm;display:grid;grid-template-columns:1fr 1fr;gap:10mm}}
+@media print{.vendor-print-output .vp{border:0!important;padding:0!important;font-size:10pt!important;border-radius:0!important}.vendor-print-output .vp-page+.vp-page{border-top:0!important;margin-top:0!important;padding-top:0!important}.vendor-print-output .vp-lines{background:repeating-linear-gradient(to bottom,transparent 0,transparent 7mm,#9ca3af 7mm,#9ca3af 7.2mm)!important}}

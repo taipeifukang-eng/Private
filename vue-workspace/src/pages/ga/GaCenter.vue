@@ -11,6 +11,9 @@ defineProps<{ tab: WorkTab }>();
 const session = useSession();
 const flat = (items: GaNavItem[]): GaNavItem[] => items.flatMap((i) => [i, ...(i.children ? flat(i.children) : [])]);
 const ported = computed(() => flat((session.data?.gaNavigation || []).flatMap((g) => g.items)).filter((i) => i.kind && i.kind !== "ga-center"));
+// 廠商入口（第 6 批）：導向使用者可進入的第一個廠商頁（廠商資料、服務分類、服務區域），選單、頁面與 API 共用同一組權限。
+const VENDOR_KINDS = ["ga-vendors", "ga-vendor-categories", "ga-vendor-regions"] as const;
+const vendorEntry = computed(() => VENDOR_KINDS.map((k) => ported.value.find((i) => i.kind === k)).find(Boolean) || null);
 // 只憑門市名單身分進來的人（督導、區經理）側欄不留舊版項目，也不一定進得了舊版首頁，所以沒有舊版項目時不放舊版說明與連結。
 const hasLegacy = computed(() => flat((session.data?.gaNavigation || []).flatMap((g) => g.items)).some((i) => !i.kind && !i.children?.length));
 </script>
@@ -20,7 +23,7 @@ const hasLegacy = computed(() => flat((session.data?.gaNavigation || []).flatMap
     <div>
       <p class="eyebrow">總務服務中心</p>
       <h1>總務服務中心</h1>
-      <p v-if="hasLegacy" class="muted">資產與料件主檔的新版頁面已開放；其他功能（廠商、費用）仍在舊版，從左側選單另開分頁。</p>
+      <p v-if="hasLegacy" class="muted">資產、料件、需求單、採購單、工單與廠商資料的新版頁面已開放；其他功能（費用等）仍在舊版，從左側選單另開分頁。</p>
       <p v-else class="muted">這裡列出您可以查看的新版頁面（唯讀範圍以您負責的門市為限）。</p>
     </div>
   </header>
@@ -28,6 +31,7 @@ const hasLegacy = computed(() => flat((session.data?.gaNavigation || []).flatMap
     <section class="ga-home">
       <h2>新版已可使用</h2>
       <ul v-if="ported.length" class="ga-cards">
+        <li v-if="vendorEntry"><button type="button" data-testid="ga-vendor-entry" @click="openGaPage(vendorEntry.kind!)"><strong>合作廠商</strong><small class="muted">{{ vendorEntry.label }}</small></button></li>
         <li v-for="item in ported" :key="item.id">
           <button type="button" @click="openGaPage(item.kind!)"><strong>{{ item.label }}</strong></button>
         </li>
@@ -43,5 +47,5 @@ const hasLegacy = computed(() => flat((session.data?.gaNavigation || []).flatMap
 <style scoped>
 .ga-home h2 { font-size: 14px; }
 .ga-cards { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-.ga-cards button { width: 100%; text-align: left; padding: 14px; }
+.ga-cards button { width: 100%; text-align: left; padding: 14px; display: grid; gap: 2px; }
 </style>

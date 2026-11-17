@@ -55,7 +55,9 @@ test('採購人員：側欄有「採購單」沒有「待簽核採購單」；�
     await page.getByTestId('new-po').locator('visible=true').click();
     await expect(visibleHeading(page, '新增採購單')).toBeVisible();
     await expect(page.getByTestId('po-form').locator('visible=true')).toBeVisible();
-    await expect(page.getByTestId('legacy-vendor-link').locator('visible=true')).toHaveAttribute('href', /\/general-affairs\/vendors$/);
+    // 第 6 批：連結改指新版廠商頁，只有廠商管理權限者看得到；採購人員（只有廠商檢視）改顯示「請洽總務新增」。
+    await expect(page.getByTestId('legacy-vendor-link')).toHaveCount(0);
+    await expect(page.getByTestId('vendor-ask-ga').locator('visible=true')).toContainText('請洽總務新增');
     await expect(page.getByTestId('pe-save').locator('visible=true')).toBeVisible();
     await expect(page.getByTestId('pe-add-item').locator('visible=true')).toBeVisible();
     expect(await noPageOverflow(page)).toBe(true);

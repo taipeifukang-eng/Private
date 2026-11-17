@@ -105,6 +105,12 @@ export type GaFlags = {
   /** 第 5 批 G18／G19：工單中心與跨部門維修頁（入口條件與工單 API 的 canEnter 相同）。 */
   gaWorkOrders: boolean;
   gaCrossDeptMaintenance: boolean;
+  /** 第 6 批 G20／G21：廠商資料（含帳務機密）、服務分類、服務區域；入口條件與 API 相同（資料庫語意，管理員沒掛權限不顯示）。 */
+  gaVendors: boolean;
+  gaVendorCategories: boolean;
+  gaVendorRegions: boolean;
+  /** 廠商管理（新增、編輯、停用）：採購單頁的「新增供應商」連結只對有這個權限者顯示。 */
+  gaVendorManage: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -165,6 +171,11 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     // 第 5 批 G18／G19：看工單（全部、自己門市、回報權限）或更新；兩頁共用同一組條件（Q19：跨部門頁也認新總務權限）。
     gaWorkOrders: has(...WO_ENTER_CODES),
     gaCrossDeptMaintenance: has(...WO_ENTER_CODES),
+    // 第 6 批：廠商頁需廠商檢視／管理；分類與區域頁需各自的檢視／管理（持廠商權限者只能在廠商表單下拉唯讀使用，不進分類區域頁）。
+    gaVendors: dbHas("general_affairs.vendor.view", "general_affairs.vendor.manage"),
+    gaVendorCategories: dbHas("general_affairs.service_category.view", "general_affairs.service_category.manage"),
+    gaVendorRegions: dbHas("general_affairs.service_region.view", "general_affairs.service_region.manage"),
+    gaVendorManage: dbHas("general_affairs.vendor.manage"),
     gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }

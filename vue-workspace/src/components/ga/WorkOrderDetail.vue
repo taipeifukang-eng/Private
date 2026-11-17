@@ -5,6 +5,8 @@ import { api, ApiError } from "../../api";
 import Modal from "../Modal.vue";
 import UploadPicker from "../UploadPicker.vue";
 import InventoryPicker from "./InventoryPicker.vue";
+import VendorSelect from "./VendorSelect.vue";
+import { vendorDisplayName } from "../../lib/ga-vendors";
 import WorkOrderPrint from "./WorkOrderPrint.vue";
 import { fmtTime } from "../../lib/ga-inventory-stock";
 import { openGaPage } from "../../lib/ga";
@@ -35,6 +37,20 @@ const wo = computed(() => data.value?.work_order || null);
 const ab = computed(() => data.value?.abilities || null);
 const linked = computed(() => !!wo.value?.ga_service_request_id);
 const gaSide = computed(() => !!data.value?.ga_side);
+// 目前綁定的廠商名稱（只有總務端看得到；名稱附（已停用）／（暫停））。
+const vendorName = ref("");
+watch(() => [gaSide.value, wo.value?.vendor_id] as const, async ([side, id]) => {
+  vendorName.value = "";
+  if (!side || !id) return;
+  try {
+    const res = await api<{ data: Array<{ id: string; name: string; status: string }> }>(`general-affairs/vendor-options?onlyIds=1&includeIds=${id}`);
+    const v = res.data.find((x) => x.id === id);
+    if (v) vendorName.value = vendorDisplayName(v.name, v.status);
+  } catch {
+    vendorName.value = "";
+  }
+}, { immediate: true });
+const vendorLabel = computed(() => (wo.value?.vendor_id ? vendorName.value || "（已指定，名稱讀取中）" : "—"));
 const isReporter = computed(() => !!wo.value?.reported_by && wo.value.reported_by === session.data?.user.id);
 
 async function load(keepNotice = false) {
@@ -87,7 +103,7 @@ function gotoRequest() { if (wo.value?.ga_service_request_id) openGaPage("ga-req
 type ActionId = "progress" | "completion" | "force_close" | "supplement" | "issue_part" | "delete" | "category" | "store_confirm" | "unresolved" | "reply_supplement";
 const pending = ref<ActionId | "">("");
 const formError = ref("");
-const form = reactive({ notes: "", stage: "", visibility: "PUBLIC", date: "", assignee: "", method: "", reason: "", suppType: "PHOTO_UNCLEAR", categoryId: "", qty: "", unit: "BASE", reasonShort: "" });
+const form = reactive({ notes: "", stage: "", visibility: "PUBLIC", date: "", assignee: "", method: "", vendorId: "", reason: "", suppType: "PHOTO_UNCLEAR", categoryId: "", qty: "", unit: "BASE", reasonShort: "" });
 const progressPhotos = ref<PreparedFile[]>([]);
 const photosBusy = ref(false);
 const locationId = ref("");
@@ -102,7 +118,7 @@ const TITLES: Record<ActionId, string> = {
 function open(a: ActionId) {
   pending.value = a;
   formError.value = "";
-  Object.assign(form, { notes: "", stage: wo.value?.status === "UNACCEPTED" ? "INITIAL_REVIEW" : wo.value?.progress_stage && wo.value.progress_stage !== "WAITING_STORE_CONFIRMATION" ? wo.value.progress_stage : "", visibility: "PUBLIC", date: "", assignee: "", method: "", reason: "", suppType: "PHOTO_UNCLEAR", categoryId: wo.value?.category_id || "", qty: "", unit: "BASE", reasonShort: "" });
+  Object.assign(form, { notes: "", stage: wo.value?.status === "UNACCEPTED" ? "INITIAL_REVIEW" : wo.value?.progress_stage && wo.value.progress_stage !== "WAITING_STORE_CONFIRMATION" ? wo.value.progress_stage : "", visibility: "PUBLIC", date: "", assignee: "", method: "", vendorId: "", reason: "", suppType: "PHOTO_UNCLEAR", categoryId: wo.value?.category_id || "", qty: "", unit: "BASE", reasonShort: "" });
   progressPhotos.value = [];
   locationId.value = ""; partId.value = ""; pickedPart.value = null; partKey = newKey();
 }
@@ -143,6 +159,7 @@ async function submit() {
       if (form.date) body.progress_date = form.date;
       if (form.assignee.trim()) body.assignee_name = form.assignee.trim();
       if (form.method.trim()) body.handling_method = form.method.trim();
+      if (form.vendorId) body.vendor_id = form.vendorId;
       await api(`${base()}/progress`, { method: "POST", body: JSON.stringify(body) });
       let msg = "進度已更新。";
       if (progressPhotos.value.length) {
@@ -260,6 +277,7 @@ const requestStatusText = computed(() => (wo.value?.request_status ? REQUEST_STA
         <div v-if="linked"><dt>需求單</dt><dd><span data-testid="wo-request-no">{{ wo.request_no }}</span>（{{ requestStatusText }}）<button v-if="gaSide" type="button" data-testid="wo-goto-request" @click="gotoRequest">前往需求單</button></dd></div>
         <div v-if="gaSide"><dt>處理人</dt><dd data-testid="wo-assignee">{{ wo.assignee_name || "—" }}</dd></div>
         <div v-if="gaSide"><dt>處理方式</dt><dd>{{ wo.handling_method || "—" }}</dd></div>
+        <div v-if="gaSide"><dt>廠商</dt><dd data-testid="wo-vendor">{{ vendorLabel }}</dd></div>
         <div v-if="wo.unresolved_reason"><dt>門市反映的問題</dt><dd>{{ wo.unresolved_reason }}</dd></div>
       </dl>
       <p class="wod-desc">{{ wo.description || "（沒有說明）" }}</p>
@@ -349,6 +367,7 @@ const requestStatusText = computed(() => (wo.value?.request_status ? REQUEST_STA
           <label>進度日期（選填）<input v-model="form.date" type="date" data-testid="f-date" /></label>
           <label>承辦人（選填，留白＝不修改{{ wo.assignee_name ? "；目前：" + wo.assignee_name : "" }}）<input v-model="form.assignee" maxlength="100" data-testid="f-assignee" /></label>
           <label>處理方式（選填，留白＝不修改{{ wo.handling_method ? "；目前：" + wo.handling_method : "" }}）<input v-model="form.method" maxlength="500" data-testid="f-method" /></label>
+          <VendorSelect v-if="gaSide && ab?.can_save_progress" v-model="form.vendorId" :current-id="wo.vendor_id" :disabled="busy" testid="f-vendor" />
           <UploadPicker v-model="progressPhotos" images-only :max="5" label="附進度照片（選填）" :disabled="busy" @busy="photosBusy = $event" />
         </template>
         <template v-else-if="pending === 'completion'">

@@ -81,6 +81,19 @@ export async function vendorOptionsApi(ctx: Context, request: NextRequest) {
   const { page, pageSize } = parsePaging(url.searchParams, { pageSize: 50, max: 100 });
   const includeIds = validated(() => parseIdList(url.searchParams.get("includeIds")));
   const q = (url.searchParams.get("q") || "").trim().slice(0, 100);
+  // onlyIds=1：只回 includeIds 指定的那幾家（工單詳情顯示目前綁定的廠商名稱與狀態用；含已暫停、停用），不受分頁影響。
+  if (url.searchParams.get("onlyIds") === "1") {
+    if (!includeIds.length) return respond({ data: [], total: 0, meta: pagingMeta(1, pageSize, 0), billing_visible: false });
+    const found: any[] = [];
+    let billing = false;
+    for (let p = 1; p <= 5 && found.length < includeIds.length; p += 1) {
+      const r = await rpc(ctx, "ga_ws_vendor_options", { p_q: null, p_page: p, p_page_size: 100, p_include_ids: includeIds });
+      billing = !!r.billing_visible;
+      found.push(...((r.data as any[]) || []).filter((row) => includeIds.includes(row.id)));
+      if (p * 100 >= (r.total ?? 0)) break;
+    }
+    return respond({ data: found.map((row) => maskVendorOption(row, billing)), total: found.length, meta: pagingMeta(1, pageSize, found.length), billing_visible: billing });
+  }
   const r = await rpc(ctx, "ga_ws_vendor_options", { p_q: q || null, p_page: page, p_page_size: pageSize, p_include_ids: includeIds.length ? includeIds : null });
   const billing = !!r.billing_visible;
   return respond({ data: ((r.data as any[]) || []).map((row) => maskVendorOption(row, billing)), total: r.total ?? 0, meta: pagingMeta(page, pageSize, r.total ?? 0), billing_visible: billing });

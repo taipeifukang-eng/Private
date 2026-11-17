@@ -11,7 +11,7 @@ export type WoRow = {
   equipment_name?: string | null; facility_name?: string | null; focus: WoFocus;
   accepted_at: string | null; completed_at: string | null; completion_requested_at: string | null; unresolved_reason: string | null;
   completion_method: string | null; completion_method_label: string | null; created_at: string; updated_at: string;
-  assignee_name?: string | null; handling_method?: string | null;
+  assignee_name?: string | null; handling_method?: string | null; vendor_id?: string | null;
 };
 export type WoTimelineItem = { kind: "update" | "event"; id: string; at: string; visibility: string; text: string | null; stage?: string | null; stage_label?: string | null; event_type?: string; by_name?: string | null; progress_date?: string | null };
 export type WoPart = { event_id: string; at: string; transaction_no: string | null; part_code: string | null; part_name: string | null; location_name: string | null; quantity: string | null; unit: string | null; reason: string | null; by_name: string | null; verified_quantity_base: number | null };

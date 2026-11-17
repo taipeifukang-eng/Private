@@ -128,6 +128,10 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-purchase-approvals",
   // 第 5 批 G18：工單中心。
   "ga-work-orders",
+  // 第 6 批 G20／G21：廠商資料、服務分類、服務區域。
+  "ga-vendors",
+  "ga-vendor-categories",
+  "ga-vendor-regions",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

@@ -16,6 +16,7 @@ const rollback = process.argv.includes("--rollback");
 const base = [
   "20261118090000_m7m8_b6_vendor_columns_rls",
   "20261118100000_m7m8_b6_vendor_rpc",
+  "20261118105000_m7m8_b6_work_order_vendor_check",
   "20261118110000_m7m8_b6_utility_bills",
   "20261118120000_m7m8_b6_stats_home",
   "20261118130000_m7m8_b6_dev_seed",

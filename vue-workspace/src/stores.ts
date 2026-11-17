@@ -99,6 +99,11 @@ export type Session = {
     /** 第 5 批 G18／G19：工單中心、跨部門維修頁。 */
     gaWorkOrders: boolean;
     gaCrossDeptMaintenance: boolean;
+    /** 第 6 批 G20／G21：廠商資料、服務分類、服務區域。 */
+    gaVendors: boolean;
+    gaVendorCategories: boolean;
+    gaVendorRegions: boolean;
+    gaVendorManage: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];
