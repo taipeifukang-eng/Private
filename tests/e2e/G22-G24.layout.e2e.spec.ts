@@ -98,6 +98,8 @@ test('側欄徽章：選單文字不被擠壞（高度不超過兩行）、徽�
     for (const r of rows) expect(r.h, `側欄列 ${r.text}`).toBeLessThanOrEqual(72);
     const aside = await shell(page).locator('aside').first().boundingBox();
     const badges = await shell(page).locator('aside .ga-badge').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right));
+    const sizes = await shell(page).locator('aside .ga-badge').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { h: r.height, w: r.width, text: (e as HTMLElement).innerText }; }));
+    for (const s of sizes) { expect(s.h, `徽章 ${s.text} 高度`).toBeLessThanOrEqual(22); expect(s.w, `徽章 ${s.text} 寬度`).toBeLessThanOrEqual(48); }
     for (const right of badges) expect(right).toBeLessThanOrEqual(aside!.x + aside!.width + 1);
     expect(noConsole(errors)).toEqual([]);
   } finally {

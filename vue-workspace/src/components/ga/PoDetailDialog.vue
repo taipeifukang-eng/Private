@@ -61,8 +61,8 @@ async function submitAction() {
     notice.value = `已${PO_ACTION_LABEL[action.value]}。`;
     panel.value = "";
     po.value = res.data;
+    emit("changed"); // 先通知清單重新整理：使用者若在重新載入完成前關閉視窗，清單仍會更新
     await load();
-    emit("changed");
   } catch (e) {
     formError.value = (e as Error).message;
     if (e instanceof ApiError && e.data?.code === "STALE") stale.value = true;

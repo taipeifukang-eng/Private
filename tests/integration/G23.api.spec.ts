@@ -247,6 +247,7 @@ test('刪除：原因必填（400）、版本檢查、軟刪除只標記、已�
   const view = await get('util_view', `${U}?deleted=1&search=${b.service_identifier}`);
   expect(view.body.total).toBe(1);
   expect(view.body.deleted_view).toBe(true);
+  expect(view.body.summary).toMatchObject({ count: 0, total_amount: 0, paid_count: 0, unpaid_count: 0, unpaid_amount: 0 });
   expect(view.body.data[0]).toMatchObject({ status: 'deleted', deletion_reason: '重複登錄' });
   expect(view.body.data[0].deleted_by_name).toBeTruthy();
   const again = await send('util_mgr', 'post', `${U}/${b.id}/delete`, { reason: '再刪一次' });

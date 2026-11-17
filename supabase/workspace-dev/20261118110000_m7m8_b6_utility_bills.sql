@@ -292,7 +292,7 @@ BEGIN
     'total', (SELECT count(*) FROM f),
     'summary', (SELECT jsonb_build_object('count', count(*), 'total_amount', COALESCE(sum(amount), 0),
         'paid_count', count(*) FILTER (WHERE paid_at IS NOT NULL), 'paid_amount', COALESCE(sum(amount) FILTER (WHERE paid_at IS NOT NULL), 0),
-        'unpaid_count', count(*) FILTER (WHERE paid_at IS NULL), 'unpaid_amount', COALESCE(sum(amount) FILTER (WHERE paid_at IS NULL), 0)) FROM f),
+        'unpaid_count', count(*) FILTER (WHERE paid_at IS NULL), 'unpaid_amount', COALESCE(sum(amount) FILTER (WHERE paid_at IS NULL), 0)) FROM f WHERE deleted_at IS NULL),
     'rows', COALESCE((SELECT jsonb_agg(public.ga_ub_json(x.id) ORDER BY x.billing_month DESC, x.due_date ASC NULLS LAST, x.created_at DESC, x.id)
         FROM (SELECT id, billing_month, due_date, created_at FROM f ORDER BY billing_month DESC, due_date ASC NULLS LAST, created_at DESC, id LIMIT v_size OFFSET (v_page - 1) * v_size) x), '[]'::jsonb))
     INTO v_out;

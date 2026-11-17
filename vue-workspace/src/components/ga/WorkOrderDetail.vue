@@ -130,8 +130,8 @@ const base = () => `general-affairs/work-orders/${props.workOrderId}`;
 async function afterWrite(msg: string) {
   pending.value = "";
   notice.value = msg;
+  emit("changed"); // 先通知清單重新整理：使用者若在重新載入完成前關閉視窗，清單仍會更新
   await load(true);
-  emit("changed");
 }
 function onError(e: unknown) {
   formError.value = (e as Error).message;

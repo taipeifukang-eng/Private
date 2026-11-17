@@ -39,8 +39,8 @@ async function setStatus() {
     warnings.value = res.warnings || [];
     notice.value = `已${ACTION_TEXT[confirming.value]}。`;
     confirming.value = "";
+    emit("changed"); // 先通知清單重新整理：使用者若在重新載入完成前關閉視窗，清單仍會更新
     await load();
-    emit("changed");
   } catch (e) {
     error.value = errorText(e);
     confirming.value = "";

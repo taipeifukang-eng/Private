@@ -236,6 +236,9 @@ test('刪除必填原因（已繳帳單多一道確認）、軟刪除、顯示�
     await expect(page.locator('[data-testid="bill-card"]:visible')).toHaveCount(0);
     await vis(page, 'show-deleted').check();
     await expect(vis(page, 'deleted-view-note')).toBeVisible();
+    // 已刪除的帳單不可計入「篩選結果合計」
+    await expect(vis(page, 'stat-filtered')).toHaveText(/NT\$\s*0/);
+    await expect(vis(page, 'stat-filtered-count')).not.toContainText('待繳');
     await expect(page.locator('[data-testid="bill-card"]:visible')).toHaveCount(1);
     await expect(vis(page, 'bill-deleted-line')).toContainText('重複登錄');
     await page.locator('[data-testid="bill-card"]:visible').first().getByTestId('open-bill').click();

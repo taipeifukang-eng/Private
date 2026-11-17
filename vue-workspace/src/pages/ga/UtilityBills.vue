@@ -127,7 +127,7 @@ function startEdit(b: Bill) { saved.value = null; detailId.value = ""; editing.v
         <button type="button" data-testid="card-overdue" :aria-pressed="status === 'overdue' && !month" @click="pickOverdue"><span>已逾期（全部月份）</span><strong data-testid="stat-overdue">{{ g?.overdue_count ?? 0 }} 筆</strong><small data-testid="stat-overdue-amount">{{ money(g?.overdue_amount) }}</small></button>
       </li>
       <li>
-        <div class="card-static"><span>篩選結果合計</span><strong data-testid="stat-filtered">{{ money(summary.total_amount) }}</strong><small data-testid="stat-filtered-count">{{ summary.count }} 筆（已繳 {{ summary.paid_count }}、待繳 {{ summary.unpaid_count }}）</small></div>
+        <div class="card-static"><span>篩選結果合計</span><strong data-testid="stat-filtered">{{ money(summary.total_amount) }}</strong><small v-if="deletedView" data-testid="stat-filtered-count">已刪除的帳單不列入合計（目前列出 {{ total }} 筆已刪除）</small><small v-else data-testid="stat-filtered-count">{{ summary.count }} 筆（已繳 {{ summary.paid_count }}、待繳 {{ summary.unpaid_count }}）</small></div>
       </li>
     </ul>
     <p v-if="(g?.no_due_count ?? 0) > 0 && !deletedView" class="notice" role="status" data-testid="no-due-hint">有 {{ g?.no_due_count }} 筆未繳帳單沒有填繳費期限（不會被算成逾期）。<button type="button" data-testid="show-no-due" @click="showNoDue">查看這些帳單</button></p>

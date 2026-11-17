@@ -122,7 +122,7 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
 .ga-nav ul { list-style: none; margin: 0; padding: 0; }
 .ga-row { display: flex; align-items: center; gap: 4px; }
 .ga-row .ga-link { flex: 1; min-width: 0; }
-.ga-badge { flex: none; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; border: 0; background: var(--danger); color: var(--surface); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; cursor: pointer; }
+.ga-badge { flex: none; align-self: center; box-sizing: border-box; min-width: 22px; width: auto; min-height: 0; max-height: 20px; height: 20px; padding: 0 6px; margin-top: 0; margin-bottom: 0; border-radius: 10px; border: 0; background: var(--danger); color: var(--surface); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; cursor: pointer; }
 .ga-badge.static { margin-left: 6px; cursor: default; }
 .ga-mobile-bar .ga-badge { margin-left: 6px; cursor: default; }
 .ga-link { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: 5px; min-height: 34px; color: var(--ink); text-decoration: none; font-weight: 500; white-space: normal; }

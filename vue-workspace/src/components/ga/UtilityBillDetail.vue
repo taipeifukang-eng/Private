@@ -54,12 +54,12 @@ async function run(path: string, payload: Record<string, unknown>, done: string)
     await api(`general-affairs/utility-bills/${bill.value.id}/${path}`, { method: "POST", body: JSON.stringify({ ...payload, expected_updated_at: bill.value.updated_at }) });
     notice.value = done;
     panel.value = "";
+    emit("changed"); // 先通知清單重新整理：使用者若在重新載入完成前關閉視窗，清單仍會更新
     await load();
-    emit("changed");
   } catch (e) {
     error.value = errorText(e);
     // 版本過期或已被別人處理：重新載入最新內容讓使用者看到現況。
-    if (["STALE", "ALREADY_PAID", "DELETED"].includes(errorCodeOf(e))) { panel.value = ""; await load(); emit("changed"); }
+    if (["STALE", "ALREADY_PAID", "DELETED"].includes(errorCodeOf(e))) { panel.value = ""; emit("changed"); await load(); }
     // 已繳帳單刪除需要確認：伺服端回 409 時打開確認勾選。
     if (errorCodeOf(e) === "PAID_CHANGE_CONFIRM_REQUIRED" && Object.keys(errorDataOf(e).original || {}).length) confirmPaid.value = false;
   } finally {
