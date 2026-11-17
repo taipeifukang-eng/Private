@@ -768,20 +768,22 @@
   {
     "legacyRoute": "/general-affairs/utility-bills",
     "source": "app/general-affairs/utility-bills/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；M7/M8 第 6 批 G23（2026-11-17，差異已登記 allowlist m7m8-b6-ub-*，待確認項見 m7m8-batch6-design.md 11.2）",
     "imports": [
       "@/components/general-affairs/expenses/UtilityBillsClient"
     ],
-    "apis": []
+    "apis": [],
+    "vue": "UtilityBills.vue（G23）"
   },
   {
     "legacyRoute": "/general-affairs/utility-bills/report",
     "source": "app/general-affairs/utility-bills/report/page.tsx",
-    "status": "待逐項盤點",
+    "status": "已原生化；M7/M8 第 6 批 G23（2026-11-17，差異已登記 allowlist m7m8-b6-ub-*，待確認項見 m7m8-batch6-design.md 11.2）",
     "imports": [
       "@/components/general-affairs/expenses/UtilityBillsReportClient"
     ],
-    "apis": []
+    "apis": [],
+    "vue": "UtilityBillsReport.vue（G23）"
   },
   {
     "legacyRoute": "/general-affairs/vendors/categories",

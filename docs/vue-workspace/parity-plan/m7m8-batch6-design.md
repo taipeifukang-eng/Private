@@ -344,3 +344,32 @@
 **驗證數字**：`npm run test:page -- G20-G21-db-api` 循序全綠（unit 45、playwright 37、sweeper 前後孤兒 0、結束碼 0）；`npx tsc --noEmit`、`vue-tsc --noEmit` 無錯誤；全部 unit（122 檔、1928 項）通過。必修回歸循序重跑：G14-G17（unit 18、33）、G16（6）、G17（7）、G25-db（unit 43、21）、G25-ui（unit 18、28）、G26-db（unit 37、22）、G27（13 unit、17）、G18-api、G18-db、G18-e2e、G18-ui 全部結束碼 0。回歸中發現並修正一項：`vue_workspace_ga6_ga_all` 一開始帶了「採購核准」，被 G25-db 的「採購核准只給核准人角色」檢查擋下（結束碼 1），已把核准從該角色移除（後續階段的待核准採購單徽章測試改用核准人臨時角色），重套 DEV 後 G25-db 通過。
 
 **待使用者確認**：allowlist 6 項（付款條件仍為自由文字、公司統編必填、code 唯一索引、區域固定資料取捨、需求單採購評估頁內嵌改寫、舊版 purchase-review API 收緊後對無廠商權限者空白）。
+
+#### 階段 3：G23 水電網費（2026-11-17，只用 DEV mjpd…，未連正式區、未 push、未動 supabase/migrations 與 `_preview.html`）
+**DEV SQL（`supabase/workspace-dev/20261118110000_m7m8_b6_utility_bills.sql`＋`.rollback.sql`，套用腳本 `scripts/apply-workspace-m7m8-b6-dev.cjs` 已含這支）**：`ga_utility_bills.deletion_reason`；`idx_ga_utility_bills_unpaid_due`（未繳且未刪除的到期日部分索引）；讀取 policy 移除 `current_user_manages_store` 條件；**附件管理判斷函式 `ga_resource_attachment_can_manage` 補上 `UTILITY_BILL` 分支**（見下「實作中發現」）；9 支對外函式 `ga_ws_ub_list／get／save／anomaly／pay／unpay／delete／report／stores`（SECURITY DEFINER、只用 `has_permission`、對外只授權 authenticated）與 16 支內部輔助 `ga_ub_*`（逾期判斷、待繳／逾期／沒填期限統計、金額異常基準、帳單 JSON、已繳原值、繳費日期檢查等；不開放直接呼叫）。已實測「套用 → 撤回 → 再套用」兩輪，函式 25 個、政策與索引還原與重套正確。
+**規則落實（V6–V8、V10）**：已繳與未繳都可編輯全部欄位、沒帶的欄位維持原值、換門市同步據點名稱、已停用門市的舊帳單編輯保留原門市且不能新選停用門市；已繳帳單改金額、據點、類型、月份、供應商、識別號碼或刪除需 `confirm_paid_change`，否則 `409 PAID_CHANGE_CONFIRM_REQUIRED` 附原值與被改欄位；不能用編輯清空已繳日期（`USE_UNPAY`）；重複帳單 `409 DUPLICATE_BILL` 白話並回既有那一筆（id、金額、期限）；金額異常（近三筆、排除自己與 0 元、2 倍與一半、0 元、「僅 N 筆參考」）只提醒（`warnings`／`anomaly`），`anomaly-check` 供送出前預檢；標記已繳預設台北今天、不可未來、不早於帳單月份前 1 個月、同一天重標冪等、換日期 `ALREADY_PAID`；改回待繳 `409 UNPAY_CONFIRM_REQUIRED` 附原日期、確認後清除、本來就待繳冪等；刪除必填原因、軟刪除（誰、何時、為何）、已刪除冪等、已刪除不可編輯；逾期＝未繳且到期日早於台北今天（當天不逾期、無到期日不逾期），待繳／逾期／沒填期限三組數字不受月份、類型、據點篩選與分頁影響、不受 500 筆上限（同一支 `ga_ub_pending_stats`，G24 的首頁與徽章共用）；報表月／季／年、全部啟用門市列出、其他據點名稱正規化（NFKC、空白、大小寫）後合併、不含已刪除。更新一律帶 `expected_updated_at`（缺少 400、不符 409 STALE）。
+**伺服端**：`lib/workspace/general-affairs/utility-bill-rules.ts`（純函式：權限、逾期、日期範圍、異常基準、已繳關鍵欄位、請求整形、名稱正規化）、`utility-bill-messages.ts`（白話對照，單元測試逐一對照 SQL 的錯誤碼）、`utility-bills.ts`（路由 `utility-bills`、`meta`、`report`、`anomaly-check`、`:id`、`:id/pay|unpay|delete`；寫入檢查 Origin 與使用者身分；沒有 DELETE（405））、`router.ts` 登錄；`attachments.ts`：水電帳單附件寫入與標記刪除改用使用者身分（見下）。權限旗標 `gaUtilityBills`、`gaUtilityBillManage`（資料庫語意，管理員沒掛權限不顯示）、`GA_PAGE_BY_HREF` 兩條、頁面 kind `ga-utility-bills`／`ga-utility-bills-report`、標題與權限鍵、頁面登錄、`stores.ts` 型別。
+**側欄**：舊側欄「水電電話網路費」是帶子項（費用報表）的項目，外殼對有子項的項目只當展開鈕，帳單列表會沒有入口；`nav.ts` 把它拆成「帳單列表」與「費用報表」兩個子項（單元測試鎖定結構）。
+**畫面**：`UtilityBills.vue`（三張摘要卡：待繳與逾期是全部月份、「篩選結果合計」照篩選；沒填繳費期限的未繳另列提示；篩選月份、據點、類型、狀態、搜尋；卡片列表與分頁；「顯示已刪除」唯讀檢視；從徽章進入可帶 `{overdue:true}`）、`UtilityBillForm.vue`（新增與編輯；送出前預檢金額異常，顯示基準與近三筆明細，可返回修改或仍要儲存；已繳修改確認面板顯示原值；重複帳單訊息附「查看並編輯那一筆」）、`UtilityBillDetail.vue`（標記已繳選日期、改回待繳確認、刪除原因與已繳二次確認、最後修改者、已刪除資訊、附件面板 `UTILITY_BILL`／`BILL_DOCUMENT`）、`UtilityBillsReport.vue`（月／季／年、桌機表格、手機轉卡片、純 CSS 長條，不做匯出與圖表）、`lib/ga-utility-bills.ts`。`GaCenter.vue` 說明文字更新。
+**實作中發現並處理（共 3 項）**
+1. **舊版水電帳單附件在資料庫層本來就上傳不了**：`ga_resource_attachment_can_manage` 沒有 `UTILITY_BILL` 分支，寫入觸發器對任何身分都回「沒有附件管理權限」；新版 G01 附件 API 對帳單用管理者身分寫入，管理者身分沒有 `auth.uid()` 也被擋。處理：110000 讀出現行函式定義、只在結尾 `RETURN false` 前插入 `UTILITY_BILL` 分支再重建（不整支覆蓋，已有就略過，結尾格式不符就中止；rollback 拿掉分支）；`attachments.ts` 水電帳單附件寫入改用使用者身分（寫完再用管理者身分讀回，因為使用者讀不到這類附件）、標記刪除改走和其他資源相同的資料庫函式；單元測試與 API、e2e 都涵蓋（上傳、水電檢視可看不能傳與刪、刪除只標記保留原檔、帳單刪除後讀不到）。正式區草稿 45 同步（先決檢查含這支函式與結尾格式）。
+2. **舊版 DELETE 在 DEV 實測沒有刪成功**（回 400「刪除失敗」）：更新後的列不符讀取政策 `deleted_at IS NULL`；新版用函式不受影響。登記 allowlist `m7m8-b6-ub-delete-legacy-ineffective`（新發現，待確認）；舊頁不動。
+3. **number 輸入框的 v-model 會把金額變成數字**，表單用字串方法會丟例外（e2e 抓到）；`lib/ga-utility-bills.ts` 一律先轉字串，單元測試鎖定。
+
+**自行決定之處**
+1. 新增帳單時附件不在表單內選檔，儲存後直接開啟帳單詳情，附件面板在那裡上傳（失敗也留在詳情可補傳）；設計寫「新增帳單時附件失敗保留補傳入口」，這樣更單純。
+2. 列表每頁 20 筆（上限 100），舊版是整批 500；篩選結果合計與摘要是伺服端精確計算。
+3. 報表的年度改成數字輸入（2000–2100），不是下拉（下拉年份有限，無法看未來月份的資料）。
+4. 新增與編輯表單的「繳費日期」套用和標記已繳相同的日期規則（不可未來、不早於帳單月份前 1 個月）；日期沒有改就不重檢查（避免舊資料擋住不相關的編輯）。登記 allowlist（待確認）。
+5. 測試資料：歷史月份與異常案例用 2038；標記已繳與逾期因規則「不可選未來」必須用過去月份（5 個月前）；報表案例用 2039 以保持乾淨。測試用供應商名稱帶 `QA-GA6-` 標記，`cleanupM7M8` 擴充清除帳單與其附件（紀錄與實體檔），sweeper 新增回報目標 `ga_utility_bills`。
+6. 首頁與導覽徽章（逾期帳單）的斷言留待 G24：`G23.journey-utility-bill.e2e` 檔尾有 `test.fixme` 標註，`ga_ub_pending_stats` 與列表的 `overdue` 篩選已共用同一個逾期述詞並有「列表總筆數＝逾期數字」的資料庫對照測試。
+
+**allowlist（`tests/parity/allowlist.json`，page `ga-utility-bills`，id 前綴 `m7m8-b6-ub-`）**：新增 30 條。20 條已核可（`approvedBy` 為 "user (2026-11-17 batch 6 spec survey)"：逾期與狀態旗標、建立與修改者名稱、已刪除檢視、篩選結果合計與全部月份摘要、重複帳單白話、金額異常、標記已繳日期範圍、改回待繳確認、帳單可編輯、刪除原因與二次確認）；10 條待使用者確認（`approvedBy` 為 null）：不回建立／修改／刪除者 uuid（3）、回應含總筆數與分頁資訊、回應含能力旗標、不回 `success`（列表與新增各 1）、新增時繳費日期套日期規則、舊版 DELETE 在 DEV 沒刪成功、其他據點名稱正規化（報表）。已加進 `tests/unit/T02/parity-framework.test.ts` 的待核可清單。
+
+**測試（測試 ID 前綴 `G23`，`npm run test:page -- G23` 循序，結束碼 0）**
+- unit（`tests/unit/G23/`）：53 項。異常基準（歷史 0／1／2／3／4 筆、雙月、排除自己與 0 元、恰好 2 倍與一半、0 元、多打一個零）、逾期定義（當天、前一天、無到期日、已繳、已刪除）、標記已繳範圍（今天可明天不可、前 1 個月 1 日可前一天不可）、已繳關鍵欄位、請求整形、名稱正規化、表單規則（含 number 輸入框）、權限與導覽旗標一致（含管理員後備不放寬、店長看不到）、側欄結構、頁面登錄、錯誤碼逐一有白話、SQL 與規則逐條對照（SECURITY DEFINER、授權、逾期述詞、異常門檻、日期範圍、確認、軟刪除、店長條件移除、rollback、附件分支）、畫面規則（不做匯出與圖表、摘要卡文字、附件面板）。
+- integration（`tests/integration/`）31 項：`G23.rpc`（16，資料庫函式：權限矩陣、service_role 直寫被觸發器擋、400 驗證 18 種、新增回讀、重複、異常 14 個情境逐筆與 TS 規則對照、編輯與版本、停用門市、標記已繳邊界與冪等、改回待繳、已繳改金額確認、刪除與已刪除檢視、逾期與摘要逐筆核對資料庫、列表 125 筆跨頁與篩選、報表、門市清單）、`G23.api`（11，API：401、Origin 403、權限矩陣、201／200／400／404／405／409、前端不能指定 id 與建立者與刪除欄位、冪等、anomaly-check、附件上傳／讀取／刪除）、`G23.rls`（4，真實角色直連資料表：店長即使是該門市店長也讀不到、檢視者讀得到寫不了、沒有任何人能刪、已刪除的連有權限者也讀不到、舊式管理員不繞過）。
+- smoke（桌機 1440 與手機 390 各 3）、layout e2e（各 2：彈出視窗在視窗內、手機報表轉卡片）、角色接力劇本 `G23.journey-utility-bill.e2e`（各 4＋1 個待 G24 的 `fixme`：登錄與異常提醒與更正、重複訊息、逾期與標記已繳與改回待繳與已繳改金額確認、刪除與已刪除檢視與水電檢視唯讀、附件上傳與刪除）、parity 5（列表、新增、標記已繳、刪除、報表）。
+- 數字：playwright 56（54 通過、2 個 `fixme` 略過，sweeper 前後孤兒 0）；全部 unit 124 檔 2010 項通過；`npx tsc --noEmit`、`vue-tsc --noEmit` 無錯誤；Vue build 與 `public/workspace` 同步由測試站啟動時自動執行（`start-test-server.cjs`，git 無差異）。
+**正式區草稿**：`m7m8-sql/41`（唯讀預覽）新增第 10 區（先決、現況數字、讀取政策全文、店長直讀人數、附件函式分支與結尾格式檢查）；`45-b6-utility-bills.sql`＋`-rollback.sql`（對照 DEV 檔加 `BEGIN;`／`COMMIT;` 與核對查詢；已在 DEV 實測套用、撤回、再套用）；README 第 6 批章節與套用順序已更新（`41 → 42 → 44 → 47 → 45 → … → 43`）。
+**待使用者確認**：allowlist 10 項（見上）；舊版店長直讀水電帳單在 45 之後讀不到（41 第 10 區列出人數）；舊版附件上傳本來就失敗的處理方式（插入分支而非整支覆蓋）是否同意。

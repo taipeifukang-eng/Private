@@ -1,5 +1,5 @@
 -- 41-b6-preview-before-apply.sql
--- M7/M8 第 6 批（G20 服務分類與區域、G21 廠商資料、工單進度廠商檢查）套用 42、44、47、43 之前先看的現況檢查。
+-- M7/M8 第 6 批（G20 服務分類與區域、G21 廠商資料、工單進度廠商檢查、G23 水電帳單）套用 42、44、47、45、43 之前先看的現況檢查。
 -- 唯讀（只有 SELECT），整份可直接貼上執行，不會改任何資料。
 -- 每列有 section（區）、item（項目）、value（數字或內容）、status：OK＝正常；MISSING＝缺東西，不要套用；ALREADY＝已經有了（重複套用沒問題，但請確認）；
 -- WARN＝需要你看一下；INFO＝只是現況，給你決定上線怎麼安排。只需要看 MISSING、WARN、ALREADY；INFO 是現況數字與名單。
@@ -10,6 +10,7 @@
 --   第 6 區：目前有廠商相關權限的角色與人——43（RLS 收緊）之後，廠商表只有「廠商檢視／管理」讀得到；只有分類、區域、合作紀錄權限者的舊版廠商頁會讀不到廠商（新版改走遮蔽欄位的函式）。
 --   第 7 區：只有服務中心入口（含店長角色）目前讀得到全部廠商含統編與付款條件，43 之後讀不到。
 --   第 8 區：目前靠需求單權限看得到採購分析、但沒有採購評估權限的角色與人——新版採購分析只認採購評估檢視／管理，這些人會失去入口，要的話先補授權。
+--   第 10 區（G23，45 用）：水電帳單先決（資料表、三個識別欄位、權限碼、觸發器函式）與現況數字；其中「讀取政策」請存檔（45 會移除店長直讀條件，撤回要照這份還原）；「店長直讀」人數是 45 之後讀不到帳單的店長名單人數（舊版店長可看自己門市帳單，新版店長看不到水電網費）。
 -- 正式區尚未套用 42 時：第 2 區多半是 INFO（欄位將新增）；套用後再跑，欄位列會變 ALREADY。
 WITH
 req_tables AS (
@@ -132,6 +133,67 @@ rows_out AS (
   UNION ALL
   SELECT 9, '9 單據綁定', '綁定「非合作中」廠商的未結工單數（47 之後新選不可選停用廠商，已綁的照舊）',
          (SELECT count(*)::text FROM public.maintenance_requests m JOIN public.ga_vendors v ON v.id = m.vendor_id WHERE v.status <> 'active' AND m.status <> 'COMPLETED'), 'INFO'
+  -- 10 水電帳單（45 用）
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'table:ga_utility_bills', CASE WHEN to_regclass('public.ga_utility_bills') IS NOT NULL THEN '存在' ELSE '不存在' END,
+         CASE WHEN to_regclass('public.ga_utility_bills') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'columns:service_identifier／equipment_serial／service_label（20260926090000、20260926093000）',
+         (SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name IN ('service_identifier', 'equipment_serial', 'service_label')) || ' / 3',
+         CASE WHEN (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name IN ('service_identifier', 'equipment_serial', 'service_label')) = 3 THEN 'OK' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'permission:' || c, CASE WHEN EXISTS (SELECT 1 FROM public.permissions p WHERE p.code = c) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM public.permissions p WHERE p.code = c) THEN 'OK' ELSE 'MISSING' END
+    FROM unnest(ARRAY['general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage']) c
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'function:' || f, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f) THEN 'OK' ELSE 'MISSING' END
+    FROM unnest(ARRAY['has_permission', 'current_user_has_permission', 'ga_rq_err', 'ga_rq_raise', 'ga_rq_catch', 'ga_po_today', 'ga_po_like_escape', 'ga_utility_bill_before_write']) f
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'column:ga_utility_bills.deletion_reason', CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name = 'deletion_reason') THEN '已有' ELSE '將新增' END,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name = 'deletion_reason') THEN 'ALREADY' ELSE 'INFO' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'function:' || p.proname || '（已有 45 的函式）', '已存在', 'ALREADY'
+    FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'ga\_ws\_ub\_%'
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'function:ga_resource_attachment_can_manage（附件管理判斷；45 會在最後插入 UTILITY_BILL 分支）', CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL THEN '存在' ELSE '不存在' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'ga_resource_attachment_can_manage 是否已有 UTILITY_BILL 分支',
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND position('UTILITY_BILL' in pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure)) > 0 THEN '已有' ELSE '沒有（目前水電帳單附件上傳會被擋，45 補上）' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND position('UTILITY_BILL' in pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure)) > 0 THEN 'ALREADY' ELSE 'INFO' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', '附件函式結尾是否為預期的 RETURN false; END;（45 用這個結尾插入分支，不符會中止）',
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;s*END;s*$function$s*$' THEN '符合' ELSE '不符合，請人工處理' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;s*END;s*$function$s*$' THEN 'OK' ELSE 'WARN' END
+  -- 10 現況數字
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '未刪除筆數', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '已軟刪除筆數（舊版沒有原因欄位，45 之後的刪除才有原因）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NOT NULL), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '未繳且已過到期日（45 之後的「逾期」）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND paid_at IS NULL AND due_date < (now() AT TIME ZONE 'Asia/Taipei')::date), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '未繳且沒填繳費期限（新版永不算逾期，另列提示）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND paid_at IS NULL AND due_date IS NULL), 'WARN'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '繳費日期早於帳單月份前 1 個月或晚於今天的已繳帳單（舊版可存；新版編輯時日期有改才檢查）',
+         (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND paid_at IS NOT NULL AND (paid_at > (now() AT TIME ZONE 'Asia/Taipei')::date OR paid_at < (billing_month - interval '1 month')::date)), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '金額為 0 的帳單（新版儲存時會提醒）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND amount = 0), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '其他據點（沒有門市）名稱正規化後會被合併的組數（報表用）',
+         (SELECT count(*)::text FROM (SELECT lower(btrim(regexp_replace(normalize(location_name, NFKC), '\s+', ' ', 'g'))) k, count(DISTINCT btrim(location_name)) c FROM public.ga_utility_bills
+            WHERE deleted_at IS NULL AND store_id IS NULL GROUP BY 1 HAVING count(DISTINCT btrim(location_name)) > 1) x), 'INFO'
+  -- 10 讀取政策：45 會移除 current_user_manages_store 條件（店長不可直讀）；請把這一列存檔，撤回 45 要照這份還原
+  UNION ALL
+  SELECT 10, '10 水電帳單讀取政策（請存檔）', pol.policyname || ' ' || pol.cmd, COALESCE(pol.qual, ''), CASE WHEN pol.qual LIKE '%current_user_manages_store%' THEN 'WARN' ELSE 'INFO' END
+    FROM pg_policies pol WHERE pol.schemaname = 'public' AND pol.tablename = 'ga_utility_bills'
+  UNION ALL
+  SELECT 10, '10 店長直讀（45 之後讀不到）', 'store_managers 名單內、沒有水電檢視／管理權限的人數',
+         (SELECT count(DISTINCT sm.user_id)::text FROM public.store_managers sm WHERE NOT EXISTS (SELECT 1 FROM user_perm x WHERE x.user_id = sm.user_id AND x.perm IN ('general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage'))), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單權限', '有水電檢視／管理的角色：' || rp.role_code || '（' || rp.role_name || '）', (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND ur.is_active) || ' 人', 'INFO'
+    FROM (SELECT DISTINCT role_id, role_code, role_name FROM role_perm WHERE perm IN ('general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage')) rp
 )
 SELECT section, item, value, status FROM rows_out ORDER BY sec, status DESC, item;
 -- 核對：沒有任何 MISSING 才能套用 42、44、47；第 4 區沒有 WARN（code 重複）才能套用 42；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。
