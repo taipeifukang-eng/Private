@@ -14,6 +14,7 @@ import {
 } from "./request-rules";
 import { FILTERS_BOOL, isUuid, orIlike, pagingMeta, parsePaging } from "./rules";
 import { GaError, body, dbError, must, respond, rpc, validated, type Context } from "./server";
+import { fetchVendorOptions } from "./vendors";
 
 export const RQ = {
   create: "general_affairs.request.create",
@@ -393,18 +394,27 @@ async function stockIssue(ctx: Context, request: NextRequest, id: string) {
 }
 
 // ---------------------------------------------------------------- 採購評估
+const vendorStub = (v: any) => ({ id: v.id, name: v.name, alias: v.alias, status: v.status, contact_name: v.contact_name ?? null, contact_phone: v.contact_phone ?? null });
 async function reviewGet(ctx: Context, id: string) {
   const s = await requestScope(ctx);
   if (!s.purchaseView) throw new GaError(403, "沒有採購評估查看權限");
   const [review, vendors, locations, orders] = await Promise.all([
-    must((ctx.auth as any).from("ga_purchase_reviews").select("*,vendor:ga_vendors(id,name,alias,status),receiving_location:ga_inventory_locations(id,code,name,location_type),quotes:ga_purchase_review_quotes(id,vendor_id,vendor_name,quote_amount,negotiated_amount,lead_time_days,is_selected,notes,superseded_at,created_at,deleted_at)").eq("request_id", id).is("deleted_at", null).maybeSingle()),
-    must((ctx.auth as any).from("ga_vendors").select("id,name,alias,status").eq("status", "active").order("name").limit(200)),
+    must((ctx.auth as any).from("ga_purchase_reviews").select("*,receiving_location:ga_inventory_locations(id,code,name,location_type),quotes:ga_purchase_review_quotes(id,vendor_id,vendor_name,quote_amount,negotiated_amount,lead_time_days,is_selected,notes,superseded_at,created_at,deleted_at)").eq("request_id", id).is("deleted_at", null).maybeSingle()),
+    // 第 6 批：ga_vendors 的 RLS 收緊為廠商檢視／管理，下拉改走伺服端函式（不含統編與帳務機密欄位）。
+    fetchVendorOptions(ctx).then((rows) => rows.map(vendorStub)),
     dbCan(ctx.permissions, "general_affairs.inventory_balance.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_location.view", "general_affairs.inventory_location.manage")
       ? must((ctx.auth as any).from("ga_inventory_locations").select("id,code,name,location_type").eq("is_active", true).is("deleted_at", null).order("name").limit(200))
       : Promise.resolve([]),
     linkedOrders(id, true),
   ]);
-  return respond({ data: { review, vendors: vendors || [], inventoryLocations: locations || [], purchase_orders: orders } });
+  // 評估單上目前選的廠商（可能已暫停或停用，不在合作中清單裡）：改由伺服端函式帶 id 取回，原本的 ga_vendors 內嵌查詢在 RLS 收緊後會是空的。
+  const rv = review as any;
+  let reviewOut: any = rv;
+  if (rv?.vendor_id) {
+    const hit = (vendors || []).find((v: any) => v.id === rv.vendor_id) ?? (await fetchVendorOptions(ctx, { includeIds: [rv.vendor_id] })).map(vendorStub).find((v: any) => v.id === rv.vendor_id) ?? null;
+    reviewOut = { ...rv, vendor: hit ? { id: hit.id, name: hit.name, alias: hit.alias, status: hit.status } : null };
+  }
+  return respond({ data: { review: reviewOut, vendors: vendors || [], inventoryLocations: locations || [], purchase_orders: orders } });
 }
 async function reviewSave(ctx: Context, request: NextRequest, id: string) {
   const s = await requestScope(ctx);

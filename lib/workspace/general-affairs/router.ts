@@ -19,6 +19,9 @@ import { reportsApi, requestTargets, requestsApi } from "./requests";
 import { scanApi } from "./scan";
 import { compatApi, templatesApi, unlinkedEquipment } from "./templates";
 import { transfersApi } from "./transfers";
+import { vendorOptionsApi, vendorsApi } from "./vendors";
+import { serviceCategoriesApi } from "./service-categories";
+import { serviceRegionsApi } from "./service-regions";
 import { workOrdersApi } from "./work-orders";
 import { GaError, respond, type Context } from "./server";
 
@@ -79,6 +82,14 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return fulfillmentsApi(ctx, request, rest);
     case "purchase-orders":
       return purchaseOrdersApi(ctx, request, rest);
+    case "vendors":
+      return vendorsApi(ctx, request, rest);
+    case "vendor-options":
+      return vendorOptionsApi(ctx, request);
+    case "service-categories":
+      return serviceCategoriesApi(ctx, request, rest);
+    case "service-regions":
+      return serviceRegionsApi(ctx, request, rest);
     case "work-orders":
       return workOrdersApi(ctx, request, rest);
     case "cross-dept-maintenance":

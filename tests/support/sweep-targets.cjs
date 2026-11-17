@@ -66,6 +66,10 @@ MARKER_TARGETS.push(
   { table: 'ga_purchase_orders', column: 'notes', pattern: M7M8_MARKER, action: 'report' },
   { table: 'ga_vendors', column: 'name', pattern: M7M8_MARKER, action: 'report' },
   { table: 'roles', column: 'code', pattern: 'm7m8_test_%', action: 'report' },
+  // 第 6 批（G20 至 G24）：廠商名稱與服務分類、區域代碼帶 QA-GA6- 標記；清除走 cleanupM7M8，這裡只回報孤兒。
+  { table: 'ga_vendors', column: 'name', pattern: 'QA-GA6-%', action: 'report' },
+  { table: 'ga_service_categories', column: 'code', pattern: 'QA-GA6-%', action: 'report' },
+  { table: 'ga_service_regions', column: 'code', pattern: 'QA-GA6-%', action: 'report' },
 );
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
