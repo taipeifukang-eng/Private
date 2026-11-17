@@ -359,6 +359,24 @@ export async function cleanupM7M8(): Promise<string[]> {
     const left = await ids(db, table, 'code', CODE_LIKE);
     if (left.length) log.push(`${table} 殘留 ${left.length} 筆`);
   }
+  // 第 6 批（G23）：水電帳單（供應商名稱 QA-GA6-）與其附件（紀錄與實體檔）。帳單寫入走資料庫函式，這裡用 service role 直接刪除（刪除不經觸發器）。
+  {
+    const billIds = await ids(db, 'ga_utility_bills', 'provider_name', `${GA6_PREFIX}%`);
+    if (billIds.length) {
+      const attPaths: string[] = [];
+      for (let i = 0; i < billIds.length; i += 100) {
+        const r = await db.from('ga_resource_attachments').select('storage_path').eq('resource_type', 'UTILITY_BILL').in('resource_id', billIds.slice(i, i + 100));
+        if (r.error) log.push(`bill attachments: ${r.error.message}`);
+        else attPaths.push(...(r.data || []).map((x: { storage_path: string }) => x.storage_path));
+      }
+      await del(db, 'ga_resource_attachments', 'resource_id', billIds, log);
+      if (attPaths.length) {
+        const rm = await db.storage.from('general-affairs-attachments').remove(attPaths);
+        if (rm.error) log.push(`bill storage: ${rm.error.message}`);
+      }
+      await del(db, 'ga_utility_bills', 'id', billIds, log);
+    }
+  }
   // 第 6 批（G20／G21）：廠商（名稱 QA-GA6-）、服務分類與區域（代碼 QA-GA6-，先刪子層）。採購單或工單若還參照廠商，前面已先清掉。
   {
     await del(db, 'ga_vendors', 'id', await ids(db, 'ga_vendors', 'name', `${GA6_PREFIX}%`), log);
@@ -379,7 +397,7 @@ export async function cleanupM7M8(): Promise<string[]> {
     }
   }
   for (const [table, col, like] of [
-    ['ga_vendors', 'name', `${GA6_PREFIX}%`], ['ga_service_categories', 'code', `${GA6_PREFIX}%`], ['ga_service_regions', 'code', `${GA6_PREFIX}%`],
+    ['ga_utility_bills', 'provider_name', `${GA6_PREFIX}%`], ['ga_vendors', 'name', `${GA6_PREFIX}%`], ['ga_service_categories', 'code', `${GA6_PREFIX}%`], ['ga_service_regions', 'code', `${GA6_PREFIX}%`],
     ['ga_parts', 'name', MARK_LIKE], ['ga_equipment_templates', 'name', MARK_LIKE], ['ga_facility_templates', 'name', MARK_LIKE],
     ['ga_equipment', 'name', MARK_LIKE], ['ga_facilities', 'name', MARK_LIKE], ['ga_inventory_locations', 'name', MARK_LIKE], ['ga_service_requests', 'title', MARK_LIKE],
     ['ga_asset_transfers', 'asset_name', MARK_LIKE], ['ga_asset_events', 'asset_name', MARK_LIKE], ['ga_asset_import_batches', 'file_name', MARK_LIKE],

@@ -8292,5 +8292,365 @@
       "entry": "svc-category-region-write-readback",
       "key": "region#cycle-parent"
     }
+  },
+  {
+    "id": "m7m8-b6-ub-list-status",
+    "page": "ga-utility-bills",
+    "description": "新版列表每列多回帳單狀態（paid／unpaid／overdue／deleted）；舊版畫面在瀏覽器端用日期自己算。",
+    "reason": "問卷 V8：逾期定義（未繳且到期日早於台北今天）由伺服端單一函式算出，首頁、徽章與帳單頁一致。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#status",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-overdue",
+    "page": "ga-utility-bills",
+    "description": "新版列表每列多回逾期旗標（未繳且到期日早於台北今天，到期當天不算）。",
+    "reason": "問卷 V8。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#overdue",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-created-by-name",
+    "page": "ga-utility-bills",
+    "description": "新版列表多回建立者名稱（舊版只回 uuid）。",
+    "reason": "問卷 V6：帳單可編輯並留修改者，畫面顯示誰建立。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#created_by_name",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-updated-by-name",
+    "page": "ga-utility-bills",
+    "description": "新版列表多回最後修改者名稱（舊版只回 uuid）。",
+    "reason": "問卷 V6：編輯與標記已繳都留修改者。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#updated_by_name",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-deleted-by-name",
+    "page": "ga-utility-bills",
+    "description": "新版多回刪除者名稱（「顯示已刪除」唯讀檢視用）。",
+    "reason": "問卷 V6：已刪除檢視看得到誰、何時、為何刪。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#deleted_by_name",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-uuid-columns-dropped-created",
+    "page": "ga-utility-bills",
+    "description": "新版列表不回建立者 uuid，改回名稱。",
+    "reason": "實作取捨（uuid 對使用者沒有意義、也不外露使用者識別碼），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#created_by",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-uuid-columns-dropped-updated",
+    "page": "ga-utility-bills",
+    "description": "新版列表不回最後修改者 uuid，改回名稱。",
+    "reason": "實作取捨，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#updated_by",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-uuid-columns-dropped-deleted",
+    "page": "ga-utility-bills",
+    "description": "新版列表不回刪除者 uuid，改回名稱。",
+    "reason": "實作取捨，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "row#deleted_by",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-top-total",
+    "page": "ga-utility-bills",
+    "description": "新版回應多了精確總筆數（total）與分頁資訊（meta）；舊版固定回前 500 筆。",
+    "reason": "總務各頁共通的分頁回應格式（pageSize 上限 100），問卷未逐頁列出，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "top#total",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-top-summary",
+    "page": "ga-utility-bills",
+    "description": "新版回應多了「篩選結果合計」摘要（筆數與金額、已繳、待繳）；舊版摘要由瀏覽器端用目前載入的列算。",
+    "reason": "問卷 V8：「本月費用」改標「篩選結果合計」。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "top#summary",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-top-global",
+    "page": "ga-utility-bills",
+    "description": "新版回應多了待繳、逾期、沒填期限三組全部月份的完整數字（不受月份、類型、據點篩選與 500 筆上限影響）。",
+    "reason": "問卷 V8：待繳與逾期摘要不受篩選影響、沒填期限另列提示。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "top#global",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-top-deleted-view",
+    "page": "ga-utility-bills",
+    "description": "新版回應標示目前是否為「顯示已刪除」唯讀檢視。",
+    "reason": "問卷 V6：唯讀「顯示已刪除」檢視。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "top#deleted_view",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-top-permissions",
+    "page": "ga-utility-bills",
+    "description": "新版回應多了呼叫者的檢視與管理能力旗標（畫面用來決定顯示新增與動作按鈕）。",
+    "reason": "總務各頁共通格式，舊版用 meta.canManage；待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "top#permissions",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-top-success",
+    "page": "ga-utility-bills",
+    "description": "舊版回應有 success 旗標；新版用 HTTP 狀態碼與錯誤訊息，不回 success。",
+    "reason": "總務新版 API 共通格式，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-list-read",
+      "key": "top#success",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-list-summary-scope",
+    "page": "ga-utility-bills",
+    "description": "舊版待繳與逾期摘要只算目前篩選（預設當月）、上限 500 筆；新版待繳與逾期是全部月份、完整計算，「篩選結果合計」才照篩選。",
+    "reason": "問卷 V8（跨月逾期不會漏）。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-list-read",
+      "key": "summary#scope",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-create-duplicate-status",
+    "page": "ga-utility-bills",
+    "description": "重複帳單（同據點、類型、月份、供應商、識別號碼）：舊版回 400 資料庫英文錯誤，新版回 409。",
+    "reason": "問卷 V6／Q23：重複用白話訊息並指出既有那一筆。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-create-write-readback",
+      "key": "duplicate-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-create-duplicate-message",
+    "page": "ga-utility-bills",
+    "description": "重複帳單的訊息：舊版是 duplicate key value violates unique constraint；新版用白話說明並附既有那一筆的金額與期限、回既有帳單 id（畫面可直接開啟）。",
+    "reason": "問卷 V6／Q23。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-create-write-readback",
+      "key": "duplicate#message",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-create-future-paid-blocked",
+    "page": "ga-utility-bills",
+    "description": "新增帳單時填未來的繳費日期：舊版可存，新版 400（與標記已繳同一組日期規則：不可未來、不早於帳單月份前 1 個月）。",
+    "reason": "問卷 V8 只寫「標記已繳」的日期範圍；新增與編輯表單的繳費日期套同一規則是實作延伸，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-create-write-readback",
+      "key": "future-paid-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-create-anomaly-warnings",
+    "page": "ga-utility-bills",
+    "description": "新增與編輯的回應多了金額異常提醒（warnings）；仍已儲存。",
+    "reason": "問卷 V7：近三筆平均的 2 倍、一半、0 元只提醒、可存。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-create-write-readback",
+      "key": "top#warnings",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-create-anomaly-detail",
+    "page": "ga-utility-bills",
+    "description": "新增與編輯的回應多了金額異常基準與明細（基準金額、近三筆月份與金額、僅 N 筆參考）。",
+    "reason": "問卷 V7：顯示基準金額與明細。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-create-write-readback",
+      "key": "top#anomaly",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-create-top-success",
+    "page": "ga-utility-bills",
+    "description": "舊版新增回應有 success 旗標；新版用 HTTP 狀態碼。",
+    "reason": "總務新版 API 共通格式，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-create-write-readback",
+      "key": "top#success",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-pay-future-blocked",
+    "page": "ga-utility-bills",
+    "description": "標記已繳選未來日期：舊版 200（畫面固定送台北今天，API 本身不擋），新版 400。",
+    "reason": "問卷 V8：不可選未來。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-pay-write-readback",
+      "key": "future-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-pay-too-early-blocked",
+    "page": "ga-utility-bills",
+    "description": "標記已繳選早於帳單月份前 1 個月的日期：舊版 200，新版 400。",
+    "reason": "問卷 V8：不早於帳單月份前 1 個月。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-pay-write-readback",
+      "key": "too-early-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-unpay-needs-confirm",
+    "page": "ga-utility-bills",
+    "description": "改回待繳：舊版 PATCH paid_at 為空直接清掉原日期；新版沒帶 confirm 回 409 並附原繳費日期，確認後才清除。",
+    "reason": "問卷 V8：改回待繳需確認並顯示原日期。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-pay-write-readback",
+      "key": "unpay-no-confirm-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-edit-supported",
+    "page": "ga-utility-bills",
+    "description": "舊版 PATCH 只認 paid_at、其他欄位被忽略（沒有編輯功能）；新版可編輯全部欄位、留最後修改者、更新必帶版本（不符 409）、已繳改金額與識別欄位需二次確認。",
+    "reason": "問卷 V6／Q23：帳單加編輯並留修改者。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-pay-write-readback",
+      "key": "edit#fields",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-delete-needs-reason",
+    "page": "ga-utility-bills",
+    "description": "刪除帳單：舊版 DELETE 不問原因（畫面只有 confirm 視窗）；新版沒帶原因回 400。",
+    "reason": "問卷 V6：刪除原因必填。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-delete-write-readback",
+      "key": "delete-no-reason-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-delete-reason-recorded",
+    "page": "ga-utility-bills",
+    "description": "舊版軟刪除沒有原因欄位（資料表沒有 deletion_reason）；新版記錄刪除原因，「顯示已刪除」可看。",
+    "reason": "問卷 V6。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-delete-write-readback",
+      "key": "deleted#deletion_reason",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-delete-paid-needs-confirm",
+    "page": "ga-utility-bills",
+    "description": "刪除已繳帳單：舊版直接刪；新版要 confirm_paid_change 並顯示原值，否則 409。",
+    "reason": "問卷 V6：已繳帳單刪除多一道確認並顯示原值。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "bill-delete-write-readback",
+      "key": "delete-paid-status",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-delete-legacy-ineffective",
+    "page": "ga-utility-bills",
+    "description": "舊版 DELETE /api/general-affairs/utility-bills/:id 在 DEV 實測沒有把資料列標記刪除（回應狀態見差異明細）；新版軟刪除成功。",
+    "reason": "新發現（舊版缺陷），待使用者確認；舊頁不動。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-delete-write-readback",
+      "key": "delete#legacy-effective",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-ub-report-other-locations-normalized",
+    "page": "ga-utility-bills",
+    "description": "報表的「其他據點」（沒有門市）名稱：舊版只去前後空白就分組，全半形、大小寫或連續空白不同會被當成不同據點；新版先正規化再合併成一列。",
+    "reason": "缺陷修正，新發現，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "bill-report-read",
+      "key": "rows#other-locations",
+      "kind": "count"
+    }
   }
 ]

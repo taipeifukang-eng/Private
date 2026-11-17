@@ -37,6 +37,7 @@ const GA_CAPABILITY: Record<string, string> = {
   'ga-purchase-orders': 'gaPurchaseOrders', 'ga-purchase-order-edit': 'gaPurchaseOrders', 'ga-purchase-approvals': 'gaPurchaseApprovals', // 第 4 批 G25
   'ga-work-orders': 'gaWorkOrders', // 第 5 批 G18
   'ga-vendors': 'gaVendors', 'ga-vendor-categories': 'gaVendorCategories', 'ga-vendor-regions': 'gaVendorRegions', // 第 6 批 G20／G21
+  'ga-utility-bills': 'gaUtilityBills', 'ga-utility-bills-report': 'gaUtilityBills', // 第 6 批 G23
 };
 
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
@@ -113,6 +114,7 @@ const LEGACY_TITLES: Record<string, string> = {
   'ga-purchase-orders': '採購單', 'ga-purchase-order-edit': '採購單編輯', 'ga-purchase-approvals': '待簽核採購單', // 第 4 批 G25
   'ga-work-orders': '工單中心', 'cross-dept-maintenance': '總務組維修', // 第 5 批 G18、G19
   'ga-vendors': '廠商資料', 'ga-vendor-categories': '服務分類', 'ga-vendor-regions': '服務區域', // 第 6 批 G20／G21
+  'ga-utility-bills': '水電電話網路費', 'ga-utility-bills-report': '費用報表', // 第 6 批 G23
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');
