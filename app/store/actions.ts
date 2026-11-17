@@ -3,6 +3,8 @@
 import { authorizeMonthlyRegistration } from '@/lib/permissions/monthly-registration';
 
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { stripRxDerivedKeys } from '@/lib/monthly-stats/rx-link';
+import { loadRxLinkForStore, RX_LINK_PERMISSION } from '@/lib/monthly-stats/rx-link-server';
 import { requirePermission, hasPermission, hasAnyPermission } from '@/lib/permissions/check';
 import { revalidatePath } from 'next/cache';
 import { canEnterCampaignViewWithSnapshot, CAMPAIGN_PERM } from '@/lib/campaign-access';
@@ -2820,6 +2822,36 @@ export async function getStoreMonthlySummary(yearMonth: string, storeId: string)
 }
 
 /**
+ * 讀取門市該月的處方箋資料（一般箋/慢箋張數、點值），供每月人員狀態「該月營業狀態」顯示。
+ * monthly_prescription_reports 只有 service_role 可讀，因此在伺服端以 monthly.status.view_stats 把關。
+ */
+export async function getStoreMonthlyRxLink(yearMonth: string, storeId: string) {
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false as const, error: '未登入' };
+    const snapshot = await loadMonthlyPermissionSnapshot(supabase, user.id);
+    const canViewStats = snapshot.has(RX_LINK_PERMISSION);
+    // 門市範圍：與月度頁面可見門市一致（view_all 全部；view_own 只看被指派門市），避免用 admin 讀表時跨店
+    let canAccessStore = false;
+    if (canViewStats && storeId) {
+      const managed = await resolveManagedStores(supabase, user.id, { include_inactive: true });
+      canAccessStore = !!(managed.success && (managed.data as Array<{ id: string }>).some((s) => s.id === storeId));
+    }
+    return await loadRxLinkForStore({
+      canViewStats,
+      canAccessStore,
+      admin: createAdminClient(),
+      yearMonth,
+      storeId,
+    });
+  } catch (error: any) {
+    console.error('讀取處方箋連動資料失敗:', error);
+    return { success: false as const, error: error.message || '讀取失敗' };
+  }
+}
+
+/**
  * 更新門市每月統計資料
  */
 export async function updateStoreMonthlySummary(
@@ -2833,13 +2865,13 @@ export async function updateStoreMonthlySummary(
     total_gross_profit: number;
     total_customer_count: number;
     prescription_addon_only_count: number;
-    regular_prescription_count: number;
-    chronic_prescription_count: number;
     support_to_other_stores_hours?: number;
     support_from_other_stores_hours?: number;
   }
 ) {
   try {
+    // 一般箋、慢箋張數改由處方箋提供：即使呼叫端多帶也不寫入，避免蓋掉既有值
+    const safeStats = stripRxDerivedKeys(stats);
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -2909,7 +2941,7 @@ export async function updateStoreMonthlySummary(
       const { error } = await supabase
         .from('monthly_store_summary')
         .update({
-          ...stats,
+          ...safeStats,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id);
@@ -2927,7 +2959,7 @@ export async function updateStoreMonthlySummary(
         .insert({
           year_month: yearMonth,
           store_id: storeId,
-          ...stats,
+          ...safeStats,
           total_employees: 0,
           confirmed_count: 0,
           store_status: 'in_progress'
