@@ -104,6 +104,9 @@ export type Session = {
     gaVendorCategories: boolean;
     gaVendorRegions: boolean;
     gaVendorManage: boolean;
+    /** 第 6 批 G23：水電網費帳單與報表、管理（新增／編輯／標記已繳／刪除）。 */
+    gaUtilityBills: boolean;
+    gaUtilityBillManage: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

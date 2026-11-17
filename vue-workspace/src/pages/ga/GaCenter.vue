@@ -23,7 +23,7 @@ const hasLegacy = computed(() => flat((session.data?.gaNavigation || []).flatMap
     <div>
       <p class="eyebrow">總務服務中心</p>
       <h1>總務服務中心</h1>
-      <p v-if="hasLegacy" class="muted">資產、料件、需求單、採購單、工單與廠商資料的新版頁面已開放；其他功能（費用等）仍在舊版，從左側選單另開分頁。</p>
+      <p v-if="hasLegacy" class="muted">資產、料件、需求單、採購單、工單、廠商資料與水電網費的新版頁面已開放；其他功能仍在舊版，從左側選單另開分頁。</p>
       <p v-else class="muted">這裡列出您可以查看的新版頁面（唯讀範圍以您負責的門市為限）。</p>
     </div>
   </header>
