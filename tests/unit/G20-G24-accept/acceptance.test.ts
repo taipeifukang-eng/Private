@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..', '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
 const exists = (p: string) => fs.existsSync(path.join(root, p));
 const APPROVED = 'user (2026-11-17 batch 6 spec survey)';
+const APPROVED_DECISIONS = 'user (2026-11-18 batch 6 acceptance decisions)'; // 驗收後使用者對待決定 5 項的回覆（統編唯一、績效金額、兩項舊頁 RLS 影響）
 
 describe('G20-G24 測試編號與檔案', () => {
   const files: Record<string, string> = {
@@ -57,11 +58,11 @@ describe('G20-G24 測試編號與檔案', () => {
 describe('G20-G24 對等 allowlist', () => {
   const list = loadAllowlist();
   const b6 = list.filter((e) => e.id.startsWith('m7m8-b6-'));
-  it('整份通過驗證器；m7m8-b6 條目的核可欄位只有「問卷核可」或 null；decision 為 fix 的維持 null', () => {
+  it('整份通過驗證器；m7m8-b6 條目的核可欄位只有「問卷核可」、「驗收決定核可」或 null；decision 為 fix 的維持 null', () => {
     expect(validateAllowlist(list)).toEqual([]);
     expect(b6.length).toBeGreaterThan(50);
     for (const e of b6) {
-      expect([APPROVED, null], e.id).toContain(e.approvedBy);
+      expect([APPROVED, APPROVED_DECISIONS, null], e.id).toContain(e.approvedBy);
       if (e.decision === 'fix') expect(e.approvedBy, e.id).toBeNull();
     }
   });

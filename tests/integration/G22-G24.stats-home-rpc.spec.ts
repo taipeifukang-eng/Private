@@ -294,7 +294,7 @@ test('績效：完成數只算 COMPLETED＋STORE_CONFIRMED；強制結案與未�
   await seedPo('perfA-4', { status: 'ORDERED', vendor_id: vA.id, vendor_name_snapshot: vA.name, ordered_at: '2038-06-10T02:00:00Z', total_amount: 777 });
   await seedPo('perfB-1', { status: 'CLOSED', vendor_id: vB.id, vendor_name_snapshot: vB.name, ordered_at: at('15T02:00:00'), total_amount: 500 });
 
-  const r = await fn('coop_only', 'ga_ws_vendor_perf', { p_from: '2038-01', p_to: '2038-03' });
+  const r = await fn('ga_all', 'ga_ws_vendor_perf', { p_from: '2038-01', p_to: '2038-03' });
   expect(r.ok, JSON.stringify(r)).toBe(true);
   const d = r.data;
   const a = d.rows.find((x: any) => x.vendor_id === vA.id);
@@ -308,6 +308,18 @@ test('績效：完成數只算 COMPLETED＋STORE_CONFIRMED；強制結案與未�
   expect(d.summary.wo_with_vendor).toBe(5);
   expect(d.summary.po_amount_total).toBe(3650);
   expect(d.accumulating).toBe(false);
+  expect(d.can_view_po_amount).toBe(true);
+  // 決定 3（2026-11-18）：沒有採購單檢視權限（只有合作紀錄）者，金額、張數與合計由資料庫函式回 null、不列只有採購單的廠商；工單統計不受影響。
+  const lim = await fn('coop_only', 'ga_ws_vendor_perf', { p_from: '2038-01', p_to: '2038-03' });
+  expect(lim.ok, JSON.stringify(lim)).toBe(true);
+  expect(lim.data.can_view_po_amount).toBe(false);
+  const limA = lim.data.rows.find((x: any) => x.vendor_id === vA.id);
+  expect(limA).toMatchObject({ wo_count: 5, completed_count: 2, force_closed_count: 1, unknown_method_count: 1, open_count: 1, avg_days: 3, days_sample: 2, po_count: null, po_amount: null, insufficient: false });
+  expect(lim.data.rows.find((x: any) => x.vendor_id === vB.id), '只有採購單、沒有工單的廠商不列出').toBeUndefined();
+  expect(lim.data.summary).toMatchObject({ wo_total: 6, wo_with_vendor: 5, po_amount_total: null });
+  expect(lim.data.rows).toHaveLength(d.rows.length - 1);
+  for (const x of lim.data.rows) expect(x.po_amount).toBeNull();
+  expect(JSON.stringify(lim.data)).not.toMatch(/3150|3650|2100/);
   // 不含任何帳務機密欄位與評價
   const text = JSON.stringify(d);
   for (const k of ['tax_id', 'billing_title', 'payment_terms', 'rating', 'review_count']) expect(text, k).not.toContain(`"${k}"`);

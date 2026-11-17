@@ -73,7 +73,15 @@ test('績效 API：合作紀錄檢視者 200（只有名稱與統計、沒有帳
     const r = await get(who, '/vendor-stats?from=2038-01&to=2038-03');
     expect(r.status, `${who} ${r.text}`).toBe(200);
     const row = (r.body.data.rows as any[]).find((x) => x.vendor_id === v.id);
-    expect(row).toMatchObject({ po_amount: 1234, insufficient: true });
+    if (who === 'ga_all') {
+      expect(r.body.data.can_view_po_amount).toBe(true);
+      expect(row).toMatchObject({ po_amount: 1234, insufficient: true });
+    } else {
+      // 決定 3（2026-11-18）：沒有採購單檢視權限者，只有採購單的廠商不列出，金額由資料庫回 null
+      expect(r.body.data.can_view_po_amount).toBe(false);
+      expect(row).toBeUndefined();
+      expect(r.text).not.toContain('1234');
+    }
     for (const k of ['tax_id', 'billing_title', 'payment_terms', 'invoice_type', 'rating', 'review_count', 'work_order_count']) expect(r.text, `${who} ${k}`).not.toContain(`"${k}"`);
     expect(r.text).not.toContain('04595257');
   }

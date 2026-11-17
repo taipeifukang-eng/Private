@@ -238,13 +238,57 @@ test('統編重複擋下時並行送出只會成功一筆（advisory lock 序列
   expect((await db().from('ga_vendors').select('id', { count: 'exact', head: true }).eq('tax_id', tax)).count).toBe(1);
 });
 
-test('歷史重複統編的舊廠商：編輯其他欄位不被擋（統編沒變就不檢查）', async () => {
+test('統編唯一索引（決定 1，2026-11-18）：直接 insert 正規化後重複的統編被索引擋下、空值不算、ga_ws_vendor_save 遇索引衝突轉成 409 TAX_ID_DUPLICATE', async () => {
   const tax = await freshValidTaxId();
-  const a = await seedGa6Vendor('LEG1', { tax_id: tax });
-  const b = await seedGa6Vendor('LEG2', { tax_id: ` ${tax} ` });
-  const r = await save('vendor_mgr', { description: '只改簡介' }, b.id, b.updated_at);
+  const a = await mk({ tax_id: tax });
+  // 直接 insert（service role，繞過 RPC）：全形、含空白的同一統編都被唯一索引擋下（23505）
+  const fw = tax.replace(/\d/g, (d) => String.fromCharCode(d.charCodeAt(0) + 0xfee0));
+  for (const form of [tax, ` ${tax} `, fw]) {
+    const ins = await db().from('ga_vendors').insert({ name: vname('IX'), vendor_type: 'company', tax_id: form });
+    expect(ins.error?.code, form).toBe('23505');
+    expect(ins.error?.message).toContain('ga_vendors_tax_id_norm_uidx');
+  }
+  // 使用者身分（舊頁直接寫表的路徑）：索引運算式要能執行（不是 permission denied），重複則 23505
+  const asUser = await users.ga_all.client.from('ga_vendors').insert({ name: vname('IX'), vendor_type: 'company', tax_id: tax });
+  expect(asUser.error?.code, asUser.error?.message).toBe('23505');
+  // 停用廠商的統編也受索引保護
+  await db().from('ga_vendors').update({ status: 'inactive' }).eq('id', a.id);
+  const ins2 = await db().from('ga_vendors').insert({ name: vname('IX'), vendor_type: 'company', tax_id: tax });
+  expect(ins2.error?.code).toBe('23505');
+  // 空值與空字串不算：可以有多筆沒有統編的廠商
+  for (let i = 0; i < 2; i += 1) {
+    const nul = await db().from('ga_vendors').insert({ name: vname('NU'), vendor_type: 'personal', tax_id: null });
+    expect(nul.error, JSON.stringify(nul.error)).toBeNull();
+  }
+  const blank = await db().from('ga_vendors').insert({ name: vname('NU'), vendor_type: 'personal', tax_id: '  ' });
+  expect(blank.error, JSON.stringify(blank.error)).toBeNull();
+  expect((await db().from('ga_vendors').select('id', { count: 'exact', head: true }).eq('tax_id', tax)).count).toBe(1);
+});
+
+test('統編唯一索引：ga_ws_vendor_save 並行儲存同統編，一筆成功、其餘為白話 409 TAX_ID_DUPLICATE（不是 500）並指出既有廠商', async () => {
+  const tax = await freshValidTaxId();
+  const results = await Promise.all([1, 2, 3, 4, 5, 6].map((i) => save(i % 2 ? 'vendor_mgr' : 'ga_all', { name: vname('PQ'), tax_id: tax })));
+  const okRows = results.filter((r) => r.ok);
+  expect(okRows).toHaveLength(1);
+  const fails = results.filter((r) => !r.ok);
+  expect(fails).toHaveLength(5);
+  for (const f of fails) {
+    expect(f.status).toBe(409);
+    expect(f.code).toBe('TAX_ID_DUPLICATE');
+    expect(f.existing).toMatchObject({ id: okRows[0].data.id });
+    expect(f.error).toContain('同一個統編不能重複建立');
+  }
+  expect((await db().from('ga_vendors').select('id', { count: 'exact', head: true }).eq('tax_id', tax)).count).toBe(1);
+});
+
+test('歷史格式的統編（前後有空白、全形）的舊廠商：編輯其他欄位不被擋（統編沒變就不檢查）；有唯一索引後，歷史重複統編不可能存在（決定 1）', async () => {
+  const tax = await freshValidTaxId();
+  const a = await seedGa6Vendor('LEG1', { tax_id: ` ${tax} ` });
+  const r = await save('vendor_mgr', { description: '只改簡介' }, a.id, a.updated_at);
   expect(r.ok, JSON.stringify(r)).toBe(true);
-  expect(a.id).not.toBe(b.id);
+  // 索引存在後，同一統編（正規化後）再寫第二筆會被擋下，所以不會再有「歷史重複」的舊廠商
+  const dup = await db().from('ga_vendors').insert({ name: vname('LEG'), vendor_type: 'company', tax_id: tax });
+  expect(dup.error?.code).toBe('23505');
 });
 
 test('檢查碼不符只提醒（仍可儲存）；檢查碼正確不提醒', async () => {
@@ -583,7 +627,7 @@ BEGIN
   expect((await db().from('ga_service_categories').select('id', { count: 'exact', head: true }).like('name', `${ga6Name('SQL-')}%`)).count).toBe(0);
 });
 
-test('函式目錄：第 6 批廠商與分類區域函式都是 SECURITY DEFINER 並固定 search_path；匿名不能執行；內部輔助 ga_vd_* 登入者不能執行；對外函式登入者可執行', async () => {
+test('函式目錄：第 6 批廠商與分類區域函式都是 SECURITY DEFINER 並固定 search_path；匿名不能執行；內部輔助 ga_vd_* 登入者不能執行（唯一例外 ga_vd_norm_tax：統編唯一索引運算式）；對外函式登入者可執行', async () => {
   test.setTimeout(120_000);
   const out = runSqlDo(`
 DECLARE
@@ -597,7 +641,8 @@ BEGIN
     IF r.proname LIKE 'ga\\_ws\\_%' AND NOT r.prosecdef THEN bad_def := bad_def || r.proname || ' '; END IF;
     IF has_function_privilege('anon', r.oid, 'EXECUTE') THEN bad_anon := bad_anon || r.proname || ' '; END IF;
     IF r.proname LIKE 'ga\\_ws\\_%' AND NOT has_function_privilege('authenticated', r.oid, 'EXECUTE') THEN bad_auth := bad_auth || r.proname || ' '; END IF;
-    IF r.proname LIKE 'ga\\_vd\\_%' AND has_function_privilege('authenticated', r.oid, 'EXECUTE') THEN bad_int := bad_int || r.proname || ' '; END IF;
+    -- 唯一例外：ga_vd_norm_tax 是統編唯一索引的運算式，索引由寫入者身分執行，必須開給登入者（純函式、IMMUTABLE、非 SECURITY DEFINER；決定 1）
+    IF r.proname LIKE 'ga\\_vd\\_%' AND r.proname <> 'ga_vd_norm_tax' AND has_function_privilege('authenticated', r.oid, 'EXECUTE') THEN bad_int := bad_int || r.proname || ' '; END IF;
   END LOOP;
   RAISE EXCEPTION 'G20DB:ws=%,int=%,def=[%],path=[%],anon=[%],auth=[%],internal=[%]:END', n_ws, n_int, bad_def, bad_path, bad_anon, bad_auth, bad_int;`, 'fnlist');
   const m = /G20DB:(.*?):END/s.exec(out);

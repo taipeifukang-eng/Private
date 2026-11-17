@@ -14,10 +14,10 @@ const props = defineProps<{ tab: WorkTab }>();
 const allowed = useGaGuard(props.tab);
 type Row = {
   vendor_id: string; vendor_name: string; vendor_alias: string | null; vendor_status: string; wo_count: number; completed_count: number; force_closed_count: number; unknown_method_count: number;
-  open_count: number; avg_days: number | null; days_sample: number; po_count: number; po_amount: number; insufficient: boolean;
+  open_count: number; avg_days: number | null; days_sample: number; po_count: number | null; po_amount: number | null; insufficient: boolean;
 };
 type Unassigned = { wo_count: number; completed_count: number; force_closed_count: number; unknown_method_count: number; open_count: number };
-type Data = { from: string; to: string; generated_at: string; rows: Row[]; unassigned: Unassigned; summary: { wo_total: number; wo_with_vendor: number; po_amount_total: number }; accumulating: boolean };
+type Data = { from: string; to: string; generated_at: string; rows: Row[]; unassigned: Unassigned; summary: { wo_total: number; wo_with_vendor: number; po_amount_total: number | null }; accumulating: boolean; can_view_po_amount?: boolean };
 const data = ref<Data | null>(null);
 const from = ref("");
 const to = ref("");
@@ -27,6 +27,9 @@ const latest = useLatest();
 const STATUS: Record<string, string> = { active: "合作中", paused: "暫停", inactive: "停用" };
 const money = (n: number) => "NT$ " + Number(n || 0).toLocaleString("zh-TW", { maximumFractionDigits: 0 });
 const maxWo = computed(() => Math.max(1, ...(data.value?.rows || []).map((r) => r.wo_count)));
+// 沒有採購單檢視權限者，資料庫函式把金額欄位回 null；這裡整欄與合計卡都不顯示（不是只把數字遮住）。
+const showPo = computed(() => data.value?.can_view_po_amount === true);
+const colCount = computed(() => (showPo.value ? 7 : 6));
 const rangeBad = computed(() => !!(from.value && to.value && from.value > to.value));
 
 async function load() {
@@ -76,11 +79,11 @@ useRefreshOnActivate(props.tab, load);
         <li><div class="card-static"><span>期間工單</span><strong data-testid="vs-wo-total">{{ data.summary.wo_total }}</strong></div></li>
         <li><div class="card-static"><span>已選廠商的工單</span><strong data-testid="vs-wo-vendor">{{ data.summary.wo_with_vendor }}</strong></div></li>
         <li><div class="card-static"><span>未指定廠商</span><strong data-testid="vs-wo-unassigned">{{ data.unassigned.wo_count }}</strong></div></li>
-        <li class="on"><div class="card-static"><span>採購單確定金額</span><strong data-testid="vs-po-total">{{ money(data.summary.po_amount_total) }}</strong></div></li>
+        <li v-if="showPo" class="on"><div class="card-static"><span>採購單確定金額</span><strong data-testid="vs-po-total">{{ money(data.summary.po_amount_total ?? 0) }}</strong></div></li>
       </ul>
       <div class="vs-wrap">
         <table class="vs-table" data-testid="vs-table">
-          <thead><tr><th>廠商</th><th class="num">工單數</th><th class="num">完成數<small>（門市確認）</small></th><th class="num">強制結案</th><th class="num">未記方式</th><th class="num">受理到完成平均</th><th class="num">採購單確定金額</th></tr></thead>
+          <thead><tr><th>廠商</th><th class="num">工單數</th><th class="num">完成數<small>（門市確認）</small></th><th class="num">強制結案</th><th class="num">未記方式</th><th class="num">受理到完成平均</th><th v-if="showPo" class="num">採購單確定金額</th></tr></thead>
           <tbody>
             <tr v-for="r in data.rows" :key="r.vendor_id" data-testid="vs-row">
               <td data-label="廠商">
@@ -97,19 +100,19 @@ useRefreshOnActivate(props.tab, load);
                 <td class="num" data-label="未記方式" data-testid="vs-unknown">{{ r.unknown_method_count }}</td>
                 <td class="num" data-label="受理到完成平均" data-testid="vs-avg">{{ avgDaysText(r) }}</td>
               </template>
-              <td class="num" data-label="採購單確定金額" data-testid="vs-po"><strong>{{ money(r.po_amount) }}</strong><small v-if="r.po_count">（{{ r.po_count }} 張）</small></td>
+              <td v-if="showPo" class="num" data-label="採購單確定金額" data-testid="vs-po"><strong>{{ money(r.po_amount ?? 0) }}</strong><small v-if="r.po_count">（{{ r.po_count }} 張）</small></td>
             </tr>
             <tr class="un" data-testid="vs-unassigned">
               <td data-label="廠商">未指定（工單沒選廠商）</td>
               <td class="num" data-label="工單數">{{ data.unassigned.wo_count }}</td><td class="num" data-label="完成數">{{ data.unassigned.completed_count }}</td>
               <td class="num" data-label="強制結案">{{ data.unassigned.force_closed_count }}</td><td class="num" data-label="未記方式">{{ data.unassigned.unknown_method_count }}</td>
-              <td class="num" data-label="受理到完成平均">—</td><td class="num" data-label="採購單確定金額">—</td>
+              <td class="num" data-label="受理到完成平均">—</td><td v-if="showPo" class="num" data-label="採購單確定金額">—</td>
             </tr>
-            <tr v-if="!data.rows.length && !loading"><td colspan="7" class="muted">這個期間沒有廠商的工單或採購單紀錄。</td></tr>
+            <tr v-if="!data.rows.length && !loading"><td :colspan="colCount" class="muted">這個期間沒有廠商的工單或採購單紀錄。</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="muted vs-note">完成數只算「已完成且由門市確認」的工單；總務強制結案與沒有記錄完成方式的舊資料另列，不列入平均處理天數。採購單確定金額為已下訂起（含部分到貨、已到貨、已結案）的含稅金額。</p>
+      <p class="muted vs-note">完成數只算「已完成且由門市確認」的工單；總務強制結案與沒有記錄完成方式的舊資料另列，不列入平均處理天數。<template v-if="showPo">採購單確定金額為已下訂起（含部分到貨、已到貨、已結案）的含稅金額。</template><template v-else>採購單金額只給有採購單檢視權限的人，且只列有工單的廠商。</template></p>
     </template>
   </GaShell>
 </template>

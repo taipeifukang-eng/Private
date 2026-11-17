@@ -8881,28 +8881,28 @@
     "id": "m7m8-b6-legacy-purchase-review-inline-vendor-null",
     "page": "ga-requests",
     "description": "舊版需求單採購評估詳情（requests/[id]/purchase-review）、採購評估成本統計（purchase-reviews/cost-summary）與配件履行文件（part-fulfillments/documents）以使用者身分內嵌讀廠商（vendor:ga_vendors(...)、quotes.vendor）：RLS 收緊後，沒有廠商檢視／管理權限者讀到的廠商為 null；頁面不會壞（有 vendor_name 欄位可退而求其次），但成本統計的廠商排行鍵會從廠商 id 變成名稱。依「舊頁不動」不修改。",
-    "reason": "新發現（第 6 批審查），列上線風險；待使用者確認（43 套用前先看 41 第 6、7 區受影響角色，補授權或接受舊頁廠商欄位為空）。",
-    "approvedBy": null
+    "reason": "使用者 2026-11-18 決定：接受舊頁（採購評估詳情、成本統計、配件履行文件）廠商內嵌查詢在 43 收緊 RLS 後讀不到而為 null；43 最後套用，套用前看 41 第 6、7 區受影響角色。",
+    "approvedBy": "user (2026-11-18 batch 6 acceptance decisions)"
   },
   {
     "id": "m7m8-b6-legacy-service-center-select-star-empty",
     "page": "ga-vendors",
     "description": "舊版總務服務中心（GeneralAffairsServiceCenterClient）直接 select('*') 廠商、服務分類、服務區域三張表：RLS 收緊後，沒有對應檢視／管理權限者讀到空清單，舊頁的刪除也不會成功（廠商、分類、區域本來就不可刪除，新版沒有刪除）。依「舊頁不動」不修改。",
-    "reason": "新發現（第 6 批審查），列上線風險；待使用者確認（接受舊頁對無權限者為空，或 43 套用前補授權）。",
-    "approvedBy": null
+    "reason": "使用者 2026-11-18 決定：接受舊服務中心廠商、服務分類、服務區域三張表在 43 套用後對只有舊權限者讀為空；43 最後套用，新版頁面走遮蔽用的資料庫函式。",
+    "approvedBy": "user (2026-11-18 batch 6 acceptance decisions)"
   },
   {
     "id": "m7m8-b6-vendor-tax-id-unique-rpc-only",
     "page": "ga-vendors",
-    "description": "統一編號重複檢查（含停用與暫停廠商、全形轉半角、並行以 advisory lock 序列化）只在新版 RPC 內；資料表沒有唯一索引。有廠商管理權限者經舊版 Next 頁直接寫 ga_vendors，不受統編重複檢查與名稱相近提醒約束，可能產生重複統編。",
-    "reason": "設計 3.1 決定「暫不建唯一索引」（正式區可能已有重複統編，建索引會失敗）；套用 42 前先看 41 的重複統編清單、清理後可補正規化統編的部分唯一索引。第 6 批審查提出，待使用者確認是否補索引或接受舊頁不受規則約束。",
-    "approvedBy": null
+    "description": "統一編號唯一檢查（含停用與暫停廠商、全形轉半角與空白標準化後相同）：新版由 ga_ws_vendor_save 以 advisory lock 序列化檢查，並加「正規化統編」的部分唯一索引 ga_vendors_tax_id_norm_uidx（空值不算）作為最後防線；索引擋下的並行寫入轉成 409 TAX_ID_DUPLICATE 並指出既有廠商。舊版沒有唯一規則，舊頁經由 Next 直接寫 ga_vendors 時，上線後重複統編會被索引擋下（舊頁顯示一般寫入錯誤）。",
+    "reason": "使用者 2026-11-18 決定：上線時先清掉正式區重複統編（41 第 3 區名單必須為 0 組），再套用 48 加索引。48 開頭檢查重複，有重複就中止並列出名單；DEV 已實測套用、撤回、再套用。",
+    "approvedBy": "user (2026-11-18 batch 6 acceptance decisions)"
   },
   {
     "id": "m7m8-b6-vendor-perf-po-amount-coop-only",
     "page": "ga-vendor-stats",
-    "description": "績效頁（ga_ws_vendor_perf）只檢查合作紀錄檢視權限；回應含每家廠商的採購單確定金額與張數、期間確定金額合計（採購單帳務），沒有採購單檢視權限的人也看得到這些金額。設計 V1 的帳務機密八欄不含這一項。",
-    "reason": "問卷 V5、Q24 已決定績效顯示採購單確定金額；是否對沒有採購單檢視權限者隱藏金額屬產品決定，第 6 批審查提出，待使用者確認（若要隱藏：沒有採購單檢視權限時金額欄位回 null、不列只有採購單的廠商）。",
-    "approvedBy": null
+    "description": "績效頁（ga_ws_vendor_perf）的採購單確定金額、張數與合計只給有採購單檢視權限（ga_po_can_view：採購評估檢視／管理或採購單核准）者；沒有權限者由資料庫函式回 null（不是前端隱藏）、不列出只有採購單而沒有工單的廠商，回應帶 can_view_po_amount，頁面隱藏金額欄與金額合計卡。舊版沒有廠商績效頁。",
+    "reason": "使用者 2026-11-18 決定（照建議）：沒有採購單檢視權限者金額欄位回 null、不列只有採購單的廠商、頁面隱藏該欄。首頁摘要的採購單金額只在待核准項目（核准權限）出現，採購分析自有採購評估權限，經檢查沒有外洩。",
+    "approvedBy": "user (2026-11-18 batch 6 acceptance decisions)"
   }
 ]

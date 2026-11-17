@@ -11,6 +11,7 @@ import { dayOffset, oracle, transferDays } from '../support/m7m8-ga6-home-fixtur
 //  1. 合約提醒（V4）：需簽合約且 30 天內到期與已過期出現在首頁待辦與廠商列表；改到期日後消失；需簽合約為否者不出現；
 //     編輯帳務欄位（付款條件）後資料庫留下修改者（updated_by）。
 //  2. 績效：門市確認完成、強制結案、進行中的工單各自分開算；強制結案不入完成數與平均天數（總務桌機＋店長手機 390 看不到績效）。
+//  2b. 績效採購單金額（決定 3，2026-11-18）：有採購單檢視權限者（總務全套）看得到金額欄與合計卡；只有合作紀錄者整欄、合計卡都不存在，API 金額為 null。
 //  3. 角色徽章（V9）：只有廠商查看者與工務各自的徽章數字等於點進列表的筆數；處理掉一張後數字減少。
 // 每步用 service role 回讀資料庫。測試資料只放 VW 測試門市，帶 QA-GA6-／[自動測試]M7M8 標記；結束只清自己的。
 test.use({ actionTimeout: 20_000, navigationTimeout: 30_000 });
@@ -74,7 +75,7 @@ test.beforeAll(async () => {
   await assertGaBaseline();
   const left = await cleanupM7M8();
   if (left.length) throw new Error(`清除上次殘留失敗：${left.join('; ')}`);
-  const made = await setupGa6Users(['ga_all', 'vendor_view', 'wo_works', 'store_wo']);
+  const made = await setupGa6Users(['ga_all', 'vendor_view', 'wo_works', 'store_wo', 'coop_only']);
   users = made.users;
   teardown = made.teardown;
   for (const k of Object.keys(users)) {
@@ -186,6 +187,45 @@ test('2 績效：門市確認完成、強制結案、進行中各自分開算；
   } finally {
     await phone.close();
   }
+});
+
+test('2b 績效採購單金額：有採購單檢視權限者看得到金額欄；只有合作紀錄權限者沒有金額欄與合計卡（桌機與手機 390），API 金額為 null', async ({ browser }, testInfo) => {
+  test.setTimeout(300_000);
+  const name = (await vRow(ids.pf)).name as string;
+  const full = await pageForUser(browser, states.ga_all, testInfo);
+  try {
+    await openGaCenter(full.page);
+    await nav(full.page, '合作紀錄');
+    await expect(vis(full.page, 'vs-table')).toBeVisible();
+    await expect(vis(full.page, 'vs-po-total')).toBeVisible();
+    await expect(full.page.locator('[data-testid="vs-row"]:visible', { hasText: name }).getByTestId('vs-po')).toBeVisible({ timeout: 20_000 });
+  } finally {
+    await full.ctx.close();
+  }
+  for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    const ctx = await browser.newContext({ storageState: states.coop_only, viewport });
+    const page = await ctx.newPage();
+    try {
+      await openGaCenter(page);
+      await nav(page, '合作紀錄');
+      await expect(vis(page, 'vs-table')).toBeVisible();
+      const row = page.locator('[data-testid="vs-row"]:visible', { hasText: name });
+      await expect(row).toHaveCount(1, { timeout: 20_000 });
+      await expect(row.getByTestId('vs-wo')).toHaveText('3');
+      await expect(page.locator('[data-testid="vs-po"]')).toHaveCount(0);
+      await expect(page.locator('[data-testid="vs-po-total"]')).toHaveCount(0);
+      await expect(page.getByText('採購單確定金額')).toHaveCount(0);
+      expect(await noPageOverflow(page)).toBe(true);
+    } finally {
+      await ctx.close();
+    }
+  }
+  const r = await (await apis.coop_only.get(`${B}/vendor-stats`)).json();
+  expect(r.data.can_view_po_amount).toBe(false);
+  expect(r.data.summary.po_amount_total).toBeNull();
+  for (const x of r.data.rows) expect(x.po_amount).toBeNull();
+  const mine = r.data.rows.find((x: any) => x.vendor_id === ids.pf);
+  expect(mine).toMatchObject({ wo_count: 3, completed_count: 1, force_closed_count: 1 });
 });
 
 test('3 角色徽章：只有廠商查看者看到廠商資料徽章、工務看到工單中心徽章，數字等於點進列表的筆數；處理掉一張後減少', async ({ browser }, testInfo) => {
