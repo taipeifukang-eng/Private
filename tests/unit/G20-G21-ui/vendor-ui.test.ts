@@ -42,12 +42,12 @@ describe('G20/G21 導覽旗標、側欄與 API 權限一致', () => {
     const adminLike = gaFlags(() => true, false, false, false, () => false);
     expect(adminLike).toMatchObject({ gaVendors: false, gaVendorCategories: false, gaVendorRegions: false, gaVendorManage: false });
   });
-  it('舊網址對到新版 kind；合作紀錄與採購分析本批後段才移植，仍是舊版連結', () => {
+  it('舊網址對到新版 kind；合作紀錄與採購分析在第 6 批 G22 移植', () => {
     expect(GA_PAGE_BY_HREF['/general-affairs/vendors']).toEqual({ kind: 'ga-vendors', flag: 'gaVendors' });
     expect(GA_PAGE_BY_HREF['/general-affairs/vendors/categories']).toEqual({ kind: 'ga-vendor-categories', flag: 'gaVendorCategories' });
     expect(GA_PAGE_BY_HREF['/general-affairs/vendors/regions']).toEqual({ kind: 'ga-vendor-regions', flag: 'gaVendorRegions' });
-    expect(GA_PAGE_BY_HREF['/general-affairs/vendors/stats']).toBeUndefined();
-    expect(GA_PAGE_BY_HREF['/general-affairs/vendors/purchases']).toBeUndefined();
+    expect(GA_PAGE_BY_HREF['/general-affairs/vendors/stats']).toEqual({ kind: 'ga-vendor-stats', flag: 'gaVendorStats' });
+    expect(GA_PAGE_BY_HREF['/general-affairs/vendors/purchases']).toEqual({ kind: 'ga-purchase-analysis', flag: 'gaPurchaseAnalysis' });
   });
   it('kind、標題、權限鍵與頁面登錄都在', () => {
     for (const k of ['ga-vendors', 'ga-vendor-categories', 'ga-vendor-regions'] as const) {
@@ -217,7 +217,7 @@ describe('原始碼層級的畫面規則', () => {
   });
   it('首頁入口：廠商卡導向可進入的第一個廠商頁', () => {
     const c = read('vue-workspace/src/pages/ga/GaCenter.vue');
-    expect(c).toMatch(/VENDOR_KINDS = \["ga-vendors", "ga-vendor-categories", "ga-vendor-regions"\]/);
+    expect(c).toMatch(/VENDOR_KINDS = \["ga-vendors", "ga-vendor-categories", "ga-vendor-regions", "ga-vendor-stats", "ga-purchase-analysis"\]/);
     expect(c).toMatch(/data-testid="ga-vendor-entry"/);
   });
   it('失敗一律顯示明確原因：頁面都走 errorText，不再用「此功能尚未開放」', () => {
