@@ -22,6 +22,7 @@ import { transfersApi } from "./transfers";
 import { vendorOptionsApi, vendorsApi } from "./vendors";
 import { serviceCategoriesApi } from "./service-categories";
 import { serviceRegionsApi } from "./service-regions";
+import { utilityBillsApi } from "./utility-bills";
 import { workOrdersApi } from "./work-orders";
 import { GaError, respond, type Context } from "./server";
 
@@ -90,6 +91,8 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return serviceCategoriesApi(ctx, request, rest);
     case "service-regions":
       return serviceRegionsApi(ctx, request, rest);
+    case "utility-bills":
+      return utilityBillsApi(ctx, request, rest);
     case "work-orders":
       return workOrdersApi(ctx, request, rest);
     case "cross-dept-maintenance":

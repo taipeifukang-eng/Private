@@ -132,6 +132,9 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-vendors",
   "ga-vendor-categories",
   "ga-vendor-regions",
+  // 第 6 批 G23：水電網費帳單與費用報表。
+  "ga-utility-bills",
+  "ga-utility-bills-report",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

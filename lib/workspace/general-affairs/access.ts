@@ -111,6 +111,9 @@ export type GaFlags = {
   gaVendorRegions: boolean;
   /** 廠商管理（新增、編輯、停用）：採購單頁的「新增供應商」連結只對有這個權限者顯示。 */
   gaVendorManage: boolean;
+  /** 第 6 批 G23：水電網費（帳單與報表同一組條件）；入口條件與 API 相同（資料庫語意）；管理權限才有新增、編輯、標記已繳、刪除。 */
+  gaUtilityBills: boolean;
+  gaUtilityBillManage: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -176,6 +179,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     gaVendorCategories: dbHas("general_affairs.service_category.view", "general_affairs.service_category.manage"),
     gaVendorRegions: dbHas("general_affairs.service_region.view", "general_affairs.service_region.manage"),
     gaVendorManage: dbHas("general_affairs.vendor.manage"),
+    gaUtilityBills: dbHas("general_affairs.utility_bill.view", "general_affairs.utility_bill.manage"),
+    gaUtilityBillManage: dbHas("general_affairs.utility_bill.manage"),
     gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }

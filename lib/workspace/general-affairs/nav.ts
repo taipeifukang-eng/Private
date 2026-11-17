@@ -55,6 +55,9 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/vendors": { kind: "ga-vendors", flag: "gaVendors" },
   "/general-affairs/vendors/categories": { kind: "ga-vendor-categories", flag: "gaVendorCategories" },
   "/general-affairs/vendors/regions": { kind: "ga-vendor-regions", flag: "gaVendorRegions" },
+  // 第 6 批 G23：水電網費帳單與費用報表。
+  "/general-affairs/utility-bills": { kind: "ga-utility-bills", flag: "gaUtilityBills" },
+  "/general-affairs/utility-bills/report": { kind: "ga-utility-bills-report", flag: "gaUtilityBills" },
 };
 
 export type GaNavInput = {
@@ -140,6 +143,17 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
       return { id: g.id, label: g.label, items };
     })
     .filter((g) => g.items.length);
+  // 第 6 批 G23：舊側欄「水電電話網路費」是帶子項（費用報表）的項目，側欄外殼對有子項的項目只當展開鈕；帳單列表本身要有自己的入口，所以拆成「帳單列表」與「費用報表」兩個子項。
+  for (const g of out) {
+    for (const item of g.items) {
+      if (item.id === "utility-bills" && item.kind && item.children?.length) {
+        item.children = [{ id: "utility-bills-list", label: "帳單列表", href: item.href, kind: item.kind }, ...item.children];
+        delete item.kind;
+        delete item.href;
+        delete item.payload;
+      }
+    }
+  }
   // 設施保固管理：舊版有頁面（/general-affairs/facilities/warranties）但側欄沒有入口；新版補在「設施管理」最後一項，方便找到。
   if (flags.gaFacilityWarranties) {
     for (const g of out) {
