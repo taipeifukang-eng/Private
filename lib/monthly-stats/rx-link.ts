@@ -69,7 +69,8 @@ function resolveCount(reportValue: unknown, legacyValue: unknown): RxCountDispla
     return { value: fromReport, source: 'prescription', text: formatCount(fromReport), legacy: false };
   }
   const old = toNumberOrNull(legacyValue);
-  if (old !== null) {
+  // 舊值為 0（DB 預設值）視為沒有舊資料，顯示暫無資料；非 0 才退回並標示舊匯入
+  if (old !== null && old !== 0) {
     return { value: old, source: 'legacy', text: formatCount(old), legacy: true };
   }
   return { value: null, source: 'none', text: NO_DATA_TEXT, legacy: false };
@@ -77,7 +78,7 @@ function resolveCount(reportValue: unknown, legacyValue: unknown): RxCountDispla
 
 /**
  * 決定三個欄位顯示內容。
- * - 處方箋有值就用處方箋；張數為空（或該月該店無資料）退回 monthly_store_summary 舊匯入值並標示。
+ * - 處方箋有值就用處方箋；張數為空（或該月該店無資料）且舊匯入值非 0 時，退回 monthly_store_summary 舊匯入值並標示；舊值為 0（DB 預設）顯示暫無資料。
  * - 點值沒有舊值；健保總點值需一般箋、慢箋兩個點值都有才算。
  * - 總公司 0000 一律暫無資料（不退回舊值）。
  */

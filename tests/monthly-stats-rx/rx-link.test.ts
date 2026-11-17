@@ -49,6 +49,23 @@ describe('顯示規則', () => {
     expect(d.regular.legacy).toBe(false);
     expect(d.chronic).toMatchObject({ text: '77', legacy: true });
   });
+  it('舊值 0 且處方箋無資料：暫無資料，不顯示 0 舊匯入', () => {
+    const d = resolveRxLinkDisplay({ report: null, legacySummary: { regular_prescription_count: 0, chronic_prescription_count: 0 } });
+    expect(d.regular).toMatchObject({ value: null, text: '暫無資料', source: 'none', legacy: false });
+    expect(d.chronic).toMatchObject({ value: null, text: '暫無資料', source: 'none', legacy: false });
+  });
+  it('舊值 0 且處方箋張數為 NULL：暫無資料', () => {
+    const d = resolveRxLinkDisplay({ report: { ...full, regular_prescription_count: null }, legacySummary: { regular_prescription_count: 0 } });
+    expect(d.regular).toMatchObject({ text: '暫無資料', source: 'none', legacy: false });
+  });
+  it('舊值 0 且處方箋張數 0：顯示 0（處方箋值）', () => {
+    const d = resolveRxLinkDisplay({ report: { ...full, regular_prescription_count: 0 }, legacySummary: { regular_prescription_count: 0 } });
+    expect(d.regular).toMatchObject({ value: 0, text: '0', source: 'prescription', legacy: false });
+  });
+  it('舊值 5 且處方箋無資料：5 舊匯入', () => {
+    const d = resolveRxLinkDisplay({ report: null, legacySummary: { regular_prescription_count: 5 } });
+    expect(d.regular).toMatchObject({ value: 5, text: '5', source: 'legacy', legacy: true });
+  });
   it('0000 總公司：一律暫無資料，不退回舊值', () => {
     const d = resolveRxLinkDisplay({ report: full, legacySummary: { regular_prescription_count: 5, chronic_prescription_count: 5 }, isHeadOffice: true });
     expect([d.regular.text, d.chronic.text, d.totalPoint.text]).toEqual([NO_DATA_TEXT, NO_DATA_TEXT, NO_DATA_TEXT]);
