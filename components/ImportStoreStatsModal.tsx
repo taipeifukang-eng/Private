@@ -141,9 +141,10 @@ export default function ImportStoreStatsModal({
                 <li><strong>毛利</strong>（總毛利）</li>
                 <li><strong>總來客數</strong></li>
                 <li><strong>單純處方加購來客數</strong></li>
-                <li><strong>一般箋張數</strong></li>
-                <li><strong>慢箋張數</strong></li>
               </ul>
+              <p className="mt-2 text-xs">
+                一般箋、慢箋張數與健保總點值改由「業績管理 → 處方箋」提供，不需在此匯入。
+              </p>
               <p className="mt-3 text-xs">
                 💡 系統會根據門市代號自動匹配對應門市，若門市已有統計資料則更新，否則新增。
               </p>
