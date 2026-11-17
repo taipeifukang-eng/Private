@@ -132,6 +132,9 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-vendors",
   "ga-vendor-categories",
   "ga-vendor-regions",
+  // 第 6 批 G22：合作紀錄（廠商績效）、採購分析。
+  "ga-vendor-stats",
+  "ga-purchase-analysis",
   // 第 6 批 G23：水電網費帳單與費用報表。
   "ga-utility-bills",
   "ga-utility-bills-report",

@@ -100,6 +100,8 @@ async function list(ctx: Context, url: URL, approvals: boolean) {
   }
   if (p.get("mine") === "true") filters.mine = true;
   if (p.get("overdue") === "true") filters.overdue = true;
+  // 待我處理（V9）：待核准（有核准權限才算）與逾期未到貨的聯集，與徽章同一組述詞（ga_att_po）。
+  if (p.get("attention") === "1" || p.get("attention") === "true") filters.attention = true;
   if (approvals || p.get("view") === "approvals") {
     if (!who.approve) throw new GaError(403, "待簽核清單只有持「採購核准」權限的人可以看");
     filters.approvals = true;

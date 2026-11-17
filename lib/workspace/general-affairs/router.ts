@@ -23,6 +23,9 @@ import { vendorOptionsApi, vendorsApi } from "./vendors";
 import { serviceCategoriesApi } from "./service-categories";
 import { serviceRegionsApi } from "./service-regions";
 import { utilityBillsApi } from "./utility-bills";
+import { homeApi } from "./home";
+import { purchaseAnalysisApi } from "./purchase-analysis";
+import { vendorStatsApi } from "./vendor-stats";
 import { workOrdersApi } from "./work-orders";
 import { GaError, respond, type Context } from "./server";
 
@@ -91,6 +94,12 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return serviceCategoriesApi(ctx, request, rest);
     case "service-regions":
       return serviceRegionsApi(ctx, request, rest);
+    case "vendor-stats":
+      return vendorStatsApi(ctx, request, rest);
+    case "purchase-analysis":
+      return purchaseAnalysisApi(ctx, request, rest);
+    case "home":
+      return homeApi(ctx, request, rest);
     case "utility-bills":
       return utilityBillsApi(ctx, request, rest);
     case "work-orders":

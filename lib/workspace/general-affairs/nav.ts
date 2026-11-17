@@ -55,6 +55,9 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/vendors": { kind: "ga-vendors", flag: "gaVendors" },
   "/general-affairs/vendors/categories": { kind: "ga-vendor-categories", flag: "gaVendorCategories" },
   "/general-affairs/vendors/regions": { kind: "ga-vendor-regions", flag: "gaVendorRegions" },
+  // 第 6 批 G22：合作紀錄（廠商績效）與採購分析。
+  "/general-affairs/vendors/stats": { kind: "ga-vendor-stats", flag: "gaVendorStats" },
+  "/general-affairs/vendors/purchases": { kind: "ga-purchase-analysis", flag: "gaPurchaseAnalysis" },
   // 第 6 批 G23：水電網費帳單與費用報表。
   "/general-affairs/utility-bills": { kind: "ga-utility-bills", flag: "gaUtilityBills" },
   "/general-affairs/utility-bills/report": { kind: "ga-utility-bills-report", flag: "gaUtilityBills" },

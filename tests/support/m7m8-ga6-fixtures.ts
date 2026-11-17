@@ -39,6 +39,8 @@ export const TEMP_ACCOUNTS = {
   svc_mgr: ['general_affairs.service_category.view', 'general_affairs.service_category.manage', 'general_affairs.service_region.view', 'general_affairs.service_region.manage'],
   /** 只有廠商管理（沒有 view）：管理隱含查看。 */
   vendor_manage_only: [PERM.vendorManage],
+  /** 店長（需求單）：查看自己門市＋留言＋確認＋建立，並是 VW001 的店長名單成員（DEV 真實 store_manager 角色沒有需求單權限，徽章測試用這個）。 */
+  store_req: [PERM.requestViewOwn, PERM.requestCommentOwn, PERM.requestConfirmOwn, PERM.requestCreate, PERM.serviceAccess],
   /** 一個無關權限（只有服務中心入口）。 */
   nobody: [PERM.serviceAccess],
   /** 舊式管理員：profiles.role = admin、沒有任何角色（資料庫不給繞過）。 */
@@ -85,6 +87,7 @@ export async function setupGa6Users(keys: Ga6Key[]): Promise<{ users: Record<str
         must(await db.from('role_permissions').insert(perms.map((c) => ({ role_id: role.id, permission_id: permId.get(c), is_allowed: true }))), `角色權限 ${key}`);
         must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
       }
+      if (key === 'store_req') must(await db.from('store_managers').insert({ user_id: uid, store_id: st.VW001.id, role_type: 'store_manager', is_primary: true }), `store_managers ${key}`);
     }
     users[key] = { key, id: uid, email, password, client: await clientForCredentials(email, password) };
   }

@@ -12,6 +12,8 @@ export type GaNavItem = {
   payload?: Record<string, string>;
   /** 尚未開放的項目（舊版顯示為「規劃中」），不可點。 */
   disabled?: string;
+  /** 待我處理數字（第 6 批 G24）：由畫面依 ga_ws_home_badges 填入（選單鍵對應見 home-rules.ts 的 BADGE_MENU_KIND），0 或沒有就不顯示，最多 99+。 */
+  badge?: number;
   children?: GaNavItem[];
 };
 export type GaNavGroup = { id: string; label?: string; items: GaNavItem[] };

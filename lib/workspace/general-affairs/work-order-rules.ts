@@ -266,6 +266,9 @@ export function parseListFilters(p: URLSearchParams): ListFilters {
   if (status) out.status = (WO_STATUSES as readonly string[]).includes(status) ? status : bad("狀態篩選錯誤");
   const focus = (p.get("focus") || "").trim().toLowerCase();
   if (focus && focus !== "all") out.focus = (WO_FOCUS_KEYS as readonly string[]).includes(focus) ? focus : bad("焦點篩選錯誤");
+  // 待我處理（V9）：attention=store_rejected 等於焦點卡「門市退回」，與徽章同一個述詞（ga_wo_focus）。
+  const attention = (p.get("attention") || "").trim().toLowerCase();
+  if (attention) { if (attention !== "store_rejected") bad("待辦篩選錯誤"); out.focus = "store_rejected"; }
   const source = (p.get("source") || "").trim().toUpperCase();
   if (source && source !== "ALL") out.source = (WO_SOURCES as readonly string[]).includes(source) ? source : bad("來源篩選錯誤");
   const q = normalizeSearch(p.get("q") ?? p.get("search"));

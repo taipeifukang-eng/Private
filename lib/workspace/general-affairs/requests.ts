@@ -15,6 +15,7 @@ import {
 import { FILTERS_BOOL, isUuid, orIlike, pagingMeta, parsePaging } from "./rules";
 import { GaError, body, dbError, must, respond, rpc, validated, type Context } from "./server";
 import { fetchVendorOptions } from "./vendors";
+import { ATTENTION, attentionOn } from "./home-rules";
 
 export const RQ = {
   create: "general_affairs.request.create",
@@ -202,6 +203,8 @@ async function list(ctx: Context, url: URL, mine: boolean) {
   if (storeId && !isUuid(storeId)) throw new GaError(400, "門市格式錯誤");
   if (storeId && !s.viewAll && !s.stores.includes(storeId)) throw new GaError(403, "沒有此門市的查看權限");
   const search = (p.get("search") || "").trim();
+  // 待我處理（V9）：需求工作台＝待受理；我的追蹤＝自己門市待確認／待補資料。與資料庫 ga_att_request_intake／ga_att_store_wait 同一組狀態，筆數等於首頁與導覽徽章。
+  const attention = attentionOn(p.get("attention"));
   // 逾期篩選與逾期統計只給總務：門市不可用它反推哪些單逾期（D5：門市看不到逾期標示）。
   const overdueOnly = s.manage && FILTERS_BOOL(p.get("overdue")) === true;
   const settings = await readSettings();
@@ -214,6 +217,7 @@ async function list(ctx: Context, url: URL, mine: boolean) {
     let x = q.is("deleted_at", null);
     if (scopeStores) x = x.in("store_id", scopeStores);
     if (storeId) x = x.eq("store_id", storeId);
+    if (attention) x = mine ? x.in("main_status", [...ATTENTION.storeWaitStatuses]) : x.eq("main_status", ATTENTION.requestIntakeStatus);
     if (type) x = x.eq("request_type", type);
     if (search) x = x.or(orIlike(["request_no", "title", "description"], search));
     return x;
