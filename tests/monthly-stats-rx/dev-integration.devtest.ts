@@ -39,7 +39,7 @@ it('DEV 整合：伺服端讀取函式與顯示規則', async () => {
     ]);
     assert.ifError(r.error);
 
-    const get = (storeId) => loadRxLinkForStore({ canViewStats: true, admin: db, yearMonth: ym, storeId });
+    const get = (storeId) => loadRxLinkForStore({ canViewStats: true, canAccessStore: true, admin: db, yearMonth: ym, storeId });
 
     const a = await get(id('ZT01'));
     assert.equal(a.success, true);
@@ -60,7 +60,7 @@ it('DEV 整合：伺服端讀取函式與顯示規則', async () => {
     const dd = resolveRxLinkDisplay({ report: d.report, legacySummary: null });
     assert.deepEqual([dd.regular.text, dd.chronic.text, dd.totalPoint.text], ['暫無資料', '暫無資料', '暫無資料']);
 
-    const denied = await loadRxLinkForStore({ canViewStats: false, admin: db, yearMonth: ym, storeId: id('ZT01') });
+    const denied = await loadRxLinkForStore({ canViewStats: false, canAccessStore: true, admin: db, yearMonth: ym, storeId: id('ZT01') });
     assert.equal(denied.success, false);
 
     let hqNote = '（DEV 無 0000 門市，略過）';

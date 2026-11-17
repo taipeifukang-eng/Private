@@ -2831,8 +2831,16 @@ export async function getStoreMonthlyRxLink(yearMonth: string, storeId: string) 
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return { success: false as const, error: '未登入' };
     const snapshot = await loadMonthlyPermissionSnapshot(supabase, user.id);
+    const canViewStats = snapshot.has(RX_LINK_PERMISSION);
+    // 門市範圍：與月度頁面可見門市一致（view_all 全部；view_own 只看被指派門市），避免用 admin 讀表時跨店
+    let canAccessStore = false;
+    if (canViewStats && storeId) {
+      const managed = await resolveManagedStores(supabase, user.id, { include_inactive: true });
+      canAccessStore = !!(managed.success && (managed.data as Array<{ id: string }>).some((s) => s.id === storeId));
+    }
     return await loadRxLinkForStore({
-      canViewStats: snapshot.has(RX_LINK_PERMISSION),
+      canViewStats,
+      canAccessStore,
       admin: createAdminClient(),
       yearMonth,
       storeId,

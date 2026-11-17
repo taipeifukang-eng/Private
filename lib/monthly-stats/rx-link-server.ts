@@ -13,14 +13,17 @@ type AdminLike = { from: (table: string) => any };
 
 export async function loadRxLinkForStore(params: {
   canViewStats: boolean;
+  /** 該門市是否在呼叫者可見範圍內（view_all 或被指派門市），由呼叫端用使用者權限判斷 */
+  canAccessStore: boolean;
   admin: AdminLike;
   yearMonth: string;
   storeId: string;
 }): Promise<RxLinkResult> {
-  const { canViewStats, admin, yearMonth, storeId } = params;
+  const { canViewStats, canAccessStore, admin, yearMonth, storeId } = params;
   if (!canViewStats) return { success: false, error: '沒有查看月度統計的權限' };
   if (!YEAR_MONTH_PATTERN.test(yearMonth || '')) return { success: false, error: '年月格式不正確' };
   if (!storeId) return { success: false, error: '缺少門市' };
+  if (!canAccessStore) return { success: false, error: '沒有查看此門市的權限' };
 
   const { data: store, error: storeError } = await admin
     .from('stores')

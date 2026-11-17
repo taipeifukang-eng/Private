@@ -127,26 +127,35 @@ function fakeAdmin(opts: { storeCode?: string | null; report?: any; calls?: stri
 describe('伺服端權限把關', () => {
   it('沒有 monthly.status.view_stats：拒絕，且完全不碰資料表', async () => {
     const calls: string[] = [];
-    const r = await loadRxLinkForStore({ canViewStats: false, admin: fakeAdmin({ calls, report: full }), yearMonth: '2038-01', storeId: 's1' });
+    const r = await loadRxLinkForStore({ canViewStats: false, canAccessStore: true, admin: fakeAdmin({ calls, report: full }), yearMonth: '2038-01', storeId: 's1' });
     expect(r.success).toBe(false);
     expect(calls).toEqual([]);
   });
   it('有權限：回傳處方箋資料', async () => {
-    const r = await loadRxLinkForStore({ canViewStats: true, admin: fakeAdmin({ report: full }), yearMonth: '2038-01', storeId: 's1' });
+    const r = await loadRxLinkForStore({ canViewStats: true, canAccessStore: true, admin: fakeAdmin({ report: full }), yearMonth: '2038-01', storeId: 's1' });
     expect(r).toEqual({ success: true, isHeadOffice: false, report: full });
   });
   it('有權限但該月無資料：report 為 null', async () => {
-    const r = await loadRxLinkForStore({ canViewStats: true, admin: fakeAdmin({}), yearMonth: '2038-01', storeId: 's1' });
+    const r = await loadRxLinkForStore({ canViewStats: true, canAccessStore: true, admin: fakeAdmin({}), yearMonth: '2038-01', storeId: 's1' });
     expect(r).toEqual({ success: true, isHeadOffice: false, report: null });
   });
   it('0000 不查處方箋表', async () => {
     const calls: string[] = [];
-    const r = await loadRxLinkForStore({ canViewStats: true, admin: fakeAdmin({ storeCode: '0000', calls, report: full }), yearMonth: '2038-01', storeId: 's1' });
+    const r = await loadRxLinkForStore({ canViewStats: true, canAccessStore: true, admin: fakeAdmin({ storeCode: '0000', calls, report: full }), yearMonth: '2038-01', storeId: 's1' });
     expect(r).toEqual({ success: true, isHeadOffice: true, report: null });
     expect(calls).toEqual(['stores']);
   });
   it('年月格式錯誤、找不到門市皆失敗', async () => {
-    expect((await loadRxLinkForStore({ canViewStats: true, admin: fakeAdmin({}), yearMonth: '2038-13', storeId: 's1' })).success).toBe(false);
-    expect((await loadRxLinkForStore({ canViewStats: true, admin: fakeAdmin({ storeCode: null }), yearMonth: '2038-01', storeId: 's1' })).success).toBe(false);
+    expect((await loadRxLinkForStore({ canViewStats: true, canAccessStore: true, admin: fakeAdmin({}), yearMonth: '2038-13', storeId: 's1' })).success).toBe(false);
+    expect((await loadRxLinkForStore({ canViewStats: true, canAccessStore: true, admin: fakeAdmin({ storeCode: null }), yearMonth: '2038-01', storeId: 's1' })).success).toBe(false);
+  });
+});
+
+describe('門市範圍把關（伺服端函式）', () => {
+  it('不在可見門市：拒絕，不碰任何資料表', async () => {
+    const calls: string[] = [];
+    const r = await loadRxLinkForStore({ canViewStats: true, canAccessStore: false, admin: fakeAdmin({ calls, report: full }), yearMonth: '2038-01', storeId: 's1' });
+    expect(r.success).toBe(false);
+    expect(calls).toEqual([]);
   });
 });
