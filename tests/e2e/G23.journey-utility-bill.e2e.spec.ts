@@ -1,6 +1,6 @@
 import { expect, type Page, test } from '@playwright/test';
 import { apiForUser } from '../support/cv01-fixtures';
-import { gaNavToIn, noPageOverflow, openGaCenter, pageForUser, visibleHeading } from '../support/g01-ui';
+import { expandGroup, gaNavToIn, noPageOverflow, openGaCenter, openGaSide, pageForUser, shell, visibleHeading } from '../support/g01-ui';
 import { adminDb, assertGaBaseline, callFn, cleanupM7M8, stores } from '../support/m7m8-fixtures';
 import { ga6Name, setupGa6Users, type Ga6User } from '../support/m7m8-ga6-fixtures';
 import { M7_FILE_PREFIX } from '../support/m7m8-fixtures';
@@ -10,7 +10,7 @@ import { shiftMonth, taipeiToday } from '../../lib/workspace/general-affairs/uti
 // M7/M8 第 6 批 G23.journey-utility-bill（角色接力劇本）：總務登錄水電帳單 → 金額異常提醒（多打一個零，顯示基準金額與明細，仍可儲存）→ 更正（編輯留修改者）
 // → 到期日已過未繳，列表與摘要出現逾期 → 標記已繳（選日期；未來日與過早日被擋）→ 改回待繳（顯示原日期並確認）→ 已繳帳單改金額（二次確認並顯示原值）
 // → 刪除（必填原因；已繳帳單多一道確認）→「顯示已刪除」檢視看得到誰、何時、為何刪；重複帳單訊息指出既有那一筆並可直接開啟；水電檢視者全程唯讀。
-// 首頁「待我處理」與導覽徽章（逾期帳單）的斷言留待 G24（首頁與徽章）階段補上（見檔尾 test.fixme 與設計 §11.2 的接力清單）。
+// 最後一個測試是 G24 補上的首頁「待我處理」與導覽徽章（逾期帳單）斷言：登錄逾期帳單後出現、點徽章只看逾期且筆數相同、標記已繳後即時減少。
 // 每步用 service role 回讀資料庫。測試資料帶 QA-GA6- 標記、只用 VW 測試門市；結束只清自己的。
 test.use({ actionTimeout: 20_000, navigationTimeout: 30_000 });
 test.describe.configure({ mode: 'serial' });
@@ -308,6 +308,52 @@ test('帳單附件：在詳情上傳掃描檔（照片）、清單看得到、�
   }
 });
 
-test.fixme('首頁「待我處理」逾期帳單與水電網費導覽徽章：登錄逾期帳單後出現、標記已繳後減少、徽章數字等於點進去的逾期帳單列表筆數（G24 首頁與徽章階段補上）', async () => {
-  // 待 G24 的 ga_ws_home_summary／home/badges 完成後，把本檔第二個測試的逾期與標記已繳步驟接上首頁與徽章斷言。
+test('首頁「待我處理」與水電網費導覽徽章：登錄逾期帳單後出現、點徽章只看逾期且筆數相同、標記已繳後首頁與徽章即時減少', async ({ browser }, testInfo) => {
+  test.setTimeout(300_000);
+  const before = await countOverdueDb();
+  const made = await callFn(users.util_mgr.client, 'ga_ws_ub_save', { p_id: null, p_payload: { store_id: st.VW001.id, expense_type: 'WATER', billing_month: PAST, provider_name: provider, service_identifier: key('H'), amount: 2100, due_date: dayOffset(-2) }, p_expected_updated_at: null, p_confirm_paid_change: false });
+  expect(made.ok, JSON.stringify(made)).toBe(true);
+  const { ctx, page, errors } = await pageForUser(browser, state, testInfo);
+  const sideBadge = async () => {
+    await openGaSide(page);
+    await expandGroup(page, GROUP); // 帳單列表在「水電電話網路費」群組裡，收合時看不到
+    const row = shell(page).locator('aside .ga-row').filter({ has: page.getByRole('button', { name: '帳單列表', exact: true }) }).first();
+    const text = (await row.locator('.ga-badge').count()) ? ((await row.locator('.ga-badge').first().textContent()) || '').trim() : '';
+    const close = shell(page).getByRole('button', { name: '關閉總務選單' });
+    if (await close.isVisible().catch(() => false)) await close.click(); // 手機的側欄是抽屜，讀完收起來
+    return text;
+  };
+  const cap = (n: number) => (n <= 0 ? '' : n > 99 ? '99+' : String(n));
+  try {
+    await openGaCenter(page);
+    // 首頁待辦與導覽徽章：數字等於資料庫（逾期＝未繳且到期日早於台北今天）
+    await expect(page.locator('[data-testid="home-count-bill_overdue"]:visible')).toHaveText(String(before + 1));
+    await expect.poll(sideBadge, { timeout: 20_000 }).toBe(cap(before + 1));
+    // 水電管理沒有其他待辦項目：首頁合計等於逾期帳單數
+    await expect(page.locator('[data-testid="home-total"]:visible')).toHaveText(cap(before + 1) || '0');
+    // 點徽章：只看逾期，筆數等於徽章數字
+    await openGaSide(page);
+    await expandGroup(page, GROUP);
+    await shell(page).getByRole('button', { name: /^帳單列表待我處理/ }).click();
+    await expect(visibleHeading(page, '水電電話網路費')).toBeVisible();
+    await expect(vis(page, 'bill-total')).toHaveText(`共 ${before + 1} 筆`);
+    // 開啟那一筆、標記已繳（預設今天）
+    await vis(page, 'bill-search').fill(key('H'));
+    await expect(page.locator('[data-testid="bill-card"]:visible')).toHaveCount(1);
+    await page.locator('[data-testid="bill-card"]:visible').first().getByTestId('open-bill').click();
+    await vis(page, 'bd-pay').click();
+    await vis(page, 'bd-pay-date').fill(shiftMonth(`${PAST}-01`, -1));
+    await vis(page, 'bd-pay-ok').click();
+    await expect(vis(page, 'bd-status')).toHaveText('已繳費');
+    expect(await countOverdueDb()).toBe(before);
+    // 辦完一項：導覽徽章即時減少，首頁待辦也減少（手機的詳情是全螢幕視窗，先關掉才點得到側欄）
+    if (await page.locator('dialog[open]').count()) await page.keyboard.press('Escape');
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+    await expect.poll(sideBadge, { timeout: 20_000 }).toBe(cap(before));
+    await openGaCenter(page);
+    await expect(page.locator('[data-testid="home-count-bill_overdue"]:visible')).toHaveText(String(before), { timeout: 20_000 });
+    expect(noConsole(errors)).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
 });

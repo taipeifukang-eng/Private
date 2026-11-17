@@ -99,7 +99,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
       <template v-if="po && a">
         <p class="pd-status"><span class="st" :data-status="po.status" data-testid="pd-status">{{ PO_STATUS_LABEL[po.status] || po.status_label }}</span>
           <strong data-testid="pd-vendor">{{ po.vendor_name || "（尚未選供應商）" }}</strong>
-          <span v-if="po.vendor_current_status && po.vendor_current_status !== 'active'" class="muted">（廠商目前狀態：{{ po.vendor_current_status }}）</span></p>
+          <span v-if="po.vendor_current_status && po.vendor_current_status !== 'active'" class="muted" data-testid="pd-vendor-status" :title="'廠商目前狀態：' + po.vendor_current_status">{{ po.vendor_current_status === "paused" ? "（暫停）" : "（已停用）" }}</span></p>
         <dl class="pd-meta">
           <div><dt>含稅總額</dt><dd data-testid="pd-total">{{ money(po.total_amount) }}<small class="muted">（未稅 {{ money(po.subtotal) }}＋稅 {{ money(po.tax_amount) }}）</small></dd></div>
           <div><dt>開單人</dt><dd>{{ po.created_by_name || "" }}　{{ fmtTime(po.created_at) }}</dd></div>

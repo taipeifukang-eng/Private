@@ -55,7 +55,7 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
 <template>
   <div class="ga-shell" :class="{ collapsed }" data-testid="ga-shell">
     <div class="ga-mobile-bar">
-      <button type="button" aria-haspopup="dialog" :aria-expanded="drawer" @click="drawer = true"><Menu :size="16" /> 總務選單<span v-if="homeTotal" class="ga-badge" data-testid="ga-badge-mobile" :aria-label="`待我處理共 ${homeTotal} 項`">{{ capBadge(homeTotal) }}</span></button>
+      <button type="button" aria-haspopup="dialog" :aria-expanded="drawer" @click="drawer = true"><Menu :size="16" /> 總務選單<span v-if="homeTotal" class="ga-badge" data-testid="ga-badge-mobile" aria-hidden="true" :title="`待我處理共 ${homeTotal} 項`">{{ capBadge(homeTotal) }}</span></button>
       <span class="muted">{{ crumbs?.join(" › ") }}</span>
     </div>
     <div v-if="drawer" class="ga-backdrop" aria-hidden="true" @click="drawer = false" />
@@ -74,7 +74,7 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
             <li v-for="item in g.items" :key="item.id">
               <template v-if="item.children?.length">
                 <button type="button" class="ga-group" :aria-expanded="!!openGroups[item.id]" @click="openGroups[item.id] = !openGroups[item.id]">
-                  <span>{{ item.label }}<span v-if="badgeOf(item)" class="ga-badge static" :data-testid="`ga-badge-${item.id}`" :aria-label="`待我處理 ${badgeOf(item)} 項`">{{ capBadge(badgeOf(item)) }}</span></span><ChevronDown :size="14" :class="{ flip: openGroups[item.id] }" />
+                  <span>{{ item.label }}<span v-if="badgeOf(item)" class="ga-badge static" :data-testid="`ga-badge-${item.id}`" aria-hidden="true" :title="`待我處理 ${badgeOf(item)} 項`">{{ capBadge(badgeOf(item)) }}</span></span><ChevronDown :size="14" :class="{ flip: openGroups[item.id] }" />
                 </button>
                 <ul v-show="openGroups[item.id]" class="ga-sub">
                   <li v-for="child in item.children" :key="child.id">
