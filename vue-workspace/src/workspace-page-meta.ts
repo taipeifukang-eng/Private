@@ -138,6 +138,8 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   "ga-vendors": meta("廠商資料", ["gaVendors"]),
   "ga-vendor-categories": meta("服務分類", ["gaVendorCategories"]),
   "ga-vendor-regions": meta("服務區域", ["gaVendorRegions"]),
+  "ga-vendor-stats": meta("合作紀錄", ["gaVendorStats"]),
+  "ga-purchase-analysis": meta("採購分析", ["gaPurchaseAnalysis"]),
   // 第 6 批 G23：水電網費。
   "ga-utility-bills": meta("水電電話網路費", ["gaUtilityBills"]),
   "ga-utility-bills-report": meta("費用報表", ["gaUtilityBills"]),

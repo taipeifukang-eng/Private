@@ -24,13 +24,15 @@ const pageSize = 20;
 const search = ref("");
 const debounced = useDebounced(search, 300);
 const status = ref("");
+// 從首頁或導覽徽章點進來：只看「待我確認或補資料」（與徽章同一組條件，V9）
+const attention = ref(!!(props.tab.payload as { attention?: unknown } | undefined)?.attention);
 const loading = ref(false);
 const loaded = ref(false);
 const error = ref("");
 const detailId = ref("");
 const latest = useLatest();
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
-const hasFilter = computed(() => !!(debounced.value.trim() || status.value));
+const hasFilter = computed(() => !!(debounced.value.trim() || status.value || attention.value));
 const canCreate = computed(() => !!session.data?.capabilities?.gaReportCreate);
 const canTasks = computed(() => !!session.data?.capabilities?.gaOnboardingTasks);
 
@@ -43,6 +45,7 @@ async function load() {
     const q = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize) });
     if (debounced.value.trim()) q.set("search", debounced.value.trim());
     if (status.value) q.set("status", status.value);
+    if (attention.value) q.set("attention", "1");
     const res = await api<{ data: RequestRow[]; total: number; stats: RequestStats; permissions: RequestPerms }>("general-affairs/reports/mine?" + q);
     if (!latest.isLatest(n)) return;
     rows.value = res.data;
@@ -56,7 +59,7 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([debounced, status], () => { page.value = 1; void load(); });
+watch([debounced, status, attention], () => { page.value = 1; void load(); });
 watch(page, load);
 onMounted(() => void load());
 useRefreshOnActivate(props.tab, load);
@@ -78,6 +81,7 @@ const filters = [["", "全部"], ["WAITING_STORE_CONFIRMATION", "待我確認"],
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', '門市追蹤', '我的追蹤']">
     <p v-if="loaded && waiting" class="notice" role="status" data-testid="waiting-hint">有 {{ waiting }} 張需求等您處理（補資料或確認完成）。</p>
+    <p v-if="attention" class="notice" role="status" data-testid="attention-chip">只顯示「待我處理」的項目，筆數與導覽數字一致。<button type="button" data-testid="attention-clear" @click="attention = false">看全部</button></p>
     <div class="filter-bar">
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="需求單號、標題、說明" /></label>
       <label>狀態<select v-model="status" aria-label="狀態"><option v-for="f in filters" :key="f[0]" :value="f[0]">{{ f[1] }}{{ f[0] && stats[f[0]] !== undefined ? `（${stats[f[0]]}）` : "" }}</option></select></label>

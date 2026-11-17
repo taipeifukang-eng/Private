@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed, ref, onMounted } from "vue";
+import { computed, ref, onMounted, onBeforeUnmount, watch } from "vue";
 import { ChevronDown, ChevronsLeft, ChevronsRight, ExternalLink, Menu, X } from "lucide-vue-next";
-import { useSession, type WorkTab } from "../../stores";
+import { useSession, useWorkspace, type WorkTab } from "../../stores";
 import type { GaNavItem } from "../../../../lib/workspace/general-affairs/nav-types";
 import { legacyUrl, openGaPage } from "../../lib/ga";
+import { capBadge, openMenuAttention, useGaBadges } from "../../lib/ga-home";
 
 // G01 總務外殼：照舊版側欄分組與權限顯示（資料由伺服端用舊版同一份規則算好，放在 session.gaNavigation）。
 // 已移植的頁面在新版頁籤開啟；尚未移植的項目以舊頁另開分頁。窄螢幕（手機）改成抽屜。
@@ -14,8 +15,16 @@ const collapsed = ref(false);
 const drawer = ref(false);
 const openGroups = ref<Record<string, boolean>>({});
 const groups = computed(() => session.data?.gaNavigation || []);
+const badges = useGaBadges();
+const work = useWorkspace();
+// 待我處理數字（G24）：進入總務區、切換到本頁時重抓，另每 5 分鐘輕量更新；各選單顯示自己的數字，有子項的選單顯示子項加總。
+const badgeOf = (item: GaNavItem): number => (item.badge ?? 0) || (item.kind ? badges.byKind(item.kind) : 0) || (item.children || []).reduce((n, c) => n + badgeOf(c), 0);
+const homeTotal = computed(() => Number(badges.data?.total) || 0);
+watch(() => work.active, (id) => { if (id === props.tab.id) void badges.refresh(); });
+onBeforeUnmount(() => badges.release());
 
 onMounted(() => {
+  badges.retain();
   try {
     collapsed.value = window.localStorage.getItem(STORAGE_KEY) === "true";
   } catch {
@@ -46,7 +55,7 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
 <template>
   <div class="ga-shell" :class="{ collapsed }" data-testid="ga-shell">
     <div class="ga-mobile-bar">
-      <button type="button" aria-haspopup="dialog" :aria-expanded="drawer" @click="drawer = true"><Menu :size="16" /> 總務選單</button>
+      <button type="button" aria-haspopup="dialog" :aria-expanded="drawer" @click="drawer = true"><Menu :size="16" /> 總務選單<span v-if="homeTotal" class="ga-badge" data-testid="ga-badge-mobile" :aria-label="`待我處理共 ${homeTotal} 項`">{{ capBadge(homeTotal) }}</span></button>
       <span class="muted">{{ crumbs?.join(" › ") }}</span>
     </div>
     <div v-if="drawer" class="ga-backdrop" aria-hidden="true" @click="drawer = false" />
@@ -65,18 +74,24 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
             <li v-for="item in g.items" :key="item.id">
               <template v-if="item.children?.length">
                 <button type="button" class="ga-group" :aria-expanded="!!openGroups[item.id]" @click="openGroups[item.id] = !openGroups[item.id]">
-                  <span>{{ item.label }}</span><ChevronDown :size="14" :class="{ flip: openGroups[item.id] }" />
+                  <span>{{ item.label }}<span v-if="badgeOf(item)" class="ga-badge static" :data-testid="`ga-badge-${item.id}`" :aria-label="`待我處理 ${badgeOf(item)} 項`">{{ capBadge(badgeOf(item)) }}</span></span><ChevronDown :size="14" :class="{ flip: openGroups[item.id] }" />
                 </button>
                 <ul v-show="openGroups[item.id]" class="ga-sub">
                   <li v-for="child in item.children" :key="child.id">
-                    <button v-if="child.kind" type="button" class="ga-link" :class="{ current: isCurrent(child) }" :aria-current="isCurrent(child) ? 'page' : undefined" @click="go(child)">{{ child.label }}</button>
+                    <div v-if="child.kind" class="ga-row">
+                      <button type="button" class="ga-link" :class="{ current: isCurrent(child) }" :aria-current="isCurrent(child) ? 'page' : undefined" @click="go(child)">{{ child.label }}</button>
+                      <button v-if="badgeOf(child)" type="button" class="ga-badge" :data-testid="`ga-badge-${child.id}`" :aria-label="`${child.label}待我處理 ${badgeOf(child)} 項，點此只看待辦`" title="只看待我處理的項目" @click="drawer = false; openMenuAttention(child.kind)">{{ capBadge(badgeOf(child)) }}</button>
+                    </div>
                     <a v-else-if="child.href" class="ga-link" :href="href(child)" target="_blank" rel="noopener" :title="child.label + '（原測試頁，另開分頁）'">{{ child.label }} <ExternalLink :size="12" /></a>
                     <span v-else class="ga-link disabled" :title="child.disabled">{{ child.label }}<small>規劃中</small></span>
                   </li>
                 </ul>
               </template>
               <template v-else>
-                <button v-if="item.kind" type="button" class="ga-link" :class="{ current: isCurrent(item) }" :aria-current="isCurrent(item) ? 'page' : undefined" @click="go(item)">{{ item.label }}</button>
+                <div v-if="item.kind" class="ga-row">
+                  <button type="button" class="ga-link" :class="{ current: isCurrent(item) }" :aria-current="isCurrent(item) ? 'page' : undefined" @click="go(item)">{{ item.label }}</button>
+                  <button v-if="badgeOf(item)" type="button" class="ga-badge" :data-testid="`ga-badge-${item.id}`" :aria-label="`${item.label}待我處理 ${badgeOf(item)} 項，點此只看待辦`" title="只看待我處理的項目" @click="drawer = false; openMenuAttention(item.kind)">{{ capBadge(badgeOf(item)) }}</button>
+                </div>
                 <a v-else-if="item.href" class="ga-link" :href="href(item)" target="_blank" rel="noopener" :title="item.label + '（原測試頁，另開分頁）'">{{ item.label }} <ExternalLink :size="12" /></a>
                 <span v-else class="ga-link disabled" :title="item.disabled">{{ item.label }}<small>規劃中</small></span>
               </template>
@@ -101,6 +116,11 @@ const href = (item: GaNavItem) => legacyUrl(item.href || "/", session.data?.inte
 .ga-close { display: none; }
 .ga-nav h2 { margin: 14px 0 4px; font-size: 11px; letter-spacing: 1px; color: var(--muted); font-weight: 700; }
 .ga-nav ul { list-style: none; margin: 0; padding: 0; }
+.ga-row { display: flex; align-items: center; gap: 4px; }
+.ga-row .ga-link { flex: 1; min-width: 0; }
+.ga-badge { flex: none; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; border: 0; background: var(--danger); color: var(--surface); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; cursor: pointer; }
+.ga-badge.static { margin-left: 6px; cursor: default; }
+.ga-mobile-bar .ga-badge { margin-left: 6px; cursor: default; }
 .ga-link { display: flex; align-items: center; justify-content: space-between; gap: 6px; width: 100%; text-align: left; border: 0; background: none; padding: 7px 8px; border-radius: 5px; min-height: 34px; color: var(--ink); text-decoration: none; font-weight: 500; white-space: normal; }
 .ga-link:hover:not(.disabled) { background: var(--soft); }
 .ga-link.current { background: var(--soft); color: var(--primary); font-weight: 700; }

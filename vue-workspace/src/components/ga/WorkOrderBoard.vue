@@ -25,7 +25,8 @@ const page = ref(1);
 const pageSize = 20;
 const q = ref("");
 const debounced = useDebounced(q, 300);
-const focus = ref("");
+// 從首頁或導覽徽章點進來（attention=store_rejected）：直接選「門市退回」焦點卡，與徽章同一個述詞（V9）
+const focus = ref((props.tab.payload as { attention?: unknown } | undefined)?.attention === "store_rejected" ? "store_rejected" : "");
 const status = ref("");
 const storeId = ref("");
 const source = ref("");

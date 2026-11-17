@@ -37,6 +37,9 @@ export async function api<T = any>(
       data,
     );
   }
+  // 總務資料有寫入成功時通知導覽徽章重抓（辦完一項，數字即時減少；G24）
+  if (options.method && options.method !== "GET" && path.startsWith("general-affairs/"))
+    window.dispatchEvent(new Event("ga-data-changed"));
   return data as T;
 }
 export type Store = {

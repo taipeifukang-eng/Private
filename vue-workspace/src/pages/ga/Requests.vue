@@ -27,6 +27,8 @@ const debounced = useDebounced(search, 300);
 const status = ref("");
 const type = ref("");
 const overdueOnly = ref(false);
+// 從首頁或導覽徽章點進來：只看「待受理」（與徽章同一組條件，V9）
+const attention = ref(!!(props.tab.payload as { attention?: unknown } | undefined)?.attention);
 const loading = ref(false);
 const loaded = ref(false);
 const error = ref("");
@@ -34,7 +36,7 @@ const notice = ref("");
 const detailId = ref("");
 const latest = useLatest();
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
-const hasFilter = computed(() => !!(debounced.value.trim() || status.value || type.value || overdueOnly.value));
+const hasFilter = computed(() => !!(debounced.value.trim() || status.value || type.value || overdueOnly.value || attention.value));
 
 async function load() {
   if (!allowed.value) return;
@@ -47,6 +49,7 @@ async function load() {
     if (status.value) q.set("status", status.value);
     if (type.value) q.set("type", type.value);
     if (overdueOnly.value) q.set("overdue", "true");
+    if (attention.value) q.set("attention", "1");
     const res = await api<{ data: RequestRow[]; total: number; stats: RequestStats; settings: typeof settings.value; permissions: RequestPerms }>("general-affairs/requests?" + q);
     if (!latest.isLatest(n)) return;
     rows.value = res.data;
@@ -61,7 +64,7 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([debounced, status, type, overdueOnly], () => { page.value = 1; void load(); });
+watch([debounced, status, type, overdueOnly, attention], () => { page.value = 1; void load(); });
 watch(page, load);
 onMounted(() => { void load(); });
 useRefreshOnActivate(props.tab, load);
@@ -124,6 +127,7 @@ void REQUEST_STATUSES;
         <button type="button" :data-testid="'card-' + c.id" :aria-pressed="activeCard === c.id" @click="pickCard(c.id)"><span>{{ c.label }}</span><strong :data-testid="'stat-' + c.id">{{ c.n }}</strong></button>
       </li>
     </ul>
+    <p v-if="attention" class="notice" role="status" data-testid="attention-chip">只顯示「待我處理」的項目，筆數與導覽數字一致。<button type="button" data-testid="attention-clear" @click="attention = false">看全部</button></p>
     <div class="filter-bar">
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="需求單號、標題、說明（可含逗號、括號）" /></label>
       <label>類型<select v-model="type" aria-label="類型"><option value="">全部類型</option><option v-for="(l, k) in REQUEST_TYPE_LABEL" :key="k" :value="k">{{ l }}</option></select></label>

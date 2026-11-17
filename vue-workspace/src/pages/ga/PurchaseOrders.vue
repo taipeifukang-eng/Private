@@ -25,7 +25,9 @@ const search = ref("");
 const debounced = useDebounced(search, 300);
 const status = ref("");
 const mine = ref(false);
-const overdue = ref(false);
+const overdue = ref(!!(props.tab.payload as { overdue?: unknown } | undefined)?.overdue);
+// 從首頁或導覽徽章點進來：待核准（有核准權限才算）與逾期未到貨的聯集（與徽章同一組條件，V9）
+const attention = ref(!!(props.tab.payload as { attention?: unknown } | undefined)?.attention);
 const loading = ref(false);
 const loaded = ref(false);
 const error = ref("");
@@ -33,7 +35,7 @@ const latest = useLatest();
 const detailId = ref("");
 const showSettings = ref(false);
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
-const hasFilter = computed(() => !!(debounced.value.trim() || status.value || mine.value || overdue.value));
+const hasFilter = computed(() => !!(debounced.value.trim() || status.value || mine.value || overdue.value || attention.value));
 
 async function load() {
   if (!allowed.value) return;
@@ -46,6 +48,7 @@ async function load() {
     if (status.value) q.set("status", status.value);
     if (mine.value) q.set("mine", "true");
     if (overdue.value) q.set("overdue", "true");
+    if (attention.value) q.set("attention", "1");
     const res = await api<{ data: PoListRow[]; total: number; stats: Stats; capabilities: Caps }>("general-affairs/purchase-orders?" + q);
     if (!latest.isLatest(n)) return;
     rows.value = res.data;
@@ -59,7 +62,7 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([debounced, status, mine, overdue], () => { page.value = 1; void load(); });
+watch([debounced, status, mine, overdue, attention], () => { page.value = 1; void load(); });
 watch(page, load);
 onMounted(load);
 useRefreshOnActivate(props.tab, load);
@@ -103,6 +106,7 @@ function closeDetail() { detailId.value = ""; }
         <button type="button" :data-testid="'card-' + c.id" :aria-pressed="activeCard === c.id" @click="pickCard(c.id)"><span>{{ c.label }}</span><strong :data-testid="'stat-' + c.id">{{ countOf(c.id) }}</strong></button>
       </li>
     </ul>
+    <p v-if="attention" class="notice" role="status" data-testid="attention-chip">只顯示「待我處理」的項目，筆數與導覽數字一致。<button type="button" data-testid="attention-clear" @click="attention = false">看全部</button></p>
     <div class="filter-bar">
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="單號、供應商、品名" data-testid="po-search" /></label>
     </div>

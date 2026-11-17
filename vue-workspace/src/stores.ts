@@ -104,6 +104,9 @@ export type Session = {
     gaVendorCategories: boolean;
     gaVendorRegions: boolean;
     gaVendorManage: boolean;
+    /** 第 6 批 G22：合作紀錄（廠商績效）、採購分析。 */
+    gaVendorStats: boolean;
+    gaPurchaseAnalysis: boolean;
     /** 第 6 批 G23：水電網費帳單與報表、管理（新增／編輯／標記已繳／刪除）。 */
     gaUtilityBills: boolean;
     gaUtilityBillManage: boolean;
