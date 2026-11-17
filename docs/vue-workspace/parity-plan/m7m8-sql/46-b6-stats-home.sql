@@ -428,7 +428,7 @@ BEGIN
       'negative_count', (SELECT count(*) FROM inv WHERE quantity_base < 0 AND NOT allow_negative_stock),
       'negative_allowed_count', (SELECT count(*) FROM inv WHERE quantity_base < 0 AND allow_negative_stock),
       'low_red_count', (SELECT count(*) FROM inv WHERE level = 'red' AND NOT (quantity_base < 0 AND allow_negative_stock)),
-      'low_yellow_count', (SELECT count(*) FROM inv WHERE level = 'yellow'),
+      'low_yellow_count', (SELECT count(*) FROM inv WHERE level = 'yellow' AND NOT (quantity_base < 0 AND allow_negative_stock)),
       'negative_top', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', x.id, 'part_name', x.part_name, 'location_name', x.location_name, 'quantity', x.quantity_base) ORDER BY x.quantity_base, x.id)
                                   FROM (SELECT * FROM inv WHERE quantity_base < 0 AND NOT allow_negative_stock ORDER BY quantity_base, id LIMIT 5) x), '[]'::jsonb),
       'low_top', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', x.id, 'part_name', x.part_name, 'location_name', x.location_name, 'quantity', x.quantity_base, 'level', x.level,

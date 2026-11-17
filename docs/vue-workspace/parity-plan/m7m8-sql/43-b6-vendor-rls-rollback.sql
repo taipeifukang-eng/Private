@@ -1,24 +1,26 @@
 -- 43-b6-vendor-rls-rollback.sql
--- 撤回 43：把廠商、分類、區域三張表的政策還原成「有服務中心入口即可讀寫」（DEV 原況）。
--- 重要：正式區原本的政策可能與下列不同——以 41-b6-preview-before-apply.sql 第 5 區「現行政策」存檔為準；若不同，請依存檔改寫下面的 CREATE POLICY 再執行。
+-- 撤回 43（審查 A3 改版）：43 套用時已把三張表的現行政策與 RLS 開關存成可直接執行的 CREATE POLICY 語句（ga_m7m8_b6_apply_log，k 以 b43. 開頭），這份直接執行它們，不再假設原況、不需人工改寫。
+-- 找不到存檔會中止（改用 41 第 5 區存檔或資料庫備份）。撤回順序：先 43、再 42（42 撤回時會清掉存檔表）。
 BEGIN;
-DROP POLICY IF EXISTS p1e_ga_vendors_insert ON public.ga_vendors;
-DROP POLICY IF EXISTS p1e_ga_vendors_update ON public.ga_vendors;
-DROP POLICY IF EXISTS p1e_ga_service_categories_insert ON public.ga_service_categories;
-DROP POLICY IF EXISTS p1e_ga_service_categories_update ON public.ga_service_categories;
-DROP POLICY IF EXISTS p1e_ga_service_regions_insert ON public.ga_service_regions;
-DROP POLICY IF EXISTS p1e_ga_service_regions_update ON public.ga_service_regions;
-DROP POLICY IF EXISTS p1e_ga_vendors_read ON public.ga_vendors;
-CREATE POLICY p1e_ga_vendors_read ON public.ga_vendors FOR SELECT TO authenticated USING (public.current_user_has_permission('general_affairs.service_center.access'));
-DROP POLICY IF EXISTS p1e_ga_vendors_write ON public.ga_vendors;
-CREATE POLICY p1e_ga_vendors_write ON public.ga_vendors FOR ALL TO authenticated USING (public.current_user_has_permission('general_affairs.service_center.access')) WITH CHECK (public.current_user_has_permission('general_affairs.service_center.access'));
-DROP POLICY IF EXISTS p1e_ga_service_categories_read ON public.ga_service_categories;
-CREATE POLICY p1e_ga_service_categories_read ON public.ga_service_categories FOR SELECT TO authenticated USING (public.current_user_has_permission('general_affairs.service_center.access'));
-DROP POLICY IF EXISTS p1e_ga_service_categories_write ON public.ga_service_categories;
-CREATE POLICY p1e_ga_service_categories_write ON public.ga_service_categories FOR ALL TO authenticated USING (public.current_user_has_permission('general_affairs.service_center.access')) WITH CHECK (public.current_user_has_permission('general_affairs.service_center.access'));
-DROP POLICY IF EXISTS p1e_ga_service_regions_read ON public.ga_service_regions;
-CREATE POLICY p1e_ga_service_regions_read ON public.ga_service_regions FOR SELECT TO authenticated USING (public.current_user_has_permission('general_affairs.service_center.access'));
-DROP POLICY IF EXISTS p1e_ga_service_regions_write ON public.ga_service_regions;
-CREATE POLICY p1e_ga_service_regions_write ON public.ga_service_regions FOR ALL TO authenticated USING (public.current_user_has_permission('general_affairs.service_center.access')) WITH CHECK (public.current_user_has_permission('general_affairs.service_center.access'));
+DO $$
+DECLARE
+  v_t text;
+  r record;
+  s text;
+  j jsonb;
+BEGIN
+  IF to_regclass('public.ga_m7m8_b6_apply_log') IS NULL THEN RAISE EXCEPTION '找不到 43 的政策存檔（ga_m7m8_b6_apply_log），無法依原況撤回；請改用 41 第 5 區存檔或資料庫備份'; END IF;
+  FOREACH v_t IN ARRAY ARRAY['ga_vendors', 'ga_service_categories', 'ga_service_regions'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM public.ga_m7m8_b6_apply_log l WHERE l.k = 'b43.policies.' || v_t) THEN RAISE EXCEPTION '找不到 % 的政策存檔，無法依原況撤回', v_t; END IF;
+  END LOOP;
+  FOREACH v_t IN ARRAY ARRAY['ga_vendors', 'ga_service_categories', 'ga_service_regions'] LOOP
+    SELECT l.v INTO j FROM public.ga_m7m8_b6_apply_log l WHERE l.k = 'b43.policies.' || v_t;
+    FOR r IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = v_t LOOP EXECUTE format('DROP POLICY %I ON public.%I', r.policyname, v_t); END LOOP;
+    FOR s IN SELECT jsonb_array_elements_text(j -> 'statements') LOOP EXECUTE s; END LOOP;
+    EXECUTE format('ALTER TABLE public.%I %s ROW LEVEL SECURITY', v_t, CASE WHEN (j ->> 'rls_enabled')::boolean THEN 'ENABLE' ELSE 'DISABLE' END);
+  END LOOP;
+  DELETE FROM public.ga_m7m8_b6_apply_log WHERE k LIKE 'b43.%';
+  IF NOT EXISTS (SELECT 1 FROM public.ga_m7m8_b6_apply_log) THEN DROP TABLE public.ga_m7m8_b6_apply_log; END IF;
+END $$;
 NOTIFY pgrst, 'reload schema';
 COMMIT;

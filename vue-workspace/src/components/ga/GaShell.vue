@@ -5,6 +5,7 @@ import { useSession, useWorkspace, type WorkTab } from "../../stores";
 import type { GaNavItem } from "../../../../lib/workspace/general-affairs/nav-types";
 import { legacyUrl, openGaPage } from "../../lib/ga";
 import { capBadge, openMenuAttention, useGaBadges } from "../../lib/ga-home";
+import { groupBadgeTotal } from "../../../../lib/workspace/general-affairs/home-rules";
 
 // G01 總務外殼：照舊版側欄分組與權限顯示（資料由伺服端用舊版同一份規則算好，放在 session.gaNavigation）。
 // 已移植的頁面在新版頁籤開啟；尚未移植的項目以舊頁另開分頁。窄螢幕（手機）改成抽屜。
@@ -18,7 +19,10 @@ const groups = computed(() => session.data?.gaNavigation || []);
 const badges = useGaBadges();
 const work = useWorkspace();
 // 待我處理數字（G24）：進入總務區、切換到本頁時重抓，另每 5 分鐘輕量更新；各選單顯示自己的數字，有子項的選單顯示子項加總。
-const badgeOf = (item: GaNavItem): number => (item.badge ?? 0) || (item.kind ? badges.byKind(item.kind) : 0) || (item.children || []).reduce((n, c) => n + badgeOf(c), 0);
+const ownBadge = (item: GaNavItem): number => (item.badge ?? 0) || (item.kind ? badges.byKind(item.kind) : 0);
+const leavesOf = (item: GaNavItem): GaNavItem[] => (item.children?.length ? item.children.flatMap(leavesOf) : [item]);
+// 群組數字＝底下各項相加，但「採購單」與「待簽核採購單」同群組時待核准不重複算（審查 B3）。
+const badgeOf = (item: GaNavItem): number => ownBadge(item) || (item.children?.length ? groupBadgeTotal(leavesOf(item).map((l) => ({ kind: l.kind, count: ownBadge(l) }))) : 0);
 const homeTotal = computed(() => Number(badges.data?.total) || 0);
 watch(() => work.active, (id) => { if (id === props.tab.id) void badges.refresh(); });
 onBeforeUnmount(() => badges.release());

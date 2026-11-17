@@ -73,16 +73,33 @@ describe('G20-G21 RLS 收緊（090000）', () => {
   it('contract_required 與 preferred_vendor 預設改 false，一次性資料修正只在預設還是 true 時做', () => {
     expect(cols).toMatch(/ALTER COLUMN contract_required SET DEFAULT false/);
     expect(cols).toMatch(/ALTER COLUMN preferred_vendor SET DEFAULT false/);
-    expect(cols).toMatch(/IF v_default = 'true' THEN\s+UPDATE public\.ga_vendors SET contract_required = false/);
+    expect(cols).toMatch(/IF v_default = 'true' THEN\s+INSERT INTO public\.ga_m7m8_b6_apply_log[^;]*;\s+UPDATE public\.ga_vendors SET contract_required = false/);
     expect(cols).toContain('updated_by');
   });
-  it('rollback 還原備份政策原文並移除新政策、欄位、索引', () => {
+  it('rollback 依「套用前存檔」還原（審查 A3）：政策原文、區域 id 清單、索引、預設值、updated_by 都以存檔為準，找不到存檔就中止', () => {
     const rb = dev(`${COLS}.rollback.sql`);
-    const backup = read('supabase/workspace-dev/_backup/20261118_b6_vendor_policies_before_b6.sql');
-    for (const line of backup.split('\n').filter((l) => l.startsWith('CREATE POLICY'))) expect(rb, line.slice(0, 60)).toContain(line);
-    for (const p of ['ga_vendors_insert', 'ga_vendors_update', 'ga_service_categories_insert', 'ga_service_regions_update']) expect(rb).toContain(`DROP POLICY IF EXISTS p1e_${p}`);
+    // 套用端存檔：政策（可直接執行的 CREATE POLICY）、套用前已存在的區域 id、索引、預設值、updated_by 是否已存在、一次性改 false 的廠商
+    for (const k of ['b43.policies.', 'b42.region_ids_before', 'b42.indexes_before', 'b42.default.', 'b42.updated_by_existed.', 'b42.contract_required_true_ids']) expect(cols, k).toContain(k);
+    expect(cols).toContain("format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s%s%s'");
+    expect(cols).toContain('ON CONFLICT (k) DO NOTHING');
+    // 撤回端：執行存檔的語句、依 id 清單刪區域、只移除新建的索引與欄位、找不到存檔 RAISE
+    expect(rb).toContain("jsonb_array_elements_text(j -> 'statements')");
+    expect(rb).toContain("EXECUTE s");
+    expect(rb).toContain("b42.region_ids_before");
+    expect(rb).not.toMatch(/r\.code ~/);
     expect(rb).toContain('DROP COLUMN IF EXISTS updated_by');
     expect(rb).toContain('uq_ga_service_categories_code');
+    expect((rb.match(/RAISE EXCEPTION/g) || []).length).toBeGreaterThanOrEqual(3);
+    // 正式區 42、43 的撤回同樣依存檔，不再寫死 DEV 原況
+    const p42 = read('docs/vue-workspace/parity-plan/m7m8-sql/42-b6-vendor-columns-rollback.sql');
+    const p43 = read('docs/vue-workspace/parity-plan/m7m8-sql/43-b6-vendor-rls-rollback.sql');
+    expect(p42).toContain('b42.region_ids_before');
+    expect(p42).not.toMatch(/SET DEFAULT true/);
+    expect(p43).toContain('b43.policies.');
+    expect(p43).not.toContain('service_center.access');
+    // 舊的政策備份檔仍保留供對照
+    const backup = read('supabase/workspace-dev/_backup/20261118_b6_vendor_policies_before_b6.sql');
+    expect(backup).toContain('CREATE POLICY');
   });
 });
 

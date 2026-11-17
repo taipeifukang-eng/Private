@@ -437,6 +437,10 @@ test('工單進度的廠商下拉：只列合作中、選了才更新、留白�
     const miss = await apiGa.post(`/api/workspace/general-affairs/work-orders/${wo.id}/progress`, { data: { notes: '找不到', vendor_id: '00000000-0000-4000-8000-000000000001', expected_updated_at: before.updated_at } });
     expect([404, 422], await miss.text()).toContain(miss.status());
     expect(await row()).toEqual(before);
+    // 審查 A5：廠商值不是合法識別碼，要回 400，不能被當成「沒給」而回 200 卻沒更新
+    const garbage = await apiGa.post(`/api/workspace/general-affairs/work-orders/${wo.id}/progress`, { data: { notes: '壞格式', vendor_id: 'not-a-uuid', expected_updated_at: before.updated_at } });
+    expect(garbage.status(), await garbage.text()).toBe(400);
+    expect(await row()).toEqual(before);
     // 已綁廠商後來被停用：詳情顯示（已停用），仍可存進度（沒選廠商不檢查），沒有清掉
     await db().from('ga_vendors').update({ status: 'inactive' }).eq('id', on.id);
     await page.reload();

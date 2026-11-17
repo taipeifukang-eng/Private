@@ -10,7 +10,19 @@
 -- 檔案自己 BEGIN ... COMMIT，一次 Run 即可，任何一句出錯整份不生效。撤回：43-b6-vendor-rls-rollback.sql。套用前先跑 41-b6-preview-before-apply.sql，備份後經使用者核可才執行。
 BEGIN;
 
--- RLS 收緊（備份：41 第 5 區的現行政策全文）
+-- 現行政策存檔成可直接執行的 CREATE POLICY 語句（審查 A3：43 撤回直接執行這份，不靠人工改寫；ON CONFLICT DO NOTHING 保留最初原況）。
+CREATE TABLE IF NOT EXISTS public.ga_m7m8_b6_apply_log (k text PRIMARY KEY, v jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE public.ga_m7m8_b6_apply_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.ga_m7m8_b6_apply_log FROM PUBLIC, anon, authenticated;
+INSERT INTO public.ga_m7m8_b6_apply_log (k, v)
+SELECT 'b43.policies.' || t.n, jsonb_build_object(
+  'rls_enabled', (SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = ('public.' || t.n)::regclass),
+  'statements', COALESCE((SELECT jsonb_agg(format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s%s%s', p.policyname, p.schemaname, p.tablename, p.permissive, p.cmd, array_to_string(p.roles, ', '),
+                                      CASE WHEN p.qual IS NOT NULL THEN ' USING (' || p.qual || ')' ELSE '' END, CASE WHEN p.with_check IS NOT NULL THEN ' WITH CHECK (' || p.with_check || ')' ELSE '' END) ORDER BY p.policyname)
+                            FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.n), '[]'::jsonb))
+  FROM (VALUES ('ga_vendors'), ('ga_service_categories'), ('ga_service_regions')) t(n)
+ON CONFLICT (k) DO NOTHING;
+
 ALTER TABLE public.ga_vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ga_service_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ga_service_regions ENABLE ROW LEVEL SECURITY;

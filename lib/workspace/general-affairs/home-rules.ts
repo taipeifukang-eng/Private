@@ -108,3 +108,15 @@ export function avgDaysText(row: { wo_count: number; avg_days: number | null }):
   if (!row.wo_count || row.avg_days === null || row.avg_days === undefined) return "資料累積中";
   return `${row.avg_days} 天`;
 }
+
+/**
+ * 選單群組的徽章加總（審查 B3）：群組數字＝底下各項的數字相加，但「採購單」選單（待核准加逾期的聯集）
+ * 與「待簽核採購單」選單（只有待核准）同在一個群組時，待核准會被算兩次，要扣掉一份，群組數字才不會大於實際待辦。
+ * 只有核准人兩個入口都看得到時才會同時出現；沒有核准權限者「待簽核採購單」的數字是 0，不受影響。
+ */
+export function groupBadgeTotal(leaves: ReadonlyArray<{ kind?: string | null; count: number }>): number {
+  let n = leaves.reduce((s, l) => s + Math.max(0, Number(l.count) || 0), 0);
+  const orders = leaves.some((l) => l.kind === "ga-purchase-orders");
+  if (orders) n -= leaves.filter((l) => l.kind === "ga-purchase-approvals").reduce((s, l) => s + Math.max(0, Number(l.count) || 0), 0);
+  return Math.max(0, n);
+}

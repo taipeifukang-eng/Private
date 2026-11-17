@@ -20,6 +20,8 @@ DECLARE
   v_cur uuid;
   v_vs text;
 BEGIN
+  -- 審查 A5：有給 vendor_id 但不是合法 uuid，回 400，不再當成「沒給」而默默不更新。
+  IF v_vendor IS NULL AND ga_normalize_optional_text(v_p->>'vendor_id') IS NOT NULL THEN PERFORM public.ga_rq_raise(400, 'VENDOR_FORMAT', '廠商格式錯誤，請重新整理後再選'); END IF;
   IF v_assignee IS NOT NULL AND v_name IS NULL THEN v_name := (SELECT full_name FROM public.profiles WHERE id = v_assignee); END IF;
   IF v_vendor IS NOT NULL THEN
     SELECT vendor_id INTO v_cur FROM public.maintenance_requests WHERE id = p_wo;

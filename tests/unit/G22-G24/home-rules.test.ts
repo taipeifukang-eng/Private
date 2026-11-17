@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { gaFlags } from '@/lib/workspace/general-affairs/access';
 import { GA_PAGE_BY_HREF } from '@/lib/workspace/general-affairs/nav';
 import {
-  ATTENTION, BADGE_MENUS, BADGE_MENU_KIND, HOME_ITEMS, HOME_ITEM_KEYS, MENU_PAYLOAD, attentionOn, avgDaysText, capBadge, homeTotal, parseAnalysisMonth, parsePerfRange, workOrderAttention,
+  ATTENTION, BADGE_MENUS, BADGE_MENU_KIND, HOME_ITEMS, HOME_ITEM_KEYS, MENU_PAYLOAD, attentionOn, avgDaysText, capBadge, groupBadgeTotal, homeTotal, parseAnalysisMonth, parsePerfRange, workOrderAttention,
 } from '@/lib/workspace/general-affairs/home-rules';
 import { parseListFilters } from '@/lib/workspace/general-affairs/work-order-rules';
 import { isOverdue as transferOverdue } from '@/lib/workspace/general-affairs/inventory-transfer-rules';
@@ -179,5 +179,18 @@ describe('TS 常數與 SQL 述詞逐條對齊（徽章與列表共用條件）',
     expect(SQL).toMatch(/REVOKE ALL ON FUNCTION public\.ga_att_request_intake\(text\)[\s\S]*public\.ga_hm_counts\(\) FROM PUBLIC, anon, authenticated;/);
     expect(SQL).toMatch(/GRANT EXECUTE ON FUNCTION public\.ga_ws_vendor_perf\(text, text\)[\s\S]*TO authenticated;/);
     expect(fs.readFileSync(path.join(ROOT, 'supabase/workspace-dev/20261118120000_m7m8_b6_stats_home.rollback.sql'), 'utf8')).toContain('DROP FUNCTION IF EXISTS public.ga_ws_home_summary()');
+  });
+});
+
+describe('群組徽章加總（審查 B3）', () => {
+  it('採購單選單（待核准加逾期）與待簽核採購單同群組時，待核准不重複算', () => {
+    // 核准人：待核准 2、逾期 3 → 採購單選單 5、待簽核採購單 2，群組應為 5 而不是 7
+    expect(groupBadgeTotal([{ kind: 'ga-purchase-orders', count: 5 }, { kind: 'ga-purchase-approvals', count: 2 }, { kind: 'ga-requests', count: 4 }])).toBe(9);
+  });
+  it('沒有核准權限（待簽核為 0）或只有其中一個入口時照原樣加總；不會變負數', () => {
+    expect(groupBadgeTotal([{ kind: 'ga-purchase-orders', count: 3 }, { kind: 'ga-purchase-approvals', count: 0 }])).toBe(3);
+    expect(groupBadgeTotal([{ kind: 'ga-purchase-approvals', count: 2 }, { kind: 'ga-requests', count: 1 }])).toBe(3);
+    expect(groupBadgeTotal([{ kind: 'ga-purchase-orders', count: 0 }, { kind: 'ga-purchase-approvals', count: 2 }])).toBe(0);
+    expect(groupBadgeTotal([])).toBe(0);
   });
 });

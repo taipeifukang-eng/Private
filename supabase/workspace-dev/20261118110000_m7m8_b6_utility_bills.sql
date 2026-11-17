@@ -431,10 +431,10 @@ BEGIN
   v_notes := CASE WHEN jsonb_exists(p, 'notes') THEN public.ga_ub_txt(p, 'notes', 1000, '備註') ELSE c.notes END;
   v_due := CASE WHEN jsonb_exists(p, 'due_date') THEN public.ga_ub_date(public.ga_ub_txt(p, 'due_date', 10, '繳費期限'), '繳費期限') ELSE c.due_date END;
 
-  -- 繳費日期：新增時可直接填；編輯時可修正日期，但不可用編輯清空（要改回待繳請用「改回待繳」）。日期有變動才檢查範圍。
+  -- 繳費日期：新增時可直接填；編輯時可修正日期，但不可用編輯清空（要改回待繳請用「改回待繳」）。日期或帳單月份有變動才檢查範圍（審查 A6）。
   v_paid := CASE WHEN jsonb_exists(p, 'paid_at') THEN public.ga_ub_date(public.ga_ub_txt(p, 'paid_at', 10, '繳費日期'), '繳費日期') ELSE c.paid_at END;
   IF NOT v_new AND c.paid_at IS NOT NULL AND v_paid IS NULL THEN RETURN public.ga_rq_err(400, 'USE_UNPAY', '要把已繳帳單改回待繳，請用「改回待繳」（會要求確認）'); END IF;
-  IF v_paid IS NOT NULL AND (v_new OR v_paid IS DISTINCT FROM c.paid_at) THEN PERFORM public.ga_ub_check_paid_date(v_paid, v_month); END IF;
+  IF v_paid IS NOT NULL AND (v_new OR v_paid IS DISTINCT FROM c.paid_at OR v_month IS DISTINCT FROM c.billing_month) THEN PERFORM public.ga_ub_check_paid_date(v_paid, v_month); END IF;
 
   -- 已繳帳單改關鍵欄位：要確認，並回原值。
   IF NOT v_new AND c.paid_at IS NOT NULL THEN
@@ -449,7 +449,8 @@ BEGIN
     END IF;
   END IF;
 
-  -- 重複：同據點、類型、月份、供應商、識別號碼已有一筆（未刪除、排除自己）。
+  -- 重複：同據點、類型、月份、供應商、識別號碼已有一筆（未刪除、排除自己）。先以 advisory lock 序列化同一組鍵，避免兩人同時新增都通過檢查（審查 A1）。
+  PERFORM pg_advisory_xact_lock(hashtext('ga_ub_dup:' || COALESCE(v_store::text, '') || '|' || lower(btrim(v_loc)) || '|' || v_type || '|' || v_month::text || '|' || lower(btrim(COALESCE(v_provider, ''))) || '|' || COALESCE(public.ga_ub_ident(v_ident, v_serial, v_account), '')));
   SELECT * INTO v_dup FROM public.ga_utility_bills d
    WHERE d.deleted_at IS NULL AND (v_new OR d.id <> c.id)
      AND COALESCE(d.store_id::text, '') = COALESCE(v_store::text, '') AND lower(btrim(d.location_name)) = lower(btrim(v_loc))

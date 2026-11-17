@@ -47,7 +47,9 @@ describe('G20-G24 測試編號與檔案', () => {
       const s = read(f);
       expect(s, f).not.toMatch(/odvk/i);
       expect(s, f).not.toMatch(/\.env\.local|\.env\.production|service_role_key/i);
-      for (const m of s.matchAll(/'((?:VW|ZT)\d+)'/g)) expect(m[1], f).toMatch(/^(VW|ZT)\d+$/);
+      // 先找出所有「像門市代碼」的字串（兩到三個大寫字母加數字），再要求每一個都是 VW／ZT（審查 B8：舊寫法先挑出 VW／ZT 再斷言是 VW／ZT，永遠通過）。
+      const storeLike = [...s.matchAll(/'([A-Z]{2,3}\d{2,4})'/g)].map((m) => m[1]);
+      expect(storeLike.filter((c) => !/^(VW|ZT)\d+$/.test(c)), f).toEqual([]);
     }
   });
 });

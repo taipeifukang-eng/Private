@@ -23,6 +23,23 @@ BEGIN
   END IF;
 END $$;
 
+-- ================================================================ 0. 套用前現況存檔（審查 A3：撤回依此還原「套用前」，不再假設原況）
+-- 一律 ON CONFLICT DO NOTHING：重複套用不會用「套用後」的狀態蓋掉最初的原況。
+CREATE TABLE IF NOT EXISTS public.ga_m7m8_b6_apply_log (k text PRIMARY KEY, v jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE public.ga_m7m8_b6_apply_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.ga_m7m8_b6_apply_log FROM PUBLIC, anon, authenticated;
+INSERT INTO public.ga_m7m8_b6_apply_log (k, v)
+SELECT 'b42.updated_by_existed.' || t.n, to_jsonb(EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = t.n AND c.column_name = 'updated_by'))
+  FROM (VALUES ('ga_vendors'), ('ga_service_categories'), ('ga_service_regions')) t(n)
+ON CONFLICT (k) DO NOTHING;
+INSERT INTO public.ga_m7m8_b6_apply_log (k, v)
+SELECT 'b42.default.' || c.column_name, COALESCE(to_jsonb(c.column_default), 'null'::jsonb)
+  FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'ga_vendors' AND c.column_name IN ('contract_required', 'preferred_vendor')
+ON CONFLICT (k) DO NOTHING;
+INSERT INTO public.ga_m7m8_b6_apply_log (k, v) VALUES ('b42.region_ids_before', (SELECT COALESCE(jsonb_agg(id), '[]'::jsonb) FROM public.ga_service_regions)) ON CONFLICT (k) DO NOTHING;
+INSERT INTO public.ga_m7m8_b6_apply_log (k, v) VALUES ('b42.indexes_before', (SELECT COALESCE(jsonb_agg(indexname), '[]'::jsonb) FROM pg_indexes
+  WHERE schemaname = 'public' AND indexname IN ('uq_ga_service_categories_code', 'uq_ga_service_regions_code', 'idx_ga_vendors_contract_due'))) ON CONFLICT (k) DO NOTHING;
+
 -- ================================================================ 1. 欄位
 ALTER TABLE public.ga_vendors
   ADD COLUMN IF NOT EXISTS service_capability_note text,
@@ -50,6 +67,7 @@ DECLARE
 BEGIN
   SELECT column_default INTO v_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_vendors' AND column_name = 'contract_required';
   IF v_default = 'true' THEN
+    INSERT INTO public.ga_m7m8_b6_apply_log (k, v) VALUES ('b42.contract_required_true_ids', (SELECT COALESCE(jsonb_agg(id), '[]'::jsonb) FROM public.ga_vendors WHERE contract_required)) ON CONFLICT (k) DO NOTHING;
     UPDATE public.ga_vendors SET contract_required = false WHERE contract_required;
   END IF;
 END $$;
@@ -61,7 +79,20 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_ga_service_categories_code ON public.ga_ser
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ga_service_regions_code ON public.ga_service_regions (code);
 CREATE INDEX IF NOT EXISTS idx_ga_vendors_contract_due ON public.ga_vendors (contract_end_date) WHERE status = 'active' AND contract_required;
 
--- ================================================================ 3. RLS 收緊（備份見 _backup/20261118_b6_vendor_policies_before_b6.sql）
+-- ================================================================ 3. RLS 收緊（原政策已存檔在 ga_m7m8_b6_apply_log，rollback 直接還原）
+-- 現行政策存檔成可直接執行的 CREATE POLICY 語句（審查 A3：43 撤回直接執行這份，不靠人工改寫；ON CONFLICT DO NOTHING 保留最初原況）。
+CREATE TABLE IF NOT EXISTS public.ga_m7m8_b6_apply_log (k text PRIMARY KEY, v jsonb NOT NULL, created_at timestamptz NOT NULL DEFAULT now());
+ALTER TABLE public.ga_m7m8_b6_apply_log ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.ga_m7m8_b6_apply_log FROM PUBLIC, anon, authenticated;
+INSERT INTO public.ga_m7m8_b6_apply_log (k, v)
+SELECT 'b43.policies.' || t.n, jsonb_build_object(
+  'rls_enabled', (SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = ('public.' || t.n)::regclass),
+  'statements', COALESCE((SELECT jsonb_agg(format('CREATE POLICY %I ON %I.%I AS %s FOR %s TO %s%s%s', p.policyname, p.schemaname, p.tablename, p.permissive, p.cmd, array_to_string(p.roles, ', '),
+                                      CASE WHEN p.qual IS NOT NULL THEN ' USING (' || p.qual || ')' ELSE '' END, CASE WHEN p.with_check IS NOT NULL THEN ' WITH CHECK (' || p.with_check || ')' ELSE '' END) ORDER BY p.policyname)
+                            FROM pg_policies p WHERE p.schemaname = 'public' AND p.tablename = t.n), '[]'::jsonb))
+  FROM (VALUES ('ga_vendors'), ('ga_service_categories'), ('ga_service_regions')) t(n)
+ON CONFLICT (k) DO NOTHING;
+
 ALTER TABLE public.ga_vendors ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ga_service_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ga_service_regions ENABLE ROW LEVEL SECURITY;

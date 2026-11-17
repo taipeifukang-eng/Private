@@ -490,3 +490,31 @@ test('門市清單函式只回啟用中的門市、含代號與簡稱', async ()
   const ids = new Set(r.data.map((s: any) => s.id));
   for (const s of inactive) expect(ids.has(s.id)).toBe(false);
 });
+
+// ---------------------------------------------------------------- 審查補強（2026-11-17 第 6 批審查）
+test('審查 A1：兩人同時新增同一筆帳單（同據點、類型、月份、供應商、識別號碼）只會成功一筆，另一筆回 DUPLICATE_BILL；資料庫只有一筆', async () => {
+  const same = payload({ service_identifier: ident('RACE'), amount: 777 });
+  for (let round = 0; round < 3; round += 1) {
+    const p = { ...same, service_identifier: `${same.service_identifier}-${round}` };
+    const rs = await Promise.all([save('util_mgr', p), save('ga_all', p)]);
+    const ok = rs.filter((r) => r.ok);
+    const dup = rs.filter((r) => !r.ok && r.code === 'DUPLICATE_BILL');
+    expect(ok.length, JSON.stringify(rs)).toBe(1);
+    expect(dup.length, JSON.stringify(rs)).toBe(1);
+    const rows = (await db().from('ga_utility_bills').select('id').eq('service_identifier', p.service_identifier).is('deleted_at', null)).data || [];
+    expect(rows.length).toBe(1);
+  }
+});
+
+test('審查 A6：已繳帳單把帳單月份改成較晚的月份（繳費日期沒動）要重驗繳費日期範圍；改成較早的月份仍走二次確認', async () => {
+  const b = await mk({ billing_month: PAST.slice(0, 7), amount: 900 });
+  const paid = (await fn('util_mgr', 'ga_ws_ub_pay', { p_id: b.id, p_paid_at: PAST, p_expected_updated_at: b.updated_at })).data;
+  const later = shiftMonth(THIS_MONTH, 3).slice(0, 7);
+  const r = await save('util_mgr', { billing_month: later }, b.id, paid.updated_at, true);
+  expect(r, JSON.stringify(r)).toMatchObject({ ok: false, status: 400, code: 'PAID_TOO_EARLY' });
+  const row = await dbRow(b.id);
+  expect(String(row.billing_month).slice(0, 7)).toBe(PAST.slice(0, 7));
+  expect(row.paid_at).toBe(PAST);
+  // 月份沒變、只改備註：不重驗，照常成功
+  expect((await save('util_mgr', { notes: '月份沒變' }, b.id, paid.updated_at)).ok).toBe(true);
+});

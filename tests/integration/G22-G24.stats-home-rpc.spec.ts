@@ -256,6 +256,13 @@ test('庫存提醒：負庫存完整計數（不允許負庫存的位置才算�
   expect(before.low_yellow_count).toBeGreaterThanOrEqual(2);
   expect(before.negative_top.some((r: any) => r.location_name.includes('inv-strict'))).toBe(true);
   expect(before.negative_top.some((r: any) => r.location_name.includes('inv-loose'))).toBe(false);
+  // 審查 A7：允許負庫存的位置（預期負數）紅燈與黃燈用同一套排除條件——這裡的位置只設補貨點（黃燈）、餘額為負，黃燈計數不能增加。
+  const yellowBase = before.low_yellow_count;
+  await seedLocationPart(loose.id, p2.id, { reorder_point_qty: 100 });
+  await seedBalance(loose.id, p2.id, -4);
+  const afterLoose = (await fn('ga_all', 'ga_ws_home_summary')).data.inventory;
+  expect(afterLoose.low_yellow_count).toBe(yellowBase);
+  expect(afterLoose.low_top.some((r: any) => r.location_name.includes('inv-loose'))).toBe(false);
   // 獨立計算：直接查餘額
   const bal = must(await db().from('ga_inventory_balances').select('quantity_base,location_id').in('location_id', [strict.id, loose.id]), '讀取餘額') as any[];
   expect(bal.filter((b) => Number(b.quantity_base) < 0 && b.location_id === strict.id)).toHaveLength(1);
