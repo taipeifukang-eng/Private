@@ -233,3 +233,46 @@ describe('原始碼層級的畫面規則', () => {
     expect(s).not.toMatch(/>\s*刪除\s*</);
   });
 });
+
+describe('正式區 SQL 草稿（41 至 44、47）：結構檢查', () => {
+  const dir = 'docs/vue-workspace/parity-plan/m7m8-sql/';
+  const names = ['42-b6-vendor-columns', '43-b6-vendor-rls', '44-b6-vendor-functions', '47-b6-work-order-vendor-check'];
+  it('每份都附 rollback；檔頭只有註解，接著 BEGIN;，最後 COMMIT;（檔頭沒有漏掉 -- 的文字，之前就踩過）', () => {
+    for (const n of names) {
+      for (const f of [`${n}.sql`, `${n}-rollback.sql`]) {
+        const lines = read(dir + f).split('\n');
+        const begin = lines.findIndex((l) => l.trim() === 'BEGIN;');
+        expect(begin, f).toBeGreaterThan(0);
+        for (const l of lines.slice(0, begin)) expect(l.trim() === '' || l.trim().startsWith('--'), `${f}: ${l.slice(0, 40)}`).toBe(true);
+        expect(lines.some((l) => l.trim() === 'COMMIT;'), f).toBe(true);
+      }
+    }
+  });
+  it('41 是唯讀預覽：只有 SELECT／WITH，沒有任何寫入或結構變更語句；涵蓋重複統編、code 重複、政策全文、角色名單', () => {
+    const sql = read(dir + '41-b6-preview-before-apply.sql');
+    const code = sql.split(String.fromCharCode(10)).filter((l) => !l.trim().startsWith('--')).join(String.fromCharCode(10)).replace(/'[^']*'/g, "''");
+    expect(code).not.toMatch(/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|TRUNCATE|GRANT|REVOKE)\b/i);
+    expect(sql).toMatch(/重複統編/);
+    expect(sql).toMatch(/pg_policies/);
+    expect(sql).toMatch(/code 重複/);
+    expect(sql).toMatch(/purchase_review/);
+  });
+  it('42 補欄位且預設改 false、code 唯一索引、固定資料冪等；43 三張表都沒有 DELETE 政策；44 沒有 DROP TABLE；47 帶兩個錯誤碼', () => {
+    const c = read(dir + '42-b6-vendor-columns.sql');
+    expect(c).toMatch(/contract_required SET DEFAULT false/);
+    expect(c).toMatch(/uq_ga_service_regions_code/);
+    expect(c).toMatch(/ON CONFLICT \(code\) DO NOTHING/);
+    const r = read(dir + '43-b6-vendor-rls.sql');
+    expect(r).not.toMatch(/FOR DELETE|FOR ALL/);
+    const f = read(dir + '44-b6-vendor-functions.sql');
+    expect(f).not.toMatch(/DROP TABLE/i);
+    expect(f).toMatch(/ga_ws_vendor_options/);
+    expect(read(dir + '47-b6-work-order-vendor-check.sql')).toMatch(/VENDOR_INACTIVE[\s\S]*VENDOR_NOT_FOUND|VENDOR_NOT_FOUND[\s\S]*VENDOR_INACTIVE/);
+  });
+  it('README 有「第 6 批」章節、列出 41 至 44 與 47 與套用順序', () => {
+    const readme = read(dir + 'README.md');
+    expect(readme).toMatch(/## 第 6 批/);
+    for (const n of ['41-b6-preview-before-apply', ...names]) expect(readme, n).toContain(n);
+    expect(readme).toMatch(/41`（唯讀）→ 沒有 MISSING/);
+  });
+});

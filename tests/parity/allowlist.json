@@ -8122,7 +8122,11 @@
     "page": "ga-vendors",
     "description": "統編重複擋下（含停用廠商、全形與空白標準化後相同），回應指出既有那一家；名稱與別名相近只提醒可儲存；統編檢查碼不符只提醒；失敗一律顯示明確原因（舊版一律「此功能尚未在目前測試環境開放」）。編輯必帶版本，被他人先改回 409。",
     "reason": "問卷 Q22。",
-    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "vendor-create-write-readback",
+      "key": "duplicate-tax-status"
+    }
   },
   {
     "id": "m7m8-b6-vendor-fake-attachment-removed",
@@ -8178,7 +8182,11 @@
     "page": "ga-vendors",
     "description": "新增公司或工作室類型的廠商時統一編號必填（8 碼數字），個人類型可留空；編輯時統編沒變動就不重新檢查（避免歷史重複或缺漏資料擋住不相關的編輯）。",
     "reason": "問卷 Q22 寫「個人類型可留空」，是否要求公司必填屬實作解讀，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": null,
+    "match": {
+      "entry": "vendor-create-write-readback",
+      "key": "no-tax-status"
+    }
   },
   {
     "id": "m7m8-b6-svc-code-unique-index",
@@ -8207,5 +8215,82 @@
     "description": "舊版需求單採購評估 API（purchase-reviews）直接讀廠商資料表：RLS 收緊後，沒有廠商檢視／管理權限者的廠商下拉會是空的；依「舊頁不動」不修改。",
     "reason": "新發現，列上線風險；待使用者確認（上線前要補授權或接受舊頁下拉為空）。",
     "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-vendor-service-address-not-copied-city",
+    "page": "ga-vendors",
+    "description": "服務地址勾「同公司地址」時，舊版把公司縣市複製到服務縣市欄位再存；新版只存「同公司地址」旗標，服務縣市欄位留空（畫面顯示「同公司地址」，公司地址改了不會留下不一致的複本）。",
+    "reason": "實作取捨（避免兩份地址不同步），問卷未涵蓋，待使用者確認；若要維持複製行為，新增與編輯時由伺服端複製即可。",
+    "approvedBy": null,
+    "match": {
+      "entry": "vendor-create-write-readback",
+      "key": "service_city"
+    }
+  },
+  {
+    "id": "m7m8-b6-vendor-service-address-not-copied-district",
+    "page": "ga-vendors",
+    "description": "服務地址勾「同公司地址」時，舊版把公司行政區複製到服務行政區欄位再存；新版只存「同公司地址」旗標，服務行政區欄位留空（畫面顯示「同公司地址」，公司地址改了不會留下不一致的複本）。",
+    "reason": "實作取捨（避免兩份地址不同步），問卷未涵蓋，待使用者確認；若要維持複製行為，新增與編輯時由伺服端複製即可。",
+    "approvedBy": null,
+    "match": {
+      "entry": "vendor-create-write-readback",
+      "key": "service_district"
+    }
+  },
+  {
+    "id": "m7m8-b6-vendor-service-address-not-copied-address",
+    "page": "ga-vendors",
+    "description": "服務地址勾「同公司地址」時，舊版把公司地址複製到服務地址欄位再存；新版只存「同公司地址」旗標，服務地址欄位留空（畫面顯示「同公司地址」，公司地址改了不會留下不一致的複本）。",
+    "reason": "實作取捨（避免兩份地址不同步），問卷未涵蓋，待使用者確認；若要維持複製行為，新增與編輯時由伺服端複製即可。",
+    "approvedBy": null,
+    "match": {
+      "entry": "vendor-create-write-readback",
+      "key": "service_address"
+    }
+  },
+  {
+    "id": "m7m8-b6-vendor-updated-by-recorded",
+    "page": "ga-vendors",
+    "description": "新版新增與編輯都留最後修改者（updated_by）與時間，詳情顯示「最後修改：誰、何時」；舊版沒有這個欄位。",
+    "reason": "m7m8-spec Q22 加編輯並留修改者與時間（設計 §3.1）。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "vendor-create-write-readback",
+      "key": "updated_by"
+    }
+  },
+  {
+    "id": "m7m8-b6-vendor-list-contract-due-extra",
+    "page": "ga-vendors",
+    "description": "新版廠商列與統計多回合約即將到期旗標（contract_due，合作中、需簽合約、有到期日且 30 天內到期或已過期）；舊版沒有。",
+    "reason": "問卷 V4。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "vendor-list-read",
+      "key": "row#contract_due"
+    }
+  },
+  {
+    "id": "m7m8-b6-region-edit-supported",
+    "page": "ga-vendors",
+    "description": "舊版服務區域只能新增；新版可編輯名稱、上層、排序、說明、狀態（代碼鎖定），更新必帶版本（不符回 409）。",
+    "reason": "m7m8-spec Q22：分類與區域可編輯不可刪除、停用後仍顯示名稱。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "svc-category-region-write-readback",
+      "key": "region#edit-supported"
+    }
+  },
+  {
+    "id": "m7m8-b6-region-cycle-parent-rejected",
+    "page": "ga-vendors",
+    "description": "舊版直接 update 可以把上層設成自己的子孫（形成循環）；新版回 400「上層不能是自己或自己底下的項目」。",
+    "reason": "設計 §3.1 規則（上層禁止形成循環），屬 Q22 分類與區域維護規格。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "svc-category-region-write-readback",
+      "key": "region#cycle-parent"
+    }
   }
 ]
