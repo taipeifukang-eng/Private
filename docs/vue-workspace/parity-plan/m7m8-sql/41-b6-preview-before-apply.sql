@@ -10,6 +10,7 @@
 --   第 6 區：目前有廠商相關權限的角色與人——43（RLS 收緊）之後，廠商表只有「廠商檢視／管理」讀得到；只有分類、區域、合作紀錄權限者的舊版廠商頁會讀不到廠商（新版改走遮蔽欄位的函式）。
 --   第 7 區：只有服務中心入口（含店長角色）目前讀得到全部廠商含統編與付款條件，43 之後讀不到。
 --   第 8 區：目前靠需求單權限看得到採購分析、但沒有採購評估權限的角色與人——新版採購分析只認採購評估檢視／管理，這些人會失去入口，要的話先補授權。
+--   第 11 區（G22／G24，46 用）：先決（函式、資料表、工單欄位）、ga_ws_po_list 現行定義是否可加 attention 篩選（46 以文字替換，定義不同會報錯）、九項待辦的現況數字、績效資料完整度（近 12 個月）與有徽章權限的角色。
 --   第 10 區（G23，45 用）：水電帳單先決（資料表、三個識別欄位、權限碼、觸發器函式）與現況數字；其中「讀取政策」請存檔（45 會移除店長直讀條件，撤回要照這份還原）；「店長直讀」人數是 45 之後讀不到帳單的店長名單人數（舊版店長可看自己門市帳單，新版店長看不到水電網費）。
 -- 正式區尚未套用 42 時：第 2 區多半是 INFO（欄位將新增）；套用後再跑，欄位列會變 ALREADY。
 WITH
@@ -194,6 +195,70 @@ rows_out AS (
   UNION ALL
   SELECT 10, '10 水電帳單權限', '有水電檢視／管理的角色：' || rp.role_code || '（' || rp.role_name || '）', (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND ur.is_active) || ' 人', 'INFO'
     FROM (SELECT DISTINCT role_id, role_code, role_name FROM role_perm WHERE perm IN ('general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage')) rp
+  -- 11 G22／G24（46 用）：先決、ga_ws_po_list 可否替換、九項待辦的現況數字、績效資料完整度
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'function:' || f.name, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f.name) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f.name) THEN 'OK' ELSE 'MISSING' END
+    FROM (VALUES ('ga_ub_is_overdue'), ('ga_ub_can_view'), ('ga_vd_contract_due'), ('ga_vd_can_view'), ('ga_wo_focus'), ('ga_po_today'), ('ga_po_can_view'),
+                 ('ga_inventory_transfer_is_visible'), ('ga_inventory_balance_is_visible'), ('ga_ws_onboarding_list'), ('ga_ws_po_list')) f(name)
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'table:' || t.name, CASE WHEN to_regclass('public.' || t.name) IS NOT NULL THEN '存在' ELSE '不存在' END, CASE WHEN to_regclass('public.' || t.name) IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+    FROM (VALUES ('ga_inventory_transfers'), ('ga_inventory_transfer_settings'), ('ga_inventory_balances'), ('ga_inventory_locations'), ('ga_inventory_location_parts'), ('ga_purchase_reviews'),
+                 ('ga_purchase_order_items'), ('store_managers'), ('ga_equipment'), ('ga_facilities')) t(name)
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'ga_ws_po_list 現行定義是否可加 attention 篩選（46 以文字替換）',
+         CASE WHEN to_regprocedure('public.ga_ws_po_list(jsonb,integer,integer)') IS NULL THEN '函式不存在'
+              WHEN position('v_attention' IN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure)) > 0 THEN '已有 attention（46 會略過這一段）'
+              WHEN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%v_approvals boolean;%'
+                   AND pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')%' THEN '可替換'
+              ELSE '定義與預期不同（46 會報錯、整份不生效，請人工確認）' END,
+         CASE WHEN to_regprocedure('public.ga_ws_po_list(jsonb,integer,integer)') IS NULL THEN 'MISSING'
+              WHEN position('v_attention' IN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure)) > 0 THEN 'ALREADY'
+              WHEN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%v_approvals boolean;%'
+                   AND pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')%' THEN 'OK'
+              ELSE 'WARN' END
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'column:maintenance_requests.' || c.name, CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'maintenance_requests' AND column_name = c.name) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'maintenance_requests' AND column_name = c.name) THEN 'OK' ELSE 'MISSING' END
+    FROM (VALUES ('completion_method'), ('accepted_at'), ('completed_at'), ('progress_stage'), ('reported_at'), ('vendor_id')) c(name)
+  -- 11 九項待辦現況（46 之後首頁與導覽徽章的數字會是這些，上線前先知道大約多少）
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '待受理需求單', (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status = 'PENDING_INTAKE'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '門市待確認或待補資料的需求單（全部門市）', (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status IN ('WAITING_STORE_CONFIRMATION', 'WAITING_STORE_SUPPLEMENT')), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '需求單「待總務複核」（不計入徽章，設計 §9 備註 a）', (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status = 'WAITING_GA_REVIEW'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '待核准採購單', (SELECT count(*)::text FROM public.ga_purchase_orders WHERE status = 'PENDING_APPROVAL'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '逾期未到貨採購單（已下訂或部分到貨、預計到貨日早於台北今天）', (SELECT count(*)::text FROM public.ga_purchase_orders WHERE status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND expected_delivery_date IS NOT NULL AND expected_delivery_date < (now() AT TIME ZONE 'Asia/Taipei')::date), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '逾期未收調撥單（交出超過逾期天數）',
+         (SELECT count(*)::text FROM public.ga_inventory_transfers t WHERE t.deleted_at IS NULL AND t.status IN ('SOURCE_CONFIRMED', 'IN_TRANSIT') AND t.source_confirmed_at < now() - make_interval(days => COALESCE((SELECT overdue_days FROM public.ga_inventory_transfer_settings WHERE id = true), 3))), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '門市退回的工單（PROCESSING＋REOPENED）', (SELECT count(*)::text FROM public.maintenance_requests WHERE status = 'PROCESSING' AND progress_stage = 'REOPENED'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '貼標待複核（設備＋設施）',
+         (SELECT ((SELECT count(*) FROM public.ga_equipment WHERE deleted_at IS NULL AND status <> 'SCRAPPED' AND onboarding_status = 'PENDING_GA_REVIEW') + (SELECT count(*) FROM public.ga_facilities WHERE deleted_at IS NULL AND status <> 'RETIRED' AND onboarding_status = 'PENDING_GA_REVIEW'))::text), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '負庫存（不允許負庫存的位置；只在首頁庫存區提示）',
+         (SELECT count(*)::text FROM public.ga_inventory_balances b JOIN public.ga_inventory_locations l ON l.id = b.location_id AND l.deleted_at IS NULL WHERE b.quantity_base < 0 AND NOT l.allow_negative_stock), 'INFO'
+  -- 11 績效資料完整度（近 12 個月）：沒綁廠商的工單與沒記完成方式的舊資料會讓績效「資料累積中」
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '工單總數', (SELECT count(*)::text FROM public.maintenance_requests WHERE reported_at >= now() - interval '12 months'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '有選廠商的工單', (SELECT count(*)::text FROM public.maintenance_requests WHERE reported_at >= now() - interval '12 months' AND vendor_id IS NOT NULL), 'INFO'
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '已完成工單的完成方式：' || COALESCE(completion_method, '（未記方式 NULL）'), count(*)::text, 'INFO'
+    FROM public.maintenance_requests WHERE reported_at >= now() - interval '12 months' AND status = 'COMPLETED' GROUP BY completion_method
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '已下訂起的採購單（確定金額）筆數與含稅總額', (SELECT count(*)::text || ' 張，NT$ ' || COALESCE(sum(total_amount), 0)::text FROM public.ga_purchase_orders WHERE status IN ('ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED') AND ordered_at >= now() - interval '12 months'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '舊採購評估（只列預估，沒有對應採購單）筆數', (SELECT count(*)::text FROM public.ga_purchase_reviews r WHERE r.decision = 'PURCHASE' AND r.deleted_at IS NULL AND r.created_at >= now() - interval '12 months' AND NOT EXISTS (SELECT 1 FROM public.ga_purchase_orders o WHERE o.purchase_review_id = r.id)), 'INFO'
+  -- 11 誰會在 46 之後看到徽章（有對應權限的角色與人數）
+  UNION ALL
+  SELECT 11, '11 徽章權限（有權限的角色）', rp.perm || '：' || rp.role_code || '（' || rp.role_name || '）', (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND COALESCE(ur.is_active, true)), 'INFO'
+    FROM (SELECT DISTINCT role_id, role_code, role_name, perm FROM role_perm WHERE perm IN ('general_affairs.purchase_order.approve', 'general_affairs.request.manage', 'general_affairs.cooperation_record.view', 'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage')) rp
 )
 SELECT section, item, value, status FROM rows_out ORDER BY sec, status DESC, item;
--- 核對：沒有任何 MISSING 才能套用 42、44、47；第 4 區沒有 WARN（code 重複）才能套用 42；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。
+-- 核對：沒有任何 MISSING 才能套用 42、44、47、46（第 11 區 ga_ws_po_list 列是 WARN 時 46 會報錯，要先人工確認）；第 4 區沒有 WARN（code 重複）才能套用 42；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。
