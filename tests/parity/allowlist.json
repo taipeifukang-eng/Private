@@ -8652,5 +8652,29 @@
       "key": "rows#other-locations",
       "kind": "count"
     }
+  },
+  {
+    "id": "m7m8-b6-nav-vendors-list-db-semantics",
+    "page": "ga-assets",
+    "description": "側欄「廠商資料」：舊版規則對有服務中心入口的角色（例如測試總務、測試工務）就列出；新版改成資料庫語意（要有廠商檢視或管理權限才列，頁面與 API 同一組條件），所以沒有廠商權限的角色看不到這個入口。",
+    "reason": "問卷 Q22、V1：廠商資料只給廠商檢視／管理權限者，選單、頁面、API 共用同一組權限。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "sidebar-visibility",
+      "key": "unexpected:vendors-list",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-nav-utility-bills-list-split",
+    "page": "ga-assets",
+    "description": "側欄「水電電話網路費」：舊版是帶一個子項（費用報表）的項目，新版外殼對有子項的項目只當展開鈕，帳單列表會沒有入口，所以拆成「帳單列表」（新增的子項 id utility-bills-list）與「費用報表」兩個子項。",
+    "reason": "實作取捨（側欄外殼的既有行為），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "sidebar-visibility",
+      "key": "native-only:utility-bills-list",
+      "kind": "only-native"
+    }
   }
 ]
