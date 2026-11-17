@@ -146,9 +146,10 @@ useRefreshOnActivate(props.tab, load);
 .pa-table .num { text-align: right; white-space: nowrap; }
 .pager { display: flex; gap: 12px; align-items: center; margin: 10px 0; }
 @media (max-width: 700px) {
+  .pa-table { min-width: 0; }
   .pa-table thead { display: none; }
   .pa-table, .pa-table tbody, .pa-table tr, .pa-table td { display: block; width: 100%; }
-  .pa-table tr { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; background: var(--surface); }
+  .pa-table tr { box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; background: var(--surface); }
   .pa-table td { border: 0; display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; text-align: right; }
   .pa-table td::before { content: attr(data-label); color: var(--muted); font-size: 12px; text-align: left; }
 }

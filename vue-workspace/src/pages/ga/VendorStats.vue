@@ -132,9 +132,10 @@ useRefreshOnActivate(props.tab, load);
 .bar i { display: block; height: 100%; background: var(--primary); border-radius: 2px; }
 .vs-note { font-size: 12px; }
 @media (max-width: 700px) {
+  .vs-table { min-width: 0; }
   .vs-table thead { display: none; }
   .vs-table, .vs-table tbody, .vs-table tr, .vs-table td { display: block; width: 100%; }
-  .vs-table tr { border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; background: var(--surface); }
+  .vs-table tr { box-sizing: border-box; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; margin-bottom: 8px; background: var(--surface); }
   .vs-table td { border: 0; display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; text-align: right; }
   .vs-table td::before { content: attr(data-label); color: var(--muted); font-size: 12px; text-align: left; }
   .vs-table td:first-child { display: block; text-align: left; font-weight: 600; }
