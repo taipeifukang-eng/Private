@@ -1,7 +1,7 @@
 -- M7/M8 第 6 批：DEV 專用測試角色（不套正式區，沒有對應的正式區草稿）。代碼一律 vue_workspace_ga6_ 開頭（開工前實測 roles 表與 role-matrix 都沒有此前綴，不會撞名；既有 vue_workspace_ga_* 不動）。
 --   _vendor_mgr：廠商檢視與管理；_cat_only：只有服務分類與服務區域檢視；_coop_only：只有合作紀錄檢視；
 --   _util_mgr：水電網費檢視與管理；_util_view：只有水電網費檢視；
---   _ga_all：總務全套（廠商、分類區域管理、合作紀錄、採購評估與採購、工單管理、水電網費、需求單、調撥、設備與設施管理）。
+--   _ga_all：總務全套（廠商、分類區域管理、合作紀錄、採購評估與採購（不含採購核准：G25 測試要求只有核准人角色持有）、工單管理、水電網費、需求單、調撥、設備與設施管理）。
 -- 每個角色另帶總務服務中心入口（service_center.access）。權限碼不存在的略過。可重複執行；還原：20261118130000_m7m8_b6_dev_seed.rollback.sql。
 DO $$
 DECLARE
@@ -19,7 +19,7 @@ DECLARE
     'vue_workspace_ga6_ga_all', jsonb_build_object('name', '測試 第6批 總務全套', 'perms', jsonb_build_array(
       'general_affairs.service_center.access', 'general_affairs.vendor.view', 'general_affairs.vendor.manage', 'general_affairs.service_category.view', 'general_affairs.service_category.manage',
       'general_affairs.service_region.view', 'general_affairs.service_region.manage', 'general_affairs.cooperation_record.view',
-      'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage', 'general_affairs.purchase_order.approve',
+      'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage',
       'general_affairs.inventory_transaction.view', 'general_affairs.inventory_transaction.manage', 'general_affairs.part.view', 'general_affairs.part.manage',
       'general_affairs.work_order.view_all', 'general_affairs.work_order.update', 'general_affairs.work_order.manage', 'general_affairs.service_center.force_close',
       'general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage', 'general_affairs.request.manage', 'general_affairs.request.view_all',

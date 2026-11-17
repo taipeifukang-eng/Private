@@ -341,4 +341,6 @@
 - 測試資料一律 `QA-GA6-` 標記（廠商名稱、分類與區域代碼）、只用 VW／ZT 測試門市；`cleanupM7M8` 擴充清除（先刪子層）；sweeper 新增三個回報目標；結束後 DEV 沒有殘留。
 - 本階段沒有 Vue 頁面（階段 2），不需 vue build 與 `public/workspace` 同步；smoke、parity 對舊 API 比對與 e2e 劇本在後續階段。
 
+**驗證數字**：`npm run test:page -- G20-G21-db-api` 循序全綠（unit 45、playwright 37、sweeper 前後孤兒 0、結束碼 0）；`npx tsc --noEmit`、`vue-tsc --noEmit` 無錯誤；全部 unit（122 檔、1928 項）通過。必修回歸循序重跑：G14-G17（unit 18、33）、G16（6）、G17（7）、G25-db（unit 43、21）、G25-ui（unit 18、28）、G26-db（unit 37、22）、G27（13 unit、17）、G18-api、G18-db、G18-e2e、G18-ui 全部結束碼 0。回歸中發現並修正一項：`vue_workspace_ga6_ga_all` 一開始帶了「採購核准」，被 G25-db 的「採購核准只給核准人角色」檢查擋下（結束碼 1），已把核准從該角色移除（後續階段的待核准採購單徽章測試改用核准人臨時角色），重套 DEV 後 G25-db 通過。
+
 **待使用者確認**：allowlist 6 項（付款條件仍為自由文字、公司統編必填、code 唯一索引、區域固定資料取捨、需求單採購評估頁內嵌改寫、舊版 purchase-review API 收緊後對無廠商權限者空白）。
