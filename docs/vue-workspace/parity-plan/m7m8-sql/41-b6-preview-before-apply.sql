@@ -1,10 +1,10 @@
 -- 41-b6-preview-before-apply.sql
--- M7/M8 第 6 批（G20 服務分類與區域、G21 廠商資料、工單進度廠商檢查、G23 水電帳單）套用 42、44、47、45、43 之前先看的現況檢查。
+-- M7/M8 第 6 批（G20 服務分類與區域、G21 廠商資料、工單進度廠商檢查、G23 水電帳單）套用 42、44、48、47、45、43 之前先看的現況檢查。
 -- 唯讀（只有 SELECT），整份可直接貼上執行，不會改任何資料。
 -- 每列有 section（區）、item（項目）、value（數字或內容）、status：OK＝正常；MISSING＝缺東西，不要套用；ALREADY＝已經有了（重複套用沒問題，但請確認）；
 -- WARN＝需要你看一下；INFO＝只是現況，給你決定上線怎麼安排。只需要看 MISSING、WARN、ALREADY；INFO 是現況數字與名單。
 -- 重點（上線前一定要看）：
---   第 3 區：統編標準化後重複的廠商名單——新版新增與編輯會擋重複統編，既有重複不會被擋但請先整理（不影響 42 套用）。
+--   第 3 區：統編標準化後重複的廠商名單（含停用）——使用者已決定（2026-11-18）加唯一索引，這份名單必須整理到 0 組才能套用 48（48 開頭會檢查，有重複就中止）；不影響 42、44 套用。
 --   第 4 區：分類與區域的 code 若有重複，42 建唯一索引會失敗（整份不生效），要先改掉重複的代碼。
 --   第 5 區：廠商、分類、區域資料表現行 RLS 政策全文——套用 43 之前請把這一區整份存檔（rollback 43 要照這份還原）。
 --   第 6 區：目前有廠商相關權限的角色與人——43（RLS 收緊）之後，廠商表只有「廠商檢視／管理」讀得到；只有分類、區域、合作紀錄權限者的舊版廠商頁會讀不到廠商（新版改走遮蔽欄位的函式）。
@@ -261,4 +261,4 @@ rows_out AS (
     FROM (SELECT DISTINCT role_id, role_code, role_name, perm FROM role_perm WHERE perm IN ('general_affairs.purchase_order.approve', 'general_affairs.request.manage', 'general_affairs.cooperation_record.view', 'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage')) rp
 )
 SELECT section, item, value, status FROM rows_out ORDER BY sec, status DESC, item;
--- 核對：沒有任何 MISSING 才能套用 42、44、47、46（第 11 區 ga_ws_po_list 列是 WARN 時 46 會報錯，要先人工確認）；第 4 區沒有 WARN（code 重複）才能套用 42；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。
+-- 核對：沒有任何 MISSING 才能套用 42、44、47、46（第 11 區 ga_ws_po_list 列是 WARN 時 46 會報錯，要先人工確認）；第 4 區沒有 WARN（code 重複）才能套用 42；第 3 區沒有 WARN（重複統編組數為 0）才能套用 48；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。

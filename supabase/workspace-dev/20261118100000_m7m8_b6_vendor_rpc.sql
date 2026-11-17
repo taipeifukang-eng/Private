@@ -304,6 +304,7 @@ DECLARE
   v_tax_changed boolean := false;
   v_names text[];
   v_status text;
+  v_cname text;
 BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_rq_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
   IF NOT public.ga_vd_can_manage(v_uid) THEN RETURN public.ga_rq_err(403, 'PERMISSION_DENIED', '沒有新增或編輯廠商的權限（需要廠商管理權限）'); END IF;
@@ -448,8 +449,20 @@ BEGIN
      WHERE id = v.id RETURNING * INTO v;
   END IF;
   RETURN jsonb_build_object('ok', true, 'status', CASE WHEN v_new THEN 201 ELSE 200 END, 'data', public.ga_vd_json(v, true), 'warnings', v_warn);
-EXCEPTION WHEN OTHERS THEN
-  RETURN public.ga_rq_catch(SQLERRM, SQLSTATE);
+EXCEPTION
+  -- 統編唯一索引（ga_vendors_tax_id_norm_uidx）擋下的並行寫入：轉成與前面檢查相同的 409 TAX_ID_DUPLICATE 並指出既有廠商（索引不存在時不會走到這裡）。
+  WHEN unique_violation THEN
+    GET STACKED DIAGNOSTICS v_cname = CONSTRAINT_NAME;
+    IF v_cname = 'ga_vendors_tax_id_norm_uidx' AND v.tax_id IS NOT NULL THEN
+      SELECT d.id, d.name, d.status INTO v_dup FROM public.ga_vendors d WHERE d.id <> v.id AND public.ga_vd_norm_tax(d.tax_id) = v.tax_id ORDER BY d.created_at LIMIT 1;
+      IF FOUND THEN
+        RETURN public.ga_rq_err(409, 'TAX_ID_DUPLICATE', '統一編號 ' || v.tax_id || ' 已經登錄在「' || v_dup.name || '」' || CASE WHEN v_dup.status <> 'active' THEN '（' || CASE v_dup.status WHEN 'paused' THEN '暫停' ELSE '停用' END || '）' ELSE '' END || '，同一個統編不能重複建立',
+          jsonb_build_object('existing', jsonb_build_object('id', v_dup.id, 'name', v_dup.name, 'status', v_dup.status)));
+      END IF;
+    END IF;
+    RETURN public.ga_rq_catch(SQLERRM, SQLSTATE);
+  WHEN OTHERS THEN
+    RETURN public.ga_rq_catch(SQLERRM, SQLSTATE);
 END;
 $$;
 

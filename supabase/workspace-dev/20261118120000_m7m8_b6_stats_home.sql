@@ -66,7 +66,7 @@ END $$;
 -- ================================================================ 3. 廠商績效（V5）
 -- p_from、p_to：YYYY-MM；預設近 12 個月（到本月）；最長 36 個月。工單以 reported_at（台北）落在區間、依 maintenance_requests.vendor_id 歸屬。
 -- 完成數＝status COMPLETED 且 completion_method STORE_CONFIRMED；強制結案（ADMIN_FORCE_CLOSED）與未記方式（NULL）另計且不入平均天數；平均天數＝accepted_at 到 completed_at。
--- 採購單確定金額＝ORDERED／PARTIALLY_RECEIVED／RECEIVED／CLOSED 的含稅額，依下訂日（台北）落區間。評價不顯示。沒選廠商的工單列「未指定」。
+-- 採購單確定金額＝ORDERED／PARTIALLY_RECEIVED／RECEIVED／CLOSED 的含稅額，依下訂日（台北）落區間；只給有採購單檢視權限者（can_view_po_amount），其他人金額與張數為 null、只有採購單的廠商不列出。評價不顯示。沒選廠商的工單列「未指定」。
 CREATE OR REPLACE FUNCTION public.ga_ws_vendor_perf(p_from text DEFAULT NULL, p_to text DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$
@@ -80,6 +80,7 @@ DECLARE
   v_rows jsonb;
   v_unassigned jsonb;
   v_sum jsonb;
+  v_can_po boolean;
 BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_rq_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
   IF NOT has_permission(v_uid, 'general_affairs.cooperation_record.view') THEN RETURN public.ga_rq_err(403, 'PERMISSION_DENIED', '沒有查看合作紀錄的權限'); END IF;
@@ -93,6 +94,8 @@ BEGIN
   END IF;
   v_start := v_from::timestamp AT TIME ZONE 'Asia/Taipei';
   v_end := (v_to + interval '1 month')::timestamp AT TIME ZONE 'Asia/Taipei';
+  -- 採購單金額只給有採購單檢視權限者（ga_po_can_view）；沒有權限時金額與張數欄位回 null，且不列出只有採購單、沒有工單的廠商。
+  v_can_po := public.ga_po_can_view(v_uid);
 
   WITH wo AS (
     SELECT m.vendor_id, m.status, m.completion_method, m.accepted_at, m.completed_at
@@ -109,7 +112,7 @@ BEGIN
   ), po AS (
     SELECT o.vendor_id, count(*) AS po_count, COALESCE(sum(o.total_amount), 0) AS po_amount
       FROM public.ga_purchase_orders o
-     WHERE o.status IN ('ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED') AND o.ordered_at >= v_start AND o.ordered_at < v_end AND o.vendor_id IS NOT NULL
+     WHERE o.status IN ('ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED') AND o.ordered_at >= v_start AND o.ordered_at < v_end AND o.vendor_id IS NOT NULL AND v_can_po
      GROUP BY o.vendor_id
   ), merged AS (
     SELECT COALESCE(w.vendor_id, p.vendor_id) AS vendor_id, COALESCE(w.wo_count, 0) AS wo_count, COALESCE(w.completed_count, 0) AS completed_count,
@@ -121,7 +124,7 @@ BEGIN
            'vendor_id', m.vendor_id, 'vendor_name', v.name, 'vendor_alias', v.alias, 'vendor_status', v.status,
            'wo_count', m.wo_count, 'completed_count', m.completed_count, 'force_closed_count', m.force_closed_count, 'unknown_method_count', m.unknown_method_count,
            'open_count', m.open_count, 'avg_days', CASE WHEN m.days_sample > 0 THEN round(m.avg_days::numeric, 1) END, 'days_sample', m.days_sample,
-           'po_count', m.po_count, 'po_amount', m.po_amount, 'insufficient', (m.wo_count = 0)
+           'po_count', CASE WHEN v_can_po THEN m.po_count END, 'po_amount', CASE WHEN v_can_po THEN m.po_amount END, 'insufficient', (m.wo_count = 0)
          ) ORDER BY m.wo_count DESC, m.po_amount DESC, v.name, m.vendor_id), '[]'::jsonb)
     INTO v_rows
     FROM merged m JOIN public.ga_vendors v ON v.id = m.vendor_id;
@@ -137,11 +140,11 @@ BEGIN
   SELECT jsonb_build_object(
            'wo_total', (SELECT count(*) FROM public.maintenance_requests WHERE reported_at >= v_start AND reported_at < v_end),
            'wo_with_vendor', (SELECT count(*) FROM public.maintenance_requests WHERE reported_at >= v_start AND reported_at < v_end AND vendor_id IS NOT NULL),
-           'po_amount_total', (SELECT COALESCE(sum(total_amount), 0) FROM public.ga_purchase_orders WHERE status IN ('ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED') AND ordered_at >= v_start AND ordered_at < v_end AND vendor_id IS NOT NULL))
+           'po_amount_total', CASE WHEN v_can_po THEN (SELECT COALESCE(sum(total_amount), 0) FROM public.ga_purchase_orders WHERE status IN ('ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED') AND ordered_at >= v_start AND ordered_at < v_end AND vendor_id IS NOT NULL) END)
     INTO v_sum;
 
   RETURN jsonb_build_object('ok', true, 'status', 200, 'data', jsonb_build_object(
-    'from', to_char(v_from, 'YYYY-MM'), 'to', to_char(v_to, 'YYYY-MM'), 'generated_at', now(), 'rows', v_rows,
+    'from', to_char(v_from, 'YYYY-MM'), 'to', to_char(v_to, 'YYYY-MM'), 'generated_at', now(), 'can_view_po_amount', v_can_po, 'rows', v_rows,
     'unassigned', COALESCE(v_unassigned, jsonb_build_object('wo_count', 0, 'completed_count', 0, 'force_closed_count', 0, 'unknown_method_count', 0, 'open_count', 0)),
     'summary', v_sum, 'accumulating', COALESCE((v_sum ->> 'wo_with_vendor')::integer, 0) = 0));
 EXCEPTION WHEN OTHERS THEN

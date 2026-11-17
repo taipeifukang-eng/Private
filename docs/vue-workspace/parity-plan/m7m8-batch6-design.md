@@ -481,9 +481,18 @@
 - A11（即時計算成本）：沒有實測大量資料；目前資料量沒有問題，列為上線後觀察（輪詢 5 分鐘一次）。
 - B9：多數驗收單元測試確為靜態檢查，擋 bug 的是整合與 e2e 實測，不另改。
 
-**產品決定，列待使用者決定（已登記 allowlist，`approvedBy` 為 null）**
-1. A2、B7 統編唯一只靠 RPC：`m7m8-b6-vendor-tax-id-unique-rpc-only`。選項：套用 42 前清掉重複統編後補正規化統編的部分唯一索引，或接受舊頁不受規則約束。
-2. A10 名稱相近判斷偏鬆（2 字以上互相包含就提醒，只是提醒仍可儲存）：要不要提高長度或重疊比例門檻。
-3. B1 績效頁採購金額給了沒有採購單檢視權限的人：`m7m8-b6-vendor-perf-po-amount-coop-only`。問卷 V5、Q24 已決定績效顯示採購單確定金額，所以行為維持；若要隱藏，作法是沒有採購單檢視權限時金額欄位回 null、不列只有採購單的廠商、頁面隱藏該欄。
-4. B2 RLS 收緊後舊頁廠商內嵌查詢變 null：新增 `m7m8-b6-legacy-purchase-review-inline-vendor-null`（採購評估詳情、成本統計、配件履行文件三處）與 `m7m8-b6-legacy-service-center-select-star-empty`（舊服務中心三張表）；套用 43 前請看 41 第 6、7 區受影響角色。
-5. A11 要不要在上線前做 10 萬級資料實測、補部分索引。
+**使用者已決定（2026-11-18，五項全部照建議）**
+1. 統編唯一（`m7m8-b6-vendor-tax-id-unique-rpc-only`，已核可）：上線時先清掉正式區重複統編（41 第 3 區名單必須為 0 組），再加「正規化統編」的部分唯一索引 `ga_vendors_tax_id_norm_uidx`（含停用與暫停廠商，空值不算）。草稿 48，套用順序 `41 → 42 → 44 → 48 → 47 → 45 → 46 → 43`；`ga_ws_vendor_save` 遇索引衝突（23505）轉成 409 `TAX_ID_DUPLICATE` 並指出既有廠商。
+2. 名稱相近提醒（A10）：維持現狀，只提醒不擋，不改行為（allowlist 沒有對應的獨立條目，不新增）。
+3. 績效頁採購金額（`m7m8-b6-vendor-perf-po-amount-coop-only`，已核可）：沒有採購單檢視權限（`ga_po_can_view`）者，金額、張數與合計由資料庫函式回 null、不列只有採購單的廠商、回應帶 `can_view_po_amount`、頁面隱藏金額欄與合計卡。
+4. 舊頁廠商下拉在 43 後變空（`m7m8-b6-legacy-purchase-review-inline-vendor-null`、`m7m8-b6-legacy-service-center-select-star-empty`，已核可）：接受，43 最後套用。
+5. A11 上線前以十萬級假資料在 DEV 實測首頁、績效、採購分析等速度，必要時補索引：由下一階段執行（本次未做）。
+
+### 11.7 使用者決定 1–4 的實作（2026-11-18，只連 DEV mjpd…）
+- 統編唯一：新增 DEV `20261118140000_m7m8_b6_vendor_tax_unique.sql`（與 `.rollback.sql`）與正式區草稿 `48-b6-vendor-tax-unique.sql`（與 `-rollback.sql`）。沿用既有 IMMUTABLE 的 `ga_vd_norm_tax`（全形轉半角、去空白）；開頭先檢查正規化後的重複統編（含停用），有重複就 RAISE EXCEPTION 並列出名單；再建部分唯一索引（`WHERE ga_vd_norm_tax(tax_id) <> ''`）。DEV 已實測套用、撤回、再套用。`apply-workspace-m7m8-b6-dev.cjs` 納入 140000。
+- `ga_ws_vendor_save`（DEV `100000` 與草稿 44，兩邊一致）新增 `unique_violation` 處理：衝突來自上述索引時，轉成與一般重複檢查相同的 409 `TAX_ID_DUPLICATE`（白話訊息、`existing` 指出既有廠商）；原本的 advisory lock 仍先序列化並行送出，索引是最後防線，也擋舊頁與直接寫入。
+- 41 第 3 區說明改為「必須整理到 0 組才能套用 48」；README 套用順序與 48 兩列、行為改變與上線前清單同步。48 放在 44 之後（用到 `ga_vd_norm_tax`），早於 43。
+- 績效金額：`ga_ws_vendor_perf`（DEV `120000` 與草稿 46，兩邊一致）加 `v_can_po := ga_po_can_view(uid)`；採購單 CTE 加 `AND v_can_po`，使無權者的 FULL JOIN 只剩有工單的廠商；`po_count`、`po_amount`、`summary.po_amount_total` 無權者為 null；回傳 `can_view_po_amount`。`VendorStats.vue` 依旗標隱藏金額欄、合計卡（手機版同樣）。此頁沒有匯出與金額排序。
+- 外洩檢查：`ga_ws_home_summary` 的採購單金額只出現在「待核准採購單」前 5 筆，該項只回給有核准權限者（核准權限包含在 `ga_po_can_view` 內），KPI 只有張數與帳單金額（水電權限）；`ga_ws_purchase_analysis` 自有採購評估檢視／管理權限，不需改。
+- 測試：整合新增「直接 insert 重複正規化統編被索引擋下（全形、空白、停用、空值不算）」「並行儲存同統編一筆成功其餘 409 TAX_ID_DUPLICATE」、績效有權／無權對照（G22-G24 rpc）；e2e 新增 `G21.journey-contract-perf-roles` 的 2b（有權者看得到金額欄，只有合作紀錄者桌機與手機 390 都沒有金額欄與合計卡）；單元新增 `tax-unique-perf-po.test.ts` 靜態檢查；allowlist 4 條改為已核可（`approvedBy` 為「user (2026-11-18 batch 6 acceptance decisions)」），`STILL_PENDING` 移除這 4 條。
+- 實測發現並修正：索引運算式以寫入者身分執行，`ga_vd_norm_tax` 原本被 44 收回執行權限，舊頁（使用者身分直接 insert）會報 permission denied（由 G20-G21-ui 對等測試抓到）；48 與 DEV 140000 改為 `GRANT EXECUTE ... TO authenticated`，rollback 再收回；整合測試加入使用者身分 insert 重複統編回 23505。
