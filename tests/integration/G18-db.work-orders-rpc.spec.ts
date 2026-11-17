@@ -441,8 +441,22 @@ test('強制結案：需要權限與原因；工單與需求單都結案；原�
   expect(list.data.rows[0]).toMatchObject({ completion_method_label: '強制結案' });
   // 列印：非總務不含內部；總務勾選後含內部與原因
   const pStore = await fn('wo_store_a', 'ga_ws_wo_print', { p_id: lk.w.id, p_include_internal: true });
-  expect(pStore.data.include_internal).toBe(false);
-  expect(JSON.stringify(pStore.data)).not.toContain(reason);
+  expect(pStore).toMatchObject({ ok: false, status: 403, code: 'PERMISSION_DENIED' });
+  expect(JSON.stringify(pStore)).not.toContain(reason);
+  // 只有 view_all：詳情看得到內部欄位，但列印內部備註被擋（2026-11-17 使用者決定：看得到、不能列印）
+  for (const k of ['wo_viewall', 'wo_mr_viewall', 'wo_cross_viewall'] as PoKey[]) {
+    const g = await fn(k, 'ga_ws_wo_get', { p_id: lk.w.id });
+    expect(g.data.ga_side, k).toBe(true);
+    expect(JSON.stringify(g.data.timeline), k).toContain(reason);
+    expect(g.data.abilities.can_print_internal, k).toBe(false);
+    expect(g.data.abilities.can_view_assignee, k).toBe(true);
+    const pv = await fn(k, 'ga_ws_wo_print', { p_id: lk.w.id, p_include_internal: true });
+    expect(pv, k).toMatchObject({ ok: false, status: 403, code: 'PERMISSION_DENIED' });
+    expect(JSON.stringify(pv), k).not.toContain(reason);
+    const pd = await fn(k, 'ga_ws_wo_print', { p_id: lk.w.id });
+    expect(pd.data.include_internal, k).toBe(false);
+  }
+  expect((await fn('wo_works', 'ga_ws_wo_get', { p_id: lk.w.id })).data.abilities.can_print_internal).toBe(true);
   const pGaDefault = await fn('wo_works', 'ga_ws_wo_print', { p_id: lk.w.id });
   expect(pGaDefault.data.include_internal).toBe(false);
   expect(JSON.stringify(pGaDefault.data)).not.toContain(reason);

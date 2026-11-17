@@ -150,13 +150,14 @@ describe('G18 畫面原始碼規則（文案與可見條件）', () => {
     expect(detail).toContain('舊版照片');
     expect(detail).toMatch(/images-only :max="5"/);
   });
-  it('W7：列印入口在工單詳情；「包含內部備註」預設不勾，只有總務端看得到勾選', () => {
+  it('W7：列印入口在工單詳情；「包含內部備註」預設不勾，只有更新／管理類權限看得到勾選（只有 view_all 不行）', () => {
     expect(detail).toContain('列印工單表單');
     const print = read('vue-workspace/src/components/ga/WorkOrderPrint.vue');
     expect(print).toContain('const includeInternal = ref(false)');
     expect(print).toMatch(/v-if="canInternal" class="wo-print-internal"/);
     expect(print).toContain('? "?include_internal=1" : ""');
     expect(print).toContain('window.print()');
+    expect(detail).toContain(':can-internal="!!ab?.can_print_internal"');
     const css = read('vue-workspace/src/style.css');
     expect(css).toMatch(/^tbody tr:last-child td \{\s*border-bottom: 0/m);
     expect(css).toContain('.inspection-report tbody tr:last-child td{border-bottom:1px solid #aaa}');

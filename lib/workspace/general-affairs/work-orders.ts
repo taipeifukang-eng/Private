@@ -83,7 +83,7 @@ async function print(ctx: Context, id: string, url: URL) {
   const ab = abilitiesOf(ctx);
   if (!ab.canEnter) throw new GaError(403, "沒有查看工單的權限");
   const want = ["1", "true"].includes((url.searchParams.get("include_internal") || "").toLowerCase());
-  if (want && !ab.gaSide) throw new GaError(403, "只有總務端可以列印內部備註");
+  if (want && !ab.canPrintInternal) throw new GaError(403, "只有具備工單更新或管理權限的人可以列印內部備註");
   const r = await rpc(ctx, "ga_ws_wo_print", { p_id: id, p_include_internal: want });
   const d = r.data || {};
   const photos = await signPhotos(d.attachments || [], d.legacy_photos || []);

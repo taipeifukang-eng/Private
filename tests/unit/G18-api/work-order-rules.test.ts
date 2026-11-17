@@ -187,7 +187,7 @@ describe('G18.unit abilities（缺哪個權限講清楚）', () => {
     expect(workOrderAbilities(has()).canEnter).toBe(false);
     for (const code of [WO.viewAll, WO.mrViewAll, WO.crossViewAll]) {
       const a = workOrderAbilities(has(code));
-      expect(a).toMatchObject({ canEnter: true, canViewAll: true, gaSide: true, canUpdate: false, readOnly: true, canIssuePart: false, canForceClose: false, canDeleteAny: false });
+      expect(a).toMatchObject({ canEnter: true, canViewAll: true, gaSide: true, canPrintInternal: false, canUpdate: false, readOnly: true, canIssuePart: false, canForceClose: false, canDeleteAny: false });
       expect(a.readOnlyReason).toContain('只有查看工單的權限');
     }
   });

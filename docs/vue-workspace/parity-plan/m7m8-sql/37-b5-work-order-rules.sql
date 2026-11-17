@@ -426,7 +426,7 @@ BEGIN
     'can_reply_supplement', v_actor AND NOT v_linked AND m.status = 'PROCESSING' AND m.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_INFO',
     'reply_supplement_use_request', v_actor AND v_linked AND m.status = 'PROCESSING' AND m.progress_stage IS NOT DISTINCT FROM 'WAITING_STORE_INFO',
     'can_reopen', false, 'reopen_note', CASE WHEN m.status <> 'COMPLETED' THEN NULL WHEN v_linked THEN '要重新開啟請到需求單按「重新開啟」' ELSE '沒有需求單的舊式工單完成後不能重新開啟，需要時請另開新單' END,
-    'can_print_internal', public.ga_wo_ga_side(p_uid), 'can_view_assignee', public.ga_wo_ga_side(p_uid));
+    'can_print_internal', v_upd, 'can_view_assignee', public.ga_wo_ga_side(p_uid));
 END;
 $$;
 
@@ -519,7 +519,7 @@ BEGIN
 END;
 $$;
 
--- A4 列印資料：基本資料、公開進度、照片清單；p_include_internal 只有總務端有效（非總務強制不含內部）。
+-- A4 列印資料：基本資料、公開進度、照片清單；p_include_internal=true 只有更新／管理類權限可用（view_all 只看者與門市回 403）。
 CREATE OR REPLACE FUNCTION public.ga_ws_wo_print(p_id uuid, p_include_internal boolean DEFAULT false)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$
@@ -540,6 +540,10 @@ BEGIN
   SELECT * INTO m FROM public.maintenance_requests WHERE id = p_id;
   IF NOT FOUND OR NOT public.ga_wo_can_see(v_uid, m.reported_by, m.store_id) THEN RETURN public.ga_rq_err(404, 'NOT_FOUND', '找不到這張工單'); END IF;
   v_ga := public.ga_wo_ga_side(v_uid);
+  -- 只看（view_all）不能印內部備註：要求內部內容時，必須有工單更新或管理類權限（2026-11-17 使用者決定：看得到、不能列印）。
+  IF COALESCE(p_include_internal, false) AND NOT public.ga_wo_can_update(v_uid) THEN
+    RETURN public.ga_rq_err(403, 'PERMISSION_DENIED', '只有具備工單更新或管理權限的人可以列印內部備註');
+  END IF;
   v_internal := v_ga AND COALESCE(p_include_internal, false);
   v_row := public.ga_wo_row(p_id, false);
   SELECT COALESCE(jsonb_agg(t.x ORDER BY t.at, t.ord), '[]'::jsonb) INTO v_public FROM (

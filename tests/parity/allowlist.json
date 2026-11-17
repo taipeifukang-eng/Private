@@ -7269,9 +7269,9 @@
   {
     "id": "m7m8-b5-api-print-internal-ga-only",
     "page": "ga-work-orders",
-    "description": "列印工單表單的「包含內部備註」只有總務端可用；非總務端帶 include_internal 回 403，資料也一律不含內部備註與強制結案原因。舊版沒有 A4 專用表單。",
-    "reason": "W7（內部備註與強制結案原因預設不印、只有總務端可勾選）。",
-    "approvedBy": "user (2026-11-16 batch 5 spec survey)"
+    "description": "列印工單表單的「包含內部備註」只有具工單更新或管理類權限的人可用；只有 view_all 的角色與門市帶 include_internal 回 403（view_all 仍可在詳情看到內部欄位），資料也一律不含內部備註與強制結案原因。舊版沒有 A4 專用表單。",
+    "reason": "W7（內部備註與強制結案原因預設不印）；2026-11-17 使用者決定：view_all 看得到、不能列印內部備註。",
+    "approvedBy": null
   },
   {
     "id": "m7m8-b5-api-category-no-admin-bypass",

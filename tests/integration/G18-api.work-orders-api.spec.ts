@@ -384,6 +384,22 @@ test('G18.integration.force-close：需要強制結案權限與原因；需求�
   const p1 = await get('wo_manager', `${W}/${lk.w.id}/print?include_internal=1`);
   expect(p1.body.data).toMatchObject({ include_internal: true, force_close_reason: expect.stringContaining(reason) });
   expect((await get('wo_store_a', `${W}/${lk.w.id}/print?include_internal=true`)).status).toBe(403);
+  // 只有 view_all：詳情看得到內部欄位、能力 canPrintInternal=false、列印內部備註 403；預設列印 200 且不含內部
+  for (const k of ['wo_viewall', 'wo_mr_viewall', 'wo_cross_viewall']) {
+    const d = await get(k, `${W}/${lk.w.id}`);
+    expect(d.status, k).toBe(200);
+    expect(JSON.stringify(d.body.data.timeline), k).toContain(reason);
+    expect(d.body.data.ga_side, k).toBe(true);
+    expect(d.body.data.abilities.can_print_internal, k).toBe(false);
+    expect(d.body.page_abilities.canPrintInternal, k).toBe(false);
+    const pv = await get(k, `${W}/${lk.w.id}/print?include_internal=1`);
+    expect(pv.status, k).toBe(403);
+    expect(JSON.stringify(pv.body), k).not.toContain(reason);
+    const pd = await get(k, `${W}/${lk.w.id}/print`);
+    expect(pd.status, k).toBe(200);
+    expect(pd.body.data.include_internal, k).toBe(false);
+  }
+  expect((await get('wo_manager', `${W}/${lk.w.id}`)).body.page_abilities.canPrintInternal).toBe(true);
   const p2 = await get('wo_store_a', `${W}/${lk.w.id}/print`);
   expect(p2.status).toBe(200);
   expect(JSON.stringify(p2.body)).not.toContain(reason);

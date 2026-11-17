@@ -131,7 +131,7 @@
 - DEV 實測沒有 `maintenance-photos` bucket（也沒有對應 storage.objects 政策）：新照片走共用附件，DEV 不需建；讀舊照片的測試由 DEV 專用檔建私有 bucket 並放 1 張測試圖，不套正式區。正式區 bucket 是否存在、是否私有由 36 號預覽確認。
 
 ### 3.7 列印
-A4 專用工單表單（仿檢查報告 `.inspection-print-output` 的 `@media print`、A4、15mm、隱藏其他內容）：工單基本資料、門市與聯絡窗口、問題描述、處理進度時間軸（只公開）、照片；「包含內部備註」預設不勾、勾了才印 INTERNAL 更新與強制結案原因（此勾選只有總務端看得到，W7）。入口在工單詳情的「列印工單表單」按鈕，用列印專用樣式（隱藏導覽與其他區塊）。內容固定為：基本資料（工單編號、門市、聯絡窗口與電話、問題類型、回報日期、問題描述）＋公開進度時間軸＋照片（舊版照片與新附件都含）。
+A4 專用工單表單（仿檢查報告 `.inspection-print-output` 的 `@media print`、A4、15mm、隱藏其他內容）：工單基本資料、門市與聯絡窗口、問題描述、處理進度時間軸（只公開）、照片；「包含內部備註」預設不勾、勾了才印 INTERNAL 更新與強制結案原因（此勾選只有具工單更新或管理類權限的人看得到；只有 view_all 的角色看得到詳情內部欄位但不能印內部備註，2026-11-17 使用者決定，W7）。入口在工單詳情的「列印工單表單」按鈕，用列印專用樣式（隱藏導覽與其他區塊）。內容固定為：基本資料（工單編號、門市、聯絡窗口與電話、問題類型、回報日期、問題描述）＋公開進度時間軸＋照片（舊版照片與新附件都含）。
 
 ## 4. 頁面與 API
 
@@ -160,7 +160,7 @@ A4 專用工單表單（仿檢查報告 `.inspection-print-output` 的 `@media p
 | GET `work-orders/summary` | 各門市筆數（資料庫端 group by） |
 | GET／POST／PATCH／DELETE `maintenance-categories` | 分類管理（維持舊權限） |
 | POST `cross-dept-maintenance` | 新增舊式回報（含照片） |
-| GET `work-orders/:id/print` | 列印資料（含 `include_internal` 參數，非總務不可帶） |
+| GET `work-orders/:id/print` | 列印資料（含 `include_internal` 參數；非更新／管理類權限〔含只有 view_all〕帶 true 回 403） |
 
 ### 4.3 資料庫函式（皆 SECURITY DEFINER、`has_permission(auth.uid(), …)`、回 `{ok,status,data,error,code}`）
 `ga_ws_wo_list`、`ga_ws_wo_get`、`ga_ws_wo_summary`、`ga_ws_wo_transition`（SAVE_PROGRESS／REQUEST_COMPLETION／FORCE_CLOSE／REQUEST_SUPPLEMENT 的單一寫入入口，含鎖列、流轉表、護欄、有填才更新、同步需求單）、`ga_ws_wo_store_confirm`、`ga_ws_wo_report_unresolved`、`ga_ws_wo_delete`、`ga_ws_wo_create_legacy`（跨部門新增，含附件登記）、`ga_ws_wo_category`、`ga_ws_wo_print`（非總務強制不含內部）、`ga_ws_wo_issue_part`（W2，內部設 `app.ga_inv_internal_post`）。內部共用 `ga_wo_sync_request(...)`，並讓第 4 批 `ga_ws_req_transition` 的送確認改呼叫同一內部函式（單一邏輯）。
@@ -253,7 +253,7 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 | W4 | A 已受理或已連需求單不可刪 | 只能強制結案；未受理且沒連需求單者，總務與回報人（限自己）可刪；刪除時附件只標記不實刪（§3.5） |
 | W5 | A 共用附件 | 新照片用共用附件（第 1 批上傳工具），舊 `maintenance_photos` 唯讀合併顯示，舊照片不搬（§3.6） |
 | W6 | A 最小移植 | 跨部門「總務組」頁用同一套工單元件，保留新增舊式回報（標題、說明、最多 5 張照片）、維修分類管理，補回報人「確認完成／仍有問題」（只在待門市確認時），不增欄位、不加新功能（§4.1） |
-| W7 | A A4 工單表單 | 基本資料＋公開進度＋照片；內部備註與強制結案原因預設不印、可勾選；入口在工單詳情；列印專用樣式（§3.7） |
+| W7 | A A4 工單表單 | 基本資料＋公開進度＋照片；內部備註與強制結案原因預設不印、可勾選（僅更新／管理類權限可勾，view_all 只看者不行）；入口在工單詳情；列印專用樣式（§3.7） |
 | W8 | A 不提供重新開啟 | 沒有需求單的舊式單完成後不可重新開啟，需要時另開新單（§3.1） |
 | W9 | A 以角色權限為準 | 管理員有總務／管理角色才可改；沒有有效角色的 `profiles.role=admin` 只能看，列入上線前名單（§3.3、§11） |
 
@@ -453,7 +453,7 @@ DEV 工單相關表全空（實測；分類 0 列、階段 16 列）：測試以
 - 審查 #1 提到「PROGRESS 也不同步」：待複核期間一般進度不翻轉需求單是第 5 批明訂護欄（工單照記、需求單不動），複核受理後再往下就會同步，不會造成需求單卡死；真正會卡死的只有「送門市確認」，所以只擋這一個動作。
 
 **待使用者決定（未改）**
-- **view_all 是否算總務端**：目前只有「查看全部」的角色也看得到內部備註、處理人姓名、用料清單與強制結案原因，也能勾「列印內部備註」（唯讀稽核語意，與 Q20 一致）。若要改成只有更新／管理才看得到內部欄位，要改 `ga_wo_ga_side` 與 API `gaSide`。
+- **view_all 是否算總務端**（已決定，2026-11-17 使用者）：「看得到、不能列印內部備註」。只有 view_all 類的角色（`work_order.view_all`、`maintenance_request.view_all`、`cross_dept.maintenance.view_all`）維持看得到內部備註、處理人姓名、用料清單與強制結案原因（`ga_wo_ga_side` 與 API `gaSide` 不變）；但「包含內部備註」列印只有 `work_order.update`／`work_order.manage`／`maintenance_request.update`／`cross_dept.maintenance.update` 可用：`ga_ws_wo_print(include_internal=true)` 對其他人回 403 PERMISSION_DENIED，API 同樣 403，abilities 新增 `can_print_internal`（DB）／`canPrintInternal`（頁面）只對更新／管理類為 true，UI 隱藏勾選。
 - **`maintenance_updates` 寫入政策缺口**（本人署名條款，任何登入者可對任何工單新增進度、可自選 PUBLIC）：這是 120000／40 的既有缺口，要補成「看得到該工單才能寫」會影響舊 Next 工單頁與正式區寫入者，需配合 36 第 6、7 區名單一起決定。
 - **手動選「門市反映仍有問題」（REOPENED）**：舊版就能手選，新版沿用；選了之後 `unresolved_reason` 不會自動清。要禁止手選或在離開該階段時清空，屬產品決定。
 - **單張工單的照片總量上限**（目前每次最多 5 張、無總量上限）。

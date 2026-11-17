@@ -25,7 +25,7 @@ export type WoAbilitiesDb = {
 };
 export type WoDetail = { work_order: WoRow; timeline: WoTimelineItem[]; parts: WoPart[]; photos: WoPhotoView[]; abilities: WoAbilitiesDb; ga_side: boolean };
 export type WoPageAbilities = {
-  canEnter: boolean; canViewAll: boolean; canViewOwnOnly: boolean; gaSide: boolean; canUpdate: boolean; readOnly: boolean; readOnlyReason: string | null;
+  canEnter: boolean; canViewAll: boolean; canViewOwnOnly: boolean; gaSide: boolean; canPrintInternal: boolean; canUpdate: boolean; readOnly: boolean; readOnlyReason: string | null;
   canDeleteAny: boolean; canForceClose: boolean; canIssuePart: boolean; canCreateLegacy: boolean; canViewCategories: boolean; canEditCategories: boolean;
 };
 export type WoCategory = { id: string; name: string; sort_order: number; is_active: boolean; updated_at?: string };

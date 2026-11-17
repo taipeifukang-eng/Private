@@ -193,6 +193,8 @@ export type WoAbilities = {
   canViewOwnOnly: boolean;
   /** 總務端：看得到內部內容與處理人姓名 */
   gaSide: boolean;
+  /** 可列印內部備註：只有更新／管理類權限；只有 view_all 的人看得到內部內容但不能列印（2026-11-17 使用者決定） */
+  canPrintInternal: boolean;
   canUpdate: boolean;
   readOnly: boolean;
   /** 唯讀原因（白話，缺哪個權限講清楚）；可更新時為 null */
@@ -225,6 +227,7 @@ export function workOrderAbilities(p: Has, opts: { isAdminProfile?: boolean } = 
     canViewAll: viewAll || update,
     canViewOwnOnly: enter && !(viewAll || update),
     gaSide: viewAll || update,
+    canPrintInternal: update,
     canUpdate: update,
     readOnly: !update,
     readOnlyReason,
