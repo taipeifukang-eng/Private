@@ -152,7 +152,13 @@ test('沒有權限沒有入口：只有合作紀錄權限者、店長、只有�
       await openGaCenter(page);
       const labels = await sideLabels(page);
       for (const l of ['廠商資料', '服務分類', '服務區域']) expect(labels, `${key} 不應看到 ${l}`).not.toContain(l);
-      await expect(page.getByTestId('ga-vendor-entry')).toHaveCount(0);
+      // 第 6 批 G22 起首頁廠商入口涵蓋五個廠商頁：只有合作紀錄權限者會看到「合作紀錄」入口（不是廠商資料）；店長與只有入口權限者沒有。
+      if (key === 'coop_only') {
+        await expect(page.getByTestId('ga-vendor-entry')).toHaveCount(1);
+        await expect(page.getByTestId('ga-vendor-entry')).not.toContainText('廠商資料');
+      } else {
+        await expect(page.getByTestId('ga-vendor-entry')).toHaveCount(0);
+      }
       expect(noConsole(errors)).toEqual([]);
     } finally {
       await ctx.close();

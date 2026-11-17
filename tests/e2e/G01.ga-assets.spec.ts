@@ -92,7 +92,11 @@ test('G02 分類畫面：新增、搜尋、子分類、停用被擋並說明原�
     expect((await rowsWhere('ga_equipment_categories', 'code', m7Code('E2EC')))[0].deleted_at).toBeTruthy();
     // 父分類現在可以停用
     await page.getByRole('button', { name: '最上層' }).locator('visible=true').first().click();
+    // 搜尋是延遲送出的：要等「搜尋結果」回來再點，否則會點到切換前殘留的列（用量查詢回「找不到分類」並留下 404 console 錯誤）。
+    const searched = page.waitForResponse((r) => r.request().method() === 'GET' && r.url().includes('/general-affairs/categories?') && r.url().includes('search=' + parentCode));
     await search.fill(parentCode);
+    await searched;
+    await expect(page.locator('tr:visible', { hasText: parentName })).toHaveCount(1);
     await page.locator('tr:visible', { hasText: parentName }).getByRole('button', { name: '停用', exact: true }).click();
     await expect(dialog(page)).toContainText('可以停用');
     await dialog(page).getByRole('button', { name: '確認停用' }).click();

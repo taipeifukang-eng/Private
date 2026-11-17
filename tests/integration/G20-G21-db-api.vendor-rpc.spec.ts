@@ -602,7 +602,8 @@ BEGIN
   RAISE EXCEPTION 'G20DB:ws=%,int=%,def=[%],path=[%],anon=[%],auth=[%],internal=[%]:END', n_ws, n_int, bad_def, bad_path, bad_anon, bad_auth, bad_int;`, 'fnlist');
   const m = /G20DB:(.*?):END/s.exec(out);
   expect(m, out.slice(0, 1500)).not.toBeNull();
-  expect(m![1]).toBe('ws=11,int=15,def=[],path=[],anon=[],auth=[],internal=[]');
+  // ws=12：11 支廠商與分類區域函式 + 第 6 批 G22 的 ga_ws_vendor_perf（名稱同前綴）
+  expect(m![1]).toBe('ws=12,int=15,def=[],path=[],anon=[],auth=[],internal=[]');
 });
 
 test('supabase/test_general_affairs_vendor_permissions_rls.sql 在 DEV 實跑：全部 PASS', async () => {

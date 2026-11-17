@@ -8852,5 +8852,29 @@
     "description": "導覽徽章本身可點：點數字只看待辦（列表筆數等於徽章數字），點選單文字仍看完整列表。",
     "reason": "實作取捨（V9 要求點進去筆數等於數字，未規定選單文字的行為），待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-nav-vendor-stats-capability",
+    "page": "ga-assets",
+    "description": "側欄「合作紀錄」（舊版 vendor-stats）：舊版規則對有服務中心入口的總務、工務角色就列出；新版已移植為廠商績效頁，改成資料庫語意（要有合作紀錄檢視權限才列，頁面與 API 同一組條件），沒有該權限的總務、工務測試角色看不到入口。",
+    "reason": "問卷 V1／V5：績效與合作紀錄給有權限者，選單、頁面、API 共用同一組權限；但舊版總務與工務原本看得到，請使用者確認是否要補授權。",
+    "approvedBy": null,
+    "match": {
+      "entry": "sidebar-visibility",
+      "key": "unexpected:vendor-stats",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-nav-vendor-purchases-capability",
+    "page": "ga-assets",
+    "description": "側欄「採購分析」（舊版 vendor-purchases）：舊版對廠商管理角色就列出；新版已移植為採購分析頁，以採購評估檢視或管理權限為準，只有廠商權限的角色（廠商管理）看不到入口。",
+    "reason": "m7m8-spec Q23：採購分析以採購評估權限為準，問卷已核可。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "sidebar-visibility",
+      "key": "unexpected:vendor-purchases",
+      "kind": "only-legacy"
+    }
   }
 ]

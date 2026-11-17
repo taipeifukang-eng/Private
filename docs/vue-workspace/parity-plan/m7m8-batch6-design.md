@@ -375,3 +375,84 @@
 **待使用者確認**：allowlist 10 項（見上）；舊版店長直讀水電帳單在 45 之後讀不到（41 第 10 區列出人數）；舊版附件上傳本來就失敗的處理方式（插入分支而非整支覆蓋）是否同意。
 
 **回歸（G23 階段，循序重跑，皆連 DEV）**：G18-api（unit 43、20 通過）、G18-ui（unit 23、22 通過）、G16（6）、G17（7）、G25-ui（unit 18、28 通過）結束碼都是 0；G18-db、G25-db、G26-db、G27 未重跑（本階段沒有動第 4、5 批的函式與畫面，只動共用的附件 API 與側欄）。G01 回歸發現三項舊帳（前兩批沒有重跑 G01）並一併修正：`G01.ga-base` 的旗標與頁面 kind 預期沒有加入第 5 批與第 6 批的新旗標（補上）；`G01.ga-assets` 側欄對等比對多出兩項差異（`vendors-list` 在沒有廠商權限的角色上不再列出，屬問卷 Q22／V1 已核可；`utility-bills-list` 是本階段拆出的子項，待確認），已登記 allowlist。**G01 e2e「G02 分類畫面」在這次修改之前就失敗**（把 `lib`、`vue-workspace` 暫時還原成 G20-G21 階段結尾 `c65ed461` 並移除本階段的 5 個畫面檔後重跑同一支測試，桌機仍然失敗、畫面上有「找不到分類」提示、停用對話框沒開；已還原回現狀），與水電網費無關，尚未處理。
+
+
+#### 階段 2：G20 服務分類與區域、G21 廠商資料——畫面（2026-11-17，commit `3eb18a9d`、`c65ed461`）
+- 畫面：`Vendors.vue`（四步驟新增編輯、列表篩選、停用提醒未結單據）、`VendorCategories.vue`、`VendorRegions.vue`（區域樹）、`VendorSelect.vue`、A4 空白廠商表單列印；採購單頁廠商連結改指新版廠商頁（只有廠商管理權限才顯示，其餘顯示「請洽總務新增」）；工單進度表單加廠商下拉（僅總務可選、只列合作中，DEV `105000` 與正式區 47 加 `VENDOR_INACTIVE` 檢查）。
+- 測試：單元 25（`tests/unit/G20-G21-ui`）、smoke 桌機 1440 與手機 390、layout e2e（四步驟、重複統編、名稱相近、版本衝突、停用提醒、A4 列印、工單廠商下拉）、parity（舊版直寫資料表 vs 新版 API）。
+
+#### 階段 4：G22 廠商績效與採購分析、G24 總務首頁與導覽徽章（2026-11-17，commit `1061b135`、`28c777ed`、`a31e90ae`、`d639cd2a`、`292bef1a`、`d68295bd`、`e3afd258`、`f27a93b5`）
+- DEV `120000`：`ga_ws_vendor_perf`（完成數只算 `COMPLETED`＋`STORE_CONFIRMED`、強制結案與未記完成方式另計、未指定另列、資料不足顯示「資料累積中」）、`ga_ws_purchase_analysis`（確定與預估分開、台北月份）、`ga_ws_home_summary`／`ga_ws_home_badges`／`ga_hm_counts`（九項待辦，計數與列表篩選共用同一組 `ga_att_*` 述詞）、索引、`ga_ws_po_list` 加 `attention` 篩選（文字替換，不整支覆蓋）。
+- API：`vendor-stats`、`purchase-analysis`、`home/summary`、`home/badges`；需求單、我的追蹤、採購單、工單列表加 `attention` 篩選；導覽徽章每個選單自己的數字、群組合計、99+、進入頁面與寫入後與每 5 分鐘更新。
+- 正式區草稿 46＋rollback、41 第 11 區（先決、`ga_ws_po_list` 可替換性、九項待辦現況、績效完整度、徽章權限角色）。
+- 測試：DB 整合 18、API 整合 7、單元 17、smoke、layout e2e、parity（對舊版 cost-summary 3 項）、角色劇本 `G21.journey-vendor-chain.e2e`、`G24.journey-store-blocked.e2e`、`G24.journey-home.e2e`（九項徽章數字等於列表總筆數、即時減少、99+），`G23.journey-utility-bill.e2e` 補首頁與徽章斷言（原本的 2 個 `fixme` 已轉為實測）。
+
+### 11.5 驗收紀錄（G20-G24-accept，2026-11-17，只連 DEV mjpd…）
+只連 DEV（`supabase/.temp/project-ref` 以 mjpd 開頭，開跑前確認）；沒有 push、沒有動 `_preview.html` 與 `supabase/migrations`、沒有讀 `.env.local`／`.env.production*`／`*.bak`、沒有連正式區（odvk）。測試一律循序（另一個流程同時在同一個 DEV 上跑回歸，本階段等它完全閒置才開跑，避免兩邊 `cleanupM7M8` 互刪資料）。測試資料只用 VW／ZT 測試門市與 2038／2039 年，標記 `QA-GA6-`；每支結束只清自己的，run-all 的 sweeper 前後孤兒都是 0。
+
+**新增檔案**
+| 檔案 | 內容 |
+|---|---|
+| `tests/unit/G20-G24-accept/acceptance.test.ts` | 驗收靜態檢查：測試編號對應檔案（G20-G24 全部 21 支，含 G21.rls、G23.rls、四支角色劇本）、劇本循序且清自己資料、只用 VW／ZT、不連正式區、allowlist 整份通過驗證器且 `m7m8-b6-` 核可欄位只有兩種值（decision 為 fix 者 null）、41 唯讀、42 至 47 各有 rollback、README 套用順序 41→42→44→47→45→46→43、DEV SQL 各附 rollback 且不在 `supabase/migrations`、本節存在 |
+
+**驗收中發現並修正的舊帳（共 6 項，皆為測試預期或舊帳，不是功能缺陷）**
+1. `G20-G21-db-api.vendor-rpc` 函式目錄檢查寫死「11 支對外函式」：G22 新增 `ga_ws_vendor_perf`（名稱同前綴）後變 12，預期改為 12。
+2. `G20-G21-ui.pages` smoke「沒有權限沒有入口」：G24 起首頁廠商入口涵蓋五個廠商頁，只有合作紀錄權限者會看到「合作紀錄」入口（不是廠商資料），預期改為該角色 1 個、其他 0 個。
+3. `G01.ga-base`：旗標與頁面 kind 預期漏掉 G22 新增的 `gaPurchaseAnalysis`、`gaVendorStats` 與 `ga-purchase-analysis`，補上。
+4. `G01.ga-assets` 側欄對等：舊版 `vendor-stats`（合作紀錄，總務與工務角色）與 `vendor-purchases`（採購分析，廠商管理角色）移植後改成資料庫語意，這兩個舊版入口在沒有對應權限的測試角色上不再列出，登記 allowlist：`m7m8-b6-nav-vendor-stats-capability`（待使用者確認）、`m7m8-b6-nav-vendor-purchases-capability`（Q23 採購分析以採購評估權限為準，已核可）。
+5. `G01.ga-assets`「G02 分類畫面」e2e 失敗（G20-G21 階段起就出現，三次整頁重跑桌機或手機輪流失敗）：用 trace 查出測試在「最上層 → 搜尋」後立刻點停用，搜尋是延遲送出，點到的是切換前殘留的列，用量查詢對已刪除的子分類回 404（畫面出現「找不到分類」並留下 console 錯誤）。處理：測試改為等搜尋結果回來且只剩一列才點；修正後 G01 e2e 桌機與手機都通過。畫面本身在載入中仍可點到殘留列，屬小問題，列為未完成事項。
+6. 另一個流程在同一個 DEV 上並行跑回歸，會互相清除測試資料；已改為等其閒置後再循序執行。
+
+**Definition of Done 驗收清單（`parity-plan/README.md`）**
+| 項目 | 結果 |
+|---|---|
+| 功能 | 舊版廠商、分類、區域、廠商統計、採購分析、水電網費、服務中心首頁的使用者可見功能都在新版；與舊版不同處共 21 條設計差異＋allowlist 條目（見 §7） |
+| 導覽 | `page-kinds.ts`、`access.ts`、`nav.ts`（`GA_PAGE_BY_HREF` 36 項）、`navigation.ts`、`stores.ts`、`workspace-pages.ts` 已登記，G01 與 T03 單元驗證 |
+| 靜態檢查 | `npx tsc --noEmit` 無錯誤；`vue-workspace` 內 `vue-tsc --noEmit` 無錯誤（在專案根目錄直接跑 `vue-tsc` 會掃到 Next 的 `app/layout.tsx` 而報 `globals.css` 找不到型別，與本批無關，正式指令是 `vue-workspace` 的 build） |
+| 單元測試 | G20-G21-db-api 45、G20-G21-ui 29、G22-G24 17、G23 53、驗收 29，皆全綠；全部 unit 126 檔 2056 項全綠 |
+| 冒煙測試 | G20-G21、G22-G24、G23 smoke 桌機 1440 與手機 390 全過；無權限帳號沒有入口、API 回 403／401 |
+| 整合測試 | G20-G21 資料庫函式 22、API 9、`G21.rls` 6；G22-G24 DB 18、API 7；G23 `rpc` 16、`api` 11、`G23.rls` 4；每支寫入驗權限矩陣、Origin、400、409（STALE 或確認）或冪等，並以 service role 回讀 |
+| E2E | 桌機 1440 與手機 390：G20-G21 四步驟與列印、G22-G24 首頁與徽章與績效與採購分析、G23 帳單；四支角色接力劇本（`G21.journey-vendor-chain`、`G23.journey-utility-bill`、`G24.journey-store-blocked`、`G24.journey-home`）走到結案與徽章數字等於列表筆數，含空資料與失敗分支 |
+| 對等 | `m7m8-b6-` allowlist 共 75 條：已核可 48、待使用者確認（`approvedBy` null）27；驗證器通過、沒有未列白名單的差異；對舊版比對：廠商直寫、採購評估成本摘要 3 項、水電帳單 5 項 |
+| 資料衛生 | 每支測試結束只清自己的（`cleanupM7M8`，擴充清除 `QA-GA6-` 廠商、分類、區域、帳單與附件）；sweeper 前後孤兒 0 |
+| 安全 | 守衛通過、只連 DEV；日誌、報表與 commit 沒有密碼、JWT、cookie 或金鑰 |
+| 回歸 | 第 4 批 G16、G17、G25-db、G25-ui、G26-db、G27，第 5 批 G18-api、G18-db、G18-ui、G18-e2e 循序重跑結束碼皆 0（因本批改到採購評估讀廠商與工單廠商下拉）；G01 見上（發現 3 項舊帳，已修） |
+| 審查 | 見最終回報（Sonnet 子代理審查由主迴圈安排） |
+
+**測試數字（`node tests/run-all.cjs --layers all --page <編號>`，循序，結束碼 0；sweeper 前後孤兒皆 0）**
+| 編號 | 單元 | Playwright | 備註 |
+|---|---|---|---|
+| G20-G21-db-api | 45 | 37 | `vendor-rpc` 22、`vendors-api` 9、`rls` 6 |
+| G20-G21-ui | 29 | 23 | smoke、layout、parity |
+| G22-G24 | 17 | 46 | DB 18、API 7、smoke、layout、parity、三支劇本 |
+| G23 | 53 | 56 | 全過、0 個略過（先前 2 個 `fixme` 已由 G24 補上首頁與徽章斷言） |
+| G16 | — | 6（2 略過） | 回歸 |
+| G17 | — | 7（1 略過） | 回歸 |
+| G18-api | 43 | 20 | 回歸 |
+| G18-db | 28 | 24 | 回歸 |
+| G18-ui | 23 | 22 | 回歸 |
+| G18-e2e | 23 | 38（16 略過：劇本固定桌機＋店長手機） | 回歸 |
+| G25-db | 43 | 21 | 回歸 |
+| G25-ui | 18 | 28 | 回歸 |
+| G26-db | 37 | 22 | 回歸 |
+| G27 | 13 | 17（3 略過） | 回歸 |
+
+**run-all**：以上每個編號都是一次 run-all 呼叫；第一輪 G20-G21-db-api、G20-G21-ui 與 G01 的失敗見「發現並修正的舊帳」，修正後重跑全過。沒有執行整夜的 `test:all`（所有頁面編號已逐一跑過）。
+
+**上線前名單（DEV 實測見 §11.1；正式區要用 41 號預覽重跑，只列角色代碼與人數）**
+- 41 第 3 區重複統編、第 4 區重複 code：有就先整理，42 的唯一索引才會成功。
+- 41 第 5 區三張表與第 10 區水電帳單的現行政策全文：**先存檔**，43 與 45 的撤回照這份。
+- 41 第 6、7 區：套 43 後哪些角色與人讀不到廠商表（DEV：既有總務、工務測試角色沒有廠商權限；店長類角色只有入口權限）；第 8 區只靠需求單權限看採購分析的名單（46 後採購分析只認採購評估權限）。**名單與補授權確認前不得套 43，且最後套。**
+- 41 第 10 區：45 之後舊版店長讀不到水電帳單，列出人數。
+- 41 第 11 區：`ga_ws_po_list` 不是 WARN、九項待辦現況數字（歷史單據沒清時徽章會很大）、績效資料完整度（舊工單沒綁廠商，一開始大多「資料累積中」）。
+- 套用順序：`41 → 42 → 44 → 47 → 45 → 46 → 驗收 → 使用者確認名單 → 43`；撤回順序相反。經使用者核可前不執行，先備份。
+
+**待使用者確認**
+- 設計 §9 備註三點：(1) 需求單「待總務複核」（`WAITING_GA_REVIEW`）不計入徽章；(2) 工單徽章只算門市退回（`REOPENED`）；(3) 採購單選單徽章是「待核准」與「逾期未到貨」的聯集。
+- allowlist 待確認 27 條（`approvedBy` 為 null），分布：廠商 5、分類與區域 2、需求單 2、水電帳單 10、其他 8（側欄 2、採購分析 1、首頁 3、工單 1、採購單 1）；清單在 `tests/parity/allowlist.json` 與 `tests/unit/T02/parity-framework.test.ts` 的待核可清單。
+- 另外：舊版店長直讀水電帳單套 45 後讀不到；水電附件「插入分支而非整支覆蓋」的做法；`G02 分類畫面` 競態是否要修。
+
+**未完成／限制**
+- 沒有做 1920×1080 截圖上傳：本階段沒有確認 Remote Control 已開啟，且測試站與 DEV 被回歸測試獨占；版面以 layout e2e（桌機 1440、手機 390）與 A4 列印預覽（G20-G21 layout）檢查，沒有版面破損或 console 錯誤。
+- 管理員沒有任何角色時只看得到唯讀說明，沒有另做專屬畫面（沿用第 5 批）。
+- 分類畫面「切回最上層並搜尋、結果載入前」仍可點到殘留的列（點到會顯示「找不到分類」，不會寫入資料），本階段只修測試，畫面未修。
