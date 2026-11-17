@@ -1,0 +1,28 @@
+{
+  "page": "ga-purchase-analysis",
+  "legacyRoute": "/general-affairs/vendors/purchases",
+  "workItem": "G22",
+  "entries": [
+    {
+      "id": "cost-summary-read",
+      "mechanism": "api-read",
+      "description": "採購分析：同一個登入者（採購評估管理）、同一個月份，舊版 GET /api/general-affairs/purchase-reviews/cost-summary（只看採購評估、依建立日的 UTC 月份、最多 500 筆、只列前 5 名）與新版 GET /purchase-analysis（以採購單為主、確定與預估分開、台北月份、伺服端完整彙總）。只有舊採購評估（沒有對應採購單）時，新版「預估：舊採購評估」的金額、筆數、未填金額筆數必須與舊版相同；其餘結構差異逐一登記。",
+      "legacy": { "api": { "path": "/api/general-affairs/purchase-reviews/cost-summary" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/purchase-analysis" } }
+    },
+    {
+      "id": "cost-summary-permission",
+      "mechanism": "api-read",
+      "description": "採購分析權限：舊版只要有需求單管理或查看全部就放行（canReadPurchaseReviews 含 canManageServiceRequests）；新版以採購評估檢視／管理為準，只有需求單管理者新版回 403。",
+      "legacy": { "api": { "path": "/api/general-affairs/purchase-reviews/cost-summary" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/purchase-analysis" } }
+    },
+    {
+      "id": "cost-summary-month-boundary",
+      "mechanism": "api-read",
+      "description": "月份邊界：舊版用 UTC 月初到月底切月份，新版依台北時間。台北 1 月 1 日凌晨 1 點建立的評估，舊版算在 12 月、新版算在 1 月。",
+      "legacy": { "api": { "path": "/api/general-affairs/purchase-reviews/cost-summary" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/purchase-analysis" } }
+    }
+  ]
+}

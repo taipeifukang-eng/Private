@@ -8676,5 +8676,181 @@
       "key": "native-only:utility-bills-list",
       "kind": "only-native"
     }
+  },
+  {
+    "id": "m7m8-b6-pa-basis-po-primary",
+    "page": "ga-purchase-analysis",
+    "description": "採購分析改以採購單為主：已下訂的採購單才算確定金額（月份依下訂日），尚未下訂的草稿與舊採購評估只列預估；舊版只看採購評估（建立日、金額以最終／議價／報價／預估順序取一個）。",
+    "reason": "m7m8-spec Q24 已核可：採購分析確定與預估分開、以採購單為主。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "basis",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-confirmed-estimated-split",
+    "page": "ga-purchase-analysis",
+    "description": "新版回 confirmed（確定金額、含稅與未稅小計、已到貨實收）與 estimated（尚未下訂的採購單、舊採購評估）兩組；舊版只有一個混合總額。",
+    "reason": "m7m8-spec Q24 已核可：確定與預估分開。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#confirmed",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-rank-by-vendor-all",
+    "page": "ga-purchase-analysis",
+    "description": "新版廠商排名由資料庫完整彙總（以採購單快照名稱為準），畫面預設前 5 名、可展開全部；舊版只列前 5 名且最多讀 500 筆評估。",
+    "reason": "m7m8-spec Q24 已核可：分頁讀完、排名可展開全部、廠商以快照為準。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#by_vendor",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-rank-by-store-all",
+    "page": "ga-purchase-analysis",
+    "description": "新版門市排名來自採購單的來源需求單（或品項指定門市），可展開全部；舊版依採購評估的需求單門市，只列前 5 名。",
+    "reason": "m7m8-spec Q24 已核可：分頁讀完、排名可展開全部。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#by_store",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-orders-paged-list",
+    "page": "ga-purchase-analysis",
+    "description": "新版多回該月已下訂採購單的分頁清單（orders、orders_total、每頁最多 100 筆），超過 500 筆也完整讀完；舊版沒有清單。",
+    "reason": "m7m8-spec Q24 已核可：分頁讀完。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#orders",
+      "kind": "only-native"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-legacy-top-vendors-top5",
+    "page": "ga-purchase-analysis",
+    "description": "舊版回 topVendors（採購評估的廠商前 5 名）；新版改用 by_vendor（採購單、完整排名）。",
+    "reason": "m7m8-spec Q24 已核可：以採購單為主。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#topVendors",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-legacy-top-stores-top5",
+    "page": "ga-purchase-analysis",
+    "description": "舊版回 topStores（採購評估的門市前 5 名）；新版改用 by_store（採購單、完整排名）。",
+    "reason": "m7m8-spec Q24 已核可：以採購單為主。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#topStores",
+      "kind": "only-legacy"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-permission-review-only",
+    "page": "ga-purchase-analysis",
+    "description": "採購分析權限以採購評估檢視／管理為準：舊版只要有需求單管理或查看全部就放行，新版對只有需求單管理者回 403。",
+    "reason": "m7m8-spec Q24 已核可：採購分析權限以採購評估為準（設計 §3.6：不再因需求單權限放行）。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-permission",
+      "key": "status#rq_manager",
+      "kind": "status"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-month-taipei",
+    "page": "ga-purchase-analysis",
+    "description": "月份邊界依台北時間：台北 1 月 1 日凌晨 1 點建立的評估，舊版（UTC）算 12 月、新版算 1 月；確定金額依下訂日（台北）。",
+    "reason": "設計 §3.4 已決定：月份依下訂日（台北），與全系統台北日界線一致。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)",
+    "match": {
+      "entry": "cost-summary-month-boundary",
+      "key": "month-boundary#count",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-pa-response-shape",
+    "page": "ga-purchase-analysis",
+    "description": "新版回應格式與舊版不同：year_month 取代 yearMonth、舊評估金額放在 estimated.legacy_reviews、多回 generated_at／orders_total／page／page_size／meta，不回 success 與 amountFilledCount。",
+    "reason": "新版 API 沿用工作區統一格式（{data, meta}，錯誤用 HTTP 狀態碼），屬實作取捨，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "shape",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m7m8-b6-home-attention-badges",
+    "page": "ga-center",
+    "description": "首頁「待我處理」九項與導覽徽章（各選單自己的數字、首頁合計、99+、每 5 分鐘與進入、切換頁面、寫入後更新）；舊版第二套首頁邏輯不移植、舊版沒有徽章。",
+    "reason": "問卷 V9、m7m8-spec Q24、C11 已核可。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-performance-real-documents",
+    "page": "ga-vendor-stats",
+    "description": "績效由真實工單與採購單計算：完成數只算 COMPLETED＋STORE_CONFIRMED，強制結案與未記完成方式另計，平均天數為受理到完成，未指定另列，資料不足顯示「資料累積中」，不顯示評價；舊版績效欄位永遠是 0 或乘 0.86。",
+    "reason": "問卷 V5、m7m8-spec Q24 已核可。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-wo-vendor-dropdown-ga-only",
+    "page": "ga-work-orders",
+    "description": "工單進度表單新增廠商下拉（僅總務有工單更新或管理權限者可選、只列合作中、留白不清掉原廠商）。",
+    "reason": "問卷 V5 已核可（第 5 批延後項）。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-home-negative-stock-full-count",
+    "page": "ga-center",
+    "description": "首頁庫存區的負庫存與低庫存由資料庫完整計數（不受 500 筆上限影響）；允許負庫存的位置另列、不算異常。",
+    "reason": "設計 §3.5 新發現的完整計算與位置規則，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-home-ga-review-not-counted",
+    "page": "ga-center",
+    "description": "需求單「待總務複核」（WAITING_GA_REVIEW）不計入待辦與徽章（V9 清單沒有列）。",
+    "reason": "設計 §9 備註 (a)，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-home-wo-badge-reopened-only",
+    "page": "ga-work-orders",
+    "description": "工單徽章只算門市退回（PROCESSING＋REOPENED）；等待門市確認、等待料件等進行中不計入。",
+    "reason": "設計 §9 備註 (b)，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-home-po-menu-union",
+    "page": "ga-purchase-orders",
+    "description": "採購單選單徽章是待核准（有核准權限者）與逾期未到貨的聯集；待簽核選單徽章只算待核准。",
+    "reason": "設計 §9 備註 (c)，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-nav-badge-click-attention",
+    "page": "ga-center",
+    "description": "導覽徽章本身可點：點數字只看待辦（列表筆數等於徽章數字），點選單文字仍看完整列表。",
+    "reason": "實作取捨（V9 要求點進去筆數等於數字，未規定選單文字的行為），待使用者確認。",
+    "approvedBy": null
   }
 ]
