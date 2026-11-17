@@ -8095,5 +8095,117 @@
       "kind": "only-native",
       "key": "top#permissions"
     }
+  },
+  {
+    "id": "m7m8-b6-rls-vendor-tables-strict",
+    "page": "ga-vendors",
+    "description": "廠商、服務分類、服務區域改走伺服端函式與細項權限：廠商資料表只有廠商檢視／管理讀得到、廠商管理才能寫；分類與區域讀取給自己的檢視／管理與廠商檢視／管理、寫入只給自己的管理；沒有任何人能直接刪除。舊版（DEV 實測）有服務中心入口（含店長）就能讀寫全部。",
+    "reason": "問卷 Q22、V1：廠商寫入走伺服端並檢查細項權限；店長不可讀寫廠商。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-billing-masking",
+    "page": "ga-vendors",
+    "description": "統編、帳務抬頭與地址、發票類型、付款條件與方式、帳務備註、累計金額只給廠商檢視／管理權限者；只有分類區域或合作紀錄權限者看不到廠商列表與詳情，下拉也沒有這些欄位。由資料庫函式遮蔽（欄位根本不回傳）。",
+    "reason": "問卷 V1（嚴格）。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-edit-status-no-delete",
+    "page": "ga-vendors",
+    "description": "廠商可編輯與停用（合作中、暫停、停用），不能刪除；分類與區域可編輯不可刪除、代碼建立後鎖定、上層禁止循環、停用後仍顯示名稱。舊版廠商只能新增、分類沒有刪除也沒有鎖定。",
+    "reason": "問卷 Q22：加編輯不加刪除、不合作改停用。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-tax-dup-similar-name-errors",
+    "page": "ga-vendors",
+    "description": "統編重複擋下（含停用廠商、全形與空白標準化後相同），回應指出既有那一家；名稱與別名相近只提醒可儲存；統編檢查碼不符只提醒；失敗一律顯示明確原因（舊版一律「此功能尚未在目前測試環境開放」）。編輯必帶版本，被他人先改回 409。",
+    "reason": "問卷 Q22。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-fake-attachment-removed",
+    "page": "ga-vendors",
+    "description": "新增廠商不再有附件步驟（舊版只存檔名、檔案沒上傳）；既有檔名保留並唯讀顯示為「既有檔名（未存檔）」。",
+    "reason": "問卷 Q22：移除假附件欄位、既有檔名保留。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-options-contact",
+    "page": "ga-work-orders",
+    "description": "廠商下拉（工單、需求單採購評估頁）附聯絡人與電話，只列合作中；已選但已暫停或停用的廠商仍能帶出並標示狀態；統編與付款條件仍依廠商檢視／管理權限遮蔽。",
+    "reason": "問卷 V2、V3。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-inactive-new-docs",
+    "page": "ga-vendors",
+    "description": "停用或暫停廠商時，若還有未結採購單或進行中工單，只提醒筆數不擋；已下訂的採購單仍可收貨結案，新單不能再選。",
+    "reason": "問卷 V3。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-contract-default-false",
+    "page": "ga-vendors",
+    "description": "「需簽合約」與「優先廠商」預設改為否（舊版資料庫預設為是）；DEV 既有廠商一次性改為否；合約到期提醒只看合作中＋需簽合約＋有到期日。",
+    "reason": "問卷 V4。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-rating-fields-hidden",
+    "page": "ga-vendors",
+    "description": "廠商不再回傳評價、評價數、累計工單數、本月訂單數、平均天數（全 repo 沒有更新來源，永遠 0），績效改由真實單據即時計算（後續階段）；累計金額只給可看帳務者。",
+    "reason": "問卷 Q24、V5：績效由真實單據計算、評價不顯示。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-permissions-single-source",
+    "page": "ga-vendors",
+    "description": "選單、頁面、API 與資料庫共用同一組權限判斷（廠商檢視／管理、分類區域檢視／管理、合作紀錄檢視）；管理員（profiles.role = admin）沒有角色時不繞過資料庫權限，只作導覽與唯讀保底。舊版側欄「任一廠商相關權限即可見」與資料實際可讀不一致。",
+    "reason": "通則：權限語意以正式區 has_permission 為準。",
+    "approvedBy": "user (2026-11-17 batch 6 spec survey)"
+  },
+  {
+    "id": "m7m8-b6-vendor-payment-terms-structured-hint",
+    "page": "ga-vendors",
+    "description": "付款條件仍是自由文字（最長 100 字），不做結構化選項（舊版是下拉三選一文字）；畫面僅提供常用範本提示。",
+    "reason": "實作取捨，問卷未涵蓋，待使用者確認；若要結構化（月結天數、付款方式）需另開資料欄位。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-vendor-tax-required-on-create",
+    "page": "ga-vendors",
+    "description": "新增公司或工作室類型的廠商時統一編號必填（8 碼數字），個人類型可留空；編輯時統編沒變動就不重新檢查（避免歷史重複或缺漏資料擋住不相關的編輯）。",
+    "reason": "問卷 Q22 寫「個人類型可留空」，是否要求公司必填屬實作解讀，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-svc-code-unique-index",
+    "page": "ga-service-categories",
+    "description": "服務分類與服務區域的代碼加唯一索引（DEV 資料表原本沒有唯一約束，舊版 migration 的 ON CONFLICT 需要它）；代碼建立後鎖定、轉大寫、格式限英數底線連字號最長 30 字。",
+    "reason": "實作需要（縣市行政區固定資料冪等），正式區套用前要先確認沒有重複代碼；待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-region-seed-adds-parents-no-overwrite",
+    "page": "ga-service-categories",
+    "description": "縣市行政區固定資料補上來源檔所依賴的台灣與北中南東四大區，並改成「已存在就不動」（來源檔是「已存在就覆蓋並重新啟用」），避免覆蓋總務事後的編輯與停用。",
+    "reason": "實作取捨，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-review-vendor-embed-via-options",
+    "page": "ga-requests",
+    "description": "第 4 批需求單採購評估頁：廠商下拉與評估單上已選廠商改由伺服端廠商選項函式取得（原本用使用者身分直接讀廠商資料表，收緊後無廠商權限的採購人員會變空）；已選廠商若已停用仍帶出並標示狀態。",
+    "reason": "設計 3.1 必修連鎖點；內嵌查詢的連帶修改為實作發現，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b6-legacy-purchase-review-vendors-empty",
+    "page": "ga-requests",
+    "description": "舊版需求單採購評估 API（purchase-reviews）直接讀廠商資料表：RLS 收緊後，沒有廠商檢視／管理權限者的廠商下拉會是空的；依「舊頁不動」不修改。",
+    "reason": "新發現，列上線風險；待使用者確認（上線前要補授權或接受舊頁下拉為空）。",
+    "approvedBy": null
   }
 ]

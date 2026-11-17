@@ -314,4 +314,31 @@
 | 索引 | `maintenance_requests(vendor_id, reported_at)`、`ga_purchase_orders(vendor_id, ordered_at)` 目前沒有索引；需求單已有 `waiting_confirm_since` 部分索引 | 120000 補索引（§5.1） |
 
 ### 11.2 實作進度
-（尚未開工；各階段完成後在此記錄）
+
+#### 階段 1：G20 服務分類與區域、G21 廠商資料——資料庫與伺服端（2026-11-17，只用 DEV mjpd…，未連正式區、未 push、未動 supabase/migrations 與 `_preview.html`）
+**DEV SQL（`supabase/workspace-dev/`，皆附 `.rollback.sql`，套用腳本 `scripts/apply-workspace-m7m8-b6-dev.cjs [--rollback]`，順序 090000 → 100000 → 110000 → 120000 → 130000，檔案不存在就略過；已套用並重複套用確認冪等）**
+| 檔案 | 內容 |
+|---|---|
+| `20261118090000_m7m8_b6_vendor_columns_rls` | 先決檢查；13 欄 `IF NOT EXISTS`；廠商、分類、區域加 `updated_by`；`contract_required`、`preferred_vendor` 預設改 false，DEV 既有那 1 筆廠商設 false（只在預設值還是 true 時一次性執行，重複套用不會改回去）；分類與區域 `code` 唯一索引（DEV 原本沒有唯一約束，來源檔的 `ON CONFLICT (code)` 需要它）；合約到期部分索引；RLS 收緊：廠商讀＝`vendor.view/manage`、寫＝`vendor.manage`；分類與區域讀＝自己的 view/manage 加 `vendor.view/manage`、寫＝自己的 manage；三張表一律沒有 DELETE 與 FOR ALL 政策；縣市行政區固定資料（22 縣市、368 行政區，加來源檔所依賴的「台灣」與北中南東四大區，`ON CONFLICT DO NOTHING`，DEV 區域表從 1 筆變 397 筆）。套用前政策原文備份在 `_backup/20261118_b6_vendor_policies_before_b6.sql`，rollback 依此還原 |
+| `20261118100000_m7m8_b6_vendor_rpc` | 11 支對外函式：`ga_ws_vendor_list/get/save/set_status/options`、`ga_ws_svc_category_list/get/save`、`ga_ws_svc_region_list/get/save`；15 支內部輔助 `ga_vd_*`（權限、統編標準化與檢查碼、名稱正規化、欄位解析、樹狀循環、合約到期述詞、廠商 JSON）。SECURITY DEFINER、固定 search_path、只用 `has_permission(auth.uid(), 碼)`、回 `{ok,status,data,error,code,…}`；沒有任何刪除函式 |
+| `20261118130000_m7m8_b6_dev_seed` | 6 個 DEV 測試角色 `vue_workspace_ga6_{vendor_mgr,cat_only,coop_only,util_mgr,util_view,ga_all}`（套用前已查 roles 表與 role-matrix，無撞名；既有 `vue_workspace_ga_*` 不動）。尚無 110000、120000（後續階段） |
+| `supabase/test_general_affairs_vendor_permissions_rls.sql` | 改成第 6 批收緊版的 8 項檢查（權限碼、9 條政策、無 DELETE／ALL、廠商只用廠商權限、寫入只給 manage、分類區域讀寫、函式授權），在 DEV 實跑全 PASS（舊版檢查舊政策形狀，不再適用） |
+
+**伺服端（`lib/workspace/general-affairs/`）**：`vendor-rules.ts`（權限常數與 abilities、八個機密欄位清單、`maskVendor`／`maskVendorOption`、統編標準化與檢查碼、名稱相近、樹狀循環、合約到期、篩選整形）、`vendor-messages.ts`（錯誤碼白話與提醒文字）、`vendors.ts`（`vendors`、`vendors/:id`、`vendors/:id/status`、`vendor-options`、`fetchVendorOptions`）、`service-categories.ts`、`service-regions.ts`；`router.ts` 登錄四條路由。非 GET 檢查 Origin、未登入 401、寫入必帶 `expected_updated_at`（缺 400、不符 409 `STALE`）、`pageSize ≤ 100` 回 `{data,total,meta}`、無 DELETE（405）。**連鎖修改**：`requests.ts` 的需求單採購評估頁廠商下拉改走 `ga_ws_vendor_options`（`fetchVendorOptions`），並把評估單上目前選的廠商（原本是對 `ga_vendors` 的內嵌查詢，RLS 收緊後會變 null，設計 3.1 漏列）改由 `includeIds` 取回，已停用也帶出並標示狀態。
+
+**自行決定之處**
+1. 分類與區域下拉的資料範圍：持廠商檢視／管理但沒有分類區域權限者，只讀得到「啟用」的項目（唯讀，供廠商表單）；`options=1` 一次回全部（上限 2000）。
+2. 新增公司／工作室的統編必填、個人可空（Q22 只寫「個人可留空」）；編輯時統編沒變動就不重查（避免歷史重複資料擋住不相關的編輯）。登記 allowlist（待確認）。
+3. 區域固定資料補上「台灣」與四大區（來源檔 `ON CONFLICT DO UPDATE` 會覆蓋總務編輯並重新啟用，改成 `DO NOTHING`）；四大區的上層維持 NULL（與原檔一致）。登記 allowlist（待確認）。
+4. 廠商停用提醒的「未結採購單」用 `DRAFT/PENDING_APPROVAL/APPROVED/ORDERED/PARTIALLY_RECEIVED`，「進行中工單」用 `maintenance_requests.status <> 'COMPLETED'`；同狀態重複設定不寫入、`updated_at` 不變（冪等）。
+5. 廠商 JSON 完整版不回傳 `rating`、`review_count`、`work_order_count`、`monthly_order_count`、`avg_days`（永遠為 0，V5 評價不顯示）；`attachment_names` 唯讀、新增與編輯都不能寫。
+6. 與設計 3.1 的差異：設計寫「資料表 RLS 只留 vendor.view/manage」，實際分類與區域表另保留自己的檢視／管理（頁面本來就要讀），廠商表才是只留廠商權限。
+7. 廠商列表函式的每列含 `tax_id`（只有廠商檢視／管理才呼叫得到），列表搜尋也可搜統編；其他人的下拉不含統編與付款條件。
+
+**測試（測試 ID 前綴 `G20-G21-db-api`，`npm run test:page -- G20-G21-db-api` 循序）**
+- unit（`tests/unit/G20-G21-db-api/`）：45 項。`vendor-rules.test.ts` 25 項（統編標準化與檢查碼含第 7 碼特例、名稱相近、八欄遮蔽、權限能力、樹狀循環、合約到期 30 天邊界與台北今日、篩選與版本整形、錯誤碼白話）；`vendor-sql.test.ts` 20 項（檔案與 rollback、套用腳本順序與只連 DEV、RLS 政策文字、縣市行政區與來源檔逐條一致與冪等、函式授權與 search_path、只用 `has_permission`、機密欄位只在完整版 JSON、無刪除、TS 與 SQL 規則對齊、測試角色）。T02 allowlist 待核可清單新增 6 項。
+- integration（`tests/integration/`）：`G20-G21-db-api.vendor-rpc`（22，資料庫函式：權限矩陣 14 種身分、400 驗證、統編唯一含停用與全形與並行、提醒、STALE 含並行、停用提醒、列表與篩選與合約到期、下拉遮蔽、分類與區域全規則、BEGIN…ROLLBACK 目錄與規則、函式授權目錄、`test_general_affairs_vendor_permissions_rls.sql` 實跑）、`G20-G21-db-api.vendors-api`（9，API：401／Origin 403／矩陣／400／409／405／回讀／機密欄位不外洩／需求單採購評估頁連鎖）、`G20-G21-db-api.rls`（6，真實角色直連資料表：店長、只有分類區域、只有合作紀錄、廠商檢視、廠商管理、總務全套、舊式管理員）。
+- 測試資料一律 `QA-GA6-` 標記（廠商名稱、分類與區域代碼）、只用 VW／ZT 測試門市；`cleanupM7M8` 擴充清除（先刪子層）；sweeper 新增三個回報目標；結束後 DEV 沒有殘留。
+- 本階段沒有 Vue 頁面（階段 2），不需 vue build 與 `public/workspace` 同步；smoke、parity 對舊 API 比對與 e2e 劇本在後續階段。
+
+**待使用者確認**：allowlist 6 項（付款條件仍為自由文字、公司統編必填、code 唯一索引、區域固定資料取捨、需求單採購評估頁內嵌改寫、舊版 purchase-review API 收緊後對無廠商權限者空白）。
