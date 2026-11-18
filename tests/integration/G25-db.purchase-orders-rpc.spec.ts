@@ -353,7 +353,7 @@ test('供應商：下訂寫入名稱、統編、付款條件快照；廠商改�
   expect(optsAll.data.every((x: any) => x.tax_id === null && x.payment_terms === null)).toBe(true);
   expect(optsAll.billing_visible).toBe(false);
   const optsBilling = await fn('purchaser_vendor', 'ga_ws_po_vendor_options', { p_q: vendor.name });
-  expect(optsBilling.data.find((x: any) => x.id === vendor.id)).toMatchObject({ tax_id: '12345678', payment_terms: '月結 30 天' });
+  expect(optsBilling.data.find((x: any) => x.id === vendor.id)).toMatchObject({ tax_id: vendor.tax_id, payment_terms: '月結 30 天' });
   expect(optsBilling.billing_visible).toBe(true);
   expect((await fn('purchaser', 'ga_ws_po_vendor_options', { p_page_size: 1000 })).page_size).toBe(100);
   // 沒有名字相符的搜尋、% 與 _ 不當萬用字元

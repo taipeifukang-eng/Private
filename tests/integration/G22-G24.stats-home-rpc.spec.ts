@@ -319,7 +319,7 @@ test('績效：完成數只算 COMPLETED＋STORE_CONFIRMED；強制結案與未�
   expect(lim.data.summary).toMatchObject({ wo_total: 6, wo_with_vendor: 5, po_amount_total: null });
   expect(lim.data.rows).toHaveLength(d.rows.length - 1);
   for (const x of lim.data.rows) expect(x.po_amount).toBeNull();
-  expect(JSON.stringify(lim.data)).not.toMatch(/3150|3650|2100/);
+  expect(JSON.stringify(lim.data)).not.toMatch(/"po_(amount|amount_total|count)":\s*-?\d/);
   // 不含任何帳務機密欄位與評價
   const text = JSON.stringify(d);
   for (const k of ['tax_id', 'billing_title', 'payment_terms', 'rating', 'review_count']) expect(text, k).not.toContain(`"${k}"`);

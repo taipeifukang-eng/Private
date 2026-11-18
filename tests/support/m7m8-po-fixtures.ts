@@ -173,10 +173,15 @@ export async function setupPoUsers(keys: PoKey[]): Promise<{ users: Record<strin
 }
 
 // ------------------------------------------------------------------ 種子資料
+/** 統編有部分唯一索引（ga_vendors_tax_id_norm_uidx）：測試廠商每次都用不重複的 8 碼（9 開頭），避免撞到 DEV 既有廠商或其他測試。 */
+export function uniqueTaxId(): string {
+  return String(90000000 + Math.floor(Math.random() * 9999999));
+}
+
 /** 供應商（ga_vendors）：名稱帶標記，cleanup 以名稱清除。 */
 export async function seedVendor(suffix: string, over: Record<string, unknown> = {}) {
   return must(
-    await adminDb().from('ga_vendors').insert({ name: m7Name(`V-${suffix}`), vendor_type: 'company', status: 'active', tax_id: '12345678', payment_terms: '月結 30 天', ...over }).select('*').single(),
+    await adminDb().from('ga_vendors').insert({ name: m7Name(`V-${suffix}`), vendor_type: 'company', status: 'active', tax_id: uniqueTaxId(), payment_terms: '月結 30 天', ...over }).select('*').single(),
     `建立供應商 ${suffix}`,
   ) as any;
 }

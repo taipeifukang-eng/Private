@@ -71,14 +71,14 @@ rows_out AS (
          COALESCE((SELECT count(*)::text FROM public.ga_vendors v WHERE to_jsonb(v) ->> 'contract_required' = 'true'), '0'),
          CASE WHEN COALESCE((SELECT count(*) FROM public.ga_vendors v WHERE to_jsonb(v) ->> 'contract_required' = 'true'), 0) > 0 THEN 'WARN' ELSE 'INFO' END
   UNION ALL
-  SELECT 2, '2 廠商表現況', '已有統編的廠商數', (SELECT count(*)::text FROM public.ga_vendors WHERE nullif(btrim(tax_id), '') IS NOT NULL), 'INFO'
+  SELECT 2, '2 廠商表現況', '已有統編的廠商數', (SELECT count(*)::text FROM public.ga_vendors WHERE regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') <> ''), 'INFO'
   -- 3. 重複統編（標準化：去空白、全形轉半角）
   UNION ALL
   SELECT 3, '3 重複統編', 'tax_id=' || d.tax || '（' || d.n || ' 家）', d.names, 'WARN'
     FROM (SELECT regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') AS tax, count(*) AS n, string_agg(name || '（' || status || '）', '、' ORDER BY name) AS names
-            FROM public.ga_vendors WHERE nullif(btrim(tax_id), '') IS NOT NULL GROUP BY 1 HAVING count(*) > 1) d
+            FROM public.ga_vendors WHERE regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') <> '' GROUP BY 1 HAVING count(*) > 1) d
   UNION ALL
-  SELECT 3, '3 重複統編', '重複統編組數', (SELECT count(*)::text FROM (SELECT 1 FROM public.ga_vendors WHERE nullif(btrim(tax_id), '') IS NOT NULL GROUP BY regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') HAVING count(*) > 1) x), 'INFO'
+  SELECT 3, '3 重複統編', '重複統編組數', (SELECT count(*)::text FROM (SELECT 1 FROM public.ga_vendors WHERE regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') <> '' GROUP BY regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') HAVING count(*) > 1) x), 'INFO'
   -- 4. 分類與區域 code 重複（會讓 42 的唯一索引失敗）與現況
   UNION ALL
   SELECT 4, '4 分類與區域', 'ga_service_categories 筆數', (SELECT count(*)::text FROM public.ga_service_categories), 'INFO'

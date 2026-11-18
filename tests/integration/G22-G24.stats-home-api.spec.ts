@@ -80,7 +80,7 @@ test('績效 API：合作紀錄檢視者 200（只有名稱與統計、沒有帳
       // 決定 3（2026-11-18）：沒有採購單檢視權限者，只有採購單的廠商不列出，金額由資料庫回 null
       expect(r.body.data.can_view_po_amount).toBe(false);
       expect(row).toBeUndefined();
-      expect(r.text).not.toContain('1234');
+      expect(r.text).not.toMatch(/"po_(amount|amount_total)":\s*-?\d/);
     }
     for (const k of ['tax_id', 'billing_title', 'payment_terms', 'invoice_type', 'rating', 'review_count', 'work_order_count']) expect(r.text, `${who} ${k}`).not.toContain(`"${k}"`);
     expect(r.text).not.toContain('04595257');
