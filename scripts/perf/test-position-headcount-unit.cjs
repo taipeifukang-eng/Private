@@ -8,13 +8,12 @@ const assert = require('node:assert/strict');
 const { loadProjectModule } = require('./ms-harness.cjs');
 
 const H = loadProjectModule('worktree', 'lib/monthly-staff/position-headcount.ts', {});
-const A = loadProjectModule('worktree', 'lib/monthly-staff/employee-management-access.ts', {});
 
 const YM = '2099-01';
 const STORES = [
-  { id: 's1', store_code: 'ZT01', store_name: '甲店', supervisor_id: 'u1', supervisor_name: '王督導' },
-  { id: 's2', store_code: 'ZT02', store_name: '乙店', supervisor_id: 'u1', supervisor_name: '王督導' },
-  { id: 's3', store_code: 'VW001', store_name: '丙店', supervisor_id: 'u2', supervisor_name: '李督導' },
+  { id: 's1', store_code: 'ZT01', store_name: '甲店', supervisor_id: 'u1', supervisor_name: '王督導', supervisor_employee_code: 'sup1' },
+  { id: 's2', store_code: 'ZT02', store_name: '乙店', supervisor_id: 'u1', supervisor_name: '王督導', supervisor_employee_code: 'SUP1' },
+  { id: 's3', store_code: 'VW001', store_name: '丙店', supervisor_id: 'u2', supervisor_name: '李督導', supervisor_employee_code: 'SUP2' },
   { id: 's4', store_code: 'VW002', store_name: '丁店', supervisor_id: null, supervisor_name: null },
 ];
 
@@ -204,7 +203,8 @@ t('去重：同人同店同欄多筆只算 1 次', () => {
   assert.equal(r.areas[0].stores[0].people.specialist.length, 1);
   assert.equal(r.storeEntries.length, 1);
 });
-t('去重：跨店（雙店長）全公司只算 1 次，取非雙那筆；各門市照實際登記顯示並標跨店', () => {
+// 新規則（2026-11）：跨店只算主要歸屬一間；原本「各門市照實際登記顯示、門市加總 > 全公司」的預期改為「只算一間，另一間進不計入名單」
+t('去重：跨店（雙店長）只算 1 間，取非雙那筆；另一間列不計入「已計入 ZT01 甲店」', () => {
   const r = H.computeMonthHeadcount(
     [
       rec({ employee_code: 'M1', store_id: 's1', position: '店長' }),
@@ -218,11 +218,12 @@ t('去重：跨店（雙店長）全公司只算 1 次，取非雙那筆；各�
   assert.equal(r.company.people.manager[0].isPrimary, true);
   const stores = r.areas[0].stores;
   assert.equal(stores[0].people.manager.length, 1);
-  assert.equal(stores[1].people.manager.length, 1);
+  assert.equal(stores[1].people.manager.length, 0);
   assert.equal(stores[0].people.manager[0].crossStore, true);
-  assert.equal(stores[1].people.manager[0].crossStore, true);
-  // 同督導區小計：同人同欄只算 1 次，門市加總(2) > 小計(1)
   assert.equal(r.areas[0].subtotal.people.manager.length, 1);
+  assert.equal(r.excluded.length, 1);
+  assert.equal(r.excluded[0].store_code, 'ZT02');
+  assert.equal(H.excludedReasonLabel(r.excluded[0]), '已計入 ZT01 甲店');
 });
 t('去重：跨店且都非雙 → 取職等較高者', () => {
   const r = H.computeMonthHeadcount(
@@ -352,24 +353,112 @@ t('匯出：人數統計首列為全公司合計、人員明細含不計入者�
   assert.match(detailRows.find((d) => d['員編'] === 'E1' && d['門市代號'] === 'ZT02')['備註'], /跨店/);
 });
 
-// ── 11. 權限（與員工管理頁相同）
-const ACCESS = [
-  ['admin', { role: 'admin' }, true],
-  ['營業部 member 助理', { role: 'member', department: '營業部', job_title: '助理' }, true],
-  ['營業部 manager 主管', { role: 'manager', department: '營業一部', job_title: '經理' }, true],
-  ['營業部 member 但職稱店長', { role: 'member', department: '營業部', job_title: '店長' }, false],
-  ['營業部 manager 但職稱督導', { role: 'manager', department: '營業部', job_title: '督導' }, false],
-  ['營業部 manager 職稱督導(代理店長)', { role: 'manager', department: '營業部', job_title: '督導(代理店長)' }, false],
-  ['非營業部 member', { role: 'member', department: '行政部', job_title: '助理' }, false],
-  ['非營業部 manager', { role: 'manager', department: '人資部' }, false],
-  ['supervisor 角色', { role: 'supervisor', department: '營業部' }, false],
-  ['Admin 大小寫不同', { role: 'Admin' }, false],
-  ['null profile', null, false],
-  ['undefined profile', undefined, false],
-];
-for (const [name, p, ok] of ACCESS) {
-  t(`權限：${name} → ${ok ? '可看' : '不可看'}`, () => assert.equal(A.canViewEmployeeManagement(p), ok));
-}
+// ── 10b. 督導卡班（is_supervisor_rotation）
+const ROT = (o) => rec({ position: '督導', is_supervisor_rotation: true, ...o });
+t('督導卡班：(a) 卡班列不計入任何層級，列在不計入名單，原因「督導卡班」', () => {
+  const r = H.computeMonthHeadcount([ROT({ employee_code: 'R1', store_id: 's1' }), rec({ employee_code: 'N1', store_id: 's1' })], STORES, YM);
+  assert.equal(cnt(r.company, 'supervisor'), 0);
+  assert.equal(r.company.totalPeople, 1);
+  assert.equal(r.areas[0].stores[0].totalPeople, 1);
+  assert.equal(r.areas[0].subtotal.totalPeople, 1);
+  assert.equal(r.excluded.length, 1);
+  assert.equal(r.excluded[0].employee_code, 'R1');
+  assert.equal(r.excluded[0].excludedReason, '督導卡班');
+  assert.equal(r.storeEntries.some((e) => e.employee_code === 'R1'), false);
+});
+t('督導卡班：(b) 同督導同月另一門市正常列照常計入，全公司只算一次', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'R2', store_id: 's1' }), rec({ employee_code: 'R2', store_id: 's3', position: '督導' })],
+    STORES, YM,
+  );
+  assert.equal(r.company.totalPeople, 1);
+  assert.equal(cnt(r.company, 'supervisor'), 1);
+  assert.equal(r.company.people.supervisor[0].store_code, 'VW001');
+  const s1 = r.areas.find((a) => a.name === '王督導').stores[0];
+  assert.equal(s1.totalPeople, 0);
+  assert.equal(r.areas.find((a) => a.name === '李督導').stores[0].totalPeople, 1);
+  assert.equal(r.excluded.length, 1);
+  assert.equal(r.company.people.supervisor[0].crossStore, false);
+});
+t('督導卡班：(c) 卡班 + 代理店長 → 不計入人數，代理店長欄標註 N 位並可看名單', () => {
+  const r = H.computeMonthHeadcount(
+    [
+      ROT({ employee_code: 'R3', store_id: 's1', is_acting_manager: true }),
+      ROT({ employee_code: 'R4', store_id: 's1', position: '督導(代理店長)' }),
+      ROT({ employee_code: 'R5', store_id: 's1' }),
+      rec({ employee_code: 'A1', store_id: 's1', position: '代理店長' }),
+      rec({ employee_code: 'R3', store_id: 's2', position: '專員' }),
+    ],
+    STORES, YM,
+  );
+  const st = r.areas[0].stores[0];
+  assert.equal(cnt(st, 'acting'), 1);
+  assert.equal(cnt(st, 'supervisor'), 0);
+  assert.equal(st.actingBySupervisor.length, 0);
+  assert.deepEqual(st.rotationActing.map((e) => e.employee_code).sort(), ['R3', 'R4']);
+  assert.equal(r.areas[0].subtotal.rotationActing.length, 2);
+  assert.equal(r.company.rotationActing.length, 2);
+  assert.equal(r.areas[0].stores[1].rotationActing.length, 0);
+  assert.equal(r.company.totalPeople, 2); // A1 + R3（乙店專員）
+});
+t('督導卡班：(c2) 同一人兩間門市都卡班代理，全公司標註只算 1 位', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'R6', store_id: 's1', is_acting_manager: true }), ROT({ employee_code: 'R6', store_id: 's2', is_acting_manager: true })],
+    STORES, YM,
+  );
+  assert.equal(r.company.rotationActing.length, 1);
+  assert.equal(r.areas[0].subtotal.rotationActing.length, 1);
+  assert.equal(r.company.totalPeople, 0);
+});
+t('督導卡班：(d) monthly_status 為 full_month 也排除（卡班優先）', () => {
+  const r = H.computeMonthHeadcount([ROT({ employee_code: 'R7', monthly_status: 'full_month' })], STORES, YM);
+  assert.equal(r.company.totalPeople, 0);
+  assert.equal(r.excluded[0].excludedReason, '督導卡班');
+  assert.equal(r.unknownStatusPeople.length, 0);
+});
+t('督導卡班：(d2) 狀態空白的卡班列不列入狀態待確認', () => {
+  const r = H.computeMonthHeadcount([ROT({ employee_code: 'R8', monthly_status: '' })], STORES, YM);
+  assert.equal(r.unknownStatusPeople.length, 0);
+  assert.equal(r.excluded.length, 1);
+});
+t('督導卡班：is_supervisor_rotation=false/null 不受影響', () => {
+  const g = company([rec({ position: '督導', is_supervisor_rotation: false }), rec({ position: '督導', is_supervisor_rotation: null })]);
+  assert.equal(cnt(g, 'supervisor'), 2);
+  assert.equal(g.rotationActing.length, 0);
+});
+t('督導卡班：(e) 趨勢套用（不計入、卡班代理另列）', () => {
+  const recs = [
+    ROT({ employee_code: 'T1', year_month: '2099-01', is_acting_manager: true }),
+    rec({ employee_code: 'T2', year_month: '2099-01' }),
+    ROT({ employee_code: 'T3', year_month: '2099-02' }),
+  ];
+  const tr = H.computeHeadcountTrend(recs, STORES, '2099-02', 3);
+  const jan = tr.find((x) => x.yearMonth === '2099-01');
+  const feb = tr.find((x) => x.yearMonth === '2099-02');
+  assert.equal(jan.totalPeople, 1);
+  assert.equal(jan.counts.supervisor, 0);
+  assert.equal(jan.rotationActing, 1);
+  assert.equal(feb.totalPeople, 0);
+  assert.equal(feb.counts.supervisor, 0);
+  assert.equal(feb.hasData, true);
+});
+t('督導卡班：(f) 匯出列 — 統計列不計入、代理標註欄、明細看得出督導卡班', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'X1', store_id: 's1', is_acting_manager: true }), rec({ employee_code: 'X2', store_id: 's1' })],
+    STORES, YM,
+  );
+  const { summaryRows, detailRows } = H.buildHeadcountExportRows(r);
+  assert.equal(summaryRows[0]['督導'], 0);
+  assert.equal(summaryRows[0]['總人數'], 1);
+  assert.equal(summaryRows[0]['督導卡班代理（不計入）'], 1);
+  const d = detailRows.find((x) => x['員編'] === 'X1');
+  assert.equal(d['是否計入'], '否');
+  assert.equal(d['不計入原因'], '督導卡班（兼代理店長）');
+  assert.match(d['備註'], /督導卡班/);
+  assert.match(d['備註'], /督導卡班代理店長/);
+});
+
+// ── 11. 權限（已改為 employee.manage，測試見 test-employee-management-access-unit.cjs / -dev.cjs）
 
 t('未定稿橫幅：payload 月份與所選月份相同才顯示', () => {
   const payload = { yearMonth: '2026-10', unfinalizedStores: STORES.slice(0, 3) };
@@ -380,6 +469,522 @@ t('未定稿橫幅：切換月份讀取中（舊 payload）不顯示上月名單
   assert.deepEqual(H.unfinalizedStoresForMonth(payload, '2026-09'), []);
 });
 t('未定稿橫幅：payload 為 null 回傳空', () => assert.deepEqual(H.unfinalizedStoresForMonth(null, '2026-09'), []));
+
+t('匯出欄寬：每個表頭都有對應寬度，卡班代理欄不被擠壓、總人數維持 10', () => {
+  const r = H.computeMonthHeadcount([rec({ position: '專員' })], STORES, YM);
+  const headers = Object.keys(H.buildHeadcountExportRows(r).summaryRows[0]);
+  const w = H.summarySheetColumnWidths(headers);
+  assert.equal(w.length, headers.length);
+  assert.ok(w[headers.indexOf('督導卡班代理（不計入）')].wch >= 22);
+  assert.equal(w[headers.indexOf('總人數')].wch, 10);
+  assert.equal(w[headers.indexOf('其中由督導代理店長')].wch, 18);
+});
+
+t('不計入原因顯示：督導卡班、兼代理店長、離職', () => {
+  const r = H.computeMonthHeadcount(
+    [ROT({ employee_code: 'X1', store_id: 's1' }), ROT({ employee_code: 'X2', store_id: 's1', is_acting_manager: true }), rec({ employee_code: 'X3', store_id: 's1', monthly_status: 'resigned' })],
+    STORES, YM,
+  );
+  const by = (c) => H.excludedReasonLabel(r.excluded.find((e) => e.employee_code === c));
+  assert.equal(by('X1'), '督導卡班');
+  assert.equal(by('X2'), '督導卡班（兼代理店長）');
+  assert.ok(by('X3'));
+});
+
+
+// ── 跨店主要歸屬（2026-11 新規則）
+const XS = (r, code) => r.areas.flatMap((a) => a.stores).filter((st) => Object.values(st.people).some((l) => l.some((e) => e.employee_code.trim().toUpperCase() === code.toUpperCase()))).map((st) => st.store.store_code);
+const exOf = (r, code) => r.excluded.filter((e) => e.employee_code === code);
+t('跨店：督導兩店都普通 → 算門市代號小的（VW001 < ZT02），另一店不計入', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'C1', store_id: 's2', position: '督導' }), rec({ employee_code: 'C1', store_id: 's3', position: '督導' })], STORES, YM);
+  assert.deepEqual(XS(r, 'C1'), ['VW001']);
+  assert.equal(exOf(r, 'C1').length, 1);
+  assert.equal(exOf(r, 'C1')[0].store_code, 'ZT02');
+  assert.equal(H.excludedReasonLabel(exOf(r, 'C1')[0]), '已計入 VW001 丙店');
+  assert.equal(r.company.totalPeople, 1);
+});
+t('跨店：其中一店代理店長 → 算代理那間，即使代號較大', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'C2', store_id: 's1', position: '督導' }), rec({ employee_code: 'C2', store_id: 's2', position: '督導(代理店長)' })], STORES, YM);
+  assert.deepEqual(XS(r, 'C2'), ['ZT02']);
+  assert.equal(exOf(r, 'C2')[0].store_code, 'ZT01');
+  assert.equal(r.company.actingBySupervisor.length, 1);
+});
+t('跨店：is_acting_manager 旗標與代理店長欄也算代理', () => {
+  const r1 = H.computeMonthHeadcount([rec({ employee_code: 'C2a', store_id: 's1', position: '主任' }), rec({ employee_code: 'C2a', store_id: 's2', position: '主任', is_acting_manager: true })], STORES, YM);
+  assert.deepEqual(XS(r1, 'C2a'), ['ZT02']);
+  const r2 = H.computeMonthHeadcount([rec({ employee_code: 'C2b', store_id: 's1', position: '店長' }), rec({ employee_code: 'C2b', store_id: 's2', position: '代理店長' })], STORES, YM);
+  assert.deepEqual(XS(r2, 'C2b'), ['ZT02']);
+});
+t('跨店：其中一店屬自己督導區 → 算自己區那間（員編大小寫/空白正規化）', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: ' Sup1 ', store_id: 's2', position: '督導' }), rec({ employee_code: 'SUP1', store_id: 's3', position: '督導' })], STORES, YM);
+  assert.deepEqual(XS(r, 'SUP1'), ['ZT02']);
+  assert.equal(exOf(r, 'SUP1')[0].store_code, 'VW001');
+  assert.equal(r.company.totalPeople, 1);
+});
+t('跨店：督導員編內部空白正規化（SU P1 = SUP1）', () => {
+  const st = [
+    { id: 'n1', store_code: 'ZT11', store_name: '一店', supervisor_id: 'u9', supervisor_name: '某督導', supervisor_employee_code: 'SU P1' },
+    { id: 'n2', store_code: 'ZT12', store_name: '二店', supervisor_id: null, supervisor_name: null },
+  ];
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'SUP1', store_id: 'n2', position: '督導' }), rec({ employee_code: 'SUP1', store_id: 'n1', position: '督導' })], st, YM);
+  assert.deepEqual(XS(r, 'SUP1'), ['ZT11']);
+});
+t('跨店：含 S 的不同員編不會被誤判為自己督導區（HS01 vs H01）', () => {
+  const st = [
+    { id: 'm1', store_code: 'ZT29', store_name: '一店', supervisor_id: 'u8', supervisor_name: '某督導', supervisor_employee_code: 'HS01' },
+    { id: 'm2', store_code: 'ZT22', store_name: '二店', supervisor_id: null, supervisor_name: null },
+  ];
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'H01', store_id: 'm2', position: '督導' }), rec({ employee_code: 'H01', store_id: 'm1', position: '督導' })], st, YM);
+  assert.deepEqual(XS(r, 'H01'), ['ZT22']);
+});
+t('跨店：代理優先於自己區', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'SUP1', store_id: 's2', position: '督導' }), rec({ employee_code: 'SUP1', store_id: 's3', position: '督導(代理店長)' })], STORES, YM);
+  assert.deepEqual(XS(r, 'SUP1'), ['VW001']);
+});
+t('跨店：雙店長兩店 → 只算一間（都是雙則代號小者）', () => {
+  const dual = (st) => rec({ employee_code: 'C3', store_id: st, position: '店長-雙', is_dual_position: true, monthly_status: 'dual_store_manager' });
+  const r = H.computeMonthHeadcount([dual('s2'), dual('s1')], STORES, YM);
+  assert.deepEqual(XS(r, 'C3'), ['ZT01']);
+  assert.equal(cnt(r.company, 'manager'), 1);
+  assert.equal(exOf(r, 'C3').length, 1);
+});
+t('跨店：一般專員跨兩店也套用', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'C4', store_id: 's1' }), rec({ employee_code: 'C4', store_id: 's3' })], STORES, YM);
+  assert.deepEqual(XS(r, 'C4'), ['VW001']);
+  assert.equal(r.company.totalPeople, 1);
+});
+t('跨店：督導卡班那筆仍是「督導卡班」原因、不參與主要歸屬', () => {
+  const r = H.computeMonthHeadcount(
+    [rec({ employee_code: 'C5', store_id: 's1', position: '督導', is_supervisor_rotation: true }), rec({ employee_code: 'C5', store_id: 's2', position: '督導' }), rec({ employee_code: 'C5', store_id: 's3', position: '督導' })],
+    STORES, YM,
+  );
+  assert.deepEqual(XS(r, 'C5'), ['VW001']);
+  const reasons = Object.fromEntries(exOf(r, 'C5').map((e) => [e.store_code, H.excludedReasonLabel(e)]));
+  assert.equal(reasons.ZT01, '督導卡班');
+  assert.equal(reasons.ZT02, '已計入 VW001 丙店');
+});
+t('跨店：離職那筆不算計入，不構成跨店', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'C6', store_id: 's1', monthly_status: 'resigned' }), rec({ employee_code: 'C6', store_id: 's2' })], STORES, YM);
+  assert.deepEqual(XS(r, 'C6'), ['ZT02']);
+  assert.equal(H.excludedReasonLabel(exOf(r, 'C6')[0]), '當月離職');
+  assert.equal(r.company.people.specialist[0].crossStore, false);
+});
+t('跨店：同店兩筆不同職位維持兩欄、總人數 1', () => {
+  const recs = [rec({ employee_code: 'C7', store_id: 's1', position: '專員' }), rec({ employee_code: 'C7', store_id: 's1', position: '組長' }), rec({ employee_code: 'C7', store_id: 's3', position: '專員' })];
+  const r = H.computeMonthHeadcount(recs, STORES, YM);
+  assert.equal(r.company.totalPeople, 1);
+  assert.deepEqual(XS(r, 'C7'), ['ZT01']); // 同店有組長（職等較高）→ 主要歸屬 ZT01
+  const r2 = H.computeMonthHeadcount([recs[0], recs[1]], STORES, YM);
+  assert.equal(r2.areas[0].stores[0].totalPeople, 1);
+  assert.equal(cnt(r2.areas[0].stores[0], 'specialist') + cnt(r2.areas[0].stores[0], 'leader'), 2);
+  assert.equal(r2.company.totalPeople, 1);
+  assert.equal(cnt(r2.areas[0].subtotal, 'leader'), cnt(r2.company, 'leader'));
+  assert.equal(cnt(r2.areas[0].subtotal, 'specialist'), cnt(r2.company, 'specialist'));
+});
+function mixedRecs() {
+  return [
+    rec({ employee_code: 'K1', store_id: 's1', position: '督導' }), rec({ employee_code: 'K1', store_id: 's3', position: '督導(代理店長)' }),
+    rec({ employee_code: 'K2', store_id: 's1', position: '店長' }), rec({ employee_code: 'K2', store_id: 's2', position: '店長-雙', is_dual_position: true }),
+    rec({ employee_code: 'K3', store_id: 's2' }), rec({ employee_code: 'K3', store_id: 's4' }),
+    rec({ employee_code: 'K4', store_id: 's3', position: '組長' }), rec({ employee_code: 'K5', store_id: 's4', position: '新人', newbie_level: '一階新人' }),
+    rec({ employee_code: 'K6', store_id: 's1', position: '專員', is_supervisor_rotation: true }), rec({ employee_code: 'K6', store_id: 's3', position: '專員' }),
+  ];
+}
+t('三層一致：各門市加總=督導區小計（人數與各欄），各區加總=全公司', () => {
+  const r = H.computeMonthHeadcount(mixedRecs(), STORES, YM);
+  let sumAreas = 0;
+  const colSum = {};
+  for (const a of r.areas) {
+    assert.equal(a.stores.reduce((n, s) => n + s.totalPeople, 0), a.subtotal.totalPeople, a.name);
+    for (const c of H.HEADCOUNT_COLUMNS) assert.equal(a.stores.reduce((n, s) => n + cnt(s, c.key), 0), cnt(a.subtotal, c.key), a.name + c.key);
+    sumAreas += a.subtotal.totalPeople;
+    for (const c of H.HEADCOUNT_COLUMNS) colSum[c.key] = (colSum[c.key] || 0) + cnt(a.subtotal, c.key);
+  }
+  assert.equal(sumAreas, r.company.totalPeople);
+  assert.equal(r.company.totalPeople, 6);
+  for (const c of H.HEADCOUNT_COLUMNS) assert.equal(colSum[c.key], cnt(r.company, c.key), c.key);
+});
+t('跨督導區：兩區小計與全公司加總一致，且人只出現在主要歸屬那區', () => {
+  const r = H.computeMonthHeadcount([rec({ employee_code: 'C8', store_id: 's1', position: '督導' }), rec({ employee_code: 'C8', store_id: 's3', position: '督導(代理店長)' })], STORES, YM);
+  const wang = r.areas.find((a) => a.name === '王督導');
+  const li = r.areas.find((a) => a.name === '李督導');
+  assert.equal(wang.subtotal.totalPeople, 0);
+  assert.equal(li.subtotal.totalPeople, 1);
+  assert.equal(wang.subtotal.totalPeople + li.subtotal.totalPeople, r.company.totalPeople);
+});
+t('趨勢：當月全公司各欄與 computeMonthHeadcount 一致', () => {
+  const recs = mixedRecs();
+  const r = H.computeMonthHeadcount(recs, STORES, YM);
+  const row = H.computeHeadcountTrend(recs, STORES, YM, 3).find((x) => x.yearMonth === YM);
+  assert.equal(row.totalPeople, r.company.totalPeople);
+  for (const c of H.HEADCOUNT_COLUMNS) assert.equal(row.counts[c.key], cnt(r.company, c.key), c.key);
+  assert.equal(row.actingBySupervisor, r.company.actingBySupervisor.length);
+});
+t('匯出列一致：計入列=storeEntries、不計入列含「已計入」原因與跨店備註；全公司=區小計加總', () => {
+  const r = H.computeMonthHeadcount(mixedRecs(), STORES, YM);
+  const { summaryRows, detailRows } = H.buildHeadcountExportRows(r);
+  const yes = detailRows.filter((x) => x['是否計入'] === '是');
+  assert.equal(yes.length, r.storeEntries.length);
+  assert.equal(new Set(yes.map((x) => x['員編'])).size, r.company.totalPeople);
+  const no = detailRows.filter((x) => x['是否計入'] === '否');
+  assert.equal(no.length, r.excluded.length);
+  assert.ok(no.some((x) => /^已計入 /.test(x['不計入原因'])));
+  assert.ok(yes.some((x) => /跨店，另於 .+ 不計入/.test(x['備註'])));
+  const co = summaryRows.find((x) => x['督導區'] === '全公司');
+  const subs = summaryRows.filter((x) => x['門市'] === '督導區小計');
+  assert.equal(subs.reduce((n, x) => n + x['總人數'], 0), co['總人數']);
+});
+
+// ── 加盟店篩選
+const FSTORES = STORES.map((s) => ({ ...s, is_franchise: s.id === 's1' || s.id === 's3' })); // s1 s3 加盟；s2 s4 直營
+// 篩選是「先用全部紀錄分類，再依門市留下」：紀錄一律是全部，篩選以參數帶入
+const fview = (recs, f, stores = FSTORES) => ({ r: H.computeMonthHeadcount(recs, stores, YM, f), trend: H.computeHeadcountTrend(recs, stores, YM, 2, f) });
+const entriesOf = (r) => [...r.storeEntries, ...r.excluded];
+t('三態循環與標籤：all→only→exclude→all', () => {
+  assert.equal(H.nextFranchiseFilter('all'), 'only');
+  assert.equal(H.nextFranchiseFilter('only'), 'exclude');
+  assert.equal(H.nextFranchiseFilter('exclude'), 'all');
+  assert.equal(H.FRANCHISE_FILTER_LABELS.all, '全部');
+  assert.equal(H.FRANCHISE_FILTER_LABELS.only, '只看加盟店');
+  assert.equal(H.FRANCHISE_FILTER_LABELS.exclude, '不含加盟店');
+});
+t('參數解析：缺少/空白=all，有效值通過，無效值=null', () => {
+  assert.equal(H.parseFranchiseFilter(null), 'all');
+  assert.equal(H.parseFranchiseFilter(''), 'all');
+  for (const v of ['all', 'only', 'exclude']) assert.equal(H.parseFranchiseFilter(v), v);
+  for (const v of ['ONLY', 'yes', 'true', '1', 'only,exclude']) assert.equal(H.parseFranchiseFilter(v), null, v);
+});
+t('合計列名稱與 Excel 檔名', () => {
+  assert.equal(H.franchiseTotalLabel('all'), '全公司合計');
+  assert.equal(H.franchiseTotalLabel('only'), '加盟店合計');
+  assert.equal(H.franchiseTotalLabel('exclude'), '直營店合計');
+  assert.equal(H.headcountExportFileName('2038-06', 'all'), '每月職位人數統計_2038-06.xlsx');
+  assert.equal(H.headcountExportFileName('2038-06', 'only'), '每月職位人數統計_2038-06_只看加盟店.xlsx');
+  assert.equal(H.headcountExportFileName('2038-06', 'exclude'), '每月職位人數統計_2038-06_不含加盟店.xlsx');
+  const r = H.computeMonthHeadcount(mixedRecs(), FSTORES, YM);
+  assert.equal(H.buildHeadcountExportRows(r, 'only').summaryRows[0]['督導區'], '加盟店合計');
+  assert.equal(H.buildHeadcountExportRows(r, 'exclude').summaryRows[0]['督導區'], '直營店合計');
+  assert.equal(H.buildHeadcountExportRows(r).summaryRows[0]['督導區'], '全公司');
+});
+t('跨店：主要在直營 → 只看加盟時他不計入任何人數，加盟店那筆在不計入名單寫「已計入 直營店」；不含加盟時他在直營計入', () => {
+  const recs = [rec({ employee_code: 'Z1', store_id: 's1', position: '專員' }), rec({ employee_code: 'Z1', store_id: 's2', position: '組長' }), rec({ employee_code: 'Y1', store_id: 's1' })];
+  const a = fview(recs, 'only');
+  assert.equal(a.r.storeEntries.filter((e) => e.employee_code === 'Z1').length, 0, '不算進任何人數');
+  assert.equal(a.r.company.totalPeople, 1);
+  const ex = a.r.excluded.filter((e) => e.employee_code === 'Z1');
+  assert.equal(ex.length, 1);
+  assert.equal(ex[0].store_code, 'ZT01');
+  assert.equal(ex[0].excludedReason, '已計入 ZT02 乙店');
+  assert.equal(H.excludedReasonLabel(ex[0]), '已計入 ZT02 乙店');
+  const b = fview(recs, 'exclude');
+  assert.equal(cnt(b.r.company, 'leader'), 1);
+  assert.equal(b.r.company.totalPeople, 1);
+  assert.equal(b.r.excluded.length, 0, '加盟店那筆已被篩掉');
+  assert.ok(!entriesOf(b.r).some((e) => e.employee_code === 'Y1'));
+  assert.equal(b.r.storeEntries[0].crossStore, true, '備註仍標跨店');
+});
+t('跨店：主要在加盟 → 只看加盟他計入；不含加盟時直營那筆在不計入名單寫「已計入 加盟店」', () => {
+  const recs = [rec({ employee_code: 'Z2', store_id: 's1', position: '組長' }), rec({ employee_code: 'Z2', store_id: 's2', position: '專員' })];
+  const a = fview(recs, 'only');
+  assert.equal(cnt(a.r.company, 'leader'), 1);
+  assert.equal(a.r.excluded.length, 0, '直營那筆隨門市被篩掉');
+  const b = fview(recs, 'exclude');
+  assert.equal(b.r.company.totalPeople, 0);
+  assert.equal(b.r.storeEntries.length, 0);
+  assert.equal(b.r.excluded.length, 1);
+  assert.equal(b.r.excluded[0].store_code, 'ZT02');
+  assert.equal(b.r.excluded[0].excludedReason, '已計入 ZT01 甲店');
+});
+t('留下門市中的「已計入 X」照舊顯示', () => {
+  const recs = [rec({ employee_code: 'Z3', store_id: 's1', position: '專員' }), rec({ employee_code: 'Z3', store_id: 's3', position: '組長' })];
+  const a = fview(recs, 'only');
+  const ex = a.r.excluded.find((e) => e.employee_code === 'Z3');
+  assert.ok(ex && /^已計入 VW001 丙店/.test(ex.excludedReason), ex && ex.excludedReason);
+});
+t('only + exclude = all：每欄、各月（含趨勢）恆等', () => {
+  const recs = [...mixedRecs(), ...mixedRecs().map((x) => ({ ...x, year_month: '2098-12' }))];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  const o = fview(recs, 'only');
+  const x = fview(recs, 'exclude');
+  for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(o.r.company, c.key) + cnt(x.r.company, c.key), cnt(all.company, c.key), c.key);
+  assert.equal(o.r.company.totalPeople + x.r.company.totalPeople, all.company.totalPeople);
+  const tAll = H.computeHeadcountTrend(recs, FSTORES, YM, 2);
+  assert.ok(tAll.every((r) => r.hasData));
+  tAll.forEach((row, i) => {
+    for (const c of H.HEADCOUNT_COLUMNS) assert.equal(o.trend[i].counts[c.key] + x.trend[i].counts[c.key], row.counts[c.key], `${row.yearMonth} ${c.key}`);
+    assert.equal(o.trend[i].totalPeople + x.trend[i].totalPeople, row.totalPeople);
+  });
+});
+t('only + exclude = all：逐門市各欄（每間門市只出現在所屬那邊，且人數不超過未篩選）', () => {
+  const recs = mixedRecs();
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  const rows = (r) => r.areas.flatMap((a) => a.stores);
+  const o = fview(recs, 'only').r;
+  const x = fview(recs, 'exclude').r;
+  for (const st of FSTORES) {
+    const a0 = rows(all).find((s) => s.store.id === st.id);
+    const mine = rows(st.is_franchise ? o : x).find((s) => s.store.id === st.id);
+    const other = rows(st.is_franchise ? x : o).find((s) => s.store.id === st.id);
+    assert.equal(other, undefined, st.store_code);
+    if (!a0) continue;
+    for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(mine, c.key), cnt(a0, c.key), `${st.store_code} ${c.key}`);
+  }
+});
+t('督導區混合：小計只含留下門市；整區被篩掉不顯示；三層一致', () => {
+  const recs = [rec({ employee_code: 'A1', store_id: 's1' }), rec({ employee_code: 'A2', store_id: 's2' }), rec({ employee_code: 'A3', store_id: 's3' }), rec({ employee_code: 'A4', store_id: 's4' })];
+  const o = fview(recs, 'only');
+  assert.deepEqual(o.r.areas.map((a) => a.name).sort(), ['李督導', '王督導'].sort());
+  const wang = o.r.areas.find((a) => a.name === '王督導');
+  assert.equal(wang.stores.length, 1);
+  assert.equal(wang.subtotal.totalPeople, 1);
+  const x = fview(recs, 'exclude');
+  assert.deepEqual(x.r.areas.map((a) => a.name).sort(), ['未分區', '王督導'].sort());
+  assert.ok(!x.r.areas.some((a) => a.name === '李督導'));
+  for (const f of [o, x]) {
+    assert.equal(f.r.areas.reduce((n, a) => n + a.subtotal.totalPeople, 0), f.r.company.totalPeople);
+    for (const a of f.r.areas) assert.equal(a.stores.reduce((n, s) => n + s.totalPeople, 0), a.subtotal.totalPeople);
+  }
+});
+t('離職/督導卡班等不計入者依門市去留', () => {
+  const recs = [
+    rec({ employee_code: 'R1', store_id: 's2', monthly_status: 'resigned' }),
+    rec({ employee_code: 'R2', store_id: 's1', position: '專員', is_supervisor_rotation: true }),
+    rec({ employee_code: 'R2', store_id: 's2', position: '專員' }),
+  ];
+  // R2 在加盟店的督導卡班登記只看自己的門市（加盟）→ 只看加盟保留；R1 在直營 → 不出現
+  const oa = fview(recs, 'only');
+  assert.deepEqual(entriesOf(oa.r).map((e) => e.employee_code), ['R2']);
+  const x = fview(recs, 'exclude');
+  assert.equal(x.r.excluded.length, 1);
+  assert.equal(x.r.company.totalPeople, 1);
+});
+t('督導卡班代理標註在留下門市照常保留', () => {
+  const recs = [rec({ employee_code: 'S1', store_id: 's1', position: '督導', is_supervisor_rotation: true, is_acting_manager: true })];
+  const o = fview(recs, 'only');
+  assert.equal(o.r.company.rotationActing.length, 1);
+  assert.equal(o.r.company.totalPeople, 0);
+  assert.equal(fview(recs, 'exclude').r.company.rotationActing.length, 0);
+});
+t('stores 無 is_franchise 欄位視為直營', () => {
+  const recs = [rec({ employee_code: 'N1', store_id: 's1' })];
+  assert.equal(fview(recs, 'only', STORES).r.company.totalPeople, 0);
+  assert.equal(fview(recs, 'exclude', STORES).r.company.totalPeople, 1);
+});
+
+
+// ── 審查修正：督導卡班代理 / 不計入登記 / 未定稿 / 空 store_id / Excel 篩選頁
+const sameCols = (all, o, x, label) => {
+  for (const c of H.HEADCOUNT_COLUMNS) assert.equal(cnt(o.company, c.key) + cnt(x.company, c.key), cnt(all.company, c.key), label + ' ' + c.key);
+  assert.equal(o.company.totalPeople + x.company.totalPeople, all.company.totalPeople, label + ' total');
+  assert.equal(o.company.actingBySupervisor.length + x.company.actingBySupervisor.length, all.company.actingBySupervisor.length, label + ' actingBySupervisor');
+  assert.equal(o.company.rotationActing.length + x.company.rotationActing.length, all.company.rotationActing.length, label + ' rotationActing');
+};
+t('督導卡班代理在加盟、人另有計入在直營：只看＋不含＝全部（卡班代理欄、督導欄）', () => {
+  const recs = [
+    rec({ employee_code: 'K1', store_id: 's1', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+    rec({ employee_code: 'K1', store_id: 's2', position: '督導' }),
+  ];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  assert.equal(all.company.rotationActing.length, 1);
+  const o = fview(recs, 'only').r;
+  const x = fview(recs, 'exclude').r;
+  assert.equal(o.company.rotationActing.length, 1, '卡班在加盟店 → 只看加盟算 1');
+  assert.equal(x.company.rotationActing.length, 0);
+  assert.equal(x.company.totalPeople, 1);
+  assert.equal(o.company.totalPeople, 0);
+  sameCols(all, o, x, 'K1');
+});
+t('督導卡班代理反向：卡班在直營、人計入在加盟', () => {
+  const recs = [
+    rec({ employee_code: 'K2', store_id: 's2', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+    rec({ employee_code: 'K2', store_id: 's1', position: '督導' }),
+  ];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  sameCols(all, fview(recs, 'only').r, fview(recs, 'exclude').r, 'K2');
+  assert.equal(fview(recs, 'exclude').r.company.rotationActing.length, 1);
+});
+t('同一人在加盟與直營都有卡班代理：公司層只算一次，只看＋不含仍＝全部', () => {
+  const recs = [
+    rec({ employee_code: 'K3', store_id: 's1', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+    rec({ employee_code: 'K3', store_id: 's2', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+  ];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  assert.equal(all.company.rotationActing.length, 1);
+  sameCols(all, fview(recs, 'only').r, fview(recs, 'exclude').r, 'K3');
+});
+t('離職登記在加盟、人另有計入在直營：不計入名單只看自己的門市，加總不丟筆', () => {
+  const recs = [
+    rec({ employee_code: 'L1', store_id: 's1', monthly_status: 'resigned' }),
+    rec({ employee_code: 'L1', store_id: 's2' }),
+  ];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  const o = fview(recs, 'only').r;
+  const x = fview(recs, 'exclude').r;
+  assert.equal(o.excluded.filter((e) => e.employee_code === 'L1').length, 1);
+  assert.equal(o.excluded.length + x.excluded.length, all.excluded.length);
+  sameCols(all, o, x, 'L1');
+});
+t('只看＋不含＝全部：混合資料加卡班代理，各欄與不計入名單（非已計入）筆數恆等', () => {
+  const recs = [
+    ...mixedRecs(),
+    rec({ employee_code: 'K4', store_id: 's3', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+    rec({ employee_code: 'K4', store_id: 's4', position: '督導' }),
+    rec({ employee_code: 'K5', store_id: 's4', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+    rec({ employee_code: 'K5', store_id: 's3', position: '督導' }),
+  ];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  const o = fview(recs, 'only').r;
+  const x = fview(recs, 'exclude').r;
+  sameCols(all, o, x, 'mixed+K');
+  const nonDemoted = (r) => r.excluded.filter((e) => !/^已計入/.test(e.excludedReason)).length;
+  assert.equal(nonDemoted(o) + nonDemoted(x), nonDemoted(all), '非「已計入」的不計入登記一筆不丟');
+});
+t('未定稿門市：用篩選前紀錄判斷，只看＋不含涵蓋「全部」的清單', () => {
+  const recs = [
+    rec({ employee_code: 'U1', store_id: 's1' }), rec({ employee_code: 'U1', store_id: 's2', position: '組長' }), // U1 主要在 s2
+    rec({ employee_code: 'U2', store_id: 's3' }),
+  ];
+  const sums = [{ store_id: 's3', store_status: 'confirmed' }];
+  const all = H.findUnfinalizedStores(recs, FSTORES, sums, YM).map((s) => s.id).sort();
+  assert.deepEqual(all, ['s1', 's2']);
+  const keep = (f) => H.findUnfinalizedStores(recs, FSTORES, sums, YM).filter((s) => H.storeKept(FSTORES.find((x) => x.id === s.id), f)).map((s) => s.id);
+  assert.deepEqual(keep('only'), ['s1'], 's1 只剩被隱藏的人，仍列為未定稿');
+  assert.deepEqual(keep('exclude'), ['s2']);
+  assert.deepEqual([...keep('only'), ...keep('exclude')].sort(), all);
+});
+t('store_id 為空的紀錄視為直營：只出現在不含加盟店，加總成立', () => {
+  const recs = [rec({ employee_code: 'E1', store_id: null }), rec({ employee_code: 'E2', store_id: 's1' })];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  const o = fview(recs, 'only').r;
+  const x = fview(recs, 'exclude').r;
+  assert.equal(o.company.totalPeople, 1);
+  assert.equal(x.company.totalPeople, 1);
+  assert.ok(entriesOf(x).some((e) => e.employee_code === 'E1'));
+  assert.ok(!entriesOf(o).some((e) => e.employee_code === 'E1'));
+  sameCols(all, o, x, 'null store');
+});
+t('Excel「篩選條件」工作表內容', () => {
+  assert.equal(H.buildFilterSheetRows('all', '2038-06'), null);
+  const o = H.buildFilterSheetRows('only', '2038-06');
+  assert.deepEqual(o.slice(0, 2), [['篩選條件', '只看加盟店'], ['月份', '2038-06']]);
+  assert.match(o[2][1], /主要歸屬/);
+  assert.match(o[2][1], /已計入/);
+  assert.doesNotMatch(o[2][1], /不列入|整個/);
+  assert.deepEqual(H.buildFilterSheetRows('exclude', '2038-07')[0], ['篩選條件', '不含加盟店']);
+});
+
+
+// ── 先分類再篩選：每門市在篩選模式下與全部模式完全相同（最強不變式）
+function mulberry(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let x = Math.imul(a ^ (a >>> 15), 1 | a); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
+function randomRecs(seed) {
+  const rnd = mulberry(seed);
+  const pick = (a) => a[Math.floor(rnd() * a.length)];
+  const people = Array.from({ length: 4 + Math.floor(rnd() * 6) }, (_, i) => `P${seed}_${i}`);
+  const out = [];
+  const n = 8 + Math.floor(rnd() * 14);
+  for (let i = 0; i < n; i++) {
+    const position = pick(['專員', '組長', '店長', '店長-雙', '主任', '副店長', '督導', '督導(代理店長)', '代理店長', '新人', '兼職助理']);
+    out.push(rec({
+      employee_code: pick(people),
+      store_id: pick(['s1', 's2', 's3', 's4', 's1', 's2', null]),
+      position,
+      newbie_level: position === '新人' ? pick(['未過階新人', '一階新人', '二階新人', '']) : null,
+      monthly_status: pick(['full_month', 'full_month', 'full_month', 'new_hire', 'resigned', 'transferred_out', 'support_rotation', 'dual_store_manager', 'leave_return', 'weird']),
+      is_acting_manager: rnd() < 0.2,
+      is_dual_position: rnd() < 0.1,
+      is_supervisor_rotation: rnd() < 0.25,
+    }));
+  }
+  return out;
+}
+const FIXED_SETS = [
+  mixedRecs(),
+  [rec({ employee_code: 'Z1', store_id: 's1' }), rec({ employee_code: 'Z1', store_id: 's2', position: '組長' }), rec({ employee_code: 'Z2', store_id: 's3', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }), rec({ employee_code: 'Z2', store_id: 's4', position: '督導', is_supervisor_rotation: true, is_acting_manager: true })],
+];
+const DATASETS = [...FIXED_SETS, ...Array.from({ length: 300 }, (_, i) => randomRecs(i + 1))];
+const sig = (e) => [e.store_id, e.employee_code, e.employee_name, e.position, e.column, e.statusLabel, e.excludedReason, e.crossStore, e.crossStoreNote, e.isPrimary, e.isRotation, e.rotationActing, e.supervisorActing].join('|');
+const groupSig = (g) => JSON.stringify({
+  p: H.HEADCOUNT_COLUMNS.map((c) => g.people[c.key].map(sig)),
+  a: g.actingBySupervisor.map(sig),
+  r: g.rotationActing.map(sig),
+  n: g.totalPeople,
+});
+t('最強不變式：篩選模式下每間門市所有欄位與全部模式同一門市完全相同（300 組隨機＋固定資料，只看與不含）', () => {
+  let storesChecked = 0;
+  DATASETS.forEach((recs, idx) => {
+    const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+    const allStores = new Map(all.areas.flatMap((a) => a.stores).map((s) => [s.store.id, s]));
+    for (const f of ['only', 'exclude']) {
+      const r = H.computeMonthHeadcount(recs, FSTORES, YM, f);
+      for (const s of r.areas.flatMap((a) => a.stores)) {
+        const a0 = allStores.get(s.store.id);
+        assert.ok(a0, `#${idx} ${f} ${s.store.store_code} 全部模式沒有這間`);
+        assert.equal(groupSig(s), groupSig(a0), `#${idx} ${f} ${s.store.store_code}`);
+        storesChecked += 1;
+      }
+      const inKept = (e) => H.storeKept(FSTORES.find((x) => x.id === e.store_id), f);
+      const keptIds = new Set(r.areas.flatMap((a) => a.stores).map((s) => s.store.id));
+      allStores.forEach((_, id) => assert.equal(keptIds.has(id), inKept({ store_id: id }), `#${idx} ${f} ${id} 去留`));
+      assert.deepEqual(r.excluded.map(sig), all.excluded.filter(inKept).map(sig), `#${idx} ${f} 不計入名單`);
+      assert.deepEqual(r.storeEntries.map(sig), all.storeEntries.filter(inKept).map(sig), `#${idx} ${f} 人員明細`);
+      assert.deepEqual(r.unknownStatusPeople.map(sig), all.unknownStatusPeople.filter(inKept).map(sig), `#${idx} ${f} 狀態待確認`);
+    }
+  });
+  assert.ok(storesChecked > 500, 'storesChecked=' + storesChecked);
+});
+t('不計入名單：只看的 ∪ 不含的 ＝ 全部（含原因字樣）；人員明細聯集也相同', () => {
+  DATASETS.forEach((recs, idx) => {
+    const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+    const o = H.computeMonthHeadcount(recs, FSTORES, YM, 'only');
+    const x = H.computeMonthHeadcount(recs, FSTORES, YM, 'exclude');
+    assert.deepEqual([...o.excluded, ...x.excluded].map(sig).sort(), all.excluded.map(sig).sort(), `#${idx}`);
+    assert.deepEqual([...o.storeEntries, ...x.storeEntries].map(sig).sort(), all.storeEntries.map(sig).sort(), `#${idx} 人員明細聯集`);
+  });
+});
+t('加總恆等：只看＋不含＝全部（每欄、督導代理欄、卡班代理欄、總人數；月份與趨勢）', () => {
+  DATASETS.forEach((recs, idx) => {
+    const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+    const o = H.computeMonthHeadcount(recs, FSTORES, YM, 'only');
+    const x = H.computeMonthHeadcount(recs, FSTORES, YM, 'exclude');
+    sameCols(all, o, x, `#${idx}`);
+    for (const f of [o, x]) {
+      assert.equal(f.areas.reduce((n, a) => n + a.subtotal.totalPeople, 0), f.company.totalPeople, `#${idx} 區加總`);
+      for (const a of f.areas) assert.equal(a.stores.reduce((n, s) => n + s.totalPeople, 0), a.subtotal.totalPeople, `#${idx} 店加總`);
+    }
+    const ta = H.computeHeadcountTrend(recs, FSTORES, YM, 2);
+    const to = H.computeHeadcountTrend(recs, FSTORES, YM, 2, 'only');
+    const tx = H.computeHeadcountTrend(recs, FSTORES, YM, 2, 'exclude');
+    ta.forEach((row, i) => {
+      for (const c of H.HEADCOUNT_COLUMNS) assert.equal(to[i].counts[c.key] + tx[i].counts[c.key], row.counts[c.key], `#${idx} 趨勢 ${c.key}`);
+      assert.equal(to[i].totalPeople + tx[i].totalPeople, row.totalPeople);
+      assert.equal(to[i].actingBySupervisor + tx[i].actingBySupervisor, row.actingBySupervisor);
+      assert.equal(to[i].rotationActing + tx[i].rotationActing, row.rotationActing);
+    });
+    assert.equal(to[1].totalPeople, o.company.totalPeople);
+    assert.equal(tx[1].rotationActing, x.company.rotationActing.length);
+  });
+});
+t('篩選不會把次要那筆重算成主要：主要在直營的人，只看加盟時加盟那筆仍是不計入', () => {
+  const recs = [rec({ employee_code: 'Q1', store_id: 's1', position: '專員' }), rec({ employee_code: 'Q1', store_id: 's2', position: '店長' })];
+  const o = H.computeMonthHeadcount(recs, FSTORES, YM, 'only');
+  assert.equal(o.company.totalPeople, 0);
+  assert.equal(o.excluded.length, 1);
+  assert.equal(o.excluded[0].isPrimary, false);
+});
+t('卡班代理在兩店：全部模式怎麼算就怎麼算，各門市與全部相同，公司層只算一次', () => {
+  const recs = [
+    rec({ employee_code: 'W1', store_id: 's1', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+    rec({ employee_code: 'W1', store_id: 's2', position: '督導', is_supervisor_rotation: true, is_acting_manager: true }),
+  ];
+  const all = H.computeMonthHeadcount(recs, FSTORES, YM);
+  const o = H.computeMonthHeadcount(recs, FSTORES, YM, 'only');
+  const x = H.computeMonthHeadcount(recs, FSTORES, YM, 'exclude');
+  const st = (r, id) => r.areas.flatMap((a) => a.stores).find((s) => s.store.id === id);
+  assert.equal(st(o, 's1').rotationActing.length, st(all, 's1').rotationActing.length);
+  assert.equal(st(x, 's2').rotationActing.length, st(all, 's2').rotationActing.length);
+  assert.equal(all.company.rotationActing.length, 1);
+  assert.equal(o.company.rotationActing.length + x.company.rotationActing.length, 1);
+});
 
 console.log(`通過 ${passed} 項`);
 if (failures.length) {

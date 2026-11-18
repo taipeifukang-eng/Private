@@ -37,6 +37,7 @@ export async function getPrescriptionReportContext() {
     return { response: NextResponse.json({ error: storesError.message }, { status: 500 }) };
   }
 
+  // 總公司（0000）沒有處方調劑業務，不列入處方箋報表、範本與匯入
   const allStores = (storeRows || []).filter(
     store => String(store.store_code || '').trim() !== '0000'
   );

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import ImportPerformanceModal from '@/components/ImportPerformanceModal';
 import ImportStoreStatsModal from '@/components/ImportStoreStatsModal';
+import { resolveRxLinkDisplay, buildSupportHoursUpdate, LEGACY_IMPORT_NOTE, isHeadOfficeStoreCode, type RxReportRow } from '@/lib/monthly-stats/rx-link';
 import MealAllowanceModal from '@/components/MealAllowanceModal';
 import SupportBonusModal from '@/components/SupportBonusModal';
 import TransportExpenseModal from '@/components/TransportExpenseModal';
@@ -1713,6 +1714,7 @@ function StoreStatusDetail({
                 <div className="flex-1 flex flex-col gap-4">
                   <StoreMonthlyStatsForm
                     storeId={store.id}
+                    storeCode={store.store_code}
                     yearMonth={yearMonth}
                     summary={storeSummary}
                     summaryLoading={storeSummaryLoading}
@@ -2833,6 +2835,12 @@ function QuarterPerformanceDetail({ summary }: { summary: QuarterPerformanceSumm
                     <div className="text-xs text-amber-600 mt-0.5">活動日折減80%</div>
                   )}
                 </>
+              ) : br ? (
+                <>
+                  {performanceThresholdBadge(0)}
+                  <div className="text-xs font-medium text-amber-600 mt-1">未達門檻</div>
+                  <div className="text-xs text-gray-400">達成 {formatRate(br.gpAchievementRate)}</div>
+                </>
               ) : (
                 <div className="text-xs text-gray-400 mt-2">無資料</div>
               )}
@@ -3689,6 +3697,7 @@ function AddManualEmployeeModal({
 // 統計資料由父層（StoreStatusDetail）讀取一次後傳入，與支援時數表單共用，不再自己查詢。
 function StoreMonthlyStatsForm({
   storeId,
+  storeCode,
   yearMonth,
   summary,
   summaryLoading,
@@ -3696,6 +3705,7 @@ function StoreMonthlyStatsForm({
   hideSupportHours = false
 }: {
   storeId: string;
+  storeCode?: string | null;
   yearMonth: string;
   summary: any | null;
   summaryLoading: boolean;
@@ -3712,8 +3722,6 @@ function StoreMonthlyStatsForm({
     total_gross_profit: 0,
     total_customer_count: 0,
     prescription_addon_only_count: 0,
-    regular_prescription_count: 0,
-    chronic_prescription_count: 0,
     support_to_other_stores_hours: 0,
     support_from_other_stores_hours: 0
   });
@@ -3728,12 +3736,48 @@ function StoreMonthlyStatsForm({
       total_gross_profit: summary.total_gross_profit || 0,
       total_customer_count: summary.total_customer_count || 0,
       prescription_addon_only_count: summary.prescription_addon_only_count || 0,
-      regular_prescription_count: summary.regular_prescription_count || 0,
-      chronic_prescription_count: summary.chronic_prescription_count || 0,
       support_to_other_stores_hours: summary.support_to_other_stores_hours || 0,
       support_from_other_stores_hours: summary.support_from_other_stores_hours || 0
     });
   }, [summary]);
+
+  // 一般箋/慢箋張數、健保總點值：即時讀取業績管理處方箋（伺服端以 view_stats 把關），唯讀顯示
+  const [rxLink, setRxLink] = useState<{ isHeadOffice: boolean; report: RxReportRow } | null>(null);
+  const [rxLinkLoading, setRxLinkLoading] = useState(true);
+  const [rxLinkError, setRxLinkError] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setRxLinkLoading(true);
+    setRxLinkError(false);
+    setRxLink(null);
+    (async () => {
+      try {
+        const { getStoreMonthlyRxLink } = await import('@/app/store/actions');
+        const result = await getStoreMonthlyRxLink(yearMonth, storeId);
+        if (cancelled) return;
+        if (result.success) setRxLink({ isHeadOffice: result.isHeadOffice, report: result.report });
+        else {
+          console.error('Error loading prescription link:', result.error);
+          setRxLinkError(true);
+        }
+      } catch (error) {
+        console.error('Error loading prescription link:', error);
+        if (!cancelled) setRxLinkError(true);
+      } finally {
+        if (!cancelled) setRxLinkLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [storeId, yearMonth]);
+  const rxDisplay = resolveRxLinkDisplay({
+    report: rxLink?.report ?? null,
+    legacySummary: summary,
+    // 0000 以頁面已知門市代號判斷，不依賴伺服端回傳（讀取失敗時也不會退回舊值）
+    isHeadOffice: isHeadOfficeStoreCode(storeCode) || (rxLink?.isHeadOffice ?? false),
+  });
+  // 讀取失敗：三格顯示「讀取失敗」，不退回舊匯入值（0000 例外，永遠暫無資料）
+  const rxFailed = rxLinkError && !isHeadOfficeStoreCode(storeCode);
+  const rxCell = (text: string) => (rxLinkLoading ? '讀取中' : rxFailed ? '讀取失敗' : text);
 
   const handleSave = async () => {
     setSaving(true);
@@ -3908,34 +3952,38 @@ function StoreMonthlyStatsForm({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-busy={rxLinkLoading}>
+              {([
+                ['一般箋張數', rxDisplay.regular],
+                ['慢箋張數', rxDisplay.chronic],
+              ] as const).map(([label, d]) => (
+                <div key={label} className="flex items-center gap-1">
+                  <label className="text-xs text-gray-600">{label}</label>
+                  <div
+                    className={`min-w-[5rem] px-2 py-1 bg-gray-100 rounded text-xs text-right ${d.value === null || rxFailed ? 'text-gray-400' : 'text-gray-900'}`}
+                    data-testid={label === '一般箋張數' ? 'rx-regular-count' : 'rx-chronic-count'}
+                  >
+                    {rxCell(d.text)}
+                  </div>
+                  {!rxLinkLoading && !rxFailed && d.legacy && (
+                    <span
+                      className="text-xs text-amber-600"
+                      title="業績管理處方箋尚無此月此欄資料，顯示的是舊版匯入的數字"
+                    >{LEGACY_IMPORT_NOTE}</span>
+                  )}
+                </div>
+              ))}
               <div className="flex items-center gap-1">
-                <label className="text-xs text-gray-600">一般箋張數</label>
-                <input
-                  type="text"
-                  value={stats.regular_prescription_count.toLocaleString()}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/,/g, '');
-                    setStats({ ...stats, regular_prescription_count: parseInt(value) || 0 });
-                  }}
-                  disabled={isReadOnly}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <label className="text-xs text-gray-600">慢箋張數</label>
-                <input
-                  type="text"
-                  value={stats.chronic_prescription_count.toLocaleString()}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/,/g, '');
-                    setStats({ ...stats, chronic_prescription_count: parseInt(value) || 0 });
-                  }}
-                  disabled={isReadOnly}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 text-right"
-                />
+                <label className="text-xs text-gray-600">健保總點值</label>
+                <div
+                  className={`min-w-[6rem] px-2 py-1 bg-gray-100 rounded text-xs text-right ${rxDisplay.totalPoint.value === null || rxFailed ? 'text-gray-400' : 'text-gray-900'}`}
+                  data-testid="rx-total-point"
+                >
+                  {rxCell(rxDisplay.totalPoint.text)}
+                </div>
               </div>
             </div>
+            <p className="mt-1 text-[11px] text-gray-400">資料來自業績管理處方箋，如需修改請至業績管理處方箋頁。</p>
           </div>
         </div>
       </div>
@@ -4027,19 +4075,11 @@ function StoreSupportHoursForm({
       const { updateStoreMonthlySummary } = await import('@/app/store/actions');
       
       // 如果沒有現有資料，則創建初始資料（全部為 0，只填寫支援時數）
-      const updateData = {
-        total_staff_count: existingData?.total_staff_count ?? 0,
-        admin_staff_count: existingData?.admin_staff_count ?? 0,
-        newbie_count: existingData?.newbie_count ?? 0,
-        business_days: existingData?.business_days ?? 0,
-        total_gross_profit: existingData?.total_gross_profit ?? 0,
-        total_customer_count: existingData?.total_customer_count ?? 0,
-        prescription_addon_only_count: existingData?.prescription_addon_only_count ?? 0,
-        regular_prescription_count: existingData?.regular_prescription_count ?? 0,
-        chronic_prescription_count: existingData?.chronic_prescription_count ?? 0,
+      // 不帶一般箋、慢箋張數（改由處方箋提供），避免用舊值蓋掉
+      const updateData = buildSupportHoursUpdate(existingData, {
         support_to_other_stores_hours: supportHours.support_to_other_stores_hours,
         support_from_other_stores_hours: supportHours.support_from_other_stores_hours
-      };
+      });
       
       console.log('📝 開始儲存支援時數:', { 
         yearMonth, 

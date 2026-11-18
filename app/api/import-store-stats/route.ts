@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import * as XLSX from 'xlsx';
+import { buildStoreStatsImportPayload } from '@/lib/monthly-stats/rx-link';
 
 // 配置 API Route
 export const runtime = 'nodejs'; // 使用 Node.js runtime
@@ -192,19 +193,8 @@ export async function POST(request: NextRequest) {
         }
 
         // 準備更新數據（只更新統計欄位，不影響其他欄位）
-        const statsData = {
-          store_name: store.store_name || store.store_code,
-          store_code: store.store_code,
-          total_staff_count: parseInt(row['門市人數']) || 0,
-          admin_staff_count: parseInt(row['行政人數']) || 0,
-          newbie_count: parseInt(row['新人人數']) || 0,
-          business_days: parseFloat(row['營業天數']) || 0,
-          total_gross_profit: parseFloat(row['毛利']) || 0,
-          total_customer_count: parseInt(row['總來客數']) || 0,
-          prescription_addon_only_count: parseInt(row['單純處方加購來客數']) || 0,
-          regular_prescription_count: parseInt(row['一般箋張數']) || 0,
-          chronic_prescription_count: parseInt(row['慢箋張數']) || 0
-        };
+        // 一般箋、慢箋張數改由業績管理處方箋提供，這裡不讀也不寫（既有值保留）
+        const statsData = buildStoreStatsImportPayload(row, store);
 
         const existingId = existingRecordMap.get(store.id);
 

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import EmployeeManagementClient from './EmployeeManagementClient';
-import { canViewEmployeeManagement } from '@/lib/monthly-staff/employee-management-access';
+import { canAccessEmployeeManagement } from '@/lib/monthly-staff/employee-management-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,12 +58,12 @@ export default async function EmployeeManagementPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, department, job_title')
+    .select('role')
     .eq('id', user.id)
     .single();
 
-  // 檢查權限：admin、營業部助理和營業部主管（判斷抽到 lib，每月人數統計 API 共用同一個函式）
-  if (!canViewEmployeeManagement(profile)) {
+  // 檢查權限：admin 或擁有 employee.manage（與導覽列選單同一個權限碼；每月人數統計 API 共用同一個函式）
+  if (!(await canAccessEmployeeManagement(user.id, profile))) {
     redirect('/dashboard');
   }
 

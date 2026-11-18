@@ -90,3 +90,11 @@ DEV 目前實際出現的值：full_month、new_hire、transferred_in、transfer
 - 畫面：`app/admin/employee-management/PositionHeadcountPanel.tsx`（由 `EmployeeManagementClient.tsx` 的分頁載入）
 - 單元測試（不連資料庫）：`npm run test:position-headcount-unit`
 - DEV 整合測試（VW/ZT 測試門市、保留月份 2099-03/05/07，只刪自己建立的 id，孤兒 0）：`npm run test:position-headcount-dev`
+
+## 督導卡班（2026-11-10 追加）
+
+- is_supervisor_rotation=true 的那一筆不計入人數（門市、督導區小計、全公司合計、趨勢），列「不計入」名單，原因「督導卡班」；判斷順序優先於 monthly_status（full_month 也排除）。
+- 同一督導同月在其他門市未勾卡班的正常資料照常計入，全公司只算一次。
+- 卡班同時代理店長（is_acting_manager=true 或職位督導(代理店長)）：不計入人數，代理店長欄標註「督導卡班代理 N 位」（與「其中 N 位由督導代理」並列，不加進人數）。
+- 三個表格（各門市明細、趨勢、名單彈窗）標題列凍結（sticky）。
+- 新版（Vue）同步另行處理。
