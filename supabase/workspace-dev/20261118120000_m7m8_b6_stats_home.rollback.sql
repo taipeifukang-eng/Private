@@ -10,7 +10,7 @@ BEGIN
   IF position('v_attention' IN v_def) = 0 THEN RETURN; END IF;
   v_new := replace(v_def, E'v_approvals boolean;\n  v_attention boolean;', 'v_approvals boolean;');
   v_new := regexp_replace(v_new, E'\n  v_attention := COALESCE\\(v_f->>''attention'', ''false''\\) IN \\(''true'', ''t'', ''1''\\);', '');
-  v_new := regexp_replace(v_new, E'\n       AND \\(NOT v_attention OR public\\.ga_att_po\\(o\\.status, o\\.expected_delivery_date, has_permission\\(v_uid, ''general_affairs\\.purchase_order\\.approve''\\)\\)\\)', '');
+  v_new := regexp_replace(v_new, E'\n       AND \\(NOT v_attention OR public\\.ga_att_po\\(o\\.status, o\\.expected_delivery_date, (?:\\(SELECT )?has_permission\\(v_uid, ''general_affairs\\.purchase_order\\.approve''\\)\\)?\\)\\)', '');
   IF position('v_attention' IN v_new) > 0 THEN
     RAISE EXCEPTION 'ga_ws_po_list 的 attention 篩選無法自動移除（定義已被改過），請人工處理';
   END IF;

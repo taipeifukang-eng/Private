@@ -5,8 +5,9 @@
 //   node scripts/perf-m7m8-b6-dev.cjs --measure [--label x] [--explain]   各函式呼叫 5 次取中位數（資料庫內耗時＋經 PostgREST 的往返耗時）
 //   node scripts/perf-m7m8-b6-dev.cjs --cleanup-only            只清除（依標記與測試帳號），並驗證筆數回到基準
 // 標記：所有資料名稱／編號以 PERF-B6- 開頭，測試帳號 email 以 m7m8-test-perfb6- 開頭，臨時角色代碼 m7m8_test_perfb6_ 開頭。
-// 資料落點：只掛 VW／ZT 測試門市；業務月份一律 2038 年。唯一例外：「待我處理」類欄位（帳單到期日、採購預計到貨日、調撥交出日、合約到期日）
-//   少數列必須落在「今天以前／30 天內」才會被首頁與徽章計入，這些列用相對今天的日期（仍有 PERF-B6- 標記，清除時一併刪）。
+// 資料落點：只掛 VW／ZT 測試門市；大量資料的日期一律 2038 年。唯一例外是「相對日期補量」步驟：廠商合約到期、採購單預計到貨、帳單到期日、調撥交出日
+//   每類只另灌 N.rel（300）筆相對今天的日期，讓首頁與徽章的「待我處理」計得到（仍有 PERF-B6- 標記，清除時一併刪）。
+//   分段執行：--init（清殘留、記基準、建帳號）→ --seed --steps=廠商,工單 …（每段一個前景指令）→ --analyze → --measure → --cleanup-only。
 // 環境守衛：只解析 .env.development.local（不讀 .env.local），並確認 supabase CLI 連結的專案是 DEV（ref 以 mjpd 開頭）。
 const { spawnSync } = require("child_process");
 const fs = require("fs");
@@ -25,14 +26,15 @@ const has = (f) => args.includes(f);
 const val = (f, d) => { const a = args.find((x) => x.startsWith(f + "=")); return a ? a.slice(f.length + 1) : d; };
 const LABEL = val("--label", "run");
 const OUT = val("--out", null);
+const ONLY = val("--only", null); // 只量測名稱以此開頭的案例
 const SCALE = Number(val("--scale", "1")); // 1 = 十萬級
 
 const EMAIL_PREFIX = "m7m8-test-perfb6-";
 const ROLE_PREFIX = "m7m8_test_perfb6_";
 const N = {
-  vendors: Math.round(20000 * SCALE), wo: Math.round(100000 * SCALE), sr: Math.round(60000 * SCALE), po: Math.round(100000 * SCALE),
-  reviews: Math.round(30000 * SCALE), bills: Math.round(100000 * SCALE), parts: Math.round(5000 * SCALE), locs: 20, transfers: Math.round(30000 * SCALE),
-  equip: Math.round(20000 * SCALE), fac: Math.round(20000 * SCALE),
+  vendors: Math.round(2000 * SCALE), wo: Math.round(40000 * SCALE), sr: Math.round(10000 * SCALE), po: Math.round(30000 * SCALE),
+  reviews: Math.round(5000 * SCALE), bills: Math.round(20000 * SCALE), parts: Math.round(1000 * SCALE), locs: 20, transfers: Math.round(5000 * SCALE),
+  equip: Math.round(3000 * SCALE), fac: Math.round(3000 * SCALE), rel: 300, // rel＝每類「相對今天日期」補量筆數
 };
 
 // ---------------------------------------------------------------- SQL 執行（supabase CLI → Management API）
@@ -133,7 +135,7 @@ INSERT INTO public.ga_vendors (name, vendor_type, status, contract_required, con
 SELECT 'PERF-B6-V-' || lpad(gs.i::text, 6, '0'), 'company',
        CASE WHEN ${R("gs.i", "st", 100)} < 85 THEN 'active' WHEN ${R("gs.i", "st", 100)} < 95 THEN 'paused' ELSE 'inactive' END,
        ${R("gs.i", "cr", 100)} < 40,
-       CASE WHEN ${R("gs.i", "ce", 100)} < 6 THEN public.ga_po_today() + (${R("gs.i", "cd", 50)}::int - 15) ELSE date '2038-01-01' + ${R("gs.i", "cx", 365)}::int END,
+       date '2038-01-01' + ${R("gs.i", "cx", 365)}::int,
        ${TS("gs.i", "v")}, ${TS("gs.i", "v")}
   FROM generate_series(1, ${N.vendors}) AS gs(i);
 COMMIT;`]);
@@ -180,8 +182,7 @@ INSERT INTO public.ga_purchase_orders (po_no, status, vendor_id, vendor_name_sna
 SELECT 'PERF-B6-PO-' || lpad(gs.i::text, 6, '0'), x.status,
        x.vid, 'PERF-B6-VS-' || ${R("gs.i", "vs", 20000)},
        CASE WHEN ${R("gs.i", "sr", 100)} < 50 THEN (SELECT s.id FROM _sr s WHERE s.rn = 1 + ${R("gs.i", "srr", 1000000)}::int % (SELECT n FROM _nsr)) END,
-       CASE WHEN x.status IN ('ORDERED','PARTIALLY_RECEIVED') AND ${R("gs.i", "ov", 100)} < 20 THEN public.ga_po_today() - (1 + ${R("gs.i", "od", 30)}::int)
-            WHEN x.status IN ('ORDERED','PARTIALLY_RECEIVED','APPROVED') THEN date '2038-01-01' + ${R("gs.i", "ox", 365)}::int END,
+       CASE WHEN x.status IN ('ORDERED','PARTIALLY_RECEIVED','APPROVED') THEN date '2038-01-01' + ${R("gs.i", "ox", 365)}::int END,
        0.05, x.sub, round(x.sub * 0.05), x.sub + round(x.sub * 0.05), false,
        CASE WHEN x.status <> 'DRAFT' THEN x.cat END,
        CASE WHEN x.status IN ('ORDERED','PARTIALLY_RECEIVED','RECEIVED','CLOSED') THEN x.cat END,
@@ -204,7 +205,7 @@ COMMIT;`]);
 INSERT INTO public.ga_utility_bills (store_id, location_name, expense_type, billing_month, provider_name, amount, due_date, paid_at, created_by, created_at, updated_at, deleted_at, deletion_reason)
 SELECT (${STORES})[1 + ${R("gs.i", "s", 4)}::int], 'PERF-B6-L-' || lpad(gs.i::text, 6, '0'),
        (ARRAY['WATER','ELECTRICITY','PHONE','INTERNET'])[1 + ${R("gs.i", "t", 4)}::int], x.bm, 'PERF-B6-P', 300 + ${R("gs.i", "a", 30000)},
-       CASE WHEN ${R("gs.i", "dn", 100)} < 5 THEN NULL WHEN ${R("gs.i", "dp", 100)} < 4 THEN public.ga_po_today() - (1 + ${R("gs.i", "dd", 40)}::int) ELSE x.bm + 25 END,
+       CASE WHEN ${R("gs.i", "dn", 100)} < 5 THEN NULL ELSE x.bm + 25 END,
        CASE WHEN ${R("gs.i", "pd", 100)} < 60 THEN x.bm + 20 END,
        '${ga}'::uuid, x.bm::timestamptz, x.bm::timestamptz,
        CASE WHEN ${R("gs.i", "dl", 100)} < 2 THEN x.bm::timestamptz + interval '40 days' END,
@@ -231,7 +232,7 @@ COMMIT;`]);
 CREATE TEMP TABLE _l ON COMMIT DROP AS SELECT id, row_number() OVER (ORDER BY name) AS rn FROM public.ga_inventory_locations WHERE name LIKE 'PERF-B6-LOC-%';
 INSERT INTO public.ga_inventory_transfers (transfer_no, source_location_id, destination_location_id, status, reason, source_confirmed_at, received_at, canceled_at, cancel_reason, created_by, created_at, updated_at)
 SELECT 'PERF-B6-TR-' || lpad(gs.i::text, 6, '0'), s.id, d.id, x.status, 'perf',
-       CASE WHEN x.status IN ('SOURCE_CONFIRMED','IN_TRANSIT','RECEIVED') THEN CASE WHEN x.status <> 'RECEIVED' AND ${R("gs.i", "ov", 100)} < 30 THEN now() - ((5 + ${R("gs.i", "od", 60)}) || ' days')::interval ELSE x.cat + interval '1 day' END END,
+       CASE WHEN x.status IN ('SOURCE_CONFIRMED','IN_TRANSIT','RECEIVED') THEN x.cat + interval '1 day' END,
        CASE WHEN x.status = 'RECEIVED' THEN x.cat + interval '3 days' END,
        CASE WHEN x.status = 'CANCELED' THEN x.cat + interval '1 day' END, CASE WHEN x.status = 'CANCELED' THEN 'perf' END,
        '${ga}'::uuid, x.cat, x.cat
@@ -254,6 +255,28 @@ SELECT (SELECT a FROM st)[1 + ${R("gs.i", "s", 4)}::int], (SELECT id FROM public
        CASE WHEN ${R("gs.i", "o", 100)} < 10 THEN 'PENDING_GA_REVIEW' WHEN ${R("gs.i", "o", 100)} < 15 THEN 'NEEDS_EQUIPMENT_PHOTO' WHEN ${R("gs.i", "o", 100)} < 20 THEN 'NEEDS_LABEL_PHOTO' ELSE 'COMPLETED' END,
        ${TS("gs.i", "f")}, ${TS("gs.i", "f")}
   FROM generate_series(1, ${N.fac}) AS gs(i);
+COMMIT;`]);
+  // 相對今天日期的少量補量（只為讓首頁與徽章的「待我處理」計得到；掛 VW／ZT、帶 PERF-B6- 標記、一定被清除）
+  steps.push(["相對日期補量", `${prelude}
+INSERT INTO public.ga_vendors (name, vendor_type, status, contract_required, contract_end_date, created_at, updated_at)
+SELECT 'PERF-B6-VR-' || lpad(gs.i::text, 6, '0'), 'company', 'active', true, public.ga_po_today() + (${R("gs.i", "cd", 50)}::int - 15), now(), now()
+  FROM generate_series(1, ${N.rel}) AS gs(i);
+INSERT INTO public.ga_purchase_orders (po_no, status, vendor_id, vendor_name_snapshot, expected_delivery_date, tax_rate, subtotal, tax_amount, total_amount, approval_required, submitted_at, ordered_at, created_by, created_at, updated_at)
+SELECT 'PERF-B6-PO-R' || lpad(gs.i::text, 5, '0'), CASE WHEN gs.i % 2 = 0 THEN 'ORDERED' ELSE 'PARTIALLY_RECEIVED' END,
+       (SELECT v.id FROM _v v WHERE v.rn = 1 + ${R("gs.i", "vq", 1000000)}::int % (SELECT n FROM _nv)), 'PERF-B6-VS-R', public.ga_po_today() - (1 + ${R("gs.i", "od", 30)}::int),
+       0.05, 1000, 50, 1050, false, now(), now(), '${ga}'::uuid, now(), now()
+  FROM generate_series(1, ${N.rel}) AS gs(i);
+INSERT INTO public.ga_utility_bills (store_id, location_name, expense_type, billing_month, provider_name, amount, due_date, paid_at, created_by, created_at, updated_at)
+SELECT (${STORES})[1 + ${R("gs.i", "s", 4)}::int], 'PERF-B6-L-R' || lpad(gs.i::text, 5, '0'), 'WATER', date '2038-01-01', 'PERF-B6-P', 500,
+       public.ga_po_today() - (1 + ${R("gs.i", "dd", 40)}::int), NULL, '${ga}'::uuid, now(), now()
+  FROM generate_series(1, ${N.rel}) AS gs(i);
+COMMIT;`]);
+  steps.push(["相對日期補量-調撥", `${HEAD}
+CREATE TEMP TABLE _l ON COMMIT DROP AS SELECT id, row_number() OVER (ORDER BY name) AS rn FROM public.ga_inventory_locations WHERE name LIKE 'PERF-B6-LOC-%';
+INSERT INTO public.ga_inventory_transfers (transfer_no, source_location_id, destination_location_id, status, reason, source_confirmed_at, created_by, created_at, updated_at)
+SELECT 'PERF-B6-TR-R' || lpad(gs.i::text, 5, '0'), s.id, d.id, 'SOURCE_CONFIRMED', 'perf', now() - ((5 + ${R("gs.i", "od", 60)}) || ' days')::interval, '${ga}'::uuid, now(), now()
+  FROM generate_series(1, ${N.rel}) AS gs(i)
+  JOIN _l s ON s.rn = 1 + (gs.i % ${N.locs}) JOIN _l d ON d.rn = 1 + ((gs.i + 1) % ${N.locs});
 COMMIT;`]);
   return steps;
 }
@@ -311,16 +334,18 @@ const CASES = [
   ["ga_hm_counts", "", null, ["ga", "store"], 1000], // 只做資料庫內耗時（不開放給登入者）
 ];
 
-function measureDbSql(uid, who) {
-  const blocks = CASES.filter((c) => c[3].includes(who)).map(([name, sqlArgs]) => {
+function measureDbSql(uid, who, only) {
+  const blocks = CASES.filter((c) => c[3].includes(who) && (!only || c[0] === only)).map(([name, sqlArgs]) => {
     const fn = name.split("#")[0];
     return `  FOR i IN 1..5 LOOP
     t0 := clock_timestamp();
     r := public.${fn}(${sqlArgs})::jsonb;
     INSERT INTO _perf VALUES ('${name}', '${who}', i, extract(epoch FROM clock_timestamp() - t0) * 1000, length(r::text), COALESCE(r ->> 'ok', 'counts'));
+    EXIT WHEN extract(epoch FROM clock_timestamp() - t0) > 12;
   END LOOP;`;
   }).join("\n");
-  return `CREATE TEMP TABLE _perf (fn text, who text, i int, ms numeric, bytes int, ok text) ON COMMIT DROP;
+  return `SET statement_timeout = 0;
+CREATE TEMP TABLE _perf (fn text, who text, i int, ms numeric, bytes int, ok text) ON COMMIT DROP;
 DO $perf$
 DECLARE i int; t0 timestamptz; r jsonb;
 BEGIN
@@ -335,7 +360,11 @@ SELECT fn, who, i, round(ms, 1) AS ms, bytes, ok FROM _perf ORDER BY fn, i;`;
 async function measure(users) {
   const results = {};
   for (const who of ["ga", "store"]) {
-    const rows = runSql(measureDbSql(users[who].id, who));
+    const rows = [];
+    for (const c of CASES.filter((x) => x[3].includes(who) && (!ONLY || x[0].startsWith(ONLY)))) {
+      try { rows.push(...runSql(measureDbSql(users[who].id, who, c[0]))); }
+      catch (e) { console.log(`資料庫內量測失敗 ${c[0]} ${who}：${String(e.message).slice(0, 200)}`); rows.push({ fn: c[0], who, i: 1, ms: 999999, bytes: 0, ok: "FAILED" }); }
+    }
     for (const r of rows) {
       const k = `${r.fn}|${who}`;
       (results[k] ||= { fn: r.fn, who, db: [], e2e: [], bytes: Number(r.bytes), ok: r.ok });
@@ -348,6 +377,8 @@ async function measure(users) {
     for (const who of whos) {
       const k = `${name}|${who}`;
       const fn = name.split("#")[0];
+      if (ONLY && !name.startsWith(ONLY)) continue;
+      if (Math.max(...results[k].db) > 8000) { results[k].e2eError = "資料庫內已超過 8 秒，略過往返量測"; continue; }
       for (let i = 0; i < 5; i += 1) {
         const t = process.hrtime.bigint();
         const res = await users[who].client.rpc(fn, rpcArgs);
@@ -378,7 +409,8 @@ function explain(users) {
   const uid = users.ga.id;
   const res = {};
   for (const [name, sql] of Object.entries(EXPLAINS)) {
-    const rows = runSql(`SELECT set_config('request.jwt.claims', json_build_object('sub', '${uid}', 'role', 'authenticated')::text, true), set_config('request.jwt.claim.sub', '${uid}', true);\nEXPLAIN (ANALYZE, BUFFERS) ${sql};`);
+    const rows = runSql(`SET statement_timeout = 0;
+SELECT set_config('request.jwt.claims', json_build_object('sub', '${uid}', 'role', 'authenticated')::text, true), set_config('request.jwt.claim.sub', '${uid}', true);\nEXPLAIN (ANALYZE, BUFFERS) ${sql};`);
     res[name] = rows.map((r) => r["QUERY PLAN"]).filter(Boolean);
     const lines = res[name];
     const exec = lines.find((l) => /Execution Time/.test(l));
@@ -431,29 +463,44 @@ async function cleanupAll() {
   }
   let users;
   const all = has("--all");
-  if (all || has("--seed")) {
-    // 基準：先清上次殘留，再記錄各表筆數。
+  const CHUNK = 10000;
+  const expand = (steps) => steps.flatMap(([name, sql]) => {
+    const m = /generate_series\(1, (\d+)\) AS gs/.exec(sql);
+    if (!m || Number(m[1]) <= CHUNK) return [[name, sql, name]];
+    const total = Number(m[1]); const out = [];
+    for (let lo = 1; lo <= total; lo += CHUNK) { const hi = Math.min(total, lo + CHUNK - 1); out.push([`${name} ${lo}-${hi}`, sql.replace(m[0], `generate_series(${lo}, ${hi}) AS gs`), name]); }
+    return out;
+  });
+  const ANALYZE_SQL = ["ga_vendors", "maintenance_requests", "ga_service_requests", "ga_purchase_orders", "ga_purchase_order_items", "ga_purchase_reviews", "ga_utility_bills", "ga_inventory_balances", "ga_inventory_location_parts", "ga_inventory_transfers", "ga_inventory_locations", "ga_parts", "ga_equipment", "ga_facilities"].map((t) => `ANALYZE public.${t};`).join(" ");
+  const showMarked = () => { const c = counts(); console.log("目前標記筆數：" + JSON.stringify(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v.marked])))); };
+  const failSeed = async (e) => {
+    console.error("灌資料中途失敗：" + (e.message || e));
+    if (all) { try { await cleanupAll(); } catch (e2) { console.error("自動清除也失敗，請執行 --cleanup-only：" + (e2.message || e2)); } }
+    else console.error("已建立的部分資料仍在，請執行 node scripts/perf-m7m8-b6-dev.cjs --cleanup-only");
+    process.exit(1);
+  };
+  if (all || has("--init")) {
     await cleanupAll();
     const base = counts();
     fs.writeFileSync(state, JSON.stringify(base));
     console.log("基準筆數：" + JSON.stringify(Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v.total]))));
+    try { users = await setupUsers(); console.log("已建立測試帳號"); } catch (e) { await failSeed(e); }
+  }
+  if (all || has("--seed")) {
     try {
-      users = await setupUsers();
-      for (const [name, sql] of seedSql(users.ga.id)) {
+      if (!users) users = await findExistingUsers();
+      const only = val("--steps", null)?.split(",");
+      for (const [name, sql, base] of expand(seedSql(users.ga.id))) {
+        if (only && !only.includes(base)) continue;
         const t = Date.now();
         runSql(sql.replace(/\$\{ga\}/g, users.ga.id));
         console.log(`建立 ${name}：${((Date.now() - t) / 1000).toFixed(1)} 秒`);
       }
-      runSql("ANALYZE public.ga_vendors; ANALYZE public.maintenance_requests; ANALYZE public.ga_service_requests; ANALYZE public.ga_purchase_orders; ANALYZE public.ga_purchase_order_items; ANALYZE public.ga_purchase_reviews; ANALYZE public.ga_utility_bills; ANALYZE public.ga_inventory_balances; ANALYZE public.ga_inventory_location_parts; ANALYZE public.ga_inventory_transfers; ANALYZE public.ga_inventory_locations; ANALYZE public.ga_parts; ANALYZE public.ga_equipment; ANALYZE public.ga_facilities;");
-      const c = counts();
-      console.log("灌入後標記筆數：" + JSON.stringify(Object.fromEntries(Object.entries(c).map(([k, v]) => [k, v.marked]))));
-    } catch (e) {
-      console.error("灌資料中途失敗：" + (e.message || e));
-      if (all) { try { await cleanupAll(); } catch (e2) { console.error("自動清除也失敗，請執行 --cleanup-only：" + (e2.message || e2)); } }
-      else console.error("已建立的部分資料仍在，請執行 node scripts/perf-m7m8-b6-dev.cjs --cleanup-only");
-      process.exit(1);
-    }
+      if (all) runSql(ANALYZE_SQL);
+      showMarked();
+    } catch (e) { await failSeed(e); }
   }
+  if (has("--analyze")) { runSql(ANALYZE_SQL); console.log("ANALYZE 完成"); }
   try {
     if (all || has("--measure")) {
       if (!users) users = await findExistingUsers();

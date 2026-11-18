@@ -1,4 +1,4 @@
-// 套用 M7M8 第 6 批（G20 分類區域、G21 廠商、G22 統計、G23 水電網費、G24 首頁）資料庫物件到 DEV：090000 欄位與收緊版 RLS 與縣市行政區、100000 廠商與分類區域函式、110000 水電帳單、120000 統計與首頁、130000 DEV 測試角色、140000 廠商統編唯一索引；加 --rollback 則反向執行 rollback。
+// 套用 M7M8 第 6 批（G20 分類區域、G21 廠商、G22 統計、G23 水電網費、G24 首頁）資料庫物件到 DEV：090000 欄位與收緊版 RLS 與縣市行政區、100000 廠商與分類區域函式、110000 水電帳單、120000 統計與首頁、130000 DEV 測試角色、140000 廠商統編唯一索引、150000 待我處理述詞內嵌（效能）；加 --rollback 則反向執行 rollback。
 // 檔案不存在（該階段還沒做）就略過。可重複執行。
 // 環境守衛只解析 .env.development.local（不讀 .env.local），並確認 supabase CLI 連結的專案是 DEV。
 const { spawnSync } = require("child_process");
@@ -21,6 +21,7 @@ const base = [
   "20261118120000_m7m8_b6_stats_home",
   "20261118130000_m7m8_b6_dev_seed",
   "20261118140000_m7m8_b6_vendor_tax_unique",
+  "20261118150000_m7m8_b6_perf_inline_predicates",
 ];
 const files = (rollback ? base.slice().reverse() : base)
   .map((n) => `supabase/workspace-dev/${n}${rollback ? ".rollback" : ""}.sql`)

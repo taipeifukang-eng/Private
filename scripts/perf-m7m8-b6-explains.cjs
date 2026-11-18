@@ -20,11 +20,10 @@ module.exports = {
              CASE WHEN lp.safety_stock_qty IS NOT NULL AND b.quantity_base < lp.safety_stock_qty THEN 'red'
                   WHEN lp.reorder_point_qty IS NOT NULL AND b.quantity_base < lp.reorder_point_qty THEN 'yellow' END AS level
         FROM public.ga_inventory_balances b
-        JOIN public.ga_inventory_locations l ON l.id = b.location_id AND l.deleted_at IS NULL
+        JOIN public.ga_inventory_locations l ON l.id = b.location_id AND l.deleted_at IS NULL AND public.ga_inventory_balance_is_visible(l.id)
         LEFT JOIN public.ga_parts p ON p.id = b.part_id
         LEFT JOIN LATERAL (SELECT x.safety_stock_qty, x.reorder_point_qty FROM public.ga_inventory_location_parts x
                             WHERE x.location_id = b.location_id AND x.part_id = b.part_id AND x.deleted_at IS NULL AND x.is_active ORDER BY x.updated_at DESC LIMIT 1) lp ON true
-       WHERE public.ga_inventory_balance_is_visible(b.location_id)
     )
     SELECT (SELECT count(*) FROM inv WHERE quantity_base < 0 AND NOT allow_negative_stock), (SELECT count(*) FROM inv WHERE level = 'red' AND NOT (quantity_base < 0 AND allow_negative_stock)),
            (SELECT count(*) FROM inv WHERE level = 'yellow' AND NOT (quantity_base < 0 AND allow_negative_stock))`,

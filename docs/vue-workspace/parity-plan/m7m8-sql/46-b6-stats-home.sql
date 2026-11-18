@@ -60,9 +60,24 @@ BEGIN
   v_new := regexp_replace(v_new, '(v_approvals := COALESCE\(v_f->>''approvals'', ''false''\) IN \(''true'', ''t'', ''1''\);)',
                           E'\\1\n  v_attention := COALESCE(v_f->>''attention'', ''false'') IN (''true'', ''t'', ''1'');');
   v_new := replace(v_new, 'AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')',
-                   E'AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')\n       AND (NOT v_attention OR public.ga_att_po(o.status, o.expected_delivery_date, has_permission(v_uid, ''general_affairs.purchase_order.approve'')))');
+                   E'AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')\n       AND (NOT v_attention OR public.ga_att_po(o.status, o.expected_delivery_date, (SELECT has_permission(v_uid, ''general_affairs.purchase_order.approve''))))');
   IF position('v_attention boolean' IN v_new) = 0 OR position('v_attention := ' IN v_new) = 0 OR position('NOT v_attention OR' IN v_new) = 0 THEN
     RAISE EXCEPTION 'ga_ws_po_list 現行定義與預期不同（找不到 v_approvals 的宣告、設定或篩選行），請人工確認後再加 attention 篩選';
+  END IF;
+  EXECUTE v_new;
+END $$;
+
+-- 2b. 效能修正（十萬級實測）：attention 篩選裡的 has_permission 原本每列執行一次（3 萬張採購單逾時），改成純量子查詢只算一次。已套過舊版者就地升級。
+DO $$
+DECLARE
+  v_def text;
+  v_new text;
+BEGIN
+  SELECT pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) INTO v_def;
+  IF position('NOT v_attention OR' IN v_def) = 0 OR position('(SELECT has_permission(v_uid, ''general_affairs.purchase_order.approve''))' IN v_def) > 0 THEN RETURN; END IF;
+  v_new := replace(v_def, 'o.expected_delivery_date, has_permission(v_uid, ''general_affairs.purchase_order.approve'')', 'o.expected_delivery_date, (SELECT has_permission(v_uid, ''general_affairs.purchase_order.approve''))');
+  IF position('(SELECT has_permission(v_uid, ''general_affairs.purchase_order.approve''))' IN v_new) = 0 THEN
+    RAISE EXCEPTION 'ga_ws_po_list attention 篩選的現行寫法與預期不同，請人工確認';
   END IF;
   EXECUTE v_new;
 END $$;
@@ -421,11 +436,10 @@ BEGIN
              CASE WHEN lp.safety_stock_qty IS NOT NULL AND b.quantity_base < lp.safety_stock_qty THEN 'red'
                   WHEN lp.reorder_point_qty IS NOT NULL AND b.quantity_base < lp.reorder_point_qty THEN 'yellow' END AS level
         FROM public.ga_inventory_balances b
-        JOIN public.ga_inventory_locations l ON l.id = b.location_id AND l.deleted_at IS NULL
+        JOIN public.ga_inventory_locations l ON l.id = b.location_id AND l.deleted_at IS NULL AND public.ga_inventory_balance_is_visible(l.id) -- 可見性以「位置」為單位判斷（十萬級實測：逐列判斷慢 10 秒），與逐列判斷同義
         LEFT JOIN public.ga_parts p ON p.id = b.part_id
         LEFT JOIN LATERAL (SELECT x.safety_stock_qty, x.reorder_point_qty FROM public.ga_inventory_location_parts x
                             WHERE x.location_id = b.location_id AND x.part_id = b.part_id AND x.deleted_at IS NULL AND x.is_active ORDER BY x.updated_at DESC LIMIT 1) lp ON true
-       WHERE public.ga_inventory_balance_is_visible(b.location_id)
     )
     SELECT jsonb_build_object(
       'negative_count', (SELECT count(*) FROM inv WHERE quantity_base < 0 AND NOT allow_negative_stock),

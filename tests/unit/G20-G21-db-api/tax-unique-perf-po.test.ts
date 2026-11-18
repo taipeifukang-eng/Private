@@ -54,7 +54,7 @@ describe('統編唯一索引（決定 1）', () => {
   });
   it('README 套用順序 48 在 44 之後、47 之前，並說明 41 第 3 區必須清空；41 第 3 區說明同步', () => {
     const readme = read(`${DRAFTS}/README.md`);
-    expect(readme).toContain('`41 → 42 → 44 → 48 → 47 → 45 → 46 → 43`');
+    expect(readme).toContain('`41 → 42 → 44 → 48 → 47 → 45 → 46 → 49 → 43`');
     expect(readme).toContain('48-b6-vendor-tax-unique.sql');
     expect(readme).toContain('48-b6-vendor-tax-unique-rollback.sql');
     expect(read(`${DRAFTS}/41-b6-preview-before-apply.sql`)).toMatch(/第 3 區：[^\n]*必須整理到 0 組才能套用 48/);
@@ -96,5 +96,37 @@ describe('allowlist 決定紀錄', () => {
       expect(e!.approvedBy, id).toContain('2026-11-18');
       expect(e!.reason, id).toContain('2026-11-18');
     }
+  });
+});
+
+// 十萬級實測後的效能修正（決定 5）：草稿 49 與 DEV 150000 一致、只動八個述詞函式、不動 ga_vd_*（函式目錄測試規定固定 search_path）。
+describe('效能修正 49（決定 5）', () => {
+  const dev = read('supabase/workspace-dev/20261118150000_m7m8_b6_perf_inline_predicates.sql');
+  const devRb = read('supabase/workspace-dev/20261118150000_m7m8_b6_perf_inline_predicates.rollback.sql');
+  const draft = read(`${DRAFTS}/49-b6-perf-inline-predicates.sql`);
+  const draftRb = read(`${DRAFTS}/49-b6-perf-inline-predicates-rollback.sql`);
+  const alters = (sql: string) => sql.split('\n').filter((l) => l.startsWith('ALTER FUNCTION'));
+  it('DEV 與草稿的 ALTER 一致，套用為 RESET、撤回為 SET，且不碰 ga_vd_*', () => {
+    expect(alters(dev).length).toBe(8);
+    expect(alters(draft)).toEqual(alters(dev));
+    expect(alters(devRb).map((l) => l.replace(/ SET search_path.*/, ''))).toEqual(alters(dev).map((l) => l.replace(/ RESET search_path;/, '')));
+    expect(alters(draftRb)).toEqual(alters(devRb));
+    for (const l of alters(dev)) expect(l).toMatch(/RESET search_path;$/);
+    for (const l of alters(devRb)) expect(l).toContain("SET search_path TO 'public', 'pg_temp';");
+    expect([...alters(dev), ...alters(draft), ...alters(devRb), ...alters(draftRb)].join(' ')).not.toContain('ga_vd_');
+  });
+  it('46 與 DEV 120000：attention 篩選的 has_permission 是純量子查詢、首頁庫存可見性在位置連接條件', () => {
+    for (const f of ['supabase/workspace-dev/20261118120000_m7m8_b6_stats_home.sql', `${DRAFTS}/46-b6-stats-home.sql`]) {
+      const s = read(f);
+      expect(s).toContain("(SELECT has_permission(v_uid, ''general_affairs.purchase_order.approve''))");
+      expect(s).toContain('AND public.ga_inventory_balance_is_visible(l.id)');
+      expect(s).not.toContain('WHERE public.ga_inventory_balance_is_visible(b.location_id)');
+    }
+  });
+  it('README 列出 49 與順序，DEV 套用腳本納入 150000', () => {
+    const readme = read(`${DRAFTS}/README.md`);
+    expect(readme).toContain('49-b6-perf-inline-predicates.sql');
+    expect(readme).toContain('49-b6-perf-inline-predicates-rollback.sql');
+    expect(read('scripts/apply-workspace-m7m8-b6-dev.cjs')).toContain('20261118150000_m7m8_b6_perf_inline_predicates');
   });
 });

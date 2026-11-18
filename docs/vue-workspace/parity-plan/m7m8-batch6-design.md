@@ -445,7 +445,7 @@
 - 41 第 6、7 區：套 43 後哪些角色與人讀不到廠商表（DEV：既有總務、工務測試角色沒有廠商權限；店長類角色只有入口權限）；第 8 區只靠需求單權限看採購分析的名單（46 後採購分析只認採購評估權限）。**名單與補授權確認前不得套 43，且最後套。**
 - 41 第 10 區：45 之後舊版店長讀不到水電帳單，列出人數。
 - 41 第 11 區：`ga_ws_po_list` 不是 WARN、九項待辦現況數字（歷史單據沒清時徽章會很大）、績效資料完整度（舊工單沒綁廠商，一開始大多「資料累積中」）。
-- 套用順序：`41 → 42 → 44 → 47 → 45 → 46 → 驗收 → 使用者確認名單 → 43`；撤回順序相反。經使用者核可前不執行，先備份。
+- 套用順序：`41 → 42 → 44 → 48 → 47 → 45 → 46 → 49 → 驗收 → 使用者確認名單 → 43`（49＝十萬級實測後的效能修正，必須在 46 之後；重跑 44、45、46、47 任一檔後要再跑 49）；撤回順序相反。經使用者核可前不執行，先備份。
 
 **待使用者確認**
 - 設計 §9 備註三點：(1) 需求單「待總務複核」（`WAITING_GA_REVIEW`）不計入徽章；(2) 工單徽章只算門市退回（`REOPENED`）；(3) 採購單選單徽章是「待核准」與「逾期未到貨」的聯集。
@@ -486,7 +486,7 @@
 2. 名稱相近提醒（A10）：維持現狀，只提醒不擋，不改行為（allowlist 沒有對應的獨立條目，不新增）。
 3. 績效頁採購金額（`m7m8-b6-vendor-perf-po-amount-coop-only`，已核可）：沒有採購單檢視權限（`ga_po_can_view`）者，金額、張數與合計由資料庫函式回 null、不列只有採購單的廠商、回應帶 `can_view_po_amount`、頁面隱藏金額欄與合計卡。
 4. 舊頁廠商下拉在 43 後變空（`m7m8-b6-legacy-purchase-review-inline-vendor-null`、`m7m8-b6-legacy-service-center-select-star-empty`，已核可）：接受，43 最後套用。
-5. A11 上線前以十萬級假資料在 DEV 實測首頁、績效、採購分析等速度，必要時補索引：由下一階段執行（本次未做）。
+5. A11 上線前以十萬級假資料在 DEV 實測首頁、績效、採購分析等速度，必要時補索引：已於 2026-11-18 執行，結果與修正見 §11.7「十萬級假資料速度實測（決定 5）」。
 
 ### 11.7 使用者決定 1–4 的實作（2026-11-18，只連 DEV mjpd…）
 - 統編唯一：新增 DEV `20261118140000_m7m8_b6_vendor_tax_unique.sql`（與 `.rollback.sql`）與正式區草稿 `48-b6-vendor-tax-unique.sql`（與 `-rollback.sql`）。沿用既有 IMMUTABLE 的 `ga_vd_norm_tax`（全形轉半角、去空白）；開頭先檢查正規化後的重複統編（含停用），有重複就 RAISE EXCEPTION 並列出名單；再建部分唯一索引（`WHERE ga_vd_norm_tax(tax_id) <> ''`）。DEV 已實測套用、撤回、再套用。`apply-workspace-m7m8-b6-dev.cjs` 納入 140000。
@@ -496,3 +496,36 @@
 - 外洩檢查：`ga_ws_home_summary` 的採購單金額只出現在「待核准採購單」前 5 筆，該項只回給有核准權限者（核准權限包含在 `ga_po_can_view` 內），KPI 只有張數與帳單金額（水電權限）；`ga_ws_purchase_analysis` 自有採購評估檢視／管理權限，不需改。
 - 測試：整合新增「直接 insert 重複正規化統編被索引擋下（全形、空白、停用、空值不算）」「並行儲存同統編一筆成功其餘 409 TAX_ID_DUPLICATE」、績效有權／無權對照（G22-G24 rpc）；e2e 新增 `G21.journey-contract-perf-roles` 的 2b（有權者看得到金額欄，只有合作紀錄者桌機與手機 390 都沒有金額欄與合計卡）；單元新增 `tax-unique-perf-po.test.ts` 靜態檢查；allowlist 4 條改為已核可（`approvedBy` 為「user (2026-11-18 batch 6 acceptance decisions)」），`STILL_PENDING` 移除這 4 條。
 - 實測發現並修正：索引運算式以寫入者身分執行，`ga_vd_norm_tax` 原本被 44 收回執行權限，舊頁（使用者身分直接 insert）會報 permission denied（由 G20-G21-ui 對等測試抓到）；48 與 DEV 140000 改為 `GRANT EXECUTE ... TO authenticated`，rollback 再收回；整合測試加入使用者身分 insert 重複統編回 23505。
+
+**十萬級假資料速度實測（決定 5，2026-11-18，只連 DEV mjpd…）**
+- 腳本：`scripts/perf-m7m8-b6-dev.cjs`（灌資料、量測、EXPLAIN、清除）與 `scripts/perf-m7m8-b6-explains.cjs`。分段前景執行：`--init`（清殘留、記基準、建帳號）→ `--seed --steps=…`（大表每 1 萬筆一個交易）→ `--analyze` → `--measure --explain` → `--cleanup-only`。資料全掛 VW／ZT 測試門市、名稱帶 `PERF-B6-`；大量資料的日期一律 2038 年，只有「待我處理」需要相對今天日期的四類（合約到期廠商、逾期採購單、逾期帳單、逾期調撥）各另灌 300 筆，同樣帶標記。
+- 資料量（標記筆數，合計約 15.4 萬列）：廠商 2,300（含相對日期 300）、工單 40,000、需求單 10,000、採購評估 5,000、採購單 30,300（含 300）與明細 44,895、水電帳單 20,300（含 300）、調撥單 5,300（含 300）、庫存餘額 20,000、料件 1,000、設備 3,000、設施 3,000。
+- 量測方式：總務帳號（`vue_workspace_ga6_ga_all`＋臨時核准角色）與店長帳號各呼叫 5 次取中位數；「資料庫內」＝同一交易內計時，「往返」＝經 PostgREST 的瀏覽器端耗時。
+- 中位數（ms，總務帳號；資料庫內／往返；前 → 後）：
+  | 函式 | 前 | 後 | 目標 |
+  |---|---|---|---|
+  | `ga_ws_home_summary` | 14,800／（略過，已超 8 秒） | 458／622 | < 1,500 |
+  | `ga_ws_home_badges` | 3,454／3,393 | 121／286 | < 1,000 |
+  | `ga_hm_counts`（徽章九項計數，只在資料庫內） | 3,358 | 121 | < 1,000 |
+  | `ga_ws_vendor_perf`（2038-01 至 12，回 68 萬字元） | 222／631 | 226／665 | < 1,000（本來就達標） |
+  | `ga_ws_purchase_analysis`（2038-06） | 68／388 | 66／393 | < 1,000（本來就達標） |
+  | `ga_ws_ub_list`（月份篩選） | 714／801 | 27／157 | < 1,000 |
+  | `ga_ws_ub_list`（無篩選） | 716／855 | 58／180 | < 1,000 |
+  | `ga_ws_ub_list`（逾期） | 1,107／1,229 | 21／145 | < 1,000 |
+  | `ga_ws_vendor_list`（預設） | 64／184 | 7／126 | < 1,000 |
+  | `ga_ws_vendor_list`（搜尋） | 104／234 | 55／182 | < 1,000 |
+  | `ga_ws_po_list`（待我處理） | 逾時（語句逾時中止） | 52／180 | < 1,000 |
+  店長帳號：`ga_ws_home_summary` 3→4、`ga_ws_home_badges` 2→2（本來就極快）。`ga_ws_po_list` 的「前」是逾時，中間版本（只修 `has_permission` 逐列呼叫）為 1,962。
+- EXPLAIN (ANALYZE, BUFFERS) 重點（最慢者）：
+  1. 首頁庫存提醒 10,605 ms：`ga_inventory_balance_is_visible(location_id)` 對 2 萬列餘額逐列執行（SECURITY DEFINER、內含兩次權限查詢），Seq Scan 就耗掉 8.8 秒、71 萬 buffers。改成在位置表上先判斷（20 個位置），降到 224 ms。
+  2. 採購單選單徽章計數 2,017 ms、逾期 527 ms、水電逾期帳單 436／616 ms、工單退回計數 456 ms、全域待繳統計 699 ms、調撥逾期 142 ms：共同原因是 `ga_att_*`、`ga_ub_is_overdue`、`ga_wo_focus`、`ga_po_today` 這類單一運算式的 SQL 述詞函式都帶 `SET search_path`，規劃器無法內嵌，3 萬列各呼叫函式（內層還再呼叫 `ga_po_today`）。對這八個函式 `RESET search_path` 後可內嵌，修正後同一批查詢全部在 25 ms 內，只剩調撥逾期 101 ms（呼叫可見性函式）。
+  3. `ga_ws_po_list` 待我處理篩選：`has_permission(v_uid, 核准碼)` 寫在每列的條件裡，每列查一次權限（3 萬列逾時）；改成純量子查詢只算一次。
+  4. 其餘（績效工單與採購單彙總 19–34 ms、採購分析 35 ms、廠商統計 72 ms、廠商名稱排序分頁 0.3 ms）本來就達標，既有索引 `maintenance_requests(vendor_id, reported_at)`、`ga_purchase_orders(vendor_id, ordered_at)` 與未繳帳單到期日部分索引有用到；**不需要新增索引**。
+- 修正內容與草稿編號：
+  - 草稿 **49**（`m7m8-sql/49-b6-perf-inline-predicates.sql`＋`-rollback.sql`；DEV `20261118150000_m7m8_b6_perf_inline_predicates.sql`＋`.rollback.sql`）：八個述詞函式 `ALTER FUNCTION … RESET search_path`（`ga_po_today`、`ga_att_request_intake`、`ga_att_store_wait`、`ga_att_po_overdue`、`ga_att_po`、`ga_att_transfer_overdue`、`ga_ub_is_overdue`、`ga_wo_focus`），函式本體與回傳值不變；rollback 設回 `public, pg_temp`。**`ga_vd_contract_due` 刻意不動**：G20-G21 函式目錄測試規定 `ga_vd_*` 固定 search_path，且只掃廠商表（63 ms）。套用順序放在 46 之後、43 之前；之後重跑 44、45、46、47 任一檔要再跑 49。DEV 已實測套用、撤回、再套用（八個函式的函式層級設定由有變無：0 → 8）。
+  - 併入既有檔案（DEV `20261118120000` 與草稿 46 內容一致）：`ga_ws_po_list` attention 篩選的 `has_permission` 改純量子查詢（新套用與已套舊版都會就地升級，46 rollback 的反向替換同時認得新舊寫法）；首頁庫存提醒的可見性判斷移到位置表連接條件。
+  - 索引：**沒有新增**。
+- 清除與驗證：`--cleanup-only` 後 16 項標記筆數全為 0（含測試帳號、臨時角色），ga_vendors 等 14 張表與 profiles、roles 筆數與灌資料前基準完全相同。
+- 上線前清單補充：(1) 套用 49 後用 41 第 11 區的待辦現況數字與驗收測試對照；(2) 正式區資料量若遠超本次（單表 > 10 萬），重跑 `perf-m7m8-b6-dev.cjs --scale=2` 於 DEV；(3) 績效頁回應約 68 萬字元（2,300 廠商全列），往返 0.67 秒，可接受但廠商再增加到數萬時要改分頁。
+- 測試（循序）：G22-G24 頁面 46 條（含單元 65 條）exit 0；G23 58 條（含單元 53）exit 0；G20-G21-db-api 39 條（單元與整合共 57 條）exit 0；G20-G24-accept 單元 29 條 exit 0；G14-G17 33 條 exit 0；`test:unit` 127 檔 2070 條 exit 0；`tsc --noEmit` exit 0。過程中 G20-G21-db-api 抓到兩處：函式目錄測試要求 `ga_vd_*` 固定 search_path（因此 49 不動 `ga_vd_contract_due`），README 順序靜態測試改為含 49，並新增 49 的靜態檢查 3 條。
+
