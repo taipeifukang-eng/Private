@@ -158,10 +158,24 @@ async function snapshot() {
 
 const sortKeys = (v) =>
   Array.isArray(v) ? v.map(sortKeys) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v;
+// 處方箋連動（每月人員狀態接業績管理處方箋）後 meta 有兩處「預期中」的變動：stats 少了一般箋、慢箋張數兩個鍵，
+// 且有 view_stats 的角色多了 rx 區塊。改前基準（before.json）是連動之前錄的，所以比對前兩邊都先拿掉這三項，
+// 其餘內容仍必須逐字相同；另外單獨檢查 rx 的有無與 viewStats 一致（rx 的內容由整合與對等測試驗證）。
+const RX_STAT_KEYS = ['regular_prescription_count', 'chronic_prescription_count'];
+function stripRx(meta) {
+  if (!meta || typeof meta !== 'object') return meta;
+  const copy = { ...meta };
+  delete copy.rx;
+  if (copy.stats && typeof copy.stats === 'object') {
+    copy.stats = { ...copy.stats };
+    for (const k of RX_STAT_KEYS) delete copy.stats[k];
+  }
+  return copy;
+}
 function compare() {
   const a = JSON.parse(fs.readFileSync(argv[1], 'utf8'));
   const b = JSON.parse(fs.readFileSync(argv[2], 'utf8'));
-  let bad = 0, checked = 0, metaChecked = 0, embeddedChecked = 0;
+  let bad = 0, checked = 0, metaChecked = 0, embeddedChecked = 0, rxChecked = 0;
   for (const k of Object.keys(a.cases)) {
     const x = a.cases[k], y = b.cases[k];
     if (!y) { console.log('MISSING', k); bad += 1; continue; }
@@ -169,19 +183,26 @@ function compare() {
     if (xb && xb.meta !== undefined) delete xb.meta;
     const yb = y.roster.body && typeof y.roster.body === 'object' ? { ...y.roster.body } : y.roster.body;
     const embedded = yb && yb.meta;
+    for (const body of [embedded, y.meta && y.meta.body]) {
+      if (body && typeof body === 'object' && body.capabilities) {
+        rxChecked += 1;
+        if (!!body.rx !== !!body.capabilities.viewStats) { console.log('DIFF rx presence', k); bad += 1; }
+        if (body.stats && RX_STAT_KEYS.some((key) => key in body.stats)) { console.log('DIFF stats still has rx-derived keys', k); bad += 1; }
+      }
+    }
     if (yb && yb.meta !== undefined) delete yb.meta;
     checked += 1;
     if (x.roster.status !== y.roster.status || JSON.stringify(sortKeys(xb)) !== JSON.stringify(sortKeys(yb))) { console.log('DIFF roster', k, x.roster.status, y.roster.status); bad += 1; }
     if (x.meta) {
       metaChecked += 1;
-      if (x.meta.status !== y.meta.status || JSON.stringify(sortKeys(x.meta.body)) !== JSON.stringify(sortKeys(y.meta.body))) { console.log('DIFF tools meta', k); bad += 1; }
+      if (x.meta.status !== y.meta.status || JSON.stringify(sortKeys(stripRx(x.meta.body))) !== JSON.stringify(sortKeys(stripRx(y.meta.body)))) { console.log('DIFF tools meta', k); bad += 1; }
       if (x.meta.status === 200 && y.roster.status === 200 && yb.storeActive !== false) {
         embeddedChecked += 1;
-        if (JSON.stringify(sortKeys(x.meta.body)) !== JSON.stringify(sortKeys(embedded))) { console.log('DIFF embedded meta vs old op=meta', k); bad += 1; }
+        if (JSON.stringify(sortKeys(stripRx(x.meta.body))) !== JSON.stringify(sortKeys(stripRx(embedded)))) { console.log('DIFF embedded meta vs old op=meta', k); bad += 1; }
       }
     }
   }
-  console.log(`checked ${checked} roster responses, ${metaChecked} tools-meta responses, ${embeddedChecked} embedded-meta comparisons, ${bad} differences`);
+  console.log(`checked ${checked} roster responses, ${metaChecked} tools-meta responses, ${embeddedChecked} embedded-meta comparisons, ${rxChecked} rx-presence checks, ${bad} differences`);
   process.exit(bad ? 1 : 0);
 }
 

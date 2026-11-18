@@ -77,14 +77,15 @@ describe('保留年份 2038 的 sweeper 目標', () => {
     });
     const r = await sweeper.sweepReservedMonths(f.db);
     expect(r.foreign).toEqual([]);
-    expect(r.deleted).toBe(4);
+    // monthly_prescription_reports 同時在保留月份（2099-%）與保留年份（2038-%）清單，各刪一次（此 mock 不套用 like，所以兩次都算到那一列）。
+    expect(r.deleted).toBe(5);
     const del = f.ops.filter((o) => o.kind === 'delete');
-    expect(del.map((o) => o.table).sort()).toEqual(['monthly_prescription_reports', 'store_performance', 'store_performance_thresholds']);
+    expect(del.map((o) => o.table).sort()).toEqual(['monthly_prescription_reports', 'monthly_prescription_reports', 'store_performance', 'store_performance_thresholds']);
     const perf = del.find((o) => o.table === 'store_performance')!;
     expect(perf.filters).toContainEqual(['eq', ['year', 2038]]);
     expect(perf.filters).toContainEqual(['in', ['store_id', ['id-zt1', 'id-vw1']]]);
-    const rx = del.find((o) => o.table === 'monthly_prescription_reports')!;
-    expect(rx.filters).toContainEqual(['like', ['year_month', '2038-%']]);
+    const rxLikes = del.filter((o) => o.table === 'monthly_prescription_reports').map((o) => o.filters.find(([n]) => n === 'like')![1][1]).sort();
+    expect(rxLikes).toEqual(['2038-%', '2099-%']);
   });
 
   it('2038 年出現非測試門市的績效資料：整體中止，不刪除任何表', async () => {

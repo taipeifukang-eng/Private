@@ -87,6 +87,9 @@ const RESERVED_MONTH_TABLES = [
   // W06：需重新確認清單與近期因異動自動調整紀錄（保留月份 2099-xx、測試門市）。
   'monthly_staff_recheck',
   'monthly_staff_adjustment_log',
+  // 處方箋連動（每月人員狀態接業績管理處方箋）：測試用 2099-xx 月份，與 monthly_store_summary 同一個測試月份可一起清除。
+  // 該表無 id 欄，只走保留月份（與 2038 保留年份並存，兩者互不影響）；非測試門市的列照舊整體中止。
+  'monthly_prescription_reports',
 ];
 const RESERVED_MONTH_PATTERN = '2099-%';
 

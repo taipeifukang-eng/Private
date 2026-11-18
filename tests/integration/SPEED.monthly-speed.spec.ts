@@ -32,6 +32,14 @@ test.describe('名冊回應附帶 meta，與 op=meta 一致', () => {
           // 欄位權限：沒有統計權限就沒有統計欄位；沒有支援時數權限就沒有支援欄位。
           expect(Object.keys(meta.stats).includes('total_staff_count')).toBe(meta.capabilities.viewStats);
           expect(Object.keys(meta.stats).includes('support_to_other_stores_hours')).toBe(meta.capabilities.viewSupport);
+          // 處方箋連動：rx 只給有 view_stats 的角色，結構完整；stats 不含兩個張數欄位（改由處方箋提供）
+          expect(Object.prototype.hasOwnProperty.call(meta, 'rx')).toBe(meta.capabilities.viewStats);
+          if (meta.rx) {
+            expect(typeof meta.rx.failed).toBe('boolean');
+            if (!meta.rx.failed) for (const k of ['regular', 'chronic', 'totalPoint']) expect(typeof meta.rx[k].text).toBe('string');
+          }
+          expect(meta.stats).not.toHaveProperty('regular_prescription_count');
+          expect(meta.stats).not.toHaveProperty('chronic_prescription_count');
           expect(body.canViewStats).toBe(meta.capabilities.viewStats);
           expect(body.storeStatus).toBe(meta.storeStatus);
         }

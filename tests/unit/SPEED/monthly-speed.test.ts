@@ -67,7 +67,10 @@ describe('A meta：欄位權限過濾與 op=meta 同一支', () => {
   it('有權限才帶欄位；沒有統計列時值為 null、狀態 not_started', async () => {
     const ctx = fakeCtx(['monthly.status.view_stats', 'monthly.status.edit', 'monthly.allowance.view_support_hours', 'activity.campaign.view_all'], []);
     const withRow = await buildMonthlyMeta(ctx, summary);
-    expect(Object.keys(withRow.stats)).toHaveLength(11);
+    // 9 個欄位：統計 7 個（不含一般箋、慢箋張數，改由處方箋提供）+ 支援時數 2 個。
+    expect(Object.keys(withRow.stats)).toHaveLength(9);
+    expect(withRow.stats).not.toHaveProperty('regular_prescription_count');
+    expect(withRow.stats).not.toHaveProperty('chronic_prescription_count');
     expect(withRow.stats.support_to_other_stores_hours).toBe(4);
     expect(withRow.capabilities).toMatchObject({ viewStats: true, viewSupport: true, editStats: true, editSupport: false });
     const none = await buildMonthlyMeta(ctx, null);
@@ -100,7 +103,7 @@ describe('B 舊版共用 helper 向下相容、context 並行', () => {
   it('名冊 API 不查 profiles、直接附 meta，工具列有 meta 就不再另打 op=meta', () => {
     const roster = read('app/api/workspace/monthly/route.ts');
     expect(roster).toMatch(/moduleContext\("monthly", \{ profile: false, prefetchStores: true \}\)/);
-    expect(roster).toMatch(/buildMonthlyMeta\(ctx, page\.summary\)/);
+    expect(roster).toMatch(/buildMonthlyMeta\(ctx, page\.summary, rx\)/);
     const vue = read('vue-workspace/src/components/MonthlyTools.vue');
     expect(vue).toMatch(/props\.meta && !props\.disabled/);
   });

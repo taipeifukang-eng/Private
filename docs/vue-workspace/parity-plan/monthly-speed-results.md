@@ -56,3 +56,8 @@ node tests/perf/monthly-speed.cjs snapshot --cases <cases.json> --out <snap.json
 node tests/perf/monthly-speed.cjs compare before.json after.json
 node tests/perf/monthly-speed-page.cjs --accounts store_manager,supervisor,navigation
 ```
+
+## 2026-11-18 補記：處方箋連動對速度與一致性比對的影響
+
+- 名冊 GET 與 tools?op=meta 多讀一筆 monthly_prescription_reports（ctx.admin、並行進既有 Promise.all，只有 view_stats 才讀、0000 不讀），不新增序列往返；往返次數的重新量測尚未做（需另開計數伺服器與改前基準）。
+- meta 內容有預期中的變動：stats 少了 regular_prescription_count、chronic_prescription_count 兩鍵，有 view_stats 的角色多了 rx 區塊。tests/perf/monthly-speed.cjs compare 因此在比對前兩邊都先拿掉這三項（改前基準是連動前錄的，不需重錄），其餘內容仍須逐字相同，並另外檢查 rx 有無與 capabilities.viewStats 一致。

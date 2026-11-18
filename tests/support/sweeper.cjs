@@ -141,10 +141,13 @@ async function sweepReservedMonths(db, { dryRun = false } = {}) {
     out.tables.push(row);
   }
   if (out.foreign.length > 0 || out.errors.length > 0 || dryRun || testIds.length === 0) return out;
-  for (const row of out.tables) {
+  // 同一張表可能同時在保留月份（2099-xx）與保留年份（2038-xx）清單（例如 monthly_prescription_reports），
+  // out.tables 與 specs 逐項對齊，刪除時用同位置的條件，不能以表名找第一筆。
+  for (let i = 0; i < out.tables.length; i++) {
+    const row = out.tables[i];
     if (row.testRows === 0) continue;
     try {
-      const spec = specs.find((x) => x.table === row.table);
+      const spec = specs[i];
       const del = await applyFilter(db.from(row.table).delete(), spec)
         .in('store_id', testIds)
         .select('store_id');

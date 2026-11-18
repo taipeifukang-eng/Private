@@ -58,6 +58,30 @@
       "legacy": { "source": "app/monthly-status/page.tsx handleSubmit；app/store/actions.ts checkNewbieStatus" },
       "native": { "api": { "path": "/api/workspace/monthly" } },
       "compareKey": "who"
+    },
+    {
+      "id": "rx-link-cells",
+      "mechanism": "ui-extract",
+      "description": "處方箋連動：同角色、同月份、同門市，舊頁統計表單的一般箋張數、慢箋張數、健保總點值（含舊匯入標示、暫無資料）與新版統計卡第三列三格逐格比對；涵蓋處方箋有值含 0、舊匯入退回、部分填寫三種情況。",
+      "legacy": { "ui": { "route": "/monthly-status?year_month=<M>&store_id=<ZT>", "rowSelector": "[data-testid=rx-regular-count], [data-testid=rx-chronic-count], [data-testid=rx-total-point]" } },
+      "native": { "source": "/workspace/index.html 每月人員狀態 [data-testid=monthly-rx] 三格" },
+      "compareKey": "store"
+    },
+    {
+      "id": "rx-link-store-scope",
+      "mechanism": "api-read",
+      "description": "處方箋連動的權限與門市範圍：舊 getStoreMonthlyRxLink（server action，經舊頁表單呈現）對新版 /api/workspace/monthly/tools?op=meta 的 rx 區塊。被指派門市兩邊看到相同數字；非指派門市兩邊都看不到處方箋值（新版 403）；無 view_stats 的角色兩邊都沒有處方箋三格。",
+      "legacy": { "serverAction": { "file": "app/store/actions.ts", "name": "getStoreMonthlyRxLink" } },
+      "native": { "api": { "path": "/api/workspace/monthly/tools", "query": { "op": "meta" } } },
+      "compareKey": "case"
+    },
+    {
+      "id": "rx-link-write-readback",
+      "mechanism": "write-readback",
+      "description": "處方箋連動：統計匯入不再寫入一般箋、慢箋張數。舊匯入路由 /api/import-store-stats 與新版 tools POST kind=stats（轉給同一支路由）以相同 Excel（含兩欄）匯入後，回讀月度統計表，兩個張數欄位保持原值，其餘統計欄位一致。",
+      "legacy": { "api": { "method": "POST", "path": "/api/import-store-stats" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/monthly/tools" } },
+      "compareKey": "step"
     }
   ]
 }

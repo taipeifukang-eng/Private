@@ -87,8 +87,6 @@ export async function ensureSummary(admin: APIRequestContext, store: string, mon
         total_gross_profit: 0,
         total_customer_count: 0,
         prescription_addon_only_count: 0,
-        regular_prescription_count: 0,
-        chronic_prescription_count: 0,
       },
     },
   });

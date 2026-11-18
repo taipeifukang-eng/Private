@@ -82,7 +82,7 @@ export async function seedExportMonth(admin: APIRequestContext, month: string): 
       op: 'stats', store, month, version: null,
       updates: {
         total_staff_count: c.c ? 3 : 2, admin_staff_count: 0, newbie_count: 0, business_days: 20, total_gross_profit: 123456,
-        total_customer_count: 800, prescription_addon_only_count: 10, regular_prescription_count: 200, chronic_prescription_count: 50,
+        total_customer_count: 800, prescription_addon_only_count: 10,
       },
     }, '寫入門市統計');
     const meta = await (await admin.get('/api/workspace/monthly/tools', { params: { op: 'meta', store, month } })).json();

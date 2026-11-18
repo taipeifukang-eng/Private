@@ -29,8 +29,13 @@ for (const account of subjects) {
       const errors: string[] = [];
       page.on('pageerror', (e) => errors.push(e.message.slice(0, 200)));
       const statuses: number[] = [];
+      const metas: any[] = [];
       page.on('response', (r) => {
-        if (/\/api\/workspace\/monthly(\?|$)/.test(r.url())) statuses.push(r.status());
+        if (/\/api\/workspace\/monthly(\?|$)/.test(r.url())) {
+          statuses.push(r.status());
+          // 名冊回應的 meta（有指定門市時才有）：之後檢查處方箋連動 meta.rx 結構
+          if (r.status() === 200) void r.json().then((j) => { if (j && j.meta) metas.push(j.meta); }).catch(() => undefined);
+        }
       });
       await openMonthly(page);
       const entry = page.locator('.workspace-menu button.catalog-item[title="每月人員狀態"]');
@@ -51,6 +56,23 @@ for (const account of subjects) {
           await expect(page.locator('[data-stat="total"]')).toHaveText(/^\d+$/);
         } else {
           await expect(cards).toHaveCount(0);
+        }
+        // 處方箋連動（meta.rx）：只給有 view_stats 的角色；結構完整，畫面上有唯讀三格（沒有輸入框）
+        for (const m of metas) {
+          if (has(account, 'monthly.status.view_stats')) {
+            expect(m.rx, '有 view_stats 應附 rx').toBeTruthy();
+            expect(typeof m.rx.failed).toBe('boolean');
+            if (!m.rx.failed) for (const k of ['regular', 'chronic', 'totalPoint']) expect(typeof m.rx[k].text).toBe('string');
+          } else {
+            expect(m).not.toHaveProperty('rx');
+          }
+        }
+        if (metas.length && has(account, 'monthly.status.view_stats')) {
+          await expect(page.getByTestId('monthly-rx')).toHaveCount(1);
+          await expect(page.getByTestId('monthly-rx').locator('input')).toHaveCount(0);
+          await expect(page.getByTestId('rx-hint')).toContainText('資料來自業績管理處方箋，如需修改請至業績管理處方箋頁');
+        } else {
+          await expect(page.getByTestId('monthly-rx')).toHaveCount(0);
         }
         // 業績欄位只給 view_performance 的角色
         const perfHeader = page.locator('th', { hasText: '計算區塊' });

@@ -12,7 +12,9 @@ import {
   type LegacyApiSource,
   type NativeApiSource,
 } from '../support/parity';
+import * as XLSX from 'xlsx';
 import { addManual, ensureSummary, readMonth, registerFixtureRows, saveRow, staffCode, testStoreIds } from '../support/w01a-fixtures';
+import { RxFixture } from '../support/rx-link-fixtures';
 
 // W01a 對等層：同角色、同月份，舊 /monthly-status 與新「每月人員狀態」的總覽（統計卡片、門市頁籤）、名冊、業績明細，
 // 以及兩項已知的行為差異（已送審可否刪除、送審前檢查的呈現）。結果寫入 tests/reports/<runId>/parity-report.json。
@@ -21,6 +23,7 @@ import { addManual, ensureSummary, readMonth, registerFixtureRows, saveRow, staf
 const map = loadMap('monthly-status');
 const entry = (id: string) => map.entries.find((e) => e.id === id)!;
 const recorder = new ParityRecorder('monthly-status');
+const rxFx = new RxFixture();
 const M_DRAFT = '2099-07';
 const M_SUBMITTED = '2099-08';
 const ROLES_UI = ['admin', 'store_manager', 'supervisor', 'ops_manager'];
@@ -74,6 +77,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await rxFx.restore();
   await admin?.dispose();
 });
 
@@ -466,4 +470,195 @@ test('送審前檢查：舊版兩段確認 vs 新版同一視窗，列出的人�
   } finally {
     await ctx.close();
   }
+});
+
+// ---------------------------------------------------------------------------
+// 6. 處方箋連動（一般箋、慢箋、健保總點值）：舊頁表單 vs 新版統計卡第三列
+// ---------------------------------------------------------------------------
+// 兩邊共用同一個 DEV 資料庫，處方箋資料只寫一份。月份 2099-11、ZT01～ZT04（處方箋表已列入 sweeper 保留月份）。
+// 比對到任何差異先視為 must-fix，不預先登記 allowlist。
+
+const M_RX = '2099-11';
+const NOT_READY = /讀取中/;
+
+let rxMonthReady = false;
+/** 舊頁沒有人員資料的月份不會顯示統計表單，所以每間測試門市先放一位手動新增的人員（登錄到 registry，後備由 sweeper 清除）。 */
+async function ensureRxMonth(stores: Record<string, string>) {
+  if (rxMonthReady) return;
+  let i = 0;
+  for (const code of ['ZT01', 'ZT02', 'ZT03', 'ZT04']) {
+    if (!stores[code]) continue;
+    i += 1;
+    await addManual(admin, stores[code], M_RX, { name: `PAR RX${i}`, code: staffCode(`R${i}`) });
+    await registerFixtureRows(stores[code], M_RX);
+  }
+  rxMonthReady = true;
+}
+
+async function legacyRxCells(page: Page) {
+  return page.evaluate(() => {
+    const t = (id: string) => (document.querySelector(`[data-testid="${id}"]`)?.textContent || '').replace(/\s+/g, ' ').trim();
+    const tag = (id: string) => !!document.querySelector(`[data-testid="${id}"]`)?.parentElement?.querySelector('span.text-amber-600');
+    return { exists: !!document.querySelector('[data-testid="rx-regular-count"]'), regular: t('rx-regular-count'), chronic: t('rx-chronic-count'), total: t('rx-total-point'), regularLegacy: tag('rx-regular-count'), chronicLegacy: tag('rx-chronic-count') };
+  });
+}
+async function waitLegacyRx(page: Page) {
+  await page.waitForFunction((src) => {
+    const el = document.querySelector('[data-testid="rx-regular-count"]');
+    return !!el && !new RegExp(src).test(el.textContent || '');
+  }, NOT_READY.source, { timeout: 30_000 });
+}
+async function nativeRxCells(page: Page) {
+  return page.evaluate(() => {
+    const dd = (key: string) => document.querySelector(`section.work-page:not([style*="display: none"]) [data-testid="rx-${key}"] dd`) as HTMLElement | null;
+    const text = (el: HTMLElement | null) => Array.from(el?.childNodes || []).filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').replace(/\s+/g, ' ').trim();
+    return { exists: !!dd('regular'), regular: text(dd('regular')), chronic: text(dd('chronic')), total: text(dd('totalPoint')), regularLegacy: !!dd('regular')?.querySelector('[data-testid="rx-legacy"]'), chronicLegacy: !!dd('chronic')?.querySelector('[data-testid="rx-legacy"]') };
+  });
+}
+const flag = (b: boolean) => (b ? 'Y' : 'N');
+
+test('處方箋連動三格：舊頁表單與新版統計卡逐格一致（有值含 0、舊匯入退回、部分填寫）', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const stores = await testStoreIds(admin, M_RX);
+  await ensureRxMonth(stores);
+  // ZT01：處方箋有值，慢箋 0；ZT02：只有舊匯入（5／0）；ZT03：處方箋只有一般箋、慢箋舊匯入 6
+  await rxFx.report(admin, stores.ZT01, M_RX, { regular: 1200, regularPoint: 1500000.25, chronic: 0, chronicPoint: 642411.5 });
+  await rxFx.legacy(stores.ZT02, M_RX, 5, 0);
+  await rxFx.legacy(stores.ZT03, M_RX, 0, 6);
+  await rxFx.report(admin, stores.ZT03, M_RX, { regular: 7, regularPoint: 70, chronic: null, chronicPoint: null });
+  const labels: Record<string, string> = { ZT01: 'ZT01 ZT 測試門市 01', ZT02: 'ZT02 ZT 測試門市 02', ZT03: 'ZT03 ZT 測試門市 03' };
+  for (const role of ['admin', 'store_manager']) {
+    const ctx = await loginAs(browser, role);
+    try {
+      const legacyRows: Record<string, unknown>[] = [];
+      const nativeRows: Record<string, unknown>[] = [];
+      for (const code of ['ZT01', 'ZT02', 'ZT03']) {
+        const legacy = await ctx.newPage();
+        await openLegacy(legacy, M_RX, stores[code]);
+        await waitLegacyRx(legacy);
+        const l = await legacyRxCells(legacy);
+        legacyRows.push({ store: code, regular: l.regular, chronic: l.chronic, total: l.total, regularLegacy: flag(l.regularLegacy), chronicLegacy: flag(l.chronicLegacy) });
+        await legacy.close();
+        const native = await ctx.newPage();
+        await openNative(native, M_RX, labels[code]);
+        const n = await nativeRxCells(native);
+        nativeRows.push({ store: code, regular: n.regular, chronic: n.chronic, total: n.total, regularLegacy: flag(n.regularLegacy), chronicLegacy: flag(n.chronicLegacy) });
+        await native.close();
+      }
+      const e = entry('rx-link-cells');
+      const result = compareTables({
+        recorder,
+        entry: 'rx-link-cells',
+        title: `處方箋連動三格 ${M_RX}`,
+        role,
+        legacySource: e.legacy.ui!.route,
+        nativeSource: e.native.source!,
+        legacyRows,
+        nativeRows,
+        columns: [col('store'), col('regular'), col('chronic'), col('total'), col('regularLegacy'), col('chronicLegacy')],
+        key: 'store',
+      });
+      assertNoUnlistedDiffs(result);
+      expect(result.status).toBe('pass');
+      // 數字本身（避免兩邊同時錯成一樣）
+      expect(nativeRows).toEqual([
+        { store: 'ZT01', regular: '1,200', chronic: '0', total: '2,142,412', regularLegacy: 'N', chronicLegacy: 'N' },
+        { store: 'ZT02', regular: '5', chronic: '暫無資料', total: '暫無資料', regularLegacy: 'Y', chronicLegacy: 'N' },
+        { store: 'ZT03', regular: '7', chronic: '6', total: '暫無資料', regularLegacy: 'N', chronicLegacy: 'Y' },
+      ]);
+    } finally {
+      await ctx.close();
+    }
+  }
+});
+
+test('處方箋連動權限與門市範圍：被指派門市數字一致、非指派門市兩邊都不洩漏、無 view_stats 兩邊都沒有三格', async ({ browser }) => {
+  test.setTimeout(240_000);
+  const stores = await testStoreIds(admin, M_RX);
+  test.skip(!stores.ZT04, 'DEV 缺少 ZT04（跨店對象）');
+  await ensureRxMonth(stores);
+  await rxFx.report(admin, stores.ZT01, M_RX, { regular: 321, regularPoint: 1000, chronic: 45, chronicPoint: 500 });
+  await rxFx.report(admin, stores.ZT04, M_RX, { regular: 777, regularPoint: 1, chronic: 1, chronicPoint: 1 });
+  const cases: { role: string; label: string; store: string }[] = [
+    { role: 'supervisor', label: 'assigned:ZT01', store: stores.ZT01 },
+    { role: 'supervisor', label: 'cross:ZT04', store: stores.ZT04 },
+    { role: 'monthly_view', label: 'no-view-stats:ZT01', store: stores.ZT01 },
+  ];
+  const e = entry('rx-link-store-scope');
+  for (const role of ['supervisor', 'monthly_view']) {
+    const ctx = await loginAs(browser, role);
+    try {
+      const mine = cases.filter((c) => c.role === role);
+      const legacyRows: Record<string, unknown>[] = [];
+      const nativeRows: Record<string, unknown>[] = [];
+      for (const c of mine) {
+        const legacy = await ctx.newPage();
+        await openLegacy(legacy, M_RX, c.store);
+        const hasCells = await legacy.locator('[data-testid="rx-regular-count"]').count();
+        if (hasCells) await waitLegacyRx(legacy);
+        const l = await legacyRxCells(legacy);
+        const html = await legacy.content();
+        // 非指派門市：舊頁可能退回自己的第一間門市，所以比對「有沒有洩漏 777」；其餘比對數字
+        legacyRows.push(c.label.startsWith('cross') ? { case: c.label, leak: flag(html.includes('777')) } : { case: c.label, cells: flag(l.exists), regular: l.regular, chronic: l.chronic, total: l.total });
+        await legacy.close();
+        // 瀏覽器 context 的 keep-alive 連線偶爾被伺服器重設（ECONNRESET），只重試連線層錯誤，不重試任何 HTTP 狀態
+        let res = await ctx.request.get('/api/workspace/monthly/tools', { params: { month: M_RX, store: c.store, op: 'meta' } }).catch(() => null);
+        for (let attempt = 0; !res && attempt < 3; attempt += 1) res = await ctx.request.get('/api/workspace/monthly/tools', { params: { month: M_RX, store: c.store, op: 'meta' } }).catch(() => null);
+        if (!res) throw new Error('讀取 tools?op=meta 連線失敗（重試 3 次）');
+        const body = await res.text();
+        if (c.label.startsWith('cross')) {
+          expect(res.status()).toBe(403);
+          nativeRows.push({ case: c.label, leak: flag(body.includes('777')) });
+        } else {
+          const j = JSON.parse(body);
+          nativeRows.push({ case: c.label, cells: flag(!!j.rx), regular: j.rx?.regular?.text ?? '', chronic: j.rx?.chronic?.text ?? '', total: j.rx?.totalPoint?.text ?? '' });
+        }
+      }
+      const result = compareSideEffects({
+        recorder,
+        entry: 'rx-link-store-scope',
+        title: `處方箋連動權限與門市範圍（${e.legacy.serverAction!.name} vs tools?op=meta）`,
+        role,
+        legacyAction: '舊頁表單（getStoreMonthlyRxLink）',
+        nativeAction: 'GET /api/workspace/monthly/tools?op=meta',
+        tables: [{ table: 'rx-scope', key: 'case', legacyRows, nativeRows }],
+      });
+      assertNoUnlistedDiffs(result);
+      expect(['pass', 'allowed', 'pending-approval']).toContain(result.status);
+      if (role === 'supervisor') expect(nativeRows[0]).toMatchObject({ regular: '321', chronic: '45', total: '1,500' });
+    } finally {
+      await ctx.close();
+    }
+  }
+});
+
+test('統計匯入不寫兩個張數欄位：舊匯入路由與新版 tools 轉送回讀一致', async () => {
+  test.setTimeout(150_000);
+  const stores = await testStoreIds(admin, M_RX);
+  await rxFx.legacy(stores.ZT02, M_RX, 5, 6);
+  await rxFx.legacy(stores.ZT03, M_RX, 5, 6);
+  const buffer = (code: string) => {
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet([{ 門市代號: code, 門市人數: 6, 行政人數: 1, 新人人數: 0, 營業天數: 20, 毛利: 5000, 總來客數: 300, 單純處方加購來客數: 2, 一般箋張數: 999, 慢箋張數: 888 }]), '統計');
+    return XLSX.write(book, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  };
+  const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const legacyRes = await admin.post('/api/import-store-stats', { multipart: { yearMonth: M_RX, file: { name: 'stats.xlsx', mimeType: mime, buffer: buffer('ZT02') } } });
+  const nativeRes = await admin.post('/api/workspace/monthly/tools', { multipart: { kind: 'stats', month: M_RX, file: { name: 'stats.xlsx', mimeType: mime, buffer: buffer('ZT03') } } });
+  expect(legacyRes.status(), await legacyRes.text()).toBe(200);
+  expect(nativeRes.status(), await nativeRes.text()).toBe(200);
+  const cols = 'total_staff_count,admin_staff_count,newbie_count,business_days,total_gross_profit,total_customer_count,prescription_addon_only_count,regular_prescription_count,chronic_prescription_count';
+  const read = async (store: string) => (await readRowsAsServiceRole('monthly_store_summary', { eq: { store_id: store, year_month: M_RX }, select: cols }))[0] || {};
+  const result = compareSideEffects({
+    recorder,
+    entry: 'rx-link-write-readback',
+    title: '統計匯入後月度統計表的兩個張數欄位（舊匯入路由 vs 新版 tools 轉送）',
+    role: 'admin',
+    legacyAction: 'POST /api/import-store-stats（含一般箋、慢箋欄）',
+    nativeAction: 'POST /api/workspace/monthly/tools kind=stats（含一般箋、慢箋欄）',
+    tables: [{ table: 'monthly_store_summary', key: 'step', legacyRows: [{ step: 'after-import', ...(await read(stores.ZT02)) }], nativeRows: [{ step: 'after-import', ...(await read(stores.ZT03)) }] }],
+  });
+  assertNoUnlistedDiffs(result);
+  expect(['pass', 'allowed', 'pending-approval']).toContain(result.status);
+  expect(await rxFx.legacyOf(stores.ZT03, M_RX)).toEqual({ regular_prescription_count: 5, chronic_prescription_count: 6 });
 });

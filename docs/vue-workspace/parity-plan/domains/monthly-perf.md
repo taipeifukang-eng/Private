@@ -36,7 +36,7 @@
 - 每列編輯（跳 edit/[id]）與刪除（手動新增員工或移除，handleDeleteManual／deleteMonthlyStatusRecord）
 - 手動新增員工 Modal（可搜尋既有員工、外務選項、自動算時數）
 - 上個月單品獎金、交通費用、誤餐費登記、育才獎金、春節出勤獎金 各自 Modal
-- 門市每月統計表單與門市支援時數表單（內嵌，含人力點值等推算）
+- 門市每月統計表單與門市支援時數表單（內嵌，含人力點值等推算）。處方箋連動（2026-11-18 已實作）：一般箋張數、慢箋張數、健保總點值改為唯讀，即時讀取業績管理處方箋（monthly_prescription_reports），不再由統計表單、手動儲存或 Excel 匯入寫入；詳見 docs/vue-workspace/parity-plan/monthly-rx-link-vue-design.md
 - 每月人員各式獎金明細視窗（姓名篩選、動態欄位、查看 Qn 獎金總額）
 - 該月業績狀況與該季業績狀況視窗（用 bonus-calc 與閾值）
 - 匯出 Excel（exportMonthlyStatusForBonus，需已確認）與匯出當月獎金／津貼 PDF（single-item-bonus-pdf）
@@ -137,7 +137,7 @@
 - DEV 門市 S1（draft）、S2（submitted）、S3（confirmed）、S4（停用門市，含歷史 monthly 資料），月份 2026-10，另放一份 2026-09 供上月單品獎金使用
 - 每間門市的員工組合：正職專員、兼職（work_hours 缺漏）、新人（到職 2026-09-05 / 2026-08-05 / 2026-04-05）、行政（過階）、督導(代理店長) 雙職、藥師、手動新增外務、代理店長
 - store_managers：R3 對應 S1、R4 對應 S2
-- monthly_store_summary 統計值：門市人數 10、行政 2、新人 3、business_days 31、毛利等，用來驗證人力點值與閾值
+- monthly_store_summary 統計值：門市人數 10、行政 2、新人 3、business_days 31、毛利等，用來驗證人力點值與閾值。處方箋連動後張數兩欄不再屬於統計值：另用 monthly_prescription_reports 造資料（有值含 0、NULL、舊匯入非 0、舊匯入 0），驗證 meta.rx 的三格；op=stats 多送兩欄必須被忽略（200、不寫入）
 - store_performance_thresholds：S1 使用自訂閾值，S3 使用預設閾值
 - 匯入測試檔：scripts/make-workspace-performance-test-files.cjs 產生的業績檔與門市統計檔，另備 0 byte、.csv、21MB 檔案
 - 角色帳號 R1–R6（見 domainNotes）
@@ -708,7 +708,7 @@
 1. 單店 Excel 的新舊行為不同：legacy 在 app/monthly-status/page.tsx 第 1303 行呼叫 exportMonthlyStatusForBonus(yearMonth, store.id)，只取 confirmed，輸出的是 CSV（含 BOM），寫法是 `"${row[h] || ''}"`，所以 0、false 都會變成空字串，檔名為 人員狀態_{門市名}_{月}.csv。Vue 走 app/api/workspace/monthly/tools/route.ts op=excel，呼叫 exportMonthlyStatusForBonus(month, store, true)，會把 submitted 也一起匯出；MonthlyTools.vue excel() 用 json_to_sheet 產生 xlsx，工作表名為『人員狀態』，檔名為 人員狀態_{月}.xlsx。比對時必須先正規化（0 與空字串、檔案格式），並請使用者決定「已送審可匯出」算增強還是偏差。
 2. app/api/workspace/monthly/route.ts POST：confirm／revert／unconfirm 只檢查高階權限，不查 store_managers 指派；save／submit 要有 edit 或 submit 權限，非 admin 還必須是 store_managers 指派人員。save 只接受 status=draft，否則回 409。work_days 範圍 0–31、work_hours 0–744，notes 最多 4000 字；職位為行政時必須帶 ADMIN_LEVEL。
 3. lib/workspace/monthly-tools.ts 的 editableMonth：monthly_store_summary.store_status 為 submitted／confirmed，或任一 monthly_staff_status 列為 submitted／confirmed，就回 409。validateAllowance 是純函式，很適合寫 unit test，規則包括：最多 1500 列；金額 0–1e7；talent／spring 金額須為整數；spring 分類限藥師、主管、專員，日期須在當月；meal 時段 HH:MM-HH:MM、日期 MM/DD、須在當月、時段與身分有列舉限制；transport 金額 >0 必須填原因；employee_code 會轉大寫；重複鍵會被擋。
-4. tools POST 的 multipart 匯入（kind=performance/stats）不呼叫 requireStore（屬全公司匯入），但要求 monthly.import.* 加上 monthly.status.view_all；檔案上限 20MB、副檔名須為 .xls 或 .xlsx。op=stats 的 business_days 上限是當月天數。三支 RPC 是 workspace_save_monthly_allowance（p_expected 樂觀鎖）、workspace_save_monthly_summary（p_version）、workspace_add_monthly_employee（p_id 冪等，duplicated 時回 409），定義在 supabase/workspace-dev/20261029180000_vue_monthly_tools.sql。
+4. tools POST 的 multipart 匯入（kind=performance/stats）不呼叫 requireStore（屬全公司匯入），但要求 monthly.import.* 加上 monthly.status.view_all；檔案上限 20MB、副檔名須為 .xls 或 .xlsx。op=stats 的 business_days 上限是當月天數。三支 RPC 是 workspace_save_monthly_allowance（p_expected 樂觀鎖）、workspace_save_monthly_summary（p_version）、workspace_add_monthly_employee（p_id 冪等，duplicated 時回 409），定義在 supabase/workspace-dev/20261029180000_vue_monthly_tools.sql。 處方箋連動後 op=stats 只收其餘 7 個統計欄位，前端（或舊分頁）多送 regular_prescription_count、chronic_prescription_count 時路由只讀白名單鍵，直接忽略、不回 400；資料庫函式 workspace_save_monthly_summary 不改（呼叫者已在路由層移除兩欄）。
 5. calculated_block 由 DB trigger 計算（supabase/migration_monthly_staff_status.sql、migration_fix_bonus_block_logic.sql、migration_extra_task_block4.sql、migration_work_days_zero_block3.sql）。legacy 編輯頁的預覽寫在 app/monthly-status/edit/[id]/page.tsx 約 185–220 行的 setPreviewBlock，新人升階提醒在 252–294 行。BONUS_BLOCK_DESCRIPTIONS 定義在 types/workflow.ts:352。
 6. app/api/workspace/performance-tools/[resource]/route.ts：bonus* 系列只用 context()，檢查 performance.bonus.view／import，不需要 performance.view；其他資源要 moduleContext('performance')，寫入時另需 performance.edit。thresholds 寫入規定每期 5 檻、level 必須依序為 1..5、base_amount 為非負整數。
 7. app/api/workspace/pharmacists/[action]/route.ts：外層只檢查 pharmacist.management.view。master／annual-manual／annual-lock／profiles 需要 master.view，非 GET 另需 master.edit，但 master 例外：POST 會轉成 legacy GET 並「reconcile snapshots」。month-lock、monthly-manual、fees、proof 的寫入權限完全交給 legacy handler 判斷，必須用角色矩陣實測（uncertain）。
@@ -719,3 +719,12 @@
 - 角色帳號矩陣（DEV）：R1 admin；R2 營業部主管（monthly.status.view_all、confirm、revert、unconfirm、view_stats、bonus_detail.view、export.download、import.*）；R3 店長甲（view_own、edit、submit、add_employee、allowance.edit_support_bonus，在 store_managers 指派到門市 S1）；R4 店長乙（權限同 R3，但只指派 S2）；R5 會計（view_all、export.download、bonus_detail.view，沒有 edit）；R6 一般員工（無 monthly 權限）；R7 藥師管理員（pharmacist.management.view／edit，沒有 master.*）；R8 藥師主檔管理員（另加 master.view／master.edit）；R9 員購檢視者（employee_purchase.view）；R10 員購匯入者（employee_purchase.import）。
 - Fixture：以 scripts/test-workspace-monthly-fixtures.cjs 為基礎，把 2026-10 設為測試月份。S1 為 draft，S2 為 submitted，S3 為 confirmed，S4 為停用門市（帶歷史資料）。每間門市放 1 名正職、1 名兼職、1 名新人（到職日分別落在 1、2、6 個月前）、1 名行政、1 名雙職督導（代理店長）、1 名藥師、1 名手動新增外務人員。
 - 結果放在 .tmp-check/parity/<page>/，JSON 比對差異輸出為 diff.json。所有寫入測試都要在 DEV 執行，並在 teardown 還原（或使用固定 requestId，確保可以重跑）。
+
+## 處方箋連動（每月人員狀態「該月營業狀態」接業績管理處方箋，2026-11-18 實作）
+
+- 規則與舊版已上線版本一致：處方箋有值（含 0）用處方箋；沒有時舊匯入值非 0 才顯示並標「舊匯入」，否則「暫無資料」；健保總點值＝一般箋點值＋慢箋點值（兩者都有才算，萬分之一整數運算、千分位整數顯示）；總公司 0000 一律暫無資料；即時讀取（已送審、已確認月份也跟著變）。純函式直接複用 lib/monthly-stats/rx-link.ts。
+- 伺服端：lib/workspace/monthly-meta.ts 的 fetchMonthlyRx（ctx.admin 讀一筆處方箋，只有 ctx.has('monthly.status.view_stats') 才讀，0000 不查表，失敗回 { failed: true }）與 buildRxMeta／buildMonthlyMeta 的 rx 區塊。名冊 GET 把 fetchMonthlyRx 放進既有 Promise.all（與名冊 RPC、各門市總覽並行）；tools?op=meta 與統計並行。門市範圍沿用 allStores 檢查與 requireStore（view_own 非指派門市 403，不洩漏處方箋值）。
+- 前端：MonthlyTools.vue 統計卡第三列三格唯讀（讀取中、讀取失敗、暫無資料、舊匯入標籤、提示文字）；編輯統計移除兩欄並加提示；名冊重新載入時先清空 rx 避免閃現上一家數字；從其他分頁切回時只重讀 rx（tools?op=meta），不動名冊與編輯中的內容。
+- 資料庫：不改。workspace_save_monthly_summary 的白名單仍含兩欄，但唯一呼叫者已在路由層移除；既有舊匯入值保留作為「舊匯入」退回值。
+- 速度：名冊 GET 多一次處方箋讀取（一筆、並行，不增加序列往返）；tests/perf/monthly-speed.cjs compare 在比對前先拿掉 meta.rx 與 stats 內兩個張數鍵，其餘仍須逐字相同，並另查 rx 有無與 viewStats 一致。
+- 測試：tests/unit/W01a/rx-link.test.ts、monthly-rx-meta.test.ts；tests/integration/W01a.monthly-stats-rx.spec.ts；tests/e2e/W01a.monthly-stats-rx.e2e.spec.ts（含角色劇本 A 至 E）；tests/parity/W01a.monthly-status.spec.ts 的 rx-link-cells、rx-link-store-scope、rx-link-write-readback。sweeper 的保留月份清單已加入 monthly_prescription_reports（2099-xx）。
