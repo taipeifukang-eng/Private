@@ -651,6 +651,41 @@ BEGIN
   expect(m![1]).toBe('ws=12,int=15,def=[],path=[],anon=[],auth=[],internal=[]');
 });
 
+test('函式目錄（49）：八個待我處理述詞函式 prosecdef=false 且 proconfig 為 NULL（可內嵌）；其他 ga_vd_* 與所有 SECURITY DEFINER 的 ga_* 函式仍固定 search_path', async () => {
+  test.setTimeout(120_000);
+  const out = runSqlDo(`
+DECLARE
+  r record;
+  inl text := ''; n_inl int := 0; bad_vd text := ''; n_vd int := 0; bad_def text := ''; n_def int := 0;
+  sigs text[] := ARRAY['ga_po_today()', 'ga_att_request_intake(text)', 'ga_att_store_wait(text)', 'ga_att_po_overdue(text,date)', 'ga_att_po(text,date,boolean)',
+                       'ga_att_transfer_overdue(text,timestamp with time zone,integer)', 'ga_ub_is_overdue(date,date,timestamp with time zone)', 'ga_wo_focus(text,text)'];
+  s text; v_oid oid;
+BEGIN
+  FOREACH s IN ARRAY sigs LOOP
+    v_oid := to_regprocedure('public.' || s);
+    IF v_oid IS NULL THEN inl := inl || s || '=MISSING '; CONTINUE; END IF;
+    SELECT p.prosecdef, p.proconfig INTO r FROM pg_proc p WHERE p.oid = v_oid;
+    n_inl := n_inl + 1;
+    IF r.prosecdef OR r.proconfig IS NOT NULL THEN inl := inl || s || '=secdef:' || r.prosecdef || '/config:' || coalesce(r.proconfig::text, 'NULL') || ' '; END IF;
+  END LOOP;
+  FOR r IN SELECT p.oid, p.oid::regprocedure::text AS sig, p.proname, p.prosecdef, p.proconfig FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'ga\_%' LOOP
+    IF r.oid::regprocedure::text = ANY (SELECT 'public.' || x FROM unnest(sigs) x) THEN CONTINUE; END IF;
+    IF r.proname LIKE 'ga\_vd\_%' THEN
+      n_vd := n_vd + 1;
+      IF NOT coalesce(r.proconfig::text LIKE '%search_path%', false) THEN bad_vd := bad_vd || r.proname || ' '; END IF;
+    END IF;
+    IF r.prosecdef THEN
+      n_def := n_def + 1;
+      IF NOT coalesce(r.proconfig::text LIKE '%search_path%', false) THEN bad_def := bad_def || r.proname || ' '; END IF;
+    END IF;
+  END LOOP;
+  RAISE EXCEPTION 'G20DB49:inl=%,bad_inl=[%],vd=%,bad_vd=[%],def_ok=%,bad_def=[%]:END', n_inl, inl, n_vd, bad_vd, (n_def > 0), bad_def;`, 'catalog49');
+  const m = /G20DB49:(.*?):END/s.exec(out);
+  expect(m, out.slice(0, 1500)).not.toBeNull();
+  // 八個全數存在、都不是 SECURITY DEFINER 且沒有函式層級設定；ga_vd_* 其餘 15 支（含 ga_vd_contract_due）與所有 SECURITY DEFINER 的 ga_* 都固定 search_path
+  expect(m![1]).toBe('inl=8,bad_inl=[],vd=15,bad_vd=[],def_ok=t,bad_def=[]');
+});
+
 test('supabase/test_general_affairs_vendor_permissions_rls.sql 在 DEV 實跑：全部 PASS', async () => {
   test.setTimeout(120_000);
   const run = spawnSync('supabase', ['db', 'query', '--linked', '--file', 'supabase/test_general_affairs_vendor_permissions_rls.sql'], { cwd: root, encoding: 'utf8', shell: true });

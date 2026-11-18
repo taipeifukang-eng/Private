@@ -11,6 +11,7 @@
 --   第 7 區：只有服務中心入口（含店長角色）目前讀得到全部廠商含統編與付款條件，43 之後讀不到。
 --   第 8 區：目前靠需求單權限看得到採購分析、但沒有採購評估權限的角色與人——新版採購分析只認採購評估檢視／管理，這些人會失去入口，要的話先補授權。
 --   第 11 區（G22／G24，46 用）：先決（函式、資料表、工單欄位）、ga_ws_po_list 現行定義是否可加 attention 篩選（46 以文字替換，定義不同會報錯）、九項待辦的現況數字、績效資料完整度（近 12 個月）與有徽章權限的角色。
+--   第 12 區（效能，49 用）：八個待我處理述詞函式（ga_po_today、ga_att_*、ga_ub_is_overdue、ga_wo_focus）的函式層級設定（proconfig）；套用 49 後應為 NULL（可內嵌）。非 NULL（WARN）代表尚未套用 49，或之後重跑了 44、45、46、47 把 search_path 設回去，要（重）跑 49。函式不存在則為 INFO。唯讀。
 --   第 10 區（G23，45 用）：水電帳單先決（資料表、三個識別欄位、權限碼、觸發器函式）與現況數字；其中「讀取政策」請存檔（45 會移除店長直讀條件，撤回要照這份還原）；「店長直讀」人數是 45 之後讀不到帳單的店長名單人數（舊版店長可看自己門市帳單，新版店長看不到水電網費）。
 -- 正式區尚未套用 42 時：第 2 區多半是 INFO（欄位將新增）；套用後再跑，欄位列會變 ALREADY。
 WITH
@@ -259,6 +260,17 @@ rows_out AS (
   UNION ALL
   SELECT 11, '11 徽章權限（有權限的角色）', rp.perm || '：' || rp.role_code || '（' || rp.role_name || '）', (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND COALESCE(ur.is_active, true)), 'INFO'
     FROM (SELECT DISTINCT role_id, role_code, role_name, perm FROM role_perm WHERE perm IN ('general_affairs.purchase_order.approve', 'general_affairs.request.manage', 'general_affairs.cooperation_record.view', 'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage')) rp
+  -- 12 效能（49 用）：八個述詞函式的 proconfig 應為 NULL（RESET search_path 後可被規劃器內嵌）；非 NULL 要重跑 49
+  UNION ALL
+  SELECT 12, '12 效能（49 述詞函式內嵌）', 'function:' || f.sig || ' proconfig',
+         CASE WHEN to_regprocedure('public.' || f.sig) IS NULL THEN '函式不存在（先套用 44、45、46、47 與第 4 批 33）'
+              WHEN (SELECT p.proconfig FROM pg_proc p WHERE p.oid = to_regprocedure('public.' || f.sig)) IS NULL THEN 'NULL（可內嵌）'
+              ELSE (SELECT p.proconfig::text FROM pg_proc p WHERE p.oid = to_regprocedure('public.' || f.sig)) || '：要重跑 49' END,
+         CASE WHEN to_regprocedure('public.' || f.sig) IS NULL THEN 'INFO'
+              WHEN (SELECT p.proconfig FROM pg_proc p WHERE p.oid = to_regprocedure('public.' || f.sig)) IS NULL THEN 'OK'
+              ELSE 'WARN' END
+    FROM (VALUES ('ga_po_today()'), ('ga_att_request_intake(text)'), ('ga_att_store_wait(text)'), ('ga_att_po_overdue(text,date)'), ('ga_att_po(text,date,boolean)'),
+                 ('ga_att_transfer_overdue(text,timestamp with time zone,integer)'), ('ga_ub_is_overdue(date,date,timestamp with time zone)'), ('ga_wo_focus(text,text)')) f(sig)
 )
 SELECT section, item, value, status FROM rows_out ORDER BY sec, status DESC, item;
--- 核對：沒有任何 MISSING 才能套用 42、44、47、46（第 11 區 ga_ws_po_list 列是 WARN 時 46 會報錯，要先人工確認）；第 4 區沒有 WARN（code 重複）才能套用 42；第 3 區沒有 WARN（重複統編組數為 0）才能套用 48；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。
+-- 核對：第 12 區有 WARN 要（重）跑 49；沒有任何 MISSING 才能套用 42、44、47、46（第 11 區 ga_ws_po_list 列是 WARN 時 46 會報錯，要先人工確認）；第 4 區沒有 WARN（code 重複）才能套用 42；第 3 區沒有 WARN（重複統編組數為 0）才能套用 48；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。

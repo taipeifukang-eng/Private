@@ -123,6 +123,40 @@ describe('效能修正 49（決定 5）', () => {
       expect(s).not.toContain('WHERE public.ga_inventory_balance_is_visible(b.location_id)');
     }
   });
+  it('41 預檢第 12 區：列出八個述詞函式的 proconfig，非 NULL 提示要重跑 49；41 仍是唯讀', () => {
+    const sql41 = read(`${DRAFTS}/41-b6-preview-before-apply.sql`);
+    const body = sql41.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
+    expect(sql41).toMatch(/第 12 區（效能，49 用）/);
+    expect(body).toContain("'12 效能（49 述詞函式內嵌）'");
+    expect(body).toContain('p.proconfig');
+    expect(body).toContain('：要重跑 49');
+    const alterNames = alters(draft).map((l) => /ALTER FUNCTION public\.(\w+)\(([^)]*)\)/.exec(l)!).map((m) => `${m[1]}(${m[2]})`);
+    expect(alterNames.length).toBe(8);
+    for (const sig of alterNames) expect(body, sig).toContain(`('${sig}')`);
+    expect(body).not.toMatch(/(INSERTs+INTO|UPDATEs+w+s+SET|DELETEs+FROM|DROPs+|ALTERs+|CREATEs+(TABLE|FUNCTION|POLICY))/i);
+  });
+  it('撤回／再套用驗證腳本：只連 DEV、順序為撤回 49 → 撤回 46 → 再套用 46 → 再套用 49、失敗時補回完整套用、最後比對 ga_ws_po_list 定義；撤回正規式同時吃舊寫法與純量子查詢新寫法', () => {
+    const script = read('scripts/verify-m7m8-b6-withdraw-reapply-dev.cjs');
+    expect(script).toContain('assertDevEnvironment');
+    expect(script).toContain('startsWith("mjpd")');
+    expect(script).not.toMatch(/.env.local|.env.production|.bak/);
+    const order = ['runFile(F49R);', 'runFile(F46R);', 'runFile(F46);', 'runFile(F49);'].map((t) => script.indexOf(t));
+    expect(order.every((i) => i > 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(script).toContain('poListDef() === snapshot');
+    expect(script).toContain('補回完整套用狀態');
+    expect(script).toContain('process.exit(failed ? 1 : 0)');
+    {
+      const rb = read('supabase/workspace-dev/20261118120000_m7m8_b6_stats_home.rollback.sql');
+      expect(rb).toContain('(?:\\\\(SELECT )?has_permission');
+      // 正規式實測（與撤回檔同一條，PostgreSQL 與 JavaScript 語法相容）：舊寫法與新寫法的 attention 篩選行都要被移除
+      const re = /\n       AND \(NOT v_attention OR public\.ga_att_po\(o\.status, o\.expected_delivery_date, (?:\(SELECT )?has_permission\(v_uid, 'general_affairs\.purchase_order\.approve'\)\)?\)\)/;
+      const oldLine = "\n       AND (NOT v_attention OR public.ga_att_po(o.status, o.expected_delivery_date, has_permission(v_uid, 'general_affairs.purchase_order.approve')))";
+      const newLine = "\n       AND (NOT v_attention OR public.ga_att_po(o.status, o.expected_delivery_date, (SELECT has_permission(v_uid, 'general_affairs.purchase_order.approve'))))";
+      expect(oldLine.replace(re, '')).toBe('');
+      expect(newLine.replace(re, '')).toBe('');
+    }
+  });
   it('README 列出 49 與順序，DEV 套用腳本納入 150000', () => {
     const readme = read(`${DRAFTS}/README.md`);
     expect(readme).toContain('49-b6-perf-inline-predicates.sql');

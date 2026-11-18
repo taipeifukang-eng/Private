@@ -14,7 +14,7 @@ import { shiftMonth, taipeiToday } from '../../lib/workspace/general-affairs/uti
 // 測試資料：只放 VW／ZT 測試門市與保留年份 2038，名稱帶 QA-GA6-／[自動測試]M7M8 標記；結束只清自己的（cleanupM7M8）。權限語意與正式區 has_permission 相同（不檢查 roles.is_active、沒有管理員後備）。
 test.describe.configure({ mode: 'serial' });
 
-const KEYS: Ga6Key[] = ['ga_all', 'approver', 'coop_only', 'cat_only', 'store_mgr', 'store_req', 'util_view', 'util_mgr', 'rq_manager', 'wo_works', 'purchaser', 'vendor_mgr', 'nobody', 'admin'];
+const KEYS: Ga6Key[] = ['ga_all', 'approver', 'coop_only', 'cat_only', 'store_mgr', 'store_req', 'util_view', 'util_mgr', 'rq_manager', 'wo_works', 'purchaser', 'vendor_mgr', 'nobody', 'admin', 'txn_only', 'loc_mgr'];
 let users: Record<string, Ga6User> = {};
 let teardownUsers: () => Promise<string[]> = async () => [];
 let seed: AttentionSeed;
@@ -178,6 +178,47 @@ test('採購單 attention 篩選：有核准權限＝待核准＋逾期未到貨
   const ids = new Set((l1.data as any[]).map((r) => r.id));
   for (const p of [seed.pos[0], seed.pos[1], seed.pos[2], seed.pos[3], seed.pos[4]]) expect(ids.has(p.id), p.po_no).toBe(true);
   for (const p of [seed.pos[5], seed.pos[6], seed.pos[7], seed.pos[8]]) expect(ids.has(p.id), `${p.po_no} 不該出現`).toBe(false);
+  // 審查補強：預計到貨日為 NULL 的採購單不算逾期（ORDERED 與 PARTIALLY_RECEIVED 都一樣），attention／overdue 清單與徽章都不計
+  const noDateOrdered = seed.pos[7];
+  expect(noDateOrdered.expected_delivery_date).toBeNull();
+  const noDatePartial = await seedPo('AT-nodate-partial', { status: 'PARTIALLY_RECEIVED', ordered_at: hoursAgo(80) });
+  expect(noDatePartial.expected_delivery_date).toBeNull();
+  for (const who of ['approver', 'purchaser'] as Ga6Key[]) {
+    const bd = (await fn(who, 'ga_ws_home_badges')).data;
+    for (const filters of [{ attention: true }, { overdue: true }]) {
+      const l = await fn(who, 'ga_ws_po_list', { p_filters: filters, p_page: 1, p_page_size: 100 });
+      expect(l.ok, JSON.stringify(l)).toBe(true);
+      const got = new Set((l.data as any[]).map((r) => r.id));
+      expect(got.has(noDateOrdered.id), `${who} ${JSON.stringify(filters)} 不該含沒有預計到貨日的已下訂單`).toBe(false);
+      expect(got.has(noDatePartial.id), `${who} ${JSON.stringify(filters)} 不該含沒有預計到貨日的部分到貨單`).toBe(false);
+    }
+    expect((await fn(who, 'ga_ws_po_list', { p_filters: { attention: true }, p_page: 1, p_page_size: 100 })).total, who).toBe(bd.menu.purchase_orders);
+  }
+  // 述詞本身（內部輔助函式只有 service role 可呼叫）：NULL 預計日為 false；昨天為 true；今天為 false
+  const ov = async (status: string, d: string | null) => (await db().rpc('ga_att_po_overdue', { p_status: status, p_expected: d })).data;
+  expect(await ov('ORDERED', null)).toBe(false);
+  expect(await ov('PARTIALLY_RECEIVED', null)).toBe(false);
+  expect(await ov('ORDERED', dayOffset(-1))).toBe(true);
+  expect(await ov('ORDERED', today)).toBe(false);
+});
+
+test('調撥逾期述詞：p_days 為 NULL 時以 3 天為準（剛好 3 天整不算逾期、多 1 分鐘才算）；明確傳入天數時以傳入為準；非待收貨狀態與沒有交出時間不算', async () => {
+  const att = async (status: string, at: string | null, days: number | null) => {
+    const r = await db().rpc('ga_att_transfer_overdue', { p_status: status, p_source_confirmed_at: at, p_days: days });
+    expect(r.error, JSON.stringify(r.error)).toBeNull();
+    return r.data;
+  };
+  const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const D3 = 3 * 24 * 60;
+  expect(await att('SOURCE_CONFIRMED', ago(D3 + 1), null)).toBe(true);
+  expect(await att('IN_TRANSIT', ago(D3 + 1), null)).toBe(true);
+  expect(await att('SOURCE_CONFIRMED', ago(D3 - 5), null)).toBe(false);
+  expect(await att('SOURCE_CONFIRMED', ago(2 * 24 * 60), null)).toBe(false); // 2 天：預設 3 天不算
+  expect(await att('SOURCE_CONFIRMED', ago(2 * 24 * 60), 1)).toBe(true); // 明確 1 天：算
+  expect(await att('SOURCE_CONFIRMED', ago(D3 + 1), 7)).toBe(false); // 明確 7 天：不算
+  expect(await att('RECEIVED', ago(D3 + 100), null)).toBe(false);
+  expect(await att('REQUESTED', ago(D3 + 100), null)).toBe(false);
+  expect(await att('SOURCE_CONFIRMED', null, null)).toBe(false);
 });
 
 test('工單：store_rejected 焦點的筆數＝徽章；門市退回只算 PROCESSING＋REOPENED，進行中與已完成不算', async () => {
@@ -272,6 +313,40 @@ test('庫存提醒：負庫存完整計數（不允許負庫存的位置才算�
   for (const who of ['util_mgr', 'approver', 'store_mgr', 'store_req', 'coop_only'] as Ga6Key[]) {
     expect((await fn(who, 'ga_ws_home_summary')).data.inventory, who).toBeNull();
   }
+});
+
+test('庫存提醒：停用（deleted_at 非空）位置上的負庫存不計入；只有庫存交易管理（沒有餘額檢視）的角色也看得到提醒且數字正確', async () => {
+  // 先確認這個角色真的沒有 inventory_balance.view，只有交易管理
+  const ur = must(await db().from('user_roles').select('role_id').eq('user_id', users.txn_only.id), '讀取角色') as any[];
+  const rp = must(await db().from('role_permissions').select('is_allowed,permissions(code)').in('role_id', ur.map((r) => r.role_id)), '讀取角色權限') as any[];
+  const codes = rp.filter((r) => r.is_allowed).map((r) => r.permissions.code);
+  expect(codes).toEqual(['general_affairs.inventory_transaction.manage']);
+  const cat = await seedCategory('part', 'invd');
+  const p1 = await seedPart(cat.id, 'invd-p1');
+  const live = await seedLocation('VW001', 'invd-live', { allow_negative_stock: false });
+  const gone = await seedLocation('VW002', 'invd-gone', { allow_negative_stock: false });
+  const inv = async (who: Ga6Key) => (await fn(who, 'ga_ws_home_summary')).data.inventory;
+  const a0 = await inv('ga_all');
+  const t0 = await inv('txn_only');
+  expect(t0, '只有交易管理的角色也要有庫存提醒區').toBeTruthy();
+  expect(t0.negative_count).toBe(a0.negative_count);
+  // 位置的軟刪除只能走 ga_ws_inv_delete_location（要設軟刪除旗標與原因），且資料庫不允許刪除仍有庫存的位置（HAS_STOCK）：所以先用函式刪除空位置，再以 service role 直接補一筆負餘額，模擬「停用位置上殘留的負庫存」
+  const del = await fn('loc_mgr', 'ga_ws_inv_delete_location', { p_location_id: gone.id, p_reason: 'QA-GA6 庫存提醒測試', p_expected_updated_at: null });
+  expect(del.ok, JSON.stringify(del)).toBe(true);
+  const goneRow = (await db().from('ga_inventory_locations').select('deleted_at').eq('id', gone.id).single()).data as any;
+  expect(goneRow.deleted_at, '位置確實已軟刪除').not.toBeNull();
+  await seedBalance(live.id, p1.id, -4);
+  await seedBalance(gone.id, p1.id, -7);
+  const names = (r: any) => (r.negative_top as any[]).map((x) => x.location_name as string);
+  // 啟用位置的負庫存計入（+1）；停用位置上的負庫存不計入（總共只 +1，不是 +2），也不在前幾筆名單
+  for (const who of ['ga_all', 'txn_only'] as Ga6Key[]) {
+    const r = await inv(who);
+    expect(r.negative_count, who).toBe(a0.negative_count + 1);
+    expect(names(r).some((n) => n.includes('invd-live')), `${who} 啟用位置要在負庫存名單`).toBe(true);
+    expect(names(r).some((n) => n.includes('invd-gone')), `${who} 停用位置不該在負庫存名單`).toBe(false);
+  }
+  // 沒有任何庫存權限的人仍然沒有這一區
+  expect(await inv('util_mgr')).toBeNull();
 });
 
 // ================================================================ 績效

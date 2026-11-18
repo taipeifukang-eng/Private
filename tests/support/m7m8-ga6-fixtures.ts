@@ -31,6 +31,10 @@ export const TEMP_ACCOUNTS = {
   purchaser: [PERM.reviewManage, PERM.txnManage, PERM.partView],
   /** 工務：工單更新＋看全部，沒有廠商權限。 */
   wo_works: [PERM.woUpdate, PERM.woViewAll],
+  /** 只有庫存交易管理（沒有 inventory_balance.view）：首頁庫存提醒要看得到（資料庫函式用「餘額檢視或交易管理」判斷）。 */
+  txn_only: [PERM.txnManage],
+  /** 只有庫存位置管理：用 ga_ws_inv_delete_location 軟刪除位置（庫存提醒測試）。 */
+  loc_mgr: ['general_affairs.inventory_location.manage'],
   /** 只有需求單管理。 */
   rq_manager: [PERM.requestManage],
   /** 只有採購核准。 */
