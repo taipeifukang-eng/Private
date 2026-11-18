@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { checked, checkOrigin, failed, respond, uuid, WorkspaceError } from '@/lib/workspace/server';
 import { moduleContext, requireStore, monthValue } from '@/lib/workspace/modules';
-import { buildMonthlyMeta } from '@/lib/workspace/monthly-meta';
+import { buildMonthlyMeta, fetchMonthlyRx } from '@/lib/workspace/monthly-meta';
 import { monthlyTools, toolFor, permit, editableMonth, validateAllowance } from '@/lib/workspace/monthly-tools';
 import { getStoreMonthlySummary, exportMonthlyStatusForBonus } from '@/app/store/actions';
 import { POST as pdfData } from '@/app/api/export-single-item-bonus-pdf/route';
@@ -24,11 +24,15 @@ export async function GET(request: Request) {
     const ctx = await moduleContext('monthly', { profile: false, prefetchStores: true });
     const p = new URL(request.url).searchParams;
     const month = monthValue(p.get('month')), store = p.get('store') || '', op = p.get('op') || 'meta';
-    await requireStore(ctx, 'monthly', store);
+    const storeRow = await requireStore(ctx, 'monthly', store);
     if (op === 'meta') {
-      const summary = await getStoreMonthlySummary(month, store, { user: ctx.user, supabase: ctx.auth });
+      // 統計與處方箋連動並行讀取；處方箋讀取失敗只標 meta.rx.failed。
+      const [summary, rx] = await Promise.all([
+        getStoreMonthlySummary(month, store, { user: ctx.user, supabase: ctx.auth }),
+        fetchMonthlyRx(ctx, { storeId: store, storeCode: storeRow.store_code, month }),
+      ]);
       if (!summary.success) throw new WorkspaceError(503, '門市統計讀取失敗');
-      return respond(await buildMonthlyMeta(ctx, summary.data));
+      return respond(await buildMonthlyMeta(ctx, summary.data, rx));
     }
     if (op === 'employees') {
       if (!ctx.has('monthly.status.add_employee', 'monthly.status.edit', ...Object.values(monthlyTools).map(t=>t.permission))) throw new WorkspaceError(403, '沒有選擇人員權限');
@@ -128,7 +132,8 @@ export async function POST(request: Request) {
     if (b.op === 'stats' || b.op === 'supportHours') {
       permit(ctx, b.op === 'stats' ? 'monthly.status.edit' : 'monthly.allowance.edit_support_hours');
       if (b.op === 'stats') permit(ctx, 'monthly.status.view_stats');
-      const keys = b.op === 'stats' ? ['total_staff_count','admin_staff_count','newbie_count','business_days','total_gross_profit','total_customer_count','prescription_addon_only_count','regular_prescription_count','chronic_prescription_count'] : ['support_to_other_stores_hours','support_from_other_stores_hours'];
+      const keys = b.op === 'stats' ? ['total_staff_count','admin_staff_count','newbie_count','business_days','total_gross_profit','total_customer_count','prescription_addon_only_count'] : ['support_to_other_stores_hours','support_from_other_stores_hours'];
+      // 一般箋、慢箋張數改由業績管理處方箋提供：舊分頁或舊程式多送的兩欄直接忽略（不報錯、不寫入）；迴圈只讀 keys 內的鍵。
       const updates: Record<string, number> = {};
       for (const key of keys) {
         const n = b.updates?.[key];

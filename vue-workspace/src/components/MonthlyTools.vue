@@ -8,13 +8,20 @@ import { checkEmployeeId, employmentTypeForEmployeeId, isValidEmployeeId, EMPLOY
 import ActivityPlan from './ActivityPlan.vue';
 const quarterMode=ref<'quarterBonuses'|'quarterPerformance'|''>('');
 const quarterNumber=computed(()=>Math.ceil(Number(props.tab.month.slice(5))/3));
-const props = defineProps<{ tab: WorkTab; monthState: string; rows: any[]; options: any; revision: number; meta?: any; disabled: boolean; globalTarget?:HTMLElement; storeTarget?:HTMLElement }>();
+const props = defineProps<{ tab: WorkTab; monthState: string; rows: any[]; options: any; revision: number; meta?: any; loadingRoster?: boolean; disabled: boolean; globalTarget?:HTMLElement; storeTarget?:HTMLElement }>();
 const emit = defineEmits<{ refresh: [] }>();
 const work = useWorkspace(), meta = ref<any>({capabilities:{},stats:{}}), loading = ref(false), error = ref(''), message = ref('');
 const mode = ref(''), entries = ref<any[]>([]), form = ref<any>({}), expected = ref<any[]>([]), readRows = ref<any[]>([]), dialogLoading = ref(false), dialogError = ref(''), discard = ref(false), query = ref(''), candidates = ref<any[]>([]), selectedIndex = ref(-1);
 const activityDetail = ref<any>(null), activityYear = ref('');
 const visibleActivities = computed(()=>readRows.value.filter(r=>!activityYear.value || (r.start_date <= activityYear.value+'-12-31' && r.end_date >= activityYear.value+'-01-01')));
 const ready = ref(false);
+// 處方箋連動（一般箋、慢箋、健保總點值）：唯讀，來自 meta.rx；切換門市或月份先清空，避免閃現上一家的數字；切回分頁時自動重讀。
+const rx = ref<any>(null), rxLoading = ref(false);
+let rxSequence = 0;
+const RX_CELLS:[string,string][] = [['regular','一般箋張數'],['chronic','慢箋張數'],['totalPoint','健保總點值']];
+const rxFailed = computed(()=>!!rx.value?.failed);
+const rxText = (key:string)=>rx.value?.[key]?.text ?? '暫無資料';
+const rxLegacy = (key:string)=>!!rx.value?.[key]?.legacy;
 const file1 = ref<File>(), file2 = ref<File>(), importResult = ref<any>(null);
 let requestId = '', baseline = '', context = {store:'',month:''}, searchSequence = 0, openSequence = 0;
 const titles:Record<string,string> = { support:'上個月單品獎金',transport:'交通費用',talent:'育才獎金',spring:'春節出勤獎金',meal:'誤餐費登記',stats:'門市每月統計資料',supportHours:'本月門市支援時數',manual:'手動新增員工',activity:'活動檢視',bonuses:'每月人員各式獎金明細',performance:'該月業績狀況',importPerformance:'匯入業績資料',importStats:'匯入門市統計' };
@@ -23,7 +30,7 @@ const fields:Record<string,[string,string,string][]> = {
  talent:[['cultivation_bonus','育才獎金','number'],['cultivation_target','育才對象','text']], spring:[['attendance_date','出勤日期','date'],['category','對象分類','category'],['bonus_amount','出勤獎金','number']],
  meal:[['record_date','日期（MM/DD）','text'],['work_hours','上班區間（HH:MM-HH:MM）','text'],['meal_period','誤餐時段','period'],['employee_type','身分','employeeType']],
 };
-const statsFields:[string,string][] = [['total_staff_count','門市人數'],['admin_staff_count','行政人數'],['newbie_count','新人人數'],['business_days','營業天數'],['total_gross_profit','毛利'],['total_customer_count','總來客數'],['prescription_addon_only_count','單純處方加購'],['regular_prescription_count','一般箋張數'],['chronic_prescription_count','慢箋張數']];
+const statsFields:[string,string][] = [['total_staff_count','門市人數'],['admin_staff_count','行政人數'],['newbie_count','新人人數'],['business_days','營業天數'],['total_gross_profit','毛利'],['total_customer_count','總來客數'],['prescription_addon_only_count','單純處方加購']];
 const supportFields:[string,string][] = [['support_to_other_stores_hours','支援分店時數'],['support_from_other_stores_hours','分店支援時數']];
 const bonusFields:[string,string][] = [['employee_code','員編'],['employee_name','姓名'],['group_bonus','團體獎金'],['single_item_bonus','單品獎金'],['hr_subsidy_bonus','人資補貼'],['brand_bonus','品牌獎金'],['talent_bonus','育才獎金'],['transport_fee','交通費'],['meal_allowance','誤餐費'],['spring_festival_bonus','春節出勤獎金'],['inventory_bonus','盤點獎金'],['rx_incentive_bonus','處方獎金'],['inventory_diff_penalty','盤差承擔'],['quarterly_makeup_bonus','季回補'],['pharmacist_guarantee','藥師保證金'],['owner_rx_makeup','負責人處方回補'],['sales_competition_bonus','銷售競賽'],['owner_signing_bonus','負責人簽約金'],['long_term_care_bonus','長照獎金'],['manager_supervisor_quarterly_bonus','經理／督導季獎金'],['opening_abnormal_responsibility_amount','開店異常責任金額'],['bonus_difference_adjustment','獎金差額調整'],['other_bonus','其他獎金'],['source_store_name','來源門市'],['total','合計']];
 const performanceFields:[string,string][] = [['business_days','營業天數'],['monthly_gross_profit_target','毛利目標'],['monthly_gross_profit_actual','實際毛利'],['activity_day_gross_profit','活動當日毛利'],['monthly_revenue_target','營收目標'],['monthly_revenue_actual','實際營收'],['monthly_customer_count_target','來客目標'],['monthly_customer_count_actual','實際來客'],['last_month_rx_target','慢箋目標'],['last_month_rx_actual','慢箋實際']];
@@ -40,13 +47,24 @@ const derived = computed(()=>{
 async function load() {
  if (!props.tab.store || props.disabled) return;
  loading.value=true; error.value='';
- try { meta.value=await api(`monthly/tools?${new URLSearchParams({store:props.tab.store,month:props.tab.month})}`); }
- catch(e){ error.value=(e as Error).message; meta.value={capabilities:{},stats:{}}; }
+ try { meta.value=await api(`monthly/tools?${new URLSearchParams({store:props.tab.store,month:props.tab.month})}`); rx.value=meta.value.rx ?? null; rxLoading.value=false; }
+ catch(e){ error.value=(e as Error).message; meta.value={capabilities:{},stats:{}}; rx.value=null; rxLoading.value=false; }
  finally {loading.value=false;}
 }
 // 項目 A：名冊回應已附上 meta（統計、capabilities、version），開頁時直接使用，不再另打 op=meta；
 // 沒有附 meta（舊回應或非有效門市）時維持原本的 load()。存檔後 emit('refresh') 會重新讀名冊，meta 隨之更新。
-watch(()=>props.revision,()=>{ if(props.meta && !props.disabled){ meta.value=props.meta; error.value=''; loading.value=false; } else void load(); },{immediate:true});
+watch(()=>props.revision,()=>{ if(props.meta && !props.disabled){ meta.value=props.meta; rx.value=props.meta.rx ?? null; rxLoading.value=false; ++rxSequence; error.value=''; loading.value=false; } else void load(); },{immediate:true});
+// 切換門市或月份（名冊開始重新載入）：先清空 rx 並顯示讀取中，避免閃現上一家的數字；載入完成（revision 變動）再帶入新值。
+watch(()=>props.loadingRoster,(v)=>{ if(v){ ++rxSequence; rx.value=null; rxLoading.value=!!caps.value.viewStats; } else if(rxLoading.value && !props.meta) rxLoading.value=false; },{immediate:true});
+// 切回此分頁（例如在業績管理處方箋分頁改完資料）：只重讀處方箋連動，不動名冊與編輯中的內容。
+async function refreshRx() {
+ if(!props.tab.store||props.disabled||props.loadingRoster||!caps.value.viewStats||mode.value)return;
+ const sequence=++rxSequence, ctx={store:props.tab.store,month:props.tab.month}; rxLoading.value=true;
+ try { const r=await api(`monthly/tools?${new URLSearchParams(ctx)}`); if(sequence===rxSequence&&ctx.store===props.tab.store&&ctx.month===props.tab.month) rx.value=r.rx ?? null; }
+ catch { if(sequence===rxSequence) rx.value={failed:true}; }
+ finally { if(sequence===rxSequence) rxLoading.value=false; }
+}
+watch(()=>work.active,(id,old)=>{ if(id===props.tab.id && old!==id) void refreshRx(); });
 async function read(op:string, extra:Record<string,string>={}) { return api(`monthly/tools?${new URLSearchParams({...context,op,...extra})}`); }
 async function open(kind:string) {
  const sequence=++openSequence; requestId=crypto.randomUUID();
@@ -137,6 +155,10 @@ async function activity(r:any){const sequence=++openSequence;dialogLoading.value
   <div v-if="caps.viewStats">
    <div class="monthly-section-title"><h2>門市每月統計資料</h2></div>
    <dl class="monthly-stats"><div v-for="[key,label] in statsFields" :key="key"><dt>{{label}}</dt><dd>{{fmt(meta.stats[key])}}</dd></div><div v-for="[label,value] in derived" :key="String(label)"><dt>{{label}}</dt><dd>{{fmt(value)}}</dd></div></dl>
+   <dl class="monthly-stats monthly-rx" data-testid="monthly-rx" aria-label="處方箋連動">
+    <div v-for="[key,label] in RX_CELLS" :key="key" :data-testid="'rx-'+key"><dt>{{label}}</dt><dd><template v-if="rxLoading&&!rx">讀取中…</template><template v-else-if="rxFailed">讀取失敗</template><template v-else>{{rxText(key)}}<small v-if="rxLegacy(key)" class="muted" data-testid="rx-legacy"> 舊匯入</small></template></dd></div>
+   </dl>
+   <p class="muted" data-testid="rx-hint">資料來自業績管理處方箋，如需修改請至業績管理處方箋頁<button v-if="rxFailed" type="button" @click="refreshRx"> 重試</button></p>
   </div>
   <div v-if="caps.viewSupport" class="monthly-support"><div class="monthly-section-title"><h2>本月門市支援時數</h2></div><dl class="monthly-stats"><div v-for="[key,label] in supportFields" :key="key"><dt>{{label}}</dt><dd>{{fmt(meta.stats[key])}} 小時</dd></div></dl></div>
  </section>
@@ -164,6 +186,7 @@ async function activity(r:any){const sequence=++openSequence;dialogLoading.value
    <p v-if="locked && writable" class="notice">此月份已送審或確認，目前僅供查看。請先退回草稿再修改。</p>
    <form v-if="!dialogLoading && writable" @submit.prevent="save">
     <fieldset :disabled="tab.busy||locked||!ready" class="monthly-fieldset">
+     <p v-if="mode==='stats'" class="muted" data-testid="stats-rx-hint">一般箋、慢箋張數改由業績管理處方箋提供</p>
      <template v-if="fields[mode]">
       <p v-if="mode==='support'" class="muted">此處登記額外單品獎金；人員原有的上月單品獎金仍保留，匯出時依舊版規則合併。</p>
       <div class="module-table"><table><thead><tr><th>員編／姓名</th><th v-for="[,label] in fields[mode]">{{label}}</th><th v-if="mode!=='transport'">操作</th></tr></thead><tbody>
@@ -194,6 +217,7 @@ async function activity(r:any){const sequence=++openSequence;dialogLoading.value
    </form>
    <template v-if="mode.startsWith('import')">
     <p class="notice">匯入月份：{{context.month}}。依檔案中的門市與員編更新該月份資料，範圍包含檔案內所有門市。</p>
+    <p v-if="mode==='importStats'" class="muted" data-testid="import-rx-hint">一般箋、慢箋張數與健保總點值改由業績管理處方箋提供，不需在此匯入。</p>
     <label>{{mode==='importPerformance'?'業績毛利檔（必填）':'門市統計 Excel'}}<input type="file" accept=".xls,.xlsx" :disabled="tab.busy" @change="file1=($event.target as HTMLInputElement).files?.[0]" /></label>
     <label v-if="mode==='importPerformance'">銷售毛利檔（選填）<input type="file" accept=".xls,.xlsx" :disabled="tab.busy" @change="file2=($event.target as HTMLInputElement).files?.[0]" /></label>
     <div v-if="importResult" role="status"><p>{{importResult.message || '匯入處理完成'}}</p><p v-if="importResult.updated!==undefined">更新 {{importResult.updated}} 筆；略過 {{importResult.skipped}} 筆。</p><p v-if="importResult.details">成功 {{importResult.details.success}} 筆；失敗 {{importResult.details.failed}} 筆。</p><ul><li v-for="e in importResult.errors || importResult.details?.errors || []">{{e}}</li><li v-for="s in importResult.skippedDetails || []">{{s.employeeCode}} {{s.employeeName}}：{{s.reason}}</li></ul></div>

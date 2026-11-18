@@ -12,7 +12,7 @@ import {
   monthValue,
   requireStore,
 } from "@/lib/workspace/modules";
-import { buildMonthlyMeta } from "@/lib/workspace/monthly-meta";
+import { buildMonthlyMeta, fetchMonthlyRx } from "@/lib/workspace/monthly-meta";
 import {
   getMonthlyStaffStatus,
   getStoreMonthlySummary,
@@ -216,17 +216,25 @@ export async function GET(request: Request) {
     const since = new Date(Date.now() - 60 * 86400000).toISOString();
     // 速度規格 B／C：名冊頁資料（一支 RPC，或退回的並行查詢）、各門市總覽、刪除權限互不相依，一起並行；
     // 使用者已在 context 驗證，helper 不再各自 getUser。
-    const [page, summaries, assigned] = await Promise.all([
+    // 處方箋連動讀取（只有 view_stats 才讀、0000 不讀、失敗只標 failed）同樣放進這組並行，不序列拖慢名冊。
+    const [page, summaries, assigned, rx] = await Promise.all([
       rosterPage(ctx, month, store, since),
       fetchSummaries(),
       storeActive && !ctx.isAdmin ? isAssigned(ctx, store) : Promise.resolve(false),
+      storeActive
+        ? fetchMonthlyRx(ctx, {
+            storeId: store,
+            storeCode: (allStores as any[]).find((s) => s.id === store)?.store_code,
+            month,
+          })
+        : Promise.resolve(undefined),
     ]);
     const stats = statsOf(summaries);
     const { recheck, adjustments } = page;
     // 速度規格 A：附上工具列需要的 meta（統計、capabilities、version），開頁不必再打 op=meta。
     // 與 tools?op=meta 同一支 buildMonthlyMeta；欄位權限（viewStats／viewSupport）在裡面過濾。
     // 已停止門市工具列停用（disabled），不附 meta，維持原行為。
-    const meta = storeActive ? await buildMonthlyMeta(ctx, page.summary) : undefined;
+    const meta = storeActive ? await buildMonthlyMeta(ctx, page.summary, rx) : undefined;
     // 業績與獎金欄位只給有 view_performance 的角色；其他角色在伺服器端移除，不只在畫面隱藏。
     const canViewPerformance = ctx.has("monthly.status.view_performance");
     const records = canViewPerformance

@@ -139,4 +139,5 @@ export async function requireStore(
   const stores = await moduleStores(ctx, module, options);
   if (!stores.some((s) => s.id === id))
     throw new WorkspaceError(403, "沒有此門市操作權限");
+  return stores.find((s) => s.id === id)!;
 }
