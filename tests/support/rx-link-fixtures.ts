@@ -94,3 +94,11 @@ export function rxTexts(meta: any): string[] | 'failed' | undefined {
   if (meta.rx.failed) return 'failed';
   return [meta.rx.regular.text, meta.rx.chronic.text, meta.rx.totalPoint.text];
 }
+
+/**
+ * 跨店「不洩漏」檢查用的獨特張數：不會與 UUID（只含 hex 與連字號）或頁面其他數字撞到。
+ * 檢查洩漏時用 rxLeaks（比對千分位 7,770,123，或前後不是 hex 字元的 7770123），不要用 '777' 子字串。
+ */
+export const RX_LEAK_COUNT = 7770123;
+export const RX_LEAK_TEXT = '7,770,123';
+export const rxLeaks = (text: string) => text.includes(RX_LEAK_TEXT) || /(?<![0-9a-fA-F])7770123(?![0-9a-fA-F])/.test(text);

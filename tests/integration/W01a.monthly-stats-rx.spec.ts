@@ -2,7 +2,7 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 import * as XLSX from 'xlsx';
 import { apiAs } from '../support/auth';
 import { runIdOrThrow, testStoreIds } from '../support/w01a-fixtures';
-import { RxFixture, rxTexts } from '../support/rx-link-fixtures';
+import { RxFixture, RX_LEAK_COUNT, rxLeaks, rxTexts } from '../support/rx-link-fixtures';
 
 // 每月人員狀態「該月營業狀態」接業績管理處方箋（新版）整合層。
 // 規則（與舊版已上線一致）：處方箋有值（含 0）用處方箋；沒有時舊匯入非 0 才顯示並標「舊匯入」，否則暫無資料；
@@ -144,13 +144,13 @@ test.describe('權限與門市範圍', () => {
     expect(mine.status).toBe(200);
     expect(rxTexts(mine.json)).toEqual(['1,200', '300', '3']);
     test.skip(!ids.ZT04, 'DEV 缺少 ZT04（跨店對象）');
-    await fx.report(admin, ids.ZT04, M1, { regular: 777, regularPoint: 1, chronic: 1, chronicPoint: 1 });
+    await fx.report(admin, ids.ZT04, M1, { regular: RX_LEAK_COUNT, regularPoint: 1, chronic: 1, chronicPoint: 1 });
     const other = await metaOf(sup, ids.ZT04, M1);
     expect(other.status).toBe(403);
-    expect(JSON.stringify(other.json)).not.toContain('777');
+    expect(rxLeaks(JSON.stringify(other.json))).toBe(false);
     const roster = await rosterOf(sup, ids.ZT04, M1);
     expect(roster.status).toBe(403);
-    expect(JSON.stringify(roster.json)).not.toContain('777');
+    expect(rxLeaks(JSON.stringify(roster.json))).toBe(false);
   });
 });
 

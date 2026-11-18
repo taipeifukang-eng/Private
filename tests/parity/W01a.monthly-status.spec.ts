@@ -14,7 +14,7 @@ import {
 } from '../support/parity';
 import * as XLSX from 'xlsx';
 import { addManual, ensureSummary, readMonth, registerFixtureRows, saveRow, staffCode, testStoreIds } from '../support/w01a-fixtures';
-import { RxFixture } from '../support/rx-link-fixtures';
+import { RxFixture, RX_LEAK_COUNT, rxLeaks } from '../support/rx-link-fixtures';
 
 // W01a 對等層：同角色、同月份，舊 /monthly-status 與新「每月人員狀態」的總覽（統計卡片、門市頁籤）、名冊、業績明細，
 // 以及兩項已知的行為差異（已送審可否刪除、送審前檢查的呈現）。結果寫入 tests/reports/<runId>/parity-report.json。
@@ -578,7 +578,7 @@ test('處方箋連動權限與門市範圍：被指派門市數字一致、非�
   test.skip(!stores.ZT04, 'DEV 缺少 ZT04（跨店對象）');
   await ensureRxMonth(stores);
   await rxFx.report(admin, stores.ZT01, M_RX, { regular: 321, regularPoint: 1000, chronic: 45, chronicPoint: 500 });
-  await rxFx.report(admin, stores.ZT04, M_RX, { regular: 777, regularPoint: 1, chronic: 1, chronicPoint: 1 });
+  await rxFx.report(admin, stores.ZT04, M_RX, { regular: RX_LEAK_COUNT, regularPoint: 1, chronic: 1, chronicPoint: 1 });
   const cases: { role: string; label: string; store: string }[] = [
     { role: 'supervisor', label: 'assigned:ZT01', store: stores.ZT01 },
     { role: 'supervisor', label: 'cross:ZT04', store: stores.ZT04 },
@@ -598,8 +598,8 @@ test('處方箋連動權限與門市範圍：被指派門市數字一致、非�
         if (hasCells) await waitLegacyRx(legacy);
         const l = await legacyRxCells(legacy);
         const html = await legacy.content();
-        // 非指派門市：舊頁可能退回自己的第一間門市，所以比對「有沒有洩漏 777」；其餘比對數字
-        legacyRows.push(c.label.startsWith('cross') ? { case: c.label, leak: flag(html.includes('777')) } : { case: c.label, cells: flag(l.exists), regular: l.regular, chronic: l.chronic, total: l.total });
+        // 非指派門市：舊頁可能退回自己的第一間門市，所以比對「有沒有洩漏獨特張數 7770123」；其餘比對數字
+        legacyRows.push(c.label.startsWith('cross') ? { case: c.label, leak: flag(rxLeaks(html)) } : { case: c.label, cells: flag(l.exists), regular: l.regular, chronic: l.chronic, total: l.total });
         await legacy.close();
         // 瀏覽器 context 的 keep-alive 連線偶爾被伺服器重設（ECONNRESET），只重試連線層錯誤，不重試任何 HTTP 狀態
         let res = await ctx.request.get('/api/workspace/monthly/tools', { params: { month: M_RX, store: c.store, op: 'meta' } }).catch(() => null);
@@ -608,7 +608,7 @@ test('處方箋連動權限與門市範圍：被指派門市數字一致、非�
         const body = await res.text();
         if (c.label.startsWith('cross')) {
           expect(res.status()).toBe(403);
-          nativeRows.push({ case: c.label, leak: flag(body.includes('777')) });
+          nativeRows.push({ case: c.label, leak: flag(rxLeaks(body)) });
         } else {
           const j = JSON.parse(body);
           nativeRows.push({ case: c.label, cells: flag(!!j.rx), regular: j.rx?.regular?.text ?? '', chronic: j.rx?.chronic?.text ?? '', total: j.rx?.totalPoint?.text ?? '' });
