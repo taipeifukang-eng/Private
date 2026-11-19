@@ -317,4 +317,13 @@ README 新增「第 4.5 批」章節與套用順序：`50（唯讀）→ 51 → 
 結論：設計 §3.2、§3.5、§3.6 的假設除「`can_view` 名稱」外全部成立，已在上文修正；**無需改動使用者已決定的 P1 至 P10**。
 
 ### 13.2 實作進度
-（各階段完成後依 `m7m8-batch6-design.md` §11 格式追記：日期、commit、實測結果與待確認事項。）
+
+#### G45-db（資料庫層，2026-11-19 完成，DEV only）
+- **DEV SQL**（`supabase/workspace-dev/`，各附 `.rollback.sql`）：`20261119100000_m7m8_b45_receipt_voucher`、`110000_payment_requests`、`120000_vendor_bank`、`130000_attachment_types`、`140000_permissions`、`145000_dev_seed`（四個 `vue_workspace_ga45_*` 測試角色與 `ga_dev_cleanup_m7m8_b45` 清除函式）、`150000_functions`。`160000_analysis`、`170000_receipt_void` 留給後續階段（套用腳本遇到不存在的檔會略過）。套用腳本 `scripts/apply-workspace-m7m8-b45-dev.cjs [--rollback]`；清理腳本 `scripts/cleanup-m7m8-b45-dev.cjs`；正式區草稿產生器 `scripts/build-m7m8-b45-prod-drafts.cjs`。
+- **正式區草稿**（`m7m8-sql/`）：`50-b45-preview-before-apply`（唯讀，已在 DEV 實跑確認語法與欄位）、`51` 至 `55` 各附 `-rollback`；README 新增「第 4.5 批」章節與套用順序（50→51→…→58，56 至 58 後續補檔）。51 至 55 草稿已在 DEV 實跑（重複套用無錯誤）。
+- **套用 → 撤回 → 再套用已實測**：撤回後五張新表、45 個函式、權限碼、角色、廠商銀行欄位、進貨欄位、觸發器全部消失，附件 CHECK 回到 8 值、兩個附件函式的 PURCHASE_ 分支與 `ga_vd_json`／`ga_ws_vendor_save` 的銀行欄位都被拿掉（水電帳單分支保留）；再套用回到完整狀態。
+- **開工讀 `ga_ws_po_create` 的結論（§3.3、§8-11）**：採購單稅率在草稿時取設定 `po_tax_rate`（設定函式允許 0 至 0.3，可設 0），下訂後快照；免稅廠商用「採購單 tax_rate = 0」表達可行（測試以 service role 把已下訂採購單改成 0 驗證：發票稅額與請款稅額都自動為 0）。
+- **實作時的決定與修正**：(1) 為了不改第 4 批到貨函式，進貨明細金額用 BEFORE INSERT 觸發器凍結（欄位不能設預設值，否則觸發器看不出沒給金額；已踩過並修正）。(2) 發票金額差異要原因的比較對象是「連結進貨單含稅合計」與「分攤合計」，兩者任一超過尾差就要填原因。(3) 已被有效請款單引用的發票，修改檢查在原因檢查之前先擋（回 INVOICE_IN_USE，而不是被要求補原因）。(4) 附件讀取判斷對 PURCHASE_ 類型資源「存在即可讀」（含已作廢發票，保留歷史），寫入要求發票 ACTIVE、進貨單未作廢。(5) `ga_ws_pay_po_summary` 的 `can_manage` 與其他函式一致放在回傳最外層。(6) 內部輔助 `ga_pay_*` 一律收回登入者執行權（只有 service_role），避免繞過 `ga_ws_pay_*` 的權限與遮蔽。(7) 建立用 `idempotency_key`（同識別同內容回原結果、內容不同 409）；動作的固定識別存在事件表（同一請款單內唯一），內容雜湊不同回 409。
+- **測試 G45-db**（`tests/integration/G45-db.payment-requests-rpc.spec.ts`，28 項，循序）：結構與直接讀寫被擋、權限矩陣（未登入、nobody、purchaser、store_mgr、profiles.role=admin、vendor_mgr 全部擋；viewer 唯讀；只有請款查看者不看採購單明細）、設定（尾差、買受人、STALE、範圍）、進貨金額凍結與各品項進位、進貨憑證、發票（新增、重複號碼、免稅、收據與免開發票、統編不符、尾差邊界 4／5／6 元與可調、編輯、查詢、遮蔽、分頁、搜尋跳脫）、附件分支（新類型讀寫、CHECK、既有類型回歸含水電帳單與料件、最後一張圖守門）、請款單（建立、快照、累計上限含兩張請款單合計與短收與拒收與作廢釋放與尾差設定與併發、缺圖不可引用、狀態機完整劇本、申請人自己標已付款、動作併發、銀行快照、查詢、候選進貨與摘要、對帳匯出與遮蔽）、廠商銀行欄位。通過 28／28；sweeper 孤兒 0。
+- **回歸**：G25-db（21 項 Playwright ＋單元 43 項）、G26-db（22 項＋單元 37 項）、G20-G21-db-api（40 項）、G22-G24（48 項）、G23（58 項）全部通過；`npm run test:unit` 2141 項、`npx tsc --noEmit` 通過。
+- **待後續階段**：`lib/workspace/general-affairs/vendor-rules.ts` 的 `VENDOR_SECRET_FIELDS` 還是 8 欄，銀行四欄要在 G45-att-inv 加入並更新 `tests/unit/G20-G21-db-api/vendor-rules.test.ts` 的 8 欄斷言（資料庫層已把銀行欄位放在 `ga_vd_json` 的機密段，只有 `ga_ws_vendor_get`／`save` 回傳，列表函式不含）；`ga_ws_pay_export` 回傳列資料，CSV 與公式注入防護在 G45-pay 的伺服端；採購分析、廠商績效、attention、首頁徽章（160000／57）與作廢進貨（170000／58）；`has_permission` 在 DEV 與正式區語意不同（DEV 檢查 `roles.is_active` 並有 admin 後備），本批測試角色都明確帶權限碼，等價性以「profiles.role=admin 無角色被擋」與角色皆啟用驗證。
