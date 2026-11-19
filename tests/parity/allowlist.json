@@ -8966,7 +8966,12 @@
     "page": "ga-purchase-analysis",
     "description": "採購分析新增「已請款、已付款、已驗入尚未請款」三個金額（含稅，月份卡片與每張採購單各一欄），廠商績效新增「已付款金額」；只有同時具備請款檢視或管理權限者看得到，沒有權限時欄位不存在。原有欄位與算法不變。",
     "reason": "實作取捨：問卷 P1 至 P3 決定了請款與付款流程，統計要看得到金額；欄位與權限怎麼放問卷未涵蓋。待使用者確認。",
-    "approvedBy": null
+    "approvedBy": null,
+    "match": {
+      "entry": "cost-summary-read",
+      "key": "top#can_view_payment",
+      "kind": "only-native"
+    }
   },
   {
     "id": "m7m8-b45-badges-pay-attention",

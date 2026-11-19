@@ -38,6 +38,9 @@ export const TEMP_ACCOUNTS = {
   vendor_view: [PERM.vendorView],
   /** 只有一個無關權限。 */
   nobody: [PERM.serviceAccess],
+  /** 第 4.5 批 G45-stat：看廠商績效（合作紀錄檢視）＋採購評估檢視＋請款檢視／沒有請款權限的對照組。 */
+  perf_pay: ['general_affairs.cooperation_record.view', PERM.reviewView, PAY.view],
+  perf_nopay: ['general_affairs.cooperation_record.view', PERM.reviewView],
   /** 舊式管理員：profiles.role = admin、沒有任何角色（資料庫不給繞過）。 */
   admin: [] as string[],
 } satisfies Record<string, string[]>;
