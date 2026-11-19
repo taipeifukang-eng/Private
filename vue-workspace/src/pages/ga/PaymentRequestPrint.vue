@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
 import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
@@ -32,6 +32,10 @@ onMounted(async () => {
     loading.value = false;
   }
 });
+// 只有這一頁在前景時才套用「只印紙張」的全域列印樣式（頁籤用 v-show 保留，不能影響其他頁的列印）。
+const active = computed(() => work.active === props.tab.id);
+watchEffect(() => document.body.classList.toggle("printing-payment", active.value));
+onBeforeUnmount(() => document.body.classList.remove("printing-payment"));
 const printNow = () => window.print();
 function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.id); work.remove([props.tab.id]); }
 </script>
@@ -102,7 +106,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
 .pp-sign small { color: #555; }
 @media print {
   @page { size: A4 portrait; margin: 10mm; }
-  :global(body *) { visibility: hidden; }
+  :global(body.printing-payment *) { visibility: hidden; }
   .pp-sheet, .pp-sheet * { visibility: visible; }
   .pp-sheet { position: absolute; left: 0; top: 0; width: 100%; border: 0; padding: 0; }
   .no-print { display: none !important; }

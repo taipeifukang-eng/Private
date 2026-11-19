@@ -173,6 +173,12 @@ test('請款管理（總務）：清單、建立（超過累計上限被擋、�
     await expect(vis(page, 'pp-sign-acc')).toContainText('GA45 clerk');
     await expect(vis(page, 'pp-paid')).toContainText('77777');
     expect(await cards(page, 'pp-line').count()).toBe(1);
+    // 列印樣式：只輸出紙張（導覽與按鈕隱藏），而且切回螢幕後恢復
+    await page.emulateMedia({ media: 'print' });
+    await expect(vis(page, 'pp-sheet')).toBeVisible();
+    await expect(page.getByTestId('pp-print')).toBeHidden();
+    await page.emulateMedia({ media: 'screen' });
+    await expect(page.getByTestId('pp-print')).toBeVisible();
     expect(await noPageOverflow(page)).toBe(true);
     expect(errors).toEqual([]);
   } finally {
