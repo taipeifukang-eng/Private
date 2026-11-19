@@ -21,6 +21,9 @@ export const m7Code = (suffix: string) => `M7M8${runIdOrThrow().replace('-', '')
 export const MARK_LIKE = '[自動測試]M7M8 T%';
 /** 第 6 批（G20 至 G24）測試資料標記：廠商、分類、區域名稱與代碼以 QA-GA6- 開頭（名稱再帶 runId），cleanupM7M8 只清這些。 */
 export const GA6_PREFIX = 'QA-GA6-';
+/** 第 4.5 批（G45）測試資料標記：廠商名稱以 QA-GA45- 開頭（再帶 runId）；請款單、發票、附件、設定變更由 DEV 專用函式 ga_dev_cleanup_m7m8_b45 依此清除。 */
+export const GA45_PREFIX = 'QA-GA45-';
+export const ga45Name = (suffix: string) => `${GA45_PREFIX}${runIdOrThrow()}-${suffix}`;
 export const ga6Name = (suffix: string) => `${GA6_PREFIX}${runIdOrThrow()}-${suffix}`;
 export const CODE_LIKE = 'M7M8T%';
 
@@ -246,6 +249,20 @@ async function del(db: any, table: string, col: string, values: string[], log: s
   }
 }
 
+/** 呼叫第 4.5 批清除函式，並把回傳的附件實體檔一併刪除。 */
+async function sweepGa45(db: any, log: string[]) {
+  const r = await db.rpc('ga_dev_cleanup_m7m8_b45');
+  if (r.error) {
+    if (r.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_b45: ${r.error.message}`);
+    return;
+  }
+  const paths: string[] = (r.data && r.data.storage_paths) || [];
+  if (paths.length) {
+    const rm = await db.storage.from('general-affairs-attachments').remove(paths);
+    if (rm.error) log.push(`ga45 storage: ${rm.error.message}`);
+  }
+}
+
 /** 清除本測試建立的全部總務資料（標記：名稱 [自動測試]M7M8 T…、代碼 M7M8T…）。回傳殘留說明（空陣列代表乾淨）。 */
 export async function cleanupM7M8(): Promise<string[]> {
   const db = adminDb();
@@ -323,8 +340,11 @@ export async function cleanupM7M8(): Promise<string[]> {
   await del(db, 'ga_inventory_transfers', 'id', transferIds, log);
   // 測試真的過帳（呼叫過帳函式）留下的流水有不可改刪觸發器：用 DEV 專用清除函式（只處理名稱帶標記的位置與料件）清掉，之後才能刪餘額、位置與料件。
   // 第 4 批：採購單、進貨、配發、測試供應商（事件表有不可改刪觸發器，用 DEV 專用函式；函式還沒套用時略過）
+  // 第 4.5 批（G45）：請款單與事件、發票與連結、發票與進貨單附件紀錄（事件表有不可改刪觸發器，用 DEV 專用函式）。要在刪採購單、進貨之前執行；函式還沒套用時略過。
+  await sweepGa45(db, log);
   const sweptPo = await db.rpc('ga_dev_cleanup_m7m8_purchasing');
   if (sweptPo.error && sweptPo.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_purchasing: ${sweptPo.error.message}`);
+  await sweepGa45(db, log); // 採購單清掉後，再清沒有採購單參照的 QA-GA45- 測試廠商
   const swept = await db.rpc('ga_dev_cleanup_m7m8_inventory');
   if (swept.error && swept.error.code !== 'PGRST202') log.push(`ga_dev_cleanup_m7m8_inventory: ${swept.error.message}`);
   await del(db, 'ga_inventory_balances', 'part_id', partIds, log);

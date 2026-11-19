@@ -71,6 +71,8 @@ MARKER_TARGETS.push(
   { table: 'ga_service_categories', column: 'code', pattern: 'QA-GA6-%', action: 'report' },
   { table: 'ga_service_regions', column: 'code', pattern: 'QA-GA6-%', action: 'report' },
   { table: 'ga_utility_bills', column: 'provider_name', pattern: 'QA-GA6-%', action: 'report' },
+  // 第 4.5 批（G45）：測試廠商名稱帶 QA-GA45- 標記；請款單、發票與附件走 DEV 專用函式 ga_dev_cleanup_m7m8_b45（請款事件有不可改刪觸發器），這裡只回報孤兒。
+  { table: 'ga_vendors', column: 'name', pattern: 'QA-GA45-%', action: 'report' },
 );
 
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
