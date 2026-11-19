@@ -327,3 +327,20 @@ README 新增「第 4.5 批」章節與套用順序：`50（唯讀）→ 51 → 
 - **測試 G45-db**（`tests/integration/G45-db.payment-requests-rpc.spec.ts`，28 項，循序）：結構與直接讀寫被擋、權限矩陣（未登入、nobody、purchaser、store_mgr、profiles.role=admin、vendor_mgr 全部擋；viewer 唯讀；只有請款查看者不看採購單明細）、設定（尾差、買受人、STALE、範圍）、進貨金額凍結與各品項進位、進貨憑證、發票（新增、重複號碼、免稅、收據與免開發票、統編不符、尾差邊界 4／5／6 元與可調、編輯、查詢、遮蔽、分頁、搜尋跳脫）、附件分支（新類型讀寫、CHECK、既有類型回歸含水電帳單與料件、最後一張圖守門）、請款單（建立、快照、累計上限含兩張請款單合計與短收與拒收與作廢釋放與尾差設定與併發、缺圖不可引用、狀態機完整劇本、申請人自己標已付款、動作併發、銀行快照、查詢、候選進貨與摘要、對帳匯出與遮蔽）、廠商銀行欄位。通過 28／28；sweeper 孤兒 0。
 - **回歸**：G25-db（21 項 Playwright ＋單元 43 項）、G26-db（22 項＋單元 37 項）、G20-G21-db-api（40 項）、G22-G24（48 項）、G23（58 項）全部通過；`npm run test:unit` 2141 項、`npx tsc --noEmit` 通過。
 - **待後續階段**：`lib/workspace/general-affairs/vendor-rules.ts` 的 `VENDOR_SECRET_FIELDS` 還是 8 欄，銀行四欄要在 G45-att-inv 加入並更新 `tests/unit/G20-G21-db-api/vendor-rules.test.ts` 的 8 欄斷言（資料庫層已把銀行欄位放在 `ga_vd_json` 的機密段，只有 `ga_ws_vendor_get`／`save` 回傳，列表函式不含）；`ga_ws_pay_export` 回傳列資料，CSV 與公式注入防護在 G45-pay 的伺服端；採購分析、廠商績效、attention、首頁徽章（160000／57）與作廢進貨（170000／58）；`has_permission` 在 DEV 與正式區語意不同（DEV 檢查 `roles.is_active` 並有 admin 後備），本批測試角色都明確帶權限碼，等價性以「profiles.role=admin 無角色被擋」與角色皆啟用驗證。
+
+#### G45-att-inv（附件規則、進貨憑證、發票頁面與 API、廠商銀行欄位；2026-11-20 完成，DEV only）
+- **API**：`purchase-invoices`（GET 清單、POST；`/:id` GET、PATCH；`/:id/actions` void；`/meta` 權限與尾差設定；`/receipt-options` 可連結進貨單）、`purchase-orders/:id/receipts/:rid/voucher`（PATCH）、`purchase-orders/:id/payment-summary`（GET）。純函式在 `lib/workspace/general-affairs/payment-rules.ts`。
+- **附件**：`RESOURCE_TYPES` 加 PURCHASE_INVOICE、PURCHASE_RECEIPT（用途固定 INVOICE_IMAGE、DELIVERY_NOTE）；伺服端閘寫入需請款管理、讀取需請款檢視或管理；最後一張圖被鎖回 409 `INVOICE_LAST_IMAGE_LOCKED`。水電帳單附件回歸通過。
+- **頁面**：進貨發票清單與編輯頁、採購單詳情「發票與請款」分頁（含登錄憑證）、廠商表單與詳情銀行四欄；入口用資料庫語意（`gaPurchaseInvoices`、`gaPaymentManage`）。
+- **決定**：`ga_ws_pay_po_summary` 的 `can_manage` 在回傳最外層，API 併入 data；`VENDOR_SECRET_FIELDS` 改 12 欄，batch 6 SQL 測試只對原 8 欄驗原檔；進貨列的「登錄憑證」按鈕與分頁內按鈕共用同一對話框；「作廢進貨」留給 170000 階段。
+- **測試**：單元 `tests/unit/G45-att-inv`（36 項）；整合 `G45-att-inv.invoices-api`（16 項）；冒煙 6 項 × 桌機／手機；e2e 劇本 5 項 × 桌機／手機。
+- **待登 allowlist（階段五）**：核可類（採購單新分頁與登錄憑證、廠商銀行欄位、附件新資源類型）；待確認類（請款入口用資料庫語意、已被引用發票最後一張圖不可刪）。
+
+#### G45-pay（請款單 API、頁面、狀態機、設定、列印與 CSV；2026-11-20 完成，DEV only）
+- **API**：`payment-requests`（GET 清單、POST 建立；`/:id` GET、PATCH 草稿；`/:id/actions` 含 submit、return、mark_paid、void、note、refresh_bank；`/candidates` 可請款進貨與尚可請款額；`/export` 對帳 CSV）與 `payment-settings`（GET 需檢視或管理、PUT 需管理）。全部走資料庫函式 `ga_ws_pay_*`，伺服端檢查 Origin、版本（expected_updated_at）與固定識別（idempotency_key）；沒有核准、沒有 approve 或 pay 權限碼，申請人可自己標已付款。
+- **規則純函式**：`lib/workspace/general-affairs/payment-request-rules.ts`（狀態轉移表、累計上限與尾差、請款單號、輸入驗證、CSV 組檔與公式注入防護、機密遮蔽），API、頁面與單元測試共用。
+- **頁面**：請款單清單（狀態、月份、廠商、搜尋、「待付款」頁籤、匯出 CSV、請款設定）、請款單建立與編輯與檢視（只能選可請款進貨、採購單／進貨單／發票逐品項、超過累計上限直接擋、差異原因必填但可送出、事件時間軸、按鈕依狀態與權限）、A4 列印頁（買受人抬頭、無廠商查看權限時銀行與統編整區省略、簽章區顯示總務請款與會計付款）、請款設定對話框（尾差、買受人）。入口旗標 `gaPaymentRequests`（資料庫語意，管理員身分無角色不顯示）。
+- **決定**：(1) 列印頁是頁籤內的 A4 預覽，`@media print` 只輸出紙張；沒有獨立網址路由（既有頁面也是頁籤制）。(2) 請款設定放在請款單清單頁的「請款設定」按鈕，沒有塞進採購核准設定對話框（那個對話框限採購核准權限者）。(3) CSV 沒有廠商權限者整欄省略統編與銀行，不是留空欄。(4) 編輯草稿時，原有明細的累計上限交給伺服端把關，畫面只檢查新加入的進貨。
+- **測試**：單元 `tests/unit/G45-pay`（37 項）；整合 `G45-pay.requests-api`（11 項）；冒煙 `G45-pay.pages`（4 項 × 桌機 1440／手機 390）；e2e 劇本 `G45-pay.journey-payment`（6 項 × 桌機／手機：總務建立送出、會計退回、總務改後再送、版本衝突、會計標已付款鎖定、檢視者唯讀與列印簽章、超過上限被擋、已付款作廢釋放額度）。`npm run test:page -- G45-pay` 循序全綠（31 項 Playwright ＋ 37 項單元）。全套單元 2214 項通過。
+- **allowlist**：`m7m8-b45-` 前綴 7 條。已核可（approvedBy 為本批問卷）：採購單「發票與請款」分頁、登錄憑證、廠商銀行欄位、附件新資源類型、結案不被未請款擋住。待確認（approvedBy 為 null，plain.json 已補白話稿，topic 新增 payments）：請款入口用資料庫語意、已被引用發票最後一張圖不可刪。
+- **未做（後續階段）**：採購分析與廠商績效的已請款／已付款欄位、首頁與導覽徽章與採購單清單 attention 的「待請款」「待付款」、作廢進貨（`ga_ws_po_receipt_void`）、正式區草稿 57、58；對應的 allowlist 條目（已作廢進貨不計統計、已結案採購單進貨不可作廢、分析新欄位、徽章）在那一階段登錄。

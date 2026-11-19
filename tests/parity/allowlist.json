@@ -8904,5 +8904,54 @@
     "description": "績效頁（ga_ws_vendor_perf）的採購單確定金額、張數與合計只給有採購單檢視權限（ga_po_can_view：採購評估檢視／管理或採購單核准）者；沒有權限者由資料庫函式回 null（不是前端隱藏）、不列出只有採購單而沒有工單的廠商，回應帶 can_view_po_amount，頁面隱藏金額欄與金額合計卡。舊版沒有廠商績效頁。",
     "reason": "使用者 2026-11-18 決定（照建議）：沒有採購單檢視權限者金額欄位回 null、不列只有採購單的廠商、頁面隱藏該欄。首頁摘要的採購單金額只在待核准項目（核准權限）出現，採購分析自有採購評估權限，經檢查沒有外洩。",
     "approvedBy": "user (2026-11-18 batch 6 acceptance decisions)"
+  },
+  {
+    "id": "m7m8-b45-po-payment-tab",
+    "page": "ga-purchase-orders",
+    "description": "採購單詳情新增「發票與請款」分頁，顯示每張進貨的憑證狀態、已連發票、累計驗入含稅額、已請款、已付款與尚可請款額；需請款檢視或管理權限。舊版沒有發票、請款、付款功能。",
+    "reason": "問卷 P1、P2：總務收紙本發票、有驗收進貨就能請款。使用者已核可。",
+    "approvedBy": "user (2026-11-19 batch 4.5 spec survey)"
+  },
+  {
+    "id": "m7m8-b45-receipt-voucher",
+    "page": "ga-purchase-orders",
+    "description": "採購單進貨紀錄列新增「登錄憑證」（已連發票、免開發票／僅收據、尚未登錄，免開發票要填原因）；需請款管理權限。進貨與入庫本身的行為沒有改變。",
+    "reason": "問卷 P1、P10：收據與免開發票的處理。使用者已核可。",
+    "approvedBy": "user (2026-11-19 batch 4.5 spec survey)"
+  },
+  {
+    "id": "m7m8-b45-vendor-bank-fields",
+    "page": "ga-vendors",
+    "description": "廠商資料新增銀行名稱、分行、帳號、戶名四欄，屬帳務機密：只有廠商檢視／管理權限者看得到；請款單建立時快照，之後廠商改帳號不影響已建立的請款單。",
+    "reason": "問卷 P8（照第 6 批 V1 遮蔽規則）。使用者已核可。",
+    "approvedBy": "user (2026-11-19 batch 4.5 spec survey)"
+  },
+  {
+    "id": "m7m8-b45-attachment-purchase-types",
+    "page": "ga-purchase-orders",
+    "description": "附件新增兩種資源類型：進貨發票圖片（寫入需請款管理、讀取需請款檢視或管理）與進貨單送貨單照片；水電帳單等既有附件類型的行為不變。",
+    "reason": "問卷 P10：三聯式、二聯式、電子發票一定要上傳圖片。使用者已核可。",
+    "approvedBy": "user (2026-11-19 batch 4.5 spec survey)"
+  },
+  {
+    "id": "m7m8-b45-close-not-blocked-by-invoice",
+    "page": "ga-purchase-orders",
+    "description": "採購單結案不會被「還沒開發票」或「還沒請款」擋住：發票與請款是獨立的作業，進貨完成的採購單可以先結案。",
+    "reason": "問卷 P2：請款只看驗收進貨，不影響採購單狀態。使用者已核可。",
+    "approvedBy": "user (2026-11-19 batch 4.5 spec survey)"
+  },
+  {
+    "id": "m7m8-b45-entry-db-semantics",
+    "page": "ga-center",
+    "description": "請款單與進貨發票的選單入口、頁面和 API 都用資料庫權限判斷：舊版管理員身分（profiles.role = admin）如果沒有被授予請款檢視或管理權限，不會看到入口也打不開，避免「看得到入口卻被拒絕」。",
+    "reason": "實作取捨：與正式區 has_permission 一致（資料庫沒有管理員後備）。待使用者確認管理員是否也要自動放行。",
+    "approvedBy": null
+  },
+  {
+    "id": "m7m8-b45-invoice-last-image-lock",
+    "page": "ga-purchase-orders",
+    "description": "已被有效請款單引用的發票，最後一張圖片不能刪除（回 409 白話訊息）；要刪除請先補傳另一張，或先作廢／退回請款單。未被引用的發票不受限制。",
+    "reason": "實作取捨：避免已請款的發票變成缺圖。問卷沒問過，待使用者確認。",
+    "approvedBy": null
   }
 ]
