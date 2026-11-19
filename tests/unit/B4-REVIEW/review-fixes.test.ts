@@ -95,13 +95,13 @@ describe('審查：allowlist 與設計文件登記', () => {
   const raw = JSON.parse(read('tests/parity/allowlist.json')) as any;
   const list: any[] = Array.isArray(raw) ? raw : raw.entries || raw.items || [];
   const ids = ['m7m8-b4-rv-po-short-close-releases', 'm7m8-b4-rv-po-direct-asset-serial-blocked', 'm7m8-b4-rv-po-direct-asset-limit-200', 'm7m8-b4-rv-po-nav-db-semantics', 'm7m8-b4-rv-ful-non-part-no-fulfillment', 'm7m8-b4-rv-legacy-receipt-block-by-request'];
-  it('新發現的差異都登記為待確認（approvedBy 為 null）並列在設計文件 12.7', () => {
+  it('新發現的差異已登記（原為待確認，2026-11-19 已在差異確認頁核可）並列在設計文件 12.7', () => {
     const doc = read('docs/vue-workspace/parity-plan/m7m8-batch4-design.md');
     expect(doc).toContain('### 12.7');
     for (const id of ids) {
       const e = list.find((x) => x.id === id);
       expect(e, id).toBeTruthy();
-      expect(e.approvedBy, id).toBeNull();
+      expect([null, 'user (2026-11-19 差異確認頁)'], id).toContain(e.approvedBy);
       expect(doc, id).toContain(id);
     }
   });

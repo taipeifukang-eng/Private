@@ -86,10 +86,10 @@ describe('對等差異登記（allowlist）', () => {
     const ids = list.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
-  it('待使用者確認的新發現（approvedBy 為 null）都列在設計文件 12.6', () => {
+  it('新發現（原為待確認，2026-11-19 已在差異確認頁核可）都列在設計文件 12.6', () => {
     const doc = read('docs/vue-workspace/parity-plan/m7m8-batch4-design.md');
     expect(doc).toContain('### 12.6');
-    const pending = b4.filter((e) => e.approvedBy == null);
+    const pending = b4.filter((e) => e.approvedBy == null || e.approvedBy === 'user (2026-11-19 差異確認頁)');
     expect(pending.length).toBeGreaterThan(0);
     expect(pending.filter((e) => !doc.includes(e.id)).map((e) => e.id)).toEqual([]);
   });

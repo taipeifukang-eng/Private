@@ -5697,7 +5697,7 @@
     "page": "purchase-orders",
     "description": "舊版需求單「採購到貨入庫」（參考單據 GA_PURCHASE_REVIEW）遇到評估已有未取消的新版採購單時，資料庫層擋下並說明改到採購單登錄到貨；沒有新版採購單的評估不受影響。",
     "reason": "設計文件第 8 節新舊並存風險：舊版收貨直接過帳，會與新版採購單到貨雙記庫存。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5709,7 +5709,7 @@
     "page": "purchase-orders",
     "description": "自由品名且非設備的品項用第三種處理方式「只登錄到貨」（NO_STOCK）：只記到貨，不入總部庫存也不建設備；問卷只問了入庫存與直接建設備兩條路。",
     "reason": "設計文件第 3.2 節補的設計。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5721,7 +5721,7 @@
     "page": "purchase-orders",
     "description": "草稿採購單也算「有效採購單」：占用需求單的需求量、之後會擋住請門市補資料（D4）；要補資料須先取消草稿。",
     "reason": "設計文件第 7 節第 16 項。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5817,7 +5817,7 @@
     "page": "purchase-orders",
     "description": "設備新增「保固起算日」欄位（採購到貨日）；型號有預設保固月數時由起算日推算保固到期日並標有保固，沒有則不標。舊版建立設備不會自動推算到期日，也沒有起算日欄位。",
     "reason": "設計 §3.3 寫「舊版規則由型號保固月數算就沿用」，核對後舊版沒有這個規則，這是新做法。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5841,7 +5841,7 @@
     "page": "purchase-orders",
     "description": "破損、拒收的數量不算已驗入：剩餘可收量以已驗入量計，供應商補送可再收；整批拒收時採購單狀態不變。",
     "reason": "實作決定（問卷只說短收與破損要填原因）。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5853,7 +5853,7 @@
     "page": "purchase-orders",
     "description": "配發建立設備不另要求設備管理權限，採購評估管理、庫存交易管理、料件查看三個權限就能做完所有步驟（含建立設備與貼標待辦）。",
     "reason": "設計補充（依 D11 三個權限可做全部步驟）。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5865,7 +5865,7 @@
     "page": "purchase-orders",
     "description": "配發依進貨明細先進先出分配（到貨日、登錄時間由舊到新），每台設備帶自己那批的保固起算日；一次配發只動同一種料件與同一個來源位置（以最早的可配發進貨明細決定，替代料與其他位置分次配發）。",
     "reason": "實作決定：改收替代料或改位置後，同一品項可能有多種料件與位置的庫存，先進先出以最早一批為準。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5877,7 +5877,7 @@
     "page": "purchase-orders",
     "description": "配發沿用庫存出庫規則：料件有採購單位且不允許拆封時，配發量必須是整箱（換算率的整數倍），否則整筆擋下並回復；配發設備的料件通常以「個／台」為基本單位。",
     "reason": "沿用庫存過帳既有規則，沒有為配發另開例外。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5889,7 +5889,7 @@
     "page": "purchase-orders",
     "description": "配發與直接建設備沿用舊版資產編號規則（分類第二層代碼＋購置日期＋三位流水，購置日期 = 到貨日）；型號所屬分類沒有第二層代碼時無法產生資產編號，整筆擋下並說明（舊版只在填購置日期卻取不到編號時丟出資料庫原文）。",
     "reason": "沿用舊版規則，只是把錯誤改成白話並整筆回復。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -5901,7 +5901,7 @@
     "page": "purchase-orders",
     "description": "序號補填（店長貼標時）：限該門市店長與設備管理權限者；已有序號要改須填原因並留紀錄；同型號（或同品牌加型號）序號不可重複（硬擋，舊版建立設備只提醒）。",
     "reason": "D15 只決定「序號可空白由店長貼標時補」，補填的權限、原因與重複規則是設計 §3.3 補的。新發現，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6043,7 +6043,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6056,7 +6056,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6069,7 +6069,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6082,7 +6082,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6095,7 +6095,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6108,7 +6108,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6121,7 +6121,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6134,7 +6134,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6147,7 +6147,7 @@
     "page": "ga-requests",
     "description": "新版清單的需求單欄位比舊版清單多：承辦帳號、內部備註（只有總務看得到）、完成時間、聯絡人與電話、暫時處理方式、建立者與其名稱、料件基本單位。",
     "reason": "新版清單與詳情共用同一組欄位，方便總務在清單直接看到處理需要的資料；門市（沒有管理權限）看不到內部備註與承辦帳號。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6277,7 +6277,7 @@
     "page": "ga-requests",
     "description": "新版詳情的料件資料多回基本單位。",
     "reason": "出庫與採購數量換算要用。實作時補的欄位，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6303,7 +6303,7 @@
     "page": "ga-requests",
     "description": "舊版詳情回應含 success、需求單的 confirmed_at 與留言的 created_by（使用者 id）；新版不回。",
     "reason": "新版不把使用者 id 傳給前端，確認時間改看事件。實作時的取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -6316,7 +6316,7 @@
     "page": "ga-requests",
     "description": "舊版詳情回應含 success、需求單的 confirmed_at 與留言的 created_by（使用者 id）；新版不回。",
     "reason": "新版不把使用者 id 傳給前端，確認時間改看事件。實作時的取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -6329,7 +6329,7 @@
     "page": "ga-requests",
     "description": "舊版詳情會把留言上的附件（簽名網址）一併回傳；新版詳情的留言不帶附件，附件統一放在需求單的附件面板。",
     "reason": "實作時的取捨：舊資料裡若有留言附件，新版暫時看不到（資料還在）。待使用者確認是否要補留言附件顯示。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -6342,7 +6342,7 @@
     "page": "ga-requests",
     "description": "舊版詳情的需求單回傳整列（含 deleted_at 欄位）；新版只回明確列出的欄位。",
     "reason": "新版不外露刪除標記欄位（查得到的單本來就是沒刪除的）。實作時的取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -6641,7 +6641,7 @@
     "page": "ga-assets",
     "description": "舊側欄的「總務需求工作台」「料件處理中心」對進得了服務中心、但沒有需求單查看全部／管理或處理單查看／管理權限的角色（例如只有料件或分類權限的人）也會列出，點進去被 API 擋；新版已移植的頁面只在有對應權限時才列。",
     "reason": "把入口對齊 API（舊版是壞入口）。G14 至 G17 實作時的取捨，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-legacy",
@@ -6654,7 +6654,7 @@
     "page": "ga-assets",
     "description": "同上：舊側欄的「料件處理中心」對沒有處理單查看／管理權限的角色也會列出，新版不列。",
     "reason": "把入口對齊 API。G14 至 G17 實作時的取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-legacy",
@@ -6667,7 +6667,7 @@
     "page": "ga-assets",
     "description": "舊側欄的「新增需求」要求維修模組權限（維修回報建立或查看全部）之一；只有維修模組權限、沒有「需求單建立」權限的人舊版看得到入口，進去建立被 API 擋。新版入口只認「需求單建立」。",
     "reason": "把入口對齊 API。上線前請確認店長角色有 request.create、view_own_store、comment_own_store、confirm_own_store（舊版頁面本來就需要）。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-legacy",
@@ -6680,7 +6680,7 @@
     "page": "ga-assets",
     "description": "舊側欄的「我的追蹤」要求維修模組權限之一；只有維修模組權限、沒有需求單查看（自己門市、全部或管理）的人舊版看得到入口，進去被 API 擋。新版入口只認需求單查看權限。",
     "reason": "把入口對齊 API。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-legacy",
@@ -6738,7 +6738,7 @@
     "page": "ga-purchase-orders",
     "description": "採購單的供應商選項不回電話；舊版採購評估頁的廠商清單回電話。",
     "reason": "實作取捨：採購單選擇器只需要名稱、別名、統編與付款條件，電話與聯絡人請到廠商管理頁看。待使用者確認是否要補回。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -6751,7 +6751,7 @@
     "page": "ga-purchase-orders",
     "description": "採購單的供應商選項不回聯絡人；舊版採購評估頁的廠商清單回聯絡人。",
     "reason": "實作取捨：同上，採購單選擇器不帶聯絡人。待使用者確認是否要補回。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -6790,7 +6790,7 @@
     "page": "ga-purchase-orders",
     "description": "採購單的供應商選項多回廠商類型（vendor_type）。",
     "reason": "實作取捨：選擇器顯示用，沒有權限問題。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -6998,7 +6998,7 @@
     "page": "ga-asset-move",
     "description": "沒連到需求單的舊式工單，維修工單表沒有連到設備或設施的欄位，新版以「同門市、未完成、資源類型相符、標題或說明提到資產編號（至少 3 字）或名稱（至少 2 字）」找出疑似的，只列清單不搬。",
     "reason": "問卷 D20 只說「沒連到需求單的舊式工單列清單請人工處理」，沒說怎麼判斷屬於哪項資產；這是實作取捨，可能漏列（標題沒提到資產）或多列（名稱太常見），待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7011,7 +7011,7 @@
     "page": "purchase-orders",
     "description": "新版採購單短收結案後，沒到貨的數量從需求單的「已被採購單占用量」釋出，可再開單補足；評估再選「進入採購」會產生新草稿，不會誤判成重送。舊版沒有採購單。",
     "reason": "審查補強（2026-11-16）：短收結案的單仍占滿需求量會讓剩餘量永遠補不回來。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7024,7 +7024,7 @@
     "page": "purchase-orders",
     "description": "新版採購單品項選「直接建設備」時，若設備型號的分類要求序號，送核准與下訂前就擋下並建議改走「入庫存再配發」（配發時可填序號）。舊版沒有採購單。",
     "reason": "審查補強（2026-11-16）：到貨畫面沒有序號欄位，要求序號的分類直接建設備一定會在到貨時失敗，改成提早擋。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7037,7 +7037,7 @@
     "page": "purchase-orders",
     "description": "新版直接建設備到貨，單次單一品項最多 200 台（與配發相同），超過請分次登錄到貨。舊版沒有採購單。",
     "reason": "審查補強（2026-11-16）：避免誤填大量造成長時間鎖表。上限沿用配發的 200，實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7050,7 +7050,7 @@
     "page": "purchase-orders",
     "description": "新版「採購單」「待簽核採購單」側欄入口只認資料庫語意的權限（沒有管理員後備）：帳號角色是管理員但沒勾採購相關權限者，看不到入口（舊版其他頁面管理員一律看得到入口）。",
     "reason": "審查補強（2026-11-16）：採購單 API 由資料庫函式把關、沒有管理員放行，管理員看得到入口卻只會被 403，改成入口與 API 一致。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "navigation",
       "kind": "only-native",
@@ -7063,7 +7063,7 @@
     "page": "ga-part-fulfillments",
     "description": "新版採購單連到非料件需求單（例如設備添購）時，不會自動建立料件處理單，只有料件需求單才建立。",
     "reason": "審查補強（2026-11-16）：避免設備添購單混進料件處理中心。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7076,7 +7076,7 @@
     "page": "purchase-orders",
     "description": "舊版需求單「採購到貨入庫」的保護範圍加大：除了評估已有新版採購單，只要該需求單有任何未取消的新版採購單（含只填來源需求單、沒連評估的手開單）也擋下。",
     "reason": "審查補強（2026-11-16）：只擋有評估連結的單會讓手開採購單與舊版收貨雙記庫存。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7117,7 +7117,7 @@
     "page": "ga-work-orders",
     "description": "存進度「有填才更新」：沒給或留白的承辦人、處理方式、廠商、分類不會被清掉；舊版每次存進度都把承辦人改成操作者、處理方式與廠商清成空值。",
     "reason": "設計 §1.3 缺陷 2；屬缺陷修正，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-atomic-write",
@@ -7159,7 +7159,7 @@
     "page": "ga-work-orders",
     "description": "刪除工單後，時間軸事件隨工單連帶刪除（資料表是 ON DELETE CASCADE），不會留下「已刪除」事件；可追溯的只有共用附件上的刪除標記（刪除人、原因含工單編號）。設計原列 DELETED 事件，實測無法保留。",
     "reason": "實作發現（設計 §3.2 的 DELETED 事件類型無處可存），待使用者確認是否要另建稽核紀錄。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-legacy-confirm-unresolved",
@@ -7201,7 +7201,7 @@
     "page": "ga-work-orders",
     "description": "工單詳情的「發生位置」「設備資訊」改讀連結需求單的設備或設施名稱（不改工單表）；舊版「發生位置」永遠空白。",
     "reason": "Q19（不拆表）；設計 §1.3 缺陷 15，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-supplement-two-way",
@@ -7229,28 +7229,28 @@
     "page": "ga-work-orders",
     "description": "待門市確認期間工單不能存進度、領用料件、補資料；需求單在待門市補資料期間工單不能存進度或送確認；存進度不能直接選「待門市確認」（要按送門市確認）、連結單不能直接選「等待門市補充資料」（要按補資料）。舊版這些階段都可直接選。",
     "reason": "設計 §3.1 的合法流轉表延伸（避免工單與需求單狀態分岔），屬實作細則，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-completion-note-optional",
     "page": "ga-work-orders",
     "description": "送門市確認的處理說明可留白（預設「總務已標記處理完成，等待門市確認結果。」）；舊版必填。",
     "reason": "與需求單端送確認（第 4 批）一致；屬實作細則，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-create-legacy-perm",
     "page": "cross-dept-maintenance",
     "description": "新增舊式回報需要「該門市店長且有回報權限（maintenance_request.create 或 cross_dept.maintenance.submit）」或工單更新權限；只有「查看全部」的人不能代門市新增。舊版 RLS 新增政策讓 view_all 也能新增。",
     "reason": "Q20 精神（view_all 不能寫），新增部分設計未明說，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-legacy-no-proxy",
     "page": "cross-dept-maintenance",
     "description": "舊式工單（沒有需求單）的門市確認、仍有問題與補資料回覆，只有回報人或該門市店長可按，總務不能代按；有需求單的工單總務代按走第 4 批需求單端（標記代門市操作）。",
     "reason": "設計 §3.3 只列回報人與店長；是否開放總務代按待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-wo-error-plain-language",
@@ -7271,7 +7271,7 @@
     "page": "ga-work-orders",
     "description": "列印工單表單的「包含內部備註」只有具工單更新或管理類權限的人可用；只有 view_all 的角色與門市帶 include_internal 回 403（view_all 仍可在詳情看到內部欄位），資料也一律不含內部備註與強制結案原因。舊版沒有 A4 專用表單。",
     "reason": "W7（內部備註與強制結案原因預設不印）；2026-11-17 使用者決定：view_all 看得到、不能列印內部備註。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-api-category-no-admin-bypass",
@@ -7292,7 +7292,7 @@
     "page": "ga-cross-dept-maintenance",
     "description": "維修分類名稱新增規則：最長 50 字、比對重名時忽略大小寫與前後空白（含已停用的）、排序必須是數字；舊版只檢查非空。",
     "reason": "新發現的輸入驗證補強，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-api-list-filter-400",
@@ -7306,7 +7306,7 @@
     "page": "ga-work-orders",
     "description": "工單照片上傳權限：可修改工單者可加回報照片與進度照片；回報人只能在未完成的自己工單加回報照片；同店其他店長與只有查看權限者不能上傳。舊版任何看得到工單的人可呼叫共用附件上傳。",
     "reason": "新發現的權限收緊（以共用附件資料庫觸發器為底線，伺服端再加一層），待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-ui-force-close-label",
@@ -7341,35 +7341,35 @@
     "page": "ga-work-orders",
     "description": "需求單詳情（含「我的追蹤」）新增「維修工單」摘要：工單編號、階段名、最新公開進度、結案方式與「前往工單」；沒有工單查看權限的人（例如只有需求單權限）整塊不顯示，店長端看不到處理人與內部內容。舊版需求單頁沒有工單摘要。",
     "reason": "設計 4.1 的畫面做法；顯示條件為實作取捨，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-ui-mobile-single-column",
     "page": "ga-work-orders",
     "description": "工單中心與總務組頁在窄螢幕（約 1100px 以下）改成單欄：點列表進詳情、按「回到列表」返回；手機（700px 以下）列表改卡片，按鈕高度至少 44px。桌機左列表右詳情。舊版工單頁是整頁表格加展開列。",
     "reason": "設計 4.1 手機單欄；斷點與卡片版型為實作取捨，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-ui-progress-photo-binding",
     "page": "ga-work-orders",
     "description": "更新進度時附的照片，畫面在進度儲存後以同一使用者剛存的那筆進度（依說明文字找最新一筆）綁定為「進度照片」；找不到時提示到照片區重新上傳。因為進度 API 沒有回進度識別碼。舊版是先建進度再用回傳的 id 上傳。",
     "reason": "實作取捨（不改已完成的 API 與資料庫函式），問卷未涵蓋，待使用者確認；之後若讓進度 API 回傳進度識別碼即可改成直接綁定。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-ui-ga-center-hint-removed",
     "page": "ga-work-orders",
     "description": "總務服務中心首頁移除「工單仍在舊版」的提示（只剩廠商、費用仍在舊版），側欄「工單中心」改開新版頁籤；側欄補上沒有舊工單旗標但有工單查看或回報權限者的「工單中心」入口。",
     "reason": "工單中心上線後的入口調整，補入口的條件為實作取捨，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b5-par-display-columns-focus",
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7381,7 +7381,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7393,7 +7393,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7405,7 +7405,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7417,7 +7417,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7429,7 +7429,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7441,7 +7441,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表、詳情與各門市筆數多回顯示用欄位：焦點分類（focus）、工單編號（wo_no）、來源（source）、階段與狀態中文名、待門市確認筆數。舊版由畫面自己換算。",
     "reason": "第 5 批 §3：焦點卡、工單編號與中文名稱由資料庫統一計算，列表才能伺服端分頁與全量計數。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7465,7 +7465,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7477,7 +7477,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7489,7 +7489,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7501,7 +7501,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7513,7 +7513,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7525,7 +7525,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7537,7 +7537,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7549,7 +7549,7 @@
     "page": "ga-work-orders",
     "description": "新版工單列表與詳情多回需求單單號、狀態、對外進度、資源類型，以及設備與設施（發生位置、設備資訊改讀需求單）。",
     "reason": "第 5 批 §7 項 13：Q19 工單的位置與設備資訊改讀需求單。待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7561,7 +7561,7 @@
     "page": "ga-work-orders",
     "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
     "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -7573,7 +7573,7 @@
     "page": "ga-work-orders",
     "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
     "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -7585,7 +7585,7 @@
     "page": "ga-work-orders",
     "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
     "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -7597,7 +7597,7 @@
     "page": "ga-work-orders",
     "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
     "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -7609,7 +7609,7 @@
     "page": "ga-work-orders",
     "description": "舊版列表回傳 store、category 巢狀物件與送確認人；各門市筆數另有 pending、in_progress 別名。新版改回攤平欄位（store_code、store_name、category_name）並不回送確認人與舊別名。",
     "reason": "第 5 批 §4.2：新版 API 用攤平欄位與精確的欄位清單；別名欄位沒有畫面使用。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -7705,7 +7705,7 @@
     "page": "ga-work-orders",
     "description": "新版詳情把工單欄位放在 work_order 下（旁邊是時間軸、用料、照片）；舊版沒有單張詳情 API，工單欄位來自列表。",
     "reason": "第 5 批 §4.2 回應形狀。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -7717,7 +7717,7 @@
     "page": "ga-work-orders",
     "description": "存進度、送確認、強制結案時，舊版把承辦人改成操作者；新版沒填就保留。",
     "reason": "設計 §1.3 缺陷 2（有填才更新）；缺陷修正，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "changed",
@@ -7729,7 +7729,7 @@
     "page": "ga-work-orders",
     "description": "存進度、送確認、強制結案時，舊版把處理方式清成空值；新版沒填就保留。",
     "reason": "設計 §1.3 缺陷 2（有填才更新）；缺陷修正，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "changed",
@@ -7741,7 +7741,7 @@
     "page": "ga-work-orders",
     "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（progress-status）",
     "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -7753,7 +7753,7 @@
     "page": "ga-work-orders",
     "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（completion-status）",
     "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -7765,7 +7765,7 @@
     "page": "ga-work-orders",
     "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（force-status）",
     "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -7777,7 +7777,7 @@
     "page": "cross-dept-maintenance",
     "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（unresolved-status）",
     "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -7789,7 +7789,7 @@
     "page": "cross-dept-maintenance",
     "description": "寫入成功時舊版回 201（新增一筆進度）、新版回 200。（confirm-status）",
     "reason": "第 5 批 §4.2：寫入動作成功回 200 與完整資料；實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -7801,7 +7801,7 @@
     "page": "ga-work-orders",
     "description": "新版存進度必須帶 expected_updated_at（沒帶回 400）；舊版不需要。",
     "reason": "第 4 批通則（寫入帶版本、衝突回 409）。實作沿用，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -8053,7 +8053,7 @@
     "page": "cross-dept-maintenance",
     "description": "維修分類名稱超過 50 字：舊版放行，新版回 400。",
     "reason": "待使用者確認（m7m8-b5-api-category-name-rules）。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "write-readback",
       "kind": "status",
@@ -8065,7 +8065,7 @@
     "page": "cross-dept-maintenance",
     "description": "維修分類清單：舊版回建立人與更新人，新版不回。",
     "reason": "新版只回畫面需要的欄位。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -8077,7 +8077,7 @@
     "page": "cross-dept-maintenance",
     "description": "維修分類清單：舊版回建立人與更新人，新版不回。",
     "reason": "新版只回畫面需要的欄位。實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-legacy",
@@ -8089,7 +8089,7 @@
     "page": "cross-dept-maintenance",
     "description": "維修分類清單：新版多回頁面權限（能不能新增、改名、停用）。",
     "reason": "實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "mechanism": "api-read",
       "kind": "only-native",
@@ -8175,14 +8175,14 @@
     "page": "ga-vendors",
     "description": "付款條件仍是自由文字（最長 100 字），不做結構化選項（舊版是下拉三選一文字）；畫面僅提供常用範本提示。",
     "reason": "實作取捨，問卷未涵蓋，待使用者確認；若要結構化（月結天數、付款方式）需另開資料欄位。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-vendor-tax-required-on-create",
     "page": "ga-vendors",
     "description": "新增公司或工作室類型的廠商時統一編號必填（8 碼數字），個人類型可留空；編輯時統編沒變動就不重新檢查（避免歷史重複或缺漏資料擋住不相關的編輯）。",
     "reason": "問卷 Q22 寫「個人類型可留空」，是否要求公司必填屬實作解讀，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "vendor-create-write-readback",
       "key": "no-tax-status"
@@ -8193,35 +8193,35 @@
     "page": "ga-service-categories",
     "description": "服務分類與服務區域的代碼加唯一索引（DEV 資料表原本沒有唯一約束，舊版 migration 的 ON CONFLICT 需要它）；代碼建立後鎖定、轉大寫、格式限英數底線連字號最長 30 字。",
     "reason": "實作需要（縣市行政區固定資料冪等），正式區套用前要先確認沒有重複代碼；待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-region-seed-adds-parents-no-overwrite",
     "page": "ga-service-categories",
     "description": "縣市行政區固定資料補上來源檔所依賴的台灣與北中南東四大區，並改成「已存在就不動」（來源檔是「已存在就覆蓋並重新啟用」），避免覆蓋總務事後的編輯與停用。",
     "reason": "實作取捨，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-review-vendor-embed-via-options",
     "page": "ga-requests",
     "description": "第 4 批需求單採購評估頁：廠商下拉與評估單上已選廠商改由伺服端廠商選項函式取得（原本用使用者身分直接讀廠商資料表，收緊後無廠商權限的採購人員會變空）；已選廠商若已停用仍帶出並標示狀態。",
     "reason": "設計 3.1 必修連鎖點；內嵌查詢的連帶修改為實作發現，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-legacy-purchase-review-vendors-empty",
     "page": "ga-requests",
     "description": "舊版需求單採購評估 API（purchase-reviews）直接讀廠商資料表：RLS 收緊後，沒有廠商檢視／管理權限者的廠商下拉會是空的；依「舊頁不動」不修改。",
     "reason": "新發現，列上線風險；待使用者確認（上線前要補授權或接受舊頁下拉為空）。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-vendor-service-address-not-copied-city",
     "page": "ga-vendors",
     "description": "服務地址勾「同公司地址」時，舊版把公司縣市複製到服務縣市欄位再存；新版只存「同公司地址」旗標，服務縣市欄位留空（畫面顯示「同公司地址」，公司地址改了不會留下不一致的複本）。",
     "reason": "實作取捨（避免兩份地址不同步），問卷未涵蓋，待使用者確認；若要維持複製行為，新增與編輯時由伺服端複製即可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "vendor-create-write-readback",
       "key": "service_city"
@@ -8232,7 +8232,7 @@
     "page": "ga-vendors",
     "description": "服務地址勾「同公司地址」時，舊版把公司行政區複製到服務行政區欄位再存；新版只存「同公司地址」旗標，服務行政區欄位留空（畫面顯示「同公司地址」，公司地址改了不會留下不一致的複本）。",
     "reason": "實作取捨（避免兩份地址不同步），問卷未涵蓋，待使用者確認；若要維持複製行為，新增與編輯時由伺服端複製即可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "vendor-create-write-readback",
       "key": "service_district"
@@ -8243,7 +8243,7 @@
     "page": "ga-vendors",
     "description": "服務地址勾「同公司地址」時，舊版把公司地址複製到服務地址欄位再存；新版只存「同公司地址」旗標，服務地址欄位留空（畫面顯示「同公司地址」，公司地址改了不會留下不一致的複本）。",
     "reason": "實作取捨（避免兩份地址不同步），問卷未涵蓋，待使用者確認；若要維持複製行為，新增與編輯時由伺服端複製即可。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "vendor-create-write-readback",
       "key": "service_address"
@@ -8358,7 +8358,7 @@
     "page": "ga-utility-bills",
     "description": "新版列表不回建立者 uuid，改回名稱。",
     "reason": "實作取捨（uuid 對使用者沒有意義、也不外露使用者識別碼），問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-list-read",
       "key": "row#created_by",
@@ -8370,7 +8370,7 @@
     "page": "ga-utility-bills",
     "description": "新版列表不回最後修改者 uuid，改回名稱。",
     "reason": "實作取捨，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-list-read",
       "key": "row#updated_by",
@@ -8382,7 +8382,7 @@
     "page": "ga-utility-bills",
     "description": "新版列表不回刪除者 uuid，改回名稱。",
     "reason": "實作取捨，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-list-read",
       "key": "row#deleted_by",
@@ -8394,7 +8394,7 @@
     "page": "ga-utility-bills",
     "description": "新版回應多了精確總筆數（total）與分頁資訊（meta）；舊版固定回前 500 筆。",
     "reason": "總務各頁共通的分頁回應格式（pageSize 上限 100），問卷未逐頁列出，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-list-read",
       "key": "top#total",
@@ -8442,7 +8442,7 @@
     "page": "ga-utility-bills",
     "description": "新版回應多了呼叫者的檢視與管理能力旗標（畫面用來決定顯示新增與動作按鈕）。",
     "reason": "總務各頁共通格式，舊版用 meta.canManage；待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-list-read",
       "key": "top#permissions",
@@ -8454,7 +8454,7 @@
     "page": "ga-utility-bills",
     "description": "舊版回應有 success 旗標；新版用 HTTP 狀態碼與錯誤訊息，不回 success。",
     "reason": "總務新版 API 共通格式，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-list-read",
       "key": "top#success",
@@ -8502,7 +8502,7 @@
     "page": "ga-utility-bills",
     "description": "新增帳單時填未來的繳費日期：舊版可存，新版 400（與標記已繳同一組日期規則：不可未來、不早於帳單月份前 1 個月）。",
     "reason": "問卷 V8 只寫「標記已繳」的日期範圍；新增與編輯表單的繳費日期套同一規則是實作延伸，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-create-write-readback",
       "key": "future-paid-status",
@@ -8538,7 +8538,7 @@
     "page": "ga-utility-bills",
     "description": "舊版新增回應有 success 旗標；新版用 HTTP 狀態碼。",
     "reason": "總務新版 API 共通格式，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-create-write-readback",
       "key": "top#success",
@@ -8634,7 +8634,7 @@
     "page": "ga-utility-bills",
     "description": "舊版 DELETE /api/general-affairs/utility-bills/:id 在 DEV 實測沒有把資料列標記刪除（回應狀態見差異明細）；新版軟刪除成功。",
     "reason": "新發現（舊版缺陷），待使用者確認；舊頁不動。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-delete-write-readback",
       "key": "delete#legacy-effective",
@@ -8646,7 +8646,7 @@
     "page": "ga-utility-bills",
     "description": "報表的「其他據點」（沒有門市）名稱：舊版只去前後空白就分組，全半形、大小寫或連續空白不同會被當成不同據點；新版先正規化再合併成一列。",
     "reason": "缺陷修正，新發現，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "bill-report-read",
       "key": "rows#other-locations",
@@ -8670,7 +8670,7 @@
     "page": "ga-assets",
     "description": "側欄「水電電話網路費」：舊版是帶一個子項（費用報表）的項目，新版外殼對有子項的項目只當展開鈕，帳單列表會沒有入口，所以拆成「帳單列表」（新增的子項 id utility-bills-list）與「費用報表」兩個子項。",
     "reason": "實作取捨（側欄外殼的既有行為），問卷未涵蓋，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "sidebar-visibility",
       "key": "native-only:utility-bills-list",
@@ -8790,7 +8790,7 @@
     "page": "ga-purchase-analysis",
     "description": "新版回應格式與舊版不同：year_month 取代 yearMonth、舊評估金額放在 estimated.legacy_reviews、多回 generated_at／orders_total／page／page_size／meta，不回 success 與 amountFilledCount。",
     "reason": "新版 API 沿用工作區統一格式（{data, meta}，錯誤用 HTTP 狀態碼），屬實作取捨，待使用者確認。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "cost-summary-read",
       "key": "shape",
@@ -8823,42 +8823,42 @@
     "page": "ga-center",
     "description": "首頁庫存區的負庫存與低庫存由資料庫完整計數（不受 500 筆上限影響）；允許負庫存的位置另列、不算異常。",
     "reason": "設計 §3.5 新發現的完整計算與位置規則，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-home-ga-review-not-counted",
     "page": "ga-center",
     "description": "需求單「待總務複核」（WAITING_GA_REVIEW）不計入待辦與徽章（V9 清單沒有列）。",
     "reason": "設計 §9 備註 (a)，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-home-wo-badge-reopened-only",
     "page": "ga-work-orders",
     "description": "工單徽章只算門市退回（PROCESSING＋REOPENED）；等待門市確認、等待料件等進行中不計入。",
     "reason": "設計 §9 備註 (b)，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-home-po-menu-union",
     "page": "ga-purchase-orders",
     "description": "採購單選單徽章是待核准（有核准權限者）與逾期未到貨的聯集；待簽核選單徽章只算待核准。",
     "reason": "設計 §9 備註 (c)，問卷未涵蓋，待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-nav-badge-click-attention",
     "page": "ga-center",
     "description": "導覽徽章本身可點：點數字只看待辦（列表筆數等於徽章數字），點選單文字仍看完整列表。",
     "reason": "實作取捨（V9 要求點進去筆數等於數字，未規定選單文字的行為），待使用者確認。",
-    "approvedBy": null
+    "approvedBy": "user (2026-11-19 差異確認頁)"
   },
   {
     "id": "m7m8-b6-nav-vendor-stats-capability",
     "page": "ga-assets",
     "description": "側欄「合作紀錄」（舊版 vendor-stats）：舊版規則對有服務中心入口的總務、工務角色就列出；新版已移植為廠商績效頁，改成資料庫語意（要有合作紀錄檢視權限才列，頁面與 API 同一組條件），沒有該權限的總務、工務測試角色看不到入口。",
     "reason": "問卷 V1／V5：績效與合作紀錄給有權限者，選單、頁面、API 共用同一組權限；但舊版總務與工務原本看得到，請使用者確認是否要補授權。",
-    "approvedBy": null,
+    "approvedBy": "user (2026-11-19 差異確認頁)",
     "match": {
       "entry": "sidebar-visibility",
       "key": "unexpected:vendor-stats",

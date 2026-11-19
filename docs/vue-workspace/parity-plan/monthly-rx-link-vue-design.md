@@ -146,3 +146,7 @@
 - tests/perf/monthly-speed.cjs compare 先拿掉 meta.rx 與 stats 的兩個張數鍵再比對，並檢查 rx 有無與 viewStats 一致；往返次數未重新量測（見 monthly-speed-results.md 補記）。
 
 測試：tests/unit/W01a/rx-link.test.ts（自舊版搬入）、monthly-rx-meta.test.ts；tests/integration/W01a.monthly-stats-rx.spec.ts；tests/smoke/W01a、tests/integration/SPEED 補 rx 結構斷言；tests/e2e/W01a.monthly-stats-rx.e2e.spec.ts（桌機 1440、手機 390，含角色劇本 A 至 E）；tests/parity/W01a.monthly-status.spec.ts 增三項。
+
+## 正式區比對後的使用者決定（2026-11-19）
+
+正式區唯讀比對發現 3 筆舊匯入與處方箋報表差距大（0005B 2026-04、0026B 2026-04、0007 2026-01）。使用者決定：**以處方箋報表為主**。現行規則本來就是「處方箋報表有資料就用處方箋，沒有才顯示舊匯入並標『舊匯入』」，這 3 筆畫面上已顯示處方箋數字，不需改程式或資料。

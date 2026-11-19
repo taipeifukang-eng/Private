@@ -9,6 +9,7 @@ const root = path.resolve(__dirname, '..', '..', '..');
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
 const exists = (p: string) => fs.existsSync(path.join(root, p));
 const APPROVED = 'user (2026-11-16 batch 5 spec survey)';
+const REVIEWED = 'user (2026-11-19 差異確認頁)'; // 使用者在差異確認頁逐項同意的待確認項目
 
 describe('G18-e2e 測試編號與檔案', () => {
   const files: Record<string, string> = {
@@ -61,11 +62,11 @@ describe('G18-e2e 對等（parity）map 與 allowlist', () => {
     const router = read('lib/workspace/general-affairs/router.ts');
     for (const seg of ['work-orders', 'cross-dept-maintenance', 'maintenance-categories']) expect(router, seg).toContain(`"${seg}"`);
   });
-  it('allowlist 整份通過驗證器；m7m8-b5 條目的核可欄位只有「問卷核可」或 null；decision 為 fix 的維持 null', () => {
+  it('allowlist 整份通過驗證器；m7m8-b5 條目的核可欄位只有「問卷核可」、「差異確認頁核可」或 null；decision 為 fix 的維持 null', () => {
     expect(validateAllowlist(list)).toEqual([]);
     expect(b5.length).toBeGreaterThan(60);
     for (const e of b5) {
-      expect([APPROVED, null], e.id).toContain(e.approvedBy);
+      expect([APPROVED, REVIEWED, null], e.id).toContain(e.approvedBy);
       if (e.decision === 'fix') expect(e.approvedBy, e.id).toBeNull();
       expect(['ga-work-orders', 'cross-dept-maintenance', 'ga-cross-dept-maintenance'], e.id).toContain(e.page);
     }
@@ -81,10 +82,10 @@ describe('G18-e2e 對等（parity）map 與 allowlist', () => {
       expect(e.match?.key, e.id).toBeTruthy();
     }
   });
-  it('缺陷修正與實作取捨（待使用者確認）一律 null；問卷核可的項目才有核可欄位', () => {
+  it('缺陷修正與實作取捨已在差異確認頁由使用者核可；問卷核可的項目維持問卷核可', () => {
     for (const id of ['m7m8-b5-wo-progress-keep-fields', 'm7m8-b5-wo-delete-no-audit-event', 'm7m8-b5-wo-state-blocks', 'm7m8-b5-wo-completion-note-optional', 'm7m8-b5-api-category-name-rules', 'm7m8-b5-api-attachment-reporter-scope',
       'm7m8-b5-par-progress-keep-assignee', 'm7m8-b5-par-progress-keep-handling', 'm7m8-b5-par-display-columns-focus', 'm7m8-b5-par-location-from-request-equipment-id']) {
-      expect(b5.find((e) => e.id === id)?.approvedBy, id).toBeNull();
+      expect(b5.find((e) => e.id === id)?.approvedBy, id).toBe(REVIEWED);
     }
     for (const id of ['m7m8-b5-par-legacy-delete-silent', 'm7m8-b5-par-legacy-confirm-guard', 'm7m8-b5-par-progress-completed-blocked']) expect(b5.find((e) => e.id === id)?.approvedBy, id).toBe(APPROVED);
   });
