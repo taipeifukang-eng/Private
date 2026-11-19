@@ -116,6 +116,24 @@ const DRAFTS = [
     rollbackSummary: "撤回 55：移除兩個請款權限碼與角色對它們的授權（若已授權，授權一併移除）。",
     backup: "-- 撤回前備份：\n--   CREATE TABLE public.zz_bak_b45_55_role_permissions AS SELECT rp.* FROM public.role_permissions rp JOIN public.permissions p ON p.id = rp.permission_id WHERE p.code LIKE 'general_affairs.purchase_payment.%';",
   },
+  {
+    no: "56-b45-functions",
+    dev: "20261119150000_m7m8_b45_functions",
+    title: "第 4.5 批 F（進貨憑證、進貨發票、請款單、付款標記、請款設定、對帳匯出、採購單摘要函式，以及廠商銀行欄位讀寫擴充）",
+    summary:
+      "性質：會寫入（只新增與替換函式，不動資料）。新增對外函式 ga_ws_pay_*（settings_get／set、voucher_set、invoice_save／get／list／void、receipt_candidates、request_create／update／action／get／list、export、po_summary）與內部輔助 ga_pay_*（只開給 service_role）；\n" +
+      "--   全部 SECURITY DEFINER、固定 search_path、必須是登入使用者、權限只用 has_permission(auth.uid(), 碼)（正式區語意：資料庫沒有管理員後備，profiles.role = admin 不放行）、回 {ok,status,data,error,code}、寫入同交易鎖列、固定識別冪等、expected_updated_at 版本檢查。\n" +
+      "--   另讀出 ga_vd_json 與 ga_ws_vendor_save 的現行定義做文字替換，加入銀行四欄（形狀不符就中止，請人工處理；已套用就略過）。\n" +
+      "-- 先決條件：先套 51、52、53、54、55；第 4 批 33（ga_rq_*、ga_po_*）、第 6 批 44（ga_vd_*、ga_ws_vendor_save）已套用。套用後請用 DEV 已測過的 G45-db 與 G45-att-inv 測試項目自己抽查權限矩陣與遮蔽。",
+    verify:
+      "SELECT count(*) AS pay_functions FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname LIKE 'ga\\_ws\\_pay\\_%';\n" +
+      "-- 核對：對外函式數量與 DEV 相同\n" +
+      "SELECT position('bank_name' in pg_get_functiondef('public.ga_vd_json(public.ga_vendors,boolean)'::regprocedure)) > 0 AS vd_json_has_bank;\n" +
+      "-- 核對：true",
+    rollbackSummary:
+      "撤回 56：移除 ga_ws_pay_* 與 ga_pay_* 函式，並把 ga_vd_json、ga_ws_vendor_save 的銀行欄位擴充拿掉。不刪任何資料表資料。要先撤回 57、58（它們參照這些函式）。",
+    backup: "-- 撤回前備份：先存 ga_vd_json 與 ga_ws_vendor_save 的現行定義（pg_get_functiondef）；函式本身可由 56 重新套用還原。",
+  },
 ];
 
 function stripHeader(sql) {

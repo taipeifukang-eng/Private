@@ -219,7 +219,9 @@
 | `54-b45-attachment-types-rollback.sql` | 拿掉分支與觸發器、CHECK 還原 8 值 | 撤回 54（若已有 PURCHASE_ 附件紀錄會中止，不刪附件）。 |
 | `55-b45-permissions.sql` | 只新增 2 個權限碼 | `general_affairs.purchase_payment.view`、`general_affairs.purchase_payment.manage`；**不自動授權給任何角色**。 |
 | `55-b45-permissions-rollback.sql` | 移除 2 個碼與授權 | 撤回 55。 |
-| `56`、`57`、`58`（`56-b45-functions`、`57-b45-analysis`、`58-b45-receipt-void`） | 後續階段補檔 | 56 對應 DEV `150000`（`ga_ws_pay_*` 函式、廠商銀行欄位讀寫擴充）；57 對應 `160000`（採購分析、廠商績效、清單 attention、首頁與導覽徽章）；58 對應 `170000`（作廢進貨）。 |
+| `56-b45-functions.sql` | 會寫入（只新增與替換函式，不動資料） | 對應 DEV `150000`：對外函式 `ga_ws_pay_*`（設定、進貨憑證、發票、可請款進貨、請款單建立與修改與動作、對帳匯出、採購單發票與請款摘要）與內部輔助 `ga_pay_*`（只開給 service_role）；權限只用 `has_permission(auth.uid(), 碼)`；另以文字替換擴充 `ga_vd_json`、`ga_ws_vendor_save` 的廠商銀行四欄（形狀不符會中止）。先決：51 至 55。**G45-att-inv 階段補檔**。 |
+| `56-b45-functions-rollback.sql` | 移除函式與銀行欄位擴充 | 撤回 56（不刪資料；先撤回 57、58）。 |
+| `57`、`58`（`57-b45-analysis`、`58-b45-receipt-void`） | 後續階段補檔 | 57 對應 DEV `160000`（採購分析、廠商績效、清單 attention、首頁與導覽徽章）；58 對應 `170000`（作廢進貨）。 |
 
 第 4.5 批的套用順序：`50`（唯讀）→ 沒有 MISSING、看過第 2 區筆數與第 3 區存檔 → **備份進貨兩表**（見下）→ `51` → `52` → `53` → `54` → `55` → `56` → `57` → `58` → 驗收 → 使用者決定角色授權。撤回順序相反：`58` → `57` → `56` → `55` → `54` → `53` → `52` → `51`。流程：草稿 → 備份 → 使用者核可才執行；**不得由實作者直接套正式區**。
 
