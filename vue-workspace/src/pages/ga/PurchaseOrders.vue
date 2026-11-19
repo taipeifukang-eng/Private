@@ -28,6 +28,8 @@ const mine = ref(false);
 const overdue = ref(!!(props.tab.payload as { overdue?: unknown } | undefined)?.overdue);
 // 從首頁或導覽徽章點進來：待核准（有核准權限才算）與逾期未到貨的聯集（與徽章同一組條件，V9）
 const attention = ref(!!(props.tab.payload as { attention?: unknown } | undefined)?.attention);
+// 第 4.5 批：從首頁「待請款採購單」點進來（驗入含稅額減有效請款累計大於尾差，與首頁數字同一個述詞）。
+const payUnclaimed = ref(!!(props.tab.payload as { payUnclaimed?: unknown } | undefined)?.payUnclaimed);
 const loading = ref(false);
 const loaded = ref(false);
 const error = ref("");
@@ -35,7 +37,7 @@ const latest = useLatest();
 const detailId = ref("");
 const showSettings = ref(false);
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
-const hasFilter = computed(() => !!(debounced.value.trim() || status.value || mine.value || overdue.value || attention.value));
+const hasFilter = computed(() => !!(debounced.value.trim() || status.value || mine.value || overdue.value || attention.value || payUnclaimed.value));
 
 async function load() {
   if (!allowed.value) return;
@@ -49,6 +51,7 @@ async function load() {
     if (mine.value) q.set("mine", "true");
     if (overdue.value) q.set("overdue", "true");
     if (attention.value) q.set("attention", "1");
+    if (payUnclaimed.value) q.set("payUnclaimed", "1");
     const res = await api<{ data: PoListRow[]; total: number; stats: Stats; capabilities: Caps }>("general-affairs/purchase-orders?" + q);
     if (!latest.isLatest(n)) return;
     rows.value = res.data;
@@ -62,7 +65,7 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([debounced, status, mine, overdue, attention], () => { page.value = 1; void load(); });
+watch([debounced, status, mine, overdue, attention, payUnclaimed], () => { page.value = 1; void load(); });
 watch(page, load);
 onMounted(load);
 useRefreshOnActivate(props.tab, load);
@@ -107,6 +110,7 @@ function closeDetail() { detailId.value = ""; }
       </li>
     </ul>
     <p v-if="attention" class="notice" role="status" data-testid="attention-chip">只顯示「待我處理」的項目，筆數與導覽數字一致。<button type="button" data-testid="attention-clear" @click="attention = false">看全部</button></p>
+    <p v-if="payUnclaimed" class="notice" role="status" data-testid="pay-unclaimed-chip">只顯示「待請款」的採購單（已驗入、尚未請款的金額超過尾差），筆數與首頁數字一致。<button type="button" data-testid="pay-unclaimed-clear" @click="payUnclaimed = false">看全部</button></p>
     <div class="filter-bar">
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="單號、供應商、品名" data-testid="po-search" /></label>
     </div>

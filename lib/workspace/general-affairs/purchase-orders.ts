@@ -8,7 +8,7 @@ import { NextRequest } from "next/server";
 import { adminClient } from "../server";
 import { dbCan } from "./access";
 import { type PoWho, canViewPo, maskVendorBilling, normalizePage, poAbilities, validateActionPayload, validateCreatePayload, validateHeader, validateItems, validateSettingsPayload } from "./purchase-order-rules";
-import { validateDispatchPayload, validateReceiptPayload } from "./purchase-receipt-rules";
+import { validateDispatchPayload, validateReceiptPayload, validateReceiptVoidPayload } from "./purchase-receipt-rules";
 import { paymentAbilities } from "./payment-rules";
 import { PR } from "./requests";
 import { isUuid, orIlike, pagingMeta, parsePaging } from "./rules";
@@ -64,6 +64,8 @@ export async function purchaseOrdersApi(ctx: Context, request: NextRequest, rest
     // 第 4.5 批：採購單「發票與請款」分頁摘要、進貨單憑證登錄。
     if (b === "payment-summary" && m === "GET") return paymentSummary(ctx, id);
     if (b === "receipts" && rest[2] && rest[3] === "voucher" && m === "PATCH") return voucher(ctx, request, id, rest[2]);
+    // 第 4.5 批 P6：作廢進貨（沖回庫存、扣回驗入量、重算採購單狀態；原因必填）。
+    if (b === "receipts" && rest[2] && rest[3] === "void" && !rest[4] && m === "POST") return receiptVoid(ctx, request, id, rest[2]);
     if (b === "receipts") {
       if (m === "GET") return receiptsOf(ctx, id);
       if (m === "POST") return receive(ctx, request, id);
@@ -106,6 +108,8 @@ async function list(ctx: Context, url: URL, approvals: boolean) {
   if (p.get("overdue") === "true") filters.overdue = true;
   // 待我處理（V9）：待核准（有核准權限才算）與逾期未到貨的聯集，與徽章同一組述詞（ga_att_po）。
   if (p.get("attention") === "1" || p.get("attention") === "true") filters.attention = true;
+  // 第 4.5 批：待請款採購單（驗入含稅額 − 有效請款累計 > 尾差；只有請款檢視／管理權限者有結果，與首頁與導覽徽章同一個述詞 ga_pay_unclaimed_po_ids）。
+  if (p.get("payUnclaimed") === "1" || p.get("payUnclaimed") === "true") filters.pay_unclaimed = true;
   if (approvals || p.get("view") === "approvals") {
     if (!who.approve) throw new GaError(403, "待簽核清單只有持「採購核准」權限的人可以看");
     filters.approvals = true;
@@ -154,6 +158,20 @@ async function voucher(ctx: Context, request: NextRequest, poId: string, receipt
   if (!owner.data) throw new GaError(404, "找不到這張進貨單（或不屬於這張採購單）");
   const r = await rpc(ctx, "ga_ws_pay_voucher_set", { p_receipt_id: receiptId, p_status: status, p_note: note || null, p_expected_updated_at: expected });
   return respond({ data: r.data });
+}
+
+/** 作廢進貨：權限同到貨（採購評估管理＋庫存交易管理＋料件查看，資料庫再判斷一次）；進貨單必須屬於網址上的採購單（資料庫以兩個 id 一起查）。 */
+async function receiptVoid(ctx: Context, request: NextRequest, poId: string, receiptId: string) {
+  const who = poWho(ctx);
+  const problem = poAbilities(who, { status: "ORDERED" }).problem;
+  if (problem) throw new GaError(403, problem);
+  if (!isUuid(receiptId)) throw new GaError(400, "進貨單 id 格式錯誤");
+  const b = await body(request);
+  const v = validated(() => validateReceiptVoidPayload(b));
+  const r = await rpc(ctx, "ga_ws_po_receipt_void", { p_po_id: poId, p_receipt_id: receiptId, p_reason: v.reason, p_key: v.idempotency_key, p_expected_updated_at: v.expected_updated_at });
+  const fresh = await rpc(ctx, "ga_ws_po_get", { p_id: poId });
+  const rc = await rpc(ctx, "ga_ws_po_receipts_get", { p_po_id: poId });
+  return respond({ data: r.data, replay: !!(r as any).idempotent_replay, order: shape(fresh.data, who), receiving: rc.data });
 }
 
 async function receiptsOf(ctx: Context, id: string) {

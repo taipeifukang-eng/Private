@@ -18,9 +18,9 @@ const ROOT = path.resolve(__dirname, '..', '..', '..');
 const SQL = fs.readFileSync(path.join(ROOT, 'supabase/workspace-dev/20261118120000_m7m8_b6_stats_home.sql'), 'utf8');
 const has = (set: string[]) => (...codes: string[]) => codes.some((c) => set.includes(c));
 
-describe('徽章九項與權限對照', () => {
-  it('九項鍵齊全且各自有名稱、選單、權限、頁面 kind；kind 都是登錄過的頁面', () => {
-    expect(HOME_ITEM_KEYS).toHaveLength(9);
+describe('徽章十一項（原九項加第 4.5 批待請款、待付款）與權限對照', () => {
+  it('十一項鍵齊全且各自有名稱、選單、權限、頁面 kind；kind 都是登錄過的頁面', () => {
+    expect(HOME_ITEM_KEYS).toHaveLength(11);
     for (const k of HOME_ITEM_KEYS) {
       const d = HOME_ITEMS[k];
       expect(d.label, k).toBeTruthy();
@@ -45,6 +45,9 @@ describe('徽章九項與權限對照', () => {
     expect(HOME_ITEMS.wo_store_rejected.payload).toEqual({ attention: 'store_rejected' });
     expect(HOME_ITEMS.po_overdue.payload).toEqual({ overdue: true });
     expect(HOME_ITEMS.po_pending.kind).toBe('ga-purchase-approvals');
+    expect(HOME_ITEMS.pay_unclaimed.payload).toEqual({ payUnclaimed: '1' });
+    expect(HOME_ITEMS.pay_submitted.payload).toEqual({ status: 'SUBMITTED' });
+    expect(MENU_PAYLOAD.payment_requests).toEqual({ status: 'SUBMITTED' });
     expect(MENU_PAYLOAD.purchase_orders).toEqual({ attention: '1' });
     expect(MENU_PAYLOAD.work_orders).toEqual({ attention: 'store_rejected' });
   });
@@ -76,10 +79,11 @@ describe('99+ 與首頁合計', () => {
     expect(capBadge(12345)).toBe('99+');
     expect(capBadge(7.9)).toBe('7');
   });
-  it('首頁合計＝九項加總（缺項當 0、不重複加採購單選單的聯集）', () => {
+  it('首頁合計＝各項加總（缺項當 0、不重複加採購單選單的聯集）', () => {
     expect(homeTotal({})).toBe(0);
     expect(homeTotal({ request_intake: 3, bill_overdue: 2, po_pending: 1, po_overdue: 4, po_menu: 5 })).toBe(10);
-    expect(homeTotal(Object.fromEntries(HOME_ITEM_KEYS.map((k) => [k, 11])))).toBe(99);
+    expect(homeTotal(Object.fromEntries(HOME_ITEM_KEYS.map((k) => [k, 11])))).toBe(121);
+    expect(homeTotal({ pay_unclaimed: 2, pay_submitted: 3 })).toBe(5);
   });
 });
 
@@ -132,7 +136,7 @@ describe('導覽、頁面與 API 權限常數一致', () => {
     // 權限碼寫在 ga_hm_counts 本身，或它呼叫的判斷函式（帳單 ga_ub_can_view、廠商 ga_vd_can_view、採購 ga_po_can_view）
     const read = (n: string) => fs.readFileSync(path.join(ROOT, 'supabase/workspace-dev', n), 'utf8');
     const body = SQL.slice(SQL.indexOf('CREATE OR REPLACE FUNCTION public.ga_hm_counts'), SQL.indexOf('CREATE OR REPLACE FUNCTION public.ga_ws_home_badges'))
-      + read('20261118110000_m7m8_b6_utility_bills.sql') + read('20261118100000_m7m8_b6_vendor_rpc.sql') + read('20261112110000_m7m8_b4_purchase_orders.sql');
+      + read('20261119150000_m7m8_b45_functions.sql') + read('20261119160000_m7m8_b45_analysis.sql') + read('20261118110000_m7m8_b6_utility_bills.sql') + read('20261118100000_m7m8_b6_vendor_rpc.sql') + read('20261112110000_m7m8_b4_purchase_orders.sql');
     for (const k of HOME_ITEM_KEYS) for (const p of HOME_ITEMS[k].perms) expect(body, `${k} ${p}`).toContain(p);
   });
 });

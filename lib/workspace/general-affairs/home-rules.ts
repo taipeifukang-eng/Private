@@ -1,16 +1,17 @@
 // M7/M8 第 6 批 G22／G24：總務首頁「待我處理」九項、導覽徽章、績效與採購分析參數規則（純函式，無相依；Vue、API、單元測試共用）。
+// 第 4.5 批新增「待請款採購單」「待付款請款單」兩項（需請款檢視／管理；與 ga_hm_counts 的 pay_unclaimed、pay_submitted 對齊），共十一項。
 // 九項的計數與列表篩選共用資料庫述詞（ga_att_*、ga_ub_is_overdue、ga_vd_contract_due、ga_wo_focus 等，見 20261118120000_m7m8_b6_stats_home.sql）；
 // 這裡的常數與 SQL 逐條對齊，單元測試會比對 SQL 檔內容。
 import type { WorkTabKind } from "../page-kinds";
 
 /** 九項待辦的鍵（與 ga_hm_counts 回傳的鍵相同）。 */
 export const HOME_ITEM_KEYS = [
-  "request_intake", "bill_overdue", "contract_due", "transfer_overdue", "store_wait", "po_pending", "po_overdue", "wo_store_rejected", "onboarding_review",
+  "request_intake", "bill_overdue", "contract_due", "transfer_overdue", "store_wait", "po_pending", "po_overdue", "wo_store_rejected", "onboarding_review", "pay_unclaimed", "pay_submitted",
 ] as const;
 export type HomeItemKey = (typeof HOME_ITEM_KEYS)[number];
 
 /** 選單徽章的位置（ga_ws_home_badges 回傳的 menu 鍵）。 */
-export const BADGE_MENUS = ["requests", "my_reports", "purchase_orders", "purchase_approvals", "work_orders", "vendors", "utility_bills", "transfers", "onboarding"] as const;
+export const BADGE_MENUS = ["requests", "my_reports", "purchase_orders", "purchase_approvals", "work_orders", "vendors", "utility_bills", "transfers", "onboarding", "payment_requests"] as const;
 export type BadgeMenu = (typeof BADGE_MENUS)[number];
 
 export type HomeItemDef = {
@@ -35,17 +36,20 @@ export const HOME_ITEMS: Record<HomeItemKey, HomeItemDef> = {
   po_overdue: { label: "逾期未到貨採購單", menu: "purchase_orders", perms: [GA + "purchase_review.view", GA + "purchase_review.manage", GA + "purchase_order.approve"], kind: "ga-purchase-orders", payload: { overdue: true } },
   wo_store_rejected: { label: "門市退回的工單", menu: "work_orders", perms: [GA + "work_order.update", GA + "work_order.manage"], kind: "ga-work-orders", payload: { attention: "store_rejected" } },
   onboarding_review: { label: "貼標待複核", menu: "onboarding", perms: [GA + "equipment.manage", GA + "facility.manage"], kind: "ga-onboarding-review" },
+  // 第 4.5 批：待請款採購單（驗入含稅額減有效請款累計大於尾差）與待付款請款單（SUBMITTED）；需請款檢視或管理（待請款另需能看採購單，由資料庫判斷）。
+  pay_unclaimed: { label: "待請款採購單", menu: "purchase_orders", perms: [GA + "purchase_payment.view", GA + "purchase_payment.manage"], kind: "ga-purchase-orders", payload: { payUnclaimed: "1" } },
+  pay_submitted: { label: "待付款請款單", menu: "payment_requests", perms: [GA + "purchase_payment.view", GA + "purchase_payment.manage"], kind: "ga-payment-requests", payload: { status: "SUBMITTED" } },
 };
 
 /** 每個選單鍵對應的頁面 kind（側欄項目以 kind 比對）。 */
 export const BADGE_MENU_KIND: Record<BadgeMenu, WorkTabKind> = {
   requests: "ga-requests", my_reports: "ga-my-reports", purchase_orders: "ga-purchase-orders", purchase_approvals: "ga-purchase-approvals", work_orders: "ga-work-orders",
-  vendors: "ga-vendors", utility_bills: "ga-utility-bills", transfers: "ga-inventory-transfers", onboarding: "ga-onboarding-review",
+  vendors: "ga-vendors", utility_bills: "ga-utility-bills", transfers: "ga-inventory-transfers", onboarding: "ga-onboarding-review", payment_requests: "ga-payment-requests",
 };
 /** 選單點進去的篩選：採購單選單是待核准與逾期的聯集（依呼叫者有的權限各自成立）。 */
 export const MENU_PAYLOAD: Partial<Record<BadgeMenu, Record<string, unknown>>> = {
   requests: { attention: "1" }, my_reports: { attention: "1" }, purchase_orders: { attention: "1" }, work_orders: { attention: "store_rejected" },
-  vendors: { contract_due: true }, utility_bills: { overdue: true }, transfers: { overdue: true },
+  vendors: { contract_due: true }, utility_bills: { overdue: true }, transfers: { overdue: true }, payment_requests: { status: "SUBMITTED" },
 };
 
 /** 待辦條件常數（與資料庫 ga_att_* 對齊）。 */
@@ -72,7 +76,7 @@ export function capBadge(n: number | null | undefined): string {
   return v > 99 ? "99+" : String(v);
 }
 
-/** 首頁合計：九項加總（po_menu 是聯集，不重複加）。 */
+/** 首頁合計：各項加總（po_menu 是聯集，不重複加；待請款與待付款是第 4.5 批新增的兩項）。 */
 export function homeTotal(items: Partial<Record<string, number>>): number {
   return HOME_ITEM_KEYS.reduce((sum, k) => sum + (Number(items[k]) || 0), 0);
 }

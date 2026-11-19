@@ -25,7 +25,8 @@ export type PoDetail = {
 };
 export type ReceiptView = {
   id: string; receipt_no: string; received_date: string; delivery_note_no: string | null; notes: string | null; created_at: string; created_by_name?: string | null;
-  items: Array<{ id: string; po_item_id: string; delivered_qty: number; accepted_qty: number; rejected_qty: number; reason: string | null; location_id: string | null; location_name?: string | null; received_part_id: string | null; received_part_name?: string | null; change_reason: string | null; item_name?: string | null; equipment?: Array<{ id: string; asset_code: string | null; name: string; serial_number: string | null }> }>;
+  updated_at?: string; voided_at?: string | null; void_reason?: string | null;
+  items: Array<{ id: string; po_item_id: string; fulfil_mode?: string; dispatched_qty?: number; delivered_qty: number; accepted_qty: number; rejected_qty: number; reason: string | null; location_id: string | null; location_name?: string | null; received_part_id: string | null; received_part_name?: string | null; change_reason: string | null; item_name?: string | null; equipment?: Array<{ id: string; asset_code: string | null; name: string; serial_number: string | null }> }>;
 };
 export type DispatchView = { id: string; dispatch_no: string; po_item_id: string; store_id: string; store_name?: string | null; quantity: number; created_at: string; notes: string | null; equipment?: Array<{ id: string; asset_code: string | null; name: string; serial_number: string | null }> };
 export type Receiving = {
@@ -35,7 +36,7 @@ export type Receiving = {
 export const FULFIL_TEXT: Record<string, string> = { STOCK: "入總部庫存", DIRECT_ASSET: "到貨直接建設備", NO_STOCK: "只登錄到貨" };
 export const EVENT_TEXT: Record<string, string> = {
   create: "建立草稿", update: "修改", submit: "送核准", withdraw: "撤回送簽", approve: "核准", reject: "駁回並退回草稿", revoke_approval: "撤回核准", place_order: "下訂",
-  cancel: "取消", short_close: "短收結案", close: "結案", receive: "登錄到貨並驗入", dispatch: "配發為設備", from_review: "由採購評估產生草稿", settings: "調整設定",
+  cancel: "取消", short_close: "短收結案", close: "結案", receive: "登錄到貨並驗入", receipt_void: "作廢進貨", dispatch: "配發為設備", from_review: "由採購評估產生草稿", settings: "調整設定",
 };
 export const eventText = (t: string) => EVENT_TEXT[t] || t;
 export const dateText = (s: string | null | undefined) => (s ? String(s).slice(0, 10) : "");

@@ -261,3 +261,9 @@ export function parseInvoiceFilters(p: URLSearchParams) {
 
 /** 進貨憑證狀態文字。 */
 export const VOUCHER_LABELS: Record<string, string> = { NONE: "尚未登錄", LINKED: "已連發票", NO_INVOICE: "免開發票／僅收據" };
+
+// ---------------------------------------------------------------- 第 4.5 批 G45-stat：待請款、已請款、已付款統計（與資料庫 ga_pay_unclaimed_po_ids、ga_pay_po_amounts 同一口徑）
+/** 已驗入尚未請款額 = max(0, 累計驗入含稅額 − 有效請款累計)；已作廢進貨不算驗入、已作廢請款單不算請款（由資料庫彙總後傳入）。 */
+export const unclaimedAmount = (receivedTotal: number, claimedTotal: number) => Math.max(0, receivedTotal - claimedTotal);
+/** 待請款採購單：驗入含稅額減有效請款累計「大於」尾差（剛好等於尾差不算，免得為了尾差再開一張請款單）。 */
+export const isPayUnclaimed = (receivedTotal: number, claimedTotal: number, tolerance: number = DEFAULT_TOLERANCE) => receivedTotal - claimedTotal > tolerance;

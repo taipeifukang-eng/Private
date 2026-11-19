@@ -14,13 +14,15 @@ import type { WorkTab } from "../../stores";
 const props = defineProps<{ tab: WorkTab }>();
 const allowed = useGaGuard(props.tab);
 type Rank = { key: string; label: string; amount: number; count: number };
-type OrderRow = { id: string; po_no: string; status: string; vendor_label: string; store_label: string; total_amount: number; received_amount: number; ordered_at: string };
+type OrderRow = { id: string; po_no: string; status: string; vendor_label: string; store_label: string; total_amount: number; received_amount: number; ordered_at: string; claimed_amount?: number; paid_amount?: number; unclaimed_received_amount?: number };
 type Data = {
-  year_month: string; generated_at: string; confirmed: { count: number; total_amount: number; subtotal: number; tax_amount: number; received_amount: number };
+  year_month: string; generated_at: string; confirmed: { count: number; total_amount: number; subtotal: number; tax_amount: number; received_amount: number; claimed_amount?: number; paid_amount?: number; unclaimed_received_amount?: number };
   by_vendor: Rank[]; by_store: Rank[]; estimated: { orders: { count: number; total_amount: number }; legacy_reviews: { count: number; total_amount: number; missing_amount_count: number } };
-  orders: OrderRow[]; orders_total: number; page: number; page_size: number;
+  orders: OrderRow[]; orders_total: number; page: number; page_size: number; can_view_payment?: boolean;
 };
 const data = ref<Data | null>(null);
+// 已請款、已付款、驗入未請款只給有請款檢視／管理權限者（伺服端判斷，沒權限時欄位不存在、整區不顯示）。
+const showPay = computed(() => data.value?.can_view_payment === true);
 const month = ref(taipeiToday().slice(0, 7));
 const page = ref(1);
 const pageSize = 20;
@@ -80,6 +82,14 @@ useRefreshOnActivate(props.tab, load);
         <li><div class="card-static"><span>未稅小計</span><strong data-testid="pa-subtotal">{{ money(data.confirmed.subtotal) }}</strong></div></li>
         <li><div class="card-static"><span>已到貨實收（未稅）</span><strong data-testid="pa-received">{{ money(data.confirmed.received_amount) }}</strong></div></li>
       </ul>
+      <template v-if="showPay">
+        <h2 class="sec">請款與付款（含稅；只算有效請款單，已作廢進貨不計）</h2>
+        <ul class="stat-cards" aria-label="請款與付款" data-testid="pa-pay-cards">
+          <li><div class="card-static"><span>已請款</span><strong data-testid="pa-claimed">{{ money(data.confirmed.claimed_amount ?? 0) }}</strong></div></li>
+          <li><div class="card-static"><span>已付款</span><strong data-testid="pa-paid">{{ money(data.confirmed.paid_amount ?? 0) }}</strong></div></li>
+          <li><div class="card-static"><span>已驗入尚未請款</span><strong data-testid="pa-unclaimed">{{ money(data.confirmed.unclaimed_received_amount ?? 0) }}</strong></div></li>
+        </ul>
+      </template>
       <h2 class="sec">預估（尚未下訂）</h2>
       <ul class="stat-cards" aria-label="預估">
         <li><div class="card-static"><span>草稿與待核准、已核准採購單</span><strong data-testid="pa-est-orders">{{ money(data.estimated.orders.total_amount) }}</strong><small>{{ data.estimated.orders.count }} 張</small></div></li>
@@ -106,13 +116,14 @@ useRefreshOnActivate(props.tab, load);
       <h2 class="sec">本月已下訂採購單（共 {{ data.orders_total }} 張）</h2>
       <div class="pa-wrap">
         <table class="pa-table" data-testid="pa-orders">
-          <thead><tr><th>採購單</th><th>廠商</th><th>門市</th><th>狀態</th><th class="num">含稅金額</th><th class="num">已到貨實收</th></tr></thead>
+          <thead><tr><th>採購單</th><th>廠商</th><th>門市</th><th>狀態</th><th class="num">含稅金額</th><th class="num">已到貨實收</th><th v-if="showPay" class="num">已請款</th><th v-if="showPay" class="num">已付款</th><th v-if="showPay" class="num">驗入未請款</th></tr></thead>
           <tbody>
             <tr v-for="o in data.orders" :key="o.id" data-testid="pa-order-row">
               <td data-label="採購單">{{ o.po_no }}</td><td data-label="廠商">{{ o.vendor_label }}</td><td data-label="門市">{{ o.store_label }}</td>
               <td data-label="狀態">{{ PO_STATUS_LABEL[o.status] || o.status }}</td><td class="num" data-label="含稅金額">{{ money(o.total_amount) }}</td><td class="num" data-label="已到貨實收">{{ money(o.received_amount) }}</td>
+              <td v-if="showPay" class="num" data-label="已請款" data-testid="pa-order-claimed">{{ money(o.claimed_amount ?? 0) }}</td><td v-if="showPay" class="num" data-label="已付款">{{ money(o.paid_amount ?? 0) }}</td><td v-if="showPay" class="num" data-label="驗入未請款">{{ money(o.unclaimed_received_amount ?? 0) }}</td>
             </tr>
-            <tr v-if="!data.orders.length"><td colspan="6" class="muted">這個月沒有已下訂的採購單。</td></tr>
+            <tr v-if="!data.orders.length"><td :colspan="showPay ? 9 : 6" class="muted">這個月沒有已下訂的採購單。</td></tr>
           </tbody>
         </table>
       </div>

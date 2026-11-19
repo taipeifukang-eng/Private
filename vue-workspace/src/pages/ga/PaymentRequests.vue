@@ -19,7 +19,8 @@ const globalSum = ref<Record<string, number>>({});
 const abilities = ref<PayAbilities | null>(null);
 const page = ref(1);
 const pageSize = 20;
-const view = ref<"ALL" | "SUBMITTED">("ALL");
+// 從首頁「待付款請款單」或導覽徽章點進來時（payload.status = SUBMITTED）直接看待付款頁籤。
+const view = ref<"ALL" | "SUBMITTED">((props.tab.payload as { status?: unknown } | undefined)?.status === "SUBMITTED" ? "SUBMITTED" : "ALL");
 const status = ref("");
 const vendorId = ref("");
 const month = ref("");

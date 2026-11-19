@@ -221,6 +221,21 @@ export function validateReceiptPayload(input: unknown, today?: string): ReceiptP
   return { header: { received_date: date || null, delivery_note_no: dn, notes }, lines, idempotency_key: key };
 }
 
+/** 作廢進貨（第 4.5 批 P6）：原因必填（最多 200 字）、固定識別、版本（expected_updated_at）。 */
+export type ReceiptVoidPayload = { reason: string; idempotency_key: string; expected_updated_at: string };
+export function validateReceiptVoidPayload(input: unknown): ReceiptVoidPayload {
+  if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("送出的內容格式錯誤");
+  const raw = input as Record<string, unknown>;
+  for (const k of Object.keys(raw)) if (!["reason", "idempotency_key", "expected_updated_at"].includes(k)) throw new Error(`不支援的欄位：${k}`);
+  const key = validKey(raw.idempotency_key);
+  const reason = reasonText(raw.reason, "作廢原因");
+  if (!reason) throw new Error("作廢進貨必須填寫原因");
+  const expected = text(raw.expected_updated_at);
+  if (!expected) throw new Error("缺少版本資訊（expected_updated_at），請重新載入畫面");
+  if (Number.isNaN(Date.parse(expected))) throw new Error("版本資訊格式錯誤，請重新載入畫面");
+  return { reason, idempotency_key: key, expected_updated_at: expected };
+}
+
 export type DispatchPayload = {
   po_item_id: string; store_id: string; quantity: number; equipment_template_id: string | null; template_change_reason: string | null;
   source_location_id: string | null; serials: (string | null)[]; notes: string | null; idempotency_key: string;
@@ -263,4 +278,17 @@ export function normalizeEquipmentTemplateId(value: unknown): string | null {
 
 function fmt(n: number): string {
   return String(r4(n));
+}
+
+// ---------------------------------------------------------------- 第 4.5 批 P6：作廢進貨的前端預判（資料庫 ga_ws_po_receipt_void 才是最終判斷；這裡只用來決定按鈕與提示）
+export type ReceiptVoidFacts = { poStatus: string; voided: boolean; dispatchedQty?: number; directAssetAccepted?: boolean };
+/** 回傳擋下原因（白話）；空字串代表前端沒看到阻擋條件（請款單、發票、庫存是否足夠由伺服端判斷）。 */
+export function receiptVoidBlock(f: ReceiptVoidFacts): string {
+  if (f.voided) return "這張進貨單已經作廢了";
+  if (f.poStatus === "CLOSED") return "這張採購單已結案，不能作廢進貨；要更正請先請總務處理";
+  if (f.poStatus === "CANCELED") return "這張採購單已取消，不能作廢進貨";
+  if (!["ORDERED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(f.poStatus)) return "這張採購單還沒有可作廢的進貨";
+  if ((f.dispatchedQty ?? 0) > 0) return "這筆進貨已配發成設備，不能作廢，請走設備報廢";
+  if (f.directAssetAccepted) return "這筆進貨在驗入時已直接建立設備，不能作廢，請走設備報廢";
+  return "";
 }

@@ -8,7 +8,8 @@ import PoReceiptDialog from "./PoReceiptDialog.vue";
 import { useSession } from "../../stores";
 import { openGaPage } from "../../lib/ga";
 import { fmtTime } from "../../lib/ga-inventory-stock";
-import { FULFIL_TEXT, PO_STATUS_LABEL, dateText, eventText, money, num, visibleActions, type DispatchView, type PoDetail, type Receiving } from "../../lib/ga-purchase";
+import { FULFIL_TEXT, PO_STATUS_LABEL, dateText, eventText, money, newKey, num, visibleActions, type DispatchView, type PoDetail, type Receiving } from "../../lib/ga-purchase";
+import { receiptVoidBlock } from "../../../../lib/workspace/general-affairs/purchase-receipt-rules";
 import { PO_ACTION_LABEL, reasonRequired, type PoAction } from "../../../../lib/workspace/general-affairs/purchase-order-rules";
 
 // 採購單詳情與處理（清單頁與待簽核頁共用）：品項、金額、核准資訊、時間軸（每步操作人與時間，D11）、進貨紀錄、配發紀錄，
@@ -35,7 +36,39 @@ const error = ref("");
 const notice = ref("");
 const busy = ref(false);
 const stale = ref(false);
-const panel = ref<"" | "action" | "receipt" | "dispatch">("");
+const panel = ref<"" | "action" | "receipt" | "dispatch" | "voidReceipt">("");
+// 第 4.5 批 P6：作廢進貨（原因必填；沖回庫存、扣回驗入量、重算採購單狀態；已請款、已配發、連有效發票、已結案者由伺服端擋下並說明）。
+const voidTarget = ref<Receiving["receipts"][number] | null>(null);
+const voidReason = ref("");
+const voidError = ref("");
+const voidKey = ref(newKey());
+const canVoidReceipt = computed(() => !!po.value && a.value?.problem === "" && ["ORDERED", "PARTIALLY_RECEIVED", "RECEIVED"].includes(po.value.status));
+// 前端預判：已配發成設備、驗入時直接建立設備的進貨不顯示作廢按鈕（其餘條件由伺服端判斷並說明）。
+const voidable = (r: Receiving["receipts"][number]) =>
+  canVoidReceipt.value && !receiptVoidBlock({ poStatus: po.value?.status || "", voided: !!r.voided_at, dispatchedQty: r.items.reduce((s, i) => s + Number(i.dispatched_qty || 0), 0), directAssetAccepted: r.items.some((i) => i.fulfil_mode === "DIRECT_ASSET" && Number(i.accepted_qty) > 0) });
+function startVoid(r: Receiving["receipts"][number]) { voidTarget.value = r; voidReason.value = ""; voidError.value = ""; voidKey.value = newKey(); panel.value = "voidReceipt"; }
+async function submitVoid() {
+  if (busy.value || !po.value || !voidTarget.value) return;
+  if (!voidReason.value.trim()) { voidError.value = "作廢進貨必須填寫原因"; return; }
+  busy.value = true;
+  voidError.value = "";
+  try {
+    const res = await api<{ order: PoDetail; receiving: Receiving; replay: boolean }>(`general-affairs/purchase-orders/${po.value.id}/receipts/${voidTarget.value.id}/void`, {
+      method: "POST", body: JSON.stringify({ reason: voidReason.value.trim(), idempotency_key: voidKey.value, expected_updated_at: voidTarget.value.updated_at }),
+    });
+    po.value = res.order;
+    receiving.value = res.receiving;
+    panel.value = "";
+    voidTarget.value = null;
+    notice.value = res.replay ? "這張進貨單先前已作廢，沒有重複沖回。" : "進貨已作廢：庫存已沖回，採購單的已驗入數量與狀態已重新計算。";
+    emit("changed");
+  } catch (e) {
+    voidError.value = (e as Error).message;
+    if (e instanceof ApiError && e.data?.code === "STALE") stale.value = true;
+  } finally {
+    busy.value = false;
+  }
+}
 const action = ref<PoAction>("submit");
 const note = ref("");
 const formError = ref("");
@@ -176,7 +209,8 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         <h3>進貨紀錄</h3>
         <ul class="pd-list" data-testid="pd-receipts">
           <li v-for="r in receiving?.receipts || []" :key="r.id" data-testid="pd-receipt">
-            <strong>{{ r.receipt_no }}</strong>　到貨日 {{ dateText(r.received_date) }}<span v-if="r.delivery_note_no">　送貨單 {{ r.delivery_note_no }}</span><button v-if="canPayManage && showPay" type="button" class="link" :data-testid="'reg-voucher-' + r.receipt_no" @click="registerVoucher(r.id)">登錄憑證</button><span class="muted">　{{ r.created_by_name }} {{ fmtTime(r.created_at) }}</span>
+            <strong :class="{ voided: r.voided_at }">{{ r.receipt_no }}</strong><span v-if="r.voided_at" class="st voided-tag" data-testid="receipt-voided">已作廢</span>　到貨日 {{ dateText(r.received_date) }}<span v-if="r.delivery_note_no">　送貨單 {{ r.delivery_note_no }}</span><button v-if="canPayManage && showPay && !r.voided_at" type="button" class="link" :data-testid="'reg-voucher-' + r.receipt_no" @click="registerVoucher(r.id)">登錄憑證</button><button v-if="voidable(r)" type="button" class="link" :data-testid="'void-receipt-' + r.receipt_no" @click="startVoid(r)">作廢進貨</button><span class="muted">　{{ r.created_by_name }} {{ fmtTime(r.created_at) }}</span>
+            <p v-if="r.voided_at" class="muted" data-testid="receipt-void-reason">作廢原因：{{ r.void_reason }}（{{ fmtTime(r.voided_at) }}；已不計入累計驗入與請款額度）</p>
             <ul><li v-for="it in r.items" :key="it.id">{{ nameOf(it.po_item_id) || it.item_name }}：到貨 {{ num(it.delivered_qty) }}、驗入 {{ num(it.accepted_qty) }}<template v-if="Number(it.rejected_qty) > 0">、拒收 {{ num(it.rejected_qty) }}</template><template v-if="it.reason">（{{ it.reason }}）</template><template v-if="it.change_reason">　變更：{{ it.change_reason }}</template><template v-if="it.equipment?.length">　建立設備 {{ it.equipment.length }} 台</template></li></ul>
           </li>
           <li v-if="!(receiving?.receipts || []).length" class="muted">還沒有到貨紀錄</li>
@@ -200,6 +234,17 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
       <div class="dialog-actions"><button type="button" data-testid="pd-close" @click="emit('close')">關閉</button></div>
     </div>
     <PoReceiptDialog v-if="panel === 'receipt' && po && receiving" :order="po" :receiving="receiving" @close="panel = ''" @done="onReceipt" />
+    <Modal v-if="panel === 'voidReceipt' && voidTarget" :title="'作廢進貨 ' + voidTarget.receipt_no" :busy="busy" @cancel="panel = ''">
+      <div class="pd-form" data-testid="void-receipt-form">
+        <p class="muted">作廢後會把這張進貨單入的庫存沖回（留下反向庫存交易）、扣回採購單的已驗入數量並重算採購單狀態；原進貨紀錄保留不刪除。已被請款單使用、已配發成設備、連結有效發票、採購單已結案的進貨不能作廢。</p>
+        <label>作廢原因（必填）<textarea v-model="voidReason" rows="3" maxlength="200" data-testid="f-void-reason" /></label>
+        <p v-if="voidError" class="field-error" role="alert" data-testid="void-receipt-error">{{ voidError }}</p>
+        <div class="dialog-actions">
+          <button type="button" :disabled="busy" data-testid="void-receipt-cancel" @click="panel = ''">取消</button>
+          <button type="button" class="primary" :disabled="busy" data-testid="void-receipt-submit" @click="submitVoid">{{ busy ? "處理中…" : "確定作廢進貨" }}</button>
+        </div>
+      </div>
+    </Modal>
     <PoDispatchDialog v-if="panel === 'dispatch' && po && receiving" :order="po" :receiving="receiving" @close="panel = ''" @done="onDispatch" />
   </Modal>
 </template>
@@ -226,6 +271,8 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
 .pd-tabs button.on { border-bottom-color: var(--primary); font-weight: 700; }
 .pd-detail { display: grid; gap: 10px; min-width: 0; }
 button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
+strong.voided { text-decoration: line-through; color: var(--muted); }
+.voided-tag { margin-left: 6px; background: #fbeaea; color: #9b1c1c; border-color: #e7b3b3; }
 .pd-events { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .pd-events li { border-left: 3px solid var(--line); padding-left: 10px; }
 .pd-events p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
