@@ -95,6 +95,8 @@ import VendorCategories from "./pages/ga/VendorCategories.vue";
 import VendorRegions from "./pages/ga/VendorRegions.vue";
 import VendorStats from "./pages/ga/VendorStats.vue";
 import PurchaseAnalysis from "./pages/ga/PurchaseAnalysis.vue";
+import PurchaseInvoices from "./pages/ga/PurchaseInvoices.vue";
+import PurchaseInvoiceEdit from "./pages/ga/PurchaseInvoiceEdit.vue";
 import UtilityBills from "./pages/ga/UtilityBills.vue";
 import UtilityBillsReport from "./pages/ga/UtilityBillsReport.vue";
 import ReportCreate from "./pages/ga/ReportCreate.vue";
@@ -226,6 +228,8 @@ const components: Record<WorkTabKind, Component> = {
   "ga-purchase-analysis": PurchaseAnalysis,
   "ga-utility-bills": UtilityBills,
   "ga-utility-bills-report": UtilityBillsReport,
+  "ga-purchase-invoices": PurchaseInvoices,
+  "ga-purchase-invoice-edit": PurchaseInvoiceEdit,
   "cross-dept-maintenance": CrossDeptMaintenance,
   "ga-part-compat": PartCompatibilities,
   "ga-equipment-templates": AssetTemplates,

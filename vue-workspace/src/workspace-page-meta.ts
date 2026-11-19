@@ -143,6 +143,9 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   // 第 6 批 G23：水電網費。
   "ga-utility-bills": meta("水電電話網路費", ["gaUtilityBills"]),
   "ga-utility-bills-report": meta("費用報表", ["gaUtilityBills"]),
+  // 第 4.5 批：進貨發票。
+  "ga-purchase-invoices": meta("進貨發票", ["gaPurchaseInvoices"]),
+  "ga-purchase-invoice-edit": meta("發票編輯", ["gaPurchaseInvoices"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {

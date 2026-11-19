@@ -161,6 +161,10 @@ void describeWarning;
           <label class="wide">發票地址<input v-model="form.billing_address" maxlength="200" /></label>
           <label>付款條件<input v-model="form.payment_terms" list="vf-terms" maxlength="100" data-testid="vf-terms" /><datalist id="vf-terms"><option v-for="t in PAYMENT_TERMS" :key="t" :value="t" /></datalist></label>
           <fieldset class="vf-methods"><legend>付款方式</legend><label v-for="m in PAYMENT_METHODS" :key="m" class="check"><input v-model="form.payment_methods" type="checkbox" :value="m" /> {{ m }}</label></fieldset>
+          <label>銀行名稱<input v-model="form.bank_name" maxlength="60" data-testid="vf-bank-name" /></label>
+          <label>分行<input v-model="form.bank_branch" maxlength="60" data-testid="vf-bank-branch" /></label>
+          <label>銀行帳號<input v-model="form.bank_account" maxlength="40" inputmode="numeric" data-testid="vf-bank-account" /></label>
+          <label>戶名<input v-model="form.bank_account_name" maxlength="100" data-testid="vf-bank-account-name" /></label>
           <label class="wide">帳務備註<textarea v-model="form.accounting_notes" rows="2" maxlength="1000" /></label>
         </template>
         <p v-else class="muted wide">帳務欄位（統編、發票、付款條件）只有廠商檢視或管理權限者看得到。</p>

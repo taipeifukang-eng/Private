@@ -3,7 +3,9 @@ import { computed, onMounted, ref } from "vue";
 import { api, ApiError } from "../../api";
 import Modal from "../Modal.vue";
 import PoDispatchDialog from "./PoDispatchDialog.vue";
+import PoPaymentPanel from "./PoPaymentPanel.vue";
 import PoReceiptDialog from "./PoReceiptDialog.vue";
+import { useSession } from "../../stores";
 import { openGaPage } from "../../lib/ga";
 import { fmtTime } from "../../lib/ga-inventory-stock";
 import { FULFIL_TEXT, PO_STATUS_LABEL, dateText, eventText, money, num, visibleActions, type DispatchView, type PoDetail, type Receiving } from "../../lib/ga-purchase";
@@ -13,6 +15,19 @@ import { PO_ACTION_LABEL, reasonRequired, type PoAction } from "../../../../lib/
 // 以及送核准、撤回、核准、駁回（須原因）、撤回核准、下訂、取消、短收結案、結案、登錄到貨、配發。按鈕依伺服端算好的 abilities 顯示；缺權限會說清楚缺哪個。
 const props = defineProps<{ id: string }>();
 const emit = defineEmits<{ close: []; changed: [] }>();
+// 第 4.5 批：「發票與請款」分頁（金額與入口只給有請款檢視／管理權限者，與資料庫語意相同；管理員沒掛權限不顯示）。
+const session = useSession();
+const showPay = computed(() => !!session.data?.capabilities?.gaPurchaseInvoices);
+const canPayManage = computed(() => !!session.data?.capabilities?.gaPaymentManage);
+const tab = ref<"detail" | "pay">("detail");
+const payPanel = ref<InstanceType<typeof PoPaymentPanel> | null>(null);
+async function registerVoucher(receiptId: string) {
+  tab.value = "pay";
+  // 分頁剛切過來時元件才掛上；等載入完成再開對話框。
+  for (let n = 0; n < 40 && !payPanel.value; n += 1) await new Promise((r) => setTimeout(r, 50));
+  await payPanel.value?.load();
+  payPanel.value?.openVoucher(receiptId);
+}
 const po = ref<PoDetail | null>(null);
 const receiving = ref<Receiving | null>(null);
 const loading = ref(true);
@@ -138,6 +153,12 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
           </div>
         </section>
 
+        <div v-if="showPay" class="pd-tabs" role="tablist" aria-label="採購單內容">
+          <button type="button" role="tab" :aria-selected="tab === 'detail'" :class="{ on: tab === 'detail' }" data-testid="pd-tab-detail" @click="tab = 'detail'">明細與進貨</button>
+          <button type="button" role="tab" :aria-selected="tab === 'pay'" :class="{ on: tab === 'pay' }" data-testid="pd-tab-pay" @click="tab = 'pay'">發票與請款</button>
+        </div>
+        <PoPaymentPanel v-if="showPay && tab === 'pay'" ref="payPanel" :po-id="po.id" @changed="emit('changed')" />
+        <div v-show="tab === 'detail'" class="pd-detail">
         <h3>品項</h3>
         <div class="table-scroll"><table data-testid="pd-items">
           <thead><tr><th>#</th><th>品名</th><th>數量</th><th>單價（未稅）</th><th>小計</th><th>處理方式</th><th>已驗入</th><th>已配發</th></tr></thead>
@@ -155,7 +176,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         <h3>進貨紀錄</h3>
         <ul class="pd-list" data-testid="pd-receipts">
           <li v-for="r in receiving?.receipts || []" :key="r.id" data-testid="pd-receipt">
-            <strong>{{ r.receipt_no }}</strong>　到貨日 {{ dateText(r.received_date) }}<span v-if="r.delivery_note_no">　送貨單 {{ r.delivery_note_no }}</span><span class="muted">　{{ r.created_by_name }} {{ fmtTime(r.created_at) }}</span>
+            <strong>{{ r.receipt_no }}</strong>　到貨日 {{ dateText(r.received_date) }}<span v-if="r.delivery_note_no">　送貨單 {{ r.delivery_note_no }}</span><button v-if="canPayManage && showPay" type="button" class="link" :data-testid="'reg-voucher-' + r.receipt_no" @click="registerVoucher(r.id)">登錄憑證</button><span class="muted">　{{ r.created_by_name }} {{ fmtTime(r.created_at) }}</span>
             <ul><li v-for="it in r.items" :key="it.id">{{ nameOf(it.po_item_id) || it.item_name }}：到貨 {{ num(it.delivered_qty) }}、驗入 {{ num(it.accepted_qty) }}<template v-if="Number(it.rejected_qty) > 0">、拒收 {{ num(it.rejected_qty) }}</template><template v-if="it.reason">（{{ it.reason }}）</template><template v-if="it.change_reason">　變更：{{ it.change_reason }}</template><template v-if="it.equipment?.length">　建立設備 {{ it.equipment.length }} 台</template></li></ul>
           </li>
           <li v-if="!(receiving?.receipts || []).length" class="muted">還沒有到貨紀錄</li>
@@ -174,6 +195,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         <ol class="pd-events" data-testid="pd-events">
           <li v-for="e in po.events" :key="e.id" data-testid="pd-event"><strong>{{ eventText(e.event_type) }}</strong><span class="muted">　{{ e.actor_name || "系統" }}　{{ fmtTime(e.created_at) }}</span><p v-if="e.note">{{ e.note }}</p></li>
         </ol>
+        </div>
       </template>
       <div class="dialog-actions"><button type="button" data-testid="pd-close" @click="emit('close')">關閉</button></div>
     </div>
@@ -199,6 +221,11 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
 .pd-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .pd-list ul { margin: 4px 0 0; padding-left: 18px; }
 .pd-list li { overflow-wrap: anywhere; }
+.pd-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); }
+.pd-tabs button { border: 0; border-bottom: 3px solid transparent; background: transparent; min-height: 36px; padding: 0 12px; }
+.pd-tabs button.on { border-bottom-color: var(--primary); font-weight: 700; }
+.pd-detail { display: grid; gap: 10px; min-width: 0; }
+button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
 .pd-events { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .pd-events li { border-left: 3px solid var(--line); padding-left: 10px; }
 .pd-events p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

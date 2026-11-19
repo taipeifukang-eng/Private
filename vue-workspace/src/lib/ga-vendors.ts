@@ -18,6 +18,8 @@ export type VendorDetailData = VendorRow & {
   description: string | null; brands: string[]; equipment_types: string[]; service_capability_note: string | null; cooperation_start_date: string | null; preferred_vendor: boolean; cooperation_notes: string | null;
   attachment_names: string[]; created_at: string; updated_by_name: string | null;
   billing_title?: string | null; billing_address?: string | null; invoice_type?: string | null; payment_terms?: string | null; payment_methods?: string[]; accounting_notes?: string | null; total_amount?: number;
+  /** 第 4.5 批 P8：銀行名稱、分行、帳號、戶名（一組，帳務機密，沒有廠商檢視／管理權限者不會收到）。 */
+  bank_name?: string | null; bank_branch?: string | null; bank_account?: string | null; bank_account_name?: string | null;
   service_categories: Array<{ id: string; name: string; status: string }>; service_regions: Array<{ id: string; name: string; status: string; region_type: string }>;
 };
 export type TreeRow = {
@@ -94,6 +96,7 @@ export type VendorForm = {
   contact_name: string; contact_phone: string; line_id: string; email: string;
   cooperation_start_date: string; contract_end_date: string; contract_required: boolean; preferred_vendor: boolean; cooperation_notes: string;
   billing_title: string; billing_address: string; invoice_type: string; payment_terms: string; payment_methods: string[]; accounting_notes: string;
+  bank_name: string; bank_branch: string; bank_account: string; bank_account_name: string;
 };
 export const emptyVendorForm = (): VendorForm => ({
   name: "", alias: "", vendor_type: "company", tax_id: "", founded_date: "", phone: "", fax: "", website: "", city: "", district: "", address: "",
@@ -103,6 +106,7 @@ export const emptyVendorForm = (): VendorForm => ({
   // V4：需簽合約預設為「否」。
   cooperation_start_date: "", contract_end_date: "", contract_required: false, preferred_vendor: false, cooperation_notes: "",
   billing_title: "", billing_address: "", invoice_type: "", payment_terms: "", payment_methods: [], accounting_notes: "",
+  bank_name: "", bank_branch: "", bank_account: "", bank_account_name: "",
 });
 const list = (s: string) => Array.from(new Set(s.split(/[,，、\n]/).map((x) => x.trim()).filter(Boolean)));
 export function formFromDetail(d: VendorDetailData): VendorForm {
@@ -114,6 +118,7 @@ export function formFromDetail(d: VendorDetailData): VendorForm {
     description: t(d.description), service_capability_note: t(d.service_capability_note), contact_name: t(d.contact_name), contact_phone: t(d.contact_phone), line_id: t(d.line_id), email: t(d.email),
     cooperation_start_date: t(d.cooperation_start_date), contract_end_date: t(d.contract_end_date), contract_required: !!d.contract_required, preferred_vendor: !!d.preferred_vendor, cooperation_notes: t(d.cooperation_notes),
     billing_title: t(d.billing_title), billing_address: t(d.billing_address), invoice_type: t(d.invoice_type), payment_terms: t(d.payment_terms), payment_methods: [...(d.payment_methods || [])], accounting_notes: t(d.accounting_notes),
+    bank_name: t(d.bank_name), bank_branch: t(d.bank_branch), bank_account: t(d.bank_account), bank_account_name: t(d.bank_account_name),
   };
 }
 /** 送出的欄位：全部欄位都帶（編輯時是完整表單的值）；沒有帳務權限時不送帳務欄位（資料庫也會拒絕，這裡避免誤送空值）。 */
@@ -125,7 +130,7 @@ export function payloadFromForm(f: VendorForm, billing: boolean): Record<string,
     service_capability_note: f.service_capability_note, contact_name: f.contact_name, contact_phone: f.contact_phone, line_id: f.line_id, email: f.email,
     cooperation_start_date: f.cooperation_start_date, contract_end_date: f.contract_end_date, contract_required: f.contract_required, preferred_vendor: f.preferred_vendor, cooperation_notes: f.cooperation_notes,
   };
-  if (billing) Object.assign(p, { tax_id: f.tax_id, billing_title: f.billing_title, billing_address: f.billing_address, invoice_type: f.invoice_type, payment_terms: f.payment_terms, payment_methods: f.payment_methods, accounting_notes: f.accounting_notes });
+  if (billing) Object.assign(p, { tax_id: f.tax_id, billing_title: f.billing_title, billing_address: f.billing_address, invoice_type: f.invoice_type, payment_terms: f.payment_terms, payment_methods: f.payment_methods, accounting_notes: f.accounting_notes, bank_name: f.bank_name, bank_branch: f.bank_branch, bank_account: f.bank_account, bank_account_name: f.bank_account_name });
   return p;
 }
 

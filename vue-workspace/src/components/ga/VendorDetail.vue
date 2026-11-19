@@ -124,6 +124,10 @@ const addr = (...p: Array<string | null | undefined>) => p.filter(Boolean).join(
               <div><dt>付款條件</dt><dd data-testid="vd-terms">{{ data.payment_terms || "—" }}</dd></div>
               <div><dt>付款方式</dt><dd>{{ (data.payment_methods || []).join("、") || "—" }}</dd></div>
               <div><dt>累計金額</dt><dd>{{ money(data.total_amount) }}</dd></div>
+              <div><dt>銀行名稱</dt><dd data-testid="vd-bank-name">{{ data.bank_name || "—" }}</dd></div>
+              <div><dt>分行</dt><dd>{{ data.bank_branch || "—" }}</dd></div>
+              <div><dt>銀行帳號</dt><dd data-testid="vd-bank-account">{{ data.bank_account || "—" }}</dd></div>
+              <div><dt>戶名</dt><dd>{{ data.bank_account_name || "—" }}</dd></div>
               <div class="wide"><dt>帳務備註</dt><dd>{{ data.accounting_notes || "—" }}</dd></div>
             </template>
             <div v-if="data.attachment_names?.length" class="wide"><dt>既有檔名（未存檔）</dt><dd data-testid="vd-legacy-files">{{ data.attachment_names.join("、") }}</dd></div>
