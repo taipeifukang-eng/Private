@@ -356,3 +356,10 @@ README 新增「第 4.5 批」章節與套用順序：`50（唯讀）→ 51 → 
 - **測試**：單元 `tests/unit/G45-void-stat`（25 項）；整合 `G45-void-stat.receipt-void-api`（11 項，G45-void）與 `G45-void-stat.stat-api`（9 項，G45-stat）；冒煙 4 項 × 桌機 1440／手機 390；e2e 劇本 6 項 × 桌機／手機（總務作廢登錯進貨→重登請款→被擋→會計付款→統計→付款退回→再作廢進貨→檢視者唯讀）。既有測試同步：G22-G24 單元（首頁十一項）、T02（待確認清單）。
 - **allowlist**：`m7m8-b45-receipt-void`（approvedBy 為問卷）；`m7m8-b45-analysis-pay-columns`、`m7m8-b45-badges-pay-attention`、`m7m8-b45-void-excluded-closed-blocked`（approvedBy 為 null，`plain.json` 已補白話稿，topic 為 purchase 與 payments）。
 - **決定**：(1) 待付款徽章放在請款單選單與首頁、待請款放在採購單選單與首頁，不把待付款併入採購單聯集（待付款是請款單的事）。(2) 直接建立設備的品項、有效發票連結的進貨一律不能作廢，已結案採購單不能作廢進貨（保守；已登 allowlist 待確認）。(3) 沖回後庫存為負一律擋，不看位置是否允許負庫存。(4) 內部述詞與彙總函式只開給 service_role，登入者直接呼叫被擋。(5) 連結或作廢發票會更新進貨單版本，畫面作廢進貨前需用最新版本（畫面每次載入都帶最新 `updated_at`）。
+
+#### G45-e2e（全批驗收與總串接劇本；2026-11-20 完成，DEV only）
+- **新增**：`tests/e2e/G45-e2e.journey-full-chain.e2e.spec.ts`，7 項 × 桌機 1440／手機 390 = 14 項全過（`npm run test:page -- G45-e2e`，循序；`run-all` 結束碼 1 只因 sweeper 基準 17 筆孤兒，前後相同）。串接前四階段沒有涵蓋的跨功能路徑：缺圖發票不能被請款單引用、重複號碼、尾差邊界、拒收量不可請、重複送出不重複建立、STALE 並發、已付款作廢釋放額度後合併重新請款、銀行快照不隨廠商改帳號、列印與 CSV、配發轉設備後請款不受影響、已配發或已請款的進貨不可作廢、無請款權限角色（採購、店長、管理員身分無角色）入口與 API 403。
+- **allowlist**：`m7m8-b45-` 共 11 條（6 條已核可、5 條 approvedBy 為 null）；5 條都有 `plain.json` 白話稿，確認頁以 `scripts/allowlist-review/build.cjs` 產生（未代填答案）。
+- **驗收**：`node --check`、`tsc`、`vue-tsc`、`test:unit` 2239 項全過；Vue build 與 public/workspace 同步由測試站自動完成。
+- **待使用者確認清單（approvedBy 為 null）**：(1) `m7m8-b45-entry-db-semantics` 請款入口用資料庫語意，管理員身分沒掛權限不放行；(2) `m7m8-b45-invoice-last-image-lock` 已被請款單引用的發票最後一張圖不可刪；(3) `m7m8-b45-analysis-pay-columns` 採購分析與廠商績效新增已請款、已付款欄位；(4) `m7m8-b45-badges-pay-attention` 首頁與選單新增「待請款」「待付款」；(5) `m7m8-b45-void-excluded-closed-blocked` 已作廢進貨不計統計、已結案採購單的進貨不可作廢。
+- **未做**：全量 `test:all`（約 10 小時以上，改逐頁循序重跑）；Remote Control 1920×1080 截圖；正式區草稿 50 至 58 尚未由使用者核可與套用。
