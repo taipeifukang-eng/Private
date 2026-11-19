@@ -146,6 +146,9 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   // 第 4.5 批：進貨發票。
   "ga-purchase-invoices": meta("進貨發票", ["gaPurchaseInvoices"]),
   "ga-purchase-invoice-edit": meta("發票編輯", ["gaPurchaseInvoices"]),
+  "ga-payment-requests": meta("請款單", ["gaPaymentRequests"]),
+  "ga-payment-request-edit": meta("請款單內容", ["gaPaymentRequests"]),
+  "ga-payment-request-print": meta("請款單列印", ["gaPaymentRequests"]),
 };
 
 export function pageTitle(kind: WorkTabKind, recordId?: string): string {

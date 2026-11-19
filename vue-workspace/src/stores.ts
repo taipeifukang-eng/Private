@@ -113,6 +113,7 @@ export type Session = {
     /** 第 4.5 批：進貨發票、請款管理（登錄憑證、新增發票）。 */
     gaPurchaseInvoices: boolean;
     gaPaymentManage: boolean;
+    gaPaymentRequests: boolean;
   };
   /** 總務服務中心側欄（照舊版分組與權限顯示）；沒有任何可見項目時為空陣列。 */
   gaNavigation?: GaNavGroup[];

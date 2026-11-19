@@ -39,7 +39,7 @@ const GA_CAPABILITY: Record<string, string> = {
   'ga-vendors': 'gaVendors', 'ga-vendor-categories': 'gaVendorCategories', 'ga-vendor-regions': 'gaVendorRegions', // 第 6 批 G20／G21
   'ga-vendor-stats': 'gaVendorStats', 'ga-purchase-analysis': 'gaPurchaseAnalysis', // 第 6 批 G22
   'ga-utility-bills': 'gaUtilityBills', 'ga-utility-bills-report': 'gaUtilityBills', // 第 6 批 G23
-  'ga-purchase-invoices': 'gaPurchaseInvoices', 'ga-purchase-invoice-edit': 'gaPurchaseInvoices', // 第 4.5 批
+  'ga-purchase-invoices': 'gaPurchaseInvoices', 'ga-purchase-invoice-edit': 'gaPurchaseInvoices', 'ga-payment-requests': 'gaPaymentRequests', 'ga-payment-request-edit': 'gaPaymentRequests', 'ga-payment-request-print': 'gaPaymentRequests', // 第 4.5 批
 };
 
 // 重構前 App.vue allowed() 的逐字語意（凍結副本，供等價比對；不要「順手整理」）。
@@ -118,7 +118,7 @@ const LEGACY_TITLES: Record<string, string> = {
   'ga-vendors': '廠商資料', 'ga-vendor-categories': '服務分類', 'ga-vendor-regions': '服務區域', // 第 6 批 G20／G21
   'ga-vendor-stats': '合作紀錄', 'ga-purchase-analysis': '採購分析', // 第 6 批 G22
   'ga-utility-bills': '水電電話網路費', 'ga-utility-bills-report': '費用報表', // 第 6 批 G23
-  'ga-purchase-invoices': '進貨發票', 'ga-purchase-invoice-edit': '發票編輯', // 第 4.5 批
+  'ga-purchase-invoices': '進貨發票', 'ga-purchase-invoice-edit': '發票編輯', 'ga-payment-requests': '請款單', 'ga-payment-request-edit': '請款單內容', 'ga-payment-request-print': '請款單列印', // 第 4.5 批
 };
 function legacyTitle(kind: string, recordId?: string) {
   return LEGACY_TITLES[kind] || (kind === 'inspections' ? '巡店列表' : kind === 'campaigns' ? '活動管理' : recordId ? '編輯活動' : '新增活動');

@@ -12,6 +12,7 @@ import { isRosterMember, isStoreMember } from "./members";
 import { onboardingApi } from "./onboarding";
 import { fulfillmentsApi } from "./part-fulfillments";
 import { partsApi } from "./parts";
+import { paymentRequestsApi, paymentSettingsApi } from "./payment-requests";
 import { purchaseInvoicesApi } from "./purchase-invoices";
 import { purchaseOrdersApi } from "./purchase-orders";
 import { sitesApi } from "./pickers";
@@ -89,6 +90,10 @@ export async function dispatch(ctx: Context, request: NextRequest, segments: str
       return purchaseOrdersApi(ctx, request, rest);
     case "purchase-invoices":
       return purchaseInvoicesApi(ctx, request, rest);
+    case "payment-requests":
+      return paymentRequestsApi(ctx, request, rest);
+    case "payment-settings":
+      return paymentSettingsApi(ctx, request, rest);
     case "vendors":
       return vendorsApi(ctx, request, rest);
     case "vendor-options":

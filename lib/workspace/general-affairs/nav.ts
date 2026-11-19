@@ -63,6 +63,7 @@ export const GA_PAGE_BY_HREF: Record<string, { kind: WorkTabKind; flag: keyof Ga
   "/general-affairs/utility-bills/report": { kind: "ga-utility-bills-report", flag: "gaUtilityBills" },
   // 第 4.5 批：進貨發票（舊版沒有這頁，網址是新版自訂）。
   "/general-affairs/purchase-invoices": { kind: "ga-purchase-invoices", flag: "gaPurchaseInvoices" },
+  "/general-affairs/payment-requests": { kind: "ga-payment-requests", flag: "gaPaymentRequests" },
 };
 
 export type GaNavInput = {
@@ -206,6 +207,7 @@ export function gaNavigation(input: GaNavInput): GaNavGroup[] {
   if (flags.gaPurchaseApprovals && !present.has("ga-purchase-approvals")) ensure("operations", "作業管理", { id: "purchase-approvals-new", label: "待簽核採購單", href: "/general-affairs/purchase-orders?view=approvals", kind: "ga-purchase-approvals" });
   // 第 4.5 批：進貨發票（舊版沒有發票、請款、付款功能）；補在「作業管理」，入口用資料庫語意（請款檢視或管理）。
   if (flags.gaPurchaseInvoices && !present.has("ga-purchase-invoices")) ensure("operations", "作業管理", { id: "purchase-invoices-new", label: "進貨發票", href: "/general-affairs/purchase-invoices", kind: "ga-purchase-invoices" });
+  if (flags.gaPaymentRequests && !present.has("ga-payment-requests")) ensure("operations", "作業管理", { id: "payment-requests-new", label: "請款單", href: "/general-affairs/payment-requests", kind: "ga-payment-requests" });
   if (flags.gaOnboardingTasks) extra.push({ id: "onboarding-tasks", label: "貼標待辦", kind: "ga-onboarding-tasks" });
   if (flags.gaOnboardingReview) extra.push({ id: "onboarding-review", label: "貼標複核", kind: "ga-onboarding-review" });
   if (flags.gaOnboardingProgress) extra.push({ id: "onboarding-progress", label: "上線貼標進度", kind: "ga-onboarding-progress" });

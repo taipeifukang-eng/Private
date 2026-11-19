@@ -141,6 +141,10 @@ export const WORKSPACE_DETAIL_KINDS = [
   // 第 4.5 批：進貨發票清單、發票新增與編輯（請款單頁面後續階段加入）。
   "ga-purchase-invoices",
   "ga-purchase-invoice-edit",
+  // 第 4.5 批：請款單清單、編輯與檢視、A4 列印頁。
+  "ga-payment-requests",
+  "ga-payment-request-edit",
+  "ga-payment-request-print",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];
