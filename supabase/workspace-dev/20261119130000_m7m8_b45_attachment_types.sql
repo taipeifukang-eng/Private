@@ -99,7 +99,8 @@ DECLARE
 BEGIN
   IF NEW.resource_type <> 'PURCHASE_INVOICE' OR NEW.purpose <> 'INVOICE_IMAGE' THEN RETURN NEW; END IF;
   IF NOT (OLD.deleted_at IS NULL AND NEW.deleted_at IS NOT NULL) THEN RETURN NEW; END IF;
-  SELECT * INTO v_inv FROM public.ga_purchase_invoices WHERE id = NEW.resource_id;
+  -- 先鎖發票列：兩個人同時各刪一張圖時依序檢查（後者會看到前者已刪），也和請款單引用發票（共享鎖）互斥
+  SELECT * INTO v_inv FROM public.ga_purchase_invoices WHERE id = NEW.resource_id FOR UPDATE;
   IF NOT FOUND THEN RETURN NEW; END IF;
   SELECT string_agg(DISTINCT r.pr_no, '、' ORDER BY r.pr_no) INTO v_pr
     FROM public.ga_payment_request_lines l JOIN public.ga_payment_requests r ON r.id = l.pr_id WHERE l.invoice_id = v_inv.id AND r.status <> 'VOID';

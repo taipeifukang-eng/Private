@@ -6,7 +6,7 @@ DECLARE
 BEGIN
   FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = 'public' AND (p.proname LIKE 'ga\_ws\_pay\_%' OR p.proname IN (
-              'ga_pay_can_view', 'ga_pay_can_manage', 'ga_pay_can_vendor', 'ga_pay_tol', 'ga_pay_money', 'ga_pay_txt', 'ga_pay_int', 'ga_pay_date', 'ga_pay_uuid', 'ga_pay_norm_tax', 'ga_pay_lock_po',
+              'ga_pay_can_view', 'ga_pay_can_manage', 'ga_pay_can_vendor', 'ga_pay_tol', 'ga_pay_money', 'ga_pay_txt', 'ga_pay_int', 'ga_pay_date', 'ga_pay_uuid', 'ga_pay_norm_tax', 'ga_pay_lock_po', 'ga_pay_lock_pos_of_invoice',
               'ga_pay_receipt_untaxed', 'ga_pay_receipt_rate', 'ga_pay_receipt_total', 'ga_pay_po_received', 'ga_pay_po_claimed', 'ga_pay_event', 'ga_pay_invoice_json', 'ga_pay_request_json',
               'ga_pay_sync_voucher', 'ga_pay_apply_lines', 'ga_pay_check_live', 'ga_pay_vendor_snapshot')) LOOP
     EXECUTE format('DROP FUNCTION IF EXISTS %s', r.sig);

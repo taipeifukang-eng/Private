@@ -20,7 +20,7 @@ export type PrEvent = { id: string; event_type: string; from_status: string | nu
 export type PaymentRequest = {
   id: string; pr_no: string; status: PrStatus; vendor_id: string; vendor_name_snapshot: string | null; vendor_tax_id_snapshot: string | null; vendor_masked: boolean;
   bank_snapshot: { bank_name?: string | null; bank_branch?: string | null; bank_account?: string | null; bank_account_name?: string | null };
-  amount_untaxed: number; amount_tax: number; amount_total: number; expected_pay_date: string | null; notes: string | null; line_count: number; po_nos: string[];
+  amount_untaxed: number; tax_amount: number; amount_total: number; expected_pay_date: string | null; notes: string | null; line_count: number; po_nos: string[];
   pay_method: string | null; paid_date: string | null; paid_ref: string | null; last_return_reason: string | null; void_reason: string | null;
   created_by_name: string | null; submitted_by_name: string | null; paid_by_name: string | null; voided_by_name: string | null;
   created_at: string; updated_at: string; submitted_at: string | null; paid_at: string | null; voided_at: string | null;

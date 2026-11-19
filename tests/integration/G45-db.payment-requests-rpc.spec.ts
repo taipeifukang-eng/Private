@@ -853,12 +853,17 @@ test('G45-db 請款單送出前的即時檢查：進貨單被作廢、發票被�
   // 收據（有原因、無圖）可引用；之後把原因拿掉 → 缺圖 → 送出被擋
   const rc = okData(await mkInv('clerk', vendor, [receipt], { invoice_type: 'RECEIPT', invoice_no: null, amount_untaxed: undefined, amount_total: 1050, no_image_reason: '無圖' }));
   const pr = okData(await create('clerk', vendor, [claimLine(receipt, { invoice_id: rc.id })]));
-  const edited = okData(await fn('clerk', 'ga_ws_pay_invoice_save', { p_id: rc.id, p_payload: { no_image_reason: null }, p_key: null, p_expected_updated_at: rc.updated_at }));
-  expect(edited.missing_image).toBe(true);
+  // 審查修正：已被請款單引用的收據，儲存時就擋下「清掉沒有圖片的原因」（不會變成缺圖被引用）
+  expectErr(await fn('clerk', 'ga_ws_pay_invoice_save', { p_id: rc.id, p_payload: { no_image_reason: null }, p_key: null, p_expected_updated_at: rc.updated_at }), 409, 'INVOICE_IN_USE');
+  // 送出前的即時檢查是最後防線：模擬資料被直接改成缺圖（繞過儲存函式），送出仍擋
+  const direct = await db().from('ga_purchase_invoices').update({ no_image_reason: null }).eq('id', rc.id);
+  expect(direct.error).toBeNull();
   const sub = await act('clerk', pr, 'submit', {});
   expectErr(sub, 409, 'INVOICE_MISSING_IMAGE');
   expect((await dbPr(pr.id)).status).toBe('DRAFT');
   // 補上原因後可送出
+  const edited = okData(await fn('clerk', 'ga_ws_pay_invoice_get', { p_id: rc.id }));
+  expect(edited.missing_image).toBe(true);
   okData(await fn('clerk', 'ga_ws_pay_invoice_save', { p_id: rc.id, p_payload: { no_image_reason: '補原因' }, p_key: null, p_expected_updated_at: edited.updated_at }));
   const cur = await getPr('clerk', pr.id);
   const sent = okData(await act('clerk', cur, 'submit', {}));

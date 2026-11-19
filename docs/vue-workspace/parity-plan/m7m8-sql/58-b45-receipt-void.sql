@@ -56,6 +56,8 @@ BEGIN
     IF NOT FOUND THEN RETURN public.ga_po_err(404, 'RECEIPT_NOT_FOUND', '找不到這張進貨單，或它不屬於這張採購單'); END IF;
     -- 重送（同識別）：回上次的結果。
     IF r.void_key IS NOT NULL AND r.void_key = v_key THEN
+      -- 同一識別、原因也相同才算重送；原因不同代表這是另一個操作，不能回上次的結果（與作廢發票一致）
+      IF r.void_reason IS DISTINCT FROM v_reason THEN RETURN public.ga_po_err(409, 'IDEMPOTENCY_CONFLICT', '這個送出識別碼已被另一個不同內容的作廢使用，請重新整理畫面後再送出'); END IF;
       RETURN jsonb_build_object('ok', true, 'status', 200, 'idempotent_replay', true, 'data', public.ga_po_receipt_data(r.id), 'po', public.ga_po_data(p_po_id));
     END IF;
     IF r.voided_at IS NOT NULL THEN RETURN public.ga_po_err(409, 'ALREADY_VOIDED', '這張進貨單已經作廢了'); END IF;
@@ -87,7 +89,8 @@ BEGIN
         RETURN public.ga_po_err(409, 'RECEIPT_ASSET_CREATED', '「' || v_ri.item_name || '」在驗入時已直接建立設備，這筆進貨不能作廢，請走設備報廢', jsonb_build_object('po_item_id', v_ri.po_item_id));
       END IF;
       IF v_ri.inventory_transaction_id IS NOT NULL AND v_ri.accepted_base > 0 THEN
-        SELECT COALESCE(sum(b.quantity_base), 0) INTO v_bal FROM public.ga_inventory_balances b WHERE b.location_id = v_ri.location_id AND b.part_id = v_ri.received_part_id;
+        -- 先鎖庫存列再檢查，檢查到沖回之間不會有人同時出庫把餘額用掉
+        SELECT COALESCE(sum(b.q), 0) INTO v_bal FROM (SELECT x.quantity_base AS q FROM public.ga_inventory_balances x WHERE x.location_id = v_ri.location_id AND x.part_id = v_ri.received_part_id FOR UPDATE) b;
         IF v_bal < v_ri.accepted_base THEN
           RETURN public.ga_po_err(409, 'STOCK_INSUFFICIENT', '「' || v_ri.item_name || '」這筆進貨入的庫存已被其他單據用掉一部分（目前庫存 ' || public.ga_po_fmt(v_bal) || '、要沖回 ' || public.ga_po_fmt(v_ri.accepted_base)
             || '），沖回會變成負庫存，不能作廢', jsonb_build_object('po_item_id', v_ri.po_item_id, 'balance', v_bal, 'needed', v_ri.accepted_base));
@@ -146,6 +149,20 @@ BEGIN
     EXECUTE v_new;
   END LOOP;
   IF v_n <> 2 THEN RAISE EXCEPTION '找不到 ga_ws_po_receipts_get 或 ga_ws_po_dispatch，請先套用第 4 批 20261112120000'; END IF;
+END $$;
+
+-- ================================================================ 3. 進貨單回傳不含內部欄位 void_key（文字替換，已替換過就略過，形狀不符就中止）
+DO $$
+DECLARE
+  v_def text;
+  c_old constant text := '(to_jsonb(v_r) - ''idempotency_key'' - ''payload_hash'')';
+  c_new constant text := '(to_jsonb(v_r) - ''idempotency_key'' - ''payload_hash'' - ''void_key'')';
+  v_pos integer;
+BEGIN
+  v_def := pg_get_functiondef('public.ga_po_receipt_data(uuid)'::regprocedure);
+  IF position(c_new IN v_def) > 0 THEN RETURN; END IF;
+  IF position(c_old IN v_def) = 0 THEN RAISE EXCEPTION '函式 ga_po_receipt_data 的形狀與預期不符（找不到內部欄位排除），請人工處理'; END IF;
+  EXECUTE replace(v_def, c_old, c_new);
 END $$;
 
 NOTIFY pgrst, 'reload schema';

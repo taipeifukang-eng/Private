@@ -78,7 +78,7 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
             <td class="r">{{ money(l.claim_untaxed) }}</td><td class="r">{{ money(l.claim_tax) }}</td><td class="r">{{ money(l.claim_total) }}</td>
           </tr>
         </tbody>
-        <tfoot><tr><td colspan="4">合計</td><td class="r">{{ money(pr.amount_untaxed) }}</td><td class="r">{{ money(pr.amount_tax) }}</td><td class="r" data-testid="pp-total">{{ money(pr.amount_total) }}</td></tr></tfoot>
+        <tfoot><tr><td colspan="4">合計</td><td class="r">{{ money(pr.amount_untaxed) }}</td><td class="r" data-testid="pp-tax">{{ money(pr.tax_amount) }}</td><td class="r" data-testid="pp-total">{{ money(pr.amount_total) }}</td></tr></tfoot>
       </table>
       <p v-if="pr.notes" class="pp-note">備註：{{ pr.notes }}</p>
       <p v-if="pr.status === 'PAID'" class="pp-note" data-testid="pp-paid">付款方式：{{ PAY_METHOD_LABELS[pr.pay_method as keyof typeof PAY_METHOD_LABELS] || pr.pay_method }}　付款日：{{ dateText(pr.paid_date) }}<template v-if="pr.paid_ref">　參考號：{{ pr.paid_ref }}</template></p>

@@ -107,6 +107,45 @@ CREATE TRIGGER trg_ga_payment_request_events_immutable BEFORE UPDATE OR DELETE O
 DROP TRIGGER IF EXISTS trg_ga_payment_request_events_no_truncate ON public.ga_payment_request_events;
 CREATE TRIGGER trg_ga_payment_request_events_no_truncate BEFORE TRUNCATE ON public.ga_payment_request_events FOR EACH STATEMENT EXECUTE FUNCTION public.ga_pay_events_immutable();
 
+-- 請款單狀態機守門（最後一道防線；平常由 ga_ws_pay_request_* 函式依規則操作，這裡擋下直接改表的程式或腳本）：
+--   只允許 DRAFT→SUBMITTED／VOID、SUBMITTED→DRAFT／PAID／VOID、PAID→VOID；已作廢不能再改；非草稿時金額、廠商、統編與銀行快照、請款單號鎖定（廠商名稱快照只是顯示用，不鎖；統編、銀行才決定錢付給誰）；已付款時付款資訊鎖定。
+--   明細表只有草稿的請款單可以新增、修改、刪除。DEV 專用清除函式會在單一交易內暫停明細觸發器。
+CREATE OR REPLACE FUNCTION public.ga_pay_request_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path TO 'public', 'pg_temp'
+AS $$
+BEGIN
+  IF OLD.status = 'VOID' AND (to_jsonb(NEW) - 'vendor_name_snapshot') IS DISTINCT FROM (to_jsonb(OLD) - 'vendor_name_snapshot') THEN RAISE EXCEPTION '已作廢的請款單不能再修改' USING ERRCODE = 'GA045'; END IF;
+  IF NEW.status IS DISTINCT FROM OLD.status AND (OLD.status, NEW.status) NOT IN (('DRAFT', 'SUBMITTED'), ('DRAFT', 'VOID'), ('SUBMITTED', 'DRAFT'), ('SUBMITTED', 'PAID'), ('SUBMITTED', 'VOID'), ('PAID', 'VOID')) THEN
+    RAISE EXCEPTION '請款單狀態不能從 % 改成 %', OLD.status, NEW.status USING ERRCODE = 'GA045';
+  END IF;
+  IF OLD.status <> 'DRAFT' AND (NEW.pr_no, NEW.vendor_id, NEW.vendor_tax_id_snapshot, NEW.bank_snapshot, NEW.amount_untaxed, NEW.tax_amount, NEW.amount_total, NEW.expected_pay_date)
+       IS DISTINCT FROM (OLD.pr_no, OLD.vendor_id, OLD.vendor_tax_id_snapshot, OLD.bank_snapshot, OLD.amount_untaxed, OLD.tax_amount, OLD.amount_total, OLD.expected_pay_date) THEN
+    RAISE EXCEPTION '已送出或已付款的請款單，金額、廠商與銀行資料不能修改' USING ERRCODE = 'GA045';
+  END IF;
+  IF OLD.status = 'PAID' AND (NEW.pay_method, NEW.paid_date, NEW.paid_ref, NEW.paid_by, NEW.paid_at) IS DISTINCT FROM (OLD.pay_method, OLD.paid_date, OLD.paid_ref, OLD.paid_by, OLD.paid_at) THEN
+    RAISE EXCEPTION '已付款的請款單，付款資訊不能修改' USING ERRCODE = 'GA045';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_ga_payment_requests_guard ON public.ga_payment_requests;
+CREATE TRIGGER trg_ga_payment_requests_guard BEFORE UPDATE ON public.ga_payment_requests FOR EACH ROW EXECUTE FUNCTION public.ga_pay_request_guard();
+
+CREATE OR REPLACE FUNCTION public.ga_pay_request_lines_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE
+  v_pr uuid := CASE WHEN TG_OP = 'DELETE' THEN OLD.pr_id ELSE NEW.pr_id END;
+  v_status text;
+BEGIN
+  SELECT status INTO v_status FROM public.ga_payment_requests WHERE id = v_pr;
+  IF v_status IS NOT NULL AND v_status <> 'DRAFT' THEN RAISE EXCEPTION '只有草稿的請款單可以修改明細（目前狀態 %）', v_status USING ERRCODE = 'GA045'; END IF;
+  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_ga_payment_request_lines_guard ON public.ga_payment_request_lines;
+CREATE TRIGGER trg_ga_payment_request_lines_guard BEFORE INSERT OR UPDATE OR DELETE ON public.ga_payment_request_lines FOR EACH ROW EXECUTE FUNCTION public.ga_pay_request_lines_guard();
+
 -- 請款單號：PY-YYYYMMDD-NNN（台北日期流水，三位數不足補零，超過 999 照實際位數）。同日取號用 advisory lock 排隊。
 CREATE OR REPLACE FUNCTION public.ga_next_pr_no() RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'

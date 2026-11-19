@@ -1,5 +1,6 @@
 -- 51-b45-receipt-voucher-rollback.sql
 -- 撤回 51：移除發票表與連結表、進貨明細金額觸發器與 amount_untaxed 欄位、進貨單新增的 9 個欄位與檢查。會刪除：所有發票與連結、進貨憑證狀態與作廢進貨標記、進貨明細的未稅金額。
+-- 護欄：只要已有作廢進貨（voided_at 有值）就中止並提示——作廢時庫存已沖回、採購單驗入量已扣回，撤回欄位會讓這些進貨復活成有效，庫存與驗入量卻不還原；要撤回請先人工處理這些進貨。
 -- 要先撤回 52（請款單參照發票與進貨單）與 56 至 58（函式參照這些欄位）。撤回後新版發票與請款頁無法使用。
 -- 撤回前備份（只備份會被刪掉的表與欄位）：
 --   CREATE TABLE public.zz_bak_b45_51_invoices AS SELECT * FROM public.ga_purchase_invoices;
@@ -8,6 +9,16 @@
 --   CREATE TABLE public.zz_bak_b45_51_receipts AS SELECT id, updated_at, updated_by, voucher_status, voucher_note, voucher_recorded_by, voucher_recorded_at, voided_at, voided_by, void_reason FROM public.ga_purchase_receipts;
 BEGIN;
 
+DO $$
+DECLARE v_n integer;
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_purchase_receipts' AND column_name = 'voided_at') THEN
+    EXECUTE 'SELECT count(*) FROM public.ga_purchase_receipts WHERE voided_at IS NOT NULL' INTO v_n;
+    IF v_n > 0 THEN
+      RAISE EXCEPTION '已有 % 筆作廢進貨，撤回會讓它們復活為有效進貨（庫存與驗入量不會還原）。請先人工處理後再撤回。', v_n;
+    END IF;
+  END IF;
+END $$;
 DROP TABLE IF EXISTS public.ga_purchase_invoice_receipts;
 DROP TABLE IF EXISTS public.ga_purchase_invoices;
 DROP INDEX IF EXISTS public.idx_ga_purchase_receipts_po_active;

@@ -69,6 +69,7 @@ DECLARE
   v_n_vendor integer := 0;
   v_paths jsonb := '[]'::jsonb;
   v_att uuid[];
+  v_tol_before numeric;
 BEGIN
   IF p_vendor_marker IS NULL OR left(p_vendor_marker, 8) <> 'QA-GA45-' THEN RAISE EXCEPTION '只能清除廠商名稱帶 QA-GA45- 標記的測試資料'; END IF;
   IF to_regclass('public.ga_payment_requests') IS NULL THEN RETURN jsonb_build_object('payment_requests', 0); END IF;
@@ -84,12 +85,18 @@ BEGIN
 
   IF COALESCE(array_length(v_prs, 1), 0) > 0 THEN
     ALTER TABLE public.ga_payment_request_events DISABLE TRIGGER trg_ga_payment_request_events_immutable;
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_ga_payment_request_lines_guard' AND tgrelid = 'public.ga_payment_request_lines'::regclass) THEN
+      ALTER TABLE public.ga_payment_request_lines DISABLE TRIGGER trg_ga_payment_request_lines_guard;
+    END IF;
     DELETE FROM public.ga_payment_request_events WHERE pr_id = ANY (v_prs);
     GET DIAGNOSTICS v_n_ev = ROW_COUNT;
     DELETE FROM public.ga_payment_request_lines WHERE pr_id = ANY (v_prs);
     DELETE FROM public.ga_payment_requests WHERE id = ANY (v_prs);
     GET DIAGNOSTICS v_n_pr = ROW_COUNT;
     ALTER TABLE public.ga_payment_request_events ENABLE TRIGGER trg_ga_payment_request_events_immutable;
+    IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_ga_payment_request_lines_guard' AND tgrelid = 'public.ga_payment_request_lines'::regclass) THEN
+      ALTER TABLE public.ga_payment_request_lines ENABLE TRIGGER trg_ga_payment_request_lines_guard;
+    END IF;
   END IF;
 
   -- 附件紀錄（發票圖片、進貨單照片）：回傳儲存路徑，讓呼叫端把實體檔也清掉。
@@ -103,7 +110,9 @@ BEGIN
 
   -- 測試帳號動過的設定（尾差、買受人）：還原預設與清除變更紀錄。
   DELETE FROM public.ga_workflow_settings WHERE key IN ('pay_buyer_title', 'pay_buyer_tax_id') AND updated_by = ANY (v_tests);
-  UPDATE public.ga_workflow_settings SET value_num = 5, updated_by = NULL WHERE key = 'pay_tolerance_amount' AND updated_by = ANY (v_tests);
+  -- 尾差：還原成測試帳號「第一次動它之前」的值（取自變更紀錄），沒有紀錄才用預設 5；不把別人調過的值洗掉。
+  SELECT COALESCE((SELECT e.old_value_num FROM public.ga_workflow_setting_events e WHERE e.setting_key = 'pay_tolerance_amount' AND e.actor_id = ANY (v_tests) ORDER BY e.created_at ASC, e.id ASC LIMIT 1), 5) INTO v_tol_before;
+  UPDATE public.ga_workflow_settings SET value_num = v_tol_before, updated_by = NULL WHERE key = 'pay_tolerance_amount' AND updated_by = ANY (v_tests);
   DELETE FROM public.ga_workflow_setting_events WHERE setting_key LIKE 'pay\_%' AND actor_id = ANY (v_tests);
 
   -- 沒有採購單參照的測試廠商（採購單由第 4 批清除函式處理，所以測試收尾會再呼叫一次）。

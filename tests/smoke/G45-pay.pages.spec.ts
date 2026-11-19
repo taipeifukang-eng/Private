@@ -172,6 +172,9 @@ test('請款管理（總務）：清單、建立（超過累計上限被擋、�
     await expect(vis(page, 'pp-sign-ga')).toContainText('GA45 clerk');
     await expect(vis(page, 'pp-sign-acc')).toContainText('GA45 clerk');
     await expect(vis(page, 'pp-paid')).toContainText('77777');
+    // 審查修正：合計列的稅額欄不可空白（欄位名是 tax_amount，曾誤用 amount_tax 而印出空白）
+    await expect(vis(page, 'pp-tax')).toHaveText(/\d/);
+    await expect(vis(page, 'pp-total')).toHaveText(/\d/);
     expect(await cards(page, 'pp-line').count()).toBe(1);
     // 列印樣式：只輸出紙張（導覽與按鈕隱藏），而且切回螢幕後恢復
     await page.emulateMedia({ media: 'print' });

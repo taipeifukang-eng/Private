@@ -27,6 +27,7 @@ const DRAFTS = [
       "-- 核對：兩個都不是空的",
     rollbackSummary:
       "撤回 51：移除發票表與連結表、進貨明細金額觸發器與 amount_untaxed 欄位、進貨單新增的 9 個欄位與檢查。會刪除：所有發票與連結、進貨憑證狀態與作廢進貨標記、進貨明細的未稅金額。\n" +
+      "-- 護欄：只要已有作廢進貨（voided_at 有值）就中止並提示——作廢時庫存已沖回、採購單驗入量已扣回，撤回欄位會讓這些進貨復活成有效，庫存與驗入量卻不還原；要撤回請先人工處理這些進貨。\n" +
       "-- 要先撤回 52（請款單參照發票與進貨單）與 56 至 58（函式參照這些欄位）。撤回後新版發票與請款頁無法使用。",
     backup:
       "-- 撤回前備份（只備份會被刪掉的表與欄位）：\n" +
@@ -42,6 +43,7 @@ const DRAFTS = [
     summary:
       "性質：會寫入，新增 3 張表 ga_payment_requests（狀態 DRAFT／SUBMITTED／PAID／VOID，沒有核准欄位）、ga_payment_request_lines、ga_payment_request_events（觸發器擋 UPDATE／DELETE／TRUNCATE，操作紀錄不可改刪）、\n" +
       "--   取號函式 ga_next_pr_no（PY-YYYYMMDD-NNN，台北日期，advisory lock）、1 筆設定預設列 pay_tolerance_amount = 5（尾差 5 元；ga_workflow_settings）。三張新表啟用 RLS 且不開放 policy，登入者不能直接讀寫。\n" +
+      "-- 另裝請款單狀態機守門觸發器（只允許 DRAFT→SUBMITTED／VOID、SUBMITTED→DRAFT／PAID／VOID、PAID→VOID；已作廢不可改；非草稿鎖定金額、廠商與銀行快照；已付款鎖定付款資訊）與明細守門觸發器（只有草稿可改明細）。\n" +
       "-- 規則：請款單只當付款申請紀錄，不接金流；不核准（P3）；有 purchase_payment.manage 的人可建立、送出、退回、標已付款、作廢，申請人可自己標已付款（P4）；所有動作留事件紀錄（誰、何時、原因、金額）。\n" +
       "-- 先決條件：先套 51；ga_workflow_settings 存在（第 4 批 32／33）。",
     verify:
@@ -52,7 +54,7 @@ const DRAFTS = [
       "SELECT tgname FROM pg_trigger WHERE tgname IN ('trg_ga_payment_request_events_immutable', 'trg_ga_payment_request_events_no_truncate') ORDER BY 1;\n" +
       "-- 核對：應列出 2 個觸發器",
     rollbackSummary:
-      "撤回 52：移除請款單三張表（整張 DROP，包含不可改刪的操作紀錄）、取號函式、事件觸發器函式與 pay_tolerance_amount、買受人設定列。會刪除：全部請款單、明細與操作紀錄——**撤回前務必先備份**。\n" +
+      "撤回 52：移除請款單三張表（整張 DROP，包含不可改刪的操作紀錄）、請款單與明細守門觸發器及函式、取號函式、事件觸發器函式與 pay_tolerance_amount、買受人設定列。會刪除：全部請款單、明細與操作紀錄——**撤回前務必先備份**。\n" +
       "-- 要先撤回 56 至 58（函式參照這些表）與 54（附件守門觸發器參照請款明細）。",
     backup:
       "-- 撤回前備份（請款資料與操作紀錄，這是付款依據）：\n" +

@@ -121,6 +121,26 @@ AS $$ SELECT regexp_replace(COALESCE(p_value, ''), '[^0-9]', '', 'g'); $$;
 CREATE OR REPLACE FUNCTION public.ga_pay_lock_po(p_po uuid) RETURNS void LANGUAGE plpgsql SET search_path TO 'public', 'pg_temp'
 AS $$ BEGIN PERFORM pg_advisory_xact_lock(hashtextextended('ga_pay_po:' || p_po::text, 0)); END; $$;
 
+-- 發票儲存前先鎖「目前連結的進貨單」與「這次要連結的進貨單」所屬的採購單（依 id 排序避免死結）。
+-- 鎖的順序與請款單建立（先鎖採購單、再讀發票列）、作廢進貨（先鎖採購單）一致，發票連結與作廢進貨、請款引用就不會互相漏看。
+CREATE OR REPLACE FUNCTION public.ga_pay_lock_pos_of_invoice(p_invoice uuid, p_links jsonb) RETURNS void LANGUAGE plpgsql SET search_path TO 'public', 'pg_temp'
+AS $$
+DECLARE v_po uuid;
+BEGIN
+  FOR v_po IN
+    SELECT DISTINCT x.po_id FROM (
+      SELECT r.po_id FROM public.ga_purchase_invoice_receipts ir JOIN public.ga_purchase_receipts r ON r.id = ir.receipt_id WHERE p_invoice IS NOT NULL AND ir.invoice_id = p_invoice
+      UNION
+      SELECT r.po_id FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p_links) = 'array' THEN p_links ELSE '[]'::jsonb END) e
+        JOIN public.ga_purchase_receipts r ON r.id = CASE WHEN jsonb_typeof(e.value) = 'object' AND (e.value ->> 'receipt_id') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN (e.value ->> 'receipt_id')::uuid END
+    ) x ORDER BY 1
+  LOOP
+    PERFORM public.ga_pay_lock_po(v_po);
+  END LOOP;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.ga_pay_lock_pos_of_invoice(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+
 -- ================================================================ 2. 金額計算
 -- 進貨單未稅金額（未作廢才有意義；呼叫端自己檢查作廢）。
 CREATE OR REPLACE FUNCTION public.ga_pay_receipt_untaxed(p_receipt uuid) RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
@@ -133,13 +153,14 @@ AS $$ SELECT o.tax_rate FROM public.ga_purchase_receipts r JOIN public.ga_purcha
 CREATE OR REPLACE FUNCTION public.ga_pay_receipt_total(p_receipt uuid) RETURNS numeric LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$ SELECT public.ga_pay_receipt_untaxed(p_receipt) + round(public.ga_pay_receipt_untaxed(p_receipt) * COALESCE(public.ga_pay_receipt_rate(p_receipt), 0)); $$;
 
--- 採購單累計驗入（未作廢進貨）：{untaxed, tax, total, rate}。
+-- 採購單累計驗入（未作廢進貨）：{untaxed, tax, total, rate}。稅額「逐張進貨各自四捨五入後加總」（與請款預設稅額、進貨單含稅額同一口徑，分批進貨不會因進位累積而被擋）。
 CREATE OR REPLACE FUNCTION public.ga_pay_po_received(p_po uuid) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$
-  SELECT jsonb_build_object('untaxed', s.u, 'tax', round(s.u * o.tax_rate), 'total', s.u + round(s.u * o.tax_rate), 'rate', o.tax_rate)
+  SELECT jsonb_build_object('untaxed', s.u, 'tax', s.t, 'total', s.u + s.t, 'rate', o.tax_rate)
     FROM public.ga_purchase_orders o,
-         LATERAL (SELECT COALESCE(sum(ri.amount_untaxed), 0) AS u FROM public.ga_purchase_receipts r JOIN public.ga_purchase_receipt_items ri ON ri.receipt_id = r.id
-                   WHERE r.po_id = p_po AND r.voided_at IS NULL) s
+         LATERAL (SELECT COALESCE(sum(x.u), 0) AS u, COALESCE(sum(round(x.u * o.tax_rate)), 0) AS t
+                    FROM (SELECT sum(ri.amount_untaxed) AS u FROM public.ga_purchase_receipts r JOIN public.ga_purchase_receipt_items ri ON ri.receipt_id = r.id
+                           WHERE r.po_id = p_po AND r.voided_at IS NULL GROUP BY r.id) x) s
    WHERE o.id = p_po;
 $$;
 
@@ -405,6 +426,8 @@ BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_rq_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
   IF NOT public.ga_pay_can_manage(v_uid) THEN RETURN public.ga_rq_err(403, 'PERMISSION_DENIED', '沒有新增或編輯發票的權限（需要請款管理權限）'); END IF;
   IF jsonb_typeof(p) <> 'object' THEN RETURN public.ga_rq_err(400, 'BAD_PAYLOAD', '送出的資料格式錯誤'); END IF;
+  -- 先鎖採購單（再鎖發票列），與作廢進貨、請款單建立同一把鎖與同一個順序
+  PERFORM public.ga_pay_lock_pos_of_invoice(p_id, p -> 'receipts');
 
   IF v_new THEN
     IF v_key IS NULL OR char_length(v_key) > 64 THEN RETURN public.ga_rq_err(400, 'IDEMPOTENCY_KEY_REQUIRED', '缺少防重複識別碼，請重新整理畫面後再送出'); END IF;
@@ -503,8 +526,9 @@ BEGIN
     v_calc := v_calc || jsonb_build_array(jsonb_build_object('receipt_id', v_rid, 'allocated_untaxed', v_au, 'allocated_tax', v_at));
   END LOOP;
 
-  -- 統編核對（賣方：發票上的統編對採購單下訂快照；買受人：三聯式對設定）
-  v_seller := CASE WHEN p ? 'seller_tax_id' THEN public.ga_pay_norm_tax(public.ga_pay_txt(p, 'seller_tax_id', 20, '賣方統編')) WHEN NOT v_new THEN public.ga_pay_norm_tax(i.seller_tax_id_snapshot) ELSE '' END;
+  -- 統編核對（賣方：發票上的統編對採購單下訂快照；買受人：三聯式對設定）。沒有廠商檢視權限者填的賣方統編一律忽略（用預期統編），
+  -- 否則可靠「統編不符」的回應反覆猜出廠商統編。
+  v_seller := CASE WHEN p ? 'seller_tax_id' AND public.ga_pay_can_vendor(v_uid) THEN public.ga_pay_norm_tax(public.ga_pay_txt(p, 'seller_tax_id', 20, '賣方統編')) WHEN NOT v_new THEN public.ga_pay_norm_tax(i.seller_tax_id_snapshot) ELSE '' END;
   IF v_seller = '' THEN v_seller := COALESCE(v_expect_tax, ''); END IF;
   IF v_seller <> '' AND v_seller !~ '^[0-9]{8}$' THEN RETURN public.ga_rq_err(400, 'TAX_ID_FORMAT', '賣方統一編號要是 8 碼數字'); END IF;
   SELECT public.ga_pay_norm_tax(value_text) INTO v_buyer_cfg FROM public.ga_workflow_settings WHERE key = 'pay_buyer_tax_id';
@@ -538,6 +562,12 @@ BEGIN
   v_noimg := CASE WHEN p ? 'no_image_reason' THEN public.ga_pay_txt(p, 'no_image_reason', 200, '沒有圖片的原因') ELSE i.no_image_reason END;
   v_notes := CASE WHEN p ? 'notes' THEN public.ga_pay_txt(p, 'notes', 500, '備註') ELSE i.notes END;
   IF v_type <> 'RECEIPT' THEN v_noimg := NULL; END IF;
+  -- 已被有效請款單引用時，不能把「沒有圖片的原因」清掉而讓發票變成缺圖
+  IF NOT v_new AND v_refs IS NOT NULL
+     AND public.ga_pay_invoice_missing_image(v_type, v_noimg, public.ga_pay_invoice_image_count(i.id))
+     AND NOT public.ga_pay_invoice_missing_image(o.invoice_type, o.no_image_reason, public.ga_pay_invoice_image_count(i.id)) THEN
+    RETURN public.ga_rq_err(409, 'INVOICE_IN_USE', '這張發票已被請款單 ' || v_refs || ' 使用，沒有圖片的原因不能清掉（會變成缺圖）；請先上傳圖片，或先作廢、退回請款單');
+  END IF;
   IF v_mismatch AND v_taxr IS NULL THEN
     RETURN public.ga_rq_err(400, 'TAX_MISMATCH_REASON_REQUIRED', '統一編號與採購單下訂時的廠商統編或設定的買受人統編不符，請填寫原因（仍可儲存）',
       jsonb_build_object('expected_seller_tax_id', CASE WHEN public.ga_pay_can_vendor(v_uid) THEN v_expect_tax END, 'buyer_tax_id', v_buyer_cfg));
@@ -813,7 +843,7 @@ BEGIN
     IF v_total <= 0 THEN PERFORM public.ga_rq_raise(400, 'AMOUNT_REQUIRED', '進貨單 ' || v_rec.receipt_no || ' 的請款金額必須大於 0'); END IF;
     v_diff := public.ga_pay_txt(v_el, 'diff_reason', 200, '差異原因');
     IF v_iid IS NOT NULL THEN
-      SELECT * INTO v_inv FROM public.ga_purchase_invoices WHERE id = v_iid;
+      SELECT * INTO v_inv FROM public.ga_purchase_invoices WHERE id = v_iid FOR SHARE;
       IF NOT FOUND THEN PERFORM public.ga_rq_raise(404, 'INVOICE_NOT_FOUND', '找不到選擇的發票，請重新整理後再試'); END IF;
       IF v_inv.status <> 'ACTIVE' THEN PERFORM public.ga_rq_raise(409, 'INVOICE_VOID', '發票 ' || COALESCE(v_inv.invoice_no, '') || ' 已作廢，不能放進請款單'); END IF;
       IF v_inv.vendor_id IS DISTINCT FROM p_vendor THEN PERFORM public.ga_rq_raise(400, 'VENDOR_MISMATCH', '發票 ' || COALESCE(v_inv.invoice_no, '') || ' 不是這個廠商的發票'); END IF;
@@ -864,6 +894,8 @@ DECLARE
   v_ponos text;
 BEGIN
   FOR v_po IN SELECT DISTINCT x.po_id FROM public.ga_payment_request_lines x WHERE x.pr_id = p_pr ORDER BY 1 LOOP PERFORM public.ga_pay_lock_po(v_po); END LOOP;
+  -- 引用的發票列加共享鎖（直到交易結束）：檢查與送出之間，發票不能被改金額、作廢或刪掉最後一張圖
+  PERFORM 1 FROM public.ga_purchase_invoices i WHERE i.id IN (SELECT x.invoice_id FROM public.ga_payment_request_lines x WHERE x.pr_id = p_pr AND x.invoice_id IS NOT NULL) ORDER BY i.id FOR SHARE;
   FOR l IN SELECT x.line_no, r.receipt_no, r.voided_at, i.id AS inv_id, i.invoice_no, i.invoice_type, i.status AS inv_status, i.no_image_reason
              FROM public.ga_payment_request_lines x JOIN public.ga_purchase_receipts r ON r.id = x.receipt_id LEFT JOIN public.ga_purchase_invoices i ON i.id = x.invoice_id WHERE x.pr_id = p_pr ORDER BY x.line_no LOOP
     IF l.voided_at IS NOT NULL THEN PERFORM public.ga_rq_raise(409, 'RECEIPT_VOIDED', '進貨單 ' || l.receipt_no || ' 已作廢，請把它從請款單移除'); END IF;

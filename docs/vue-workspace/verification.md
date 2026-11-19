@@ -959,3 +959,9 @@ Vue build PASS；scripts/test-workspace-prescription-scroll.py 使用59店攔截
 - 對等：新功能沒有舊版對照；改到既有行為的 11 條登記在 `tests/parity/allowlist.json`（前綴 `m7m8-b45-`）：6 條已核可（approvedBy 為本批問卷）、5 條待使用者確認（approvedBy 為 null，白話稿在 `allowlist-review/plain.json`，確認頁已產生）。
 - 資料衛生：`run-all` 的 sweeper 前後孤兒都是基準 17 筆，保留年份清空；`run-all` 結束碼 1 只因這 17 筆基準孤兒，視為通過。測試資料只放 VW／ZT、年份 2038、標記 `QA-GA45-`／`[自動測試]M7M8`，結束只清自己的。
 - 未做：全量 `test:all`（單一 worker 循序約 10 小時以上，與第 4 批相同，改以 G45 與相關頁面逐頁循序重跑）；Remote Control 1920×1080 截圖。
+
+## 2026-11-20 第 4.5 批審查修正（G45-review）
+
+- 兩輪獨立審查共 29 條逐條核對；處理結果見 `m7m8-batch4-5-design.md` 的 G45-review 與 `m7m8-sql/README.md` 的「第 4.5 批審查後修訂」。DEV 已重新套用 100000 至 170000（`scripts/apply-workspace-m7m8-b45-dev.cjs`），正式區草稿 51、52、54、56、57、58 已重新產生。
+- 循序重跑（只用 DEV）：G45-db 37 項（原 28＋新增 9）、G45-att-inv 38 項、G45-pay 31 項、G45-void-stat 40 項、G45-e2e 14 項全過；`test:unit` 135 檔 2245 項全過；`tsc`、`vue-tsc` 無錯誤。各 `test:page` 結束碼 1 只因 sweeper 基準孤兒 17（既有基準，不是本批殘留）。
+- 新增測試：`tests/integration/G45-db.review-fixes.spec.ts`（稅額逐張進位、狀態機與明細守門、統編不可被猜、收據原因不可清、三個併發、作廢進貨換原因 409 與不外露 void_key、清除函式還原尾差）、`tests/unit/G45-pay/payment-request-csv-text.test.ts`、列印頁稅額欄冒煙斷言。

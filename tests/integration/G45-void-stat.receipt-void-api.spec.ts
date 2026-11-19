@@ -173,9 +173,14 @@ test('未請款可作廢：沖回庫存、扣回驗入量、重算採購單狀�
   expect(ev[0]).toMatchObject({ actor_id: users.clerk.id, note: '品項登錯', from_status: 'RECEIVED', to_status: 'PARTIALLY_RECEIVED' });
   expect(ev[0].payload.receipt_no).toBe(a.receipt_no);
   // 同識別重送：回原結果、不再沖一次
-  const again = await send('clerk', 'post', voidUrl(po.id, a.id), { reason: '品項登錄錯', idempotency_key: k, expected_updated_at: a.updated_at });
+  const again = await send('clerk', 'post', voidUrl(po.id, a.id), { reason: '品項登錯', idempotency_key: k, expected_updated_at: a.updated_at });
   expect(again.status).toBe(200);
   expect(again.body.replay).toBe(true);
+  // 審查修正：同識別但換了原因，不是重送，回 409（與作廢發票一致），也不會改掉原本的作廢原因
+  const changed = await send('clerk', 'post', voidUrl(po.id, a.id), { reason: '品項登錄錯', idempotency_key: k, expected_updated_at: a.updated_at });
+  expect(changed.status, JSON.stringify(changed.body)).toBe(409);
+  expect(changed.body.code).toBe('IDEMPOTENCY_CONFLICT');
+  expect((await dbReceipt(a.id)).void_reason).toBe('品項登錯');
   expect(await balance(loc.id, partP.id)).toBe(6);
   expect((await dbEvents(po.id)).filter((e) => e.event_type === 'receipt_void')).toHaveLength(1);
   // 已作廢：換識別再作廢 → 409

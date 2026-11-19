@@ -215,7 +215,8 @@ export function validateSettings(raw: Record<string, any>) {
 
 // ---------------------------------------------------------------- 對帳 CSV
 export const EXPORT_MAX_ROWS = 5000;
-export type CsvColumn<T> = { header: string; value: (row: T) => unknown };
+/** asText：這欄是「長得像數字的文字」（統編、銀行帳號），試算表會掉前導 0 或變科學記號，要輸出成文字格式。 */
+export type CsvColumn<T> = { header: string; value: (row: T) => unknown; asText?: boolean };
 
 /** 試算表會把 = + - @ 開頭的儲存格當公式；字串前補單引號擋掉（數字不處理）。含逗號、引號、換行的欄位加雙引號。 */
 export function csvCell(value: unknown): string {
@@ -224,9 +225,16 @@ export function csvCell(value: unknown): string {
   if (typeof value !== "number" && /^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+/** 只含數字與連字號的文字（統編、帳號）輸出成 ="…"，試算表開啟時當文字、保留前導 0；內容只有數字與連字號，沒有公式注入的空間。其他內容照一般欄位處理。 */
+export function csvTextCell(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  const s = String(value).trim();
+  if (/^[0-9][0-9-]*$/.test(s)) return `"=""${s}"""`;
+  return csvCell(value);
+}
 export function buildCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   const lines = [columns.map((c) => csvCell(c.header)).join(",")];
-  for (const r of rows) lines.push(columns.map((c) => csvCell(c.value(r))).join(","));
+  for (const r of rows) lines.push(columns.map((c) => (c.asText ? csvTextCell(c.value(r)) : csvCell(c.value(r)))).join(","));
   return "﻿" + lines.join("\r\n") + "\r\n";
 }
 const taipeiDate = (iso: unknown) => {
@@ -248,7 +256,7 @@ export function exportColumns(includeVendorSecret: boolean): CsvColumn<ExportRow
     { header: "建立日期", value: (r) => taipeiDate(r.created_at) },
     { header: "廠商", value: (r) => r.vendor_name },
   ];
-  if (includeVendorSecret) cols.push({ header: "廠商統編", value: (r) => r.vendor_tax_id }, { header: "銀行", value: (r) => r.bank_name }, { header: "帳號", value: (r) => r.bank_account });
+  if (includeVendorSecret) cols.push({ header: "廠商統編", value: (r) => r.vendor_tax_id, asText: true }, { header: "銀行", value: (r) => r.bank_name }, { header: "帳號", value: (r) => r.bank_account, asText: true });
   cols.push(
     { header: "採購單號", value: (r) => r.po_no },
     { header: "進貨單號", value: (r) => r.receipt_no },

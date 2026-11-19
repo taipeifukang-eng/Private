@@ -142,7 +142,7 @@ describe('CSV', () => {
     expect(head.split(',')).toEqual(cols);
     expect(line).toContain("'=惡意廠商");
     expect(line).toContain('PY-20380305-001,已付款,2038-03-05');
-    expect(line).toContain('12345678,某銀行,000111222');
+    expect(line).toContain('"=""12345678""",某銀行,"=""000111222"""'); // 統編與帳號輸出成文字格式，保留前導 0
     expect(line).toContain('1050,2038-03-06,轉帳,88888,總務甲,2038-03-05 10:00,會計乙,2038-03-06 10:30');
   });
   it('沒有廠商權限：統編與銀行整欄省略，不是留空欄', () => {

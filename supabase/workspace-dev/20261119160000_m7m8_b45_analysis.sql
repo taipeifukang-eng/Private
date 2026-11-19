@@ -28,9 +28,9 @@ CREATE OR REPLACE FUNCTION public.ga_pay_unclaimed_po_ids(p_tol numeric) RETURNS
 AS $f$
   SELECT o.id
     FROM public.ga_purchase_orders o
-    JOIN (SELECT r.po_id, sum(ri.amount_untaxed) AS u FROM public.ga_purchase_receipts r JOIN public.ga_purchase_receipt_items ri ON ri.receipt_id = r.id WHERE r.voided_at IS NULL GROUP BY r.po_id) s ON s.po_id = o.id
+    JOIN (SELECT x.po_id, sum(x.u + round(x.u * x.rate)) AS tot FROM (SELECT r.po_id, o2.tax_rate AS rate, sum(ri.amount_untaxed) AS u FROM public.ga_purchase_receipts r JOIN public.ga_purchase_orders o2 ON o2.id = r.po_id JOIN public.ga_purchase_receipt_items ri ON ri.receipt_id = r.id WHERE r.voided_at IS NULL GROUP BY r.po_id, r.id, o2.tax_rate) x GROUP BY x.po_id) s ON s.po_id = o.id
     LEFT JOIN (SELECT l.po_id, sum(l.claim_total) AS c FROM public.ga_payment_request_lines l JOIN public.ga_payment_requests q ON q.id = l.pr_id WHERE q.status <> 'VOID' GROUP BY l.po_id) c ON c.po_id = o.id
-   WHERE s.u + round(s.u * o.tax_rate) - COALESCE(c.c, 0) > p_tol;
+   WHERE s.tot - COALESCE(c.c, 0) > p_tol;
 $f$;
 REVOKE ALL ON FUNCTION public.ga_pay_unclaimed_po_ids(numeric) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.ga_pay_unclaimed_po_ids(numeric) TO service_role;
@@ -39,11 +39,11 @@ GRANT EXECUTE ON FUNCTION public.ga_pay_unclaimed_po_ids(numeric) TO service_rol
 CREATE OR REPLACE FUNCTION public.ga_pay_po_amounts(p_ids uuid[]) RETURNS TABLE (po_id uuid, received_total numeric, claimed numeric, paid numeric) LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $f$
   SELECT o.id,
-         COALESCE(s.u, 0) + round(COALESCE(s.u, 0) * o.tax_rate),
+         COALESCE(s.tot, 0),
          COALESCE(c.claimed, 0),
          COALESCE(c.paid, 0)
     FROM public.ga_purchase_orders o
-    LEFT JOIN (SELECT r.po_id, sum(ri.amount_untaxed) AS u FROM public.ga_purchase_receipts r JOIN public.ga_purchase_receipt_items ri ON ri.receipt_id = r.id WHERE r.voided_at IS NULL AND r.po_id = ANY (p_ids) GROUP BY r.po_id) s ON s.po_id = o.id
+    LEFT JOIN (SELECT x.po_id, sum(x.u + round(x.u * x.rate)) AS tot FROM (SELECT r.po_id, o2.tax_rate AS rate, sum(ri.amount_untaxed) AS u FROM public.ga_purchase_receipts r JOIN public.ga_purchase_orders o2 ON o2.id = r.po_id JOIN public.ga_purchase_receipt_items ri ON ri.receipt_id = r.id WHERE r.voided_at IS NULL AND r.po_id = ANY (p_ids) GROUP BY r.po_id, r.id, o2.tax_rate) x GROUP BY x.po_id) s ON s.po_id = o.id
     LEFT JOIN (SELECT l.po_id, sum(l.claim_total) FILTER (WHERE q.status <> 'VOID') AS claimed, sum(l.claim_total) FILTER (WHERE q.status = 'PAID') AS paid
                  FROM public.ga_payment_request_lines l JOIN public.ga_payment_requests q ON q.id = l.pr_id WHERE l.po_id = ANY (p_ids) GROUP BY l.po_id) c ON c.po_id = o.id
    WHERE o.id = ANY (p_ids);

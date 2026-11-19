@@ -301,7 +301,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
           </table>
         </li>
       </ul>
-      <p class="pe-total">合計 <strong data-testid="pe-grand">{{ money(editing ? grandTotal : pr?.amount_total) }}</strong><span v-if="pr && !editing" class="muted">（未稅 {{ money(pr.amount_untaxed) }}、稅額 {{ money(pr.amount_tax) }}）</span></p>
+      <p class="pe-total">合計 <strong data-testid="pe-grand">{{ money(editing ? grandTotal : pr?.amount_total) }}</strong><span v-if="pr && !editing" class="muted">（未稅 {{ money(pr.amount_untaxed) }}、稅額 {{ money(pr.tax_amount) }}）</span></p>
       <p v-for="(m, n) in overLimits" :key="n" class="field-error" role="alert" data-testid="pe-over">{{ m }}</p>
     </section>
 
