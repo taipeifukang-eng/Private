@@ -117,6 +117,9 @@ export type GaFlags = {
   /** 第 6 批 G23：水電網費（帳單與報表同一組條件）；入口條件與 API 相同（資料庫語意）；管理權限才有新增、編輯、標記已繳、刪除。 */
   gaUtilityBills: boolean;
   gaUtilityBillManage: boolean;
+  /** 第 4.5 批：進貨發票（請款檢視或管理）與請款管理（登錄憑證、新增發票）；入口條件與 API 相同（資料庫語意，管理員沒掛權限不顯示）。 */
+  gaPurchaseInvoices: boolean;
+  gaPaymentManage: boolean;
 };
 
 export function isStoreManagerRole(roleCodes: { has(code: string): boolean }) {
@@ -186,6 +189,8 @@ export function gaFlags(has: HasFn, storeManager: boolean, storeMember = false, 
     gaPurchaseAnalysis: dbHas("general_affairs.purchase_review.view", "general_affairs.purchase_review.manage"),
     gaUtilityBills: dbHas("general_affairs.utility_bill.view", "general_affairs.utility_bill.manage"),
     gaUtilityBillManage: dbHas("general_affairs.utility_bill.manage"),
+    gaPurchaseInvoices: dbHas("general_affairs.purchase_payment.view", "general_affairs.purchase_payment.manage"),
+    gaPaymentManage: dbHas("general_affairs.purchase_payment.manage"),
     gaInventoryTransfers: rosterMember || has("general_affairs.inventory_transfer.view", "general_affairs.inventory_transfer.manage", "general_affairs.inventory_transaction.view", "general_affairs.inventory_transaction.manage", "general_affairs.inventory_balance.view"),
   };
 }

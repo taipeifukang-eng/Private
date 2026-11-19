@@ -138,6 +138,9 @@ export const WORKSPACE_DETAIL_KINDS = [
   // 第 6 批 G23：水電網費帳單與費用報表。
   "ga-utility-bills",
   "ga-utility-bills-report",
+  // 第 4.5 批：進貨發票清單、發票新增與編輯（請款單頁面後續階段加入）。
+  "ga-purchase-invoices",
+  "ga-purchase-invoice-edit",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

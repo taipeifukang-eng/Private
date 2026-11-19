@@ -5,9 +5,10 @@
 import { NextRequest } from "next/server";
 import { adminClient } from "../server";
 import { dbCan, GA } from "./access";
+import { PAY } from "./payment-rules";
 import { isUuid } from "./rules";
 import {
-  checkFile, checkFileCount, checkTotalSize, fileExtension, isResourceType, normalizePurpose, SIGNED_URL_SECONDS, storagePath, UPLOAD_LIMITS,
+  checkFile, checkFileCount, checkTotalSize, fileExtension, isPaymentResourceType, isResourceType, normalizePurpose, PAYMENT_RESOURCE_PURPOSES, SIGNED_URL_SECONDS, storagePath, UPLOAD_LIMITS,
 } from "./upload-rules";
 import { GaError, dbError, must, respond, type Context } from "./server";
 
@@ -41,11 +42,27 @@ async function utilityGate(ctx: Context, resourceType: string, resourceId: strin
   return true;
 }
 
+/**
+ * 第 4.5 批進貨發票圖片與進貨單送貨單照片：伺服端先過請款權限閘（寫入＝請款管理；讀取＝請款檢視或管理），再確認資源存在與用途正確；
+ * 附件資料表的寫入與讀取仍由資料庫函式（ga_resource_attachment_can_manage／can_read 的 PURCHASE_ 分支）用使用者身分判斷，這裡不改用管理者身分。
+ */
+async function paymentGate(ctx: Context, resourceType: string, resourceId: string, manage: boolean, purpose?: string) {
+  if (!isPaymentResourceType(resourceType)) return;
+  if (!(manage ? dbCan(ctx.permissions, PAY.manage) : dbCan(ctx.permissions, PAY.view, PAY.manage))) {
+    throw new GaError(403, manage ? "沒有上傳或刪除發票圖片的權限（需要請款管理權限）" : "沒有查看發票圖片的權限（需要請款檢視或管理權限）");
+  }
+  if (purpose && purpose !== PAYMENT_RESOURCE_PURPOSES[resourceType]) throw new GaError(400, `這類附件的用途只能是 ${PAYMENT_RESOURCE_PURPOSES[resourceType]}`);
+  const table = resourceType === "PURCHASE_INVOICE" ? "ga_purchase_invoices" : "ga_purchase_receipts";
+  const row = (await must(adminClient().from(table).select("id").eq("id", resourceId).maybeSingle())) as any;
+  if (!row) throw new GaError(404, resourceType === "PURCHASE_INVOICE" ? "找不到這張發票" : "找不到這張進貨單");
+}
+
 async function list(ctx: Context, url: URL) {
   const resourceType = resourceOf(url.searchParams.get("resourceType"));
   const resourceId = url.searchParams.get("resourceId") || "";
   if (!isUuid(resourceId)) throw new GaError(400, "缺少或錯誤的 resourceId");
   const purposeRaw = url.searchParams.get("purpose");
+  await paymentGate(ctx, resourceType, resourceId, false);
   const useAdmin = await utilityGate(ctx, resourceType, resourceId, false);
   const client: any = useAdmin ? adminClient() : ctx.auth;
   let q = client.from("ga_resource_attachments").select(COLUMNS + ",storage_path").eq("resource_type", resourceType).eq("resource_id", resourceId).is("deleted_at", null);
@@ -88,6 +105,7 @@ async function upload(ctx: Context, request: NextRequest) {
   }
   const total = checkTotalSize(files.map((f) => f.size));
   if (!total.ok) throw new GaError(413, total.message);
+  await paymentGate(ctx, resourceType, resourceId, true, purpose);
   const useAdmin = await utilityGate(ctx, resourceType, resourceId, true);
   const admin = adminClient();
   const uploaded: string[] = [];
@@ -130,6 +148,7 @@ async function openUrl(ctx: Context, id: string) {
   const admin = adminClient();
   const meta = (await must(admin.from("ga_resource_attachments").select("resource_type,resource_id,deleted_at").eq("id", id).maybeSingle())) as any;
   if (!meta || meta.deleted_at) throw new GaError(404, "找不到附件");
+  await paymentGate(ctx, meta.resource_type, meta.resource_id, false);
   const useAdmin = await utilityGate(ctx, meta.resource_type, meta.resource_id, false);
   // 一般資源：以使用者身分讀取（RLS 決定看不看得到）；讀不到就視為沒有權限。
   const client: any = useAdmin ? admin : ctx.auth;
@@ -152,6 +171,7 @@ async function remove(ctx: Context, request: NextRequest, id: string) {
   if (!att) throw new GaError(404, "找不到附件");
   if (att.deleted_at) throw new GaError(409, "附件已刪除");
   // 水電帳單附件先用水電網費管理權限與帳單存在檢查（回白話 403／404），再和其他資源一樣走資料庫函式標記刪除（觸發器只認使用者身分，管理者身分直接更新會被擋）。
+  await paymentGate(ctx, att.resource_type, att.resource_id, true);
   await utilityGate(ctx, att.resource_type, att.resource_id, true);
   // 一般資源沿用舊版資料庫函式（內含權限與原因檢查）；舊版 API 刪除後會順手移除實體檔，新版不做。
   const { data, error } = await (ctx.auth as any).rpc("ga_soft_delete_resource_attachment", { p_attachment_id: id, p_reason: reason });

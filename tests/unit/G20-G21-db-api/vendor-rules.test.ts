@@ -53,11 +53,11 @@ describe('G21.unit 名稱相近', () => {
 describe('G21.unit 帳務機密欄位遮蔽（V1）', () => {
   const row = { id: U, name: '甲', alias: null, status: 'active', tax_id: '04595257', billing_title: 'T', billing_address: 'A', invoice_type: '二聯', payment_terms: '月結', payment_methods: ['匯款'], accounting_notes: 'n', total_amount: 5, contract_end_date: '2038-01-01', cooperation_notes: '備註' };
   it('八個機密欄位清單固定', () => {
-    expect([...VENDOR_SECRET_FIELDS]).toEqual(['tax_id', 'billing_title', 'billing_address', 'invoice_type', 'payment_terms', 'payment_methods', 'accounting_notes', 'total_amount']);
-    expect(VENDOR_SECRET_FIELDS).toHaveLength(8);
+    expect([...VENDOR_SECRET_FIELDS]).toEqual(['tax_id', 'billing_title', 'billing_address', 'invoice_type', 'payment_terms', 'payment_methods', 'accounting_notes', 'total_amount', 'bank_name', 'bank_branch', 'bank_account', 'bank_account_name']);
+    expect(VENDOR_SECRET_FIELDS).toHaveLength(12);
     for (const f of VENDOR_SECRET_FIELDS) expect((VENDOR_PUBLIC_FIELDS as readonly string[]).includes(f)).toBe(false);
   });
-  it('可看帳務者原樣；其他人 8 欄完全不存在（不是 null），合約到期日與合作備註不算帳務', () => {
+  it('可看帳務者原樣；其他人 12 欄（含第 4.5 批銀行四欄）完全不存在（不是 null），合約到期日與合作備註不算帳務', () => {
     expect(maskVendor(row, true)).toEqual(row);
     const m = maskVendor(row, false) as Record<string, unknown>;
     for (const f of VENDOR_SECRET_FIELDS) expect(Object.prototype.hasOwnProperty.call(m, f), f).toBe(false);

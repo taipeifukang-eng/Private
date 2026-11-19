@@ -9,6 +9,7 @@ import { adminClient } from "../server";
 import { dbCan } from "./access";
 import { type PoWho, canViewPo, maskVendorBilling, normalizePage, poAbilities, validateActionPayload, validateCreatePayload, validateHeader, validateItems, validateSettingsPayload } from "./purchase-order-rules";
 import { validateDispatchPayload, validateReceiptPayload } from "./purchase-receipt-rules";
+import { paymentAbilities } from "./payment-rules";
 import { PR } from "./requests";
 import { isUuid, orIlike, pagingMeta, parsePaging } from "./rules";
 import { GaError, body, dbError, respond, rpc, validated, type Context } from "./server";
@@ -60,6 +61,9 @@ export async function purchaseOrdersApi(ctx: Context, request: NextRequest, rest
       if (m === "PATCH") return update(ctx, request, id);
     }
     if (b === "actions" && m === "POST") return act(ctx, request, id);
+    // 第 4.5 批：採購單「發票與請款」分頁摘要、進貨單憑證登錄。
+    if (b === "payment-summary" && m === "GET") return paymentSummary(ctx, id);
+    if (b === "receipts" && rest[2] && rest[3] === "voucher" && m === "PATCH") return voucher(ctx, request, id, rest[2]);
     if (b === "receipts") {
       if (m === "GET") return receiptsOf(ctx, id);
       if (m === "POST") return receive(ctx, request, id);
@@ -120,6 +124,36 @@ async function detail(ctx: Context, id: string) {
   const r = await rpc(ctx, "ga_ws_po_get", { p_id: id });
   const rc = await rpc(ctx, "ga_ws_po_receipts_get", { p_po_id: id });
   return respond({ data: shape(r.data, who), receiving: rc.data });
+}
+
+/** 採購單的發票與請款摘要（進貨憑證狀態、已連發票、累計驗入含稅、已請款、已付款、尚可請款額）；需請款檢視＋採購評估檢視（資料庫判斷）。 */
+async function paymentSummary(ctx: Context, id: string) {
+  const ab = paymentAbilities(ctx.permissions);
+  if (!ab.canView) throw new GaError(403, "沒有查看請款資料的權限（需要請款檢視或管理權限）");
+  const r = await rpc(ctx, "ga_ws_pay_po_summary", { p_po_id: id });
+  // can_manage 在資料庫回傳的最外層：併進 data，畫面只看 data.can_manage。
+  const canManage = ab.canManage && !!(r as any).can_manage;
+  return respond({ data: { ...r.data, can_manage: canManage }, permissions: { ...ab, canManage } });
+}
+
+/** 登錄進貨單憑證：免開發票／僅收據（必填說明）或改回尚未登錄；已連發票者由發票決定（資料庫 409 VOUCHER_LINKED）。 */
+async function voucher(ctx: Context, request: NextRequest, poId: string, receiptId: string) {
+  const ab = paymentAbilities(ctx.permissions);
+  if (!ab.canManage) throw new GaError(403, "沒有登錄進貨憑證的權限（需要請款管理權限）");
+  if (!isUuid(receiptId)) throw new GaError(400, "進貨單 id 格式錯誤");
+  const b = await body(request);
+  const status = String(b.status ?? "").trim().toUpperCase();
+  if (status !== "NONE" && status !== "NO_INVOICE") throw new GaError(400, "憑證狀態只能是 NONE（尚未登錄）或 NO_INVOICE（免開發票／僅收據）");
+  const note = String(b.note ?? "").trim();
+  if (note.length > 200) throw new GaError(400, "憑證說明不可超過 200 個字");
+  if (status === "NO_INVOICE" && !note) throw new GaError(400, "請填寫沒有發票的原因（例如僅有送貨單、對方免開發票）");
+  const expected = expectedOf(b);
+  // 進貨單必須屬於網址上的採購單（避免用 A 單網址改 B 單的進貨）。
+  const owner = await (adminClient() as any).from("ga_purchase_receipts").select("id").eq("id", receiptId).eq("po_id", poId).maybeSingle();
+  if (owner.error) throw dbError(owner.error);
+  if (!owner.data) throw new GaError(404, "找不到這張進貨單（或不屬於這張採購單）");
+  const r = await rpc(ctx, "ga_ws_pay_voucher_set", { p_receipt_id: receiptId, p_status: status, p_note: note || null, p_expected_updated_at: expected });
+  return respond({ data: r.data });
 }
 
 async function receiptsOf(ctx: Context, id: string) {

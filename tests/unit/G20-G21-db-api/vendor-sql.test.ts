@@ -173,7 +173,8 @@ describe('G20-G21 函式（100000）', () => {
     const full = json.slice(json.indexOf('IF NOT p_full'));
     for (const f of VENDOR_SECRET_FIELDS) {
       expect(base, f).not.toContain(`'${f}'`);
-      expect(full, f).toContain(`'${f}'`);
+      // 銀行四欄（第 4.5 批）由 20261119150000 讀出現行定義替換加入完整版 JSON，不在第 6 批原檔；另在 G45 單元測試驗證。
+      if (!f.startsWith('bank_')) expect(full, f).toContain(`'${f}'`);
     }
     // 下拉：統編與付款條件只在有權限時才併入
     const opt = rpc.slice(rpc.indexOf('FUNCTION public.ga_ws_vendor_options('), rpc.indexOf('================ 3. 服務分類'));

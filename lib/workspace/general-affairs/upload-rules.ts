@@ -17,7 +17,12 @@ export const UPLOAD_ACCEPT_TYPES = [...IMAGE_TYPES, "application/pdf"] as const;
 export const RESIZABLE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 export const RESOURCE_TYPES = [
   "EQUIPMENT", "FACILITY", "PART", "MAINTENANCE_REQUEST", "MAINTENANCE_UPDATE", "SERVICE_REQUEST", "SERVICE_REQUEST_COMMENT", "UTILITY_BILL",
+  // 第 4.5 批：進貨發票圖片（用途 INVOICE_IMAGE）、進貨單送貨單照片（用途 DELIVERY_NOTE）。
+  "PURCHASE_INVOICE", "PURCHASE_RECEIPT",
 ] as const;
+/** 第 4.5 批資源類型與固定用途（資料庫 CHECK 與附件函式同步：purpose 必為大寫，路徑以 lower(resource_type)/ 開頭）。 */
+export const PAYMENT_RESOURCE_PURPOSES = { PURCHASE_INVOICE: "INVOICE_IMAGE", PURCHASE_RECEIPT: "DELIVERY_NOTE" } as const;
+export const isPaymentResourceType = (v: string): v is keyof typeof PAYMENT_RESOURCE_PURPOSES => Object.prototype.hasOwnProperty.call(PAYMENT_RESOURCE_PURPOSES, v);
 export type ResourceType = (typeof RESOURCE_TYPES)[number];
 
 export const isImageType = (t: string) => (IMAGE_TYPES as readonly string[]).includes(t);

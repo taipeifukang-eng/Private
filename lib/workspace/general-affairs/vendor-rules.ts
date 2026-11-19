@@ -47,8 +47,8 @@ export function vendorAbilities(p: Has) {
 export type VendorAbilities = ReturnType<typeof vendorAbilities>;
 
 // ---------------------------------------------------------------- 帳務機密欄位（V1）
-/** 只有廠商檢視／管理權限者拿得到；其他人的回應完全不含這 8 個欄位（資料庫函式不回傳，不是回傳後前端隱藏）。 */
-export const VENDOR_SECRET_FIELDS = ["tax_id", "billing_title", "billing_address", "invoice_type", "payment_terms", "payment_methods", "accounting_notes", "total_amount"] as const;
+/** 只有廠商檢視／管理權限者拿得到；其他人的回應完全不含這 12 個欄位（第 4.5 批 P8 新增銀行名稱、分行、帳號、戶名四欄）（資料庫函式不回傳，不是回傳後前端隱藏）。 */
+export const VENDOR_SECRET_FIELDS = ["tax_id", "billing_title", "billing_address", "invoice_type", "payment_terms", "payment_methods", "accounting_notes", "total_amount", "bank_name", "bank_branch", "bank_account", "bank_account_name"] as const;
 /** 非廠商權限者最多只拿到這些（名稱、別名、類型、狀態、分類、區域、聯絡人）。合約到期日與合作備註不算帳務，但只在完整版（廠商檢視／管理）回傳。 */
 export const VENDOR_PUBLIC_FIELDS = ["id", "name", "alias", "vendor_type", "status", "service_category_ids", "service_region_ids", "contact_name", "contact_phone", "line_id", "email", "updated_at"] as const;
 
