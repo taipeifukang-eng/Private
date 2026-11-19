@@ -13,7 +13,7 @@
 --   第 5 區：權限碼與角色代碼撞名檢查（55 只新增 purchase_payment.view／manage，不自動授權；角色授權由你決定）。
 --   第 6 區：廠商表有沒有銀行欄位（53 新增 bank_name、bank_branch、bank_account、bank_account_name；帳務機密）。
 --   第 7 區：has_permission 現行定義全文——新函式只用 has_permission(auth.uid(), 碼)，語意以正式區為準（不檢查 roles.is_active 的部分、資料庫沒有管理員後備）。請確認與預期一致。
---   第 8 區：56 的文字替換形狀檢查（ga_vd_json、ga_ws_vendor_save 要有預期的字串才能加銀行欄位；不符 56 會中止）。
+--   第 8 區：56、57、58 的文字替換形狀檢查（56：ga_vd_json、ga_ws_vendor_save 要有預期的字串才能加銀行欄位；57：ga_hm_counts、ga_ws_home_badges、ga_ws_home_summary、ga_ws_po_list、ga_ws_purchase_analysis、ga_ws_vendor_perf 的錨點；58：進貨讀取與配發函式的庫存交易條件；不符對應的檔案會中止，MISSING 先不要套）。
 --   第 9 區：目前有採購與廠商權限的角色與人數——建議授權對象名單：負責登錄發票、建請款單的總務採購（purchase_payment.manage）、會計（manage）、只需要看帳的主管（view）。
 -- 正式區尚未套用 51 至 55 時：第 2、6 區的欄位多半是 INFO（將新增）；套用後再跑，會變 ALREADY。
 WITH
@@ -138,6 +138,40 @@ SELECT '8 函式形狀', 'ga_ws_vendor_save 含預期的四個替換錨點（56 
             WHEN (position($$IF p_payload ? 'accounting_notes' THEN v.accounting_notes := public.ga_vd_txt(p_payload, 'accounting_notes', 1000, '帳務備註'); END IF;$$ in v.def) > 0)
                  AND (position('cooperation_notes, attachment_names, updated_by)' in v.def) > 0) AND (position('v.cooperation_notes, v.attachment_names, v_uid)' in v.def) > 0)
                  AND (position(E'cooperation_notes = v.cooperation_notes,\n      updated_at = now(), updated_by = v_uid' in v.def) > 0) THEN 'OK' ELSE 'MISSING' END FROM vsave v
+UNION ALL
+SELECT '8 函式形狀', '57：public.ga_hm_counts() 含預期的 5 個替換錨點（57 替換用）', ((position($$  v_n integer;$$ in v.def) > 0) AND (position($$  v_approve := has_permission(v_uid, 'general_affairs.purchase_order.approve');$$ in v.def) > 0) AND (position($$SELECT count(*) INTO v_n FROM public.ga_purchase_orders WHERE public.ga_att_po(status, expected_delivery_date, v_approve);$$ in v.def) > 0) AND (position($$    v_out := v_out || jsonb_build_object('po_menu', v_n);$$ in v.def) > 0) AND (position($$  RETURN v_out;$$ in v.def) > 0))::text,
+       CASE WHEN position($$pay_unclaimed$$ in v.def) > 0 THEN 'ALREADY' WHEN (position($$  v_n integer;$$ in v.def) > 0) AND (position($$  v_approve := has_permission(v_uid, 'general_affairs.purchase_order.approve');$$ in v.def) > 0) AND (position($$SELECT count(*) INTO v_n FROM public.ga_purchase_orders WHERE public.ga_att_po(status, expected_delivery_date, v_approve);$$ in v.def) > 0) AND (position($$    v_out := v_out || jsonb_build_object('po_menu', v_n);$$ in v.def) > 0) AND (position($$  RETURN v_out;$$ in v.def) > 0) THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_hm_counts()')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '57：public.ga_ws_home_badges() 含預期的 1 個替換錨點（57 替換用）', ((position($$'onboarding', v_c -> 'onboarding_review'$$ in v.def) > 0))::text,
+       CASE WHEN position($$pay_submitted$$ in v.def) > 0 THEN 'ALREADY' WHEN (position($$'onboarding', v_c -> 'onboarding_review'$$ in v.def) > 0) THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_home_badges()')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '57：public.ga_ws_home_summary() 含預期的 1 個替換錨點（57 替換用）', ((position($$  IF v_c ? 'wo_store_rejected' THEN$$ in v.def) > 0))::text,
+       CASE WHEN position($$pay_unclaimed$$ in v.def) > 0 THEN 'ALREADY' WHEN (position($$  IF v_c ? 'wo_store_rejected' THEN$$ in v.def) > 0) THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_home_summary()')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '57：public.ga_ws_po_list(jsonb,integer,integer) 含預期的 3 個替換錨點（57 替換用）', ((position($$  v_attention boolean;$$ in v.def) > 0) AND (position($$  v_attention := COALESCE(v_f->>'attention', 'false') IN ('true', 't', '1');$$ in v.def) > 0) AND (position($$AND (NOT v_attention OR public.ga_att_po(o.status, o.expected_delivery_date, (SELECT has_permission(v_uid, 'general_affairs.purchase_order.approve'))))$$ in v.def) > 0))::text,
+       CASE WHEN position($$v_pay_unclaimed$$ in v.def) > 0 THEN 'ALREADY' WHEN (position($$  v_attention boolean;$$ in v.def) > 0) AND (position($$  v_attention := COALESCE(v_f->>'attention', 'false') IN ('true', 't', '1');$$ in v.def) > 0) AND (position($$AND (NOT v_attention OR public.ga_att_po(o.status, o.expected_delivery_date, (SELECT has_permission(v_uid, 'general_affairs.purchase_order.approve'))))$$ in v.def) > 0) THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_po_list(jsonb,integer,integer)')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '57：public.ga_ws_purchase_analysis(text,integer,integer) 含預期的 3 個替換錨點（57 替換用）', ((position($$  v_total integer;$$ in v.def) > 0) AND (position($$  SELECT jsonb_build_object('count', count(*), 'total_amount', COALESCE(sum(total_amount), 0)) INTO v_est$$ in v.def) > 0) AND (position($$'orders', v_orders, 'orders_total', v_total,$$ in v.def) > 0))::text,
+       CASE WHEN position($$v_can_pay$$ in v.def) > 0 THEN 'ALREADY' WHEN (position($$  v_total integer;$$ in v.def) > 0) AND (position($$  SELECT jsonb_build_object('count', count(*), 'total_amount', COALESCE(sum(total_amount), 0)) INTO v_est$$ in v.def) > 0) AND (position($$'orders', v_orders, 'orders_total', v_total,$$ in v.def) > 0) THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_purchase_analysis(text,integer,integer)')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '57：public.ga_ws_vendor_perf(text,text) 含預期的 8 個替換錨點（57 替換用）', ((position($$  v_can_po boolean;$$ in v.def) > 0) AND (position($$  v_can_po := public.ga_po_can_view(v_uid);$$ in v.def) > 0) AND (position($$    SELECT o.vendor_id, count(*) AS po_count, COALESCE(sum(o.total_amount), 0) AS po_amount$$ in v.def) > 0) AND (position($$      FROM public.ga_purchase_orders o
+$$ in v.def) > 0) AND (position($$COALESCE(p.po_count, 0) AS po_count, COALESCE(p.po_amount, 0) AS po_amount$$ in v.def) > 0) AND (position($$'po_amount', CASE WHEN v_can_po THEN m.po_amount END,$$ in v.def) > 0) AND (position($$           'po_amount_total', CASE WHEN v_can_po THEN$$ in v.def) > 0) AND (position($$'can_view_po_amount', v_can_po,$$ in v.def) > 0))::text,
+       CASE WHEN position($$v_can_pay$$ in v.def) > 0 THEN 'ALREADY' WHEN (position($$  v_can_po boolean;$$ in v.def) > 0) AND (position($$  v_can_po := public.ga_po_can_view(v_uid);$$ in v.def) > 0) AND (position($$    SELECT o.vendor_id, count(*) AS po_count, COALESCE(sum(o.total_amount), 0) AS po_amount$$ in v.def) > 0) AND (position($$      FROM public.ga_purchase_orders o
+$$ in v.def) > 0) AND (position($$COALESCE(p.po_count, 0) AS po_count, COALESCE(p.po_amount, 0) AS po_amount$$ in v.def) > 0) AND (position($$'po_amount', CASE WHEN v_can_po THEN m.po_amount END,$$ in v.def) > 0) AND (position($$           'po_amount_total', CASE WHEN v_can_po THEN$$ in v.def) > 0) AND (position($$'can_view_po_amount', v_can_po,$$ in v.def) > 0) THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_vendor_perf(text,text)')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '58：public.ga_ws_po_receipts_get(uuid) 含進貨明細庫存交易條件（58 替換用）', (position($$ri.inventory_transaction_id IS NOT NULL$$ in v.def) > 0)::text,
+       CASE WHEN position('vr.voided_at' in v.def) > 0 THEN 'ALREADY' WHEN position($$ri.inventory_transaction_id IS NOT NULL$$ in v.def) > 0 THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_po_receipts_get(uuid)')) AS def) v
+UNION ALL
+SELECT '8 函式形狀', '58：public.ga_ws_po_dispatch(uuid,uuid,numeric,uuid,text,uuid,jsonb,text,text) 含進貨明細庫存交易條件（58 替換用）', (position($$ri.inventory_transaction_id IS NOT NULL$$ in v.def) > 0)::text,
+       CASE WHEN position('vr.voided_at' in v.def) > 0 THEN 'ALREADY' WHEN position($$ri.inventory_transaction_id IS NOT NULL$$ in v.def) > 0 THEN 'OK' ELSE 'MISSING' END
+  FROM (SELECT pg_get_functiondef(to_regprocedure('public.ga_ws_po_dispatch(uuid,uuid,numeric,uuid,text,uuid,jsonb,text,text)')) AS def) v
 UNION ALL
 -- ================================================================ 9 目前有採購與廠商權限的角色（建議授權對象）
 SELECT '9 授權對象', r.code || ' ← ' || p.code, (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = r.id AND ur.is_active) || ' 人', 'INFO'

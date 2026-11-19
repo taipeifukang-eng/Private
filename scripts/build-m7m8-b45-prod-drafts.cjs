@@ -134,6 +134,50 @@ const DRAFTS = [
       "撤回 56：移除 ga_ws_pay_* 與 ga_pay_* 函式，並把 ga_vd_json、ga_ws_vendor_save 的銀行欄位擴充拿掉。不刪任何資料表資料。要先撤回 57、58（它們參照這些函式）。",
     backup: "-- 撤回前備份：先存 ga_vd_json 與 ga_ws_vendor_save 的現行定義（pg_get_functiondef）；函式本身可由 56 重新套用還原。",
   },
+  {
+    no: "57-b45-analysis",
+    dev: "20261119160000_m7m8_b45_analysis",
+    title: "第 4.5 批 H（採購分析、廠商績效、採購單清單 attention、首頁與導覽徽章的請款擴充）",
+    summary:
+      "性質：會寫入（只新增與替換函式，不動資料）。新增內部輔助 ga_pay_unclaimed_po_ids(尾差)（待請款採購單述詞：累計驗入含稅額 - 有效請款累計 > 尾差；單一 SQL、不帶 search_path，可被規劃器內嵌）與 ga_pay_po_amounts(ids[])；\n" +
+      "--   以讀現行定義再文字替換的方式擴充 6 個函式（已套用就略過，形狀不符就中止，50 第 8 區先檢查）：ga_hm_counts（新增 pay_unclaimed、pay_submitted，po_menu 聯集加待請款）、ga_ws_home_badges（新增選單 payment_requests）、\n" +
+      "--   ga_ws_home_summary（新增兩個待辦）、ga_ws_po_list（attention 聯集加待請款，新增篩選 pay_unclaimed）、ga_ws_purchase_analysis（新增 claimed_amount、paid_amount、unclaimed_received_amount、can_view_payment）、ga_ws_vendor_perf（新增 po_paid_amount、po_paid_total、can_view_pay_amount）。\n" +
+      "-- 新欄位與新待辦只給有 purchase_payment.view／manage 者；原有欄位與口徑不動；已作廢進貨不計入任何統計。徽章數字與點進去的列表筆數用同一個述詞。\n" +
+      "-- 效能（第 6 批 49 號做法）：DEV 十萬張採購單、十萬筆進貨、四萬張請款單（六萬五千張待請款的最壞情況）實測，待請款述詞 0.56 秒、採購單選單徽章 0.68 秒、列表第一頁 0.64 秒、待付款徽章 1 毫秒、單月採購分析請款彙總 0.18 秒；\n" +
+      "--   述詞已被規劃器內嵌（EXPLAIN 為雜湊聚合，沒有逐列呼叫函式），不需新增索引。實際資料量遠小於此，待請款通常只有數十筆。\n" +
+      "-- 先決條件：先套 52（請款單表）、56（ga_pay_*）與第 6 批 46、49；若之後重跑第 6 批 46，要再重跑本檔。",
+    verify:
+      "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_pay_unclaimed_po_ids', 'ga_pay_po_amounts') ORDER BY 1;\n" +
+      "-- 核對：應列出 2 個函式\n" +
+      "SELECT proname, position('pay_unclaimed' in prosrc) > 0 AS has_pay FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_hm_counts', 'ga_ws_home_summary', 'ga_ws_po_list') ORDER BY 1;\n" +
+      "-- 核對：has_pay 都是 true\n" +
+      "SELECT proname, position('v_can_pay' in prosrc) > 0 AS has_pay FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_ws_purchase_analysis', 'ga_ws_vendor_perf') ORDER BY 1;\n" +
+      "-- 核對：has_pay 都是 true",
+    rollbackSummary:
+      "撤回 57：把 6 個函式的請款擴充拿掉（逐段反向替換，形狀不符就中止），並移除 ga_pay_unclaimed_po_ids、ga_pay_po_amounts。不刪任何資料。撤回後首頁與徽章沒有待請款、待付款，採購分析沒有請款欄位。要先撤回 58 嗎：不必，58 與 57 彼此不相依。",
+    backup: "-- 撤回前備份：先存 6 個函式的現行定義（SELECT pg_get_functiondef(...)）；函式本身可由 57 重新套用還原。",
+  },
+  {
+    no: "58-b45-receipt-void",
+    dev: "20261119170000_m7m8_b45_receipt_void",
+    title: "第 4.5 批 I（作廢進貨；P6）",
+    summary:
+      "性質：會寫入（新增 1 個欄位、1 個唯一索引、1 個函式，並以文字替換改 2 個第 4 批函式）。ga_purchase_receipts 新增 void_key（作廢的固定識別）；新增 ga_ws_po_receipt_void(採購單, 進貨單, 原因, 固定識別, 版本)：\n" +
+      "--   單一交易沖回庫存（反向庫存交易）、扣回採購單品項已驗入數量、重算採購單狀態、進貨標記 voided_*、寫採購單事件與原因（必填）；權限同到貨（採購評估管理 + 庫存交易管理 + 料件查看）。\n" +
+      "--   擋下：已被有效請款單引用（白話指出請款單號）、已配發成設備、直接建立設備的品項、連結有效發票、採購單已結案或已取消、沖回後庫存為負、已作廢。\n" +
+      "--   另以文字替換讓 ga_ws_po_receipts_get（累計驗入庫存與可配發量）與 ga_ws_po_dispatch（可配發量）排除已作廢進貨（已替換過就略過，形狀不符就中止，50 第 8 區先檢查）。\n" +
+      "-- 先決條件：先套 51（voided_* 欄位）、56（ga_pay_lock_po 等）與第 4 批 33、34。",
+    verify:
+      "SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_purchase_receipts' AND column_name = 'void_key';\n" +
+      "-- 核對：應列出 void_key\n" +
+      "SELECT to_regprocedure('public.ga_ws_po_receipt_void(uuid,uuid,text,text,timestamp with time zone)') AS fn;\n" +
+      "-- 核對：不是空的\n" +
+      "SELECT proname, position('vr.voided_at' in prosrc) > 0 AS excludes_voided FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_ws_po_receipts_get', 'ga_ws_po_dispatch') ORDER BY 1;\n" +
+      "-- 核對：excludes_voided 都是 true",
+    rollbackSummary:
+      "撤回 58：移除 ga_ws_po_receipt_void、void_key 欄位與索引，並把進貨讀取與配發函式的排除條件拿掉。已作廢的進貨（voided_at 有值）資料不會還原、庫存不會自動加回；撤回前若已有作廢進貨，請先人工確認。",
+    backup: "-- 撤回前備份：\n--   CREATE TABLE public.zz_bak_b45_58_receipts AS SELECT id, voided_at, voided_by, void_reason, void_key FROM public.ga_purchase_receipts WHERE voided_at IS NOT NULL;",
+  },
 ];
 
 function stripHeader(sql) {
