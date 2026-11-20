@@ -1,8 +1,8 @@
 -- M7/M8 第 4.5 批追加 F1、F3 與尾差重驗（2026-11-20 驗收問卷）：請款規則（DEV）。
 -- 內容：
 --   F1 採購單總額上限：一張採購單所有「非作廢」請款明細（草稿、已送出、已付款）的請款金額合計，不得超過採購單含稅總額（ga_purchase_orders.total_amount）＋ 尾差（pay_tolerance_amount，預設 5）；
---      與原本的「累計驗入含稅額上限」並存。新增內部 ga_pay_check_po_total(採購單, 累計請款, 尾差)，在 ga_pay_apply_lines（建立、修改草稿）與 ga_pay_check_live（送出）兩處累計驗入檢查「之後」呼叫
---      （累計驗入檢查先擋，錯誤碼 OVER_CLAIM 不變；通過後才可能是 OVER_PO_TOTAL，409）。主要攔的是分批進貨每張各自四捨五入、使累計驗入含稅額略高於採購單含稅總額的情況。
+--      與原本的「累計驗入含稅額上限」並存。新增內部 ga_pay_check_po_total(採購單, 累計請款, 尾差)，在 ga_pay_apply_lines（建立、修改草稿）與 ga_pay_check_live（送出）兩處、算出累計請款後緊接著呼叫
+--      （輔助函式在累計請款超過累計驗入加尾差時先 RETURN，讓呼叫端接著的 OVER_CLAIM 優先擋下，錯誤碼 OVER_CLAIM 不變；其餘才可能是 OVER_PO_TOTAL，409）。主要攔的是分批進貨每張各自四捨五入、使累計驗入含稅額略高於採購單含稅總額的情況。
 --   F3 付款日期：付款日期可以比請款單建立日（台北日期）早，但最多早 30 天；不得是未來（既有 PAID_FUTURE）。取代原本「不得早於建立日」（PAID_TOO_EARLY 錯誤碼沿用，訊息改為 30 天）。
 --   尾差調低後重驗：送出時（ga_pay_check_live）重驗草稿明細——與發票分攤金額相差超過「目前」尾差且沒有差異原因的，擋下（DIFF_REASON_REQUIRED，請先修改草稿補填原因）；
 --      累計驗入與採購單總額上限本來就用目前尾差。已送出、已付款的請款單不受影響（檢查只在送出時跑）。
@@ -25,7 +25,7 @@ END;
 $f$;
 
 -- ================================================================ 1. 內部輔助
--- F1：採購單累計請款（非作廢）不得超過採購單含稅總額＋尾差。累計驗入上限（OVER_CLAIM）呼叫端緊接著檢查；這裡先讓位，避免改變既有錯誤碼。
+-- F1：採購單累計請款（非作廢）不得超過採購單含稅總額＋尾差。累計驗入上限（OVER_CLAIM）由呼叫端接著檢查；累計請款超過累計驗入加尾差時這裡先 RETURN 讓位（OVER_CLAIM 優先），避免改變既有錯誤碼。
 CREATE OR REPLACE FUNCTION public.ga_pay_check_po_total(p_po uuid, p_claimed numeric, p_tol numeric) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $$
 DECLARE
@@ -61,7 +61,7 @@ BEGIN
               AND abs(x.claim_total - (ir.allocated_untaxed + ir.allocated_tax)) > v_tol
             ORDER BY x.line_no LOOP
     PERFORM public.ga_rq_raise(400, 'DIFF_REASON_REQUIRED', '進貨單 ' || l.receipt_no || ' 的請款額 ' || public.ga_pay_money(l.claim_total) || ' 元與發票分攤金額 ' || public.ga_pay_money(l.allocated)
-      || ' 元相差超過目前的尾差 ' || public.ga_pay_money(v_tol) || ' 元（尾差設定被調低），請先修改草稿、補填差異原因後再送出', jsonb_build_object('line_no', l.line_no, 'tolerance', v_tol));
+      || ' 元相差超過目前的尾差 ' || public.ga_pay_money(v_tol) || ' 元（可能是尾差設定被調低，或發票分攤金額在存成草稿後有變動），請先修改草稿、補填差異原因後再送出', jsonb_build_object('line_no', l.line_no, 'tolerance', v_tol));
   END LOOP;
 END;
 $$;

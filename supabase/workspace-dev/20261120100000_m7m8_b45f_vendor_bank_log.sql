@@ -35,12 +35,12 @@ ALTER TABLE public.ga_vendor_bank_changes ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.ga_vendor_bank_changes FROM PUBLIC, anon, authenticated;
 GRANT SELECT, INSERT ON public.ga_vendor_bank_changes TO service_role;
 
--- 不可改刪：UPDATE、TRUNCATE 一律擋；DELETE 只放行外鍵連鎖（刪廠商）——連鎖刪除時觸發器深度大於 1。
+-- 不可改刪：UPDATE、TRUNCATE 一律擋；DELETE 只放行外鍵連鎖（刪廠商）——連鎖刪除時觸發器深度大於 1，且該廠商列已不存在。
 CREATE OR REPLACE FUNCTION public.ga_vendor_bank_changes_immutable() RETURNS trigger
 LANGUAGE plpgsql SET search_path TO 'public', 'pg_temp'
 AS $$
 BEGIN
-  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 THEN RETURN OLD; END IF;
+  IF TG_OP = 'DELETE' AND pg_trigger_depth() > 1 AND NOT EXISTS (SELECT 1 FROM public.ga_vendors v WHERE v.id = OLD.vendor_id) THEN RETURN OLD; END IF;
   RAISE EXCEPTION '廠商銀行修改歷程不可修改或刪除' USING ERRCODE = 'GA045';
 END;
 $$;

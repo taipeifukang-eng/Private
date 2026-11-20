@@ -213,7 +213,7 @@ export function paidDateProblem(paid: string, createdDay: string, today: string)
 export function payErrorMessage(code: string, message: string): string {
   switch (code) {
     case "OVER_PO_TOTAL": return `${message}。請減少這張請款單的金額，或先作廢同一張採購單上不需要的請款單。`;
-    case "DIFF_REASON_REQUIRED": return `${message}（尾差設定可能剛被調低，請在草稿填寫差異原因後再送出）`;
+    case "DIFF_REASON_REQUIRED": return `${message}（請款額與發票分攤金額的差距超過目前尾差，可能是尾差設定被調低，或發票分攤金額在存成草稿後有變動；請在草稿填寫差異原因後再送出）`;
     case "PAID_TOO_EARLY": return message;
     default: return message;
   }

@@ -133,7 +133,8 @@ async function action(ctx: Context, request: NextRequest, id: string) {
   return respond({ data: maskRequest(r.data, ab.vendorVisible), replay: !!r.replay });
 }
 
-/** 對帳匯出：vendor_id（可省略）、month=YYYY-MM（必填，以請款單建立日的台北月份）；狀態預設只含已送出與已付款，includeDraft=1、includeVoid=1 加入草稿與已作廢，status 指定單一狀態時只匯出該狀態。UTF-8 含 BOM，上限 5000 筆（資料庫判斷）。 */
+const EXPORT_MAX_ROWS = 5000;
+/** 對帳匯出：vendor_id（可省略）、month=YYYY-MM（必填，以請款單建立日的台北月份）；狀態預設只含已送出與已付款，includeDraft=1、includeVoid=1 加入草稿與已作廢，status 指定單一狀態時只匯出該狀態。UTF-8 含 BOM，上限 5000 筆（資料庫對每個狀態各自判斷，多個狀態合併後 API 再套一次總上限，超過回 400）。 */
 async function exportCsv(ctx: Context, url: URL) {
   needView(ctx, "匯出對帳資料");
   const p = url.searchParams;
@@ -156,6 +157,8 @@ async function exportCsv(ctx: Context, url: URL) {
     rows.push(...((d.rows as any[]) || []));
     secret = secret || !!d.include_vendor_secret;
   }
+  // 資料庫的 5000 筆上限是每次呼叫各自計算；多個狀態合併後再套一次總上限。
+  if (rows.length > EXPORT_MAX_ROWS) throw new GaError(400, `符合條件的明細有 ${rows.length} 筆，超過一次匯出的上限 ${EXPORT_MAX_ROWS.toLocaleString("en-US")} 筆，請縮小範圍（例如指定廠商或狀態）`);
   if (statuses.length > 1) rows.sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)) || String(x.pr_no).localeCompare(String(y.pr_no)));
   const csv = buildExportCsv(rows, secret);
   return new Response(csv, {

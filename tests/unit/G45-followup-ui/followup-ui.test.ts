@@ -72,11 +72,11 @@ describe('F3 付款日期：可比建立日早最多 30 天，不可是未來', 
 });
 
 describe('F1 超過採購單總額的錯誤訊息', () => {
-  it('OVER_PO_TOTAL 帶伺服端白話訊息再加下一步；DIFF_REASON_REQUIRED 提示尾差可能被調低；其他錯誤原樣', () => {
+  it('OVER_PO_TOTAL 帶伺服端白話訊息再加下一步；DIFF_REASON_REQUIRED 提示尾差或發票分攤可能變動；其他錯誤原樣', () => {
     const m = '採購單 PO-1 累計請款 33 元，超過採購單含稅總額 32 元（容許尾差 0 元）';
     expect(payErrorMessage('OVER_PO_TOTAL', m)).toContain(m);
     expect(payErrorMessage('OVER_PO_TOTAL', m)).toContain('請減少這張請款單的金額');
-    expect(payErrorMessage('DIFF_REASON_REQUIRED', '第 1 筆要填差異原因')).toContain('尾差設定可能剛被調低');
+    expect(payErrorMessage('DIFF_REASON_REQUIRED', '第 1 筆要填差異原因')).toContain('尾差設定被調低');
     expect(payErrorMessage('OVER_CLAIM', '超過累計驗入')).toBe('超過累計驗入');
     expect(payErrorMessage('', '網路錯誤')).toBe('網路錯誤');
   });
