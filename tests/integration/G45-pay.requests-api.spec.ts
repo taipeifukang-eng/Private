@@ -352,7 +352,7 @@ test('對帳匯出 CSV：月份必填、UTF-8 BOM、公式注入防護、無廠�
   const orig = (await db().from('ga_payment_requests').select('vendor_name_snapshot').eq('id', target.id).single()).data as any;
   await db().from('ga_payment_requests').update({ vendor_name_snapshot: '=HYPERLINK("http://x")' }).eq('id', target.id);
   try {
-    const res = await apis.accountant.get(`${PR}/export?month=${month}&vendorId=${vendor.id}`);
+    const res = await apis.accountant.get(`${PR}/export?month=${month}&vendorId=${vendor.id}&includeDraft=1&includeVoid=1`); // 預設只含已送出與已付款（F2），這裡要涵蓋任意狀態的目標單
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toContain('text/csv');
     expect(res.headers()['content-disposition']).toContain(encodeURIComponent('請款對帳'));

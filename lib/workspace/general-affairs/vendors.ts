@@ -30,6 +30,7 @@ export async function vendorsApi(ctx: Context, request: NextRequest, rest: strin
     throw new GaError(405, "不支援的操作（廠商不能刪除，不合作請改為停用）");
   }
   if (b === "status" && m === "POST") return setStatus(ctx, request, id);
+  if (b === "bank-log" && m === "GET") return bankLog(ctx, new URL(request.url), id);
   throw new GaError(404, "找不到這個功能");
 }
 
@@ -42,6 +43,17 @@ async function list(ctx: Context, url: URL) {
   const d = r.data || {};
   const rows = ((d.rows as any[]) || []).map((row) => maskVendor(row, ab.billingVisible));
   return respond({ data: rows, total: d.total ?? 0, meta: pagingMeta(page, pageSize, d.total ?? 0), stats: d.stats ?? {}, permissions: ab });
+}
+
+/** 驗收追加 F6：廠商銀行欄位修改歷程。只有廠商檢視／管理（與銀行欄位可見規則相同）；資料庫函式 ga_ws_vendor_bank_log 再判斷一次（403）。 */
+async function bankLog(ctx: Context, url: URL, id: string) {
+  const ab = abilitiesOf(ctx);
+  if (!ab.billingVisible) throw new GaError(403, "沒有查看廠商銀行資料修改歷程的權限（需要廠商檢視或管理權限）");
+  const { page, pageSize } = parsePaging(url.searchParams, { pageSize: 20, max: 100 });
+  const r = await rpc(ctx, "ga_ws_vendor_bank_log", { p_vendor_id: id, p_page: page, p_page_size: pageSize });
+  const d = r.data || {};
+  const total = Number(d.total) || 0;
+  return respond({ data: d.rows ?? [], total, meta: pagingMeta(page, pageSize, total), permissions: ab });
 }
 
 async function detail(ctx: Context, id: string) {

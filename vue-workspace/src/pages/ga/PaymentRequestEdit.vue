@@ -5,7 +5,7 @@ import GaShell from "../../components/ga/GaShell.vue";
 import Modal from "../../components/Modal.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
 import {
-  EVENT_LABELS, PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_CLASS, PR_STATUS_LABELS, availableActions, bankText, checkClaimLimit, dateText, errorCodeOf, errorText,
+  EVENT_LABELS, PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_CLASS, PR_STATUS_LABELS, availableActions, bankText, checkClaimLimit, dateText, errorCodeOf, errorText, paidDateProblem, paidDateRange, payErrorText, PAID_BACKDATE_DAYS,
   holdsQuota, isEditable, lineDiffReasonRequired, money, newKey, timeText, voidReasonRequired, type Candidate, type PayAbilities, type PaymentRequest, type PrAction,
 } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS, calcTax, taipeiToday } from "../../lib/ga-invoices";
@@ -120,7 +120,7 @@ onMounted(async () => {
     abilities.value = st.permissions;
     if (prId.value) await loadRequest();
   } catch (e) {
-    error.value = errorText(e);
+    error.value = payErrorText(e);
   } finally {
     loading.value = false;
   }
@@ -172,7 +172,7 @@ async function save() {
       fillFrom(res.data);
     }
   } catch (e) {
-    error.value = errorText(e);
+    error.value = payErrorText(e);
     if (errorCodeOf(e) === "STALE" && pr.value) await loadRequest().catch(() => {});
   } finally {
     saving.value = false;
@@ -184,6 +184,9 @@ const acting = ref<PrAction | null>(null);
 const actReason = ref("");
 const actMethod = ref("TRANSFER");
 const actDate = ref(taipeiToday());
+// 請款單建立日（台北）與付款日期可填範圍：建立日往前 30 天到今天（F3）。
+const createdDay = computed(() => (pr.value?.created_at ? taipeiToday(new Date(pr.value.created_at)) : taipeiToday()));
+const paidRange = computed(() => paidDateRange(createdDay.value, taipeiToday()));
 const actRef = ref("");
 const actError = ref("");
 const actBusy = ref(false);
@@ -200,6 +203,7 @@ async function confirmAct() {
   if (a === "return" || a === "void") body.reason = actReason.value.trim() || null;
   if (a === "note") body.note = actReason.value.trim() || null;
   if (a === "mark_paid") { body.pay_method = actMethod.value; body.paid_date = actDate.value || null; body.paid_ref = actRef.value.trim() || null; }
+  if (a === "mark_paid") { const prob = paidDateProblem(actDate.value, createdDay.value, taipeiToday()); if (prob) { actError.value = prob; return; } }
   if (reasonNeeded.value && !actReason.value.trim()) { actError.value = a === "note" ? "請填寫備註內容。" : a === "return" ? "請填寫退回原因。" : "已送出或已付款的請款單作廢必須填寫原因。"; return; }
   actBusy.value = true;
   try {
@@ -208,7 +212,7 @@ async function confirmAct() {
     acting.value = null;
     saved.value = `已${PR_ACTION_LABELS[a]}。`;
   } catch (e) {
-    actError.value = errorText(e);
+    actError.value = payErrorText(e);
     if (errorCodeOf(e) === "STALE") await loadRequest().catch(() => {});
   } finally {
     actBusy.value = false;
@@ -224,7 +228,7 @@ async function quick(a: PrAction) {
     fillFrom(res.data);
     saved.value = `已${PR_ACTION_LABELS[a]}。`;
   } catch (e) {
-    error.value = errorText(e);
+    error.value = payErrorText(e);
     if (errorCodeOf(e) === "STALE") await loadRequest().catch(() => {});
   } finally {
     actBusy.value = false;
@@ -239,7 +243,8 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
     <div>
       <p class="eyebrow">總務服務中心 / 作業管理</p>
       <h1>{{ creating ? "建立請款單" : pr ? `請款單 ${pr.pr_no}` : "請款單" }}<span v-if="pr" class="st" :class="PR_STATUS_CLASS[pr.status]" data-testid="pe-status">{{ PR_STATUS_LABELS[pr.status] }}</span></h1>
-      <p class="muted">只能選已驗收進貨的項目；累計請款不能超過累計驗收含稅金額（含 {{ money(tolerance) }} 尾差）。請款不需要核准。</p>
+      <p v-if="creating || !pr" class="muted" data-testid="pe-subtitle">只能選已驗收進貨的項目；累計請款不能超過累計驗收含稅金額（含 {{ money(tolerance) }} 尾差），也不能超過採購單含稅總額（同樣含尾差）。請款不需要核准。</p>
+      <p v-else class="muted" data-testid="pe-subtitle">{{ pr.status === "DRAFT" ? "草稿可以修改明細、儲存或送出；送出後要改請先退回草稿。" : pr.status === "SUBMITTED" ? "已送出，等待會計付款；要修改內容請先退回草稿。" : pr.status === "PAID" ? "已付款，內容已鎖定，只能加備註或作廢。" : "已作廢，內容唯讀。" }}累計請款上限含 {{ money(tolerance) }} 尾差。</p>
     </div>
     <div class="head-actions">
       <button v-if="pr" type="button" data-testid="pe-print" @click="printPage">列印請款單</button>
@@ -344,7 +349,8 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
       <p v-else-if="acting === 'void'">作廢後釋放請款額度，不能復原。<template v-if="pr?.status === 'PAID'">已付款的請款單作廢請確認款項已處理。</template></p>
       <template v-if="acting === 'mark_paid'">
         <label>付款方式<select v-model="actMethod" data-testid="act-method"><option v-for="m in PAY_METHODS" :key="m" :value="m">{{ PAY_METHOD_LABELS[m] }}</option></select></label>
-        <label>付款日期<input v-model="actDate" type="date" :max="taipeiToday()" data-testid="act-date" /></label>
+        <label>付款日期<input v-model="actDate" type="date" :min="paidRange.min" :max="paidRange.max" data-testid="act-date" /></label>
+        <p class="muted" data-testid="act-date-hint">付款日期可以比請款單建立日（{{ createdDay }}）早，但最多早 {{ PAID_BACKDATE_DAYS }} 天（最早 {{ paidRange.min }}），不能是未來。</p>
         <label>付款參考號（轉帳末五碼、支票號碼等，選填）<input v-model="actRef" maxlength="60" data-testid="act-ref" /></label>
       </template>
       <label v-if="acting === 'return' || acting === 'void' || acting === 'note'">{{ acting === "return" ? "退回原因" : acting === "void" ? (reasonNeeded ? "作廢原因" : "作廢原因（草稿可不填）") : "備註內容" }}<input v-model="actReason" maxlength="500" data-testid="act-reason" /></label>

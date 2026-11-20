@@ -1,10 +1,13 @@
 // 第 4.5 批 請款單：頁面用的型別與小工具（規則在 lib/workspace/general-affairs/payment-request-rules.ts，伺服端與頁面共用）。
 import {
-  PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, voidReasonRequired,
+  PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, paidDateProblem, paidDateRange, payErrorMessage, voidReasonRequired, PAID_BACKDATE_DAYS,
   type PrAction, type PrStatus,
 } from "../../../lib/workspace/general-affairs/payment-request-rules";
 
-export { PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, voidReasonRequired };
+export { PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_LABELS, availableActions, checkClaimLimit, holdsQuota, isEditable, lineDiffReasonRequired, paidDateProblem, paidDateRange, payErrorMessage, voidReasonRequired, PAID_BACKDATE_DAYS };
+import { errorCodeOf as _code, errorText as _text } from "./ga-invoices";
+/** 請款單頁的錯誤文字：沿用伺服端白話訊息，再補上新規則的下一步提示。 */
+export const payErrorText = (e: unknown, fallback?: string) => payErrorMessage(_code(e), _text(e, fallback));
 export type { PrAction, PrStatus };
 export { downloadCsv } from "./ga-inventory-stock";
 export { dateText, errorCodeOf, errorText, money, newKey, timeText } from "./ga-invoices";

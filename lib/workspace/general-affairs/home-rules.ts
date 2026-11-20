@@ -1,12 +1,12 @@
 // M7/M8 第 6 批 G22／G24：總務首頁「待我處理」九項、導覽徽章、績效與採購分析參數規則（純函式，無相依；Vue、API、單元測試共用）。
-// 第 4.5 批新增「待請款採購單」「待付款請款單」兩項（需請款檢視／管理；與 ga_hm_counts 的 pay_unclaimed、pay_submitted 對齊），共十一項。
+// 第 4.5 批新增「待請款採購單」「待付款請款單」兩項（需請款檢視／管理；與 ga_hm_counts 的 pay_unclaimed、pay_submitted 對齊），共十一項；驗收追加 F7 再加「逾 14 天未送出的請款草稿」，共十二項。
 // 九項的計數與列表篩選共用資料庫述詞（ga_att_*、ga_ub_is_overdue、ga_vd_contract_due、ga_wo_focus 等，見 20261118120000_m7m8_b6_stats_home.sql）；
 // 這裡的常數與 SQL 逐條對齊，單元測試會比對 SQL 檔內容。
 import type { WorkTabKind } from "../page-kinds";
 
 /** 九項待辦的鍵（與 ga_hm_counts 回傳的鍵相同）。 */
 export const HOME_ITEM_KEYS = [
-  "request_intake", "bill_overdue", "contract_due", "transfer_overdue", "store_wait", "po_pending", "po_overdue", "wo_store_rejected", "onboarding_review", "pay_unclaimed", "pay_submitted",
+  "request_intake", "bill_overdue", "contract_due", "transfer_overdue", "store_wait", "po_pending", "po_overdue", "wo_store_rejected", "onboarding_review", "pay_unclaimed", "pay_submitted", "pay_stale_draft",
 ] as const;
 export type HomeItemKey = (typeof HOME_ITEM_KEYS)[number];
 
@@ -39,6 +39,8 @@ export const HOME_ITEMS: Record<HomeItemKey, HomeItemDef> = {
   // 第 4.5 批：待請款採購單（驗入含稅額減有效請款累計大於尾差）與待付款請款單（SUBMITTED）；需請款檢視或管理（待請款另需能看採購單，由資料庫判斷）。
   pay_unclaimed: { label: "待請款採購單", menu: "purchase_orders", perms: [GA + "purchase_payment.view", GA + "purchase_payment.manage"], kind: "ga-purchase-orders", payload: { payUnclaimed: "1" } },
   pay_submitted: { label: "待付款請款單", menu: "payment_requests", perms: [GA + "purchase_payment.view", GA + "purchase_payment.manage"], kind: "ga-payment-requests", payload: { status: "SUBMITTED" } },
+  // 驗收追加 F7：請款草稿逾 14 天未送出（ga_pay_stale_draft_ids）；點進去的列表帶 stale_draft 篩選；導覽徽章維持待付款口徑，不併入。
+  pay_stale_draft: { label: "逾 14 天未送出的請款草稿", menu: "payment_requests", perms: [GA + "purchase_payment.view", GA + "purchase_payment.manage"], kind: "ga-payment-requests", payload: { stale_draft: "true" } },
 };
 
 /** 每個選單鍵對應的頁面 kind（側欄項目以 kind 比對）。 */

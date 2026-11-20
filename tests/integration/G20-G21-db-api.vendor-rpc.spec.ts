@@ -647,8 +647,8 @@ BEGIN
   RAISE EXCEPTION 'G20DB:ws=%,int=%,def=[%],path=[%],anon=[%],auth=[%],internal=[%]:END', n_ws, n_int, bad_def, bad_path, bad_anon, bad_auth, bad_int;`, 'fnlist');
   const m = /G20DB:(.*?):END/s.exec(out);
   expect(m, out.slice(0, 1500)).not.toBeNull();
-  // ws=12：11 支廠商與分類區域函式 + 第 6 批 G22 的 ga_ws_vendor_perf（名稱同前綴）
-  expect(m![1]).toBe('ws=12,int=15,def=[],path=[],anon=[],auth=[],internal=[]');
+  // ws=13：11 支廠商與分類區域函式 + 第 6 批 G22 的 ga_ws_vendor_perf + 驗收追加 F6 的 ga_ws_vendor_bank_log（名稱同前綴）
+  expect(m![1]).toBe('ws=13,int=15,def=[],path=[],anon=[],auth=[],internal=[]');
 });
 
 test('函式目錄（49）：八個待我處理述詞函式 prosecdef=false 且 proconfig 為 NULL（可內嵌）；其他 ga_vd_* 與所有 SECURITY DEFINER 的 ga_* 函式仍固定 search_path', async () => {

@@ -18,9 +18,9 @@ const ROOT = path.resolve(__dirname, '..', '..', '..');
 const SQL = fs.readFileSync(path.join(ROOT, 'supabase/workspace-dev/20261118120000_m7m8_b6_stats_home.sql'), 'utf8');
 const has = (set: string[]) => (...codes: string[]) => codes.some((c) => set.includes(c));
 
-describe('徽章十一項（原九項加第 4.5 批待請款、待付款）與權限對照', () => {
-  it('十一項鍵齊全且各自有名稱、選單、權限、頁面 kind；kind 都是登錄過的頁面', () => {
-    expect(HOME_ITEM_KEYS).toHaveLength(11);
+describe('徽章十二項（原九項加第 4.5 批待請款、待付款，驗收追加逾期草稿）與權限對照', () => {
+  it('十二項鍵齊全且各自有名稱、選單、權限、頁面 kind；kind 都是登錄過的頁面', () => {
+    expect(HOME_ITEM_KEYS).toHaveLength(12);
     for (const k of HOME_ITEM_KEYS) {
       const d = HOME_ITEMS[k];
       expect(d.label, k).toBeTruthy();
@@ -47,6 +47,7 @@ describe('徽章十一項（原九項加第 4.5 批待請款、待付款）與�
     expect(HOME_ITEMS.po_pending.kind).toBe('ga-purchase-approvals');
     expect(HOME_ITEMS.pay_unclaimed.payload).toEqual({ payUnclaimed: '1' });
     expect(HOME_ITEMS.pay_submitted.payload).toEqual({ status: 'SUBMITTED' });
+    expect(HOME_ITEMS.pay_stale_draft.payload).toEqual({ stale_draft: 'true' });
     expect(MENU_PAYLOAD.payment_requests).toEqual({ status: 'SUBMITTED' });
     expect(MENU_PAYLOAD.purchase_orders).toEqual({ attention: '1' });
     expect(MENU_PAYLOAD.work_orders).toEqual({ attention: 'store_rejected' });
@@ -82,7 +83,7 @@ describe('99+ 與首頁合計', () => {
   it('首頁合計＝各項加總（缺項當 0、不重複加採購單選單的聯集）', () => {
     expect(homeTotal({})).toBe(0);
     expect(homeTotal({ request_intake: 3, bill_overdue: 2, po_pending: 1, po_overdue: 4, po_menu: 5 })).toBe(10);
-    expect(homeTotal(Object.fromEntries(HOME_ITEM_KEYS.map((k) => [k, 11])))).toBe(121);
+    expect(homeTotal(Object.fromEntries(HOME_ITEM_KEYS.map((k) => [k, 11])))).toBe(132);
     expect(homeTotal({ pay_unclaimed: 2, pay_submitted: 3 })).toBe(5);
   });
 });

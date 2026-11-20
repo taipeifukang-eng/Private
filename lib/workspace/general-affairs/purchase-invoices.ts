@@ -64,7 +64,7 @@ async function meta(ctx: Context) {
   const s = r.data || {};
   return respond({
     permissions: ab,
-    settings: { tolerance_amount: Number(s.tolerance_amount ?? 5), buyer_title: s.buyer_title ?? null, buyer_tax_id: ab.vendorVisible ? s.buyer_tax_id ?? null : null, updated_at: s.updated_at ?? null },
+    settings: { tolerance_amount: Number(s.tolerance_amount ?? 5), buyer_title: s.buyer_title ?? null, buyer_tax_id: s.buyer_tax_id ?? null, updated_at: s.updated_at ?? null },
   });
 }
 

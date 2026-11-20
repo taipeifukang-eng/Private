@@ -21,6 +21,11 @@ const page = ref(1);
 const pageSize = 20;
 // 從首頁「待付款請款單」或導覽徽章點進來時（payload.status = SUBMITTED）直接看待付款頁籤。
 const view = ref<"ALL" | "SUBMITTED">((props.tab.payload as { status?: unknown } | undefined)?.status === "SUBMITTED" ? "SUBMITTED" : "ALL");
+// 從首頁「逾 14 天未送出的請款草稿」點進來時（payload.stale_draft）只列這些草稿；清除篩選即回全部。
+const staleDraft = ref(["1", "true"].includes(String((props.tab.payload as { stale_draft?: unknown } | undefined)?.stale_draft ?? "")));
+// 匯出對帳 CSV 預設只含已送出與已付款；勾選才加入草稿、已作廢（F2）。
+const includeDraft = ref(false);
+const includeVoid = ref(false);
 const status = ref("");
 const vendorId = ref("");
 const month = ref("");
@@ -35,7 +40,7 @@ const latest = useLatest();
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const canManage = computed(() => !!abilities.value?.canManage);
 const effStatus = computed(() => (view.value === "SUBMITTED" ? "SUBMITTED" : status.value));
-const hasFilter = computed(() => !!(status.value || vendorId.value || month.value || debounced.value.trim() || view.value !== "ALL"));
+const hasFilter = computed(() => !!(staleDraft.value || status.value || vendorId.value || month.value || debounced.value.trim() || view.value !== "ALL"));
 
 async function load() {
   if (!allowed.value) return;
@@ -45,6 +50,7 @@ async function load() {
   try {
     const q = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize) });
     if (effStatus.value) q.set("status", effStatus.value);
+    if (staleDraft.value) q.set("stale_draft", "true");
     if (vendorId.value) q.set("vendorId", vendorId.value);
     if (month.value) q.set("month", month.value);
     if (debounced.value.trim()) q.set("q", debounced.value.trim());
@@ -62,11 +68,11 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([view, status, vendorId, month, debounced], () => { page.value = 1; void load(); });
+watch([view, status, vendorId, month, debounced, staleDraft], () => { page.value = 1; void load(); });
 watch(page, load);
 onMounted(() => { void load(); });
 useRefreshOnActivate(props.tab, () => { void load(); });
-function clearFilters() { view.value = "ALL"; status.value = ""; vendorId.value = ""; month.value = ""; search.value = ""; }
+function clearFilters() { staleDraft.value = false; view.value = "ALL"; status.value = ""; vendorId.value = ""; month.value = ""; search.value = ""; }
 const open = (id: string) => openGaPage("ga-payment-request-edit", id);
 const openNew = () => openGaPage("ga-payment-request-edit");
 async function exportCsv() {
@@ -75,6 +81,10 @@ async function exportCsv() {
   const q = new URLSearchParams({ month: month.value });
   if (vendorId.value) q.set("vendorId", vendorId.value);
   if (effStatus.value) q.set("status", effStatus.value);
+  else {
+    if (includeDraft.value) q.set("includeDraft", "1");
+    if (includeVoid.value) q.set("includeVoid", "1");
+  }
   exportMsg.value = (await downloadCsv("general-affairs/payment-requests/export", q)) || "已匯出對帳 CSV。";
 }
 </script>
@@ -103,6 +113,13 @@ async function exportCsv() {
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="請款單號、廠商名稱" data-testid="pr-search" /></label>
       <button type="button" data-testid="pr-export" @click="exportCsv">匯出對帳 CSV</button>
     </div>
+    <div class="export-opts" role="group" aria-label="匯出對帳 CSV 的狀態" data-testid="pr-export-opts">
+      <strong>匯出對帳 CSV 的狀態</strong>
+      <span class="muted" data-testid="pr-export-default">預設只含已送出與已付款</span>
+      <label><input v-model="includeDraft" type="checkbox" data-testid="pr-export-draft" :disabled="!!effStatus" />加入草稿</label>
+      <label><input v-model="includeVoid" type="checkbox" data-testid="pr-export-void" :disabled="!!effStatus" />加入已作廢</label>
+    </div>
+    <p v-if="staleDraft" class="notice" role="status" data-testid="pr-stale-chip">只顯示「逾 14 天未送出」的請款草稿。<button type="button" data-testid="pr-stale-clear" @click="staleDraft = false">清除篩選</button></p>
     <p v-if="exportMsg" class="notice" role="status" data-testid="pr-export-msg">{{ exportMsg }}</p>
     <p v-if="error" class="notice error" role="alert" data-testid="pr-error">{{ error }}<button type="button" @click="load">重新載入</button></p>
     <div class="list-meta">
@@ -149,7 +166,11 @@ async function exportCsv() {
 .st.submitted { color: #8a5a00; border-color: #e0c27a; background: #fff6df; }
 .st.paid { color: #1b6e3a; border-color: #9fd2b0; background: #e8f6ec; }
 .st.void { color: var(--muted); }
+.export-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 10px; font-size: 13px; }
+.export-opts label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
 @media (max-width: 700px) {
+  .filter-bar .grow { flex: 1 1 100%; min-width: 0; }
+  .filter-bar .grow input { width: 100%; }
   .pr-card button, .head-actions button, .tabs button { min-height: 44px; }
   .pr-list { grid-template-columns: minmax(0, 1fr); }
 }

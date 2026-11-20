@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { api } from "../../api";
 import Modal from "../Modal.vue";
+import VendorBankLog from "./VendorBankLog.vue";
 import { VENDOR_TYPE_LABELS, dateText, describeWarning, errorText, statusLabel, timeText, type VendorDetailData, type VendorWarning } from "../../lib/ga-vendors";
 
 // G21 廠商詳情：基本、服務、聯絡、合作與帳務（帳務欄位伺服端只對廠商檢視／管理權限者回傳）；停用、暫停、啟用要確認，並提醒還有未結的採購單與工單（只提醒不擋）。
@@ -133,6 +134,7 @@ const addr = (...p: Array<string | null | undefined>) => p.filter(Boolean).join(
             <div v-if="data.attachment_names?.length" class="wide"><dt>既有檔名（未存檔）</dt><dd data-testid="vd-legacy-files">{{ data.attachment_names.join("、") }}</dd></div>
           </dl>
         </section>
+        <VendorBankLog v-if="billing" :vendor-id="props.id" :key="data.updated_at" />
       </template>
       <div class="dialog-actions"><button type="button" data-testid="vd-close" @click="emit('close')">關閉</button></div>
     </div>

@@ -187,11 +187,64 @@ export function parseRequestFilters(p: URLSearchParams) {
     f.month = month;
   }
   if (["1", "true"].includes((p.get("mine") || "").trim())) f.mine = true;
+  if (["1", "true"].includes((p.get("stale_draft") || p.get("staleDraft") || "").trim())) f.stale_draft = true;
   const q = (p.get("q") || "").trim().slice(0, 100);
   if (q) f.search = q;
   return f;
 }
 export const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+/** 草稿逾期天數（F7）：草稿超過這麼多天沒送出就出現在首頁待辦（與資料庫 ga_pay_stale_draft_ids 一致）。 */
+export const STALE_DRAFT_DAYS = 14;
+/** 付款日期最多可比請款單建立日早幾天（F3，與資料庫 mark_paid 一致）。 */
+export const PAID_BACKDATE_DAYS = 30;
+
+/** 付款日期檢查（畫面與測試用）：回傳白話問題；沒問題回 null。範圍：建立日往前 30 天到今天（台北）。 */
+export function paidDateProblem(paid: string, createdDay: string, today: string): string | null {
+  if (!paid) return null;
+  if (!isRealDate(paid)) return "付款日期格式錯誤（YYYY-MM-DD）";
+  if (paid > today) return `付款日期不能是未來的日期（今天是 ${today}）`;
+  const { min } = paidDateRange(createdDay, today);
+  if (paid < min) return `付款日期不能比請款單建立日（${createdDay}）早超過 ${PAID_BACKDATE_DAYS} 天，最早可填 ${min}`;
+  return null;
+}
+
+/** 請款相關錯誤的畫面文字：伺服端訊息已是白話，這裡替幾個新規則補上「下一步怎麼做」。 */
+export function payErrorMessage(code: string, message: string): string {
+  switch (code) {
+    case "OVER_PO_TOTAL": return `${message}。請減少這張請款單的金額，或先作廢同一張採購單上不需要的請款單。`;
+    case "DIFF_REASON_REQUIRED": return `${message}（尾差設定可能剛被調低，請在草稿填寫差異原因後再送出）`;
+    case "PAID_TOO_EARLY": return message;
+    default: return message;
+  }
+}
+
+// ---------------------------------------------------------------- 對帳匯出狀態（F2）
+/** 預設只匯出已送出與已付款；草稿、已作廢要另外勾選。 */
+export const EXPORT_DEFAULT_STATUSES: readonly PrStatus[] = ["SUBMITTED", "PAID"];
+/**
+ * 解析匯出要包含的狀態：明確的 status（單一）優先；否則預設已送出＋已付款，includeDraft／includeVoid 為 1 或 true 時加入。
+ * 回傳順序固定（草稿、已送出、已付款、已作廢）。
+ */
+export function parseExportStatuses(p: URLSearchParams): PrStatus[] {
+  const single = (p.get("status") || "").trim().toUpperCase();
+  if (single) {
+    if (!isPrStatus(single)) throw new Error("狀態篩選值錯誤");
+    return [single];
+  }
+  const on = (k: string) => ["1", "true"].includes((p.get(k) || "").trim());
+  const set = new Set<PrStatus>(EXPORT_DEFAULT_STATUSES);
+  if (on("includeDraft")) set.add("DRAFT");
+  if (on("includeVoid")) set.add("VOID");
+  return PR_STATUSES.filter((s) => set.has(s));
+}
+
+/** 付款日期可填範圍（F3）：建立日（台北）往前 30 天到今天（台北）。 */
+export function paidDateRange(createdDay: string, today: string): { min: string; max: string } {
+  const d = new Date(`${createdDay}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - PAID_BACKDATE_DAYS);
+  return { min: d.toISOString().slice(0, 10), max: today };
+}
 
 // ---------------------------------------------------------------- 設定
 /** 尾差 0 至 100 的整數；買受人抬頭 ≤ 100 字；買受人統編 8 碼數字（可清空）。 */

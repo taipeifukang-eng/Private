@@ -63,6 +63,7 @@ const KEY: Record<string, string> = { pay_tolerance_amount: "尾差金額", pay_
         <p class="muted">請款與發票金額相差在尾差內（含）視為尾差，免填原因；超過要填原因但仍可送出。累計請款超過累計進貨含稅額加尾差會直接擋下。目前尾差 {{ money(data.tolerance_amount) }}。</p>
         <p v-if="!data.can_edit" class="notice" role="status" data-testid="ps-readonly">你只有查看權限，不能調整設定。</p>
         <label>尾差金額（元，0 到 100 的整數）<input v-model="f.tolerance_amount" inputmode="numeric" :disabled="!data.can_edit" data-testid="ps-tol" /></label>
+        <p class="muted" data-testid="ps-tol-hint">調低尾差後，尚未送出的草稿在送出時會用新的尾差重新檢查；已送出、已付款的請款單不受影響。</p>
         <label>買受人抬頭<input v-model="f.buyer_title" maxlength="100" :disabled="!data.can_edit" data-testid="ps-title" /></label>
         <label>買受人統一編號（8 碼數字）<input v-model="f.buyer_tax_id" inputmode="numeric" maxlength="8" :disabled="!data.can_edit" data-testid="ps-tax" /></label>
         <p v-if="notice" class="notice success" role="status" data-testid="ps-notice">{{ notice }}</p>

@@ -152,3 +152,15 @@ export function stepProblem(f: VendorForm, step: number, isNew: boolean): string
 export const dateText = (s: string | null | undefined) => (s ? String(s).slice(0, 10) : "");
 export const timeText = (s: string | null | undefined) => (s ? new Date(s).toLocaleString("zh-TW", { timeZone: "Asia/Taipei", hour12: false }) : "");
 export const statusLabel = (s: string) => (VENDOR_STATUS_LABELS as Record<string, string>)[s] || s;
+
+// 驗收追加 F6：廠商銀行欄位修改歷程（伺服端只給廠商檢視／管理權限者）。
+export type VendorBankChange = {
+  id: string; changed_at: string; changed_by: string | null; changed_by_name: string | null; op: "INSERT" | "UPDATE"; changed_fields: string[];
+  old: Record<string, string | null>; new: Record<string, string | null>;
+};
+export const BANK_FIELD_LABELS: Record<string, string> = { bank_name: "銀行名稱", bank_branch: "分行", bank_account: "銀行帳號", bank_account_name: "戶名" };
+/** 一筆歷程的白話內容：每個有變的欄位一行「欄位：舊 → 新」；舊值是空的寫「（空）」。 */
+export function bankChangeLines(c: Pick<VendorBankChange, "changed_fields" | "old" | "new">): string[] {
+  const v = (x: string | null | undefined) => (x == null || x === "" ? "（空）" : x);
+  return (c.changed_fields || []).map((k) => `${BANK_FIELD_LABELS[k] || k}：${v(c.old?.[k])} → ${v(c.new?.[k])}`);
+}

@@ -387,3 +387,31 @@ README 新增「第 4.5 批」章節與套用順序：`50（唯讀）→ 51 → 
 | (a) | 尾差調低後，未送出的草稿在送出時用新尾差重驗；已送出、已付款不受影響；設定頁加一行提示 | `ga_pay_check_tol_reasons`（送出時重驗差異原因）；累計驗入與總額上限本來就用目前尾差；提示文字在前端 |
 
 補充：F1 在目前資料下只會在「分批進貨逐張進位使累計驗入含稅額高於採購單含稅總額超過尾差」時生效（到貨函式不允許超收），所以測試 `G45-db.review-fixes` 的稅額進位項改為：12 張共 132 不能一次請完（採購單含稅 126 + 尾差 5 = 131）。資料庫測試：`tests/unit/G45-followup-db/followup-db.test.ts`（12 項）。
+
+## 15. 驗收追加決定（2026-11-20）
+使用者回覆「驗收問卷」，F1 至 F8 與 D1 至 D5 全部採建議選項。資料庫面見 §14；本節記錄決定全文與 API／畫面的實作。
+
+### 15.1 決定
+| 編號 | 決定 | 實作位置 |
+|---|---|---|
+| F1 | 採購單的非作廢請款合計不得超過採購單含稅總額 + 尾差（`pay_tolerance_amount`，預設 5），與單張進貨上限、累計驗入上限並存；資料庫為準，畫面顯示白話錯誤 | 資料庫 `ga_pay_check_po_total`（`OVER_PO_TOTAL`）；畫面 `payErrorMessage`（`payment-request-rules.ts`）補「請減少這張請款單的金額…」；建立頁副標說明此上限 |
+| F2 | 對帳 CSV 預設只含已送出＋已付款；可勾選加入草稿、已作廢 | API `parseExportStatuses`：`includeDraft=1`、`includeVoid=1`，`status=` 指定單一狀態時只匯出該狀態；資料庫匯出函式一次只收一個狀態，API 逐狀態呼叫再依建立時間、單號合併（單一狀態各自 5000 筆上限不變）；畫面請款單清單的兩個勾選框（預設不勾，指定了狀態篩選時停用） |
+| F3 | 付款日期可比請款單建立日早最多 30 天，不可是未來（台北日期） | 資料庫 `mark_paid`（`PAID_TOO_EARLY`、`PAID_FUTURE`）；畫面日期選擇器 `min` = 建立日 − 30、`max` = 今天，送出前先用 `paidDateProblem` 擋並顯示最早可填日 |
+| F4 | CSV 的採購單號、進貨單號維持有 `purchase_payment.view` 即可看（刻意放寬） | 不改，僅記錄 |
+| F5 | 自家（買受人）統編各處都顯示 | API `purchase-invoices.ts` 的設定 meta 不再依廠商權限遮蔽 `buyer_tax_id`（廠商賣方統編的遮蔽不變） |
+| F6 | 廠商銀行帳號修改要有歷程，只有看得到銀行欄位的人看得到 | 資料庫 `ga_vendor_bank_changes`＋`ga_ws_vendor_bank_log`；API `GET /vendors/:id/bank-log`（`billingVisible` 才放行，否則 403，資料庫再判斷一次）；畫面 `VendorBankLog.vue`，只在廠商詳情 `billing` 為真時放入 |
+| F7 | 草稿逾 14 天未送出出現在首頁待辦（只給請款檢視／管理） | 資料庫 `ga_pay_stale_draft_ids`；`home-rules.ts` 新增 `pay_stale_draft`（共十二項），點進請款單清單帶 `stale_draft: "true"`；清單頁顯示篩選提示與「清除篩選」；導覽徽章維持待付款（SUBMITTED）口徑 |
+| F8 | 網址書籤（請款單、列印頁、發票獨立網址）延到 M9 | 不改，僅記錄 |
+| (a) | 尾差調低後，未送出的草稿在送出時用新尾差重驗；已送出、已付款不受影響；設定頁加一行提示 | 資料庫 `ga_pay_check_tol_reasons`；設定頁尾差欄位下方提示（`ps-tol-hint`）；送出時 `DIFF_REASON_REQUIRED` 的畫面訊息補「尾差設定可能剛被調低」 |
+| (b) | 修正：手機 390px 請款單清單搜尋框被擠扁；詳情頁副標誤用建立頁文字 | 清單頁 `@media (max-width: 700px)` 讓搜尋框獨佔一行；詳情頁副標依狀態顯示（草稿、已送出、已付款、已作廢） |
+| D1 至 D5 | 白名單 `m7m8-b45-entry-db-semantics`、`invoice-last-image-lock`、`analysis-pay-columns`、`badges-pay-attention`、`void-excluded-closed-blocked` 核可 | `tests/parity/allowlist.json` 的 `approvedBy` 設為「user (2026-11-20 第4.5批驗收問卷)」；`T02` 待核可清單移除這五項 |
+
+### 15.2 與舊版的差異登記
+舊版沒有請款功能，下列新規則與新畫面登記在 `tests/parity/allowlist.json`（`approvedBy` 為 null，待登記核可；白話說明在 `allowlist-review/plain.json`）：`m7m8-b45f-vendor-bank-log`、`m7m8-b45f-stale-draft-home`、`m7m8-b45f-export-default-statuses`、`m7m8-b45f-pay-rules`。
+
+### 15.3 實作備註
+- **匯出合併**：預設 `SUBMITTED` + `PAID` 各呼叫一次資料庫匯出函式；列依 `created_at`、`pr_no` 排序，同一張請款單的明細順序（資料庫已排）不變。`include_vendor_secret` 取任一次回傳為準（同一使用者各次相同）。
+- **付款日期**：畫面以請款單 `created_at` 換算台北日期；API 只檢查格式與未來日期，下限（需要建立日）由資料庫判斷。
+- **首頁待辦**：`pay_stale_draft` 的數字、前五筆與點進去的列表都來自同一個資料庫述詞，列表篩選 `stale_draft` 與首頁數字筆數一致；草稿編輯不重新計時，退回草稿才重新起算。
+- **導覽徽章**：維持待付款口徑，因為徽章與選單連結（`status=SUBMITTED`）一對一；若日後要併入草稿，連結篩選也要一起改。
+- **測試**：單元 `tests/unit/G45-followup-ui/followup-ui.test.ts`（F1 至 F7、(a)(b)、D1 至 D5 的規則與原始碼約束）；`tests/e2e/G45-e2e.journey-full-chain.e2e.spec.ts` 追加第 8 至 13 項（匯出預設與勾選、補登付款日 30 天、採購單總額上限與尾差重驗、銀行修改歷程可見度、逾期草稿待辦、設定提示與自家統編），沿用 `vue_workspace_ga45_clerk／accountant／viewer／novendor` 多角色接力。

@@ -7,8 +7,8 @@
 import { NextRequest } from "next/server";
 import { paymentAbilities } from "./payment-rules";
 import {
-  buildExportCsv, exportFileName, isPrAction, maskRequest, parseRequestFilters, validateActionPayload, validateCreatePayload, validateSettings, validateUpdatePayload,
-  MONTH_RE, type PrStatus,
+  buildExportCsv, exportFileName, isPrAction, maskRequest, parseExportStatuses, parseRequestFilters, validateActionPayload, validateCreatePayload, validateSettings, validateUpdatePayload,
+  MONTH_RE,
 } from "./payment-request-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
@@ -133,7 +133,7 @@ async function action(ctx: Context, request: NextRequest, id: string) {
   return respond({ data: maskRequest(r.data, ab.vendorVisible), replay: !!r.replay });
 }
 
-/** 對帳匯出：vendor_id（可省略）、month=YYYY-MM（必填，以請款單建立日的台北月份）、status（可省略）。UTF-8 含 BOM，上限 5000 筆（資料庫判斷）。 */
+/** 對帳匯出：vendor_id（可省略）、month=YYYY-MM（必填，以請款單建立日的台北月份）；狀態預設只含已送出與已付款，includeDraft=1、includeVoid=1 加入草稿與已作廢，status 指定單一狀態時只匯出該狀態。UTF-8 含 BOM，上限 5000 筆（資料庫判斷）。 */
 async function exportCsv(ctx: Context, url: URL) {
   needView(ctx, "匯出對帳資料");
   const p = url.searchParams;
@@ -146,15 +146,17 @@ async function exportCsv(ctx: Context, url: URL) {
     if (!isUuid(vendor)) throw new GaError(400, "廠商篩選格式錯誤");
     filters.vendor_id = vendor;
   }
-  const status = (p.get("status") || "").trim().toUpperCase();
-  if (status) {
-    if (!["DRAFT", "SUBMITTED", "PAID", "VOID"].includes(status as PrStatus)) throw new GaError(400, "狀態篩選值錯誤");
-    filters.status = status;
+  const statuses = validated(() => parseExportStatuses(p));
+  // 資料庫匯出函式一次只收一個狀態：每個狀態各呼叫一次，再依建立時間與單號合併（同一張請款單只在同一個狀態裡，明細順序不變）。
+  const rows: any[] = [];
+  let secret = false;
+  for (const st of statuses) {
+    const r = await rpc(ctx, "ga_ws_pay_export", { p_filters: { ...filters, status: st } });
+    const d = r.data || {};
+    rows.push(...((d.rows as any[]) || []));
+    secret = secret || !!d.include_vendor_secret;
   }
-  const r = await rpc(ctx, "ga_ws_pay_export", { p_filters: filters });
-  const d = r.data || {};
-  const rows = (d.rows as any[]) || [];
-  const secret = !!d.include_vendor_secret;
+  if (statuses.length > 1) rows.sort((x, y) => String(x.created_at).localeCompare(String(y.created_at)) || String(x.pr_no).localeCompare(String(y.pr_no)));
   const csv = buildExportCsv(rows, secret);
   return new Response(csv, {
     status: 200,

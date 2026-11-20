@@ -37,6 +37,7 @@ let rcDisp: any;
 let part3: any;
 let prNo = '';
 let prId = '';
+let voidedNo = ''; // 測試 3 作廢的請款單號（F2 匯出勾選已作廢用）
 let invA: any;
 const db = () => adminDb();
 const key = () => crypto.randomUUID();
@@ -229,6 +230,7 @@ test('3. 退回→修改→再送→會計標已付款→已付款鎖定；作�
     await ctx.close();
   }
   // 作廢已付款：必填原因，釋放額度
+  voidedNo = prNo;
   const needR = await act('accountant', prId, 'void', p.updated_at, {});
   expect(needR.status).toBe(400);
   const v = await act('accountant', prId, 'void', p.updated_at, { reason: '重複付款，改開新單' });
@@ -277,14 +279,14 @@ test('5. 列印與 CSV：A4 列印頁簽章兩段；CSV 有 BOM、公式注入�
   await db().from('ga_payment_requests').update({ vendor_name_snapshot: '=HYPERLINK("http://x")' }).eq('id', prId);
   try {
     const month = today().slice(0, 7);
-    const res = await apis.accountant.get(`${PR}/export?month=${month}&vendorId=${vendor.id}`);
+    const res = await apis.accountant.get(`${PR}/export?month=${month}&vendorId=${vendor.id}&includeDraft=1`); // 目前這張是草稿；預設匯出不含草稿（F2）
     expect(res.status()).toBe(200);
     const buf = await res.body();
     expect([buf[0], buf[1], buf[2]]).toEqual([0xef, 0xbb, 0xbf]);
     const text = buf.toString('utf8');
     expect(text).toContain(prNo);
     expect(text).not.toMatch(/(^|,)=HYPERLINK/m);
-    const rv = await apis.viewer.get(`${PR}/export?month=${month}&vendorId=${vendor.id}`);
+    const rv = await apis.viewer.get(`${PR}/export?month=${month}&vendorId=${vendor.id}&includeDraft=1`);
     expect(rv.status()).toBe(200);
     expect(await rv.text()).not.toContain(vendor.tax_id);
   } finally {
@@ -368,4 +370,297 @@ test('7. 沒有請款權限：採購人員、店長、管理員身分（無角�
   expect((await send('viewer', 'post', PR, { vendor_id: vendor.id, lines: [{ receipt_id: rc[0].id }], idempotency_key: key() })).status).toBe(403);
   const p = await dbPr();
   expect((await act('viewer', p.id, 'mark_paid', p.updated_at, { pay_method: 'TRANSFER', paid_date: today() })).status).toBe(403);
+});
+
+// ---------------------------------------------------------------- 驗收追加（2026-11-20）：F1 至 F7、假設 (a)(b)
+const addDays = (day: string, n: number) => {
+  const d = new Date(`${day}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+async function openPrPage(page: Page, no: string) {
+  await openGaCenter(page);
+  await nav(page, '請款單');
+  await expect(visibleHeading(page, '請款單')).toBeVisible();
+  await vis(page, 'pr-search').fill(no);
+  await expect(page.locator('[data-testid="pr-card"]:visible')).toHaveCount(1);
+  await page.locator('[data-testid="pr-card"]:visible').first().getByTestId('open-pr').click();
+  await expect(vis(page, 'pe-status')).toBeVisible();
+}
+let subId = '';
+let subNo = '';
+
+test('8. F2 對帳 CSV：預設只含已送出與已付款；勾選加入草稿、已作廢（API 與畫面）；手機搜尋框不被擠扁；詳情副標不是建立頁文字', async ({ browser }, testInfo) => {
+  test.setTimeout(300_000);
+  // 目前：prId 是草稿、voidedNo 是已作廢；再做一張已送出（用配發劇本的進貨，草稿作廢後額度已釋放）
+  const c = await send('clerk', 'post', PR, { vendor_id: vendor.id, lines: [{ receipt_id: rcDisp.id }], notes: 'F2 已送出', idempotency_key: key() });
+  expect(c.status, JSON.stringify(c.body)).toBe(201);
+  const sb = await act('clerk', c.body.data.id, 'submit', c.body.data.updated_at);
+  expect(sb.status, JSON.stringify(sb.body)).toBe(200);
+  subId = c.body.data.id;
+  subNo = c.body.data.pr_no;
+  const month = today().slice(0, 7);
+  const base = `${PR}/export?month=${month}&vendorId=${vendor.id}`;
+  const text = async (who: string, q = '') => (await (await apis[who].get(base + q)).body()).toString('utf8');
+  for (const who of ['accountant', 'viewer']) {
+    const t = await text(who);
+    expect(t, who + ' 預設含已送出').toContain(subNo);
+    expect(t, who + ' 預設不含草稿').not.toContain(prNo);
+    expect(t, who + ' 預設不含已作廢').not.toContain(voidedNo);
+  }
+  const d = await text('accountant', '&includeDraft=1');
+  expect(d).toContain(prNo);
+  expect(d).toContain(subNo);
+  expect(d).not.toContain(voidedNo);
+  const v = await text('accountant', '&includeVoid=1');
+  expect(v).toContain(voidedNo);
+  expect(v).not.toContain(prNo);
+  const both = await text('accountant', '&includeDraft=true&includeVoid=true');
+  for (const n of [prNo, voidedNo, subNo]) expect(both).toContain(n);
+  const only = await text('accountant', '&status=VOID');
+  expect(only).toContain(voidedNo);
+  expect(only).not.toContain(subNo);
+  expect((await apis.accountant.get(base + '&status=X')).status()).toBe(400);
+  // 畫面：勾選框預設不勾；預設下載不含草稿，勾選後含草稿
+  const { ctx, page, errors } = await pageForUser(browser, states.accountant, testInfo);
+  const download = async (): Promise<string> => {
+    const [dl] = await Promise.all([page.waitForEvent('download'), vis(page, 'pr-export').click()]);
+    const chunks: Buffer[] = [];
+    for await (const ch of await dl.createReadStream()) chunks.push(Buffer.from(ch));
+    return Buffer.concat(chunks).toString('utf8');
+  };
+  try {
+    await openGaCenter(page);
+    await nav(page, '請款單');
+    await expect(visibleHeading(page, '請款單')).toBeVisible();
+    await expect(vis(page, 'pr-export-default')).toContainText('預設只含已送出與已付款');
+    await expect(vis(page, 'pr-export-draft')).not.toBeChecked();
+    await expect(vis(page, 'pr-export-void')).not.toBeChecked();
+    // (b) 手機版搜尋框：不被擠成一小條
+    const box = await vis(page, 'pr-search').boundingBox();
+    expect(box?.width ?? 0).toBeGreaterThan(200);
+    await vis(page, 'pr-filter-month').fill(month);
+    const t1 = await download();
+    expect(t1).toContain(subNo);
+    expect(t1).not.toContain(prNo);
+    await vis(page, 'pr-export-draft').check();
+    await vis(page, 'pr-export-void').check();
+    const t2 = await download();
+    for (const n of [prNo, voidedNo, subNo]) expect(t2).toContain(n);
+    // (b) 詳情頁副標不再沿用建立頁文字
+    await vis(page, 'pr-search').fill(subNo);
+    await expect(page.locator('[data-testid="pr-card"]:visible')).toHaveCount(1);
+    await page.locator('[data-testid="pr-card"]:visible').first().getByTestId('open-pr').click();
+    await expect(vis(page, 'pe-status')).toBeVisible();
+    await expect(vis(page, 'pe-subtitle')).not.toContainText('只能選已驗收進貨');
+    await expect(vis(page, 'pe-subtitle')).toContainText('已送出');
+    expect(await noPageOverflow(page)).toBe(true);
+    expect(noConsole(errors)).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('9. F3 補登付款日：可比建立日早最多 30 天、不可是未來（API 與畫面）', async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const t = today();
+  let p = await dbPr(subId);
+  const tooEarly = await act('accountant', subId, 'mark_paid', p.updated_at, { pay_method: 'TRANSFER', paid_date: addDays(t, -31) });
+  expect([tooEarly.status, tooEarly.body.code]).toEqual([400, 'PAID_TOO_EARLY']);
+  expect(JSON.stringify(tooEarly.body)).toContain('超過 30 天');
+  expect(JSON.stringify(tooEarly.body)).toContain(addDays(t, -30));
+  const future = await act('accountant', subId, 'mark_paid', p.updated_at, { pay_method: 'TRANSFER', paid_date: addDays(t, 1) });
+  expect(future.status).toBe(400);
+  expect((await dbPr(subId)).status).toBe('SUBMITTED');
+  // 畫面：日期選擇器的範圍與提示；超出範圍先在畫面擋下；早 30 天可成功
+  const { ctx, page, errors } = await pageForUser(browser, states.accountant, testInfo);
+  try {
+    await openPrPage(page, subNo);
+    await vis(page, 'pe-paid').click();
+    await expect(vis(page, 'act-date')).toHaveAttribute('min', addDays(t, -30));
+    await expect(vis(page, 'act-date')).toHaveAttribute('max', t);
+    await expect(vis(page, 'act-date-hint')).toContainText('最多早 30 天');
+    await vis(page, 'act-date').fill(addDays(t, -31));
+    await vis(page, 'act-confirm').click();
+    await expect(vis(page, 'act-error')).toContainText('超過 30 天');
+    expect((await dbPr(subId)).status).toBe('SUBMITTED');
+    await vis(page, 'act-date').fill(addDays(t, -30));
+    await vis(page, 'act-confirm').click();
+    await expect(vis(page, 'pe-saved')).toContainText('已標記已付款');
+    expect(noConsole(errors)).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
+  p = await dbPr(subId);
+  expect(p).toMatchObject({ status: 'PAID', paid_date: addDays(t, -30) });
+});
+
+test('10. F1 採購單總額上限與假設 (a)：累計請款超過採購單含稅總額加尾差被擋（API 與畫面）；尾差調低後草稿送出時重驗', async ({ browser }, testInfo) => {
+  test.setTimeout(300_000);
+  const SET = `${P}/payment-settings`;
+  const g0 = await get('clerk', SET);
+  const origTol = Number(g0.body.data.tolerance_amount);
+  const setTol = async (n: number) => {
+    const cur = await get('clerk', SET);
+    const r = await send('clerk', 'put', SET, { tolerance_amount: n, expected_updated_at: cur.body.data.updated_at });
+    expect(r.status, JSON.stringify(r.body)).toBe(200);
+  };
+  // 3 個 x 10 元：含稅總額 32；三張進貨各 11，合計 33（比採購單總額多 1 元）
+  const d = await rpcOk('clerk', 'ga_ws_po_create', { p_header: { notes: m7Name('EJNY4'), vendor_id: vendor.id }, p_items: [{ item_name: 'QA-GA45 小額品項', unit: '個', quantity: 3, unit_price: 10 }], p_create_key: key() });
+  const po4 = await rpcOk('clerk', 'ga_ws_po_action', { p_id: d.id, p_action: 'place_order', p_expected_updated_at: d.updated_at, p_note: null });
+  const rs: any[] = [];
+  for (let i = 0; i < 3; i += 1) rs.push(await rpcOk('clerk', 'ga_ws_po_receive', { p_po_id: po4.id, p_header: {}, p_lines: [{ po_item_id: itemId(po4), delivered_qty: 1 }], p_key: key() }));
+  const mk = (rcs: any[]) => send('clerk', 'post', PR, { vendor_id: vendor.id, lines: rcs.map((r) => ({ receipt_id: r.id })), idempotency_key: key() });
+  try {
+    await setTol(0);
+    const a = await mk([rs[0], rs[1]]);
+    expect(a.status, JSON.stringify(a.body)).toBe(201);
+    expect(a.body.data.amount_total).toBe(22);
+    const over = await mk([rs[2]]);
+    expect([over.status, over.body.code]).toEqual([409, 'OVER_PO_TOTAL']);
+    expect(JSON.stringify(over.body)).toContain('採購單含稅總額');
+    await setTol(1);
+    const b = await mk([rs[2]]);
+    expect(b.status, JSON.stringify(b.body)).toBe(201);
+    await setTol(0);
+    // 畫面：草稿 a 送出時用新尾差重驗，被擋並顯示白話訊息
+    const { ctx, page, errors } = await pageForUser(browser, states.clerk, testInfo);
+    try {
+      await openPrPage(page, a.body.data.pr_no);
+      await vis(page, 'pe-submit').click();
+      await vis(page, 'act-confirm').click();
+      await expect(vis(page, 'act-error')).toContainText('採購單含稅總額');
+      await expect(vis(page, 'act-error')).toContainText('請減少這張請款單的金額');
+      expect((await dbPr(a.body.data.id)).status).toBe('DRAFT');
+      expect(noConsole(errors)).toEqual([]);
+    } finally {
+      await ctx.close();
+    }
+    // 作廢 b 釋放額度後，a 單獨 22 可送出
+    const pb = await dbPr(b.body.data.id);
+    expect((await act('clerk', b.body.data.id, 'void', pb.updated_at, {})).status).toBe(200);
+    const pa = await dbPr(a.body.data.id);
+    expect((await act('clerk', a.body.data.id, 'submit', pa.updated_at)).status).toBe(200);
+  } finally {
+    await setTol(origTol);
+  }
+});
+
+test('11. F6 廠商銀行修改歷程：有廠商檢視權限者看得到（舊→新），沒有廠商權限者 API 403；廠商詳情只在有權限時顯示區塊', async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const BL = `${P}/vendors/${vendor.id}/bank-log`;
+  const ok = await get('clerk', BL);
+  expect(ok.status, JSON.stringify(ok.body)).toBe(200);
+  expect(ok.body.total).toBeGreaterThanOrEqual(2);
+  const rows: any[] = ok.body.data;
+  expect(rows.some((r) => r.op === 'INSERT')).toBe(true);
+  const upd = rows.find((r) => r.op === 'UPDATE' && r.new?.bank_account === '999-000-111222');
+  expect(upd, '測試 4 改帳號的紀錄').toBeTruthy();
+  expect(upd.old.bank_account).toBe('123-456-789012');
+  expect(upd.changed_fields).toContain('bank_account');
+  for (const who of ['viewer', 'novendor', 'store_mgr', 'admin']) { // 沒有廠商檢視或管理權限者（採購角色本來就有廠商檢視，不在此列）
+    const r = await get(who, BL);
+    expect(r.status, who).toBe(403);
+    expect(JSON.stringify(r.body), who).not.toContain('999-000-111222');
+  }
+  // 資料表本身登入者讀不到
+  const direct = await users.clerk.client.from('ga_vendor_bank_changes').select('id').limit(1);
+  expect((direct.data || []).length).toBe(0);
+  const { ctx, page, errors } = await pageForUser(browser, states.clerk, testInfo);
+  try {
+    await openGaCenter(page);
+    await nav(page, '廠商資料');
+    await vis(page, 'vendor-search').fill(vendor.name);
+    await expect(vis(page, 'vendor-card')).toHaveCount(1, { timeout: 20_000 });
+    await vis(page, 'open-detail').click();
+    await expect(vis(page, 'vd-bank-log')).toBeVisible();
+    await expect(vis(page, 'vd-bank-log').getByTestId('vd-bank-log-row').first()).toContainText('→');
+    await expect(vis(page, 'vd-bank-log')).toContainText('999-000-111222');
+    expect(await noPageOverflow(page)).toBe(true);
+    expect(noConsole(errors)).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('12. F7 逾 14 天未送出的請款草稿：首頁待辦出現（只給請款檢視／管理），點進去只列這些草稿；編輯不重新計時；送出後消失', async ({ browser }, testInfo) => {
+  test.setTimeout(300_000);
+  const draft = await dbPr(prId);
+  expect(draft.status).toBe('DRAFT');
+  const old = new Date(Date.now() - 15 * 86_400_000).toISOString();
+  expect((await db().from('ga_payment_requests').update({ created_at: old }).eq('id', prId)).error).toBeNull();
+  const sum = (who: string) => get(who, `${P}/home/summary`);
+  for (const who of ['clerk', 'accountant', 'viewer']) {
+    const r = await sum(who);
+    expect(r.status, who).toBe(200);
+    const it = (r.body.data.items as any[]).find((x) => x.key === 'pay_stale_draft');
+    expect(it, who).toBeTruthy();
+    expect(it.count, who).toBeGreaterThanOrEqual(1);
+    expect(it.menu).toBe('payment_requests');
+    expect(JSON.stringify(it.top)).toContain(prNo);
+  }
+  for (const who of ['purchaser', 'store_mgr']) {
+    const r = await sum(who);
+    expect((r.body.data?.items || []).some((x: any) => x.key === 'pay_stale_draft'), who).toBe(false);
+  }
+  // 清單篩選與首頁數字一致
+  const cnt = (await sum('clerk')).body.data.items.find((x: any) => x.key === 'pay_stale_draft').count as number;
+  const l = await get('clerk', `${PR}?stale_draft=true`);
+  expect(l.status).toBe(200);
+  expect(l.body.total).toBe(cnt);
+  expect(l.body.data.every((r: any) => r.status === 'DRAFT')).toBe(true);
+  expect(l.body.data.map((r: any) => r.pr_no)).toContain(prNo);
+  // 編輯草稿不重新計時（仍在待辦裡）
+  const ed = await send('clerk', 'patch', `${PR}/${prId}`, { notes: '編輯不重新計時', expected_updated_at: (await dbPr(prId)).updated_at });
+  expect(ed.status, JSON.stringify(ed.body)).toBe(200);
+  expect((await get('clerk', `${PR}?stale_draft=true`)).body.data.map((r: any) => r.pr_no)).toContain(prNo);
+  const { ctx, page, errors } = await pageForUser(browser, states.clerk, testInfo);
+  try {
+    await openGaCenter(page);
+    await expect(page.locator('[data-testid="home-item-pay_stale_draft"]:visible')).toHaveCount(1);
+    await expect(page.locator('[data-testid="home-count-pay_stale_draft"]:visible')).toHaveText(String(cnt));
+    await page.locator('[data-testid="home-item-pay_stale_draft"]:visible').getByRole('button').first().click();
+    await expect(vis(page, 'pr-stale-chip')).toBeVisible();
+    await expect(vis(page, 'pr-total')).toHaveText(`共 ${cnt} 張`);
+    await expect(page.locator('[data-testid="pr-card"]:visible').filter({ hasText: prNo })).toHaveCount(1);
+    await vis(page, 'pr-stale-clear').click();
+    await expect(vis(page, 'pr-stale-chip')).toHaveCount(0);
+    expect(await noPageOverflow(page)).toBe(true);
+    expect(noConsole(errors)).toEqual([]);
+  } finally {
+    await ctx.close();
+  }
+  // 送出後離開待辦
+  const cur = await dbPr(prId);
+  expect((await act('clerk', prId, 'submit', cur.updated_at)).status).toBe(200);
+  expect((await get('clerk', `${PR}?stale_draft=true`)).body.data.map((r: any) => r.pr_no)).not.toContain(prNo);
+});
+
+test('13. 假設 (a) 與 F5：設定頁尾差旁有提示；檢視者與無廠商權限者在發票頁都看得到自家統編', async ({ browser }, testInfo) => {
+  test.setTimeout(240_000);
+  const SET = `${P}/payment-settings`;
+  const cur = await get('clerk', SET);
+  const set = await send('clerk', 'put', SET, { buyer_title: 'QA-GA45 自家抬頭', buyer_tax_id: '12345678', expected_updated_at: cur.body.data.updated_at });
+  expect(set.status, JSON.stringify(set.body)).toBe(200);
+  try {
+    for (const who of ['viewer', 'novendor']) {
+      const meta = await get(who, `${INV}/meta`);
+      expect(meta.status, JSON.stringify(meta.body)).toBe(200);
+      expect(meta.body.settings.buyer_tax_id, who).toBe('12345678');
+    }
+    const { ctx, page, errors } = await pageForUser(browser, states.viewer, testInfo);
+    try {
+      await openGaCenter(page);
+      await nav(page, '請款單');
+      await vis(page, 'pr-settings').click();
+      await expect(vis(page, 'ps-tol-hint')).toContainText('重新檢查');
+      await expect(vis(page, 'ps-tax')).toHaveValue('12345678');
+      expect(noConsole(errors)).toEqual([]);
+    } finally {
+      await ctx.close();
+    }
+  } finally {
+    const now = await get('clerk', SET);
+    await send('clerk', 'put', SET, { buyer_title: null, buyer_tax_id: null, expected_updated_at: now.body.data.updated_at });
+  }
 });
