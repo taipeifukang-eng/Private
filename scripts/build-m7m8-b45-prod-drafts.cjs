@@ -1,4 +1,4 @@
-// 由 DEV 已測過的 SQL（supabase/workspace-dev/）產生第 4.5 批正式區草稿（docs/vue-workspace/parity-plan/m7m8-sql/ 的 51 至 55；56 至 58 由後續階段補檔後加入 DRAFTS）。
+// 由 DEV 已測過的 SQL（supabase/workspace-dev/）產生第 4.5 批正式區草稿（docs/vue-workspace/parity-plan/m7m8-sql/ 的 51 至 58；59 至 61 為 2026-11-20 驗收問卷追加）。
 // 規則：內容與 DEV 檔相同，只是換成草稿標頭、包 BEGIN ... COMMIT、結尾加核對查詢；rollback 同樣包交易。不連線任何資料庫。145000（DEV 測試角色與清除函式）是 DEV 專用，不產正式區草稿。
 // 用法：node scripts/build-m7m8-b45-prod-drafts.cjs
 const fs = require("fs");
@@ -179,6 +179,60 @@ const DRAFTS = [
     rollbackSummary:
       "撤回 58：移除 ga_ws_po_receipt_void、void_key 欄位與索引，並把進貨讀取與配發函式的排除條件拿掉。已作廢的進貨（voided_at 有值）資料不會還原、庫存不會自動加回；撤回前若已有作廢進貨，請先人工確認。",
     backup: "-- 撤回前備份：\n--   CREATE TABLE public.zz_bak_b45_58_receipts AS SELECT id, voided_at, voided_by, void_reason, void_key FROM public.ga_purchase_receipts WHERE voided_at IS NOT NULL;",
+  },
+  {
+    no: "59-b45f-vendor-bank-log",
+    dev: "20261120100000_m7m8_b45f_vendor_bank_log",
+    title: "第 4.5 批追加 F6（廠商銀行帳號修改歷程；2026-11-20 驗收問卷）",
+    summary:
+      "性質：會寫入（新增 1 張表、2 個觸發器函式、1 個觸發器、1 個對外函式）。ga_vendor_bank_changes（只新增不可改刪；UPDATE／TRUNCATE 一律擋，DELETE 只放行刪廠商的外鍵連鎖）記錄誰、何時、新增或修改、四個銀行欄位的舊值與新值；\n" +
+      "--   ga_vendors 上的觸發器（AFTER INSERT OR UPDATE OF 四個銀行欄位）寫入，所以畫面、API、SQL 任何路徑改銀行欄位都有紀錄；沒有真的變動不記；沒有登入身分時修改人留空。\n" +
+      "--   表啟用 RLS、不開 policy、撤銷 anon／authenticated 權限；讀取只能走 ga_ws_vendor_bank_log（需 vendor.view 或 vendor.manage，與廠商銀行欄位本身可見規則相同，否則 403）。\n" +
+      "-- 先決條件：先套 53（銀行欄位）與第 6 批 44（ga_vd_can_view）。不回填既有廠商的歷史（套用前的修改沒有紀錄）。",
+    verify:
+      "SELECT to_regclass('public.ga_vendor_bank_changes') AS log_table, to_regprocedure('public.ga_ws_vendor_bank_log(uuid,integer,integer)') AS read_fn;\n" +
+      "-- 核對：兩個都不是空的\n" +
+      "SELECT tgname FROM pg_trigger WHERE tgname IN ('trg_ga_vendors_bank_log', 'trg_ga_vendor_bank_changes_immutable', 'trg_ga_vendor_bank_changes_no_truncate') ORDER BY 1;\n" +
+      "-- 核對：應列出 3 個觸發器",
+    rollbackSummary: "撤回 59：移除讀取函式、寫入觸發器與函式、修改歷程表。會刪除全部廠商銀行修改歷程。",
+    backup: "-- 撤回前備份：\n--   CREATE TABLE public.zz_bak_b45f_59_bank_changes AS SELECT * FROM public.ga_vendor_bank_changes;",
+  },
+  {
+    no: "60-b45f-pay-rules",
+    dev: "20261120110000_m7m8_b45f_pay_rules",
+    title: "第 4.5 批追加 F1、F3、尾差重驗（採購單總額上限、付款日期 30 天、尾差調低後送出重驗；2026-11-20 驗收問卷）",
+    summary:
+      "性質：會寫入（新增 2 個內部輔助函式，文字替換 3 個函式，不動資料）。F1：一張採購單所有非作廢請款明細合計不得超過採購單含稅總額 + 尾差（與原本累計驗入上限並存；累計驗入先擋、錯誤碼 OVER_CLAIM 不變，之後才可能是 OVER_PO_TOTAL）；\n" +
+      "--   F3：付款日期可比請款單建立日（台北）早最多 30 天、不可是未來（取代原本不得早於建立日；錯誤碼 PAID_TOO_EARLY 沿用）；尾差重驗：送出時草稿明細與發票分攤金額相差超過目前尾差且沒有差異原因者擋下（DIFF_REASON_REQUIRED）。\n" +
+      "--   擴充 ga_pay_apply_lines、ga_pay_check_live、ga_ws_pay_request_action（已套用就略過，形狀不符就中止）。\n" +
+      "-- 先決條件：先套 56。",
+    verify:
+      "SELECT proname FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_pay_check_po_total', 'ga_pay_check_tol_reasons') ORDER BY 1;\n" +
+      "-- 核對：應列出 2 個函式\n" +
+      "SELECT proname, position('ga_pay_check_po_total' in prosrc) > 0 AS has_f1 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_pay_apply_lines', 'ga_pay_check_live') ORDER BY 1;\n" +
+      "-- 核對：has_f1 都是 true\n" +
+      "SELECT position('超過 30 天' in prosrc) > 0 AS has_f3 FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = 'ga_ws_pay_request_action';\n" +
+      "-- 核對：has_f3 是 true",
+    rollbackSummary: "撤回 60：把三個函式的追加擴充拿掉（形狀不符就中止）並移除兩個內部輔助函式。不刪任何資料。撤回後採購單總額上限、30 天付款日規則與尾差重驗失效（付款日期回到不得早於建立日）。",
+    backup: "-- 撤回前備份：先存 3 個函式的現行定義（SELECT pg_get_functiondef(...)）；函式本身可由 60 重新套用還原。",
+  },
+  {
+    no: "61-b45f-stale-draft",
+    dev: "20261120120000_m7m8_b45f_stale_draft",
+    title: "第 4.5 批追加 F7（逾 14 天未送出的請款草稿提醒；2026-11-20 驗收問卷）",
+    summary:
+      "性質：會寫入（新增 1 個內部輔助函式，文字替換 3 個函式，不動資料）。ga_pay_stale_draft_ids()：草稿且放著天數（台北今天 - 最近退回日，沒退回過用建立日）大於 14 天；首頁待辦與列表篩選共用同一個述詞。\n" +
+      "--   ga_hm_counts 新增 pay_stale_draft；ga_ws_home_summary 新增待辦「逾 14 天未送出的請款草稿」（只給請款檢視／管理）；ga_ws_pay_request_list 新增篩選 stale_draft 與 global.stale_draft_count。導覽徽章維持待付款（SUBMITTED）口徑不變。\n" +
+      "-- 先決條件：先套 57（ga_hm_counts／ga_ws_home_summary 的 pay_submitted 區塊）與 56。",
+    verify:
+      "SELECT to_regprocedure('public.ga_pay_stale_draft_ids()') AS fn;\n" +
+      "-- 核對：不是空的\n" +
+      "SELECT proname, position('pay_stale_draft' in prosrc) > 0 AS has_stale FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname IN ('ga_hm_counts', 'ga_ws_home_summary') ORDER BY 1;\n" +
+      "-- 核對：has_stale 都是 true\n" +
+      "SELECT position('v_stale' in prosrc) > 0 AS list_has_stale FROM pg_proc WHERE pronamespace = 'public'::regnamespace AND proname = 'ga_ws_pay_request_list';\n" +
+      "-- 核對：list_has_stale 是 true",
+    rollbackSummary: "撤回 61：把三個函式的草稿提醒擴充拿掉（形狀不符就中止）並移除 ga_pay_stale_draft_ids。不刪任何資料。",
+    backup: "-- 撤回前備份：先存 3 個函式的現行定義（SELECT pg_get_functiondef(...)）；函式本身可由 61 重新套用還原。",
   },
 ];
 

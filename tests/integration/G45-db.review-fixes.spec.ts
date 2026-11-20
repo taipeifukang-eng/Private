@@ -87,22 +87,24 @@ test.afterAll(async () => {
 });
 
 // ------------------------------------------------------------------ 稅額進位
-test('審查修正 稅額逐張進位：12 次進貨各 10 元（稅 0.5 進位成 1），逐張預設請款合計 132 元，累計驗入同口徑不被 OVER_CLAIM 擋', async () => {
+test('審查修正 稅額逐張進位：12 次進貨各 10 元（稅 0.5 進位成 1），累計驗入 132 同口徑不被 OVER_CLAIM 擋；追加 F1 後累計請款另受採購單含稅總額 126 + 尾差 5 = 131 限制', async () => {
   const vendor = await seedGa45Vendor(`RF${(seq += 1)}`);
   const po = await mkPo(vendor, [{ item_name: 'QA-GA45 小額分批', unit: '個', quantity: 12, unit_price: 10 }]);
   const receipts: any[] = [];
   for (let n = 0; n < 12; n += 1) receipts.push(await recv(po, 1));
-  const pr = okData(await create('clerk', vendor, receipts.map((r) => ({ receipt_id: r.id }))));
-  // 每張進貨預設請款 10 + 稅 1 = 11，12 張共 132；舊口徑累計驗入只算 120 + round(6) = 126，加尾差 5 元為 131 會硬擋
-  expect(Number(pr.amount_total)).toBe(132);
-  expect(Number(pr.tax_amount)).toBe(12);
+  // 每張進貨預設請款 10 + 稅 1 = 11，12 張共 132；累計驗入逐張進位同為 132（舊口徑 126 + 5 會誤擋，已修）。
   const rcv = await db().rpc('ga_pay_po_received', { p_po: po.id });
   expect(rcv.error, JSON.stringify(rcv.error)).toBeNull();
   expect(Number((rcv.data as any).total)).toBe(132);
   expect(Number((rcv.data as any).tax)).toBe(12);
-  // 全部請完後不再出現在「待請款」
-  const cand = okData(await fn('clerk', 'ga_ws_pay_receipt_candidates', { p_filters: { po_id: po.id, only_claimable: true }, p_page: 1, p_page_size: 50 }));
-  expect(cand.rows.length).toBe(0);
+  // F1（2026-11-20 驗收問卷）：全部 12 張一起請 132 超過採購單含稅總額 126 + 尾差 5，回 OVER_PO_TOTAL（不是 OVER_CLAIM）
+  const all = await create('clerk', vendor, receipts.map((r) => ({ receipt_id: r.id })));
+  expect(all).toMatchObject({ ok: false, status: 409, code: 'OVER_PO_TOTAL', po_total: 126, claimed_total: 132, tolerance: 5 });
+  // 前 11 張（121）可請；第 12 張再請會到 132，同樣被擋
+  const pr = okData(await create('clerk', vendor, receipts.slice(0, 11).map((r) => ({ receipt_id: r.id }))));
+  expect(Number(pr.amount_total)).toBe(121);
+  expect(Number(pr.tax_amount)).toBe(11);
+  expect(await create('clerk', vendor, [{ receipt_id: receipts[11].id }])).toMatchObject({ ok: false, status: 409, code: 'OVER_PO_TOTAL' });
   // 單張進貨的行為不變：一般採購單（1000 + 50）
   const s = await scene();
   const pr2 = okData(await create('clerk', s.vendor, [{ receipt_id: s.receipt.id }]));
