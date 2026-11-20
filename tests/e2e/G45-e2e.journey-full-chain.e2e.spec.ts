@@ -46,6 +46,16 @@ const today = () => {
   return `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
 };
 const vis = (page: Page, testid: string) => page.getByTestId(testid).locator('visible=true');
+// 驗收截圖（只在設定 G45_SHOTS_DIR 時才拍）：1920x1080、等網路閒置與字型載入後存檔。
+async function shot(page: Page, file: string, scrollTestId?: string) {
+  const dir = process.env.G45_SHOTS_DIR;
+  if (!dir) return;
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  if (scrollTestId) await vis(page, scrollTestId).scrollIntoViewIfNeeded();
+  await page.waitForLoadState('networkidle');
+  await page.evaluate(() => (document as any).fonts.ready);
+  await page.screenshot({ path: `${dir}/${file}` });
+}
 const noConsole = (errors: string[]) => errors.filter((e) => !/Failed to load resource/.test(e));
 const j = async (r: any) => ({ status: r.status() as number, body: await r.json().catch(() => ({})) as any });
 const get = async (k: string, p: string) => j(await apis[k].get(p));
@@ -485,6 +495,9 @@ test('9. F3 補登付款日：可比建立日早最多 30 天、不可是未來�
     await expect(vis(page, 'act-error')).toContainText('超過 30 天');
     expect((await dbPr(subId)).status).toBe('SUBMITTED');
     await vis(page, 'act-date').fill(addDays(t, -30));
+    // 改成合法日期後，舊的錯誤訊息要立刻消失（不必等再按確認）
+    await expect(page.getByTestId('act-error')).toHaveCount(0);
+    await shot(page, 'd1920-03b-f3-backdated-30-days.png');
     await vis(page, 'act-confirm').click();
     await expect(vis(page, 'pe-saved')).toContainText('已標記已付款');
     expect(noConsole(errors)).toEqual([]);
@@ -576,6 +589,7 @@ test('11. F6 廠商銀行修改歷程：有廠商檢視權限者看得到（舊�
     await expect(vis(page, 'vd-bank-log')).toBeVisible();
     await expect(vis(page, 'vd-bank-log').getByTestId('vd-bank-log-row').first()).toContainText('→');
     await expect(vis(page, 'vd-bank-log')).toContainText('999-000-111222');
+    await shot(page, 'd1920-04-vendor-bank-log.png', 'vd-bank-log');
     expect(await noPageOverflow(page)).toBe(true);
     expect(noConsole(errors)).toEqual([]);
   } finally {

@@ -135,14 +135,14 @@ test('G09 維修紀錄：逐筆與每台修過幾次、狀態與日期篩選、�
     await expect(page.locator('tr:visible, li.asset-card:visible', { hasText: m7Name('H-') })).toHaveCount(3); // 23 筆的最後 3 筆
     await page.getByRole('button', { name: '上一頁' }).locator('visible=true').click();
     // 狀態篩選
-    await page.getByLabel('狀態').selectOption('OPEN');
+    await page.getByLabel('狀態', { exact: true }).selectOption('OPEN');
     await expect(page.getByText('共 1 筆').locator('visible=true').first()).toBeVisible();
     const only = page.locator('tr:visible, li.asset-card:visible', { hasText: m7Name('H-00') });
     await expect(only).toBeVisible();
     await expect(only).toContainText('處理中');
     if (testInfo.project.name !== 'mobile-390') await expect(page.locator('th:visible', { hasText: '處理人' })).toHaveCount(1);
     await expect(only).toContainText('王師傅');
-    await page.getByLabel('狀態').selectOption('');
+    await page.getByLabel('狀態', { exact: true }).selectOption('');
     // 日期：未來日期沒有資料
     await page.getByLabel('報修日期（起）').fill(addDays(taipeiToday(), 5));
     await expect(page.getByText('共 0 筆').locator('visible=true').first()).toBeVisible();

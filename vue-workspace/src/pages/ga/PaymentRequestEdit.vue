@@ -190,6 +190,8 @@ const paidRange = computed(() => paidDateRange(createdDay.value, taipeiToday()))
 const actRef = ref("");
 const actError = ref("");
 const actBusy = ref(false);
+// 對話框欄位一變動就清掉舊的錯誤訊息，避免改成合法日期後紅字還在。
+watch([actDate, actMethod, actRef, actReason], () => { if (actError.value) actError.value = ""; });
 const actKey = ref(newKey());
 const reasonNeeded = computed(() => acting.value === "return" || acting.value === "note" || (acting.value === "void" && voidReasonRequired(status.value)));
 function ask(a: PrAction) {
