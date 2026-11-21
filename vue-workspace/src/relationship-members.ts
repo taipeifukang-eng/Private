@@ -42,12 +42,37 @@ export function relationshipPageCount(total: number, size = RELATIONSHIP_PAGE_SI
   return Math.max(1, Math.ceil(total / size));
 }
 
-/** 目前最後一個 FKRS 會員編號（依數字大小）；沒有時回傳「尚無 FKRS 編號」。 */
+/** 目前最後一個 FKRS 會員編號（依數字大小，去除前後空白、轉大寫，與舊版相同）；沒有時回傳「尚無 FKRS 編號」。 */
 export function lastFkrsNumber(members: RelationshipMemberLike[]): string {
-  return (
-    members
-      .map((m) => m.member_number || "")
-      .filter((n) => /^FKRS\d+$/i.test(n))
-      .sort((a, b) => Number(b.slice(4)) - Number(a.slice(4)))[0] || "尚無 FKRS 編號"
-  );
+  let latestSerial = -1;
+  let latestCode = "";
+  for (const m of members) {
+    const code = String(m.member_number || "").trim();
+    const match = code.match(/^FKRS(\d+)$/i);
+    if (!match) continue;
+    const serial = Number(match[1]);
+    if (Number.isFinite(serial) && serial > latestSerial) {
+      latestSerial = serial;
+      latestCode = code.toUpperCase();
+    }
+  }
+  return latestCode || "尚無 FKRS 編號";
+}
+
+/** 銷售明細統計三個數字：筆數、數量合計、金額合計（本次查詢結果）。 */
+export function salesTotals(sales: { quantity?: unknown; amount?: unknown }[]) {
+  return {
+    count: sales.length,
+    quantity: sales.reduce((n, s) => n + Number(s.quantity || 0), 0),
+    amount: sales.reduce((n, s) => n + Number(s.amount || 0), 0),
+  };
+}
+
+/** 匯入完成訊息：「匯入 N 筆，略過重複 M 筆」；全部重複時「此檔案內容皆已匯入過」。 */
+export function importResultMessage(d: { imported?: number; skipped?: number }) {
+  const imported = Number(d.imported || 0),
+    skipped = Number(d.skipped || 0);
+  if (imported === 0 && skipped > 0)
+    return `此檔案內容皆已匯入過（略過重複 ${skipped} 筆，未新增資料）`;
+  return `匯入 ${imported} 筆，略過重複 ${skipped} 筆`;
 }

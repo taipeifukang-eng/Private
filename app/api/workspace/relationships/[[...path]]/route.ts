@@ -4,7 +4,8 @@ import * as member from "@/app/api/relationship-members/[id]/route";
 import * as approve from "@/app/api/relationship-members/[id]/approve/route";
 import * as reject from "@/app/api/relationship-members/[id]/reject/route";
 import * as sales from "@/app/api/relationship-sales/route";
-import * as importer from "@/app/api/relationship-sales/import/route";
+import { updateRelationshipMember } from "@/lib/workspace/relationship-member-update";
+import { importRelationshipSales } from "@/lib/workspace/relationship-sales-import";
 import {
   context,
   checkOrigin,
@@ -51,13 +52,13 @@ async function run(r: NextRequest, path: string[], method: string) {
     if (path[0] === "sales") {
       if (path.length === 1 && method === "GET") return sales.GET(r);
       if (path.length === 2 && path[1] === "import" && method === "POST")
-        return importer.POST(r);
+        return importRelationshipSales(r);
     }
     const id = path[0];
     if (!/^[0-9a-f-]{36}$/i.test(id || ""))
       throw new WorkspaceError(400, "會員識別碼不正確");
     if (path.length === 1 && method === "PATCH")
-      return member.PATCH(r, { params: { id } });
+      return updateRelationshipMember(r, id);
     if (path.length === 1 && method === "DELETE")
       return member.DELETE(r, { params: { id } });
     if (path.length === 2 && method === "POST") {

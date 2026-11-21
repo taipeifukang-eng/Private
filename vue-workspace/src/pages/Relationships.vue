@@ -9,6 +9,8 @@ import {
   matchesRelationshipFilter,
   relationshipFilters,
   relationshipPageCount,
+  importResultMessage,
+  salesTotals,
 } from "../relationship-members";
 const props = defineProps<{ tab: WorkTab }>();
 const section = ref("members"),
@@ -53,6 +55,7 @@ const saleRows = computed(() =>
   sales.value.slice((salesPage.value - 1) * 50, salesPage.value * 50),
 );
 const lastNumber = computed(() => lastFkrsNumber(members.value));
+const totals = computed(() => salesTotals(sales.value));
 const dirty = computed(
   () =>
     !!modal.value &&
@@ -197,7 +200,7 @@ async function save() {
     const d = await api<any>(path, { method, body });
     message.value =
       action === "import"
-        ? `匯入完成，共新增 ${d.imported} 筆銷售明細`
+        ? importResultMessage(d)
         : (
             {
               create: "關係會員申請已建立",
@@ -325,10 +328,11 @@ onMounted(load);
         <table>
           <thead>
             <tr>
-              <th>會員姓名／電話</th>
+              <th>姓名</th>
+              <th>電話</th>
               <th>關係</th>
+              <th>填表人／日期</th>
               <th>會員編號</th>
-              <th>申請人／日期</th>
               <th>審核狀態</th>
               <th v-if="caps.edit || caps.delete || caps.approve">操作</th>
             </tr>
@@ -336,14 +340,14 @@ onMounted(load);
           <tbody>
             <tr v-for="m in rows" :key="m.id">
               <td>
-                <strong>{{ m.member_name }}</strong
-                ><small>{{ m.phone }}</small>
+                <strong>{{ m.member_name }}</strong>
               </td>
+              <td>{{ m.phone }}</td>
               <td>{{ m.relationship }}</td>
-              <td>{{ m.member_number || "尚未填寫" }}</td>
               <td>
                 {{ person(m.creator) }}<small>{{ fmt(m.created_at) }}</small>
               </td>
+              <td>{{ m.member_number || "尚未填寫" }}</td>
               <td>
                 <template v-if="m.is_approved"
                   ><strong>已核可</strong
@@ -376,7 +380,7 @@ onMounted(load);
               </td>
             </tr>
             <tr v-if="!loading && !rows.length">
-              <td :colspan="caps.edit || caps.delete || caps.approve ? 6 : 5">
+              <td :colspan="caps.edit || caps.delete || caps.approve ? 7 : 6">
                 沒有符合條件的會員
               </td>
             </tr>
@@ -415,9 +419,8 @@ onMounted(load);
       <p v-if="salesLoading" role="status">載入銷售明細中…</p>
       <p v-if="salesLoaded" class="sales-total">
         {{ loadedQuery }} · {{ sales.length }} 筆 · 數量合計
-        {{ number(sales.reduce((n, s) => n + Number(s.quantity || 0), 0)) }} ·
-        金額合計
-        {{ number(sales.reduce((n, s) => n + Number(s.amount || 0), 0)) }}
+        {{ number(totals.quantity) }} · 金額合計
+        {{ number(totals.amount) }}
       </p>
       <p class="muted">
         每次查詢最多顯示最新 5,000 筆，合計以本次查詢結果計算。
@@ -499,7 +502,7 @@ onMounted(load);
           </p>
           <p>
             日期格式：YYYY/MM/DD
-            HH:MM。範本內的示例資料請先替換。匯入會新增明細，重複匯入會增加重複資料。
+            HH:MM。範本內的示例資料請先替換。內容完全相同的明細（門市、銷售時間、會員編號、品號、數量、金額都相同）若已匯入過，會自動略過並顯示略過筆數。
           </p>
           <label
             >銷售明細 Excel<input
