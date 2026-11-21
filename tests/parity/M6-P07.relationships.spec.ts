@@ -97,9 +97,10 @@ test('畫面對等：四個分頁計數、待填寫分頁 FKRS 最後一號、�
   const edit = await apiAs('relationship_edit');
   const admin = await apiAs('admin');
   const ctx = await loginAs(browser, 'admin');
+  let id = '';
   try {
     const name = memberName('parity-ui');
-    const id: string = (await (await edit.post('/api/workspace/relationships', { data: { member_name: name, phone: '0900000021', relationship: '自動測試' } })).json()).id;
+    id = (await (await edit.post('/api/workspace/relationships', { data: { member_name: name, phone: '0900000021', relationship: '自動測試' } })).json()).id;
     await edit.patch(`/api/workspace/relationships/${id}`, { data: { member_name: name, phone: '0900000021', relationship: '自動測試', member_number: number } });
     const file = book([['VW001', '2038/03/01 14:30', number, 'P1', '測試商品甲', 1, 100], ['VW001', '2038/03/01 14:31', number, 'P2', '測試商品乙', 2, 250.5], ['VW001', '2038/03/02 09:00', number, 'P3', '測試商品丙', 3, 1234.25]]);
     expect((await edit.post('/api/workspace/relationships/sales/import', { multipart: { file: { name: salesFileName('ui'), mimeType: XLSX_MIME, buffer: file } } })).status()).toBe(200);
@@ -146,8 +147,8 @@ test('畫面對等：四個分頁計數、待填寫分頁 FKRS 最後一號、�
     assertNoUnlistedDiffs(r);
     expect(r.status).toBe('pass');
     expect(legacyStats).toEqual({ count: 3, quantity: 6, amount: 1584.75 });
-    await admin.delete(`/api/workspace/relationships/${id}`);
   } finally {
+    if (id) await admin.delete(`/api/workspace/relationships/${id}`).catch(() => undefined);
     await ctx.close();
     await edit.dispose();
     await admin.dispose();

@@ -82,6 +82,7 @@ test('三個模組：同一組檔案，新舊輸出逐儲存格相同（檔名�
     await nativeGenerate(np);
     const conflictShown = await np.getByTestId('final-conflicts').isVisible();
     const conflictDownloadable = await np.getByRole('button', { name: '下載 DPOS 結果檔' }).count();
+    const conflictCount = await np.getByTestId('final-conflicts').locator('li').count();
     await np.close();
 
     // ---------------- 比對
@@ -122,8 +123,9 @@ test('三個模組：同一組檔案，新舊輸出逐儲存格相同（檔名�
     // A2：舊版對衝突資料仍產出檔案（直接累加），新版擋下並列出衝突
     expect(conflictShown).toBe(true);
     expect(conflictDownloadable).toBe(0);
+    expect(conflictCount).toBe(3);
     const legacyRows = legacy.conflict.rows.length;
-    record('module3-conflict', '模組三衝突資料：舊版直接累加產出檔案，新版擋下並列出衝突', [{ kind: 'changed', key: 'final-conflict-block', legacy: `產出 ${legacyRows} 筆（${legacy.conflict.name}）`, native: '不產出，列出 3 項衝突', detail: 'A2：擋下並一次列出全部衝突品號' }], { conflicts: 3 });
+    record('module3-conflict', '模組三衝突資料：舊版直接累加產出檔案，新版擋下並列出衝突', [{ kind: 'changed', key: 'final-conflict-block', legacy: `產出 ${legacyRows} 筆（${legacy.conflict.name}）`, native: `不產出，列出 ${conflictCount} 項衝突`, detail: 'A2：擋下並一次列出全部衝突品號' }], { conflicts: conflictCount });
   } finally {
     await ctx.close();
   }

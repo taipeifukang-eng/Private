@@ -9051,8 +9051,8 @@
     "id": "m6-w25-a4-csv-keep-text-code",
     "page": "inventory-offline",
     "description": "盤點結果分析報表的 CSV 匯出（舊版沒有）保留：加上 BOM 避免中文亂碼，品號以文字格式寫入（Excel 開啟不會吃掉前導零，例如 00012345）。離線工具補回舊版提示：無盤差時顯示「沒有需要複盤的品項」且不下載、外盤檔重複品號列出清單並拒絕匯入、FKS0701 與 1F 商品檔缺欄位時顯示缺少的欄位與實際欄位。",
-    "reason": "M6 規格問卷 A4：使用者選「保留 CSV，並補回所有舊版提示訊息」。",
-    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+    "reason": "調查時採用的假設（保留 CSV、補回舊版提示），未在問卷詢問，待使用者確認。",
+    "approvedBy": null
   },
   {
     "id": "m6-w25-base-header-whitespace",
