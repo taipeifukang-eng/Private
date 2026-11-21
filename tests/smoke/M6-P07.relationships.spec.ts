@@ -63,6 +63,20 @@ for (const r of ROWS) {
       await expect(page.getByRole('button', { name: '銷售明細報表', exact: true })).toHaveCount(r.sales ? 1 : 0);
       const heads = (await page.locator('.relationship-page section:visible thead th').allTextContents()).map((h) => h.trim());
       expect(heads).toEqual(r.operations ? [...BASE_HEADS, '操作'] : BASE_HEADS);
+      // 作用中的分頁就算被滑鼠停在上面（hover）也要維持主色底白字，不能變成淡底白字
+      const activeTab = page.locator('.section-tabs button[aria-pressed="true"]');
+      await activeTab.hover();
+      const tabStyle = await activeTab.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const probe = document.createElement('i');
+        probe.style.color = 'var(--primary)';
+        document.body.appendChild(probe);
+        const primary = getComputedStyle(probe).color;
+        probe.remove();
+        return { bg: cs.backgroundColor, primary, opacity: cs.opacity };
+      });
+      expect(tabStyle.bg, '作用中分頁 hover 時仍為主色底').toBe(tabStyle.primary);
+      expect(tabStyle.opacity).toBe('1');
       if (r.sales) {
         await page.getByRole('button', { name: '銷售明細報表', exact: true }).click();
         await expect(page.getByRole('button', { name: '匯入銷售明細 Excel' })).toHaveCount(r.who === 'relationship_edit' || r.who === 'admin' ? 1 : 0);

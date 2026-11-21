@@ -47,6 +47,31 @@ async function openPage(page: Page) {
 const settled = (page: Page) => page.waitForFunction(() => !/載入中/.test(document.querySelector('.toolbar span')?.textContent || ''));
 const rowOf = (page: Page, text: string) => page.locator('.relationship-page tbody tr', { hasText: text });
 const noOverflow = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+/**
+ * 手機表格版面：頁面不橫向溢出；每個欄位寬度至少容得下三個字（不會一字一行）；
+ * 表格在自己的捲動容器內，捲到最右時最後一欄完整可見（所有欄位都碰得到）。
+ */
+async function assertTableUsable(page: Page, tableSelector: string) {
+  const r = await page.locator(tableSelector).evaluate((table) => {
+    const wrap = table.parentElement as HTMLElement;
+    const cs = (el: Element) => getComputedStyle(el);
+    const narrow: string[] = [];
+    table.querySelectorAll('tbody tr:first-child td, thead th').forEach((c) => {
+      const style = cs(c);
+      const inner = (c as HTMLElement).clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      if ((c.textContent || '').trim().length >= 3 && inner < parseFloat(style.fontSize) * 3) narrow.push(`${(c.textContent || '').trim().slice(0, 12)}:${Math.round(inner)}`);
+    });
+    wrap.scrollLeft = wrap.scrollWidth;
+    const lastTh = table.querySelector('thead th:last-child') as HTMLElement;
+    const lastRight = lastTh.getBoundingClientRect().right;
+    const wrapRight = wrap.getBoundingClientRect().right;
+    return { narrow, scrollable: ['auto', 'scroll'].includes(cs(wrap).overflowX), lastReachable: lastRight <= wrapRight + 1, pageFits: document.documentElement.scrollWidth <= window.innerWidth };
+  });
+  expect(r.narrow, '欄寬太窄會一字一行').toEqual([]);
+  expect(r.scrollable, '表格外層可橫向捲動').toBe(true);
+  expect(r.lastReachable, '捲到最右時最後一欄可見').toBe(true);
+  expect(r.pageFits, '頁面不橫向溢出').toBe(true);
+}
 
 /** 舊版（RelationshipMembersClient.tsx）的計數與 FKRS 最後一號演算法，獨立於新版純函式。 */
 function legacyCounts(members: any[]) {
@@ -119,7 +144,10 @@ test('關係會員多角色接力：申請、檢視、核可駁回、填編號�
     // edit 沒有核可、駁回、刪除
     for (const b of ['核可', '駁回', '刪除']) await expect(rowOf(ep, nameP).getByRole('button', { name: b, exact: true })).toHaveCount(0);
     await expect(rowOf(ep, nameP).getByRole('button', { name: '編輯', exact: true })).toBeVisible();
-    if (testInfo.project.name === 'mobile-390') expect(await noOverflow(ep)).toBe(true);
+    if (testInfo.project.name === 'mobile-390') {
+      expect(await noOverflow(ep)).toBe(true);
+      await assertTableUsable(ep, '.relationship-page .members-table');
+    }
     await editCtx.close();
 
     // ---- view：只能看
@@ -240,7 +268,10 @@ test('關係會員多角色接力：申請、檢視、核可駁回、填編號�
     await expect(e2.locator('.relationship-page thead th', { hasText: '匯入來源／時間' })).toBeVisible();
     const b3 = await db.from('relationship_sales_imports').select('id', { count: 'exact', head: true }).like('file_name', `m6p07-${runIdOrThrow()}-${tag}-%`);
     expect(b3.count, '三次匯入只有兩次建立批次（全部重複那次不建空批次）').toBe(2);
-    if (testInfo.project.name === 'mobile-390') expect(await noOverflow(e2)).toBe(true);
+    if (testInfo.project.name === 'mobile-390') {
+      expect(await noOverflow(e2)).toBe(true);
+      await assertTableUsable(e2, '.relationship-page .sales-table');
+    }
     await edit2.close();
 
     // ---- delete：刪除會員，銷售歷史保留

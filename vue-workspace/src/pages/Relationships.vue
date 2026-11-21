@@ -325,7 +325,7 @@ onMounted(load);
         <span>{{ loading ? "載入中…" : `符合 ${visible.length} 筆` }}</span>
       </div>
       <div class="module-table">
-        <table>
+        <table class="members-table">
           <thead>
             <tr>
               <th>姓名</th>
@@ -426,7 +426,7 @@ onMounted(load);
         每次查詢最多顯示最新 5,000 筆，合計以本次查詢結果計算。
       </p>
       <div class="module-table">
-        <table>
+        <table class="sales-table">
           <thead>
             <tr>
               <th>門市代號</th>
@@ -597,9 +597,14 @@ h1 {
   padding-bottom: 14px;
   margin-bottom: 24px;
 }
-button[aria-pressed="true"] {
+button[aria-pressed="true"],
+button[aria-pressed="true"]:hover:not(:disabled) {
   background: var(--primary);
+  border-color: var(--primary);
   color: white;
+}
+button[aria-pressed="true"]:hover:not(:disabled) {
+  filter: brightness(0.93);
 }
 .toolbar label {
   min-width: 220px;
@@ -675,6 +680,43 @@ form footer {
 }
 .sales-total {
   font-weight: 600;
+}
+/* 寬表格：沿用全站 .module-table 的捲動容器，並給足最小寬度，短欄位不換行，避免一字一行 */
+.module-table th {
+  white-space: nowrap;
+}
+.members-table {
+  min-width: 1040px;
+}
+.members-table td:nth-child(1),
+.members-table td:nth-child(2),
+.members-table td:nth-child(5) {
+  white-space: nowrap;
+}
+.members-table td:nth-child(3) {
+  min-width: 8em;
+  overflow-wrap: anywhere;
+}
+.members-table td:nth-child(4),
+.members-table td:nth-child(6) {
+  min-width: 11em;
+}
+.members-table td .actions {
+  flex-wrap: nowrap;
+}
+.sales-table {
+  min-width: 980px;
+}
+.sales-table td:nth-child(1),
+.sales-table td:nth-child(2),
+.sales-table td:nth-child(5),
+.sales-table td:nth-child(6) {
+  white-space: nowrap;
+}
+.sales-table td:nth-child(3),
+.sales-table td:nth-child(4),
+.sales-table td:nth-child(7) {
+  min-width: 11em;
 }
 @media (max-width: 760px) {
   .toolbar form,
