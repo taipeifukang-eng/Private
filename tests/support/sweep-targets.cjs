@@ -75,6 +75,13 @@ MARKER_TARGETS.push(
   { table: 'ga_vendors', column: 'name', pattern: 'QA-GA45-%', action: 'report' },
 );
 
+// M6 第 1 批（P07 關係會員）：銷售明細匯入批次檔名 m6p07-<runId>-…（明細 ON DELETE CASCADE）；測試帳號 m6-test-*、臨時角色 m6_test_* 由 fixture 自行清除，這裡只回報孤兒。
+MARKER_TARGETS.push(
+  { table: 'relationship_sales_imports', column: 'file_name', pattern: 'm6p07-%', action: 'delete' },
+  { table: 'profiles', column: 'email', pattern: 'm6-test-%', action: 'report' },
+  { table: 'roles', column: 'code', pattern: 'm6_test_%', action: 'report' },
+);
+
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
 const RESERVED_MONTH_TABLES = [
   'monthly_store_summary',

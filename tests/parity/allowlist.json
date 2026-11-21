@@ -2,12 +2,10 @@
   {
     "id": "inventory-view-implies-import-delete",
     "page": "/inventory",
-    "description": "具備 inventory.inventory.view 的帳號（例如 navigation 帳號、店長）目前 session capabilities 的 importInventory 與 deleteInventory 皆為 true；僅有檢視權限卻同時可匯入與刪除盤點資料。",
-    "reason": "T01 角色矩陣 expected.capabilities 為現行行為快照（verified:false）。是否與舊版一致、是否應收緊，待 parity 階段驗證，並由使用者核可是否列為已知差異。",
+    "description": "具備 inventory.inventory.view 的帳號（例如 navigation 帳號、店長）session capabilities 的 importInventory 與 deleteInventory 皆為 true；僅有檢視權限卻同時可匯入與刪除盤點資料。M6 第一批已查證：舊 /api/inventory/result-analysis 的 canImport／canDelete 同樣在「有任一檢視權限」時為 true，舊版 API 實際行為與新版相同（以 inventory_view 等角色對舊 API 與 workspace API 送同樣的請求，狀態碼逐一相同），所以新舊沒有差異。",
+    "reason": "2026-11-02 裁定「改回舊版」；M6-W25 查證舊版行為與新版相同（app/api/inventory/result-analysis/route.ts 的 canImportInventoryResultAnalysis／canDeleteInventoryResultAnalysis 對 hasAnyInventoryLegacyViewPermission 直接放行），因此新版不收緊（收緊會變成與舊版不同）。是否要連同舊版一起收緊屬另案，待使用者決定；在此之前維持與舊版相同。",
     "approvedBy": null,
-    "deferredTo": "W25",
-    "decision": "fix",
-    "fixIn": "W25"
+    "deferredTo": "W25"
   },
   {
     "id": "nav-home-entry",
@@ -9014,5 +9012,132 @@
     "description": "請款規則追加：一張採購單的非作廢請款合計不能超過採購單含稅總額加尾差（與累計驗入上限並存）；付款日期可比請款單建立日早最多 30 天、不能是未來；尾差調低後，未送出的草稿在送出時用新尾差重新檢查。",
     "reason": "驗收問卷 F1、F3、假設 (a)（2026-11-20）：使用者選建議作法。新規則，舊版沒有請款功能；已於驗收問卷核可。",
     "approvedBy": "user (2026-11-20 第4.5批驗收問卷)"
+  },
+  {
+    "id": "m6-w25-a1-filename-date-dash",
+    "page": "inventory-offline",
+    "description": "離線盤點工具下載檔名的日期：外盤應複盤清單、內部盤點複盤資料、系統有庫存但未盤點檔案三個檔名帶台北時間的 YYYY-MM-DD（例如 外盤應複盤清單_2026-11-21.xlsx）；舊版寫 YYYY/M/D（瀏覽器存檔時斜線變底線）。「M月D日盤點結果檔」維持舊寫法不變。工作表名稱與舊版相同（Sheet1）。",
+    "reason": "M6 規格問卷 A1：使用者選「帶日期，但用橫線寫法」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "mechanism": "write-readback",
+      "entry": "file-names",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m6-w25-a2-final-conflict-block",
+    "page": "inventory-offline",
+    "description": "第三步「產出匯入 DPOS 的檔案」遇到衝突資料（同一品號同時在無盤差與複盤資料、庫存量不一致、未盤點檔內重複）時，新版不產出檔案並一次列出全部衝突品號；舊版不檢查、直接加總產出檔案。",
+    "reason": "M6 規格問卷 A2：使用者選「擋下來，並一次列出所有衝突的品號」。沒有衝突時輸出與舊版逐列相同。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "module3-conflict",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m6-w25-a3-per-file-summary",
+    "page": "inventory-offline",
+    "description": "預盤多檔上傳：與舊版相同，壞檔跳過、好檔照收；新版畫面改顯示「成功 N/M，失敗檔案：檔名（原因）」，已成功的檔案保留在畫面上，失敗的檔案可單獨重傳；同名檔案重傳以新的取代。舊版只跳出一次提示且每次上傳都整批重來。",
+    "reason": "M6 規格問卷 A3 選「跳過壞檔，顯示成功與失敗清單」（與舊版主流程相同）；提示文字與保留成功檔的方式是實作取捨，不在問卷內，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "pre-multi-file",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m6-w25-a4-csv-keep-text-code",
+    "page": "inventory-offline",
+    "description": "盤點結果分析報表的 CSV 匯出（舊版沒有）保留：加上 BOM 避免中文亂碼，品號以文字格式寫入（Excel 開啟不會吃掉前導零，例如 00012345）。離線工具補回舊版提示：無盤差時顯示「沒有需要複盤的品項」且不下載、外盤檔重複品號列出清單並拒絕匯入、FKS0701 與 1F 商品檔缺欄位時顯示缺少的欄位與實際欄位。",
+    "reason": "M6 規格問卷 A4：使用者選「保留 CSV，並補回所有舊版提示訊息」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w25-base-header-whitespace",
+    "page": "inventory-offline",
+    "description": "1F 商品檔標題文字前後有空白（例如「 品號」）時：舊版把標題去空白後比對所以可以匯入，新版不去空白，會因找不到「品號」等欄位而拒絕匯入。",
+    "reason": "M6-W25 新舊 1F 商品檔欄位辨識對跑發現的不一致（單元與畫面對跑皆重現）。依規格不自行決定哪一邊是對的，待使用者決定新版是否要改成去空白。",
+    "approvedBy": null,
+    "match": {
+      "entry": "base-1f-variants",
+      "kind": "changed",
+      "key": "base-1f-spaces.xlsx"
+    }
+  },
+  {
+    "id": "m6-w25-base-blank-code-row",
+    "page": "inventory-offline",
+    "description": "1F 商品檔出現「品號空白、其他欄位有值」的列：舊版保留該列（品號為空字串，會影響未盤點清單的判斷），新版略過該列。",
+    "reason": "M6-W25 新舊 1F 商品檔對跑發現的不一致；新版行為較合理，但仍與舊版不同，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "base-1f-variants",
+      "kind": "changed",
+      "key": "base-1f-blank-code-row.xlsx"
+    }
+  },
+  {
+    "id": "m6-w25-base-stock-nonnumeric",
+    "page": "inventory-offline",
+    "description": "1F 商品檔的庫存欄位出現非數字（例如「待確認」）：舊版把它變成 NaN 仍匯入，新版直接拒絕並指出「數量不是有效數字」。",
+    "reason": "M6-W25 新舊 1F 商品檔對跑發現的不一致，待使用者確認新版是否維持較嚴格的檢查。",
+    "approvedBy": null,
+    "match": {
+      "entry": "base-1f-variants",
+      "kind": "changed",
+      "key": "base-1f-nonnumeric-stock.xlsx"
+    }
+  },
+  {
+    "id": "m6-w25-number-validation",
+    "page": "inventory-offline",
+    "description": "預盤、外盤等檔案的盤點數量出現非數字：舊版變成 NaN 仍收下，新版拒絕並指出「數量不是有效數字」。",
+    "reason": "M6-W25 新舊對跑發現的不一致（新版沿用先前移植時的嚴格檢查），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "number-validation",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m6-w25-forbidden-message",
+    "page": "inventory-offline",
+    "description": "沒有盤點入口的帳號直接打新版盤點 API：新版外層先回 403「沒有此功能的操作權限」；舊版會依請求內容回「無…權限」的 403，或對格式不正確的請求先回 400。有入口的帳號，新舊回傳逐項相同。",
+    "reason": "M6-W25 角色劇本發現的外層差異（先前移植的 moduleContext 行為），不影響有權限者；待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-p07-a6-search-paging",
+    "page": "relationships",
+    "description": "關係會員頁新版保留關鍵字搜尋（姓名、電話、會員編號、關係、填表人）與每頁 50 筆分頁；舊版沒有。會員表格的姓名、電話改回兩個獨立欄位，欄位順序與舊版相同（姓名、電話、關係、填表人／日期、會員編號、審核狀態）。",
+    "reason": "M6 規格問卷 A6：使用者選「接受搜尋與分頁，但姓名、電話改回分開兩欄」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-p07-a6-import-source-column",
+    "page": "relationships",
+    "description": "銷售明細報表保留「匯入來源／時間」欄（匯入的檔名與時間）；舊版沒有。每次查詢最多顯示最新 5,000 筆的限制舊版同樣存在，不算差異。",
+    "reason": "M6 規格問卷 A6：使用者選接受新版多出的功能（只要求姓名、電話拆回兩欄）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-p07-a7-sales-import-dedupe",
+    "page": "relationships",
+    "description": "銷售明細 Excel 匯入：內容完全相同的明細（門市代號、銷售時間、會員編號、品號、數量、金額都相同）若資料庫已存在就自動略過，畫面顯示「匯入 N 筆，略過重複 M 筆」；全部重複時顯示「此檔案內容皆已匯入過」且不建立空批次；兩人同時匯入同一份檔案也不會產生重複。同一個檔案內本身相同的列不會因此被略過（資料庫已有幾筆就略過幾筆）。舊版每次匯入都新增（已於 DEV 實測：同檔連續匯入兩次共 4 筆）。",
+    "reason": "M6 規格問卷 A7：使用者選「內容完全相同的明細自動略過，並顯示略過幾筆」。同檔內相同列與「資料庫已有幾筆就略過幾筆」的細節是預設假設，已寫入白話說明請使用者確認。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "sales-duplicate-import",
+      "kind": "changed"
+    }
+  },
+  {
+    "id": "m6-p07-member-number-race",
+    "page": "relationships",
+    "description": "兩個人同時為同一位關係會員填不同的會員編號：舊版兩邊都回成功，後寫的蓋掉先寫的；新版第二個請求回 409「會員編號已建立，不可清空或再次修改」，先寫的編號保留。填同一個編號則兩邊都成功。",
+    "reason": "M6 規格第一批驗收要求「並行填寫會員編號一個成功一個 409」；舊版先讀後寫沒有保護，新版 workspace 編輯改為單一條件更新。不在問卷內，待使用者確認。",
+    "approvedBy": null
   }
 ]

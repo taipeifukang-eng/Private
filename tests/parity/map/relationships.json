@@ -42,6 +42,38 @@
       "legacy": { "source": "app/store/relationship-members/page.tsx 的存取判斷；components/Navbar.tsx 入口" },
       "native": { "api": { "path": "/api/workspace/session", "pick": "navigation" } },
       "compareKey": "href"
+    },
+    {
+      "id": "members-list-with-data",
+      "mechanism": "api-read",
+      "description": "有資料時（M6-P07）會員清單新舊 API 逐筆比對。",
+      "legacy": { "api": { "path": "/api/relationship-members", "pick": "members" } },
+      "native": { "api": { "path": "/api/workspace/relationships", "pick": "members" } },
+      "compareKey": "id",
+      "normalize": {}
+    },
+    {
+      "id": "sales-list-with-data",
+      "mechanism": "api-read",
+      "description": "有資料時（M6-P07）銷售查詢新舊 API 逐筆比對（以測試會員編號查詢）。",
+      "legacy": { "api": { "path": "/api/relationship-sales", "pick": "sales" } },
+      "native": { "api": { "path": "/api/workspace/relationships/sales", "pick": "sales" } },
+      "compareKey": "id",
+      "normalize": {}
+    },
+    {
+      "id": "sales-duplicate-import",
+      "mechanism": "write-readback",
+      "description": "同一份銷售明細重複匯入：舊 route 不去重、workspace 匯入略過已存在明細（A7，已核可差異）。",
+      "legacy": { "source": "app/api/relationship-sales/import/route.ts" },
+      "native": { "api": { "path": "/api/workspace/relationships/sales/import", "method": "POST" } }
+    },
+    {
+      "id": "members-counts-fkrs-sales-stats",
+      "mechanism": "ui-extract",
+      "description": "四個分頁計數、待填寫分頁 FKRS 最後一號、銷售統計三個數字（筆數、數量合計、金額合計）舊頁 vs 新頁。",
+      "legacy": { "ui": { "route": "/store/relationship-members" } },
+      "native": { "source": "/workspace 關係會員頁" }
     }
   ]
 }

@@ -100,16 +100,17 @@ const cleanRow = (r: Record<string, unknown>) => Object.fromEntries(Object.entri
 async function nativeRows(page: Page): Promise<Record<string, string>[]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll('.relationship-page table tbody tr'))
-      .filter((tr) => tr.querySelectorAll('td').length >= 5)
+      .filter((tr) => tr.querySelectorAll('td').length >= 6)
       .map((tr) => {
         const td = Array.from(tr.querySelectorAll('td'));
         const t = (el: Node | null | undefined) => (el?.textContent || '').replace(/\s+/g, ' ').trim();
+        // M6 A6：姓名、電話拆成兩欄，欄位順序與舊版相同：姓名、電話、關係、填表人／日期、會員編號。
         return {
-          姓名: t(td[0].querySelector('strong')),
-          電話: t(td[0].querySelector('small')),
-          關係: t(td[1]),
+          姓名: t(td[0]),
+          電話: t(td[1]),
+          關係: t(td[2]),
           填表人: t(td[3].firstChild),
-          會員編號: t(td[2]),
+          會員編號: t(td[4]),
         };
       }),
   );

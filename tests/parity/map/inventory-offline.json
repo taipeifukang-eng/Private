@@ -1,0 +1,118 @@
+{
+  "page": "inventory-offline",
+  "legacyRoute": "/inventory",
+  "workItem": "M6-W25",
+  "entries": [
+    {
+      "id": "module1-output",
+      "mechanism": "write-readback",
+      "description": "模組一：外盤應複盤清單的下載檔，舊版與新版以同一組自造檔（tests/fixtures/m6）逐工作表、逐儲存格比對。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "module2-internal",
+      "mechanism": "write-readback",
+      "description": "模組二：內部盤點複盤資料下載檔逐儲存格比對。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "module2-missing",
+      "mechanism": "write-readback",
+      "description": "模組二：系統有庫存但未盤點檔案逐儲存格比對。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "module3-result",
+      "mechanism": "write-readback",
+      "description": "模組三：盤點結果檔（無衝突）逐儲存格比對。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "file-names",
+      "mechanism": "write-readback",
+      "description": "四個下載檔名：日期以外相同；日期寫法不同為已核可差異（A1）。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "module1-empty-notice",
+      "mechanism": "write-readback",
+      "description": "模組一無盤差時的提示文字「沒有需要複盤的品項」相同。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "pre-multi-file",
+      "mechanism": "write-readback",
+      "description": "預盤多檔：失敗檔案與成功筆數相同；提示文字與保留成功檔的方式不同（A3）。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "module3-conflict",
+      "mechanism": "write-readback",
+      "description": "模組三衝突資料：舊版直接累加產出，新版擋下並列出衝突（A2）。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "base-1f-variants",
+      "mechanism": "write-readback",
+      "description": "1F 商品檔邊角樣本（標題空白、空品號列、非數字庫存等）欄位辨識結果對跑。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    },
+    {
+      "id": "number-validation",
+      "mechanism": "write-readback",
+      "description": "數量非數字：舊版收下、新版拒絕。",
+      "legacy": {
+        "source": "app/inventory/page.tsx 離線盤點工具（handleBaseDataUpload、handleModule1Upload、generateModule1Result、generateModule2Result、generateModule3Result）"
+      },
+      "native": {
+        "source": "vue-workspace/src/components/InventoryOffline.vue、lib/inventory-files.ts"
+      }
+    }
+  ],
+  "note": "新舊輸出以 tests/support/m6-legacy-inventory.ts（舊版計算的逐段參照）與舊頁實際畫面雙重對跑；舊版輸入樣本不含任何真實門市資料。"
+}
