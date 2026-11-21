@@ -4,7 +4,13 @@ import { ref, watch, onMounted, onBeforeUnmount, computed } from "vue";
 import { api } from "../api";
 import { useSession, type WorkTab } from "../stores";
 import InventoryOffline from "../components/InventoryOffline.vue";
-import { readRows, validate, code, download } from "../lib/inventory-files";
+import {
+  readRows,
+  validate,
+  code,
+  download,
+  buildCsv,
+} from "../lib/inventory-files";
 import Modal from "../components/Modal.vue";
 const props = defineProps<{ tab: WorkTab }>(),
   session = useSession();
@@ -234,6 +240,7 @@ async function exportReasons() {
             },
       ),
       `盤差原因_${props.tab.month}`,
+      view.value === "recount_changes" ? "爭議異動明細" : "盤差原因",
     );
   } catch (e) {
     error.value = (e as Error).message;
@@ -424,12 +431,6 @@ async function remove() {
   }
 }
 function exportCsv() {
-  const quote = (v: any) =>
-    '"' +
-    String(v ?? "")
-      .replace(/^[=+@\-]/, "'$&")
-      .replaceAll('"', '""') +
-    '"';
   const lines = [
     [
       "品號",
@@ -460,11 +461,9 @@ function exportCsv() {
       reasons.value[r.id],
     ]),
   ];
+  // \u54c1\u865f\u4ee5\u6587\u5b57\u683c\u5f0f\u5beb\u5165\uff08Excel \u958b\u555f\u4e0d\u6703\u5403\u6389\u524d\u5c0e\u96f6\uff09\uff0c\u4e26\u52a0 BOM \u907f\u514d\u4e2d\u6587\u4e82\u78bc\u3002
   const url = URL.createObjectURL(
-    new Blob(
-      ["\ufeff" + lines.map((r) => r.map(quote).join(",")).join("\r\n")],
-      { type: "text/csv;charset=utf-8" },
-    ),
+    new Blob([buildCsv(lines, [0])], { type: "text/csv;charset=utf-8" }),
   );
   const a = document.createElement("a");
   a.href = url;

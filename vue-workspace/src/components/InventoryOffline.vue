@@ -6,12 +6,23 @@ import {
   integrate,
   finalRows,
   download,
+  buildInventoryFileName,
+  processFilesIndividually,
+  summarizePerFile,
+  mergeOkFiles,
+  conflictsToText,
+  type Conflict,
   type Row,
 } from "../lib/inventory-files";
 const emit = defineEmits<{ dirty: [value: boolean] }>();
 const files = ref<Record<string, Row[]>>({}),
   names = ref<Record<string, string>>({}),
   error = ref(""),
+  info = ref(""),
+  warn = ref(""),
+  conflicts = ref<Conflict[]>([]),
+  copied = ref(false),
+  preFiles = ref<Record<string, Row[]>>({}),
   busy = ref(false),
   step = ref(1),
   result = ref<ReturnType<typeof integrate> | null>(null),
@@ -39,21 +50,55 @@ const inputs = [
   { key: "internal", label: "修改後內部複盤資料" },
   { key: "missing", label: "修改後未盤點檔案" },
 ];
+function resetOutputs(key: string) {
+  if (["base", "pre", "fks", "modified"].includes(key)) result.value = null;
+  external.value = null;
+  final.value = null;
+  conflicts.value = [];
+  info.value = "";
+}
+function syncPre() {
+  const names_ = Object.keys(preFiles.value);
+  if (names_.length) {
+    files.value.pre = names_.flatMap((n) => preFiles.value[n]);
+    names.value.pre = names_.join("、");
+  } else {
+    delete files.value.pre;
+    delete names.value.pre;
+  }
+}
 async function upload(e: Event, key: string) {
   const selected = Array.from((e.target as HTMLInputElement).files || []);
   if (!selected.length) return;
   busy.value = true;
   error.value = "";
+  warn.value = "";
   try {
-    const rows: Row[] = [];
-    for (const f of selected)
-      rows.push(...normalize(await readRows(f, key === "base"), key));
-    files.value[key] = rows;
-    names.value[key] = selected.map((f) => f.name).join("、");
-    if (["base", "pre", "fks", "modified"].includes(key)) result.value = null;
-    external.value = null;
-    final.value = null;
-    emit("dirty", true);
+    if (key === "pre") {
+      // 預盤可多檔：每個檔案各自處理，壞檔跳過並列出原因；已成功的檔案保留，失敗檔可單獨重傳。
+      const r = await processFilesIndividually(
+        selected.map((f) => ({ name: f.name, read: () => readRows(f) })),
+        "pre",
+      );
+      const s = summarizePerFile(r);
+      if (s.level === "error") error.value = s.text;
+      else {
+        preFiles.value = mergeOkFiles(preFiles.value, r.okFiles);
+        syncPre();
+        resetOutputs(key);
+        emit("dirty", true);
+        if (s.level === "warn") warn.value = s.text;
+        else info.value = s.text;
+      }
+    } else {
+      const rows: Row[] = [];
+      for (const f of selected)
+        rows.push(...normalize(await readRows(f, key === "base"), key));
+      files.value[key] = rows;
+      names.value[key] = selected.map((f) => f.name).join("、");
+      resetOutputs(key);
+      emit("dirty", true);
+    }
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -61,16 +106,27 @@ async function upload(e: Event, key: string) {
     (e.target as HTMLInputElement).value = "";
   }
 }
+function removePre(name: string) {
+  const next = { ...preFiles.value };
+  delete next[name];
+  preFiles.value = next;
+  syncPre();
+  resetOutputs("pre");
+  warn.value = "";
+  emit("dirty", Object.keys(files.value).length > 0);
+}
 function clear(key: string) {
   delete files.value[key];
   delete names.value[key];
-  if (["base", "pre", "fks", "modified"].includes(key)) result.value = null;
-  external.value = null;
-  final.value = null;
+  if (key === "pre") preFiles.value = {};
+  resetOutputs(key);
+  warn.value = "";
   emit("dirty", Object.keys(files.value).length > 0);
 }
 function run() {
   error.value = "";
+  info.value = "";
+  conflicts.value = [];
   try {
     if (step.value < 3 && !files.value.base)
       throw new Error("請先選擇共用商品資料");
@@ -85,6 +141,7 @@ function run() {
       external.value = files.value.external
         .filter((r) => codes.has(r.品號))
         .map((r) => ({ 品號: r.品號 }));
+      if (!external.value.length) info.value = "沒有需要複盤的品項";
     } else if (step.value === 2) {
       result.value = integrate(files.value.base, [
         ...(files.value.pre || []),
@@ -92,18 +149,35 @@ function run() {
         ...(files.value.modified || []),
       ]);
       final.value = null;
+      if (!result.value.diff.length && !result.value.missing.length)
+        info.value = "無盤差且無未盤點品項";
     } else {
       if (!files.value.internal && !files.value.missing)
         throw new Error("請選擇至少一個已填寫檔案");
-      final.value = finalRows(
+      const r = finalRows(
         result.value?.zero || [],
         files.value.internal || [],
         files.value.missing || [],
       );
+      if (r.ok) final.value = r.rows;
+      else {
+        // 有衝突就不產出檔案，一次列出全部衝突。
+        final.value = null;
+        conflicts.value = r.conflicts;
+      }
     }
     emit("dirty", true);
   } catch (e) {
     error.value = (e as Error).message;
+  }
+}
+async function copyConflicts() {
+  try {
+    await navigator.clipboard.writeText(conflictsToText(conflicts.value));
+    copied.value = true;
+    setTimeout(() => (copied.value = false), 2000);
+  } catch {
+    error.value = "無法複製，請自行選取清單文字";
   }
 }
 async function save(rows: Row[], name: string) {
@@ -122,6 +196,33 @@ async function save(rows: Row[], name: string) {
       檔案僅在此瀏覽器處理。各步驟保留資料；請完成下載後再關閉工作頁。
     </p>
     <p v-if="error" class="notice error" role="alert">{{ error }}</p>
+    <p v-if="warn" class="notice warn" role="status" data-testid="per-file-summary">{{ warn }}</p>
+    <p v-if="info" class="notice" role="status" data-testid="offline-info">{{ info }}</p>
+    <section
+      v-if="conflicts.length"
+      class="notice error conflicts"
+      role="alert"
+      data-testid="final-conflicts"
+    >
+      <p>
+        <strong>發現 {{ conflicts.length }} 項衝突，未產出檔案。</strong
+        >請修正後重新上傳。
+        <button type="button" @click="copyConflicts">
+          {{ copied ? "已複製" : "複製清單" }}
+        </button>
+      </p>
+      <ul>
+        <li v-for="(c, i) in conflicts" :key="c.code + c.kind + i">
+          <strong>{{ c.code }}</strong> {{ c.detail }}：<span
+            v-for="(p, j) in c.places"
+            :key="j"
+            >{{ j ? "；" : "" }}{{ p.source }}（庫存量 {{ p.stock ?? "-"
+            }}<template v-if="p.qty != null">、盤點量 {{ p.qty }}</template
+            >）</span
+          >
+        </li>
+      </ul>
+    </section>
     <label class="file-row"
       ><span>{{ inputs[0].label }}</span
       ><small
@@ -180,6 +281,20 @@ async function save(rows: Row[], name: string) {
           >
             移除此檔
           </button></small
+        ><small v-if="input.key === 'pre' && Object.keys(preFiles).length"
+          >已收下：<span
+            v-for="(rows_, n) in preFiles"
+            :key="n"
+            class="pre-file"
+            >{{ n }}（{{ rows_.length }} 筆）<button
+              type="button"
+              :disabled="busy"
+              :aria-label="'移除 ' + n"
+              @click.prevent="removePre(n)"
+            >
+              ×
+            </button></span
+          ></small
         ></label
       ></template
     >
@@ -198,7 +313,7 @@ async function save(rows: Row[], name: string) {
       <span>需複盤 {{ external.length }} 項</span
       ><button
         :disabled="!external.length"
-        @click="save(external, '外盤應複盤清單')"
+        @click="save(external, buildInventoryFileName('externalRecount'))"
       >
         下載外盤應複盤清單
       </button>
@@ -206,12 +321,12 @@ async function save(rows: Row[], name: string) {
     <div v-if="step === 2 && result" class="module-actions">
       <button
         :disabled="!result.diff.length"
-        @click="save(result.diff, '內部盤點複盤資料')"
+        @click="save(result.diff, buildInventoryFileName('internalRecount'))"
       >
         下載內部複盤（{{ result.diff.length }} 筆）</button
       ><button
         :disabled="!result.missing.length"
-        @click="save(result.missing, '系統有庫存但未盤點檔案')"
+        @click="save(result.missing, buildInventoryFileName('uninventoried'))"
       >
         下載未盤表（{{ result.missing.length }} 筆）</button
       ><span>無盤差 {{ result.zero.length }} 項已保留</span>
@@ -220,12 +335,7 @@ async function save(rows: Row[], name: string) {
       <span>結果 {{ final.length }} 項</span
       ><button
         :disabled="!final.length"
-        @click="
-          save(
-            final,
-            `${new Date().getMonth() + 1}月${new Date().getDate()}日盤點結果檔`,
-          )
-        "
+        @click="save(final, buildInventoryFileName('result'))"
       >
         下載 DPOS 結果檔
       </button>
@@ -254,6 +364,19 @@ async function save(rows: Row[], name: string) {
   white-space: normal;
   text-align: left;
   overflow-wrap: anywhere;
+}
+.notice {
+  white-space: pre-line;
+}
+.conflicts ul {
+  margin: 8px 0 0;
+  padding-left: 20px;
+  max-height: 320px;
+  overflow: auto;
+}
+.pre-file {
+  display: inline-block;
+  margin-right: 10px;
 }
 .module-actions {
   margin: 22px 0;
