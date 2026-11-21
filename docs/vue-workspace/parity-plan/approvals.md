@@ -14,3 +14,5 @@
 | nav-activity-management-view-only | 接受 | 2026-11-02 10:05 | — |
 | nav-stores-view-codes | 接受 | 2026-11-02 10:06 | — |
 | nav-supervisors-manager-assign | 接受 | 2026-11-02 10:06 | P02 驗收時確認沒有督導指派權限者看不到督導指派按鈕 |
+
+M6-W25 補充（2026-11-21）：`inventory-view-implies-import-delete` 已用舊 API 與 workspace API 對同樣請求實測，舊版 canImport／canDelete 對任一檢視權限同樣放行，新舊行為相同；因此新版不單獨收緊，白名單不再是 decision=fix，改為待使用者決定是否連舊版一起收緊（另案）。
