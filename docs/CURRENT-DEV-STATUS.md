@@ -141,3 +141,12 @@ W25 門市盤點缺口與 P07 關係會員對等已在 DEV 實作，分支 `feat
 ## M6 第 3 批 3b W32（2026-11-22，DEV）：督導管理日誌
 
 督導管理日誌頁（`SupervisorLog.vue`）與 `app/api/workspace/supervisor-management/**` 已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：今日工作台（每日計畫、追蹤佇列、今日紀錄）、案件建立與修改、管理紀錄、追蹤、時間線、軟刪除（本人與管理者，留事件）、選項與分類；可見範圍三層（E1）。沿用舊版資料表與權限碼，新增一個 DEV 函式 `workspace_supervisor_soft_delete`（已套用 DEV，正式區草稿在 `docs/vue-workspace/parity-plan/m6-sql/`）。W33 語音另案。細節與判斷見 `docs/vue-workspace/parity-plan/m6-spec.md` 第三批 3b。測試：`node tests/run-all.cjs --layers all --page M6-W32 --no-sweep`。
+
+## M6 第 3 批 3b W33（2026-11-22，DEV）：督導語音與 AI 摘要
+
+案件詳情的「語音口述」（`VoiceDraftFlow.vue`、`VoiceRecorder.vue`、`lib/voice-upload.ts`）與 `app/api/workspace/supervisor-management/voice/**`、`ai-usage`、`ai-settings` 已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：首次使用先看告知並同意（E5）、錄音（試聽、重新錄音、失敗重試、10 分鐘或 10MB 上限）、AI 草稿審核（只帶進紀錄表單，仍要人工儲存）、逐字稿只有建立者與管理者看得到（E6）、AI 失敗或額度用完退回手動文字稿與本機規則並標示「這份草稿未經 AI 整理」（E7）、每月 OpenAI 上限 30 美元（事前保守估算，80% 與 100% 只通知系統管理員的首頁提醒，100% 自動停用，每月 1 日台北時間歸零，系統管理員可在「AI 用量」調整）。細節與判斷見 `parity-plan/m6-spec.md` 的 W33 一節。
+
+- 資料庫：五張表與兩個函式（DEV：`supabase/workspace-dev/20261122133000_m6_voice_ai.sql`，附 rollback，`scripts/apply-workspace-m6-dev.cjs` 已套用；正式區草稿見 `m6-sql/`）。正式區上線前必須先建立。
+- 測試站一律用假的 OpenAI（`WORKSPACE_OPENAI_MOCK=true`，同時清掉 `OPENAI_API_KEY`）；沒有呼叫真實 OpenAI，也沒有動 Vercel 的金鑰設定。
+- 測試：`node tests/run-all.cjs --layers all --page M6-W33 --no-sweep`（單元 57、整合 15、e2e 桌機與手機各 3、對等 4 全過）；M6-W32、W11（首頁）、T03 回歸全過。
+- 待決定：Vercel 請求大小與逾時未實測、價格表寫死、白名單 5 項 approvedBy 為 null（`m6-w33-record-ai-flag`、`m6-w33-record-voice-meta`、`m6-w33-entity-scope`、`m6-w33-ui-voice-flow`、`m6-w33-draft-too-long-status`）。

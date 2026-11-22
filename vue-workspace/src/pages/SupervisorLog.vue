@@ -3,11 +3,14 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api, ApiError } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import VoiceDraftFlow from "../components/VoiceDraftFlow.vue";
+import AiUsagePanel from "../components/AiUsagePanel.vue";
+import type { VoiceApply } from "../lib/voice-upload";
 import { taipeiDate } from "../../../lib/supervisor-management-log/workspace-rules";
 
 // 督導管理日誌（M6 W32）：今日工作台（每日計畫、追蹤佇列、今日紀錄）與管理案件（建立、紀錄、追蹤、時間線、修改、軟刪除）。
 // 可見範圍（E1）與修改刪除規則（E2）由伺服端判斷，畫面只依回傳的 can_edit／can_delete／permissions 顯示按鈕；沒有權限的按鈕不出現。
-// 語音錄音與 AI 摘要（W33）不在這一頁，另案處理。
+// 語音錄音與 AI 摘要（W33）：案件詳情的「語音口述」開啟錄音／文字稿／草稿審核；草稿只會帶進「新增管理紀錄」表單，仍要人工按儲存。系統管理員另有「AI 用量」頁籤。
 const props = defineProps<{ tab: WorkTab }>();
 type Caps = { viewOwn: boolean; viewTeam: boolean; create: boolean; updateOwn: boolean; followUp: boolean; manage: boolean };
 type Viewer = { tier: "all" | "team" | "own" | "none"; caps: Caps; user_id: string };
@@ -23,7 +26,7 @@ type Case = {
 type Rec = {
   id: string; record_type: string; record_date: string; observation: string; judgment: string; action_summary: string; action_options: string[] | null;
   requires_follow_up: boolean; follow_up_date: string | null; expected_result: string | null; follow_up_method: string | null; ai_generated: boolean | null;
-  created_at: string; can_edit?: boolean; can_delete?: boolean; deleted_at?: string | null;
+  created_at: string; can_edit?: boolean; can_delete?: boolean; deleted_at?: string | null; has_transcript?: boolean;
 };
 type Followup = { id: string; source_record_id: string | null; follow_up_date: string; result_status: string; result_notes: string; next_follow_up_date: string | null; created_at: string; can_delete?: boolean };
 type TimelineItem = { at: string; type: string; title: string; body: string | null; source: string };
@@ -51,7 +54,8 @@ const ACTION_OPTIONS = ["現場說明", "主管約談", "教育訓練", "限期�
 const TIER: Record<string, string> = { all: "全部案件（管理者）", team: "自己負責門市的案件", own: "自己建立或指派給自己的案件", none: "" };
 
 const viewer = ref<Viewer | null>(null);
-const section = ref<"today" | "cases">("today");
+const section = ref<"today" | "cases" | "ai">("today");
+const isSystemAdmin = ref(false);
 const error = ref(""), message = ref("");
 const categories = ref<Category[]>([]), stores = ref<Store[]>([]), employees = ref<Employee[]>([]);
 const today = ref<Today | null>(null), todayLoading = ref(false);
@@ -288,6 +292,7 @@ const emptyRec = () => ({ record_type: "MANAGEMENT", record_date: todayKey.value
 const recForm = ref(emptyRec());
 function openRecord(rec?: Rec, prefill?: Partial<ReturnType<typeof emptyRec>>) {
   recEditing.value = rec || null;
+  recVoice.value = null;
   recForm.value = rec
     ? { record_type: rec.record_type, record_date: rec.record_date, observation: rec.observation, judgment: rec.judgment, action_summary: rec.action_summary, action_options: [...(rec.action_options || [])], requires_follow_up: rec.requires_follow_up, follow_up_date: rec.follow_up_date || "", expected_result: rec.expected_result || "", follow_up_method: rec.follow_up_method || "" }
     : { ...emptyRec(), ...prefill };
@@ -307,8 +312,9 @@ async function submitRecord() {
   await run(async () => {
     const body = { ...f, follow_up_date: f.requires_follow_up ? f.follow_up_date : null, expected_result: f.requires_follow_up ? f.expected_result : null, follow_up_method: f.requires_follow_up ? f.follow_up_method || null : null };
     if (recEditing.value) await post(`cases/${d.id}/records/${recEditing.value.id}`, "PATCH", body);
-    else await post(`cases/${d.id}/records`, "POST", body);
+    else await post(`cases/${d.id}/records`, "POST", recVoice.value ? { ...body, voice: recVoice.value } : body);
     recOpen.value = false;
+    recVoice.value = null;
     message.value = recEditing.value ? "管理紀錄已更新" : "管理紀錄已新增";
     await refreshAll();
   }, "儲存管理紀錄失敗");
@@ -392,8 +398,41 @@ async function startPlan(p: Plan) {
 }
 
 onMounted(async () => {
-  await Promise.all([loadOptions(), loadToday(), loadCases(1)]);
+  await Promise.all([loadOptions(), loadToday(), loadCases(1), loadVoiceStatus()]);
 });
+/** 只用來決定要不要顯示「AI 用量」頁籤；沒有語音權限（403）時靜默略過。 */
+async function loadVoiceStatus() {
+  try {
+    isSystemAdmin.value = !!(await api<any>("supervisor-management/voice/status")).data.is_system_admin;
+  } catch {
+    isSystemAdmin.value = false;
+  }
+}
+
+/* ── 語音口述（W33） ── */
+const voiceOpen = ref(false);
+const recVoice = ref<VoiceApply["voice"] | null>(null);
+function onVoiceApply(p: VoiceApply) {
+  voiceOpen.value = false;
+  const d = p.draft;
+  openRecord(undefined, {
+    record_type: d.record_type || "MANAGEMENT", record_date: d.record_date || todayKey.value, observation: d.observation, judgment: d.judgment, action_summary: d.action_summary,
+    action_options: [...d.action_options], requires_follow_up: d.requires_follow_up, follow_up_date: d.follow_up_date || "", expected_result: d.expected_result || "", follow_up_method: d.follow_up_method || "",
+  });
+  recVoice.value = p.voice;
+  message.value = "草稿已帶入「新增管理紀錄」，內容還沒有儲存；請確認後按「儲存紀錄」。";
+}
+const transcriptView = ref<{ title: string; text: string; source: string } | null>(null);
+async function viewTranscript(r: Rec) {
+  const d = detail.value;
+  if (!d) return;
+  try {
+    const t = (await api<any>(`supervisor-management/cases/${d.id}/records/${r.id}/transcript`)).data;
+    transcriptView.value = { title: `${RECORD_TYPE[r.record_type]} · ${r.record_date}`, text: t.transcript, source: t.source === "AI" ? "AI 語音轉文字" : "手動輸入" };
+  } catch (e) {
+    error.value = errText(e, "載入逐字稿失敗");
+  }
+}
 const grouped = computed(() => {
   const q = today.value?.followUpQueue || [];
   return (["overdue", "today", "upcoming"] as const).map((b) => ({ bucket: b, items: q.filter((c) => c.bucket === b) })).filter((g) => g.items.length);
@@ -419,6 +458,7 @@ const grouped = computed(() => {
     <div class="segments" role="tablist">
       <button role="tab" :aria-selected="section === 'today'" :class="{ on: section === 'today' }" data-testid="tab-today" @click="section = 'today'">今日工作台</button>
       <button role="tab" :aria-selected="section === 'cases'" :class="{ on: section === 'cases' }" data-testid="tab-cases" @click="section = 'cases'">管理案件</button>
+      <button v-if="isSystemAdmin" role="tab" :aria-selected="section === 'ai'" :class="{ on: section === 'ai' }" data-testid="tab-ai" @click="section = 'ai'">AI 用量</button>
     </div>
 
     <!-- 今日工作台 -->
@@ -485,6 +525,9 @@ const grouped = computed(() => {
       </template>
     </div>
 
+    <!-- AI 用量（系統管理員） -->
+    <AiUsagePanel v-else-if="section === 'ai' && isSystemAdmin" />
+
     <!-- 管理案件 -->
     <div v-else data-testid="cases">
       <div class="filters">
@@ -530,6 +573,7 @@ const grouped = computed(() => {
       <div class="actions">
         <button v-if="detail.permissions.edit" data-act="edit-case" :disabled="tab.busy" @click="openEdit">編輯案件</button>
         <button v-if="detail.permissions.add_record" data-act="add-record" :disabled="tab.busy" @click="openRecord()">新增管理紀錄</button>
+        <button v-if="detail.permissions.add_record" data-act="voice-record" :disabled="tab.busy" @click="voiceOpen = true">語音口述</button>
         <button v-if="detail.permissions.add_followup" data-act="add-followup" :disabled="tab.busy" @click="openFollowup()">新增追蹤結果</button>
         <button v-if="detail.permissions.delete" class="danger" data-act="del-case" :disabled="tab.busy" @click="askDelete({ kind: 'case', id: detail.id, label: '案件' })">刪除案件</button>
       </div>
@@ -544,6 +588,7 @@ const grouped = computed(() => {
         <small v-if="r.action_options?.length">{{ r.action_options.join("、") }}</small>
         <small v-if="r.requires_follow_up">需追蹤：{{ r.follow_up_date }}（{{ METHOD[r.follow_up_method || ""] || "未指定方式" }}）預期：{{ r.expected_result }}</small>
         <div class="actions">
+          <button v-if="r.has_transcript" data-act="view-transcript" :disabled="tab.busy" @click="viewTranscript(r)">查看逐字稿</button>
           <button v-if="r.can_edit" data-act="edit-record" :disabled="tab.busy" @click="openRecord(r)">編輯</button>
           <button v-if="r.can_delete" class="danger" data-act="del-record" :disabled="tab.busy" @click="askDelete({ kind: 'record', id: r.id, label: '管理紀錄', caseId: detail.id })">刪除</button>
         </div>
@@ -627,6 +672,10 @@ const grouped = computed(() => {
   <Modal v-if="recOpen" :title="recEditing ? '編輯管理紀錄' : '新增管理紀錄'" :busy="tab.busy" @cancel="!tab.busy && (recOpen = false)">
     <form data-testid="record-form" @submit.prevent="submitRecord">
       <p v-if="formError" role="alert" class="notice error">{{ formError }}</p>
+      <p v-if="recVoice" class="notice" role="status" data-testid="voice-banner">
+        <template v-if="recVoice.ai_provider === 'OPENAI'">這份內容是 AI 依語音整理的草稿，還沒有儲存；請逐項確認後再儲存，不要相信 AI 沒有根據的內容。</template>
+        <template v-else><strong>這份草稿未經 AI 整理</strong>（由手動文字稿與本機規則產生），還沒有儲存；請確認後再儲存。</template>
+      </p>
       <fieldset :disabled="tab.busy">
         <label>紀錄類型<select v-model="recForm.record_type" name="record_type"><option v-for="(label, key) in RECORD_TYPE" :key="key" :value="key">{{ label }}</option></select></label>
         <label>紀錄日期<input v-model="recForm.record_date" name="record_date" type="date" /></label>
@@ -643,6 +692,18 @@ const grouped = computed(() => {
       </fieldset>
       <footer class="actions end"><button type="button" :disabled="tab.busy" @click="recOpen = false">取消</button><button class="primary" :disabled="tab.busy">{{ tab.busy ? "儲存中…" : "儲存紀錄" }}</button></footer>
     </form>
+  </Modal>
+
+  <!-- 語音口述（W33） -->
+  <VoiceDraftFlow v-if="voiceOpen" @cancel="voiceOpen = false" @apply="onVoiceApply" />
+
+  <!-- 逐字稿（E6：只有建立者與管理者看得到） -->
+  <Modal v-if="transcriptView" :title="`逐字稿 · ${transcriptView.title}`" @cancel="transcriptView = null">
+    <div data-testid="transcript-view">
+      <small>{{ transcriptView.source }} · 只有建立者與管理者看得到</small>
+      <p class="pre">{{ transcriptView.text }}</p>
+    </div>
+    <footer class="actions end"><button @click="transcriptView = null">關閉</button></footer>
   </Modal>
 
   <!-- 追蹤結果 -->

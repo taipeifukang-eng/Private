@@ -38,6 +38,7 @@ import {
   validateFollowupPayload,
   validateRecordPayload,
 } from "../supervisor-management-log/validation";
+import { readVoiceMeta, saveTranscript, viewableTranscriptIds } from "./supervisor-voice";
 
 // M6 W32：workspace 督導管理日誌 API 的伺服端邏輯（路由在 app/api/workspace/supervisor-management/[[...path]]）。
 // 重用舊版 lib/supervisor-management-log/validation（欄位驗證、列舉、UUID 與日期格式）與同一組資料表、權限碼，不重寫商業規則。
@@ -140,7 +141,7 @@ async function addEvent(ctx: Context, caseId: string, type: string, title: strin
   }
 }
 
-async function loadCase(ctx: Context, v: Viewer, id: string, select = "*") {
+export async function loadCase(ctx: Context, v: Viewer, id: string, select = "*") {
   if (!uuid(id)) throw new WorkspaceError(400, "案件 id格式錯誤");
   const row = checked(await ctx.admin.from(T.cases).select(select).eq("id", id).is("deleted_at", null).maybeSingle()) as any;
   // 看不到與不存在一律 404（舊版由 RLS 讓查詢回空，同樣 404）
@@ -219,7 +220,8 @@ export async function getCase(ctx: Context, id: string, params: URLSearchParams)
     includeDeleted ? fuQuery : fuQuery.is("deleted_at", null),
     ctx.admin.from(T.events).select("id, case_id, record_id, followup_id, event_type, event_at, title, body, actor_user_id").eq("case_id", id).order("event_at", { ascending: false }),
   ]);
-  const recs = ((checked(records) as any[] | null) || []).map((r) => ({ ...r, can_edit: !r.deleted_at && childEditable(r.created_by, row, v), can_delete: !r.deleted_at && childEditable(r.created_by, row, v) }));
+  const withTranscript = await viewableTranscriptIds(ctx, id, v.userId, v.caps.manage);
+  const recs = ((checked(records) as any[] | null) || []).map((r) => ({ ...r, has_transcript: withTranscript.has(r.id), can_edit: !r.deleted_at && childEditable(r.created_by, row, v), can_delete: !r.deleted_at && childEditable(r.created_by, row, v) }));
   const fus = ((checked(followups) as any[] | null) || []).map((f) => ({ ...f, can_delete: !f.deleted_at && childEditable(f.created_by, row, v) }));
   const evs = (checked(events) as any[] | null) || [];
   const live = (x: any) => !x.deleted_at;
@@ -315,13 +317,23 @@ export async function addRecord(ctx: Context, request: Request, caseId: string) 
   if (!canUpdateAny(v.caps)) throw new WorkspaceError(403, "沒有新增督導管理紀錄權限");
   const row = await loadCase(ctx, v, caseId);
   if (!canAddRecord(row, v)) throw new WorkspaceError(403, "沒有在這個案件新增管理紀錄的權限");
+  const body = await readBody(request);
+  // W33：語音口述流程送來的紀錄（body.voice）。儲存一律是人工送出（發現、判斷、動作三欄仍由 validateRecordPayload 把關）；
+  // 只有 OpenAI 路徑才標 ai_generated（確認人固定為送出者）；逐字稿存在獨立資料表，只有建立者與管理者看得到（E6）。
+  const voice = readVoiceMeta(body.voice);
+  if (voice) {
+    body.ai_generated = voice.ai_provider === "OPENAI";
+    const base = body.metadata && typeof body.metadata === "object" && !Array.isArray(body.metadata) ? (body.metadata as Body) : {};
+    body.metadata = { ...base, voice: { source: voice.source, ai_provider: voice.ai_provider } };
+  }
   const id = randomUUID();
-  const payload = { ...recordPayload(ctx, row, await readBody(request)), case_id: caseId, id };
+  const payload = { ...recordPayload(ctx, row, body), case_id: caseId, id };
   dbOk(await ctx.auth.from(T.records).insert(payload));
-  return respond({ success: true, data: { id } }, 201);
+  const transcriptSaved = voice ? await saveTranscript(ctx, caseId, id, voice) : undefined;
+  return respond({ success: true, data: { id, ...(voice ? { transcript_saved: transcriptSaved } : {}) } }, 201);
 }
 
-async function loadRecord(ctx: Context, caseId: string, recordId: string) {
+export async function loadRecord(ctx: Context, caseId: string, recordId: string) {
   if (!uuid(recordId)) throw new WorkspaceError(400, "紀錄 id格式錯誤");
   const rec = checked(await ctx.admin.from(T.records).select(`${RECORD_COLUMNS}, metadata`).eq("id", recordId).eq("case_id", caseId).is("deleted_at", null).maybeSingle()) as any;
   if (!rec) throw new WorkspaceError(404, "找不到督導管理紀錄");

@@ -36,6 +36,11 @@ process.env.GOOGLE_CALENDAR_REDIRECT_URI = 'http://localhost:3002/api/organizati
 process.env.GOOGLE_CALENDAR_ID = 'mock-calendar@group.calendar.google.com';
 process.env.GOOGLE_CALENDAR_TOKEN_ENCRYPTION_KEY = require('node:crypto').randomBytes(32).toString('hex');
 
+// M6 W33：督導語音與 AI 摘要在測試站一律走假的 OpenAI（lib/workspace/ai-openai.ts 的 mockFetch），不連真實 OpenAI。
+// 這裡同時清掉 OPENAI_API_KEY：即使 .env.development.local 有真實金鑰，測試站也不會使用。
+process.env.WORKSPACE_OPENAI_MOCK = 'true';
+delete process.env.OPENAI_API_KEY;
+
 // M7/M8 G10：QR 標籤網址的網域由 NEXT_PUBLIC_SITE_URL 決定（Q9，缺值就報錯，不退回瀏覽器網址）。測試站固定用自己的網址；
 // 永久網址轉到新版掃描頁的旗標只在測試站開啟（正式與一般開發預設關閉，舊版 Next 掃描頁行為不變）。
 process.env.NEXT_PUBLIC_SITE_URL = 'http://localhost:3002';

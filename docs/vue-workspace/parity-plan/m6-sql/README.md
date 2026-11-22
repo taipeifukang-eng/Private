@@ -63,3 +63,18 @@
 - 新版寫入以登入者身分，所以正式區必須已有 `20260812093000`、`20260812154708`、`20260812155612`、`20260813063209` 四個舊 migration 的函式、觸發器與政策（DEV 已確認）。
 - 沒有此函式時，只有新版的「刪除案件、紀錄、追蹤」會失敗（503）；其他功能、每日計畫刪除（沿用舊函式）與舊頁不受影響。
 - DEV 的 `stores` 資料表政策（`dev_stores_select_managed`）是 DEV 專用；新版選項 API 的門市範圍（管理者全部、其他人只有管轄門市）是在應用層明確寫出，上線前請核對正式區 `stores` 政策。
+
+## 第三批 3b W33（2026-11-22）
+
+| 檔案 | 用途 | 對應項目 |
+|---|---|---|
+| `20261122133000_m6_voice_ai.sql` | 五張表：`workspace_ai_settings`（每月上限，預設 30 美元，只有一列）、`workspace_ai_usage_ledger`（每次呼叫的事前估算費用，micro-USD 整數）、`workspace_ai_alerts`（每月第一次達 80%／100%）、`workspace_ai_consents`（語音告知同意紀錄）、`workspace_supervisor_voice_transcripts`（逐字稿，每筆紀錄至多一筆）；兩個函式：`workspace_ai_reserve`（同一交易內加鎖、檢查月額度、寫入估算費用、記通知）、`workspace_ai_month_spent`。全部啟用 RLS、沒有任何登入者政策，並撤銷 anon／authenticated 權限，只授權 `service_role` | M6 W33（allowlist：`m6-w33-*`） |
+| `20261122133000_m6_voice_ai.rollback.sql` | 移除上述函式與資料表（不動督導日誌資料表與資料） | 同上 |
+
+注意事項
+
+- 不修改任何舊版資料表與函式；`workspace_supervisor_voice_transcripts.record_id` 參照 `supervisor_management_records(id)`（ON DELETE CASCADE），函式檔頭先檢查前置資料表是否存在。
+- 逐字稿只由 workspace API 以 `service_role` 讀寫，可見範圍（建立者與管理者）在應用層判斷；資料表本身沒有給登入者的政策，所以舊版 API 與直接以登入者身分查詢都讀不到。
+- 沒有這些資料表與函式時，只有新版的語音（同意、轉文字、草稿、逐字稿、AI 用量）會失敗；督導日誌其他功能、首頁（提醒查詢失敗會被略過）與舊頁不受影響。
+- 預設上限 30 美元寫在資料表預設值與初始列；正式區上線前請確認要不要用 30，之後由系統管理員在頁面調整。
+- `OPENAI_API_KEY` 由 Vercel 管理，本次沒有動；沒設定時新版語音一律走手動文字稿與本機規則。

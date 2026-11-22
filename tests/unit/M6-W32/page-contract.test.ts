@@ -27,10 +27,10 @@ describe('M6-W32：導覽、頁面登記與權限碼', () => {
     for (const code of SML_ENTRY_CODES) expect(legacyAccess, code).toContain(code);
     expect(read('app/api/workspace/session/route.ts')).toContain('supervisorLog:ctx.has(...moduleCodes.supervisorLog)');
   });
-  it('頁面元件已登記，且沒有語音錄音（W33 另案）', () => {
+  it('頁面元件已登記；錄音本身在獨立元件（W33），頁面本體不直接碰麥克風', () => {
     expect(read('vue-workspace/src/workspace-pages.ts')).toContain('"supervisor-log": SupervisorLog');
     const page = read('vue-workspace/src/pages/SupervisorLog.vue');
-    expect(page).not.toMatch(/MediaRecorder|getUserMedia|voice\//);
+    expect(page).not.toMatch(/MediaRecorder|getUserMedia/);
   });
 });
 

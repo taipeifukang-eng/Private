@@ -9598,5 +9598,120 @@
     "match": {
       "entry": "status-post-followup"
     }
+  },
+  {
+    "id": "m6-w33-e5-consent-notice",
+    "page": "supervisor-log",
+    "description": "E5：新版語音口述第一次使用前，必須先看到告知（錄音暫存在本機、送 OpenAI 轉文字、音檔不存在富康系統、逐字稿可能含門市與員工姓名屬個人資料外送、逐字稿保存且只有建立者與管理者看得到、AI 不會自動儲存）並勾選同意，才會出現錄音；同意（誰、哪一版告知、何時）會記錄下來，告知內容改版後需重新同意。沒有同意時，伺服端拒絕轉文字（403），草稿只用本機規則、不送 OpenAI。舊版沒有告知也沒有同意，直接把音檔與文字稿送 OpenAI。",
+    "reason": "M6 規格問卷 E5：使用者選「啟用，首次使用須勾選同意並在錄音前顯示告知（enable_with_notice）」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w33-e6-transcript-stored",
+    "page": "supervisor-log",
+    "description": "E6：新版把語音口述的逐字稿另存在獨立資料表（不放在管理紀錄本身，也不放在一般人讀得到的欄位），只有逐字稿建立者與管理者（含系統管理員）看得到；團隊檢視者與其他可看案件的人看得到紀錄，但看不到逐字稿，也不會知道有沒有。舊版沒有保存逐字稿。",
+    "reason": "M6 規格問卷 E6：使用者選「保存逐字稿，但只有建立者與管理者能看（keep_manager_only）」，需要追溯 AI 有沒有腦補時可查。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "voice-record-transcript",
+      "key": "transcript"
+    }
+  },
+  {
+    "id": "m6-w33-e7-fallback-warnings",
+    "page": "supervisor-log",
+    "description": "E7：AI 不可用（沒同意、沒設定、本月額度用完、AI 服務失敗）時，新版草稿退回本機規則，並依原因回傳白話說明，畫面標示「這份草稿未經 AI 整理」，紀錄表單再標示一次，仍須人工確認才能儲存。舊版退回時只回「OPENAI_API_KEY 未設定」之類的技術文字。",
+    "reason": "M6 規格問卷 E7：使用者選「失敗時退回手動文字稿與本機規則（fallback_and_10mb）」，畫面註明「這份草稿未經 AI 整理」，仍須人工確認才能儲存。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "voice-draft-warnings",
+      "key": "warnings"
+    }
+  },
+  {
+    "id": "m6-w33-e7-fallback-fields",
+    "page": "supervisor-log",
+    "description": "E7：新版語音草稿與轉文字回應多出 fallback、fallback_reason、fallback_label、message 四個欄位，讓畫面知道是否退回、為什麼退回、要標示什麼文字；舊版沒有這些欄位。",
+    "reason": "M6 規格問卷 E7 的實作細節（畫面要能標示「這份草稿未經 AI 整理」）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "voice-draft-fields",
+      "key": "fallback-fields"
+    }
+  },
+  {
+    "id": "m6-w33-e7-audio-limit-and-failure",
+    "page": "supervisor-log",
+    "description": "E7：新版錄音上限為約 10 分鐘或 10MB（舊版是 20MB，沒有時間上限）：超過回 400 並提示分段錄音或改手動文字稿，被拒絕的請求不花費用；錄音元件滿 10 分鐘自動停止，並以 32kbps 位元率錄製。音檔格式維持 WebM、MP3、M4A、WAV（另外接受 Safari 產生的 audio/mp4 與 audio/x-m4a 標示）。AI 轉文字失敗或額度用完時，新版回 200 並標示退回、畫面改手動文字稿；舊版回錯誤（沒有金鑰 503、上游失敗 400／502）。",
+    "reason": "M6 規格問卷 E7：失敗時退回手動文字稿與本機規則，錄音上限約 10 分鐘或 10MB。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w33-z5-monthly-cap-usd30",
+    "page": "supervisor-log",
+    "description": "每月 OpenAI 費用上限預設 30 美元（以美元存放，不換匯，系統管理員可調整）。費用在每次呼叫前以保守方式估算（語音轉文字按分鐘無條件進位並以較貴價格估，草稿整理以字數與輸出上限估，沒列價格的模型用最貴價格），寫入用量帳本；不呼叫 OpenAI 帳單 API。月份以台北時間為準，每月 1 日自動歸零（以月份分開累計，不需排程）。累計達 100% 時 AI 自動停用：轉文字與草稿都退回手動文字稿與本機規則，下個月 1 日或管理員調高上限後自動恢復。預約額度在資料庫內加鎖，並行呼叫最多只會比上限多一次呼叫的費用。舊版沒有任何費用控管。",
+    "reason": "2026-11-22 盤點權限問卷：使用者決定每月上限 30 美元（取代 Z5「金額待提供」），達 80% 通知、達 100% 自動停用並退回手動文字稿與本機規則。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)"
+  },
+  {
+    "id": "m6-w33-cap-notify-admins",
+    "page": "supervisor-log",
+    "description": "估算費用達上限的 80% 時通知系統管理員，達 100%（AI 自動停用）時再通知一次；只通知系統管理員（profiles.role 為 admin 的人，首頁提醒卡片，點擊直接開督導管理日誌的「AI 用量」），其他人（含督導管理日誌的管理者）看不到，也看不到金額。每月每個層級只記一筆通知紀錄；首頁提醒依目前用量即時計算，管理員調高上限後提醒自動消失。",
+    "reason": "2026-11-22 盤點權限問卷：只通知系統管理員（首頁提醒項目）。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)"
+  },
+  {
+    "id": "m6-w33-cap-admin-setting",
+    "page": "supervisor-log",
+    "description": "系統管理員可在督導管理日誌的「AI 用量」頁籤查看本月估算費用、已用百分比、80%／100% 通知紀錄，並調整每月上限（0 到 10000 美元，小數最多 2 位，0 代表停用 AI）；調整立即生效並記錄調整者。非系統管理員呼叫用量或設定 API 回 403。",
+    "reason": "2026-11-22 盤點權限問卷：每月上限金額可設定（系統管理員）。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)"
+  },
+  {
+    "id": "m6-w33-record-ai-flag",
+    "page": "supervisor-log",
+    "description": "語音草稿存成紀錄時：新版走 OpenAI 的草稿標記 ai_generated 並把確認人記為送出者（AI 永遠不能略過人工確認），走本機規則或手動文字稿的不標 AI；舊版語音草稿套用後存成一般紀錄（ai_generated 為 false、沒有確認人）。紀錄頁的標記為「AI 草稿已人工確認」。",
+    "reason": "新版為了追溯哪些紀錄是 AI 整理的而加的標記（規格第三節「AI 永遠不得略過人工確認」的落實），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "voice-record-ai-flag",
+      "key": "ai_generated"
+    }
+  },
+  {
+    "id": "m6-w33-record-voice-meta",
+    "page": "supervisor-log",
+    "description": "語音流程儲存的紀錄，新版在紀錄的 metadata 記錄語音來源（source：AI 或 MANUAL、ai_provider），不含逐字稿；舊版紀錄的 metadata 為空物件。",
+    "reason": "實作取捨：用既有的 metadata 欄位標記來源，不改舊版資料表，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "voice-record-metadata",
+      "key": "metadata"
+    }
+  },
+  {
+    "id": "m6-w33-entity-scope",
+    "page": "supervisor-log",
+    "description": "語音草稿的門市與員工比對候選，新版依登入者權限縮小：系統與管理權限者比對全部在職門市與員工，其他人只比對自己管轄門市與其在職員工；舊版以登入者身分讀取，範圍由資料表政策決定（DEV 結果與新版相同，正式區政策未驗證）。比對邏輯本身沿用舊版同一支函式（只把候選名單改為可傳入）。",
+    "reason": "規格第三節假設「門市與員工比對候選依登入者權限縮小」，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-ui-voice-flow",
+    "page": "supervisor-log",
+    "description": "語音畫面：新版在案件詳情的「語音口述」開啟工作頁內視窗，依序為告知與同意、錄音（計時、試聽、重新錄音、上傳失敗重試；錄音只暫存在這台裝置，轉成文字或離開畫面就丟掉）、文字稿、草稿審核（缺發現、判斷、動作任一欄不能套用）、套用到「新增管理紀錄」表單（此時還沒有儲存，要人工按儲存）。舊版是頁面內的抽屜，套用後同樣帶入紀錄表單；沒有計時上限、沒有試聽與失敗重試。",
+    "reason": "畫面取捨與 W33 規格第二節的錄音元件、上傳包裝、草稿審核畫面，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-draft-too-long-status",
+    "page": "supervisor-log",
+    "description": "語音草稿的文字稿超過 6000 字：舊版回 500（系統錯誤，因為它的錯誤訊息「口述文字稿不可超過 6000 字」不符合自己判斷 400 的關鍵字）；新版回 400 並附同一段原因。",
+    "reason": "狀態碼修正（舊版把輸入檢查錯誤當成系統錯誤），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "voice-draft-validation",
+      "key": "long:status"
+    }
   }
 ]

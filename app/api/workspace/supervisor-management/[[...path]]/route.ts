@@ -22,6 +22,7 @@ import {
   updateCase,
   updatePlan,
 } from "@/lib/workspace/supervisor-log";
+import { aiUsage, getTranscript, setAiSettings, transcribe, voiceConsent, voiceDraft, voiceStatus } from "@/lib/workspace/supervisor-voice";
 import { checkOrigin, context, failed, WorkspaceError } from "@/lib/workspace/server";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,13 @@ export const dynamic = "force-dynamic";
 //   GET    daily-plans | POST                 每日計畫清單 | 建立
 //   GET|PATCH|DELETE daily-plans/:id          每日計畫詳情 | 修改 | 軟刪除（body.deletion_reason）
 //   GET    options?store_id=&q= | categories  選項與分類
+// 語音與 AI 摘要（M6 W33）：
+//   GET    voice/status                       AI 目前能不能用、同意狀態與告知文字、錄音上限
+//   POST   voice/consent                      記錄同意告知（E5）
+//   POST   voice/transcribe                   上傳音檔轉文字（multipart：audio、duration_seconds；音檔不存檔；AI 不可用時 200 且 fallback:true）
+//   POST   voice/draft                        文字稿 -> 待人工確認的草稿（不寫入任何資料；AI 不可用時退回本機規則）
+//   GET    cases/:id/records/:rid/transcript  逐字稿（只有建立者與管理者，E6）
+//   GET    ai-usage | PATCH ai-settings       本月 AI 估算用量 | 調整每月上限（只有系統管理員）
 async function run(r: NextRequest, path: string[], method: string) {
   try {
     const ctx = await context({ profile: false });
@@ -62,6 +70,7 @@ async function run(r: NextRequest, path: string[], method: string) {
         if (method === "GET") return await listRecords(ctx, b);
         if (method === "POST") return await addRecord(ctx, r, b);
       }
+      if (path.length === 5 && c === "records" && path[4] === "transcript" && method === "GET") return await getTranscript(ctx, b, d);
       if (path.length === 4 && c === "records") {
         if (method === "PATCH") return await editRecord(ctx, r, b, d);
         if (method === "DELETE") return await deleteRecord(ctx, r, b, d);
@@ -85,6 +94,14 @@ async function run(r: NextRequest, path: string[], method: string) {
         if (method === "DELETE") return await deletePlan(ctx, r, b);
       }
     }
+    if (a === "voice" && path.length === 2) {
+      if (b === "status" && method === "GET") return await voiceStatus(ctx);
+      if (b === "consent" && method === "POST") return await voiceConsent(ctx, r);
+      if (b === "transcribe" && method === "POST") return await transcribe(ctx, r);
+      if (b === "draft" && method === "POST") return await voiceDraft(ctx, r);
+    }
+    if (a === "ai-usage" && path.length === 1 && method === "GET") return await aiUsage(ctx);
+    if (a === "ai-settings" && path.length === 1 && method === "PATCH") return await setAiSettings(ctx, r);
     if (a === "options" && path.length === 1 && method === "GET") return await getOptions(ctx, params);
     if (a === "categories" && path.length === 1 && method === "GET") return await listCategories(ctx);
     throw new WorkspaceError(404, "找不到此操作");
