@@ -94,6 +94,7 @@ export const WORKSPACE_PAGE_META: Record<WorkTabKind, PageMeta> = {
   relationships: meta("關係會員", ["relationships"]),
   "products-master": meta("商品主檔", ["productsMaster"]),
   merchandise: meta("商品部缺貨回報", ["stockout"]),
+  "supervisor-log": meta("督導管理日誌", ["supervisorLog"]),
   roles: meta("角色權限管理", ["roles"]),
   users: meta("使用者管理", ["users"]),
   // M7/M8 第 1 批（G01-G05）：總務服務中心外殼與資產主檔頁；進頁前先依 capability 擋下並說明。

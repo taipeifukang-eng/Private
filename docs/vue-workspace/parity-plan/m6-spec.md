@@ -259,7 +259,7 @@
 
 | 項目 | 用途 | 需要時間點 | 狀態 |
 |---|---|---|---|
-| Z5 每月 OpenAI 費用上限金額 | W33 達上限後自動退回手動文字稿與本機規則，並通知管理者 | 第三批 3b 開工前 | **尚未提供**；未給之前 W33 只能做到「可設定上限、預設關閉語音」 |
+| Z5 每月 OpenAI 費用上限金額 | W33 達上限後自動退回手動文字稿與本機規則，並通知管理者 | 第三批 3b 開工前 | **已提供（2026-11-22 問卷）：每月 US$30** |
 | Z4 盤點樣本：1F 商品檔、外盤檔、FKS0701、預盤檔（去識別的真實樣本） | W25 新舊等價測試與三個模組端到端測試 | 第一批驗收（見下方處理） | **尚未提供** |
 | Z4 診所價格檔、診所檔（去識別的真實樣本） | W30、W31 解析與毛利對照 | 第三批 3a 開工前 | **尚未提供** |
 
@@ -461,3 +461,47 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 - `tests/e2e/M6-W25.inventory-perm-journey.e2e.spec.ts`（桌機與手機）：盤點組匯入 2038-03 的 VW001 批次 -> 店長（VW001、ZT01）看得到資料、沒有匯入與刪除按鈕 -> 只有刪除權限者看不到匯入、可刪除。冒煙測試中檢視者與店長的匯入按鈕預期改為不存在。
 - 測試資料：檔名 `m6w25perm-<runId>-…`、年月 2038-03、門市 VW001，只刪自己的（sweeper 登記 `inventory_result_batches.source_file_name`）。
 - 結果：`node tests/run-all.cjs --layers all --page M6-W25 --no-sweep` 全綠（Playwright 29 項通過；單元層含 T02 白名單與導覽測試一併通過），根目錄 tsc 無錯誤。
+
+## 第三批 3b 實作結果與判斷（總覽，2026-11-22 至 11-23，DEV）
+
+3b 含 W32 督導管理日誌與 W33 語音；兩段的詳細判斷見下面兩節，各角色可見範圍清單（Z3）見 `m6-batch3b-roles.md`。Z5 已由 2026-11-22 問卷決定為每月 US$30。最終驗證（2026-11-23）：vue-tsc 與根目錄 tsc 無錯誤（修正 `lib/workspace/supervisor-log.ts` 一處 Set 展開的 tsc 錯誤）；依序跑 M6-W32、M6-W33、M6-W29、M6-W27、M6-W25、M6-P07、M0 與完整單元層，結果記在 `docs/CURRENT-DEV-STATUS.md`。
+
+## 第三批 3b：W32 督導管理日誌實作結果與判斷（2026-11-22，DEV）
+
+範圍：W32（頁面 `SupervisorLog.vue`、`app/api/workspace/supervisor-management/**`、`lib/workspace/supervisor-log.ts`、`lib/supervisor-management-log/workspace-rules.ts`、DEV 軟刪除函式）。W33 語音錄音與 AI 摘要不在本次，頁面沒有錄音入口；舊版頁面與 `app/api/supervisor-management-log/**`、`lib/supervisor-management-log/{access,validation,voice}.ts` 一行未改。
+
+1. **沿用舊版同一組資料表與權限碼，不建新表**：`supervisor_management_cases／records／followups／case_events／daily_plans／categories`，六個 `supervisor.management_log.*` 權限碼（導覽、session `capabilities.supervisorLog` 都用這六個任一）。欄位驗證直接 import 舊版 `validation.ts`（三欄必填、門市目標必選門市、系統欄位不可由前端指定、列舉與 UUID、日期格式），不重寫。
+2. **E1 三層可見範圍**：舊版資料庫政策本來就是三層（管理看全部；看團隊看自己管轄門市 `store_managers`（store_manager／supervisor／area_manager）；一般看自己建立或指派給自己的；update_own 看自己建立的；follow_up 看被指派與管轄門市的），新版把同一組規則寫成純函式 `caseVisible`／`caseScopeFilter`（查詢條件）／`planVisible`，以 admin client 讀取加應用層範圍過濾。單元測試用 64 種權限組合與 3 種管轄門市逐列證明「查詢條件」與「可見判斷」一致；整合測試用真實資料逐角色比對。看不到的案件一律 404。
+3. **權限語意（本輪統一）**：讀取走正式區 `has_permission` 語意（不檢查 `roles.is_active`、沒有資料庫端管理員角色代碼放行，只有 `profiles.role==='admin'` 應用層後備）。**寫入另受舊版資料表觸發器與 RLS 檢查**（新版以登入者身分的 client 寫入，`created_by`／`updated_by` 才正確），而舊版輔助函式 `supervisor_management_current_user_has_permission` 會檢查 `roles.is_active`，所以「角色停用」的帳號在新版可讀、不能寫（回 403 與說明，不是 500）。已列白名單 `m6-w32-e1-three-tier-visibility`。
+4. **E2 修改與刪除**：案件可修改＝管理者全部；update_own 的建立者且未結案；follow_up 的被指派者／管轄門市且未結案（同舊版）。**刪除（新）**：管理者全部；其他人只能刪自己建立、未結案的案件（需 update_own）；紀錄與追蹤只能刪自己建立的（案件仍可修改），規劃只能刪自己未完成的。刪除一律軟刪除，記錄刪除者、時間、原因，並寫時間線事件（`SOFT_DELETE`、`RECORD_SOFT_DELETE`、`FOLLOWUP_SOFT_DELETE`）。新增「修改紀錄」（本人或管理者，寫 `RECORD_EDIT`）。管理者可用 `GET cases/:id?deleted=1` 事後追查已刪除案件。
+5. **資料庫**：新增 `workspace_supervisor_soft_delete(kind, id, reason)`（`supabase/workspace-dev/20261122130000_m6_supervisor_log_rpc.sql`，附 rollback，已套用 DEV，`scripts/apply-workspace-m6-dev.cjs` 一併套用；正式區草稿 `m6-sql/`）：以呼叫者身分執行，**先軟刪紀錄與追蹤、最後才軟刪案件**同一交易，並寫事件。**發現舊版缺陷**：舊版 `supervisor_management_soft_delete_case` 先軟刪案件，之後紀錄的驗證觸發器因案件已刪除而拒絕，所以含有紀錄的案件在舊版刪不掉（500，DEV 實測）。每日計畫的軟刪除沿用舊版函式。
+6. **結案欄位（舊版缺陷）**：資料表要求 `RESOLVED／CLOSED` 必須有 `resolved_at`、`CLOSED` 必須有 `closed_at`，舊版 API 沒處理，所以舊版把案件改成已改善或已結案會失敗（500）；新版 `statusFields` 依新舊狀態寫入、離開時清空，並寫 `STATUS_CHANGE` 事件；結案後只有管理者能再改（可重新開啟）。
+7. **E3 今日工作台完整移植**：`GET today`（規劃、追蹤佇列逾期／今天／七天內分桶、今日紀錄、摘要；E4 逾期只標示）、`daily-plans` 清單／詳情／建立／修改／軟刪除、狀態流轉（開始處理帶入新增紀錄表單、完成、取消）、關聯案件（必須在可見範圍）。日期預設台北今天（舊版後端用 UTC 日期）。
+8. **API**（皆需登入，寫入類檢查 Origin）：`cases`（GET 清單、POST）、`cases/:id`（GET、PATCH、DELETE）、`cases/:id/records`（GET、POST）、`cases/:id/records/:rid`（PATCH、DELETE）、`cases/:id/followups`（GET、POST）、`cases/:id/followups/:fid`（DELETE）、`cases/:id/timeline`、`today`、`daily-plans`、`daily-plans/:id`、`options`、`categories`。紀錄的對象欄位缺漏時由案件帶入、需追蹤時負責人預設為指派人或建立者；AI 產生的紀錄 `ai_confirmed_by` 一律記為送出者（AI 不可略過人工確認）；刪除都要原因；搜尋關鍵字跳脫（含逗號括號）；頁碼超出回最後一頁；每頁上限 100。
+9. **追蹤需要 follow_up 權限**：舊版資料表政策要求新增追蹤者同時持有 `follow_up`（只有 `manage` 不夠，DEV 實測舊版回 500）。新版判斷與舊版一致，只是狀態碼改成 403／404 並附說明；**請使用者確認是否讓管理者也能新增追蹤**（需改正式區資料表政策，本輪不動 migrations）。
+10. **選項**：門市候選管理者全部、其他人只有自己管轄的門市；員工只在指定門市或搜尋時回傳（舊版固定前 300 筆）。DEV 的 `stores` 政策是 DEV 專用，與正式區是否相同未驗證。
+11. **畫面**：兩個分頁（今日工作台、管理案件）；案件詳情、新增編輯、紀錄、追蹤、規劃、刪除原因都在工作頁內視窗；沒有權限的按鈕不出現（伺服端回 `can_edit`／`can_delete`／`permissions`）；時間線在詳情最下方。導覽 `kind supervisor-log`，`T03` 基準新增「督導管理日誌」（32 到 33）。
+12. **白名單**（`page: supervisor-log`）：問卷選擇（approvedBy `user (2026-11-21 M6 規格問卷)`）：`m6-w32-e1-three-tier-visibility`、`m6-w32-e2-own-delete-case`、`m6-w32-e2-own-delete-plan`、`m6-w32-e2-soft-delete-with-records`、`m6-w32-e2-own-edit-delete-records`、`m6-w32-e3-daily-plan-full`。approvedBy null（待使用者確認，已加入 T02 的 STILL_PENDING）共 16 項：結案欄位、今日預設台北日期、員工選項、門市選項範圍、詳情門市與建立者名稱、搜尋跳脫、分頁超出、AI 確認人、看不到的案件寫入回 404（改、新增紀錄、新增追蹤三條）、驗證狀態碼、時間線、已刪除查詢、版面、導覽。
+13. **測試**（page id `M6-W32`）：`tests/unit/M6-W32/`（規則 23 項、頁面與 API 契約 9 項）、`tests/integration/M6-W32.supervisor-log-roles.spec.ts`（8 個臨時角色加 admin，權限矩陣、三層可見範圍與純函式逐列一致、E2 修改刪除、結案欄位、紀錄與追蹤、軟刪除與事件、今日工作台分桶、每日計畫、選項、正式區語意）、`tests/e2e/M6-W32.supervisor-journey.e2e.spec.ts`（桌機 1440 與手機 390：無權限者無入口 -> 督導建立案件、紀錄、追蹤、規劃、結案 -> 團隊檢視者唯讀 -> 管理者看全部、重新開啟、刪除紀錄與案件並留事件）、`tests/parity/M6-W32.supervisor-log.spec.ts`（12 項：清單、詳情、今日、計畫、選項、四種寫入資料列、各操作各角色狀態碼、結案、含紀錄刪除、搜尋、分頁、AI 確認人、權限語意）。測試資料標題 `ZT2038 M6W32 <runId> …`，門市只用 VW001／VW002，只刪自己的（以標記與測試帳號擁有找出，依 FK 順序硬刪事件、追蹤、紀錄、規劃、案件）。
+14. **尚未驗證／待決定**：沒有真實督導日誌樣本；舊版資料表政策與觸發器在正式區是否與 DEV 完全相同未連線核對（只讀 migration）；管理者新增追蹤見第 9 點；W33 語音（含每月 USD 30 上限、80%／100% 通知、同意紀錄）下一步另做。
+
+## 第三批 3b：W33 督導語音與 AI 摘要實作結果與判斷（2026-11-22，DEV）
+
+範圍：W33（語音錄音元件、上傳包裝、草稿審核畫面、workspace 語音 API、同意 E5、逐字稿可見範圍 E6、退回與限制 E7、每月 US$30 上限與通知）。頁面仍是 `SupervisorLog.vue`（案件詳情的「語音口述」入口；系統管理員多一個「AI 用量」頁籤）。舊版頁面與 `app/api/supervisor-management-log/**` 行為不變；舊版 `lib/supervisor-management-log/voice.ts` 只加了不影響原行為的選項參數（可換 fetch、限制輸出 token）與可傳入候選名單的比對函式。
+
+**老闆 2026-11-22 問卷決定（取代 Z5「金額待提供」）**：每月 OpenAI 費用上限 30 美元（以美元存放、不換匯、可設定）；估算費用達 80% 通知系統管理員、達 100% 自動停用 AI 並退回手動文字稿與本機規則、再通知系統管理員；只通知系統管理員（首頁提醒）；每月 1 日（台北時間）歸零；費用每次呼叫事前保守估算、無條件進位、不查 OpenAI 帳單 API。
+
+1. **費用估算（純函式 `lib/supervisor-management-log/voice-ai-rules.ts`）**：語音轉文字每分鐘 US$0.006（取 whisper-1 價，比 gpt-4o-mini-transcribe 的 0.003 貴一倍）、不足一分鐘算一分鐘；後端看不到真實音檔長度（音檔不解析、不保存），所以取「前端回報秒數」與「依大小反推的最短秒數（每秒最多 16KB）」較大者。草稿整理以「固定提示 1200 token 加每字 2 token」估輸入、以請求的 max_tokens 上限 1500 估輸出；沒列價格的模型一律用 gpt-4o 價格。價格換成整數 micro-USD 再算，避免浮點誤差。單次最壞約 US$0.07，一個月 30 美元約可做數百次最長錄音。
+2. **帳本與月份歸零**：DEV 新增五張表（`workspace_ai_settings`、`workspace_ai_usage_ledger`、`workspace_ai_alerts`、`workspace_ai_consents`、`workspace_supervisor_voice_transcripts`，皆啟用 RLS 且沒有任何登入者政策，只有 service_role）與兩個函式（`workspace_ai_reserve`、`workspace_ai_month_spent`）。月份鍵是台北時間的 YYYY-MM，累計只算當月，所以 1 日零點自動歸零、不需要排程。`workspace_ai_reserve` 在同一交易內對月份加鎖、檢查累計、寫入估算費用，並記錄第一次達 80%／100% 的通知；累計已達上限就拒絕。拒絕條件是「已達上限」，所以累計最多只會比上限多一次呼叫的費用（約 0.07 美元）；並行 14 個呼叫的實測只成功 9 個（上限剩 5 分錢、每次 0.6 分）。
+3. **失敗也算錢（保守）**：預約在呼叫 OpenAI 之前，所以 AI 失敗、逾時的呼叫仍計入估算；被驗證擋下的請求（空檔、過大、過長、格式錯、沒同意）不計。
+4. **AI 自動停用**：轉文字與草稿都先查可用性（沒同意、沒設定、額度用完）。額度用完時轉文字回 200 與 `fallback:true`（原因 CAP_REACHED），草稿退回本機規則並標示「這份草稿未經 AI 整理」；管理員調高上限或下個月 1 日立即恢復。上限 0 代表一開始就停用。
+5. **E5 同意**：錄音前一定先顯示告知（版本號 `NOTICE_VERSION`，內容在規則檔），勾選同意後才出現錄音；同意記在 `workspace_ai_consents`（誰、哪一版、何時）；沒同意時轉文字回 403（`CONSENT_REQUIRED`），草稿只用本機規則、不送 OpenAI。告知改版就換版本、需重新同意。
+6. **E6 逐字稿**：儲存紀錄時另存在 `workspace_supervisor_voice_transcripts`（不放在紀錄 metadata，metadata 只記來源 source、ai_provider）；只有建立者與管理者（含系統管理員）讀得到；其他看得到案件的人（例如團隊檢視者）看得到紀錄，但 API 回 403、案件詳情的 `has_transcript` 也是 false，不洩漏有無；看不到案件者 404。登入者直接查資料表一列都讀不到（測試用督導本人的登入身分直接查，結果為空或被拒）。
+7. **E7 限制與退回**：錄音上限 10 分鐘或 10MB（容許 3 秒計時誤差），超過回 400 且不花費用；格式 WebM、MP3、M4A、WAV（另接受 audio/mp4 與 audio/x-m4a 標示）。錄音元件以 32kbps 錄製（10 分鐘約 2.4MB，也在 Vercel 函式請求大小限制內）、滿 10 分鐘自動停止；錄音只暫存在瀏覽器記憶體（可試聽、重新錄音、上傳失敗重試），轉成文字或離開畫面就丟掉；伺服端不存音檔、不存 OpenAI 原始回應與標頭，錯誤只丟固定文字。
+8. **AI 永遠不直接寫入**：草稿 API 只讀不寫業務資料表，`review_required` 固定 true，回傳三欄缺漏清單；草稿畫面的「套用」只把內容帶進「新增管理紀錄」表單，還沒有儲存，要人工按儲存，伺服端仍用舊版 `validateRecordPayload` 擋下發現、判斷、動作任一欄缺漏。儲存時 `ai_generated` 只有 OpenAI 路徑才為 true（本機規則或手動不標）、`ai_confirmed_by` 固定是送出者，前端不能指定。
+9. **比對候選依權限縮小**：管理者比對全部在職門市與員工，其他人只比對自己管轄門市與其在職員工；比對邏輯沿用舊版同一支（拆出 `matchEntitiesFromCandidates`）。
+10. **通知只給系統管理員**：首頁卡片（`data-home-card="ai-usage"`，排在調店確認之後）只有系統管理員會收到，80% 與 100% 各一種文案，點擊開啟督導管理日誌；督導與一般管理者看不到金額。用量與上限 API（`GET ai-usage`、`PATCH ai-settings`）也只有系統管理員，上限 0 到 10000 美元、最多 2 位小數。通知紀錄每月每個層級只記第一次。「系統管理員」＝應用層 `ctx.isAdmin`（profiles.role 為 admin 或管理員類角色，與其他頁一致）。
+11. **測試站用假的 OpenAI**：`tests/support/start-test-server.cjs` 設 `WORKSPACE_OPENAI_MOCK=true` 並清掉 `OPENAI_API_KEY`；`lib/workspace/ai-openai.ts` 在 mock 模式用內建假 fetch（音檔內容以 MOCK-TRANSCRIPT: 開頭就回冒號後的文字、MOCK-FAIL 回 500；文字稿含 MOCK-AI-FAIL 草稿回 500）。每個語音測試開始前先確認 `voice/status.ai_mode` 是 mock，否則中止。沒有動 Vercel 的 `OPENAI_API_KEY` 處理。
+12. **白名單**（page `supervisor-log`，共 13 條）：問卷選擇（approvedBy `user (2026-11-21 M6 規格問卷)`）：`m6-w33-e5-consent-notice`、`m6-w33-e6-transcript-stored`、`m6-w33-e7-fallback-warnings`、`m6-w33-e7-fallback-fields`、`m6-w33-e7-audio-limit-and-failure`；2026-11-22 問卷（approvedBy `user (2026-11-22 盤點權限問卷)`）：`m6-w33-z5-monthly-cap-usd30`、`m6-w33-cap-notify-admins`、`m6-w33-cap-admin-setting`；approvedBy null（待使用者確認，已加入 T02 的 STILL_PENDING）共 5 項：`m6-w33-record-ai-flag`、`m6-w33-record-voice-meta`、`m6-w33-entity-scope`、`m6-w33-ui-voice-flow`、`m6-w33-draft-too-long-status`（舊版文字稿過長回 500，新版 400）。
+13. **測試**（page id `M6-W33`）：`tests/unit/M6-W33/`（費用估算、80%／100% 狀態與通知、台北月份歸零與跨年閏年、上限驗證、音檔驗證 29 項；假 OpenAI 與「mock 模式絕不碰真實網路」；靜態契約：不存檔、AI 不直接寫入、同意與逐字稿、資料庫與舊版不動）、`tests/integration/M6-W33.voice-ai.spec.ts`（15 項：權限矩陣、同意、轉文字與費用帳本、音檔限制、AI 與退回草稿、儲存與逐字稿、E6 可見範圍、上限 API、80% 通知、100% 自動停用與恢復、上限 0、月份歸零、並行不超過上限、舊路由不受影響）、`tests/e2e/M6-W33.voice-journey.e2e.spec.ts`（桌機與手機各 3 個劇本：督導先同意再錄音／重錄／失敗重試／AI 草稿審核／人工儲存／逐字稿、AI 失敗退回手動並標示未經 AI 整理；額度 80%／100%、首頁只有系統管理員看到提醒、管理員在「AI 用量」調整後恢復；團隊檢視者與管理者與無權限者的逐字稿與入口）、`tests/parity/M6-W33.voice.spec.ts`（本機規則草稿逐欄新舊相同、比對結果、各角色權限狀態碼、輸入檢查、儲存後資料列）。月額度情境直接在 `workspace_ai_*` 塞帶標記（model = M6W33-seed）的估算費用列，測完還原每月上限並刪除測試期間新增的列、通知與同意。
+14. **尚未驗證／待決定**：(a) Vercel 函式請求大小（Hobby／Pro 預設約 4.5MB）與逾時未實測；錄音以 32kbps 讓 10 分鐘約 2.4MB 以符合，但使用者自己上傳大檔（目前畫面沒有上傳入口，只有錄音）若超過此限制要改直傳。(b) 價格表是寫死的估算值，OpenAI 調價後要更新（`CHAT_PRICE_PER_M`、`TRANSCRIBE_MICRO_PER_MINUTE`）；估算偏保守所以帳面會比實際 OpenAI 帳單高。(c) 沒有真實錄音與真實 OpenAI 驗證（規則禁止）；真實模型輸出品質與提示不在本次範圍。(d) 正式區要先建立 W33 的五張表與兩個函式（`m6-sql/20261122133000_m6_voice_ai.sql`）才能上線。(e) 管理員調低上限到目前累計以下時，不會補寫通知紀錄（首頁提醒是即時算的，會顯示）。(f) 同意只記「同意」，沒有「撤回」功能。

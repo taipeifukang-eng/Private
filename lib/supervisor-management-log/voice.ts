@@ -53,14 +53,14 @@ export type EntityMatch = {
   }>;
 };
 
-type StoreCandidate = {
+export type StoreCandidate = {
   id: string;
   store_code?: string | null;
   store_name?: string | null;
   short_name?: string | null;
 };
 
-type EmployeeCandidate = {
+export type EmployeeCandidate = {
   id: string;
   store_id?: string | null;
   employee_code?: string | null;
@@ -224,6 +224,16 @@ export async function matchEntities(
   aiMentions: EntityMention[] = []
 ): Promise<EntityMatch[]> {
   const { stores, employees } = await loadCandidates(supabase);
+  return matchEntitiesFromCandidates({ stores, employees }, transcript, aiMentions);
+}
+
+/** 與 matchEntities 相同的比對邏輯，候選名單由呼叫端提供（M6 W33 workspace 依登入者權限縮小候選範圍）。 */
+export function matchEntitiesFromCandidates(
+  candidates: { stores: StoreCandidate[]; employees: EmployeeCandidate[] },
+  transcript: string,
+  aiMentions: EntityMention[] = []
+): EntityMatch[] {
+  const { stores, employees } = candidates;
   const storeLabelById = new Map(stores.map((store) => [
     store.id,
     [store.store_code, store.short_name || store.store_name].filter(Boolean).join(' '),
@@ -295,8 +305,14 @@ export async function parseDraftWithOpenAI(params: {
   transcript: string;
   mode: VoiceDraftMode;
   categories: Array<{ code: string; name: string }>;
-}) {
-  const apiKey = process.env.OPENAI_API_KEY;
+}, options: {
+  /** M6 W33 workspace 才會傳：測試時換成假的 fetch（不連真實 OpenAI）、限制輸出 token（費用上限估算用）、逾時毫秒。舊版呼叫端不傳，行為不變。 */
+  fetchImpl?: typeof fetch;
+  apiKey?: string;
+  maxTokens?: number;
+  timeoutMs?: number;
+} = {}) {
+  const apiKey = options.apiKey ?? process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
 
   const model = process.env.OPENAI_SML_VOICE_DRAFT_MODEL || 'gpt-4o-mini';
@@ -337,7 +353,8 @@ export async function parseDraftWithOpenAI(params: {
     },
   };
 
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+  const response = await (options.fetchImpl || fetch)('https://api.openai.com/v1/chat/completions', {
+    ...(options.timeoutMs ? { signal: AbortSignal.timeout(options.timeoutMs) } : {}),
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -351,6 +368,7 @@ export async function parseDraftWithOpenAI(params: {
         { role: 'user', content: JSON.stringify(user) },
       ],
       temperature: 0.1,
+      ...(options.maxTokens ? { max_tokens: options.maxTokens } : {}),
     }),
   });
 

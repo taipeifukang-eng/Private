@@ -75,6 +75,28 @@ onMounted(load);
         <ArrowRight :size="18" />
       </button>
 
+      <!-- 1b. 每月 AI 費用提醒（M6 W33；只有系統管理員會收到） -->
+      <button
+        v-if="data.aiUsage?.show"
+        class="home-banner"
+        data-home-card="ai-usage"
+        :data-level="data.aiUsage.level"
+        @click="work.open('supervisor-log')"
+      >
+        <BellRing :size="24" />
+        <span>
+          <strong>
+            {{ data.aiUsage.level === "capped" ? "本月 AI 額度已用完，語音已自動停用" : "本月 AI 費用已達 80%" }}
+            <em data-home="ai-usage-percent">{{ data.aiUsage.percent }}%</em>
+          </strong>
+          <small>
+            督導語音估算 US$ {{ data.aiUsage.spent_usd.toFixed(2) }} / US$ {{ data.aiUsage.cap_usd.toFixed(2) }}（{{ data.aiUsage.month_key }}）。
+            {{ data.aiUsage.level === "capped" ? "督導改用手動文字稿與本機規則，每月 1 日自動恢復，也可在「督導管理日誌 > AI 用量」調整上限。" : "達 100% 會自動停用 AI，可在「督導管理日誌 > AI 用量」調整上限。" }}
+          </small>
+        </span>
+        <ArrowRight :size="18" />
+      </button>
+
       <!-- 2. 每月版更 -->
       <button v-if="caps.monthlyRelease" class="home-banner plain" data-home-card="monthly-release" @click="work.open('monthly-release')">
         <FileText :size="24" />

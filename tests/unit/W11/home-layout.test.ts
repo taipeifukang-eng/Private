@@ -10,7 +10,7 @@ const view = read('vue-workspace/src/components/HomeView.vue');
 const template = view.slice(view.indexOf('<template>'), view.indexOf('<style'));
 
 describe('首頁版面（C.5）', () => {
-  it('順序：調店確認 → 每月版更 → 我的獎金 → 新人入職 → 任務 → 壽星 → 年費 → 執照 → 快捷入口', () => {
+  it('順序：調店確認 →（M6 W33 系統管理員 AI 費用提醒）→ 每月版更 → 我的獎金 → 新人入職 → 任務 → 壽星 → 年費 → 執照 → 快捷入口', () => {
     // 用模板 AST 判斷：註解裡的屬性不算；被 v-if="false" / v-show="false" 擋住的卡片不算。
     const found: { key: string; hidden: boolean }[] = [];
     const walk = (node: any, hidden: boolean) => {
@@ -24,7 +24,7 @@ describe('首頁版面（C.5）', () => {
       for (const c of node.children || []) if (typeof c === 'object') walk(c, h);
     };
     walk(parse(template), false);
-    const expected = ['data-home-card=transfer-confirm', 'data-home-card=monthly-release', 'data-home-card=bonus', 'data-home-card=onboarding', 'data-home-card=tasks', 'data-home-card=birthdays', 'data-home-card=annual-fee', 'data-home-card=license', 'data-home=quick'];
+    const expected = ['data-home-card=transfer-confirm', 'data-home-card=ai-usage', 'data-home-card=monthly-release', 'data-home-card=bonus', 'data-home-card=onboarding', 'data-home-card=tasks', 'data-home-card=birthdays', 'data-home-card=annual-fee', 'data-home-card=license', 'data-home=quick'];
     expect(found.filter((f) => f.hidden), '不得有被 v-if/v-show="false" 隱藏的卡片').toEqual([]);
     expect(found.map((f) => f.key)).toEqual(expected);
   });

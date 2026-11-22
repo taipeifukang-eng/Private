@@ -9399,5 +9399,354 @@
     "description": "缺貨回報 API 輸入檢查與空清單：(1) 回覆時預計到貨日格式不符回 400「預計到貨日格式不正確」，舊版不檢查；(2) 為不存在的門市回報回 400「找不到這間門市」，舊版是資料庫錯誤 500；(3) 查詢回覆的 product_codes 最多取前 100 個，舊版沒有上限；(4) 只有提交權限、沒有管轄門市的店長，「我的門市」分頁回空清單，舊版前端不帶門市參數，API 回 403；(5) 清單頁碼超過總頁數時收斂到最後一頁（舊版直接回空）；(6) 刪除回覆網址含不合法編碼回 400。",
     "reason": "輸入檢查與邊界行為補強（問卷未詢問），待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m6-w32-e1-three-tier-visibility",
+    "page": "supervisor-log",
+    "description": "E1 可見範圍三層（管理看全部、看團隊看自己管轄門市、一般看自己建立或指派給自己的）改由應用層判斷，權限語意與正式區的 has_permission 相同：不檢查 roles.is_active，也沒有資料庫端的管理員角色代碼放行（只有 profiles.role 為 admin 的應用層後備）。舊版的案件、紀錄、規劃可見範圍由資料表 RLS 決定，RLS 的輔助函式會檢查 roles.is_active 並放行 admin、owner 等角色代碼。新版寫入仍然經過舊版的資料表觸發器與 RLS（第二道關卡）。",
+    "reason": "M6 規格問卷 E1：使用者選「依權限分三層（own_team_manage）」。舊版資料庫政策本來就是這三層，新版保持同一組規則（逐列與純函式、資料庫實際資料比對一致），差異只在權限語意（本輪全部採正式區 has_permission 語意）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "permission-semantics"
+    }
+  },
+  {
+    "id": "m6-w32-e2-own-delete-case",
+    "page": "supervisor-log",
+    "description": "E2：新版允許案件建立者（有「編輯自己的」權限、案件未結案或取消）軟刪除自己的案件，管理者可刪除全部；舊版只有管理權限者能刪案件（一般督導刪除回 403）。刪除一律只標記已刪除（記錄刪除者、時間、原因），並在時間線留下事件。",
+    "reason": "M6 規格問卷 E2：使用者選「自己的可改，管理者可改全部，刪除只標記為已刪除並留時間線事件」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "status-delete-case"
+    }
+  },
+  {
+    "id": "m6-w32-e2-own-delete-plan",
+    "page": "supervisor-log",
+    "description": "E2：新版允許規劃擁有人刪除自己未完成（非已完成、非已取消）的今日管理規劃，管理者可刪全部；舊版 DELETE 規劃只有管理權限者能呼叫。",
+    "reason": "M6 規格問卷 E2（自己的可改可刪、管理者全部）與 E3（今日工作台完整移植）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "status-delete-plan"
+    }
+  },
+  {
+    "id": "m6-w32-e2-soft-delete-with-records",
+    "page": "supervisor-log",
+    "description": "刪除含有管理紀錄或追蹤的案件：舊版資料庫函式先標記案件為已刪除，之後標記紀錄時，紀錄的驗證觸發器因案件已被刪除而拒絕，整個刪除失敗（500）；新版的軟刪除函式改為先標記紀錄與追蹤、最後才標記案件，同一個交易完成，並寫入時間線事件。",
+    "reason": "M6 規格問卷 E2：刪除只標記為已刪除並留時間線事件。舊版對有紀錄的案件根本刪不掉，新版修正。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "delete-case-with-records"
+    }
+  },
+  {
+    "id": "m6-w32-e2-own-edit-delete-records",
+    "page": "supervisor-log",
+    "description": "E2：新版新增「修改紀錄」（建立者本人且案件仍可修改，管理者全部）與「刪除管理紀錄、刪除追蹤」（建立者本人與管理者）；舊版 API 與畫面沒有修改紀錄，也沒有刪除紀錄、追蹤的畫面。刪除為軟刪除並寫時間線事件（RECORD_SOFT_DELETE、FOLLOWUP_SOFT_DELETE），修改紀錄寫 RECORD_EDIT 事件。",
+    "reason": "M6 規格問卷 E2：自己的可改，管理者可改全部，刪除只標記為已刪除並留時間線事件。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w32-e3-daily-plan-full",
+    "page": "supervisor-log",
+    "description": "E3：今日工作台（每日計畫）完整移植：今日規劃、追蹤佇列（已逾期、今天到期、七天內）、今日紀錄與摘要、規劃的建立編輯狀態流轉（尚未開始、處理中、已完成、已取消）與關聯案件、開始處理時帶入新增紀錄表單、記錄追蹤。功能與舊版對等。",
+    "reason": "M6 規格問卷 E3：使用者選「一併完整移植（include）」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w32-close-case-fields",
+    "page": "supervisor-log",
+    "description": "把案件狀態改成「已改善」或「已結案」：舊版 API 不會一併寫入 resolved_at／closed_at，資料表有檢查條件要求這兩個欄位，所以舊版會失敗（500）、狀態維持原樣；新版依新舊狀態自動寫入（改回其他狀態時清空），因此可以結案與重新開啟。",
+    "reason": "舊版缺陷修正（結案功能在舊版實際上不能用），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "close-case"
+    }
+  },
+  {
+    "id": "m6-w32-today-default-taipei-date",
+    "page": "supervisor-log",
+    "description": "今日工作台未指定日期時，新版用台北時間的今天；舊版後端用 UTC 日期（台北時間 00:00 到 08:00 之間會落在前一天）。畫面端舊版已用台北日期傳 date，所以只有直接呼叫 API 且不帶日期才會不同。",
+    "reason": "本輪規定日期一律以 Asia/Taipei 計算（與缺貨回報相同做法），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "today-default-date"
+    }
+  },
+  {
+    "id": "m6-w32-options-employees",
+    "page": "supervisor-log",
+    "description": "新增案件與規劃時的員工候選：舊版固定回前 300 筆在職員工（沒有依門市，超過 300 位就被截斷，後面的人選不到）；新版只在指定門市（最多 100 筆）或輸入姓名／員編搜尋（最多 30 筆）時回傳。",
+    "reason": "避免截斷造成選不到人，也不再一次送出全部員工名單；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "options-employees"
+    }
+  },
+  {
+    "id": "m6-w32-options-stores-scope",
+    "page": "supervisor-log",
+    "description": "門市選項：新版管理者看全部啟用門市、其他人只看自己管轄的門市（沒有管轄門市則為空）；舊版靠資料表政策（DEV 為管轄門市或有總務服務中心權限者），管理者若沒有門市權限在舊版反而看不到任何門市。",
+    "reason": "把舊版隱含在資料表政策的範圍改成明確規則；DEV 的 stores 政策與正式區可能不同，上線前請核對。問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "options-stores"
+    }
+  },
+  {
+    "id": "m6-w32-embeds-visible",
+    "page": "supervisor-log",
+    "description": "案件詳情裡的門市名稱與建立者姓名：舊版以使用者身分關聯讀取，受 stores、profiles 資料表政策影響，看不到別人的資料時欄位為空；新版由伺服端讀取，有權看該案件就顯示門市與建立者姓名。",
+    "reason": "看得到案件卻看不到門市或建立者是舊版資料表政策的副作用；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "case-detail-embeds"
+    }
+  },
+  {
+    "id": "m6-w32-search-escape",
+    "page": "supervisor-log",
+    "description": "案件與規劃的關鍵字搜尋：新版把 % _ 與逗號、括號、引號都當一般文字（值整個以雙引號包住）；舊版把關鍵字直接組進查詢條件字串，含逗號或括號會改寫條件、造成查詢錯誤（500）或誤配。",
+    "reason": "漏洞與缺陷修補（與缺貨回報、商品主檔同一做法），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-special-chars"
+    }
+  },
+  {
+    "id": "m6-w32-pagination-clamp",
+    "page": "supervisor-log",
+    "description": "案件與規劃清單：頁碼超出總頁數時，新版回最後一頁；舊版資料庫回範圍錯誤（500）。每頁筆數上限兩邊都是 100。",
+    "reason": "體驗修正，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "pagination-beyond"
+    }
+  },
+  {
+    "id": "m6-w32-ai-confirmed-by",
+    "page": "supervisor-log",
+    "description": "管理紀錄的 AI 確認人：新版一律由伺服端記錄為送出的登入者（AI 草稿只能由人工確認後儲存），非 AI 紀錄一律不帶確認人；舊版接受前端傳入任意使用者 id 當確認人。",
+    "reason": "規格第三節：AI 永遠不得略過人工確認直接寫入；確認人不可由前端指定。問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "record-ai-confirmed"
+    }
+  },
+  {
+    "id": "m6-w32-patch-invisible-404",
+    "page": "supervisor-log",
+    "description": "修改看不到的案件：舊版對看不到的案件 PATCH 回 200，但資料表政策讓更新沒有套用到任何列（假成功）；新版回 404 找不到案件。",
+    "reason": "舊版假成功會讓人以為已修改；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "status-patch-case"
+    }
+  },
+  {
+    "id": "m6-w32-validation-status-400",
+    "page": "supervisor-log",
+    "description": "欄位驗證錯誤（缺標題、格式錯誤、列舉值不合等）：新版回 400 與同一段錯誤文字（驗證規則重用舊版 lib/supervisor-management-log/validation）；舊版 API 把驗證錯誤當一般錯誤回 500。",
+    "reason": "狀態碼修正，錯誤文字不變；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-timeline-events",
+    "page": "supervisor-log",
+    "description": "案件時間線：新版 API 另提供 GET cases/:id/timeline，並在案件詳情回傳 timeline 欄位（建立案件、新增紀錄、新增追蹤、狀態變更、他人修改、紀錄修改、各種刪除事件，新到舊）。建立、紀錄、追蹤項目由既有資料合成，不另外寫入事件；新版另外寫入 STATUS_CHANGE、MANAGER_EDIT（他人修改案件）、RECORD_EDIT 事件。舊版詳情只回傳資料表內的事件（只有刪除事件），畫面沒有時間線。",
+    "reason": "規格列出「事件時間線」，舊版沒有對應畫面；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-deleted-audit-view",
+    "page": "supervisor-log",
+    "description": "管理者事後追查：新版 GET cases/:id?deleted=1（只有管理權限者）可看已軟刪除的案件、刪除者與原因、被刪除的紀錄與追蹤、全部事件；舊版沒有查看已刪除資料的入口。",
+    "reason": "E2 要求刪除可追查；問卷未涵蓋入口形式，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-ui-layout",
+    "page": "supervisor-log",
+    "description": "版面：舊版是兩個分頁（今日工作台、管理案件）加側邊或下方詳情；新版為同樣兩個分頁，案件詳情改在工作頁內的視窗開啟，刪除原因與新增紀錄、追蹤改用工作頁內的視窗（舊版刪除用瀏覽器 prompt 輸入原因），案件清單為卡片式。欄位、選項、狀態文字與舊版一致。語音錄音與 AI 摘要不在本頁（另案 W33）。",
+    "reason": "配合新版共用的畫面風格；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-nav-inpage",
+    "page": "supervisor-log",
+    "description": "導覽「督導管理日誌」在新版改為工作頁內開啟（kind supervisor-log，需 capabilities.supervisorLog，六個權限碼任一）；舊版頁面 /supervisor-management-log 保留不動。",
+    "reason": "Z2：新版上線後舊頁保留；Z3：可見角色沿用舊版實際權限。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-write-invisible-record-status",
+    "page": "supervisor-log",
+    "description": "對看不到的案件新增管理紀錄：舊版被資料表政策拒絕，API 回 500（系統錯誤）；新版先確認案件在可見範圍內，回 404 找不到案件。",
+    "reason": "狀態碼修正（舊版把資料表政策拒絕當系統錯誤）；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "status-post-record"
+    }
+  },
+  {
+    "id": "m6-w32-followup-status",
+    "page": "supervisor-log",
+    "description": "新增追蹤的失敗狀態碼：對看不到的案件、或只有管理權限卻沒有追蹤權限的帳號（舊版資料表政策要求同時有追蹤權限）新增追蹤，舊版回 500（系統錯誤）；新版分別回 404、403 並附說明。能不能新增追蹤的判斷本身新舊一致（需要追蹤權限且案件可修改）。",
+    "reason": "狀態碼修正，判斷規則不變；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "status-post-followup"
+    }
+  },
+  {
+    "id": "m6-w33-e5-consent-notice",
+    "page": "supervisor-log",
+    "description": "E5：新版語音口述第一次使用前，必須先看到告知（錄音暫存在本機、送 OpenAI 轉文字、音檔不存在富康系統、逐字稿可能含門市與員工姓名屬個人資料外送、逐字稿保存且只有建立者與管理者看得到、AI 不會自動儲存）並勾選同意，才會出現錄音；同意（誰、哪一版告知、何時）會記錄下來，告知內容改版後需重新同意。沒有同意時，伺服端拒絕轉文字（403），草稿只用本機規則、不送 OpenAI。舊版沒有告知也沒有同意，直接把音檔與文字稿送 OpenAI。",
+    "reason": "M6 規格問卷 E5：使用者選「啟用，首次使用須勾選同意並在錄音前顯示告知（enable_with_notice）」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w33-e6-transcript-stored",
+    "page": "supervisor-log",
+    "description": "E6：新版把語音口述的逐字稿另存在獨立資料表（不放在管理紀錄本身，也不放在一般人讀得到的欄位），只有逐字稿建立者與管理者（含系統管理員）看得到；團隊檢視者與其他可看案件的人看得到紀錄，但看不到逐字稿，也不會知道有沒有。舊版沒有保存逐字稿。",
+    "reason": "M6 規格問卷 E6：使用者選「保存逐字稿，但只有建立者與管理者能看（keep_manager_only）」，需要追溯 AI 有沒有腦補時可查。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "voice-record-transcript",
+      "key": "transcript"
+    }
+  },
+  {
+    "id": "m6-w33-e7-fallback-warnings",
+    "page": "supervisor-log",
+    "description": "E7：AI 不可用（沒同意、沒設定、本月額度用完、AI 服務失敗）時，新版草稿退回本機規則，並依原因回傳白話說明，畫面標示「這份草稿未經 AI 整理」，紀錄表單再標示一次，仍須人工確認才能儲存。舊版退回時只回「OPENAI_API_KEY 未設定」之類的技術文字。",
+    "reason": "M6 規格問卷 E7：使用者選「失敗時退回手動文字稿與本機規則（fallback_and_10mb）」，畫面註明「這份草稿未經 AI 整理」，仍須人工確認才能儲存。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "voice-draft-warnings",
+      "key": "warnings"
+    }
+  },
+  {
+    "id": "m6-w33-e7-fallback-fields",
+    "page": "supervisor-log",
+    "description": "E7：新版語音草稿與轉文字回應多出 fallback、fallback_reason、fallback_label、message 四個欄位，讓畫面知道是否退回、為什麼退回、要標示什麼文字；舊版沒有這些欄位。",
+    "reason": "M6 規格問卷 E7 的實作細節（畫面要能標示「這份草稿未經 AI 整理」）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "voice-draft-fields",
+      "key": "fallback-fields"
+    }
+  },
+  {
+    "id": "m6-w33-e7-audio-limit-and-failure",
+    "page": "supervisor-log",
+    "description": "E7：新版錄音上限為約 10 分鐘或 10MB（舊版是 20MB，沒有時間上限）：超過回 400 並提示分段錄音或改手動文字稿，被拒絕的請求不花費用；錄音元件滿 10 分鐘自動停止，並以 32kbps 位元率錄製。音檔格式維持 WebM、MP3、M4A、WAV（另外接受 Safari 產生的 audio/mp4 與 audio/x-m4a 標示）。AI 轉文字失敗或額度用完時，新版回 200 並標示退回、畫面改手動文字稿；舊版回錯誤（沒有金鑰 503、上游失敗 400／502）。",
+    "reason": "M6 規格問卷 E7：失敗時退回手動文字稿與本機規則，錄音上限約 10 分鐘或 10MB。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w33-z5-monthly-cap-usd30",
+    "page": "supervisor-log",
+    "description": "每月 OpenAI 費用上限預設 30 美元（以美元存放，不換匯，系統管理員可調整）。費用在每次呼叫前以保守方式估算（語音轉文字按分鐘無條件進位並以較貴價格估，草稿整理以字數與輸出上限估，沒列價格的模型用最貴價格），寫入用量帳本；不呼叫 OpenAI 帳單 API。月份以台北時間為準，每月 1 日自動歸零（以月份分開累計，不需排程）。累計達 100% 時 AI 自動停用：轉文字與草稿都退回手動文字稿與本機規則，下個月 1 日或管理員調高上限後自動恢復。預約額度在資料庫內加鎖，並行呼叫最多只會比上限多一次呼叫的費用。舊版沒有任何費用控管。",
+    "reason": "2026-11-22 盤點權限問卷：使用者決定每月上限 30 美元（取代 Z5「金額待提供」），達 80% 通知、達 100% 自動停用並退回手動文字稿與本機規則。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)"
+  },
+  {
+    "id": "m6-w33-cap-notify-admins",
+    "page": "supervisor-log",
+    "description": "估算費用達上限的 80% 時通知系統管理員，達 100%（AI 自動停用）時再通知一次；只通知系統管理員（profiles.role 為 admin 的人，首頁提醒卡片，點擊直接開督導管理日誌的「AI 用量」），其他人（含督導管理日誌的管理者）看不到，也看不到金額。每月每個層級只記一筆通知紀錄；首頁提醒依目前用量即時計算，管理員調高上限後提醒自動消失。",
+    "reason": "2026-11-22 盤點權限問卷：只通知系統管理員（首頁提醒項目）。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)"
+  },
+  {
+    "id": "m6-w33-cap-admin-setting",
+    "page": "supervisor-log",
+    "description": "系統管理員可在督導管理日誌的「AI 用量」頁籤查看本月估算費用、已用百分比、80%／100% 通知紀錄，並調整每月上限（0 到 10000 美元，小數最多 2 位，0 代表停用 AI）；調整立即生效並記錄調整者。非系統管理員呼叫用量或設定 API 回 403。",
+    "reason": "2026-11-22 盤點權限問卷：每月上限金額可設定（系統管理員）。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)"
+  },
+  {
+    "id": "m6-w33-record-ai-flag",
+    "page": "supervisor-log",
+    "description": "語音草稿存成紀錄時：新版走 OpenAI 的草稿標記 ai_generated 並把確認人記為送出者（AI 永遠不能略過人工確認），走本機規則或手動文字稿的不標 AI；舊版語音草稿套用後存成一般紀錄（ai_generated 為 false、沒有確認人）。紀錄頁的標記為「AI 草稿已人工確認」。",
+    "reason": "新版為了追溯哪些紀錄是 AI 整理的而加的標記（規格第三節「AI 永遠不得略過人工確認」的落實），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "voice-record-ai-flag",
+      "key": "ai_generated"
+    }
+  },
+  {
+    "id": "m6-w33-record-voice-meta",
+    "page": "supervisor-log",
+    "description": "語音流程儲存的紀錄，新版在紀錄的 metadata 記錄語音來源（source：AI 或 MANUAL、ai_provider），不含逐字稿；舊版紀錄的 metadata 為空物件。",
+    "reason": "實作取捨：用既有的 metadata 欄位標記來源，不改舊版資料表，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "voice-record-metadata",
+      "key": "metadata"
+    }
+  },
+  {
+    "id": "m6-w33-entity-scope",
+    "page": "supervisor-log",
+    "description": "語音草稿的門市與員工比對候選，新版依登入者權限縮小：系統與管理權限者比對全部在職門市與員工，其他人只比對自己管轄門市與其在職員工；舊版以登入者身分讀取，範圍由資料表政策決定（DEV 結果與新版相同，正式區政策未驗證）。比對邏輯本身沿用舊版同一支函式（只把候選名單改為可傳入）。",
+    "reason": "規格第三節假設「門市與員工比對候選依登入者權限縮小」，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-ui-voice-flow",
+    "page": "supervisor-log",
+    "description": "語音畫面：新版在案件詳情的「語音口述」開啟工作頁內視窗，依序為告知與同意、錄音（計時、試聽、重新錄音、上傳失敗重試；錄音只暫存在這台裝置，轉成文字或離開畫面就丟掉）、文字稿、草稿審核（缺發現、判斷、動作任一欄不能套用）、套用到「新增管理紀錄」表單（此時還沒有儲存，要人工按儲存）。舊版是頁面內的抽屜，套用後同樣帶入紀錄表單；沒有計時上限、沒有試聽與失敗重試。",
+    "reason": "畫面取捨與 W33 規格第二節的錄音元件、上傳包裝、草稿審核畫面，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-draft-too-long-status",
+    "page": "supervisor-log",
+    "description": "語音草稿的文字稿超過 6000 字：舊版回 500（系統錯誤，因為它的錯誤訊息「口述文字稿不可超過 6000 字」不符合自己判斷 400 的關鍵字）；新版回 400 並附同一段原因。",
+    "reason": "狀態碼修正（舊版把輸入檢查錯誤當成系統錯誤），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "voice-draft-validation",
+      "key": "long:status"
+    }
+  },
+  {
+    "id": "m6-w32-create-response-id",
+    "page": "supervisor-log",
+    "description": "建立案件、紀錄、追蹤、每日計畫的回應：新版回 {success:true,data:{id}}（語音紀錄多回 transcript_saved），舊版回 data:null（201）；新版方便畫面直接跳到新資料。",
+    "reason": "回應多帶新資料的 id 是新版為了畫面串接的取捨，不改變資料內容，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-plan-link-filter",
+    "page": "supervisor-log",
+    "description": "今日規劃關聯的案件與紀錄：新版回傳前會過濾，已軟刪除、或不在登入者可見範圍的案件與紀錄不回標題與內容；舊版資料庫政策讓看不到的資料不出現，但新版改用伺服端連線查詢，必須自行過濾。",
+    "reason": "落實 E1 三層可見範圍與軟刪除保證；問卷未涵蓋此細節，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-record-edit-ai-locked",
+    "page": "supervisor-log",
+    "description": "編輯管理紀錄：新版一律保留原本的 AI 旗標、人工確認人與語音來源 metadata，PATCH 內容不能更改這三項（管理者改別人的 AI 紀錄，確認人不變）；舊版允許前端改 ai_generated 與 metadata，且不限制確認人。",
+    "reason": "規格第三節：AI 必須經人工確認且可追溯；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-duration-required-min-bitrate",
+    "page": "supervisor-log",
+    "description": "語音轉文字：新版一律要求回報錄音秒數（缺少回 400），費用依「回報秒數」與「每秒最多 2KB（約 16kbps）反推的最短秒數」取較大者估算；伺服端不解析音檔長度也不保存音檔，因此 10 分鐘上限對低位元率音檔仍是以回報秒數為準（已知限制）；舊版沒有此限制。",
+    "reason": "E7 長度上限與每月上限的保守估算；問卷未涵蓋此細節，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-transcript-retention",
+    "page": "supervisor-log",
+    "description": "逐字稿保留：紀錄或案件被軟刪除後，逐字稿資料列仍保留在資料庫（只有硬刪除才一併清除），API 因紀錄已刪除而讀不到；非建立者且非管理者查詢逐字稿，與「沒有逐字稿」一樣回 404，無從探測有沒有。",
+    "reason": "與軟刪除「資料保留、畫面不顯示」的整體原則一致；保存年限問卷未涵蓋，待使用者決定是否需要定期清除。",
+    "approvedBy": null
   }
 ]

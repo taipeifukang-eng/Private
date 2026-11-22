@@ -3,6 +3,7 @@
 import { checked, type Context } from "./server";
 import { deriveMonthState } from "./monthly-status-rules";
 import { myTaskRows } from "./task-list";
+import { homeAiUsage } from "./supervisor-voice";
 import {
   annualFeeReminder, applyBonusConfirmation, BONUS_SELECT, countConfirmable, homeFlags, isStillActive, licenseReminder,
   monthBirthdays, onboardingList, pickHomeTasks, summarizeBonus, taipeiDate, transferPendingScope,
@@ -38,13 +39,15 @@ export async function loadHome(ctx: Context, now: Date = new Date()) {
   );
   const managedStoreIds = Array.from(new Set(managedRows.map((r) => String(r.store_id || "")).filter(Boolean)));
 
-  const [tasks, bonus, onboarding, birthdays, reminders, transfer] = await Promise.all([
+  const [tasks, bonus, onboarding, birthdays, reminders, transfer, aiUsage] = await Promise.all([
     loadTasks(ctx),
     loadBonus(ctx, employeeCode),
     loadOnboarding(ctx, managedStoreIds, today),
     loadBirthdays(ctx, flags, managedStoreIds, today),
     loadReminders(ctx, flags, managedStoreIds, today),
     loadTransfer(ctx, flags.isAdmin),
+    // M6 W33：每月 AI 估算費用達 80%／100% 時提醒系統管理員（只有系統管理員會收到；查詢失敗不影響首頁其他內容）
+    homeAiUsage(ctx, now).catch(() => ({ show: false as const })),
   ]);
 
   return {
@@ -54,6 +57,7 @@ export async function loadHome(ctx: Context, now: Date = new Date()) {
     employeeCode,
     flags: { isAdmin: flags.isAdmin, licenseGroupByZone: flags.licenseGroupByZone },
     transfer,
+    aiUsage,
     bonus,
     onboarding,
     tasks,

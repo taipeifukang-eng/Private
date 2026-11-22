@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import * as XLSX from 'xlsx';
 import { adminDb, apiForUser, runIdOrThrow, stores, type M5User } from './m5-fixtures';
 
@@ -23,7 +24,7 @@ function must<T>(res: { data: T; error: { message: string } | null }, what: stri
   return res.data;
 }
 
-export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' | 'manager' | 'admin'; /** 店長指派（測試門市代號）。 */ managed?: string[] };
+export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' | 'manager' | 'admin'; /** 店長指派（測試門市代號）。 */ managed?: string[]; /** store_managers.role_type，預設 store_manager。 */ roleType?: string };
 export const M6_SCENARIOS: Record<string, M6Scenario> = {
   // 關係會員「核可」單獨權限（role-matrix 沒有 approve 的單獨帳號）
   rel_approve: { desc: '只有關係會員核可權限', perms: ['relationship_member.approve'], profileRole: 'member' },
@@ -39,6 +40,15 @@ export const M6_SCENARIOS: Record<string, M6Scenario> = {
   so_nostore: { desc: '缺貨回報：有提交權限但沒有指派門市', perms: ['cross_dept.stockout.submit'], profileRole: 'member' },
   so_plain: { desc: '缺貨回報：沒有任何缺貨回報權限', perms: [], profileRole: 'member' },
   // 2026-11-22 盤點權限問卷：只有 inventory.manage（不隱含匯入、刪除），驗證兩邊 API 都 403
+  // 第三批 3b W32 督導管理日誌（權限碼 supervisor.management_log.*）
+  sl_sup_a: { desc: '督導日誌：督導 A（看自己、建立、改自己、追蹤），管轄 VW001', perms: ['supervisor.management_log.view_own', 'supervisor.management_log.create', 'supervisor.management_log.update_own', 'supervisor.management_log.follow_up'], profileRole: 'member', managed: ['VW001'], roleType: 'supervisor' },
+  sl_sup_b: { desc: '督導日誌：督導 B（同 A），管轄 VW002', perms: ['supervisor.management_log.view_own', 'supervisor.management_log.create', 'supervisor.management_log.update_own', 'supervisor.management_log.follow_up'], profileRole: 'member', managed: ['VW002'], roleType: 'supervisor' },
+  sl_team: { desc: '督導日誌：只有看團隊，管轄 VW001', perms: ['supervisor.management_log.view_team'], profileRole: 'member', managed: ['VW001'], roleType: 'area_manager' },
+  sl_follow: { desc: '督導日誌：看自己加追蹤，管轄 VW001（不是建立者）', perms: ['supervisor.management_log.view_own', 'supervisor.management_log.follow_up'], profileRole: 'member', managed: ['VW001'], roleType: 'store_manager' },
+  sl_manager: { desc: '督導日誌：只有管理（總部主管）', perms: ['supervisor.management_log.manage'], profileRole: 'member' },
+  sl_viewer: { desc: '督導日誌：只有看自己（被指派者）', perms: ['supervisor.management_log.view_own'], profileRole: 'member' },
+  sl_creator: { desc: '督導日誌：只有建立（沒有改自己的權限）', perms: ['supervisor.management_log.create'], profileRole: 'member' },
+  sl_none: { desc: '督導日誌：沒有任何督導日誌權限', perms: [], profileRole: 'member' },
   inv_manage_only: { desc: '盤點：只有 inventory.manage', perms: ['inventory.manage'], profileRole: 'member' },
 };
 
@@ -106,7 +116,7 @@ export async function setupM6Users(keys: string[] = Object.keys(M6_SCENARIOS)): 
     if (sc.managed?.length) {
       const st = must(await db.from('stores').select('id,store_code').in('store_code', sc.managed), `讀取門市 ${key}`) as { id: string; store_code: string }[];
       if (st.length !== sc.managed.length) throw new Error(`DEV 缺少測試門市 ${sc.managed.join(',')}`);
-      must(await db.from('store_managers').insert(st.map((x, i) => ({ user_id: uid, store_id: x.id, role_type: 'store_manager', is_primary: i === 0 }))), `store_managers ${key}`);
+      must(await db.from('store_managers').insert(st.map((x, i) => ({ user_id: uid, store_id: x.id, role_type: sc.roleType || 'store_manager', is_primary: i === 0 }))), `store_managers ${key}`);
     }
   }
   return { users, teardown: () => cleanupM6Users(db) };
@@ -160,4 +170,43 @@ export function inventoryResultXlsx(tag: string, storeCode = 'VW001'): Buffer {
 }
 export async function cleanupM6InventoryResults(runId: string = runIdOrThrow(), db: any = adminDb()): Promise<void> {
   await db.from('inventory_result_batches').delete().like('source_file_name', `m6w25perm-${runId}-%`);
+}
+
+/**
+ * 第三批 3b W32 督導管理日誌：測試資料一律用標題／對象名稱 `ZT2038 M6W32 <runId> <tag>`、分類代碼 `M6W32-<runId>-…`；
+ * 清除依「標記或測試帳號擁有」找出案件，再依 FK 順序刪事件、追蹤、紀錄、規劃、案件（admin client 可硬刪；舊版資料表沒有 DELETE 政策）。只刪自己的。
+ */
+export const slMark = () => `ZT2038 M6W32 ${runIdOrThrow()}`;
+export const slName = (tag: string) => `${slMark()} ${tag}`;
+export const slCategoryCode = (tag: string) => `M6W32-${runIdOrThrow()}-${tag}`.toUpperCase();
+export async function cleanupM6Supervisor(db: any = adminDb(), userIds: string[] = []): Promise<void> {
+  const ids = new Set<string>();
+  const byTitle = ((await db.from('supervisor_management_cases').select('id').like('title', 'ZT2038 M6W32 %')).data || []) as { id: string }[];
+  byTitle.forEach((r) => ids.add(r.id));
+  if (userIds.length) {
+    const byOwner = ((await db.from('supervisor_management_cases').select('id').in('owner_user_id', userIds)).data || []) as { id: string }[];
+    byOwner.forEach((r) => ids.add(r.id));
+  }
+  const caseIds = Array.from(ids);
+  if (caseIds.length) {
+    // 關聯的案件若已軟刪除，驗證觸發器不允許再更新規劃（不能只把關聯清空），所以直接刪掉這些測試案件的規劃
+    await db.from('supervisor_management_daily_plans').delete().in('linked_case_id', caseIds);
+    await db.from('supervisor_management_case_events').delete().in('case_id', caseIds);
+    await db.from('supervisor_management_followups').delete().in('case_id', caseIds);
+    await db.from('supervisor_management_records').delete().in('case_id', caseIds);
+  }
+  await db.from('supervisor_management_daily_plans').delete().like('title', 'ZT2038 M6W32 %');
+  if (userIds.length) await db.from('supervisor_management_daily_plans').delete().in('owner_user_id', userIds);
+  if (caseIds.length) await db.from('supervisor_management_cases').delete().in('id', caseIds);
+  await db.from('supervisor_management_categories').delete().like('code', 'M6W32-%');
+}
+/** 以測試帳號本人的登入身分操作資料庫（走 RLS 與驗證觸發器，與舊版 API 相同）；只用來建立分類這類沒有 API 的種子資料。 */
+export async function userDb(user: M6User): Promise<any> {
+  const { assertDevEnvironment } = createRequire(__filename)('./env-guard.cjs') as { assertDevEnvironment: (o: { root: string }) => { env: Record<string, string> } };
+  const { env } = assertDevEnvironment({ root: path.resolve(__dirname, '..', '..') });
+  const { createClient } = createRequire(__filename)('@supabase/supabase-js') as { createClient: (u: string, k: string, o: unknown) => any };
+  const client = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const res = await client.auth.signInWithPassword({ email: user.email, password: user.password });
+  if (res.error) throw new Error(`測試帳號登入失敗：${res.error.message}`);
+  return client;
 }
