@@ -43,3 +43,21 @@
 - 沒有用真實缺貨資料驗證（測試資料皆為 `ZT2038-<runId>-…`，門市只用 VW001／VW002）。
 - DEV 有舊版就存在的觸發器會在回覆寫入時改寫同商品 pending 回報的 `status`；新版畫面不依賴該欄位（C3）。正式區觸發器是否相同未驗證。
 - 資料庫：兩個交易函式（DEV：`supabase/workspace-dev/20261122110000_m6_stockout_rpc.sql`，附 rollback；正式區草稿見 `m6-sql/`）。正式區上線前必須先建立，否則新版「商品部回覆」與「刪除回報」會失敗。
+
+## 督導管理日誌（`/supervisor-management-log`，工作台「督導管理日誌」，第三批 3b W32）
+
+資料來自 DEV 實測（`tests/integration/M6-W32.supervisor-log-roles.spec.ts`、`tests/e2e/M6-W32.supervisor-journey.e2e.spec.ts`），臨時帳號 `m6-test-sl-*`（角色代碼 `m6_test_sl_*`，測完刪除）。導覽權限碼不變：六個 `supervisor.management_log.*` 任一。角色矩陣（`role-matrix.json`）裡看得到入口的：admin（全部）、`vue_workspace_navigation`（view_own、view_team）、`vue_workspace_supervisor`（view_own、view_team、create、update_own、follow_up）。
+
+| 權限組合 | 導覽入口 | 看得到的案件 | 建立案件、規劃 | 修改 | 新增紀錄 | 新增追蹤 | 刪除 |
+|---|---|---|---|---|---|---|---|
+| 管理（manage），或 admin | 有 | 全部 | 有 | 全部（含已結案） | 有 | 需另有 follow_up | 全部（要原因） |
+| 看團隊（view_team） | 有 | 自己管轄門市的案件 | 無 | 無 | 無 | 無 | 無 |
+| 督導（view_own、create、update_own、follow_up） | 有 | 自己建立或指派給自己的，加上管轄門市的（follow_up） | 有 | 自己建立且未結案的，加上管轄門市的（follow_up） | 有（可修改的案件） | 有 | 自己建立且未結案的案件、自己的紀錄與追蹤 |
+| 只有看自己（view_own） | 有 | 指派給自己的 | 無 | 無 | 無 | 無 | 無 |
+| 只有建立（create） | 有 | 自己建立的 | 有 | 無（沒有 update_own） | 無 | 無 | 無 |
+| 看自己加追蹤（view_own、follow_up） | 有 | 被指派的與管轄門市的 | 無 | 管轄門市或被指派且未結案的 | 有 | 有 | 只有自己建立的紀錄與追蹤 |
+| 沒有任何督導日誌權限 | 無 | 403 | 403 | 403 | 403 | 403 | 403 |
+
+- 未登入所有 API 回 401；寫入類 API 檢查 Origin（錯誤回 403）。
+- 讀取採正式區 `has_permission` 語意；寫入另受舊版資料表觸發器與 RLS 檢查（角色停用者可讀、不能寫）。
+- 與舊版不同的是：本人可刪自己的案件、規劃、紀錄與追蹤（舊版只有管理者）；含紀錄的案件新版刪得掉（舊版 500）；結案欄位新版會寫入（舊版結不了案）。見白名單 `m6-w32-*`。

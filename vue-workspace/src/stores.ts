@@ -18,6 +18,7 @@ export type Session = {
     relationships: boolean;
     productsMaster: boolean;
     stockout: boolean;
+    supervisorLog: boolean;
     roles: boolean;
     users: boolean;
     transfers: boolean;

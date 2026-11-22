@@ -137,3 +137,7 @@ W25 門市盤點缺口與 P07 關係會員對等已在 DEV 實作，分支 `feat
 ## M6 第 2 批 W29（2026-11-22，DEV）：商品部缺貨回報
 
 缺貨回報頁（`Merchandise.vue`）與 `app/api/workspace/stockout/**` 已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：店長回報（伺服端檢查門市範圍、7 天內重複要確認）、商品部回覆（回覆與歷程同一交易）、狀態與統計由目前有效回覆即時算出（15 天有效、30 天提醒，照舊）、近 30 天與歷史月份（台北時間）、回覆歷程、刪除規則與舊版對等。正式區上線前須先建立 `m6-sql/20261122110000_m6_stockout_rpc.sql` 的兩個函式。細節與待確認項目見 `m6-spec.md` 第三輪補充與白名單 `m6-w29-*`。
+
+## M6 第 3 批 3b W32（2026-11-22，DEV）：督導管理日誌
+
+督導管理日誌頁（`SupervisorLog.vue`）與 `app/api/workspace/supervisor-management/**` 已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：今日工作台（每日計畫、追蹤佇列、今日紀錄）、案件建立與修改、管理紀錄、追蹤、時間線、軟刪除（本人與管理者，留事件）、選項與分類；可見範圍三層（E1）。沿用舊版資料表與權限碼，新增一個 DEV 函式 `workspace_supervisor_soft_delete`（已套用 DEV，正式區草稿在 `docs/vue-workspace/parity-plan/m6-sql/`）。W33 語音另案。細節與判斷見 `docs/vue-workspace/parity-plan/m6-spec.md` 第三批 3b。測試：`node tests/run-all.cjs --layers all --page M6-W32 --no-sweep`。

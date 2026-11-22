@@ -1,5 +1,5 @@
 {
-  "count": 32,
+  "count": 33,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -315,6 +315,20 @@
       ],
       "hasTable": true,
       "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "督導管理日誌",
+      "tabTitle": "督導管理日誌",
+      "headings": [
+        "督導管理日誌",
+        "今日管理規劃",
+        "追蹤佇列",
+        "今日紀錄"
+      ],
+      "hasTable": false,
+      "hasForm": false,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },

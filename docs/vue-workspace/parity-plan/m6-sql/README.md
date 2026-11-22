@@ -49,3 +49,17 @@
 | `inventory-perm-check.sql` | **唯讀**查詢（只有 SELECT）：列出角色（代碼、名稱、啟用）與各盤點權限的持有人數，並列出上線後會失去匯入或刪除的人。請老闆或 DBA 於正式區手動執行，不要自動跑。 |
 
 - 本次沒有資料庫結構變更：匯入、刪除的權限判斷都在應用層（API 與按鈕旗標）。資料表 RLS 查證結果見 `m6-spec.md`「盤點權限分開」。
+
+## 第三批 3b W32（2026-11-22）
+
+| 檔案 | 用途 | 對應項目 |
+|---|---|---|
+| `20261122130000_m6_supervisor_log_rpc.sql` | `workspace_supervisor_soft_delete(text, uuid, text)`：督導管理日誌的案件、紀錄、追蹤軟刪除。以呼叫者身分（`auth.uid()`）執行，舊版驗證觸發器與 RLS 照常生效；管理者可刪全部，其他人只能刪自己建立的（案件需 `update_own` 且未結案或取消）；先軟刪紀錄與追蹤、最後才軟刪案件（舊版先軟刪案件，之後紀錄觸發器因案件已刪除而拒絕），並寫 `SOFT_DELETE`／`RECORD_SOFT_DELETE`／`FOLLOWUP_SOFT_DELETE` 時間線事件。授權 `authenticated`、`service_role` | M6 W32（E2；allowlist：`m6-w32-e2-*`） |
+| `20261122130000_m6_supervisor_log_rpc.rollback.sql` | 移除上述函式（不動資料與舊版函式） | 同上 |
+
+注意事項
+
+- 本批**不新增資料表、不修改任何既有資料表與舊版函式**。函式檔頭先檢查 `supervisor_management_*` 資料表與 `supervisor_management_case_is_manageable` 是否存在。
+- 新版寫入以登入者身分，所以正式區必須已有 `20260812093000`、`20260812154708`、`20260812155612`、`20260813063209` 四個舊 migration 的函式、觸發器與政策（DEV 已確認）。
+- 沒有此函式時，只有新版的「刪除案件、紀錄、追蹤」會失敗（503）；其他功能、每日計畫刪除（沿用舊函式）與舊頁不受影響。
+- DEV 的 `stores` 資料表政策（`dev_stores_select_managed`）是 DEV 專用；新版選項 API 的門市範圍（管理者全部、其他人只有管轄門市）是在應用層明確寫出，上線前請核對正式區 `stores` 政策。

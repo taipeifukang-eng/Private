@@ -201,14 +201,19 @@ export function workspaceNavigation(
           ["inspection.template.manage"],
           "inspection-settings",
         ),
-        item("督導管理日誌", "/supervisor-management-log", [
-          "supervisor.management_log.view_own",
-          "supervisor.management_log.view_team",
-          "supervisor.management_log.create",
-          "supervisor.management_log.update_own",
-          "supervisor.management_log.follow_up",
-          "supervisor.management_log.manage",
-        ]),
+        item(
+          "督導管理日誌",
+          "/supervisor-management-log",
+          [
+            "supervisor.management_log.view_own",
+            "supervisor.management_log.view_team",
+            "supervisor.management_log.create",
+            "supervisor.management_log.update_own",
+            "supervisor.management_log.follow_up",
+            "supervisor.management_log.manage",
+          ],
+          "supervisor-log",
+        ),
       ],
     },
     {

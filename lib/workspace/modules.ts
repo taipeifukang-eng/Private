@@ -19,6 +19,15 @@ export const moduleCodes = {
   productsMaster: ["store.products_master.manage"],
   // M6 W29：商品部缺貨回報（提交、查看全部、回覆任一即可進入頁面；細部權限由 lib/workspace/stockout.ts 判斷）
   stockout: ["cross_dept.stockout.submit", "cross_dept.stockout.view_all", "cross_dept.stockout.respond"],
+  // M6 W32：督導管理日誌（六個權限碼任一即可進入；可見範圍與修改規則由 lib/supervisor-management-log/workspace-rules.ts 判斷）
+  supervisorLog: [
+    "supervisor.management_log.view_own",
+    "supervisor.management_log.view_team",
+    "supervisor.management_log.create",
+    "supervisor.management_log.update_own",
+    "supervisor.management_log.follow_up",
+    "supervisor.management_log.manage",
+  ],
 };
 type StorePrefetch = {
   stores: { data: any[] | null; error: unknown };

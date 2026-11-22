@@ -9399,5 +9399,204 @@
     "description": "缺貨回報 API 輸入檢查與空清單：(1) 回覆時預計到貨日格式不符回 400「預計到貨日格式不正確」，舊版不檢查；(2) 為不存在的門市回報回 400「找不到這間門市」，舊版是資料庫錯誤 500；(3) 查詢回覆的 product_codes 最多取前 100 個，舊版沒有上限；(4) 只有提交權限、沒有管轄門市的店長，「我的門市」分頁回空清單，舊版前端不帶門市參數，API 回 403；(5) 清單頁碼超過總頁數時收斂到最後一頁（舊版直接回空）；(6) 刪除回覆網址含不合法編碼回 400。",
     "reason": "輸入檢查與邊界行為補強（問卷未詢問），待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m6-w32-e1-three-tier-visibility",
+    "page": "supervisor-log",
+    "description": "E1 可見範圍三層（管理看全部、看團隊看自己管轄門市、一般看自己建立或指派給自己的）改由應用層判斷，權限語意與正式區的 has_permission 相同：不檢查 roles.is_active，也沒有資料庫端的管理員角色代碼放行（只有 profiles.role 為 admin 的應用層後備）。舊版的案件、紀錄、規劃可見範圍由資料表 RLS 決定，RLS 的輔助函式會檢查 roles.is_active 並放行 admin、owner 等角色代碼。新版寫入仍然經過舊版的資料表觸發器與 RLS（第二道關卡）。",
+    "reason": "M6 規格問卷 E1：使用者選「依權限分三層（own_team_manage）」。舊版資料庫政策本來就是這三層，新版保持同一組規則（逐列與純函式、資料庫實際資料比對一致），差異只在權限語意（本輪全部採正式區 has_permission 語意）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "permission-semantics"
+    }
+  },
+  {
+    "id": "m6-w32-e2-own-delete-case",
+    "page": "supervisor-log",
+    "description": "E2：新版允許案件建立者（有「編輯自己的」權限、案件未結案或取消）軟刪除自己的案件，管理者可刪除全部；舊版只有管理權限者能刪案件（一般督導刪除回 403）。刪除一律只標記已刪除（記錄刪除者、時間、原因），並在時間線留下事件。",
+    "reason": "M6 規格問卷 E2：使用者選「自己的可改，管理者可改全部，刪除只標記為已刪除並留時間線事件」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "status-delete-case"
+    }
+  },
+  {
+    "id": "m6-w32-e2-own-delete-plan",
+    "page": "supervisor-log",
+    "description": "E2：新版允許規劃擁有人刪除自己未完成（非已完成、非已取消）的今日管理規劃，管理者可刪全部；舊版 DELETE 規劃只有管理權限者能呼叫。",
+    "reason": "M6 規格問卷 E2（自己的可改可刪、管理者全部）與 E3（今日工作台完整移植）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "status-delete-plan"
+    }
+  },
+  {
+    "id": "m6-w32-e2-soft-delete-with-records",
+    "page": "supervisor-log",
+    "description": "刪除含有管理紀錄或追蹤的案件：舊版資料庫函式先標記案件為已刪除，之後標記紀錄時，紀錄的驗證觸發器因案件已被刪除而拒絕，整個刪除失敗（500）；新版的軟刪除函式改為先標記紀錄與追蹤、最後才標記案件，同一個交易完成，並寫入時間線事件。",
+    "reason": "M6 規格問卷 E2：刪除只標記為已刪除並留時間線事件。舊版對有紀錄的案件根本刪不掉，新版修正。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "delete-case-with-records"
+    }
+  },
+  {
+    "id": "m6-w32-e2-own-edit-delete-records",
+    "page": "supervisor-log",
+    "description": "E2：新版新增「修改紀錄」（建立者本人且案件仍可修改，管理者全部）與「刪除管理紀錄、刪除追蹤」（建立者本人與管理者）；舊版 API 與畫面沒有修改紀錄，也沒有刪除紀錄、追蹤的畫面。刪除為軟刪除並寫時間線事件（RECORD_SOFT_DELETE、FOLLOWUP_SOFT_DELETE），修改紀錄寫 RECORD_EDIT 事件。",
+    "reason": "M6 規格問卷 E2：自己的可改，管理者可改全部，刪除只標記為已刪除並留時間線事件。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w32-e3-daily-plan-full",
+    "page": "supervisor-log",
+    "description": "E3：今日工作台（每日計畫）完整移植：今日規劃、追蹤佇列（已逾期、今天到期、七天內）、今日紀錄與摘要、規劃的建立編輯狀態流轉（尚未開始、處理中、已完成、已取消）與關聯案件、開始處理時帶入新增紀錄表單、記錄追蹤。功能與舊版對等。",
+    "reason": "M6 規格問卷 E3：使用者選「一併完整移植（include）」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w32-close-case-fields",
+    "page": "supervisor-log",
+    "description": "把案件狀態改成「已改善」或「已結案」：舊版 API 不會一併寫入 resolved_at／closed_at，資料表有檢查條件要求這兩個欄位，所以舊版會失敗（500）、狀態維持原樣；新版依新舊狀態自動寫入（改回其他狀態時清空），因此可以結案與重新開啟。",
+    "reason": "舊版缺陷修正（結案功能在舊版實際上不能用），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "close-case"
+    }
+  },
+  {
+    "id": "m6-w32-today-default-taipei-date",
+    "page": "supervisor-log",
+    "description": "今日工作台未指定日期時，新版用台北時間的今天；舊版後端用 UTC 日期（台北時間 00:00 到 08:00 之間會落在前一天）。畫面端舊版已用台北日期傳 date，所以只有直接呼叫 API 且不帶日期才會不同。",
+    "reason": "本輪規定日期一律以 Asia/Taipei 計算（與缺貨回報相同做法），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "today-default-date"
+    }
+  },
+  {
+    "id": "m6-w32-options-employees",
+    "page": "supervisor-log",
+    "description": "新增案件與規劃時的員工候選：舊版固定回前 300 筆在職員工（沒有依門市，超過 300 位就被截斷，後面的人選不到）；新版只在指定門市（最多 100 筆）或輸入姓名／員編搜尋（最多 30 筆）時回傳。",
+    "reason": "避免截斷造成選不到人，也不再一次送出全部員工名單；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "options-employees"
+    }
+  },
+  {
+    "id": "m6-w32-options-stores-scope",
+    "page": "supervisor-log",
+    "description": "門市選項：新版管理者看全部啟用門市、其他人只看自己管轄的門市（沒有管轄門市則為空）；舊版靠資料表政策（DEV 為管轄門市或有總務服務中心權限者），管理者若沒有門市權限在舊版反而看不到任何門市。",
+    "reason": "把舊版隱含在資料表政策的範圍改成明確規則；DEV 的 stores 政策與正式區可能不同，上線前請核對。問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "options-stores"
+    }
+  },
+  {
+    "id": "m6-w32-embeds-visible",
+    "page": "supervisor-log",
+    "description": "案件詳情裡的門市名稱與建立者姓名：舊版以使用者身分關聯讀取，受 stores、profiles 資料表政策影響，看不到別人的資料時欄位為空；新版由伺服端讀取，有權看該案件就顯示門市與建立者姓名。",
+    "reason": "看得到案件卻看不到門市或建立者是舊版資料表政策的副作用；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "case-detail-embeds"
+    }
+  },
+  {
+    "id": "m6-w32-search-escape",
+    "page": "supervisor-log",
+    "description": "案件與規劃的關鍵字搜尋：新版把 % _ 與逗號、括號、引號都當一般文字（值整個以雙引號包住）；舊版把關鍵字直接組進查詢條件字串，含逗號或括號會改寫條件、造成查詢錯誤（500）或誤配。",
+    "reason": "漏洞與缺陷修補（與缺貨回報、商品主檔同一做法），問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-special-chars"
+    }
+  },
+  {
+    "id": "m6-w32-pagination-clamp",
+    "page": "supervisor-log",
+    "description": "案件與規劃清單：頁碼超出總頁數時，新版回最後一頁；舊版資料庫回範圍錯誤（500）。每頁筆數上限兩邊都是 100。",
+    "reason": "體驗修正，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "pagination-beyond"
+    }
+  },
+  {
+    "id": "m6-w32-ai-confirmed-by",
+    "page": "supervisor-log",
+    "description": "管理紀錄的 AI 確認人：新版一律由伺服端記錄為送出的登入者（AI 草稿只能由人工確認後儲存），非 AI 紀錄一律不帶確認人；舊版接受前端傳入任意使用者 id 當確認人。",
+    "reason": "規格第三節：AI 永遠不得略過人工確認直接寫入；確認人不可由前端指定。問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "record-ai-confirmed"
+    }
+  },
+  {
+    "id": "m6-w32-patch-invisible-404",
+    "page": "supervisor-log",
+    "description": "修改看不到的案件：舊版對看不到的案件 PATCH 回 200，但資料表政策讓更新沒有套用到任何列（假成功）；新版回 404 找不到案件。",
+    "reason": "舊版假成功會讓人以為已修改；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "status-patch-case"
+    }
+  },
+  {
+    "id": "m6-w32-validation-status-400",
+    "page": "supervisor-log",
+    "description": "欄位驗證錯誤（缺標題、格式錯誤、列舉值不合等）：新版回 400 與同一段錯誤文字（驗證規則重用舊版 lib/supervisor-management-log/validation）；舊版 API 把驗證錯誤當一般錯誤回 500。",
+    "reason": "狀態碼修正，錯誤文字不變；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-timeline-events",
+    "page": "supervisor-log",
+    "description": "案件時間線：新版 API 另提供 GET cases/:id/timeline，並在案件詳情回傳 timeline 欄位（建立案件、新增紀錄、新增追蹤、狀態變更、他人修改、紀錄修改、各種刪除事件，新到舊）。建立、紀錄、追蹤項目由既有資料合成，不另外寫入事件；新版另外寫入 STATUS_CHANGE、MANAGER_EDIT（他人修改案件）、RECORD_EDIT 事件。舊版詳情只回傳資料表內的事件（只有刪除事件），畫面沒有時間線。",
+    "reason": "規格列出「事件時間線」，舊版沒有對應畫面；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-deleted-audit-view",
+    "page": "supervisor-log",
+    "description": "管理者事後追查：新版 GET cases/:id?deleted=1（只有管理權限者）可看已軟刪除的案件、刪除者與原因、被刪除的紀錄與追蹤、全部事件；舊版沒有查看已刪除資料的入口。",
+    "reason": "E2 要求刪除可追查；問卷未涵蓋入口形式，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-ui-layout",
+    "page": "supervisor-log",
+    "description": "版面：舊版是兩個分頁（今日工作台、管理案件）加側邊或下方詳情；新版為同樣兩個分頁，案件詳情改在工作頁內的視窗開啟，刪除原因與新增紀錄、追蹤改用工作頁內的視窗（舊版刪除用瀏覽器 prompt 輸入原因），案件清單為卡片式。欄位、選項、狀態文字與舊版一致。語音錄音與 AI 摘要不在本頁（另案 W33）。",
+    "reason": "配合新版共用的畫面風格；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-nav-inpage",
+    "page": "supervisor-log",
+    "description": "導覽「督導管理日誌」在新版改為工作頁內開啟（kind supervisor-log，需 capabilities.supervisorLog，六個權限碼任一）；舊版頁面 /supervisor-management-log 保留不動。",
+    "reason": "Z2：新版上線後舊頁保留；Z3：可見角色沿用舊版實際權限。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-write-invisible-record-status",
+    "page": "supervisor-log",
+    "description": "對看不到的案件新增管理紀錄：舊版被資料表政策拒絕，API 回 500（系統錯誤）；新版先確認案件在可見範圍內，回 404 找不到案件。",
+    "reason": "狀態碼修正（舊版把資料表政策拒絕當系統錯誤）；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "status-post-record"
+    }
+  },
+  {
+    "id": "m6-w32-followup-status",
+    "page": "supervisor-log",
+    "description": "新增追蹤的失敗狀態碼：對看不到的案件、或只有管理權限卻沒有追蹤權限的帳號（舊版資料表政策要求同時有追蹤權限）新增追蹤，舊版回 500（系統錯誤）；新版分別回 404、403 並附說明。能不能新增追蹤的判斷本身新舊一致（需要追蹤權限且案件可修改）。",
+    "reason": "狀態碼修正，判斷規則不變；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "status-post-followup"
+    }
   }
 ]
