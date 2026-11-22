@@ -88,7 +88,7 @@ playwright.config.ts   vitest.config.ts   tests/run-all.cjs
 - 每個角色都要列出「預期可見頁面」與「預期 API 狀態」，同時作為 smoke 與權限測試的 oracle。
 - 所有權限一律走 roles、role_permissions、user_roles，不使用 profiles.role 捷徑（舊版依 profiles.role 判斷的頁面除外，這類帳號兩者都要設）。
 - **代理店長（T01 裁定）**：舊版權限一律走 RBAC，`store_managers.role_type` 沒有 acting 類型，`lib/campaign-access.ts` 也把「店長／代理店長」視為同一類。因此 `acting_manager` 的權限碼與門市範圍和 `store_manager` 相同，差異只在月度資料的 `is_acting_manager` 與職稱。依據檔案與行號寫在 `role-matrix.json` 該帳號的 `note`。
-- **expected 快照**：`role-matrix.json` 的 `expected.capabilities` 是「現行行為快照」（`"verified": false`），待 parity 階段逐項對舊版驗證。已知疑點 `navigation` 帳號 `importInventory`／`deleteInventory` 為 true 記在 `tests/parity/allowlist.json`（id `inventory-view-implies-import-delete`），等使用者核可。
+- **expected 快照**：`role-matrix.json` 的 `expected.capabilities` 是「現行行為快照」（`"verified": false`），待 parity 階段逐項對舊版驗證。已知疑點 `navigation` 帳號 `importInventory`／`deleteInventory` 為 true 記在 `tests/parity/allowlist.json`（id `inventory-view-implies-import-delete`），已由 2026-11-22 盤點權限問卷裁定新舊一起收緊（匯入、刪除改為專屬權限，navigation 帳號改為 false），見 m6-spec.md「盤點權限分開」。
 - **administrator@example.test**：不重設密碼，由 `vue-workspace-admin@example.test` 取代，測試一律使用後者。
 
 ### 舊腳本與明碼檔（D04）
