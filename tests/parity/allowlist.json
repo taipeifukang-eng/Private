@@ -9250,5 +9250,133 @@
     "description": "商品主檔新版會寫操作紀錄（誰、何時、做什麼：匯入幾筆、停用、重新啟用、新增、編輯），存在新資料表 products_master_operation_logs；舊版不留紀錄。",
     "reason": "規格第三節 B 假設：匯入與停用都寫操作紀錄；問卷未詢問，待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m6-w29-status-derived",
+    "page": "merchandise",
+    "description": "回報的「待回覆／已回覆」狀態與統計：新版不讀資料欄位，一律由「該商品目前有沒有有效回覆」（預計到貨日在今天往前 15 天內，或沒填日期）即時算出；舊版讀資料欄位，商品部回覆時由資料庫觸發器把舊回報改成已回覆，之後即使預計到貨日過期也不會變回待回覆。",
+    "reason": "M6 規格問卷 C3：使用者選「不改資料，狀態與統計一律用該商品目前有沒有有效回覆即時算出」。15 天有效、30 天仍提醒的門檻照舊（C1）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "list-status"
+    }
+  },
+  {
+    "id": "m6-w29-duplicate-warning",
+    "page": "merchandise",
+    "description": "同一門市在 7 天內對同一商品再次回報：新版先跳出提示，使用者確認後才送出（API 回 409，帶 confirm_duplicate 才寫入）；舊版直接新增。",
+    "reason": "M6 規格問卷 C6：使用者選「近期（例如 7 天）已回報過同商品時跳出提示，讓使用者確認後仍可送出（warn）」。數量上限不設。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "post-duplicate-warning"
+    }
+  },
+  {
+    "id": "m6-w29-post-store-scope",
+    "page": "merchandise",
+    "description": "提交缺貨回報時，新版在伺服端檢查門市範圍：只有提交權限的人只能替自己管轄（店長指派）的門市回報，商品部（查看全部或回覆權限）不限；舊版只檢查有權限，直接用 API 可以替任何門市回報。",
+    "reason": "M6 規格第二節 W29 b：屬漏洞修補，直接做（假設 C2，問卷未詢問），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "post-store-scope"
+    }
+  },
+  {
+    "id": "m6-w29-list-store-scope",
+    "page": "merchandise",
+    "description": "查看缺貨回報清單時，新版對只有提交權限的人限制只能看自己管轄的門市（指定其他門市回 403）；舊版任何有提交權限的人都能用 store_id 指定任一門市查看。商品部（查看全部或回覆）不受限。",
+    "reason": "與 POST 門市範圍檢查（假設 C2）同一個漏洞的讀取面，一併修補；問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "list-store-scope"
+    }
+  },
+  {
+    "id": "m6-w29-taipei-dates",
+    "page": "merchandise",
+    "description": "日期一律用台北時間：歷史月份分組、近 30 天範圍、重複回報判斷與預計到貨日比較都以台北日期計算；舊版月份分組取資料時間的 UTC 前七碼（月初月底的回報會被分到錯的月份），近 30 天用「現在往前 30 天的瞬間」。",
+    "reason": "M6 規格第二節 W29 e 與第三節：日期一律 Asia/Taipei，修正月份分組；問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "month-bucket"
+    }
+  },
+  {
+    "id": "m6-w29-search-escape",
+    "page": "merchandise",
+    "description": "缺貨回報清單的關鍵字搜尋遇到逗號、括號、百分比、底線等特殊字元：新版一律當一般文字比對；舊版把關鍵字直接組進查詢條件，逗號與括號會改寫條件、百分比與底線被當萬用字元。",
+    "reason": "M6 規格第二節 W29 f：舊版 ilike 的 or 條件直接拼接，新版必須跳脫（修正，問卷未詢問），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-escape"
+    }
+  },
+  {
+    "id": "m6-w29-reply-transaction",
+    "page": "merchandise",
+    "description": "商品部回覆：目前回覆（以商品編號更新或新增）與回覆歷程在同一個資料庫交易內寫入（資料庫函式 workspace_stockout_respond）；刪除回報與「最後一筆時清掉目前回覆」也在同一交易（workspace_stockout_delete_report）。舊版是兩次獨立寫入，歷程寫入失敗會留下沒有歷程的回覆。最後的資料內容兩邊相同。",
+    "reason": "M6 規格第二節 W29 i：回覆 upsert 與歷程寫入改為同一交易；刪除一併做（假設，問卷未詢問），待使用者確認。正式區上線前需先建立這兩個函式（m6-sql）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "reply-write"
+    }
+  },
+  {
+    "id": "m6-w29-server-side-status",
+    "page": "merchandise",
+    "description": "清單的「待回覆／已回覆」篩選與上方三個統計，新版在伺服端對整個查詢範圍計算（跨頁一致、統計不受分頁影響）；舊版只對目前這一頁（最多 30 筆）的資料在畫面上篩選與計數。",
+    "reason": "實作 C3 即時衍生狀態時的必然取捨（狀態由回覆即時算出，無法在資料庫層直接分頁篩選）；問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-qty-integer",
+    "page": "merchandise",
+    "description": "需求數量不是正整數（例如 2.5、負數）時，新版回 400「需求數量必須是大於 0 的整數」；舊版不檢查，小數會讓資料庫報錯回 500。",
+    "reason": "輸入檢查補強（問卷未詢問；數量上限依 C6 選擇 warn 不設），待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-nav-merchandise-inpage",
+    "page": "merchandise",
+    "description": "導覽「商品部」新版改為在工作頁內開啟（舊版是開啟外部的舊頁面）；導覽所需權限不變（缺貨回報的提交、查看全部、回覆任一）。舊頁保留不動。",
+    "reason": "M6 規格第三節 C：導覽「商品部」新增 kind 在工作頁內開啟；問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-ui-layout",
+    "page": "merchandise",
+    "description": "畫面版型差異：狀態篩選只留一組按鈕（舊版同時有下拉與按鈕兩組，綁同一個狀態）；刪除回報的確認改為工作頁內的確認視窗（文字「確定刪除這筆回報？」不變，舊版是瀏覽器 confirm）；商品建議清單顯示在輸入框下方（舊版浮動下拉）；回報與回覆者姓名欄位維持舊版（舊 API 不回傳姓名，顯示「－」或不顯示）。其餘功能（搜尋 80ms 延遲與舊請求不覆蓋、選定帶名稱與單位並聚焦數量、15 天提醒視窗、近 30 天與歷史月份、回覆歷程、刪除規則）一致。",
+    "reason": "Vue 工作頁共用元件與版面慣例；舊版沒有刪除商品部回覆的按鈕（W29 g），新版同樣沒有。問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-store-name-visible",
+    "page": "merchandise",
+    "description": "回報清單的門市代號與名稱：舊版用呼叫者自己的身分讀門市資料表，商品部帳號（只有查看全部或回覆權限、不是該門市店長）讀不到，門市欄位是空白；新版由伺服端讀取，所有角色都看得到門市代號與名稱。",
+    "reason": "DEV 對跑發現的舊版缺陷（資料表權限造成欄位空白）；新版顯示門市資訊是實作取捨，問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "list-store-embed"
+    }
+  },
+  {
+    "id": "m6-w29-history-visible-submit",
+    "page": "merchandise",
+    "description": "回覆歷程：舊版只有查看全部或回覆權限的人讀得到（資料表權限只放行這兩種），只有提交權限的店長展開歷程永遠是空的；新版任何有缺貨權限的人（含只有提交權限的店長）都看得到歷程（每頁 10 筆、上限 50）。",
+    "reason": "規格第三節 C：回覆歷程每頁 10（上限 50）、沒有另外限制誰能看；舊版店長實際看不到是資料表權限造成。問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "history-visible-submit"
+    }
+  },
+  {
+    "id": "m6-w29-viewall-reply",
+    "page": "merchandise",
+    "description": "只有「查看全部」權限（沒有「回覆」權限）的帳號：舊版畫面有回覆按鈕、API 也放行，但資料表只允許有「回覆」權限的人寫入，所以儲存時舊版回 500；新版照舊版 API 的判斷（回覆或查看全部都能回覆）放行並寫入。",
+    "reason": "規格寫「權限維持三個、capabilities 由 API 回傳」，新版沿用舊版 API 與畫面的判斷；舊版資料表權限與其不一致。是否收緊為只有「回覆」權限，待使用者決定。",
+    "approvedBy": null,
+    "match": {
+      "entry": "viewall-reply"
+    }
   }
 ]

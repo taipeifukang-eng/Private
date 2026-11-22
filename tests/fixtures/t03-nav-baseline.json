@@ -1,5 +1,5 @@
 {
-  "count": 31,
+  "count": 32,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -333,6 +333,17 @@
       ],
       "hasTable": false,
       "hasForm": false,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "商品部",
+      "tabTitle": "商品部缺貨回報",
+      "headings": [
+        "商品部管理"
+      ],
+      "hasTable": false,
+      "hasForm": true,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },

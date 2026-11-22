@@ -88,6 +88,13 @@ MARKER_TARGETS.push(
   { table: 'products_master', column: 'product_code', pattern: 'ZT2038-T%', action: 'delete' },
 );
 
+// M6 第 2 批（W29 缺貨回報）：測試缺貨商品編號 ZT2038-<runId>-…（回報、回覆、歷程；只刪自己的）。
+MARKER_TARGETS.push(
+  { table: 'stockout_product_response_history', column: 'product_code', pattern: 'ZT2038-T%', action: 'delete' },
+  { table: 'stockout_reports', column: 'product_code', pattern: 'ZT2038-T%', action: 'delete' },
+  { table: 'stockout_product_responses', column: 'product_code', pattern: 'ZT2038-T%', action: 'delete' },
+);
+
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
 const RESERVED_MONTH_TABLES = [
   'monthly_store_summary',

@@ -22,7 +22,7 @@ function must<T>(res: { data: T; error: { message: string } | null }, what: stri
   return res.data;
 }
 
-export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' | 'manager' | 'admin' };
+export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' | 'manager' | 'admin'; /** 店長指派（測試門市代號）。 */ managed?: string[] };
 export const M6_SCENARIOS: Record<string, M6Scenario> = {
   // 關係會員「核可」單獨權限（role-matrix 沒有 approve 的單獨帳號）
   rel_approve: { desc: '只有關係會員核可權限', perms: ['relationship_member.approve'], profileRole: 'member' },
@@ -30,6 +30,13 @@ export const M6_SCENARIOS: Record<string, M6Scenario> = {
   pm_manage: { desc: '只有商品主檔管理權限', perms: ['store.products_master.manage'], profileRole: 'member' },
   // 第二批 W27：有一般登入身分、完全沒有商品主檔權限（可搜尋、不可管理）
   pm_plain: { desc: '無商品主檔權限的一般帳號', perms: [], profileRole: 'member' },
+  // 第二批 W29 缺貨回報：店長（提交，管轄 VW001／VW002）、商品部（只有回覆、只有查看全部）、沒有指派門市的提交者、完全沒有權限者
+  so_store_a: { desc: '缺貨回報：店長，管轄 VW001', perms: ['cross_dept.stockout.submit'], profileRole: 'member', managed: ['VW001'] },
+  so_store_b: { desc: '缺貨回報：店長，管轄 VW002', perms: ['cross_dept.stockout.submit'], profileRole: 'member', managed: ['VW002'] },
+  so_responder: { desc: '缺貨回報：商品部，只有回覆權限', perms: ['cross_dept.stockout.respond'], profileRole: 'member' },
+  so_viewer: { desc: '缺貨回報：商品部，只有查看全部權限', perms: ['cross_dept.stockout.view_all'], profileRole: 'member' },
+  so_nostore: { desc: '缺貨回報：有提交權限但沒有指派門市', perms: ['cross_dept.stockout.submit'], profileRole: 'member' },
+  so_plain: { desc: '缺貨回報：沒有任何缺貨回報權限', perms: [], profileRole: 'member' },
 };
 
 export async function cleanupM6Users(db: any = adminDb()): Promise<string[]> {
@@ -38,6 +45,10 @@ export async function cleanupM6Users(db: any = adminDb()): Promise<string[]> {
   const uids = (profs || []).map((p: { id: string }) => p.id);
   if (uids.length) {
     await db.from('products_master_operation_logs').delete().in('actor_id', uids);
+    // W29：這些測試帳號自己建立的缺貨回報、回覆與歷程（只刪測試帳號的，避免 FK 擋住刪帳號）
+    await db.from('stockout_product_response_history').delete().in('responded_by', uids);
+    await db.from('stockout_product_responses').delete().in('responded_by', uids);
+    await db.from('stockout_reports').delete().in('reported_by', uids);
     await db.from('store_managers').delete().in('user_id', uids);
     await db.from('user_roles').delete().in('user_id', uids);
   }
@@ -89,6 +100,11 @@ export async function setupM6Users(keys: string[] = Object.keys(M6_SCENARIOS)): 
     users[key] = { key, id: uid, email, password };
     must(await db.from('profiles').update({ role: sc.profileRole, job_title: '測試', department: null }).eq('id', uid), `profile ${key}`);
     must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
+    if (sc.managed?.length) {
+      const st = must(await db.from('stores').select('id,store_code').in('store_code', sc.managed), `讀取門市 ${key}`) as { id: string; store_code: string }[];
+      if (st.length !== sc.managed.length) throw new Error(`DEV 缺少測試門市 ${sc.managed.join(',')}`);
+      must(await db.from('store_managers').insert(st.map((x, i) => ({ user_id: uid, store_id: x.id, role_type: 'store_manager', is_primary: i === 0 }))), `store_managers ${key}`);
+    }
   }
   return { users, teardown: () => cleanupM6Users(db) };
 }
@@ -108,4 +124,17 @@ export async function cleanupM6Products(runId: string = runIdOrThrow(), db: any 
   const pattern = `ZT2038-${runId}-%`;
   await db.from('products_master_operation_logs').delete().like('product_code', pattern);
   await db.from('products_master').delete().like('product_code', pattern);
+}
+
+/** 第二批 W29：測試缺貨商品編號 ZT2038-<runId>-…（回報、回覆、歷程都用這個前綴；只刪自己的）。 */
+export const stockoutCode = (tag: string) => `ZT2038-${runIdOrThrow()}-${tag}`;
+export async function cleanupM6Stockout(runId: string = runIdOrThrow(), db: any = adminDb()): Promise<void> {
+  const pattern = `ZT2038-${runId}-%`;
+  await db.from('stockout_product_response_history').delete().like('product_code', pattern);
+  await db.from('stockout_reports').delete().like('product_code', pattern);
+  await db.from('stockout_product_responses').delete().like('product_code', pattern);
+}
+export async function testStoreIds(): Promise<Record<string, string>> {
+  const rows = must(await adminDb().from('stores').select('id,store_code').in('store_code', ['VW001', 'VW002', 'ZT01']), '讀取測試門市') as { id: string; store_code: string }[];
+  return Object.fromEntries(rows.map((r) => [r.store_code, r.id]));
 }
