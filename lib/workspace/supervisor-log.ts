@@ -80,7 +80,7 @@ const PLAN_SELECT = `
   linked_record:supervisor_management_records(id, record_type, record_date, observation, action_summary, case_id, deleted_at)`;
 /** 規劃回應裡的關聯案件與紀錄：已軟刪除、或不在登入者可見範圍的一律不回（用管理員連線查詢，需自行過濾）；回應只留顯示欄位。 */
 async function cleanPlanLinks(ctx: Context, v: Viewer, plans: any[]) {
-  const caseIds = [...new Set(plans.map((p) => one(p.linked_record)?.case_id).filter(Boolean))] as string[];
+  const caseIds = Array.from(new Set(plans.map((p) => one(p.linked_record)?.case_id).filter(Boolean))) as string[];
   const caseById = new Map<string, any>();
   if (caseIds.length) for (const c of (checked(await ctx.admin.from(T.cases).select("id, owner_user_id, assigned_user_id, store_id, status, deleted_at").in("id", caseIds)) as any[] | null) || []) caseById.set(c.id, c);
   return plans.map((p) => {
