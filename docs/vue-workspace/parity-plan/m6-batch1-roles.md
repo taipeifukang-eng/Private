@@ -6,13 +6,18 @@
 
 | 角色（帳號） | 導覽入口 | 離線盤點工具 | 匯入盤點 Excel | 刪除批次 | 調整盤差原因門檻 | 備註 |
 |---|---|---|---|---|---|---|
-| 管理員（admin） | 有 | 有 | 有 | 有 | 有 | 全部 |
-| 盤點組（inventory_team） | 有 | 有 | 有 | 有 | 有（inventory.manage） | 可操作離線工具與匯入、刪除 |
-| 只有檢視（inventory_view） | 有 | 有 | 有 | 有 | 無 | 舊版相同：任一檢視權限即可匯入與刪除（白名單 `inventory-view-implies-import-delete` 已查證） |
-| 店長／代理店長（store_manager、acting_manager） | 有 | 有 | 有 | 有 | 無 | 結果分析只看自己門市（scope: own） |
-| 全站導覽唯讀（navigation） | 有 | 有 | 有 | 有 | 無 | 同上，檢視權限 |
+| 管理員（admin） | 有 | 有 | 有 | 有 | 有 | 全部（應用層 profiles.role=admin 後備） |
+| 盤點組（inventory_team） | 有 | 有 | 有（.import） | 有（.delete） | 有（inventory.manage） | 同時有匯入與刪除專屬權限 |
+| 盤點編輯（inventory_edit） | 有 | 有 | 有（.import） | 無 | 無 | 只有匯入權限，刪除 403 |
+| 盤點刪除（inventory_delete） | 有 | 有 | 無 | 有（.delete） | 無 | 只有刪除權限，匯入 403 |
+| 只有檢視（inventory_view） | 有 | 有 | 無 | 無 | 無 | 2026-11-22 盤點權限問卷：檢視權限只能看，匯入、刪除 403 且按鈕隱藏（舊版同步收緊） |
+| 店長／代理店長（store_manager、acting_manager） | 有 | 有 | 無 | 無 | 無 | 結果分析只看自己門市（scope: own）；只能看 |
+| 全站導覽唯讀（navigation） | 有 | 有 | 無 | 無 | 無 | 檢視權限，只能看 |
+| 只有 inventory.manage（臨時角色） | 有 | 有 | 無 | 無 | 有 | inventory.manage 不隱含匯入、刪除（問卷 P3） |
 | 督導（supervisor） | 無 | 無 | 無 | 無 | 無 | 直接打 API 回 403 |
 | 總務人員（ga_staff）、員工、無權限（denied） | 無 | 無 | 無 | 無 | 無 | 直接打 API 回 403；未登入 401 |
+
+匯入、刪除只認專屬權限 `inventory.result_analysis.import`／`inventory.result_analysis.delete`（含應用層管理員後備）；沒有權限者新版 Vue 頁與舊版頁面都看不到匯入、刪除按鈕（隱藏，不是反灰），伺服端同樣回 403。
 
 離線工具只在瀏覽器內處理檔案，不寫資料庫（e2e 驗證整個流程沒有任何非 GET 的 /api 請求）。
 

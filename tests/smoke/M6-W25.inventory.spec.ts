@@ -13,8 +13,9 @@ const accounts = (JSON.parse(fs.readFileSync(path.resolve(__dirname, '..', 'fixt
 const ROLES: [string, boolean, boolean, boolean][] = [
   ['admin', true, true, true],
   ['inventory_team', true, true, true],
-  ['inventory_view', true, true, true],
-  ['store_manager', true, true, true],
+  // 2026-11-22 盤點權限問卷：只有檢視權限（含店長）看不到匯入按鈕（隱藏）
+  ['inventory_view', true, true, false],
+  ['store_manager', true, true, false],
   ['supervisor', false, false, false],
   ['denied', false, false, false],
   ['employee', false, false, false],

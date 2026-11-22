@@ -129,3 +129,11 @@ W25 門市盤點缺口與 P07 關係會員對等已在 DEV 實作，分支 `feat
 ### 第 4 批審查後補強（2026-11-16）
 
 兩份審查共 30 項已逐條處理（修 17、不屬實 1、其餘待使用者決定），DEV 已重新套用資料庫補強，正式區草稿 32 至 34 已重新產生（32 與 33 必須連續套用）。細節見 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.7。
+
+## M6 第 2 批（2026-11-22，DEV）：W26 縮小版、W27 商品主檔、W28 Excel 匯入
+
+商品主檔頁（`ProductsMaster.vue`）與 `app/api/workspace/products-master/**` 已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：登入即可搜尋、清單分頁與「顯示已停用」、單筆新增與編輯（編號不可改）、停用與重新啟用（管理權限）、Excel 匯入先預覽再確認（欄位別名沿用舊版、單次 5000 筆、500 筆一批）、操作紀錄（新資料表 `products_master_operation_logs`，正式區上線前須先建立）；共用 `vue-workspace/src/lib/xlsx.ts`。不含併購藥局商品整理（B5）。細節與待確認項目見 `docs/vue-workspace/parity-plan/m6-spec.md` 第二批實作結果與 `m6-batch2-roles.md`。W29 缺貨回報尚未開始。
+
+## M6 第 2 批 W29（2026-11-22，DEV）：商品部缺貨回報
+
+缺貨回報頁（`Merchandise.vue`）與 `app/api/workspace/stockout/**` 已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：店長回報（伺服端檢查門市範圍、7 天內重複要確認）、商品部回覆（回覆與歷程同一交易）、狀態與統計由目前有效回覆即時算出（15 天有效、30 天提醒，照舊）、近 30 天與歷史月份（台北時間）、回覆歷程、刪除規則與舊版對等。正式區上線前須先建立 `m6-sql/20261122110000_m6_stockout_rpc.sql` 的兩個函式。細節與待確認項目見 `m6-spec.md` 第三輪補充與白名單 `m6-w29-*`。

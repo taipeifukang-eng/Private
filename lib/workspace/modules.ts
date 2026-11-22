@@ -15,6 +15,10 @@ export const moduleCodes = {
     "inventory.inventory.view",
     "inventory.result_analysis.view_own",
   ],
+  // M6 W27：商品主檔（搜尋登入即可，其餘管理動作需此權限）
+  productsMaster: ["store.products_master.manage"],
+  // M6 W29：商品部缺貨回報（提交、查看全部、回覆任一即可進入頁面；細部權限由 lib/workspace/stockout.ts 判斷）
+  stockout: ["cross_dept.stockout.submit", "cross_dept.stockout.view_all", "cross_dept.stockout.respond"],
 };
 type StorePrefetch = {
   stores: { data: any[] | null; error: unknown };

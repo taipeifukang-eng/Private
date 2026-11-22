@@ -268,14 +268,15 @@ async function getInventoryResultAnalysisAccess(
   return { allowed: false, scope: 'own', storeIds: [] };
 }
 
+// 2026-11-22 盤點權限問卷：匯入只認 inventory.result_analysis.import（hasPermission 內含管理員後備），
+// 檢視類權限與 inventory.manage 都不再等同匯入。
 async function canImportInventoryResultAnalysis(userId: string): Promise<boolean> {
-  return (await hasAnyInventoryLegacyViewPermission(userId))
-    || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION));
+  return hasPermission(userId, INVENTORY_RESULT_ANALYSIS_IMPORT_PERMISSION);
 }
 
+// 刪除只認 inventory.result_analysis.delete。
 async function canDeleteInventoryResultAnalysis(userId: string): Promise<boolean> {
-  return (await hasAnyInventoryLegacyViewPermission(userId))
-    || (await hasPermission(userId, INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION));
+  return hasPermission(userId, INVENTORY_RESULT_ANALYSIS_DELETE_PERMISSION);
 }
 
 async function canManageDifferenceReasonThreshold(userId: string): Promise<boolean> {

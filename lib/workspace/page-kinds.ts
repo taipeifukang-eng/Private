@@ -38,6 +38,8 @@ export const WORKSPACE_NAV_KINDS = [
   "employee-purchases",
   "pharmacists",
   "relationships",
+  "products-master",
+  "merchandise",
   "roles",
   "users",
   // M7/M8 G01：總務服務中心（外殼與入口頁）。其餘總務頁由外殼側欄開啟（明細 kind）。

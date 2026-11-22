@@ -129,9 +129,12 @@ export function workspaceNavigation(
           "relationship_member.delete",
           "relationship_member.approve",
         ], "relationships"),
-        item("商品主檔", "/cross-dept/products-master", [
-          "store.products_master.manage",
-        ]),
+        item(
+          "商品主檔",
+          "/cross-dept/products-master",
+          ["store.products_master.manage"],
+          "products-master",
+        ),
       ],
     },
     {
@@ -241,11 +244,16 @@ export function workspaceNavigation(
     {
       label: "跨部門管理",
       items: [
-        item("商品部", "/cross-dept/merchandise", [
-          "cross_dept.stockout.view_all",
-          "cross_dept.stockout.respond",
-          "cross_dept.stockout.submit",
-        ]),
+        item(
+          "商品部",
+          "/cross-dept/merchandise",
+          [
+            "cross_dept.stockout.view_all",
+            "cross_dept.stockout.respond",
+            "cross_dept.stockout.submit",
+          ],
+          "merchandise",
+        ),
         item(
           "總務組",
           "/cross-dept/maintenance",

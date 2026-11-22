@@ -85,7 +85,7 @@
 6. 新版多了 CSV 匯出。**保留**（A4 假設），品號欄位必須防止前導零遺失。
 7. 1F 商品檔欄位辨識方式不同（舊版 `header:1` 找索引，新版 `range=1` 加 includes）。**以同一份檔案做新舊等價測試**。
 8. 外盤檔品號重複時舊版 alert 列出重複品號，新版只說「請先合併」；FKS0701 欄位找不到時錯誤訊息較簡略。**補回列出重複品號與完整欄位診斷訊息**。
-9. 另有既有白名單項目 `inventory-view-implies-import-delete`（僅有檢視權限卻同時可匯入與刪除，`deferredTo: W25`）：第一批要查證舊版實際行為（舊 route 是否也如此）後結案，結果寫回該項目。
+9. 另有既有白名單項目 `inventory-view-implies-import-delete`（僅有檢視權限卻同時可匯入與刪除，`deferredTo: W25`）：第一批要查證舊版實際行為（舊 route 是否也如此）後結案，結果寫回該項目。【已被取代：2026-11-22 問卷裁定新舊一起收緊，見文末「盤點權限分開」。】
 10. 缺新舊同一組 Excel 對跑的逐列一致性測試與四層測試。
 
 ### P07 關係會員對等（S）
@@ -325,7 +325,7 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 
 **既有白名單與權限**
 
-- [ ] 查證 `inventory-view-implies-import-delete`：舊 `app/api/inventory/**` 權限判斷是否同樣讓 `inventory.inventory.view` 可匯入與刪除；結論寫回該項目（保留為已知差異、或改為修正），不改舊版。
+- [ ] 查證 `inventory-view-implies-import-delete`：舊 `app/api/inventory/**` 權限判斷是否同樣讓 `inventory.inventory.view` 可匯入與刪除；結論寫回該項目（保留為已知差異、或改為修正），不改舊版。【已被取代：2026-11-22 盤點權限問卷裁定新舊一起收緊，僅改舊版兩個權限判斷函式，見文末「盤點權限分開」。】
 - [ ] 角色劇本（多角色）：盤點組（可操作離線工具與匯入、刪除）、店長（只看自己門市）、督導、無權限帳號（被擋下，無入口）；每個角色驗證導覽可見、API 狀態碼、按鈕顯示。
 - [ ] 分析端（匯入、查詢、報表視圖、差異原因、門檻、刪除批次）只做新舊對等斷言與權限測試，不改邏輯。
 
@@ -384,5 +384,80 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 4. **並行填寫會員編號**：舊版先讀後寫，兩個請求都回 200（後寫覆蓋）；新版 workspace 編輯改為「會員編號仍為空才寫入」的單一條件更新，第二個回 409。舊 route 不動。
 5. **1F 商品檔欄位辨識**：新舊對跑一致的樣本（標題在第二列、欄位順序不同、庫存別名重存、儲位別名庫位、較長欄名、含「庫存」的兩個欄位、小寫 un、標題在第一列兩版皆失敗）。**不一致且未自行決定**的三項：標題前後空白（舊版去空白，新版不）、品號空白的列（舊版保留，新版略過）、庫存非數字（舊版 NaN 仍匯入，新版拒絕）；另預盤數量非數字同樣舊版收下、新版拒絕。皆已列入白名單待核可。
 6. **FKRS 最後一號**：舊版會去除前後空白並轉大寫；新版純函式原本沒有，已對齊舊版（這是補齊舊版行為，不列差異）。
-7. **inventory-view-implies-import-delete**：已查證舊版相同，白名單改為只登記（不再是 fix）；細節見 `approvals.md` 補充與 `m6-batch1-roles.md`。
+7. **inventory-view-implies-import-delete**：第一批查證舊版相同；其後 2026-11-22 盤點權限問卷已裁定新舊一起收緊，見文末「盤點權限分開（2026-11-22 問卷）」。
 8. 沒有真實盤點樣本：所有對跑使用 `tests/fixtures/m6/` 自造檔，**尚未用真實樣本驗證**。
+
+## 第二批實作結果與判斷（W26 縮小版、W27、W28；2026-11-22，DEV）
+
+範圍：共用 Excel 工具、商品主檔頁與 API、Excel 匯入（先預覽再確認）。W29 缺貨回報不在本次。併購藥局商品整理依 B5 不移植。
+
+1. **W26**：新增 `vue-workspace/src/lib/xlsx.ts`（`loadXlsx` 動態載入、`readSheet`、`pickColumns`、`downloadXlsx`、`buildWorkbook`、`sheetToRows`）。`inventory-files.ts` 與關係會員範本下載已改接，行為不變（M6-W25 測試全過）。`UploadPicker.vue`／`lib/upload.ts` 只收圖片與 PDF，Excel 匯入用原生選檔，所以沒有擴充；不做相機元件與 `ImageLightbox.vue`（延到 W31）。`scripts/test-workspace-inventory-files.cjs` 的 vm 載入器補了 `./xlsx` 的 stub。
+2. **資料表盤點**：DEV 已有 `products_master`（0 筆）與 `product_barcodes`（0 筆），RLS 只放行 `store.products_master.manage`。`acquisition_*` 不盤點、不碰。新增 `products_master_operation_logs`（`supabase/workspace-dev/20261122100000_m6_products_master_logs.sql`，附 rollback 與 `m6-sql/` 草稿）。
+3. **發現：舊版搜尋對非管理者實際查不到**。舊 API 只檢查登入，但資料表 RLS 只放行管理權限者，所以沒有商品主檔權限的店長用舊搜尋會得到空結果。新版 API 層判斷登入即可（B1），改用 admin client 讀取，只回編號、名稱、單位。已列白名單 `m6-w27-search-login-only`（approvedBy null，待使用者確認）。
+4. **發現：舊版匯入在 DEV 對所有測試帳號都回 403**（含 admin 與只有商品主檔管理權限的帳號）。原因是舊 route 用登入者身分去讀 `user_roles`／`role_permissions`，受資料表權限影響查不到。對等測試因此先打真的舊 API，回 403 時改用「逐字複製舊版邏輯」的等價寫入（舊版欄位別名、第一個工作表、upsert、`is_active:true`）比對最後資料表內容。正式區行為未驗證（不連正式區）。
+5. **權限語意**：新 API 一律走 `context()`（正式區 `has_permission` 語意：不檢查 `roles.is_active`、無 DB admin 繞過、只有 `profiles.role==='admin'` 應用層後備）。整合測試涵蓋 `roles.is_active=false` 仍有權限、`user_roles` 失效或 `is_allowed=false` 即失去、一般帳號被設為 admin 才能繞過。管理權限碼登記在 `lib/workspace/modules.ts` 的 `moduleCodes.productsMaster`，session capability 為 `productsMaster`。
+6. **API**（`app/api/workspace/products-master/[[...path]]`）：`GET search?q=`（登入即可，編號開頭優先、再補包含，最多 20，只含啟用，特殊字元跳脫）、`GET`（清單，管理權限，每頁 50、`q`、`include_inactive=1`、頁碼超出回最後一頁）、`POST`（新增）、`PATCH :id`（只能改名稱、單位）、`POST :id/deactivate`、`POST :id/reactivate`（已是目標狀態回 `changed:false`，不重複寫紀錄）、`POST import/preview`、`POST import`。寫入類都檢查 Origin。
+7. **搜尋跳脫**：LIKE 的 `%`、`_`、反斜線跳脫；清單與「包含」搜尋用 `or()` 時，值整個以雙引號包起來（`orContains`），逗號、括號不會改寫條件。唯一殘留：PostgREST 把 `*` 當萬用字元別名。
+8. **W28 匯入**：前端用 `readSheet` 讀第一個工作表、`pickColumns` 依舊版別名挑欄位（與舊版 normalize 逐列一致，單元測試對照），送 JSON 列給預覽與確認兩支 API（兩支都會在伺服端重新清理與重算；確認時以寫入當下的資料重新計算）。預覽顯示新增、更新（含重新啟用）、略過與原因（缺編號、缺名稱、檔內重複只採最後一列、內容相同、過長）。單次上限 5000 筆（前後端都擋），寫入每 500 筆一批；讀現有資料的 `in()` 因網址長度限制改以 100 個一批。中途失敗會回報已寫入筆數並記一筆失敗紀錄，重新匯入同一份檔案會自動略過已寫入的。
+9. **白名單**（`tests/parity/allowlist.json`、`plain.json`）：使用者問卷選擇者（approvedBy `user (2026-11-21 M6 規格問卷)`）：`m6-w28-import-preview-confirm`（B4）、`m6-w27-deactivate-permission`（B2）、`m6-w27-reactivate-edit-create`（B2、B3）、`m6-w27-acquisition-dropped`（B5）、`m6-w27-nav-products-master-inpage`（B5 導覽）。approvedBy null（假設或修正，待確認）：`m6-w27-search-login-only`、`m6-w27-search-escape`、`m6-w27-list-pagination`、`m6-w28-import-count-semantics`、`m6-w28-import-duplicate-last-wins`、`m6-w28-import-limit-5000`、`m6-w27-operation-logs`。
+10. **測試**：`tests/unit/M6-W27/`（28 項：規則、別名對照舊版、xlsx 工具、不含併購）、`tests/integration/M6-W27.products-master-roles.spec.ts`（角色與權限語意、搜尋、分頁、CRUD、匯入含 1100 筆分批與 5000 上限、操作紀錄）、`tests/e2e/M6-W27.products-master-journey.e2e.spec.ts`（桌機與手機：無權限角色沒有入口、管理者完成匯入預覽到重新啟用）、`tests/parity/M6-W27.products-master.spec.ts`（新舊搜尋逐筆相同、清單集合、同一份 Excel 最後資料表相同、停用、舊頁併購分頁）。測試商品編號 `ZT2038-<runId>-…`，sweeper 以 `ZT2038-T%` 作後備。
+11. 順帶修正：`tests/fixtures/t03-nav-baseline.json` 加入「商品主檔」與先前 G19 已存在但漏登記的「總務組」（29 到 31），並把「服務中心首頁」過時的標題「新版已可使用」改為「待我處理0」（M7/M8 第 6 批已移除該提示）；T03 回歸測試因此恢復全綠。
+
+## 第三輪補充：第二批 W29 商品部缺貨回報實作結果與判斷（2026-11-22，DEV）
+
+範圍：W29 缺貨回報（頁面 `Merchandise.vue`、`app/api/workspace/stockout/**`、`lib/stockout/response.ts`、`lib/workspace/stockout.ts`、DEV 交易函式）。併購、W30 以後不在本次。
+
+1. **規則（`lib/stockout/response.ts`，純函式、today 由呼叫端注入、日期一律 Asia/Taipei）**：C1 15 天算已回覆、30 天內仍提醒（與舊版逐日一致）；C3 狀態由目前有效回覆衍生；C6 同門市同商品 7 天內重複回報要確認；月份分組、月份篩選、近 30 天、重複判斷都用台北時間；清單每頁 30（上限 100）、歷程每頁 10（上限 50）；預設分頁依權限（只有提交 -> 我的門市，有查看全部或回覆 -> 全部門市）。
+2. **API**（`app/api/workspace/stockout/[[...path]]`，權限碼沿用 `cross_dept.stockout.submit／view_all／respond`，capabilities 隨清單與 session 回傳）：`GET /` 清單（`tab`、`store_id`、`q`、`status`、`month`、`date_range`、`page`、`pageSize`；回傳 items、responses、monthBuckets、stats、stores、capabilities、defaultTab）、`POST /` 新增回報、`DELETE /:id`、`GET /responses`、`POST /respond`、`DELETE /responses/:code`、`GET /history`。寫入類都檢查 Origin。錯誤訊息與刪除確認文字「確定刪除這筆回報？」沿用舊版。
+3. **b 門市範圍**：POST 回報伺服端檢查——商品部（查看全部／回覆）不限，只有提交權限者只能替自己管轄（`store_managers`）的門市回報，否則 403；店長沒有任何管轄門市時一律 403。**讀取面也同樣限制**（舊版任何有提交權限者可指定任一門市查看；新版 403），列為白名單。
+4. **C3 與資料庫觸發器**：DEV（與正式區舊 migration）有舊版的觸發器 `sync_stockout_report_status`，回覆寫入時會把同商品 pending 的回報改成 responded。新版 API 不寫、不讀回報的 `status` 欄位來判斷畫面狀態（回報時仍依舊版寫入一個初始值以保持舊頁相容）；統計與篩選一律由目前有效回覆算出，到貨日過期後自動回到待回覆。篩選與統計因此在伺服端對整個查詢範圍計算（舊版只算目前這一頁），已列白名單。
+5. **i 交易**：商品部回覆的「更新或新增目前回覆」與「寫歷程」在 `workspace_stockout_respond` 內同一交易；刪除回報與「最後一筆清回覆」在 `workspace_stockout_delete_report` 內同一交易並以商品編號加鎖。DEV 檔 `supabase/workspace-dev/20261122110000_m6_stockout_rpc.sql`（附 rollback，已套用 DEV，`scripts/apply-workspace-m6-dev.cjs` 一併套用），正式區草稿在 `m6-sql/`。
+6. **g 刪除商品部回覆**：舊版畫面**沒有**這個按鈕（舊頁唯一的 DELETE 是刪除回報，且有 confirm）；新版畫面同樣沒有，但 API 提供與舊版相同規則的 `DELETE /responses/:code`（respond 或 view_all）。單元測試鎖住這兩件事。
+7. **d 刪除規則**：與舊版對等——商品部可刪任意，其他只能刪自己的；刪到該商品最後一筆回報時同時清掉目前回覆，歷程保留。
+8. **畫面**：`vue-workspace/src/pages/Merchandise.vue`，導覽「商品部」新增 kind `merchandise`（`modules.ts` 的 `moduleCodes.stockout`、session capability `stockout`、`page-kinds.ts`、`workspace-page-meta.ts`、`workspace-pages.ts`）。商品搜尋重用 `products-master/search`：80ms debounce、較舊的請求結果不覆蓋新結果、選定後帶名稱（唯讀）與單位並聚焦需求數量；商品部回覆提醒視窗、近 30 天與歷史月份、回覆歷程、已回覆在店長視角預設展開。版面小差異列在白名單 `m6-w29-ui-layout`。
+9. **白名單**（`page: merchandise`）：使用者問卷選擇（approvedBy `user (2026-11-21 M6 規格問卷)`）：`m6-w29-status-derived`（C3）、`m6-w29-duplicate-warning`（C6）。approvedBy null（假設、修正、取捨，待使用者確認；已加入 T02 的 STILL_PENDING）：`m6-w29-post-store-scope`、`m6-w29-list-store-scope`、`m6-w29-taipei-dates`、`m6-w29-search-escape`、`m6-w29-reply-transaction`、`m6-w29-server-side-status`、`m6-w29-qty-integer`、`m6-w29-nav-merchandise-inpage`、`m6-w29-ui-layout`，以及新舊對跑發現的三條：`m6-w29-store-name-visible`、`m6-w29-history-visible-submit`、`m6-w29-viewall-reply`（見下一點）。
+10. **測試**：`tests/unit/M6-W29/`（規則、與舊版 15／30 天逐日一致、台北時間邊界、C6、權限判斷；導覽與頁面不含「併購」、g 兩項、搜尋延遲與序號）、`tests/integration/M6-W29.stockout-roles.spec.ts`（臨時角色：店長 A／B、沒有管轄門市的提交者、只有回覆、只有查看全部、無權限，加 admin；權限矩陣、正式區 has_permission 語意、門市範圍、C3 衍生、分頁與跳脫、台北時間、C6、交易失敗不留半套、並行回覆、歷程分頁、刪除規則）、`tests/e2e/M6-W29.merchandise-journey.e2e.spec.ts`（桌機與手機：無權限者沒有入口 -> 店長搜尋與送出 -> 重複提示 -> 商品部回覆與編輯 -> 店長看到已回覆並再回報看到提醒 -> 刪除結案）、`tests/parity/M6-W29.stockout.spec.ts`（新舊 API 對跑）。測試資料 `ZT2038-<runId>-…`，門市只用 VW001／VW002，sweeper 以 `ZT2038-T%` 作後備。
+10-1. **對跑發現（舊版資料表權限與 API 判斷不一致，DEV 實測）**：資料表 RLS（`p1h_stockout_*`，正式區 migration 同樣有）只允許 respond 寫入回覆、只允許 view_all／respond 讀歷程。結果：(1) 只有 view_all 的帳號在舊版有回覆按鈕、API 放行，但儲存回 500，新版（admin client、照舊版 API 判斷）放行並寫入——**是否收緊為只有 respond 才能回覆，請使用者決定**；(2) 只有 submit 的店長在舊版展開回覆歷程永遠是空的，新版看得到；(3) 商品部帳號在舊版清單讀不到門市資料（門市欄空白），新版都顯示。另：刪除回報在舊版沒有缺貨權限閘門（只看本人或商品部），新版照舊，不另加閘門。
+11. **待使用者確認**：上述 null 白名單；正式區上線前須先建立兩個交易函式並確認 `stockout_product_responses.product_code` 唯一；舊版畫面不顯示回報人與回覆人姓名（舊 API 不回傳），新版維持；沒有用真實缺貨資料驗證。
+
+## 第二批最終驗證（2026-11-22，DEV）
+
+- vue-tsc 與根目錄 tsc 無錯誤。依序跑 M6-W27（單元 28、其餘 14 項皆過）、M6-W29（單元 25、30 項皆過）、M6-W25（單元 62 過 1 略過、25 項過）、M6-P07（單元 37、24 項過）、M0 回歸（單元 10、319 項過），全部單元 2428 過 1 略過。略過的一項是 W25 真實盤點樣本對照（沒有真實樣本）。
+- 驗證時發現 T02 的「待核可清單」漏登 `m6-w28-import-template-format`、`m6-w27-ui-and-list-permission`、`m6-w29-input-validation` 三條（approvedBy 為 null 的假設與修正），已補進 `tests/unit/T02/parity-framework.test.ts`，沒有改任何功能。
+- 驗證後 DEV 測試殘留：商品、缺貨回報、回覆、歷程、操作紀錄、臨時帳號與角色皆為 0。
+
+## 盤點權限分開（2026-11-22 問卷）
+
+老闆在「盤點權限問卷」（docId `inv-perm-ai-cap`）的四項裁定，已於新版與舊版一起實作（DEV）：
+
+1. **P1 匯入、刪除各自權限**：只有 `inventory.result_analysis.import` 能匯入盤點結果、只有 `inventory.result_analysis.delete` 能刪除。`inventory.inventory.view`、`inventory.inventory.access`、`inventory.result_analysis.view_own`（舊版所謂任一檢視權限）只能檢視；店長、代理店長、盤點檢視（inventory_view）、導覽唯讀（navigation）都變成只能看。
+2. **P2 新舊一起收緊**：新版 workspace 與舊版 `app/api/inventory/result-analysis/route.ts` 同步。舊版只改 `canImportInventoryResultAnalysis`／`canDeleteInventoryResultAnalysis` 兩個權限判斷與舊頁面（`app/inventory/page.tsx`）的按鈕顯示旗標，其他舊版行為不動；`hasAnyInventoryLegacyViewPermission` 仍用於檢視範圍判斷，沒有更動。
+3. **P3 inventory.manage 不隱含**：只有 `inventory.manage` 的帳號匯入、刪除都是 403（仍可調整盤差原因門檻與檢視）。匯入、刪除以外只有專屬權限本身，加上應用層 `profiles.role = 'admin'` 後備（`hasPermission` 內的管理員判斷，語意與正式區 has_permission 相同：不檢查 `roles.is_active`，也沒有資料庫端管理員放行）。
+4. **P4 沒權限就看不到按鈕**：新版 Vue 頁（`Inventory.vue` 的 `canImport`／`canDelete`，原本就是 `v-if`）與舊頁都是隱藏而非反灰；伺服端同時回 403。
+
+### 修改位置
+
+- `app/api/inventory/result-analysis/route.ts`：匯入只認 `inventory.result_analysis.import`、刪除只認 `.delete`。
+- `app/api/workspace/session/route.ts`：capabilities 的 `importInventory`、`deleteInventory` 改為只認各自的專屬權限。`/api/workspace/inventory` 轉發舊 route，所以兩邊判斷同一份。
+- `app/inventory/page.tsx`：舊頁匯入、刪除按鈕旗標。
+- Vue 頁：`vue-workspace/src/pages/Inventory.vue` 原本就以 capabilities 做 `v-if`，旗標改了之後不需要改頁面（沒有重新打包）。
+- 白名單 `inventory-view-implies-import-delete`：approvedBy `user (2026-11-22 盤點權限問卷)`，說明改為已收緊；因驗證規則要求 `decision: fix` 必須維持 `approvedBy: null`，已執行完畢的決定不再帶 `decision` 欄位（`plain.json` 文字同步）。
+- `tests/fixtures/role-matrix.json`：navigation、store_manager、acting_manager、inventory_view、ga_store_manager_b 的 `importInventory`／`deleteInventory` 改為 false；inventory_edit 只有匯入、inventory_delete 只有刪除；admin、inventory_team 兩者皆 true。
+
+### 資料表 RLS 與 RPC 查證（只讀 migration，無需 DEV 修補）
+
+- `inventory_result_batches`、`inventory_result_items`、`inventory_result_settings` 都啟用 RLS，`authenticated` 角色有 DML 授權但受政策限制（`20260724025452_production_legacy_inventory_inspection_monthly_compatibility.sql`）。
+- 寫入政策（batches 的 write、items 的 update、settings 的 write）要求 `inventory.result_analysis.import` 或 `.delete`（settings 只有 import）；**只有檢視權限的使用者（含店長、`inventory.manage`）無法直接寫入這三張表**。`items` 沒有 INSERT／DELETE 政策，直接寫入一律被拒絕。沒有任何 RPC 可讓檢視者寫這三張表。
+- 殘餘缺口（不是這次裁定的範圍，也未修補）：`inventory_result_batches` 的寫入政策是「import 或 delete」且涵蓋所有指令，所以只有匯入權限者理論上能以自己的 JWT 直接刪批次、只有刪除權限者能直接新增批次，繞過 API 檢查。API 一律走 service role，畫面與 API 不會觸發；若要補，需把政策拆成 INSERT（import）、DELETE（delete）、UPDATE（兩者），屬正式區 migration 調整，請老闆決定。
+- 另外：差異原因門檻 API 用 `inventory.manage`，但 `inventory_result_settings` 的寫入政策是 import，兩者不同（此為舊有行為，未更動）。
+
+### 上線前檢查
+
+`docs/vue-workspace/parity-plan/m6-sql/inventory-perm-check.sql`：**唯讀**（只有 SELECT）的正式區查詢，列出角色與各盤點權限的持有人數，並列出上線後會失去匯入或刪除的人。請老闆或 DBA 上線前手動執行，本批沒有對正式區執行。
+
+### 測試與結果（DEV）
+
+- `tests/integration/M6-W25.inventory-roles.spec.ts`：新舊 API 與 session 旗標對 12 個帳號一致，並對照 role-matrix；真實匯入、刪除（舊 API 與 workspace API 各一組）：admin、inventory_team 可匯入與刪除；inventory_edit 可匯入、刪除 403；inventory_delete 可刪除、匯入 403；inventory_view、navigation、store_manager、acting_manager、只有 `inventory.manage` 的臨時角色（`m6_test_inv_manage_only`，已查證不與 role-matrix 或 roles 表撞名）匯入與刪除皆 403，仍可檢視（GET 200）；被拒絕後批次仍在。
+- `tests/e2e/M6-W25.inventory-perm-journey.e2e.spec.ts`（桌機與手機）：盤點組匯入 2038-03 的 VW001 批次 -> 店長（VW001、ZT01）看得到資料、沒有匯入與刪除按鈕 -> 只有刪除權限者看不到匯入、可刪除。冒煙測試中檢視者與店長的匯入按鈕預期改為不存在。
+- 測試資料：檔名 `m6w25perm-<runId>-…`、年月 2038-03、門市 VW001，只刪自己的（sweeper 登記 `inventory_result_batches.source_file_name`）。
+- 結果：`node tests/run-all.cjs --layers all --page M6-W25 --no-sweep` 全綠（Playwright 29 項通過；單元層含 T02 白名單與導覽測試一併通過），根目錄 tsc 無錯誤。

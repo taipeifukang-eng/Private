@@ -2,9 +2,9 @@
   {
     "id": "inventory-view-implies-import-delete",
     "page": "/inventory",
-    "description": "具備 inventory.inventory.view 的帳號（例如 navigation 帳號、店長）session capabilities 的 importInventory 與 deleteInventory 皆為 true；僅有檢視權限卻同時可匯入與刪除盤點資料。M6 第一批已查證：舊 /api/inventory/result-analysis 的 canImport／canDelete 同樣在「有任一檢視權限」時為 true，舊版 API 實際行為與新版相同（以 inventory_view 等角色對舊 API 與 workspace API 送同樣的請求，狀態碼逐一相同），所以新舊沒有差異。",
-    "reason": "2026-11-02 裁定「改回舊版」；M6-W25 查證舊版行為與新版相同（app/api/inventory/result-analysis/route.ts 的 canImportInventoryResultAnalysis／canDeleteInventoryResultAnalysis 對 hasAnyInventoryLegacyViewPermission 直接放行），因此新版不收緊（收緊會變成與舊版不同）。是否要連同舊版一起收緊屬另案，待使用者決定；在此之前維持與舊版相同。",
-    "approvedBy": null,
+    "description": "盤點結果分析的匯入與刪除權限分開（2026-11-22 盤點權限問卷 inv-perm-ai-cap 裁定，新舊版一起收緊）：只有 inventory.result_analysis.import 的人可匯入，只有 inventory.result_analysis.delete 的人可刪除；inventory.inventory.view／access、inventory.result_analysis.view_own、inventory.manage 與店長、代理店長都只能檢視，不隱含匯入或刪除。沒有權限者在新版 Vue 頁與舊版頁面都看不到匯入／刪除按鈕（隱藏，不是反灰），伺服端同樣回 403。session capabilities 的 importInventory／deleteInventory 改為只認各自的專屬權限（含 profiles.role=admin 的應用層後備）。",
+    "reason": "owner decision（decision=fix 已執行）：舊版 app/api/inventory/result-analysis/route.ts 的 canImportInventoryResultAnalysis／canDeleteInventoryResultAnalysis 原本對 hasAnyInventoryLegacyViewPermission 直接放行，2026-11-22 問卷裁定 P1 匯入／刪除各自權限、P2 新版與舊版一起收緊（舊版只改這兩個權限判斷與按鈕顯示旗標）、P3 inventory.manage 不隱含、P4 沒權限者隱藏按鈕且伺服端 403。新舊行為仍相同（都已收緊），測試見 M6-W25 integration 與 e2e。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)",
     "deferredTo": "W25"
   },
   {
@@ -9138,6 +9138,266 @@
     "page": "relationships",
     "description": "兩個人同時為同一位關係會員填不同的會員編號：舊版兩邊都回成功，後寫的蓋掉先寫的；新版第二個請求回 409「會員編號已建立，不可清空或再次修改」，先寫的編號保留。填同一個編號則兩邊都成功。",
     "reason": "M6 規格第一批驗收要求「並行填寫會員編號一個成功一個 409」；舊版先讀後寫沒有保護，新版 workspace 編輯改為單一條件更新。不在問卷內，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w27-search-login-only",
+    "page": "products-master",
+    "description": "商品搜尋（缺貨回報要用）：新版登入就能搜尋；舊版 API 雖然只檢查登入，但資料表本身只放行有「商品主檔管理」權限的人，所以沒有這個權限的店長等人實際查到的是空結果。",
+    "reason": "M6 規格問卷 B1 選「登入就能搜尋（同舊版）」；新版改在 API 層判斷（只要登入），資料表權限問題因此消失。舊版非管理者實際查不到這件事問卷沒有涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-non-manager"
+    }
+  },
+  {
+    "id": "m6-w27-search-escape",
+    "page": "products-master",
+    "description": "商品搜尋與清單搜尋遇到逗號、括號、百分比、底線等特殊字元：新版一律當一般文字比對；舊版把關鍵字直接組進查詢條件，逗號與括號會改寫條件，百分比與底線被當萬用字元。",
+    "reason": "規格第二節 W27：舊版 q 直接組進 or() 字串，新版必須跳脫（修正，不在問卷內），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-special-chars"
+    }
+  },
+  {
+    "id": "m6-w27-list-pagination",
+    "page": "products-master",
+    "description": "商品主檔清單新版每頁 50 筆並可搜尋，另有「顯示已停用」篩選；舊版一次回傳全部啟用商品，沒有分頁。所有頁合起來的商品與舊版相同。",
+    "reason": "規格第三節 B 假設：清單加分頁（每頁 50）與搜尋，預設只顯示啟用商品；「顯示已停用」篩選來自 B2 的決定，但分頁與搜尋本身問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "list-all"
+    }
+  },
+  {
+    "id": "m6-w28-import-preview-confirm",
+    "page": "products-master",
+    "description": "商品主檔 Excel 匯入：新版選檔後先顯示預覽（將新增幾筆、更新幾筆、略過幾筆與原因，以及哪些停用中的商品會被重新啟用），按「確認匯入」才寫入，寫入時每 500 筆一批；舊版選檔後直接寫入。停用商品被匯入時重新啟用的結果與舊版相同，但新版會在預覽明確列出。",
+    "reason": "M6 規格問卷 B4：使用者選「先預覽再確認」。最後寫入的資料與舊版相同（欄位別名、第一個工作表、依商品編號覆蓋更新）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-flow-preview"
+    }
+  },
+  {
+    "id": "m6-w28-import-count-semantics",
+    "page": "products-master",
+    "description": "匯入完成的數字：舊版回「處理了幾筆」（包含內容完全相同的商品）；新版把內容和現有商品完全相同的列算「略過」，不再寫入，結果訊息分別顯示新增、更新（含重新啟用）與略過筆數。",
+    "reason": "規格 W28 假設：預覽要顯示略過與原因，內容相同不需更新所以不寫入；舊版相同內容仍會重寫一次（只改更新時間）。問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "import-count-semantics"
+    }
+  },
+  {
+    "id": "m6-w28-import-duplicate-last-wins",
+    "page": "products-master",
+    "description": "Excel 內同一個商品編號出現多列：新版只採用最後一列，前面的列在預覽列為「檔案內編號重複」；舊版把整批一起寫入，同批重複編號會讓資料庫報錯，整個檔案都匯不進去。",
+    "reason": "規格 W28：預覽要顯示略過原因；檔內重複的處理方式問卷未詢問，採「以最後一列為準」，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "import-duplicate-in-file"
+    }
+  },
+  {
+    "id": "m6-w28-import-limit-5000",
+    "page": "products-master",
+    "description": "Excel 匯入單次最多 5000 筆，超過請分檔；商品編號最多 64 字、名稱 200 字、單位 20 字，超過的列在預覽列為略過。舊版沒有這些上限。",
+    "reason": "規格 W28：單次上限約 5000 筆、後端每批 500 筆；欄位長度上限為防呆，問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w27-deactivate-permission",
+    "page": "products-master",
+    "description": "停用商品：新版只有有「商品主檔管理」權限的人可以，其他人回 403 並顯示錯誤；舊版程式沒有權限檢查（資料庫那一層默默擋下，介面卻回「成功」）。新版另外新增「重新啟用」。",
+    "reason": "M6 規格問卷 B2：使用者選「只有管理權限者可停用，並新增重新啟用按鈕」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "deactivate-non-manager"
+    }
+  },
+  {
+    "id": "m6-w27-reactivate-edit-create",
+    "page": "products-master",
+    "description": "商品主檔新版多了單筆新增、編輯（商品編號建立後不可改，只能改名稱與單位）與「重新啟用」；舊版只能用 Excel 匯入與停用。",
+    "reason": "M6 規格問卷 B2、B3：使用者選「新增單筆新增與編輯（編號不可改）」與「重新啟用」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "reactivate-edit-create-new"
+    }
+  },
+  {
+    "id": "m6-w27-acquisition-dropped",
+    "page": "products-master",
+    "description": "新版商品主檔不含併購藥局商品整理（掃描條碼、未建立商品、相機拍照、清除某日掃描、掃描照片儲存）；舊版商品主檔頁有「併購藥局商品主檔整理」分頁。舊頁與相關資料表本輪保留不動。",
+    "reason": "M6 規格問卷 B5：使用者選「drop（不移植）」，註記「這功能可以全部拿掉」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "acquisition-tab"
+    }
+  },
+  {
+    "id": "m6-w27-nav-products-master-inpage",
+    "page": "products-master",
+    "description": "導覽「商品主檔」新版改為在工作頁內開啟（舊版是開啟外部的舊頁面）；導覽所需權限不變（商品主檔管理）。導覽與頁面都沒有併購相關項目。",
+    "reason": "M6 規格第五節 B5 導覽項目：給「商品主檔」加上 kind 改在工作頁內開啟，隨使用者捨棄併購整理（B5）一併確認。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w27-operation-logs",
+    "page": "products-master",
+    "description": "商品主檔新版會寫操作紀錄（誰、何時、做什麼：匯入幾筆、停用、重新啟用、新增、編輯），存在新資料表 products_master_operation_logs；舊版不留紀錄。",
+    "reason": "規格第三節 B 假設：匯入與停用都寫操作紀錄；問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-status-derived",
+    "page": "merchandise",
+    "description": "回報的「待回覆／已回覆」狀態與統計：新版不讀資料欄位，一律由「該商品目前有沒有有效回覆」（預計到貨日在今天往前 15 天內，或沒填日期）即時算出；舊版讀資料欄位，商品部回覆時由資料庫觸發器把舊回報改成已回覆，之後即使預計到貨日過期也不會變回待回覆。",
+    "reason": "M6 規格問卷 C3：使用者選「不改資料，狀態與統計一律用該商品目前有沒有有效回覆即時算出」。15 天有效、30 天仍提醒的門檻照舊（C1）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "list-status"
+    }
+  },
+  {
+    "id": "m6-w29-duplicate-warning",
+    "page": "merchandise",
+    "description": "同一門市在 7 天內對同一商品再次回報：新版先跳出提示，使用者確認後才送出（API 回 409，帶 confirm_duplicate 才寫入）；舊版直接新增。",
+    "reason": "M6 規格問卷 C6：使用者選「近期（例如 7 天）已回報過同商品時跳出提示，讓使用者確認後仍可送出（warn）」。數量上限不設。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "post-duplicate-warning"
+    }
+  },
+  {
+    "id": "m6-w29-post-store-scope",
+    "page": "merchandise",
+    "description": "提交缺貨回報時，新版在伺服端檢查門市範圍：只有提交權限的人只能替自己管轄（店長指派）的門市回報，商品部（查看全部或回覆權限）不限；舊版只檢查有權限，直接用 API 可以替任何門市回報。",
+    "reason": "M6 規格第二節 W29 b：屬漏洞修補，直接做（假設 C2，問卷未詢問），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "post-store-scope"
+    }
+  },
+  {
+    "id": "m6-w29-list-store-scope",
+    "page": "merchandise",
+    "description": "查看缺貨回報清單時，新版對只有提交權限的人限制只能看自己管轄的門市（指定其他門市回 403）；舊版任何有提交權限的人都能用 store_id 指定任一門市查看。商品部（查看全部或回覆）不受限。",
+    "reason": "與 POST 門市範圍檢查（假設 C2）同一個漏洞的讀取面，一併修補；問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "list-store-scope"
+    }
+  },
+  {
+    "id": "m6-w29-taipei-dates",
+    "page": "merchandise",
+    "description": "日期一律用台北時間：歷史月份分組、近 30 天範圍、重複回報判斷與預計到貨日比較都以台北日期計算；舊版月份分組取資料時間的 UTC 前七碼（月初月底的回報會被分到錯的月份），近 30 天用「現在往前 30 天的瞬間」。",
+    "reason": "M6 規格第二節 W29 e 與第三節：日期一律 Asia/Taipei，修正月份分組；問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "month-bucket"
+    }
+  },
+  {
+    "id": "m6-w29-search-escape",
+    "page": "merchandise",
+    "description": "缺貨回報清單的關鍵字搜尋遇到逗號、括號、百分比、底線等特殊字元：新版一律當一般文字比對；舊版把關鍵字直接組進查詢條件，逗號與括號會改寫條件、百分比與底線被當萬用字元。",
+    "reason": "M6 規格第二節 W29 f：舊版 ilike 的 or 條件直接拼接，新版必須跳脫（修正，問卷未詢問），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-escape"
+    }
+  },
+  {
+    "id": "m6-w29-reply-transaction",
+    "page": "merchandise",
+    "description": "商品部回覆：目前回覆（以商品編號更新或新增）與回覆歷程在同一個資料庫交易內寫入（資料庫函式 workspace_stockout_respond）；刪除回報與「最後一筆時清掉目前回覆」也在同一交易（workspace_stockout_delete_report）。舊版是兩次獨立寫入，歷程寫入失敗會留下沒有歷程的回覆。最後的資料內容兩邊相同。",
+    "reason": "M6 規格第二節 W29 i：回覆 upsert 與歷程寫入改為同一交易；刪除一併做（假設，問卷未詢問），待使用者確認。正式區上線前需先建立這兩個函式（m6-sql）。",
+    "approvedBy": null,
+    "match": {
+      "entry": "reply-write"
+    }
+  },
+  {
+    "id": "m6-w29-server-side-status",
+    "page": "merchandise",
+    "description": "清單的「待回覆／已回覆」篩選與上方三個統計，新版在伺服端對整個查詢範圍計算（跨頁一致、統計不受分頁影響）；舊版只對目前這一頁（最多 30 筆）的資料在畫面上篩選與計數。",
+    "reason": "實作 C3 即時衍生狀態時的必然取捨（狀態由回覆即時算出，無法在資料庫層直接分頁篩選）；問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-qty-integer",
+    "page": "merchandise",
+    "description": "需求數量不是正整數（例如 2.5、負數）時，新版回 400「需求數量必須是大於 0 的整數」；舊版不檢查，小數會讓資料庫報錯回 500。",
+    "reason": "輸入檢查補強（問卷未詢問；數量上限依 C6 選擇 warn 不設），待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-nav-merchandise-inpage",
+    "page": "merchandise",
+    "description": "導覽「商品部」新版改為在工作頁內開啟（舊版是開啟外部的舊頁面）；導覽所需權限不變（缺貨回報的提交、查看全部、回覆任一）。舊頁保留不動。",
+    "reason": "M6 規格第三節 C：導覽「商品部」新增 kind 在工作頁內開啟；問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-ui-layout",
+    "page": "merchandise",
+    "description": "畫面版型差異：狀態篩選只留一組按鈕（舊版同時有下拉與按鈕兩組，綁同一個狀態）；刪除回報的確認改為工作頁內的確認視窗（文字「確定刪除這筆回報？」不變，舊版是瀏覽器 confirm）；商品建議清單顯示在輸入框下方（舊版浮動下拉）；回報與回覆者姓名欄位維持舊版（舊 API 不回傳姓名，顯示「－」或不顯示）。其餘功能（搜尋 80ms 延遲與舊請求不覆蓋、選定帶名稱與單位並聚焦數量、15 天提醒視窗、近 30 天與歷史月份、回覆歷程、刪除規則）一致。",
+    "reason": "Vue 工作頁共用元件與版面慣例；舊版沒有刪除商品部回覆的按鈕（W29 g），新版同樣沒有。問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-store-name-visible",
+    "page": "merchandise",
+    "description": "回報清單的門市代號與名稱：舊版用呼叫者自己的身分讀門市資料表，商品部帳號（只有查看全部或回覆權限、不是該門市店長）讀不到，門市欄位是空白；新版由伺服端讀取，所有角色都看得到門市代號與名稱。",
+    "reason": "DEV 對跑發現的舊版缺陷（資料表權限造成欄位空白）；新版顯示門市資訊是實作取捨，問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "list-store-embed"
+    }
+  },
+  {
+    "id": "m6-w29-history-visible-submit",
+    "page": "merchandise",
+    "description": "回覆歷程：舊版只有查看全部或回覆權限的人讀得到（資料表權限只放行這兩種），只有提交權限的店長展開歷程永遠是空的；新版任何有缺貨權限的人（含只有提交權限的店長）都看得到歷程（每頁 10 筆、上限 50）。",
+    "reason": "規格第三節 C：回覆歷程每頁 10（上限 50）、沒有另外限制誰能看；舊版店長實際看不到是資料表權限造成。問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "history-visible-submit"
+    }
+  },
+  {
+    "id": "m6-w29-viewall-reply",
+    "page": "merchandise",
+    "description": "只有「查看全部」權限（沒有「回覆」權限）的帳號：舊版畫面有回覆按鈕、API 也放行，但資料表只允許有「回覆」權限的人寫入，所以儲存時舊版回 500；新版照舊版 API 的判斷（回覆或查看全部都能回覆）放行並寫入。",
+    "reason": "規格寫「權限維持三個、capabilities 由 API 回傳」，新版沿用舊版 API 與畫面的判斷；舊版資料表權限與其不一致。是否收緊為只有「回覆」權限，待使用者決定。",
+    "approvedBy": null,
+    "match": {
+      "entry": "viewall-reply"
+    }
+  },
+  {
+    "id": "m6-w28-import-template-format",
+    "page": "products-master",
+    "description": "範本與匯入文字：新版下載「商品主檔範本.xlsx」（工作表「商品主檔」，按鈕文字「下載範本」）；舊版下載「商品主檔範本.csv」（帶 BOM，按鈕「下載 CSV 範本」）。匯入成功訊息也改為「匯入完成：新增…更新…略過…」，舊版是「成功匯入 N 筆商品」。",
+    "reason": "新版匯入統一用共用的 xlsx 函式庫，範本隨之改為 xlsx；訊息文字隨新增／更新／略過分開計數而改變。問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w27-ui-and-list-permission",
+    "page": "products-master",
+    "description": "商品主檔頁差異：(1) 清單 API 新版需要「商品主檔管理」權限，舊版 ?all=1 只要登入（搜尋仍是登入即可）；(2) 搜尋字串最多取前 100 字；(3) 停用商品的確認由瀏覽器 confirm 改為工作頁內的確認視窗，文字也略有不同。",
+    "reason": "(1) 工作頁的清單是管理畫面，沿用管理權限；舊版非管理者實際被資料表權限擋成空結果。(2)(3) 輸入保護與工作頁共用元件慣例。問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w29-input-validation",
+    "page": "merchandise",
+    "description": "缺貨回報 API 輸入檢查與空清單：(1) 回覆時預計到貨日格式不符回 400「預計到貨日格式不正確」，舊版不檢查；(2) 為不存在的門市回報回 400「找不到這間門市」，舊版是資料庫錯誤 500；(3) 查詢回覆的 product_codes 最多取前 100 個，舊版沒有上限；(4) 只有提交權限、沒有管轄門市的店長，「我的門市」分頁回空清單，舊版前端不帶門市參數，API 回 403；(5) 清單頁碼超過總頁數時收斂到最後一頁（舊版直接回空）；(6) 刪除回覆網址含不合法編碼回 400。",
+    "reason": "輸入檢查與邊界行為補強（問卷未詢問），待使用者確認。",
     "approvedBy": null
   }
 ]

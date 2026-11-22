@@ -75,6 +75,7 @@ export async function GET() {
       capabilities: {
         employeePurchases:ctx.has("employee_purchase.view") || ctx.has("employee_purchase.import"),
         pharmacists:ctx.has("pharmacist.management.view"),
+        productsMaster:ctx.has(...moduleCodes.productsMaster),stockout:ctx.has(...moduleCodes.stockout),
         relationships:ctx.has("relationship_member.view","relationship_member.edit","relationship_member.delete","relationship_member.approve"),
         roles:ctx.has(...ROLE_MANAGEMENT_NAV_PERMISSION_CODES),
         users:ctx.has(...USER_MANAGEMENT_NAV_PERMISSION_CODES),
@@ -103,18 +104,9 @@ export async function GET() {
         monthlyRelease: true, // W04：版更說明頁登入即可看
         performance: ctx.has(...moduleCodes.performance),
         inventory: ctx.has(...moduleCodes.inventory),
-        importInventory: ctx.has(
-          "inventory.result_analysis.import",
-          "inventory.manage",
-          "inventory.inventory.access",
-          "inventory.inventory.view",
-        ),
-        deleteInventory: ctx.has(
-          "inventory.result_analysis.delete",
-          "inventory.manage",
-          "inventory.inventory.access",
-          "inventory.inventory.view",
-        ),
+        // 2026-11-22 盤點權限問卷：匯入／刪除只認專屬權限（ctx.has 含管理員後備）
+        importInventory: ctx.has("inventory.result_analysis.import"),
+        deleteInventory: ctx.has("inventory.result_analysis.delete"),
         compareInspections:
           ctx.has("inspection.compare") &&
           ctx.has("inspection.manager_tab") &&

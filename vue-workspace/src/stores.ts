@@ -16,6 +16,8 @@ export type Session = {
     employeePurchases: boolean;
     pharmacists: boolean;
     relationships: boolean;
+    productsMaster: boolean;
+    stockout: boolean;
     roles: boolean;
     users: boolean;
     transfers: boolean;
