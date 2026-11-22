@@ -8,7 +8,7 @@
 | ID | 決定 | 決定時間（UTC） | 後續 |
 |---|---|---|---|
 | nav-archived-feature-gate | 改回舊版 | 2026-11-02 10:04 | W07 補上「已封存任務」導覽入口與功能開關 |
-| inventory-view-implies-import-delete | 改回舊版 | 2026-11-02 10:04 | W25 收緊：匯入、刪除需各自權限，並以舊版 API 實際行為比對 |
+| inventory-view-implies-import-delete | 改回舊版 → 2026-11-22 盤點權限問卷裁定新舊一起收緊 | 2026-11-02 10:04；2026-11-22 | 匯入、刪除各自權限（見下方補充與 m6-spec.md「盤點權限分開」） |
 | nav-home-entry | 接受 | 2026-11-02 10:05 | 首頁提醒卡片在 W11、W12 補進工作台 |
 | nav-inspection-compare-native-only | 接受 | 2026-11-02 10:05 | — |
 | nav-activity-management-view-only | 接受 | 2026-11-02 10:05 | — |
@@ -16,3 +16,5 @@
 | nav-supervisors-manager-assign | 接受 | 2026-11-02 10:06 | P02 驗收時確認沒有督導指派權限者看不到督導指派按鈕 |
 
 M6-W25 補充（2026-11-21）：`inventory-view-implies-import-delete` 已用舊 API 與 workspace API 對同樣請求實測，舊版 canImport／canDelete 對任一檢視權限同樣放行，新舊行為相同；因此新版不單獨收緊，白名單不再是 decision=fix，改為待使用者決定是否連舊版一起收緊（另案）。
+
+盤點權限問卷裁定（2026-11-22，docId `inv-perm-ai-cap`，approvedBy `user (2026-11-22 盤點權限問卷)`）：`inventory-view-implies-import-delete` 以 decision=fix 的方向執行完畢——P1 只有 `inventory.result_analysis.import` 能匯入、只有 `inventory.result_analysis.delete` 能刪除，檢視類權限只能看；P2 新版與舊版一起收緊（舊版只改 `canImportInventoryResultAnalysis`／`canDeleteInventoryResultAnalysis` 與按鈕顯示旗標）；P3 `inventory.manage` 不隱含；P4 沒權限者看不到按鈕（隱藏），伺服端回 403。白名單條目因為已執行完畢，記為已核可（approvedBy 填入，不再帶 `decision: fix`，因為驗證規則規定 fix 必須維持 null）。

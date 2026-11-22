@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+import * as XLSX from 'xlsx';
 import { adminDb, apiForUser, runIdOrThrow, stores, type M5User } from './m5-fixtures';
 
 /**
@@ -37,6 +38,8 @@ export const M6_SCENARIOS: Record<string, M6Scenario> = {
   so_viewer: { desc: '缺貨回報：商品部，只有查看全部權限', perms: ['cross_dept.stockout.view_all'], profileRole: 'member' },
   so_nostore: { desc: '缺貨回報：有提交權限但沒有指派門市', perms: ['cross_dept.stockout.submit'], profileRole: 'member' },
   so_plain: { desc: '缺貨回報：沒有任何缺貨回報權限', perms: [], profileRole: 'member' },
+  // 2026-11-22 盤點權限問卷：只有 inventory.manage（不隱含匯入、刪除），驗證兩邊 API 都 403
+  inv_manage_only: { desc: '盤點：只有 inventory.manage', perms: ['inventory.manage'], profileRole: 'member' },
 };
 
 export async function cleanupM6Users(db: any = adminDb()): Promise<string[]> {
@@ -137,4 +140,24 @@ export async function cleanupM6Stockout(runId: string = runIdOrThrow(), db: any 
 export async function testStoreIds(): Promise<Record<string, string>> {
   const rows = must(await adminDb().from('stores').select('id,store_code').in('store_code', ['VW001', 'VW002', 'ZT01']), '讀取測試門市') as { id: string; store_code: string }[];
   return Object.fromEntries(rows.map((r) => [r.store_code, r.id]));
+}
+
+/**
+ * 2026-11-22 盤點權限問卷（W25 匯入／刪除權限分開）：測試用盤點結果匯入檔。
+ * 檔名 m6w25perm-<runId>-<tag>.xlsx、年月 2038-03、門市 VW001（測試門市）、盤點單號帶 runId；只刪自己的（依檔名）。
+ */
+export const inventoryResultFileName = (tag: string) => `m6w25perm-${runIdOrThrow()}-${tag}.xlsx`;
+export const inventoryResultOrderNo = (tag: string) => `M6W25PERM-${runIdOrThrow()}-${tag}`;
+export function inventoryResultXlsx(tag: string, storeCode = 'VW001'): Buffer {
+  const header = ['店號', '店名', '盤點單號', '結案?', '品號', '品名', '單位', '儲位1', '儲位2', '盤差量', '盤差額(會員)', '成本', '單位成本', '庫存量', '庫存額'];
+  const rows = [
+    [storeCode, '測試門市', inventoryResultOrderNo(tag), 'Y', '02000001', `ZT2038 測試品 ${tag}`, '盒', 'A1', '', -1, -100, 80, 80, 5, 400],
+    [storeCode, '測試門市', inventoryResultOrderNo(tag), 'Y', '03000002', `ZT2038 測試品二 ${tag}`, '盒', 'A2', '', 2, 200, 160, 80, 7, 560],
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, ...rows]), 'Sheet1');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+}
+export async function cleanupM6InventoryResults(runId: string = runIdOrThrow(), db: any = adminDb()): Promise<void> {
+  await db.from('inventory_result_batches').delete().like('source_file_name', `m6w25perm-${runId}-%`);
 }

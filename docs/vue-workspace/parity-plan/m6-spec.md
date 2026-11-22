@@ -384,7 +384,7 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 4. **並行填寫會員編號**：舊版先讀後寫，兩個請求都回 200（後寫覆蓋）；新版 workspace 編輯改為「會員編號仍為空才寫入」的單一條件更新，第二個回 409。舊 route 不動。
 5. **1F 商品檔欄位辨識**：新舊對跑一致的樣本（標題在第二列、欄位順序不同、庫存別名重存、儲位別名庫位、較長欄名、含「庫存」的兩個欄位、小寫 un、標題在第一列兩版皆失敗）。**不一致且未自行決定**的三項：標題前後空白（舊版去空白，新版不）、品號空白的列（舊版保留，新版略過）、庫存非數字（舊版 NaN 仍匯入，新版拒絕）；另預盤數量非數字同樣舊版收下、新版拒絕。皆已列入白名單待核可。
 6. **FKRS 最後一號**：舊版會去除前後空白並轉大寫；新版純函式原本沒有，已對齊舊版（這是補齊舊版行為，不列差異）。
-7. **inventory-view-implies-import-delete**：已查證舊版相同，白名單改為只登記（不再是 fix）；細節見 `approvals.md` 補充與 `m6-batch1-roles.md`。
+7. **inventory-view-implies-import-delete**：第一批查證舊版相同；其後 2026-11-22 盤點權限問卷已裁定新舊一起收緊，見文末「盤點權限分開（2026-11-22 問卷）」。
 8. 沒有真實盤點樣本：所有對跑使用 `tests/fixtures/m6/` 自造檔，**尚未用真實樣本驗證**。
 
 ## 第二批實作結果與判斷（W26 縮小版、W27、W28；2026-11-22，DEV）
@@ -425,3 +425,39 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 - vue-tsc 與根目錄 tsc 無錯誤。依序跑 M6-W27（單元 28、其餘 14 項皆過）、M6-W29（單元 25、30 項皆過）、M6-W25（單元 62 過 1 略過、25 項過）、M6-P07（單元 37、24 項過）、M0 回歸（單元 10、319 項過），全部單元 2428 過 1 略過。略過的一項是 W25 真實盤點樣本對照（沒有真實樣本）。
 - 驗證時發現 T02 的「待核可清單」漏登 `m6-w28-import-template-format`、`m6-w27-ui-and-list-permission`、`m6-w29-input-validation` 三條（approvedBy 為 null 的假設與修正），已補進 `tests/unit/T02/parity-framework.test.ts`，沒有改任何功能。
 - 驗證後 DEV 測試殘留：商品、缺貨回報、回覆、歷程、操作紀錄、臨時帳號與角色皆為 0。
+
+## 盤點權限分開（2026-11-22 問卷）
+
+老闆在「盤點權限問卷」（docId `inv-perm-ai-cap`）的四項裁定，已於新版與舊版一起實作（DEV）：
+
+1. **P1 匯入、刪除各自權限**：只有 `inventory.result_analysis.import` 能匯入盤點結果、只有 `inventory.result_analysis.delete` 能刪除。`inventory.inventory.view`、`inventory.inventory.access`、`inventory.result_analysis.view_own`（舊版所謂任一檢視權限）只能檢視；店長、代理店長、盤點檢視（inventory_view）、導覽唯讀（navigation）都變成只能看。
+2. **P2 新舊一起收緊**：新版 workspace 與舊版 `app/api/inventory/result-analysis/route.ts` 同步。舊版只改 `canImportInventoryResultAnalysis`／`canDeleteInventoryResultAnalysis` 兩個權限判斷與舊頁面（`app/inventory/page.tsx`）的按鈕顯示旗標，其他舊版行為不動；`hasAnyInventoryLegacyViewPermission` 仍用於檢視範圍判斷，沒有更動。
+3. **P3 inventory.manage 不隱含**：只有 `inventory.manage` 的帳號匯入、刪除都是 403（仍可調整盤差原因門檻與檢視）。匯入、刪除以外只有專屬權限本身，加上應用層 `profiles.role = 'admin'` 後備（`hasPermission` 內的管理員判斷，語意與正式區 has_permission 相同：不檢查 `roles.is_active`，也沒有資料庫端管理員放行）。
+4. **P4 沒權限就看不到按鈕**：新版 Vue 頁（`Inventory.vue` 的 `canImport`／`canDelete`，原本就是 `v-if`）與舊頁都是隱藏而非反灰；伺服端同時回 403。
+
+### 修改位置
+
+- `app/api/inventory/result-analysis/route.ts`：匯入只認 `inventory.result_analysis.import`、刪除只認 `.delete`。
+- `app/api/workspace/session/route.ts`：capabilities 的 `importInventory`、`deleteInventory` 改為只認各自的專屬權限。`/api/workspace/inventory` 轉發舊 route，所以兩邊判斷同一份。
+- `app/inventory/page.tsx`：舊頁匯入、刪除按鈕旗標。
+- Vue 頁：`vue-workspace/src/pages/Inventory.vue` 原本就以 capabilities 做 `v-if`，旗標改了之後不需要改頁面（沒有重新打包）。
+- 白名單 `inventory-view-implies-import-delete`：approvedBy `user (2026-11-22 盤點權限問卷)`，說明改為已收緊；因驗證規則要求 `decision: fix` 必須維持 `approvedBy: null`，已執行完畢的決定不再帶 `decision` 欄位（`plain.json` 文字同步）。
+- `tests/fixtures/role-matrix.json`：navigation、store_manager、acting_manager、inventory_view、ga_store_manager_b 的 `importInventory`／`deleteInventory` 改為 false；inventory_edit 只有匯入、inventory_delete 只有刪除；admin、inventory_team 兩者皆 true。
+
+### 資料表 RLS 與 RPC 查證（只讀 migration，無需 DEV 修補）
+
+- `inventory_result_batches`、`inventory_result_items`、`inventory_result_settings` 都啟用 RLS，`authenticated` 角色有 DML 授權但受政策限制（`20260724025452_production_legacy_inventory_inspection_monthly_compatibility.sql`）。
+- 寫入政策（batches 的 write、items 的 update、settings 的 write）要求 `inventory.result_analysis.import` 或 `.delete`（settings 只有 import）；**只有檢視權限的使用者（含店長、`inventory.manage`）無法直接寫入這三張表**。`items` 沒有 INSERT／DELETE 政策，直接寫入一律被拒絕。沒有任何 RPC 可讓檢視者寫這三張表。
+- 殘餘缺口（不是這次裁定的範圍，也未修補）：`inventory_result_batches` 的寫入政策是「import 或 delete」且涵蓋所有指令，所以只有匯入權限者理論上能以自己的 JWT 直接刪批次、只有刪除權限者能直接新增批次，繞過 API 檢查。API 一律走 service role，畫面與 API 不會觸發；若要補，需把政策拆成 INSERT（import）、DELETE（delete）、UPDATE（兩者），屬正式區 migration 調整，請老闆決定。
+- 另外：差異原因門檻 API 用 `inventory.manage`，但 `inventory_result_settings` 的寫入政策是 import，兩者不同（此為舊有行為，未更動）。
+
+### 上線前檢查
+
+`docs/vue-workspace/parity-plan/m6-sql/inventory-perm-check.sql`：**唯讀**（只有 SELECT）的正式區查詢，列出角色與各盤點權限的持有人數，並列出上線後會失去匯入或刪除的人。請老闆或 DBA 上線前手動執行，本批沒有對正式區執行。
+
+### 測試與結果（DEV）
+
+- `tests/integration/M6-W25.inventory-roles.spec.ts`：新舊 API 與 session 旗標對 12 個帳號一致，並對照 role-matrix；真實匯入、刪除（舊 API 與 workspace API 各一組）：admin、inventory_team 可匯入與刪除；inventory_edit 可匯入、刪除 403；inventory_delete 可刪除、匯入 403；inventory_view、navigation、store_manager、acting_manager、只有 `inventory.manage` 的臨時角色（`m6_test_inv_manage_only`，已查證不與 role-matrix 或 roles 表撞名）匯入與刪除皆 403，仍可檢視（GET 200）；被拒絕後批次仍在。
+- `tests/e2e/M6-W25.inventory-perm-journey.e2e.spec.ts`（桌機與手機）：盤點組匯入 2038-03 的 VW001 批次 -> 店長（VW001、ZT01）看得到資料、沒有匯入與刪除按鈕 -> 只有刪除權限者看不到匯入、可刪除。冒煙測試中檢視者與店長的匯入按鈕預期改為不存在。
+- 測試資料：檔名 `m6w25perm-<runId>-…`、年月 2038-03、門市 VW001，只刪自己的（sweeper 登記 `inventory_result_batches.source_file_name`）。
+- 結果：`node tests/run-all.cjs --layers all --page M6-W25 --no-sweep` 全綠（Playwright 29 項通過；單元層含 T02 白名單與導覽測試一併通過），根目錄 tsc 無錯誤。

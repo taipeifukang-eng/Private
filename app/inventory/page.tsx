@@ -150,14 +150,9 @@ export default function InventoryManagement() {
   const canViewInventoryResultAnalysis =
     canUseInventoryTools ||
     hasPermission('inventory.result_analysis.view_own');
-  const canImportInventoryResultAnalysis =
-    hasPermission('inventory.manage') ||
-    hasPermission('inventory.inventory.access') ||
-    hasPermission('inventory.result_analysis.import');
-  const canDeleteInventoryResultAnalysis =
-    hasPermission('inventory.manage') ||
-    hasPermission('inventory.inventory.access') ||
-    hasPermission('inventory.result_analysis.delete');
+  // 2026-11-22 盤點權限問卷：匯入／刪除只看各自的專屬權限，沒有權限就不顯示按鈕
+  const canImportInventoryResultAnalysis = hasPermission('inventory.result_analysis.import');
+  const canDeleteInventoryResultAnalysis = hasPermission('inventory.result_analysis.delete');
 
   const [activeSection, setActiveSection] = useState<'offline' | 'analysis'>('offline');
   const [activeModule, setActiveModule] = useState<1 | 2 | 3>(1);

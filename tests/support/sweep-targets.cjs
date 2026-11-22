@@ -95,6 +95,11 @@ MARKER_TARGETS.push(
   { table: 'stockout_product_responses', column: 'product_code', pattern: 'ZT2038-T%', action: 'delete' },
 );
 
+// M6 W25（2026-11-22 盤點權限問卷）：測試匯入的盤點結果批次檔名 m6w25perm-<runId>-…（明細 ON DELETE CASCADE）；只刪自己的。
+MARKER_TARGETS.push(
+  { table: 'inventory_result_batches', column: 'source_file_name', pattern: 'm6w25perm-%', action: 'delete' },
+);
+
 /** 保留月份 2099-xx：測試門市的列屬單次 fixture，會被自動清除；非測試門市的列一律不動並中止（2026-11-02 裁定）。*/
 const RESERVED_MONTH_TABLES = [
   'monthly_store_summary',

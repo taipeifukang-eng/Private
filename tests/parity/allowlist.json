@@ -2,9 +2,9 @@
   {
     "id": "inventory-view-implies-import-delete",
     "page": "/inventory",
-    "description": "具備 inventory.inventory.view 的帳號（例如 navigation 帳號、店長）session capabilities 的 importInventory 與 deleteInventory 皆為 true；僅有檢視權限卻同時可匯入與刪除盤點資料。M6 第一批已查證：舊 /api/inventory/result-analysis 的 canImport／canDelete 同樣在「有任一檢視權限」時為 true，舊版 API 實際行為與新版相同（以 inventory_view 等角色對舊 API 與 workspace API 送同樣的請求，狀態碼逐一相同），所以新舊沒有差異。",
-    "reason": "2026-11-02 裁定「改回舊版」；M6-W25 查證舊版行為與新版相同（app/api/inventory/result-analysis/route.ts 的 canImportInventoryResultAnalysis／canDeleteInventoryResultAnalysis 對 hasAnyInventoryLegacyViewPermission 直接放行），因此新版不收緊（收緊會變成與舊版不同）。是否要連同舊版一起收緊屬另案，待使用者決定；在此之前維持與舊版相同。",
-    "approvedBy": null,
+    "description": "盤點結果分析的匯入與刪除權限分開（2026-11-22 盤點權限問卷 inv-perm-ai-cap 裁定，新舊版一起收緊）：只有 inventory.result_analysis.import 的人可匯入，只有 inventory.result_analysis.delete 的人可刪除；inventory.inventory.view／access、inventory.result_analysis.view_own、inventory.manage 與店長、代理店長都只能檢視，不隱含匯入或刪除。沒有權限者在新版 Vue 頁與舊版頁面都看不到匯入／刪除按鈕（隱藏，不是反灰），伺服端同樣回 403。session capabilities 的 importInventory／deleteInventory 改為只認各自的專屬權限（含 profiles.role=admin 的應用層後備）。",
+    "reason": "owner decision（decision=fix 已執行）：舊版 app/api/inventory/result-analysis/route.ts 的 canImportInventoryResultAnalysis／canDeleteInventoryResultAnalysis 原本對 hasAnyInventoryLegacyViewPermission 直接放行，2026-11-22 問卷裁定 P1 匯入／刪除各自權限、P2 新版與舊版一起收緊（舊版只改這兩個權限判斷與按鈕顯示旗標）、P3 inventory.manage 不隱含、P4 沒權限者隱藏按鈕且伺服端 403。新舊行為仍相同（都已收緊），測試見 M6-W25 integration 與 e2e。",
+    "approvedBy": "user (2026-11-22 盤點權限問卷)",
     "deferredTo": "W25"
   },
   {
