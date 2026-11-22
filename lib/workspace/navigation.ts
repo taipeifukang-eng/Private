@@ -129,9 +129,12 @@ export function workspaceNavigation(
           "relationship_member.delete",
           "relationship_member.approve",
         ], "relationships"),
-        item("商品主檔", "/cross-dept/products-master", [
-          "store.products_master.manage",
-        ]),
+        item(
+          "商品主檔",
+          "/cross-dept/products-master",
+          ["store.products_master.manage"],
+          "products-master",
+        ),
       ],
     },
     {

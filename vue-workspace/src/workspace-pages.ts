@@ -42,6 +42,7 @@ import PerformanceBonus from "./pages/PerformanceBonus.vue";
 import PerformancePrescription from "./pages/PerformancePrescription.vue";
 import PerformanceThresholds from "./pages/PerformanceThresholds.vue";
 import Pharmacists from "./pages/Pharmacists.vue";
+import ProductsMaster from "./pages/ProductsMaster.vue";
 import Relationships from "./pages/Relationships.vue";
 import RoleManagement from "./pages/Roles.vue";
 import StoreEditor from "./pages/StoreEditor.vue";
@@ -190,6 +191,7 @@ const components: Record<WorkTabKind, Component> = {
   "employee-purchases": EmployeePurchases,
   pharmacists: Pharmacists,
   relationships: Relationships,
+  "products-master": ProductsMaster,
   roles: RoleManagement,
   "ga-center": GaCenter,
   "ga-equipment-categories": AssetCategories,

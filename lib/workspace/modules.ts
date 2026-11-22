@@ -15,6 +15,8 @@ export const moduleCodes = {
     "inventory.inventory.view",
     "inventory.result_analysis.view_own",
   ],
+  // M6 W27：商品主檔（搜尋登入即可，其餘管理動作需此權限）
+  productsMaster: ["store.products_master.manage"],
 };
 type StorePrefetch = {
   stores: { data: any[] | null; error: unknown };

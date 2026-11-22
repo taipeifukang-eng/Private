@@ -75,6 +75,7 @@ export async function GET() {
       capabilities: {
         employeePurchases:ctx.has("employee_purchase.view") || ctx.has("employee_purchase.import"),
         pharmacists:ctx.has("pharmacist.management.view"),
+        productsMaster:ctx.has(...moduleCodes.productsMaster),
         relationships:ctx.has("relationship_member.view","relationship_member.edit","relationship_member.delete","relationship_member.approve"),
         roles:ctx.has(...ROLE_MANAGEMENT_NAV_PERMISSION_CODES),
         users:ctx.has(...USER_MANAGEMENT_NAV_PERMISSION_CODES),

@@ -1,3 +1,9 @@
+import {
+  buildWorkbook as sharedBuildWorkbook,
+  downloadXlsx,
+  loadXlsx,
+  sheetToRows as sharedSheetToRows,
+} from "./xlsx";
 export type Row = Record<string, any>;
 export const code = (v: any) =>
   /^\d+$/.test(String(v ?? "").trim())
@@ -46,11 +52,7 @@ export function buildInventoryFileName(
 // ---------------------------------------------------------------- 讀檔與欄位辨識
 /** 把工作表轉成列物件；base 時第一列是空白合併儲存格、第二列才是標題（DPOS 1F 格式）。 */
 export function sheetToRows(X: any, sheet: any, base = false): Row[] {
-  if (!sheet) throw new Error("檔案沒有工作表");
-  const rows = X.utils.sheet_to_json(sheet, {
-    range: base ? 1 : 0,
-    defval: "",
-  }) as Row[];
+  const rows = sharedSheetToRows(X, sheet, { headerRow: base ? 1 : 0 }) as Row[];
   if (!rows.length) throw new Error("檔案沒有資料列");
   return rows;
 }
@@ -58,7 +60,7 @@ export async function rowsFromBuffer(
   buffer: ArrayBuffer | Uint8Array,
   base = false,
 ): Promise<Row[]> {
-  const X = await import("xlsx");
+  const X = await loadXlsx();
   const book = X.read(buffer, { type: "array" });
   return sheetToRows(X, book.Sheets[book.SheetNames[0]], base);
 }
@@ -424,23 +426,14 @@ export function conflictsToText(conflicts: Conflict[]) {
 
 // ---------------------------------------------------------------- 輸出
 /** 活頁簿：工作表名稱預設 Sheet1（與舊版離線盤點工具輸出相同）。 */
-export function buildWorkbook(X: any, rows: Row[], sheetName = "Sheet1") {
-  const book = X.utils.book_new();
-  X.utils.book_append_sheet(book, X.utils.json_to_sheet(rows), sheetName);
-  return book;
-}
+export const buildWorkbook = sharedBuildWorkbook;
 export async function download(
   rows: Row[],
   name: string,
   sheetName = "Sheet1",
 ) {
   if (!rows.length) throw new Error("沒有可匯出的資料");
-  const X = await import("xlsx"),
-    book = buildWorkbook(X, rows, sheetName);
-  X.writeFile(
-    book,
-    name.toLowerCase().endsWith(".xlsx") ? name : `${name}.xlsx`,
-  );
+  await downloadXlsx(rows, name, sheetName);
 }
 /**
  * CSV：加 BOM；指定的純數字欄位（品號）以 ="…" 文字格式寫入，Excel 開啟時不會吃掉前導零。

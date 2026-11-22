@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import { api } from "../api";
 import type { WorkTab } from "../stores";
 import Modal from "../components/Modal.vue";
+import { downloadXlsx } from "../lib/xlsx";
 import {
   filterRelationshipMembers,
   lastFkrsNumber,
@@ -229,21 +230,21 @@ async function save() {
 }
 async function downloadTemplate() {
   try {
-    const X = await import("xlsx");
-    const sheet = X.utils.json_to_sheet([
-      {
-        門市代號: "FK001",
-        銷售日期: "2026/06/12 14:30",
-        會員編號: "M00001",
-        品號: "P001",
-        品名: "範例商品",
-        數量: 1,
-        金額: 100,
-      },
-    ]);
-    const book = X.utils.book_new();
-    X.utils.book_append_sheet(book, sheet, "關係會員銷售明細");
-    X.writeFile(book, "關係會員銷售明細匯入範本.xlsx");
+    await downloadXlsx(
+      [
+        {
+          門市代號: "FK001",
+          銷售日期: "2026/06/12 14:30",
+          會員編號: "M00001",
+          品號: "P001",
+          品名: "範例商品",
+          數量: 1,
+          金額: 100,
+        },
+      ],
+      "關係會員銷售明細匯入範本.xlsx",
+      "關係會員銷售明細",
+    );
   } catch (e: any) {
     error.value = "範本下載失敗，請重試";
   }
