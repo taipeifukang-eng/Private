@@ -484,3 +484,51 @@ test('不存在的路徑 404；POST 內容不是 JSON 物件 400', async () => {
   const res = await apis.sl_sup_a.post(`${API}/cases`, { data: '[]', headers: { 'Content-Type': 'application/json' } });
   expect(res.status()).toBe(400);
 });
+
+test('規劃關聯：案件或紀錄軟刪除後，規劃（本人、看團隊的人）不再回傳案件標題與紀錄內容', async () => {
+  const c = await makeCase('sl_sup_a', 'PLK', 'VW001');
+  const rec = await call('sl_sup_a', 'post', `cases/${c}/records`, recordBody('PLK'));
+  const plan = await call('sl_sup_a', 'post', 'daily-plans', { title: slName('PLK-P'), target_type: 'STORE', store_id: sid.VW001, target_name_snapshot: 'VW001 測試門市', linked_case_id: c, linked_record_id: rec.body.data.id });
+  expect(plan.status, JSON.stringify(plan.body)).toBe(201);
+  const pid = plan.body.data.id;
+  for (const key of ['sl_sup_a', 'sl_team']) {
+    const g = await call(key, 'get', `daily-plans/${pid}`);
+    expect(g.status, key).toBe(200);
+    expect(g.body.data.linked_case?.id, key).toBe(c);
+    expect(g.body.data.linked_record?.observation, key).toBe('發現PLK');
+  }
+  const delRec = await call('sl_sup_a', 'delete', `cases/${c}/records/${rec.body.data.id}`, reason);
+  expect(delRec.status).toBe(200);
+  for (const key of ['sl_sup_a', 'sl_team']) expect((await call(key, 'get', `daily-plans/${pid}`)).body.data.linked_record, `${key} 紀錄刪除後`).toBeNull();
+  expect((await call('sl_sup_a', 'delete', `cases/${c}`, reason)).status).toBe(200);
+  for (const key of ['sl_sup_a', 'sl_team']) {
+    const g = await call(key, 'get', `daily-plans/${pid}`);
+    expect(g.body.data.linked_case, `${key} 案件刪除後`).toBeNull();
+    expect(JSON.stringify(g.body), key).not.toContain('發現PLK');
+    const l = await call(key, 'get', 'daily-plans', { search: slName('PLK-P') });
+    expect((l.body.data as any[]).find((p) => p.id === pid)?.linked_case ?? null, `${key} 清單`).toBeNull();
+    const td = (await call(key, 'get', 'today')).body.data;
+    expect(((td.plans as any[]).find((p) => p.id === pid))?.linked_case ?? null, `${key} 今日`).toBeNull();
+  }
+});
+
+test('紀錄編輯：管理者改別人的 AI 紀錄後，AI 旗標、人工確認人與語音來源不變；body 不能改這些欄位', async () => {
+  const a = await makeCase('sl_sup_a', 'AIE', 'VW001');
+  const r = await call('sl_sup_a', 'post', `cases/${a}/records`, recordBody('AIE', { ai_generated: true, metadata: { voice: { source: 'AI', ai_provider: 'OPENAI' } } }));
+  expect(r.status).toBe(201);
+  const rid = r.body.data.id;
+  const get = async () => (await db.from('supervisor_management_records').select('ai_generated,ai_confirmed_by,metadata,action_summary').eq('id', rid).single()).data as any;
+  const before = await get();
+  expect(before.ai_confirmed_by).toBe(users.sl_sup_a.id);
+  expect((await call('sl_manager', 'patch', `cases/${a}/records/${rid}`, { action_summary: '管理者改', ai_generated: false, ai_confirmed_by: users.sl_manager.id, metadata: { voice: null } })).status).toBe(200);
+  const after = await get();
+  expect(after.action_summary).toBe('管理者改');
+  expect(after.ai_generated).toBe(true);
+  expect(after.ai_confirmed_by, '確認人仍是原本送出的督導').toBe(users.sl_sup_a.id);
+  expect(after.metadata).toEqual(before.metadata);
+  // 非 AI 紀錄不能靠 PATCH 變成 AI
+  const p = await call('sl_sup_a', 'post', `cases/${a}/records`, recordBody('PLAIN'));
+  expect((await call('sl_sup_a', 'patch', `cases/${a}/records/${p.body.data.id}`, { ai_generated: true })).status).toBe(200);
+  const pr = (await db.from('supervisor_management_records').select('ai_generated,ai_confirmed_by').eq('id', p.body.data.id).single()).data as any;
+  expect([pr.ai_generated, pr.ai_confirmed_by]).toEqual([false, null]);
+});

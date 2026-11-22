@@ -9713,5 +9713,40 @@
       "entry": "voice-draft-validation",
       "key": "long:status"
     }
+  },
+  {
+    "id": "m6-w32-create-response-id",
+    "page": "supervisor-log",
+    "description": "建立案件、紀錄、追蹤、每日計畫的回應：新版回 {success:true,data:{id}}（語音紀錄多回 transcript_saved），舊版回 data:null（201）；新版方便畫面直接跳到新資料。",
+    "reason": "回應多帶新資料的 id 是新版為了畫面串接的取捨，不改變資料內容，問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-plan-link-filter",
+    "page": "supervisor-log",
+    "description": "今日規劃關聯的案件與紀錄：新版回傳前會過濾，已軟刪除、或不在登入者可見範圍的案件與紀錄不回標題與內容；舊版資料庫政策讓看不到的資料不出現，但新版改用伺服端連線查詢，必須自行過濾。",
+    "reason": "落實 E1 三層可見範圍與軟刪除保證；問卷未涵蓋此細節，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w32-record-edit-ai-locked",
+    "page": "supervisor-log",
+    "description": "編輯管理紀錄：新版一律保留原本的 AI 旗標、人工確認人與語音來源 metadata，PATCH 內容不能更改這三項（管理者改別人的 AI 紀錄，確認人不變）；舊版允許前端改 ai_generated 與 metadata，且不限制確認人。",
+    "reason": "規格第三節：AI 必須經人工確認且可追溯；問卷未涵蓋，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-duration-required-min-bitrate",
+    "page": "supervisor-log",
+    "description": "語音轉文字：新版一律要求回報錄音秒數（缺少回 400），費用依「回報秒數」與「每秒最多 2KB（約 16kbps）反推的最短秒數」取較大者估算；伺服端不解析音檔長度也不保存音檔，因此 10 分鐘上限對低位元率音檔仍是以回報秒數為準（已知限制）；舊版沒有此限制。",
+    "reason": "E7 長度上限與每月上限的保守估算；問卷未涵蓋此細節，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w33-transcript-retention",
+    "page": "supervisor-log",
+    "description": "逐字稿保留：紀錄或案件被軟刪除後，逐字稿資料列仍保留在資料庫（只有硬刪除才一併清除），API 因紀錄已刪除而讀不到；非建立者且非管理者查詢逐字稿，與「沒有逐字稿」一樣回 404，無從探測有沒有。",
+    "reason": "與軟刪除「資料保留、畫面不顯示」的整體原則一致；保存年限問卷未涵蓋，待使用者決定是否需要定期清除。",
+    "approvedBy": null
   }
 ]

@@ -140,6 +140,8 @@ export async function transcribe(ctx: Context, request: Request) {
   if (!(audio instanceof File)) throw new WorkspaceError(400, "請上傳口述音檔");
   const secondsRaw = form.get("duration_seconds");
   const seconds = secondsRaw === null || secondsRaw === "" ? null : Number(secondsRaw);
+  // 後端不解析音檔長度，所以一律要求前端回報秒數（10 分鐘上限與費用估算都靠它；費用另以最低位元率由大小反推下限）
+  if (seconds === null || !Number.isFinite(seconds) || seconds < 0) throw new WorkspaceError(400, "請提供錄音秒數（duration_seconds）");
   const bad = validateAudio({ size: audio.size, type: audio.type, durationSeconds: seconds });
   if (bad) throw new WorkspaceError(400, bad);
 
@@ -269,8 +271,8 @@ export async function getTranscript(ctx: Context, caseId: string, recordId: stri
   await loadCase(ctx, v, caseId);
   await loadRecord(ctx, caseId, recordId);
   const row = checked(await ctx.admin.from(T.transcripts).select("transcript, source, ai_provider, created_by, created_at").eq("record_id", recordId).maybeSingle()) as { transcript: string; source: string; ai_provider: string | null; created_by: string; created_at: string } | null;
-  if (!row) throw new WorkspaceError(404, "這筆紀錄沒有逐字稿");
-  if (!(v.caps.manage || row.created_by === ctx.user.id)) throw new WorkspaceError(403, "逐字稿只有建立者與管理者看得到");
+  // 沒有逐字稿與無權查看回同一個答案，其他人無從探測有沒有逐字稿
+  if (!row || !(v.caps.manage || row.created_by === ctx.user.id)) throw new WorkspaceError(404, "沒有逐字稿，或沒有查看權限");
   return respond({ success: true, data: { transcript: row.transcript, source: row.source, ai_provider: row.ai_provider, created_at: row.created_at } });
 }
 

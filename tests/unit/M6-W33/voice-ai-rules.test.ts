@@ -45,18 +45,18 @@ describe('M6-W33 費用估算：偏保守、無條件進位', () => {
     expect(estimateTranscribe({ bytes: 1000, clientSeconds: 600 })).toMatchObject({ billedMinutes: 10, microUsd: 60000 });
   });
   it('前端秒數不可信：取「回報秒數」與「依大小反推的最短秒數」較大者，所以謊報短秒數也不會少算', () => {
-    // 3.2MB 的音檔至少 200 秒（每秒最多 16KB）
+    // 3.2MB 的音檔至少 1600 秒（每秒最多 2KB，約 16kbps）
     const e = estimateTranscribe({ bytes: 3_200_000, clientSeconds: 1 });
-    expect(e.audioSeconds).toBe(200);
-    expect(e.billedMinutes).toBe(4);
-    expect(estimateTranscribe({ bytes: 3_200_000, clientSeconds: null }).audioSeconds).toBe(200);
+    expect(e.audioSeconds).toBe(1600);
+    expect(e.billedMinutes).toBe(27);
+    expect(estimateTranscribe({ bytes: 3_200_000, clientSeconds: null }).audioSeconds).toBe(1600);
     expect(estimateTranscribe({ bytes: 0, clientSeconds: undefined }).audioSeconds).toBe(1);
     expect(estimateTranscribe({ bytes: 100, clientSeconds: 12.2 }).audioSeconds).toBe(13);
   });
-  it('單次上限：10MB 的音檔最多算 11 分鐘，費用有上界', () => {
+  it('單次上限：10MB 的音檔最多算 88 分鐘（16kbps 最低位元率假設），費用有上界', () => {
     const e = estimateTranscribe({ bytes: MAX_AUDIO_BYTES, clientSeconds: MAX_AUDIO_SECONDS });
-    expect(e.billedMinutes).toBe(11);
-    expect(e.microUsd).toBe(66000);
+    expect(e.billedMinutes).toBe(88);
+    expect(e.microUsd).toBe(528000);
   });
   it('草稿整理：輸入以「固定提示加每字 2 token」估、輸出以上限 1500 token 估，無條件進位', () => {
     const e = estimateDraft({ transcriptChars: 100, model: 'gpt-4o-mini' });
@@ -76,9 +76,9 @@ describe('M6-W33 費用估算：偏保守、無條件進位', () => {
     expect(unknown.microUsd).toBeGreaterThan(known.microUsd);
     expect(estimateDraft({ transcriptChars: 6000, model: 'gpt-4o-mini' }).microUsd).toBeGreaterThan(estimateDraft({ transcriptChars: 10, model: 'gpt-4o-mini' }).microUsd);
   });
-  it('一個月 US$30 大約可以做幾百次最長錄音，不會被一次呼叫吃光', () => {
+  it('一個月 US$30 大約可以做幾十次最長錄音，不會被一次呼叫吃光', () => {
     const worst = estimateTranscribe({ bytes: MAX_AUDIO_BYTES, clientSeconds: MAX_AUDIO_SECONDS }).microUsd + estimateDraft({ transcriptChars: 6000, model: 'gpt-4o-mini' }).microUsd;
-    expect(worst).toBeLessThan(toMicro(30) / 200);
+    expect(worst).toBeLessThan(toMicro(30) / 50);
   });
 });
 

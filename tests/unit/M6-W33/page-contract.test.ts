@@ -71,7 +71,7 @@ describe('M6-W33：E5 告知與同意、E6 逐字稿、E7 退回與限制', () =
     expect(flow).toContain('隱私告知');
   });
   it('逐字稿存在獨立資料表，只有建立者與管理者讀得到；資料表沒有任何登入者政策', () => {
-    expect(voiceLib).toContain('逐字稿只有建立者與管理者看得到');
+    expect(voiceLib).toContain('沒有逐字稿，或沒有查看權限');
     expect(voiceLib).toContain('manage || r.created_by === userId');
     expect(sql).toContain('ENABLE ROW LEVEL SECURITY');
     expect(sql).not.toMatch(/CREATE POLICY/i);

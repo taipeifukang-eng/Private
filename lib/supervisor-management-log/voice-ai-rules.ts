@@ -66,9 +66,9 @@ export const DRAFT_PROMPT_OVERHEAD_TOKENS = 1200;
 export const DRAFT_TOKENS_PER_CHAR = 2;
 export const DRAFT_MAX_OUTPUT_TOKENS = 1500;
 
-/** 後端看不到音檔真實長度（音檔不解析、不保存），所以取「前端回報的秒數」與「依大小反推的最短秒數（每秒最多 16KB，約 128kbps）」較大者。 */
+/** 後端看不到音檔真實長度（音檔不解析、不保存），所以取「前端回報的秒數」與「依大小反推的最短秒數（每秒最多 2KB，約 16kbps，涵蓋常見 WebM/Opus 低位元率（24kbps 以上））」較大者。 */
 export function estimateTranscribe(input: { bytes: number; clientSeconds?: number | null }) {
-  const bySize = Math.ceil(Math.max(0, input.bytes) / 16000);
+  const bySize = Math.ceil(Math.max(0, input.bytes) / 2000);
   const seconds = Math.max(bySize, Math.ceil(Math.max(0, Number(input.clientSeconds) || 0)), 1);
   const minutes = Math.ceil(seconds / 60);
   return { audioSeconds: seconds, billedMinutes: minutes, microUsd: minutes * TRANSCRIBE_MICRO_PER_MINUTE };

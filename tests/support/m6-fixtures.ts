@@ -189,7 +189,8 @@ export async function cleanupM6Supervisor(db: any = adminDb(), userIds: string[]
   }
   const caseIds = Array.from(ids);
   if (caseIds.length) {
-    await db.from('supervisor_management_daily_plans').update({ linked_case_id: null, linked_record_id: null }).in('linked_case_id', caseIds);
+    // 關聯的案件若已軟刪除，驗證觸發器不允許再更新規劃（不能只把關聯清空），所以直接刪掉這些測試案件的規劃
+    await db.from('supervisor_management_daily_plans').delete().in('linked_case_id', caseIds);
     await db.from('supervisor_management_case_events').delete().in('case_id', caseIds);
     await db.from('supervisor_management_followups').delete().in('case_id', caseIds);
     await db.from('supervisor_management_records').delete().in('case_id', caseIds);

@@ -143,6 +143,8 @@ test('E7 音檔限制：空檔、超過 10MB、超過 10 分鐘、不支援格�
   const bad = await upload(apis.sl_sup_a, mockAudio('x'), { type: 'audio/ogg', seconds: '5', name: 'a.ogg' });
   expect(bad.status).toBe(400);
   expect(bad.body.error).toContain('不支援');
+  const noSec = await apis.sl_sup_a.post(`${VOICE_API}/voice/transcribe`, { multipart: { audio: { name: 'a.webm', mimeType: 'audio/webm', buffer: mockAudio('x') } } });
+  expect(noSec.status(), '一律要求回報錄音秒數').toBe(400);
   const noFile = await apis.sl_sup_a.post(`${VOICE_API}/voice/transcribe`, { multipart: { duration_seconds: '5' } });
   expect(noFile.status()).toBe(400);
   expect(await ledgerCount(), '被拒絕的請求不可花費用').toBe(before);
@@ -151,6 +153,8 @@ test('E7 音檔限制：空檔、超過 10MB、超過 10 分鐘、不支援格�
   const edge = await upload(apis.sl_sup_a, mockAudio(edgeText, 10 * 1024 * 1024 - 'MOCK-TRANSCRIPT:'.length - Buffer.byteLength(edgeText)), { seconds: '600' });
   expect(edge.status, JSON.stringify(edge.body)).toBe(200);
   expect(edge.body.data.transcript.startsWith(edgeText)).toBe(true);
+  // 10MB 以最低位元率（16kbps）估算約 88 分鐘、US$0.53：把這筆估算列刪掉，免得吃掉後面月額度測試要安排的額度
+  await db.from('workspace_ai_usage_ledger').delete().eq('scope', 'supervisor_voice').gte('est_cost_micro_usd', 500_000);
   // 各種允許的格式
   for (const type of ['audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/webm;codecs=opus']) expect((await upload(apis.sl_sup_a, mockAudio('格式'), { type, seconds: '3' })).status, type).toBe(200);
 });
@@ -260,7 +264,7 @@ test('E6 逐字稿可見範圍：只有建立者與管理者；團隊檢視者�
   expect((await read('sl_manager')).status, '管理者').toBe(200);
   expect((await read('admin')).status, '系統管理員（應用層後備）').toBe(200);
   const team = await read('sl_team');
-  expect(team.status, '團隊檢視者').toBe(403);
+  expect(team.status, '團隊檢視者（與沒有逐字稿同一答案）').toBe(404);
   expect(JSON.stringify(team.body)).not.toContain('王小明');
   expect((await read('sl_sup_b')).status, '看不到案件').toBe(404);
   expect((await read('sl_none')).status, '無權限').toBe(403);
@@ -276,6 +280,11 @@ test('E6 逐字稿可見範圍：只有建立者與管理者；團隊檢視者�
   const plain = await call('sl_sup_a', 'post', `cases/${caseId}/records`, voiceRecord({}, null));
   expect((await call('sl_sup_a', 'get', `cases/${caseId}/records/${plain.body.data.id}/transcript`)).status).toBe(404);
   expect((await call('sl_sup_a', 'get', `cases/${caseId}/records/not-a-uuid/transcript`)).status).toBe(400);
+  // 非建立者（看團隊）與「沒有逐字稿」回同一個答案，無從探測有沒有逐字稿
+  const teamRes = await call('sl_team', 'get', `cases/${caseId}/records/${rid}/transcript`);
+  const noneRes = await call('sl_team', 'get', `cases/${caseId}/records/${plain.body.data.id}/transcript`);
+  expect([teamRes.status, teamRes.body.error]).toEqual([noneRes.status, noneRes.body.error]);
+  expect(teamRes.status).toBe(404);
   // 資料表沒有給登入者的存取：用督導 A 自己的登入身分直接查，一列都讀不到
   const { userDb } = await import('../support/m6-fixtures');
   const asUser = await userDb(users.sl_sup_a);

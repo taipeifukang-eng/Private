@@ -76,8 +76,27 @@ const PLAN_SELECT = `
   store:stores(id, store_code, store_name, short_name),
   employee:store_employees(id, employee_code, employee_name, current_position, position),
   owner:profiles!supervisor_management_daily_plans_owner_user_id_fkey(id, full_name, email),
-  linked_case:supervisor_management_cases(id, case_no, title, status, priority, next_follow_up_at),
-  linked_record:supervisor_management_records(id, record_type, record_date, observation, action_summary)`;
+  linked_case:supervisor_management_cases(id, case_no, title, status, priority, next_follow_up_at, owner_user_id, assigned_user_id, store_id, deleted_at),
+  linked_record:supervisor_management_records(id, record_type, record_date, observation, action_summary, case_id, deleted_at)`;
+/** 規劃回應裡的關聯案件與紀錄：已軟刪除、或不在登入者可見範圍的一律不回（用管理員連線查詢，需自行過濾）；回應只留顯示欄位。 */
+async function cleanPlanLinks(ctx: Context, v: Viewer, plans: any[]) {
+  const caseIds = [...new Set(plans.map((p) => one(p.linked_record)?.case_id).filter(Boolean))] as string[];
+  const caseById = new Map<string, any>();
+  if (caseIds.length) for (const c of (checked(await ctx.admin.from(T.cases).select("id, owner_user_id, assigned_user_id, store_id, status, deleted_at").in("id", caseIds)) as any[] | null) || []) caseById.set(c.id, c);
+  return plans.map((p) => {
+    const c = one(p.linked_case);
+    const r = one(p.linked_record);
+    const caseOk = !!c && c.deleted_at == null && caseVisible(c, v);
+    const rc = r ? caseById.get(r.case_id) : null;
+    const recOk = !!r && r.deleted_at == null && !!rc && rc.deleted_at == null && caseVisible(rc, v);
+    return {
+      ...p,
+      linked_case: caseOk ? { id: c.id, case_no: c.case_no, title: c.title, status: c.status, priority: c.priority, next_follow_up_at: c.next_follow_up_at } : null,
+      linked_record: recOk ? { id: r.id, record_type: r.record_type, record_date: r.record_date, observation: r.observation, action_summary: r.action_summary } : null,
+    };
+  });
+}
+
 const RECORD_COLUMNS =
   "id, case_id, record_type, record_date, store_id, employee_id, category_id, target_name_snapshot, observation, judgment, action_summary, action_options, requires_follow_up, follow_up_date, follow_up_owner_id, expected_result, follow_up_method, ai_generated, created_by, created_at, updated_at";
 const FOLLOWUP_COLUMNS = "id, case_id, source_record_id, follow_up_date, result_status, result_notes, next_follow_up_date, created_by, created_at, updated_at";
@@ -292,16 +311,24 @@ export async function listRecords(ctx: Context, caseId: string) {
   return respond({ success: true, data: rows.map((r) => ({ ...r, can_edit: childEditable(r.created_by, row, v), can_delete: childEditable(r.created_by, row, v) })) });
 }
 
+const AI_LOCKED_FIELDS = ["ai_generated", "metadata"];
 const RECORD_FIELDS = ["record_type", "record_date", "store_id", "employee_id", "category_id", "target_name_snapshot", "observation", "judgment", "action_summary", "action_options", "requires_follow_up", "follow_up_date", "follow_up_owner_id", "expected_result", "follow_up_method", "ai_generated", "metadata"];
 /** 紀錄內容：缺的對象欄位從案件帶入；需要追蹤時負責人預設為案件指派人員或建立者；AI 產生的紀錄一律記錄由登入者人工確認。 */
-function recordPayload(ctx: Context, c: any, body: Body, base: Body = {}) {
+function recordPayload(ctx: Context, c: any, body: Body, base: Body = {}, existing?: any) {
   const merged: Body = { ...base };
-  for (const k of RECORD_FIELDS) if (k in body) merged[k] = body[k];
+  for (const k of RECORD_FIELDS) if (k in body && !(existing && AI_LOCKED_FIELDS.includes(k))) merged[k] = body[k];
   for (const k of ["store_id", "employee_id", "category_id"]) if (merged[k] === undefined) merged[k] = c[k] ?? null;
   if (!merged.target_name_snapshot) merged.target_name_snapshot = c.target_name_snapshot;
   if (merged.requires_follow_up === true && !merged.follow_up_owner_id) merged.follow_up_owner_id = c.assigned_user_id || c.owner_user_id;
   if (!merged.record_date) merged.record_date = today();
-  merged.ai_confirmed_by = merged.ai_generated === true ? ctx.user.id : null;
+  // 新增時確認人是送出者；編輯時保留原本的 AI 旗標、人工確認人與語音來源 metadata（管理者改別人的紀錄也不會變更確認人）
+  if (existing) {
+    merged.ai_generated = existing.ai_generated === true;
+    merged.ai_confirmed_by = existing.ai_confirmed_by ?? null;
+    merged.metadata = existing.metadata ?? {};
+  } else {
+    merged.ai_confirmed_by = merged.ai_generated === true ? ctx.user.id : null;
+  }
   const out: Record<string, unknown> = validated(() => validateRecordPayload(merged));
   if (out.requires_follow_up) {
     if (!out.follow_up_date || !out.expected_result) throw new WorkspaceError(400, "需要追蹤時，請填寫追蹤日期與預期結果");
@@ -335,7 +362,7 @@ export async function addRecord(ctx: Context, request: Request, caseId: string) 
 
 export async function loadRecord(ctx: Context, caseId: string, recordId: string) {
   if (!uuid(recordId)) throw new WorkspaceError(400, "紀錄 id格式錯誤");
-  const rec = checked(await ctx.admin.from(T.records).select(`${RECORD_COLUMNS}, metadata`).eq("id", recordId).eq("case_id", caseId).is("deleted_at", null).maybeSingle()) as any;
+  const rec = checked(await ctx.admin.from(T.records).select(`${RECORD_COLUMNS}, metadata, ai_confirmed_by`).eq("id", recordId).eq("case_id", caseId).is("deleted_at", null).maybeSingle()) as any;
   if (!rec) throw new WorkspaceError(404, "找不到督導管理紀錄");
   return rec;
 }
@@ -350,7 +377,7 @@ export async function editRecord(ctx: Context, request: Request, caseId: string,
   const body = await readBody(request);
   const base: Body = {};
   for (const k of RECORD_FIELDS) base[k] = rec[k];
-  const payload = recordPayload(ctx, row, body, base);
+  const payload = recordPayload(ctx, row, body, base, rec);
   const updated = dbOk(await ctx.auth.from(T.records).update(payload).eq("id", recordId).eq("case_id", caseId).is("deleted_at", null).select("id")) as { id: string }[] | null;
   if (!updated?.length) throw new WorkspaceError(403, "沒有編輯這筆紀錄的權限");
   await addEvent(ctx, caseId, "RECORD_EDIT", "修改督導管理紀錄", rec.created_by === v.userId ? null : "由他人修改", { record_id: recordId });
@@ -441,7 +468,7 @@ export async function todayWorkspace(ctx: Context, params: URLSearchParams) {
   const recordsQuery = ctx.admin.from(T.records).select(`${RECORD_COLUMNS.replace("created_by, ", "")}, case:supervisor_management_cases(id, case_no, title, status, priority, next_follow_up_at, owner_user_id, assigned_user_id, store_id, deleted_at)`).eq("record_date", date).is("deleted_at", null).order("created_at", { ascending: false });
 
   const [plansRes, queueRes, recordsRes] = await Promise.all([plansQuery, queueQuery, recordsQuery]);
-  const plans = ((plansRes ? checked(plansRes) : []) as any[] | null || []).map((p) => ({ ...p, can_edit: planManageable(p, v), can_delete: planManageable(p, v) }));
+  const plans = (await cleanPlanLinks(ctx, v, ((plansRes ? checked(plansRes) : []) as any[] | null) || [])).map((p) => ({ ...p, can_edit: planManageable(p, v), can_delete: planManageable(p, v) }));
   const queueCases = ((queueRes ? checked(queueRes) : []) as any[] | null) || [];
   // 今日紀錄：只留所屬案件在可見範圍內的（紀錄的可見範圍跟著案件）
   const todayRecords = (((checked(recordsRes) as any[] | null) || []).filter((r) => { const c = one(r.case); return !!c && caseVisible(c, v); })).map((r) => { const c = one(r.case); return { ...r, case: c ? { id: c.id, case_no: c.case_no, title: c.title, status: c.status, priority: c.priority, next_follow_up_at: c.next_follow_up_at } : null }; });
@@ -509,7 +536,7 @@ export async function listPlans(ctx: Context, params: URLSearchParams) {
   const page = Math.min(want, totalPages);
   const from = (page - 1) * pageSize;
   const rows = checked(await apply(ctx.admin.from(T.plans).select(PLAN_SELECT)).order(sortBy, { ascending }).order("updated_at", { ascending: false }).order("id", { ascending: true }).range(from, from + pageSize - 1)) as any[] | null;
-  return respond({ success: true, data: (rows || []).map((p) => ({ ...p, can_edit: planManageable(p, v), can_delete: planManageable(p, v) })), meta: { page, pageSize, total, totalPages }, viewer: viewerInfo(v) });
+  return respond({ success: true, data: (await cleanPlanLinks(ctx, v, rows || [])).map((p) => ({ ...p, can_edit: planManageable(p, v), can_delete: planManageable(p, v) })), meta: { page, pageSize, total, totalPages }, viewer: viewerInfo(v) });
 }
 
 async function loadPlan(ctx: Context, v: Viewer, id: string, select = PLAN_SELECT) {
@@ -528,7 +555,7 @@ async function assertLinkedCase(ctx: Context, v: Viewer, caseId: unknown) {
 /** GET daily-plans/:id */
 export async function getPlan(ctx: Context, id: string) {
   const v = await enter(ctx);
-  const row = await loadPlan(ctx, v, id);
+  const row = (await cleanPlanLinks(ctx, v, [await loadPlan(ctx, v, id)]))[0];
   return respond({ success: true, data: { ...row, can_edit: planManageable(row, v), can_delete: planManageable(row, v) } });
 }
 
