@@ -27,7 +27,11 @@ async function run(r: NextRequest, path: string[], method: string) {
     }
     if (path.length === 1 && path[0] === "respond" && method === "POST") return await saveResponse(ctx, r);
     if (path.length === 1 && method === "DELETE") return await deleteReport(ctx, path[0]);
-    if (path.length === 2 && path[0] === "responses" && method === "DELETE") return await deleteResponse(ctx, decodeURIComponent(path[1]));
+    if (path.length === 2 && path[0] === "responses" && method === "DELETE") {
+      let code: string;
+      try { code = decodeURIComponent(path[1]); } catch { throw new WorkspaceError(400, "商品編號格式不正確"); }
+      return await deleteResponse(ctx, code);
+    }
     throw new WorkspaceError(404, "找不到此操作");
   } catch (e) {
     return failed(e);

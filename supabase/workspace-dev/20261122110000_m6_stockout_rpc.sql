@@ -24,6 +24,8 @@ BEGIN
   IF coalesce(btrim(p_code), '') = '' OR coalesce(btrim(p_name), '') = '' OR coalesce(btrim(p_content), '') = '' OR p_eta IS NULL THEN
     RAISE EXCEPTION 'MISSING_FIELDS';
   END IF;
+  -- 與刪除回報共用同一把鎖，同一商品編號的刪除與回覆互相序列化
+  PERFORM pg_advisory_xact_lock(hashtextextended('workspace_stockout:' || btrim(p_code), 0));
   INSERT INTO public.stockout_product_responses (product_code, product_name, response_content, eta_date, responded_by, responded_at)
   VALUES (btrim(p_code), btrim(p_name), btrim(p_content), p_eta, p_user, now())
   ON CONFLICT (product_code) DO UPDATE

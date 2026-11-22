@@ -91,7 +91,7 @@ export async function listReports(ctx: Context, params: URLSearchParams) {
   const month = params.get("month");
   const useRecent = params.get("date_range") === "recent_30";
   const range = month ? monthRange(month) : null;
-  const page = clampPage(params.get("page"));
+  const requestedPage = clampPage(params.get("page"));
   const pageSize = clampPageSize(params.get("pageSize"), REPORT_PAGE_SIZE, REPORT_PAGE_MAX);
   const base = { capabilities: caps, defaultTab: defaultTab(caps), tab, stores, today: t };
 
@@ -130,6 +130,7 @@ export async function listReports(ctx: Context, params: URLSearchParams) {
 
   const matched = byStatus.filter(inDate);
   const totalPages = Math.max(1, Math.ceil(matched.length / pageSize));
+  const page = Math.min(requestedPage, totalPages);
   const slice = matched.slice((page - 1) * pageSize, page * pageSize);
   let items: any[] = [];
   if (slice.length) {

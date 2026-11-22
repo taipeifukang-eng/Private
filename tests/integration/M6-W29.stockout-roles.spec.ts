@@ -225,7 +225,7 @@ test('C3：狀態與統計由目前有效回覆即時算出，不改寫資料；
   expect((await apis.so_store_a.get(`${API}/responses`, { params: { product_codes: edge } }).then((r) => r.json())).data[0]).toMatchObject({ active: false, reminder: false });
 });
 
-test('分頁：每頁 30、上限 100；超出頁碼回空；關鍵字跳脫（逗號、括號、百分比、底線）', async () => {
+test('分頁：每頁 30、上限 100；超出頁碼收斂到最後一頁；關鍵字跳脫（逗號、括號、百分比、底線）', async () => {
   const prefix = code('PG-');
   const rows = Array.from({ length: 33 }, (_, i) => ({ store_id: sid.VW001, product_code: `${prefix}${String(i).padStart(2, '0')}`, product_name: i === 0 ? '含逗號,與(括號)100%_' : i === 1 ? '含逗號X與XX括號X100X_' : `分頁商品${i}`, required_qty: 1, reported_by: users.so_store_a.id, status: 'pending' }));
   expect((await db.from('stockout_reports').insert(rows)).error).toBeNull();
@@ -236,7 +236,10 @@ test('分頁：每頁 30、上限 100；超出頁碼回空；關鍵字跳脫（�
   expect(p2.body.items.length).toBe(3);
   const seen = new Set([...p1.body.items, ...p2.body.items].map((r: any) => r.id));
   expect(seen.size).toBe(33);
-  expect((await list('so_store_a', { q: prefix, status: 'all', page: '3' })).body.items).toEqual([]);
+  // 超出頁碼收斂到最後一頁（與商品主檔一致）
+  const p3 = await list('so_store_a', { q: prefix, status: 'all', page: '3' });
+  expect(p3.body.pagination.page).toBe(2);
+  expect(p3.body.items.length).toBe(3);
   expect((await list('so_store_a', { q: prefix, status: 'all', pageSize: '1000' })).body.pagination.pageSize).toBe(100);
   expect((await list('so_store_a', { q: prefix, status: 'all', pageSize: '10' })).body.pagination).toEqual({ page: 1, pageSize: 10, total: 33, totalPages: 4 });
   expect((await list('so_store_a', { q: prefix, status: 'all', pageSize: 'abc', page: '-1' })).body.pagination.page).toBe(1);
