@@ -9139,5 +9139,116 @@
     "description": "兩個人同時為同一位關係會員填不同的會員編號：舊版兩邊都回成功，後寫的蓋掉先寫的；新版第二個請求回 409「會員編號已建立，不可清空或再次修改」，先寫的編號保留。填同一個編號則兩邊都成功。",
     "reason": "M6 規格第一批驗收要求「並行填寫會員編號一個成功一個 409」；舊版先讀後寫沒有保護，新版 workspace 編輯改為單一條件更新。不在問卷內，待使用者確認。",
     "approvedBy": null
+  },
+  {
+    "id": "m6-w27-search-login-only",
+    "page": "products-master",
+    "description": "商品搜尋（缺貨回報要用）：新版登入就能搜尋；舊版 API 雖然只檢查登入，但資料表本身只放行有「商品主檔管理」權限的人，所以沒有這個權限的店長等人實際查到的是空結果。",
+    "reason": "M6 規格問卷 B1 選「登入就能搜尋（同舊版）」；新版改在 API 層判斷（只要登入），資料表權限問題因此消失。舊版非管理者實際查不到這件事問卷沒有涵蓋，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-non-manager"
+    }
+  },
+  {
+    "id": "m6-w27-search-escape",
+    "page": "products-master",
+    "description": "商品搜尋與清單搜尋遇到逗號、括號、百分比、底線等特殊字元：新版一律當一般文字比對；舊版把關鍵字直接組進查詢條件，逗號與括號會改寫條件，百分比與底線被當萬用字元。",
+    "reason": "規格第二節 W27：舊版 q 直接組進 or() 字串，新版必須跳脫（修正，不在問卷內），待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "search-special-chars"
+    }
+  },
+  {
+    "id": "m6-w27-list-pagination",
+    "page": "products-master",
+    "description": "商品主檔清單新版每頁 50 筆並可搜尋，另有「顯示已停用」篩選；舊版一次回傳全部啟用商品，沒有分頁。所有頁合起來的商品與舊版相同。",
+    "reason": "規格第三節 B 假設：清單加分頁（每頁 50）與搜尋，預設只顯示啟用商品；「顯示已停用」篩選來自 B2 的決定，但分頁與搜尋本身問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "list-all"
+    }
+  },
+  {
+    "id": "m6-w28-import-preview-confirm",
+    "page": "products-master",
+    "description": "商品主檔 Excel 匯入：新版選檔後先顯示預覽（將新增幾筆、更新幾筆、略過幾筆與原因，以及哪些停用中的商品會被重新啟用），按「確認匯入」才寫入，寫入時每 500 筆一批；舊版選檔後直接寫入。停用商品被匯入時重新啟用的結果與舊版相同，但新版會在預覽明確列出。",
+    "reason": "M6 規格問卷 B4：使用者選「先預覽再確認」。最後寫入的資料與舊版相同（欄位別名、第一個工作表、依商品編號覆蓋更新）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-flow-preview"
+    }
+  },
+  {
+    "id": "m6-w28-import-count-semantics",
+    "page": "products-master",
+    "description": "匯入完成的數字：舊版回「處理了幾筆」（包含內容完全相同的商品）；新版把內容和現有商品完全相同的列算「略過」，不再寫入，結果訊息分別顯示新增、更新（含重新啟用）與略過筆數。",
+    "reason": "規格 W28 假設：預覽要顯示略過與原因，內容相同不需更新所以不寫入；舊版相同內容仍會重寫一次（只改更新時間）。問卷未詢問，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "import-count-semantics"
+    }
+  },
+  {
+    "id": "m6-w28-import-duplicate-last-wins",
+    "page": "products-master",
+    "description": "Excel 內同一個商品編號出現多列：新版只採用最後一列，前面的列在預覽列為「檔案內編號重複」；舊版把整批一起寫入，同批重複編號會讓資料庫報錯，整個檔案都匯不進去。",
+    "reason": "規格 W28：預覽要顯示略過原因；檔內重複的處理方式問卷未詢問，採「以最後一列為準」，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "import-duplicate-in-file"
+    }
+  },
+  {
+    "id": "m6-w28-import-limit-5000",
+    "page": "products-master",
+    "description": "Excel 匯入單次最多 5000 筆，超過請分檔；商品編號最多 64 字、名稱 200 字、單位 20 字，超過的列在預覽列為略過。舊版沒有這些上限。",
+    "reason": "規格 W28：單次上限約 5000 筆、後端每批 500 筆；欄位長度上限為防呆，問卷未詢問，待使用者確認。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w27-deactivate-permission",
+    "page": "products-master",
+    "description": "停用商品：新版只有有「商品主檔管理」權限的人可以，其他人回 403 並顯示錯誤；舊版程式沒有權限檢查（資料庫那一層默默擋下，介面卻回「成功」）。新版另外新增「重新啟用」。",
+    "reason": "M6 規格問卷 B2：使用者選「只有管理權限者可停用，並新增重新啟用按鈕」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "deactivate-non-manager"
+    }
+  },
+  {
+    "id": "m6-w27-reactivate-edit-create",
+    "page": "products-master",
+    "description": "商品主檔新版多了單筆新增、編輯（商品編號建立後不可改，只能改名稱與單位）與「重新啟用」；舊版只能用 Excel 匯入與停用。",
+    "reason": "M6 規格問卷 B2、B3：使用者選「新增單筆新增與編輯（編號不可改）」與「重新啟用」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "reactivate-edit-create-new"
+    }
+  },
+  {
+    "id": "m6-w27-acquisition-dropped",
+    "page": "products-master",
+    "description": "新版商品主檔不含併購藥局商品整理（掃描條碼、未建立商品、相機拍照、清除某日掃描、掃描照片儲存）；舊版商品主檔頁有「併購藥局商品主檔整理」分頁。舊頁與相關資料表本輪保留不動。",
+    "reason": "M6 規格問卷 B5：使用者選「drop（不移植）」，註記「這功能可以全部拿掉」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "acquisition-tab"
+    }
+  },
+  {
+    "id": "m6-w27-nav-products-master-inpage",
+    "page": "products-master",
+    "description": "導覽「商品主檔」新版改為在工作頁內開啟（舊版是開啟外部的舊頁面）；導覽所需權限不變（商品主檔管理）。導覽與頁面都沒有併購相關項目。",
+    "reason": "M6 規格第五節 B5 導覽項目：給「商品主檔」加上 kind 改在工作頁內開啟，隨使用者捨棄併購整理（B5）一併確認。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)"
+  },
+  {
+    "id": "m6-w27-operation-logs",
+    "page": "products-master",
+    "description": "商品主檔新版會寫操作紀錄（誰、何時、做什麼：匯入幾筆、停用、重新啟用、新增、編輯），存在新資料表 products_master_operation_logs；舊版不留紀錄。",
+    "reason": "規格第三節 B 假設：匯入與停用都寫操作紀錄；問卷未詢問，待使用者確認。",
+    "approvedBy": null
   }
 ]

@@ -386,3 +386,19 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 6. **FKRS 最後一號**：舊版會去除前後空白並轉大寫；新版純函式原本沒有，已對齊舊版（這是補齊舊版行為，不列差異）。
 7. **inventory-view-implies-import-delete**：已查證舊版相同，白名單改為只登記（不再是 fix）；細節見 `approvals.md` 補充與 `m6-batch1-roles.md`。
 8. 沒有真實盤點樣本：所有對跑使用 `tests/fixtures/m6/` 自造檔，**尚未用真實樣本驗證**。
+
+## 第二批實作結果與判斷（W26 縮小版、W27、W28；2026-11-22，DEV）
+
+範圍：共用 Excel 工具、商品主檔頁與 API、Excel 匯入（先預覽再確認）。W29 缺貨回報不在本次。併購藥局商品整理依 B5 不移植。
+
+1. **W26**：新增 `vue-workspace/src/lib/xlsx.ts`（`loadXlsx` 動態載入、`readSheet`、`pickColumns`、`downloadXlsx`、`buildWorkbook`、`sheetToRows`）。`inventory-files.ts` 與關係會員範本下載已改接，行為不變（M6-W25 測試全過）。`UploadPicker.vue`／`lib/upload.ts` 只收圖片與 PDF，Excel 匯入用原生選檔，所以沒有擴充；不做相機元件與 `ImageLightbox.vue`（延到 W31）。`scripts/test-workspace-inventory-files.cjs` 的 vm 載入器補了 `./xlsx` 的 stub。
+2. **資料表盤點**：DEV 已有 `products_master`（0 筆）與 `product_barcodes`（0 筆），RLS 只放行 `store.products_master.manage`。`acquisition_*` 不盤點、不碰。新增 `products_master_operation_logs`（`supabase/workspace-dev/20261122100000_m6_products_master_logs.sql`，附 rollback 與 `m6-sql/` 草稿）。
+3. **發現：舊版搜尋對非管理者實際查不到**。舊 API 只檢查登入，但資料表 RLS 只放行管理權限者，所以沒有商品主檔權限的店長用舊搜尋會得到空結果。新版 API 層判斷登入即可（B1），改用 admin client 讀取，只回編號、名稱、單位。已列白名單 `m6-w27-search-login-only`（approvedBy null，待使用者確認）。
+4. **發現：舊版匯入在 DEV 對所有測試帳號都回 403**（含 admin 與只有商品主檔管理權限的帳號）。原因是舊 route 用登入者身分去讀 `user_roles`／`role_permissions`，受資料表權限影響查不到。對等測試因此先打真的舊 API，回 403 時改用「逐字複製舊版邏輯」的等價寫入（舊版欄位別名、第一個工作表、upsert、`is_active:true`）比對最後資料表內容。正式區行為未驗證（不連正式區）。
+5. **權限語意**：新 API 一律走 `context()`（正式區 `has_permission` 語意：不檢查 `roles.is_active`、無 DB admin 繞過、只有 `profiles.role==='admin'` 應用層後備）。整合測試涵蓋 `roles.is_active=false` 仍有權限、`user_roles` 失效或 `is_allowed=false` 即失去、一般帳號被設為 admin 才能繞過。管理權限碼登記在 `lib/workspace/modules.ts` 的 `moduleCodes.productsMaster`，session capability 為 `productsMaster`。
+6. **API**（`app/api/workspace/products-master/[[...path]]`）：`GET search?q=`（登入即可，編號開頭優先、再補包含，最多 20，只含啟用，特殊字元跳脫）、`GET`（清單，管理權限，每頁 50、`q`、`include_inactive=1`、頁碼超出回最後一頁）、`POST`（新增）、`PATCH :id`（只能改名稱、單位）、`POST :id/deactivate`、`POST :id/reactivate`（已是目標狀態回 `changed:false`，不重複寫紀錄）、`POST import/preview`、`POST import`。寫入類都檢查 Origin。
+7. **搜尋跳脫**：LIKE 的 `%`、`_`、反斜線跳脫；清單與「包含」搜尋用 `or()` 時，值整個以雙引號包起來（`orContains`），逗號、括號不會改寫條件。唯一殘留：PostgREST 把 `*` 當萬用字元別名。
+8. **W28 匯入**：前端用 `readSheet` 讀第一個工作表、`pickColumns` 依舊版別名挑欄位（與舊版 normalize 逐列一致，單元測試對照），送 JSON 列給預覽與確認兩支 API（兩支都會在伺服端重新清理與重算；確認時以寫入當下的資料重新計算）。預覽顯示新增、更新（含重新啟用）、略過與原因（缺編號、缺名稱、檔內重複只採最後一列、內容相同、過長）。單次上限 5000 筆（前後端都擋），寫入每 500 筆一批；讀現有資料的 `in()` 因網址長度限制改以 100 個一批。中途失敗會回報已寫入筆數並記一筆失敗紀錄，重新匯入同一份檔案會自動略過已寫入的。
+9. **白名單**（`tests/parity/allowlist.json`、`plain.json`）：使用者問卷選擇者（approvedBy `user (2026-11-21 M6 規格問卷)`）：`m6-w28-import-preview-confirm`（B4）、`m6-w27-deactivate-permission`（B2）、`m6-w27-reactivate-edit-create`（B2、B3）、`m6-w27-acquisition-dropped`（B5）、`m6-w27-nav-products-master-inpage`（B5 導覽）。approvedBy null（假設或修正，待確認）：`m6-w27-search-login-only`、`m6-w27-search-escape`、`m6-w27-list-pagination`、`m6-w28-import-count-semantics`、`m6-w28-import-duplicate-last-wins`、`m6-w28-import-limit-5000`、`m6-w27-operation-logs`。
+10. **測試**：`tests/unit/M6-W27/`（28 項：規則、別名對照舊版、xlsx 工具、不含併購）、`tests/integration/M6-W27.products-master-roles.spec.ts`（角色與權限語意、搜尋、分頁、CRUD、匯入含 1100 筆分批與 5000 上限、操作紀錄）、`tests/e2e/M6-W27.products-master-journey.e2e.spec.ts`（桌機與手機：無權限角色沒有入口、管理者完成匯入預覽到重新啟用）、`tests/parity/M6-W27.products-master.spec.ts`（新舊搜尋逐筆相同、清單集合、同一份 Excel 最後資料表相同、停用、舊頁併購分頁）。測試商品編號 `ZT2038-<runId>-…`，sweeper 以 `ZT2038-T%` 作後備。
+11. 順帶修正：`tests/fixtures/t03-nav-baseline.json` 加入「商品主檔」與先前 G19 已存在但漏登記的「總務組」（29 到 31），並把「服務中心首頁」過時的標題「新版已可使用」改為「待我處理0」（M7/M8 第 6 批已移除該提示）；T03 回歸測試因此恢復全綠。

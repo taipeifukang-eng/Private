@@ -1,5 +1,5 @@
 {
-  "count": 29,
+  "count": 31,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -232,6 +232,18 @@
       "allowedNoticeShown": false
     },
     {
+      "navLabel": "商品主檔",
+      "tabTitle": "商品主檔",
+      "headings": [
+        "商品主檔",
+        "匯入商品主檔（Excel）"
+      ],
+      "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
       "navLabel": "每月人員狀態",
       "tabTitle": "人員狀態 · 南港店",
       "headings": [
@@ -317,10 +329,21 @@
         "資產與庫存",
         "費用管理",
         "合作廠商",
-        "新版已可使用"
+        "待我處理0"
       ],
       "hasTable": false,
       "hasForm": false,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "總務組",
+      "tabTitle": "總務組維修",
+      "headings": [
+        "總務組維修"
+      ],
+      "hasTable": false,
+      "hasForm": true,
       "hasErrorNotice": false,
       "allowedNoticeShown": false
     },

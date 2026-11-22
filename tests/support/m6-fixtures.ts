@@ -26,6 +26,10 @@ export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' 
 export const M6_SCENARIOS: Record<string, M6Scenario> = {
   // 關係會員「核可」單獨權限（role-matrix 沒有 approve 的單獨帳號）
   rel_approve: { desc: '只有關係會員核可權限', perms: ['relationship_member.approve'], profileRole: 'member' },
+  // 第二批 W27：只有商品主檔管理權限、非 admin（驗證不靠管理員後備也能操作）
+  pm_manage: { desc: '只有商品主檔管理權限', perms: ['store.products_master.manage'], profileRole: 'member' },
+  // 第二批 W27：有一般登入身分、完全沒有商品主檔權限（可搜尋、不可管理）
+  pm_plain: { desc: '無商品主檔權限的一般帳號', perms: [], profileRole: 'member' },
 };
 
 export async function cleanupM6Users(db: any = adminDb()): Promise<string[]> {
@@ -33,6 +37,7 @@ export async function cleanupM6Users(db: any = adminDb()): Promise<string[]> {
   const { data: profs } = await db.from('profiles').select('id').like('email', `${M6_EMAIL_PREFIX}%@example.test`);
   const uids = (profs || []).map((p: { id: string }) => p.id);
   if (uids.length) {
+    await db.from('products_master_operation_logs').delete().in('actor_id', uids);
     await db.from('store_managers').delete().in('user_id', uids);
     await db.from('user_roles').delete().in('user_id', uids);
   }
@@ -95,3 +100,12 @@ export async function cleanupM6Relationships(runId: string = runIdOrThrow(), db:
 }
 export const salesFileName = (tag: string) => `m6p07-${runIdOrThrow()}-${tag}.xlsx`;
 export const memberName = (tag: string) => `ZT${runIdOrThrow()}-${tag}`;
+
+/** 第二批 W27/W28：測試商品編號一律 ZT2038-<runId>-<tag>（sweeper 以 ZT2038-T% 作後備）；只刪自己的。 */
+export const productPrefix = () => `ZT2038-${runIdOrThrow()}`;
+export const productCode = (tag: string) => `${productPrefix()}-${tag}`;
+export async function cleanupM6Products(runId: string = runIdOrThrow(), db: any = adminDb()): Promise<void> {
+  const pattern = `ZT2038-${runId}-%`;
+  await db.from('products_master_operation_logs').delete().like('product_code', pattern);
+  await db.from('products_master').delete().like('product_code', pattern);
+}
