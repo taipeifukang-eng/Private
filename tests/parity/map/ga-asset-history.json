@@ -1,0 +1,31 @@
+{
+  "page": "ga-asset-history",
+  "legacyRoute": "/general-affairs/equipment/warranties、/general-affairs/equipment/maintenance-history、/general-affairs/facilities/warranties、/general-affairs/facilities/maintenance-history",
+  "workItem": "G09",
+  "entries": [
+    {
+      "id": "warranty-read",
+      "mechanism": "api-read",
+      "description": "設備保固頁：同一個登入者，舊頁用的 GET /api/general-affairs/equipment?sortBy=warranty_end_date（只載入前 100 筆）與新版同一個查詢，設備 id、保固欄位與保固狀態（保固中、即將到期、已過保、保固日未填、無保固）相同。差異：新版保固到期用台北時間（到期日當天結束才過期）、多回保固文件（一次查完，舊版每台各送一次請求）、整個範圍的精確筆數。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment", "query": { "search": "[自動測試]M7M8", "pageSize": "100", "sortBy": "warranty_end_date", "sortDir": "asc" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/equipment", "query": { "search": "[自動測試]M7M8", "pageSize": "100", "sortBy": "warranty_end_date", "sortDir": "asc", "withWarrantyDocs": "1" } } },
+      "compareKey": "id"
+    },
+    {
+      "id": "facility-warranty-read",
+      "mechanism": "api-read",
+      "description": "設施保固頁：舊 GET /api/general-affairs/facilities 的 specs 保固欄位與新版保固狀態相同（設施保固存在 specs，新版統一算出保固狀態與到期日，並可依保固狀態篩選與依到期日排序）。",
+      "legacy": { "api": { "path": "/api/general-affairs/facilities", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/facilities", "query": { "search": "[自動測試]M7M8", "pageSize": "100", "withWarrantyDocs": "1" } } },
+      "compareKey": "id"
+    },
+    {
+      "id": "maintenance-history-read",
+      "mechanism": "api-read",
+      "description": "維修紀錄：舊頁讀 GET /api/maintenance-requests?source=general_affairs（只載入前 100 筆、在瀏覽器過濾 equipment_id／facility_id，而工單資料表沒有這兩個欄位，所以實際永遠沒有資料）；新版改讀報修類需求單與其工單（Q11），完整分頁與精確筆數，門市負責人只看自己門市且看不到處理人。",
+      "legacy": { "api": { "path": "/api/maintenance-requests", "query": { "source": "general_affairs", "pageSize": "100" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/asset-maintenance/history", "query": { "type": "equipment", "pageSize": "100" } } },
+      "compareKey": "id"
+    }
+  ]
+}

@@ -1,42 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import * as XLSX from 'xlsx';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { requirePermission } from '@/lib/permissions/check';
+import { parseSalesRows, readSalesRows, validateSalesSheet } from '@/lib/relationships/sales-import';
 
-type SalesRow = Record<string, unknown>;
-const REQUIRED_HEADERS = ['門市代號', '銷售日期', '會員編號', '品號', '品名', '數量', '金額'];
-
-function textValue(value: unknown) {
-  return String(value ?? '').trim();
-}
-
-function numberValue(value: unknown) {
-  if (typeof value === 'number') return value;
-  const normalized = textValue(value).replace(/,/g, '');
-  return normalized === '' ? Number.NaN : Number(normalized);
-}
-
-function saleDateValue(value: unknown): string | null {
-  if (typeof value === 'number') {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (!parsed) return null;
-    return `${parsed.y}-${String(parsed.m).padStart(2, '0')}-${String(parsed.d).padStart(2, '0')}T${String(parsed.H).padStart(2, '0')}:${String(parsed.M).padStart(2, '0')}:00+08:00`;
-  }
-
-  const match = textValue(value).match(/^(\d{4})\/(\d{2})\/(\d{2}) (\d{2}):(\d{2})$/);
-  if (!match) return null;
-  const [, year, month, day, hour, minute] = match;
-  const candidate = new Date(`${year}-${month}-${day}T${hour}:${minute}:00+08:00`);
-  if (Number.isNaN(candidate.getTime())) return null;
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  });
-  const parts = Object.fromEntries(formatter.formatToParts(candidate).map((part) => [part.type, part.value]));
-  if (parts.year !== year || parts.month !== month || parts.day !== day || parts.hour !== hour || parts.minute !== minute) return null;
-  return `${year}-${month}-${day}T${hour}:${minute}:00+08:00`;
-}
-
+// 欄位驗證與日期規則已抽到 lib/relationships/sales-import.ts（與 workspace 匯入共用）；此 route 的行為不變：每次匯入都新建批次並直接 insert，不去重。
 export async function POST(request: NextRequest) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -54,43 +21,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: '僅支援 .xlsx 格式' }, { status: 400 });
   }
 
-  let rows: SalesRow[];
-  try {
-    const workbook = XLSX.read(Buffer.from(await file.arrayBuffer()), { type: 'buffer' });
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    rows = XLSX.utils.sheet_to_json<SalesRow>(sheet, { defval: '' });
-  } catch {
-    return NextResponse.json({ error: 'Excel 檔案無法解析' }, { status: 400 });
-  }
+  const rows = readSalesRows(Buffer.from(await file.arrayBuffer()));
+  if (!rows) return NextResponse.json({ error: 'Excel 檔案無法解析' }, { status: 400 });
 
-  if (!rows.length) return NextResponse.json({ error: 'Excel 中沒有資料' }, { status: 400 });
-  const missingHeaders = REQUIRED_HEADERS.filter((header) => !(header in rows[0]));
-  if (missingHeaders.length) {
-    return NextResponse.json({ error: `缺少欄位：${missingHeaders.join('、')}` }, { status: 400 });
-  }
-  const actualHeaders = Object.keys(rows[0]).slice(0, REQUIRED_HEADERS.length);
-  const hasCorrectOrder = REQUIRED_HEADERS.every((header, index) => actualHeaders[index] === header);
-  if (!hasCorrectOrder) {
-    return NextResponse.json({
-      error: `欄位順序錯誤，前七欄必須依序為：${REQUIRED_HEADERS.join('、')}`,
-    }, { status: 400 });
-  }
+  const sheetError = validateSalesSheet(rows);
+  if (sheetError) return NextResponse.json({ error: sheetError }, { status: 400 });
 
-  const errors: string[] = [];
-  const validRows = rows.map((row, index) => {
-    const storeCode = textValue(row['門市代號']);
-    const saleDatetime = saleDateValue(row['銷售日期']);
-    const memberNumber = textValue(row['會員編號']);
-    const productCode = textValue(row['品號']);
-    const productName = textValue(row['品名']);
-    const quantity = numberValue(row['數量']);
-    const amount = numberValue(row['金額']);
-    if (!storeCode || !saleDatetime || !memberNumber || !productCode || !productName || !Number.isFinite(quantity) || !Number.isFinite(amount)) {
-      errors.push(`第 ${index + 2} 列資料不完整，銷售日期須為 YYYY/MM/DD HH:MM，數量與金額須為數字`);
-    }
-    return { storeCode, saleDatetime, memberNumber, productCode, productName, quantity, amount };
-  });
-
+  const { validRows, errors } = parseSalesRows(rows);
   if (errors.length) {
     return NextResponse.json({ error: errors.slice(0, 10).join('\n'), error_count: errors.length }, { status: 400 });
   }

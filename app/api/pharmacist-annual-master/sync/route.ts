@@ -36,12 +36,14 @@ export async function GET(req: NextRequest) {
     .single();
 
   const isLocked = !!lockData;
+  // 工作台對沒有 master.view 的帳號加上 readonly=1：只讀回傳，不觸發寫入型同步。
+  const readOnly = req.nextUrl.searchParams.get('readonly') === '1';
 
   // 真正最後同步時間（回傳給畫面顯示）
   let lastSyncedAt: string | null = null;
 
   // 2. 如果未關帳，判斷是否有新增人事異動再決定是否重跑同步
-  if (!isLocked) {
+  if (!isLocked && !readOnly) {
     const yearStart = `${year}-01-01`;
     const yearEnd = `${year}-12-31`;
     const todayStr = taiwanDateOf(new Date());
@@ -84,6 +86,14 @@ export async function GET(req: NextRequest) {
         .upsert({ year, last_synced_at: syncStartedAt }, { onConflict: 'year' });
       if (!logError) lastSyncedAt = syncStartedAt;
     }
+  } else if (!isLocked && readOnly) {
+    // 只讀模式不同步，但仍回傳真正最後同步時間供畫面顯示
+    const { data: syncLog } = await adminSupabase
+      .from('pharmacist_annual_master_sync_log')
+      .select('last_synced_at')
+      .eq('year', year)
+      .maybeSingle();
+    lastSyncedAt = syncLog?.last_synced_at ?? null;
   }
 
   // 3. 查詢年度主檔資料

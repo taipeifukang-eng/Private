@@ -1,0 +1,7 @@
+window.__mapTest={maps:[],markers:[]};
+class TestMap{constructor(el){this.el=el;this.zoom=8;this.listeners={};window.__mapTest.maps.push(this);el.textContent='Google SDK 測試替身';}fitBounds(bounds){this.bounds=bounds.points;setTimeout(()=>this.listeners.tilesloaded?.(),0);}setZoom(z){this.zoom=z;}getZoom(){return this.zoom;}panTo(p){this.center=p;}}
+class TestMarker{constructor(options){this.position=options.position;this.button=document.createElement('button');this.button.textContent=options.title;this.button.className='test-map-marker';this.button.setAttribute('aria-label','地圖標記 '+options.title);this.map=options.map;window.__mapTest.markers.push(this);}set map(value){this.button.remove();this._map=value;if(value)value.el.append(this.button);}get map(){return this._map;}addListener(event,callback){this.button.onclick=callback;return{remove:()=>this.button.onclick=null};}}
+class TestBounds{constructor(){this.points=[];}extend(p){this.points.push(p);}}
+class TestInfo{setContent(content){this.content=content;}open({map}){this.content.classList.add('test-map-info');map.el.append(this.content);}close(){this.content?.remove();}}
+const event={clearInstanceListeners(object){if(object.listeners)object.listeners={};},trigger(){},addListenerOnce(object,name,callback){object.listeners[name]=()=>{delete object.listeners[name];callback();};return{remove:()=>delete object.listeners[name]};}};
+window.google={maps:{event,LatLngBounds:TestBounds,importLibrary:async()=>({Map:TestMap,AdvancedMarkerElement:TestMarker,InfoWindow:TestInfo,LatLngBounds:TestBounds,event})}};

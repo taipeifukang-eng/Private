@@ -1,3 +1,4 @@
+import { getMovementDateError } from '@/lib/employee-movement-date';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import {
@@ -44,6 +45,8 @@ export async function POST(request: NextRequest) {
 
     // 驗證所有資料
     for (const promo of promotions) {
+      const dateError = getMovementDateError(promo.effective_date);
+      if (dateError) return NextResponse.json({ success: false, error: `員工 ${promo.employee_code || ''}：${dateError}` }, { status: 400 });
       if (!promo.employee_code || !promo.employee_name || !promo.position || !promo.effective_date) {
         return NextResponse.json({ 
           success: false, 

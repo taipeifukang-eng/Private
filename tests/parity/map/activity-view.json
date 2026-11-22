@@ -1,0 +1,79 @@
+{
+  "page": "activity-view",
+  "legacyRoute": "/activity-management、/activity-view/[id]",
+  "workItem": "W20",
+  "entries": [
+    {
+      "id": "view-list-set",
+      "mechanism": "api-read",
+      "description": "活動檢視列表可見的活動集合：舊 GET /api/campaigns/published 與新版 GET /api/workspace/activity-view（M5 Q2：停用的活動一律隱藏，含有「查看全部」權限者）。",
+      "legacy": { "api": { "path": "/api/campaigns/published", "pick": "data" } },
+      "native": { "api": { "path": "/api/workspace/activity-view", "pick": "data" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "view-detail",
+      "mechanism": "api-read",
+      "description": "單一活動檢視：舊 GET /api/campaigns/[id]/view 與新版 GET /api/workspace/activity-view?id=。可看到的狀態碼與排程門市集合必須相同（停用的活動新版 404，列入 Q2）。",
+      "legacy": { "api": { "path": "/api/campaigns/{id}/view", "pick": "schedules" } },
+      "native": { "api": { "path": "/api/workspace/activity-view", "pick": "schedules" } },
+      "compareKey": "store_id"
+    },
+    {
+      "id": "viewer-rules",
+      "mechanism": "api-read",
+      "description": "Q7：支援請求、人力查看、前置 Check List 三顆按鈕與管轄門市。舊版在瀏覽器端查 user_roles／store_managers（tests 以 service role 逐行重現該查詢），新版伺服器計算，兩者必須相同。",
+      "legacy": { "source": "app/activity-view/[id]/page.tsx loadData（hasAssignPerm、hasOverviewPerm、managedStores）" },
+      "native": { "api": { "path": "/api/workspace/activity-view", "pick": "viewer" } }
+    },
+    {
+      "id": "fill-write-scope",
+      "mechanism": "write-readback",
+      "description": "Q6：店長／督導填報（人力預估、本店人員、Check List 勾選與備註、支援人員指派）。舊版各 POST API 與新版 campaign-tools 對同一帳號、同一門市的允許與否必須相同（店長只能寫自己被任命的門市、督導依活動檢視範圍）。",
+      "legacy": { "source": "app/api/campaign-store-headcount、campaign-checklist-completions、campaign-store-own-staff、campaign-support-staff 的 POST" },
+      "native": { "api": { "path": "/api/workspace/campaign-tools" } }
+    },
+    {
+      "id": "legacy-url-redirect",
+      "mechanism": "navigation",
+      "description": "Q8：舊網址 /activity-management、/activity-view/[id] 自動轉到新版（307）。舊版是直接顯示舊頁。",
+      "legacy": { "source": "app/activity-management/page.tsx、app/activity-view/[id]/page.tsx（舊頁與舊 API 保持原樣）" },
+      "native": { "source": "middleware.ts activityLegacyTarget" }
+    },
+    {
+      "id": "status-label",
+      "mechanism": "ui-extract",
+      "description": "活動狀態標籤（即將開始／進行中／已結束）：舊版用現在時間與 UTC 零點的結束日比較，結束日當天台灣時間 08:00 後就顯示已結束；新版以台灣日期判斷，結束日整天都是進行中。",
+      "legacy": { "source": "app/activity-management/page.tsx getStatusBadge" },
+      "native": { "source": "lib/workspace/activity-view-rules.ts viewStatusLabel" }
+    },
+    {
+      "id": "unpublished-tag",
+      "mechanism": "ui-extract",
+      "description": "有「查看全部」權限者看到的未發布草稿，新版列表加「未發布」標籤；舊版沒有標籤。",
+      "legacy": { "source": "app/activity-management/page.tsx（發布給：區塊只在有發布對象時顯示）" },
+      "native": { "source": "vue-workspace/src/pages/ActivityViewList.vue" }
+    },
+    {
+      "id": "no-permission-page",
+      "mechanism": "ui-extract",
+      "description": "無權限直接輸入網址：舊版 alert 錯誤訊息再導回列表；新版顯示無權限頁（有返回活動列表按鈕）。",
+      "legacy": { "source": "app/activity-view/[id]/page.tsx loadData（alert 並 router.push）" },
+      "native": { "source": "vue-workspace/src/pages/ActivityViewDetail.vue" }
+    },
+    {
+      "id": "pdf-format",
+      "mechanism": "ui-extract",
+      "description": "PDF 匯出：A4 橫式、每月一頁、檔名「活動名稱_活動排程.pdf」、版面邊界與縮放（改回舊版）。",
+      "legacy": { "source": "app/activity-view/[id]/page.tsx handleExportPDF" },
+      "native": { "source": "lib/workspace/activity-view-rules.ts、vue-workspace/src/activity-calendar-pdf.ts" }
+    },
+    {
+      "id": "year-filter",
+      "mechanism": "ui-extract",
+      "description": "年度按鈕：全部＋各年度、預設今年、跨年活動兩個年度都算。",
+      "legacy": { "source": "app/activity-management/page.tsx availableYears、filteredCampaigns" },
+      "native": { "source": "lib/workspace/activity-view-rules.ts availableYears、campaignInYear" }
+    }
+  ]
+}

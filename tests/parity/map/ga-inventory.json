@@ -1,0 +1,53 @@
+{
+  "page": "ga-inventory",
+  "legacyRoute": "/general-affairs/inventory",
+  "workItem": "G12",
+  "entries": [
+    {
+      "id": "balance-list-read",
+      "mechanism": "api-read",
+      "description": "同一個登入者、同一個搜尋，舊版 GET /api/general-affairs/inventory/balances 與新版同路徑清單逐列比對（id、位置、料件、庫存、最後異動時間、持有狀態、門市關聯、筆數）。角色：總務（全部可見）、店長（名單身分，只看自己門市）。差異：新版多回低庫存標示與統計（C5、C7）、持有狀態調整原因對名單身分遮蔽（C12）、含 0 的總筆數精確。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/balances" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/balances" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "transaction-list-read",
+      "mechanism": "api-read",
+      "description": "同一個登入者、同一個位置篩選，舊版 GET /api/general-affairs/inventory/transactions 與新版同路徑流水逐列比對（單號、類型、數量、前後餘額、原因、發生時間）。差異：新版回記錄人姓名與來源說明、不回識別碼與參考單據 id、日期篩選用台北時間、名單身分的原因與備註遮蔽（C12）。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/transactions" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/transactions" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "holding-read",
+      "mechanism": "api-read",
+      "description": "持有狀態：舊版把持有量嵌在餘額清單裡、彙總與前 3 名由畫面用「載入的那一頁」自己算；新版 GET /holding 由資料庫端對全部資料精確加總。同一份資料（筆數不超過一頁）兩邊的每列持有量與彙總必須相同。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/balances" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/holding" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "options-read",
+      "mechanism": "api-read",
+      "description": "過帳用選項：舊版 GET /api/general-affairs/inventory/options 一次回全部位置與位置料件（超過 1000 筆被靜默截斷）；新版改搜尋加分頁。同一個位置的料件設定與目前庫存逐筆比對。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/options" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/options" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "post-write-readback",
+      "mechanism": "write-readback",
+      "description": "過帳後以 service role 回讀資料庫列比對：同一份輸入分別用舊版與新版過帳（各用一組相同初始狀態的位置與料件），流水欄位（類型、數量、單位換算、前後餘額、原因、備註）與餘額相同。新規則差異：發生時間不可晚於現在、補登舊日期不讓最後異動時間倒退、兩個權限缺哪個講清楚、固定識別必填。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/transactions/post", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/transactions/post", "method": "POST" } }
+    },
+    {
+      "id": "holding-write-readback",
+      "mechanism": "write-readback",
+      "description": "調整持有狀態後回讀資料庫（持有量、備註、事件紀錄）比對：同一份輸入分別用舊版 PUT 與新版 PATCH。新規則差異：新版要帶 expected_updated_at（版本檢查，衝突 409 STALE）、調整原因欄位叫 reason。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/balances/:id/holding", "method": "PUT" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/holding/:balanceId", "method": "PATCH" } }
+    }
+  ]
+}

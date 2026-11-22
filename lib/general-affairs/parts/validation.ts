@@ -162,6 +162,12 @@ export function validatePartPayload(input: any, options: { partial?: boolean } =
     output.allow_unpacking = normalizeBoolean(payload.allow_unpacking, false);
   }
 
+  // D14：採購入庫後可轉成的設備型號（空白 = 清空；型號是否啟用由資料庫觸發器檢查）。
+  if (Object.prototype.hasOwnProperty.call(payload, 'equipment_template_id')) {
+    const raw = String(payload.equipment_template_id ?? '').trim();
+    output.equipment_template_id = raw ? validateUuid(raw, '設備型號 id') : null;
+  }
+
   if (!options.partial || Object.prototype.hasOwnProperty.call(payload, 'is_active')) {
     output.is_active = normalizeBoolean(payload.is_active, true);
   }

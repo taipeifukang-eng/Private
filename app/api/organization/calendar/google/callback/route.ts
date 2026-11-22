@@ -9,6 +9,7 @@ import {
   syncCompanyCalendarSnapshot,
 } from '@/lib/organization/google-calendar';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
+import { googleFetch } from '@/lib/workspace/calendar-mock';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     const config = getGoogleCalendarEnvironment();
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    const tokenResponse = await googleFetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
       throw new Error('已連結的 Google 日曆 ID 與伺服器設定不同，請先確認 GOOGLE_CALENDAR_ID');
     }
 
-    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    const userInfoResponse = await googleFetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: { Authorization: `Bearer ${tokenPayload.access_token}` },
       cache: 'no-store',
     });

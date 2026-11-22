@@ -1,0 +1,29 @@
+{
+  "page": "ga-vendors",
+  "legacyRoute": "/general-affairs/vendors",
+  "workItem": "G20-G21-ui",
+  "entries": [
+    {
+      "id": "vendor-create-write-readback",
+      "mechanism": "write-readback",
+      "description": "新增廠商：同一份輸入，舊版（登入者瀏覽器直接 insert ga_vendors，原樣送 GeneralAffairsServiceCenterClient.tsx saveVendor 的欄位）與新版 POST /vendors 寫入後以 service role 回讀資料列逐欄比對。差異：服務地址同公司地址時新版不複製、新版不再寫假績效與假附件、新版留修改者、統編重複與公司沒填統編舊版可存新版擋下、舊版沒有編輯，新版編輯必帶版本。",
+      "legacy": { "source": "components/general-affairs/service-center/GeneralAffairsServiceCenterClient.tsx#saveVendor（supabase client insert ga_vendors）" },
+      "native": { "api": { "path": "/api/workspace/general-affairs/vendors", "method": "POST" } }
+    },
+    {
+      "id": "vendor-list-read",
+      "mechanism": "api-read",
+      "description": "廠商列表與統計卡：舊版瀏覽器直接 select ga_vendors（全表、客戶端算統計），新版 GET /vendors（伺服端搜尋分頁、精確統計）；同一批測試廠商共同欄位逐筆比對，統計卡數字（全部、合作中、暫停、停用）比對。新版多回 contract_due。",
+      "legacy": { "source": "components/general-affairs/service-center/GeneralAffairsServiceCenterClient.tsx#loadVendorManagementData（supabase client select ga_vendors）" },
+      "native": { "api": { "path": "/api/workspace/general-affairs/vendors" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "svc-category-region-write-readback",
+      "mechanism": "write-readback",
+      "description": "服務分類與服務區域：舊版 insert（payload 同 saveVendorCategory／saveVendorRegion）與新版 POST 寫入後回讀逐欄比對；新版另有編輯（區域舊版只能新增）、代碼重複與循環上層白話擋下、更新必帶版本。",
+      "legacy": { "source": "components/general-affairs/service-center/GeneralAffairsServiceCenterClient.tsx#saveVendorCategory／saveVendorRegion（supabase client insert）" },
+      "native": { "api": { "path": "/api/workspace/general-affairs/service-categories", "method": "POST" } }
+    }
+  ]
+}

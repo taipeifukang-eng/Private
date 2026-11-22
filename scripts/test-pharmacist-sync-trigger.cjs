@@ -104,7 +104,7 @@ ok('annual master route uses shared trigger, Taiwan today, returns real last_syn
   assert.match(route, /taiwanDateOf\(new Date\(\)\)/);
   assert.doesNotMatch(route, /syncedAt: isLocked \? null : new Date\(\)/);
   assert.match(route, /syncedAt: isLocked \? null : lastSyncedAt/);
-  assert.match(route, /if \(!isLocked\) \{/); // locked years still skip sync
+  assert.match(route, /if \(!isLocked( && !readOnly)?\) \{/); // locked years still skip sync (readonly=1 also skips writes)
 });
 ok('monthly overview uses shared trigger with month scope + store scope', () => {
   assert.match(page, /hasSyncTriggeringMovement\(/);

@@ -1,0 +1,21 @@
+{
+  "page": "inspection-settings",
+  "legacyRoute": "/admin/inspection-templates",
+  "workItem": "W18",
+  "entries": [
+    {
+      "id": "grade-default-same",
+      "mechanism": "write-readback",
+      "description": "預設評級門檻下，邊界分數（219.9、215、214.9、191、190.9、121、120.9、0 等）新版資料庫評級函式與舊版寫死門檻同輸入同輸出。",
+      "legacy": { "source": "supabase/workspace-dev/20261028020000_vue_improvements.sql update_inspection_bonus_total（寫死 220/215/191…）" },
+      "native": { "source": "workspace_grade_for_score（supabase/workspace-dev/20261107160000_m4_grade_snapshot.sql）" }
+    },
+    {
+      "id": "grade-new-inspection-after-change",
+      "mechanism": "write-readback",
+      "description": "M4 Q5：評級對照表被改過後，舊版新增／編輯頁與改善加分仍用寫死門檻；新版每張單用完成當時的設定（snapshot）。",
+      "legacy": { "source": "app/inspection/new/page.tsx、update_inspection_bonus_total（寫死門檻）" },
+      "native": { "source": "inspection_masters.grade_thresholds snapshot（20261107160000_m4_grade_snapshot.sql）" }
+    }
+  ]
+}

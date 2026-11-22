@@ -1,0 +1,101 @@
+{
+  "page": "improvements",
+  "legacyRoute": "/inspection/improvements",
+  "workItem": "W17",
+  "entries": [
+    {
+      "id": "list-scope",
+      "mechanism": "api-read",
+      "description": "改善列表的查看範圍（角色矩陣等價）：同一批種子資料、同一個角色，舊版 GET /api/inspection/improvements 與新版 GET /api/workspace/improvements 看到的項目、狀態、期限、扣分、回補逐項相同。",
+      "legacy": {
+        "api": {
+          "path": "/api/inspection/improvements",
+          "pick": "improvements"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/improvements",
+          "pick": "records"
+        }
+      },
+      "compareKey": "id"
+    },
+    {
+      "id": "urgent",
+      "mechanism": "api-read",
+      "description": "急迫標示與逾期顯示：舊版（列表伺服端用 UTC 日期判逾期；畫面「待改善且剩 2 天內」標急迫）與新版（台灣日期、伺服端回 urgent）同輸入對照。",
+      "legacy": {
+        "api": {
+          "path": "/api/inspection/improvements",
+          "pick": "improvements"
+        },
+        "source": "app/inspection/improvements/page.tsx（getDaysRemaining、isUrgent）"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/improvements",
+          "pick": "records"
+        }
+      }
+    },
+    {
+      "id": "bonus-days",
+      "mechanism": "write-readback",
+      "description": "改善回補天數與分數（影響獎金）：同一組回報時間，舊版正式區函式（UTC 日期）與新版資料庫觸發器（台灣日期）逐點對照（台灣 8 點以後的時間點：兩邊相同）。",
+      "legacy": {
+        "source": "supabase/migration_improvement_bonus_percentage.sql calculate_improvement_bonus（improved_at::date）"
+      },
+      "native": {
+        "source": "supabase/workspace-dev/20261108100000_m4_w17_improvement_taipei_overdue.sql"
+      }
+    },
+    {
+      "id": "bonus-days-early",
+      "mechanism": "write-readback",
+      "description": "同上，台灣凌晨 0–8 點的回報時間點：舊版 UTC 日期少算一天，新版按台灣日期（M4 Q17 已核可差異）。",
+      "legacy": {
+        "source": "supabase/migration_improvement_bonus_percentage.sql calculate_improvement_bonus（improved_at::date）"
+      },
+      "native": {
+        "source": "supabase/workspace-dev/20261108100000_m4_w17_improvement_taipei_overdue.sql"
+      }
+    },
+    {
+      "id": "write-permission",
+      "mechanism": "write-readback",
+      "description": "M4 Q18：誰能寫入改善回報。舊版資料庫更新政策只允許該門市店長、該次巡店督導、有「管理改善」權限者、管理員；新版允許管理員、該門市店長、有「提交改善」權限者。",
+      "legacy": {
+        "source": "supabase/migration_add_improvement_system.sql 更新待改善事項政策"
+      },
+      "native": {
+        "source": "lib/workspace/improvements.ts improvementRecord canSubmit"
+      }
+    },
+    {
+      "id": "overdue-report",
+      "mechanism": "write-readback",
+      "description": "M4 Q19：被補跑程式標成已逾期（資料庫 overdue）的項目能不能補報。舊版 canSubmit = 有權限且 status === 'pending'；新版逾期一律可補報、回補 0 分。",
+      "legacy": {
+        "source": "app/inspection/improvements/[id]/page.tsx setCanSubmit"
+      },
+      "native": {
+        "api": {
+          "method": "GET",
+          "path": "/api/workspace/improvement-detail"
+        }
+      }
+    },
+    {
+      "id": "list-limit",
+      "mechanism": "api-read",
+      "description": "列表筆數：舊版每個狀態最多載 200 筆；新版全部載入。",
+      "legacy": {
+        "source": "app/api/inspection/improvements/route.ts LIST_LIMIT"
+      },
+      "native": {
+        "source": "app/api/workspace/improvements/route.ts（分批全部載入）"
+      }
+    }
+  ]
+}

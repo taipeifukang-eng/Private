@@ -1,0 +1,35 @@
+{
+  "page": "home",
+  "legacyRoute": "/",
+  "workItem": "W11、W12",
+  "entries": [
+    {
+      "id": "home-read",
+      "mechanism": "ui-extract",
+      "description": "登入首頁的讀取對等：同一個角色登入後，擷取舊版首頁畫面上的調店待確認數、獎金明細、新人入職、壽星、年費提醒、執照提醒，與新版 GET home 比對（提醒名單用 DEV 現有資料，壽星與新人用測試門市的測試員工）。",
+      "legacy": { "ui": { "route": "/" } },
+      "native": { "api": { "path": "/api/workspace/home" } }
+    },
+    {
+      "id": "home-bonus",
+      "mechanism": "ui-extract",
+      "description": "每月獎金明細：測試帳號暫時帶測試員編，建立 2038 年度的獎金列（含零金額月份與同月兩間門市），比對月份、合計與各欄位金額；新版另外標註月結尚未確認的月份（M3 Q12）。",
+      "legacy": { "ui": { "route": "/" } },
+      "native": { "api": { "path": "/api/workspace/home" } }
+    },
+    {
+      "id": "home-tasks",
+      "mechanism": "ui-extract",
+      "description": "首頁我的任務：同一組四筆指派（兩筆未完成、兩筆已完成），舊版依建立時間顯示最新三筆；新版未完成優先（M3 Q14）。",
+      "legacy": { "ui": { "route": "/" } },
+      "native": { "api": { "path": "/api/workspace/home" } }
+    },
+    {
+      "id": "home-layout",
+      "mechanism": "ui-extract",
+      "description": "首頁版面：問候的副標題、卡片出現順序、新版快捷入口（M3 Q15）。",
+      "legacy": { "ui": { "route": "/" } },
+      "native": { "api": { "path": "/api/workspace/home" } }
+    }
+  ]
+}

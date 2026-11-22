@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,p);
+const {campaignDates,autoCampaignSchedule}=require('../vue-workspace/src/campaign-scheduling.ts');
+assert.deepEqual(campaignDates('2026-11-29','2026-12-02'),['2026-11-29','2026-11-30','2026-12-01','2026-12-02']);
+const stores=[{id:'a',supervisor_id:'s'},{id:'b',supervisor_id:'s'},{id:'c',supervisor_id:'t'}],dates=campaignDates('2026-11-01','2026-11-10');
+let r=autoCampaignSchedule(stores,dates,[],[{event_date:'2026-11-01',is_blocked:true}]);
+assert.equal(r.failed.length,0);assert.equal(r.schedules.find(x=>x.store_id==='a').activity_date,'2026-11-04');assert.equal(r.schedules.find(x=>x.store_id==='b').activity_date,'2026-11-07');assert.equal(r.schedules.find(x=>x.store_id==='c').activity_date,'2026-11-04');
+r=autoCampaignSchedule(stores,dates,[{store_id:'a',allowed_days:[1]},{store_id:'b',forbidden_days:[3,6,7]}],[]);assert.deepEqual(r.failed.map(x=>x.id),['a','b']);
+r=autoCampaignSchedule(stores.slice(0,2),['2026-11-07','2026-11-08'],[],[]);assert.equal(r.schedules.length,2);assert.notEqual(r.schedules[0].activity_date,r.schedules[1].activity_date);
+assert.equal(autoCampaignSchedule(stores,['2026-11-02'],[],[]).failed.length,3);
+console.log('PASS date boundaries, default weekdays, blocked dates, store weekday constraints, same supervisor same-day exclusion and adjacent-day fallback');

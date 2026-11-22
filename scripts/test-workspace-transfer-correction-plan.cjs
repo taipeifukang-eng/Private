@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),fs=require('fs'),ts=require('typescript');require.extensions['.ts']=(module,path)=>module._compile(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,path);
+const {transferCorrectionPlan:plan}=require('../lib/workspace/transfer-correction-plan.ts');
+const row=(id,store,month,extra={})=>({id,store_id:store,year_month:month,status:'draft',monthly_status:store==='a'?'transferred_out':'transferred_in',work_days:17,...extra});
+const base={oldDate:'2026-07-15',newDate:'2026-08-20',fromStore:'a',toStore:'b',fromName:'南港店',toName:'東湖店',rows:[row('a7','a','2026-07'),row('b7','b','2026-07',{work_hours:40,monthly_transport_expense:500,notes:'保留\n原備註',extra_tasks:['代班']})],initialized:[{store_id:'a',year_month:'2026-08'},{store_id:'b',year_month:'2026-08'}]};
+const original=JSON.stringify(base);let p=plan(base);assert.equal(JSON.stringify(base),original);assert.equal(p.changes.length,4);
+const get=(p,s,m)=>p.changes.find(r=>r.store_id===s&&r.year_month===m);
+assert.equal(get(p,'a','2026-07').patch.work_days,31);const retained=get(p,'b','2026-07');assert.equal(retained.patch.work_days,0);assert.equal(retained.id,'b7');assert(retained.retainedOnly);assert.deepEqual(retained.preservedManualValues,{work_hours:40,notes:'保留\n原備註',extra_tasks:['代班'],monthly_transport_expense:500});assert(!('work_hours' in retained.patch));assert(!('notes' in retained.patch));assert.match(retained.patch.partial_month_notes,/保留原列/);
+assert.equal(get(p,'a','2026-08').patch.work_days,19);assert.equal(get(p,'b','2026-08').patch.work_days,12);assert(p.changes.every(r=>r.reviewRequired&&r.operation!=='delete'));
+p=plan({...base,oldDate:'2026-08-20',newDate:'2026-07-15',rows:[row('a8','a','2026-08'),row('b8','b','2026-08')],initialized:[{store_id:'a',year_month:'2026-07'},{store_id:'b',year_month:'2026-07'}]});assert.equal(get(p,'a','2026-08').patch.work_days,0);assert.equal(get(p,'b','2026-08').patch.work_days,31);assert.equal(get(p,'a','2026-07').patch.work_days,14);assert.equal(get(p,'b','2026-07').patch.work_days,17);
+p=plan({...base,oldDate:'2028-01-15',newDate:'2028-02-29',rows:[],initialized:[{store_id:'b',year_month:'2028-01'},{store_id:'b',year_month:'2028-02'}]});assert.equal(p.changes.length,1);assert.equal(p.changes[0].patch.work_days,1);
+p=plan({...base,rows:[row('a7','a','2026-07',{status:'confirmed'}),row('b7','b','2026-07'),row('b72','b','2026-07')]});assert.equal(p.conflicts.length,2);
+p=plan({...base,rows:[],initialized:[]});assert.equal(p.changes.length,0);
+for(const date of ['2026-02-29','0115-08-20','2026/08/20'])assert.throws(()=>plan({...base,newDate:date}));
+console.log('PASS cross-month correction review plan: both directions, preserved zero-day rows/manual values, initialized inserts only, leap day, duplicates/closed months, immutable input and no deletes');

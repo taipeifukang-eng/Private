@@ -1,0 +1,157 @@
+// Vue 工作台頁面種類（kind）的唯一來源（T03）。
+// 此檔必須保持無相依（不得 import 任何模組），因為 Next 端（navigation.ts）、
+// Vue 工作台（vue-workspace/src）與 Vitest 都會直接引用。
+// 新增頁面時：先在此加 kind，再到 vue-workspace/src/workspace-pages.ts 登錄；
+// 漏登錄會在 vue-tsc 型別檢查時失敗（registry 是 Record<WorkTabKind, ...>）。
+
+/** 可由全站導覽選單直接開啟的 kind（lib/workspace/navigation.ts 的 item.kind）。 */
+export const WORKSPACE_NAV_KINDS = [
+  "transfers",
+  "movement-management",
+  "movement-draft",
+  "movement-history",
+  "employees",
+  "employee-create",
+  "employee-birthdays",
+  "employee-import",
+  "departments",
+  "organization",
+  "calendar",
+  "stores",
+  "supervisors",
+  "store-managers",
+  "task-management",
+  "task-archive",
+  "my-tasks",
+  "dashboard",
+  "inspection-settings",
+  "improvements",
+  "inspection-compare",
+  "inspections",
+  "campaigns",
+  "activity-view",
+  "monthly",
+  "monthly-export",
+  "monthly-release",
+  "performance",
+  "inventory",
+  "employee-purchases",
+  "pharmacists",
+  "relationships",
+  "roles",
+  "users",
+  // M7/M8 G01：總務服務中心（外殼與入口頁）。其餘總務頁由外殼側欄開啟（明細 kind）。
+  "ga-center",
+  // 第 5 批 G19：跨部門「總務組」維修頁（舊 /cross-dept/maintenance，最小移植）。
+  "cross-dept-maintenance",
+] as const;
+
+/** 只能由其他頁面（列表、明細連結）開啟，不在導覽選單出現的 kind。 */
+export const WORKSPACE_DETAIL_KINDS = [
+  "employee-history",
+  "department-detail",
+  "department-work-editor",
+  "organization-editor",
+  "store-map",
+  "store-promotions",
+  "store-personnel",
+  "store-personnel-history",
+  "store-employees",
+  "store-editor",
+  "store-relocation",
+  "store-history-editor",
+  "supervisor-edit",
+  "store-manager-edit",
+  "task-copy",
+  "task-assign",
+  "task-template-editor",
+  "task-management-detail",
+  "task-archive-detail",
+  "task-runner",
+  "inspection-print",
+  "inspection-setting-edit",
+  "improvement-detail",
+  "inspection-editor",
+  "inspection-detail",
+  "campaign-schedule",
+  "campaign-edit",
+  "activity-view-detail",
+  "monthly-edit",
+  "performance-edit",
+  "performance-thresholds",
+  "performance-prescription",
+  "performance-bonus",
+  // M7/M8 第 1 批（G02-G05）：總務分類、料件、型號與架型、適用料件對照。
+  "ga-equipment-categories",
+  "ga-facility-categories",
+  "ga-part-categories",
+  "ga-parts",
+  "ga-part-create",
+  "ga-part-compat",
+  "ga-equipment-templates",
+  "ga-facility-templates",
+  // 第 2 批：設備清冊、新增設備、建檔貼標待辦與複核。
+  "ga-equipment",
+  "ga-equipment-create",
+  // 第 2 批 G08／G09：設施清冊、新增設施、設備與設施的保固頁與維修紀錄。
+  "ga-facilities",
+  "ga-facility-create",
+  "ga-equipment-warranties",
+  "ga-facility-warranties",
+  "ga-equipment-history",
+  "ga-facility-history",
+  "ga-onboarding-tasks",
+  "ga-onboarding-review",
+  // 第 2 批 G10：QR 標籤列印（設備、設施）與資產掃描頁（QR 永久網址的新版頁面）。
+  "ga-equipment-labels",
+  "ga-facility-labels",
+  "ga-asset-scan",
+  // 第 2 批 Q28：設備／設施轉移單。
+  "ga-transfers",
+  // 第 2 批 Q29：上線貼標進度、Excel 匯入既有設備與設施。
+  "ga-onboarding-progress",
+  "ga-asset-import",
+  // 第 3 批 G11：庫存位置與料件設定（G12、G13 之後補）。
+  "ga-inventory-locations",
+  // 第 3 批 G12：庫存餘額、流水、過帳、持有狀態（庫存總覽與庫存流水同一頁）。
+  "ga-inventory",
+  // 第 3 批 G13：庫存調撥單（調撥與收貨）。
+  "ga-inventory-transfers",
+  // 第 4 批 G14 至 G17：回報建立、我的追蹤、需求單工作台、料件處理中心。
+  "ga-report-create",
+  "ga-my-reports",
+  "ga-requests",
+  "ga-part-fulfillments",
+  // 第 4 批 G25：採購單清單（含詳情、到貨、配發）、新增與編輯草稿、待簽核清單。
+  "ga-purchase-orders",
+  "ga-purchase-order-edit",
+  "ga-purchase-approvals",
+  // 第 5 批 G18：工單中心。
+  "ga-work-orders",
+  // 第 6 批 G20／G21：廠商資料、服務分類、服務區域。
+  "ga-vendors",
+  "ga-vendor-categories",
+  "ga-vendor-regions",
+  // 第 6 批 G22：合作紀錄（廠商績效）、採購分析。
+  "ga-vendor-stats",
+  "ga-purchase-analysis",
+  // 第 6 批 G23：水電網費帳單與費用報表。
+  "ga-utility-bills",
+  "ga-utility-bills-report",
+  // 第 4.5 批：進貨發票清單、發票新增與編輯（請款單頁面後續階段加入）。
+  "ga-purchase-invoices",
+  "ga-purchase-invoice-edit",
+  // 第 4.5 批：請款單清單、編輯與檢視、A4 列印頁。
+  "ga-payment-requests",
+  "ga-payment-request-edit",
+  "ga-payment-request-print",
+] as const;
+
+export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];
+export type WorkspaceDetailKind = (typeof WORKSPACE_DETAIL_KINDS)[number];
+export type WorkTabKind = WorkspaceNavKind | WorkspaceDetailKind;
+
+export const WORKSPACE_TAB_KINDS: readonly WorkTabKind[] = [
+  ...WORKSPACE_NAV_KINDS,
+  ...WORKSPACE_DETAIL_KINDS,
+];

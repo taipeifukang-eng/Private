@@ -1,0 +1,276 @@
+-- 41-b6-preview-before-apply.sql
+-- M7/M8 第 6 批（G20 服務分類與區域、G21 廠商資料、工單進度廠商檢查、G23 水電帳單）套用 42、44、48、47、45、43 之前先看的現況檢查。
+-- 唯讀（只有 SELECT），整份可直接貼上執行，不會改任何資料。
+-- 每列有 section（區）、item（項目）、value（數字或內容）、status：OK＝正常；MISSING＝缺東西，不要套用；ALREADY＝已經有了（重複套用沒問題，但請確認）；
+-- WARN＝需要你看一下；INFO＝只是現況，給你決定上線怎麼安排。只需要看 MISSING、WARN、ALREADY；INFO 是現況數字與名單。
+-- 重點（上線前一定要看）：
+--   第 3 區：統編標準化後重複的廠商名單（含停用）——使用者已決定（2026-11-18）加唯一索引，這份名單必須整理到 0 組才能套用 48（48 開頭會檢查，有重複就中止）；不影響 42、44 套用。
+--   第 4 區：分類與區域的 code 若有重複，42 建唯一索引會失敗（整份不生效），要先改掉重複的代碼。
+--   第 5 區：廠商、分類、區域資料表現行 RLS 政策全文——套用 43 之前請把這一區整份存檔（rollback 43 要照這份還原）。
+--   第 6 區：目前有廠商相關權限的角色與人——43（RLS 收緊）之後，廠商表只有「廠商檢視／管理」讀得到；只有分類、區域、合作紀錄權限者的舊版廠商頁會讀不到廠商（新版改走遮蔽欄位的函式）。
+--   第 7 區：只有服務中心入口（含店長角色）目前讀得到全部廠商含統編與付款條件，43 之後讀不到。
+--   第 8 區：目前靠需求單權限看得到採購分析、但沒有採購評估權限的角色與人——新版採購分析只認採購評估檢視／管理，這些人會失去入口，要的話先補授權。
+--   第 11 區（G22／G24，46 用）：先決（函式、資料表、工單欄位）、ga_ws_po_list 現行定義是否可加 attention 篩選（46 以文字替換，定義不同會報錯）、九項待辦的現況數字、績效資料完整度（近 12 個月）與有徽章權限的角色。
+--   第 12 區（效能，49 用）：八個待我處理述詞函式（ga_po_today、ga_att_*、ga_ub_is_overdue、ga_wo_focus）的函式層級設定（proconfig）；套用 49 後應為 NULL（可內嵌）。非 NULL（WARN）代表尚未套用 49，或之後重跑了 44、45、46、47 把 search_path 設回去，要（重）跑 49。函式不存在則為 INFO。唯讀。
+--   第 10 區（G23，45 用）：水電帳單先決（資料表、三個識別欄位、權限碼、觸發器函式）與現況數字；其中「讀取政策」請存檔（45 會移除店長直讀條件，撤回要照這份還原）；「店長直讀」人數是 45 之後讀不到帳單的店長名單人數（舊版店長可看自己門市帳單，新版店長看不到水電網費）。
+-- 正式區尚未套用 42 時：第 2 區多半是 INFO（欄位將新增）；套用後再跑，欄位列會變 ALREADY。
+WITH
+req_tables AS (
+  SELECT t AS name FROM unnest(ARRAY['ga_vendors', 'ga_service_categories', 'ga_service_regions', 'ga_purchase_orders', 'maintenance_requests', 'profiles', 'permissions', 'roles', 'role_permissions', 'user_roles']) t
+),
+req_fns AS (
+  SELECT f AS name FROM unnest(ARRAY['has_permission', 'current_user_has_permission', 'ga_normalize_optional_text', 'ga_rq_err', 'ga_rq_raise', 'ga_rq_catch', 'ga_po_can_view', 'ga_po_like_escape', 'ga_po_today',
+                                      'ga_wo_apply_fields', 'ga_wo_try_uuid']) f
+),
+need_perms AS (
+  SELECT c AS code FROM unnest(ARRAY['general_affairs.vendor.view', 'general_affairs.vendor.manage', 'general_affairs.service_category.view', 'general_affairs.service_category.manage',
+                                      'general_affairs.service_region.view', 'general_affairs.service_region.manage', 'general_affairs.cooperation_record.view', 'general_affairs.service_center.access',
+                                      'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage', 'general_affairs.request.view_all', 'general_affairs.request.manage',
+                                      'general_affairs.work_order.update', 'general_affairs.work_order.manage']) c
+),
+vendor_cols AS (
+  SELECT c AS name FROM unnest(ARRAY['service_capability_note', 'billing_title', 'billing_address', 'invoice_type', 'payment_terms', 'payment_methods', 'accounting_notes', 'cooperation_start_date',
+                                      'contract_end_date', 'contract_required', 'preferred_vendor', 'cooperation_notes', 'attachment_names', 'updated_by']) c
+),
+-- 有效的角色權限（照正式區 has_permission 語意：不看 roles.is_active 與 profiles.role）
+role_perm AS (
+  SELECT r.id AS role_id, r.code AS role_code, r.name AS role_name, p.code AS perm
+    FROM public.roles r JOIN public.role_permissions rp ON rp.role_id = r.id AND rp.is_allowed JOIN public.permissions p ON p.id = rp.permission_id
+),
+user_perm AS (
+  SELECT ur.user_id, rp.perm, rp.role_code FROM public.user_roles ur JOIN role_perm rp ON rp.role_id = ur.role_id WHERE ur.is_active
+),
+rows_out AS (
+  -- 1. 先決
+  SELECT 1 AS sec, '1 先決' AS section, 'table:' || t.name AS item, CASE WHEN to_regclass('public.' || t.name) IS NULL THEN '不存在' ELSE '存在' END AS value,
+         CASE WHEN to_regclass('public.' || t.name) IS NULL THEN 'MISSING' ELSE 'OK' END AS status FROM req_tables t
+  UNION ALL
+  SELECT 1, '1 先決', 'function:' || f.name, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f.name) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f.name) THEN 'OK' ELSE 'MISSING' END FROM req_fns f
+  UNION ALL
+  SELECT 1, '1 先決', 'permission:' || n.code, CASE WHEN EXISTS (SELECT 1 FROM public.permissions p WHERE p.code = n.code) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM public.permissions p WHERE p.code = n.code) THEN 'OK' ELSE 'MISSING' END FROM need_perms n
+  UNION ALL
+  SELECT 1, '1 先決', 'column:maintenance_requests.vendor_id', CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'maintenance_requests' AND column_name = 'vendor_id') THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'maintenance_requests' AND column_name = 'vendor_id') THEN 'OK' ELSE 'MISSING' END
+  -- 2. 廠商表現況與欄位
+  UNION ALL
+  SELECT 2, '2 廠商表現況', 'ga_vendors 筆數', (SELECT count(*)::text FROM public.ga_vendors), 'INFO'
+  UNION ALL
+  SELECT 2, '2 廠商表現況', 'status=' || s.status, s.n::text, 'INFO' FROM (SELECT status, count(*) AS n FROM public.ga_vendors GROUP BY status) s
+  UNION ALL
+  SELECT 2, '2 廠商表現況', 'ga_vendors 最近修改時間', COALESCE((SELECT max(updated_at)::text FROM public.ga_vendors), '（沒有資料）'), 'INFO'
+  UNION ALL
+  SELECT 2, '2 廠商表現況', 'column:ga_vendors.' || c.name,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_vendors' AND column_name = c.name) THEN '已有' ELSE '沒有（42 會新增）' END,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_vendors' AND column_name = c.name) THEN 'ALREADY' ELSE 'INFO' END FROM vendor_cols c
+  UNION ALL
+  SELECT 2, '2 廠商表現況', 'contract_required 目前預設值', COALESCE((SELECT column_default FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_vendors' AND column_name = 'contract_required'), '（欄位不存在）'),
+         'INFO'
+  UNION ALL
+  SELECT 2, '2 廠商表現況', 'contract_required = true 的廠商數（預設值是 true 時 42 會一次性改為 false，V4）',
+         COALESCE((SELECT count(*)::text FROM public.ga_vendors v WHERE to_jsonb(v) ->> 'contract_required' = 'true'), '0'),
+         CASE WHEN COALESCE((SELECT count(*) FROM public.ga_vendors v WHERE to_jsonb(v) ->> 'contract_required' = 'true'), 0) > 0 THEN 'WARN' ELSE 'INFO' END
+  UNION ALL
+  SELECT 2, '2 廠商表現況', '已有統編的廠商數', (SELECT count(*)::text FROM public.ga_vendors WHERE regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') <> ''), 'INFO'
+  -- 3. 重複統編（標準化：去空白、全形轉半角）
+  UNION ALL
+  SELECT 3, '3 重複統編', 'tax_id=' || d.tax || '（' || d.n || ' 家）', d.names, 'WARN'
+    FROM (SELECT regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') AS tax, count(*) AS n, string_agg(name || '（' || status || '）', '、' ORDER BY name) AS names
+            FROM public.ga_vendors WHERE regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') <> '' GROUP BY 1 HAVING count(*) > 1) d
+  UNION ALL
+  SELECT 3, '3 重複統編', '重複統編組數', (SELECT count(*)::text FROM (SELECT 1 FROM public.ga_vendors WHERE regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') <> '' GROUP BY regexp_replace(normalize(tax_id, NFKC), '\s', '', 'g') HAVING count(*) > 1) x), 'INFO'
+  -- 4. 分類與區域 code 重複（會讓 42 的唯一索引失敗）與現況
+  UNION ALL
+  SELECT 4, '4 分類與區域', 'ga_service_categories 筆數', (SELECT count(*)::text FROM public.ga_service_categories), 'INFO'
+  UNION ALL
+  SELECT 4, '4 分類與區域', 'ga_service_regions 筆數', (SELECT count(*)::text FROM public.ga_service_regions), 'INFO'
+  UNION ALL
+  SELECT 4, '4 分類與區域', '分類 code 重複：' || d.code, d.n::text || ' 筆', 'WARN' FROM (SELECT code, count(*) AS n FROM public.ga_service_categories GROUP BY code HAVING count(*) > 1) d
+  UNION ALL
+  SELECT 4, '4 分類與區域', '區域 code 重複：' || d.code, d.n::text || ' 筆', 'WARN' FROM (SELECT code, count(*) AS n FROM public.ga_service_regions GROUP BY code HAVING count(*) > 1) d
+  UNION ALL
+  SELECT 4, '4 分類與區域', '已有縣市行政區固定資料的 code 數（TW、TW-N、TPE 等；42 用 ON CONFLICT DO NOTHING，不覆蓋）',
+         (SELECT count(*)::text FROM public.ga_service_regions WHERE code IN ('TW', 'TW-N', 'TW-C', 'TW-S', 'TW-E', 'TPE', 'NWT', 'KHH', 'TXG', 'TNN')), 'INFO'
+  UNION ALL
+  SELECT 4, '4 分類與區域', 'region_type=' || s.region_type, s.n::text, 'INFO' FROM (SELECT region_type, count(*) AS n FROM public.ga_service_regions GROUP BY region_type) s
+  -- 5. 現行 RLS 政策全文（備份用）
+  UNION ALL
+  SELECT 5, '5 現行政策（請存檔）', pol.tablename || '.' || pol.policyname || '（' || pol.cmd || '）',
+         'USING: ' || COALESCE(pol.qual, '（無）') || ' ／ WITH CHECK: ' || COALESCE(pol.with_check, '（無）'), 'INFO'
+    FROM pg_policies pol WHERE pol.schemaname = 'public' AND pol.tablename IN ('ga_vendors', 'ga_service_categories', 'ga_service_regions')
+  UNION ALL
+  SELECT 5, '5 現行政策（請存檔）', 'RLS 是否啟用:' || c.relname, CASE WHEN c.relrowsecurity THEN '啟用' ELSE '未啟用' END, CASE WHEN c.relrowsecurity THEN 'OK' ELSE 'WARN' END
+    FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relname IN ('ga_vendors', 'ga_service_categories', 'ga_service_regions')
+  -- 6. 目前有廠商相關權限的角色與人
+  UNION ALL
+  SELECT 6, '6 廠商相關權限的角色', rp.role_code || '（' || rp.role_name || '）', string_agg(DISTINCT replace(rp.perm, 'general_affairs.', ''), '、' ORDER BY replace(rp.perm, 'general_affairs.', '')), 'INFO'
+    FROM role_perm rp WHERE rp.perm IN ('general_affairs.vendor.view', 'general_affairs.vendor.manage', 'general_affairs.service_category.view', 'general_affairs.service_category.manage',
+                                       'general_affairs.service_region.view', 'general_affairs.service_region.manage', 'general_affairs.cooperation_record.view') GROUP BY rp.role_code, rp.role_name
+  UNION ALL
+  SELECT 6, '6 只有分類、區域、合作紀錄權限（沒有廠商檢視／管理）的人', COALESCE(pr.full_name, up.user_id::text),
+         string_agg(DISTINCT up.role_code, '、'), 'WARN'
+    FROM user_perm up LEFT JOIN public.profiles pr ON pr.id = up.user_id
+   WHERE up.perm IN ('general_affairs.service_category.view', 'general_affairs.service_category.manage', 'general_affairs.service_region.view', 'general_affairs.service_region.manage', 'general_affairs.cooperation_record.view')
+     AND NOT EXISTS (SELECT 1 FROM user_perm x WHERE x.user_id = up.user_id AND x.perm IN ('general_affairs.vendor.view', 'general_affairs.vendor.manage'))
+   GROUP BY pr.full_name, up.user_id
+  -- 7 只有服務中心入口（含店長）目前讀得到全部廠商，43 之後讀不到
+  UNION ALL
+  SELECT 7, '7 只有服務中心入口、沒有廠商檢視／管理的角色（43 後讀不到廠商表）', rp.role_code || '（' || rp.role_name || '）',
+         (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND ur.is_active) || ' 人', 'WARN'
+    FROM (SELECT DISTINCT role_id, role_code, role_name FROM role_perm WHERE perm = 'general_affairs.service_center.access') rp
+   WHERE NOT EXISTS (SELECT 1 FROM role_perm x WHERE x.role_id = rp.role_id AND x.perm IN ('general_affairs.vendor.view', 'general_affairs.vendor.manage'))
+  -- 8 靠需求單權限看採購分析、但沒有採購評估權限的人
+  UNION ALL
+  SELECT 8, '8 有需求單檢視全部／管理、沒有採購評估檢視／管理的人（新版採購分析會失去入口）', COALESCE(pr.full_name, up.user_id::text), string_agg(DISTINCT up.role_code, '、'), 'WARN'
+    FROM user_perm up LEFT JOIN public.profiles pr ON pr.id = up.user_id
+   WHERE up.perm IN ('general_affairs.request.view_all', 'general_affairs.request.manage')
+     AND NOT EXISTS (SELECT 1 FROM user_perm x WHERE x.user_id = up.user_id AND x.perm IN ('general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage'))
+   GROUP BY pr.full_name, up.user_id
+  -- 9 單據綁定（停用廠商的提醒用）
+  UNION ALL
+  SELECT 9, '9 單據綁定', '綁定廠商的採購單數', (SELECT count(*)::text FROM public.ga_purchase_orders WHERE vendor_id IS NOT NULL), 'INFO'
+  UNION ALL
+  SELECT 9, '9 單據綁定', '綁定廠商的工單數', (SELECT count(*)::text FROM public.maintenance_requests WHERE vendor_id IS NOT NULL), 'INFO'
+  UNION ALL
+  SELECT 9, '9 單據綁定', '綁定「非合作中」廠商的未結工單數（47 之後新選不可選停用廠商，已綁的照舊）',
+         (SELECT count(*)::text FROM public.maintenance_requests m JOIN public.ga_vendors v ON v.id = m.vendor_id WHERE v.status <> 'active' AND m.status <> 'COMPLETED'), 'INFO'
+  -- 10 水電帳單（45 用）
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'table:ga_utility_bills', CASE WHEN to_regclass('public.ga_utility_bills') IS NOT NULL THEN '存在' ELSE '不存在' END,
+         CASE WHEN to_regclass('public.ga_utility_bills') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'columns:service_identifier／equipment_serial／service_label（20260926090000、20260926093000）',
+         (SELECT count(*)::text FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name IN ('service_identifier', 'equipment_serial', 'service_label')) || ' / 3',
+         CASE WHEN (SELECT count(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name IN ('service_identifier', 'equipment_serial', 'service_label')) = 3 THEN 'OK' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'permission:' || c, CASE WHEN EXISTS (SELECT 1 FROM public.permissions p WHERE p.code = c) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM public.permissions p WHERE p.code = c) THEN 'OK' ELSE 'MISSING' END
+    FROM unnest(ARRAY['general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage']) c
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'function:' || f, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f) THEN 'OK' ELSE 'MISSING' END
+    FROM unnest(ARRAY['has_permission', 'current_user_has_permission', 'ga_rq_err', 'ga_rq_raise', 'ga_rq_catch', 'ga_po_today', 'ga_po_like_escape', 'ga_utility_bill_before_write']) f
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'column:ga_utility_bills.deletion_reason', CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name = 'deletion_reason') THEN '已有' ELSE '將新增' END,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_utility_bills' AND column_name = 'deletion_reason') THEN 'ALREADY' ELSE 'INFO' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'function:' || p.proname || '（已有 45 的函式）', '已存在', 'ALREADY'
+    FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname LIKE 'ga\_ws\_ub\_%'
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'function:ga_resource_attachment_can_manage（附件管理判斷；45 會在最後插入 UTILITY_BILL 分支）', CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL THEN '存在' ELSE '不存在' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', 'ga_resource_attachment_can_manage 是否已有 UTILITY_BILL 分支',
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND position('UTILITY_BILL' in pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure)) > 0 THEN '已有' ELSE '沒有（目前水電帳單附件上傳會被擋，45 補上）' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND position('UTILITY_BILL' in pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure)) > 0 THEN 'ALREADY' ELSE 'INFO' END
+  UNION ALL
+  SELECT 10, '10 水電帳單先決', '附件函式結尾是否為預期的 RETURN false; END;（45 用這個結尾插入分支，不符會中止）',
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;s*END;s*$function$s*$' THEN '符合' ELSE '不符合，請人工處理' END,
+         CASE WHEN to_regprocedure('public.ga_resource_attachment_can_manage(text,uuid)') IS NOT NULL AND pg_get_functiondef('public.ga_resource_attachment_can_manage(text,uuid)'::regprocedure) ~ 'RETURN false;s*END;s*$function$s*$' THEN 'OK' ELSE 'WARN' END
+  -- 10 現況數字
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '未刪除筆數', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '已軟刪除筆數（舊版沒有原因欄位，45 之後的刪除才有原因）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NOT NULL), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '未繳且已過到期日（45 之後的「逾期」）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND paid_at IS NULL AND due_date < (now() AT TIME ZONE 'Asia/Taipei')::date), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '未繳且沒填繳費期限（新版永不算逾期，另列提示）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND paid_at IS NULL AND due_date IS NULL), 'WARN'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '繳費日期早於帳單月份前 1 個月或晚於今天的已繳帳單（舊版可存；新版編輯時日期有改才檢查）',
+         (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND paid_at IS NOT NULL AND (paid_at > (now() AT TIME ZONE 'Asia/Taipei')::date OR paid_at < (billing_month - interval '1 month')::date)), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '金額為 0 的帳單（新版儲存時會提醒）', (SELECT count(*)::text FROM public.ga_utility_bills WHERE deleted_at IS NULL AND amount = 0), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單現況', '其他據點（沒有門市）名稱正規化後會被合併的組數（報表用）',
+         (SELECT count(*)::text FROM (SELECT lower(btrim(regexp_replace(normalize(location_name, NFKC), '\s+', ' ', 'g'))) k, count(DISTINCT btrim(location_name)) c FROM public.ga_utility_bills
+            WHERE deleted_at IS NULL AND store_id IS NULL GROUP BY 1 HAVING count(DISTINCT btrim(location_name)) > 1) x), 'INFO'
+  -- 10 讀取政策：45 會移除 current_user_manages_store 條件（店長不可直讀）；請把這一列存檔，撤回 45 要照這份還原
+  UNION ALL
+  SELECT 10, '10 水電帳單讀取政策（請存檔）', pol.policyname || ' ' || pol.cmd, COALESCE(pol.qual, ''), CASE WHEN pol.qual LIKE '%current_user_manages_store%' THEN 'WARN' ELSE 'INFO' END
+    FROM pg_policies pol WHERE pol.schemaname = 'public' AND pol.tablename = 'ga_utility_bills'
+  UNION ALL
+  SELECT 10, '10 店長直讀（45 之後讀不到）', 'store_managers 名單內、沒有水電檢視／管理權限的人數',
+         (SELECT count(DISTINCT sm.user_id)::text FROM public.store_managers sm WHERE NOT EXISTS (SELECT 1 FROM user_perm x WHERE x.user_id = sm.user_id AND x.perm IN ('general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage'))), 'INFO'
+  UNION ALL
+  SELECT 10, '10 水電帳單權限', '有水電檢視／管理的角色：' || rp.role_code || '（' || rp.role_name || '）', (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND ur.is_active) || ' 人', 'INFO'
+    FROM (SELECT DISTINCT role_id, role_code, role_name FROM role_perm WHERE perm IN ('general_affairs.utility_bill.view', 'general_affairs.utility_bill.manage')) rp
+  -- 11 G22／G24（46 用）：先決、ga_ws_po_list 可否替換、九項待辦的現況數字、績效資料完整度
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'function:' || f.name, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f.name) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace = 'public'::regnamespace AND p.proname = f.name) THEN 'OK' ELSE 'MISSING' END
+    FROM (VALUES ('ga_ub_is_overdue'), ('ga_ub_can_view'), ('ga_vd_contract_due'), ('ga_vd_can_view'), ('ga_wo_focus'), ('ga_po_today'), ('ga_po_can_view'),
+                 ('ga_inventory_transfer_is_visible'), ('ga_inventory_balance_is_visible'), ('ga_ws_onboarding_list'), ('ga_ws_po_list')) f(name)
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'table:' || t.name, CASE WHEN to_regclass('public.' || t.name) IS NOT NULL THEN '存在' ELSE '不存在' END, CASE WHEN to_regclass('public.' || t.name) IS NOT NULL THEN 'OK' ELSE 'MISSING' END
+    FROM (VALUES ('ga_inventory_transfers'), ('ga_inventory_transfer_settings'), ('ga_inventory_balances'), ('ga_inventory_locations'), ('ga_inventory_location_parts'), ('ga_purchase_reviews'),
+                 ('ga_purchase_order_items'), ('store_managers'), ('ga_equipment'), ('ga_facilities')) t(name)
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'ga_ws_po_list 現行定義是否可加 attention 篩選（46 以文字替換）',
+         CASE WHEN to_regprocedure('public.ga_ws_po_list(jsonb,integer,integer)') IS NULL THEN '函式不存在'
+              WHEN position('v_attention' IN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure)) > 0 THEN '已有 attention（46 會略過這一段）'
+              WHEN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%v_approvals boolean;%'
+                   AND pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')%' THEN '可替換'
+              ELSE '定義與預期不同（46 會報錯、整份不生效，請人工確認）' END,
+         CASE WHEN to_regprocedure('public.ga_ws_po_list(jsonb,integer,integer)') IS NULL THEN 'MISSING'
+              WHEN position('v_attention' IN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure)) > 0 THEN 'ALREADY'
+              WHEN pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%v_approvals boolean;%'
+                   AND pg_get_functiondef('public.ga_ws_po_list(jsonb,integer,integer)'::regprocedure) LIKE '%AND (NOT v_approvals OR o.status = ''PENDING_APPROVAL'')%' THEN 'OK'
+              ELSE 'WARN' END
+  UNION ALL
+  SELECT 11, '11 先決（46 用）', 'column:maintenance_requests.' || c.name, CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'maintenance_requests' AND column_name = c.name) THEN '存在' ELSE '不存在' END,
+         CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'maintenance_requests' AND column_name = c.name) THEN 'OK' ELSE 'MISSING' END
+    FROM (VALUES ('completion_method'), ('accepted_at'), ('completed_at'), ('progress_stage'), ('reported_at'), ('vendor_id')) c(name)
+  -- 11 九項待辦現況（46 之後首頁與導覽徽章的數字會是這些，上線前先知道大約多少）
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '待受理需求單', (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status = 'PENDING_INTAKE'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '門市待確認或待補資料的需求單（全部門市）', (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status IN ('WAITING_STORE_CONFIRMATION', 'WAITING_STORE_SUPPLEMENT')), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '需求單「待總務複核」（不計入徽章，設計 §9 備註 a）', (SELECT count(*)::text FROM public.ga_service_requests WHERE deleted_at IS NULL AND main_status = 'WAITING_GA_REVIEW'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '待核准採購單', (SELECT count(*)::text FROM public.ga_purchase_orders WHERE status = 'PENDING_APPROVAL'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '逾期未到貨採購單（已下訂或部分到貨、預計到貨日早於台北今天）', (SELECT count(*)::text FROM public.ga_purchase_orders WHERE status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND expected_delivery_date IS NOT NULL AND expected_delivery_date < (now() AT TIME ZONE 'Asia/Taipei')::date), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '逾期未收調撥單（交出超過逾期天數）',
+         (SELECT count(*)::text FROM public.ga_inventory_transfers t WHERE t.deleted_at IS NULL AND t.status IN ('SOURCE_CONFIRMED', 'IN_TRANSIT') AND t.source_confirmed_at < now() - make_interval(days => COALESCE((SELECT overdue_days FROM public.ga_inventory_transfer_settings WHERE id = true), 3))), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '門市退回的工單（PROCESSING＋REOPENED）', (SELECT count(*)::text FROM public.maintenance_requests WHERE status = 'PROCESSING' AND progress_stage = 'REOPENED'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '貼標待複核（設備＋設施）',
+         (SELECT ((SELECT count(*) FROM public.ga_equipment WHERE deleted_at IS NULL AND status <> 'SCRAPPED' AND onboarding_status = 'PENDING_GA_REVIEW') + (SELECT count(*) FROM public.ga_facilities WHERE deleted_at IS NULL AND status <> 'RETIRED' AND onboarding_status = 'PENDING_GA_REVIEW'))::text), 'INFO'
+  UNION ALL
+  SELECT 11, '11 待辦現況（徽章數字）', '負庫存（不允許負庫存的位置；只在首頁庫存區提示）',
+         (SELECT count(*)::text FROM public.ga_inventory_balances b JOIN public.ga_inventory_locations l ON l.id = b.location_id AND l.deleted_at IS NULL WHERE b.quantity_base < 0 AND NOT l.allow_negative_stock), 'INFO'
+  -- 11 績效資料完整度（近 12 個月）：沒綁廠商的工單與沒記完成方式的舊資料會讓績效「資料累積中」
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '工單總數', (SELECT count(*)::text FROM public.maintenance_requests WHERE reported_at >= now() - interval '12 months'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '有選廠商的工單', (SELECT count(*)::text FROM public.maintenance_requests WHERE reported_at >= now() - interval '12 months' AND vendor_id IS NOT NULL), 'INFO'
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '已完成工單的完成方式：' || COALESCE(completion_method, '（未記方式 NULL）'), count(*)::text, 'INFO'
+    FROM public.maintenance_requests WHERE reported_at >= now() - interval '12 months' AND status = 'COMPLETED' GROUP BY completion_method
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '已下訂起的採購單（確定金額）筆數與含稅總額', (SELECT count(*)::text || ' 張，NT$ ' || COALESCE(sum(total_amount), 0)::text FROM public.ga_purchase_orders WHERE status IN ('ORDERED', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED') AND ordered_at >= now() - interval '12 months'), 'INFO'
+  UNION ALL
+  SELECT 11, '11 績效資料完整度（近 12 個月）', '舊採購評估（只列預估，沒有對應採購單）筆數', (SELECT count(*)::text FROM public.ga_purchase_reviews r WHERE r.decision = 'PURCHASE' AND r.deleted_at IS NULL AND r.created_at >= now() - interval '12 months' AND NOT EXISTS (SELECT 1 FROM public.ga_purchase_orders o WHERE o.purchase_review_id = r.id)), 'INFO'
+  -- 11 誰會在 46 之後看到徽章（有對應權限的角色與人數）
+  UNION ALL
+  SELECT 11, '11 徽章權限（有權限的角色）', rp.perm || '：' || rp.role_code || '（' || rp.role_name || '）', (SELECT count(*)::text FROM public.user_roles ur WHERE ur.role_id = rp.role_id AND COALESCE(ur.is_active, true)), 'INFO'
+    FROM (SELECT DISTINCT role_id, role_code, role_name, perm FROM role_perm WHERE perm IN ('general_affairs.purchase_order.approve', 'general_affairs.request.manage', 'general_affairs.cooperation_record.view', 'general_affairs.purchase_review.view', 'general_affairs.purchase_review.manage')) rp
+  -- 12 效能（49 用）：八個述詞函式的 proconfig 應為 NULL（RESET search_path 後可被規劃器內嵌）；非 NULL 要重跑 49
+  UNION ALL
+  SELECT 12, '12 效能（49 述詞函式內嵌）', 'function:' || f.sig || ' proconfig',
+         CASE WHEN to_regprocedure('public.' || f.sig) IS NULL THEN '函式不存在（先套用 44、45、46、47 與第 4 批 33）'
+              WHEN (SELECT p.proconfig FROM pg_proc p WHERE p.oid = to_regprocedure('public.' || f.sig)) IS NULL THEN 'NULL（可內嵌）'
+              ELSE (SELECT p.proconfig::text FROM pg_proc p WHERE p.oid = to_regprocedure('public.' || f.sig)) || '：要重跑 49' END,
+         CASE WHEN to_regprocedure('public.' || f.sig) IS NULL THEN 'INFO'
+              WHEN (SELECT p.proconfig FROM pg_proc p WHERE p.oid = to_regprocedure('public.' || f.sig)) IS NULL THEN 'OK'
+              ELSE 'WARN' END
+    FROM (VALUES ('ga_po_today()'), ('ga_att_request_intake(text)'), ('ga_att_store_wait(text)'), ('ga_att_po_overdue(text,date)'), ('ga_att_po(text,date,boolean)'),
+                 ('ga_att_transfer_overdue(text,timestamp with time zone,integer)'), ('ga_ub_is_overdue(date,date,timestamp with time zone)'), ('ga_wo_focus(text,text)')) f(sig)
+)
+SELECT section, item, value, status FROM rows_out ORDER BY sec, status DESC, item;
+-- 核對：第 12 區有 WARN 要（重）跑 49；沒有任何 MISSING 才能套用 42、44、47、46（第 11 區 ga_ws_po_list 列是 WARN 時 46 會報錯，要先人工確認）；第 4 區沒有 WARN（code 重複）才能套用 42；第 3 區沒有 WARN（重複統編組數為 0）才能套用 48；第 5 區存檔、第 6 與第 7 區名單經使用者確認後才能套用 43。

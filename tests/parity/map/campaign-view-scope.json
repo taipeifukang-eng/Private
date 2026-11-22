@@ -1,0 +1,54 @@
+{
+  "page": "campaign-view-scope",
+  "legacyRoute": "/activity-management（活動檢視）、/admin/activity-management（活動管理）",
+  "workItem": "CV01",
+  "entries": [
+    {
+      "id": "campaign-list",
+      "mechanism": "api-read",
+      "description": "可見活動清單：權限閘門、發布閘門（沒有 view_all 只看已發布給其身分的活動）、view_all／編輯權看全部。新版 workspace 清單直接委派舊 GET /api/campaigns 決定可見活動，只負責分頁與搜尋。",
+      "legacy": { "api": { "path": "/api/campaigns", "pick": "campaigns" } },
+      "native": { "api": { "path": "/api/workspace/campaigns", "query": { "q": "CVP-" }, "pick": "records" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "campaign-published",
+      "mechanism": "api-read",
+      "description": "已發布活動（每月人員狀態的活動檢視入口清單）：舊 GET /api/campaigns/published；新版 monthly tools op=activity。",
+      "legacy": { "api": { "path": "/api/campaigns/published", "pick": "data" } },
+      "native": { "api": { "path": "/api/workspace/monthly/tools", "query": { "op": "activity" }, "pick": "data" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "entry-access",
+      "mechanism": "api-read",
+      "description": "活動檢視入口：view_all，或 view_own（第一階段含舊 view）且在 store_managers 至少有一筆任命（盤點組部門受眾亦可）。新版以 session capabilities.campaignView、導覽「活動檢視」與 monthly tools meta capabilities.activity 對照。",
+      "legacy": { "api": { "path": "/api/campaigns/entry-access", "pick": "canEnter" } },
+      "native": { "api": { "path": "/api/workspace/session", "pick": "capabilities.campaignView" } }
+    },
+    {
+      "id": "tab-reads",
+      "mechanism": "api-read",
+      "description": "活動檢視各分頁（排程、門市明細、人力、自有人員、檢核完成、設備車次、支援需求、支援人員、檢核項目、部門發布）的可見列：狀態碼與列 id 集合逐項相同（店長只看任命門市、督導與盤點組看全部、編輯者看全部）。",
+      "legacy": { "api": { "path": "/api/campaign-*（各分頁 GET）" } },
+      "native": { "api": { "path": "/api/workspace/campaign-tools", "query": { "resource": "<分頁>" } } },
+      "compareKey": "id"
+    },
+    {
+      "id": "activity-detail",
+      "mechanism": "api-read",
+      "description": "活動檢視明細：舊 GET /api/campaigns/[id]/view（排程）與各分頁；新版 monthly tools op=activityDetail 的 schedules 與 plan。",
+      "legacy": { "api": { "path": "/api/campaigns/{id}/view", "pick": "schedules" } },
+      "native": { "api": { "path": "/api/workspace/monthly/tools", "query": { "op": "activityDetail" }, "pick": "schedules" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "store-writes",
+      "mechanism": "write-readback",
+      "description": "寫入允許與否（狀態碼）：門市人力、自有人員（POST／DELETE）、檢核完成、支援需求、支援人員。持 edit 權者寫全部；否則需 view_own 且該門市為任命門市，督導依活動檢視範圍；view_all 不放行寫入。",
+      "legacy": { "api": { "method": "GET", "path": "/api/campaign-*（POST／DELETE）" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/campaign-tools", "query": { "resource": "<分頁>" } } },
+      "notes": "寫入以狀態碼比對（同一份內容，舊／新各呼叫一次，兩次呼叫之間以 service role 還原資料）。"
+    }
+  ]
+}

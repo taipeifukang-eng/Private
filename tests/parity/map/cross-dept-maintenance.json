@@ -1,0 +1,13 @@
+{
+  "page": "cross-dept-maintenance",
+  "legacyRoute": "/cross-dept/maintenance",
+  "workItem": "G18-e2e",
+  "entries": [
+    { "id": "legacy-create-write-readback", "mechanism": "write-readback", "description": "回報人新增舊式回報後回讀：舊版 POST /api/maintenance-requests 與新版 POST /cross-dept-maintenance（標題、說明；新版另可附最多 5 張照片）。", "legacy": { "api": { "path": "/api/maintenance-requests", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/cross-dept-maintenance", "method": "POST" } } },
+    { "id": "legacy-confirm-write-readback", "mechanism": "write-readback", "description": "門市店長在「待門市確認」的舊式單按確認完成後回讀：舊版 POST /api/maintenance-updates（action=STORE_CONFIRM_COMPLETE，工單更新被資料庫政策靜默擋掉）與新版 POST /work-orders/:id/store-confirm。", "legacy": { "api": { "path": "/api/maintenance-updates", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id/store-confirm", "method": "POST" } } },
+    { "id": "legacy-unresolved-write-readback", "mechanism": "write-readback", "description": "門市店長按「仍有問題」後回讀：舊版 POST /api/maintenance-updates（action=REPORT_UNRESOLVED）與新版 POST /work-orders/:id/report-unresolved。", "legacy": { "api": { "path": "/api/maintenance-updates", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id/report-unresolved", "method": "POST" } } },
+    { "id": "legacy-delete-write-readback", "mechanism": "write-readback", "description": "回報人刪除自己的回報後回讀：舊版 DELETE /api/maintenance-requests?id= 與新版 DELETE /work-orders/:id（未受理且沒連需求單可刪；已受理舊版回成功但被政策擋下）。", "legacy": { "api": { "path": "/api/maintenance-requests", "method": "DELETE" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id", "method": "DELETE" } } },
+    { "id": "category-list-read", "mechanism": "api-read", "description": "維修分類清單：舊版 GET /api/maintenance-categories 與新版 GET /maintenance-categories（同一個分類管理者、含停用）。", "legacy": { "api": { "path": "/api/maintenance-categories" } }, "native": { "api": { "path": "/api/workspace/general-affairs/maintenance-categories" } }, "compareKey": "id" },
+    { "id": "category-write-readback", "mechanism": "write-readback", "description": "維修分類新增、改名、停用後回讀：舊版 POST／PATCH／DELETE /api/maintenance-categories 與新版 /maintenance-categories（含重名白話提示）。", "legacy": { "api": { "path": "/api/maintenance-categories", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/maintenance-categories", "method": "POST" } } }
+  ]
+}

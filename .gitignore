@@ -84,3 +84,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Vue test-site integration
+/vue-workspace/node_modules/
+/vue-workspace/dist/
+/public/workspace/
+/.next-workspace-build/
+
+# Local build/verify artifacts and exports
+/.next-*/
+/.next-*.log
+/output/
+/tests/reports/
+
+# Renamed env files must never be committed (D03)
+/.env*.bak
+
+# Python / Playwright artifacts
+__pycache__/
+*.py[cod]
+/test-results/
+/playwright-report/

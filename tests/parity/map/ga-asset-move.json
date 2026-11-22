@@ -1,0 +1,36 @@
+{
+  "page": "ga-asset-move",
+  "legacyRoute": "/general-affairs/equipment、/general-affairs/requests",
+  "workItem": "G27",
+  "entries": [
+    {
+      "id": "transfer-follow-readback",
+      "mechanism": "api-read",
+      "description": "同樣的設備與同樣的未結案維修單：舊版（直接改設備所屬門市，PATCH /api/general-affairs/equipment/:id）與新版（轉移單確認收到）換店後，單子的所屬門市與門市店長看得到的範圍逐項比對；舊版單子留在原門市，新版維修類未結案單與工單一起轉到新門市（D20、D21）。",
+      "legacy": {
+        "api": {
+          "path": "/api/general-affairs/requests/:id"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/general-affairs/requests/:id"
+        }
+      },
+      "compareKey": "id"
+    },
+    {
+      "id": "transfer-follow-rules",
+      "mechanism": "api-read",
+      "description": "搬單規則（新功能，舊版沒有對應）：只搬維修類未結案（含待門市確認、待補資料），添購與已結案不搬；時間軸公開事件、不發通知；轉移單詳情的搬走明細；確認視窗預覽；更正所屬門市也搬；沒連到需求單的舊式工單只列清單。",
+      "legacy": {
+        "source": "舊版設備編輯頁可直接改所屬門市，不處理需求單與工單；見 app/api/general-affairs/equipment/[id]/route.ts"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/general-affairs/transfers/:id"
+        }
+      }
+    }
+  ]
+}

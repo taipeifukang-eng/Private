@@ -8,6 +8,18 @@
 
 目前已可在 `/supervisor-management-log` 透過快速口述入口建立待確認草稿；AI / 本機規則只產生草稿，不會自動建立案件、結案或寫入正式紀錄。
 
+## M7/M8 總務工作台第 4 批（2026-11-13，DEV）
+
+第 4 批（回報、需求單、料件處理中心、採購單與核准、到貨即驗入、配發轉設備、設備換店單子跟著走）已在 DEV 完成並驗收，分支 `feature/vue-parity`，未 push。正式區 SQL 草稿在 `docs/vue-workspace/parity-plan/m7m8-sql/`（31 唯讀預覽，32 至 35 各附撤回檔），套用順序與核准人指派步驟見該資料夾 README。待使用者確認的新發現見 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.6。第 4.5 批（進貨單憑證、發票、請款）已於 2026-11-20 完成，見下一節。
+
+## M7/M8 總務工作台第 4.5 批（2026-11-20，DEV）
+
+第 4.5 批（進貨單憑證、進貨發票、請款單與付款標記、廠商銀行資料、作廢進貨、請款統計與徽章）已在 DEV 完成並驗收，分支 `feature/vue-parity`，未 push。舊版沒有這些功能，是新功能。規格見 `docs/vue-workspace/parity-plan/m7m8-batch4-5-design.md`，驗收見 `docs/vue-workspace/verification.md`。正式區 SQL 草稿在 `docs/vue-workspace/parity-plan/m7m8-sql/`（50 唯讀預覽，51 至 58 各附撤回檔），套用順序與上線檢查見該資料夾 README「第 4.5 批」。權限碼 `general_affairs.purchase_payment.view`／`manage` 只新增、不自動授權，角色授權由使用者決定。待使用者確認 5 筆差異（approvedBy 為 null），見設計文件 §13.2。
+
+## M6 第 1 批（2026-11-21，DEV）
+
+W25 門市盤點缺口與 P07 關係會員對等已在 DEV 實作，分支 `feature/vue-parity`，未 push。內容：離線盤點工具檔名帶台北時間日期、Sheet1、衝突擋下並列清單、預盤逐檔容錯、CSV 品號保留前導零與舊版提示補回；關係會員姓名電話兩欄、銷售明細重複匯入略過（DEV 資料庫函式 `workspace_import_relationship_sales`，正式區草稿在 `docs/vue-workspace/parity-plan/m6-sql/`，上線前須先套用）、並行填寫會員編號 409。測試頁 ID：`M6-W25`、`M6-P07`（`node tests/run-all.cjs --layers all --page <id> --no-sweep`）。規格與判斷見 `docs/vue-workspace/parity-plan/m6-spec.md`，各頁可見角色清單見 `m6-batch1-roles.md`。尚未用真實盤點樣本驗證。
+
 ## 最新已完成項目
 
 - SML-UX-2B：`supervisor_management_daily_plans` DB foundation 已正式推送 DEV 並通過 DB catalog test。
@@ -113,3 +125,7 @@
 - 不得讓 AI 或語音辨識結果直接寫入正式紀錄；必須先產生草稿並由使用者確認。
 - 不得讓 LLM 自行產生正式資料 ID；正式 ID 必須由 application layer matching 並由使用者確認。
 - 不得用 `supervisor_management_cases` 或 `supervisor_management_records` 假裝今日管理規劃。
+
+### 第 4 批審查後補強（2026-11-16）
+
+兩份審查共 30 項已逐條處理（修 17、不屬實 1、其餘待使用者決定），DEV 已重新套用資料庫補強，正式區草稿 32 至 34 已重新產生（32 與 33 必須連續套用）。細節見 `docs/vue-workspace/parity-plan/m7m8-batch4-design.md` 12.7。

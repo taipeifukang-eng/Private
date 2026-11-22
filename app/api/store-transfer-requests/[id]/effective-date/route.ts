@@ -1,3 +1,4 @@
+import { getMovementDateError } from '@/lib/employee-movement-date';
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient, createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
@@ -34,6 +35,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const body = await request.json();
     const effectiveDate = String(body.effective_date || '').trim();
     const reason = String(body.reason || '').trim();
+    const dateError = getMovementDateError(effectiveDate);
+    if (dateError) return NextResponse.json({ success: false, error: dateError }, { status: 400 });
     if (!isValidDate(effectiveDate)) {
       return NextResponse.json({ success: false, error: '生效日期格式錯誤，年份須為 2000 至 2100' }, { status: 400 });
     }

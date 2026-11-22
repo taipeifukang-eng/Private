@@ -942,10 +942,22 @@ export async function upsertStoreEmployee(data: {
 /**
  * 獲取指定年月、門市的人員狀態列表
  */
-export async function getMonthlyStaffStatus(yearMonth: string, storeId: string) {
+/**
+ * 呼叫端已驗證過使用者／已有 Supabase client 時可傳入，省下重複的 getUser 往返（新版工作台使用）。
+ * 不傳就和以前完全一樣（舊版頁面不受影響）。
+ */
+export type VerifiedCaller = { user?: { id: string } | null; supabase?: any };
+// 這兩個函式同時是 Server Action：只有 server 端傳入 supabase client（無法由瀏覽器序列化）時才相信 caller.user。
+async function resolveCaller(caller: VerifiedCaller) {
+  if (caller.supabase && caller.user) return { supabase: caller.supabase as Awaited<ReturnType<typeof createClient>>, user: caller.user };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return { supabase, user };
+}
+
+export async function getMonthlyStaffStatus(yearMonth: string, storeId: string, caller: VerifiedCaller = {}) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await resolveCaller(caller);
     
     if (!user) {
       return { success: false, error: '未登入', data: [] };
@@ -2441,7 +2453,7 @@ export async function getMonthlyStoreSummaries(yearMonth: string) {
 /**
  * 匯出指定年月、門市的人員狀態資料（用於獎金計算）
  */
-export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: string) {
+export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: string, includeSubmitted = false) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -2457,7 +2469,7 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
         store:stores(store_code, store_name)
       `)
       .eq('year_month', yearMonth)
-      .eq('status', 'confirmed')
+      .in('status', includeSubmitted ? ['submitted','confirmed'] : ['confirmed'])
       .order('store_id')
       .order('employee_code');
 
@@ -2478,6 +2490,7 @@ export async function exportMonthlyStatusForBonus(yearMonth: string, storeId?: s
 
     // 轉換為適合匯出的格式
     const exportData = (data || []).map((item: any) => ({
+      ...(includeSubmitted ? { 審核狀態: item.status === 'submitted' ? '待審核' : '已確認' } : {}),
       門市代碼: codeMap[item.store_id] || item.store?.store_code || '',
       門市名稱: item.store?.store_name || '',
       員工代號: item.employee_code || '',
@@ -2793,10 +2806,9 @@ export async function deleteStoreEmployee(employeeId: string) {
 /**
  * 獲取門市每月統計資料
  */
-export async function getStoreMonthlySummary(yearMonth: string, storeId: string) {
+export async function getStoreMonthlySummary(yearMonth: string, storeId: string, caller: VerifiedCaller = {}) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const { supabase, user } = await resolveCaller(caller);
     
     if (!user) {
       return { success: false, error: '未登入', data: null };

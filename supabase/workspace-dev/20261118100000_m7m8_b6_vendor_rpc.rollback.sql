@@ -1,0 +1,28 @@
+-- 還原 20261118100000_m7m8_b6_vendor_rpc.sql：移除本檔新增的 ga_ws_vendor_*、ga_ws_svc_*（分類與區域）函式與 ga_vd_* 內部輔助函式。不動任何資料表與資料。
+DROP FUNCTION IF EXISTS public.ga_ws_vendor_list(jsonb, integer, integer);
+DROP FUNCTION IF EXISTS public.ga_ws_vendor_get(uuid);
+DROP FUNCTION IF EXISTS public.ga_ws_vendor_save(uuid, jsonb, timestamptz);
+DROP FUNCTION IF EXISTS public.ga_ws_vendor_set_status(uuid, text, timestamptz);
+DROP FUNCTION IF EXISTS public.ga_ws_vendor_options(text, integer, integer, uuid[]);
+DROP FUNCTION IF EXISTS public.ga_ws_svc_category_list(jsonb, integer, integer);
+DROP FUNCTION IF EXISTS public.ga_ws_svc_category_get(uuid);
+DROP FUNCTION IF EXISTS public.ga_ws_svc_category_save(uuid, jsonb, timestamptz);
+DROP FUNCTION IF EXISTS public.ga_ws_svc_region_list(jsonb, integer, integer);
+DROP FUNCTION IF EXISTS public.ga_ws_svc_region_get(uuid);
+DROP FUNCTION IF EXISTS public.ga_ws_svc_region_save(uuid, jsonb, timestamptz);
+DROP FUNCTION IF EXISTS public.ga_vd_json(public.ga_vendors, boolean);
+DROP FUNCTION IF EXISTS public.ga_vd_tree_cycle(text, uuid, uuid);
+DROP FUNCTION IF EXISTS public.ga_vd_contract_due(text, boolean, date);
+DROP FUNCTION IF EXISTS public.ga_vd_int(jsonb, text, text);
+DROP FUNCTION IF EXISTS public.ga_vd_bool(jsonb, text, text);
+DROP FUNCTION IF EXISTS public.ga_vd_uuid_arr(jsonb, text, text);
+DROP FUNCTION IF EXISTS public.ga_vd_txt_arr(jsonb, text, integer, integer, text);
+DROP FUNCTION IF EXISTS public.ga_vd_txt(jsonb, text, integer, text);
+DROP FUNCTION IF EXISTS public.ga_vd_date(text, text);
+DROP FUNCTION IF EXISTS public.ga_vd_norm_name(text);
+DROP FUNCTION IF EXISTS public.ga_vd_tax_checksum_ok(text);
+DROP FUNCTION IF EXISTS public.ga_vd_norm_tax(text);
+DROP FUNCTION IF EXISTS public.ga_vd_can_options(uuid);
+DROP FUNCTION IF EXISTS public.ga_vd_can_manage(uuid);
+DROP FUNCTION IF EXISTS public.ga_vd_can_view(uuid);
+NOTIFY pgrst, 'reload schema';

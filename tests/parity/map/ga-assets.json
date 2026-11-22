@@ -1,0 +1,84 @@
+{
+  "page": "ga-assets",
+  "legacyRoute": "/general-affairs（服務中心外殼）、/general-affairs/*/categories、/general-affairs/parts、/general-affairs/parts/new、/general-affairs/*/templates、/general-affairs/parts/compatibilities",
+  "workItem": "G01",
+  "entries": [
+    {
+      "id": "categories-read",
+      "mechanism": "api-read",
+      "description": "三種分類清單：舊 GET /api/general-affairs/categories 一次回全部；新版改為分頁（這裡以最大頁取全部）並多回完整路徑 path 與子分類數 child_count。同一個登入者、同一種分類，id 集合與每筆欄位必須相同；筆數必須相同（舊版沒有筆數上限）。",
+      "legacy": { "api": { "path": "/api/general-affairs/categories", "query": { "type": "part" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/categories", "query": { "type": "part", "all": "1", "pageSize": "500" } } }
+    },
+    {
+      "id": "parts-read",
+      "mechanism": "api-read",
+      "description": "料件清單：同一個登入者、同一個搜尋，舊 GET /api/general-affairs/parts 與新版回傳的料件 id、欄位與筆數相同。差異：新版多回 permissions；店長身分看不到 notes（Q5）；搜尋輸入逗號或括號時舊版查詢壞掉、新版正常。",
+      "legacy": { "api": { "path": "/api/general-affairs/parts", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/parts", "query": { "search": "[自動測試]M7M8", "pageSize": "100" } } }
+    },
+    {
+      "id": "templates-read",
+      "mechanism": "api-read",
+      "description": "設備型號與設施架型清單：同一個登入者，舊版 GET /api/general-affairs/equipment/templates 與 /facility-templates 與新版回傳的 id、欄位、使用筆數（asset_count、site_count）相同。舊設施架型清單沒有分頁；新版有分頁並多回 permissions。",
+      "legacy": { "api": { "path": "/api/general-affairs/equipment/templates", "query": { "search": "[自動測試]M7M8" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/templates/equipment", "query": { "search": "[自動測試]M7M8" } } }
+    },
+    {
+      "id": "compat-read",
+      "mechanism": "api-read",
+      "description": "某個設備型號適用的料件：舊 GET /api/general-affairs/parts/target-compatibilities 與新版 GET compat 的料件 id 集合相同；新版另回版本碼 version（偵測他人同時修改）。",
+      "legacy": { "api": { "path": "/api/general-affairs/parts/target-compatibilities", "query": { "targetType": "EQUIPMENT_TEMPLATE", "targetId": "<id>" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/compat", "query": { "targetType": "EQUIPMENT_TEMPLATE", "targetId": "<id>" } } }
+    },
+    {
+      "id": "attachments-read",
+      "mechanism": "api-read",
+      "description": "附件列表：同一個資源，舊 GET /api/general-affairs/attachments 與新版回傳的附件 id、檔名、格式、大小相同。差異：新版不回儲存路徑，簽名網址從 24 小時改為 10 分鐘（Q3 每次開啟重新簽發短效期）。",
+      "legacy": { "api": { "path": "/api/general-affairs/attachments", "query": { "resourceType": "PART", "resourceId": "<id>" } } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/attachments", "query": { "resourceType": "PART", "resourceId": "<id>" } } }
+    },
+    {
+      "id": "category-write",
+      "mechanism": "write-readback",
+      "description": "分類新增與編輯：同一份輸入分別打舊與新 API，資料庫回讀欄位相同。差異（Q4）：底下還有啟用中的項目或子分類時，舊版仍可停用、新版擋下；底下有項目時舊版可刪除分類（只檢查子分類）、新版擋下。",
+      "legacy": { "api": { "method": "POST", "path": "/api/general-affairs/categories" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/general-affairs/categories" } }
+    },
+    {
+      "id": "part-write",
+      "mechanism": "write-readback",
+      "description": "料件新增、編輯、刪除：同一份輸入分別打舊與新 API，資料庫回讀欄位相同。差異（Q6）：品牌＋型號＋規格重複時舊版直接建立、新版先擋下要確認；有庫存或交易後舊版可改單位、新版鎖定；有庫存時舊版可刪除、新版擋下。",
+      "legacy": { "api": { "method": "POST", "path": "/api/general-affairs/parts" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/general-affairs/parts" } }
+    },
+    {
+      "id": "template-write",
+      "mechanism": "write-readback",
+      "description": "設備型號與設施架型新增、編輯：同一份輸入分別打舊與新 API，資料庫回讀欄位相同，重複時兩邊都 409 且訊息相同。差異（Q7）：有設備在用的型號舊版可刪除、新版擋下只能停用；設施架型新版補上刪除（舊版沒有）。",
+      "legacy": { "api": { "method": "POST", "path": "/api/general-affairs/equipment/templates" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/general-affairs/templates/equipment" } }
+    },
+    {
+      "id": "compat-write",
+      "mechanism": "write-readback",
+      "description": "適用料件整批取代：同一份輸入分別打舊 POST target-compatibilities 與新 PUT compat，新增與移除筆數、被取代列的刪除原因相同。新版另有版本碼保護與失敗全部回復。",
+      "legacy": { "api": { "method": "POST", "path": "/api/general-affairs/parts/target-compatibilities" } },
+      "native": { "api": { "method": "PUT", "path": "/api/workspace/general-affairs/compat" } }
+    },
+    {
+      "id": "attachment-write",
+      "mechanism": "write-readback",
+      "description": "附件上傳與刪除：同一份檔案分別打舊與新 API，資料庫列欄位相同、儲存路徑格式相同。差異（Q3）：超過 4MB 的檔案舊版收（上限 20MB）、新版擋下；刪除附件時舊版連儲存空間的實體檔一起永久刪除、新版只標記。",
+      "legacy": { "api": { "method": "POST", "path": "/api/general-affairs/attachments" } },
+      "native": { "api": { "method": "POST", "path": "/api/workspace/general-affairs/attachments" } }
+    },
+    {
+      "id": "sidebar-visibility",
+      "mechanism": "navigation",
+      "description": "總務服務中心側欄：同一個角色，舊版側欄規則（components/general-affairs/navigation.tsx 的 getVisibleGeneralAffairsNavGroups 與 useNavbarPermissions 旗標）算出的項目 id 集合，對照新版 session.gaNavigation。新版已移植的頁面另依 capability 把關（導覽補上分類與型號的顯示條件）。",
+      "legacy": { "source": "components/general-affairs/navigation.tsx（getVisibleGeneralAffairsNavGroups）" },
+      "native": { "api": { "path": "/api/workspace/session", "pick": "gaNavigation" } }
+    }
+  ]
+}

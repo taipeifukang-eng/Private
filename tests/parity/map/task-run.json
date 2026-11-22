@@ -1,0 +1,35 @@
+{
+  "page": "task-run",
+  "legacyRoute": "/my-tasks、/assignment/[id]、/dashboard",
+  "workItem": "W08、W10",
+  "entries": [
+    {
+      "id": "run-completion-rule",
+      "mechanism": "write-readback",
+      "description": "已完成的判定：同一份任務有兩個區段，營業助理在舊版 /assignment/[id] 畫面做完自己區段的全部項目，與新版 POST task-detail 做同樣的勾選，回讀指派狀態。舊版只看自己區段（updateAssignmentStatus）；新版要所有區段都完成（M3 Q9）。",
+      "legacy": { "ui": { "route": "/assignment/[id]" } },
+      "native": { "api": { "path": "/api/workspace/task-detail", "method": "POST" } }
+    },
+    {
+      "id": "my-tasks-dedupe",
+      "mechanism": "ui-extract",
+      "description": "我的任務去重：同範本、同部門、同區段有三筆指派（較舊兩筆各有勾選，最新一筆沒動過）。舊版 /my-tasks 只留最新（updated_at）一筆；新版 GET tasks 保留有進度的、收起沒動過的（M3 Q8）。",
+      "legacy": { "ui": { "route": "/my-tasks" } },
+      "native": { "api": { "path": "/api/workspace/tasks" } }
+    },
+    {
+      "id": "dashboard-progress",
+      "mechanism": "ui-extract",
+      "description": "儀表板進度與狀態：同一份兩區段任務，自己的區段勾完。舊版 /dashboard 的進度與徽章只算自己的區段；新版 GET dashboard 以所有區段的勾選紀錄推算整體進度（M3 Q10）。",
+      "legacy": { "ui": { "route": "/dashboard" } },
+      "native": { "api": { "path": "/api/workspace/dashboard" } }
+    },
+    {
+      "id": "open-others-task",
+      "mechanism": "api-read",
+      "description": "打開非自己參與的任務：管理員（舊版 admin）與營業主管（舊版 manager）。舊版 /assignment/[id] 對 admin、manager 都開放；新版只開放有任務管理權限者（管理員）（M3 Q7、D08：依 RBAC 收緊）。",
+      "legacy": { "ui": { "route": "/assignment/[id]" } },
+      "native": { "api": { "path": "/api/workspace/task-detail" } }
+    }
+  ]
+}

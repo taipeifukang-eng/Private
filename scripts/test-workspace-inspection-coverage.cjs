@@ -1,0 +1,10 @@
+const fs=require('fs'),ts=require('typescript'),vm=require('vm'),assert=require('assert/strict');
+const text=ts.transpileModule(fs.readFileSync('lib/workspace/inspection-coverage.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const sandbox={exports:{}};vm.runInNewContext(text,sandbox);const coverage=sandbox.exports.inspectionCoverage;
+const stores=[{id:'new',store_name:'搬後門市'},{id:'other',store_name:'另一門市'}];
+let r=coverage(stores,[{store_id:'old',store:{store_name:'搬前門市'}}],[{id:'new',source_store_id:'middle'},{id:'middle',source_store_id:'old'},{id:'old',source_store_id:null}]);assert.equal(r.visited[0].id,'new');assert.equal(r.unvisited[0].id,'other');
+r=coverage([{id:'new',store_name:' 測 試 店 '}],[{store_id:'legacy',store:{store_name:'測試店'}}],[]);assert.equal(r.visited.length,1);
+r=coverage([{id:'a',store_name:'同名店'},{id:'b',store_name:'同名店'}],[{store_id:'legacy',store:{store_name:'同名店'}}],[]);assert.equal(r.visited.length,0);
+r=coverage(stores,[],[]);assert.equal(r.unvisited.length,2);
+r=coverage([{id:'a',store_name:'A'}],[],[{id:'a',source_store_id:'b'},{id:'b',source_store_id:'a'}]);assert.equal(r.unvisited.length,1);
+console.log('PASS coverage: relocation lineage, unique normalized fallback, duplicate-name isolation, empty month, cyclic lineage termination');

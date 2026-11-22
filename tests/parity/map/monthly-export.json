@@ -1,0 +1,420 @@
+{
+  "page": "monthly-export",
+  "legacyRoute": "/admin/export-monthly-status",
+  "workItem": "W02",
+  "entries": [
+    {
+      "id": "file-download",
+      "mechanism": "api-read",
+      "description": "整合 Excel（每月人員狀態）：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/download 與新 POST /api/workspace/monthly-export/download 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/download"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/download"
+        }
+      }
+    },
+    {
+      "id": "file-actual-staff-points",
+      "mechanism": "api-read",
+      "description": "實際人力點值：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/actual-staff-points 與新 POST /api/workspace/monthly-export/actual-staff-points 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/actual-staff-points"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/actual-staff-points"
+        }
+      }
+    },
+    {
+      "id": "file-roster",
+      "mechanism": "api-read",
+      "description": "每月門市人員名冊：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/roster 與新 POST /api/workspace/monthly-export/roster 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/roster"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/roster"
+        }
+      }
+    },
+    {
+      "id": "file-transport",
+      "mechanism": "api-read",
+      "description": "交通費用：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/transport 與新 POST /api/workspace/monthly-export/transport 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/transport"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/transport"
+        }
+      }
+    },
+    {
+      "id": "file-single-item-bonus",
+      "mechanism": "api-read",
+      "description": "單品獎金：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/single-item-bonus 與新 POST /api/workspace/monthly-export/single-item-bonus 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/single-item-bonus"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/single-item-bonus"
+        }
+      }
+    },
+    {
+      "id": "file-talent-cultivation-bonus",
+      "mechanism": "api-read",
+      "description": "育才獎金：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/talent-cultivation-bonus 與新 POST /api/workspace/monthly-export/talent-cultivation-bonus 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/talent-cultivation-bonus"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/talent-cultivation-bonus"
+        }
+      }
+    },
+    {
+      "id": "file-meal-allowance",
+      "mechanism": "api-read",
+      "description": "誤餐費：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/meal-allowance 與新 POST /api/workspace/monthly-export/meal-allowance 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/meal-allowance"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/meal-allowance"
+        }
+      }
+    },
+    {
+      "id": "file-spring-festival-bonus",
+      "mechanism": "api-read",
+      "description": "春節出勤獎金：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 POST /api/export-monthly-status/spring-festival-bonus 與新 POST /api/workspace/monthly-export/spring-festival-bonus 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/spring-festival-bonus"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/spring-festival-bonus"
+        }
+      }
+    },
+    {
+      "id": "file-support-hours",
+      "mechanism": "api-read",
+      "description": "門市支援時數（全部門市）：同角色、同月份（2099-05）、同門市選擇（已送審＋已確認，含一組調店人員），舊 GET /api/export-monthly-status/support-hours 與新 GET /api/workspace/monthly-export/support-hours 的 Excel 逐工作表、逐欄、逐格比對（儲存格型別、值、數字格式、欄寬、範圍）。檔名另以前端命名規則比對。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/support-hours"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/support-hours"
+        }
+      }
+    },
+    {
+      "id": "roster-preview",
+      "mechanism": "api-read",
+      "description": "名冊預覽 JSON：舊 GET /api/export-monthly-status/roster 與新 GET /api/workspace/monthly-export/roster 的 rows 逐筆比對（含調店人員的當月快照門市）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/roster",
+          "query": {
+            "year_month": "2099-05"
+          },
+          "pick": "rows"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/roster",
+          "query": {
+            "year_month": "2099-05"
+          },
+          "pick": "rows"
+        }
+      },
+      "compareKey": [
+        "store_code",
+        "employee_code"
+      ]
+    },
+    {
+      "id": "stores-list",
+      "mechanism": "api-read",
+      "description": "門市列表（總員工數、已提交／已確認人數、提交狀態）：舊 /api/export-monthly-status/stores 與新 /api/workspace/monthly-export/stores 逐店比對，只比 2099 測試門市（草稿、已送審、已確認三種）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/stores",
+          "query": {
+            "year_month": "2099-05"
+          },
+          "pick": "stores"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/stores",
+          "query": {
+            "year_month": "2099-05"
+          },
+          "pick": "stores"
+        }
+      },
+      "compareKey": "store_code"
+    },
+    {
+      "id": "unsubmitted-guard",
+      "mechanism": "api-read",
+      "description": "所選門市含草稿（未提交）門市：舊版照樣產檔（200），新版回 400 並列出未提交門市（M1 W02-q3，列白名單）。支援時數不受影響。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/download"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/download"
+        }
+      }
+    },
+    {
+      "id": "perm-download",
+      "mechanism": "api-read",
+      "description": "整合 Excel（每月人員狀態）：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/download"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/download"
+        }
+      }
+    },
+    {
+      "id": "perm-actual-staff-points",
+      "mechanism": "api-read",
+      "description": "實際人力點值：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/actual-staff-points"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/actual-staff-points"
+        }
+      }
+    },
+    {
+      "id": "perm-roster",
+      "mechanism": "api-read",
+      "description": "每月門市人員名冊：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/roster"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/roster"
+        }
+      }
+    },
+    {
+      "id": "perm-transport",
+      "mechanism": "api-read",
+      "description": "交通費用：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/transport"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/transport"
+        }
+      }
+    },
+    {
+      "id": "perm-single-item-bonus",
+      "mechanism": "api-read",
+      "description": "單品獎金：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/single-item-bonus"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/single-item-bonus"
+        }
+      }
+    },
+    {
+      "id": "perm-talent-cultivation-bonus",
+      "mechanism": "api-read",
+      "description": "育才獎金：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/talent-cultivation-bonus"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/talent-cultivation-bonus"
+        }
+      }
+    },
+    {
+      "id": "perm-meal-allowance",
+      "mechanism": "api-read",
+      "description": "誤餐費：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/meal-allowance"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/meal-allowance"
+        }
+      }
+    },
+    {
+      "id": "perm-spring-festival-bonus",
+      "mechanism": "api-read",
+      "description": "春節出勤獎金：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/spring-festival-bonus"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/spring-festival-bonus"
+        }
+      }
+    },
+    {
+      "id": "perm-support-hours",
+      "mechanism": "api-read",
+      "description": "門市支援時數（全部門市）：權限矩陣（admin、ops_manager、ops_assistant、supervisor、store_manager、denied）舊版與新版的 HTTP 狀態碼逐角色比對。單品獎金、支援時數照舊版（W02-q2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/support-hours"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/support-hours"
+        }
+      }
+    },
+    {
+      "id": "perm-stores",
+      "mechanism": "api-read",
+      "description": "門市列表權限：舊版需 monthly.export.download；新版另讓只有單品獎金權限者取得受限範圍的門市清單（列白名單）。",
+      "legacy": {
+        "api": {
+          "path": "/api/export-monthly-status/stores",
+          "query": {
+            "year_month": "2099-05"
+          }
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/monthly-export/stores",
+          "query": {
+            "year_month": "2099-05"
+          }
+        }
+      }
+    },
+    {
+      "id": "stats-cards",
+      "mechanism": "ui-extract",
+      "description": "統計資訊四個數字（總門市數、可匯出門市、已選擇、總員工數）：舊頁與新頁在同月份下逐項比對。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/export-monthly-status",
+          "rowSelector": "span.font-semibold"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 資料匯出頁 [data-export-stats] [data-stat]"
+      }
+    },
+    {
+      "id": "store-badges",
+      "mechanism": "ui-extract",
+      "description": "門市列表的狀態徽章（未提交／已提交／已確認）與『尚未提交，無法匯出』提示：2099 測試門市逐店比對。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/export-monthly-status",
+          "rowSelector": "div.space-y-2 > div"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 資料匯出頁 .export-store-list li"
+      }
+    },
+    {
+      "id": "select-all",
+      "mechanism": "ui-extract",
+      "description": "按「全選」後被勾選的門市：舊版連未提交門市一併勾選；新版只勾可匯出門市（列白名單）。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/export-monthly-status",
+          "rowSelector": "div.space-y-2 > div"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 資料匯出頁 [data-export-toggle-all]"
+      }
+    },
+    {
+      "id": "year-control",
+      "mechanism": "ui-extract",
+      "description": "年份控制項：舊版下拉選單、新版數字輸入（列白名單）。",
+      "legacy": {
+        "ui": {
+          "route": "/admin/export-monthly-status",
+          "rowSelector": "select"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 資料匯出頁 [data-export-year]"
+      }
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "page": "inspection-list",
+  "legacyRoute": "/inspection",
+  "workItem": "W13",
+  "entries": [
+    {
+      "id": "stats-same-input",
+      "mechanism": "ui-extract",
+      "description": "同一份資料、同樣口徑（近 6 個月全部、含草稿）下，新舊四張統計卡的優秀／良好／需改善分段相同（8–10、6–7、0–5）。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor", "rowSelector": "div.grid p.text-2xl" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "overview": "true" } } }
+    },
+    {
+      "id": "stats-month",
+      "mechanism": "ui-extract",
+      "description": "M4 Q1：舊版卡片固定統計近 6 個月全部；新版只算所選月份。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor", "rowSelector": "div.grid p.text-2xl" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "overview": "true" } } }
+    },
+    {
+      "id": "stats-finished",
+      "mechanism": "ui-extract",
+      "description": "M4 Q2：舊版草稿、進行中也算進統計（草稿當 0 分算需改善）；新版只算已完成。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor", "rowSelector": "div.grid p.text-2xl" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "overview": "true" } } }
+    },
+    {
+      "id": "coverage",
+      "mechanism": "ui-extract",
+      "description": "M4 Q2：只有草稿的門市，舊版算已巡店；新版留在尚未巡店並標「有草稿未送出」。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor", "rowSelector": "h3" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "overview": "true" } } }
+    },
+    {
+      "id": "default-month",
+      "mechanism": "ui-extract",
+      "description": "M4 Q4：預設月份＝最新有資料的月份（舊版行為，新版改回）。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor", "rowSelector": "div.px-6.py-3" } },
+      "native": { "api": { "path": "/api/workspace/inspections" } }
+    },
+    {
+      "id": "list-rows",
+      "mechanism": "ui-extract",
+      "description": "列表欄位：門市代碼、單號、分數、含改善加分、評級、狀態逐列對照（補回舊版欄位）。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor&month=2099-03", "rowSelector": "table tbody tr" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "month": "2099-03" } } },
+      "compareKey": "inspection_no"
+    },
+    {
+      "id": "visibility",
+      "mechanism": "ui-extract",
+      "description": "M4 Q3：可見範圍照舊版取聯集（自己建立的、被指派門市、查看全部），督導兩邊看到的單號集合相同。",
+      "legacy": { "ui": { "route": "/inspection?tab=supervisor&month=2099-05", "rowSelector": "table tbody tr" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "month": "2099-05" } } }
+    },
+    {
+      "id": "compare-entry",
+      "mechanism": "ui-extract",
+      "description": "巡店比較入口位置：只在經理巡店分頁、有紀錄、持比較權限時出現（回到舊版規則）。",
+      "legacy": { "ui": { "route": "/inspection?tab=manager", "rowSelector": "a[href='/inspection/compare']" } },
+      "native": { "api": { "path": "/api/workspace/inspections", "query": { "type": "manager" } } }
+    }
+  ]
+}

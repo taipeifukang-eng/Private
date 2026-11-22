@@ -1,0 +1,65 @@
+{
+  "page": "inspection-compare",
+  "legacyRoute": "/inspection/compare",
+  "workItem": "P04",
+  "entries": [
+    {
+      "id": "status-rule",
+      "mechanism": "api-read",
+      "description": "差異判定（影響對外呈現的比較結果）：同一份督導單與經理單，舊版 handleCompare 的判定與新版 GET /api/workspace/inspection-compare 逐項相同（缺的一邊視為 0 扣分）；只有兩邊都沒有該項紀錄時，舊版當成相同、新版顯示缺少明細（已核可）。",
+      "legacy": {
+        "source": "app/inspection/compare/page.tsx handleCompare"
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/inspection-compare",
+          "pick": "items"
+        }
+      }
+    },
+    {
+      "id": "store-list",
+      "mechanism": "ui-extract",
+      "description": "有「巡店比較」＋「經理巡店」且可看全部巡店的角色，門市下拉選單的內容：舊版所有啟用門市，新版可見範圍內的門市；對檢視全部的角色兩者相同。",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/compare",
+          "rowSelector": "select option"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/inspection-compare",
+          "pick": "stores"
+        }
+      }
+    },
+    {
+      "id": "permission-ui",
+      "mechanism": "ui-extract",
+      "description": "沒有巡店比較權限的角色開啟頁面：舊版顯示「權限不足」，新版 API 回 403。",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/compare",
+          "rowSelector": "h2"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/inspection-compare"
+        }
+      }
+    },
+    {
+      "id": "access-rule",
+      "mechanism": "write-readback",
+      "description": "M4 Q23：誰能用、能選哪些門市。舊版只檢查「巡店比較」，門市為所有啟用門市；新版需「巡店比較」與「經理巡店」兩個，門市限可見範圍（範圍外只看得到自己建立的單）。",
+      "legacy": {
+        "source": "app/inspection/compare/page.tsx（has_permission inspection.compare；stores is_active）"
+      },
+      "native": {
+        "source": "app/api/workspace/inspection-compare/route.ts、lib/workspace/server.ts inspectionStores"
+      }
+    }
+  ]
+}

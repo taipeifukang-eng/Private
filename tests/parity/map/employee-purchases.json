@@ -1,0 +1,50 @@
+{
+  "page": "employee-purchases",
+  "legacyRoute": "/admin/employee-purchases",
+  "workItem": "P01",
+  "entries": [
+    {
+      "id": "list-api",
+      "mechanism": "api-read",
+      "description": "同角色讀取員購列表（保留月份 2099-12）：舊 /api/employee-purchases 與 workspace /api/workspace/employee-purchases 逐欄深度比對；新版多一個 capabilities 欄位（忽略）。無權限角色的狀態碼也必須一致。",
+      "legacy": { "api": { "path": "/api/employee-purchases", "query": { "year_month": "2099-12" } } },
+      "native": { "api": { "path": "/api/workspace/employee-purchases", "query": { "year_month": "2099-12" } } },
+      "normalize": { "ignore": ["capabilities"] }
+    },
+    {
+      "id": "details-api",
+      "mechanism": "api-read",
+      "description": "員工購買明細：同一位員工（以員編）舊 /api/employee-purchases/employee-details 與新版逐欄比對。",
+      "legacy": { "api": { "path": "/api/employee-purchases/employee-details", "query": { "year_month": "2099-12" } } },
+      "native": { "api": { "path": "/api/workspace/employee-purchases/employee-details", "query": { "year_month": "2099-12" } } }
+    },
+    {
+      "id": "import-writes",
+      "mechanism": "write-readback",
+      "description": "同一份 POS 檔分別經舊 /api/employee-purchases/import 與 workspace import 匯入（之間覆蓋同一月份），回應與 employee_purchase_sales 全部列（排除 id、batch_id、時間戳）逐欄比對。",
+      "legacy": { "source": "app/api/employee-purchases/import/route.ts" },
+      "native": { "source": "/api/workspace/employee-purchases/import（直接包裝舊 handler）" }
+    },
+    {
+      "id": "summary-ui",
+      "mechanism": "ui-extract",
+      "description": "同角色開啟舊頁與新版頁面，擷取統計卡（購物總金額、明細筆數、已比對／未比對）、職稱彙總卡（職稱、金額）與員工彙總表（認列門市、員編、姓名、職稱、消費筆數、消費總額）逐列比對。",
+      "legacy": { "ui": { "route": "/admin/employee-purchases", "rowSelector": "table tbody tr" } },
+      "native": { "source": "/workspace/index.html 員工購物管理 .purchase-page" }
+    },
+    {
+      "id": "detail-ui",
+      "mechanism": "ui-extract",
+      "description": "點員工開啟購買明細：購買筆數、數量加總、金額加總、毛利加總四項，以及明細表逐列（購買門市、品號、品名、筆數、數量、毛利、金額）。",
+      "legacy": { "ui": { "route": "/admin/employee-purchases", "rowSelector": "section table tbody tr" } },
+      "native": { "source": "/workspace/index.html 員工購物管理 購物明細對話框" }
+    },
+    {
+      "id": "ui-enhancements",
+      "mechanism": "ui-extract",
+      "description": "新版增強項偵測：員工搜尋、分頁（每頁 50 筆）、匯入前確認勾選。舊版沒有。",
+      "legacy": { "ui": { "route": "/admin/employee-purchases", "rowSelector": "input[type=search]" } },
+      "native": { "source": "/workspace/index.html 員工購物管理（搜尋框、分頁、確認勾選）" }
+    }
+  ]
+}

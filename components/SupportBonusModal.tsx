@@ -338,6 +338,11 @@ export default function SupportBonusModal({
                                   e.preventDefault();
                                 }
                               }}
+                              onWheel={(e) => {
+                                if (document.activeElement === e.currentTarget) {
+                                  e.currentTarget.blur();
+                                }
+                              }}
                               placeholder="獎金金額"
                               min="0"
                               step="0.01"

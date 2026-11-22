@@ -1,0 +1,1 @@
+SELECT t.tgname,c.relname,pg_get_triggerdef(t.oid) AS definition FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='public' AND c.relname IN ('employee_movement_history','store_employees','monthly_staff_status','store_transfer_requests') AND NOT t.tgisinternal ORDER BY c.relname,t.tgname;

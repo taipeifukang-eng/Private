@@ -1,0 +1,60 @@
+# M4 正式區 SQL 草稿（尚未執行，僅供使用者審閱）
+
+對應 m4-spec.md Q5（評級門檻 snapshot）與 Q6、Q7、Q8（回補規則與範本總分的上線前檢查）。這些檔案不得由 Claude 在 DEV 以外的環境執行，由使用者在正式區 SQL editor 自行審閱後執行。
+
+## 為什麼要做
+
+舊版（與目前正式區）的「改善加分後重算評級」資料庫函式把評級門檻寫死（220 分 10 級、215 分 9 級、191 分 8 級……121 分 1 級），
+但設定頁可以改評級對照表。若有人改過門檻，同一張單可能「完成時用新門檻、加分後被寫死的舊門檻蓋掉」。
+使用者決定（Q5）：每張單以完成當時的門檻為準，之後改門檻不影響已完成的單；改善加分只加分數，評級仍用該單完成時的門檻。
+目前設定值與寫死值相同，所以上線當下不會有任何單的評級改變。
+
+## 執行順序（每個檔案都單獨貼上執行，不要整份連續貼）
+
+1. `w18_A_preview.sql`：只讀。逐段看結果：
+   - 1、2、3：評級對照與舊版寫死值是否相同、加分函式目前內容、巡店單狀態分佈。
+   - 4：已完成單的評級與「用目前對照表重算」是否一致，應為 0 筆不一致；不是 0 請先回報。
+   - 5（Q7）：啟用中的回補規則有沒有天數重疊；有的話要先修正，否則新版會擋住其他規則的儲存。
+   - 6：範本區塊排序超出 1 到 5 的資料；有的話新版編輯會被擋，需要放寬上限或先調整。
+   - 7（Q8）：啟用項目滿分總和，不是 220 時設定頁會出現警告（只警告，不阻擋）。
+   - 8（Q6）：目前等待改善的項目數。
+2. `w18_B_apply.sql`：以 `BEGIN;` 開頭，不會自動提交。先備份加分函式，再新增 `inspection_masters.grade_thresholds`、
+   完成時記錄門檻的觸發器、補既有已完成單的 snapshot、把加分重算函式改成讀 snapshot。執行後看最後一段核對回傳
+   （`still_missing` 應為 0、`bonus_fn_still_hardcoded` 應為 false），再另外執行 `COMMIT;` 或 `ROLLBACK;`。
+3. `w18_C_rollback.sql`：上線後若要撤回，依備份表 `m4_w18_backup` 還原原函式並移除新增的觸發器與欄位。同樣以 `BEGIN;` 開頭。
+
+## 備註
+
+- 觸發器只在單子變成已完成／已結案時記錄門檻，不改評級，所以不會干擾新舊版的儲存流程。
+- 備份表 `m4_w18_backup` 已開啟 RLS 並收回 anon／authenticated 權限，避免被前端竄改。
+- 加分金額公式（扣分乘回補比例，四捨五入到小數一位）本批不改動。
+- 回補日數改用台灣日期（Q17）屬 W17，不在本批 SQL 內。
+- DEV 對應檔：`supabase/workspace-dev/20261107160000_m4_grade_snapshot.sql`（含 rollback 與 `scripts/apply-workspace-m4-grade-snapshot-dev.cjs`）。
+
+## W17：改善回補改按台灣日期（Q17）、逾期回補 0（Q19）
+
+對應 m4-spec.md Q17、Q19。正式區現在的 `calculate_improvement_bonus` 用 `improved_at::date`（UTC 日期）算「巡店日到回報日」天數，
+台灣時間凌晨 0 點到 8 點回報會少算一天，可能落入較高的回補級距。新版改用台灣日期；回報日超過改善期限（deadline）一律回補 0，
+被補跑程式標成「已逾期」的項目也可以補報（回補 0）。公式（扣分乘回補比例，四捨五入到小數一位）與規則挑選方式不變。
+
+執行順序（每個檔案都單獨貼上執行）：
+
+1. `w17_A_preview.sql`：只讀。看目前函式是否為 UTC 版本、回補規則、歷史上有多少筆因 UTC 少算一天、各狀態筆數。
+2. `w17_B_apply.sql`：以 `BEGIN;` 開頭，備份原函式到 `m4_w17_backup` 後換成新函式，看過最後核對（兩欄都應為 true）再另外執行 `COMMIT;` 或 `ROLLBACK;`。
+3. `w17_C_rollback.sql`：撤回，依備份還原。
+
+備註：不重算既有資料；歷史紀錄維持當時的天數與分數。DEV 對應檔：`supabase/workspace-dev/20261108100000_m4_w17_improvement_taipei_overdue.sql`（含 rollback 與 `scripts/apply-workspace-m4-w17-improvement-dev.cjs`）。
+
+## W17：誰在舊版能回報改善、新版不能（只查詢，F 節）
+
+對應 m4-spec.md F 節最後一項。新版只讓三種人回報改善：管理員、該門市店長、有「提交改善」權限（`inspection.improvement.submit`）者。
+舊版另外允許「該次巡店督導本人」與「有管理改善權限（`inspection.improvement.manage`）者」。`w17_D_reporter_diff.sql` 列出舊版可、新版不可的人員：
+
+- `L1 巡店督導本人`：自己巡的單還有尚未改善的項目，但他不是管理員、不是該門市店長、也沒有提交改善權限。
+- `L2 管理改善權限`：有管理改善權限，但不是管理員、沒有提交改善權限；每個不是他當店長的門市，其尚未改善項目都算受影響。
+- `affected_items`／`affected_stores`：受影響的尚未改善項目數與門市數；`current_roles` 為其目前有效角色。
+
+使用方式：只讀，單獨貼到正式區 SQL editor 執行，不改任何資料。權限判定照正式區 `has_permission`（`user_roles.is_active` 且未過期，
+`role_permissions.is_allowed`、`permissions.is_active`；不檢查 `roles.is_active`）。看過名單後，應該能回報的人請另行補授權 `inspection.improvement.submit`
+（授權草稿需使用者核可後才寫），其餘視為接受新版收緊（allowlist `m4-w17-q18-write-codes`、`m4-w17-q18-inspector`）。
+已在 DEV 以唯讀方式跑過，語法正確。

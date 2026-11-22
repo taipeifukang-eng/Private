@@ -1,0 +1,14 @@
+{
+  "page": "ga-work-orders",
+  "legacyRoute": "/general-affairs/maintenance-requests",
+  "workItem": "G18-e2e",
+  "entries": [
+    { "id": "wo-list-read", "mechanism": "api-read", "description": "同一個登入者（總務工單管理）、同一個搜尋，舊版 GET /api/maintenance-requests 與新版 GET /work-orders 逐列比對共同欄位（標題、說明、狀態、階段、門市、回報人、承辦、處理方式、廠商、分類、各時間、需求單連結）；新版多回顯示欄位、焦點卡全量計數與頁面權限，少回 store／category 巢狀物件與送確認人。", "legacy": { "api": { "path": "/api/maintenance-requests" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders" } }, "compareKey": "id" },
+    { "id": "wo-detail-read", "mechanism": "api-read", "description": "同一張工單：舊版沒有單張詳情 API，以舊版列表列加舊版 GET /api/maintenance-updates 與新版詳情比對共同欄位與進度紀錄；新版多回時間軸、用料、照片、動作能力。", "legacy": { "api": { "path": "/api/maintenance-updates" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id" } } },
+    { "id": "wo-summary-read", "mechanism": "api-read", "description": "各門市各狀態筆數：舊版 GET /api/maintenance-requests/summary 與新版 GET /work-orders/summary；新版多回待門市確認筆數，用資料庫全量計數（舊版整批撈回後在應用層加總）。", "legacy": { "api": { "path": "/api/maintenance-requests/summary" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/summary" } }, "compareKey": "store_id" },
+    { "id": "wo-progress-write-readback", "mechanism": "write-readback", "description": "存進度後回讀工單、進度紀錄與事件：同一份輸入，舊版 POST /api/maintenance-updates 與新版 POST /work-orders/:id/progress。", "legacy": { "api": { "path": "/api/maintenance-updates", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id/progress", "method": "POST" } } },
+    { "id": "wo-completion-write-readback", "mechanism": "write-readback", "description": "送門市確認後回讀工單與需求單：舊版 POST /api/maintenance-updates（action=REQUEST_COMPLETION）與新版 POST /work-orders/:id/request-completion。", "legacy": { "api": { "path": "/api/maintenance-updates", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id/request-completion", "method": "POST" } } },
+    { "id": "wo-force-close-write-readback", "mechanism": "write-readback", "description": "強制結案後回讀工單、需求單與進度紀錄：舊版 POST /api/maintenance-updates（action=FORCE_CLOSE）與新版 POST /work-orders/:id/force-close。", "legacy": { "api": { "path": "/api/maintenance-updates", "method": "POST" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id/force-close", "method": "POST" } } },
+    { "id": "wo-category-write-readback", "mechanism": "write-readback", "description": "改分類後回讀：舊版 PATCH /api/maintenance-requests 與新版 PATCH /work-orders/:id/category。", "legacy": { "api": { "path": "/api/maintenance-requests", "method": "PATCH" } }, "native": { "api": { "path": "/api/workspace/general-affairs/work-orders/:id/category", "method": "PATCH" } } }
+  ]
+}

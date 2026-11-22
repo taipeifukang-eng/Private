@@ -1,0 +1,29 @@
+{
+  "page": "ga-inventory-transfers",
+  "legacyRoute": "/general-affairs/inventory/transfers",
+  "workItem": "G13",
+  "entries": [
+    {
+      "id": "transfer-list-read",
+      "mechanism": "api-read",
+      "description": "同一個登入者、同一個搜尋，舊版 GET /api/general-affairs/inventory/transfers 與新版同路徑清單逐列比對（id、單號、位置、狀態、原因、備註、運送方式、各時間、明細與料件）。角色：總務（全部可見）、店長（名單身分，只看跟自己門市有關的單）。差異：新版多回逾期與門市回報標示、可做的動作（abilities）、統計與設定、異常類型與未收註記；名單身分的內部備註遮蔽（C12）；位置關聯改用公開欄位（只有調撥單權限的人也看得到位置名稱）；不回使用者 id；伺服端精確統計與搜尋跳脫。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/transfers" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/transfers" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "transfer-create-write-readback",
+      "mechanism": "write-readback",
+      "description": "建單後以 service role 回讀資料庫列比對：同一份輸入分別用舊版 POST 與新版 POST 建立（各用一組相同初始狀態的位置與料件），調撥單（狀態、原因、備註、運送方式、位置）與明細（料件、數量、單位）相同。新規則差異：目的位置沒設定該料件被擋（C8）、單號改用台北日期、一張單一個料件、固定識別防重複、驗證需求單與剩餘需求量。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/transfers", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/transfers", "method": "POST" } }
+    },
+    {
+      "id": "transfer-action-write-readback",
+      "mechanism": "write-readback",
+      "description": "確認交出、運送中、收貨、取消後回讀資料庫：同一份輸入分別用舊版與新版處理（各用一組相同初始狀態），狀態、來源與目的庫存、流水（類型、數量、前後餘額、參考單據）、明細的流水關聯相同。新規則差異：備註不再被清空、取消可勾退回來源庫存（舊版不退）、動作要帶版本與固定識別（衝突 409 STALE）、錯誤用白話並給對的狀態碼、收貨只有同時有三個權限的人能做。",
+      "legacy": { "api": { "path": "/api/general-affairs/inventory/transfers/:id/actions", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/inventory/transfers/:id/actions", "method": "POST" } }
+    }
+  ]
+}

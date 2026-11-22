@@ -1,0 +1,91 @@
+{
+  "page": "inspection-gps",
+  "legacyRoute": "/inspection/new",
+  "workItem": "I01",
+  "entries": [
+    {
+      "id": "gps-locating",
+      "mechanism": "ui-extract",
+      "description": "定位進行中：表單鎖住、顯示「定位中…」、定位開不了連結",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/new?type=supervisor",
+          "rowSelector": "[data-testid=gps-panel]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 新增巡店 [data-testid=gps-panel]"
+      }
+    },
+    {
+      "id": "gps-success",
+      "mechanism": "ui-extract",
+      "description": "定位成功（誤差 20 公尺）：解鎖、已定位、座標與精度文字、日期依定位時間",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/new?type=supervisor",
+          "rowSelector": "[data-testid=gps-panel]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 新增巡店 [data-testid=gps-panel]"
+      }
+    },
+    {
+      "id": "gps-warn-700",
+      "mechanism": "ui-extract",
+      "description": "誤差 700 公尺：橘色提示「建議使用手機」，不擋、不跳教學",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/new?type=supervisor",
+          "rowSelector": "[data-testid=gps-panel]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 新增巡店 [data-testid=gps-panel]"
+      }
+    },
+    {
+      "id": "gps-fail-1500",
+      "mechanism": "ui-extract",
+      "description": "誤差 1500 公尺：視為失敗，維持鎖住、錯誤文字、重新定位按鈕、自動跳教學（誤差過大加註）",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/new?type=supervisor",
+          "rowSelector": "[data-testid=gps-panel]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 新增巡店 [data-testid=gps-panel]"
+      }
+    },
+    {
+      "id": "gps-denied",
+      "mechanism": "ui-extract",
+      "description": "權限被拒絕：高精度與一般定位都失敗，維持鎖住、教學加註權限被拒絕、兩階段呼叫順序",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/new?type=supervisor",
+          "rowSelector": "[data-testid=gps-panel]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 新增巡店 [data-testid=gps-panel]"
+      }
+    },
+    {
+      "id": "gps-timeout",
+      "mechanism": "ui-extract",
+      "description": "定位逾時：維持鎖住、教學加註無法取得位置或逾時；教學四個分頁與步驟文字",
+      "legacy": {
+        "ui": {
+          "route": "/inspection/new?type=supervisor",
+          "rowSelector": "[data-testid=gps-panel]"
+        }
+      },
+      "native": {
+        "source": "/workspace/index.html 新增巡店 [data-testid=gps-panel]"
+      }
+    }
+  ]
+}

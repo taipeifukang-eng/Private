@@ -26,6 +26,7 @@ export type PartPayload = {
   tags?: string[];
   is_active?: boolean;
   notes?: string | null;
+  equipment_template_id?: string | null;
 };
 
 export type PartCompatibilityPayload = {

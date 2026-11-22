@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { hasPermission } from '@/lib/permissions/check';
 import { ORGANIZATION_CALENDAR_HOLIDAY_MANAGE_PERMISSION } from '@/lib/admin/organization-calendar';
 import { createClient } from '@/lib/supabase/server';
+import { officialFetch } from '@/lib/workspace/calendar-mock';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -38,7 +39,7 @@ async function findOfficialCsvUrl(year: number) {
   const expectedPrefix = `${year - 1911}年中華民國政府行政機關辦公日曆表`;
   let announcementHtml = '';
   try {
-    const response = await fetch(OFFICIAL_SOURCE_PAGE, {
+    const response = await officialFetch(OFFICIAL_SOURCE_PAGE, {
       signal: AbortSignal.timeout(15000),
       redirect: 'error',
     });
@@ -57,7 +58,7 @@ async function findOfficialCsvUrl(year: number) {
     }
   }
 
-  const catalogResponse = await fetch('https://data.gov.tw/dataset/14718', {
+  const catalogResponse = await officialFetch('https://data.gov.tw/dataset/14718', {
     signal: AbortSignal.timeout(15000),
     redirect: 'error',
   });
@@ -169,7 +170,7 @@ export async function POST(request: NextRequest) {
     }
 
     const sourceUrl = await findOfficialCsvUrl(year);
-    const response = await fetch(sourceUrl, { signal: AbortSignal.timeout(15000), redirect: 'error' });
+    const response = await officialFetch(sourceUrl, { signal: AbortSignal.timeout(15000), redirect: 'error' });
     if (!response.ok) throw new Error(`人事總處 CSV 下載失敗（HTTP ${response.status}）`);
     const contentLength = Number(response.headers.get('content-length') || 0);
     if (contentLength > MAX_CSV_BYTES) throw new Error('官方 CSV 檔案超過 2 MB');

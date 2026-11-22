@@ -1,0 +1,35 @@
+BEGIN;
+DO $$
+DECLARE actor uuid;a uuid:=gen_random_uuid();b uuid:=gen_random_uuid();c uuid:=gen_random_uuid();other uuid:=gen_random_uuid();req uuid:=gen_random_uuid();support uuid:=gen_random_uuid();i uuid:=gen_random_uuid();j uuid:=gen_random_uuid();foreign_item uuid:=gen_random_uuid();v text;rows jsonb;r jsonb;failed boolean;oldid uuid;
+BEGIN
+ SELECT id INTO actor FROM profiles WHERE role='admin' LIMIT 1;
+ INSERT INTO stores(id,store_code,store_name,is_active) VALUES(a,'CAM-'||left(a::text,8),'交易驗證甲',true),(b,'CAM-'||left(b::text,8),'交易驗證乙',true);
+ INSERT INTO campaigns(id,name,start_date,end_date,campaign_type,created_by) VALUES(c,'活動交易驗證','2026-11-01','2026-11-30','promotion',actor),(other,'其他活動交易驗證','2026-11-01','2026-11-30','promotion',actor);
+ rows:=jsonb_build_array(jsonb_build_object('store_id',a,'activity_date','2026-11-04'),jsonb_build_object('store_id',b,'activity_date','2026-11-07'));
+ v:=workspace_campaign_state('schedules',c,NULL);r:=workspace_campaign_replace(actor,req,'schedules',c,NULL,rows,v);
+ IF (SELECT count(*) FROM campaign_schedules WHERE campaign_id=c)<>2 THEN RAISE EXCEPTION 'Schedules missing';END IF;
+ IF workspace_campaign_replace(actor,req,'schedules',c,NULL,rows,v) IS DISTINCT FROM r THEN RAISE EXCEPTION 'Replay mismatch';END IF;
+ failed:=false;BEGIN PERFORM workspace_campaign_replace(actor,gen_random_uuid(),'schedules',c,NULL,'[]',v);EXCEPTION WHEN OTHERS THEN IF SQLERRM<>'WORKSPACE_STALE' THEN RAISE;END IF;failed:=true;END;IF NOT failed THEN RAISE EXCEPTION 'Stale accepted';END IF;
+ v:=workspace_campaign_state('schedules',c,NULL);failed:=false;BEGIN PERFORM workspace_campaign_replace(actor,gen_random_uuid(),'schedules',c,NULL,jsonb_build_array(jsonb_build_object('store_id',a,'activity_date','2026-12-01')),v);EXCEPTION WHEN OTHERS THEN failed:=true;END;
+ IF NOT failed OR (SELECT count(*) FROM campaign_schedules WHERE campaign_id=c)<>2 THEN RAISE EXCEPTION 'Invalid date deleted schedules';END IF;
+ SELECT id INTO oldid FROM campaign_schedules WHERE campaign_id=c AND store_id=a;
+ PERFORM workspace_campaign_replace(actor,gen_random_uuid(),'schedules',c,NULL,jsonb_build_array(jsonb_build_object('store_id',a,'activity_date','2026-11-11')),v);
+ IF NOT EXISTS(SELECT 1 FROM campaign_schedules WHERE id=oldid AND activity_date='2026-11-11') OR EXISTS(SELECT 1 FROM campaign_schedules WHERE campaign_id=c AND store_id=b) THEN RAISE EXCEPTION 'Schedule replace lost id or failed remove';END IF;
+ rows:='[{"employee_code":"TEST-CAM-A","employee_name":"人力測試","position":"專員"}]';
+ PERFORM workspace_campaign_replace(actor,gen_random_uuid(),'ownStaff',c,a,rows,workspace_campaign_state('ownStaff',c,a));
+ EXECUTE 'ALTER TABLE campaign_store_own_staff ADD CONSTRAINT campaign_test_failure CHECK(employee_code <> ''TEST-CAM-FAIL'')';
+ failed:=false;BEGIN PERFORM workspace_campaign_replace(actor,gen_random_uuid(),'ownStaff',c,a,'[{"employee_code":"TEST-CAM-FAIL","employee_name":"失敗測試"}]',workspace_campaign_state('ownStaff',c,a));EXCEPTION WHEN check_violation THEN failed:=true;END;
+ IF NOT failed OR NOT EXISTS(SELECT 1 FROM campaign_store_own_staff WHERE campaign_id=c AND store_id=a AND employee_code='TEST-CAM-A' AND created_by=actor) THEN RAISE EXCEPTION 'Staff rollback failed';END IF;
+ ALTER TABLE campaign_store_own_staff DROP CONSTRAINT campaign_test_failure;
+ INSERT INTO campaign_support_requests(id,campaign_id,requesting_store_id,supporting_store_id,requested_count) VALUES(support,c,a,b,1);
+ PERFORM workspace_campaign_replace(actor,gen_random_uuid(),'supportStaff',c,support,rows,workspace_campaign_state('supportStaff',c,support));
+ IF NOT EXISTS(SELECT 1 FROM campaign_support_staff WHERE support_request_id=support AND requesting_store_id=a AND supporting_store_id=b AND created_by=actor) THEN RAISE EXCEPTION 'Support staff incorrect';END IF;
+ INSERT INTO campaign_checklist_items(id,campaign_id,task_name,item_order) VALUES(i,c,'第一項',0),(j,c,'第二項',1),(foreign_item,other,'其他活動',0);
+ PERFORM workspace_campaign_checklist_order(actor,c,ARRAY[j,i]);
+ IF NOT EXISTS(SELECT 1 FROM campaign_checklist_items WHERE id=j AND item_order=1) THEN RAISE EXCEPTION 'Order failed';END IF;
+ failed:=false;BEGIN PERFORM workspace_campaign_checklist_order(actor,c,ARRAY[foreign_item,i]);EXCEPTION WHEN OTHERS THEN failed:=true;END;
+ IF NOT failed OR NOT EXISTS(SELECT 1 FROM campaign_checklist_items WHERE id=foreign_item AND item_order=0) THEN RAISE EXCEPTION 'Cross-campaign order allowed';END IF;
+ IF has_function_privilege('authenticated','workspace_campaign_replace(uuid,uuid,text,uuid,uuid,jsonb,text)','EXECUTE') OR has_function_privilege('anon','workspace_campaign_checklist_order(uuid,uuid,uuid[])','EXECUTE') THEN RAISE EXCEPTION 'RPC public';END IF;
+END;$$;
+SELECT 'PASS schedule replace/retain ids/remove/stale/retry/invalid dates, atomic staff replacement failure rollback, support staff scope/audit, checklist sort and cross-campaign rejection, private RPC' result;
+ROLLBACK;

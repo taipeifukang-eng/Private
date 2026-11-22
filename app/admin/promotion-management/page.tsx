@@ -1,5 +1,7 @@
 'use client';
 
+import { getMovementDateError, MOVEMENT_DATE_MIN } from '@/lib/employee-movement-date';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { TrendingUp, Plus, Upload, Download, Save, Trash2, AlertCircle, Calendar, ArrowRightLeft, CheckCircle, XCircle, Clock, Edit2 } from 'lucide-react';
@@ -295,6 +297,8 @@ export default function EmployeeMovementManagementPage() {
 
   const handleConfirmTransfer = async (id: string) => {
     const date = confirmEffectiveDate[id];
+    const dateError = getMovementDateError(date);
+    if (dateError) { alert(dateError); return; }
     if (!date) {
       alert('請填入生效日期');
       return;
@@ -367,6 +371,8 @@ export default function EmployeeMovementManagementPage() {
 
   const handleCorrectTransferDate = async () => {
     if (!correctingTransfer || !correctionDate || !correctionReason.trim()) return;
+    const dateError = getMovementDateError(correctionDate);
+    if (dateError) { alert(dateError); return; }
     setCorrectionSaving(true);
     try {
       const res = await fetch(`/api/store-transfer-requests/${correctingTransfer.id}/effective-date`, {
@@ -645,8 +651,8 @@ export default function EmployeeMovementManagementPage() {
       return;
     }
 
-    if (!editMovement.movement_date) {
-      alert('請填寫生效日期');
+    if (getMovementDateError(editMovement.movement_date)) {
+      alert(getMovementDateError(editMovement.movement_date)!);
       return;
     }
 
@@ -792,6 +798,10 @@ export default function EmployeeMovementManagementPage() {
   };
 
   const handleSave = async () => {
+    for (const [index, movement] of Array.from(movements.entries())) {
+      const error = getMovementDateError(movement.effective_date);
+      if (error) { alert(`第 ${index + 1} 列：${error}`); return; }
+    }
     // 驗證資料
     const emptyFields = movements.filter(m => {
       if (!m.employee_code.trim() || !m.employee_name.trim() || !m.movement_type || !m.effective_date) {
@@ -1051,8 +1061,8 @@ export default function EmployeeMovementManagementPage() {
           if (!MOVEMENT_TYPES.some(type => type.value === movement.movement_type)) {
             importErrors.push(`第 ${rowNumber} 列：無法辨識異動類型「${movement.movement_type}」`);
           }
-          if (!isValidDate(movement.effective_date)) {
-            importErrors.push(`第 ${rowNumber} 列：生效日期格式無法辨識`);
+          if (getMovementDateError(movement.effective_date)) {
+            importErrors.push(`第 ${rowNumber} 列：${getMovementDateError(movement.effective_date)}`);
           }
           const row = jsonData[index];
           if (movement.movement_type !== 'store_transfer' && !movement.store_id) {
@@ -1216,7 +1226,7 @@ export default function EmployeeMovementManagementPage() {
       { '欄位': '員編', '是否必填': '必填', '說明': '員工編號，匯入時會自動轉大寫。' },
       { '欄位': '姓名', '是否必填': '必填', '說明': '員工姓名。' },
       { '欄位': '異動類型', '是否必填': '必填', '說明': '可填：入職、升職、代理、留職停薪、復職、過試用期、離職、調店。' },
-      { '欄位': '生效日期', '是否必填': '必填', '說明': '支援 YYYY-MM-DD、YYYY/MM/DD、MM/DD/YYYY 或 Excel 日期。' },
+      { '欄位': '生效日期', '是否必填': '必填', '說明': '請使用四位數西元年（例如 2026，不可填民國 115）；支援 YYYY-MM-DD、YYYY/MM/DD、MM/DD/YYYY 或 Excel 日期。' },
       { '欄位': '任職門市ID', '是否必填': '除調店外必填', '說明': '可填門市代號、門市名稱或 UUID；總部人員可填組織單位代碼、名稱或 UUID。' },
       { '欄位': '是否為藥師', '是否必填': '入職建議填寫', '說明': '可填 是/否 或 TRUE/FALSE。' },
       { '欄位': '生日', '是否必填': '入職必填', '說明': '必須為 YYYY-MM-DD，例如 1990-01-15。' },
@@ -1577,7 +1587,7 @@ export default function EmployeeMovementManagementPage() {
                     </td>
                     <td className="border border-gray-300 px-2 py-1">
                       <input
-                        type="date"
+                        type="date" min={MOVEMENT_DATE_MIN} title="請輸入四位數西元年，例如 2026；不可輸入民國 115 年" onBlur={(e) => { const error = e.target.value ? getMovementDateError(e.target.value) : null; e.target.setCustomValidity(error || ""); if (error) e.target.reportValidity(); }} onInput={(e) => e.currentTarget.setCustomValidity("")}
                         value={movement.effective_date}
                         onChange={(e) => updateRow(index, 'effective_date', e.target.value)}
                         className="w-full px-2 py-1 text-sm border-0 focus:ring-2 focus:ring-blue-500 rounded"
@@ -2169,7 +2179,7 @@ export default function EmployeeMovementManagementPage() {
                               <div className="flex items-center gap-2">
                                 <label className="text-xs text-gray-600 whitespace-nowrap">生效日期 *</label>
                                 <input
-                                  type="date"
+                                  type="date" min={MOVEMENT_DATE_MIN} title="請輸入四位數西元年，例如 2026；不可輸入民國 115 年" onBlur={(e) => { const error = e.target.value ? getMovementDateError(e.target.value) : null; e.target.setCustomValidity(error || ""); if (error) e.target.reportValidity(); }} onInput={(e) => e.currentTarget.setCustomValidity("")}
                                   value={confirmEffectiveDate[req.id] || ''}
                                   onChange={(e) => setConfirmEffectiveDate(prev => ({ ...prev, [req.id]: e.target.value }))}
                                   className="flex-1 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-emerald-500"
@@ -2321,7 +2331,7 @@ export default function EmployeeMovementManagementPage() {
                       生效日期 <span className="text-red-500">*</span>
                     </label>
                     <input
-                      type="date"
+                      type="date" min={MOVEMENT_DATE_MIN} title="請輸入四位數西元年，例如 2026；不可輸入民國 115 年" onBlur={(e) => { const error = e.target.value ? getMovementDateError(e.target.value) : null; e.target.setCustomValidity(error || ""); if (error) e.target.reportValidity(); }} onInput={(e) => e.currentTarget.setCustomValidity("")}
                       value={editMovement.movement_date}
                       onChange={(e) => setEditMovement(prev => ({ ...prev, movement_date: e.target.value }))}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"

@@ -1,0 +1,15 @@
+import json
+from pathlib import Path
+from playwright.sync_api import sync_playwright,expect
+B='http://localhost:3002';f=json.loads(Path('.tmp-check/transfer-roles-fixture.json').read_text());expect.set_options(timeout=30000)
+with sync_playwright() as p:
+ browser=p.chromium.launch();c=browser.new_context(base_url=B,viewport={'width':1440,'height':1000},extra_http_headers={'Origin':B});user=next(u for u in f['users'] if u['key']=='create');assert c.request.post('/api/workspace/login',data={'email':user['email'],'password':user['password']}).ok
+ path='/api/workspace/transfers/history?id='+f['confirmation']['id'];r=c.request.get(path);assert r.ok,r.text();first=r.json();assert first['total']==25 and len(first['rows'])==20 and first['legacy'] is None
+ assert first['rows'][0]['reason']=='日期誤植驗證'
+ second=c.request.get(path+'&page=2').json();assert len(second['rows'])==5;assert len({x['request_id'] for x in first['rows']+second['rows']})==25
+ assert all('before_data' not in x and 'result' not in x for x in first['rows']+second['rows']);assert 'must_not_return' not in r.text()
+ assert c.request.get(path+'&page=0').status==400;assert c.request.get(path+'&page=1.5').status==400
+ legacy=c.request.get('/api/workspace/transfers/history?id='+f['requests'][0]).json();assert legacy['total']==0 and legacy['legacy']['reason']=='只有最後更正的舊紀錄'
+ scoped=p.request.new_context(base_url=B,extra_http_headers={'Origin':B});u=next(u for u in f['users'] if u['key']=='unmanaged');assert scoped.post('/api/workspace/login',data={'email':u['email'],'password':u['password']}).ok;assert scoped.get(path).status==404
+ page=c.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)));page.goto('/workspace/index.html');page.locator('.sidebar').hover();page.locator('.nav-search input').fill('調店申請');page.locator('.module-trigger').first.hover();page.get_by_role('navigation').get_by_role('button',name='調店申請 新版',exact=True).click();panel=page.locator('[role=tabpanel]:visible');panel.get_by_label('申請狀態',exact=True).select_option('confirmed');panel.get_by_label('搜尋申請',exact=True).fill(f['confirmation']['code']);panel.get_by_role('button',name='更正紀錄',exact=True).click();dialog=page.get_by_role('dialog');expect(dialog).to_contain_text('已保存 25 次更正');expect(dialog.locator('.history li')).to_have_count(20);expect(dialog.locator('.history li').first).to_contain_text('日期誤植驗證');dialog.get_by_role('button',name='下一頁',exact=True).click();expect(dialog.locator('.history li')).to_have_count(5);expect(dialog).to_contain_text('第 2 / 2 頁');page.screenshot(path='.tmp-check/transfer-history-desktop.png');page.set_viewport_size({'width':390,'height':844});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth');page.screenshot(path='.tmp-check/transfer-history-mobile.png');dialog.get_by_role('button',name='關閉',exact=True).click();expect(dialog).to_have_count(0);assert not errors,errors
+ print('PASS history: create-only read, scoped denial, 25-row pagination, private snapshot exclusion, legacy fallback, UI navigation and mobile');browser.close()

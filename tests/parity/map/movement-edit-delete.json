@@ -1,0 +1,41 @@
+{
+  "page": "movement-edit-delete",
+  "legacyRoute": "/api/employee-movements/[id]",
+  "workItem": "W06",
+  "entries": [
+    {
+      "id": "patch-permissions",
+      "mechanism": "write-readback",
+      "description": "修改異動的權限對等：同一組角色（含各只持有單一權限者、無權限者、未登入）分別呼叫舊版與新版，比對狀態碼。修改需異動管理、員工管理、批次升遷任一（C.2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/[id]",
+          "method": "PATCH"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-movements/[id]",
+          "method": "PATCH"
+        }
+      }
+    },
+    {
+      "id": "delete-permissions",
+      "mechanism": "write-readback",
+      "description": "刪除異動的權限對等：同一組角色分別呼叫舊版與新版，比對狀態碼。刪除需刪除異動權限；只有修改類權限不能刪（C.2）。",
+      "legacy": {
+        "api": {
+          "path": "/api/employee-movements/[id]",
+          "method": "DELETE"
+        }
+      },
+      "native": {
+        "api": {
+          "path": "/api/workspace/employee-movements/[id]",
+          "method": "DELETE"
+        }
+      }
+    }
+  ]
+}

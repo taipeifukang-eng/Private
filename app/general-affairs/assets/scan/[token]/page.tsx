@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { AlertCircle, Camera, MapPin, Settings, ShieldCheck, Store, Wrench } from 'lucide-react';
 import GeneralAffairsPageHeader from '@/components/general-affairs/GeneralAffairsPageHeader';
 import { createClient } from '@/lib/supabase/server';
+import { scanRedirectEnabled, workspaceScanTarget } from '@/lib/workspace/general-affairs/qr-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +53,8 @@ function statusLabel(value?: string | null) {
 }
 
 export default async function AssetScanPage({ params }: PageProps) {
+  // 預設完全不動；只有 WORKSPACE_SCAN_REDIRECT=true 才轉到新版掃描頁（未登入時由新版先登入再回來）。
+  if (scanRedirectEnabled()) redirect(workspaceScanTarget(params.token));
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {

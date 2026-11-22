@@ -1,0 +1,531 @@
+# M7/M8 第 6 批設計（定稿，2026-11-17，使用者 V1–V10 全採建議）：G20 服務分類與區域、G21 廠商資料、G22 廠商績效與採購分析、G23 水電網費、G24 總務首頁
+
+## 1. 舊版功能清單與缺陷
+
+### 1.1 舊版檔案與路徑
+- 廠商、分類、區域、廠商統計、採購分析五頁全在 `components/general-affairs/service-center/GeneralAffairsServiceCenterClient.tsx`（5 個薄頁面 `app/general-affairs/vendors/page.tsx` 與 `vendors/categories`、`vendors/regions`、`vendors/stats`、`vendors/purchases` 只帶 initialView；該檔 6030 行，廠商與分類區域讀寫在第 1165–1167、1267、1298–1319 行）；沒有專屬 API，瀏覽器 supabase client 直連 `ga_vendors`／`ga_service_categories`／`ga_service_regions`，權限全靠 RLS。採購分析走 `app/api/general-affairs/purchase-reviews/cost-summary/route.ts`。列印用 `components/general-affairs/vendors/VendorInformationPrintForm.tsx`。
+- 水電網費：`app/general-affairs/utility-bills`（帳單）與 `utility-bills/report`（報表）、`components/general-affairs/expenses/UtilityBills*Client.tsx`、`app/api/general-affairs/utility-bills/**`、附件共用 `/api/general-affairs/attachments`。
+- 總務首頁：`components/general-affairs/dashboard/GeneralAffairsDashboardClient.tsx`、`GeneralAffairsHomeClient.tsx`；導覽 `components/general-affairs/navigation.tsx`、`hooks/useNavbarPermissions.ts`。
+- 新版現況：`vue-workspace`、`app/api/workspace/general-affairs/**`、`lib/workspace/**` 對本批全是空白。僅有三處接點：第 4 批採購單讀廠商（`ga_ws_po_vendor_options`、`ga_po_check_vendor`、「去舊版新增供應商」連結）、第 5 批工單已接受 `vendor_id` 但無下拉、附件 API 已支援 `UTILITY_BILL`。`vue-workspace/src/pages/ga/GaCenter.vue` 只有 47 行入口卡片，`lib/workspace/general-affairs/nav-types.ts` 的 `GaNavItem` 沒有 badge 欄位，`lib/workspace/general-affairs/nav.ts` 的 `GA_PAGE_BY_HREF` 沒有 vendors／utility-bills。另有第四處接點：第 4 批需求單採購評估頁（`lib/workspace/general-affairs/requests.ts` 第 400–401 行）以使用者身分直接讀 `ga_vendors`（見 §3.1 收緊的連鎖點）。
+
+### 1.2 舊版功能（新版要對等或改良）
+| 功能 | 舊版行為摘要 |
+|---|---|
+| 廠商列表 | 全表載入無分頁；統計卡（合作中／暫停／停用／總數）；搜尋名稱、別名、聯絡人、電話、email、tags；篩選狀態、分類、區域；右側唯讀詳情；列尾「操作」鈕無事件 |
+| 新增廠商五步驟 | 基本、服務（分類多選、區域樹多選含祖先、品牌、設備、服務能力、tags）、聯絡、合作與帳務、附件；「暫存」與「完成新增」其實同一個 insert；任何錯誤一律「此功能尚未在目前測試環境開放」 |
+| 服務分類 | 統計卡；新增與編輯（唯一有 update）；代碼轉大寫且 UNIQUE；上層、icon、排序、常用項目；沒有刪除；預置分類來自 repo 根目錄 `supabase/migration_general_affairs_vendor_management.sql`（4 個）與 `migration_general_affairs_vendor_top_categories.sql`（頂層分類），皆不在 `supabase/migrations/`，不一定已套用 |
+| 服務區域 | 區域樹；只新增不編輯；類型 country／region／city／district；狀態含 archived；縣市行政區預設資料在 `supabase/migration_general_affairs_taiwan_admin_regions.sql`（不在 migrations，DEV 未套） |
+| 廠商統計（合作記錄） | 六張卡、績效排名（前 5）、分類與區域統計（各前 6），全讀 `ga_vendors` 靜態欄位 |
+| 採購分析 | 讀 `ga_purchase_reviews`（PURCHASE）月份彙總，前 5 廠商與門市 |
+| 廠商填寫表列印 | 空白紙本表單，含啟用分類與縣市勾選 |
+| 水電帳單 | 列表（月、類型、據點篩選，預設當月，上限 500）、三張摘要、新增、標記已繳、軟刪除、附件；唯一規則 `uq_ga_utility_bills_identity` |
+| 水電報表 | 月／季／年按據點加總四類費用，啟用門市沒帳單也列 0；無匯出、無列印 |
+| 總務首頁 | 庫存 KPI、負庫存與低庫存提醒、我的待辦（只列等門市）、功能入口卡 |
+
+### 1.3 舊版缺陷（新版修正）
+**資料安全與維護（G20/G21）**
+1. 正式區 RLS：有 `service_center.access` 者（含店長角色）可讀寫全部廠商，write 為 FOR ALL，可讀統編、帳務抬頭、付款條件並可刪除。
+2. 13 個欄位（billing_title、billing_address、invoice_type、payment_terms、payment_methods、accounting_notes、cooperation_start_date、contract_end_date、contract_required、preferred_vendor、cooperation_notes、service_capability_note、attachment_names）由 `supabase/migrations/20260724092830_general_affairs_vendor_form_sections.sql` 新增、細項權限碼由 `20260824090000` 新增；若正式區尚未套用（上線前以 41 號唯讀確認，m7m8-spec 第 215 行），舊版新增會失敗、採購單的付款條件快照也無來源。
+3. DEV 實查：`ga_vendors`／分類／區域的現行 policy 仍是 `current_user_has_permission('general_affairs.service_center.access')`，不是 `20260824090000` 的收緊版；m7m8-spec Q22 寫的「DEV 已有收緊版」不成立。收緊版須重新套 DEV 並以 `supabase/test_general_affairs_vendor_permissions_rls.sql` 驗證。
+4. 收緊版 SELECT 仍是整列授權：只有分類、區域、合作紀錄檢視權限者也讀得到統編與帳務；RLS 無法欄位遮蔽。
+5. 只能新增、無編輯與停用入口；同統編可重複（`tax_id` 無唯一規則）；`attachment_names` 只存檔名、檔案沒上傳（Client 第 5742 行）；`insert` 失敗一律 `alert(MODULE_NOT_AVAILABLE_MESSAGE)`、原因被吞（Client 第 1267–1272 行）。
+6. 資料庫 `contract_required`、`preferred_vendor` 皆 `DEFAULT true`（`20260724092830` 第 17–18 行），表單預設「二聯式、月結30天」（Client 第 575–576 行）；付款條件是下拉三選一文字。
+7. 資料庫沒有任何銀行欄位（與 D8「廠商銀行等資料」敘述不符；D8 的快照也沒有銀行欄位）。
+8. 廠商 FK：`ga_purchase_orders.vendor_id` 無 ON DELETE，其餘 SET NULL；若允許硬刪，單據上的廠商會被靜默清空。
+
+**統計與採購分析（G22）**
+9. `work_order_count`、`total_amount`、`avg_days`、`rating`、`review_count` 全 repo 無任何更新來源，永遠 0；「已完成工單」是 `Math.round(totalWorkOrders * 0.86)` 的假數字（Client 第 881 行）；平均天數與評分只算評分大於 0 的廠商。
+10. 採購分析混加預估、報價、議價、最終金額；`.limit(500)` 靜默截斷且筆數失真（`cost-summary/route.ts` 第 95 行）；月份依評估單建立日；資料來源是舊採購評估，不含第 4 批採購單。
+11. 選單與頁面權限不一致：`navigation.tsx` 的 `hasRequiredPermission`（第 573–588 行）是「權限碼或 `canAccessGeneralAffairsVendors` 旗標」二擇一，任何一項廠商相關權限都能讓旗標成立；採購分析選單（第 494–508 行）含需求單 `view_all／manage`，API 用 `canReadPurchaseReviews`（`cost-summary/route.ts` 第 71 行，亦含需求單權限）；合作紀錄選單（第 519–527 行）是 7 個廠商相關權限任一即可見，資料卻靠 `ga_vendors` RLS。
+
+**水電網費（G23）**
+12. 只能新增、標記已繳、刪除；PATCH 只改 `paid_at`（`utility-bills/[id]/route.ts` 第 12–13 行），畫面固定送台北今天（`UtilityBillsClient.tsx` 第 124 行；新增表單其實有「繳費日期」欄，第 179 行，只有事後標記不能選）；改回待繳無確認且清掉原日期；刪除只有 `window.confirm`（第 129 行）、不必填原因，資料表沒有 `deletion_reason`。
+13. 重複時直接丟資料庫英文錯誤；補收單、更正單被唯一規則擋住。
+14. 金額只擋負數；日期欄位只 `slice(0,10)`，無格式與合理性檢查。
+15. 摘要與逾期只算「目前篩選結果」（預設當月，API `.limit(500)` 見 `utility-bills/route.ts` 第 72 行；摘要在 Client 第 80–81 行），跨月逾期會漏；沒填到期日的未繳帳單永遠不逾期。
+16. 觸發器 `ga_utility_bill_before_write` 要求 `auth.uid()`，service_role 直接寫入會被擋；新版伺服端寫入必須走 SECURITY DEFINER RPC 或代入使用者身分。
+17. 帳單附件刪除雖已要求原因並軟刪資料列，但隨即實體刪檔（`attachments/[id]/route.ts` 第 49–57 行），與 Q3「只標記、保留檔案」衝突。
+18. RLS 讓「該據點的管理店長」可直讀自己門市帳單，與「店長看不到水電網費」在資料庫層不一致。
+19. 據點名稱是建立當下的文字快照；已停用門市無法在表單選取；`markPaid`、`remove` 無錯誤處理；新增後附件失敗沒有補傳入口。
+
+**總務首頁（G24）**
+20. 待辦 `pageSize=200`（`GeneralAffairsDashboardClient.tsx` 第 368 行）被 API 壓成 100（`requests/route.ts` 第 35 行），只列「等門市確認／補資料」前 5 筆（第 371–375 行）；總務看到的是全部門市等門市的單，不是自己要處理的事；負庫存只讀前 100 筆餘額（含零餘額列，第 321 行）。
+21. 廠商快捷連結 `/general-affairs?section=vendors` 首頁不讀 `section`，停在首頁；沒有任何徽章（`GeneralAffairsNavBadge` 型別宣告於 `navigation.tsx` 第 42、59 行但無使用）；舊版另有一套 `renderLegacyHomeDashboard`（Client 第 2794 行）以只載入 50 筆的維修單（第 1346 行）算卡片，兩套口徑不一致。
+22. 側欄對管理員直接放行（`navigation.tsx` 第 574 行），首頁卻要 `service_center.access`（`GeneralAffairsHomeClient.tsx` 第 137 行）；入口卡的 `canAccessVendors` 與側欄 `canAccessGeneralAffairsVendors` 是兩份獨立計算。
+
+## 2. 已決定事項（引用，不再問）
+
+| 來源 | 決定 | 本批落點 |
+|---|---|---|
+| Q22 | 廠商寫入走伺服端並檢查細項權限；上線前先查正式區廠商表有無異常修改再套收緊；帳務與付款欄位只給廠商查看／管理權限者；加編輯不加刪除（不合作改停用）；統編重複擋下、名稱相近只提醒；分類與區域可編輯不可刪除、停用後仍顯示名稱；移除假附件欄位（既有檔名保留）；失敗顯示明確原因 | §3.1、§3.2、§4、§5 |
+| Q23 | 加編輯並留修改者與時間；刪除必填原因；重複改白話並指出已存在那一筆；金額高於近三期平均 2 倍、低於一半或為 0 時提醒但可儲存；標記已繳可選實際日期；改回待繳須確認；不新增資料表、不動正式區唯一規則；補收單請編輯原帳單 | §3.3 |
+| Q24 | 績效由真實單據計算、評價先不顯示；確定與預估金額分開顯示並分頁讀完；採購分析以採購評估權限為準；首頁數字完整計算；依權限新增待受理需求單、逾期帳單、30 天內到期合約待辦；導覽「待我處理」徽章；不發 LINE；工單算給哪家廠商以 `maintenance_requests.vendor_id` 為準，綁定不完整可隱藏績效 | §3.4、§3.5 |
+| C11 | 逾期未收調撥單紅標與篩選第 3 批已做；首頁待辦在本批 | §3.5 |
+| D8 | 採購單只能選已建好的供應商；下訂快照名稱、統編、付款條件；帳務欄位只給廠商管理權限者；「去舊版新增供應商」連結本批改指新版廠商頁 | §3.1、§4.1 |
+| 第 4 批設計 §10 | 採購單快照廠商、歷史價與請款延後項；本批採購金額只讀已有欄位 | §3.4 |
+| 第 5 批設計 | 廠商下拉與廠商統計延到本批；已完成工單 `totalWorkOrders*0.86` 本批由真實單據取代；存進度「有填才更新」不清 `vendor_id` | §3.4 |
+| spec 第 54 行 | 店長維持看不到水電網費；匯入不做；「本月費用」改標「篩選結果合計」；標記繳費與刪除失敗一律顯示錯誤；報表彙整方式照舊 | §3.3 |
+| Q3 | 附件刪除只標記、實體檔保留；照片自動縮小、其他檔 4MB | §3.3 |
+| Q25 | 工務沿用總務角色，因此看得到水電網費 | §3.3 權限 |
+| 第 6 批 V1–V10（2026-11-17，全採建議，各組 assumptions 一併核可） | 見 §9 | 全批 |
+| 通則 | 列表伺服端搜尋分頁、精確筆數、寫入全成功或全不變、`409 STALE`、錯誤白話、搜尋跳脫、正式區 SQL 先出草稿附還原、備份後核可才執行、舊 Next 頁與舊 API 不動；權限語意以正式區 `has_permission` 為準（不查 `roles.is_active`、DB 無 admin bypass、應用層 `profiles.role==='admin'` 保底，寫入一律由函式內 `has_permission` 判斷） | 全批 |
+
+## 3. 新版做法
+
+### 3.1 廠商、分類、區域（G20/G21）
+**資料模型**
+- 沿用 `ga_vendors`、`ga_service_categories`、`ga_service_regions`，不拆關聯表（分類與區域仍以 `service_category_ids`、`service_region_ids` uuid 陣列存放，讀寫時由 RPC 驗證 id 存在）。
+- 正式區補 13 個欄位（見 §1.3-2），補欄位時 `contract_required` 與 `preferred_vendor` 預設 false（V4：既有廠商補欄位時也設否，不被誤設為需簽約；DEV 這 13 欄已存在但預設值仍是 true，DEV 的 090000 要把欄位預設改 false，並把 DEV 既有測試廠商列的 `contract_required` 也設 false）；新增 `updated_by uuid`（記最後修改者）；不新增銀行欄位（待第 4.5 批請款）。
+- 統編以 RPC 檢查唯一（標準化：去空白、全形轉半角；含停用廠商），暫不建唯一索引，待正式區重複名單處理完再建部分唯一索引。
+- 預設資料：縣市行政區固定資料上線時放入（m7m8-spec 第 54 行，來源 `supabase/migration_general_affairs_taiwan_admin_regions.sql`，納入 DEV 20261118090000 與正式區 42 號，需冪等）；服務分類由總務自行建立，不預置（舊版預置分類 SQL 不套）。
+- 移除假附件欄位：新增表單不再有附件步驟；既有 `attachment_names` 唯讀顯示「既有檔名（未存檔）」。
+- 無刪除：廠商停用用 `status`（active／paused／inactive）；分類與區域不可刪除，停用後仍顯示名稱。
+
+**權限（碼省略前綴 `general_affairs.`）**
+| 動作 | 需要 |
+|---|---|
+| 開廠商列表、詳情（含帳務欄位） | `vendor.view` 或 `vendor.manage` |
+| 新增、編輯、停用廠商 | `vendor.manage` |
+| 看分類／區域 | `service_category.view/manage`、`service_region.view/manage`（廠商表單下拉所需的分類區域清單，持 `vendor.view/manage` 者也可讀） |
+| 改分類／區域 | `service_category.manage`／`service_region.manage` |
+| 廠商績效頁 | `cooperation_record.view`（資料由獨立 RPC 提供，不含帳務欄位；比舊版選單嚴：舊版 7 個廠商相關權限任一即可見，只有 `vendor.view` 或分類區域權限者會失去入口，列入 41 號名單） |
+| 採購分析頁 | `purchase_review.view/manage` |
+- **帳務機密欄位（V1 已決定，嚴格）**：統編 `tax_id`、`billing_title`、`billing_address`、`invoice_type`、`payment_terms`、`payment_methods`、`accounting_notes`、累計金額 `total_amount`。只有 `vendor.view` 或 `vendor.manage` 者拿得到；其他人（只有分類／區域／合作紀錄／採購單權限者）只拿到：名稱、別名、狀態、分類、區域、聯絡人（姓名、電話、LINE、email）。`contract_end_date`、`contract_required`、`cooperation_notes`、`cooperation_start_date`、`preferred_vendor` **不算帳務**（V1）。遮蔽一律在資料庫函式內做（欄位根本不回傳，不是回傳後前端隱藏）；整張表 RLS 只留 `vendor.view/manage`，沒有欄位層級授權，其他人一律走 RPC。
+- **廠商下拉附聯絡資料（V2）**：`ga_ws_vendor_options` 回 `id、name、alias、vendor_type、status、contact_name、contact_phone`（採購單與工單下拉顯示）；`tax_id`、`payment_terms` 仍只在呼叫者有 `vendor.view/manage` 時回（沿用第 4 批 `ga_ws_po_vendor_options` 的 `billing_visible` 行為）。第 4 批 `ga_ws_po_vendor_options` 保留不動（採購單端），新函式供工單、需求單採購評估頁使用。
+- 所有讀取與寫入走 `ga_ws_vendor_*` SECURITY DEFINER RPC（`has_permission(auth.uid(), …)`）；新版不使用瀏覽器直連。RLS 收緊：`ga_vendors` 只留 `vendor.view/manage`，其他權限改走遮蔽欄位的 RPC。
+- **收緊的連鎖點（必改）**：第 4 批需求單採購評估頁 `lib/workspace/general-affairs/requests.ts` 第 400–401 行用使用者身分直接讀 `ga_vendors`（且 `limit(200)`），收緊後只有廠商權限者讀得到，總務若無 `vendor.view` 下拉會變空；本批改走 `ga_ws_vendor_options`（不含帳務欄位）並重跑第 4 批需求單測試。舊版 `app/api/general-affairs/requests/[id]/purchase-review/route.ts`（第 118–126 行，另讀 phone、contact_name）依「舊頁不動」不改，收緊後對無廠商權限者會空白，列入 allowlist 與上線風險。其餘 `ga_vendors` 讀取（`requests.ts` 第 278 行、`part-fulfillments.ts` 第 164 行）用 admin client，不受影響。
+
+**規則**
+- 名稱相近提醒：名稱與別名正規化（去空白、全半形、去「股份有限公司／有限公司／企業社」等字尾）後完全相同或互相包含，提醒並列出疑似者，可繼續儲存（Q22 已決定；細節列假設，不再問）。
+- 統編：非空時 8 碼數字，唯一（含停用）；檢查碼只提醒不擋；個人類型可留空。
+- 分類與區域：代碼建立後鎖定，可改名稱、描述、排序、狀態、上層；上層禁止形成循環；區域停用／archived 後既有廠商仍顯示名稱；新增與編輯廠商時不可新勾選停用項目，已勾選者保留並標「停用」；篩選器仍可選停用項目；列印表單只印啟用項目。
+- **停用廠商（V3 已決定）**：採購單與工單的新單都只能選 `status='active'`（合作中）的廠商（採購單現況已如此：`ga_po_check_vendor`，`20261112110000` 第 486–488 行，`VENDOR_INACTIVE`，沿用；工單端新增同樣檢查，錯誤碼 `VENDOR_INACTIVE`；工單「有填才更新」：沿用既有已綁停用廠商、但不可新選停用廠商）。舊單據顯示名稱加「（已停用）」（status=inactive）或「（暫停）」（status=paused）。已下訂的採購單仍可收貨結案。停用或暫停廠商時，若還有未結採購單（DRAFT／PENDING_APPROVAL／APPROVED／ORDERED／PARTIALLY_RECEIVED）或進行中工單（status≠COMPLETED），回應帶 `warnings` 與筆數，畫面提醒但不擋。
+- 填寫表列印：保留（`window.print` 空白表單，啟用分類與縣市）。
+
+### 3.2 DEV 與正式區前置
+- DEV 先補齊收緊版 RLS 並跑 `supabase/test_general_affairs_vendor_permissions_rls.sql`；查明收緊版先前未套用的原因（可能被相容性 migration 覆蓋）後再收緊。
+- 正式區上線前唯讀預覽：廠商表筆數、重複統編名單、最近修改時間、欄位是否已有、有廠商權限的角色與人（Q22）、目前靠 `request.view_all/manage` 看採購分析但沒有 `purchase_review` 權限的角色與人。
+
+### 3.3 水電網費（G23）
+**資料模型**：沿用 `ga_utility_bills` 與唯一索引；新增欄位 `deletion_reason text`（刪除必填，屬 Q23 預留的小 SQL，與 spec 第 215 行一致）。`updated_by`／`updated_at` 已有；標記已繳也會更新最後修改，明細顯示「最後修改：誰、何時」。
+**寫入**：全走 SECURITY DEFINER RPC `ga_ws_ub_*`（繞開觸發器對 service_role 的 `AUTH_REQUIRED`，於函式內以 `auth.uid()` 與 `has_permission` 檢查，觸發器仍可保留）。
+**權限**：`utility_bill.view` 看列表、報表、附件；`utility_bill.manage` 新增、編輯、標記已繳、刪除、管理附件；店長看不到（RLS 同步移除 `current_user_manages_store` 條件，正式區經核可後才套）；工務沿用總務角色。管理員保底只作導覽與唯讀。
+**規則**
+- 編輯（V6 已決定）：已繳與未繳帳單都可編輯全部欄位；已繳帳單在改金額、改識別欄位（據點、類型、月份、供應商、識別號碼）或刪除時，要多一道確認並顯示原值（`confirm_paid_change:true` 才寫入，否則回 `409 PAID_CHANGE_CONFIRM_REQUIRED` 與原值）；換門市時同步 `location_name`；已停用門市的舊帳單編輯時保留原門市。
+- 重複：RPC 先檢查同鍵未刪除帳單，回白話「這個據點、類型、月份、供應商、識別號碼已經有一筆（金額、到期日、連到該筆）」；補收單請編輯原帳單。
+- 金額異常（V7 已決定）：以同據點＋同費用類型＋同識別號碼（`COALESCE(service_identifier, equipment_serial, account_number, '')` 正規化，與唯一索引同口徑），取「帳單月份早於本筆的最近三筆未刪除帳單」（排除自己與 0 元帳單）算平均；本筆 **> 平均 2 倍、< 平均一半、或本筆為 0 元** 時提醒（恰好 2 倍或恰好一半不提醒），仍可儲存；顯示基準金額（平均）與那幾筆的月份與金額明細；歷史 0 筆不比較（只提醒 0 元）；1–2 筆照用現有筆數並標「僅 N 筆參考」。
+- 標記已繳（V8 已決定）：可選日期，預設今天（台北）；不可選未來；不可早於帳單月份前 1 個月（例如 2038-03 帳單最早 2038-02-01）；憑證不強制；已繳日期可在編輯修正；改回待繳要確認並顯示原繳費日期，確認後清除日期。
+- 逾期（V8）：未繳（`paid_at IS NULL`）且到期日早於台北今日（到期當天不算逾期）；待繳與逾期兩張摘要卡不受月份、類型、據點篩選影響（全部月份、完整計算、不受 500 筆上限），其他摘要照篩選；「本月費用」改標「篩選結果合計」；沒填到期日的未繳帳單永不逾期，另以提示列呈現（筆數與連結，不計入徽章）；首頁、徽章與帳單頁的逾期數字同一支函式算出，必須一致。
+- 刪除（V6）：必填原因（存 `deletion_reason`）；軟刪除；另提供唯讀「顯示已刪除」檢視（誰、何時、為何刪），不提供還原；帳單刪除時附件保持原狀（不標記），因帳單不存在而不可讀。
+- 附件：沿用 `ResourceAttachmentPanel`（`UTILITY_BILL`、`BILL_DOCUMENT`）；規格沿用 Q3（照片縮小、其他檔 4MB、單次最多 10 個）；刪除附件須原因且只標記、保留實體檔；編輯畫面可增刪附件；新增帳單時附件失敗保留「補傳」入口。
+- 報表：照舊（月／季／年按據點加總、全部啟用門市列出、分頁讀完）；「其他據點」名稱正規化後分組。**不做 Excel／CSV 匯出與圖表**（V10），沿用卡片、表格與純 CSS 長條；據點×月份總表不做。
+
+### 3.4 廠商績效與採購分析（G22）
+- **績效頁**（V5 已決定：績效一律顯示，不因工單綁定不完整而隱藏；需 `cooperation_record.view`，RPC `ga_ws_vendor_perf`，不新增快取表）：預設近 12 個月，可選月份區間；工單以 `reported_at` 落在區間、依 `maintenance_requests.vendor_id` 歸屬；完成數只算 `status='COMPLETED'` 且 `completion_method='STORE_CONFIRMED'`（`STORE_CONFIRMED` 是完成方式不是狀態），`ADMIN_FORCE_CLOSED` 另計且不入平均天數，`completion_method` 為 NULL 的舊資料列另列「已完成（未記方式）」、不入平均天數；平均處理天數＝`accepted_at` 到 `completed_at`；工單沒綁廠商者另列「未指定」（歷史不回補）；評價欄不顯示；每列顯示：工單數、完成數（STORE_CONFIRMED）、強制結案數、未記完成方式數、受理到完成平均天數、採購單確定金額；金額＝該廠商採購單確定金額（見下）；資料不足時顯示「資料累積中」而不是 0，並註明只統計有選廠商的工單；歷史工單不回補。頁面有「更新時間」與手動重新整理。
+- **採購分析**（需 `purchase_review.view/manage`，RPC `ga_ws_purchase_analysis`）：以 `ga_purchase_orders` 為主，確定金額＝狀態 `ORDERED／PARTIALLY_RECEIVED／RECEIVED／CLOSED` 的含稅額（與 D9 歷史價同一組狀態），月份依下訂日（台北）；預估＝尚未下訂的評估與草稿，並單獨列舊採購評估的預估／報價；已到貨實收另列；上線前舊評估單只列預估，不回推為確定；伺服端彙總、分頁讀完、排名可展開全部；廠商以快照名稱為準。
+- **工單廠商下拉**（V5 已決定：僅總務可選＝持 `work_order.update` 或 `work_order.manage` 者；第 5 批設計第 5 行已明列延到本批；`maintenance_requests.vendor_id` 為 `ON DELETE SET NULL`）：第 5 批工單進度表單（僅總務端）補廠商下拉（`status=active`，沿用 `PoPicker` 抽成廠商下拉）；進度 RPC 已「有填才更新」，不必改規則，只改畫面與一支唯讀廠商選項 API；需重跑第 5 批 G18 畫面回歸。
+
+### 3.5 總務首頁與導覽（G24）
+- 一支輕量 RPC `ga_ws_home_summary`（`auth.uid()` ＋ `has_permission`，只回呼叫者有權看的項目）：回各項目計數與前 5 筆。
+- 「待我處理」項目（V9 已決定，共 9 項，最終定義見 §3.6）：待受理需求單、逾期帳單、30 天內到期與已過期合約（`status=active` 且 `contract_required=true` 且有 `contract_end_date`，續約即改到期日）、逾期未收調撥單（C11）、待核准採購單、逾期未到貨採購單、門市退回的工單、貼標待複核，加原有店長的待確認／待補資料（只算自己門市）。負庫存與低庫存是狀態提醒，留在首頁庫存摘要區，不計入徽章。
+- 需求單與採購單沒有指派個人欄位，採「同權限者共同待辦」；總務另以「等門市回覆」唯讀計數呈現，不計入徽章。
+- 庫存區：負庫存與低庫存由伺服端完整計數、顯示前 5 筆並依位置權限；點卡片進庫存頁帶篩選；允許負庫存的位置（`allow_negative_stock`）屬預期不算異常，不允許卻為負者標紅列入異常提醒。
+- 導覽：`GaNavItem` 加 `badge?: number`；各選單項目顯示自己的待辦數（需求工作台＝待受理、採購單＝待核准、水電網費＝逾期、廠商＝合約到期、調撥＝逾期未收），首頁顯示合計，上限 99+；進入總務區與切換頁面時重抓，另每 5 分鐘輕量更新；點進頁面列表自動帶「待我處理」篩選，確保徽章數字等於筆數。
+- 入口：廠商資料卡改指向使用者可進入的第一個廠商頁；選單、頁面、API 共用同一組權限常數（消除看得到打不開）。舊版第二套首頁邏輯不移植。
+- 不發 LINE、不建快取表。
+
+### 3.6 權限與徽章總表（V9 定稿；碼省略前綴 `general_affairs.`；管理員 `profiles.role==='admin'` 只作導覽與唯讀保底，寫入與資料一律由函式內 `has_permission` 判斷）
+**頁面與 API**
+| 頁面（API） | 進入條件（任一） | 寫入條件 |
+|---|---|---|
+| 首頁 `/`（`home/summary`、`home/badges`） | `service_center.access`；各區塊與徽章只回呼叫者有權看的項目 | 無 |
+| `/vendors`（`vendors`、`vendors/:id`） | `vendor.view`／`vendor.manage`（含帳務機密欄位） | `vendor.manage` |
+| `/vendors/categories`（`service-categories`） | `service_category.view`／`manage` | `service_category.manage` |
+| `/vendors/regions`（`service-regions`） | `service_region.view`／`manage` | `service_region.manage` |
+| `/vendors/stats`（`vendor-stats`） | `cooperation_record.view`（不含任何帳務機密欄位；只回廠商名稱與統計） | 無 |
+| `/vendors/purchases`（`purchase-analysis`） | `purchase_review.view`／`manage`（不再因需求單權限放行） | 無 |
+| `/utility-bills`、`/utility-bills/report`（`utility-bills*`） | `utility_bill.view`／`manage` | `utility_bill.manage` |
+| `vendor-options`（工單、需求單採購評估頁下拉） | 任一：`vendor.view/manage`、`work_order.update/manage`、`purchase_review.view/manage`、`request.manage`、採購單查看（`ga_po_can_view`） | 無 |
+| 分類／區域下拉（廠商表單用） | 持 `vendor.view/manage` 者也可讀啟用分類與區域清單（唯讀） | 無 |
+- 店長（只有 `service_center.access` 與報修／自己門市權限）：看不到廠商、分類、區域、績效、採購分析、水電網費；首頁只出現自己門市的待確認／待補資料。
+- 只有分類／區域／合作紀錄權限者：看不到統編與任何帳務機密欄位（V1）；廠商列表與詳情頁對其回 403。
+
+**徽章與「待我處理」（V9：同權限者共同看；店長只算自己門市；每個選單顯示自己的數字、首頁顯示合計、最多顯示 99+、每 5 分鐘更新；進入總務區與切換頁面時也重抓）**
+| # | 項目 | 計數條件 | 看得到的權限 | 顯示在 | 點進去的列表篩選（筆數必須等於徽章） |
+|---|---|---|---|---|---|
+| 1 | 待受理需求單 | `ga_service_requests.main_status='PENDING_INTAKE'` 且未刪除 | `request.manage` | 需求工作台 | `/requests?attention=1` |
+| 2 | 逾期帳單 | 未刪除、`paid_at IS NULL`、`due_date < 台北今日` | `utility_bill.view/manage` | 水電網費 | `/utility-bills?overdue=1` |
+| 3 | 30 天內到期合約 | `status='active'` 且 `contract_required` 且 `contract_end_date <= 台北今日+30`（已過期也列） | `vendor.view/manage` | 廠商資料 | `/vendors?contract_due=1` |
+| 4 | 逾期未收調撥單（C11） | 狀態屬 AWAITING_RECEIPT 且 `source_confirmed_at` 早於「現在 − 逾期天數」（與 `isOverdue` 同一判斷、同一設定） | `inventory_transfer.view/manage`（範圍沿用調撥列表可見範圍） | 庫存調撥 | `/inventory/transfers?overdue=1`（既有） |
+| 5 | 門市待確認／待補資料 | 需求單 `main_status` 為 `WAITING_STORE_CONFIRMATION` 或 `WAITING_STORE_SUPPLEMENT`，且屬呼叫者所屬門市 | `request.confirm_own_store`／`comment_own_store` 且為該店成員 | 我的追蹤 | `/requests/mine?attention=1` |
+| 6 | 待核准採購單 | `status='PENDING_APPROVAL'` | `purchase_order.approve` | 採購單 | `/purchase-orders?attention=1`（待核准與逾期的聯集，依呼叫者有的權限各自成立） |
+| 7 | 逾期未到貨採購單 | `status IN ('ORDERED','PARTIALLY_RECEIVED')` 且 `expected_delivery_date < 台北今日` | 採購單查看（`ga_po_can_view`） | 採購單 | 同上 |
+| 8 | 門市退回工單 | `maintenance_requests.status='PROCESSING'` 且 `progress_stage='REOPENED'`（門市回報仍有問題） | `work_order.update/manage` | 工單中心 | `/work-orders?attention=store_rejected`（新增篩選） |
+| 9 | 貼標待複核 | 設備與設施 `onboarding_status='PENDING_GA_REVIEW'` 且未刪除，兩者合計 | `equipment.manage`／`facility.manage`（各算各的） | 資產建檔 | `/onboarding?statuses=PENDING_GA_REVIEW`（既有） |
+- 首頁合計＝呼叫者看得到的各項加總；**每項的計數與列表篩選共用同一個資料庫述詞**（同一支函式或視圖），測試斷言「徽章數字＝點進去列表總筆數」。
+- **不計入徽章**：負庫存、低庫存（留在首頁庫存區）；總務的「等門市回覆」唯讀計數；沒填到期日的未繳帳單提示；需求單「待總務複核」（`WAITING_GA_REVIEW`，V9 清單沒有列，本批不計入，列待使用者確認，見 §9 備註）。
+
+## 4. 頁面與 API
+
+### 4.1 頁面（`vue-workspace/src/pages/ga/`）
+| 頁面 | 說明 |
+|---|---|
+| `Vendors.vue` | 列表（伺服端搜尋分頁、統計卡、篩選）、詳情、新增與編輯（四步驟，無附件步驟）、停用／啟用、填寫表列印；帳務欄位依權限顯示 |
+| `VendorCategories.vue`、`VendorRegions.vue` | 樹狀與列表、新增編輯、停用；代碼鎖定 |
+| `VendorStats.vue` | 廠商績效（§3.4） |
+| `PurchaseAnalysis.vue` | 採購分析（§3.4） |
+| `UtilityBills.vue`、`UtilityBillsReport.vue` | 帳單列表、新增編輯、標記已繳、刪除、附件；報表 |
+| `GaCenter.vue` | 改為首頁：待辦、KPI、庫存提醒、入口 |
+| 修改 | `PurchaseOrderEdit.vue`（第 40、183 行 `legacy-vendor-link`）供應商連結改新版廠商頁（有 `vendor.manage` 才顯示，其餘顯示「請洽總務新增」）；工單進度表單加廠商下拉；`vue-workspace/src/components/ga/GaShell.vue` 顯示徽章；`lib/workspace/general-affairs/requests.ts` 廠商下拉改走 RPC |
+- 導覽：`lib/workspace/general-affairs/nav.ts` 的 `GA_PAGE_BY_HREF` 新增 `/vendors`、`/vendors/categories`、`/vendors/regions`、`/vendors/stats`、`/vendors/purchases`、`/utility-bills`、`/utility-bills/report` 與對應 kind（`page-kinds.ts`）；沿用 `canAccessGeneralAffairsVendors` 與 `canAccessGeneralAffairsUtilities`；同目錄 `nav-types.ts` 加 badge；`lib/workspace/navigation.ts` 第 227–232 行已含 `vendor.*`、`utility_bill.*` 入口權限，確認與新常數一致。
+- 圖表：不新增圖表套件，沿用卡片、表格與純 CSS 長條（V10 已決定）。確認 Modal 以 `Modal.vue` 自組。
+
+### 4.2 API（`/api/workspace/general-affairs/**`，`lib/workspace/general-affairs/router.ts` 加 `vendors`、`service-categories`、`service-regions`、`vendor-stats`、`purchase-analysis`、`utility-bills`、`home`；共通規則同第 5 批：非 GET 檢查 Origin、使用者身分、`GaError`、`pageSize ≤ 100` 回 `{data,total}`、寫入帶 `expected_updated_at` 回 `409 STALE`、伺服端欄位遮蔽）
+| 路徑 | 動作 |
+|---|---|
+| `vendors` GET／POST、`vendors/:id` GET／PATCH、`vendors/:id/status` | 列表、新增、編輯、停用；回應含 `warnings`（名稱相近）；統編重複回 `409 TAX_ID_DUPLICATE` 並指出既有廠商 |
+| `vendor-options` | 工單、需求單採購評估頁用的 active 廠商下拉（含聯絡人與電話；統編與付款條件依 `vendor.view/manage` 遮蔽）；採購單端沿用第 4 批 `po-vendor-options` |
+| `service-categories`、`service-regions`（GET／POST／PATCH） | 無 DELETE |
+| `vendor-stats?from=&to=` | 績效 |
+| `purchase-analysis?yearMonth=` | 採購分析 |
+| `utility-bills` GET／POST、`:id` GET／PATCH、`:id/pay`、`:id/unpay`、`:id/delete`、`report`、`anomaly-check` | `anomaly-check` 回基準與明細；`unpay` 需 `confirm:true`；`delete` 需 `reason` |
+| `home/summary`、`home/badges` | 首頁與徽章（`badges` 只回數字，單一 RPC；每 5 分鐘輕量更新） |
+| 既有列表加 `attention` 篩選 | `requests`、`requests/mine`、`purchase-orders`、`work-orders`、`vendors`、`utility-bills`（`overdue=1`）；調撥 `overdue`、貼標 `statuses` 已有 |
+- 資料庫函式皆 SECURITY DEFINER，回 `{ok,status,data,error,code}`，錯誤碼白話對照表放 `lib/workspace/general-affairs/vendor-messages.ts`、`utility-bill-messages.ts`。
+
+## 5. SQL 計畫
+
+### 5.1 DEV（`supabase/workspace-dev/`，各附 `.rollback.sql`；套用腳本 `scripts/apply-workspace-m7m8-b6-dev.cjs [--rollback]`，比照第 5 批，用 `tests/support/env-guard.cjs` 只連 DEV，先確認 `supabase/.temp/project-ref` 以 mjpd 開頭）
+接續現有最大號 `20261117130000`。
+| 檔名 | 內容 |
+|---|---|
+| `20261118090000_m7m8_b6_vendor_columns_rls.sql` | 補齊 13 欄位（DEV 已存在，用 `IF NOT EXISTS`；欄位預設 `contract_required`／`preferred_vendor` 改 false、DEV 既有廠商列設 false）、`updated_by`；分類、區域與廠商收緊版 RLS（只留 `vendor.view/manage` 讀、`vendor.manage` 寫）；**套用前把現有 policy 定義存備份**；縣市行政區固定資料 |
+| `20261118100000_m7m8_b6_vendor_rpc.sql` | `ga_ws_vendor_list/get/save/set_status`、`ga_ws_vendor_options`、`ga_ws_svc_category_*`、`ga_ws_svc_region_*`；統編檢查、相近名稱、欄位遮蔽 |
+| `20261118110000_m7m8_b6_utility_bills.sql` | `ga_utility_bills.deletion_reason`；`ga_ws_ub_list/get/save/pay/unpay/delete/anomaly/report`；店長 RLS 條件移除 |
+| `20261118120000_m7m8_b6_stats_home.sql` | `ga_ws_vendor_perf`、`ga_ws_purchase_analysis`、`ga_ws_home_summary`（含 9 項共用述詞函式）、`ga_ws_wo_list` 補 `attention=store_rejected` 篩選、需求單與採購單列表 `attention` 述詞；索引 `maintenance_requests(vendor_id, reported_at)`、`ga_purchase_orders(vendor_id, ordered_at)`、`ga_utility_bills(due_date) WHERE paid_at IS NULL AND deleted_at IS NULL` |
+| `20261118130000_m7m8_b6_dev_seed.sql` | DEV 專用：測試角色，代碼統一 `vue_workspace_ga6_` 開頭（實測 roles 表與 role-matrix 沒有此前綴，不會撞名；既有 `vue_workspace_ga_vendor_view／manager／edit`、`vue_workspace_ga_staff`、`vue_workspace_ga_works` 等一律不動）：`_vendor_mgr`（vendor.view+manage）、`_cat_only`（分類與區域 view）、`_coop_only`（cooperation_record.view）、`_util_mgr`（utility_bill.view+manage）、`_util_view`（utility_bill.view）、`_ga_all`（總務全套：廠商管理、採購、工單管理、水電管理、需求單管理、調撥、設備設施管理）、`QA-GA6-` 前綴測試資料、擴充 `cleanupM7M8`；角色代碼套用前先查 role-matrix 與 `roles` 表避免撞名 |
+套用順序 090000 → 100000 → 110000 → 120000 → 130000；rollback 反向。DEV 目前廠商、分類、區域各 1 筆，水電、採購單、工單為 0 筆，測試以 seed 建立。
+
+### 5.2 正式區草稿（`docs/vue-workspace/parity-plan/m7m8-sql/`，接續現有最大號 **40**，均附 rollback；README 新增「第 6 批」章節與套用順序）
+| 檔案 | 內容 |
+|---|---|
+| `41-b6-preview-before-apply.sql` | 唯讀預覽：廠商表筆數、重複統編名單、最近修改時間、欄位與權限碼是否已有、現行 policy 原文、有廠商權限的角色與人、只靠需求單權限看採購分析的名單、水電 migration 是否已套（含 `20260926093000`）、有 `vendor_id` 的工單比例與 `completion_method` 分佈（含 NULL） |
+| `42-b6-vendor-columns.sql`／`-rollback.sql` | 補欄位（`contract_required`、`preferred_vendor` 預設 false）、權限碼、縣市行政區固定資料 |
+| `43-b6-vendor-rls.sql`／`-rollback.sql` | 廠商、分類、區域 RLS 收緊；**名單與異常修改查核未確認前不得套用** |
+| `44-b6-vendor-rpc.sql`／`-rollback.sql` | 廠商、分類、區域函式 |
+| `45-b6-utility-bills.sql`／`-rollback.sql` | `deletion_reason`、帳單函式、店長 RLS 條件移除（需確認沒有功能依賴店長讀取） |
+| `46-b6-stats-home.sql`／`-rollback.sql` | 績效、採購分析、首頁函式與索引 |
+套用順序：41（唯讀）→ 42 → 44 → 45 → 46 → 43（名單確認後最後收緊）。依賴：44 需要第 4 批 32 與 42；46 需要第 4、5 批與第 3 批調撥設定。**一律先備份，經使用者核可才執行；不在本批連正式區。**
+
+## 6. 測試計畫
+測試 ID：**G20**（服務分類與區域）、**G21**（廠商資料）、**G22**（統計分析：績效與採購分析）、**G23**（水電網費）、**G24**（總務首頁與徽章）；檔名比照 `G18-api`／`G18-db`／`G18-e2e` 的分層（例 `G21-db.vendor-rpc`、`G21-api.vendors-api`、`G21-e2e.journey-vendor-chain`）。必修回歸：第 4 批 **G16、G17**（需求單採購評估頁改走 `ga_ws_vendor_options`）、第 5 批 **G18**（工單進度表單加廠商下拉）、第 4 批採購單廠商相關測試。
+- **smoke**（`G20–G24.smoke`）：各頁桌機 1440、手機 390 無橫向捲動、無 console 錯誤；導覽 href 與 `GA_PAGE_BY_HREF`；無權限入口不可見，API 回 403／401；徽章元件在各選單位置出現。
+- **unit**：統編標準化（去空白、全形轉半角）與 8 碼格式、檢查碼只提醒；名稱相近判斷（字尾去除、互相包含）；帳務機密欄位遮蔽清單（8 欄）對照；分類區域循環防止；異常基準計算（歷史 0／1／2／3／4 筆、雙月、排除自己與 0 元、恰好 2 倍與一半不提醒、本筆 0 元提醒）；標記已繳日期範圍（今天可、明天不可、帳單月份前 1 個月可、再早不可）；逾期定義（到期當天不逾期、無到期日不逾期、已繳不逾期）；合約到期（30 天邊界、已過期、不需簽約、非合作中不列）；績效完成數定義（COMPLETED＋STORE_CONFIRMED；強制結案與未記方式另計）；徽章 9 項與權限對照、99+ 上限；選單、頁面、API 權限常數一致；縣市行政區資料筆數與冪等。
+- **integration**（資料庫函式與 API；每支寫入驗權限矩陣、Origin、400、409 STALE、冪等，用 service role 回讀 DB；RPC 有 `BEGIN…ROLLBACK` SQL 測試）：統編重複擋下並指出既有廠商、名稱相近只提醒；廠商編輯、停用（含未結單據提醒）；分類區域編輯不可刪、代碼鎖定、停用後仍顯示；非廠商權限者的回應完全沒有 8 個帳務欄位；`vendor-options` 帶聯絡資料、無廠商權限者沒有統編與付款條件；工單指定停用廠商被擋；採購單選停用廠商被擋（第 4 批既有）；帳單新增、編輯留修改者、重複白話訊息指出既有那一筆、異常提醒、已繳改金額需確認、標記已繳日期範圍、改回待繳需確認、刪除必填原因、已刪除檢視；績效完成數與天數對照種子單據；採購分析確定與預估分開、超過 500 筆分頁讀完；首頁與徽章 9 項計數對照種子；**徽章數字＝列表總筆數**（9 項逐一）；超過 100 筆種子仍正確。
+- **RLS 實測**（`G21-e2e.rls`、`G23-e2e.rls`）：用真實角色（店長、總務、廠商管理、廠商檢視、只有分類區域、只有合作紀錄、水電管理、水電檢視、管理員）直查資料表與呼叫函式：店長讀不到廠商、帳單；只有分類區域權限者直查 `ga_vendors` 讀不到、函式讀不到統編與帳務；寫入不靜默失敗；`test_general_affairs_vendor_permissions_rls.sql` 在 DEV 跑通。
+- **parity**（`G21.parity`、`G23.parity`、`G22.parity`）：同帳號呼叫舊 `/api/general-affairs/utility-bills*`、`purchase-reviews/cost-summary` 與新 API，正規化後比對列表、報表加總；廠商以資料表直查比對；差異登記 allowlist。
+- **e2e 角色接力劇本（循序）**：
+  1. **`G21.journey-vendor-chain.e2e.spec.ts`**：總務新增廠商（統編重複被擋並指出既有廠商；名稱相近只提醒可儲存）→ 採購單選廠商（下拉只列合作中，暫停與停用的選不到）並下訂（快照名稱）→ 工單進度表單指定該廠商（僅總務有下拉）→ 店長確認完成 → 績效頁出現該廠商的工單數、完成數（STORE_CONFIRMED）、採購確定金額；廠商停用後舊採購單與舊工單顯示「（已停用）」、新單不能選；已下訂採購單仍可收貨結案。
+  2. **`G23.journey-utility-bill.e2e.spec.ts`**：總務登錄水電帳單 → 金額異常提醒（多打一個零，顯示基準金額與明細，仍可儲存）→ 更正（編輯留修改者）→ 到期日已過未繳，首頁逾期待辦與水電網費徽章出現 → 標記已繳（選日期；未來日與過早日被擋）→ 首頁與徽章減少 → 改回待繳需確認並顯示原日期 → 已繳帳單改金額需二次確認 → 刪除必填原因 → 「顯示已刪除」檢視看得到誰、何時、為何刪；重複帳單訊息指出既有那一筆。
+  3. **`G24.journey-store-blocked.e2e.spec.ts`**：店長登入看不到廠商、水電網費、績效、採購分析選單，直接開網址與呼叫 API 皆被擋；直查資料表也讀不到；首頁只有自己門市的待確認／待補資料；**只有分類區域權限者**開分類與區域頁正常，開廠商頁被擋，且任何回應都看不到統編。
+  4. **`G24.journey-home.e2e.spec.ts`**：總務首頁待辦與各選單徽章數字等於點進去列表的筆數（9 項逐一點進去比對）；總務辦完一項後徽章即時減少；超過 100 筆種子資料時數字仍正確；99+ 顯示。
+- **回歸**：G16、G17、G18 全套與第 4 批採購單測試重跑；`test:page` 與 e2e 一律循序；run-all 結束碼 1 若只因 sweeper 基準孤兒或 fetch failed 視為通過並說明。
+- 版面檢查比照 `G10.layout.e2e`（`G20–G24.layout.e2e`）；廠商填寫表做 A4 列印預覽檢查；測試資料只用 VW／ZT 測試門市與保留年份 2038，結束只清自己的（`cleanupM7M8` 擴充，標記 `QA-GA6-`）。
+
+## 7. 與舊版差異（登記 `tests/parity/allowlist.json`，id 前綴 `m7m8-b6-`）
+`approvedBy`：問卷 V1–V10 與 m7m8-spec 已核可者設 `"user (2026-11-17 batch 6 spec survey)"`；新發現者設 `null`（decision 為 fix 的條目依驗證器規則維持 `null`）。
+1. 廠商、分類、區域改走伺服端與細項權限；店長不可讀寫 [Q22、V1，已核可]。
+2. 帳務機密 8 欄只給廠商查看／管理權限者（伺服端遮蔽）；只有分類區域／合作紀錄者看不到 [V1，已核可]。
+3. 廠商可編輯與停用、無刪除；分類區域可編輯不可刪除、代碼鎖定、停用後仍顯示 [Q22，已核可]。
+4. 統編重複擋下、名稱相近只提醒 [Q22，已核可]；失敗顯示明確原因 [Q22，已核可]。
+5. 移除假附件欄位、既有檔名唯讀保留 [Q22，已核可]。
+6. 廠商下拉附聯絡人與電話 [V2，已核可]。
+7. 新單只能選合作中廠商、舊單標示「（已停用）」「（暫停）」、停用時有未結單據只提醒 [V3，已核可]。
+8. 「需簽合約」預設改為否（含既有廠商補欄位）；合約到期提醒（30 天內與已過期）[V4，已核可]；付款條件結構化提示 [新發現，`null`]。
+9. 績效由真實單據計算、評價不顯示、已完成工單不再乘 0.86、未指定另列、資料不足顯示「資料累積中」[Q24、V5，已核可]；工單進度表單新增廠商下拉（僅總務）[V5，已核可]。
+10. 採購分析改以採購單為主、確定與預估分開、月份依下訂日、分頁讀完、權限以採購評估為準 [Q24，已核可]。
+11. 帳單可編輯（已繳與未繳都可，已繳改關鍵欄位多一道確認）並留修改者；刪除必填原因、軟刪除、「顯示已刪除」唯讀檢視、不還原；重複白話訊息 [Q23、V6，已核可]。
+12. 金額異常提醒（近三筆平均、2 倍／一半／0 元）[Q23、V7，已核可]。
+13. 標記已繳可選日期（預設今天、不可未來、不早於帳單月份前 1 個月）、改回待繳需確認 [Q23、V8，已核可]；逾期與待繳摘要不受月份篩選、「本月費用」改標「篩選結果合計」、無到期日未繳另列提示 [V8、spec 第 54 行，已核可]。
+14. 帳單附件刪除只標記不刪檔 [Q3，已核可]；店長不可直讀水電帳單（資料庫層）[spec 第 54 行，已核可]。
+15. 首頁「待我處理」與導覽徽章（9 項）、廠商入口導向正確頁 [Q24、C11、V9，已核可]。
+16. 負庫存完整計算、允許負庫存位置不算異常 [Q24 延伸，新發現，`null`]。
+17. 選單、頁面、API 共用同一組權限；管理員只作導覽與唯讀保底 [通則，已核可]。
+18. 採購單「去舊版新增供應商」連結改指新版廠商頁；無廠商管理權限顯示「請洽總務新增」[D8，已核可]。
+19. 水電報表「其他據點」名稱正規化分組 [缺陷修正，新發現，`null`]。
+20. 不做 Excel／CSV 匯出與圖表 [V10，已核可]。
+21. 舊版需求單採購評估 API（`purchase-reviews`）直讀 `ga_vendors`，收緊後對無廠商權限者空白；舊頁不動 [新發現，`null`]。
+
+## 8. 風險
+- **正式區資料未知**：廠商筆數、重複統編、最近是否被店長角色改過、工單 `vendor_id` 完整度都要上線前唯讀預覽（41 號）；補欄位預設值若沿用舊 migration 會把既有廠商全標成需簽約。
+- **DEV RLS 與 spec 不符**：收緊版需重新套用與測試，否則 RLS 測試與角色矩陣會誤判。
+- **收緊的連鎖影響**：只靠需求單權限看採購分析、只有分類或區域權限看廠商欄位的人會失去入口，必須先出名單補授權；`ga_purchase_orders.vendor_id` 無 ON DELETE，故不開放硬刪。
+- **收緊讀取連鎖**：第 4 批需求單採購評估頁與舊版 purchase-review API 直接讀 `ga_vendors`，收緊後對無廠商權限者空白；新版改走 RPC，舊版列 allowlist。
+- **觸發器擋 service_role**：帳單寫入若誤用 service_role 全失敗，整批走 RPC。
+- **異常提醒誤報**：新據點、雙月水費、補收單；以「同識別號碼最近三筆」降低誤報。
+- **績效資料稀薄**：歷史工單無廠商，績效頁初期多為「資料累積中」，需向使用者說明。
+- **徽章負載**：每頁重抓計數，需保證單一 RPC 輕量並有索引。
+- **範圍膨脹**：匯出、圖表、銀行資料、合約表、真附件上傳皆不在本批。
+- **回歸**：改第 5 批工單進度表單與第 4 批採購單連結，需重跑 G18、G16、G17。
+
+## 9. 已決定（2026-11-17，使用者 V1–V10 全採建議 A，各組 assumptions 一併核可）
+| 題號 | 決定（最終行為） | 落點 |
+|---|---|---|
+| V1 帳務機密 | 嚴格：統編、帳務抬頭與地址、發票類型、付款條件與方式、帳務備註、累計金額只給廠商查看／管理權限者；其他人只看名稱、別名、狀態、分類、區域、聯絡人。合約到期日與合作備註不算帳務。伺服端（資料庫函式）遮蔽，不靠前端隱藏 | §3.1、§3.6 |
+| V2 下拉聯絡資料 | 採購單與工單的廠商下拉附聯絡人與電話；統編與付款條件仍依權限遮蔽 | §3.1、§4.2 |
+| V3 停用廠商 | 舊單顯示名稱加「（已停用）」或「（暫停）」；採購單與工單新單都只能選合作中；已下訂的採購單仍可收貨結案；停用時還有未結單據只提醒不擋 | §3.1 |
+| V4 合約到期 | 只用現有欄位：合作中＋需簽合約＋有到期日，30 天內到期與已過期都列；續約就是改到期日；「需簽合約」預設改為否（既有廠商補欄位時也設否）；有廠商查看或管理權限者看得到此待辦 | §3.1、§3.6 #3 |
+| V5 績效與工單廠商下拉 | 工單補廠商下拉（第 5 批延後項；僅總務可選；需重跑 G18）；績效一律顯示：預設近 12 個月、可選區間；工單數、完成數（`status=COMPLETED` 且 `completion_method=STORE_CONFIRMED`；強制結案與未記完成方式另計）、受理到完成平均天數、採購單確定金額；沒選廠商的工單列「未指定」、歷史不回補；資料不足顯示「資料累積中」；評價不顯示 | §3.4 |
+| V6 帳單編輯與刪除 | 已繳與未繳都可編輯全部欄位；已繳帳單改金額、改識別欄位或刪除時多一道確認並顯示原值；刪除原因存新欄位 `deletion_reason`（軟刪除）；唯讀「顯示已刪除」檢視（誰、何時、為何刪），不做還原 | §3.3 |
+| V7 金額異常 | 同據點＋同費用類型＋同識別號碼，取早於本筆的最近三筆（排除自己與 0 元）平均；>2 倍、<一半或 0 元提醒但可存；歷史 0 筆不比較（只提醒 0 元）；1–2 筆用現有筆數並標「僅 N 筆參考」；顯示基準金額與明細 | §3.3 |
+| V8 標記已繳與逾期 | 預設今天、不可選未來、不可早於帳單月份前 1 個月；改回待繳清除日期並顯示原日期確認；憑證不強制。逾期＝未繳且到期日早於今天；待繳與逾期摘要不受月份篩選；沒填到期日的未繳另列提示；首頁與帳單頁數字一致 | §3.3 |
+| V9 待我處理與徽章 | 9 項（待受理需求單、逾期帳單、30 天內到期合約、逾期未收調撥單、門市待確認／待補資料、待核准採購單、逾期未到貨採購單、門市退回工單、貼標待複核）；負庫存與低庫存留在首頁庫存區不計入；同權限者共同看；店長只算自己門市；每個選單顯示自己的數字、首頁顯示合計，最多 99+，每 5 分鐘更新；點進去列表筆數必須等於徽章數字（列表帶同一篩選） | §3.5、§3.6 |
+| V10 匯出與圖表 | 不做 Excel／CSV 匯出與圖表，沿用卡片、表格與純 CSS 長條 | §3.3、§4.1 |
+
+另沿用 m7m8-spec Q22–Q24、C11、第 4 批 D8（採購單快照；連結改指新版廠商頁，有廠商管理權限才顯示，其餘顯示「請洽總務新增」）。必修連鎖：第 4 批需求單採購評估頁 `requests.ts` 改走伺服端廠商選項函式，改後重跑 G16、G17；縣市行政區固定資料放入（來源 `supabase/migration_general_affairs_taiwan_admin_regions.sql`）。
+
+**設計備註（待使用者確認，`approvedBy` 為 null）**：(a) 需求單「待總務複核」（`WAITING_GA_REVIEW`）V9 清單沒列，本批不計入徽章；(b) 工單徽章定義為「門市退回（`REOPENED`）」；(c) 採購單選單徽章為待核准與逾期的聯集。
+
+## 10. 建議實作分組（五個開發階段，詳見回報 stages）
+1. **G20–G21 資料庫與 API**：DEV 090000／100000／130000（角色與清除）、套用腳本、`lib/workspace/general-affairs/vendors.ts` 等、遮蔽與統編規則、單元／整合／RLS 測試；補縣市行政區。
+2. **G20–G21 畫面與連鎖修改**：廠商、分類、區域頁、填寫表列印、需求單採購評估頁改走 RPC、採購單廠商連結、工單進度表單廠商下拉；重跑 G16、G17、G18。
+3. **G23 水電網費**：110000、帳單 API 與頁面、報表、異常提醒、標記已繳、刪除與已刪除檢視、附件；單元／整合／RLS／劇本。
+4. **G22 + G24 績效、採購分析、首頁與徽章**：120000、績效頁、採購分析頁、首頁、導覽徽章、各列表 `attention` 篩選；單元／整合／兩支 G24 劇本。
+5. **驗收與正式區草稿**：41–46 與 README 第 6 批、parity、allowlist、全部劇本循序重跑、版面與列印、驗收紀錄 §11.5。
+
+## 11. 實作紀錄
+
+### 11.1 開工前 DEV 唯讀實測（2026-11-17，專案 mjpd…，僅 SELECT／系統目錄，未寫入；project-ref 已確認以 mjpd 開頭）
+| 項目 | 結果 | 對設計的影響 |
+|---|---|---|
+| 資料筆數 | `ga_vendors` 1、`ga_service_categories` 1、`ga_service_regions` 1（代碼都是 TEST）；`ga_utility_bills`、`ga_purchase_orders`、`maintenance_requests`、`ga_inventory_transfers` 全 0；`stores` 10（含 VW001 等測試門市） | 水電、採購、工單、調撥、徽章資料全部由測試自建（2038 年、VW／ZT 門市、`QA-GA6-` 標記）；沒有歷史資料可做 parity，績效與徽章靠 seed |
+| 廠商表 RLS | RLS 啟用；SELECT 與 ALL 兩條都是 `p1e_ga_vendors_read／write`，條件只有 `current_user_has_permission('general_affairs.service_center.access')`；分類、區域表同樣兩條 p1e 政策 | 與 §1.3-3 一致：**含店長的任何有入口權限者可讀寫全部廠商**；m7m8-spec Q22 的「DEV 已有收緊版」不成立 |
+| 收緊版未套的原因 | migration 紀錄：`20260724011554`（相容性，建立 p1e 政策）與 `20260724092830`（廠商表單欄位）已套；**`20260824090000`（細項權限收緊）沒有紀錄**；`20260926093000`（水電）也沒有紀錄，但資料表存在（DEV 以其他方式建立） | 090000 自己寫收緊版（只留 `vendor.view/manage`），並以 `supabase/test_general_affairs_vendor_permissions_rls.sql` 驗；不依賴 migration 紀錄判斷正式區狀態，正式區以 41 號預覽為準 |
+| 廠商欄位 | 13 個擴充欄位 DEV 都已存在；`contract_required`、`preferred_vendor` 預設仍是 true；沒有 `updated_by`；沒有銀行欄位；`tax_id` 無唯一規則；只有 name、status 索引；`status` 為 active／paused／inactive；`vendor_type` 為 company／studio／personal；累計欄位（rating、total_amount、work_order_count…）預設 0 | 090000 補 `updated_by`、預設改 false、DEV 既有廠商（1 筆，統編有填、需簽約為 true）設 false；統編唯一暫由函式檢查（§3.1） |
+| 分類與區域 | 分類狀態只有 active／inactive；區域類型 country／region／city／district、狀態 active／inactive／archived；父子 FK `ON DELETE SET NULL`；縣市行政區資料 DEV 沒有（city／district 只有 1 筆 TEST）；固定資料來源檔有 3 條 INSERT | 縣市行政區固定資料納入 090000，需冪等；循環防止由函式處理（資料庫沒有） |
+| 水電帳單表 | 欄位含 `electricity_kwh`、`service_identifier`、`equipment_serial`、`service_label`；**沒有 `deletion_reason`**；CHECK：類型 WATER／ELECTRICITY／PHONE／INTERNET、月份必為每月 1 日、金額 ≥ 0、度數僅電費可填；FK `store_id` RESTRICT；唯一索引 `uq_ga_utility_bills_identity`（未刪除、據點＋名稱＋類型＋月份＋供應商＋識別號碼）；觸發器 `trg_ga_utility_bills_before_write`；索引只有 (月份, 類型) 與 (門市, 月份) | 110000 加 `deletion_reason`；異常基準與重複檢查的識別號碼口徑直接採唯一索引的 `COALESCE(service_identifier, equipment_serial, account_number)`；逾期查詢另建 `due_date` 部分索引 |
+| 帳單 RLS | SELECT：未刪除且（`utility_bill.view` 或 `manage` 或「該據點的管理店長」`current_user_manages_store`）；INSERT／UPDATE 需 `manage`；沒有 DELETE 政策（刪除是 UPDATE 軟刪） | 與 §1.3-18 一致；110000 移除店長條件；店長 RLS 測試用真實店長角色 |
+| 權限碼 | 存在：`vendor.view／manage`、`service_category.view／manage`、`service_region.view／manage`、`cooperation_record.view`（**沒有 manage**）、`utility_bill.view／manage`、`purchase_review.view／manage`、`purchase_order.approve`、`service_center.access／force_close`、`request.view_all／manage`、`maintenance_request.view_all／update`、`work_order.view_all／update／manage`、`inventory_transfer.view／manage`、`inventory_transaction.view／manage` | 本批不新增權限碼；§3.6 的碼全部已存在（`equipment.manage`、`facility.manage` 為第 2 批既有） |
+| 角色持有（DEV，成員數） | **廠商 view＋manage**：`admin`(2)、`vue_workspace_admin`(1)、`vue_workspace_ga_vendor_manager`(1)、`vue_workspace_ga_vendor_edit`(1)；**只有 vendor.view**：`vue_workspace_navigation`(1)、`vue_workspace_ga_vendor_view`(1)、`vue_workspace_ga_purchaser`(1)；**cooperation_record.view**：`admin`、`vue_workspace_admin`、`vue_workspace_navigation`、`vue_workspace_ga_vendor_manager`；**utility_bill.view＋manage**：`admin`、`vue_workspace_admin`、`vue_workspace_ga_staff`(1)、`vue_workspace_ga_works`(1)，`navigation` 只有 view；**purchase_review**：`vue_workspace_ga_po_approver`(view)、`ga_staff`、`ga_works`、`ga_purchaser`、`ga_po_review_only`(manage)、`ga_po_no_partview`(manage)；店長類（`store_manager`、`manager`、`vue_workspace_store_manager`、`acting_manager`、`ga_store_manager_b`）只有 `service_center.access` | 既有總務、工務測試角色（`ga_staff`、`ga_works`）**沒有任何廠商與合作紀錄權限**；收緊後它們的需求單採購評估下拉會變空（連鎖點確認）。新角色用 `vue_workspace_ga6_` 前綴（roles 表查無 `ga6`，不撞名），不動既有角色 |
+| `has_permission` 在 DEV | 實測函式本體：**有檢查 `roles.is_active`**，且 `admin` 角色代碼有 bypass（正式區語意不同：不檢查 `roles.is_active`、無 admin bypass） | 新函式只用 `has_permission(auth.uid(), 碼)`；測試以「角色明確帶權限碼」建構，不依賴 admin bypass；DEV 的 `admin` 角色本身有齊全權限碼，兩種語意結果相同 |
+| `profiles.role` 分佈 | admin 2、supervisor 1、manager 1、store_manager 3、member 87 | 管理員 2 人皆帶 `admin` 角色；無「只能唯讀的管理員」 |
+| 既有函式 | 第 4 批 `ga_ws_po_vendor_options` 已存在（`billing_visible` 以 `vendor.view/manage` 判斷，只列 active 廠商）；`ga_po_check_vendor` 已擋非 active；`ga_ws_category_usage`、`ga_ws_delete_category` 等第 2 批已使用 category 命名 | 本批新函式前綴：`ga_ws_vendor_*`、`ga_ws_svc_category_*`、`ga_ws_svc_region_*`（避免與第 2 批撞名）、`ga_ws_ub_*`、`ga_ws_home_*` |
+| 待辦來源與狀態值 | 需求單 `main_status`：PENDING_INTAKE、WAITING_STORE_SUPPLEMENT、WAITING_GA_REVIEW、ACCEPTED、IN_PROGRESS、WAITING_STORE_CONFIRMATION、COMPLETED、REJECTED、CANCELED（有 `deleted_at`）；採購單 status：DRAFT、PENDING_APPROVAL、APPROVED、ORDERED、PARTIALLY_RECEIVED、RECEIVED、CLOSED、CANCELED，有 `expected_delivery_date`、`ordered_at`、`total_amount`；調撥單 status：REQUESTED、SOURCE_CONFIRMED、IN_TRANSIT、RECEIVED、CANCELED，逾期天數存 `ga_inventory_transfer_settings.overdue_days`（預設 3），逾期判斷在程式（`inventory-transfer-rules.ts` 的 `isOverdue`：交出時間起算、超過 N 天）；工單 status：UNACCEPTED、ACCEPTED、PROCESSING、COMPLETED，`completion_method`：STORE_CONFIRMED、ADMIN_FORCE_CLOSED（可為 NULL），門市退回＝`progress_stage='REOPENED'`＋`status='PROCESSING'`，有 `vendor_id`、`accepted_at`、`completed_at`、`reported_at`；貼標：設備與設施 `onboarding_status`：NEEDS_EQUIPMENT_PHOTO、NEEDS_LABEL_PHOTO、PENDING_GA_REVIEW、COMPLETED | §3.6 的 9 項述詞直接採用這些值；調撥逾期判斷原本在程式，徽章函式要在資料庫內重做同一規則（`source_confirmed_at < now() - overdue_days`），以單元與整合測試對照 `isOverdue` 確保一致 |
+| 索引 | `maintenance_requests(vendor_id, reported_at)`、`ga_purchase_orders(vendor_id, ordered_at)` 目前沒有索引；需求單已有 `waiting_confirm_since` 部分索引 | 120000 補索引（§5.1） |
+
+### 11.2 實作進度
+
+#### 階段 1：G20 服務分類與區域、G21 廠商資料——資料庫與伺服端（2026-11-17，只用 DEV mjpd…，未連正式區、未 push、未動 supabase/migrations 與 `_preview.html`）
+**DEV SQL（`supabase/workspace-dev/`，皆附 `.rollback.sql`，套用腳本 `scripts/apply-workspace-m7m8-b6-dev.cjs [--rollback]`，順序 090000 → 100000 → 110000 → 120000 → 130000，檔案不存在就略過；已套用並重複套用確認冪等）**
+| 檔案 | 內容 |
+|---|---|
+| `20261118090000_m7m8_b6_vendor_columns_rls` | 先決檢查；13 欄 `IF NOT EXISTS`；廠商、分類、區域加 `updated_by`；`contract_required`、`preferred_vendor` 預設改 false，DEV 既有那 1 筆廠商設 false（只在預設值還是 true 時一次性執行，重複套用不會改回去）；分類與區域 `code` 唯一索引（DEV 原本沒有唯一約束，來源檔的 `ON CONFLICT (code)` 需要它）；合約到期部分索引；RLS 收緊：廠商讀＝`vendor.view/manage`、寫＝`vendor.manage`；分類與區域讀＝自己的 view/manage 加 `vendor.view/manage`、寫＝自己的 manage；三張表一律沒有 DELETE 與 FOR ALL 政策；縣市行政區固定資料（22 縣市、368 行政區，加來源檔所依賴的「台灣」與北中南東四大區，`ON CONFLICT DO NOTHING`，DEV 區域表從 1 筆變 397 筆）。套用前政策原文備份在 `_backup/20261118_b6_vendor_policies_before_b6.sql`，rollback 依此還原 |
+| `20261118100000_m7m8_b6_vendor_rpc` | 11 支對外函式：`ga_ws_vendor_list/get/save/set_status/options`、`ga_ws_svc_category_list/get/save`、`ga_ws_svc_region_list/get/save`；15 支內部輔助 `ga_vd_*`（權限、統編標準化與檢查碼、名稱正規化、欄位解析、樹狀循環、合約到期述詞、廠商 JSON）。SECURITY DEFINER、固定 search_path、只用 `has_permission(auth.uid(), 碼)`、回 `{ok,status,data,error,code,…}`；沒有任何刪除函式 |
+| `20261118130000_m7m8_b6_dev_seed` | 6 個 DEV 測試角色 `vue_workspace_ga6_{vendor_mgr,cat_only,coop_only,util_mgr,util_view,ga_all}`（套用前已查 roles 表與 role-matrix，無撞名；既有 `vue_workspace_ga_*` 不動）。尚無 110000、120000（後續階段） |
+| `supabase/test_general_affairs_vendor_permissions_rls.sql` | 改成第 6 批收緊版的 8 項檢查（權限碼、9 條政策、無 DELETE／ALL、廠商只用廠商權限、寫入只給 manage、分類區域讀寫、函式授權），在 DEV 實跑全 PASS（舊版檢查舊政策形狀，不再適用） |
+
+**伺服端（`lib/workspace/general-affairs/`）**：`vendor-rules.ts`（權限常數與 abilities、八個機密欄位清單、`maskVendor`／`maskVendorOption`、統編標準化與檢查碼、名稱相近、樹狀循環、合約到期、篩選整形）、`vendor-messages.ts`（錯誤碼白話與提醒文字）、`vendors.ts`（`vendors`、`vendors/:id`、`vendors/:id/status`、`vendor-options`、`fetchVendorOptions`）、`service-categories.ts`、`service-regions.ts`；`router.ts` 登錄四條路由。非 GET 檢查 Origin、未登入 401、寫入必帶 `expected_updated_at`（缺 400、不符 409 `STALE`）、`pageSize ≤ 100` 回 `{data,total,meta}`、無 DELETE（405）。**連鎖修改**：`requests.ts` 的需求單採購評估頁廠商下拉改走 `ga_ws_vendor_options`（`fetchVendorOptions`），並把評估單上目前選的廠商（原本是對 `ga_vendors` 的內嵌查詢，RLS 收緊後會變 null，設計 3.1 漏列）改由 `includeIds` 取回，已停用也帶出並標示狀態。
+
+**自行決定之處**
+1. 分類與區域下拉的資料範圍：持廠商檢視／管理但沒有分類區域權限者，只讀得到「啟用」的項目（唯讀，供廠商表單）；`options=1` 一次回全部（上限 2000）。
+2. 新增公司／工作室的統編必填、個人可空（Q22 只寫「個人可留空」）；編輯時統編沒變動就不重查（避免歷史重複資料擋住不相關的編輯）。登記 allowlist（待確認）。
+3. 區域固定資料補上「台灣」與四大區（來源檔 `ON CONFLICT DO UPDATE` 會覆蓋總務編輯並重新啟用，改成 `DO NOTHING`）；四大區的上層維持 NULL（與原檔一致）。登記 allowlist（待確認）。
+4. 廠商停用提醒的「未結採購單」用 `DRAFT/PENDING_APPROVAL/APPROVED/ORDERED/PARTIALLY_RECEIVED`，「進行中工單」用 `maintenance_requests.status <> 'COMPLETED'`；同狀態重複設定不寫入、`updated_at` 不變（冪等）。
+5. 廠商 JSON 完整版不回傳 `rating`、`review_count`、`work_order_count`、`monthly_order_count`、`avg_days`（永遠為 0，V5 評價不顯示）；`attachment_names` 唯讀、新增與編輯都不能寫。
+6. 與設計 3.1 的差異：設計寫「資料表 RLS 只留 vendor.view/manage」，實際分類與區域表另保留自己的檢視／管理（頁面本來就要讀），廠商表才是只留廠商權限。
+7. 廠商列表函式的每列含 `tax_id`（只有廠商檢視／管理才呼叫得到），列表搜尋也可搜統編；其他人的下拉不含統編與付款條件。
+
+**測試（測試 ID 前綴 `G20-G21-db-api`，`npm run test:page -- G20-G21-db-api` 循序）**
+- unit（`tests/unit/G20-G21-db-api/`）：45 項。`vendor-rules.test.ts` 25 項（統編標準化與檢查碼含第 7 碼特例、名稱相近、八欄遮蔽、權限能力、樹狀循環、合約到期 30 天邊界與台北今日、篩選與版本整形、錯誤碼白話）；`vendor-sql.test.ts` 20 項（檔案與 rollback、套用腳本順序與只連 DEV、RLS 政策文字、縣市行政區與來源檔逐條一致與冪等、函式授權與 search_path、只用 `has_permission`、機密欄位只在完整版 JSON、無刪除、TS 與 SQL 規則對齊、測試角色）。T02 allowlist 待核可清單新增 6 項。
+- integration（`tests/integration/`）：`G20-G21-db-api.vendor-rpc`（22，資料庫函式：權限矩陣 14 種身分、400 驗證、統編唯一含停用與全形與並行、提醒、STALE 含並行、停用提醒、列表與篩選與合約到期、下拉遮蔽、分類與區域全規則、BEGIN…ROLLBACK 目錄與規則、函式授權目錄、`test_general_affairs_vendor_permissions_rls.sql` 實跑）、`G20-G21-db-api.vendors-api`（9，API：401／Origin 403／矩陣／400／409／405／回讀／機密欄位不外洩／需求單採購評估頁連鎖）、`G20-G21-db-api.rls`（6，真實角色直連資料表：店長、只有分類區域、只有合作紀錄、廠商檢視、廠商管理、總務全套、舊式管理員）。
+- 測試資料一律 `QA-GA6-` 標記（廠商名稱、分類與區域代碼）、只用 VW／ZT 測試門市；`cleanupM7M8` 擴充清除（先刪子層）；sweeper 新增三個回報目標；結束後 DEV 沒有殘留。
+- 本階段沒有 Vue 頁面（階段 2），不需 vue build 與 `public/workspace` 同步；smoke、parity 對舊 API 比對與 e2e 劇本在後續階段。
+
+**驗證數字**：`npm run test:page -- G20-G21-db-api` 循序全綠（unit 45、playwright 37、sweeper 前後孤兒 0、結束碼 0）；`npx tsc --noEmit`、`vue-tsc --noEmit` 無錯誤；全部 unit（122 檔、1928 項）通過。必修回歸循序重跑：G14-G17（unit 18、33）、G16（6）、G17（7）、G25-db（unit 43、21）、G25-ui（unit 18、28）、G26-db（unit 37、22）、G27（13 unit、17）、G18-api、G18-db、G18-e2e、G18-ui 全部結束碼 0。回歸中發現並修正一項：`vue_workspace_ga6_ga_all` 一開始帶了「採購核准」，被 G25-db 的「採購核准只給核准人角色」檢查擋下（結束碼 1），已把核准從該角色移除（後續階段的待核准採購單徽章測試改用核准人臨時角色），重套 DEV 後 G25-db 通過。
+
+**待使用者確認**：allowlist 6 項（付款條件仍為自由文字、公司統編必填、code 唯一索引、區域固定資料取捨、需求單採購評估頁內嵌改寫、舊版 purchase-review API 收緊後對無廠商權限者空白）。
+
+#### 階段 3：G23 水電網費（2026-11-17，只用 DEV mjpd…，未連正式區、未 push、未動 supabase/migrations 與 `_preview.html`）
+**DEV SQL（`supabase/workspace-dev/20261118110000_m7m8_b6_utility_bills.sql`＋`.rollback.sql`，套用腳本 `scripts/apply-workspace-m7m8-b6-dev.cjs` 已含這支）**：`ga_utility_bills.deletion_reason`；`idx_ga_utility_bills_unpaid_due`（未繳且未刪除的到期日部分索引）；讀取 policy 移除 `current_user_manages_store` 條件；**附件管理判斷函式 `ga_resource_attachment_can_manage` 補上 `UTILITY_BILL` 分支**（見下「實作中發現」）；9 支對外函式 `ga_ws_ub_list／get／save／anomaly／pay／unpay／delete／report／stores`（SECURITY DEFINER、只用 `has_permission`、對外只授權 authenticated）與 16 支內部輔助 `ga_ub_*`（逾期判斷、待繳／逾期／沒填期限統計、金額異常基準、帳單 JSON、已繳原值、繳費日期檢查等；不開放直接呼叫）。已實測「套用 → 撤回 → 再套用」兩輪，函式 25 個、政策與索引還原與重套正確。
+**規則落實（V6–V8、V10）**：已繳與未繳都可編輯全部欄位、沒帶的欄位維持原值、換門市同步據點名稱、已停用門市的舊帳單編輯保留原門市且不能新選停用門市；已繳帳單改金額、據點、類型、月份、供應商、識別號碼或刪除需 `confirm_paid_change`，否則 `409 PAID_CHANGE_CONFIRM_REQUIRED` 附原值與被改欄位；不能用編輯清空已繳日期（`USE_UNPAY`）；重複帳單 `409 DUPLICATE_BILL` 白話並回既有那一筆（id、金額、期限）；金額異常（近三筆、排除自己與 0 元、2 倍與一半、0 元、「僅 N 筆參考」）只提醒（`warnings`／`anomaly`），`anomaly-check` 供送出前預檢；標記已繳預設台北今天、不可未來、不早於帳單月份前 1 個月、同一天重標冪等、換日期 `ALREADY_PAID`；改回待繳 `409 UNPAY_CONFIRM_REQUIRED` 附原日期、確認後清除、本來就待繳冪等；刪除必填原因、軟刪除（誰、何時、為何）、已刪除冪等、已刪除不可編輯；逾期＝未繳且到期日早於台北今天（當天不逾期、無到期日不逾期），待繳／逾期／沒填期限三組數字不受月份、類型、據點篩選與分頁影響、不受 500 筆上限（同一支 `ga_ub_pending_stats`，G24 的首頁與徽章共用）；報表月／季／年、全部啟用門市列出、其他據點名稱正規化（NFKC、空白、大小寫）後合併、不含已刪除。更新一律帶 `expected_updated_at`（缺少 400、不符 409 STALE）。
+**伺服端**：`lib/workspace/general-affairs/utility-bill-rules.ts`（純函式：權限、逾期、日期範圍、異常基準、已繳關鍵欄位、請求整形、名稱正規化）、`utility-bill-messages.ts`（白話對照，單元測試逐一對照 SQL 的錯誤碼）、`utility-bills.ts`（路由 `utility-bills`、`meta`、`report`、`anomaly-check`、`:id`、`:id/pay|unpay|delete`；寫入檢查 Origin 與使用者身分；沒有 DELETE（405））、`router.ts` 登錄；`attachments.ts`：水電帳單附件寫入與標記刪除改用使用者身分（見下）。權限旗標 `gaUtilityBills`、`gaUtilityBillManage`（資料庫語意，管理員沒掛權限不顯示）、`GA_PAGE_BY_HREF` 兩條、頁面 kind `ga-utility-bills`／`ga-utility-bills-report`、標題與權限鍵、頁面登錄、`stores.ts` 型別。
+**側欄**：舊側欄「水電電話網路費」是帶子項（費用報表）的項目，外殼對有子項的項目只當展開鈕，帳單列表會沒有入口；`nav.ts` 把它拆成「帳單列表」與「費用報表」兩個子項（單元測試鎖定結構）。
+**畫面**：`UtilityBills.vue`（三張摘要卡：待繳與逾期是全部月份、「篩選結果合計」照篩選；沒填繳費期限的未繳另列提示；篩選月份、據點、類型、狀態、搜尋；卡片列表與分頁；「顯示已刪除」唯讀檢視；從徽章進入可帶 `{overdue:true}`）、`UtilityBillForm.vue`（新增與編輯；送出前預檢金額異常，顯示基準與近三筆明細，可返回修改或仍要儲存；已繳修改確認面板顯示原值；重複帳單訊息附「查看並編輯那一筆」）、`UtilityBillDetail.vue`（標記已繳選日期、改回待繳確認、刪除原因與已繳二次確認、最後修改者、已刪除資訊、附件面板 `UTILITY_BILL`／`BILL_DOCUMENT`）、`UtilityBillsReport.vue`（月／季／年、桌機表格、手機轉卡片、純 CSS 長條，不做匯出與圖表）、`lib/ga-utility-bills.ts`。`GaCenter.vue` 說明文字更新。
+**實作中發現並處理（共 3 項）**
+1. **舊版水電帳單附件在資料庫層本來就上傳不了**：`ga_resource_attachment_can_manage` 沒有 `UTILITY_BILL` 分支，寫入觸發器對任何身分都回「沒有附件管理權限」；新版 G01 附件 API 對帳單用管理者身分寫入，管理者身分沒有 `auth.uid()` 也被擋。處理：110000 讀出現行函式定義、只在結尾 `RETURN false` 前插入 `UTILITY_BILL` 分支再重建（不整支覆蓋，已有就略過，結尾格式不符就中止；rollback 拿掉分支）；`attachments.ts` 水電帳單附件寫入改用使用者身分（寫完再用管理者身分讀回，因為使用者讀不到這類附件）、標記刪除改走和其他資源相同的資料庫函式；單元測試與 API、e2e 都涵蓋（上傳、水電檢視可看不能傳與刪、刪除只標記保留原檔、帳單刪除後讀不到）。正式區草稿 45 同步（先決檢查含這支函式與結尾格式）。
+2. **舊版 DELETE 在 DEV 實測沒有刪成功**（回 400「刪除失敗」）：更新後的列不符讀取政策 `deleted_at IS NULL`；新版用函式不受影響。登記 allowlist `m7m8-b6-ub-delete-legacy-ineffective`（新發現，待確認）；舊頁不動。
+3. **number 輸入框的 v-model 會把金額變成數字**，表單用字串方法會丟例外（e2e 抓到）；`lib/ga-utility-bills.ts` 一律先轉字串，單元測試鎖定。
+
+**自行決定之處**
+1. 新增帳單時附件不在表單內選檔，儲存後直接開啟帳單詳情，附件面板在那裡上傳（失敗也留在詳情可補傳）；設計寫「新增帳單時附件失敗保留補傳入口」，這樣更單純。
+2. 列表每頁 20 筆（上限 100），舊版是整批 500；篩選結果合計與摘要是伺服端精確計算。
+3. 報表的年度改成數字輸入（2000–2100），不是下拉（下拉年份有限，無法看未來月份的資料）。
+4. 新增與編輯表單的「繳費日期」套用和標記已繳相同的日期規則（不可未來、不早於帳單月份前 1 個月）；日期沒有改就不重檢查（避免舊資料擋住不相關的編輯）。登記 allowlist（待確認）。
+5. 測試資料：歷史月份與異常案例用 2038；標記已繳與逾期因規則「不可選未來」必須用過去月份（5 個月前）；報表案例用 2039 以保持乾淨。測試用供應商名稱帶 `QA-GA6-` 標記，`cleanupM7M8` 擴充清除帳單與其附件（紀錄與實體檔），sweeper 新增回報目標 `ga_utility_bills`。
+6. 首頁與導覽徽章（逾期帳單）的斷言留待 G24：`G23.journey-utility-bill.e2e` 檔尾有 `test.fixme` 標註，`ga_ub_pending_stats` 與列表的 `overdue` 篩選已共用同一個逾期述詞並有「列表總筆數＝逾期數字」的資料庫對照測試。
+
+**allowlist（`tests/parity/allowlist.json`，page `ga-utility-bills`，id 前綴 `m7m8-b6-ub-`）**：新增 30 條。20 條已核可（`approvedBy` 為 "user (2026-11-17 batch 6 spec survey)"：逾期與狀態旗標、建立與修改者名稱、已刪除檢視、篩選結果合計與全部月份摘要、重複帳單白話、金額異常、標記已繳日期範圍、改回待繳確認、帳單可編輯、刪除原因與二次確認）；10 條待使用者確認（`approvedBy` 為 null）：不回建立／修改／刪除者 uuid（3）、回應含總筆數與分頁資訊、回應含能力旗標、不回 `success`（列表與新增各 1）、新增時繳費日期套日期規則、舊版 DELETE 在 DEV 沒刪成功、其他據點名稱正規化（報表）。已加進 `tests/unit/T02/parity-framework.test.ts` 的待核可清單。
+
+**測試（測試 ID 前綴 `G23`，`npm run test:page -- G23` 循序，結束碼 0）**
+- unit（`tests/unit/G23/`）：53 項。異常基準（歷史 0／1／2／3／4 筆、雙月、排除自己與 0 元、恰好 2 倍與一半、0 元、多打一個零）、逾期定義（當天、前一天、無到期日、已繳、已刪除）、標記已繳範圍（今天可明天不可、前 1 個月 1 日可前一天不可）、已繳關鍵欄位、請求整形、名稱正規化、表單規則（含 number 輸入框）、權限與導覽旗標一致（含管理員後備不放寬、店長看不到）、側欄結構、頁面登錄、錯誤碼逐一有白話、SQL 與規則逐條對照（SECURITY DEFINER、授權、逾期述詞、異常門檻、日期範圍、確認、軟刪除、店長條件移除、rollback、附件分支）、畫面規則（不做匯出與圖表、摘要卡文字、附件面板）。
+- integration（`tests/integration/`）31 項：`G23.rpc`（16，資料庫函式：權限矩陣、service_role 直寫被觸發器擋、400 驗證 18 種、新增回讀、重複、異常 14 個情境逐筆與 TS 規則對照、編輯與版本、停用門市、標記已繳邊界與冪等、改回待繳、已繳改金額確認、刪除與已刪除檢視、逾期與摘要逐筆核對資料庫、列表 125 筆跨頁與篩選、報表、門市清單）、`G23.api`（11，API：401、Origin 403、權限矩陣、201／200／400／404／405／409、前端不能指定 id 與建立者與刪除欄位、冪等、anomaly-check、附件上傳／讀取／刪除）、`G23.rls`（4，真實角色直連資料表：店長即使是該門市店長也讀不到、檢視者讀得到寫不了、沒有任何人能刪、已刪除的連有權限者也讀不到、舊式管理員不繞過）。
+- smoke（桌機 1440 與手機 390 各 3）、layout e2e（各 2：彈出視窗在視窗內、手機報表轉卡片）、角色接力劇本 `G23.journey-utility-bill.e2e`（各 4＋1 個待 G24 的 `fixme`：登錄與異常提醒與更正、重複訊息、逾期與標記已繳與改回待繳與已繳改金額確認、刪除與已刪除檢視與水電檢視唯讀、附件上傳與刪除）、parity 5（列表、新增、標記已繳、刪除、報表）。
+- 數字：playwright 56（54 通過、2 個 `fixme` 略過，sweeper 前後孤兒 0）；全部 unit 124 檔 2010 項通過；`npx tsc --noEmit`、`vue-tsc --noEmit` 無錯誤；Vue build 與 `public/workspace` 同步由測試站啟動時自動執行（`start-test-server.cjs`，git 無差異）。
+**正式區草稿**：`m7m8-sql/41`（唯讀預覽）新增第 10 區（先決、現況數字、讀取政策全文、店長直讀人數、附件函式分支與結尾格式檢查）；`45-b6-utility-bills.sql`＋`-rollback.sql`（對照 DEV 檔加 `BEGIN;`／`COMMIT;` 與核對查詢；已在 DEV 實測套用、撤回、再套用）；README 第 6 批章節與套用順序已更新（`41 → 42 → 44 → 47 → 45 → … → 43`）。
+**待使用者確認**：allowlist 10 項（見上）；舊版店長直讀水電帳單在 45 之後讀不到（41 第 10 區列出人數）；舊版附件上傳本來就失敗的處理方式（插入分支而非整支覆蓋）是否同意。
+
+**回歸（G23 階段，循序重跑，皆連 DEV）**：G18-api（unit 43、20 通過）、G18-ui（unit 23、22 通過）、G16（6）、G17（7）、G25-ui（unit 18、28 通過）結束碼都是 0；G18-db、G25-db、G26-db、G27 未重跑（本階段沒有動第 4、5 批的函式與畫面，只動共用的附件 API 與側欄）。G01 回歸發現三項舊帳（前兩批沒有重跑 G01）並一併修正：`G01.ga-base` 的旗標與頁面 kind 預期沒有加入第 5 批與第 6 批的新旗標（補上）；`G01.ga-assets` 側欄對等比對多出兩項差異（`vendors-list` 在沒有廠商權限的角色上不再列出，屬問卷 Q22／V1 已核可；`utility-bills-list` 是本階段拆出的子項，待確認），已登記 allowlist。**G01 e2e「G02 分類畫面」在這次修改之前就失敗**（把 `lib`、`vue-workspace` 暫時還原成 G20-G21 階段結尾 `c65ed461` 並移除本階段的 5 個畫面檔後重跑同一支測試，桌機仍然失敗、畫面上有「找不到分類」提示、停用對話框沒開；已還原回現狀），與水電網費無關，尚未處理。
+
+
+#### 階段 2：G20 服務分類與區域、G21 廠商資料——畫面（2026-11-17，commit `3eb18a9d`、`c65ed461`）
+- 畫面：`Vendors.vue`（四步驟新增編輯、列表篩選、停用提醒未結單據）、`VendorCategories.vue`、`VendorRegions.vue`（區域樹）、`VendorSelect.vue`、A4 空白廠商表單列印；採購單頁廠商連結改指新版廠商頁（只有廠商管理權限才顯示，其餘顯示「請洽總務新增」）；工單進度表單加廠商下拉（僅總務可選、只列合作中，DEV `105000` 與正式區 47 加 `VENDOR_INACTIVE` 檢查）。
+- 測試：單元 25（`tests/unit/G20-G21-ui`）、smoke 桌機 1440 與手機 390、layout e2e（四步驟、重複統編、名稱相近、版本衝突、停用提醒、A4 列印、工單廠商下拉）、parity（舊版直寫資料表 vs 新版 API）。
+
+#### 階段 4：G22 廠商績效與採購分析、G24 總務首頁與導覽徽章（2026-11-17，commit `1061b135`、`28c777ed`、`a31e90ae`、`d639cd2a`、`292bef1a`、`d68295bd`、`e3afd258`、`f27a93b5`）
+- DEV `120000`：`ga_ws_vendor_perf`（完成數只算 `COMPLETED`＋`STORE_CONFIRMED`、強制結案與未記完成方式另計、未指定另列、資料不足顯示「資料累積中」）、`ga_ws_purchase_analysis`（確定與預估分開、台北月份）、`ga_ws_home_summary`／`ga_ws_home_badges`／`ga_hm_counts`（九項待辦，計數與列表篩選共用同一組 `ga_att_*` 述詞）、索引、`ga_ws_po_list` 加 `attention` 篩選（文字替換，不整支覆蓋）。
+- API：`vendor-stats`、`purchase-analysis`、`home/summary`、`home/badges`；需求單、我的追蹤、採購單、工單列表加 `attention` 篩選；導覽徽章每個選單自己的數字、群組合計、99+、進入頁面與寫入後與每 5 分鐘更新。
+- 正式區草稿 46＋rollback、41 第 11 區（先決、`ga_ws_po_list` 可替換性、九項待辦現況、績效完整度、徽章權限角色）。
+- 測試：DB 整合 18、API 整合 7、單元 17、smoke、layout e2e、parity（對舊版 cost-summary 3 項）、角色劇本 `G21.journey-vendor-chain.e2e`、`G24.journey-store-blocked.e2e`、`G24.journey-home.e2e`（九項徽章數字等於列表總筆數、即時減少、99+），`G23.journey-utility-bill.e2e` 補首頁與徽章斷言（原本的 2 個 `fixme` 已轉為實測）。
+
+### 11.5 驗收紀錄（G20-G24-accept，2026-11-17，只連 DEV mjpd…）
+只連 DEV（`supabase/.temp/project-ref` 以 mjpd 開頭，開跑前確認）；沒有 push、沒有動 `_preview.html` 與 `supabase/migrations`、沒有讀 `.env.local`／`.env.production*`／`*.bak`、沒有連正式區（odvk）。測試一律循序（另一個流程同時在同一個 DEV 上跑回歸，本階段等它完全閒置才開跑，避免兩邊 `cleanupM7M8` 互刪資料）。測試資料只用 VW／ZT 測試門市與 2038／2039 年，標記 `QA-GA6-`；每支結束只清自己的，run-all 的 sweeper 前後孤兒都是 0。
+
+**新增檔案**
+| 檔案 | 內容 |
+|---|---|
+| `tests/unit/G20-G24-accept/acceptance.test.ts` | 驗收靜態檢查：測試編號對應檔案（G20-G24 全部 21 支，含 G21.rls、G23.rls、四支角色劇本）、劇本循序且清自己資料、只用 VW／ZT、不連正式區、allowlist 整份通過驗證器且 `m7m8-b6-` 核可欄位只有兩種值（decision 為 fix 者 null）、41 唯讀、42 至 47 各有 rollback、README 套用順序 41→42→44→47→45→46→43、DEV SQL 各附 rollback 且不在 `supabase/migrations`、本節存在 |
+
+**驗收中發現並修正的舊帳（共 6 項，皆為測試預期或舊帳，不是功能缺陷）**
+1. `G20-G21-db-api.vendor-rpc` 函式目錄檢查寫死「11 支對外函式」：G22 新增 `ga_ws_vendor_perf`（名稱同前綴）後變 12，預期改為 12。
+2. `G20-G21-ui.pages` smoke「沒有權限沒有入口」：G24 起首頁廠商入口涵蓋五個廠商頁，只有合作紀錄權限者會看到「合作紀錄」入口（不是廠商資料），預期改為該角色 1 個、其他 0 個。
+3. `G01.ga-base`：旗標與頁面 kind 預期漏掉 G22 新增的 `gaPurchaseAnalysis`、`gaVendorStats` 與 `ga-purchase-analysis`，補上。
+4. `G01.ga-assets` 側欄對等：舊版 `vendor-stats`（合作紀錄，總務與工務角色）與 `vendor-purchases`（採購分析，廠商管理角色）移植後改成資料庫語意，這兩個舊版入口在沒有對應權限的測試角色上不再列出，登記 allowlist：`m7m8-b6-nav-vendor-stats-capability`（待使用者確認）、`m7m8-b6-nav-vendor-purchases-capability`（Q23 採購分析以採購評估權限為準，已核可）。
+5. `G01.ga-assets`「G02 分類畫面」e2e 失敗（G20-G21 階段起就出現，三次整頁重跑桌機或手機輪流失敗）：用 trace 查出測試在「最上層 → 搜尋」後立刻點停用，搜尋是延遲送出，點到的是切換前殘留的列，用量查詢對已刪除的子分類回 404（畫面出現「找不到分類」並留下 console 錯誤）。處理：測試改為等搜尋結果回來且只剩一列才點；修正後 G01 e2e 桌機與手機都通過。畫面本身在載入中仍可點到殘留列，屬小問題，列為未完成事項。
+6. 另一個流程在同一個 DEV 上並行跑回歸，會互相清除測試資料；已改為等其閒置後再循序執行。
+
+**Definition of Done 驗收清單（`parity-plan/README.md`）**
+| 項目 | 結果 |
+|---|---|
+| 功能 | 舊版廠商、分類、區域、廠商統計、採購分析、水電網費、服務中心首頁的使用者可見功能都在新版；與舊版不同處共 21 條設計差異＋allowlist 條目（見 §7） |
+| 導覽 | `page-kinds.ts`、`access.ts`、`nav.ts`（`GA_PAGE_BY_HREF` 36 項）、`navigation.ts`、`stores.ts`、`workspace-pages.ts` 已登記，G01 與 T03 單元驗證 |
+| 靜態檢查 | `npx tsc --noEmit` 無錯誤；`vue-workspace` 內 `vue-tsc --noEmit` 無錯誤（在專案根目錄直接跑 `vue-tsc` 會掃到 Next 的 `app/layout.tsx` 而報 `globals.css` 找不到型別，與本批無關，正式指令是 `vue-workspace` 的 build） |
+| 單元測試 | G20-G21-db-api 45、G20-G21-ui 29、G22-G24 17、G23 53、驗收 29，皆全綠；全部 unit 126 檔 2056 項全綠 |
+| 冒煙測試 | G20-G21、G22-G24、G23 smoke 桌機 1440 與手機 390 全過；無權限帳號沒有入口、API 回 403／401 |
+| 整合測試 | G20-G21 資料庫函式 22、API 9、`G21.rls` 6；G22-G24 DB 18、API 7；G23 `rpc` 16、`api` 11、`G23.rls` 4；每支寫入驗權限矩陣、Origin、400、409（STALE 或確認）或冪等，並以 service role 回讀 |
+| E2E | 桌機 1440 與手機 390：G20-G21 四步驟與列印、G22-G24 首頁與徽章與績效與採購分析、G23 帳單；四支角色接力劇本（`G21.journey-vendor-chain`、`G23.journey-utility-bill`、`G24.journey-store-blocked`、`G24.journey-home`）走到結案與徽章數字等於列表筆數，含空資料與失敗分支 |
+| 對等 | `m7m8-b6-` allowlist 共 75 條：已核可 48、待使用者確認（`approvedBy` null）27；驗證器通過、沒有未列白名單的差異；對舊版比對：廠商直寫、採購評估成本摘要 3 項、水電帳單 5 項 |
+| 資料衛生 | 每支測試結束只清自己的（`cleanupM7M8`，擴充清除 `QA-GA6-` 廠商、分類、區域、帳單與附件）；sweeper 前後孤兒 0 |
+| 安全 | 守衛通過、只連 DEV；日誌、報表與 commit 沒有密碼、JWT、cookie 或金鑰 |
+| 回歸 | 第 4 批 G16、G17、G25-db、G25-ui、G26-db、G27，第 5 批 G18-api、G18-db、G18-ui、G18-e2e 循序重跑結束碼皆 0（因本批改到採購評估讀廠商與工單廠商下拉）；G01 見上（發現 3 項舊帳，已修） |
+| 審查 | 見最終回報（Sonnet 子代理審查由主迴圈安排） |
+
+**測試數字（`node tests/run-all.cjs --layers all --page <編號>`，循序，結束碼 0；sweeper 前後孤兒皆 0）**
+| 編號 | 單元 | Playwright | 備註 |
+|---|---|---|---|
+| G20-G21-db-api | 45 | 37 | `vendor-rpc` 22、`vendors-api` 9、`rls` 6 |
+| G20-G21-ui | 29 | 23 | smoke、layout、parity |
+| G22-G24 | 17 | 46 | DB 18、API 7、smoke、layout、parity、三支劇本 |
+| G23 | 53 | 56 | 全過、0 個略過（先前 2 個 `fixme` 已由 G24 補上首頁與徽章斷言） |
+| G16 | — | 6（2 略過） | 回歸 |
+| G17 | — | 7（1 略過） | 回歸 |
+| G18-api | 43 | 20 | 回歸 |
+| G18-db | 28 | 24 | 回歸 |
+| G18-ui | 23 | 22 | 回歸 |
+| G18-e2e | 23 | 38（16 略過：劇本固定桌機＋店長手機） | 回歸 |
+| G25-db | 43 | 21 | 回歸 |
+| G25-ui | 18 | 28 | 回歸 |
+| G26-db | 37 | 22 | 回歸 |
+| G27 | 13 | 17（3 略過） | 回歸 |
+
+**run-all**：以上每個編號都是一次 run-all 呼叫；第一輪 G20-G21-db-api、G20-G21-ui 與 G01 的失敗見「發現並修正的舊帳」，修正後重跑全過。沒有執行整夜的 `test:all`（所有頁面編號已逐一跑過）。
+
+**上線前名單（DEV 實測見 §11.1；正式區要用 41 號預覽重跑，只列角色代碼與人數）**
+- 41 第 3 區重複統編、第 4 區重複 code：有就先整理，42 的唯一索引才會成功。
+- 41 第 5 區三張表與第 10 區水電帳單的現行政策全文：**先存檔**，43 與 45 的撤回照這份。
+- 41 第 6、7 區：套 43 後哪些角色與人讀不到廠商表（DEV：既有總務、工務測試角色沒有廠商權限；店長類角色只有入口權限）；第 8 區只靠需求單權限看採購分析的名單（46 後採購分析只認採購評估權限）。**名單與補授權確認前不得套 43，且最後套。**
+- 41 第 10 區：45 之後舊版店長讀不到水電帳單，列出人數。
+- 41 第 11 區：`ga_ws_po_list` 不是 WARN、九項待辦現況數字（歷史單據沒清時徽章會很大）、績效資料完整度（舊工單沒綁廠商，一開始大多「資料累積中」）。
+- 套用順序：`41 → 42 → 44 → 48 → 47 → 45 → 46 → 49 → 驗收 → 使用者確認名單 → 43`（49＝十萬級實測後的效能修正，必須在 46 之後；重跑 44、45、46、47 任一檔後要再跑 49）；撤回順序相反。經使用者核可前不執行，先備份。
+
+**待使用者確認**
+- 設計 §9 備註三點：(1) 需求單「待總務複核」（`WAITING_GA_REVIEW`）不計入徽章；(2) 工單徽章只算門市退回（`REOPENED`）；(3) 採購單選單徽章是「待核准」與「逾期未到貨」的聯集。
+- allowlist 待確認 27 條（`approvedBy` 為 null），分布：廠商 5、分類與區域 2、需求單 2、水電帳單 10、其他 8（側欄 2、採購分析 1、首頁 3、工單 1、採購單 1）；清單在 `tests/parity/allowlist.json` 與 `tests/unit/T02/parity-framework.test.ts` 的待核可清單。
+- 另外：舊版店長直讀水電帳單套 45 後讀不到；水電附件「插入分支而非整支覆蓋」的做法；`G02 分類畫面` 競態是否要修。
+
+**未完成／限制**
+- 沒有做 1920×1080 截圖上傳：本階段沒有確認 Remote Control 已開啟，且測試站與 DEV 被回歸測試獨占；版面以 layout e2e（桌機 1440、手機 390）與 A4 列印預覽（G20-G21 layout）檢查，沒有版面破損或 console 錯誤。
+- 管理員沒有任何角色時只看得到唯讀說明，沒有另做專屬畫面（沿用第 5 批）。
+- 分類畫面「切回最上層並搜尋、結果載入前」仍可點到殘留的列（點到會顯示「找不到分類」，不會寫入資料），本階段只修測試，畫面未修。
+
+### 11.6 靜態審查後的處理（2026-11-17，兩份審查：資料庫與程式、權限與畫面）
+只連 DEV；沒有 push、沒有動 `_preview.html` 與 `supabase/migrations`。逐條判斷如下（A＝第一份審查，B＝第二份審查）。
+
+**屬實，已修（DEV 已重套、草稿同步、補測試）**
+| 項目 | 處理 |
+|---|---|
+| A1 帳單重複規則沒有鎖 | `ga_ws_ub_save` 在重複檢查前加 `pg_advisory_xact_lock`；新增測試：兩人同時新增同一筆（3 輪）只成功 1 筆、另一筆 `DUPLICATE_BILL`、資料庫只有 1 筆（`G23.rpc`）。 |
+| A3 正式區 rollback 不等於套用前 | 42／43 套用時把套用前現況存進 `ga_m7m8_b6_apply_log`（區域 id 清單、索引、預設值、`updated_by` 是否已存在、一次性改 false 的廠商 id、三張表現行政策轉成可執行的 `CREATE POLICY` 與 RLS 開關）；兩份 rollback 依存檔還原，找不到存檔就中止。DEV 做過撤回、套用、撤回、套用，撤回後政策、欄位預設、索引、區域筆數與套用前完全相同。 |
+| A5 工單 `vendor_id` 不是合法 uuid 被默默忽略 | `ga_wo_apply_fields` 有給但解析失敗回 400（`VENDOR_FORMAT`）；e2e 補一條。 |
+| A6 已繳帳單改月份不重驗繳費日期 | 日期或帳單月份有變就重驗；新增測試。 |
+| A7 首頁庫存黃燈與紅燈排除條件不一致 | 黃燈也排除「允許負庫存且餘額為負」；新增測試。 |
+| B3 側欄群組數字重複計算待核准 | 純函式 `groupBadgeTotal`（`home-rules.ts`）：「採購單」與「待簽核採購單」同群組時扣掉重複的待核准；`GaShell.vue` 使用；單元測試 2 條。 |
+| B4 換人登入殘留上一人的徽章數字 | `ga-badges` store 監看登入者，換人或登出就重設，並用世代編號丟棄舊請求的晚到回應。 |
+| B8 驗收測試「只有 VW／ZT」是空轉 | 改成先找出所有像門市代碼的字串，再要求每個都是 VW／ZT（不再自證）。 |
+
+**不屬實或已有保護，不改**
+- A8（TS 與 SQL 各一份述詞沒有測試鎖住）：`tests/unit/G22-G24/home-rules.test.ts` 已逐條比對 SQL 檔與 `ATTENTION` 常數；列表也與徽章對照（整合測試 oracle）。
+- A9、B6（`attention` 讓統計變小）：與門市、類型、搜尋等其他篩選一致（統計一律反映目前篩選），頁面已有「只顯示待我處理…」提示與取消按鈕；不改。
+- B5（標記已繳、改回待繳、刪除的版本是選填）：不實，三個函式都在版本缺少時回 400 `EXPECTED_REQUIRED`、不符回 409 `STALE`（唯一例外是已繳且日期相同的冪等回應，不寫入）。
+- A4（46 以文字替換 `ga_ws_po_list`）：找不到錨點時整份 46 中止（安全失敗）；41 第 11 區已先檢查可替換性。維持，但套用前務必看那一區。
+- A5 風險一（47 覆蓋整支函式）：41 列出現行函式 md5 供比對，套用前請確認；沒有第二套寫法。
+- A11（即時計算成本）：沒有實測大量資料；目前資料量沒有問題，列為上線後觀察（輪詢 5 分鐘一次）。
+- B9：多數驗收單元測試確為靜態檢查，擋 bug 的是整合與 e2e 實測，不另改。
+
+**使用者已決定（2026-11-18，五項全部照建議）**
+1. 統編唯一（`m7m8-b6-vendor-tax-id-unique-rpc-only`，已核可）：上線時先清掉正式區重複統編（41 第 3 區名單必須為 0 組），再加「正規化統編」的部分唯一索引 `ga_vendors_tax_id_norm_uidx`（含停用與暫停廠商，空值不算）。草稿 48，套用順序 `41 → 42 → 44 → 48 → 47 → 45 → 46 → 43`；`ga_ws_vendor_save` 遇索引衝突（23505）轉成 409 `TAX_ID_DUPLICATE` 並指出既有廠商。
+2. 名稱相近提醒（A10）：維持現狀，只提醒不擋，不改行為（allowlist 沒有對應的獨立條目，不新增）。
+3. 績效頁採購金額（`m7m8-b6-vendor-perf-po-amount-coop-only`，已核可）：沒有採購單檢視權限（`ga_po_can_view`）者，金額、張數與合計由資料庫函式回 null、不列只有採購單的廠商、回應帶 `can_view_po_amount`、頁面隱藏金額欄與合計卡。
+4. 舊頁廠商下拉在 43 後變空（`m7m8-b6-legacy-purchase-review-inline-vendor-null`、`m7m8-b6-legacy-service-center-select-star-empty`，已核可）：接受，43 最後套用。
+5. A11 上線前以十萬級假資料在 DEV 實測首頁、績效、採購分析等速度，必要時補索引：已於 2026-11-18 執行，結果與修正見 §11.7「十萬級假資料速度實測（決定 5）」。
+
+### 11.7 使用者決定 1–4 的實作（2026-11-18，只連 DEV mjpd…）
+- 統編唯一：新增 DEV `20261118140000_m7m8_b6_vendor_tax_unique.sql`（與 `.rollback.sql`）與正式區草稿 `48-b6-vendor-tax-unique.sql`（與 `-rollback.sql`）。沿用既有 IMMUTABLE 的 `ga_vd_norm_tax`（全形轉半角、去空白）；開頭先檢查正規化後的重複統編（含停用），有重複就 RAISE EXCEPTION 並列出名單；再建部分唯一索引（`WHERE ga_vd_norm_tax(tax_id) <> ''`）。DEV 已實測套用、撤回、再套用。`apply-workspace-m7m8-b6-dev.cjs` 納入 140000。
+- `ga_ws_vendor_save`（DEV `100000` 與草稿 44，兩邊一致）新增 `unique_violation` 處理：衝突來自上述索引時，轉成與一般重複檢查相同的 409 `TAX_ID_DUPLICATE`（白話訊息、`existing` 指出既有廠商）；原本的 advisory lock 仍先序列化並行送出，索引是最後防線，也擋舊頁與直接寫入。
+- 41 第 3 區說明改為「必須整理到 0 組才能套用 48」；README 套用順序與 48 兩列、行為改變與上線前清單同步。48 放在 44 之後（用到 `ga_vd_norm_tax`），早於 43。
+- 績效金額：`ga_ws_vendor_perf`（DEV `120000` 與草稿 46，兩邊一致）加 `v_can_po := ga_po_can_view(uid)`；採購單 CTE 加 `AND v_can_po`，使無權者的 FULL JOIN 只剩有工單的廠商；`po_count`、`po_amount`、`summary.po_amount_total` 無權者為 null；回傳 `can_view_po_amount`。`VendorStats.vue` 依旗標隱藏金額欄、合計卡（手機版同樣）。此頁沒有匯出與金額排序。
+- 外洩檢查：`ga_ws_home_summary` 的採購單金額只出現在「待核准採購單」前 5 筆，該項只回給有核准權限者（核准權限包含在 `ga_po_can_view` 內），KPI 只有張數與帳單金額（水電權限）；`ga_ws_purchase_analysis` 自有採購評估檢視／管理權限，不需改。
+- 測試：整合新增「直接 insert 重複正規化統編被索引擋下（全形、空白、停用、空值不算）」「並行儲存同統編一筆成功其餘 409 TAX_ID_DUPLICATE」、績效有權／無權對照（G22-G24 rpc）；e2e 新增 `G21.journey-contract-perf-roles` 的 2b（有權者看得到金額欄，只有合作紀錄者桌機與手機 390 都沒有金額欄與合計卡）；單元新增 `tax-unique-perf-po.test.ts` 靜態檢查；allowlist 4 條改為已核可（`approvedBy` 為「user (2026-11-18 batch 6 acceptance decisions)」），`STILL_PENDING` 移除這 4 條。
+- 實測發現並修正：索引運算式以寫入者身分執行，`ga_vd_norm_tax` 原本被 44 收回執行權限，舊頁（使用者身分直接 insert）會報 permission denied（由 G20-G21-ui 對等測試抓到）；48 與 DEV 140000 改為 `GRANT EXECUTE ... TO authenticated`，rollback 再收回；整合測試加入使用者身分 insert 重複統編回 23505。
+
+**十萬級假資料速度實測（決定 5，2026-11-18，只連 DEV mjpd…）**
+- 腳本：`scripts/perf-m7m8-b6-dev.cjs`（灌資料、量測、EXPLAIN、清除）與 `scripts/perf-m7m8-b6-explains.cjs`。分段前景執行：`--init`（清殘留、記基準、建帳號）→ `--seed --steps=…`（大表每 1 萬筆一個交易）→ `--analyze` → `--measure --explain` → `--cleanup-only`。資料全掛 VW／ZT 測試門市、名稱帶 `PERF-B6-`；大量資料的日期一律 2038 年，只有「待我處理」需要相對今天日期的四類（合約到期廠商、逾期採購單、逾期帳單、逾期調撥）各另灌 300 筆，同樣帶標記。
+- 資料量（標記筆數，合計約 15.4 萬列）：廠商 2,300（含相對日期 300）、工單 40,000、需求單 10,000、採購評估 5,000、採購單 30,300（含 300）與明細 44,895、水電帳單 20,300（含 300）、調撥單 5,300（含 300）、庫存餘額 20,000、料件 1,000、設備 3,000、設施 3,000。
+- 量測方式：總務帳號（`vue_workspace_ga6_ga_all`＋臨時核准角色）與店長帳號各呼叫 5 次取中位數；「資料庫內」＝同一交易內計時，「往返」＝經 PostgREST 的瀏覽器端耗時。
+- 中位數（ms，總務帳號；資料庫內／往返；前 → 後）：
+  | 函式 | 前 | 後 | 目標 |
+  |---|---|---|---|
+  | `ga_ws_home_summary` | 14,800／（略過，已超 8 秒） | 458／622 | < 1,500 |
+  | `ga_ws_home_badges` | 3,454／3,393 | 121／286 | < 1,000 |
+  | `ga_hm_counts`（徽章九項計數，只在資料庫內） | 3,358 | 121 | < 1,000 |
+  | `ga_ws_vendor_perf`（2038-01 至 12，回 68 萬字元） | 222／631 | 226／665 | < 1,000（本來就達標） |
+  | `ga_ws_purchase_analysis`（2038-06） | 68／388 | 66／393 | < 1,000（本來就達標） |
+  | `ga_ws_ub_list`（月份篩選） | 714／801 | 27／157 | < 1,000 |
+  | `ga_ws_ub_list`（無篩選） | 716／855 | 58／180 | < 1,000 |
+  | `ga_ws_ub_list`（逾期） | 1,107／1,229 | 21／145 | < 1,000 |
+  | `ga_ws_vendor_list`（預設） | 64／184 | 7／126 | < 1,000 |
+  | `ga_ws_vendor_list`（搜尋） | 104／234 | 55／182 | < 1,000 |
+  | `ga_ws_po_list`（待我處理） | 逾時（語句逾時中止） | 52／180 | < 1,000 |
+  店長帳號：`ga_ws_home_summary` 3→4、`ga_ws_home_badges` 2→2（本來就極快）。`ga_ws_po_list` 的「前」是逾時，中間版本（只修 `has_permission` 逐列呼叫）為 1,962。
+- EXPLAIN (ANALYZE, BUFFERS) 重點（最慢者）：
+  1. 首頁庫存提醒 10,605 ms：`ga_inventory_balance_is_visible(location_id)` 對 2 萬列餘額逐列執行（SECURITY DEFINER、內含兩次權限查詢），Seq Scan 就耗掉 8.8 秒、71 萬 buffers。改成在位置表上先判斷（20 個位置），降到 224 ms。
+  2. 採購單選單徽章計數 2,017 ms、逾期 527 ms、水電逾期帳單 436／616 ms、工單退回計數 456 ms、全域待繳統計 699 ms、調撥逾期 142 ms：共同原因是 `ga_att_*`、`ga_ub_is_overdue`、`ga_wo_focus`、`ga_po_today` 這類單一運算式的 SQL 述詞函式都帶 `SET search_path`，規劃器無法內嵌，3 萬列各呼叫函式（內層還再呼叫 `ga_po_today`）。對這八個函式 `RESET search_path` 後可內嵌，修正後同一批查詢全部在 25 ms 內，只剩調撥逾期 101 ms（呼叫可見性函式）。
+  3. `ga_ws_po_list` 待我處理篩選：`has_permission(v_uid, 核准碼)` 寫在每列的條件裡，每列查一次權限（3 萬列逾時）；改成純量子查詢只算一次。
+  4. 其餘（績效工單與採購單彙總 19–34 ms、採購分析 35 ms、廠商統計 72 ms、廠商名稱排序分頁 0.3 ms）本來就達標，既有索引 `maintenance_requests(vendor_id, reported_at)`、`ga_purchase_orders(vendor_id, ordered_at)` 與未繳帳單到期日部分索引有用到；**不需要新增索引**。
+- 修正內容與草稿編號：
+  - 草稿 **49**（`m7m8-sql/49-b6-perf-inline-predicates.sql`＋`-rollback.sql`；DEV `20261118150000_m7m8_b6_perf_inline_predicates.sql`＋`.rollback.sql`）：八個述詞函式 `ALTER FUNCTION … RESET search_path`（`ga_po_today`、`ga_att_request_intake`、`ga_att_store_wait`、`ga_att_po_overdue`、`ga_att_po`、`ga_att_transfer_overdue`、`ga_ub_is_overdue`、`ga_wo_focus`），函式本體與回傳值不變；rollback 設回 `public, pg_temp`。**`ga_vd_contract_due` 刻意不動**：G20-G21 函式目錄測試規定 `ga_vd_*` 固定 search_path，且只掃廠商表（63 ms）。套用順序放在 46 之後、43 之前；之後重跑 44、45、46、47 任一檔要再跑 49。DEV 已實測套用、撤回、再套用（八個函式的函式層級設定由有變無：0 → 8）。
+  - 併入既有檔案（DEV `20261118120000` 與草稿 46 內容一致）：`ga_ws_po_list` attention 篩選的 `has_permission` 改純量子查詢（新套用與已套舊版都會就地升級，46 rollback 的反向替換同時認得新舊寫法）；首頁庫存提醒的可見性判斷移到位置表連接條件。
+  - 索引：**沒有新增**。
+- 清除與驗證：`--cleanup-only` 後 16 項標記筆數全為 0（含測試帳號、臨時角色），ga_vendors 等 14 張表與 profiles、roles 筆數與灌資料前基準完全相同。
+- 上線前清單補充：(1) 套用 49 後用 41 第 11 區的待辦現況數字與驗收測試對照；(2) 正式區資料量若遠超本次（單表 > 10 萬），重跑 `perf-m7m8-b6-dev.cjs --scale=2` 於 DEV；(3) 績效頁回應約 68 萬字元（2,300 廠商全列），往返 0.67 秒，可接受但廠商再增加到數萬時要改分頁。
+- 測試（循序）：G22-G24 頁面 46 條（含單元 65 條）exit 0；G23 58 條（含單元 53）exit 0；G20-G21-db-api 39 條（單元與整合共 57 條）exit 0；G20-G24-accept 單元 29 條 exit 0；G14-G17 33 條 exit 0；`test:unit` 127 檔 2070 條 exit 0；`tsc --noEmit` exit 0。過程中 G20-G21-db-api 抓到兩處：函式目錄測試要求 `ga_vd_*` 固定 search_path（因此 49 不動 `ga_vd_contract_due`），README 順序靜態測試改為含 49，並新增 49 的靜態檢查 3 條。
+

@@ -1,0 +1,5 @@
+const fs=require('fs'),ts=require('typescript'),vm=require('vm'),assert=require('assert/strict'),XLSX=require('xlsx');
+const js=ts.transpileModule(fs.readFileSync('vue-workspace/src/employee-export.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const sandbox={exports:{},require};vm.runInNewContext(js,sandbox);
+const rows=[true,false,null].map((flag,i)=>({employee_code:'0000'+i,employee_name:'=1+1',store:null,type_label:'入職',movement_type:'onboarding',onboarding_is_pharmacist:flag,old_value:null,new_label:'新人 一階',movement_date:'2026-08-01',display_notes:'第一行\n第二行'}));
+const book=XLSX.read(sandbox.exports.movementWorkbook(rows),{type:'array'}),sheet=book.Sheets['異動記錄'];assert.equal(sheet.A2.v,'00000');assert.equal(sheet.A2.t,'s');assert.equal(sheet.B2.v,'=1+1');assert.equal(sheet.B2.f,undefined);assert.equal(sheet.E2.v,'是');assert.equal(sheet.E3.v,'否');assert.equal(sheet.E4.v,'未記錄');assert.equal(sheet.I2.v,'第一行\n第二行');assert.equal(sheet.G2.v,'新人 一階');console.log('PASS movement workbook literal text, pharmacist true/false/null, formatted level and multiline notes');

@@ -1,0 +1,26 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),XLSX=require('xlsx');
+require.extensions['.ts']=(module,path)=>module._compile(ts.transpileModule(fs.readFileSync(path,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,path);
+const {validatePromotionRows:validate,parsePromotionWorkbook:parse,promotionTemplate,normalizePromotionDate}=require('../lib/workspace/promotion-import.ts');
+const row={employee_code:' fk0001 ',employee_name:' 測試員工 ',position:'新人',newbie_level:'一階新人',effective_date:'2026/7/1',notes:'完成訓練'};
+assert.equal(validate([row]).valid,true);assert.equal(validate([row]).rows[0].employee_code,'FK0001');assert.equal(validate([row]).rows[0].effective_date,'2026-07-01');
+for(const effective_date of ['0115-07-01','2026-02-29','2026-04-31','',46204])assert.equal(validate([{...row,effective_date}]).valid,false);
+assert.equal(validate([{...row,position:'行政',newbie_level:'過階行政'}]).valid,true);
+assert.equal(validate([{...row,position:'行政',newbie_level:'一階新人'}]).valid,false);
+assert.equal(validate([{...row,position:'代理店長'}]).rows[0].newbie_level,'');
+assert.equal(validate([{...row,position:'不存在職位'}]).valid,false);
+assert.equal(validate([{...row,notes:'新人等級:二階新人'}]).valid,false);
+assert.equal(validate([row,row]).valid,false);assert.equal(validate([row,{...row,newbie_level:'二階新人'}]).valid,true);
+assert.throws(()=>validate([]));assert.throws(()=>validate(Array(501).fill(row)));
+function workbook(rows,modify=()=>{},date1904=false){const b=XLSX.utils.book_new(),s=XLSX.utils.aoa_to_sheet(rows);modify(s);XLSX.utils.book_append_sheet(b,s,'升遷');b.Workbook={WBProps:{date1904}};return XLSX.write(b,{type:'buffer',bookType:'xlsx'});}
+const header=['員編','姓名','職位','新人階段','生效日','備註'];
+let result=parse(workbook([header,['fk0001','測試員工','新人','一階新人','2026/7/1','完成訓練']]));assert.equal(result.valid,true);assert.deepEqual(result.sourceRows,[2]);
+const serial=46204;assert.equal(normalizePromotionDate(serial),'2026-07-01');assert.equal(normalizePromotionDate(serial-1462,true),'2026-07-01');
+result=parse(workbook([header,[123,'測試員工','店長','',serial,'']],s=>{s.A2.z='000000';s.E2.z='yyyy/mm/dd'}));assert.equal(result.rows[0].employee_code,'000123');assert.equal(result.rows[0].effective_date,'2026-07-01');assert.equal(result.valid,true);
+result=parse(workbook([header,['FK0001','測試員工','店長','',serial-1462,'']],()=>{},true));assert.equal(result.rows[0].effective_date,'2026-07-01');
+result=parse(workbook([header,[],['FK0001','測試員工','店長','','2026-02-29','']]));assert.equal(result.errors[0].row,3);
+result=parse(workbook([header,['FK0001','測試員工','店長','','2026-07-01','']],s=>{s.F2={t:'s',f:'"隱藏公式"',v:'值'}}));assert.ok(result.errors.some(e=>e.message.includes('公式')));
+result=parse(workbook([header,['FK0001','測試員工','店長','','2026-07-01','']],s=>{s.F2={t:'e',v:7}}));assert.ok(result.errors.some(e=>e.message.includes('Excel 錯誤')));
+assert.throws(()=>parse(workbook([['員編'],['FK0001']])));assert.throws(()=>parse(workbook([[...header,'新人等級'],['FK0001']])));assert.throws(()=>parse(workbook([header])));assert.throws(()=>parse(Buffer.alloc(5*1024*1024+1)));
+assert.throws(()=>parse(workbook([header,...Array.from({length:501},()=>['FK0001','姓名','店長','','2026-07-01',''])])));
+const template=XLSX.read(promotionTemplate(),{type:'buffer'});assert.equal(template.SheetNames.length,2);assert.deepEqual(XLSX.utils.sheet_to_json(template.Sheets[template.SheetNames[0]],{header:1})[0],['員編','姓名','職位','階段／階級','生效日','備註']);
+console.log('PASS date normalization/ROC rejection/1900 and 1904 serials, padded codes, positions/levels, duplicate rows, blank row numbering, formulas/errors, headers/limits and clean template');

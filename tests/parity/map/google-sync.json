@@ -1,0 +1,35 @@
+{
+  "page": "google-sync",
+  "legacyRoute": "/organization/calendar（Google 同步區）",
+  "workItem": "W24",
+  "entries": [
+    {
+      "id": "status-pending",
+      "mechanism": "api-read",
+      "description": "Q20 同步狀態：舊 GET /api/organization/calendar/google/status 的待重試筆數只算「連結紀錄上有錯誤」的；授權失效時沒有連結紀錄帶錯誤，所以是 0 筆。新版算「應該在 Google 上卻缺連結或有錯誤」的筆數，並回傳頁頂警示。同步失敗（連結帶錯誤）時兩者相同。",
+      "legacy": { "api": { "path": "/api/organization/calendar/google/status" } },
+      "native": { "api": { "path": "/api/workspace/calendar/google/status" } }
+    },
+    {
+      "id": "event-description",
+      "mechanism": "write-readback",
+      "description": "Q19 寫到 Google 的事件：標題、地點、時間、類型文字完全相同；描述在舊版內容之後多一段「請勿在此修改，請回系統」。",
+      "legacy": { "source": "lib/organization/google-calendar.ts companyPayload／holidayPayload（舊描述格式）" },
+      "native": { "source": "lib/organization/google-calendar.ts（withSyncNote）" }
+    },
+    {
+      "id": "cancel-deletes",
+      "mechanism": "write-readback",
+      "description": "取消公司行事：舊 PATCH 與新 PATCH 都會把 Google 上的對應事件真的刪除並移除連結紀錄，別人手動建立的事件不動，系統裡行事保留為已取消。兩邊結果必須相同。",
+      "legacy": { "api": { "method": "PATCH", "path": "/api/organization/calendar/company-events" } },
+      "native": { "api": { "method": "PATCH", "path": "/api/workspace/calendar/company-events" } }
+    },
+    {
+      "id": "oauth-connect",
+      "mechanism": "write-readback",
+      "description": "OAuth 連結與回調：連結網址、授權範圍（最小權限）、回調網址、state 驗證與回導路徑沿用舊 handler，沒有任何改動；新版畫面的連結按鈕直接指向舊連結網址。",
+      "legacy": { "api": { "method": "GET", "path": "/api/organization/calendar/google/connect" } },
+      "native": { "source": "vue-workspace/src/components/CalendarGooglePanel.vue（連結按鈕）；舊 handler 原樣沿用" }
+    }
+  ]
+}

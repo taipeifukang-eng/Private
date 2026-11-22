@@ -1,3 +1,4 @@
+import { getMovementDateError } from '@/lib/employee-movement-date';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { hasPermission } from '@/lib/permissions/check';
@@ -35,6 +36,8 @@ export async function POST(
     }
 
     const { effective_date } = await request.json();
+    const dateError = getMovementDateError(effective_date);
+    if (dateError) return NextResponse.json({ success: false, error: dateError }, { status: 400 });
     if (!effective_date) {
       return NextResponse.json({ success: false, error: '請填入生效日期' }, { status: 400 });
     }

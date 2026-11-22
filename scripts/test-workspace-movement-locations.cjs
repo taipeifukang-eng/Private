@@ -1,0 +1,14 @@
+const fs=require('fs'),ts=require('typescript'),assert=require('assert/strict');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,p);
+const {movementPlacementOptions:options}=require('../lib/workspace/movement-locations.ts');
+const unit=(id,type,parent_id=null,extra={})=>({id,code:id,name:id,type,parent_id,status:'active',...extra});
+let tree=[unit('company','company'),unit('hq','headquarters','company'),unit('department','department','hq'),unit('team','department','department'),unit('outside','department','company'),unit('inactive','department','department',{status:'inactive'})];
+assert.deepEqual(options(tree).map(u=>u.id),['team']);assert.equal(options(tree)[0].path,'company / hq / department / team');
+assert.deepEqual(options([unit('company','company'),unit('dept','department','company')]).map(u=>u.id),['dept']);
+assert.equal(options([unit('hq','headquarters')]).length,0);
+assert.equal(options([unit('a','department','b'),unit('b','department','a'),unit('leaf','department','a')]).length,0);
+assert.equal(options([unit('orphan','department','missing')]).length,0);
+assert.equal(options([unit('inactive','department',null,{status:'inactive'}),unit('child','department','inactive')]).length,0);
+assert.deepEqual(options([unit('root','department'),unit('disabled','department','root',{status:'inactive'})]).map(u=>u.id),['root']);
+assert.equal(tree.length,6);assert.equal(options([]).length,0);
+console.log('PASS placement options: HQ active leaves, no-HQ fallback, full paths, inactive units/ancestors, missing parents, cycles and immutable input');

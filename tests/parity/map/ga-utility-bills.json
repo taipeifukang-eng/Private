@@ -1,0 +1,44 @@
+{
+  "page": "ga-utility-bills",
+  "legacyRoute": "/general-affairs/utility-bills",
+  "workItem": "G23",
+  "entries": [
+    {
+      "id": "bill-list-read",
+      "mechanism": "api-read",
+      "description": "帳單列表：同一個登入者（水電管理）、同一個月份篩選，舊版 GET /api/general-affairs/utility-bills（上限 500、全部欄位含建立者與刪除欄位的 uuid）與新版 GET /utility-bills（伺服端分頁、狀態與逾期旗標、建立與修改者名稱、全部月份的待繳與逾期摘要）逐列比對共同欄位。",
+      "legacy": { "api": { "path": "/api/general-affairs/utility-bills" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/utility-bills" } },
+      "compareKey": "id"
+    },
+    {
+      "id": "bill-create-write-readback",
+      "mechanism": "write-readback",
+      "description": "新增帳單：同一份輸入，舊版 POST /api/general-affairs/utility-bills 與新版 POST /utility-bills 寫入後以 service role 回讀資料列逐欄比對。差異：重複帳單舊版回資料庫英文錯誤、新版回 409 白話並指出既有那一筆；舊版可存未來的繳費日期、新版擋下；新版回金額異常提醒。",
+      "legacy": { "api": { "path": "/api/general-affairs/utility-bills", "method": "POST" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/utility-bills", "method": "POST" } }
+    },
+    {
+      "id": "bill-pay-write-readback",
+      "mechanism": "write-readback",
+      "description": "標記已繳與改回待繳：舊版 PATCH /api/general-affairs/utility-bills/:id（只改 paid_at，畫面固定送台北今天、改回待繳無確認）與新版 POST /utility-bills/:id/pay、/unpay 寫入後回讀。差異：新版繳費日期不可未來且不早於帳單月份前 1 個月、改回待繳需確認、帳單可完整編輯並留修改者、版本檢查。",
+      "legacy": { "api": { "path": "/api/general-affairs/utility-bills/:id", "method": "PATCH" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/utility-bills/:id/pay", "method": "POST" } }
+    },
+    {
+      "id": "bill-delete-write-readback",
+      "mechanism": "write-readback",
+      "description": "刪除帳單：舊版 DELETE /api/general-affairs/utility-bills/:id（不問原因、只有確認視窗）與新版 POST /utility-bills/:id/delete（必填原因、已繳帳單二次確認）寫入後回讀；都是軟刪除。",
+      "legacy": { "api": { "path": "/api/general-affairs/utility-bills/:id", "method": "DELETE" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/utility-bills/:id/delete", "method": "POST" } }
+    },
+    {
+      "id": "bill-report-read",
+      "mechanism": "api-read",
+      "description": "費用報表：同一個月份，舊版 GET /api/general-affairs/utility-bills/report 與新版 GET /utility-bills/report 逐據點比對四類費用、合計與筆數；啟用門市沒帳單算 0 兩邊相同；差異：其他據點名稱新版先正規化（全半形、大小寫、空白）再合併。",
+      "legacy": { "api": { "path": "/api/general-affairs/utility-bills/report" } },
+      "native": { "api": { "path": "/api/workspace/general-affairs/utility-bills/report" } },
+      "compareKey": "location_name"
+    }
+  ]
+}
