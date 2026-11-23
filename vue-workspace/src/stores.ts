@@ -3,6 +3,7 @@ import { ref, computed } from "vue";
 import { api, taiwanMonth, type Store } from "./api";
 import type { WorkTabKind, WorkspaceNavKind } from "../../lib/workspace/page-kinds";
 import { pageTitle } from "./workspace-page-meta";
+import { fallbackFor } from "./legacy-link";
 import type { GaNavGroup } from "../../lib/workspace/general-affairs/nav-types";
 export type Session = {
   integrated: boolean;
@@ -12,6 +13,8 @@ export type Session = {
   permissions: string[];
   /** M5 Q15：沒有任何生效角色（且不是管理員）時為 true，畫面改顯示「帳號待管理員開通」。 */
   pendingActivation?: boolean;
+  /** M9 N2：系統管理員暫時切回舊版的頁面（選單改開舊版網址、不再開新版頁籤）。 */
+  pageFallbacks?: { kind: WorkspaceNavKind; reason: string | null; updatedAt: string | null }[];
   capabilities: {
     employeePurchases: boolean;
     pharmacists: boolean;
@@ -21,6 +24,8 @@ export type Session = {
     supervisorLog: boolean;
     clinicSelfpay: boolean;
     roles: boolean;
+    /** M9 N2：頁面回舊版設定（只有系統管理員）。 */
+    pageFallbackAdmin: boolean;
     users: boolean;
     transfers: boolean;
     movementDraft: boolean;
@@ -127,6 +132,8 @@ export type NavItem = {
   label: string;
   href: string;
   kind?: WorkspaceNavKind;
+  /** M9 N2：這一項已被系統管理員暫時切回舊版（沒有 kind，選單改開舊版網址）。 */
+  fallback?: true;
 };
 export const useSession = defineStore("session", () => {
   const data = ref<Session | null>(null);
@@ -168,7 +175,11 @@ export const useWorkspace = defineStore("workspace", () => {
   const lastSavedTab = ref("");
   const monthlyRevision = ref(0);
   const dirty = computed(() => tabs.value.filter((t) => t.dirty));
+  // M9 N2：要開的頁面已被系統管理員切回舊版時，不開新版頁籤，改留一則帶舊版連結的通知（App.vue 顯示）。
+  const fallbackNotice = ref<{ kind: WorkTabKind; title: string; href: string; reason: string | null } | null>(null);
   function open(kind: WorkTab["kind"], store = "", recordId?: string) {
+    const session = useSession();
+    const fallback = fallbackFor(kind, session.data?.pageFallbacks, session.data?.integrated);
     const tab: WorkTab = {
       id: crypto.randomUUID(),
       kind,
@@ -179,6 +190,11 @@ export const useWorkspace = defineStore("workspace", () => {
       dirty: false,
       busy: false,
     };
+    if (fallback) {
+      fallbackNotice.value = { kind, title: tab.title, href: fallback.href, reason: fallback.reason };
+      return tab; // 不加入 tabs：呼叫端對回傳值的後續設定不會有任何效果
+    }
+    fallbackNotice.value = null;
     tabs.value.push(tab);
     active.value = tab.id;
     return tab;
@@ -213,6 +229,7 @@ export const useWorkspace = defineStore("workspace", () => {
     tabs,
     active,
     dirty,
+    fallbackNotice,
     deletedInspectionIds,
     campaignRevision,
     organizationRevision,

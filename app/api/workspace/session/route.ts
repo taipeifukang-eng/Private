@@ -26,6 +26,7 @@ import { canEnterCampaignView } from "@/lib/campaign-access";
 import { canOpenMonthlyExport } from "@/lib/workspace/monthly-export";
 import { dbCan, gaFlags, isStoreManagerRole } from "@/lib/workspace/general-affairs/access";
 import { gaNavigation } from "@/lib/workspace/general-affairs/nav";
+import { activeFallbacks } from "@/lib/workspace/page-fallbacks";
 import { isRosterMember, isStoreMember } from "@/lib/workspace/general-affairs/members";
 export const dynamic = "force-dynamic";
 export async function GET() {
@@ -69,6 +70,8 @@ export async function GET() {
     const gaStoreMember = await isStoreMember(ctx);
     const gaRosterMember = await isRosterMember(ctx);
     const clinicSelfpay = await clinicMenuVisible(ctx);
+    // M9 N2：切回舊版的頁面（每次請求都讀資料庫，不快取；讀不到視為沒有）。
+    const pageFallbacks = await activeFallbacks(ctx.admin);
     return respond({
       user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
       permissions: Array.from(ctx.permissions),
@@ -80,6 +83,7 @@ export async function GET() {
         productsMaster:ctx.has(...moduleCodes.productsMaster),stockout:ctx.has(...moduleCodes.stockout),supervisorLog:ctx.has(...moduleCodes.supervisorLog),clinicSelfpay,
         relationships:ctx.has("relationship_member.view","relationship_member.edit","relationship_member.delete","relationship_member.approve"),
         roles:ctx.has(...ROLE_MANAGEMENT_NAV_PERMISSION_CODES),
+        pageFallbackAdmin: ctx.isAdmin, // M9 N2：頁面回舊版設定只有系統管理員
         users:ctx.has(...USER_MANAGEMENT_NAV_PERMISSION_CODES),
         transfers,
         movementDraft:ctx.has("employee.promotion.batch"),
@@ -141,7 +145,9 @@ export async function GET() {
         campaignView,
         gaRosterMember,
         clinicSelfpay,
+        fallbackKinds: new Set(pageFallbacks.map((f) => f.kind)),
       }),
+      pageFallbacks,
     });
   } catch (error) {
     return failed(error);

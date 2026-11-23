@@ -1494,3 +1494,44 @@ tbody tr:hover {
 .vendor-print-output .vp-checks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2.5mm 4mm}.vendor-print-output .vp-note{margin-top:3mm;color:#4b5563;font-size:8.5pt}
 .vendor-print-output .vp-sign{margin-top:8mm;display:grid;grid-template-columns:1fr 1fr;gap:10mm}}
 @media print{.vendor-print-output .vp{border:0!important;padding:0!important;font-size:10pt!important;border-radius:0!important}.vendor-print-output .vp-page+.vp-page{border-top:0!important;margin-top:0!important;padding-top:0!important}.vendor-print-output .vp-lines{background:repeating-linear-gradient(to bottom,transparent 0,transparent 7mm,#9ca3af 7mm,#9ca3af 7.2mm)!important}}
+
+/* M9 C2：頁籤列右側的「回舊版」連結（低調：小字、次要色，不搶頁籤的位置）；N2：切回舊版通知。 */
+.legacy-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  align-self: center;
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 4px 10px;
+  margin: 0 4px;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.legacy-link:hover,
+.legacy-link:focus-visible {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+.fallback-banner {
+  color: var(--ink);
+}
+.fallback-banner a {
+  margin-left: 8px;
+  color: inherit;
+  text-decoration: underline;
+}
+.notice a {
+  color: inherit;
+  text-decoration: underline;
+}
+@media (max-width: 640px) {
+  .legacy-link {
+    min-height: 44px;
+    padding: 4px 10px;
+  }
+}

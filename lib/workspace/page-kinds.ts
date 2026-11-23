@@ -149,6 +149,8 @@ export const WORKSPACE_DETAIL_KINDS = [
   "ga-payment-requests",
   "ga-payment-request-edit",
   "ga-payment-request-print",
+  // M9 F01S：系統管理員的「頁面回舊版設定」（由角色權限管理頁的按鈕開啟，不在選單出現）。
+  "page-fallbacks",
 ] as const;
 
 export type WorkspaceNavKind = (typeof WORKSPACE_NAV_KINDS)[number];

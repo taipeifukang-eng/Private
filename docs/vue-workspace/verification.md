@@ -965,3 +965,10 @@ Vue build PASS；scripts/test-workspace-prescription-scroll.py 使用59店攔截
 - 兩輪獨立審查共 29 條逐條核對；處理結果見 `m7m8-batch4-5-design.md` 的 G45-review 與 `m7m8-sql/README.md` 的「第 4.5 批審查後修訂」。DEV 已重新套用 100000 至 170000（`scripts/apply-workspace-m7m8-b45-dev.cjs`），正式區草稿 51、52、54、56、57、58 已重新產生。
 - 循序重跑（只用 DEV）：G45-db 37 項（原 28＋新增 9）、G45-att-inv 38 項、G45-pay 31 項、G45-void-stat 40 項、G45-e2e 14 項全過；`test:unit` 135 檔 2245 項全過；`tsc`、`vue-tsc` 無錯誤。各 `test:page` 結束碼 1 只因 sweeper 基準孤兒 17（既有基準，不是本批殘留）。
 - 新增測試：`tests/integration/G45-db.review-fixes.spec.ts`（稅額逐張進位、狀態機與明細守門、統編不可被猜、收據原因不可清、三個併發、作廢進貨換原因 409 與不外露 void_key、清除函式還原尾差）、`tests/unit/G45-pay/payment-request-csv-text.test.ts`、列印頁稅額欄冒煙斷言。
+
+## 2026-11-23 M9 F01S「回舊版」連結（C2）與逐頁備援開關（N2）
+
+- 規格與對照表：`docs/vue-workspace/parity-plan/m9-fallback-spec.md`；DEV 演練紀錄：`docs/vue-workspace/parity-plan/m9-fallback-drill.md`；正式區 SQL 草稿：`docs/vue-workspace/parity-plan/m9-sql/`（尚未套用）。
+- 新增唯一來源 `lib/workspace/legacy-routes.ts`（kind -> 舊版路由；16 個沒有舊版對應的頁面有明列與原因）；每頁頁籤列有「回舊版」連結（另開分頁）；系統管理員可在「角色權限管理 > 頁面回舊版設定」逐頁切回舊版，不需重新部署，最慢 60 秒生效（伺服端不快取）。
+- 測試：`M9-F01S`（單元、整合、e2e 桌機 1440／手機 390）、T02、T03（導覽基準未變）、M0 皆循序重跑通過；差異登記在 `tests/parity/allowlist.json`（前綴 `m9-`）：6 條實作 C2／N2 已核可，3 條開發端自選項待使用者確認。
+
