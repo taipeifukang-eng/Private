@@ -506,6 +506,15 @@ Z4 的處理原則：自造測試檔與使用者提供的去識別樣本並用�
 13. **測試**（page id `M6-W33`）：`tests/unit/M6-W33/`（費用估算、80%／100% 狀態與通知、台北月份歸零與跨年閏年、上限驗證、音檔驗證 29 項；假 OpenAI 與「mock 模式絕不碰真實網路」；靜態契約：不存檔、AI 不直接寫入、同意與逐字稿、資料庫與舊版不動）、`tests/integration/M6-W33.voice-ai.spec.ts`（15 項：權限矩陣、同意、轉文字與費用帳本、音檔限制、AI 與退回草稿、儲存與逐字稿、E6 可見範圍、上限 API、80% 通知、100% 自動停用與恢復、上限 0、月份歸零、並行不超過上限、舊路由不受影響）、`tests/e2e/M6-W33.voice-journey.e2e.spec.ts`（桌機與手機各 3 個劇本：督導先同意再錄音／重錄／失敗重試／AI 草稿審核／人工儲存／逐字稿、AI 失敗退回手動並標示未經 AI 整理；額度 80%／100%、首頁只有系統管理員看到提醒、管理員在「AI 用量」調整後恢復；團隊檢視者與管理者與無權限者的逐字稿與入口）、`tests/parity/M6-W33.voice.spec.ts`（本機規則草稿逐欄新舊相同、比對結果、各角色權限狀態碼、輸入檢查、儲存後資料列）。月額度情境直接在 `workspace_ai_*` 塞帶標記（model = M6W33-seed）的估算費用列，測完還原每月上限並刪除測試期間新增的列、通知與同意。
 14. **尚未驗證／待決定**：(a) Vercel 函式請求大小（Hobby／Pro 預設約 4.5MB）與逾時未實測；錄音以 32kbps 讓 10 分鐘約 2.4MB 以符合，但使用者自己上傳大檔（目前畫面沒有上傳入口，只有錄音）若超過此限制要改直傳。(b) 價格表是寫死的估算值，OpenAI 調價後要更新（`CHAT_PRICE_PER_M`、`TRANSCRIBE_MICRO_PER_MINUTE`）；估算偏保守所以帳面會比實際 OpenAI 帳單高。(c) 沒有真實錄音與真實 OpenAI 驗證（規則禁止）；真實模型輸出品質與提示不在本次範圍。(d) 正式區要先建立 W33 的五張表與兩個函式（`m6-sql/20261122133000_m6_voice_ai.sql`）才能上線。(e) 管理員調低上限到目前累計以下時，不會補寫通知紀錄（首頁提醒是即時算的，會顯示）。(f) 同意只記「同意」，沒有「撤回」功能。
 
+## 第三批 3a 實作結果與判斷（總覽，2026-11-23，DEV）
+
+W30 診所自費藥毛利與 W31 截圖與 PDF 已完成，分兩段記錄如下（W31、W30）。重點：
+
+- **全部用自造測試檔開發**：使用者 2026-11-23 決定，診所真實去識別樣本（Z4 診所價格檔、診所檔）尚未提供，先用 `tests/fixtures/clinic-selfpay/make-fixtures.cjs` 產生的假檔（假診所名、假健保碼、VW／ZT 測試門市、2038 年）開發，涵蓋別名欄名、多月份工作表、重複代碼、固定排除的 6 個健保碼、找不到價格、檔案期間不同、重複批次、空白與怪列、數字當文字、前導零。**真實樣本比對仍待補**：`tests/parity/clinic-selfpay-real-sample.ts` 與 `M6-W30.real-sample.spec.ts` 已就緒，樣本放進 `盤點測試檔/` 後執行 `node tests/run-all.cjs --layers parity --page M6-W30 --no-sweep`，沒有樣本時略過；有樣本時以舊版解析器與新共用解析器比對，輸出只印筆數與健保碼。
+- 各頁可見角色清單見 `m6-batch3a-roles.md`（Z3）。
+- 白名單 page `clinic-selfpay`：D1、D3、D4、D6 的 approvedBy 為 `user (2026-11-21 M6 規格問卷)`，其餘為 null（待確認，已列入 T02 STILL_PENDING）；D2 與舊版相同，沒有條目。T03 導覽基準 33 改 34。
+- 沒有新增相依套件；PDF 用的 `jspdf`、`html2canvas` 於匯出時動態載入。
+
 ## 第三批 3a：W31 診所截圖與 PDF 實作結果與判斷（2026-11-23，DEV）
 
 W30 之上補上 W31。診所真實樣本（Z4）仍未提供，全部用自造測試檔（見第六節），沒有新增相依套件（`html2canvas`、`jspdf` 本來就在根目錄 `package.json`，按下匯出時才動態載入）。
@@ -516,7 +525,7 @@ W30 之上補上 W31。診所真實樣本（Z4）仍未提供，全部用自造�
 4. **PDF**（`vue-workspace/src/lib/clinic-pdf.ts` 加 `lib/clinic-selfpay/claim-pdf.ts`）：圖片式，寬 980px、html2canvas scale 2、A4 直式、邊界 8mm、先量高度再分頁（最後一頁一定放得下簽名區）、簽名區與列印日期保留、檔名 `<門市名稱>診所請款明細_<診所代碼>_<年月>.pdf`（沒診所代碼用 clinic、沒年月用選的月份再用 unknown），全部逐項對照舊版原始碼。**絕不含成本與毛利**：版面函式只收 5 個欄位（健保代碼、藥名、數量、藥費、藥費總額），其餘欄位不會進 HTML；每次匯出實際渲染過的每頁 HTML 留在 `window.__clinicPdfLast`，供測試檢查可見文字沒有成本、毛利字樣與金額。
 5. **刪批次**：W30 已做（先刪儲存物件、失敗回 502 不刪資料列、不靜默忽略）。W31 補測：十張與單一路徑兩種批次、別批的物件不受影響、刪除後舊簽名網址讀不到。
 6. **白名單**：新增 `m6-w31-lightbox-viewer`（檢視器多了鍵盤、縮放、滑動；approvedBy null，待使用者確認，已加入 T02 的 STILL_PENDING）；`m6-w30-page-layout` 的文字改為「PDF 與檢視器由 W31 提供」。PDF 與簽名網址有效期與舊版相同，無差異條目。
-7. **測試**（page id `M6-W31`）：`tests/unit/M6-W31/`（16 項：壓縮尺寸、D6 檢查、PDF 檔名與參數對照舊版原始碼、成本毛利不出現、檢視器規則）、`tests/integration/M6-W31.clinic-screenshots.spec.ts`（6 項：多張上傳與路徑、簽名網址 60 分鐘與位元組一致與私有桶、權限、11 張與 0 張、單一路徑相容、刪批次清物件）、`tests/e2e/M6-W31.clinic-screenshots-pdf.e2e.spec.ts`（桌機 1440 與手機 390 各一個多角色劇本：無權限者沒有選單且 API 403；區經理匯入價格；店長多選加貼上截圖、D3 取消再確認、D2 擋下列出代碼與藥名、D4 確認後仍新增；開檢視器用鍵盤、縮放、縮圖、手機滑動；匯出 PDF 檢查檔名、頁數、渲染 HTML 無成本毛利；60 品項大檔匯出多頁；區經理關帳後舊批次金額不變；別店看不到；區經理刪批次後儲存物件消失）、`tests/parity/M6-W31.clinic-pdf.spec.ts`（同一帳號在舊頁與新頁各開一個批次按匯出，比對檔名、頁數、A4 頁面大小、每頁一張圖；8 品項 1 頁、60 品項多頁）。自造大檔 `price-many.xlsx`、`claim-many.xlsx`（60 品項）由 `make-fixtures.cjs` 產生。
+7. **測試**（page id `M6-W31`）：`tests/unit/M6-W31/`（17 項：壓縮尺寸、D6 檢查、PDF 檔名與參數對照舊版原始碼、成本毛利不出現、檢視器規則）、`tests/integration/M6-W31.clinic-screenshots.spec.ts`（6 項：多張上傳與路徑、簽名網址 60 分鐘與位元組一致與私有桶、權限、11 張與 0 張、單一路徑相容、刪批次清物件）、`tests/e2e/M6-W31.clinic-screenshots-pdf.e2e.spec.ts`（桌機 1440 與手機 390 各一個多角色劇本：無權限者沒有選單且 API 403；區經理匯入價格；店長多選加貼上截圖、D3 取消再確認、D2 擋下列出代碼與藥名、D4 確認後仍新增；開檢視器用鍵盤、縮放、縮圖、手機滑動；匯出 PDF 檢查檔名、頁數、渲染 HTML 無成本毛利；60 品項大檔匯出多頁；區經理關帳後舊批次金額不變；別店看不到；區經理刪批次後儲存物件消失）、`tests/parity/M6-W31.clinic-pdf.spec.ts`（同一帳號在舊頁與新頁各開一個批次按匯出，比對檔名、頁數、A4 頁面大小、每頁一張圖；8 品項 1 頁、60 品項多頁）。自造大檔 `price-many.xlsx`、`claim-many.xlsx`（60 品項）由 `make-fixtures.cjs` 產生。
 8. **尚未驗證**：(a) PDF 是圖片，無法比對文字，只比檔名、頁數、頁面大小；兩邊像素是否完全相同未比。(b) 真實診所樣本與真實健保截圖尚未提供。(c) 刪批次時儲存刪檔失敗（502）仍沒有自動化測試。(d) Safari／iOS 實機的貼上與滑動未測，只用瀏覽器模擬事件。
 
 ## 第三批 3a：W30 診所自費藥毛利實作結果摘要（2026-11-23，DEV）
@@ -524,4 +533,4 @@ W30 之上補上 W31。診所真實樣本（Z4）仍未提供，全部用自造�
 - 共用純函式在 `lib/clinic-selfpay/`（access、common、claim-parser、price-parser、margin、screenshots、files），新舊等價以 `tests/support/legacy-clinic-selfpay.ts` 原樣載入舊版原始碼比對（含隨機版面 200 組）；舊頁與舊 API 一行未改。workspace API 在 `app/api/workspace/clinic-selfpay/[[...path]]/route.ts` 與 `lib/workspace/clinic-selfpay.ts`；頁面 `vue-workspace/src/pages/ClinicSelfpay.vue`。
 - D1 選單可見性 = 實際能用；D2 整批擋下並列出代碼與藥名；D3 檔案期間不同要確認；D4 重複批次確認後仍新增；D6 截圖限制。DEV 原本缺 `clinic-selfpay-screenshots` 儲存桶，已補（`supabase/workspace-dev/20261123140000_m6_clinic_selfpay_bucket.sql`，附 rollback 與 `m6-sql` 正式區草稿）；四張資料表 DEV 本來就有。
 - 白名單 page `clinic-selfpay`：D1、D3、D4、D6 為問卷核可（approvedBy `user (2026-11-21 M6 規格問卷)`），其餘 7 項與 W31 的 `m6-w31-lightbox-viewer` 為 approvedBy null（待使用者確認，已列入 T02 STILL_PENDING）；T03 導覽基準 33 改 34。
-- 測試（page id `M6-W30`，全層通過）：單元 49 項（解析、規則、頁面契約）、整合 16 項（權限矩陣與業務規則）、e2e 桌機加手機各一個多角色劇本、parity 12 項（新舊 API 逐欄對照）；真實樣本比對 2 項因沒有樣本而略過。
+- 測試（page id `M6-W30`，全層通過）：單元 49 項（解析、規則、頁面契約）、整合 17 項（權限矩陣與業務規則）、e2e 桌機加手機各一個多角色劇本、parity 12 項（新舊 API 逐欄對照）；真實樣本比對 2 項因沒有樣本而略過。
