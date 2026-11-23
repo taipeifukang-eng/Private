@@ -3,6 +3,7 @@ import path from 'node:path';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { storageStateFor, TEST_ORIGIN } from '../support/auth';
 import { adminDb, apiForUser, runIdOrThrow, setupM6Users, type M6User } from '../support/m6-fixtures';
+import { deleteOwnFallbackEvents } from '../support/m9-events-cleanup';
 import { legacyRouteFor } from '../../lib/workspace/legacy-routes';
 
 /**
@@ -50,7 +51,8 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await db.from('workspace_page_fallbacks').delete().eq('kind', KIND);
   if (before.length) await db.from('workspace_page_fallbacks').upsert(before, { onConflict: 'kind' });
-  await db.from('workspace_page_fallback_events').delete().eq('kind', KIND).gte('created_at', startedAtAll); // 只刪測試期間新增的列
+  const cleanErr = deleteOwnFallbackEvents(KIND, startedAtAll); // 稽核表 API 不可刪，改用 CLI 只清測試期間新增的列
+  if (cleanErr) console.warn(cleanErr);
   const left = await teardown();
   expect(left, `清除臨時帳號：${left.join('; ')}`).toEqual([]);
 });
@@ -209,6 +211,7 @@ test('回舊版連結、備援開關：管理員與店長多角色劇本', async
     // 資料庫已改回、稽核留下兩筆
     const events = (await db.from('workspace_page_fallback_events').select('use_legacy').eq('kind', KIND).gte('created_at', startedAt).order('created_at')).data || [];
     expect(events.map((e: any) => e.use_legacy)).toEqual([true, false]);
+    drill.push({ at: new Date().toISOString(), step: '稽核：資料庫留下「切回舊版」「改回新版」各一筆', ok: true });
     expect(problems, problems.join('\n')).toEqual([]);
   } finally {
     try {
@@ -216,5 +219,47 @@ test('回舊版連結、備援開關：管理員與店長多角色劇本', async
     } catch {}
     await admin.close();
     await mgr.close();
+  }
+});
+
+test('回舊版連結涵蓋所有導覽頁：有舊版對應的看到連結且網址等於對照表，沒有的看不到', async ({ browser }) => {
+  test.setTimeout(900_000);
+  const problems: string[] = [];
+  const admin = await adminCtx(browser);
+  try {
+    const page = await admin.newPage();
+    watch(page, problems);
+    await boot(page);
+    const session = await (await page.request.get('/api/workspace/session')).json();
+    const items = (session.navigation as any[]).flatMap((g) => g.items).filter((i) => i.kind) as { kind: string; label: string }[];
+    const seen = new Set<string>();
+    const wrong: string[] = [];
+    let withLink = 0;
+    let withoutLink = 0;
+    for (const it of items) {
+      if (seen.has(it.kind)) continue;
+      seen.add(it.kind);
+      await openMenu(page);
+      const btn = page.locator(`.workspace-menu button.catalog-item[title="${it.label}"]`).first();
+      if ((await btn.count()) === 0) { wrong.push(`${it.kind}：選單找不到「${it.label}」`); await page.keyboard.press('Escape'); continue; }
+      await btn.click();
+      await expect(page.locator('#workspace-menu')).toHaveCount(0);
+      const expected = legacyRouteFor(it.kind);
+      const a = link(page);
+      if (expected) {
+        withLink++;
+        const href = await a.getAttribute('href', { timeout: 10_000 }).catch(() => null);
+        if (href !== expected) wrong.push(`${it.kind}：預期連到 ${expected}，實際 ${href}`);
+      } else {
+        withoutLink++;
+        if ((await a.count()) !== 0) wrong.push(`${it.kind}：沒有舊版對應卻顯示連結`);
+      }
+    }
+    expect(wrong, wrong.join(' / ')).toEqual([]);
+    expect(withLink, '至少涵蓋總務服務中心以外與以內的多個頁面').toBeGreaterThan(30);
+    expect([...seen].some((k) => k.startsWith('ga-')), '總務服務中心頁面也有涵蓋').toBe(true);
+    expect(problems, problems.join(' / ')).toEqual([]);
+  } finally {
+    await admin.close();
   }
 });

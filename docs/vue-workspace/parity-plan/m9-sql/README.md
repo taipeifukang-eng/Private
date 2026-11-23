@@ -15,3 +15,4 @@
 - 還原後（執行 rollback）所有頁面回到「開新版」，舊版頁面與資料不受影響。
 - 不涉及權限碼：管理頁與 API 只認系統管理員（`profiles.role = 'admin'` 或管理員類角色，應用層判斷，與 AI 用量設定相同），沒有新增 `permissions` 資料。
 - 正式區 `has_permission` 語意與 DEV 不同（不檢查 `roles.is_active`），本檔不涉及權限判斷。
+- 稽核表 `workspace_page_fallback_events` 在資料庫層只授予 `service_role` 讀取與新增（SELECT、INSERT），沒有 UPDATE、DELETE，API 無法竄改切換歷史。注意：執行 rollback 會連同兩張表（含稽核紀錄）一起移除，還原前若要保留切換歷史，請先備份稽核表。

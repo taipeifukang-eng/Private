@@ -1,3 +1,4 @@
+import { deleteOwnFallbackEvents } from '../support/m9-events-cleanup';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { expect, test, type APIRequestContext } from '@playwright/test';
@@ -30,7 +31,8 @@ async function restoreState() {
   await db.from('workspace_page_fallbacks').delete().eq('kind', KIND);
   // 還原 SQL 測試會連資料一起移除備援表：把測試前就存在的列全部放回（原本沒有就不放）。
   if (before.length) await db.from('workspace_page_fallbacks').upsert(before, { onConflict: 'kind' });
-  await db.from('workspace_page_fallback_events').delete().eq('kind', KIND).gte('created_at', startedAtAll); // 只刪測試期間新增的列（改回新版沒有原因，不能靠原因標記）
+  const cleanErr = deleteOwnFallbackEvents(KIND, startedAtAll); // 稽核表 API 不可刪，改用 CLI 只清測試期間新增的列
+  if (cleanErr) console.warn(cleanErr);
 }
 
 test.beforeAll(async () => {

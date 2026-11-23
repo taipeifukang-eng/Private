@@ -1,6 +1,6 @@
 -- M9 F01S（2026-11-23 上線準備問卷 N2）：逐頁「回舊版」備援開關（DEV）。
 --   workspace_page_fallbacks         每個頁面種類（kind）一列：use_legacy = true 代表該頁暫時切回舊版（選單改開舊網址、不提供新版頁籤）
---   workspace_page_fallback_events   每次切換的稽核紀錄（只新增、不修改）：誰、何時、切到哪裡、原因
+--   workspace_page_fallback_events   每次切換的稽核紀錄（只新增、不修改；service_role 只授予 SELECT、INSERT）：誰、何時、切到哪裡、原因
 --   workspace_set_page_fallback(...) 同一交易內寫入目前狀態與稽核紀錄
 -- 皆啟用 RLS 且不開放任何政策（anon、authenticated 無法讀寫），只有 service_role（workspace API）使用。舊版資料表與函式不動。可重複執行。還原：.rollback.sql。
 DO $$
@@ -31,7 +31,10 @@ CREATE INDEX IF NOT EXISTS idx_workspace_page_fallback_events_kind ON public.wor
 ALTER TABLE public.workspace_page_fallbacks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspace_page_fallback_events ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.workspace_page_fallbacks, public.workspace_page_fallback_events FROM PUBLIC, anon, authenticated;
-GRANT ALL ON public.workspace_page_fallbacks, public.workspace_page_fallback_events TO service_role;
+GRANT ALL ON public.workspace_page_fallbacks TO service_role;
+-- 稽核表只新增、不修改：service_role 只有讀與新增權限（資料庫層強制，非只靠文字約定）；沒有 UPDATE／DELETE／TRUNCATE。
+REVOKE ALL ON public.workspace_page_fallback_events FROM service_role;
+GRANT SELECT, INSERT ON public.workspace_page_fallback_events TO service_role;
 
 -- 切換：寫入（或更新）目前狀態，並在同一交易新增一筆稽核紀錄。回傳更新後的那一列。
 CREATE OR REPLACE FUNCTION public.workspace_set_page_fallback(

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_DETAIL_KINDS, WORKSPACE_NAV_KINDS, WORKSPACE_TAB_KINDS } from '@/lib/workspace/page-kinds';
-import { FALLBACK_SWITCHABLE_KINDS, LEGACY_ROUTE_MAP, NO_LEGACY_REASON, isFallbackSwitchable, legacyRouteFor } from '@/lib/workspace/legacy-routes';
+import { FALLBACK_LOCKED_KINDS, FALLBACK_SWITCHABLE_KINDS, LEGACY_ROUTE_MAP, NO_LEGACY_REASON, isFallbackSwitchable, legacyRouteFor } from '@/lib/workspace/legacy-routes';
 import { workspaceNavigation } from '@/lib/workspace/navigation';
 import { GA_PAGE_BY_HREF } from '@/lib/workspace/general-affairs/nav';
 import { fallbackFor, legacyUrl, legacyUrlForKind } from '../../../vue-workspace/src/legacy-link';
@@ -69,11 +69,18 @@ describe('legacy-routes 完整性', () => {
     }
   });
 
-  it('可切換清單 = 有舊版對應的導覽 kind；明細頁與沒有舊版的頁面不可切換', () => {
-    expect([...FALLBACK_SWITCHABLE_KINDS].sort()).toEqual(WORKSPACE_NAV_KINDS.filter((k) => LEGACY_ROUTE_MAP[k] !== null).sort());
+  it('可切換清單 = 有舊版對應的導覽 kind 扣掉鎖定頁面；明細頁與沒有舊版的頁面不可切換', () => {
+    expect([...FALLBACK_SWITCHABLE_KINDS].sort()).toEqual(WORKSPACE_NAV_KINDS.filter((k) => LEGACY_ROUTE_MAP[k] !== null && !FALLBACK_LOCKED_KINDS.includes(k)).sort());
     for (const k of WORKSPACE_DETAIL_KINDS) expect(isFallbackSwitchable(k), k).toBe(false);
     expect(isFallbackSwitchable('merchandise')).toBe(true);
     expect(isFallbackSwitchable('not-a-kind')).toBe(false);
+  });
+
+  it('角色權限管理（roles）鎖定不可切回舊版：它是「頁面回舊版設定」的入口，切走會讓備援機制自我鎖死；但仍保有「回舊版」連結', () => {
+    expect(FALLBACK_LOCKED_KINDS).toContain('roles');
+    expect(isFallbackSwitchable('roles')).toBe(false);
+    expect(FALLBACK_SWITCHABLE_KINDS).not.toContain('roles');
+    expect(legacyRouteFor('roles')).toBe('/admin/roles');
   });
 });
 

@@ -39,6 +39,7 @@ describe('權限與驗證', () => {
   it('驗證：未知或不可切換的 kind、非布林、切舊版沒填原因、原因過長、Origin 不符、壞 JSON', async () => {
     const c = ctxWith(true);
     expect(await status(setFallback(c, req({ kind: 'ga-payment-requests', useLegacy: true, reason: 'x' })))).toBe(400); // 沒有舊版
+    expect(await status(setFallback(c, req({ kind: 'roles', useLegacy: true, reason: 'x' })))).toBe(400); // 設定入口本身，鎖定
     expect(await status(setFallback(c, req({ kind: 'employee-history', useLegacy: true, reason: 'x' })))).toBe(400); // 明細頁
     expect(await status(setFallback(c, req({ kind: 'no-such', useLegacy: true, reason: 'x' })))).toBe(400);
     expect(await status(setFallback(c, req({ kind: 'merchandise', useLegacy: 'yes', reason: 'x' })))).toBe(400);
@@ -82,7 +83,11 @@ describe('原始碼契約', () => {
     const prod = fs.readFileSync(path.join(root, 'docs/vue-workspace/parity-plan/m9-sql/20261123150000_m9_page_fallbacks.sql'), 'utf8');
     expect(prod).toBe(dev);
     expect(dev).toContain('ENABLE ROW LEVEL SECURITY');
-    expect(dev).toMatch(/GRANT ALL ON public\.workspace_page_fallbacks, public\.workspace_page_fallback_events TO service_role/);
+    expect(dev).toMatch(/GRANT ALL ON public\.workspace_page_fallbacks TO service_role/);
+    // 稽核表只新增、不修改：資料庫層只授予 SELECT、INSERT，沒有 UPDATE／DELETE／ALL
+    expect(dev).toMatch(/GRANT SELECT, INSERT ON public\.workspace_page_fallback_events TO service_role/);
+    expect(dev).not.toMatch(/GRANT[^;]*(UPDATE|DELETE|TRUNCATE)[^;]*workspace_page_fallback_events/);
+    expect(dev).not.toMatch(/GRANT ALL ON[^;]*workspace_page_fallback_events/);
     expect(dev).not.toMatch(/GRANT[^;]*(anon|authenticated)/);
     const rb = fs.readFileSync(path.join(root, 'supabase/workspace-dev/20261123150000_m9_page_fallbacks.rollback.sql'), 'utf8');
     for (const piece of ['DROP FUNCTION IF EXISTS public.workspace_set_page_fallback', 'DROP TABLE IF EXISTS public.workspace_page_fallback_events', 'DROP TABLE IF EXISTS public.workspace_page_fallbacks']) expect(rb).toContain(piece);

@@ -25,15 +25,15 @@ lines.push("## 演練目的");
 lines.push("");
 lines.push("2026-11-23 上線準備問卷 N2：上線後某一頁出問題時，系統管理員要能單獨把它切回舊版、之後再切回新版，**不需要重新部署**，並預先在 DEV 演練過。");
 lines.push("");
-lines.push("## 演練內容（每個裝置各跑一次）");
+lines.push("## 演練內容（每個裝置各跑一次；第 1 至 6 步列在結果表，第 7 步只在整合測試）");
 lines.push("");
 lines.push("1. 管理員逐頁檢查「回舊版」連結（網址正確、另開分頁、手機沒有水平溢出、點擊區夠大；沒有舊版對應的頁面不顯示）。");
 lines.push("2. 店長開著新版「商品部」（缺貨回報）。");
 lines.push("3. 管理員到「角色權限管理 > 頁面回舊版設定」把商品部切回舊版（必填原因；沒填會被擋）。");
 lines.push("4. 店長開選單：商品部改開舊版 `/cross-dept/merchandise`（另開分頁）；原本開著的新版頁籤顯示通知與舊版連結。");
 lines.push("5. 管理員改回新版；店長選單的商品部恢復開新版，頁籤通知消失。");
-lines.push("6. 稽核：資料庫留下「切回舊版」「改回新版」各一筆（誰、何時、原因）。");
-lines.push("7. 還原演練（整合測試）：執行 rollback SQL 後 session 照常運作、全部視為開新版，再套用後恢復。");
+lines.push("6. 稽核：資料庫留下「切回舊版」「改回新版」各一筆（誰、何時、原因）。這一步已寫進下表。");
+lines.push("7. 還原演練（整合測試）：執行 rollback SQL 後 session 照常運作、全部視為開新版，再套用後恢復。這一步不在下表：只在整合測試 `tests/integration/M9-F01S.page-fallbacks.spec.ts` 驗證。");
 lines.push("");
 for (const f of files) {
   const d = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));

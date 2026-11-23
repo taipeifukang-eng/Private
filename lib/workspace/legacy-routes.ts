@@ -6,7 +6,7 @@
 //  2. 值是「舊版 Next 路由」（以 / 開頭、不含網域）。需要 id 或一次性代碼的舊版明細頁（/inspection/[id]、/assignment/[id]、
 //     /general-affairs/assets/scan/[token]…）一律回到它的清單／入口頁：新版的 recordId 不等於舊版 id，硬湊會連到錯的頁面。
 //  3. 單元測試會逐一確認每個非 null 路由在 app/ 底下真的有 page.tsx（含動態路由以外的靜態路由）。
-//  4. 只有「導覽 kind 且有舊版路由」的頁面可以用 N2 備援開關切回舊版（FALLBACK_SWITCHABLE_KINDS）；明細頁由其清單頁帶出，不單獨切換。
+//  4. 只有「導覽 kind 且有舊版路由，且不在 FALLBACK_LOCKED_KINDS」的頁面可以用 N2 備援開關切回舊版（FALLBACK_SWITCHABLE_KINDS）；明細頁由其清單頁帶出，不單獨切換。
 import { WORKSPACE_NAV_KINDS, type WorkTabKind, type WorkspaceNavKind } from "./page-kinds";
 
 const GA = "/general-affairs";
@@ -168,7 +168,12 @@ export function legacyRouteFor(kind: string): string | null {
 }
 
 /** 可以用 N2 備援開關切回舊版的 kind：導覽 kind（選單直接開的頁面）且有舊版對應。 */
-export const FALLBACK_SWITCHABLE_KINDS: readonly WorkspaceNavKind[] = WORKSPACE_NAV_KINDS.filter((k) => LEGACY_ROUTE_MAP[k] !== null);
+/** 即使有舊版對應也不可切回舊版的頁面：roles 是「頁面回舊版設定」的唯一入口，切走後管理員就無法從畫面改回新版（備援機制自我鎖死）。 */
+export const FALLBACK_LOCKED_KINDS: readonly WorkspaceNavKind[] = ["roles"];
+
+export const FALLBACK_SWITCHABLE_KINDS: readonly WorkspaceNavKind[] = WORKSPACE_NAV_KINDS.filter(
+  (k) => LEGACY_ROUTE_MAP[k] !== null && !FALLBACK_LOCKED_KINDS.includes(k),
+);
 
 export function isFallbackSwitchable(kind: string): kind is WorkspaceNavKind {
   return (FALLBACK_SWITCHABLE_KINDS as readonly string[]).includes(kind);
