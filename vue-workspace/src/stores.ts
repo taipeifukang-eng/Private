@@ -19,6 +19,7 @@ export type Session = {
     productsMaster: boolean;
     stockout: boolean;
     supervisorLog: boolean;
+    clinicSelfpay: boolean;
     roles: boolean;
     users: boolean;
     transfers: boolean;

@@ -9748,5 +9748,104 @@
     "description": "逐字稿保留：紀錄或案件被軟刪除後，逐字稿資料列仍保留在資料庫（只有硬刪除才一併清除），API 因紀錄已刪除而讀不到；非建立者且非管理者查詢逐字稿，與「沒有逐字稿」一樣回 404，無從探測有沒有。",
     "reason": "與軟刪除「資料保留、畫面不顯示」的整體原則一致；保存年限問卷未涵蓋，待使用者決定是否需要定期清除。",
     "approvedBy": null
+  },
+  {
+    "id": "m6-w30-d1-menu-visibility",
+    "page": "clinic-selfpay",
+    "description": "D1：診所自費藥毛利計算的選單可見性，舊 Navbar 用四個月報權限碼（monthly.status.view_own／view_all、employee.movement.manage、store.manage），與 API 實際權限（store.clinic_selfpay.* 專屬權限碼加職稱規則）不一致；新版選單可見 = 實際能用（resolveAccess：能用計算器或能管理主檔），看得到就一定能用。主檔管理與刪批次維持經理類職稱或專屬權限。",
+    "reason": "M6 規格問卷 D1：使用者選「以實際能用的規則為準」。有專屬權限或職稱符合者才看得到選單；只持有舊四碼的人不再看到選單（舊版他們點進去也只會得到 403）。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "menu-visibility"
+    }
+  },
+  {
+    "id": "m6-w30-d3-period-confirm",
+    "page": "clinic-selfpay",
+    "description": "D3：診所檔內的結算期間推得的年月，與畫面選的年月不同時，舊版直接以檔案期間為準匯入；新版算法相同（以檔案期間為準），但先回 409 並顯示「檔案是 X 月，與你選的 Y 月不同，確定嗎？」，使用者確認後才寫入。",
+    "reason": "M6 規格問卷 D3：使用者選「以檔案期間為準，不一致時跳出確認提示」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-period-mismatch"
+    }
+  },
+  {
+    "id": "m6-w30-d4-duplicate-confirm",
+    "page": "clinic-selfpay",
+    "description": "D4：同門市、同月、同診所已經有匯入批次時，舊版直接再新增一個批次；新版先回 409 提示已有幾筆，使用者確認後仍新增，舊批次保留。",
+    "reason": "M6 規格問卷 D4：使用者選「跳出確認提示，確認後仍新增，舊批次保留」。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-duplicate"
+    }
+  },
+  {
+    "id": "m6-w30-d6-screenshot-limits",
+    "page": "clinic-selfpay",
+    "description": "D6：健保系統截圖單次最多 10 張、至少 1 張，只接受 png／jpeg／webp，每張壓縮後約 5MB 內；舊版沒有張數、格式與大小限制。截圖仍永久保存到刪批次為止。違規時新版回 400 並說明，不建立批次也不留下截圖檔。",
+    "reason": "M6 規格問卷 D6：使用者選「維持永久保存直到刪批次；單次最多 10 張、每張壓縮後約 5MB 內」。上限只是防呆。",
+    "approvedBy": "user (2026-11-21 M6 規格問卷)",
+    "match": {
+      "entry": "import-screenshot-limits"
+    }
+  },
+  {
+    "id": "m6-w30-history-wildcard",
+    "page": "clinic-selfpay",
+    "description": "歷史會員價與成本查詢（mappings/history）：舊版把輸入的健保碼直接放進 ilike，輸入 % 或 _ 時會比對到其他健保碼；新版把這兩個字元當作字面，只比對該代碼（仍不分大小寫）。",
+    "reason": "屬於漏洞修補性質的行為差異；一般使用情境（輸入完整健保碼）結果相同，待使用者確認。",
+    "approvedBy": null,
+    "match": {
+      "entry": "history-wildcard"
+    }
+  },
+  {
+    "id": "m6-w30-delete-storage-failure",
+    "page": "clinic-selfpay",
+    "description": "刪除批次時截圖檔刪除失敗：舊版忽略錯誤、仍刪除資料列，可能留下沒人管的截圖檔；新版先刪截圖檔，失敗就回報錯誤（502）並保留批次，可重試；截圖檔刪除成功才刪資料列。",
+    "reason": "規格要求「刪批次先刪截圖再刪資料，不要默默略過刪檔失敗」；正常情況下新舊結果相同。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w30-import-failure-cleanup",
+    "page": "clinic-selfpay",
+    "description": "匯入中途失敗（截圖上傳到一半、明細寫入失敗）：舊版會留下已上傳的截圖檔或半套批次（只有批次沒有明細）；新版失敗時刪掉已建立的批次與已上傳的截圖，不留殘餘。",
+    "reason": "資料一致性修補；成功情境結果相同。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w30-screenshot-ext-by-type",
+    "page": "clinic-selfpay",
+    "description": "截圖在儲存桶內的副檔名：舊版取使用者檔名的副檔名；新版依檔案實際類型決定（png、webp、其他為 jpg），不採用使用者檔名。路徑其餘規則相同（門市/年月/時間_亂數.副檔名），單張存純路徑、多張存 JSON 陣列字串，舊頁讀得到。",
+    "reason": "配合 D6 只收三種圖片格式；避免檔名副檔名與內容不符。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w30-api-shape",
+    "page": "clinic-selfpay",
+    "description": "新版 workspace API 的回應格式與舊版不同（舊版 success 加 data，錯誤為 success:false 加 error；新版直接回資料，錯誤為 error 加 HTTP 狀態碼，另可含 code 供畫面辨識 D2、D3、D4）；批次明細與清單另附門市代號與名稱。權限判斷採正式區 has_permission 語意（不檢查 roles.is_active，只有 profiles.role 為 admin 的應用層後備）。",
+    "reason": "新舊並行期舊頁仍打舊 API；新頁只用新 API，使用者看不到格式差異。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w30-page-layout",
+    "page": "clinic-selfpay",
+    "description": "畫面差異：新版在測試工作台內以頁籤開啟（毛利計算、DPOS 對應主檔）；確認改用視窗（刪批次、關帳開帳、D3、D4 確認），不再使用瀏覽器原生 confirm；批次明細在清單旁顯示；手機寬度（390px）不橫向溢出；截圖縮圖可逐張移除、可清空。給診所的請款明細 PDF 與截圖回看視窗由 W31 提供（PDF 與舊版相同，見 m6-w31-lightbox-viewer）。",
+    "reason": "維持舊版功能與欄位，只改版面與確認方式。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w30-nav-in-workspace",
+    "page": "clinic-selfpay",
+    "description": "導覽：新版「診所自費藥毛利計算」在工作頁內開啟（kind clinic-selfpay），舊版頁面 /store/clinic-selfpay-margin 與舊 API 保留不動（依 Z2 穩定一個月後才下架）。",
+    "reason": "M6 規格 Z2：新版上線後舊頁保留。",
+    "approvedBy": null
+  },
+  {
+    "id": "m6-w31-lightbox-viewer",
+    "page": "clinic-selfpay",
+    "description": "截圖回看：新版圖片檢視器（ImageLightbox.vue）除了舊版的上一張、下一張與縮圖列，另加鍵盤操作（左右鍵換張、Esc 關閉、+ - 0 縮放、Home End）、按鈕與滾輪縮放、雙擊放大、手機左右滑動換張，並在圖片載入失敗（簽名網址過期）時顯示說明；簽名網址有效期與舊版相同（60 分鐘）。",
+    "reason": "規格 W31 要求檢視器支援鍵盤、手機滑動與縮放；只增加操作方式，不改資料與權限。",
+    "approvedBy": null
   }
 ]

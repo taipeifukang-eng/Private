@@ -1,5 +1,5 @@
 {
-  "count": 33,
+  "count": 34,
   "pages": [
     {
       "navLabel": "我的任務",
@@ -216,6 +216,20 @@
         "員工消費彙總"
       ],
       "hasTable": true,
+      "hasForm": true,
+      "hasErrorNotice": false,
+      "allowedNoticeShown": false
+    },
+    {
+      "navLabel": "診所自費藥毛利計算",
+      "tabTitle": "診所自費藥毛利計算",
+      "headings": [
+        "診所自費藥毛利計算",
+        "步驟 1：匯入診所自費藥檔",
+        "歷史匯入紀錄（依門市）",
+        "計算結果"
+      ],
+      "hasTable": false,
       "hasForm": true,
       "hasErrorNotice": false,
       "allowedNoticeShown": false

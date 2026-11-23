@@ -45,6 +45,7 @@ import Pharmacists from "./pages/Pharmacists.vue";
 import ProductsMaster from "./pages/ProductsMaster.vue";
 import Merchandise from "./pages/Merchandise.vue";
 import SupervisorLog from "./pages/SupervisorLog.vue";
+import ClinicSelfpay from "./pages/ClinicSelfpay.vue";
 import Relationships from "./pages/Relationships.vue";
 import RoleManagement from "./pages/Roles.vue";
 import StoreEditor from "./pages/StoreEditor.vue";
@@ -196,6 +197,7 @@ const components: Record<WorkTabKind, Component> = {
   "products-master": ProductsMaster,
   merchandise: Merchandise,
   "supervisor-log": SupervisorLog,
+  "clinic-selfpay": ClinicSelfpay,
   roles: RoleManagement,
   "ga-center": GaCenter,
   "ga-equipment-categories": AssetCategories,

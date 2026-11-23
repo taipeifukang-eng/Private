@@ -24,7 +24,7 @@ function must<T>(res: { data: T; error: { message: string } | null }, what: stri
   return res.data;
 }
 
-export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' | 'manager' | 'admin'; /** 店長指派（測試門市代號）。 */ managed?: string[]; /** store_managers.role_type，預設 store_manager。 */ roleType?: string };
+export type M6Scenario = { desc: string; perms: string[]; profileRole: 'member' | 'manager' | 'admin'; /** 店長指派（測試門市代號）。 */ managed?: string[]; /** store_managers.role_type，預設 store_manager。 */ roleType?: string; /** profiles.job_title，預設「測試」。 */ jobTitle?: string };
 export const M6_SCENARIOS: Record<string, M6Scenario> = {
   // 關係會員「核可」單獨權限（role-matrix 沒有 approve 的單獨帳號）
   rel_approve: { desc: '只有關係會員核可權限', perms: ['relationship_member.approve'], profileRole: 'member' },
@@ -49,6 +49,17 @@ export const M6_SCENARIOS: Record<string, M6Scenario> = {
   sl_viewer: { desc: '督導日誌：只有看自己（被指派者）', perms: ['supervisor.management_log.view_own'], profileRole: 'member' },
   sl_creator: { desc: '督導日誌：只有建立（沒有改自己的權限）', perms: ['supervisor.management_log.create'], profileRole: 'member' },
   sl_none: { desc: '督導日誌：沒有任何督導日誌權限', perms: [], profileRole: 'member' },
+  // 第三批 3a W30 診所自費藥毛利（權限碼 store.clinic_selfpay.*、職稱規則）。臨時角色 m6_test_cs_*，不與 role-matrix 的 vue_workspace_* 撞名。
+  cs_calc_a: { desc: '診所毛利：只有計算器使用權限，管轄 VW001', perms: ['store.clinic_selfpay.calculator.use'], profileRole: 'member', managed: ['VW001'] },
+  cs_calc_b: { desc: '診所毛利：只有計算器使用權限，管轄 VW002', perms: ['store.clinic_selfpay.calculator.use'], profileRole: 'member', managed: ['VW002'] },
+  cs_mapping: { desc: '診所毛利：只有主檔管理權限，管轄 VW001', perms: ['store.clinic_selfpay.mapping.manage'], profileRole: 'member', managed: ['VW001'] },
+  cs_margin: { desc: '診所毛利：舊版整合權限 margin，管轄 VW001、VW002', perms: ['store.clinic_selfpay.margin'], profileRole: 'member', managed: ['VW001', 'VW002'] },
+  cs_delete_only: { desc: '診所毛利：只有刪批次權限，管轄 VW001', perms: ['store.clinic_selfpay.batch.delete'], profileRole: 'member', managed: ['VW001'] },
+  cs_title_store: { desc: '診所毛利：沒有專屬權限，職稱店長，管轄 VW001', perms: [], profileRole: 'member', managed: ['VW001'], jobTitle: '店長' },
+  cs_title_mgr: { desc: '診所毛利：沒有專屬權限，職稱區經理，管轄 VW001、VW002', perms: [], profileRole: 'member', managed: ['VW001', 'VW002'], jobTitle: '區經理' },
+  cs_title_mgr_nostore: { desc: '診所毛利：職稱區經理，但沒有綁任何門市', perms: [], profileRole: 'member', jobTitle: '區經理' },
+  cs_old_nav: { desc: '診所毛利：只有舊 Navbar 的四個月報權限碼', perms: ['monthly.status.view_own', 'monthly.status.view_all', 'employee.movement.manage', 'store.manage'], profileRole: 'member', managed: ['VW001'] },
+  cs_none: { desc: '診所毛利：沒有任何診所權限', perms: [], profileRole: 'member', managed: ['VW001'] },
   inv_manage_only: { desc: '盤點：只有 inventory.manage', perms: ['inventory.manage'], profileRole: 'member' },
 };
 
@@ -62,6 +73,7 @@ export async function cleanupM6Users(db: any = adminDb()): Promise<string[]> {
     await db.from('stockout_product_response_history').delete().in('responded_by', uids);
     await db.from('stockout_product_responses').delete().in('responded_by', uids);
     await db.from('stockout_reports').delete().in('reported_by', uids);
+    await cleanupM6Clinic(db, uids);
     await db.from('store_managers').delete().in('user_id', uids);
     await db.from('user_roles').delete().in('user_id', uids);
   }
@@ -111,7 +123,7 @@ export async function setupM6Users(keys: string[] = Object.keys(M6_SCENARIOS)): 
     if (created.error) throw new Error(`建立帳號 ${key} 失敗：${created.error.message}`);
     const uid = created.data.user.id as string;
     users[key] = { key, id: uid, email, password };
-    must(await db.from('profiles').update({ role: sc.profileRole, job_title: '測試', department: null }).eq('id', uid), `profile ${key}`);
+    must(await db.from('profiles').update({ role: sc.profileRole, job_title: sc.jobTitle || '測試', department: null }).eq('id', uid), `profile ${key}`);
     must(await db.from('user_roles').insert({ user_id: uid, role_id: role.id, is_active: true }), `user_roles ${key}`);
     if (sc.managed?.length) {
       const st = must(await db.from('stores').select('id,store_code').in('store_code', sc.managed), `讀取門市 ${key}`) as { id: string; store_code: string }[];
@@ -209,4 +221,53 @@ export async function userDb(user: M6User): Promise<any> {
   const res = await client.auth.signInWithPassword({ email: user.email, password: user.password });
   if (res.error) throw new Error(`測試帳號登入失敗：${res.error.message}`);
   return client;
+}
+
+
+/**
+ * 第三批 3a W30/W31 診所自費藥毛利：測試檔名一律 m6w30-<runId>-<tag>.<ext>（診所檔、價格檔），期間 2038，門市只用 VW001／VW002。
+ * 清除只刪自己的：批次（匯入者是測試帳號、或來源檔名帶 m6w30-）連同截圖檔（先用 Storage API 刪，再刪資料列，明細 cascade）、
+ * 價格主檔（建立者是測試帳號、或來源檔名帶 m6w30-）、關帳紀錄（關帳者是測試帳號，或 2038 年月且在測試門市）。
+ */
+export const clinicFileName = (tag: string, ext = 'xlsx') => `m6w30-${runIdOrThrow()}-${tag}.${ext}`;
+export const CLINIC_BUCKET = 'clinic-selfpay-screenshots';
+export async function cleanupM6Clinic(db: any = adminDb(), userIds: string[] = []): Promise<{ removedObjects: number; leftoverObjects: string[] }> {
+  const batchIds = new Set<string>();
+  const paths: string[] = [];
+  const collect = (rows: any[] | null) => {
+    for (const r of rows || []) {
+      batchIds.add(r.id);
+      const raw = String(r.screenshot_path || '').trim();
+      if (!raw) continue;
+      try {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) { paths.push(...arr.map(String)); continue; }
+      } catch { /* 單張純路徑 */ }
+      paths.push(raw);
+    }
+  };
+  collect((await db.from('clinic_selfpay_claim_batches').select('id,screenshot_path').like('source_file_name', 'm6w30-%')).data);
+  if (userIds.length) collect((await db.from('clinic_selfpay_claim_batches').select('id,screenshot_path').in('imported_by', userIds)).data);
+  let removedObjects = 0;
+  if (paths.length) {
+    const r = await db.storage.from(CLINIC_BUCKET).remove(Array.from(new Set(paths)));
+    removedObjects = (r.data || []).length;
+  }
+  if (batchIds.size) await db.from('clinic_selfpay_claim_batches').delete().in('id', Array.from(batchIds));
+  await db.from('clinic_selfpay_price_entries').delete().like('source_file_name', 'm6w30-%');
+  if (userIds.length) {
+    await db.from('clinic_selfpay_price_entries').delete().in('created_by', userIds);
+    await db.from('clinic_selfpay_price_month_closures').delete().in('closed_by', userIds);
+  }
+  const vw = ((await db.from('stores').select('id').in('store_code', ['VW001', 'VW002'])).data || []).map((s: any) => s.id);
+  if (vw.length) await db.from('clinic_selfpay_price_month_closures').delete().in('store_id', vw).like('year_month', '2038-%');
+  // 殘留檢查：桶內以測試門市為前綴、期間 2038 的物件
+  const leftoverObjects: string[] = [];
+  for (const id of vw) {
+    for (const ym of ['2038-10', '2038-11', '2038-12']) {
+      const l = await db.storage.from(CLINIC_BUCKET).list(`${id}/${ym}`, { limit: 1000 });
+      for (const o of l.data || []) leftoverObjects.push(`${id}/${ym}/${o.name}`);
+    }
+  }
+  return { removedObjects, leftoverObjects };
 }

@@ -19,6 +19,7 @@ import {
   WorkspaceError,
 } from "@/lib/workspace/server";
 import { isPendingAccount } from "@/lib/workspace/auth-public";
+import { clinicMenuVisible } from "@/lib/workspace/clinic-selfpay";
 import { workspaceNavigation } from "@/lib/workspace/navigation";
 import { loadExportAccess } from "@/lib/workspace/monthly-export-server";
 import { canEnterCampaignView } from "@/lib/campaign-access";
@@ -67,6 +68,7 @@ export async function GET() {
     const monthlyExport = canOpenMonthlyExport(await loadExportAccess(ctx));
     const gaStoreMember = await isStoreMember(ctx);
     const gaRosterMember = await isRosterMember(ctx);
+    const clinicSelfpay = await clinicMenuVisible(ctx);
     return respond({
       user: { id: ctx.user.id, name: ctx.profile?.full_name || "使用者" },
       permissions: Array.from(ctx.permissions),
@@ -75,7 +77,7 @@ export async function GET() {
       capabilities: {
         employeePurchases:ctx.has("employee_purchase.view") || ctx.has("employee_purchase.import"),
         pharmacists:ctx.has("pharmacist.management.view"),
-        productsMaster:ctx.has(...moduleCodes.productsMaster),stockout:ctx.has(...moduleCodes.stockout),supervisorLog:ctx.has(...moduleCodes.supervisorLog),
+        productsMaster:ctx.has(...moduleCodes.productsMaster),stockout:ctx.has(...moduleCodes.stockout),supervisorLog:ctx.has(...moduleCodes.supervisorLog),clinicSelfpay,
         relationships:ctx.has("relationship_member.view","relationship_member.edit","relationship_member.delete","relationship_member.approve"),
         roles:ctx.has(...ROLE_MANAGEMENT_NAV_PERMISSION_CODES),
         users:ctx.has(...USER_MANAGEMENT_NAV_PERMISSION_CODES),
@@ -138,6 +140,7 @@ export async function GET() {
         monthlyExport,
         campaignView,
         gaRosterMember,
+        clinicSelfpay,
       }),
     });
   } catch (error) {
