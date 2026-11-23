@@ -120,5 +120,5 @@ onBeforeUnmount(() => {
 .thumbs button { padding: 0; width: 64px; min-width: 64px; height: 48px; overflow: hidden; opacity: 0.6; }
 .thumbs button.on { opacity: 1; border-color: #fff; border-width: 2px; }
 .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
-@media (max-width: 640px) { .nav { min-width: 36px; font-size: 1.4rem; } }
+@media (max-width: 640px) { .nav { min-width: 44px; min-height: 64px; font-size: 1.4rem; } }
 </style>

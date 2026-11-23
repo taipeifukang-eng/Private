@@ -293,15 +293,36 @@ test.describe.serial('價格主檔、匯入規則 D2／D3／D4、截圖、關帳
     expect(n2.body.code).toBe('DUPLICATE_BATCH');
   });
 
-  test('價格快照：之後再匯入新價格或關帳，舊批次的單價、成本、金額都不會改', async () => {
+  test('價格快照：之後改價再匯入並關帳，舊批次的單價、成本、金額與合計都不會改；新批次用新價格', async () => {
     const before = await itemsOf(batchA);
-    const changed = await importPrice('cs_title_mgr', 'VW001', 'price-single-sheet.xlsx', 'pm-changed'); // 同價，先確認會 upsert
-    expect(changed.status).toBe(200);
+    const batchRowBefore = (await db().from('clinic_selfpay_claim_batches').select('total_billing_amount,total_gross_profit_amount,total_qty,item_count').eq('id', batchA).single()).data;
+    const oldPrice = (await pricesOf(sid.VW001, Y11)).find((p) => p.health_insurance_code === 'ZTA000001');
+    expect(Number(oldPrice.member_price)).toBe(100);
+    const changed = await importPrice('cs_title_mgr', 'VW001', 'price-changed.xlsx', 'pm-changed');
+    expect(changed.status, JSON.stringify(changed.body)).toBe(200);
+    const newPrice = (await pricesOf(sid.VW001, Y11)).find((p) => p.health_insurance_code === 'ZTA000001');
+    expect(Number(newPrice.member_price), 'price_entries 內的價格確實變了').toBe(999);
+    expect(Number(newPrice.cost_price)).toBe(1);
     const close = await send(apis.cs_mapping, 'post', `${NEW}/mappings/close`, { data: { store_id: sid.VW001, year_month: Y11 } });
     expect(close.body).toMatchObject({ isClosed: true, action: 'closed' });
-    expect(await itemsOf(batchA)).toEqual(before);
-    // 重新開帳以便後面測試
+    const after = await itemsOf(batchA);
+    expect(after).toEqual(before);
+    for (const [i, it] of after.entries()) {
+      for (const k of ['matched_member_price', 'matched_cost_price', 'billing_amount', 'gross_profit_amount']) expect(it[k], `${k} #${i}`).toEqual(before[i][k]);
+    }
+    expect((await db().from('clinic_selfpay_claim_batches').select('total_billing_amount,total_gross_profit_amount,total_qty,item_count').eq('id', batchA).single()).data).toEqual(batchRowBefore);
+    // 重新開帳；新匯入的批次（不同診所代碼避免重複提示）要用新價格
     expect((await send(apis.cs_mapping, 'post', `${NEW}/mappings/close`, { data: { store_id: sid.VW001, year_month: Y11 } })).body).toMatchObject({ isClosed: false, action: 'reopened' });
+    const nb = await importClaim('cs_calc_a', 'VW001', 'claim-clinic-b.xlsx', 'snap-new', { flags: { confirm_duplicate: '1' } });
+    expect(nb.status, JSON.stringify(nb.body)).toBe(200);
+    const nItems = await itemsOf(nb.body.batchId);
+    const a1 = nItems.find((i) => i.health_insurance_code === 'ZTA000001');
+    expect(a1, 'claim-clinic-b 應含 ZTA000001').toBeTruthy();
+    expect(Number(a1.matched_member_price)).toBe(999);
+    expect(Number(a1.matched_cost_price)).toBe(1);
+    // 還原價格，避免影響後面的測試
+    const restore = await importPrice('cs_title_mgr', 'VW001', 'price-single-sheet.xlsx', 'pm-restore');
+    expect(restore.status).toBe(200);
   });
 
   test('關帳月份：價格匯入略過關帳月份、全部關帳回 400；無資料的月份不能關帳；開帳後可再覆蓋', async () => {

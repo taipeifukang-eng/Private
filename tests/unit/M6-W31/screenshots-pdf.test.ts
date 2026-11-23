@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { JPEG_QUALITY, MAX_SIDE, compressedName, fitWithin } from '../../../lib/clinic-selfpay/image-sizing';
-import { SCREENSHOT_MAX_BYTES, SCREENSHOT_MAX_COUNT, screenshotExt, validateScreenshots } from '../../../lib/clinic-selfpay/screenshots';
+import { SCREENSHOT_MAX_BYTES, SCREENSHOT_MAX_COUNT, detectImageType, screenshotExt, validateScreenshots } from '../../../lib/clinic-selfpay/screenshots';
 import { PDF_FORBIDDEN, PDF_MARGIN_MM, pdfVisibleText, PDF_SCALE, PDF_WIDTH_PX, buildPageHtml, claimPdfFilename, escapeHtml, fmt, makeRowsHtml, pageContentLimitPx, pickPdfItem } from '../../../lib/clinic-selfpay/claim-pdf';
 import { ZOOM_MAX, ZOOM_MIN, clampIndex, clampZoom, keyAction, swipeDirection } from '../../../lib/clinic-selfpay/lightbox';
 
@@ -152,4 +152,16 @@ describe('M6-W31：檢視器互動規則', () => {
     expect(keyAction('0')).toBe('zoom-reset');
     expect(keyAction('a')).toBeNull();
   });
+});
+
+it('detectImageType：只認 PNG／JPEG／WebP 真實檔頭，不信任自報類型', () => {
+  const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+  const jpg = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0]);
+  const webp = Uint8Array.from([0x52, 0x49, 0x46, 0x46, 1, 2, 3, 4, 0x57, 0x45, 0x42, 0x50]);
+  expect(detectImageType(png)).toBe('image/png');
+  expect(detectImageType(jpg)).toBe('image/jpeg');
+  expect(detectImageType(webp)).toBe('image/webp');
+  expect(detectImageType(new TextEncoder().encode('<svg></svg>'))).toBeNull();
+  expect(detectImageType(new TextEncoder().encode('GIF89a......'))).toBeNull();
+  expect(detectImageType(new Uint8Array())).toBeNull();
 });

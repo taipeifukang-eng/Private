@@ -21,7 +21,7 @@ import {
   unmatchedMessage,
 } from "../clinic-selfpay/margin";
 import { parsePriceWorkbook } from "../clinic-selfpay/price-parser";
-import { SCREENSHOT_BUCKET, screenshotExt, validateScreenshots } from "../clinic-selfpay/screenshots";
+import { SCREENSHOT_BUCKET, detectImageType, screenshotExt, validateScreenshots } from "../clinic-selfpay/screenshots";
 
 // 診所自費藥毛利（M6 W30）。資料表與舊版 /api/clinic-selfpay/** 完全相同（不建新表）；
 // 權限語意為正式區 has_permission（ctx.has：不檢查 roles.is_active、無 DB admin 繞過、只有應用層 profiles.role==='admin' 後備），
@@ -164,6 +164,14 @@ export async function importBatch(ctx: Context, request: NextRequest) {
   if (!isFile(file)) throw new WorkspaceError(400, "缺少診所自費藥檔案");
   const shotError = validateScreenshots(screenshotFiles);
   if (shotError) throw new WorkspaceError(400, shotError);
+  // 伺服端讀檔頭，不信任自報的 File.type；實際格式決定副檔名與 contentType
+  const shotPayloads: { buf: Buffer; type: string }[] = [];
+  for (const s of screenshotFiles.filter((x) => x.size > 0)) {
+    const buf = Buffer.from(await s.arrayBuffer());
+    const type = detectImageType(buf);
+    if (!type) throw new WorkspaceError(400, `截圖內容不是有效的 png、jpeg、webp 圖片（${s.name || "未命名"}）`);
+    shotPayloads.push({ buf, type });
+  }
   const stores = await authorizedStores(ctx, profile);
   need(stores.some((s) => s.id === storeId), "無此門市操作權限");
 
@@ -239,9 +247,9 @@ export async function importBatch(ctx: Context, request: NextRequest) {
     if (uploaded.length) await ctx.admin.storage.from(SCREENSHOT_BUCKET).remove(uploaded);
   };
   try {
-    for (const shot of screenshotFiles.filter((s) => s.size > 0)) {
+    for (const shot of shotPayloads) {
       const path = `${storeId}/${targetYearMonth}/${Date.now()}_${Math.random().toString(36).slice(2)}.${screenshotExt(shot.type)}`;
-      const up = await ctx.admin.storage.from(SCREENSHOT_BUCKET).upload(path, Buffer.from(await shot.arrayBuffer()), { contentType: shot.type, upsert: false });
+      const up = await ctx.admin.storage.from(SCREENSHOT_BUCKET).upload(path, shot.buf, { contentType: shot.type, upsert: false });
       if (up.error) throw new WorkspaceError(502, `截圖上傳失敗：${up.error.message}`);
       uploaded.push(path);
     }

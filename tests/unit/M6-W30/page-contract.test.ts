@@ -69,11 +69,11 @@ describe('M6-W30：導覽、頁面登記與 API 契約', () => {
 });
 
 describe('M6-W30：測試檔與真實樣本比對', () => {
-  it('自造測試檔產生器可重複產生，且 17 個檔案都已提交（真實樣本尚未提供）', () => {
+  it('自造測試檔產生器可重複產生，且 18 個檔案都已提交（真實樣本尚未提供）', () => {
     const dir = path.join(root, 'tests/fixtures/clinic-selfpay');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const names = Object.keys((require(path.join(dir, 'make-fixtures.cjs')) as { buildAll: () => Record<string, Buffer> }).buildAll());
-    expect(names).toHaveLength(17);
+    expect(names).toHaveLength(18);
     for (const n of names) expect(fs.existsSync(path.join(dir, n)), n).toBe(true);
   });
   it('真實樣本比對工具：找不到樣本資料夾時回傳空清單（測試會乾淨略過）；樣本資料夾已被 git 排除', async () => {

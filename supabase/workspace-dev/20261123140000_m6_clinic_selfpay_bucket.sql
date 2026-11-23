@@ -10,4 +10,17 @@ END $$;
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('clinic-selfpay-screenshots', 'clinic-selfpay-screenshots', false, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp'])
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+  SET public = false,
+      file_size_limit = 10485760,
+      allowed_mime_types = ARRAY['image/jpeg', 'image/png', 'image/webp'];
+-- 桶若已存在但設定不同（例如 public=true、沒有 MIME 或大小限制），上面會明確改回私有並套用限制；簽名網址與格式限制的假設才成立。
+
+DO $$
+DECLARE b record;
+BEGIN
+  SELECT public, allowed_mime_types, file_size_limit INTO b FROM storage.buckets WHERE id = 'clinic-selfpay-screenshots';
+  IF b.public IS TRUE OR b.allowed_mime_types IS NULL OR NOT (b.allowed_mime_types <@ ARRAY['image/jpeg', 'image/png', 'image/webp']) OR b.file_size_limit IS NULL THEN
+    RAISE EXCEPTION 'clinic-selfpay-screenshots 儲存桶設定未回到私有與圖片限制';
+  END IF;
+END $$;

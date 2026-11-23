@@ -62,6 +62,13 @@ function priceSingleSheet() {
     ...PRICES_2038_11.map((p) => [p.code, p.selfpay, p.product, p.name, p.member, p.cost]),
   ]]]);
 }
+/** 2038-11 改價版（ZTA000001 會員價 999、成本 1；其餘不變）：驗證價格快照。 */
+function priceChanged() {
+  return book([['2038-11', [
+    ['健保碼', '自費藥名稱', '品號', '品名', '會員價', '成本'],
+    ...PRICES_2038_11.map((p) => [p.code, p.selfpay, p.product, p.name, p.code === 'ZTA000001' ? 999 : p.member, p.code === 'ZTA000001' ? 1 : p.cost]),
+  ]]]);
+}
 function priceEmpty() {
   return book([['2038-11', [['健保碼', '自費藥名稱', '品號', '品名', '會員價', '成本']]]]);
 }
@@ -188,6 +195,7 @@ function buildAll() {
   return {
     'price-multi-month.xlsx': priceMultiMonth(),
     'price-single-sheet.xlsx': priceSingleSheet(),
+    'price-changed.xlsx': priceChanged(),
     'price-empty.xlsx': priceEmpty(),
     'price-oct-only.xlsx': priceOctOnly(),
     'price-missing-some.xlsx': priceMissingSome(),
