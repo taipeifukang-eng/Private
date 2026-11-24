@@ -3,10 +3,134 @@
 這個資料夾只放「草稿」，**尚未套用到正式區**。DEV 版在 `supabase/workspace-dev/`（含 `.rollback.sql`），不碰 `supabase/migrations/`。
 上線前要轉成正式 migration，並由人確認後才能套用。
 
+## 全部正式區執行順序總表（2026-11-24 審查後）
+
+這是「整個正式區上線」的唯一順序依據：把既有 m2～m8、w03 草稿與 m9 新草稿排在一起。每一步先看「性質」：**唯讀** = 只有 SELECT；**新增** = 只建立新物件、不動既有資料；**新增＋改既有** = 建立新物件，同時覆蓋既有函式／約束／政策，或函式日後會改寫人員資料；**改既有資料** = 會改既有資料、函式或政策。所有 SQL 都由人在正式區 SQL Editor 單獨貼上執行，不由程式自動跑；m9 每份主檔都可重複執行。
+
+順序規則（資料庫相依，不能換）：
+
+- 55 → 90 → 50：55 與 90 都會替換 `update_inspection_bonus_total`，要先 55、再 90（評級改讀 snapshot）；50 的儲存函式會讀 90 建立的設定版本表。檔名序號是依 DEV 時間編的，**實際順序以本表為準**。
+- 20 → 60：60 要改寫 20 建立的 `workspace_save_task_template`。
+- m2 步驟 A → 15：15 開頭檢查 `store_employees.newbie_level` 必須已存在。
+- 10、15、30、65 → 80：80 的前置檢查會逐一確認；65 在執行調店確認／更正時又會呼叫 80 的名冊重算，所以 65 與 80 要在 API 切到新版前一起套完。重跑 30 會把 `workspace_apply_due_promotions` 蓋回簡化版，重跑後要再跑一次 80。
+- 備份檔緊貼著主檔前一刻執行（30、60、65、80 各有 `.backup.sql`；備份表名稱不同，不會互相覆蓋）。預覽檔（`.preview.sql`）同樣在套用前看。
+- 還原順序與套用順序相反：80 → 65 → 30 → 15 → 50 → 90 → 55 → 60 → 20 → 40 → 70 → 10 → 備援開關。
+
+| 步驟 | 檔案 | 做什麼 | 性質 | 需備份 | 對應 rollback | 對應 verify／預覽 |
+|---|---|---|---|---|---|---|
+| **階段 0　上線前唯讀檢查（只有 SELECT，可全部先跑）** | | | | | | |
+| 1 | `m9-sql/05_legacy_covered_check.verify.sql` | DEV 有、但由舊版 migration 涵蓋的項目（盤點版本欄位、處方箋月報、獎金欄位、年度行事曆、組織表、權限碼、has_permission 語意）正式區是否都在 | 唯讀 | 否 | - | 本身就是檢查 |
+| 2 | `m2-sql/check_position_mismatch.sql` | 員工主檔職位和最新升職異動不一致的名單 | 唯讀 | 否 | - | - |
+| 3 | `m3-sql/compare_task_proxy_access.sql` | 開啟他人任務：舊版可、新版不可的人 | 唯讀 | 否 | - | - |
+| 4 | `m3-sql/grant_task_view_archived_A_preview.sql` | 哪些主管缺 task.view_archived | 唯讀 | 否 | - | - |
+| 5 | `m3-sql/grant_task_manage_A_preview.sql` | 要補 task.manage 的名單預覽（先在檔內填名單） | 唯讀 | 否 | - | - |
+| 6 | `m4-sql/w17_A_preview.sql` | 改善回補函式現況與 UTC 少算一天筆數 | 唯讀 | 否 | - | - |
+| 7 | `m4-sql/w18_A_preview.sql` | 評級對照與寫死值是否相同、範本總分 | 唯讀 | 否 | - | - |
+| 8 | `m4-sql/w17_D_reporter_diff.sql` | 舊版能回報改善、新版不能的人 | 唯讀 | 否 | - | - |
+| 9 | `m5-sql/` 15 份：w19_q1、w19_q2_inactive、w19_q4、w19_q5、w20_q7_entry_audit、w20_q7_buttons_preview、w21_q9、w21_q10_q11、p06_q12_q13_q14、w22_q15、w23_calendar_permission_holders、w23_calendar_schema_probe、w23_q21、w24、p06_q15 | 活動排程、活動檢視入口、部門入口、使用者與角色、註冊、年度行事曆與 Google 同步的上線前名單 | 唯讀 | 否 | - | - |
+| 10 | `m6-sql/inventory-perm-check.sql` | 盤點各權限持有人數、上線後會失去匯入或刪除的人 | 唯讀 | 否 | - | - |
+| 11 | `m7m8-sql/00-readiness-check.sql` | 總務上線準備度（資料表、RLS、函式、儲存空間） | 唯讀 | 否 | - | - |
+| 12 | `m7m8-sql/11-g01-preview-before-apply.sql` | 第 1 批套用前現況 | 唯讀 | 否 | - | - |
+| 13 | `m7m8-sql/12-g02-disabled-categories-with-active-items.sql` | 已停用但底下仍有啟用項目的分類名單 | 唯讀 | 否 | - | - |
+| 14 | `m7m8-sql/13-g03-parts-stock-and-duplicates.sql` | 料件庫存與完全重複名單 | 唯讀 | 否 | - | - |
+| **階段 1　M9 資料庫草稿（工作台新版 RPC）** | | | | | | |
+| 15 | `m9-sql/20261123150000_m9_page_fallbacks.sql` | 逐頁「回舊版」備援開關（2 表＋1 函式）。最先套用，之後任何一頁出問題都能單頁切回舊版 | 新增 | 否 | .rollback.sql（會連稽核紀錄一起刪，要留請先備份稽核表） | .verify.sql（審查時補） |
+| 16 | `m2-sql/backfill_employee_stage_A_add_column.sql` | store_employees 加「階段」欄位 newbie_level（可為空） | 新增 | 否 | 無檔（欄位可為空、留著無害；要移除請人工 DROP COLUMN） | 15 的前置檢查會確認欄位存在 |
+| 17 | `m2-sql/backfill_employee_stage_B_preview.sql` | 回填階段的預覽 | 唯讀 | 否 | - | - |
+| 18 | `m2-sql/backfill_employee_stage_C_backfill.sql` | 依升職異動回填員工階段（只填空值；與 65 的 F 段相同，二擇一即可） | 改既有資料 | 建議（先存 store_employees；可共用 65.backup.sql） | 交易內先 ROLLBACK；COMMIT 後用備份還原 newbie_level | 重跑步驟 B，待回填應為 0 |
+| 19 | `m9-sql/10_organization_department.sql` | 組織與部門職掌：2 防重送表＋6 函式 | 新增 | 否 | .rollback.sql | .verify.sql |
+| 20 | `m9-sql/70_stores_managers_supervisors.sql` | 門市／店長／督導：5 個 store.store.* 權限碼（只建立、不授權）、1 表、6 函式、停用門市讀取政策 | 新增 | 否 | .rollback.sql（不刪權限碼） | .verify.sql |
+| 21 | `m9-sql/40_campaign_version_and_ops.sql` | 活動版本與營運：campaigns 加 2 欄＋版本觸發器、1 表、3 函式、私有 bucket | 新增 | 否 | .rollback.sql（刪欄位前自動備份兩欄；bucket 不用 SQL 刪） | .verify.sql |
+| 22 | `m9-sql/20_task_core.sql` | 任務核心：版本欄位／觸發器、5 收據表、5 函式 | 新增 | 否（只加預設 0 的欄位） | .rollback.sql（若已套用 60，先還原 60） | .verify.sql |
+| 23 | `m9-sql/60_task_delete_and_proxy.sql` | 任務刪除、協作代理、逐動作代理；字串替換 20 的 workspace_save_task_template（支援人員） | 新增＋改既有 | 是：.backup.sql（備份被改寫函式原文） | .rollback.sql（先把稽核與代做標記複製到備份表） | .verify.sql（前置：20） |
+| 24 | `m9-sql/55_improvements_bonus.sql` | 改善加分：替換 5 個函式、重建 5 個觸發器（台灣日期、逾期回補 0、先鎖單、NUMERIC） | 新增＋改既有 | 是：檔內自動備份到 m9_improvements_backup | .rollback.sql（依備份還原） | .verify.sql。取代 m4 w17_B，二擇一 |
+| 25 | `m9-sql/90_inspection_settings_grade_snapshot.sql` | 巡店設定版本表、評級門檻 snapshot、替換 update_inspection_bonus_total、回補既有已完成單的 snapshot | 新增＋改既有 | 是：檔內步驟 0 自動備份 | .rollback.sql（優先依備份還原函式；snapshot 會消失） | .verify.sql。取代 m4 w18_B；必須在 55 之後、50 之前 |
+| 26 | `m9-sql/50_inspection_write_core.sql` | 巡店寫入核心：inspection_masters／results 加欄位、版本觸發器、workspace_save_inspection | 新增 | 選用（檔頭有備份 SQL） | .rollback.sql（欄位保留；刪欄位的備份與 DROP 以註解提供） | .verify.sql（前置：90） |
+| 27 | `m9-sql/15_employee_management.sql` | 員工（生日匯入、新增、編輯、匯入、員編規則、月份需重新確認）：5 表、13 函式、2 個 INSERT 觸發器 | 新增＋改既有 | 否（但先看預覽） | .rollback.sql（空表才刪、共用函式被引用就保留） | .preview.sql（套用前）＋.verify.sql。前置：m2 步驟 A |
+| 28 | `m9-sql/30_store_promotions_queue.sql` | 門市升遷申請與生效佇列：2 表、函式、觸發器、pg_cron 排程（有裝才建） | 新增＋改既有 | 是：.backup.sql（3 張人員表整張複製） | .rollback.sql（人員資料用備份手動還原） | .preview.sql（套用前）＋.verify.sql |
+| 29 | `m9-sql/65_transfer_confirm_correct_batch.sql` | 調店確認／更正：申請表補欄位、newbie_level、確認紀錄表、更正紀錄表、3 函式、階段回填 | 新增＋改既有 | 是：.backup.sql（整列 jsonb，不覆蓋舊備份） | .rollback.sql（空表才刪；階段欄位依備份還原） | .verify.sql。執行確認／更正時需要 80 的函式 |
+| 30 | `m9-sql/80_movement_batch_monthly_roster.sql` | 異動批次與每月人員狀態：月結工具、異動批次、名冊重算（單一真相）、修改刪除異動、名冊頁 RPC；放寬 valid_movement_type | 新增＋改既有 | 是：.backup.sql（4 張人員表＋函式／約束原文） | .rollback.sql（有資料的表與欄位不硬刪） | .preview.sql（套用前現況＋套用後必還原預覽）＋.verify.sql。前置：10、15、30、65 |
+| **階段 2　M6（客務／商品／督導日誌／語音）與 W03 處方箋** | | | | | | |
+| 31 | `m6-sql/20261121100000_m6_relationship_sales_import.sql` | 關係會員銷售匯入函式（內容相同的明細自動略過） | 新增 | 否 | .rollback.sql | m6 README 注意事項 |
+| 32 | `m6-sql/20261122100000_m6_products_master_logs.sql` | 商品主檔操作紀錄表 | 新增 | 否 | .rollback.sql | 同上 |
+| 33 | `m6-sql/20261122110000_m6_stockout_rpc.sql` | 缺貨回覆、刪除回報 2 函式 | 新增 | 否 | .rollback.sql | 同上 |
+| 34 | `m6-sql/20261122130000_m6_supervisor_log_rpc.sql` | 督導日誌軟刪除函式（以呼叫者身分執行，授權 authenticated、service_role） | 新增 | 否 | .rollback.sql | 同上；前置：4 支舊 migration |
+| 35 | `m6-sql/20261122133000_m6_voice_ai.sql` | 語音／AI：5 表＋函式（每月上限預設 30 美元） | 新增 | 否 | .rollback.sql | 同上 |
+| 36 | `m6-sql/20261123140000_m6_clinic_selfpay_bucket.sql` | 自費診所截圖私有 bucket（同名桶會被改回私有、10MB） | 新增＋改既有 | 先確認既有桶是否私有 | .rollback.sql（注意：用 SQL 刪 bucket 可能被 Storage 保護觸發器擋下，需改走 Dashboard） | 檔尾內建檢查 |
+| 37 | `w03-rx-sql/01-prescription-aliases.sql` | 處方箋門市簡稱對照表＋整批匯入函式 | 新增 | 否 | 01-prescription-aliases-rollback.sql | README 套用順序（先套用再部署新版） |
+| **階段 3　M7／M8 總務（依該 README 的批次順序；每批先跑預覽，撤回順序相反）** | | | | | | |
+| 38 | `m7m8-sql/10-g01-catalog-rules.sql` | 第 1 批：11 個 ga_ws_ 函式 | 新增 | 否 | 10-g01-catalog-rules-rollback.sql | 11 預覽＋00 準備度 |
+| 39 | `m7m8-sql/20-b2-preview-before-apply.sql` | 第 2 批套用前預覽 | 唯讀 | 否 | - | - |
+| 40 | `m7m8-sql/21-b2-asset-events-transfers.sql` | 第 2 批：異動紀錄、轉移單、明細（3 表、1 序號、函式） | 新增 | 否 | 21-…-rollback.sql | 20 預覽 |
+| 41 | `m7m8-sql/22-b2-onboarding.sql` | 第 2 批：設施加 6 欄、重定義 1 函式（上線貼標） | 新增＋改既有 | 是（函式原文） | 22-…-rollback.sql | 20 預覽 |
+| 42 | `m7m8-sql/23-b2-import-history.sql` | 第 2 批：Excel 匯入批次表與函式 | 新增 | 否 | 23-…-rollback.sql | 20 預覽 |
+| 43 | `m7m8-sql/24-b9-block-terminal-with-open-transfer.sql` | 第 2 批：進行中轉移單時擋報廢（1 函式、2 觸發器） | 新增 | 否 | 24-…-rollback.sql | 20 預覽 |
+| 44 | `m7m8-sql/25-b6-history-current-store.sql` | 第 2 批：重新定義 2 個函式（簽章不變） | 改既有資料 | 是（函式原文） | 25-…-rollback.sql | 20 預覽 |
+| 45 | `m7m8-sql/26-b3-preview-before-apply.sql` | 第 3 批套用前預覽 | 唯讀 | 否 | - | - |
+| 46 | `m7m8-sql/27-b3-inventory-rules.sql` | 第 3 批：庫存位置規則函式與觸發器 | 新增 | 否 | 27-…-rollback.sql | 26 預覽 |
+| 47 | `m7m8-sql/28-b3-inventory-post.sql` | 第 3 批：過帳 4 函式 | 新增 | 否 | 28-…-rollback.sql | 26 預覽 |
+| 48 | `m7m8-sql/29-b3-inventory-transfers.sql` | 第 3 批：調撥（單據加欄、2 表、8 函式） | 新增 | 否 | 29-…-rollback.sql（會刪調撥資料） | 26 預覽 |
+| 49 | `m7m8-sql/30-b3-category-keep-inactive.sql` | 第 3 批：重新定義 2 個既有函式 | 改既有資料 | 是（函式原文） | 30-…-rollback.sql | 26 預覽 |
+| 50 | `m7m8-sql/31-b4-preview-before-apply.sql` | 第 4 批套用前預覽 | 唯讀 | 否 | - | - |
+| 51 | `m7m8-sql/32-b4-request-rules.sql` | 第 4 批：2 表、9 欄；覆蓋既有函式（32 與 33 必須連續套用） | 新增＋改既有 | 是（pg_get_functiondef 備份 4 個被覆蓋函式） | 32-…-rollback.sql | 31 預覽 |
+| 52 | `m7m8-sql/33-b4-purchase-orders.sql` | 第 4 批：採購單、核准、11 函式、1 權限碼（只建立、不授權） | 新增 | 同 32 | 33-…-rollback.sql | 31 預覽 |
+| 53 | `m7m8-sql/34-b4-receipt-dispatch.sql` | 第 4 批：到貨驗入與配發（4 表、欄位、函式；覆蓋 1 舊函式） | 新增＋改既有 | 是（函式原文） | 34-…-rollback.sql | 31 預覽 |
+| 54 | `m7m8-sql/35-b4-asset-transfer-follow.sql` | 第 4 批：資產移轉搬單（1 表、4 函式；覆蓋 2 函式） | 新增＋改既有 | 是（函式原文） | 35-…-rollback.sql | 31 預覽 |
+| 55 | `m7m8-sql/36-b5-preview-before-apply.sql` | 第 5 批套用前預覽（第 6、7 區名單要看） | 唯讀 | 否 | - | - |
+| 56 | `m7m8-sql/37-b5-work-order-rules.sql` | 第 5 批：工單規則函式（不改表） | 新增 | 否 | 37-…-rollback.sql | 36 預覽 |
+| 57 | `m7m8-sql/38-b5-request-supplement-sync.sql` | 第 5 批：覆蓋第 4 批 2 函式（檔頭有 md5 守衛） | 改既有資料 | 是（函式原文） | 38-…-rollback.sql | 36 預覽 |
+| 58 | `m7m8-sql/39-b5-work-order-parts.sql` | 第 5 批：領用料件 1 函式 | 新增 | 否 | 39-…-rollback.sql | 36 預覽 |
+| 59 | `m7m8-sql/40-b5-work-order-rls.sql` | 第 5 批：收緊 3 條 RLS 政策（驗收並補授權後才執行） | 改既有資料 | 是（先存三條政策現況） | 40-…-rollback.sql | 36 預覽第 6、7 區 |
+| 60 | `m7m8-sql/41-b6-preview-before-apply.sql` | 第 6 批套用前預覽 | 唯讀 | 否 | - | - |
+| 61 | `m7m8-sql/42-b6-vendor-columns.sql` | 第 6 批：廠商欄位與固定資料（既有廠商 contract_required 一次性改 false） | 新增＋改既有 | 建議（先備份 ga_vendors） | 42-…-rollback.sql | 41 預覽 |
+| 62 | `m7m8-sql/44-b6-vendor-functions.sql` | 第 6 批：廠商相關函式（不改表） | 新增 | 否 | 44-…-rollback.sql | 41 預覽 |
+| 63 | `m7m8-sql/48-b6-vendor-tax-unique.sql` | 第 6 批：統編唯一索引（有重複會中止） | 新增 | 否 | 48-…-rollback.sql | 41 第 3 區重複須為 0 |
+| 64 | `m7m8-sql/47-b6-work-order-vendor-check.sql` | 第 6 批：覆蓋第 5 批 1 個內部函式 | 改既有資料 | 是（函式原文） | 47-…-rollback.sql | 41 預覽 |
+| 65 | `m7m8-sql/45-b6-utility-bills.sql` | 第 6 批：水電帳單欄位／索引、改 1 條讀取政策 | 新增＋改既有 | 是（先存 41 第 10 區政策） | 45-…-rollback.sql | 41 預覽 |
+| 66 | `m7m8-sql/46-b6-stats-home.sql` | 第 6 批：績效、首頁徽章；文字替換 ga_ws_po_list | 新增＋改既有 | 是（函式原文） | 46-…-rollback.sql | 41 預覽 |
+| 67 | `m7m8-sql/49-b6-perf-inline-predicates.sql` | 第 6 批：8 個述詞函式移除 search_path 設定（效能） | 改既有資料 | 否（rollback 設回原值） | 49-…-rollback.sql | 41 預覽 |
+| 68 | `m7m8-sql/43-b6-vendor-rls.sql` | 第 6 批：改 3 張表 RLS（最後套用；名單確認前不得套用） | 改既有資料 | 是（先存第 5 區政策） | 43-…-rollback.sql | 41 預覽第 6、7、8 區 |
+| 69 | `m7m8-sql/50-b45-preview-before-apply.sql` | 第 4.5 批套用前預覽（沒有 rollback） | 唯讀 | 否 | - | - |
+| 70 | `m7m8-sql/51-b45-receipt-voucher.sql` | 第 4.5 批：進貨明細回填未稅金額＋觸發器 | 改既有資料 | 是：zz_bak_b45_receipts／receipt_items（README 有 SQL） | 51-…-rollback.sql | 50 預覽第 2 區 |
+| 71 | `m7m8-sql/52-b45-payment-requests.sql` | 第 4.5 批：請款單 3 表、取號函式、1 筆設定 | 新增 | 否 | 52-…-rollback.sql（會刪請款資料） | 50 預覽 |
+| 72 | `m7m8-sql/53-b45-vendor-bank.sql` | 第 4.5 批：廠商銀行 4 欄 | 新增 | 否 | 53-…-rollback.sql | 50 預覽 |
+| 73 | `m7m8-sql/54-b45-attachment-types.sql` | 第 4.5 批：重建 CHECK、改 2 個共用附件函式 | 改既有資料 | 是（先存 50 第 3 區兩函式全文） | 54-…-rollback.sql | 50 預覽 |
+| 74 | `m7m8-sql/55-b45-permissions.sql` | 第 4.5 批：2 個權限碼（只建立、不授權） | 新增 | 否 | 55-…-rollback.sql | 50 預覽第 9 區 |
+| 75 | `m7m8-sql/56-b45-functions.sql` | 第 4.5 批：函式（不動資料） | 新增＋改既有 | 否（DEV 已逐字比對） | 56-…-rollback.sql | 50 預覽 |
+| 76 | `m7m8-sql/57-b45-analysis.sql` | 第 4.5 批：待請款／分析，文字替換 6 函式 | 新增＋改既有 | 否（rollback 反向替換） | 57-…-rollback.sql | 50 預覽 |
+| 77 | `m7m8-sql/58-b45-receipt-void.sql` | 第 4.5 批：作廢進貨（欄位、唯一索引、函式、替換 2 個第 4 批函式） | 新增＋改既有 | 否（rollback 反向替換） | 58-…-rollback.sql | 50 預覽 |
+| 78 | `m7m8-sql/59-b45f-vendor-bank-log.sql` | 第 4.5 批追加：廠商銀行異動紀錄（只新增不可改刪） | 新增 | 否 | 59-…-rollback.sql | 50 預覽 |
+| 79 | `m7m8-sql/60-b45f-pay-rules.sql` | 第 4.5 批追加：請款規則，文字替換 3 函式 | 改既有資料 | 否（rollback 反向替換） | 60-…-rollback.sql | 50 預覽 |
+| 80 | `m7m8-sql/61-b45f-stale-draft.sql` | 第 4.5 批追加：草稿過期，文字替換 3 函式 | 改既有資料 | 否（rollback 反向替換） | 61-…-rollback.sql | 50 預覽 |
+| **階段 4　選用／授權類（老闆決定後才做）與「不要執行」的舊草稿** | | | | | | |
+| 81 | `m5-sql/w19_q2_B_reactivate.sql` | 把誤停用的活動改回啟用（選用，先填 id；BEGIN 開頭，要另外 COMMIT） | 改既有資料 | 是：檔內備份到 m5_w19_campaign_backup | m5-sql/w19_q2_C_rollback.sql | 檔內最後一段核對 |
+| 82 | `m3-sql/grant_task_view_archived_B_grant.sql` | 補授權 task.view_archived（授權類；新規則是授權改用勾選頁，這份由老闆決定要不要用） | 改既有資料 | 是：檔內記錄新增的授權列 | grant_task_view_archived_C_rollback.sql | A 預覽 |
+| 83 | `m3-sql/grant_task_manage_B_grant.sql` | 建立 task_proxy_manager 角色並加入名單（授權類，同上） | 改既有資料 | 是：m3_task_manage_grants | grant_task_manage_C_rollback.sql | A 預覽 |
+| 84 | `m4-sql/w17_B_apply.sql` | 【不要執行】已被 m9 的 55 取代 | 改既有資料 | - | m4-sql/w17_C_rollback.sql | - |
+| 85 | `m4-sql/w18_B_apply.sql` | 【不要執行】已被 m9 的 90 取代 | 改既有資料 | - | m4-sql/w18_C_rollback.sql | - |
+
+合計 **85 步**（唯讀 21、新增 29、改既有資料 17、新增＋改既有 18）。其中階段 1～3 真正會寫入的有 59 步；階段 4 的 5 步是選用或「不要執行」。
+
+---
+
+以下是各組草稿的細節說明。
+
 | 檔案 | 用途 | 對應項目 |
 |---|---|---|
 | `20261123150000_m9_page_fallbacks.sql` | 新增 `workspace_page_fallbacks`（逐頁「回舊版」開關，每個頁面種類一列）、`workspace_page_fallback_events`（切換稽核紀錄，只新增）、`workspace_set_page_fallback(text, boolean, text, uuid)`（同一交易寫入目前狀態與稽核紀錄） | M9 F01S，2026-11-23 上線準備問卷 N2 |
 | `20261123150000_m9_page_fallbacks.rollback.sql` | 移除上述函式與兩張資料表 | 同上 |
+| `20261123150000_m9_page_fallbacks.verify.sql` | 唯讀驗證（只有 SELECT）：RLS、無政策、稽核表只有 SELECT／INSERT、函式只給 service_role（2026-11-24 審查補上，主檔未動） | 同上 |
+| `05_legacy_covered_check.verify.sql` | 上線前唯讀檢查：DEV 有、但由舊版 migration 涵蓋而不需新草稿的項目，正式區是否都在（盤點版本欄位、處方箋月報、獎金欄位、年度行事曆八表、組織表與權限碼、`has_permission` 語意） | 2026-11-24 審查補上 |
+| `15_employee_management.sql` | 員工（生日匯入、新增、編輯、匯入、員編規則、月份需重新確認）：6 份 DEV 檔合併成最終狀態。新增 4 張請求去重回執表、`monthly_staff_recheck`、13 個函式，以及 `employee_movement_history`、`monthly_staff_status` 上的員編規則觸發器 | 員工群（DEV 20261029090000～20261105200100） |
+| `15_employee_management.preview.sql` | 套用前預覽（唯讀）：既有不合規員編、舊版手動新增與入職異動近期受影響筆數、重複員編、同名物件 | 同上 |
+| `15_employee_management.rollback.sql` | 移除觸發器與函式；資料表只有空表才移除，被其他函式引用的共用函式會保留 | 同上 |
+| `15_employee_management.verify.sql` | 套用後驗證（唯讀） | 同上 |
+| `50_inspection_write_core.sql` | 巡店寫入核心：inspection_masters 新增 workspace_version／workspace_write_id／workspace_write_hash、inspection_results 新增 workspace_quantities、版本觸發器 trg_workspace_inspection_version、`workspace_save_inspection(...)`（合併 DEV 20261028010000 與 20261105190000 最終狀態，含設定版本檢查與 GPS 寫入；只授權 service_role） | 巡店新版寫入。前置：20260911093000、20261105180000、巡店設定組（workspace_inspection_settings_revision） |
+| `50_inspection_write_core.rollback.sql` | 移除函式與觸發器；欄位預設保留（刪欄位的備份與 DROP 以註解提供） | 同上 |
+| `50_inspection_write_core.verify.sql` | 唯讀驗證（只有 SELECT） | 同上 |
+| `40_campaign_version_and_ops.sql` | campaigns 加 workspace_version／workspace_request_id、唯一索引、版本觸發器；冪等紀錄表 workspace_campaign_requests；活動營運 3 個函式；私有 bucket campaign-department-assets | 組「活動版本與營運」（DEV：20261027120000 campaigns 部分、20261030000000）。不需備份，不新增也不授權權限碼 |
+| `40_campaign_version_and_ops.rollback.sql` | 還原（刪欄位前先備份兩欄與請求表） | 同上 |
+| `40_campaign_version_and_ops.verify.sql` | 唯讀驗證（只有 SELECT） | 同上 |
 
 注意事項
 
@@ -16,3 +140,149 @@
 - 不涉及權限碼：管理頁與 API 只認系統管理員（`profiles.role = 'admin'` 或管理員類角色，應用層判斷，與 AI 用量設定相同），沒有新增 `permissions` 資料。
 - 正式區 `has_permission` 語意與 DEV 不同（不檢查 `roles.is_active`），本檔不涉及權限判斷。
 - 稽核表 `workspace_page_fallback_events` 在資料庫層只授予 `service_role` 讀取與新增（SELECT、INSERT），沒有 UPDATE、DELETE，API 無法竄改切換歷史。注意：執行 rollback 會連同兩張表（含稽核紀錄）一起移除，還原前若要保留切換歷史，請先備份稽核表。
+
+## 正式區草稿（兩位數序號，依 DEV 時間順序，間隔 10）
+
+| 檔案 | 用途 | 需備份 |
+|---|---|---|
+| `20_task_core.sql` | 任務核心：assignments／templates 加 `workspace_version`、版本觸發器、5 張重送去重收據表、5 個 workspace_* 任務函式（存檔、複製封存、封存、存範本、派發）。合併 DEV 20261028050000～090000。不授權任何角色，無權限碼 | 否（只新增欄位預設 0，不改既有資料） |
+| `20_task_core.rollback.sql` | 移除上述觸發器、函式、收據表、版本欄位 | - |
+| `20_task_core.verify.sql` | 唯讀驗證（只有 SELECT） | - |
+
+## 30_store_promotions_queue（門市升遷申請與生效佇列）
+
+合併 DEV `20261028150000_vue_store_promotions` 與 `20261028160000_vue_promotion_activation`。會碰到既有人員資料（函式使用時更新 store_employees、monthly_staff_status），套用前先跑 `.backup.sql` 與 `.preview.sql`。檔案：`30_store_promotions_queue.sql`、`.backup.sql`、`.preview.sql`、`.rollback.sql`、`.verify.sql`。不授權任何角色；排程只在已安裝 pg_cron 時建立。
+
+## 70_stores_managers_supervisors（門市、店長與督導）
+
+合併 DEV `20261028120000_vue_store_managers`、`20261028130000_vue_supervisors`、`20261028140000_vue_stores`、`20261028170000_vue_store_map_inactive`、`20261029160000_vue_supervisor_primary_choice`。只新增物件，不改既有資料，不需備份。
+
+| 檔案 | 用途 |
+|---|---|
+| `70_stores_managers_supervisors.sql` | 補 5 個 `store.store.*` 權限碼（只建立，不授權任何角色）、`workspace_store_requests` 冪等表、6 個 workspace 函式（門市清單／沿革／異動、店長指派、督導與代理、督導主責選擇）、`workspace_can_read_inactive_store()` 與 stores 的 `workspace_store_inactive_read` 政策 |
+| `70_stores_managers_supervisors.rollback.sql` | 移除政策、函式、`workspace_store_requests`；不刪權限碼 |
+| `70_stores_managers_supervisors.verify.sql` | 唯讀驗證（只有 SELECT） |
+
+與 DEV 的差異：停用門市讀取只認 `has_permission(store.store.view_inactive)` 或 `store.manage`，不沿用 DEV 的「admin 角色代碼且 roles.is_active」繞過分支（正式區 has_permission 無 admin 繞過、不檢查 roles.is_active）。
+
+## 10 組織與部門職掌（草稿，尚未套用）
+
+| 檔案 | 用途 |
+|---|---|
+| `10_organization_department.sql` | 新增 `workspace_organization_requests`、`workspace_department_requests` 兩張防重送表（RLS 開、只給 service_role）與 6 個函式：`workspace_organization_snapshot／catalog／save`（save 為 M5 W21 最終版）、`workspace_department_version／catalog／save`。只新增物件，不動既有資料 |
+| `10_organization_department.rollback.sql` | 移除上述 6 函式與 2 表（不動舊版組織／work_* 表與權限碼） |
+| `10_organization_department.verify.sql` | 唯讀驗證（只有 SELECT） |
+
+- 不需備份（只新增物件）。不新增權限碼（組織 8 碼、部門工作台 2 碼正式區舊版已有），也不授權給任何角色，授權之後用勾選頁決定。
+- DEV 的 `workspace_organization_unit_sync_profiles` 觸發器已在 M5 W21 移除，最終狀態不存在，本草稿不建立（僅防禦性 DROP IF EXISTS）。
+- 舊版組織／work_* 表在正式區 RLS 關閉、`anon`／`authenticated` 有授權（舊版設定），本草稿不更動；新函式一律只給 `service_role`。
+
+## 60 任務 M3（刪除、協作代理、逐動作代理）
+
+| 檔案 | 用途 | 需備份 |
+|---|---|---|
+| `60_task_delete_and_proxy.sql` | 任務 M3：刪除稽核表與 `workspace_assignment_progress_complete`／`workspace_delete_assignment`／`workspace_delete_template`；以字串替換方式讓 20_task_core 的 `workspace_save_task_template` 支援 `support_users` 跨部門支援人員；`logs.proxy` 欄位與 `workspace_save_task_v2`（逐動作代理）。合併 DEV 20261107120000～150000 的最終狀態。需先套用 20_task_core。不授權、不建權限碼（task.manage 等正式區已有） | 是（先跑 backup，備份被改寫函式原始碼） |
+| `60_task_delete_and_proxy.backup.sql` | 把被改寫函式現行原始碼存入 `m9_backup_m3_functions` | - |
+| `60_task_delete_and_proxy.rollback.sql` | 移除上述物件，並先把刪除稽核與代做標記複製到備份表；支援人員改寫還原回僅限所選部門 | - |
+| `60_task_delete_and_proxy.verify.sql` | 唯讀驗證（只有 SELECT） | - |
+
+## 55 巡店改善追蹤與加分
+
+| 檔案 | 用途 | 需備份 |
+|---|---|---|
+| `55_improvements_bonus.sql` | 以正式區現行函式為基礎，替換 `calculate_improvement_bonus`（台灣日期算天數、回報日超過期限回補 0）、`update_inspection_bonus_total`（先鎖單、基礎分改 NUMERIC、門檻維持舊版寫死值），另外 3 個函式只加 `search_path`；5 個觸發器同交易內重建；`inspection_bonus_config` 僅在整張表為空時種入 3 條預設規則。合併 DEV 20261028020000＋20261108100000 的最終狀態，取代 `m4-sql/w17_B_apply.sql`（兩者擇一）。評級 snapshot（DEV 20261107160000）須排在本檔之後。不授權、不建權限碼 | 是（檔內自動備份到 `m9_improvements_backup`） |
+| `55_improvements_bonus.rollback.sql` | 依備份還原 5 個函式與 5 個觸發器，刪除本檔當初種入的預設規則 | - |
+| `55_improvements_bonus.verify.sql` | 唯讀驗證（只有 SELECT） | - |
+
+## 90 巡店範本與評級設定（含評級門檻 snapshot）
+
+| 檔案 | 用途 | 需備份 |
+|---|---|---|
+| `90_inspection_settings_grade_snapshot.sql` | 設定版本表與儲存收據表、`workspace_bump_inspection_settings`／`workspace_save_inspection_settings`、三張設定表的版本觸發器；`inspection_masters.grade_thresholds` 欄位與評級 snapshot 函式、兩個 BEFORE 觸發器；替換既有 `update_inspection_bonus_total`（評級改讀 snapshot）；回補既有已完成單的 snapshot；對照表／加分設定為空時才種入預設。合併 DEV 20261028030000、040000（設定版本表部分）、20261107160000。不授權、不建權限碼 | 是（檔內步驟 0 自動備份函式原文與兩張設定表到 `m9_inspection_settings_backup`） |
+| `90_inspection_settings_grade_snapshot.rollback.sql` | 移除上述物件、還原舊版 `update_inspection_bonus_total`、移除 `grade_thresholds`（snapshot 會消失） | - |
+| `90_inspection_settings_grade_snapshot.verify.sql` | 唯讀驗證（只有 SELECT） | - |
+
+- 套用順序：必須在 `50_inspection_write_core` 之前（50 的儲存函式會讀本檔建立的設定版本表）。檔名序號依 DEV 時間編，實際套用順序請排成 90 -> 50。
+- 風險：上線後任何寫入巡店單總分／狀態的路徑（含舊版網站）評級都以資料庫對照表為準；套用前先看 verify 第 6 項。
+
+員工群（15_employee_management）注意事項
+
+- 前置條件：`store_employees.newbie_level` 必須已存在（`m2-sql/backfill_employee_stage_A_add_column.sql`），缺少時主檔直接中止。
+- 不需備份：沒有任何既有 `workspace_*` 函式會被覆蓋，也不改既有資料列。
+- 風險：兩個觸發器（只管 INSERT）會讓舊版「入職異動」「每月人員狀態手動新增」在員編不合規（含 FKI、留空）時失敗，且手動新增列的 `employment_type` 會被強制依員編。套用前先跑 preview；若要先不擋，可單獨 DROP 兩個觸發器。
+- 不新增權限碼、不授權給任何角色。
+
+## 65_transfer_confirm_correct_batch（調店確認、更正與批次調店）
+
+| 檔案 | 用途 | 對應項目 |
+|---|---|---|
+| `65_transfer_confirm_correct_batch.backup.sql` | 備份 `store_employees`、`store_transfer_requests`、`store_transfer_confirmations`（整列 jsonb，不覆蓋舊備份） | 套用主檔前先跑 |
+| `65_transfer_confirm_correct_batch.sql` | 申請表補欄位、`store_employees.newbie_level`、`store_transfer_confirmations`（一申請一筆）、`workspace_transfer_corrections`、`workspace_transfer_snapshot`／`workspace_transfer_confirm`／`workspace_transfer_correct` 最終版、階段回填 | DEV 7 支（20261029110000～20261029220000、20261106200000 調店部分、20261107100000） |
+| `65_transfer_confirm_correct_batch.rollback.sql` | 移除 3 支函式、還原階段欄位值、空的新表才移除 | 同上 |
+| `65_transfer_confirm_correct_batch.verify.sql` | 唯讀驗證（只有 SELECT） | - |
+
+- 需備份：會刪除（若已存在）重複的確認紀錄、回填 `newbie_level`。
+- 權限：依正式區 `has_permission`（不看 `roles.is_active`、DB 端無 admin 放行）；確認／更正都要被授予既有的 `employee.store_transfer.confirm`，本檔不建立也不授權任何權限碼。
+- 依賴：`workspace_acting_active`、`workspace_roster_recompute`（名冊重算草稿）須先套用，否則確認／更正執行時失敗。批次調店在 `workspace_movement_save`（異動批次草稿），本檔只提供它需要的欄位。
+- 風險：管理員（`profiles.role='admin'`）若未被授予 `employee.store_transfer.confirm` 仍會被擋；不再有 DEV 的角色代碼白名單。
+
+## 80 異動批次與每月人員狀態（草稿，尚未套用）
+
+合併 DEV `20261029180000_vue_monthly_tools`、`20261029230000_vue_movement_batch`（最終版取 `20261106200000_p02_d_batch_transfer`）、`20261103010000_vue_monthly_bonus_block`（正式區已有等價版本，不替換）、`20261106100000_w06_roster_recompute`、`20261106110000_w06_c_movement_edit_delete`、`20261107110000_monthly_roster_page`。會碰到既有人員資料（函式使用時改寫每月人員名冊、員工主檔、異動歷史、調店申請），套用前先跑 `.backup.sql` 與 `.preview.sql`。
+
+| 檔案 | 用途 | 需備份 |
+|---|---|---|
+| `80_movement_batch_monthly_roster.sql` | 月結工具 3 函式；異動批次（放寬 `valid_movement_type` 加入 `acting_manager`、`workspace_movement_requests`、snapshot／save／preview）；名冊重算（`movement_hint` 欄位、`monthly_staff_adjustment_log`、`workspace_roster_recompute` 等 9 個函式與到期升職套用）；修改／刪除異動 3 函式；名冊頁 RPC（SECURITY INVOKER）。不授權任何角色、不建權限碼 | 是 |
+| `80_movement_batch_monthly_roster.backup.sql` | 備份 4 張人員表（＋需重新確認清單）與會被取代函式／約束的原始碼，內含還原範例（註解） | - |
+| `80_movement_batch_monthly_roster.preview.sql` | 第一部分套用前現況（唯讀）；第二部分套用後預覽指定月份重算會改什麼（一律 RAISE EXCEPTION 還原，不寫入） | - |
+| `80_movement_batch_monthly_roster.rollback.sql` | 移除函式；有資料的表與欄位不硬刪；約束還原成 7 種（已有 acting_manager 資料時保留） | - |
+| `80_movement_batch_monthly_roster.verify.sql` | 唯讀驗證：物件與權限，以及逐月檢查（重複列、區塊、離職後仍在名冊、入職缺列、職位不一致） | - |
+
+- 前置：10（組織表）、15（`monthly_staff_recheck`、`workspace_monthly_recheck_add`、`workspace_staff_month_locked`）、30（升遷 snapshot／save、`workspace_promotion_activation`）、65（調店欄位與確認／更正）。缺任何一項，檔首檢查會中止。
+- 與其他草稿的重疊：`workspace_apply_due_promotions` 在 30 與 80 都有定義，80 的是最終版（走單一名冊重算），套用順序 30 → 80；重跑 30 後要再跑 80。`workspace_transfer_correct` 由 60 提供，80 不重複定義。
+- 區塊計算：正式區 `calculate_bonus_block`（9 參數）、`update_calculated_block`、`trigger_update_calculated_block` 與 DEV 邏輯相同，80 不替換、不動其權限（正式區現行 anon 也有 EXECUTE，DEV 版會 REVOKE anon）。
+- 權限語意依正式區 `has_permission`（不檢查 `roles.is_active`、DB 端無 admin 繞過）。所有 `workspace_*` 函式只給 `service_role`，只有 `workspace_monthly_roster_page` 為 SECURITY INVOKER 並給 `authenticated`（沿用呼叫者的 RLS，不放大權限）。
+
+## 2026-11-24 審查紀錄（對照 `supabase/workspace-dev/` 與 `supabase/migrations/`、`schema-intake/production-public.schema-only.sql`）
+
+審查範圍：本資料夾 13 組草稿（10、15、20、30、40、50、55、60、65、70、80、90、備援開關）的主檔、rollback、verify、backup、preview。全程只讀寫檔案，沒有連任何資料庫。
+
+做了哪些比對
+
+- **有沒有漏物件**：用腳本把每組對應的 DEV 檔「最後一次定義」的函式、資料表、索引、觸發器、政策、欄位逐一比對；函式本體標準化空白後逐字比對。結果：15、20、30、40、50、55、80（異動批次）逐字相同；10 只差 DEV 已移除的單位同步觸發器（本來就不該建）；60 的兩個刪除函式是「DEV 用字串替換、草稿直接寫最終版」，內容等價；65、70 只差刻意改成正式區權限語意的那一段。DEV 有而草稿沒有的物件，都已確認是正式區舊版 migration 已有（組織四表、work_* 三表、updated_at／防循環／同步部門觸發器、組織與部門職掌 10 個權限碼、`inspection_no`／`client_request_id` 與唯一索引、`inspection_grade_mapping`、`store.manage`、`employee.store_transfer.confirm`）。這些「前置物件」現在由 `05_legacy_covered_check.verify.sql` 一次檢查。
+- **順序相依**：以函式／資料表互相引用做相依分析，只有 5 組跨檔相依（50→90、60→20、65↔80、80→15／30、10→舊版組織表），都已寫進總表的順序規則；另外補查出 55→90 的順序（見下）。
+- **可重複執行**：所有頂層 CREATE／ALTER／INSERT 都是 IF NOT EXISTS、CREATE OR REPLACE、ON CONFLICT 或先 DROP 再建；掃描沒有例外。
+- **verify 是否只有 SELECT**：所有 `.verify.sql` 與 `.preview.sql` 逐檔檢查，沒有寫入語句（80 的 preview 第二部分一律 RAISE EXCEPTION 還原）。
+- **授權**：全部草稿只授權 `service_role`。僅有的例外是為了讓政策或 SECURITY INVOKER 函式能運作而給 `authenticated` 執行權：`workspace_can_read_inactive_store`（70）、`workspace_extract_store_code`、`workspace_monthly_roster_page`（80），都與 DEV 相同、沒有授權任何權限碼給任何角色。沒有任何草稿寫入 `role_permissions`、`roles`、`user_roles`；唯一新增的權限碼是 70 的 5 個 `store.store.*`（只建立）。
+- **roles.is_active 與 admin 繞過**：資料庫函式裡沒有檢查 `roles.is_active`，也沒有以角色代碼放行；65 的權限段已改成只認 `employee.store_transfer.confirm`，70 的停用門市讀取已拿掉 DEV 的角色代碼分支。
+
+發現並已修正
+
+1. **40 rollback 會整個失敗**：原本用 `DELETE FROM storage.buckets` 刪 bucket，Supabase 的 Storage 保護觸發器不允許直接刪，整個還原交易會被擋下。已改成不刪 bucket（留著無害，只丟 NOTICE，要刪走 Dashboard／Storage API）。
+2. **90 rollback 會洗掉 55 的改善**：原本還原 `update_inspection_bonus_total` 一律寫回「正式區最原始版本」；若照順序先套了 55，還原 90 後等於把 55 一併洗掉。已改成優先用備份表（那是套用 90 之前的版本），找不到備份才退回原始版本。
+3. **55 與 90 的順序沒有說清楚**：兩份都會替換同一個函式，若先 90 再 55，評級 snapshot 會被蓋掉。已在 90 檔頭與本檔順序規則寫明 55 → 90 → 50，並註明 90 取代 m4 的 `w18_B_apply.sql`（與 55 取代 `w17_B_apply.sql` 一樣二擇一）。
+4. **編號殘留**：80 的檔頭、前置說明、錯誤訊息與 rollback 仍寫「草稿 60」（調店草稿後來改為 65）；15 檔頭寫成「草稿 10」；65 rollback 引用不存在的 `60_..backup.sql`；80 檔頭與 rollback 說 30 會呼叫名冊重算（實際只有 65）；本檔 80 的前置寫「60」。全部改正。
+5. **verify 缺漏**：20 的版本觸發器函式 `workspace_task_child_version` 等、80 的 `workspace_extract_store_code` 沒有驗證列；備援開關草稿根本沒有 verify。已補（備援開關主檔與 rollback 內容未動，新增獨立的 `.verify.sql`）。
+6. **20 rollback 順序提醒**：若已套用 60，必須先還原 60（60 的 `workspace_save_task_v2` 要寫 20 的收據表）。已在檔頭補上。
+7. **補一份前置檢查 `05_legacy_covered_check.verify.sql`**：DEV 有 5 支遷移（盤點再次報表版本、處方箋月報、獎金相容欄位、年度行事曆 W23／W24、個人行程讀取修正）不需新草稿，但要確認正式區真的已有；另外確認 `has_permission` 沒有 admin 繞過、不檢查 `roles.is_active`（草稿的共同假設）。
+
+審查後仍保留、但要老闆知道的行為（不是錯誤）
+
+- 65 的確認／更正：`profiles.role = 'admin'` 若沒被授予 `employee.store_transfer.confirm`，資料庫端會擋（DEV 對 `profiles.role = 'admin'` 是放行的）。通過權限後，管理員仍可「代確認」（留 `is_proxy` 紀錄）；這是範圍判斷，不是權限繞過。
+- 15 的兩個 INSERT 觸發器會讓舊版「入職異動」「每月人員狀態手動新增」在員編不合規時失敗（先看 `.preview.sql`）。
+- 90 上線後，任何寫入巡店總分／狀態的路徑（含舊版網站）評級都以資料庫對照表為準。
+- 55 逾期回報回補 0、改按台灣日期算天數，是新行為。
+- 30 的 pg_cron 排程只在已安裝時建立；沒裝就要手動呼叫 `workspace_apply_due_promotions()`。
+- 既有 m6 草稿 `20261123140000_m6_clinic_selfpay_bucket.rollback.sql` 也是用 `DELETE FROM storage.buckets` 刪桶，同樣可能被 Storage 保護觸發器擋下（本次審查範圍是 m9，沒有動它；要用時請改走 Dashboard）。
+
+## 需要老闆決定的事
+
+1. **誰能確認／更正調店**：先用權限勾選頁把 `employee.store_transfer.confirm` 授權給管理員角色與督導角色，再開新版調店頁；否則管理員也會被擋（65）。
+2. **誰能看停用門市、門市管理**：70 新建的 5 個 `store.store.*` 權限碼沒有授權任何人，要在勾選頁授權；管理員角色已有 `store.manage`，仍讀得到停用門市。
+3. **15 的員編規則要不要先擋**：先跑 `.preview.sql`；若舊版近期仍有不合規員編的入職或手動新增，決定要不要先不裝那兩個觸發器。
+4. **評級以誰為準（90）與逾期回補 0（55）**：上線當下對照表若與舊版寫死值不同，舊版新單的評級會跟著對照表走；看 90 verify 第 6 項再決定。
+5. **要不要安裝 pg_cron（30）**：不裝就沒有自動生效的未來升遷，要人工呼叫。
+6. **m3 的兩份補授權草稿**：新規則是「授權由勾選頁決定」，`grant_task_view_archived_B_grant.sql`、`grant_task_manage_B_grant.sql` 是舊的 SQL 補授權，請決定改用勾選頁或照舊執行。
+7. **既有 m6 自費診所截圖桶**：套用前確認正式區那個桶是私有；改回私有後，用公開網址讀截圖的地方會失效（新舊版都用簽名網址不受影響）。
+8. **維護窗口與備份**：30、65、80 各自備份 `store_employees` 等人員表（備份表不同名）。建議同一個窗口內依序執行，最後一次備份之後不要再有人員異動寫入；上線前確認 `05_legacy_covered_check.verify.sql` 全綠。
+9. **舊草稿 w17_B／w18_B 不要再執行**：已由 55、90 取代；若老闆已經在正式區執行過其中一份，請先告知，再決定 55／90 是否要調整備份基準。
