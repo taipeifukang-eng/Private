@@ -294,7 +294,7 @@
 ## 權限授權（95，2026-11-24 已決定）
 
 - 檔案：`95_role_permission_grants.sql`（只開不關、可重複執行）、`.verify.sql`（33 列 ok 全 true）、`.rollback.sql`（依 `m9_role_grant_log` 只撤本檔新增或打開的列）。由 `scripts/m9-perm-checklist/grant.cjs` 依權限勾選頁答案產生；操作頁放在「切換開新版」前一步。
-- 共 33 組：管理員 19、督導角色 7（調店確認、盤點分析看自己門市、督導管理日誌 5 碼含 view_own）、盤點組 2、業務督導 3（盤點匯入、盤點分析、task.manage）、總務與商品助理 task.view_archived。
+- 共 33 組：管理員 18、督導角色 7（調店確認、盤點分析看自己門市、督導管理日誌 5 碼含 view_own）、店長角色 1（盤點分析看自己門市）、盤點組 2、業務督導 3（盤點匯入、盤點分析、task.manage）、總務與商品助理 task.view_archived。
 - 老闆決定（勾選頁＋對話確認）：**總務服務中心整組先只給管理員**，總務角色與店長角色 12/8 都不授權 `general_affairs.*`，之後要開放再另做授權；請款查看／管理給管理員；`cross_dept.maintenance.update` 只給管理員。
 - `store.store.*` 5 碼不授權：選單與停用門市讀取都接受既有的 `store.manage`。
 - 2026-11-24 已在 DEV 實跑：授權、重跑（冪等）、檢查、撤回後 `role_permissions` 雜湊與筆數和執行前一致（DEV 只有 admin 角色，其他角色顯示「找不到角色」屬預期）。
