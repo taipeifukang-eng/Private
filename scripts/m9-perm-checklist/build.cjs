@@ -265,7 +265,9 @@ function buildHtml({ items, losses = [], roleNotes = [], inventory }) {
 <li>新權限<b>只新增，不會自動給任何人</b>；沒勾就沒人有。</li>
 <li>每一項的<b>建議已經預先勾好</b>，不改直接送出就是採用建議。</li>
 <li><span class="red">紅框、標「敏感」</span>的權限會碰到金額、廠商帳務、刪除或強制結案，請特別看一眼。</li>
-<li>下方每個角色都標了<b>正式區目前人數</b>；人數 0 的角色收在「其他角色」裡。請款付款兩項依你的決定預設都不勾。</li></ul>
+<li>下方每個角色都標了<b>正式區目前人數</b>；人數 0 的角色收在「其他角色」裡。請款付款兩項依你的決定預設都不勾。</li>
+<li>「頁面回舊版開關」與「AI 語音用量設定」只有系統管理員能用，不是權限碼，不需要在這裡勾。</li>
+<li>盤點的「看／匯入／刪除」三項各有一張卡；預設只維持正式區目前持有的角色，不多給。</li></ul>
 <ul class="roles-strip">${strip}</ul>
 <details><summary>各角色說明</summary>${notes}</details></div>
 <div class="notice" id="nodb" style="display:none">目前沒有儲存服務，無法直接送出。按「送出」後會顯示一段可複製的文字，請貼給 Claude。</div>

@@ -101,24 +101,37 @@ describe('grant.cjs', () => {
   };
   const r = grant.generate(doc);
 
-  it('授權可重複執行：NOT EXISTS、只 INSERT、不 DELETE', () => {
-    expect(r.grant).toContain('NOT EXISTS');
+  it('授權可重複執行：只開不關、不 DELETE', () => {
+    expect(r.grant).toContain('rp.is_allowed IS NOT TRUE');
     expect(r.grant).toContain('INSERT INTO public.role_permissions');
-    expect(r.grant).not.toMatch(/\bDELETE\b|\bUPDATE\b|\bDROP\b|\bTRUNCATE\b/i);
+    expect(r.grant).toContain('SET is_allowed = true');
+    expect(r.grant.replace(/ON COMMIT DROP/g, "")).not.toMatch(/\bDELETE\b|\bDROP\b|\bTRUNCATE\b|is_allowed\s*=\s*false/i);
+    expect(r.grant.match(/\bUPDATE\b/g)).toHaveLength(1);
     expect(r.grant).toContain('CREATE TABLE IF NOT EXISTS public.m9_role_grant_log');
     expect(r.grant).toContain("('general_affairs', 'general_affairs.request.create')");
   });
 
   it('去重：同一配對只出現一次', () => {
     expect(r.pairs).toHaveLength(2);
-    expect(r.grant.match(/'store_manager_role', 'general_affairs\.request\.create'/g)).toHaveLength(1);
+    expect(r.grant.match(/'store_manager_role', 'general_affairs\.request\.create'/g)).toHaveLength(2); // 待處理清單與結果查詢各一次
   });
 
   it('請款預設不出現在授權裡', () => {
     for (const s of [r.grant, r.rollback, r.verify]) expect(s).not.toContain('purchase_payment');
   });
 
-  it('rollback 只刪 log 內的列', () => {
+  it('授權後列出每組結果，找不到的角色或權限碼會顯示', () => {
+    expect(r.grant).toContain('找不到權限碼');
+    expect(r.grant).toContain('找不到角色');
+  });
+
+  it('原本被關閉的列：授權時打開、rollback 改回關閉，不刪', () => {
+    expect(r.grant).toContain('prev_denied');
+    expect(r.rollback).toMatch(/UPDATE public\.role_permissions rp SET is_allowed = false[\s\S]*WHERE l\.prev_denied/);
+    expect(r.rollback).toMatch(/DELETE FROM public\.role_permissions[\s\S]*WHERE NOT l\.prev_denied/);
+  });
+
+  it('rollback 只動 log 內的列', () => {
     expect(r.rollback).toContain('USING public.m9_role_grant_log');
     expect(r.rollback).toMatch(/DELETE FROM public\.role_permissions/);
     expect(r.rollback).not.toContain('general_affairs.request.create');
