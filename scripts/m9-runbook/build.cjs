@@ -400,14 +400,19 @@ function buildModel(opts) {
     expect: '檢查 SQL 剛好 1 列：schedule 是「5 16 * * *」，active 是 true。12/8 早上再跑「最近執行結果」，status 應為 succeeded（00:05 之後才會有紀錄）。',
     minutes: 4, rollbackText: '', previewJudge: '', commitText: '',
   };
+  const AUTH_BASE = path.join(PLAN_DIR, 'm9-sql', '95_role_permission_grants');
   extra.auth = {
-    id: 'x-auth', readmeNo: null, title: '新權限授權（待權限勾選頁產生後補上）', kind: 'manual', kindLabel: '待補（占位）', optional: false, placeholder: true,
-    what: '占位步驟：資料表與函式都建完後、開啟新版之前，要用「權限勾選頁」決定哪些角色拿到新權限。勾選頁還沒做好，這一步先預留，做好後 Claude 會把內容補進來。補好之前不要開啟新版。',
-    backupText: '', blocks: { backup: [], preview: [], main: [], commit: [], verify: [], rollback: [] },
-    stops: [{ where: 'main', title: '這一步還沒有內容，不能直接勾完成', body: '待權限勾選頁產生後補上。要補進來的授權包括：調店確認／更正 employee.store_transfer.confirm（授權給管理員角色與督導角色）、門市 5 個 store.store.* 權限碼、m3 的 task.view_archived 與 task.manage（原本的兩份補授權 SQL 不執行，R3）、總務第 4 批採購單 1 個權限碼與第 4.5 批請款 2 個權限碼。沒有補上就不要往下做「切換開新版」。' }],
-    cautions: [],
-    manualText: '待權限勾選頁產生後補上。\n（Claude 補上內容後，這張卡會改成一步一步的授權操作與檢查。）',
-    expect: '', minutes: 15, rollbackText: '', previewJudge: '', commitText: '',
+    id: 'x-auth', readmeNo: null, title: '新權限授權（依權限勾選頁的決定）', kind: 'addmodify', kindLabel: '新增＋會改既有資料', optional: false,
+    what: '依老闆在權限勾選頁送出的決定（2026-11-24，另在對話確認：總務服務中心先只給管理員、督導加回「看自己的管理日誌」），一次授權 33 組「角色＋權限」。只開不關：已有的不動，原本被關閉的打開。授權前的狀態記到 m9_role_grant_log，撤回只撤這一步加的。',
+    backupText: '', blocks: { backup: [], preview: [],
+      main: [{ label: '授權 33 組（可重複執行）', file: 'm9-sql/95_role_permission_grants.sql', sql: readUtf8(AUTH_BASE + '.sql') }],
+      commit: [],
+      verify: [{ label: '檢查：33 列都要 ok = true', file: 'm9-sql/95_role_permission_grants.verify.sql', sql: readUtf8(AUTH_BASE + '.verify.sql') }],
+      rollback: [{ label: '撤回：只撤本步驟新增或打開的授權', file: 'm9-sql/95_role_permission_grants.rollback.sql', sql: readUtf8(AUTH_BASE + '.rollback.sql') }] },
+    stops: [VERIFY_STOP],
+    cautions: ['前置：補建權限碼那一步（{{15}}）、總務第 4 批與第 4.5 批的權限碼步驟都要先完成，否則有些配對會顯示「找不到」。', '總務服務中心這次刻意只給管理員：總務同仁與店長 12/8 起進不了總務服務中心，之後要開放再另外做一份授權。'],
+    expect: '授權 SQL 最後一個查詢逐列列出結果，沒有「找不到」。檢查 SQL 33 列 ok 全部 true。',
+    minutes: 10, rollbackText: '', previewJudge: '', commitText: '',
   };
   extra.cutover = {
     id: 'x-cutover', readmeNo: null, title: '切換開新版', kind: 'manual', kindLabel: '手動操作', optional: false,

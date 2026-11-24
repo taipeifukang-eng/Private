@@ -200,7 +200,8 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     expect([...files].some((f) => /grant_task_manage_B_grant/.test(f))).toBe(false);
     expect([...files].some((f) => /grant_task_view_archived_B_grant/.test(f))).toBe(false);
     expect([...files].some((f) => /grant_task_(manage|view_archived)_C_rollback/.test(f))).toBe(false);
-    for (const s of model.steps) {
+    // 例外：x-auth 是權限勾選頁產生的 95 授權檔，R3 就是要把 task.* 補授權併入勾選頁
+    for (const s of model.steps.filter((x: any) => x.id !== 'x-auth')) {
       for (const b of allBlocks(s)) {
         expect(/INSERT INTO\s+(public\.)?role_permissions/i.test(b.sql) && /task\.(manage|view_archived)/.test(b.sql), `${s.id} ${b.label}`).toBe(false);
       }
@@ -248,7 +249,7 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     expect(idx('x-cron-schedule')).toBe(idx('x-cron-enable') + 1);
   });
 
-  it('授權占位步驟：在全部資料表與函式步驟之後、切換開新版之前', () => {
+  it('授權步驟：在全部資料表與函式步驟之後、切換開新版之前', () => {
     const idx = (id: string) => model.steps.findIndex((s: any) => s.id === id);
     const auth = idx('x-auth');
     const cutover = idx('x-cutover');
@@ -259,9 +260,18 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     expect(auth).toBeGreaterThan(idx('x-cron-schedule'));
     // 緊接在切換開新版之前
     expect(cutover).toBe(auth + 1);
-    expect(model.steps[auth].placeholder).toBe(true);
-    expect(model.steps[auth].what).toMatch(/待權限勾選頁產生後補上|勾選頁/);
-    expect(model.steps[auth].title).toMatch(/待權限勾選頁產生後補上/);
+    const a = model.steps[auth];
+    expect(a.placeholder).toBeFalsy();
+    expect(a.title).not.toMatch(/待/);
+    expect(a.blocks.main[0].file).toBe('m9-sql/95_role_permission_grants.sql');
+    expect(a.blocks.verify[0].file).toBe('m9-sql/95_role_permission_grants.verify.sql');
+    expect(a.blocks.rollback[0].file).toBe('m9-sql/95_role_permission_grants.rollback.sql');
+    // 勾選頁決定 + 對話確認：33 組；督導有 view_own；總務角色沒有 general_affairs.*
+    const main = a.blocks.main[0].sql;
+    expect(main).toContain("('supervisor_role', 'supervisor.management_log.view_own')");
+    expect(main).not.toContain("('general_affairs', 'general_affairs.");
+    expect(main).not.toContain("('store_manager_role', 'general_affairs.");
+    expect((a.blocks.verify[0].sql.match(/^\s+\('[a-z_]+', '[a-z_.]+'\)/gm) || []).length).toBe(33);
   });
 
   it('最後兩步是「切換開新版」與「回舊版開關確認」，回舊版確認引用 16 號步驟（備援開關）的 verify 檔', () => {
