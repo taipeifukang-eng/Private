@@ -342,3 +342,31 @@ describe('M9 正式區逐步操作頁：頁面內容', () => {
     expect(model.meta.estMinutes).toBeGreaterThan(60);
   });
 });
+
+describe('M9 正式區逐步操作頁：審查補強', () => {
+  it('文字裡引用的步驟序號是頁面上實際顯示的序號，不留未解析的標記', () => {
+    const all = JSON.stringify(model.steps.map((s: any) => ({ ...s, blocks: undefined })));
+    expect(all).not.toMatch(/\{\{\d+\}\}/);
+    expect(all).not.toMatch(/\d+ 號步驟/);
+    const s15 = model.steps.find((s: any) => s.readmeNo === 15);
+    const fb = model.steps[model.steps.length - 1];
+    expect(fb.what).toContain(`第 ${s15.no} 步`);
+  });
+
+  it('BEGIN 開頭的撤回檔（81 號）也提醒要另外 COMMIT', () => {
+    const s = model.steps.find((x: any) => x.readmeNo === 81);
+    expect(s.rollbackText).toMatch(/COMMIT;/);
+  });
+
+  it('36 號（自費診所截圖桶）先記下既有桶現況，且那段 SQL 只有 SELECT', () => {
+    const s = model.steps.find((x: any) => x.readmeNo === 36);
+    expect(s.blocks.backup.length).toBe(1);
+    expect(isReadOnly(s.blocks.backup[0].sql)).toBe(true);
+  });
+
+  it('db 進度儲存：沒有 db 退回本機、一次一筆寫入、逾時等原寫入結束', () => {
+    expect(html).toContain('cloud.inflight = true');
+    expect(html).toContain('await p;');
+    expect(html).toContain('scheduleRetry');
+  });
+});

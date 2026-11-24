@@ -232,7 +232,7 @@
   }
 
   /* ---------- 雲端同步（db capability；沒有就只存本機） ---------- */
-  var cloud = { ref: null, exists: false, inflight: false, dirty: {}, timer: null, failed: false, unsub: null };
+  var cloud = { ref: null, exists: false, inflight: false, dirty: {}, timer: null, retry: null, failed: false, unsub: null };
   function setSync(kind, extra) {
     var el = $('sync');
     var txt = {
@@ -279,11 +279,11 @@
     if (!cloud.ref || cloud.inflight) return;
     var ids = Object.keys(cloud.dirty);
     if (!ids.length) return;
-    cloud.inflight = true;
+    cloud.inflight = true; // 同一份文件一次只寫一筆：要等這筆真的結束（成功或失敗）才放行下一筆
     cloud.dirty = {};
     setSync('saving');
+    var p;
     try {
-      var p;
       if (cloud.exists) {
         var patch = {};
         ids.forEach(function (id) { patch[id] = state[id]; });
@@ -291,17 +291,28 @@
       } else {
         p = cloud.ref.set({ steps: JSON.parse(JSON.stringify(state)) });
       }
+    } catch (e0) { p = Promise.reject(e0); }
+    p = Promise.resolve(p);
+    try {
       await withTimeout(p, 10000);
       cloud.exists = true;
       cloud.failed = false;
       setSync('synced');
     } catch (e) {
+      var timedOut = !!(e && e.message === 'timeout');
       ids.forEach(function (id) { cloud.dirty[id] = true; });
       cloud.failed = true;
-      setSync(e && e.message === 'timeout' ? 'slow' : 'fail');
+      setSync(timedOut ? 'slow' : 'fail');
+      // 逾時時原本那筆可能還在路上：等它結束再放行，避免兩筆同時寫同一份文件
+      if (timedOut) { try { await p; cloud.exists = true; cloud.failed = false; setSync('synced'); } catch (e2) { /* 維持 slow／fail */ } }
     }
     cloud.inflight = false;
     if (!cloud.failed && Object.keys(cloud.dirty).length) flush();
+    else if (cloud.failed) scheduleRetry();
+  }
+  function scheduleRetry() {
+    clearTimeout(cloud.retry);
+    cloud.retry = setTimeout(function () { cloud.failed = false; flush(); }, 20000); // 連不上時每 20 秒自動再試一次
   }
   async function initCloud() {
     setSync('connecting');

@@ -191,6 +191,11 @@ const BACKUP_GA_VENDORS_SQL = `-- 備份 ga_vendors（整張複製；表已存�
 CREATE TABLE IF NOT EXISTS public.zz_bak_b6_ga_vendors AS SELECT * FROM public.ga_vendors;
 SELECT (SELECT count(*) FROM public.ga_vendors) AS source_rows, (SELECT count(*) FROM public.zz_bak_b6_ga_vendors) AS backup_rows;
 `;
+const BUCKET_STATE_SQL = `-- 記錄「自費診所截圖」桶套用前的設定（唯讀）。要撤回時，依這份記錄人工調回原設定。
+SELECT id, name, public, file_size_limit, allowed_mime_types
+FROM storage.buckets
+WHERE id = 'clinic-selfpay-screenshots';
+`;
 const COMMIT_SQL = 'COMMIT;\n';
 const ROLLBACK_SQL = 'ROLLBACK;\n';
 
@@ -227,20 +232,20 @@ const NO_VERIFY_FILE = '畫面下方出現 Success（成功）、沒有紅色錯
 
 // 特定步驟的停止點 / 提醒（where: preview | main | verify）
 const STOPS = {
-  7: [{ where: 'main', title: '評級對照和舊版寫死值不同就停下', body: '第 1 段的 diff 欄如果有 true，或第 4 段不一致不是 0，先不要做 25 號步驟，把截圖給 Claude 決定（老闆決定事項 4）。' }],
-  25: [{ where: 'main', title: '先確認 7 號步驟的評級對照是「相同」', body: '如果 7 號步驟看到評級對照和舊版寫死值不同，請先停下聯絡 Claude；上線後新單的評級會跟著資料庫對照表走。' }],
+  7: [{ where: 'main', title: '評級對照和舊版寫死值不同就停下', body: '第 1 段的 diff 欄如果有 true，或第 4 段不一致不是 0，先不要做{{25}}，把截圖給 Claude 決定（老闆決定事項 4）。' }],
+  25: [{ where: 'main', title: '先確認{{7}}的評級對照是「相同」', body: '如果{{7}}看到評級對照和舊版寫死值不同，請先停下聯絡 Claude；上線後新單的評級會跟著資料庫對照表走。' }],
   27: [{ where: 'preview', title: 'R1 員編規則：預覽有「近期仍在用的不合規員編」就停下', body: '先跑下面的預覽（15 的 .preview.sql）。若列出近期仍在用的不合規員編（舊版近期的入職異動或手動新增用了 FKI、留空、大小寫不一致等），不要貼主檔，停下來聯絡 Claude，不繼續後面的步驟。看不出來是不是「近期仍在用」也停下問。老闆已決定員編規則觸發器要裝，但前提是預覽乾淨。' }],
-  59: [{ where: 'main', title: '這步會收緊工單權限：名單沒確認前先不要做', body: '總表標示「驗收並補授權後才執行」。若還沒和 Claude 確認過 55 號預覽的第 6、7 區名單，這一步先不要貼，直接問 Claude（不要勾完成）。' }],
+  59: [{ where: 'main', title: '這步會收緊工單權限：名單沒確認前先不要做', body: '總表標示「驗收並補授權後才執行」。若還沒和 Claude 確認過{{55}}預覽的第 6、7 區名單，這一步先不要貼，直接問 Claude（不要勾完成）。' }],
   63: [{ where: 'main', title: '檔案若列出重複統編並中止，就停下', body: '這份開頭會檢查重複統編；有重複就自己中止並列出名單。看到名單不要硬跑，截圖給 Claude 先整理重複資料。' }],
-  68: [{ where: 'main', title: '這步會收緊廠商權限：名單確認前不得做', body: '總表標示「名單確認前不得套用」。60 號預覽第 6、7、8 區的名單沒和 Claude 確認過，這一步先不要貼，直接問 Claude（不要勾完成）。' }],
+  68: [{ where: 'main', title: '這步會收緊廠商權限：名單確認前不得做', body: '總表標示「名單確認前不得套用」。{{60}}預覽第 6、7、8 區的名單沒和 Claude 確認過，這一步先不要貼，直接問 Claude（不要勾完成）。' }],
 };
 const CAUTIONS = {
   5: ['這份要先改檔內的名單才有結果（預設是佔位文字）。老闆已決定補授權改由權限勾選頁處理，沒有要預覽名單就跳過這一步（選用）。'],
-  18: ['這份和 29 號步驟（調店確認與更正）裡的階段回填內容相同，總表寫「二擇一即可」；照總表仍列在這裡，做完沒問題後 29 號會再跑一次也無妨。'],
-  23: ['前置：22 號（任務核心）必須先做完。'],
-  29: ['如果 18 號步驟已經跑過備份，這裡的備份檔會因為「已存在就不覆蓋」而保留 18 號當時的備份，這是正常的。'],
+  18: ['這份和{{29}}（調店確認與更正）裡的階段回填內容相同，總表寫「二擇一即可」；照總表仍列在這裡，做完沒問題後{{29}}會再跑一次也無妨。'],
+  23: ['前置：{{22}}（任務核心）必須先做完。'],
+  29: ['如果{{18}}已經跑過備份，這裡的備份檔會因為「已存在就不覆蓋」而保留{{18}}當時的備份，這是正常的。'],
   36: ['套用前先確認正式區既有的「自費診所截圖」桶是私有的：這份會把同名桶改回私有、上限 10MB。用公開網址讀截圖的地方會失效（新舊版都用簽名網址則不受影響）。'],
-  81: ['這份是選用：要先看過「9 號步驟」中的停用活動名單，決定要改回啟用的活動，並把 id 填進檔內暫存表；沒有要改就整步跳過（保持不勾）。'],
+  81: ['這份是選用：要先看過「{{9}}」中的停用活動名單，決定要改回啟用的活動，並把 id 填進檔內暫存表；沒有要改就整步跳過（保持不勾）。'],
 };
 const PREVIEW_JUDGE = {
   28: '預覽看一下現況；pg_cron 是否已安裝這欄現在可能是 false，這是預期的（排程另外在後面步驟處理）。',
@@ -314,10 +319,11 @@ function buildModel(opts) {
     if (/rollback\.sql/.test(rs.rollback) && !blocks.rollback.length) throw new Error('README 第 ' + rs.no + ' 步列有 rollback 檔但找不到：' + rs.rollback);
 
     // 特例
-    if (rs.no === 18) blocks.backup.push(fileBlock(planDir, 'm9-sql/65_transfer_confirm_correct_batch.backup.sql', '備份：65_transfer_confirm_correct_batch.backup.sql（與 29 號步驟共用）'));
+    if (rs.no === 18) blocks.backup.push(fileBlock(planDir, 'm9-sql/65_transfer_confirm_correct_batch.backup.sql', '備份：65_transfer_confirm_correct_batch.backup.sql（與{{29}}共用）'));
     if (rs.no === 61) blocks.backup.push({ label: '備份：ga_vendors（本產生器內建）', file: '', sql: BACKUP_GA_VENDORS_SQL });
     if (rs.no === 70) blocks.backup.push({ label: '備份：進貨兩張表（照 m7m8-sql/README.md 第 4.5 批的備份指令）', file: 'm7m8-sql/README.md', sql: extractB45Backup(planDir) });
 
+    if (rs.no === 36) blocks.backup.push({ label: '備份：先記下既有桶現況（唯讀，複製結果存記事本；沒有列代表桶還不存在）', file: '', sql: BUCKET_STATE_SQL });
     if (rs.no === 26) {
       const m = blocks.main[0].sql.match(/--\s+(CREATE TABLE IF NOT EXISTS public\.bak_inspection_masters_20261124 AS SELECT \* FROM public\.inspection_masters;)/);
       if (!m) throw new Error('50_inspection_write_core.sql 檔頭找不到選用備份指令');
@@ -355,7 +361,8 @@ function buildModel(opts) {
       backupText, readmeBackup: rs.backup, readmeRollback: rs.rollback,
       blocks, stops, cautions, expect, previewJudge: PREVIEW_JUDGE[rs.no] || '',
       commitText: needC ? '這份檔案不會自己提交。看過上面的核對結果沒問題，就貼 COMMIT; 單獨執行；有疑慮就貼 ROLLBACK;。忘了的話連線結束會自動回滾，等於沒做。' : '',
-      rollbackText: blocks.rollback.length || /無檔|交易內/.test(rs.rollback) ? '總表說明：' + rs.rollback + (blocks.rollback.length ? '' : '（沒有撤回檔）') : '',
+      rollbackText: (blocks.rollback.length || /無檔|交易內/.test(rs.rollback) ? '總表說明：' + rs.rollback + (blocks.rollback.length ? '' : '（沒有撤回檔）') : '')
+        + (blocks.rollback.some((b) => needsCommit(b.sql)) ? '　注意：這份撤回檔也是 BEGIN; 開頭、沒有自己的 COMMIT;，貼上看過結果後要另外貼 COMMIT; 才會真的還原。' : ''),
       natureReadme: rs.nature,
     };
     if (rs.no === 9) step.cautions.push('一次只貼一份，貼之前先清空編輯器。15 份可以不分先後。');
@@ -369,14 +376,14 @@ function buildModel(opts) {
     id: 'x-r4', readmeNo: null, title: 'R4 判斷：舊草稿 w17_B／w18_B 跑過沒有', kind: 'readonly', kindLabel: '唯讀', optional: false,
     what: '用唯讀查詢自動判斷正式區有沒有跑過舊草稿 w17_B（改善回補）或 w18_B（評級快照）。m9 的 55、90 已取代它們，兩者擇一。結果決定後面 55、90 能不能照常做。',
     backupText: '', blocks: { backup: [], preview: [], main: [{ label: 'R4 判斷查詢（本產生器內建，唯讀）', file: '', sql: R4_CHECK_SQL }], commit: [], verify: [], rollback: [] },
-    stops: [{ where: 'main', title: 'R4：結論欄是 STOP 就停下來聯絡 Claude', body: '結論欄（conclusion）若以 STOP 開頭，代表舊草稿 w17_B 或 w18_B 疑似在正式區跑過，或 55／90 的備份表已存在。不要繼續做 55、90（階段 1 的 24、25 號步驟）及後面的步驟，截圖給 Claude。' }],
+    stops: [{ where: 'main', title: 'R4：結論欄是 STOP 就停下來聯絡 Claude', body: '結論欄（conclusion）若以 STOP 開頭，代表舊草稿 w17_B 或 w18_B 疑似在正式區跑過，或 55／90 的備份表已存在。不要繼續做 55、90（階段 1 的{{24}}、{{25}}）及後面的步驟，截圖給 Claude。' }],
     cautions: [],
     expect: '結果只有 1 列。結論欄寫「OK：兩份舊草稿都沒跑過，可以繼續」才算通過（欄位 w17_B_looks_applied、w18_B_looks_applied 都是 false）。\n結果 A（OK）：沒跑過，勾「已完成」「檢查通過」，照順序繼續。\n結果 B（STOP）：跑過，停下，截圖給 Claude。原因：55、90 會把「已被舊草稿改過的函式」當成原始版備份，之後撤回只能回到舊草稿版而不是最原始版；Claude 會先判斷 55／90 的備份基準是否需要調整（舊草稿自己的備份表 m4_w17_backup、m4_w18_backup 裡有最原始版本），再告訴你繼續還是調整。',
     minutes: 3, rollbackText: '', previewJudge: '', commitText: '',
   };
   extra.cronEnable = {
     id: 'x-cron-enable', readmeNo: null, title: '啟用 pg_cron 擴充', kind: 'manual', kindLabel: '手動操作（後台）', optional: false,
-    what: '在 Supabase 後台啟用 pg_cron，讓「生效日到了的升遷」每天自動生效（老闆決定 R2：要開）。放在 30 號步驟之後，是為了避免草稿 30 一偵測到 pg_cron 就自己建「每分鐘」排程。',
+    what: '在 Supabase 後台啟用 pg_cron，讓「生效日到了的升遷」每天自動生效（老闆決定 R2：要開）。放在{{30}}之後，是為了避免草稿 30 一偵測到 pg_cron 就自己建「每分鐘」排程。',
     backupText: '', blocks: { backup: [], preview: [], main: [], commit: [], verify: [{ label: '檢查：pg_cron 已啟用（唯讀）', file: '', sql: CRON_ENABLE_CHECK_SQL }], rollback: [] },
     stops: [], cautions: [],
     manualText: '1. 打開 Supabase 後台，確認左上角是「正式區」專案。\n2. 左側選 Database，再選 Extensions。\n3. 搜尋 pg_cron，把開關打開（schema 用預設即可）。\n4. 開好後，貼下面的檢查 SQL 執行。',
@@ -387,7 +394,7 @@ function buildModel(opts) {
     id: 'x-cron-schedule', readmeNo: null, title: '建立每日升遷生效排程（台北 00:05）', kind: 'add', kindLabel: '新增', optional: false,
     what: '建立排程：每天台北時間 00:05 執行 workspace_apply_due_promotions()。pg_cron 用 UTC，台北 00:05 就是 UTC 16:05（前一天），所以寫成 5 16 * * *。',
     backupText: '', blocks: { backup: [], preview: [], main: [{ label: '建立排程（本產生器內建）', file: '', sql: CRON_SCHEDULE_SQL }], commit: [], verify: [{ label: '檢查：排程是否存在', file: '', sql: CRON_CHECK_SQL }, { label: '隔天早上再看：最近執行結果', file: '', sql: CRON_RUNS_SQL }], rollback: [{ label: '撤回：取消排程', file: '', sql: CRON_UNSCHEDULE_SQL }] },
-    stops: [VERIFY_STOP], cautions: ['前置：上一步（pg_cron 已啟用）與 30 號步驟（異動批次與每月人員名冊，才有最終版的 workspace_apply_due_promotions）都要完成。'],
+    stops: [VERIFY_STOP], cautions: ['前置：上一步（pg_cron 已啟用）與{{30}}（異動批次與每月人員名冊，才有最終版的 workspace_apply_due_promotions）都要完成。'],
     expect: '檢查 SQL 剛好 1 列：schedule 是「5 16 * * *」，active 是 true。12/8 早上再跑「最近執行結果」，status 應為 succeeded（00:05 之後才會有紀錄）。',
     minutes: 4, rollbackText: '', previewJudge: '', commitText: '',
   };
@@ -412,14 +419,14 @@ function buildModel(opts) {
   };
   extra.fallback = {
     id: 'x-fallback', readmeNo: null, title: '回舊版開關確認', kind: 'manual', kindLabel: '手動操作', optional: false,
-    what: '確認「回舊版」的備援開關可用：15 號步驟建好的兩張表在，系統管理員的「頁面回舊版設定」管理頁打得開。出問題時，管理員能單頁切回舊版，不需要重新部署。',
+    what: '確認「回舊版」的備援開關可用：{{15}}建好的兩張表在，系統管理員的「頁面回舊版設定」管理頁打得開。出問題時，管理員能單頁切回舊版，不需要重新部署。',
     backupText: '', blocks: { backup: [], preview: [], main: [], commit: [], verify: [], rollback: [] },
     stops: [], cautions: [],
-    manualText: '1. 先貼下面的檢查 SQL（和 15 號步驟用的是同一份，唯讀），確認備援開關的表與函式都在。\n2. 用系統管理員帳號登入新版，打開「頁面回舊版設定」管理頁。\n3. 管理頁能打開、看得到頁面清單（不用真的切換任何一頁）。若想試一下：切一頁到舊版，確認選單改開舊版，馬上切回新版，並確認稽核紀錄有記到。\n4. 管理頁若出現「儲存失敗（503）」，代表 15 號步驟的表沒建好，停下問 Claude。',
+    manualText: '1. 先貼下面的檢查 SQL（和{{15}}用的是同一份，唯讀），確認備援開關的表與函式都在。\n2. 用系統管理員帳號登入新版，打開「頁面回舊版設定」管理頁。\n3. 管理頁能打開、看得到頁面清單（不用真的切換任何一頁）。若想試一下：切一頁到舊版，確認選單改開舊版，馬上切回新版，並確認稽核紀錄有記到。\n4. 管理頁若出現「儲存失敗（503）」，代表{{15}}的表沒建好，停下問 Claude。',
     expect: '檢查 SQL 每一列 ok 都是 true；管理頁打得開、看得到清單。',
     minutes: 10, rollbackText: '', previewJudge: '', commitText: '',
   };
-  // 備援開關的檢查 SQL 直接讀 15 號步驟用的 verify 檔（逐字）
+  // 備援開關的檢查 SQL 直接讀{{15}}用的 verify 檔（逐字）
   extra.fallback.blocks.verify.push(fileBlock(planDir, 'm9-sql/20261123150000_m9_page_fallbacks.verify.sql', '檢查：20261123150000_m9_page_fallbacks.verify.sql'));
   extra.fallback.stops.push(VERIFY_STOP);
 
@@ -430,7 +437,7 @@ function buildModel(opts) {
   const rs = (a, b) => { const r = []; for (let i = a; i <= b; i++) if (readmeSteps[i]) r.push(readmeSteps[i]); return r; };
   const stageTitle = (i) => readmeStages[i].title.replace('　', '　');
   addStage('0', stageTitle(0), '0 上線前唯讀檢查', '只有 SELECT，不改任何資料，可全部先跑；最後一步是 R4 判斷。', [...rs(1, 14), extra.r4]);
-  addStage('1', stageTitle(1), '1 M9 資料庫草稿', '照序號一步一步做，不能換順序（資料庫相依）。30 號之後接著設定每日升遷排程。', [...rs(15, 30), extra.cronEnable, extra.cronSchedule]);
+  addStage('1', stageTitle(1), '1 M9 資料庫草稿', '照序號一步一步做，不能換順序（資料庫相依）。{{30}}之後接著設定每日升遷排程。', [...rs(15, 30), extra.cronEnable, extra.cronSchedule]);
   addStage('2', stageTitle(2), '2 客務、商品、語音、處方箋', '', rs(31, 37));
   addStage('3', stageTitle(3), '3 總務（第 1 到 6 批與第 4.5 批）', '每批先跑預覽再套用；撤回順序相反。', rs(38, 80));
   addStage('4', '階段 4　選用步驟（預設不做）', '4 選用', '原本總表階段 4 的授權類與舊草稿步驟已依老闆決定處理：補授權兩份不執行（改由權限勾選頁）、w17_B／w18_B 不執行（已由 55、90 取代）。只剩一個選用步驟。', rs(81, 81));
@@ -443,6 +450,22 @@ function buildModel(opts) {
     st.items.forEach((s) => { no += 1; s.no = no; order.push(s); ids.push(s.id); });
     return { id: st.id, title: st.title, short: st.short, intro: st.intro, stepIds: ids };
   });
+
+  // 文字裡的{{N}} 是「總表第 N 步」，換成頁面上實際顯示的序號（階段 0 多了 R4 判斷等，序號會和總表差幾號）
+  const noByReadme = {};
+  order.forEach((s) => { if (s.readmeNo) noByReadme[s.readmeNo] = s.no; });
+  const resolveRefs = (v) => {
+    if (typeof v === 'string') {
+      return v.replace(/\{\{(\d+)\}\}/g, (all, n) => {
+        if (!noByReadme[n]) throw new Error('文字引用了不存在的總表步驟：' + n);
+        return '第 ' + noByReadme[n] + ' 步';
+      });
+    }
+    if (Array.isArray(v)) return v.map(resolveRefs);
+    if (v && typeof v === 'object') { Object.keys(v).forEach((k) => { if (k !== 'sql') v[k] = resolveRefs(v[k]); }); return v; }
+    return v;
+  };
+  order.forEach((s) => resolveRefs(s));
 
   const stopList = [];
   order.forEach((s) => (s.stops || []).forEach((x) => {
