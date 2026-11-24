@@ -243,6 +243,8 @@ test('M9-GAJ 總務採購印表機到門市配發（劇本 1 採購到入庫、�
       await expect(form.getByTestId('pe-subtotal')).toHaveText('$114,900');
       const totalText = (await form.getByTestId('pe-total').innerText()).trim();
       await shot(w.page, '新增採購單');
+      await form.getByTestId('pe-totals').scrollIntoViewIfNeeded(); // 首屏看不到未稅／稅額／含稅總額，再補一張金額區
+      await shot(w.page, '新增採購單金額');
       await form.getByTestId('pe-save').click();
       await expect(vis(w.page, 'pe-saved')).toBeVisible();
       S.po.no = (await vis(w.page, 'pe-po-no').textContent())!.trim();
@@ -681,6 +683,8 @@ test('M9-GAJ 總務採購印表機到門市配發（劇本 1 採購到入庫、�
       await openRq(st.page, 'mr');
       await shot(st.page, '店長待確認');
       await reqAct(st.page, 'confirm_complete');
+      await expect(dialog(st.page)).not.toContainText('載入中', { timeout: 20_000 });
+      await expect(dialog(st.page)).toContainText('已完成', { timeout: 20_000 }); // 等畫面狀態更新才截圖（否則會拍到舊的「待門市確認」）
       await shot(st.page, '店長確認完成');
       const row = await dbReq();
       expect(row.main_status).toBe('COMPLETED');

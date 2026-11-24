@@ -10,7 +10,9 @@
  * 只連 DEV：只讀 .env.development.local，並確認 supabase/.temp/project-ref 與環境的專案 ref 都以 mjpd 開頭。
  *
  * 用法：node scripts/m9-gaj-cleanup.cjs            清除
- *       node scripts/m9-gaj-cleanup.cjs --scan     只列出目前還在的 ZTJ- 資料，不刪
+ *       node scripts/m9-gaj-cleanup.cjs --scan     只列出目前還在的 ZTJ- 資料筆數，不刪
+ *       node scripts/m9-gaj-cleanup.cjs --dry-run  只列出「將會刪掉」的單據明細（單號、狀態、金額），不刪
+ *       其他任何參數一律拒絕（避免打錯參數卻直接清除）
  * 模組：const { cleanupGaj, scanGaj } = require('./m9-gaj-cleanup.cjs')
  */
 const fs = require('node:fs');
@@ -56,6 +58,29 @@ async function scanGaj(db = devClient()) {
   ]) out[`${table}.${col}`] = (await ids(db, table, col, like)).length;
   const roles = await db.from('roles').select('id').like('code', ROLE_LIKE);
   out['roles.code'] = (roles.data || []).length;
+  return out;
+}
+
+/** --dry-run 用：列出將會被刪掉的單據明細（只讀）。 */
+async function detailGaj(db = devClient()) {
+  const out = { scan: await scanGaj(db) };
+  const vendors = (await db.from('ga_vendors').select('id,name').like('name', `${PREFIX}%`)).data || [];
+  const vids = vendors.map((v) => v.id);
+  out.vendors = vendors.map((v) => v.name);
+  const pos = (await db.from('ga_purchase_orders').select('id,po_no,status,total_amount,vendor_id,notes')).data || [];
+  const myPos = pos.filter((p) => vids.includes(p.vendor_id) || String(p.notes || '').startsWith(PREFIX));
+  out.purchase_orders = myPos.map((p) => `${p.po_no} ${p.status} 含稅 ${p.total_amount}`);
+  const pids = myPos.map((p) => p.id);
+  if (pids.length) {
+    out.receipts = ((await db.from('ga_purchase_receipts').select('receipt_no').in('po_id', pids)).data || []).map((r) => r.receipt_no);
+    out.equipment = ((await db.from('ga_equipment').select('asset_code,onboarding_status').in('source_purchase_order_id', pids)).data || []).map((e) => `${e.asset_code} ${e.onboarding_status}`);
+  }
+  if (vids.length) {
+    out.invoices = ((await db.from('ga_purchase_invoices').select('invoice_no,amount_total').in('vendor_id', vids)).data || []).map((i) => `${i.invoice_no} ${i.amount_total}`);
+    out.payment_requests = ((await db.from('ga_payment_requests').select('pr_no,status,amount_total').in('vendor_id', vids)).data || []).map((r) => `${r.pr_no} ${r.status} ${r.amount_total}`);
+  }
+  out.service_requests = ((await db.from('ga_service_requests').select('request_no,main_status').like('title', `${PREFIX}%`)).data || []).map((r) => `${r.request_no} ${r.main_status}`);
+  out.accounts = ((await db.from('profiles').select('email').like('email', EMAIL_LIKE)).data || []).map((p) => p.email);
   return out;
 }
 
@@ -257,10 +282,19 @@ module.exports = { cleanupGaj, scanGaj, PREFIX };
 
 if (require.main === module) {
   (async () => {
-    if (process.argv.includes('--scan')) {
+    const args = process.argv.slice(2);
+    const known = ['--scan', '--dry-run', '--yes-delete'];
+    const bad = args.filter((a) => !known.includes(a));
+    if (bad.length) throw new Error(`不認得的參數 ${bad.join(' ')}；只認 --scan、--dry-run（只看不刪），要清除請明確加 --yes-delete`);
+    if (args.includes('--scan')) {
       console.log(JSON.stringify(await scanGaj(), null, 2));
       return;
     }
+    if (args.includes('--dry-run')) {
+      console.log(JSON.stringify(await detailGaj(), null, 2));
+      return;
+    }
+    if (!args.includes('--yes-delete')) throw new Error('清除要明確加 --yes-delete；只想看請用 --dry-run 或 --scan');
     const problems = await cleanupGaj((m) => console.log(`[m9-gaj-cleanup] ${m}`));
     if (problems.length) {
       console.error(`[m9-gaj-cleanup] 清除未完成：\n${problems.join('\n')}`);
