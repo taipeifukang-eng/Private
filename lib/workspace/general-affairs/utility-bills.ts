@@ -8,6 +8,7 @@ import { NextRequest } from "next/server";
 import { parseExpectedUpdatedAt } from "./vendor-rules";
 import { parseReportParams, parseUtilityFilters, pickBillPayload, utilityBillAbilities } from "./utility-bill-rules";
 import { isUuid, pagingMeta, parsePaging } from "./rules";
+import { parseUtilityBillExtraFilters, pickPayeeField, validateSetPayee } from "./utility-payment-rules";
 import { GaError, body, respond, rpc, validated, type Context } from "./server";
 
 const abilitiesOf = (ctx: Context) => utilityBillAbilities(ctx.permissions);
@@ -36,6 +37,14 @@ export async function utilityBillsApi(ctx: Context, request: NextRequest, rest: 
     if (m === "POST") return save(ctx, request, null);
     throw new GaError(405, "不支援的操作");
   }
+  if (a === "payees") {
+    if (m !== "GET") throw new GaError(405, "不支援的操作");
+    return payees(ctx);
+  }
+  if (a === "set-payee") {
+    if (m !== "POST") throw new GaError(405, "不支援的操作");
+    return setPayee(ctx, request);
+  }
   if (a === "meta") {
     if (m !== "GET") throw new GaError(405, "不支援的操作");
     return meta(ctx);
@@ -63,11 +72,27 @@ export async function utilityBillsApi(ctx: Context, request: NextRequest, rest: 
 
 async function list(ctx: Context, url: URL) {
   const ab = needView(ctx);
-  const filters = validated(() => parseUtilityFilters(url.searchParams));
+  const filters = validated(() => ({ ...parseUtilityFilters(url.searchParams), ...parseUtilityBillExtraFilters(url.searchParams) }));
   const { page, pageSize } = parsePaging(url.searchParams, { pageSize: 20, max: 100 });
   const r = await rpc(ctx, "ga_ws_ub_list", { p_filters: filters, p_page: page, p_page_size: pageSize });
   const d = r.data || {};
   return respond({ data: d.rows ?? [], total: d.total ?? 0, meta: pagingMeta(page, pageSize, d.total ?? 0), summary: d.summary ?? {}, global: d.global ?? {}, deleted_view: !!d.deleted_view, permissions: ab });
+}
+
+/** G46 繳費單位下拉：公用事業分類且合作中的廠商，只回 id 與名稱（不含統編與銀行）。需水電網費檢視或管理。 */
+async function payees(ctx: Context) {
+  const ab = needView(ctx);
+  const r = await rpc(ctx, "ga_ws_ub_payees", {});
+  return respond({ data: r.data ?? [], category_id: r.category_id ?? null, permissions: ab });
+}
+
+/** G46 批次補填繳費單位：只填空白，已有繳費單位與已刪除的跳過並回報；一次最多 200 筆。需水電網費管理。 */
+async function setPayee(ctx: Context, request: NextRequest) {
+  needManage(ctx, "補填繳費單位");
+  const b = await body(request);
+  const payload = validated(() => validateSetPayee(b));
+  const r = await rpc(ctx, "ga_ws_ub_set_payee", { p_ids: payload.ids, p_vendor: payload.vendor_id });
+  return respond({ data: r.data });
 }
 
 async function meta(ctx: Context) {
@@ -101,7 +126,8 @@ async function save(ctx: Context, request: NextRequest, id: string | null) {
   needManage(ctx, "新增或編輯帳單");
   const b = await body(request);
   const expected = id ? validated(() => parseExpectedUpdatedAt(b.expected_updated_at)) : null;
-  const r = await rpc(ctx, "ga_ws_ub_save", { p_id: id, p_payload: pickBillPayload(b), p_expected_updated_at: expected, p_confirm_paid_change: b.confirm_paid_change === true });
+  const payload = { ...pickBillPayload(b), ...validated(() => pickPayeeField(b)) };
+  const r = await rpc(ctx, "ga_ws_ub_save", { p_id: id, p_payload: payload, p_expected_updated_at: expected, p_confirm_paid_change: b.confirm_paid_change === true });
   return respond({ data: r.data, anomaly: r.anomaly ?? null, warnings: r.warnings ?? [] }, id ? 200 : 201);
 }
 

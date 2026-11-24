@@ -34,6 +34,8 @@ export function dbError(error: any): GaError {
   if (/^HAS_STOCK:/.test(raw)) return new GaError(409, message, { code: "HAS_STOCK" });
   // 第 4.5 批：已被有效請款單引用的發票，最後一張圖片不可刪除（附件資料表觸發器）。
   if (/^INVOICE_LAST_IMAGE_LOCKED:/.test(raw)) return new GaError(409, message, { code: "INVOICE_LAST_IMAGE_LOCKED" });
+  // G46 水電話費請款：帳單在已送出或已付款的請款單內，最後一個附件不可刪除（附件資料表觸發器）。
+  if (/^BILL_LAST_ATTACHMENT_LOCKED:/.test(raw)) return new GaError(409, message, { code: "BILL_LAST_ATTACHMENT_LOCKED" });
   if (code === "23505") return new GaError(409, "代碼或資料重複，已有相同的資料（含已停用的）");
   if (code === "23503") return new GaError(409, "這筆資料仍被其他資料使用，不能這樣處理");
   if (code === "P0409") return new GaError(409, message || "資料已被其他人修改，請重新載入", { code: "STALE" });

@@ -10,6 +10,11 @@ export type PrStatus = (typeof PR_STATUSES)[number];
 export const PR_STATUS_LABELS: Record<PrStatus, string> = { DRAFT: "草稿", SUBMITTED: "已送出", PAID: "已付款", VOID: "已作廢" };
 export const isPrStatus = (v: unknown): v is PrStatus => (PR_STATUSES as readonly string[]).includes(String(v));
 
+// G46 請款單來源：採購（既有）或水電話費（水電網費帳單請款）。沒有來源的舊資料一律是採購。細節規則在 utility-payment-rules.ts。
+export const PR_SOURCES = ["PURCHASE", "UTILITY"] as const;
+export type PrSource = (typeof PR_SOURCES)[number];
+export const PR_SOURCE_LABELS: Record<PrSource, string> = { PURCHASE: "採購", UTILITY: "水電話費" };
+
 export const PR_ACTIONS = ["submit", "return", "mark_paid", "void", "note", "refresh_bank"] as const;
 export type PrAction = (typeof PR_ACTIONS)[number];
 export const isPrAction = (v: unknown): v is PrAction => (PR_ACTIONS as readonly string[]).includes(String(v));
@@ -185,6 +190,11 @@ export function parseRequestFilters(p: URLSearchParams) {
   if (month) {
     if (!MONTH_RE.test(month)) throw new Error("月份格式要是 YYYY-MM");
     f.month = month;
+  }
+  const source = (p.get("source") || "").trim().toUpperCase();
+  if (source) {
+    if (!(PR_SOURCES as readonly string[]).includes(source)) throw new Error("來源篩選值錯誤（採購或水電話費）");
+    f.source = source;
   }
   if (["1", "true"].includes((p.get("mine") || "").trim())) f.mine = true;
   if (["1", "true"].includes((p.get("stale_draft") || p.get("staleDraft") || "").trim())) f.stale_draft = true;

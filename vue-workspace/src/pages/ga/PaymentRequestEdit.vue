@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from "vue";
 import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import Modal from "../../components/Modal.vue";
+import PaymentRequestUtility from "../../components/ga/PaymentRequestUtility.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
 import {
   EVENT_LABELS, PAY_METHODS, PAY_METHOD_LABELS, PR_ACTION_LABELS, PR_STATUS_CLASS, PR_STATUS_LABELS, availableActions, bankText, checkClaimLimit, dateText, errorCodeOf, errorText, paidDateProblem, paidDateRange, payErrorText, PAID_BACKDATE_DAYS,
@@ -27,6 +28,10 @@ const saving = ref(false);
 const error = ref("");
 const saved = ref("");
 const createKey = ref(newKey());
+// G46 水電話費請款單：水電模式整頁交給 PaymentRequestUtility（採購流程完全不動）。
+// 建立：由列表帶 payload.source（UTILITY 或 PURCHASE，可隨時切換）；既有請款單：載入後依資料的來源判斷。
+const loadedUtility = ref(false);
+const isUtility = computed(() => loadedUtility.value || (!prId.value && (props.tab.payload as { source?: unknown } | undefined)?.source === "UTILITY"));
 
 type FormLine = {
   receipt_id: string; receipt_no: string; po_id: string; po_no: string; tax_rate: number; received_date: string; receipt_total: number; receipt_untaxed: number;
@@ -96,10 +101,11 @@ function fillFrom(r: PaymentRequest) {
 async function loadRequest() {
   const res = await api<{ data: PaymentRequest; permissions: PayAbilities }>(`general-affairs/payment-requests/${prId.value}`);
   abilities.value = res.permissions;
+  if ((res.data as { source?: string }).source === "UTILITY") { loadedUtility.value = true; return; }
   fillFrom(res.data);
 }
 async function loadCandidates() {
-  if (!editing.value) return;
+  if (!editing.value || isUtility.value) return;
   candError.value = "";
   try {
     const q = new URLSearchParams({ pageSize: "20" });
@@ -241,6 +247,8 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
 </script>
 
 <template>
+  <PaymentRequestUtility v-if="isUtility" :tab="tab" />
+  <template v-else>
   <header class="page-heading">
     <div>
       <p class="eyebrow">總務服務中心 / 作業管理</p>
@@ -363,6 +371,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
       </div>
     </Modal>
   </GaShell>
+  </template>
 </template>
 
 <style scoped>

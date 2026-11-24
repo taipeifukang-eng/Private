@@ -5,7 +5,7 @@ import GaShell from "../../components/ga/GaShell.vue";
 import PoPicker from "../../components/ga/PoPicker.vue";
 import PaymentSettingsDialog from "../../components/ga/PaymentSettingsDialog.vue";
 import { openGaPage, useDebounced, useGaGuard, useLatest, useRefreshOnActivate } from "../../lib/ga";
-import { PR_STATUS_CLASS, PR_STATUS_LABELS, dateText, downloadCsv, errorText, money, type PayAbilities, type PaymentRequest } from "../../lib/ga-payments";
+import { PR_SOURCE_NAMES, PR_STATUS_CLASS, PR_STATUS_LABELS, dateText, downloadCsv, errorText, isUtilityRequest, money, type PaymentRequest, type UtilityAbilities } from "../../lib/ga-payments";
 import type { WorkTab } from "../../stores";
 
 // 第 4.5 批 請款單清單：伺服端分頁、篩選（狀態、廠商、月份、搜尋）、「待付款」頁籤（已送出）、匯出依廠商與月份的對帳 CSV。
@@ -16,7 +16,7 @@ const rows = ref<PaymentRequest[]>([]);
 const total = ref(0);
 const summary = ref<Record<string, number>>({});
 const globalSum = ref<Record<string, number>>({});
-const abilities = ref<PayAbilities | null>(null);
+const abilities = ref<UtilityAbilities | null>(null);
 const page = ref(1);
 const pageSize = 20;
 // 從首頁「待付款請款單」或導覽徽章點進來時（payload.status = SUBMITTED）直接看待付款頁籤。
@@ -27,6 +27,9 @@ const staleDraft = ref(["1", "true"].includes(String((props.tab.payload as { sta
 const includeDraft = ref(false);
 const includeVoid = ref(false);
 const status = ref("");
+// G46 來源：全部、採購、水電話費（列表篩選）；匯出的來源預設採購（兩種欄位不同，分開匯出）。
+const source = ref("");
+const exportSource = ref<"PURCHASE" | "UTILITY">("PURCHASE");
 const vendorId = ref("");
 const month = ref("");
 const search = ref("");
@@ -40,7 +43,7 @@ const latest = useLatest();
 const pages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)));
 const canManage = computed(() => !!abilities.value?.canManage);
 const effStatus = computed(() => (view.value === "SUBMITTED" ? "SUBMITTED" : status.value));
-const hasFilter = computed(() => !!(staleDraft.value || status.value || vendorId.value || month.value || debounced.value.trim() || view.value !== "ALL"));
+const hasFilter = computed(() => !!(staleDraft.value || source.value || status.value || vendorId.value || month.value || debounced.value.trim() || view.value !== "ALL"));
 
 async function load() {
   if (!allowed.value) return;
@@ -51,10 +54,11 @@ async function load() {
     const q = new URLSearchParams({ page: String(page.value), pageSize: String(pageSize) });
     if (effStatus.value) q.set("status", effStatus.value);
     if (staleDraft.value) q.set("stale_draft", "true");
+    if (source.value) q.set("source", source.value);
     if (vendorId.value) q.set("vendorId", vendorId.value);
     if (month.value) q.set("month", month.value);
     if (debounced.value.trim()) q.set("q", debounced.value.trim());
-    const res = await api<{ data: PaymentRequest[]; total: number; summary: Record<string, number>; global: Record<string, number>; permissions: PayAbilities }>("general-affairs/payment-requests?" + q);
+    const res = await api<{ data: PaymentRequest[]; total: number; summary: Record<string, number>; global: Record<string, number>; permissions: UtilityAbilities }>("general-affairs/payment-requests?" + q);
     if (!latest.isLatest(n)) return;
     rows.value = res.data;
     total.value = res.total;
@@ -68,17 +72,22 @@ async function load() {
     if (latest.isLatest(n)) loading.value = false;
   }
 }
-watch([view, status, vendorId, month, debounced, staleDraft], () => { page.value = 1; void load(); });
+watch([view, status, source, vendorId, month, debounced, staleDraft], () => { page.value = 1; void load(); });
+watch(source, (v) => { if (v === "UTILITY" || v === "PURCHASE") exportSource.value = v; });
 watch(page, load);
 onMounted(() => { void load(); });
 useRefreshOnActivate(props.tab, () => { void load(); });
-function clearFilters() { staleDraft.value = false; view.value = "ALL"; status.value = ""; vendorId.value = ""; month.value = ""; search.value = ""; }
+function clearFilters() { staleDraft.value = false; view.value = "ALL"; status.value = ""; source.value = ""; vendorId.value = ""; month.value = ""; search.value = ""; }
 const open = (id: string) => openGaPage("ga-payment-request-edit", id);
-const openNew = () => openGaPage("ga-payment-request-edit");
+// 採購請款單的新增流程不變；水電話費請款單另有自己的入口（需要請款管理＋水電網費管理）。
+const openNew = () => openGaPage("ga-payment-request-edit", undefined, { source: "PURCHASE" });
+const openNewUtility = () => { if (abilities.value?.canCreateUtility) openGaPage("ga-payment-request-edit", undefined, { source: "UTILITY" }); };
+const utilityNeed = computed(() => (abilities.value?.canCreateUtility ? "" : `建立水電話費請款單需要「${(abilities.value?.missingForCreate || ["請款管理", "水電網費管理"]).join("」與「")}」權限`));
 async function exportCsv() {
   exportMsg.value = "";
   if (!month.value) { exportMsg.value = "請先選擇要匯出的月份（以請款單建立日的月份為準）。"; return; }
   const q = new URLSearchParams({ month: month.value });
+  if (exportSource.value === "UTILITY") q.set("source", "UTILITY");
   if (vendorId.value) q.set("vendorId", vendorId.value);
   if (effStatus.value) q.set("status", effStatus.value);
   else {
@@ -99,6 +108,8 @@ async function exportCsv() {
     <div class="head-actions">
       <button type="button" data-testid="pr-settings" @click="showSettings = true">請款設定</button>
       <button v-if="canManage" type="button" class="primary" data-testid="new-pr" @click="openNew">建立請款單</button>
+      <button v-if="canManage" type="button" :disabled="!abilities?.canCreateUtility" :title="utilityNeed" data-testid="new-pr-utility" @click="openNewUtility">建立水電話費請款單</button>
+      <span v-if="canManage && utilityNeed" class="muted" data-testid="new-pr-utility-need">{{ utilityNeed }}</span>
     </div>
   </header>
   <GaShell :tab="tab" :crumbs="['總務服務中心', '作業管理', '請款單']">
@@ -108,12 +119,16 @@ async function exportCsv() {
     </div>
     <div class="filter-bar">
       <label v-if="view === 'ALL'">狀態<select v-model="status" data-testid="pr-filter-status"><option value="">全部狀態</option><option v-for="(l, k) in PR_STATUS_LABELS" :key="k" :value="k">{{ l }}</option></select></label>
+      <label>來源<select v-model="source" data-testid="pr-filter-source"><option value="">全部來源</option><option v-for="(l, k) in PR_SOURCE_NAMES" :key="k" :value="k">{{ l }}</option></select></label>
       <label>月份（請款單建立月）<input v-model="month" type="month" data-testid="pr-filter-month" /></label>
       <PoPicker v-if="abilities?.vendorVisible" v-model="vendorId" kind="vendor" label="廠商" testid="pr-filter-vendor" clearable />
       <label class="grow">搜尋<input v-model="search" type="search" placeholder="請款單號、廠商名稱" data-testid="pr-search" /></label>
       <button type="button" data-testid="pr-export" @click="exportCsv">匯出對帳 CSV</button>
     </div>
     <div class="export-opts" role="group" aria-label="匯出對帳 CSV 的狀態" data-testid="pr-export-opts">
+      <strong>匯出來源</strong>
+      <label><input v-model="exportSource" type="radio" value="PURCHASE" name="pr-export-source" data-testid="pr-export-src-purchase" />採購（預設）</label>
+      <label><input v-model="exportSource" type="radio" value="UTILITY" name="pr-export-source" data-testid="pr-export-src-utility" />水電話費</label>
       <strong>匯出對帳 CSV 的狀態</strong>
       <span class="muted" data-testid="pr-export-default">預設只含已送出與已付款</span>
       <label><input v-model="includeDraft" type="checkbox" data-testid="pr-export-draft" :disabled="!!effStatus" />加入草稿</label>
@@ -131,10 +146,12 @@ async function exportCsv() {
       <li v-for="r in rows" :key="r.id" class="pr-card" :class="{ gone: r.status === 'VOID' }" data-testid="pr-card">
         <div class="card-head">
           <strong data-testid="pr-no">{{ r.pr_no }}</strong>
+          <span class="src" :class="{ util: isUtilityRequest(r) }" data-testid="pr-source">{{ isUtilityRequest(r) ? PR_SOURCE_NAMES.UTILITY : PR_SOURCE_NAMES.PURCHASE }}</span>
           <span class="st" :class="PR_STATUS_CLASS[r.status]" data-testid="pr-status">{{ PR_STATUS_LABELS[r.status] }}</span>
         </div>
         <p class="card-line">{{ r.vendor_name_snapshot || "（廠商）" }}　建立 {{ dateText(r.created_at) }}</p>
-        <p class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted">　{{ r.line_count }} 筆進貨<template v-if="r.po_nos?.length">，採購單 {{ r.po_nos.join("、") }}</template></span></p>
+        <p v-if="isUtilityRequest(r)" class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted" data-testid="pr-bill-info">　帳單月份 {{ String(r.bill_month || "").slice(0, 7) }}，{{ r.bill_count ?? 0 }} 張帳單</span></p>
+        <p v-else class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted">　{{ r.line_count }} 筆進貨<template v-if="r.po_nos?.length">，採購單 {{ r.po_nos.join("、") }}</template></span></p>
         <p v-if="r.expected_pay_date" class="card-line muted">預計付款日 {{ dateText(r.expected_pay_date) }}</p>
         <p v-if="r.status === 'PAID'" class="card-line muted">{{ dateText(r.paid_date) }} 付款<template v-if="r.paid_ref">（{{ r.paid_ref }}）</template></p>
         <button type="button" data-testid="open-pr" @click="open(r.id)">查看</button>
@@ -166,6 +183,8 @@ async function exportCsv() {
 .st.submitted { color: #8a5a00; border-color: #e0c27a; background: #fff6df; }
 .st.paid { color: #1b6e3a; border-color: #9fd2b0; background: #e8f6ec; }
 .st.void { color: var(--muted); }
+.src { display: inline-block; border-radius: 6px; padding: 0 8px; font-size: 12px; font-weight: 600; background: var(--soft); border: 1px solid var(--line); white-space: nowrap; }
+.src.util { color: #0b5cab; border-color: #9cc3ea; background: #eaf3fc; }
 .export-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin: 0 0 10px; font-size: 13px; }
 .export-opts label { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
 @media (max-width: 700px) {

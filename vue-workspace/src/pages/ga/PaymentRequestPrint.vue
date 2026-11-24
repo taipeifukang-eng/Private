@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from "vue";
 import { api } from "../../api";
 import GaShell from "../../components/ga/GaShell.vue";
 import { openGaPage, useGaGuard } from "../../lib/ga";
-import { PAY_METHOD_LABELS, PR_STATUS_LABELS, bankText, dateText, errorText, money, timeText, type PaymentRequest } from "../../lib/ga-payments";
+import { PAY_METHOD_LABELS, PR_STATUS_LABELS, UTILITY_PRINT_HEADERS, bankText, dateText, errorText, isUtilityRequest, money, timeText, utilityPrintRow, type PaymentRequest } from "../../lib/ga-payments";
 import { INVOICE_TYPE_LABELS } from "../../lib/ga-invoices";
 import { useWorkspace, type WorkTab } from "../../stores";
 
@@ -18,6 +18,9 @@ const loading = ref(true);
 const error = ref("");
 const prId = computed(() => props.tab.recordId || "");
 const lines = computed(() => pr.value?.lines || []);
+// G46 水電話費請款單：明細改列「門市、費用類型、帳單月份、電號／水號／用戶號碼、金額」；沒有採購單、進貨單、發票、未稅、稅額。
+const utility = computed(() => isUtilityRequest(pr.value));
+const billRows = computed(() => (pr.value?.bill_lines || []).map((l) => ({ id: l.id, no: l.line_no, cells: utilityPrintRow(l) })));
 
 onMounted(async () => {
   if (!allowed.value) { loading.value = false; return; }
@@ -61,7 +64,8 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
       <table class="pp-meta">
         <tbody>
           <tr><th>請款單號</th><td data-testid="pp-no">{{ pr.pr_no }}</td><th>狀態</th><td>{{ PR_STATUS_LABELS[pr.status] }}</td></tr>
-          <tr><th>廠商</th><td data-testid="pp-vendor">{{ pr.vendor_name_snapshot }}</td><th>建立日期</th><td>{{ dateText(pr.created_at) }}</td></tr>
+          <tr><th>{{ utility ? "繳費單位" : "廠商" }}</th><td data-testid="pp-vendor">{{ pr.vendor_name_snapshot }}</td><th>建立日期</th><td>{{ dateText(pr.created_at) }}</td></tr>
+          <tr v-if="utility"><th>來源</th><td data-testid="pp-source">水電話費</td><th>帳單月份</th><td data-testid="pp-bill-month">{{ String(pr.bill_month || "").slice(0, 7) }}</td></tr>
           <template v-if="!pr.vendor_masked">
             <tr data-testid="pp-secret"><th>統一編號</th><td>{{ pr.vendor_tax_id_snapshot || "—" }}</td><th>預計付款日</th><td>{{ dateText(pr.expected_pay_date) || "—" }}</td></tr>
             <tr data-testid="pp-bank"><th>收款帳號</th><td colspan="3">{{ bankText(pr.bank_snapshot) || "廠商未填寫銀行資料" }}</td></tr>
@@ -69,7 +73,15 @@ function back() { if (pr.value) openGaPage("ga-payment-request-edit", pr.value.i
           <tr v-else><th>預計付款日</th><td colspan="3">{{ dateText(pr.expected_pay_date) || "—" }}</td></tr>
         </tbody>
       </table>
-      <table class="pp-lines" data-testid="pp-lines">
+      <table v-if="utility" class="pp-lines" data-testid="pp-lines">
+        <thead><tr><th>#</th><th v-for="h in UTILITY_PRINT_HEADERS" :key="h" :class="{ r: h === '金額' }">{{ h }}</th></tr></thead>
+        <tbody>
+          <tr v-for="r in billRows" :key="r.id" data-testid="pp-line"><td>{{ r.no }}</td><td v-for="(c, i) in r.cells" :key="i" :class="{ r: i === 4 }">{{ i === 4 ? money(Number(c)) : c }}</td></tr>
+          <tr v-if="pr.bills_masked" data-testid="pp-bills-masked"><td :colspan="UTILITY_PRINT_HEADERS.length + 1">明細已遮蔽（需要水電帳單檢視權限），本請款單共 {{ pr.bill_count ?? 0 }} 張帳單。</td></tr>
+        </tbody>
+        <tfoot><tr><td :colspan="UTILITY_PRINT_HEADERS.length">合計</td><td class="r" data-testid="pp-total">{{ money(pr.amount_total) }}</td></tr></tfoot>
+      </table>
+      <table v-else class="pp-lines" data-testid="pp-lines">
         <thead><tr><th>#</th><th>採購單</th><th>進貨單</th><th>發票</th><th class="r">未稅</th><th class="r">稅額</th><th class="r">請款金額</th></tr></thead>
         <tbody>
           <tr v-for="l in lines" :key="l.id" data-testid="pp-line">

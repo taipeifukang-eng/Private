@@ -1,6 +1,6 @@
 # 水電話費請款設計（水電網費帳單接進請款單）
 
-> 狀態：設計定稿（2026-11-24），尚未動工。老闆問卷 U1 至 U8 已回答，本文件是依這些答案寫的實作設計。
+> 狀態：設計定稿（2026-11-24）；**已在 DEV 實作完成**（頁碼 G46，實作紀錄見 §15）。老闆問卷 U1 至 U8 已回答，本文件是依這些答案寫的實作設計。正式區草稿已備好但**未套用**（等老闆核可、12/8 切換之後）。
 > 範圍：把水電網費帳單（G23，`ga_utility_bills`）接到既有請款單（第 4.5 批，`ga_payment_requests`）。這是新功能，舊版沒有水電請款，所以沒有舊新比對，測試基準是本文件與第 4.5 批設計（`m7m8-batch4-5-design.md`）。
 > 第 4.5 批設計 A7 原本寫「水電費請款另批」，現在就是這批。工單維修費、需求單報價的請款不做。
 > 實作限制（全批共用）：只連 DEV（`supabase/.temp/project-ref` 以 mjpd 開頭，DB 指令前先確認）；不讀 `.env.local`、`.env.production*`、`*.bak`，不連正式區；不改 `supabase/migrations`；DEV 的 DB 變更放 `supabase/workspace-dev/`（各附 `.rollback.sql`）；正式區草稿放 `docs/vue-workspace/parity-plan/ga-utility-payment-sql/`（各附 `.rollback.sql` 與只有 SELECT 的 `.verify.sql`、可重複執行、**不授權給任何角色**）；測試資料只在 VW／ZT 測試門市、2038 年，標記 `QA-GAUP-`，只清自己的；不 push。
@@ -415,3 +415,23 @@ API：各端點權限（401／403／404／409）、Origin 檢查、來源篩選�
 | GU-5 正式區草稿 | 產生 `ga-utility-payment-sql/` 全部檔案（含 README、00 預覽、四組＋選用 05 的 `.sql`／`.rollback.sql`／`.verify.sql`），在 DEV 實跑驗證可重複執行與撤回 | 草稿通過獨立審查；等老闆核可才進入 §11 |
 
 實作 commit 訊息一律英文，結尾空一行加 `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`。
+
+## 15. 實作紀錄（2026-11-24，頁碼 G46）
+
+**做了什麼**：§14 的 GU-1 至 GU-5 全部在 DEV 做完並實測（套用、撤回、再套用；撤回後 9 支被加掛的函式定義與撤回前逐字相同）。
+
+**檔案**
+- DEV SQL：`supabase/workspace-dev/20261124100000_ga_utility_payment_schema`、`110000_…_bill_side`、`120000_…_request_core`、`130000_…_request_hooks`、`140000_…_dev_seed`（各附 `.rollback.sql`）；套用腳本 `scripts/apply-workspace-ga-utility-payment-dev.cjs [--rollback]`、清除腳本 `scripts/cleanup-ga-utility-payment-dev.cjs [--scan]`。
+- 正式區草稿：`docs/vue-workspace/parity-plan/ga-utility-payment-sql/`（00 唯讀預覽、01 至 04、選用 05，每份附 `.rollback.sql` 與只有 SELECT 的 `.verify.sql`，README.md）。**不授權給任何角色，尚未套用。**
+- 規則與 API：`lib/workspace/general-affairs/utility-payment-rules.ts`（新）、`payment-request-rules.ts`（加來源常數與列表篩選）、`payment-requests.ts`（來源篩選、水電建立／修改／匯出、`utility-candidates`）、`utility-bills.ts`（`payees`、`set-payee`、新篩選）、`server.ts`（附件最後一個鎖對應 409）。
+- 畫面：`PaymentRequestUtility.vue`（新，水電請款單建立、編輯、檢視）、`UtilityPayeeBackfill.vue`（新，補填繳費單位）、`PaymentRequests.vue`、`PaymentRequestEdit.vue`、`PaymentRequestPrint.vue`、`UtilityBills.vue`、`UtilityBillForm.vue`、`UtilityBillDetail.vue`。
+- 測試：`tests/unit/G46/`、`tests/integration/G46.*`（db-core、db-sync、api，另有只在環境變數指定時執行的黃金快照 `db-golden`）、`tests/smoke/G46.pages.spec.ts`、`tests/e2e/G46.journey-utility-payment.e2e.spec.ts`、`tests/support/g46-fixtures.ts`。
+
+**與設計不同的地方（原因）**
+1. §7.1「新增請款單改為先選來源」：保留既有「建立請款單」按鈕（直接進採購建立頁），另加「建立水電話費請款單」按鈕（缺權限時反灰並寫缺哪個權限）。原因：G45 既有測試與其他劇本（含總務印表機劇本）都是點「建立請款單」直接進採購建立頁，規定既有測試不改斷言。
+2. 水電請款單的建立、編輯、檢視獨立成 `PaymentRequestUtility.vue`，`PaymentRequestEdit.vue` 只加「依來源轉交」的判斷，採購畫面完全不動。
+3. 帳單儲存的繳費單位欄位不放進 G23 的 `BILL_PAYLOAD_FIELDS`（既有單元測試斷言那是 15 個欄位），改在 `pickPayeeField` 另外挑。
+4. 測試檔名用頁碼 G46（原設計寫 GU）。效能資料標記用 `QA-GAUP-PERF`（讓清除函式能處理；原設計寫 PERF-GAUP-）。
+5. 水電對帳匯出：沒有水電檢視權限者每張請款單一列、帳單欄位留空（設計只寫「請款檢視或管理」，這樣和 D9 的明細遮蔽一致）。
+
+**效能實測（DEV，10 萬筆帳單，量完已清除並確認歸零）**：`ga_ws_ub_list` 不帶篩選約 500 至 560 ms；單月 206 ms；新篩選 request=none 491 ms、request＋payee 196 ms、payee=none＋月份 189 ms；關鍵字搜尋約 1.3 秒（既有的多欄位 ILIKE，本批沒改，維持原狀）；候選（單位＋月份 167 張）48 ms；建立含 100 張帳單的請款單 79 ms；送出前缺附件檢查（100 張全缺）54 ms；請款單列表加來源篩選 7 ms。附件表既有 `(resource_type, resource_id)` 部分索引，不需要新增索引。
