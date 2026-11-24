@@ -64,7 +64,9 @@ describe('白名單驗證與分類', () => {
   it('正式 allowlist：未核可的條目只能是 decision=fix 或明列的待核可清單；已核可者的 reason 不得再寫「待使用者核可」', () => {
     // 2026-11-23 差異確認頁（M6）送出後，白名單已全部核可；之後新出現的待核可條目請加進這個清單。
     // M9 F01S（2026-11-23）：開發端自選的三項（回舊版連結另開分頁、明細頁連到清單頁、備援開關範圍）待使用者在差異確認頁決定。
-    const STILL_PENDING = new Set<string>(['m9-c2-link-new-tab', 'm9-c2-link-detail-to-list', 'm9-n2-switch-scope-menu-pages']);
+    const STILL_PENDING = new Set<string>(['m9-c2-link-new-tab', 'm9-c2-link-detail-to-list', 'm9-n2-switch-scope-menu-pages',
+      // M9 F01（2026-11-24 全站回歸）新發現、依 T2 登記待使用者決定的三項。
+      'm9-f01-nav-clinic-selfpay-menu-visibility', 'm9-f01-admin-purchase-payment-codes-legacy-only', 'm9-f01-admin-purchase-payment-manage-legacy-only', 'm9-f01-inspection-gps-exempt-not-ported']);
     const list = loadAllowlist();
     const unapproved = list.filter((e) => !e.approvedBy && e.decision !== 'fix' && !STILL_PENDING.has(e.id)).map((e) => e.id);
     expect(unapproved, `這些條目沒有 approvedBy：${unapproved.join(', ')}`).toEqual([]);

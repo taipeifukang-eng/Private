@@ -28,6 +28,7 @@ describe('Playwright 設定', () => {
     expect(mobile).not.toContain('parity');
     expect(opts.projects[0].testMatch).toBeUndefined();
     expect(opts.testMatch).toEqual(['**/*.spec.ts']);
+    expect(opts.testIgnore).toEqual(['**/gps-exempt/**', '**/prescription-gsheet/**']);
   });
 
   it('webServer：沿用已在執行的 3002，否則由 start-test-server 啟動', () => {

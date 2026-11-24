@@ -93,7 +93,7 @@
 | 66 | G22 | 廠商統計與採購紀錄 | missing | M | G21, G16 | /general-affairs/vendors/stats, /general-affairs/vendors/purchases | 新增 pages/ga/VendorStats.vue、VendorPurchases.vue | 統計數字要和舊版逐筆對照。 |
 | 67 | G23 | 水電網費帳單與報表 | missing | L | G01 | /general-affairs/utility-bills, /general-affairs/utility-bills/report | 新增 pages/ga/UtilityBills.vue、UtilityBillsReport.vue、utility-bills API | 相依少，可以和廠商頁並行排程。 |
 | 68 | G24 | 總務服務中心首頁（KPI 與待辦整合） | missing | M | G18, G17, G12 | /general-affairs, /general-affairs/part-requests, /general-affairs/part-requests/new | 新增 pages/ga/GeneralAffairsHome.vue；part-requests 兩頁登錄為 exclude（已併入 reports） | 首頁要彙整其他總務頁的數據，所以排在最後；同時處理 part-requests 的排除登錄與轉址。 |
-| 69 | F01 | 全站最終回歸、文件同步與新舊並行切換準備 | infra | M | G24, W12, W33 |  | docs/vue-workspace/route-inventory.json、full-migration-checklist.md、verification.md、docs/CURRENT-DEV-STATUS.md | 所有頁面依角色矩陣跑一次完整的 smoke、parity、e2e，並把 100 個路由的狀態更新為以程式碼與測試為準。 |
+| 69 | F01 | 全站最終回歸、文件同步與新舊並行切換準備 | infra | M | G24, W12, W33 |  | docs/vue-workspace/route-inventory.json、full-migration-checklist.md、verification.md、docs/CURRENT-DEV-STATUS.md | 所有頁面依角色矩陣跑一次完整的 smoke、parity、e2e，並把 100 個路由的狀態更新為以程式碼與測試為準。 **2026-11-24 DEV 回歸完成**：全部頁面 × 83 帳號全綠，路由狀態已同步（95 通過、5 exclude）；新發現 4 項差異待使用者核可（見 verification.md「F01 全站回歸」）；N2 DEV 演練見 m9-fallback-drill.md。 |
 
 ## 完成定義（Definition of Done）
 

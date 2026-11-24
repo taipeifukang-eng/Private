@@ -35,108 +35,110 @@
 
 共 100 個既有頁面入口。依賴與 API 索引見 route-inventory.json；此清單只作入口基線，仍需展開元件內的子功能。
 
+2026-11-24 F01 全站回歸：每個頁面種類、每個角色矩陣帳號（83 個）的冒煙、整合、e2e、與舊版對等測試已循序全跑；狀態欄「F01 全站回歸通過」代表該路由對應的新版頁面測試全綠，除錯頁與已併入新流程的兩個需求單頁標為 exclude。route-inventory.json 的 status 與 f01 欄同步。
+
 | 既有路由 | 程式來源 | 狀態 |
 | --- | --- | --- |
 | `/activity-management` | `app/activity-management/page.tsx` | 已原生化（導覽「活動檢視」開新版列表頁籤）；M5 W20 完成：年度按鈕（預設今年）、狀態與發布對象標籤、未發布標籤、停用隱藏 Q2；舊網址自動轉新版 Q8（僅 DEV 工作台環境啟用，舊頁檔案保留）；已核可差異見 tests/parity/allowlist.json m5-w20-*
 | `/activity-view/[id]` | `app/activity-view/[id]/page.tsx` | 已原生化（新版排程檢視頁籤，路徑 /api/workspace/activity-view）；M5 W20 完成：Q6 店長／督導填報（人力預估、本店人員、Check List 勾選與備註、支援指派）、Q7 三顆按鈕與管轄門市照舊版、A4 橫式 PDF 與舊檔名、總門市數／已排程數、?focus 直開行銷／商品部、無權限頁；舊網址自動轉新版 Q8
-| `/admin/activity-management/events` | `app/admin/activity-management/events/page.tsx` | 已原生化（活動管理頁的「特殊日期」視窗）；M5 P05 對等驗收完成（依月份分組與星期、同日覆蓋前提醒；已核可差異見 tests/parity/allowlist.json m5-w19-*） |
-| `/admin/activity-management` | `app/admin/activity-management/page.tsx` | 已原生化；M5 P05 對等驗收完成（列表狀態依日期、停用隱藏 Q2、刪除輸入名稱與筆數 Q3、改期移回尚未安排 Q4、寫入只看角色權限 Q1；已核可差異見 tests/parity/allowlist.json m5-w19-*） |
-| `/admin/activity-management/schedule/[id]` | `app/admin/activity-management/schedule/[id]/page.tsx` | 已原生化；M5 W19 完成（七個分區、盤點類三分頁、週一為首月曆、督導區顏色、自動排程與舊版 200 組隨機資料同輸入同輸出、行銷圖片拖曳排序、Q5 三種提醒） |
-| `/admin/activity-management/settings` | `app/admin/activity-management/settings/page.tsx` | 已原生化（活動管理頁的「門市設定」視窗）；M5 P05 對等驗收完成（允許與禁止星期重疊新版擋下，列入核可差異） |
-| `/admin/archived` | `app/admin/archived/page.tsx` | 已原生化清單、唯讀明細、時間軌跡與複製；8 項整合及 3 項並行驗證；已接管理明細整批封存入口；範本其餘操作仍待遷移 |
-| `/admin/assign/[id]` | `app/admin/assign/[id]/page.tsx` | 已原生化獨立派發／重新指派、人員搜尋及日期；整份流程範圍確認、草稿、重試及版本衝突通過；其餘舊資料分支待驗收 |
-| `/admin/create` | `app/admin/create/page.tsx` | 已原生化範本／部門／人員／主子項／日期／原子指派；整合與復原驗證通過，舊資料及多區段完整驗收待補 |
-| `/admin/departments` | `app/admin/departments/page.tsx` | 已原生化；M5 W21 完成：進入條件照舊版頁面（Q9）、停用部門仍可調整成員與主管（Q10）、改名／停用不同步人員資料部門文字（Q11，DEV 已移除同步 trigger）、成員表主責／協作／代理計數與人員職掌統計抽屜；已核可差異見 tests/parity/allowlist.json m5-w21-*；上線前名單見 parity-plan/m5-sql/w21_q9_department_gate_preview.sql |
-| `/admin/edit/[id]` | `app/admin/edit/[id]/page.tsx` | 已原生化編輯、版本檢查、完成鎖定及協作同步；有紀錄區段刪除等分支仍待補 |
-| `/admin/employee-management` | `app/admin/employee-management/page.tsx` | 待逐項盤點 |
-| `/admin/employee-purchases` | `app/admin/employee-purchases/page.tsx` | 待逐項盤點 |
-| `/admin/export-monthly-status` | `app/admin/export-monthly-status/page.tsx` | 待逐項盤點 |
-| `/admin/import-employees` | `app/admin/import-employees/page.tsx` | 待逐項盤點 |
-| `/admin/inspection-templates` | `app/admin/inspection-templates/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/admin/organization` | `app/admin/organization/page.tsx` | 已原生化；M5 W21 完成：唯讀組織圖卡片模式（編輯仍只在樹狀）、人員職掌統計抽屜、停用部門仍可設定成員與主管；組織導覽器與工作交接分頁不復刻（已列差異）；已核可差異見 tests/parity/allowlist.json m5-w21-* |
-| `/admin/performance` | `app/admin/performance/page.tsx` | 已補月季獎金、活動日折減、完整明細、閾值、Excel、處方箋與每月獎金；完整角色／舊資料及並行寫入驗收仍待補 |
-| `/admin/pharmacist-management` | `app/admin/pharmacist-management/page.tsx` | 待逐項盤點 |
-| `/admin/promotion-management` | `app/admin/promotion-management/page.tsx` | 待逐項盤點 |
-| `/admin/roles/[id]` | `app/admin/roles/[id]/page.tsx` | 已整合同頁 Vue 角色設定跳窗；權限分組、變更確認與使用者指派／撤銷，DEV 驗證通過 |
-| `/admin/roles` | `app/admin/roles/page.tsx` | 已原生化名冊、搜尋篩選、新增／編輯／刪除；沿舊 RBAC 與系統角色保護；M5 P06：「顯示 DEV 測試角色」開關（預設隱藏、提示隱藏數量、DEV測試標籤）、把人加進管理員等級角色前醒目確認（Q13，後端規則不變） |
-| `/admin/store-managers` | `app/admin/store-managers/page.tsx` | 已原生化搜尋、多門市指派、單店／全部解除；交易回滾、衝突、權限及瀏覽器草稿／關閉驗證通過，見 verification.md；整組織範圍見 organization-migration.md |
-| `/admin/stores/[id]/clone` | `app/admin/stores/[id]/clone/page.tsx` | 已原生化搬遷保留 ID、沿革補建／刪除／重填；交易回滾與瀏覽器驗證通過 |
-| `/admin/stores/[id]/edit` | `app/admin/stores/[id]/edit/page.tsx` | 已原生化完整主檔、GPS、停用確認、版本衝突與草稿；驗證見 verification.md |
-| `/admin/stores/[id]/employee-management` | `app/admin/stores/[id]/employee-management/page.tsx` | 已接原生主檔名單與獨立升遷／異動歷程；原頁唯讀範圍，權限、階級文字、空紀錄、重試與瀏覽器測試通過，見 verification.md |
-| `/admin/stores/[id]/employees` | `app/admin/stores/[id]/employees/page.tsx` | 已接原生 StoreEmployees：歷史月份、排序、離職篩選、搜尋、藥師與狀態、每月人員入口；1105 筆讀取與 UI 驗證通過，見 verification.md |
-| `/admin/stores/[id]/promotion-management` | `app/admin/stores/[id]/promotion-management/page.tsx` | 已接原生編輯／Excel／驗證／交易儲存／草稿關閉；回滾、並行、重送與 UI 測試通過。已補到期實際排程、營業部／職稱／RBAC／RLS 邊界及 500 筆 UI 儲存驗證，見 verification.md |
-| `/admin/stores/create` | `app/admin/stores/create/page.tsx` | 已原生化完整主檔、GPS、裝置定位與防重送；專用角色及 UI 新增驗證通過 |
-| `/admin/stores/map` | `app/admin/stores/map/page.tsx` | 原生多點地圖／搜尋／選取／資訊窗／外連／停用權限已接；1005 筆與 SDK 替身測試通過。Google 實際底圖 RefererNotAllowedMapError，待使用者完成 localhost 網站限制後驗收 |
-| `/admin/stores` | `app/admin/stores/page.tsx` | 部分原生：列表／搜尋／停用切換／最新人員統計已驗證；月別員工與主檔歷程已補；整合地圖與批次升遷仍待補 |
-| `/admin/supervisors` | `app/admin/supervisors/page.tsx` | 已原生化清單、搜尋、統計、多店、代理確認／主責補位及兼任店長；交易、衝突、角色權限及瀏覽器流程通過，見 verification.md |
-| `/admin/template/[id]` | `app/admin/template/[id]/page.tsx` | 已接管理明細與實際進度、排程、歷史、封存、複製及重新指派；刪除待補 |
-| `/admin/templates` | `app/admin/templates/page.tsx` | 部分原生化：現行範本清單、全指派明細與整批封存；已接建立／編輯／複製／獨立派發；刪除及完整對等驗收待補 |
-| `/admin/users` | `app/admin/users/page.tsx` | 已原生化；M5 P06 完成：「新增使用者」連到公開註冊頁、管理員直接建立已移除（Q12）、改成管理員前醒目確認（Q13）、重置密碼維持只有舊式管理員（Q14）、「待開通 N 位」標籤與篩選（Q15）、停用判定改為封鎖時間未到期；已核可差異見 tests/parity/allowlist.json m5-p06-*；上線前名單見 parity-plan/m5-sql/p06_*.sql |
-| `/assignment/[id]` | `app/assignment/[id]/page.tsx` | 已接本人任務的原生勾選／備註／儲存；9 項整合與 4 項交易驗證通過；週甘特、協作提示及失敗復原已補；管理者非本人入口與其他角色分支待補 |
-| `/cross-dept/maintenance` | `app/cross-dept/maintenance/page.tsx` | 待逐項盤點 |
-| `/cross-dept/merchandise` | `app/cross-dept/merchandise/page.tsx` | 待逐項盤點 |
-| `/cross-dept/products-master` | `app/cross-dept/products-master/page.tsx` | 待逐項盤點 |
-| `/dashboard` | `app/dashboard/page.tsx` | 待逐項盤點 |
-| `/forgot-password` | `app/forgot-password/page.tsx` | 待逐項盤點 |
-| `/general-affairs/assets/scan/[token]` | `app/general-affairs/assets/scan/[token]/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment/categories` | `app/general-affairs/equipment/categories/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment/labels` | `app/general-affairs/equipment/labels/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment/maintenance-history` | `app/general-affairs/equipment/maintenance-history/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment/new` | `app/general-affairs/equipment/new/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment` | `app/general-affairs/equipment/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment/templates` | `app/general-affairs/equipment/templates/page.tsx` | 待逐項盤點 |
-| `/general-affairs/equipment/warranties` | `app/general-affairs/equipment/warranties/page.tsx` | 待逐項盤點 |
-| `/general-affairs/facilities/categories` | `app/general-affairs/facilities/categories/page.tsx` | 待逐項盤點 |
-| `/general-affairs/facilities/maintenance-history` | `app/general-affairs/facilities/maintenance-history/page.tsx` | 待逐項盤點 |
-| `/general-affairs/facilities/new` | `app/general-affairs/facilities/new/page.tsx` | 待逐項盤點 |
-| `/general-affairs/facilities` | `app/general-affairs/facilities/page.tsx` | 待逐項盤點 |
-| `/general-affairs/facilities/templates` | `app/general-affairs/facilities/templates/page.tsx` | 待逐項盤點 |
-| `/general-affairs/facilities/warranties` | `app/general-affairs/facilities/warranties/page.tsx` | 待逐項盤點 |
-| `/general-affairs/inventory/locations` | `app/general-affairs/inventory/locations/page.tsx` | 待逐項盤點 |
-| `/general-affairs/inventory` | `app/general-affairs/inventory/page.tsx` | 待逐項盤點 |
-| `/general-affairs/inventory/transfers` | `app/general-affairs/inventory/transfers/page.tsx` | 待逐項盤點 |
-| `/general-affairs` | `app/general-affairs/page.tsx` | 待逐項盤點 |
-| `/general-affairs/part-fulfillments` | `app/general-affairs/part-fulfillments/page.tsx` | 待逐項盤點 |
-| `/general-affairs/part-requests/new` | `app/general-affairs/part-requests/new/page.tsx` | 待逐項盤點 |
-| `/general-affairs/part-requests` | `app/general-affairs/part-requests/page.tsx` | 待逐項盤點 |
-| `/general-affairs/parts/categories` | `app/general-affairs/parts/categories/page.tsx` | 待逐項盤點 |
-| `/general-affairs/parts/compatibilities` | `app/general-affairs/parts/compatibilities/page.tsx` | 待逐項盤點 |
-| `/general-affairs/parts/new` | `app/general-affairs/parts/new/page.tsx` | 待逐項盤點 |
-| `/general-affairs/parts` | `app/general-affairs/parts/page.tsx` | 待逐項盤點 |
-| `/general-affairs/reports/mine` | `app/general-affairs/reports/mine/page.tsx` | 待逐項盤點 |
-| `/general-affairs/reports/new` | `app/general-affairs/reports/new/page.tsx` | 待逐項盤點 |
-| `/general-affairs/requests` | `app/general-affairs/requests/page.tsx` | 待逐項盤點 |
-| `/general-affairs/utility-bills` | `app/general-affairs/utility-bills/page.tsx` | 待逐項盤點 |
-| `/general-affairs/utility-bills/report` | `app/general-affairs/utility-bills/report/page.tsx` | 待逐項盤點 |
-| `/general-affairs/vendors/categories` | `app/general-affairs/vendors/categories/page.tsx` | 待逐項盤點 |
-| `/general-affairs/vendors` | `app/general-affairs/vendors/page.tsx` | 待逐項盤點 |
-| `/general-affairs/vendors/purchases` | `app/general-affairs/vendors/purchases/page.tsx` | 待逐項盤點 |
-| `/general-affairs/vendors/regions` | `app/general-affairs/vendors/regions/page.tsx` | 待逐項盤點 |
-| `/general-affairs/vendors/stats` | `app/general-affairs/vendors/stats/page.tsx` | 待逐項盤點 |
-| `/general-affairs/work-orders` | `app/general-affairs/work-orders/page.tsx` | 待逐項盤點 |
-| `/inspection/[id]/edit` | `app/inspection/[id]/edit/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/inspection/[id]` | `app/inspection/[id]/page.tsx` | 已原生化；M4 W16 對等驗收完成（詳情畫面事實、A4 列印報表對照舊版 PrintInspectionReport、刪除範圍；已核可差異見 tests/parity/allowlist.json Q20–Q22） |
-| `/inspection/compare` | `app/inspection/compare/page.tsx` | 已原生化；M4 P04 對等驗收完成（差異判定新舊同輸入同輸出、權限與門市範圍 Q23） |
-| `/inspection/debug` | `app/inspection/debug/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
-| `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
-| `/inspection/improvements/[id]` | `app/inspection/improvements/[id]/page.tsx` | 已原生化；M4 W17 對等驗收完成（回補台灣日期 Q17、寫入資格 Q18、逾期補報 Q19） |
-| `/inspection/improvements` | `app/inspection/improvements/page.tsx` | 已原生化；M4 W17 對等驗收完成（查看範圍角色矩陣等價、急迫標示、連結） |
-| `/inspection/new` | `app/inspection/new/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表 |
-| `/inspection` | `app/inspection/page.tsx` | 部分原生化；未完成對等驗收 |
-| `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | **exclude**：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台） |
-| `/inventory` | `app/inventory/page.tsx` | 部分原生化；結果分析可操作，但離線三模組、原因 Excel 匯入及完整分析／匯出未對等，見重查表 |
-| `/login` | `app/login/page.tsx` | 待逐項盤點 |
-| `/monthly-release` | `app/monthly-release/page.tsx` | 待逐項盤點 |
-| `/monthly-status/edit/[id]` | `app/monthly-status/edit/[id]/page.tsx` | 部分原生化；未完成對等驗收 |
-| `/monthly-status` | `app/monthly-status/page.tsx` | 本輪已補新增人員、獎金津貼、匯入、統計／支援時數與匯出；異動歷程與完整進階對等仍待驗收，見文末本輪表 |
-| `/my-tasks` | `app/my-tasks/page.tsx` | 已接原生列表及篩選；本人範圍與開啟操作驗證通過，尚待空資料／失敗分支驗收 |
-| `/organization/calendar` | `app/organization/calendar/page.tsx` | 已原生化；M5 W23／W24 完成：所有登入者可看（Q17）、月檢視與全年清單、公司行事新增／修改／取消與異動紀錄、個人行程與分享（搜尋排除停用離職，Q18）、政府假日匯入（再匯入前顯示差異並二次確認，Q21）、Google 單向同步（取消時真的刪除並加註，Q19；頁頂警示待同步與授權失效，Q20）；舊網址在 DEV 工作台環境轉新版、OAuth 回調網址不變；Google 在測試全程 mock（D17）；已核可差異見 tests/parity/allowlist.json m5-w23-*、m5-w24-*（個人行程新增的 RLS 修正待核可） |
-| `/` | `app/page.tsx` | 待逐項盤點 |
-| `/register` | `app/register/page.tsx` | 待逐項盤點 |
-| `/reset-password` | `app/reset-password/page.tsx` | 待逐項盤點 |
-| `/store/clinic-selfpay-margin` | `app/store/clinic-selfpay-margin/page.tsx` | 待逐項盤點 |
-| `/store/relationship-members` | `app/store/relationship-members/page.tsx` | 已原生化會員維護/審核、銷售查詢與xlsx匯入；DEV隔離資料完整流程驗證通過 |
-| `/supervisor-management-log` | `app/supervisor-management-log/page.tsx` | 待逐項盤點 |
+| `/admin/activity-management/events` | `app/admin/activity-management/events/page.tsx` | 已原生化（活動管理頁的「特殊日期」視窗）；M5 P05 對等驗收完成（依月份分組與星期、同日覆蓋前提醒；已核可差異見 tests/parity/allowlist.json m5-w19-*）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/activity-management` | `app/admin/activity-management/page.tsx` | 已原生化；M5 P05 對等驗收完成（列表狀態依日期、停用隱藏 Q2、刪除輸入名稱與筆數 Q3、改期移回尚未安排 Q4、寫入只看角色權限 Q1；已核可差異見 tests/parity/allowlist.json m5-w19-*）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/activity-management/schedule/[id]` | `app/admin/activity-management/schedule/[id]/page.tsx` | 已原生化；M5 W19 完成（七個分區、盤點類三分頁、週一為首月曆、督導區顏色、自動排程與舊版 200 組隨機資料同輸入同輸出、行銷圖片拖曳排序、Q5 三種提醒）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/activity-management/settings` | `app/admin/activity-management/settings/page.tsx` | 已原生化（活動管理頁的「門市設定」視窗）；M5 P05 對等驗收完成（允許與禁止星期重疊新版擋下，列入核可差異）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/archived` | `app/admin/archived/page.tsx` | 已原生化清單、唯讀明細、時間軌跡與複製；8 項整合及 3 項並行驗證；已接管理明細整批封存入口；範本其餘操作仍待遷移；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/assign/[id]` | `app/admin/assign/[id]/page.tsx` | 已原生化獨立派發／重新指派、人員搜尋及日期；整份流程範圍確認、草稿、重試及版本衝突通過；其餘舊資料分支待驗收；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/create` | `app/admin/create/page.tsx` | 已原生化範本／部門／人員／主子項／日期／原子指派；整合與復原驗證通過，舊資料及多區段完整驗收待補；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/departments` | `app/admin/departments/page.tsx` | 已原生化；M5 W21 完成：進入條件照舊版頁面（Q9）、停用部門仍可調整成員與主管（Q10）、改名／停用不同步人員資料部門文字（Q11，DEV 已移除同步 trigger）、成員表主責／協作／代理計數與人員職掌統計抽屜；已核可差異見 tests/parity/allowlist.json m5-w21-*；上線前名單見 parity-plan/m5-sql/w21_q9_department_gate_preview.sql；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/edit/[id]` | `app/admin/edit/[id]/page.tsx` | 已原生化編輯、版本檢查、完成鎖定及協作同步；有紀錄區段刪除等分支仍待補；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/employee-management` | `app/admin/employee-management/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/employee-purchases` | `app/admin/employee-purchases/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/export-monthly-status` | `app/admin/export-monthly-status/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/import-employees` | `app/admin/import-employees/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/inspection-templates` | `app/admin/inspection-templates/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/organization` | `app/admin/organization/page.tsx` | 已原生化；M5 W21 完成：唯讀組織圖卡片模式（編輯仍只在樹狀）、人員職掌統計抽屜、停用部門仍可設定成員與主管；組織導覽器與工作交接分頁不復刻（已列差異）；已核可差異見 tests/parity/allowlist.json m5-w21-*；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/performance` | `app/admin/performance/page.tsx` | 已補月季獎金、活動日折減、完整明細、閾值、Excel、處方箋與每月獎金；完整角色／舊資料及並行寫入驗收仍待補；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/pharmacist-management` | `app/admin/pharmacist-management/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/promotion-management` | `app/admin/promotion-management/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/roles/[id]` | `app/admin/roles/[id]/page.tsx` | 已整合同頁 Vue 角色設定跳窗；權限分組、變更確認與使用者指派／撤銷，DEV 驗證通過；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/roles` | `app/admin/roles/page.tsx` | 已原生化名冊、搜尋篩選、新增／編輯／刪除；沿舊 RBAC 與系統角色保護；M5 P06：「顯示 DEV 測試角色」開關（預設隱藏、提示隱藏數量、DEV測試標籤）、把人加進管理員等級角色前醒目確認（Q13，後端規則不變）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/store-managers` | `app/admin/store-managers/page.tsx` | 已原生化搜尋、多門市指派、單店／全部解除；交易回滾、衝突、權限及瀏覽器草稿／關閉驗證通過，見 verification.md；整組織範圍見 organization-migration.md；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/[id]/clone` | `app/admin/stores/[id]/clone/page.tsx` | 已原生化搬遷保留 ID、沿革補建／刪除／重填；交易回滾與瀏覽器驗證通過；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/[id]/edit` | `app/admin/stores/[id]/edit/page.tsx` | 已原生化完整主檔、GPS、停用確認、版本衝突與草稿；驗證見 verification.md；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/[id]/employee-management` | `app/admin/stores/[id]/employee-management/page.tsx` | 已接原生主檔名單與獨立升遷／異動歷程；原頁唯讀範圍，權限、階級文字、空紀錄、重試與瀏覽器測試通過，見 verification.md；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/[id]/employees` | `app/admin/stores/[id]/employees/page.tsx` | 已接原生 StoreEmployees：歷史月份、排序、離職篩選、搜尋、藥師與狀態、每月人員入口；1105 筆讀取與 UI 驗證通過，見 verification.md；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/[id]/promotion-management` | `app/admin/stores/[id]/promotion-management/page.tsx` | 已接原生編輯／Excel／驗證／交易儲存／草稿關閉；回滾、並行、重送與 UI 測試通過。已補到期實際排程、營業部／職稱／RBAC／RLS 邊界及 500 筆 UI 儲存驗證，見 verification.md；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/create` | `app/admin/stores/create/page.tsx` | 已原生化完整主檔、GPS、裝置定位與防重送；專用角色及 UI 新增驗證通過；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores/map` | `app/admin/stores/map/page.tsx` | 原生多點地圖／搜尋／選取／資訊窗／外連／停用權限已接；1005 筆與 SDK 替身測試通過。Google 實際底圖 RefererNotAllowedMapError，待使用者完成 localhost 網站限制後驗收；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/stores` | `app/admin/stores/page.tsx` | 部分原生：列表／搜尋／停用切換／最新人員統計已驗證；月別員工與主檔歷程已補；整合地圖與批次升遷仍待補；F01 回歸測試全綠，但未完成項目維持如上 |
+| `/admin/supervisors` | `app/admin/supervisors/page.tsx` | 已原生化清單、搜尋、統計、多店、代理確認／主責補位及兼任店長；交易、衝突、角色權限及瀏覽器流程通過，見 verification.md；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/template/[id]` | `app/admin/template/[id]/page.tsx` | 已接管理明細與實際進度、排程、歷史、封存、複製及重新指派；刪除待補；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/admin/templates` | `app/admin/templates/page.tsx` | 部分原生化：現行範本清單、全指派明細與整批封存；已接建立／編輯／複製／獨立派發；刪除及完整對等驗收待補；F01 回歸測試全綠，但未完成項目維持如上 |
+| `/admin/users` | `app/admin/users/page.tsx` | 已原生化；M5 P06 完成：「新增使用者」連到公開註冊頁、管理員直接建立已移除（Q12）、改成管理員前醒目確認（Q13）、重置密碼維持只有舊式管理員（Q14）、「待開通 N 位」標籤與篩選（Q15）、停用判定改為封鎖時間未到期；已核可差異見 tests/parity/allowlist.json m5-p06-*；上線前名單見 parity-plan/m5-sql/p06_*.sql；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/assignment/[id]` | `app/assignment/[id]/page.tsx` | 已接本人任務的原生勾選／備註／儲存；9 項整合與 4 項交易驗證通過；週甘特、協作提示及失敗復原已補；管理者非本人入口與其他角色分支待補；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/cross-dept/maintenance` | `app/cross-dept/maintenance/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/cross-dept/merchandise` | `app/cross-dept/merchandise/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/cross-dept/products-master` | `app/cross-dept/products-master/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/dashboard` | `app/dashboard/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/forgot-password` | `app/forgot-password/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/assets/scan/[token]` | `app/general-affairs/assets/scan/[token]/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment/categories` | `app/general-affairs/equipment/categories/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment/labels` | `app/general-affairs/equipment/labels/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment/maintenance-history` | `app/general-affairs/equipment/maintenance-history/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment/new` | `app/general-affairs/equipment/new/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment` | `app/general-affairs/equipment/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment/templates` | `app/general-affairs/equipment/templates/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/equipment/warranties` | `app/general-affairs/equipment/warranties/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/facilities/categories` | `app/general-affairs/facilities/categories/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/facilities/maintenance-history` | `app/general-affairs/facilities/maintenance-history/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/facilities/new` | `app/general-affairs/facilities/new/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/facilities` | `app/general-affairs/facilities/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/facilities/templates` | `app/general-affairs/facilities/templates/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/facilities/warranties` | `app/general-affairs/facilities/warranties/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/inventory/locations` | `app/general-affairs/inventory/locations/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/inventory` | `app/general-affairs/inventory/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/inventory/transfers` | `app/general-affairs/inventory/transfers/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs` | `app/general-affairs/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/part-fulfillments` | `app/general-affairs/part-fulfillments/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/part-requests/new` | `app/general-affairs/part-requests/new/page.tsx` | exclude：已併入新版「回報與需求單」流程（G24 登錄，M7/M8 規格）；F01 不列入回歸 |
+| `/general-affairs/part-requests` | `app/general-affairs/part-requests/page.tsx` | exclude：已併入新版「回報與需求單」流程（G24 登錄，M7/M8 規格）；F01 不列入回歸 |
+| `/general-affairs/parts/categories` | `app/general-affairs/parts/categories/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/parts/compatibilities` | `app/general-affairs/parts/compatibilities/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/parts/new` | `app/general-affairs/parts/new/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/parts` | `app/general-affairs/parts/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/reports/mine` | `app/general-affairs/reports/mine/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/reports/new` | `app/general-affairs/reports/new/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/requests` | `app/general-affairs/requests/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/utility-bills` | `app/general-affairs/utility-bills/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/utility-bills/report` | `app/general-affairs/utility-bills/report/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/vendors/categories` | `app/general-affairs/vendors/categories/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/vendors` | `app/general-affairs/vendors/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/vendors/purchases` | `app/general-affairs/vendors/purchases/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/vendors/regions` | `app/general-affairs/vendors/regions/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/vendors/stats` | `app/general-affairs/vendors/stats/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/general-affairs/work-orders` | `app/general-affairs/work-orders/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/inspection/[id]/edit` | `app/inspection/[id]/edit/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/inspection/[id]` | `app/inspection/[id]/page.tsx` | 已原生化；M4 W16 對等驗收完成（詳情畫面事實、A4 列印報表對照舊版 PrintInspectionReport、刪除範圍；已核可差異見 tests/parity/allowlist.json Q20–Q22）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/inspection/compare` | `app/inspection/compare/page.tsx` | 已原生化；M4 P04 對等驗收完成（差異判定新舊同輸入同輸出、權限與門市範圍 Q23）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/inspection/debug` | `app/inspection/debug/page.tsx` | exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸 |
+| `/inspection/diagnostic` | `app/inspection/diagnostic/page.tsx` | exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸 |
+| `/inspection/improvements/[id]` | `app/inspection/improvements/[id]/page.tsx` | 已原生化；M4 W17 對等驗收完成（回補台灣日期 Q17、寫入資格 Q18、逾期補報 Q19）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/inspection/improvements` | `app/inspection/improvements/page.tsx` | 已原生化；M4 W17 對等驗收完成（查看範圍角色矩陣等價、急迫標示、連結）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/inspection/new` | `app/inspection/new/page.tsx` | 已原生化；細項驗證與剩餘範圍見首批巡店表；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；注意：舊版後來加入的「巡店定位例外」新版尚未移植（allowlist m9-f01-inspection-gps-exempt-not-ported，待使用者決定） |
+| `/inspection` | `app/inspection/page.tsx` | 部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上 |
+| `/inspection/test-debug` | `app/inspection/test-debug/page.tsx` | exclude：除錯頁不復刻（決策 D13，M4 P04 登錄；舊站保留，不進 Vue 工作台）；F01 不列入回歸 |
+| `/inventory` | `app/inventory/page.tsx` | 部分原生化；結果分析可操作，但離線三模組、原因 Excel 匯入及完整分析／匯出未對等，見重查表；F01 回歸測試全綠，但未完成項目維持如上 |
+| `/login` | `app/login/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/monthly-release` | `app/monthly-release/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/monthly-status/edit/[id]` | `app/monthly-status/edit/[id]/page.tsx` | 部分原生化；未完成對等驗收；F01 回歸測試全綠，但未完成項目維持如上 |
+| `/monthly-status` | `app/monthly-status/page.tsx` | 本輪已補新增人員、獎金津貼、匯入、統計／支援時數與匯出；異動歷程與完整進階對等仍待驗收，見文末本輪表；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/my-tasks` | `app/my-tasks/page.tsx` | 已接原生列表及篩選；本人範圍與開啟操作驗證通過，尚待空資料／失敗分支驗收；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/organization/calendar` | `app/organization/calendar/page.tsx` | 已原生化；M5 W23／W24 完成：所有登入者可看（Q17）、月檢視與全年清單、公司行事新增／修改／取消與異動紀錄、個人行程與分享（搜尋排除停用離職，Q18）、政府假日匯入（再匯入前顯示差異並二次確認，Q21）、Google 單向同步（取消時真的刪除並加註，Q19；頁頂警示待同步與授權失效，Q20）；舊網址在 DEV 工作台環境轉新版、OAuth 回調網址不變；Google 在測試全程 mock（D17）；已核可差異見 tests/parity/allowlist.json m5-w23-*、m5-w24-*（個人行程新增的 RLS 修正待核可）；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/` | `app/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/register` | `app/register/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/reset-password` | `app/reset-password/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/store/clinic-selfpay-margin` | `app/store/clinic-selfpay-margin/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」）；F01 補登導覽面差異：只有「實際能用」的角色看得到選單（allowlist m9-f01-nav-clinic-selfpay-menu-visibility，待核可） |
+| `/store/relationship-members` | `app/store/relationship-members/page.tsx` | 已原生化會員維護/審核、銷售查詢與xlsx匯入；DEV隔離資料完整流程驗證通過；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
+| `/supervisor-management-log` | `app/supervisor-management-log/page.tsx` | 已原生化；F01 全站回歸通過（2026-11-24，DEV，見 verification.md「F01 全站回歸」） |
 
 ### 2026-10-29 每月人員狀態：本輪功能補齊
 

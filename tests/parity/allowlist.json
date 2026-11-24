@@ -9917,5 +9917,65 @@
     "description": "備援開關只涵蓋「選單頁面」（有舊版對應的導覽頁面，共 40 頁，清單由系統產生）；明細頁、總務服務中心內側欄的子頁、新版專屬功能不能單獨切換（總務中心只能整體切「總務服務中心首頁」）。",
     "reason": "明細頁由清單頁帶出，單獨切換會讓流程斷在一半；新版專屬功能沒有舊版可退。開發端的選擇，請使用者確認範圍是否足夠。",
     "approvedBy": null
+  },
+  {
+    "id": "m9-f01-nav-clinic-selfpay-menu-visibility",
+    "page": "navigation",
+    "description": "導覽：舊 Navbar 對有月報四碼（monthly.status.view_own／view_all、employee.movement.manage、store.manage）的角色顯示「診所自費藥毛利計算」（/store/clinic-selfpay-margin）；新版選單只在「實際能用」（有 store.clinic_selfpay.* 專屬權限或職稱符合）時才顯示，所以部分角色（營運、藥師、月報檢視與編輯、只有異動管理等）的新版選單看不到這個入口。",
+    "reason": "M6 規格 D1（2026-11-21）已裁定「選單可見 = 實際能用」，clinic-selfpay 頁對照表已核可該差異；但導覽對等測試（navigation）當時沒有登記對應條目，F01 全站回歸才發現。依 T2 先登記為待核可，請使用者確認這個導覽面的差異是否同樣接受。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "navigation",
+      "kind": "only-legacy",
+      "key": "/store/clinic-selfpay-margin",
+      "entry": "nav-visibility"
+    }
+  },
+  {
+    "id": "m9-f01-admin-purchase-payment-codes-legacy-only",
+    "page": "navigation",
+    "description": "管理員（舊版 /api/permissions/user 回傳所有啟用權限碼）的有效權限含第 4.5 批新增的 general_affairs.purchase_payment.view、general_affairs.purchase_payment.manage；新版 session 的權限取自角色實際指派，這兩個碼依設計不授權給任何角色（含 admin 角色），所以新版清單沒有。連帶：管理員在新版看不到「進貨發票」「請款單」入口與請款管理動作（資料庫語意沒有管理員後備）。",
+    "reason": "第 4.5 批問卷 P4：請款權限碼不自動授權，由使用者在角色權限頁決定授權對象。F01 全站回歸發現導覽對等沒有登記這個差異（同類的 purchase_order.approve 已登記並核可）。依 T2 登記為待核可，請使用者決定要不要先把這兩個碼授權給管理員角色。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "entry": "effective-permissions",
+      "key": "general_affairs.purchase_payment.view",
+      "roles": [
+        "admin"
+      ]
+    }
+  },
+  {
+    "id": "m9-f01-admin-purchase-payment-manage-legacy-only",
+    "page": "navigation",
+    "description": "同 m9-f01-admin-purchase-payment-codes-legacy-only，針對 general_affairs.purchase_payment.manage。",
+    "reason": "同上；依 T2 登記為待核可。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "api-read",
+      "kind": "only-legacy",
+      "entry": "effective-permissions",
+      "key": "general_affairs.purchase_payment.manage",
+      "roles": [
+        "admin"
+      ]
+    }
+  },
+  {
+    "id": "m9-f01-inspection-gps-exempt-not-ported",
+    "page": "inspection-gps",
+    "description": "舊版新增巡店頁在 2026-11（定位例外功能）之後，對持有「巡店定位例外」權限（inspection.gps_exempt）或系統管理員的人：定位失敗時顯示「使用定位例外送出」按鈕、提示多一句「你有「巡店定位例外」權限：定位失敗時可改用定位例外送出。」，儲存時帶 gps_exempt = true，巡店清單與內容頁顯示「定位例外」標籤並可只看定位例外。新版巡店頁（I01 移植時舊版還沒有這個功能）沒有這些：定位失敗一律鎖住表單，提示沒有那一句，清單沒有標籤與篩選。對等測試只在管理員的提示文字上抓到差異，但缺的是整組功能。",
+    "reason": "舊版定位例外功能在新版 I01 移植之後才加入（commit e3ccd769、a4bd2d88），新版尚未跟上。F01 全站回歸發現。依 T2 不自動改動新版行為，登記為待核可：請決定上線前要補做新版的定位例外（建議，否則有此權限的人改用新版會無法在定位失敗時送出），或接受新版暫無此功能（這些人可用「回舊版」連結改走舊版）。",
+    "approvedBy": null,
+    "match": {
+      "mechanism": "ui-extract",
+      "kind": "changed",
+      "key": "hint",
+      "roles": [
+        "admin"
+      ]
+    }
   }
 ]

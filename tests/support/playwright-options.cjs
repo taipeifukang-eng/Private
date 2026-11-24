@@ -17,6 +17,9 @@ function buildPlaywrightOptions({ root, runId, nodeBin = process.execPath } = {}
     testDir: path.join(root, 'tests'),
     // 只收 *.spec.ts；Vitest 的 *.test.ts 不會被 Playwright 撿到。
     testMatch: ['**/*.spec.ts'],
+    // gps-exempt、prescription-gsheet 是各自有 playwright.config（獨立 3014 埠、自己的 setup/teardown）的獨立套件；
+    // 被主設定撿到會沒有 setup/teardown 而殘留測試資料（F01 全站回歸發現），所以排除。
+    testIgnore: ['**/gps-exempt/**', '**/prescription-gsheet/**'],
     outputDir: path.join(reportDir, 'test-results'),
     fullyParallel: false,
     workers: 1,
