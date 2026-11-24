@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>督導新版上線說明</title>
+<style>
+:root{--bg:#f6f4ee;--card:#ffffff;--ink:#1f2a24;--muted:#4b5a52;--line:#d9d5c8;--brand:#2f5d3a;--brand-soft:#e4efe5;--warn-bg:#fff4d6;--warn-ink:#5a4300;--diff-bg:#eef3fb;--diff-ink:#1d3a63}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141a16;--card:#1d2621;--ink:#eef2ee;--muted:#b4c0b8;--line:#33413a;--brand:#8fcb9b;--brand-soft:#26372b;--warn-bg:#3a2f10;--warn-ink:#f3dc9a;--diff-bg:#1b2738;--diff-ink:#c3d7f5}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;font-size:17px;line-height:1.75;overflow-x:hidden}
+.wrap{max-width:760px;margin:0 auto;padding:24px 16px 56px}
+h1{font-size:28px;line-height:1.35;margin:8px 0 12px}
+h2{font-size:22px;line-height:1.4;margin:40px 0 12px;padding-left:12px;border-left:5px solid var(--brand)}
+h3{font-size:19px;line-height:1.4;margin:0 0 8px}
+p{margin:0 0 12px}
+.lead{font-size:18px}
+.tag{display:inline-block;background:var(--brand-soft);color:var(--brand);font-weight:700;padding:2px 12px;border-radius:999px;font-size:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 20px}
+.card img{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;margin:0 0 12px}
+.diff{background:var(--diff-bg);color:var(--diff-ink);border-radius:10px;padding:10px 12px;margin:0}
+.diff b{display:block}
+.warn{background:var(--warn-bg);color:var(--warn-ink);border-radius:10px;padding:12px 14px;margin:0 0 12px}
+ol,ul{padding-left:1.4em;margin:0 0 12px}
+li{margin-bottom:8px}
+details{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin:0 0 12px}
+summary{cursor:pointer;font-weight:700;font-size:17px}
+details p{margin:10px 0 0}
+a{color:var(--brand);overflow-wrap:anywhere}
+.foot{color:var(--muted);font-size:16px;margin-top:32px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<span class="tag">督導 專用</span>
+<h1>督導新版上線說明</h1>
+<p class="lead">為了讓大家把工作集中在同一個地方、少點幾次連結，我們把系統換成新版工作台，常用的功能都收在左上角的「選單」裡。</p>
+<p><b>上線日：另行通知</b></p>
+
+<h2>新版怎麼進去</h2>
+<ol>
+<li>上線日當天，照通知的連結登入。</li>
+<li>登入後會先看到「工作總覽」，上面有你的任務、本月壽星和快捷入口。</li>
+<li>要找任何功能，點左上角的「選單」，不用再翻一長串舊版頁面連結。</li>
+<li>右上角有「新頁預設門市」下拉選單，新開的頁面會先帶入你選的門市。</li>
+</ol>
+<div class="card">
+<img src="shots/supervisor-home.png" alt="督導登入後看到的工作總覽首頁" loading="lazy">
+<h3>登入後首頁</h3>
+<p>一進來就是工作總覽，所有功能集中在左上角「選單」。</p>
+<p class="diff"><b>跟舊版不同</b>不再是一長串舊版頁面連結，全部改從「選單」進去。</p>
+</div>
+
+<h2>你最常用的頁面</h2>
+
+<div class="card">
+<img src="shots/supervisor-my-tasks.png" alt="我的任務頁面" loading="lazy">
+<h3>我的任務</h3>
+<p>在選單的「派發任務」開啟。你可以同時開好幾頁，用上方分頁來回切換，不用一直重新找。</p>
+<p class="diff"><b>跟舊版不同</b>改用分頁方式同時開多頁；右上角多了「回舊版」。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-dashboard.png" alt="儀表板頁面" loading="lazy">
+<h3>儀表板</h3>
+<p>用來掌握各門市目前的整體狀況。畫面放著不動也會跟著更新。</p>
+<p class="diff"><b>跟舊版不同</b>每 60 秒自動更新，也可以手動按「重新整理」。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-monthly.png" alt="每月人員狀態頁面" loading="lazy">
+<h3>每月人員狀態</h3>
+<p>各門市的每月人員狀況都在這裡。上方的數字會告訴你，還有幾家門市沒填完。</p>
+<p class="diff"><b>跟舊版不同</b>各門市用頁籤切換，總門市數、已確認、已提交、待填寫一眼看完。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-activity-view.png" alt="活動檢視頁面" loading="lazy">
+<h3>活動檢視</h3>
+<p>先選年度，就會列出當年度已發布的活動。想看細節，按該筆的「查看排程」。</p>
+<p class="diff"><b>跟舊版不同</b>可依年度篩選，每筆活動直接顯示期間和發布對象。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-inspections.png" alt="巡店列表頁面" loading="lazy">
+<h3>巡店列表</h3>
+<p>用月曆看每天的巡店，旁邊同時有統計數字。需要整月成績時，按「匯出當月巡店得分」。</p>
+<p class="diff"><b>跟舊版不同</b>月曆和統計放在同一頁；多了「匯出當月巡店得分」；各分頁各自記住所選的門市與月份。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-improvements.png" alt="待改善追蹤頁面" loading="lazy">
+<h3>待改善追蹤</h3>
+<p>巡店發現的缺失會依期限排列。離期限只剩 2 天內的，會標上「急迫」，提醒你優先處理。</p>
+<p class="diff"><b>跟舊版不同</b>依期限追蹤；已逾期的仍然可以補報。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-supervisor-log.png" alt="督導管理日誌頁面" loading="lazy">
+<h3>督導管理日誌</h3>
+<p>今日工作台整個搬到新版，原本的操作都在。語音紀錄第一次使用時，要先同意告知；AI 整理出來的內容，仍要你按「儲存」才算數。</p>
+<p class="diff"><b>跟舊版不同</b>你可以刪除自己建立、尚未結案的案件，但要填寫原因，系統會留下紀錄。AI 整理每月有使用上限。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-clinic-selfpay.png" alt="診所自費藥毛利計算頁面" loading="lazy">
+<h3>診所自費藥毛利計算</h3>
+<p>把截圖直接貼上就能算，不必先存檔再選檔案。手機上也能操作。</p>
+<p class="diff"><b>跟舊版不同</b>截圖可直接按 Ctrl+V 貼上；月份不符或重複匯入時，會先跳出確認視窗，讓你決定要不要繼續。</p>
+</div>
+
+<div class="card">
+<img src="shots/supervisor-ga-center.png" alt="總務服務中心首頁" loading="lazy">
+<h3>總務服務中心首頁</h3>
+<p>總務相關的申請和進度都從這裡進去。左邊有完整的功能清單，找不到功能時先看這裡。</p>
+<p class="diff"><b>跟舊版不同</b>新版頁面可以直接點；選單上的數字徽章，點下去只會顯示待辦的項目。</p>
+</div>
+
+<h2>遇到問題怎麼辦</h2>
+<div class="warn">放心：任何時候都可以回到舊版，而且你還沒存的內容不會不見。</div>
+<ul>
+<li><b>想先用舊版做完手上的事</b>：點右上角的「回舊版」連結。舊版會另開一個分頁，你在新版沒存的內容不會不見。</li>
+<li><b>看到「此頁已由系統管理員暫時切回舊版」的通知</b>：表示這一頁暫時改用舊版。直接點通知裡的連結，就能繼續完成工作。</li>
+<li><b>還是解決不了</b>：請聯絡總部系統管理員。</li>
+</ul>
+
+<h2>常見問題</h2>
+<details><summary>新版什麼時候開始用？</summary><p>上線日另行通知。在那之前，請照舊使用現在的版本。</p></details>
+<details><summary>我找不到原本的功能在哪裡？</summary><p>點左上角的「選單」，功能都收在裡面。如果有些功能你看不到，可能是你的帳號沒有開放，請聯絡總部系統管理員。</p></details>
+<details><summary>新版用不習慣，可以回去用舊版嗎？</summary><p>可以。點右上角的「回舊版」就會另開舊版頁面，原本在新版打到一半、還沒存的內容也會保留。</p></details>
+<details><summary>語音紀錄的內容，AI 整理完就算存好了嗎？</summary><p>不算。AI 只是幫你整理，一定要你自己看過、按下「儲存」才算數。另外每月 AI 有使用上限，用完就要改手動輸入。</p></details>
+<details><summary>我刪錯了自己建立的案件怎麼辦？</summary><p>刪除時一定會請你填寫原因，並留下紀錄，已結案的案件也不能刪。如果刪錯了，請聯絡總部系統管理員協助。</p></details>
+
+<p class="foot">督導新版上線說明。上線日另行通知。</p>
+</div>
+</body>
+</html>
