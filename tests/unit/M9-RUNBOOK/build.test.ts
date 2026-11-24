@@ -69,20 +69,20 @@ describe('M9 正式區逐步操作頁：步驟數', () => {
   it('README 總表解析出的步驟數與「合計 N 步」一致，序號連續', () => {
     const parsed = builder.parseReadme(readmeText.slice(readmeText.indexOf('## 全部正式區執行順序總表')));
     expect(parsed.steps.length).toBe(parsed.claimed);
-    expect(parsed.claimed).toBe(85);
-    expect(model.meta.readmeStepCount).toBe(85);
+    expect(parsed.claimed).toBe(86);
+    expect(model.meta.readmeStepCount).toBe(86);
     parsed.steps.forEach((s: any, i: number) => expect(s.no).toBe(i + 1));
   });
 
-  it('頁面步驟 = 總表 85 步扣掉 4 個不執行的步驟，再加上額外步驟；總表每步最多出現一次且順序不變', () => {
-    expect(model.meta.excludedReadmeSteps).toEqual([82, 83, 84, 85]);
-    expect(model.meta.readmeStepsIncluded).toBe(85 - 4);
+  it('頁面步驟 = 總表 86 步扣掉 4 個不執行的步驟，再加上額外步驟；總表每步最多出現一次且順序不變', () => {
+    expect(model.meta.excludedReadmeSteps).toEqual([83, 84, 85, 86]);
+    expect(model.meta.readmeStepsIncluded).toBe(86 - 4);
     expect(model.meta.stepCount).toBe(model.meta.readmeStepsIncluded + model.meta.extraStepIds.length);
     expect(model.steps.length).toBe(model.meta.stepCount);
     const nos = model.steps.filter((s: any) => s.readmeNo).map((s: any) => s.readmeNo);
     expect(new Set(nos).size).toBe(nos.length);
     expect(nos).toEqual([...nos].sort((a: number, b: number) => a - b));
-    expect(nos).not.toContain(82);
+    expect(nos).not.toContain(86);
     expect(nos).not.toContain(83);
     expect(nos).not.toContain(84);
     expect(nos).not.toContain(85);
@@ -142,7 +142,7 @@ describe('M9 正式區逐步操作頁：SQL 逐字嵌入', () => {
     try {
       fs.cpSync(planDir, tmp, { recursive: true });
       const p = path.join(tmp, 'm9-sql', 'README.md');
-      fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('合計 **85 步**', '合計 **84 步**'));
+      fs.writeFileSync(p, fs.readFileSync(p, 'utf8').replace('合計 **86 步**', '合計 **85 步**'));
       expect(() => builder.buildModel({ planDir: tmp })).toThrow(/合計/);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
@@ -182,7 +182,7 @@ describe('M9 正式區逐步操作頁：唯讀步驟', () => {
         expect(isReadOnly(b.sql), `${s.id} ${b.file}`).toBe(true);
       }
     }
-    const s80 = model.steps.find((s: any) => s.readmeNo === 30);
+    const s80 = model.steps.find((s: any) => s.readmeNo === 31);
     const pv = s80.blocks.preview[0].sql as string;
     expect(pv).toMatch(/RAISE EXCEPTION/);
   });
@@ -225,18 +225,18 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     expect(r4.expect).toMatch(/結果 B/);
     // R4 判斷必須排在 55、90 之前
     const idx = (id: string) => model.steps.findIndex((s: any) => s.id === id);
-    expect(idx('x-r4')).toBeLessThan(idx('s24'));
     expect(idx('x-r4')).toBeLessThan(idx('s25'));
+    expect(idx('x-r4')).toBeLessThan(idx('s26'));
   });
 
   it('R1：15 號步驟（員工管理）先預覽再主檔，預覽有醒目停止點', () => {
-    const s = model.steps.find((x: any) => x.readmeNo === 27);
+    const s = model.steps.find((x: any) => x.readmeNo === 28);
     expect(s.blocks.preview[0].file).toBe('m9-sql/15_employee_management.preview.sql');
     expect(s.blocks.main[0].file).toBe('m9-sql/15_employee_management.sql');
     expect(s.stops.some((x: any) => x.where === 'preview' && /不合規員編/.test(x.title))).toBe(true);
   });
 
-  it('R2：pg_cron 排程是台北 00:05 = UTC 16:05（5 16 * * *），呼叫 workspace_apply_due_promotions，並放在 30 號之後', () => {
+  it('R2：pg_cron 排程是台北 00:05 = UTC 16:05（5 16 * * *），呼叫 workspace_apply_due_promotions，並放在 31 號步驟（異動批次與每月人員名冊）之後', () => {
     const sch = model.steps.find((s: any) => s.id === 'x-cron-schedule');
     const sql = sch.blocks.main[0].sql as string;
     expect(sql).toContain("'5 16 * * *'");
@@ -244,7 +244,7 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     expect(sch.blocks.verify[0].sql).toMatch(/cron\.job/);
     expect(sch.blocks.rollback[0].sql).toMatch(/cron\.unschedule/);
     const idx = (id: string) => model.steps.findIndex((s: any) => s.id === id);
-    expect(idx('x-cron-enable')).toBeGreaterThan(idx('s30'));
+    expect(idx('x-cron-enable')).toBeGreaterThan(idx('s31'));
     expect(idx('x-cron-schedule')).toBe(idx('x-cron-enable') + 1);
   });
 
@@ -264,7 +264,7 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
     expect(model.steps[auth].title).toMatch(/待權限勾選頁產生後補上/);
   });
 
-  it('最後兩步是「切換開新版」與「回舊版開關確認」，回舊版確認引用 15 號步驟的 verify 檔', () => {
+  it('最後兩步是「切換開新版」與「回舊版開關確認」，回舊版確認引用 16 號步驟（備援開關）的 verify 檔', () => {
     const n = model.steps.length;
     expect(model.steps[n - 2].title).toBe('切換開新版');
     expect(model.steps[n - 1].title).toBe('回舊版開關確認');
@@ -279,20 +279,20 @@ describe('M9 正式區逐步操作頁：老闆決定', () => {
       expect(s.blocks.commit.length > 0, s.id).toBe(need);
     }
     const withCommit = model.steps.filter((s: any) => s.blocks.commit.length > 0).map((s: any) => s.readmeNo);
-    expect(withCommit).toContain(18);
-    expect(withCommit).toContain(81);
+    expect(withCommit).toContain(19);
+    expect(withCommit).toContain(82);
   });
 
   it('套用順序：55 → 90 → 50、20 → 60、65 與 80 都在 API 切換之前', () => {
     const pos = (no: number) => model.steps.findIndex((s: any) => s.readmeNo === no);
-    // 總表序號：24 = 55、25 = 90、26 = 50；22 = 20、23 = 60
-    expect(model.steps[pos(24)].blocks.main[0].file).toMatch(/55_improvements_bonus\.sql$/);
-    expect(model.steps[pos(25)].blocks.main[0].file).toMatch(/90_inspection_settings_grade_snapshot\.sql$/);
-    expect(model.steps[pos(26)].blocks.main[0].file).toMatch(/50_inspection_write_core\.sql$/);
-    expect(pos(24)).toBeLessThan(pos(25));
+    // 總表序號：25 = 55、26 = 90、27 = 50；23 = 20、24 = 60
+    expect(model.steps[pos(25)].blocks.main[0].file).toMatch(/55_improvements_bonus\.sql$/);
+    expect(model.steps[pos(26)].blocks.main[0].file).toMatch(/90_inspection_settings_grade_snapshot\.sql$/);
+    expect(model.steps[pos(27)].blocks.main[0].file).toMatch(/50_inspection_write_core\.sql$/);
     expect(pos(25)).toBeLessThan(pos(26));
-    expect(pos(22)).toBeLessThan(pos(23));
-    expect(pos(29)).toBeLessThan(pos(30));
+    expect(pos(26)).toBeLessThan(pos(27));
+    expect(pos(23)).toBeLessThan(pos(24));
+    expect(pos(30)).toBeLessThan(pos(31));
   });
 });
 
@@ -343,23 +343,45 @@ describe('M9 正式區逐步操作頁：頁面內容', () => {
   });
 });
 
+describe('M9 正式區逐步操作頁：補建權限碼（06）', () => {
+  it('15 號步驟是 06 補建權限碼，在階段 1 開頭、所有授權步驟之前，只 INSERT permissions、不授權', () => {
+    const s = model.steps.find((x: any) => x.readmeNo === 15);
+    expect(s.blocks.main[0].file).toBe('m9-sql/06_missing_permission_codes.sql');
+    expect(s.blocks.verify[0].file).toBe('m9-sql/06_missing_permission_codes.verify.sql');
+    expect(s.blocks.rollback[0].file).toBe('m9-sql/06_missing_permission_codes.rollback.sql');
+    expect(model.stages[1].stepIds[0]).toBe(s.id);
+    expect(isReadOnly(s.blocks.verify[0].sql)).toBe(true);
+    const sql = s.blocks.main[0].sql as string;
+    expect(sql).not.toMatch(/INSERT INTO\s+(public\.)?role_permissions/i);
+    expect(sql).not.toMatch(/UPDATE\s+(public\.)?role_permissions/i);
+    for (const c of ['inventory.result_analysis.delete', 'supervisor.management_log.view_own', 'supervisor.management_log.view_team',
+      'supervisor.management_log.create', 'supervisor.management_log.update_own', 'supervisor.management_log.follow_up', 'supervisor.management_log.manage']) {
+      expect(sql, c).toContain(c);
+    }
+    expect((sql.match(/^\s+\('[a-z_]+', '[a-z_]+', '[a-z_.]+', '[a-z_]+', '/gm) || []).length).toBe(11);
+    expect(s.blocks.rollback[0].sql).toMatch(/NOT EXISTS \(SELECT 1 FROM public\.role_permissions/);
+    const authIdx = model.steps.findIndex((x: any) => x.id === 'x-auth');
+    expect(model.steps.findIndex((x: any) => x.id === s.id)).toBeLessThan(authIdx);
+  });
+});
+
 describe('M9 正式區逐步操作頁：審查補強', () => {
   it('文字裡引用的步驟序號是頁面上實際顯示的序號，不留未解析的標記', () => {
     const all = JSON.stringify(model.steps.map((s: any) => ({ ...s, blocks: undefined })));
     expect(all).not.toMatch(/\{\{\d+\}\}/);
     expect(all).not.toMatch(/\d+ 號步驟/);
-    const s15 = model.steps.find((s: any) => s.readmeNo === 15);
+    const s15 = model.steps.find((s: any) => s.readmeNo === 16);
     const fb = model.steps[model.steps.length - 1];
     expect(fb.what).toContain(`第 ${s15.no} 步`);
   });
 
-  it('BEGIN 開頭的撤回檔（81 號）也提醒要另外 COMMIT', () => {
-    const s = model.steps.find((x: any) => x.readmeNo === 81);
+  it('BEGIN 開頭的撤回檔（82 號）也提醒要另外 COMMIT', () => {
+    const s = model.steps.find((x: any) => x.readmeNo === 82);
     expect(s.rollbackText).toMatch(/COMMIT;/);
   });
 
-  it('36 號（自費診所截圖桶）先記下既有桶現況，且那段 SQL 只有 SELECT', () => {
-    const s = model.steps.find((x: any) => x.readmeNo === 36);
+  it('37 號（自費診所截圖桶）先記下既有桶現況，且那段 SQL 只有 SELECT', () => {
+    const s = model.steps.find((x: any) => x.readmeNo === 37);
     expect(s.blocks.backup.length).toBe(1);
     expect(isReadOnly(s.blocks.backup[0].sql)).toBe(true);
   });
