@@ -1,3 +1,4 @@
+import { DEV_REF, urlRefOf } from "./site-gate";
 import { parseDraftWithOpenAI, type VoiceDraftMode } from "../supervisor-management-log/voice";
 
 // M6 W33：workspace 呼叫 OpenAI 的唯一出口（語音轉文字、草稿整理）。
@@ -5,7 +6,12 @@ import { parseDraftWithOpenAI, type VoiceDraftMode } from "../supervisor-managem
 // - 正式環境的 OPENAI_API_KEY 由 Vercel 管理，這裡只讀、不改；模型沿用舊版環境變數。
 // - 不保存 OpenAI 的原始回應與標頭：只回傳需要的文字，錯誤只丟出固定文字。音檔不存檔，只在這次請求的記憶體內。
 
-export const aiMockEnabled = () => process.env.WORKSPACE_OPENAI_MOCK === "true";
+// 正式部署或連到非 DEV 資料庫時，旗標無效（防止誤設環境變數而讓正式區語音走假 OpenAI）
+export const aiMockEnabled = () => {
+  if (process.env.WORKSPACE_OPENAI_MOCK !== "true" || process.env.VERCEL_ENV === "production") return false;
+  const ref = urlRefOf(process.env);
+  return !ref || ref === DEV_REF;
+};
 export const aiConfigured = () => aiMockEnabled() || !!process.env.OPENAI_API_KEY;
 export const draftModel = () => process.env.OPENAI_SML_VOICE_DRAFT_MODEL || "gpt-4o-mini";
 export const transcribeModel = () => process.env.OPENAI_TRANSCRIPTION_MODEL || "gpt-4o-mini-transcribe";
