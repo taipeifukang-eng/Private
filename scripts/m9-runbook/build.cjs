@@ -270,6 +270,220 @@ const PREVIEW_JUDGE = {
   34: '第一部分是套用前現況（唯讀）；第二部分會故意用 RAISE EXCEPTION 還原，看到「錯誤」訊息是預期的、不會寫入。',
 };
 
+/* ------------------------------------------------------------------ 上線後（GA）第二份操作頁 */
+// 水電話費請款（G46）與採購請款改善第一批（B1）：依老闆 2026-11-25 決定，和這次新版部署一起上正式區（不再等 12/15）。
+// 這份是「第二份」操作頁，總表是 ga-post-cutover-runbook.md，不併入 92 步的 m9 總表。
+const GA_README = 'ga-post-cutover-runbook.md';
+const GA_OPTIONAL = new Set();
+const GA_TITLES = {
+  1: '水電話費請款（G46）：套用前預覽（唯讀）',
+  2: 'G46 第 1 份：請款單來源與水電明細表',
+  3: 'G46 第 2 份：帳單端（繳費單位與鎖定）',
+  4: 'G46 第 3 份：請款核心（送出前檢查與自動標記）',
+  5: 'G46 第 4 份：對 5 支既有請款函式的最小加掛',
+  6: '採購請款改善第一批（B1）：套用前預覽（唯讀）',
+  7: 'B1 第 1 份：多家買受人公司',
+  8: 'B1 第 2 份：含稅單價與調整列',
+  9: 'B1 第 3 份：付款方式與同仁代墊',
+  10: 'B1 第 4 份：預付款',
+  11: 'B1 第 5 份：權限顯示名稱',
+};
+const GA_EXPECT = {
+  1: '輸出一張表。A 區沒有任何 MISSING、D 區沒有任何 SHAPE_MISMATCH 才能繼續。B 區（金額有小數或 0 元的帳單）與 C 區（是否已有公用事業分類）請截圖給 Claude 看；E 區的 9 支函式全文請整份存檔（等同撤回的對照）。',
+  2: '每一列 status 都是 pass。',
+  3: '每一列 status 都是 pass。',
+  4: '每一列 status 都是 pass。',
+  5: '每一列 status 都是 pass。做完後回到下面的「黃金快照（G46 做完後）」，三份結果必須和套用前完全相同。',
+  6: '輸出第一列的結果必須是 ok；不是 ok 就停下（先決條件不足，多半是 G46 還沒做完）。其餘各列是現況資料量、設定鍵、約束與各函式現行定義的雜湊，請整份存檔，做完後要拿來對照。',
+  7: '每一列 status 都是 pass。',
+  8: '每一列 status 都是 pass。這份改了金額計算函式本體，做完立刻跑下面的黃金比對，三份結果都要和套用前相同。',
+  9: '每一列 status 都是 pass。',
+  10: '每一列 status 都是 pass。這份改了累計請款與待請款的計算，做完整批後還要再跑一次黃金比對。',
+  11: '每一列 status 都是 pass。這份和 01 至 04 互不相依，只換函式裡的白話訊息。',
+};
+const GA_STOPS = {
+  1: [{ where: 'main', title: 'A 區有 MISSING 或 D 區有 SHAPE_MISMATCH 就停下', body: 'A 區有 MISSING 代表前面的批次還沒套用完（先去補）；D 區有 SHAPE_MISMATCH 代表正式區現行函式和 DEV 實測版本不同，不能硬套。兩者都不要往下做，截圖給 Claude。' }],
+  6: [{ where: 'main', title: '第一列不是 ok 就停下', body: '第一列是先決條件檢查。不是 ok 代表 G46 沒做完或第 4.5 批請款單不在，不要套用 B1。' }],
+  8: [{ where: 'verify', title: '黃金比對只要有一個數字不同就停下', body: '用「做之前存下的黃金快照」和這次的結果逐列比對：各狀態張數與總額、各採購單累計請款、清單指紋。有任何差異，不要往下做，先問 Claude 要不要撤回 02。' }],
+};
+const GA_CAUTIONS = {
+  1: ['這份只有 SELECT，可以放心跑。輸出整份要存檔（尤其是 E 區的函式全文），等一下備份與撤回都要對照。', '老闆已決定：G46 的選用 05 補填繳費單位不跑（正式區目前廠商是 0 筆，沒有東西可補）；之後用畫面補填。'],
+  2: ['套用前先貼本步驟的「備份」區塊：四張表與 9 支函式全文，確認筆數對得上再做主要 SQL。', '做完這份請依序做後面三份，每份都要先看檢查全部 pass 再往下；任何一份出錯，從該份開始往前依序撤回。'],
+  5: ['G46 的 4 份做完後，要回「黃金快照（G46 做完後）」比對採購請款完全沒有變化。'],
+  7: ['套用前先貼本步驟的備份區塊（含這批會動到的資料表與函式全文），B1 的 README 沒附備份，所以本頁內建。', '若 pay_buyer_title 與 pay_buyer_tax_id 只有其中一個有值、或統編不是 8 碼，不會自動搬成預設公司；做完後請總務到請款設定新增公司並設為預設。'],
+  8: ['02 有資料回填與金額計算變更，是 B1 風險最高的一份，做完一定要跑黃金比對。'],
+  9: ['這份只把付款方式約束放寬成超集，風險低。'],
+  10: ['這份改了累計請款與待請款計算，風險中等。'],
+  11: ['05 可以在 B1 的任何時間點做，這裡排在最後。'],
+};
+const GA_PREVIEW_JUDGE = {};
+
+const BACKUP_GAUP_SQL = `-- G46 套用前備份：四張表整張複製（表已存在就不會覆蓋舊備份）。確認上線穩定後再自行 DROP。
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaup_utility_bills AS SELECT * FROM public.ga_utility_bills;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaup_payment_requests AS SELECT * FROM public.ga_payment_requests;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaup_workflow_settings AS SELECT * FROM public.ga_workflow_settings;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaup_service_categories AS SELECT * FROM public.ga_service_categories;
+SELECT (SELECT count(*) FROM public.ga_utility_bills) AS utility_bills, (SELECT count(*) FROM public.zz_bak_gaup_utility_bills) AS utility_bills_bak,
+       (SELECT count(*) FROM public.ga_payment_requests) AS payment_requests, (SELECT count(*) FROM public.zz_bak_gaup_payment_requests) AS payment_requests_bak,
+       (SELECT count(*) FROM public.ga_workflow_settings) AS workflow_settings, (SELECT count(*) FROM public.zz_bak_gaup_workflow_settings) AS workflow_settings_bak,
+       (SELECT count(*) FROM public.ga_service_categories) AS service_categories, (SELECT count(*) FROM public.zz_bak_gaup_service_categories) AS service_categories_bak;
+`;
+const BACKUP_GAIB1_SQL = `-- B1 套用前備份：這批會新增欄位或更新資料的既有表（表已存在就不會覆蓋舊備份）。確認上線穩定後再自行 DROP。
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_payment_requests AS SELECT * FROM public.ga_payment_requests;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_payment_request_lines AS SELECT * FROM public.ga_payment_request_lines;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_payment_request_events AS SELECT * FROM public.ga_payment_request_events;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_purchase_orders AS SELECT * FROM public.ga_purchase_orders;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_purchase_order_items AS SELECT * FROM public.ga_purchase_order_items;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_purchase_receipt_items AS SELECT * FROM public.ga_purchase_receipt_items;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_workflow_settings AS SELECT * FROM public.ga_workflow_settings;
+CREATE TABLE IF NOT EXISTS public.zz_bak_gaib1_permissions AS SELECT * FROM public.permissions;
+SELECT (SELECT count(*) FROM public.ga_payment_requests) AS payment_requests, (SELECT count(*) FROM public.zz_bak_gaib1_payment_requests) AS payment_requests_bak,
+       (SELECT count(*) FROM public.ga_payment_request_lines) AS payment_request_lines, (SELECT count(*) FROM public.zz_bak_gaib1_payment_request_lines) AS payment_request_lines_bak,
+       (SELECT count(*) FROM public.ga_purchase_orders) AS purchase_orders, (SELECT count(*) FROM public.zz_bak_gaib1_purchase_orders) AS purchase_orders_bak,
+       (SELECT count(*) FROM public.ga_purchase_order_items) AS purchase_order_items, (SELECT count(*) FROM public.zz_bak_gaib1_purchase_order_items) AS purchase_order_items_bak,
+       (SELECT count(*) FROM public.ga_purchase_receipt_items) AS purchase_receipt_items, (SELECT count(*) FROM public.zz_bak_gaib1_purchase_receipt_items) AS purchase_receipt_items_bak,
+       (SELECT count(*) FROM public.permissions) AS permissions, (SELECT count(*) FROM public.zz_bak_gaib1_permissions) AS permissions_bak;
+`;
+const GOLDEN_STATUS_SQL = `-- 黃金快照 1／3（唯讀）：請款單各狀態的張數與金額。套用前後各跑一次，結果必須完全相同。
+SELECT status, count(*) AS n, COALESCE(sum(amount_untaxed), 0) AS untaxed, COALESCE(sum(tax_amount), 0) AS tax, COALESCE(sum(amount_total), 0) AS total
+FROM public.ga_payment_requests
+GROUP BY status
+ORDER BY status;
+`;
+const GOLDEN_PO_SQL = `-- 黃金快照 2／3（唯讀）：各採購單累計請款（依請款單狀態分開）。套用前後各跑一次，結果必須完全相同。
+SELECT l.po_id, r.status, count(*) AS lines, sum(l.claim_untaxed) AS claim_untaxed, sum(l.claim_tax) AS claim_tax, sum(l.claim_total) AS claim_total
+FROM public.ga_payment_request_lines l
+JOIN public.ga_payment_requests r ON r.id = l.pr_id
+GROUP BY l.po_id, r.status
+ORDER BY l.po_id, r.status;
+`;
+const GOLDEN_LIST_SQL = `-- 黃金快照 3／3（唯讀）：請款單清單的指紋（單號、狀態、金額逐筆串起來取 md5）。套用前後各跑一次，結果必須完全相同。
+SELECT count(*) AS n, md5(COALESCE(string_agg(pr_no || '|' || status || '|' || amount_total::text, ',' ORDER BY pr_no), '')) AS list_fingerprint
+FROM public.ga_payment_requests;
+`;
+function goldenBlocks() {
+  return [
+    { label: '黃金快照 1／3：各狀態張數與金額（唯讀，本產生器內建）', file: '', sql: GOLDEN_STATUS_SQL },
+    { label: '黃金快照 2／3：各採購單累計請款（唯讀，本產生器內建）', file: '', sql: GOLDEN_PO_SQL },
+    { label: '黃金快照 3／3：請款單清單指紋（唯讀，本產生器內建）', file: '', sql: GOLDEN_LIST_SQL },
+  ];
+}
+// 函式本體備份：從「套用前預覽」檔讀出要備份的函式清單（不手抄），產生唯讀的函式全文查詢。
+function gaFuncBackupG46(planDir) {
+  const text = readUtf8(must(planDir, 'ga-utility-payment-sql/00-preview-before-apply.sql'));
+  const m = text.match(/E 現行定義全文[\s\S]*?p\.proname IN \(([^)]*)\)/);
+  if (!m) throw new Error('ga-utility-payment-sql/00-preview-before-apply.sql 找不到 E 區的函式清單');
+  return `-- G46 套用前備份：9 支被加掛的函式全文（唯讀）。結果整份複製存檔（這是預覽 E 區同一份名單）。
+SELECT p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')' AS fn, pg_get_functiondef(p.oid) AS definition
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.proname IN (${m[1].trim()})
+ ORDER BY 1;
+`;
+}
+function gaFuncBackupB1(planDir) {
+  const text = readUtf8(must(planDir, 'ga-improve-b1-sql/00-preview-before-apply.sql'));
+  const m = text.match(/unnest\(ARRAY\[([^\]]*)\]\)/);
+  if (!m) throw new Error('ga-improve-b1-sql/00-preview-before-apply.sql 找不到函式簽名清單');
+  return `-- B1 套用前備份：會被加掛或改寫的函式全文（唯讀）。結果整份複製存檔；函式不存在的列 definition 會是空的。
+SELECT x.sig AS fn, pg_get_functiondef(to_regprocedure(x.sig)) AS definition
+  FROM unnest(ARRAY[${m[1].trim()}]) AS x(sig)
+ ORDER BY 1;
+`;
+}
+// README 步驟序號 -> 該步要附的備份區塊
+function gaBackupBlocks(no, planDir) {
+  if (no === 2) return [
+    { label: '備份 1／2：四張表（本產生器內建）', file: '', sql: BACKUP_GAUP_SQL },
+    { label: '備份 2／2：9 支函式全文（唯讀，名單取自 G46 預覽檔 E 區）', file: 'ga-utility-payment-sql/00-preview-before-apply.sql', sql: gaFuncBackupG46(planDir) },
+  ];
+  if (no === 7) return [
+    { label: '備份 1／2：B1 會動到的表（本產生器內建）', file: '', sql: BACKUP_GAIB1_SQL },
+    { label: '備份 2／2：函式全文（唯讀，名單取自 B1 預覽檔）', file: 'ga-improve-b1-sql/00-preview-before-apply.sql', sql: gaFuncBackupB1(planDir) },
+  ];
+  return [];
+}
+
+/** GA 額外步驟（非總表的 SQL 檔步驟）：前置確認、黃金快照、廠商與畫面操作、驗收、授權、收尾。 */
+function buildGaExtras(planDir) {
+  const empty = () => ({ backup: [], preview: [], main: [], commit: [], verify: [], rollback: [] });
+  const base = { readmeNo: null, optional: false, backupText: '', stops: [], cautions: [], rollbackText: '', previewJudge: '', commitText: '' };
+  const manual = (o) => Object.assign({}, base, { kind: 'manual', kindLabel: '手動操作', blocks: empty() }, o);
+  const golden = (o) => Object.assign({}, base, { kind: 'readonly', kindLabel: '唯讀', blocks: Object.assign(empty(), { main: goldenBlocks() }) }, o);
+  const x = {};
+  x.gate = manual({
+    id: 'x-ga-gate', title: '前置確認：主流程已完成，才做水電與採購請款',
+    what: '水電話費請款（G46）與採購請款改善（B1）要在 m9 主流程之後做，且和新版部署一起上線（老闆 2026-11-25 決定，不再等 12/15）。',
+    manualText: '1. 確認老闆已同意今天做。\n2. 確認 m9 主流程（92 步總表）中，總務相關的第 44、45、48 步，第 50 至 61 步，第 68 至 75 步都已完成並驗收通過（那一頁的勾選與檢查都是通過）。\n3. 確認正式區 has_permission 的行為和預期一樣（不檢查 roles.is_active、資料庫端不放行 admin）；有疑慮先問 Claude。\n4. 確認開的是「正式區」專案，不是 DEV。\n5. 本頁每一份 SQL 都由人貼到正式區 SQL Editor；任何一步有疑慮就停下問 Claude。',
+    stops: [{ where: 'main', title: 'm9 主流程有任何一步沒完成，這一頁整份先不要做', body: '尤其是總務第 4.5 批請款單與第 6 批廠商、水電帳單（第 44、45、48、50 至 61、68 至 75 步）。缺任何一步，G46 預覽的 A 區就會出現 MISSING。' }],
+    expect: '以上四點都確認了才開始下一步。', minutes: 5,
+  });
+  x.goldenBefore = golden({
+    id: 'x-ga-golden-before', title: '黃金快照（G46 做之前）：存檔留底',
+    what: '在套用任何 SQL 之前，先把採購請款的現況存起來；之後每一個階段做完都拿它來比對，數字必須完全相同。',
+    expect: '三段查詢都跑得出結果。每段結果整份複製存到記事本（標明「G46 之前」）。這是之後比對的標準答案。', minutes: 6,
+    stops: [{ where: 'main', title: '查詢出現紅色錯誤就停下', body: '這三段只有 SELECT，不該出錯。出錯代表正式區的請款表和預期不同，截圖給 Claude。' }],
+  });
+  x.goldenAfterG46 = golden({
+    id: 'x-ga-golden-g46', title: '黃金快照（G46 做完後）：必須和之前相同',
+    what: 'G46 對採購請款只做「來源是水電才分流」的最小加掛，所以採購請款的所有數字應該完全不變。',
+    expect: '三段結果和「G46 做之前」逐列比對：各狀態張數與總額、各採購單累計請款、清單指紋，必須完全相同。這份結果也是 B1 的比對起點，請存檔。', minutes: 6,
+    stops: [{ where: 'main', title: '任何數字和之前不同就停下', body: '不要做 B1，截圖給 Claude 判斷要不要依相反順序撤回 G46。' }],
+  });
+  x.vendors = manual({
+    id: 'x-ga-vendors', title: '總務建立水電廠商（畫面操作）',
+    what: '正式區目前沒有水電廠商。請總務在「廠商資料」新增台電、台水、電信公司等繳費單位，並勾「公用事業」分類（統編必填）。',
+    manualText: '1. 請總務登入新版，打開廠商資料。\n2. 依實際繳費對象逐一新增（台電、台水、中華電信等），統編必填，分類勾「公用事業」。\n3. 這一步沒有 SQL 可貼；也不要用 SQL 補。',
+    expect: '廠商清單看得到這些廠商，且分類是「公用事業」。', minutes: 15,
+  });
+  x.payees = manual({
+    id: 'x-ga-payees', title: '補填既有帳單的繳費單位（畫面操作，不跑 05）',
+    what: '既有水電帳單要補填「繳費單位」之後才能請款。老闆已決定不跑選用的 05 補填腳本，改用畫面逐筆補填。',
+    manualText: '1. 請總務在水電帳單畫面使用「補填繳費單位」。\n2. 補填前，帳單不能請款；這是預期行為。\n3. 不要跑 05-backfill-payee 的任何檔案。',
+    cautions: ['金額有小數或為 0 元的帳單不能請款，要先到水電帳單修正（預覽的 B 區有清單）。'],
+    expect: '要請款的帳單都已填上繳費單位。', minutes: 15,
+  });
+  x.acceptance = manual({
+    id: 'x-ga-acceptance', title: '水電請款驗收：用一張標記清楚的測試帳單走完',
+    what: '用一張明確標示為測試的小額帳單，走完整個流程，確認帳單狀態會跟著回復。',
+    manualText: '1. 建立一張標記清楚的測試帳單（備註寫「測試，驗收後清除」）與對應的水電請款單。\n2. 缺附件時送出，必須被擋下。\n3. 補附件後送出，帳單應自動標已繳。\n4. 退回：帳單回復待繳。\n5. 再送出、然後作廢：帳單回復待繳。\n6. 清除測試資料（用畫面作廢；不要把測試資料留在正式區）。',
+    stops: [{ where: 'main', title: '任何一步和預期不符就停下', body: '例如缺附件沒被擋、退回後帳單沒回復。截圖給 Claude，不要自己補資料。' }],
+    expect: '五個動作的結果都和預期相同，測試資料已作廢或清除。', minutes: 25,
+  });
+  x.grants = manual({
+    id: 'x-ga-grants', title: '角色授權：由老闆決定（本頁不貼 SQL）',
+    what: 'G46 與 B1 的 SQL 都不新增權限碼、也不授權給任何角色。誰能用由老闆決定，不是本頁的 SQL。',
+    manualText: '1. 打開權限勾選頁（或請 Claude 協助），依老闆決定勾選。\n2. 建議對象：總務（水電網費管理、請款管理、廠商檢視）、會計（請款管理、水電帳單檢視、廠商檢視）；店長不給。\n3. 授權完成後，用總務與會計帳號各登入一次確認能看到入口。',
+    expect: '被授權的角色能看到入口，沒授權的角色看不到。', minutes: 10,
+  });
+  x.b1Recheck = Object.assign({}, base, {
+    id: 'x-ga-b1-recheck', kind: 'readonly', kindLabel: '唯讀', title: 'B1 套用後：重跑預覽並對照雜湊',
+    what: '把 B1 的「套用前預覽」再跑一次，和套用前存下的輸出對照：被加掛的函式雜湊應該改變，has_permission 的雜湊不應該改變。',
+    blocks: Object.assign(empty(), { main: [fileBlock(planDir, 'ga-improve-b1-sql/00-preview-before-apply.sql', '重跑：00-preview-before-apply.sql（唯讀）')] }),
+    expect: '「函式定義雜湊」中被加掛的函式和套用前不同；「權限語意：has_permission 定義雜湊」和套用前完全相同。',
+    stops: [{ where: 'main', title: 'has_permission 雜湊改變就停下', body: 'B1 不該動到 has_permission。雜湊不同代表有別的變更，截圖給 Claude。' }],
+    minutes: 6,
+  });
+  x.b1Golden = golden({
+    id: 'x-ga-golden-b1', title: '黃金快照（B1 全部做完後）：零影響檢查',
+    what: '用同一批既有採購與請款資料，再跑一次黃金快照，和「G46 做完後」逐列比對，數字必須完全相同。',
+    expect: '三段結果和「G46 做完後」完全相同（B1 只多新增欄位與新函式，既有金額不該變）。', minutes: 6,
+    stops: [{ where: 'main', title: '任何數字不同就停下', body: '04 改了累計請款與待請款計算；不同代表要依撤回順序（05、04、03、02、01）處理，先問 Claude。' }],
+  });
+  x.buyer = manual({
+    id: 'x-ga-buyer', title: '買受人預設公司確認（畫面操作）',
+    what: '如果舊的 pay_buyer_title 與 pay_buyer_tax_id 只有其中一個有值，或統編不是 8 碼，B1 不會自動搬成預設公司。',
+    manualText: '1. 打開請款設定的買受人公司清單，看有沒有預設公司。\n2. 沒有的話，請總務手動新增公司（抬頭、8 碼統編）並設為預設。\n3. 不要用 SQL 補。',
+    expect: '買受人公司清單有一間預設公司，抬頭與統編正確。', minutes: 8,
+  });
+  x.closing = manual({
+    id: 'x-ga-closing', title: '收尾：回舊版備註與不可送上正式區的清單',
+    what: '兩個提醒，讓上線後的備援與日後的操作不出錯。',
+    manualText: '1. 這兩批新頁面的「回舊版」單頁備援，需要在 workspace_page_fallbacks 有對應的列；本頁的 SQL 不會建立那些列，由管理員在「頁面回舊版設定」管理頁處理。\n2. 絕對不要送到正式區的東西：DEV 專用的測試資料檔（檔名含 dev_seed）、DEV 專用的測試角色（vue_workspace_gaup_ 開頭）、DEV 專用的清除腳本，以及任何帶 QA-GAUP- 或 QA-GAIB1- 標記的資料。\n3. 備份表（zz_bak_gaup_*、zz_bak_gaib1_*）確認上線穩定後再自行 DROP。',
+    expect: '管理員知道回舊版要在管理頁設定；團隊知道哪些東西不能送上正式區。', minutes: 5,
+  });
+  return x;
+}
+
 /* ------------------------------------------------------------------ 組裝 */
 function kindOf(nature) {
   if (nature === '唯讀') return { kind: 'readonly', label: '唯讀' };
@@ -289,22 +503,27 @@ function estimateMinutes(step) {
 function buildModel(opts) {
   opts = opts || {};
   const planDir = opts.planDir || PLAN_DIR;
-  const readmePath = opts.readmePath || path.join(planDir, 'm9-sql', 'README.md');
+  const ga = opts.profile === 'ga';
+  const readmePath = opts.readmePath || (ga ? path.join(planDir, GA_README) : path.join(planDir, 'm9-sql', 'README.md'));
   const readme = parseReadme(readUtf8(readmePath));
+  // 主流程（m9）與上線後（GA）兩份操作頁共用同一套組裝程式，只換下面這幾張對照表
+  const P = ga
+    ? { excluded: {}, optional: GA_OPTIONAL, titles: GA_TITLES, expect: GA_EXPECT, stops: GA_STOPS, cautions: GA_CAUTIONS, previewJudge: GA_PREVIEW_JUDGE }
+    : { excluded: EXCLUDED_README_STEPS, optional: OPTIONAL_README_STEPS, titles: TITLES, expect: EXPECT, stops: STOPS, cautions: CAUTIONS, previewJudge: PREVIEW_JUDGE };
   const readmeStages = readme.stages;
 
   const readmeSteps = {};
   const warnings = [];
   for (const rs of readme.steps) {
-    if (EXCLUDED_README_STEPS[rs.no]) {
+    if (P.excluded[rs.no]) {
       // 被排除的步驟仍要確認總表列的檔案就是我們預期要排除的那一個
       const toks = [...rs.fileCell.matchAll(/`([^`]+)`/g)].map((m) => m[1]);
-      if (!toks.includes(EXCLUDED_README_STEPS[rs.no])) {
-        throw new Error('README 第 ' + rs.no + ' 步預期是 ' + EXCLUDED_README_STEPS[rs.no] + '，實際是 ' + toks.join(','));
+      if (!toks.includes(P.excluded[rs.no])) {
+        throw new Error('README 第 ' + rs.no + ' 步預期是 ' + P.excluded[rs.no] + '，實際是 ' + toks.join(','));
       }
       continue;
     }
-    if (!TITLES[rs.no]) throw new Error('第 ' + rs.no + ' 步沒有白話標題');
+    if (!P.titles[rs.no]) throw new Error('第 ' + rs.no + ' 步沒有白話標題');
     const { kind, label } = kindOf(rs.nature);
     const mainFiles = resolveMainFiles(planDir, rs);
     const blocks = { backup: [], preview: [], main: [], commit: [], verify: [], rollback: [] };
@@ -315,7 +534,7 @@ function buildModel(opts) {
 
     const first = mainFiles[0];
     const sib = siblingPaths(first);
-    const inM9 = first.startsWith('m9-sql/');
+    const inM9 = first.startsWith('m9-sql/') || ga; // GA：總表列的每個檔，旁邊有 .verify／.rollback 就一併附上
     // 備份
     if (EXISTS(planDir, sib.backup) && inM9) blocks.backup.push(fileBlock(planDir, sib.backup, '備份：' + path.posix.basename(sib.backup)));
     // 預覽（m9 的 .preview.sql）
@@ -325,8 +544,8 @@ function buildModel(opts) {
     // 撤回
     let rb = null;
     if (EXISTS(planDir, sib.rollbackA)) rb = sib.rollbackA; else if (EXISTS(planDir, sib.rollbackB)) rb = sib.rollbackB;
-    if (rs.no === 88) rb = 'm5-sql/w19_q2_C_rollback.sql';
-    if (rb && rs.no !== 9) blocks.rollback.push(fileBlock(planDir, rb, '撤回：' + path.posix.basename(rb)));
+    if (!ga && rs.no === 88) rb = 'm5-sql/w19_q2_C_rollback.sql';
+    if (rb && (ga || rs.no !== 9)) blocks.rollback.push(fileBlock(planDir, rb, '撤回：' + path.posix.basename(rb)));
 
     // README 說有哪些檔，就必須找得到
     if (inM9) {
@@ -337,12 +556,13 @@ function buildModel(opts) {
     if (/rollback\.sql/.test(rs.rollback) && !blocks.rollback.length) throw new Error('README 第 ' + rs.no + ' 步列有 rollback 檔但找不到：' + rs.rollback);
 
     // 特例
-    if (rs.no === 22) blocks.backup.push(fileBlock(planDir, 'm9-sql/65_transfer_confirm_correct_batch.backup.sql', '備份：65_transfer_confirm_correct_batch.backup.sql（與{{33}}共用）'));
-    if (rs.no === 68) blocks.backup.push({ label: '備份：ga_vendors（本產生器內建）', file: '', sql: BACKUP_GA_VENDORS_SQL });
-    if (rs.no === 77) blocks.backup.push({ label: '備份：進貨兩張表（照 m7m8-sql/README.md 第 4.5 批的備份指令）', file: 'm7m8-sql/README.md', sql: extractB45Backup(planDir) });
+    if (ga) blocks.backup.push(...gaBackupBlocks(rs.no, planDir));
+    if (!ga && rs.no === 22) blocks.backup.push(fileBlock(planDir, 'm9-sql/65_transfer_confirm_correct_batch.backup.sql', '備份：65_transfer_confirm_correct_batch.backup.sql（與{{33}}共用）'));
+    if (!ga && rs.no === 68) blocks.backup.push({ label: '備份：ga_vendors（本產生器內建）', file: '', sql: BACKUP_GA_VENDORS_SQL });
+    if (!ga && rs.no === 77) blocks.backup.push({ label: '備份：進貨兩張表（照 m7m8-sql/README.md 第 4.5 批的備份指令）', file: 'm7m8-sql/README.md', sql: extractB45Backup(planDir) });
 
-    if (rs.no === 41) blocks.backup.push({ label: '備份：先記下既有桶現況（唯讀，複製結果存記事本；沒有列代表桶還不存在）', file: '', sql: BUCKET_STATE_SQL });
-    if (rs.no === 30) {
+    if (!ga && rs.no === 41) blocks.backup.push({ label: '備份：先記下既有桶現況（唯讀，複製結果存記事本；沒有列代表桶還不存在）', file: '', sql: BUCKET_STATE_SQL });
+    if (!ga && rs.no === 30) {
       const m = blocks.main[0].sql.match(/--\s+(CREATE TABLE IF NOT EXISTS public\.bak_inspection_masters_20261124 AS SELECT \* FROM public\.inspection_masters;)/);
       if (!m) throw new Error('50_inspection_write_core.sql 檔頭找不到選用備份指令');
       blocks.backup.push({ label: '選用備份：inspection_masters（取自檔頭註解）', file: '', sql: m[1] + '\n' });
@@ -358,13 +578,15 @@ function buildModel(opts) {
       backupText = 'README 標示：' + rs.backup + '。' + (blocks.backup.length ? '請先貼下面的備份 SQL，確認筆數對得上，再做主要 SQL。' : (auto ? '這份檔案內容裡有自動備份的語句，執行時會自己先備份；退路另外還有整庫備份。' : '這份沒有獨立的備份檔，檔案裡也沒偵測到自動備份語句。請把上一個「套用前預覽」步驟輸出的現況（函式、政策、筆數）複製存到記事本，並以一開始做的整庫備份當退路；不確定怎麼存，這步先問 Claude 再做。'));
     }
 
-    const stops = (STOPS[rs.no] || []).slice();
+    // GA 第 8 步（B1 02）要在檢查區附上黃金比對
+    if (ga && rs.no === 8) blocks.verify.push(...goldenBlocks());
+    const stops = (P.stops[rs.no] || []).slice();
     if (blocks.verify.length) stops.push(VERIFY_STOP);
-    const cautions = (CAUTIONS[rs.no] || []).slice();
+    const cautions = (P.cautions[rs.no] || []).slice();
     if (blocks.main.some((b) => /md5/i.test(b.sql) && /守衛/.test(b.sql))) cautions.push('這份檔頭有 md5 守衛：如果函式內容和預期不符，檔案會自己中止並顯示訊息。看到中止訊息就停下，不要硬跑。');
     if (needC) cautions.push('這份檔案以 BEGIN; 開頭、沒有自己的 COMMIT;：貼上執行並看過回傳的核對結果後，要另外貼 COMMIT;（確認）或 ROLLBACK;（放棄）。若貼 COMMIT; 時出現「沒有進行中的交易」之類訊息，代表資料沒寫入，請停下問 Claude。');
 
-    let expect = EXPECT[rs.no];
+    let expect = P.expect[rs.no];
     if (!expect) {
       if (kind === 'readonly') expect = READONLY_DEFAULT;
       else if (blocks.verify.length) expect = VERIFY_DEFAULT;
@@ -374,19 +596,21 @@ function buildModel(opts) {
     const step = {
       id: 's' + String(rs.no).padStart(2, '0'),
       readmeNo: rs.no, readmeStage: rs.stageIdx,
-      title: TITLES[rs.no], what: rs.what,
-      kind, kindLabel: label, optional: OPTIONAL_README_STEPS.has(rs.no),
+      title: P.titles[rs.no], what: rs.what,
+      kind, kindLabel: label, optional: P.optional.has(rs.no),
       backupText, readmeBackup: rs.backup, readmeRollback: rs.rollback,
-      blocks, stops, cautions, expect, previewJudge: PREVIEW_JUDGE[rs.no] || '',
+      blocks, stops, cautions, expect, previewJudge: P.previewJudge[rs.no] || '',
       commitText: needC ? '這份檔案不會自己提交。看過上面的核對結果沒問題，就貼 COMMIT; 單獨執行；有疑慮就貼 ROLLBACK;。忘了的話連線結束會自動回滾，等於沒做。' : '',
       rollbackText: (blocks.rollback.length || /無檔|交易內/.test(rs.rollback) ? '總表說明：' + rs.rollback + (blocks.rollback.length ? '' : '（沒有撤回檔）') : '')
         + (blocks.rollback.some((b) => needsCommit(b.sql)) ? '　注意：這份撤回檔也是 BEGIN; 開頭、沒有自己的 COMMIT;，貼上看過結果後要另外貼 COMMIT; 才會真的還原。' : ''),
       natureReadme: rs.nature,
     };
-    if (rs.no === 9) step.cautions.push('一次只貼一份，貼之前先清空編輯器。15 份可以不分先後。');
-    step.minutes = rs.no === 9 ? 20 : estimateMinutes(step);
+    if (!ga && rs.no === 9) step.cautions.push('一次只貼一份，貼之前先清空編輯器。15 份可以不分先後。');
+    step.minutes = !ga && rs.no === 9 ? 20 : estimateMinutes(step);
     readmeSteps[rs.no] = step;
   }
+
+  if (ga) return finishModel(buildGaStages(planDir, readme, readmeSteps), readme, warnings, true);
 
   /* ---- 額外步驟（非 README 列表） ---- */
   const extra = {};
@@ -454,7 +678,6 @@ function buildModel(opts) {
   extra.fallback.stops.push(VERIFY_STOP);
 
   /* ---- 排序與分階段 ---- */
-  const order = [];
   const stages = [];
   const addStage = (id, title, short, intro, items) => { stages.push({ id, title, short, intro, items }); };
   const rs = (a, b) => { const r = []; for (let i = a; i <= b; i++) if (readmeSteps[i]) r.push(readmeSteps[i]); return r; };
@@ -467,6 +690,34 @@ function buildModel(opts) {
   addStage('5', '階段 5　新權限授權', '5 授權', '新版開啟前，依權限勾選頁（2026-11-24 已送出）授權 33 組角色權限。', [extra.auth]);
   addStage('6', '階段 6　切換開新版與回舊版確認', '6 切換開新版', '最後一階段。', [extra.cutover, extra.fallback]);
 
+  return finishModel(stages, readme, warnings, false);
+}
+
+const GA_META = {
+  title: '水電與採購請款上線操作',
+  heading: '水電話費請款與採購請款改善：正式區逐步操作',
+  intro: '這是第二份正式區操作頁（不併入 92 步的主流程）。老闆 2026-11-25 決定：水電話費請款（G46）與採購請款改善第一批（B1）和這次新版部署一起上線，不再等 12/15。照著從上做到下，每一步貼上執行、看結果、勾選。進度會自動記住。',
+  scheduleLabel: '預定執行', scheduleValue: '與新版部署同一次', scheduleNote: '主流程完成並驗收後再做',
+  docKey: 'ga-post-cutover',
+  runDate: '', goLiveDate: '',
+};
+
+/** GA 分階段：G46 先做完並通過黃金比對，再做 B1。 */
+function buildGaStages(planDir, readme, readmeSteps) {
+  const x = buildGaExtras(planDir);
+  const rs = (a, b) => { const r = []; for (let i = a; i <= b; i++) { if (!readmeSteps[i]) throw new Error('GA 總表缺第 ' + i + ' 步'); r.push(readmeSteps[i]); } return r; };
+  const t = (i) => (readme.stages[i] ? readme.stages[i].title : '階段 ' + (i + 1));
+  return [
+    { id: 'g0', title: '階段 0　前置確認', short: '0 前置確認', intro: '主流程（92 步）完成並驗收，才做這一頁。', items: [x.gate] },
+    { id: 'g1', title: t(0), short: '1 水電話費請款（G46）', intro: '先預覽、備份，再依序套用 4 份並各自檢查；做完要通過黃金快照比對。撤回順序：04、03、02、01。', items: [readmeSteps[1], x.goldenBefore, ...rs(2, 5), x.goldenAfterG46, x.vendors, x.payees, x.acceptance, x.grants] },
+    { id: 'g2', title: t(1), short: '2 採購請款改善（B1）', intro: '在 G46 穩定之後才做。撤回順序：05、04、03、02、01；撤回前若已有測試資料，撤回會中止。', items: [readmeSteps[6], ...rs(7, 11), x.b1Recheck, x.b1Golden, x.buyer] },
+    { id: 'g3', title: '階段 3　收尾', short: '3 收尾', intro: '', items: [x.closing] },
+  ];
+}
+
+/** 排序、編號、解析文字引用、組出 model（m9 與 GA 共用）。 */
+function finishModel(stages, readme, warnings, ga) {
+  const order = [];
   let no = 0;
   const outStages = stages.map((st) => {
     const ids = [];
@@ -501,8 +752,9 @@ function buildModel(opts) {
     meta: {
       title: '正式區上線操作',
       runDate: '2026-12-07', goLiveDate: '2026-12-08',
+      ...(ga ? GA_META : {}),
       readmeStepCount: readme.steps.length,
-      excludedReadmeSteps: Object.keys(EXCLUDED_README_STEPS).map(Number),
+      excludedReadmeSteps: ga ? [] : Object.keys(EXCLUDED_README_STEPS).map(Number),
       stepCount: order.length, requiredStepCount: order.filter((s) => !s.optional).length,
       readmeStepsIncluded: order.filter((s) => s.readmeNo).length,
       extraStepIds: order.filter((s) => !s.readmeNo).map((s) => s.id),
@@ -524,8 +776,14 @@ function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').
 
 function renderHtml(model) {
   const css = readUtf8(path.join(__dirname, 'style.css'));
-  const js = readUtf8(path.join(__dirname, 'client.js'));
   const m = model.meta;
+  let js = readUtf8(path.join(__dirname, 'client.js'));
+  // 第二份操作頁（GA）用自己的進度檔，不能和主流程共用同一個進度
+  if (m.docKey) {
+    const a = "'runbook/progress-2026-12-07'", b = "'m9-runbook-progress-2026-12-07'";
+    if (!js.includes(a) || !js.includes(b)) throw new Error('client.js 找不到進度檔名稱，無法換成 ' + m.docKey);
+    js = js.replace(a, () => "'runbook/progress-" + m.docKey + "'").replace(b, () => "'m9-runbook-progress-" + m.docKey + "'");
+  }
   const hours = Math.floor(m.estMinutes / 60), mins = m.estMinutes % 60;
   const est = (hours ? hours + ' 小時 ' : '') + mins + ' 分';
   const withBuffer = Math.ceil((m.estMinutes * 1.3) / 30) * 30;
@@ -536,7 +794,7 @@ function renderHtml(model) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>正式區上線操作</title>
+<title>${esc(m.title)}</title>
 <style>
 ${css}
 </style>
@@ -544,10 +802,10 @@ ${css}
 <body>
 <header class="top"><div class="wrap">
   <div class="eyebrow">富康菁英業務網　新版上線</div>
-  <h1>正式區資料庫逐步操作</h1>
-  <p>老闆在 2026-12-07（日）營業結束後，照著這一頁從上做到下。每一步貼上執行、看結果、勾選。進度會自動記住。</p>
+  <h1>${esc(m.heading || '正式區資料庫逐步操作')}</h1>
+  <p>${esc(m.intro || '老闆在 2026-12-07（日）營業結束後，照著這一頁從上做到下。每一步貼上執行、看結果、勾選。進度會自動記住。')}</p>
   <div class="meta-row">
-    <div class="meta"><span class="k">預定執行</span><span class="v">2026-12-07（日）晚上</span><span class="k">上線日 2026-12-08（一）</span></div>
+    <div class="meta"><span class="k">${esc(m.scheduleLabel || '預定執行')}</span><span class="v">${esc(m.scheduleValue || '2026-12-07（日）晚上')}</span><span class="k">${esc(m.scheduleNote || '上線日 2026-12-08（一）')}</span></div>
     <div class="meta"><span class="k">現在時間</span><span class="v" id="clock">--</span></div>
     <div class="meta"><span class="k">總步驟數</span><span class="v">${m.stepCount} 步</span><span class="k">必做 ${m.requiredStepCount} 步，選用 ${m.stepCount - m.requiredStepCount} 步</span></div>
     <div class="meta"><span class="k">預估時間</span><span class="v">約 ${esc(est)}</span><span class="k">連同檢查與意外建議預留 ${esc(buf)}</span></div>
@@ -614,8 +872,11 @@ ${js}
 
 /* ------------------------------------------------------------------ CLI */
 function main() {
-  const out = process.argv[2] || DEFAULT_OUT;
-  const model = buildModel();
+  const args = process.argv.slice(2);
+  const ga = args.includes('--ga');
+  const pos = args.filter((a) => !a.startsWith('--'));
+  const out = pos[0] || (ga ? DEFAULT_OUT.replace('m9-runbook.html', 'ga-runbook.html') : DEFAULT_OUT);
+  const model = buildModel(ga ? { profile: 'ga' } : undefined);
   const html = renderHtml(model);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, html, 'utf8');
