@@ -51,7 +51,7 @@ WITH c(item, ok) AS (VALUES
   ('正式區 has_permission 沒有 admin 繞過（草稿依這個語意寫；預期 false）',
      coalesce((SELECT pg_get_functiondef(p.oid) ILIKE '%''admin''%' FROM pg_proc p WHERE p.oid = to_regprocedure('public.has_permission(uuid,character varying)')), false)),
   ('正式區 has_permission 不檢查 roles.is_active（草稿依這個語意寫；預期 false）',
-     coalesce((SELECT pg_get_functiondef(p.oid) ILIKE '%r.is_active%' FROM pg_proc p WHERE p.oid = to_regprocedure('public.has_permission(uuid,character varying)')), false))
+     coalesce((SELECT pg_get_functiondef(p.oid) ~* '(^|[^a-z_])r\.is_active' FROM pg_proc p WHERE p.oid = to_regprocedure('public.has_permission(uuid,character varying)')), false))
 )
 SELECT item,
        ok,
