@@ -403,6 +403,19 @@ DECLARE
   v_def text;
   v_new text;
 BEGIN
+  IF to_regprocedure('public.ga_ws_pay_receipt_candidates(jsonb,integer,integer)') IS NULL THEN RETURN; END IF;
+  v_def := pg_get_functiondef('public.ga_ws_pay_receipt_candidates(jsonb,integer,integer)'::regprocedure);
+  v_new := v_def;
+  IF position(public.ga_ib1_nl(v_def, $ib1n$'receipt_tax', public.ga_pay_receipt_tax(x.receipt_id), 'receipt_total', x.u + public.ga_pay_receipt_tax(x.receipt_id), /* GAIB1-S3 */$ib1n$) IN v_new) > 0 THEN v_new := replace(v_new, public.ga_ib1_nl(v_def, $ib1n$'receipt_tax', public.ga_pay_receipt_tax(x.receipt_id), 'receipt_total', x.u + public.ga_pay_receipt_tax(x.receipt_id), /* GAIB1-S3 */$ib1n$), public.ga_ib1_nl(v_def, $ib1o$'receipt_tax', round(x.u * x.tax_rate), 'receipt_total', x.u + round(x.u * x.tax_rate),$ib1o$)); END IF;
+  IF position('GAIB1-S3' IN v_new) > 0 THEN RAISE EXCEPTION 'public.ga_ws_pay_receipt_candidates(jsonb,integer,integer) 還有無法自動移除的 GAIB1-S3 標記，請人工處理'; END IF;
+  IF v_new IS DISTINCT FROM v_def THEN EXECUTE v_new; END IF;
+END $ib1$;
+
+DO $ib1$
+DECLARE
+  v_def text;
+  v_new text;
+BEGIN
   IF to_regprocedure('public.ga_po_data(uuid)') IS NULL THEN RETURN; END IF;
   v_def := pg_get_functiondef('public.ga_po_data(uuid)'::regprocedure);
   v_new := v_def;

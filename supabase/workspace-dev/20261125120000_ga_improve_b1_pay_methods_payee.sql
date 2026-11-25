@@ -232,10 +232,10 @@ BEGIN
   IF v_acct !~ '^[0-9 -]{6,30}$' THEN RETURN public.ga_rq_err(400, 'ACCOUNT_FORMAT', '帳號只能是數字（可含空白與連字號），長度 6 到 30 碼'); END IF;
   IF o.profile_id IS NULL THEN v_changed := ARRAY['bank_name', 'bank_branch', 'bank_account', 'bank_account_name'];
   ELSE
-    IF o.bank_name IS DISTINCT FROM v_bank THEN v_changed := v_changed || 'bank_name'; END IF;
-    IF o.bank_branch IS DISTINCT FROM v_branch THEN v_changed := v_changed || 'bank_branch'; END IF;
-    IF o.bank_account IS DISTINCT FROM v_acct THEN v_changed := v_changed || 'bank_account'; END IF;
-    IF o.bank_account_name IS DISTINCT FROM v_name THEN v_changed := v_changed || 'bank_account_name'; END IF;
+    IF o.bank_name IS DISTINCT FROM v_bank THEN v_changed := v_changed || 'bank_name'::text; END IF;
+    IF o.bank_branch IS DISTINCT FROM v_branch THEN v_changed := v_changed || 'bank_branch'::text; END IF;
+    IF o.bank_account IS DISTINCT FROM v_acct THEN v_changed := v_changed || 'bank_account'::text; END IF;
+    IF o.bank_account_name IS DISTINCT FROM v_name THEN v_changed := v_changed || 'bank_account_name'::text; END IF;
   END IF;
   IF array_length(v_changed, 1) IS NOT NULL THEN
     INSERT INTO public.ga_employee_payout_accounts (profile_id, bank_name, bank_branch, bank_account, bank_account_name, updated_by, updated_at) VALUES (p_profile, v_bank, v_branch, v_acct, v_name, p_actor, clock_timestamp())

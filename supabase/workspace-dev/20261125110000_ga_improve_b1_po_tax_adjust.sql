@@ -632,6 +632,19 @@ DECLARE
   v_def text;
   v_new text;
 BEGIN
+  v_def := pg_get_functiondef('public.ga_ws_pay_receipt_candidates(jsonb,integer,integer)'::regprocedure);
+  v_new := v_def;
+  IF position(public.ga_ib1_nl(v_def, $ib1n$'receipt_tax', public.ga_pay_receipt_tax(x.receipt_id), 'receipt_total', x.u + public.ga_pay_receipt_tax(x.receipt_id), /* GAIB1-S3 */$ib1n$) IN v_new) = 0 THEN
+    v_new := public.ga_ib1_swap(v_new, public.ga_ib1_nl(v_def, $ib1o$'receipt_tax', round(x.u * x.tax_rate), 'receipt_total', x.u + round(x.u * x.tax_rate),$ib1o$), public.ga_ib1_nl(v_def, $ib1n$'receipt_tax', public.ga_pay_receipt_tax(x.receipt_id), 'receipt_total', x.u + public.ga_pay_receipt_tax(x.receipt_id), /* GAIB1-S3 */$ib1n$), 'public.ga_ws_pay_receipt_candidates(jsonb,integer,integer) 候選稅額');
+  END IF;
+  IF v_new IS DISTINCT FROM v_def THEN EXECUTE v_new; END IF;
+END $ib1$;
+
+DO $ib1$
+DECLARE
+  v_def text;
+  v_new text;
+BEGIN
   v_def := pg_get_functiondef('public.ga_po_data(uuid)'::regprocedure);
   v_new := v_def;
   IF position(public.ga_ib1_nl(v_def, $ib1n$'unit_price', i.unit_price, 'line_amount', i.line_amount, 'unit_price_gross', i.unit_price_gross, 'line_gross', i.line_gross, /* GAIB1-S3 */$ib1n$) IN v_new) = 0 THEN
