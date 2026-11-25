@@ -205,6 +205,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
               <li><span>預付餘額</span><strong data-testid="pd-prepay-balance">{{ money(po.prepay.balance) }}</strong></li>
             </ul>
             <p v-if="po.prepay.overdue" class="notice error" role="alert" data-testid="pd-prepay-overdue">已預付 {{ money(po.prepay.balance) }}，超過預計到貨日 {{ po.prepay.overdue_days }} 天仍未到貨，請向廠商催貨或登記退款。</p>
+            <p v-if="po.prepay.unsettled" class="notice error" role="alert" data-testid="pd-prepay-unsettled">這張採購單已全部到貨，但預付款還有餘額 {{ money(po.prepay.balance) }} 沒有核銷，請向廠商要求退款，並在預付請款單登記退款或轉抵。</p>
             <ul class="pd-list" data-testid="pd-prepay-requests">
               <li v-for="q in po.prepay.requests" :key="q.id" data-testid="pd-prepay-req"><button type="button" class="link" @click="openGaPage('ga-payment-request-edit', q.id)">{{ q.pr_no }}</button>　{{ money(q.amount_total) }}　<span class="muted">{{ ({ DRAFT: "草稿", SUBMITTED: "已送出", PAID: "已付款" } as Record<string, string>)[q.status] || q.status }}，餘額 {{ money(q.balance) }}</span></li>
             </ul>
@@ -233,6 +234,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         </table></div>
         <template v-if="po.adjustments?.length">
           <h3>調整列</h3>
+          <p v-if="['PARTIALLY_RECEIVED', 'RECEIVED'].includes(po.status) && po.adjustments.some((x) => !x.receipt_no)" class="notice" role="status" data-testid="pd-adj-unassigned">還有調整列沒有併入任何進貨單（要有一張進貨單的品項金額大於折扣金額才會承接）。若已全部到貨仍沒有併入，這筆折扣不會進到請款金額，請總務確認。</p>
           <ul class="pd-list" data-testid="pd-adjustments">
             <li v-for="a in po.adjustments" :key="a.id" data-testid="pd-adj">
               <strong>{{ ADJ_KIND_LABELS[a.kind] }}</strong><span v-if="a.label && a.label !== ADJ_KIND_LABELS[a.kind]">　{{ a.label }}</span>　<span data-testid="pd-adj-amount">{{ signed(a.amount) }}</span>
@@ -281,7 +283,7 @@ const dispatchesOf = computed<DispatchView[]>(() => receiving.value?.dispatches 
         </div>
       </div>
     </Modal>
-    <PrepayCreateDialog v-if="panel === 'prepay' && po" :po-id="po.id" :po-no="po.po_no" :total="Number(po.total_amount)" :tax-rate="Number(po.tax_rate)" :buyer-company-id="po.buyer_company_id" @close="panel = ''" @created="onPrepayCreated" />
+    <PrepayCreateDialog v-if="panel === 'prepay' && po" :po-id="po.id" :po-no="po.po_no" :total="Number(po.total_amount)" :tax-rate="Number(po.tax_rate)" :buyer-company-id="po.buyer_company_id" :expected-delivery-date="po.expected_delivery_date" @close="panel = ''" @created="onPrepayCreated" />
     <PoDispatchDialog v-if="panel === 'dispatch' && po && receiving" :order="po" :receiving="receiving" @close="panel = ''" @done="onDispatch" />
   </Modal>
 </template>

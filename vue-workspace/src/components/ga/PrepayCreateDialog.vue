@@ -9,7 +9,7 @@ import type { BuyerCompany } from "../../../../lib/workspace/general-affairs/buy
 
 // ga-improve-b1 G1：新增預付請款單。採購單核准並下訂後（已下訂或部分到貨）就能先付一筆訂金或貨款，不必等到貨。
 // 到貨驗入時系統自動把預付款核銷在該進貨單上；之後一般請款只請差額。預付款先存成草稿，確認後在請款單頁送出。
-const props = defineProps<{ poId: string; poNo: string; total: number; taxRate: number; buyerCompanyId?: string | null }>();
+const props = defineProps<{ poId: string; poNo: string; total: number; taxRate: number; buyerCompanyId?: string | null; expectedDeliveryDate?: string | null }>();
 const emit = defineEmits<{ close: []; created: [pr: PaymentRequest] }>();
 const amount = ref("");
 const payDate = ref("");
@@ -60,6 +60,7 @@ async function submit() {
   <Modal :title="`新增預付請款（採購單 ${poNo}）`" :busy="busy" @cancel="emit('close')">
     <form class="pc" data-testid="prepay-form" @submit.prevent="submit">
       <p class="muted">採購單含稅總額 {{ money(total) }}。預付款加上這張採購單其他請款不能超過總額（含尾差）。貨到驗入時系統會自動核銷，之後一般請款只請「還沒付」的差額；超過預計到貨日仍未到貨，會在總務待辦與列表提醒追蹤。</p>
+      <p v-if="!expectedDeliveryDate" class="notice" role="status" data-testid="prepay-no-eta">這張採購單還沒填「預計到貨日」：沒有預計到貨日，系統就不會在逾期未到貨時提醒你追預付款。建議先回採購單補填預計到貨日（可以先建立預付款，之後再補）。</p>
       <label>預付金額（含稅，整數元）<input v-model="amount" inputmode="numeric" maxlength="9" data-testid="prepay-amount" /></label>
       <p v-if="split" class="muted" data-testid="prepay-split">未稅 {{ money(split.untaxed) }}，稅額 {{ money(split.tax) }}，合計 {{ money(split.total) }}</p>
       <label>預計付款日（選填）<input v-model="payDate" type="date" data-testid="prepay-date" /></label>

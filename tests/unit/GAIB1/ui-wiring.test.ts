@@ -77,3 +77,36 @@ describe('新畫面接線', () => {
     for (const id of ['pp-prepay-title', 'pp-payee', 'pp-buyer']) expect(src).toContain(id);
   });
 });
+
+describe('審查修正（畫面）', () => {
+  it('同仁代墊的請款單不顯示廠商收款帳號（一般請款與水電請款）', () => {
+    const edit = read('vue-workspace/src/pages/ga/PaymentRequestEdit.vue');
+    const util = read('vue-workspace/src/components/ga/PaymentRequestUtility.vue');
+    expect(edit).toContain('v-if="!isEmployee" data-testid="pe-bank"');
+    expect(edit).toContain('pe-bank-hidden');
+    expect(util).toContain('v-if="!isEmployee" data-testid="pu-bank"');
+    expect(util).toContain('pu-bank-hidden');
+  });
+  it('付款對象單選的圓點與文字同一行（選擇器比 .pbf label 更高）', () => {
+    const src = read('vue-workspace/src/components/ga/PayeeBuyerFields.vue');
+    expect(src).toContain('.pbf .pbf-radios label { display: inline-flex');
+  });
+  it('水電請款頁說明提到可以選同仁代墊', () => {
+    expect(read('vue-workspace/src/components/ga/PaymentRequestUtility.vue')).toContain('可改選「同仁代墊」');
+  });
+  it('預付款對話框沒有預計到貨日時提示；採購單詳情傳入預計到貨日', () => {
+    expect(read('vue-workspace/src/components/ga/PrepayCreateDialog.vue')).toContain('prepay-no-eta');
+    expect(read('vue-workspace/src/components/ga/PoDetailDialog.vue')).toContain(':expected-delivery-date="po.expected_delivery_date"');
+  });
+  it('已全部到貨但預付還有餘額會在採購單、請款單、列表標出來', () => {
+    expect(read('vue-workspace/src/components/ga/PoDetailDialog.vue')).toContain('pd-prepay-unsettled');
+    expect(read('vue-workspace/src/pages/ga/PaymentRequestEdit.vue')).toContain('pe-prepay-unsettled');
+    expect(read('vue-workspace/src/pages/ga/PaymentRequests.vue')).toContain('r.prepay_unsettled');
+  });
+  it('候選進貨空清單的說明提到預付款全額核銷；請款設定可收起已停用公司；含稅切換有提醒；調整列未併入有提醒', () => {
+    expect(read('vue-workspace/src/pages/ga/PaymentRequestEdit.vue')).toContain('已由預付款全額核銷');
+    expect(read('vue-workspace/src/components/ga/PaymentSettingsDialog.vue')).toContain('ps-show-inactive');
+    expect(read('vue-workspace/src/pages/ga/PurchaseOrderEdit.vue')).toContain('pe-price-mode-switched');
+    expect(read('vue-workspace/src/components/ga/PoDetailDialog.vue')).toContain('pd-adj-unassigned');
+  });
+});

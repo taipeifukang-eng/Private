@@ -57,9 +57,14 @@ CREATE TABLE IF NOT EXISTS public.ga_employee_payout_account_events (
   via text NOT NULL,
   changed_fields text[] NOT NULL DEFAULT '{}',
   account_last4 text,
+  prev_last4 text,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT ga_employee_payout_account_events_via_check CHECK (via IN ('SELF', 'PROXY'))
+  CONSTRAINT ga_employee_payout_account_events_via_check CHECK (via IN ('SELF', 'PROXY', 'VIEW'))
 );
+-- 審查 M2／L7：事件多記「變更前末四碼」，並放行 VIEW（別人查看同仁帳戶的稽核紀錄）；DEV 已存在的表在這裡補齊
+ALTER TABLE public.ga_employee_payout_account_events ADD COLUMN IF NOT EXISTS prev_last4 text;
+ALTER TABLE public.ga_employee_payout_account_events DROP CONSTRAINT IF EXISTS ga_employee_payout_account_events_via_check;
+ALTER TABLE public.ga_employee_payout_account_events ADD CONSTRAINT ga_employee_payout_account_events_via_check CHECK (via IN ('SELF', 'PROXY', 'VIEW'));
 CREATE INDEX IF NOT EXISTS idx_ga_employee_payout_account_events_profile ON public.ga_employee_payout_account_events (profile_id, created_at);
 DROP TRIGGER IF EXISTS trg_ga_employee_payout_account_events_immutable ON public.ga_employee_payout_account_events;
 CREATE TRIGGER trg_ga_employee_payout_account_events_immutable BEFORE UPDATE OR DELETE ON public.ga_employee_payout_account_events FOR EACH ROW EXECUTE FUNCTION public.ga_ib1_events_immutable();
@@ -141,9 +146,8 @@ BEGIN
     RAISE EXCEPTION '已付款的請款單，付款資訊不能修改' USING ERRCODE = 'GA045';
   END IF;
   IF OLD.status = 'DRAFT' AND NEW.status = 'SUBMITTED' AND NEW.payee_type = 'EMPLOYEE' THEN
-    IF NEW.payee_account_snapshot IS NULL OR NEW.payee_account_snapshot = '{}'::jsonb THEN
-      NEW.payee_account_snapshot := public.ga_ib1_payee_account_snapshot(NEW.payee_profile_id);
-    END IF;
+    -- 審查 M3：送出時一律以同仁目前的匯款帳戶覆寫快照（草稿期間帳戶若被改過，不會匯到舊帳號）
+    NEW.payee_account_snapshot := public.ga_ib1_payee_account_snapshot(NEW.payee_profile_id);
     IF NEW.payee_account_snapshot = '{}'::jsonb THEN
       PERFORM public.ga_rq_raise(409, 'PAYEE_NO_ACCOUNT', '這位同仁還沒有登錄匯款帳戶，請同仁到「我的代墊款」登錄，或由會計代為登錄');
     END IF;
@@ -219,10 +223,12 @@ DECLARE
   v_acct text;
   v_name text;
   v_changed text[] := ARRAY[]::text[];
+  v_prev text;
 BEGIN
   IF jsonb_typeof(p) <> 'object' THEN RETURN public.ga_rq_err(400, 'BAD_PAYLOAD', '送出的資料格式錯誤'); END IF;
   IF NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = p_profile) THEN RETURN public.ga_rq_err(404, 'PAYEE_NOT_FOUND', '找不到這位同仁'); END IF;
   SELECT * INTO o FROM public.ga_employee_payout_accounts WHERE profile_id = p_profile FOR UPDATE;
+  v_prev := CASE WHEN o.profile_id IS NOT NULL THEN right(regexp_replace(o.bank_account, '[^0-9]', '', 'g'), 4) END;
   v_bank := public.ga_pay_txt(p, 'bank_name', 60, '銀行名稱');
   v_branch := CASE WHEN p ? 'bank_branch' THEN public.ga_pay_txt(p, 'bank_branch', 60, '分行') ELSE o.bank_branch END;
   v_acct := CASE WHEN p ? 'bank_account' THEN public.ga_pay_txt(p, 'bank_account', 40, '帳號') ELSE o.bank_account END;
@@ -241,7 +247,7 @@ BEGIN
     INSERT INTO public.ga_employee_payout_accounts (profile_id, bank_name, bank_branch, bank_account, bank_account_name, updated_by, updated_at) VALUES (p_profile, v_bank, v_branch, v_acct, v_name, p_actor, clock_timestamp())
       ON CONFLICT (profile_id) DO UPDATE SET bank_name = EXCLUDED.bank_name, bank_branch = EXCLUDED.bank_branch, bank_account = EXCLUDED.bank_account, bank_account_name = EXCLUDED.bank_account_name,
         updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at;
-    INSERT INTO public.ga_employee_payout_account_events (profile_id, actor_id, via, changed_fields, account_last4) VALUES (p_profile, p_actor, p_via, v_changed, right(regexp_replace(v_acct, '[^0-9]', '', 'g'), 4));
+    INSERT INTO public.ga_employee_payout_account_events (profile_id, actor_id, via, changed_fields, account_last4, prev_last4) VALUES (p_profile, p_actor, p_via, v_changed, right(regexp_replace(v_acct, '[^0-9]', '', 'g'), 4), v_prev);
   END IF;
   RETURN jsonb_build_object('ok', true, 'status', 200, 'data', jsonb_build_object('changed_fields', to_jsonb(v_changed), 'account', public.ga_ib1_payee_account_snapshot(p_profile),
     'account_last4', right(regexp_replace(v_acct, '[^0-9]', '', 'g'), 4)));
@@ -273,7 +279,7 @@ BEGIN
 END;
 $f$;
 
-CREATE OR REPLACE FUNCTION public.ga_ws_payout_account_get_for(p_profile uuid) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+CREATE OR REPLACE FUNCTION public.ga_ws_payout_account_get_for(p_profile uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $f$
 DECLARE
   v_uid uuid := auth.uid();
@@ -282,6 +288,10 @@ BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_rq_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
   IF NOT (public.ga_pay_can_manage(v_uid) AND public.ga_pay_can_vendor(v_uid)) THEN RETURN public.ga_rq_err(403, 'PERMISSION_DENIED', '沒有查看同仁匯款帳戶的權限（需要請款管理與廠商帳務檢視權限）'); END IF;
   v_acc := public.ga_ib1_payee_account_snapshot(p_profile);
+  -- 審查 L7：查看別人的匯款帳戶要留稽核紀錄（只記誰、看誰、末四碼，不記帳號本文）
+  IF v_acc <> '{}'::jsonb AND p_profile IS DISTINCT FROM v_uid THEN
+    INSERT INTO public.ga_employee_payout_account_events (profile_id, actor_id, via, changed_fields, account_last4) VALUES (p_profile, v_uid, 'VIEW', '{}', right(regexp_replace(v_acc ->> 'bank_account', '[^0-9]', '', 'g'), 4));
+  END IF;
   RETURN jsonb_build_object('ok', true, 'status', 200, 'data', jsonb_build_object('account', CASE WHEN v_acc = '{}'::jsonb THEN NULL ELSE v_acc END));
 END;
 $f$;

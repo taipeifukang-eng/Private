@@ -200,6 +200,12 @@ async function reload() {
 }
 function backToList() { openGaPage("ga-purchase-orders"); work.remove([props.tab.id]); }
 const dirty = () => { props.tab.dirty = true; };
+// 審查 L1：切換含稅／未稅時，已填的單價數字不會換算（只是意義變了，總額會跳約 5%），切換後明確提醒
+const modeSwitched = ref(false);
+function onPriceModeChange() {
+  if (items.value.some((i) => String(i.unit_price || "").trim() !== "") || adjustments.value.length) modeSwitched.value = true;
+  dirty();
+}
 const overRequired = (i: Item) => !!i.request_id;
 </script>
 
@@ -230,7 +236,7 @@ const overRequired = (i: Item) => !!i.request_id;
         <PoPicker v-model="form.receiving_location_id" kind="location" label="收貨位置（入庫存的品項到貨後放這裡）" clearable testid="pe-location" :disabled="readOnlyBody" :initial="form.location" @pick="dirty" />
         <div class="pe-two">
           <label>單價計價方式
-            <select v-model="priceMode" :disabled="readOnlyBody" data-testid="pe-price-mode" @change="dirty">
+            <select v-model="priceMode" :disabled="readOnlyBody" data-testid="pe-price-mode" @change="onPriceModeChange">
               <option v-for="(l, k) in PRICE_MODE_LABELS" :key="k" :value="k">{{ l }}{{ k === "EXCL" ? "（預設）" : "" }}</option>
             </select>
           </label>
@@ -242,6 +248,7 @@ const overRequired = (i: Item) => !!i.request_id;
           </label>
         </div>
         <p class="muted" data-testid="pe-price-mode-hint">{{ priceMode === "INCL" ? "單價與調整列都輸入「含稅」金額；系統用含稅總額反推未稅與稅額（稅額用總額減未稅），含稅總額永遠等於你輸入的合計。" : "單價與調整列都輸入「未稅」金額；稅額依稅率四捨五入。" }}切換後單價的意義會改變，已填的數字不會自動換算，請確認金額。</p>
+        <p v-if="modeSwitched" class="notice" role="status" data-testid="pe-price-mode-switched">你剛切換了計價方式：已填的單價與調整列金額沒有換算，現在會被當成「{{ priceMode === "INCL" ? "含稅" : "未稅" }}」金額，總額目前是 {{ money(totals.total_amount) }}。請逐項確認單價。</p>
         <label>預計到貨日<input v-model="form.expected_delivery_date" type="date" :disabled="cannotEdit" data-testid="pe-expected" @input="dirty" /></label>
         <label>備註<textarea v-model="form.notes" rows="2" maxlength="1000" :disabled="cannotEdit" data-testid="pe-notes" @input="dirty" /></label>
       </section>
@@ -291,7 +298,7 @@ const overRequired = (i: Item) => !!i.request_id;
         <h2>調整列（運費、折扣、折價券、點數折抵）</h2>
         <p class="muted">金額會算進總額：運費是加項，折扣、折價券、點數折抵是減項（輸入正數，系統自動轉成負數）。原價與活動名稱只是備註，不參與計算。{{ priceMode === "INCL" ? "目前是含稅計價，這裡輸入含稅金額。" : "目前是未稅計價，這裡輸入未稅金額。" }}調整列會併入第一張有效進貨單的金額。</p>
         <ul class="pe-items" aria-label="調整列">
-          <li v-for="(a, idx) in adjustments" :key="a.key" class="pe-item" data-testid="pe-adj">
+          <li v-for="(a, idx) in adjustments" :key="a.key" class="pe-item pe-adj-item" data-testid="pe-adj">
             <div class="pe-grid">
               <label>種類
                 <select v-model="a.kind" :disabled="readOnlyBody" :data-testid="'pe-adj-kind-' + idx" @change="dirty">
@@ -350,5 +357,5 @@ const overRequired = (i: Item) => !!i.request_id;
 .pe-history ul { margin: 4px 0 0; padding-left: 16px; }
 .pre { white-space: pre-wrap; }
 button.link { border: 0; background: transparent; color: var(--primary); text-decoration: underline; min-height: 30px; padding: 0 6px; }
-@media (max-width: 700px) { .dialog-actions button, .pe-box > button, .pe-adj-add button { min-height: 44px; } }
+@media (max-width: 700px) { .dialog-actions button, .pe-box > button, .pe-adj-add button { min-height: 44px; } .pe-adj-item .pe-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; } .pe-adj-item .pe-grid label:first-child { grid-column: 1 / -1; } }
 </style>

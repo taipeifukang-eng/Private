@@ -184,7 +184,7 @@ describe('資料表與欄位：RLS 全封、預設值、約束只放寬', () => 
   });
   it('同仁帳戶事件不含帳號本文（只記欄位名稱與末四碼）', () => {
     const s4 = read(path.join(DEV, STAGES[2].dev + '.sql'));
-    expect(s4).toMatch(/INSERT INTO public\.ga_employee_payout_account_events \(profile_id, actor_id, via, changed_fields, account_last4\)/);
+    expect(s4).toMatch(/INSERT INTO public\.ga_employee_payout_account_events \(profile_id, actor_id, via, changed_fields, account_last4(, prev_last4)?\)/);
     expect(s4).not.toMatch(/ga_employee_payout_account_events[^;]*bank_account,/);
   });
 });
@@ -209,5 +209,38 @@ describe('語意與守門', () => {
     const sql = read(path.join(DEV, STAGES[4].dev + '.sql'));
     expect(sql).toContain('水電話網費管理');
     expect(bare(sql)).not.toContain('水電網費管理');
+  });
+});
+
+describe('審查修正（SQL）', () => {
+  const dev5 = read(path.join(DEV, STAGES[3].dev + '.sql'));
+  const dev4 = read(path.join(DEV, STAGES[2].dev + '.sql'));
+  const dev2 = read(path.join(DEV, STAGES[0].dev + '.sql'));
+  it('預付階段有請款明細守門觸發器與調整列轉承接後的重新對帳，rollback 會移除，grant 清單有列入', () => {
+    expect(dev5).toContain('trg_ga_ib1_prepay_lines_guard');
+    expect(dev5).toContain('PREPAY_NO_LINES');
+    expect(dev5).toContain('PREPAY_COVERED');
+    expect(dev5).toMatch(/ga_pay_prepay_reconcile\(p_po\);\s+PERFORM public\.ga_pay_prepay_apply\(p_po\)/);
+    const rb = read(path.join(DEV, STAGES[3].dev + '.rollback.sql'));
+    expect(rb).toContain('DROP TRIGGER IF EXISTS trg_ga_ib1_prepay_lines_guard');
+    expect(rb).toContain('DROP FUNCTION IF EXISTS public.ga_pay_prepay_reconcile(uuid)');
+    expect(dev5).toContain("'ga_ib1_prepay_lines_guard', 'ga_pay_prepay_reconcile'");
+  });
+  it('送出代墊單時一律重抓同仁帳戶快照；帳戶事件記變更前末四碼並有查看稽核', () => {
+    expect(dev4).toContain('NEW.payee_account_snapshot := public.ga_ib1_payee_account_snapshot(NEW.payee_profile_id);');
+    expect(dev4).toContain("'VIEW'");
+    expect(dev4).toContain('prev_last4');
+  });
+  it('買受人公司：送出時停用要擋、已下訂採購單用到的公司不能改名稱統編、儲存冪等比對內容', () => {
+    expect(dev2).toContain('已停用，請重新選擇抬頭後再送出');
+    expect(dev2).toContain('BUYER_IN_USE');
+    expect(dev2).toContain("'hash', md5(p::text)");
+  });
+  it('正式區 verify 有新物件的檢查，README 記載撤回限制', () => {
+    expect(read(path.join(PROD, '04-ga-improve-b1-prepay.verify.sql'))).toContain('trg_ga_ib1_prepay_lines_guard');
+    expect(read(path.join(PROD, '03-ga-improve-b1-pay-methods-payee.verify.sql'))).toContain('prev_last4');
+    const readme = read(path.join(PROD, 'README.md'));
+    expect(readme).toContain('不要單獨重跑前面的階段');
+    expect(readme).toContain('prepay_refund');
   });
 });

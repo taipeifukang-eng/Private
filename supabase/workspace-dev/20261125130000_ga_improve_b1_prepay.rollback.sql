@@ -346,6 +346,9 @@ AS $f$
     'has_paid_claim', EXISTS (SELECT 1 FROM public.ga_payment_request_lines l JOIN public.ga_payment_requests q ON q.id = l.pr_id WHERE l.receipt_id = p_receipt AND q.status = 'PAID'));
 $f$;
 
+DROP TRIGGER IF EXISTS trg_ga_ib1_prepay_lines_guard ON public.ga_payment_request_lines;
+DROP FUNCTION IF EXISTS public.ga_ib1_prepay_lines_guard();
+DROP FUNCTION IF EXISTS public.ga_pay_prepay_reconcile(uuid);
 DROP TRIGGER IF EXISTS trg_ga_ib1_prepay_sync ON public.ga_payment_requests;
 DROP TRIGGER IF EXISTS trg_ga_ib1_prepay_guard ON public.ga_payment_requests;
 DROP FUNCTION IF EXISTS public.ga_ws_pay_prepay_overview(uuid);

@@ -70,4 +70,6 @@ UNION ALL
 SELECT '既有請款單的付款對象都是廠商、沒有代墊資料（套用當下）或代墊單都有同仁' AS check_name, CASE WHEN NOT EXISTS (SELECT 1 FROM public.ga_payment_requests WHERE (payee_type = 'EMPLOYEE') <> (payee_profile_id IS NOT NULL)) THEN 'pass' ELSE 'fail' END AS result
 UNION ALL
 SELECT '同仁帳戶事件表有不可修改刪除的觸發器' AS check_name, CASE WHEN EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_ga_employee_payout_account_events_immutable' AND NOT tgisinternal) THEN 'pass' ELSE 'fail' END AS result
+UNION ALL
+SELECT '同仁帳戶事件表有 prev_last4 欄位、via 允許 VIEW（查看稽核）' AS check_name, CASE WHEN EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'ga_employee_payout_account_events' AND column_name = 'prev_last4') AND COALESCE((SELECT pg_get_constraintdef(oid) LIKE '%VIEW%' FROM pg_constraint WHERE conname = 'ga_employee_payout_account_events_via_check'), false) THEN 'pass' ELSE 'fail' END AS result
 ORDER BY 1;

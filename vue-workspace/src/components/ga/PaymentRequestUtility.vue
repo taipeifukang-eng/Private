@@ -326,7 +326,7 @@ const lineState = (l: UtilityBillLine) => {
     <div>
       <p class="eyebrow">總務服務中心 / 作業管理</p>
       <h1>{{ creating ? "建立水電話費請款單" : pr ? `請款單 ${pr.pr_no}` : "請款單" }}<span v-if="pr" class="st" :class="PR_STATUS_CLASS[pr.status]" data-testid="pu-status">{{ PR_STATUS_LABELS[pr.status] }}</span><span class="src" data-testid="pu-source">水電話費</span><span v-if="isEmployee" class="src emp" data-testid="pu-kind-employee">同仁代墊</span></h1>
-      <p v-if="creating || !pr" class="muted" data-testid="pu-subtitle">付款對象是公用事業繳費單位（台電、台水、電信公司等），一張請款單只含同一個繳費單位、同一個帳單月份。選好後系統會自動帶入該月可請款的帳單，你可以增減。</p>
+      <p v-if="creating || !pr" class="muted" data-testid="pu-subtitle">繳費單位是公用事業（台電、台水、電信公司等），付款對象預設就是繳費單位；若是同仁先繳，可改選「同仁代墊」，公司再把錢還給同仁。一張請款單只含同一個繳費單位、同一個帳單月份。選好後系統會自動帶入該月可請款的帳單，你可以增減。</p>
       <p v-else class="muted" data-testid="pu-subtitle">{{ pr.status === "DRAFT" ? "草稿可以增減帳單、儲存或送出；送出後要改請先退回草稿。" : pr.status === "SUBMITTED" ? "已送出，等待會計付款；要修改內容請先退回草稿。" : pr.status === "PAID" ? "已付款，內容已鎖定，只能加備註或作廢。" : "已作廢，內容唯讀。" }}</p>
     </div>
     <div class="head-actions">
@@ -372,7 +372,8 @@ const lineState = (l: UtilityBillLine) => {
         <p v-if="pr?.vendor_masked" class="muted" data-testid="pu-masked">廠商統編與銀行帳號屬帳務機密，你沒有廠商查看權限，不顯示。</p>
         <template v-else-if="pr">
           <p data-testid="pu-tax">統一編號：{{ pr.vendor_tax_id_snapshot || "—" }}</p>
-          <p data-testid="pu-bank">收款帳號（建立時快照）：{{ bankText(pr.bank_snapshot) || "廠商未填寫銀行資料" }}</p>
+          <p v-if="!isEmployee" data-testid="pu-bank">收款帳號（建立時快照）：{{ bankText(pr.bank_snapshot) || "廠商未填寫銀行資料" }}</p>
+          <p v-else class="muted" data-testid="pu-bank-hidden">同仁代墊：請依上方「同仁匯款帳戶」付款，這張單不匯給繳費單位，所以不顯示收款帳號。</p>
         </template>
         <p v-if="pr" class="muted">建立 {{ pr.created_by_name || "—" }} {{ timeText(pr.created_at) }}<template v-if="pr.submitted_at">；送出 {{ pr.submitted_by_name || "—" }} {{ timeText(pr.submitted_at) }}</template><template v-if="pr.paid_at">；付款 {{ pr.paid_by_name || "—" }} {{ timeText(pr.paid_at) }}</template></p>
         <p v-if="pr?.status === 'PAID'" data-testid="pu-paid-info">付款方式 {{ PAY_METHOD_LABELS[pr.pay_method as keyof typeof PAY_METHOD_LABELS] || pr.pay_method }}，付款日 {{ dateText(pr.paid_date) }}<template v-if="pr.paid_ref">，參考號 {{ pr.paid_ref }}</template></p>

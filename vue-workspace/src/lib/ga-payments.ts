@@ -56,7 +56,7 @@ export type PaymentRequest = {
   source?: "PURCHASE" | "UTILITY"; bill_month?: string | null; auto_mark_paid?: boolean; bill_count?: number; bills_masked?: boolean; bill_lines?: UtilityBillLine[];
   auto_marked_count?: number; auto_reverted_count?: number;
   // ga-improve-b1：預付款（G1）、付款方式（G4）、同仁代墊（G4）、買受人抬頭（G11）；舊資料都是預設值（一般請款、廠商、沒有抬頭）。
-  pay_kind?: "NORMAL" | "PREPAY"; prepay_po_id?: string | null; prepay_po_no?: string | null; prepay_balance?: number; prepay_overdue?: boolean; prepay_overdue_days?: number | null;
+  pay_kind?: "NORMAL" | "PREPAY"; prepay_po_id?: string | null; prepay_po_no?: string | null; prepay_balance?: number; prepay_overdue?: boolean; prepay_overdue_days?: number | null; prepay_unsettled?: boolean;
   prepay_offset_total?: number; prepay_refund_total?: number; prepay_ledger?: PrepayLedgerRow[];
   card_last4?: string | null; pay_card_last4?: string | null; pay_platform?: string | null; platform?: string | null;
   payee_type?: "VENDOR" | "EMPLOYEE"; payee_profile_id?: string | null; payee_name?: string | null; payee_name_snapshot?: string | null;

@@ -94,4 +94,10 @@ UNION ALL
 SELECT '既有請款單都是一般請款、既有明細核銷額為 0（套用當下）' AS check_name, CASE WHEN NOT EXISTS (SELECT 1 FROM public.ga_payment_requests WHERE pay_kind NOT IN ('NORMAL', 'PREPAY')) AND NOT EXISTS (SELECT 1 FROM public.ga_payment_request_lines WHERE prepay_offset < 0) THEN 'pass' ELSE 'fail' END AS result
 UNION ALL
 SELECT '預付餘額帳約束：核銷要有進貨單、退款要有原因、金額大於 0' AS check_name, CASE WHEN EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ga_prepay_ledger_kind_check') AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ga_prepay_ledger_amount_check') THEN 'pass' ELSE 'fail' END AS result
+UNION ALL
+SELECT '內部函式 ga_ib1_prepay_lines_guard 存在、登入者與匿名都不能執行' AS check_name, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace s ON s.oid = p.pronamespace WHERE s.nspname = 'public' AND p.proname = 'ga_ib1_prepay_lines_guard') AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace s ON s.oid = p.pronamespace WHERE s.nspname = 'public' AND p.proname = 'ga_ib1_prepay_lines_guard' AND (has_function_privilege('authenticated', p.oid, 'EXECUTE') OR has_function_privilege('anon', p.oid, 'EXECUTE'))) THEN 'pass' ELSE 'fail' END AS result
+UNION ALL
+SELECT '內部函式 ga_pay_prepay_reconcile 存在、登入者與匿名都不能執行' AS check_name, CASE WHEN EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace s ON s.oid = p.pronamespace WHERE s.nspname = 'public' AND p.proname = 'ga_pay_prepay_reconcile') AND NOT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace s ON s.oid = p.pronamespace WHERE s.nspname = 'public' AND p.proname = 'ga_pay_prepay_reconcile' AND (has_function_privilege('authenticated', p.oid, 'EXECUTE') OR has_function_privilege('anon', p.oid, 'EXECUTE'))) THEN 'pass' ELSE 'fail' END AS result
+UNION ALL
+SELECT '請款明細守門觸發器 trg_ga_ib1_prepay_lines_guard（預付單不放明細、核銷加請款不超過進貨單）' AS check_name, CASE WHEN EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'trg_ga_ib1_prepay_lines_guard' AND NOT tgisinternal) THEN 'pass' ELSE 'fail' END AS result
 ORDER BY 1;

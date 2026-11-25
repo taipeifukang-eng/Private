@@ -17,7 +17,7 @@ export type PoItem = {
 };
 export type PoAdjustment = { id: string; line_no: number; kind: "FREIGHT" | "DISCOUNT" | "COUPON" | "POINTS" | "OTHER"; label: string; amount: number; original_price: number | null; campaign_name: string | null; note: string | null; receipt_no?: string | null };
 export type PoPrepay = {
-  prepaid: number; paid: number; draft: number; offset: number; refunded: number; balance: number; overdue?: boolean; overdue_days?: number | null;
+  prepaid: number; paid: number; draft: number; offset: number; refunded: number; balance: number; overdue?: boolean; overdue_days?: number | null; unsettled?: boolean;
   requests: Array<{ id: string; pr_no: string; status: string; amount_total: number; balance: number }>;
 };
 export type PoEvent = { id: string; event_type: string; from_status: string | null; to_status: string | null; actor_id: string | null; actor_name: string | null; note: string | null; payload: any; created_at: string };

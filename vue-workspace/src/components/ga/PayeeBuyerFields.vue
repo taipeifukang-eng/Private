@@ -94,9 +94,10 @@ function togglePicker() {
 .pbf-box { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; display: grid; gap: 8px; min-width: 0; margin: 0; }
 .pbf-box legend { font-weight: 600; font-size: 14px; padding: 0 6px; }
 .pbf-radios { display: flex; flex-wrap: wrap; gap: 6px 18px; }
-.pbf-radios label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
-.pbf-radios input { width: auto; min-height: 0; }
 .pbf label { display: grid; gap: 4px; min-width: 0; }
+/* 審查：全站 label 是 grid，單選圓點會掉到文字上方；這裡用比 .pbf label 更高的選擇器改回同一行 */
+.pbf .pbf-radios label { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; }
+.pbf .pbf-radios input { width: auto; min-height: 0; }
 .pbf-picked { margin: 0; overflow-wrap: anywhere; }
 .pbf-picker { display: grid; gap: 6px; min-width: 0; }
 .pbf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 220px; overflow-y: auto; }

@@ -138,6 +138,7 @@ BEGIN
     'offset', public.ga_pay_po_offset(p_po),
     'refunded', COALESCE((SELECT sum(l.amount) FROM public.ga_payment_prepay_ledger l WHERE l.po_id = p_po AND l.kind = 'REFUND' AND l.reversed_at IS NULL), 0),
     'balance', v_bal,
+    'unsettled', (o.status = 'RECEIVED' AND v_bal > public.ga_pay_tol()),
     'overdue', (o.status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < v_today AND v_bal > 0),
     'overdue_days', CASE WHEN o.status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < v_today AND v_bal > 0 THEN v_today - o.expected_delivery_date END,
     'requests', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', q.id, 'pr_no', q.pr_no, 'status', q.status, 'amount_total', q.amount_total, 'balance', public.ga_pay_prepay_balance(q.id)) ORDER BY q.created_at, q.id)
@@ -161,6 +162,67 @@ BEGIN
     PERFORM public.ga_rq_raise(409, 'OVER_PO_TOTAL', '採購單 ' || o.po_no || ' 的預付款加一般請款共 ' || public.ga_pay_money(v_p + v_n + p_add) || ' 元，超過採購單含稅總額 ' || public.ga_pay_money(o.total_amount) || ' 元（容許尾差 ' || public.ga_pay_money(v_tol) || ' 元）；預付款加請款的總額不能超過訂單金額',
       jsonb_build_object('po_id', p_po, 'po_no', o.po_no, 'po_total', o.total_amount, 'prepaid', v_p, 'claimed', v_n, 'add', p_add, 'tolerance', v_tol));
   END IF;
+END;
+$f$;
+
+-- 請款明細守門（審查 H1／H2）：預付款請款單不能放進貨明細（否則金額會被明細合計覆寫、重複計入上限）；
+-- 進貨單已有預付核銷時，這條明細的請款額加其他有效請款加核銷額不能超過進貨單含稅額＋尾差（沒有核銷的進貨單不多做任何檢查）
+CREATE OR REPLACE FUNCTION public.ga_ib1_prepay_lines_guard() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+AS $f$
+DECLARE
+  v_kind text;
+  v_off numeric;
+  v_tot numeric;
+  v_other numeric;
+  v_no text;
+BEGIN
+  SELECT pay_kind INTO v_kind FROM public.ga_payment_requests WHERE id = NEW.pr_id;
+  IF v_kind = 'PREPAY' THEN
+    PERFORM public.ga_rq_raise(409, 'PREPAY_NO_LINES', '預付款請款單不能放進貨明細；預付款會在進貨驗入時自動核銷進貨單');
+  END IF;
+  v_off := public.ga_pay_receipt_offset(NEW.receipt_id);
+  IF v_off > 0 THEN
+    v_tot := public.ga_pay_receipt_total(NEW.receipt_id);
+    SELECT COALESCE(sum(l.claim_total), 0) INTO v_other FROM public.ga_payment_request_lines l JOIN public.ga_payment_requests q ON q.id = l.pr_id WHERE l.receipt_id = NEW.receipt_id AND q.status <> 'VOID';
+    IF v_other + NEW.claim_total + v_off > v_tot + public.ga_pay_tol() THEN
+      SELECT receipt_no INTO v_no FROM public.ga_purchase_receipts WHERE id = NEW.receipt_id;
+      PERFORM public.ga_rq_raise(409, 'PREPAY_COVERED', '進貨單 ' || v_no || ' 已由預付款核銷 ' || public.ga_pay_money(v_off) || ' 元，再請款 ' || public.ga_pay_money(NEW.claim_total) || ' 元會超過進貨單含稅額 ' || public.ga_pay_money(v_tot) || ' 元；請款金額要扣掉預付核銷額',
+        jsonb_build_object('receipt_id', NEW.receipt_id, 'receipt_total', v_tot, 'prepay_offset', v_off, 'other_claimed', v_other, 'claim_total', NEW.claim_total));
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$f$;
+DROP TRIGGER IF EXISTS trg_ga_ib1_prepay_lines_guard ON public.ga_payment_request_lines;
+CREATE TRIGGER trg_ga_ib1_prepay_lines_guard BEFORE INSERT ON public.ga_payment_request_lines FOR EACH ROW EXECUTE FUNCTION public.ga_ib1_prepay_lines_guard();
+
+-- 調整列轉承接後重新對帳（審查 M1）：進貨單的「請款＋核銷」超過它現在的含稅額時，把超出的核銷額回復（由新到舊），回復的餘額之後可再核銷其他進貨
+CREATE OR REPLACE FUNCTION public.ga_pay_prepay_reconcile(p_po uuid) RETURNS numeric LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
+AS $f$
+DECLARE
+  r record;
+  g record;
+  v_excess numeric;
+  v_cut numeric;
+  v_done numeric := 0;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.ga_payment_prepay_ledger WHERE po_id = p_po AND kind = 'OFFSET' AND reversed_at IS NULL) THEN RETURN 0; END IF;
+  FOR r IN SELECT x.id FROM public.ga_purchase_receipts x WHERE x.po_id = p_po AND x.voided_at IS NULL ORDER BY x.received_date, x.created_at, x.id LOOP
+    v_excess := COALESCE((SELECT sum(l.claim_total) FROM public.ga_payment_request_lines l JOIN public.ga_payment_requests q ON q.id = l.pr_id WHERE l.receipt_id = r.id AND q.status <> 'VOID'), 0)
+                + public.ga_pay_receipt_offset(r.id) - public.ga_pay_receipt_total(r.id);
+    CONTINUE WHEN v_excess <= public.ga_pay_tol();
+    FOR g IN SELECT * FROM public.ga_payment_prepay_ledger WHERE receipt_id = r.id AND kind = 'OFFSET' AND reversed_at IS NULL ORDER BY created_at DESC, id DESC LOOP
+      EXIT WHEN v_excess <= 0;
+      v_cut := LEAST(g.amount, v_excess);
+      UPDATE public.ga_payment_prepay_ledger SET reversed_at = clock_timestamp(), reversed_reason = '進貨單金額調整，核銷額超過進貨單含稅額' WHERE id = g.id;
+      IF g.amount > v_cut THEN
+        INSERT INTO public.ga_payment_prepay_ledger (created_by, prepay_pr_id, po_id, kind, receipt_id, amount) VALUES (g.created_by, g.prepay_pr_id, g.po_id, 'OFFSET', g.receipt_id, g.amount - v_cut);
+      END IF;
+      v_excess := v_excess - v_cut;
+      v_done := v_done + v_cut;
+    END LOOP;
+  END LOOP;
+  RETURN v_done;
 END;
 $f$;
 
@@ -229,6 +291,7 @@ CREATE OR REPLACE FUNCTION public.ga_ib1_receive_ext(p_po uuid, p_receipt uuid, 
 AS $f$
 BEGIN
   PERFORM public.ga_ib1_receipt_adj_carry(p_po);
+  PERFORM public.ga_pay_prepay_reconcile(p_po);
   PERFORM public.ga_pay_prepay_apply(p_po);
 END;
 $f$;
@@ -239,6 +302,7 @@ BEGIN
   DELETE FROM public.ga_purchase_receipt_adjustments WHERE receipt_id = p_receipt;
   PERFORM public.ga_ib1_receipt_adj_carry(p_po);
   UPDATE public.ga_payment_prepay_ledger SET reversed_at = clock_timestamp(), reversed_reason = '作廢進貨單' WHERE receipt_id = p_receipt AND kind = 'OFFSET' AND reversed_at IS NULL;
+  PERFORM public.ga_pay_prepay_reconcile(p_po);
   PERFORM public.ga_pay_prepay_apply(p_po);
 END;
 $f$;
@@ -291,6 +355,7 @@ BEGIN
     SELECT * INTO o FROM public.ga_purchase_orders WHERE id = q.prepay_po_id;
     v_bal := public.ga_pay_prepay_balance(q.id);
     v_out := v_out || jsonb_build_object('prepay_po_no', o.po_no, 'prepay_balance', v_bal, 'po_nos', jsonb_build_array(o.po_no),
+      'prepay_unsettled', (o.status = 'RECEIVED' AND v_bal > public.ga_pay_tol()),
       'prepay_overdue', (o.status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < public.ga_po_today() AND v_bal > 0),
       'prepay_overdue_days', CASE WHEN o.status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < public.ga_po_today() AND v_bal > 0 THEN public.ga_po_today() - o.expected_delivery_date END,
       'prepay_offset_total', COALESCE((SELECT sum(g.amount) FROM public.ga_payment_prepay_ledger g WHERE g.prepay_pr_id = q.id AND g.kind = 'OFFSET' AND g.reversed_at IS NULL), 0),
@@ -319,7 +384,9 @@ BEGIN
   IF COALESCE(v_f ->> 'prepay_overdue', '') IN ('1', 'true') THEN
     IF q.pay_kind <> 'PREPAY' THEN RETURN false; END IF;
     SELECT * INTO o FROM public.ga_purchase_orders WHERE id = q.prepay_po_id;
-    RETURN o.status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < public.ga_po_today() AND public.ga_pay_prepay_balance(q.id) > 0;
+    -- 逾期未到貨，或已全部到貨但預付餘額還沒退款或轉抵（審查 M4）
+    RETURN (o.status IN ('ORDERED', 'PARTIALLY_RECEIVED') AND o.expected_delivery_date IS NOT NULL AND o.expected_delivery_date < public.ga_po_today() AND public.ga_pay_prepay_balance(q.id) > 0)
+        OR (o.status = 'RECEIVED' AND public.ga_pay_prepay_balance(q.id) > public.ga_pay_tol());
   END IF;
   RETURN true;
 END;
@@ -833,7 +900,7 @@ BEGIN
   FOR r IN SELECT p.oid::regprocedure AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
             WHERE n.nspname = 'public' AND p.proname IN ('ga_pay_po_offset', 'ga_pay_receipt_offset', 'ga_pay_prepay_balance', 'ga_pay_po_prepay_balance', 'ga_pay_prepay_apply', 'ga_pay_prepay_release',
                                                          'ga_ib1_prepay_overview', 'ga_ib1_prepay_cap_check', 'ga_ib1_prepay_guard', 'ga_ib1_prepay_sync', 'ga_ib1_prepay_set_amount',
-                                                         'ga_ib1_prepay_close_guard', 'ga_ib1_check_prepay_live') LOOP
+                                                         'ga_ib1_prepay_close_guard', 'ga_ib1_check_prepay_live', 'ga_ib1_prepay_lines_guard', 'ga_pay_prepay_reconcile') LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC, anon, authenticated', r.sig);
     EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', r.sig);
   END LOOP;

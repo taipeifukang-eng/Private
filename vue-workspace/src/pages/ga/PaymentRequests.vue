@@ -166,7 +166,7 @@ async function exportCsv() {
         </div>
         <p class="card-line">{{ r.vendor_name_snapshot || "（廠商）" }}　建立 {{ dateText(r.created_at) }}</p>
         <p v-if="r.payee_type === 'EMPLOYEE'" class="card-line" data-testid="pr-payee">付款對象：同仁 {{ payeeName(r) }}</p>
-        <p v-if="r.pay_kind === 'PREPAY'" class="card-line" :class="{ overdue: r.prepay_overdue }" data-testid="pr-prepay-info">採購單 {{ r.prepay_po_no || (r.po_nos || [])[0] || "—" }}　預付餘額 {{ money(r.prepay_balance || 0) }}<template v-if="r.prepay_overdue">（逾期未到貨 {{ r.prepay_overdue_days }} 天）</template></p>
+        <p v-if="r.pay_kind === 'PREPAY'" class="card-line" :class="{ overdue: r.prepay_overdue }" data-testid="pr-prepay-info">採購單 {{ r.prepay_po_no || (r.po_nos || [])[0] || "—" }}　預付餘額 {{ money(r.prepay_balance || 0) }}<template v-if="r.prepay_overdue">（逾期未到貨 {{ r.prepay_overdue_days }} 天）</template><template v-else-if="r.prepay_unsettled">（已全部到貨，餘額待退款或轉抵）</template></p>
         <p v-if="isUtilityRequest(r)" class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted" data-testid="pr-bill-info">　帳單月份 {{ String(r.bill_month || "").slice(0, 7) }}，{{ r.bill_count ?? 0 }} 張帳單</span></p>
         <p v-else class="card-line"><strong data-testid="pr-amount">{{ money(r.amount_total) }}</strong><span class="muted">　<template v-if="r.pay_kind === 'PREPAY'">預付款，採購單 {{ (r.po_nos || []).join("、") }}</template><template v-else>{{ r.line_count }} 筆進貨<template v-if="r.po_nos?.length">，採購單 {{ r.po_nos.join("、") }}</template></template></span></p>
         <p v-if="r.expected_pay_date" class="card-line muted">預計付款日 {{ dateText(r.expected_pay_date) }}</p>

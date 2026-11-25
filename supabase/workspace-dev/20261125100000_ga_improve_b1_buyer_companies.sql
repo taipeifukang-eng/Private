@@ -230,6 +230,9 @@ DECLARE
 BEGIN
   IF OLD.status = 'DRAFT' AND NEW.status = 'SUBMITTED' THEN
     SELECT * INTO c FROM public.ga_buyer_companies WHERE id = COALESCE(NEW.buyer_company_id, public.ga_ib1_buyer_default_id());
+    IF FOUND AND NOT c.is_active THEN
+      PERFORM public.ga_rq_raise(404, 'BUYER_NOT_FOUND', '買受人公司「' || c.name || '」已停用，請重新選擇抬頭後再送出');
+    END IF;
     IF FOUND THEN
       NEW.buyer_company_id := c.id; NEW.buyer_title_snapshot := c.name; NEW.buyer_tax_id_snapshot := c.tax_id;
     ELSE
@@ -285,6 +288,7 @@ DECLARE
   v_active boolean;
   v_sort integer;
   v_ev uuid;
+  v_ev_hash text;
   v_new boolean;
 BEGIN
   IF v_uid IS NULL THEN RETURN public.ga_rq_err(401, 'AUTH_REQUIRED', '請先登入'); END IF;
@@ -292,8 +296,11 @@ BEGIN
   IF jsonb_typeof(p) <> 'object' THEN RETURN public.ga_rq_err(400, 'BAD_PAYLOAD', '送出的資料格式錯誤'); END IF;
   IF v_key IS NULL OR char_length(v_key) > 64 THEN RETURN public.ga_rq_err(400, 'IDEMPOTENCY_KEY_REQUIRED', '缺少防重複識別碼，請重新整理畫面後再送出'); END IF;
   PERFORM pg_advisory_xact_lock(hashtextextended('ga_buyer_companies', 0));
-  SELECT e.company_id INTO v_ev FROM public.ga_buyer_company_events e WHERE e.idempotency_key = v_key;
-  IF FOUND THEN RETURN jsonb_build_object('ok', true, 'status', 200, 'replay', true, 'data', public.ga_ib1_buyer_rows() || jsonb_build_object('id', v_ev)); END IF;
+  SELECT e.company_id, e.payload ->> 'hash' INTO v_ev, v_ev_hash FROM public.ga_buyer_company_events e WHERE e.idempotency_key = v_key;
+  IF FOUND THEN
+    IF v_ev_hash IS NOT NULL AND v_ev_hash <> md5(p::text) THEN RETURN public.ga_rq_err(409, 'IDEMPOTENCY_CONFLICT', '這個送出識別碼已被另一份不同內容的公司資料使用，請重新整理畫面後再送出'); END IF;
+    RETURN jsonb_build_object('ok', true, 'status', 200, 'replay', true, 'data', public.ga_ib1_buyer_rows() || jsonb_build_object('id', v_ev));
+  END IF;
   v_new := NOT (p ? 'id') OR nullif(btrim(COALESCE(p ->> 'id', '')), '') IS NULL;
   v_name := public.ga_pay_txt(p, 'name', 100, '公司名稱');
   v_tax := public.ga_pay_norm_tax(public.ga_pay_txt(p, 'tax_id', 20, '統一編號'));
@@ -305,7 +312,7 @@ BEGIN
     v_sort := COALESCE((p ->> 'sort_order')::integer, 0);
     IF v_default THEN UPDATE public.ga_buyer_companies SET is_default = false, updated_by = v_uid, updated_at = clock_timestamp() WHERE is_default; END IF;
     INSERT INTO public.ga_buyer_companies (name, tax_id, is_default, sort_order, created_by, updated_by) VALUES (v_name, v_tax, v_default, v_sort, v_uid, v_uid) RETURNING id INTO v_id;
-    INSERT INTO public.ga_buyer_company_events (company_id, event_type, actor_id, idempotency_key, payload) VALUES (v_id, 'create', v_uid, v_key, jsonb_build_object('name', v_name, 'tax_id', v_tax, 'is_default', v_default));
+    INSERT INTO public.ga_buyer_company_events (company_id, event_type, actor_id, idempotency_key, payload) VALUES (v_id, 'create', v_uid, v_key, jsonb_build_object('name', v_name, 'tax_id', v_tax, 'is_default', v_default, 'hash', md5(p::text)));
   ELSE
     v_id := public.ga_pay_uuid(p ->> 'id', '買受人公司', true);
     IF p_expected_updated_at IS NULL THEN RETURN public.ga_rq_err(400, 'EXPECTED_REQUIRED', '缺少版本資訊（expected_updated_at），請重新載入後再儲存'); END IF;
@@ -319,6 +326,11 @@ BEGIN
     IF p ? 'is_active' THEN v_active := COALESCE((p ->> 'is_active')::boolean, c.is_active); END IF;
     IF v_active AND EXISTS (SELECT 1 FROM public.ga_buyer_companies WHERE tax_id = v_tax AND is_active AND id <> v_id) THEN RETURN public.ga_rq_err(409, 'DUPLICATE_TAX_ID', '已有啟用中的公司使用這個統一編號'); END IF;
     IF NOT v_active AND c.is_default AND EXISTS (SELECT 1 FROM public.ga_buyer_companies WHERE is_active AND id <> v_id) THEN RETURN public.ga_rq_err(409, 'DEFAULT_REQUIRED', '預設公司不能直接停用，請先指定其他公司為預設'); END IF;
+    -- 審查 M5：採購單的抬頭是即時帶出的，已下訂（或之後）的採購單用到的公司不能改名稱與統編，請停用舊公司後新增
+    IF (v_name IS DISTINCT FROM c.name OR v_tax IS DISTINCT FROM c.tax_id)
+       AND EXISTS (SELECT 1 FROM public.ga_purchase_orders o WHERE o.buyer_company_id = v_id AND o.status NOT IN ('DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'CANCELED')) THEN
+      RETURN public.ga_rq_err(409, 'BUYER_IN_USE', '這家公司已被下訂後的採購單使用，名稱與統一編號不能修改（會讓已開給廠商的抬頭對不上）；請停用這家公司，再新增正確的公司');
+    END IF;
     v_sort := COALESCE((p ->> 'sort_order')::integer, c.sort_order);
     v_default := c.is_default AND v_active;
     IF p ? 'is_default' AND COALESCE((p ->> 'is_default')::boolean, false) AND v_active THEN
@@ -327,7 +339,7 @@ BEGIN
     END IF;
     UPDATE public.ga_buyer_companies SET name = v_name, tax_id = v_tax, is_active = v_active, is_default = v_default, sort_order = v_sort, updated_by = v_uid, updated_at = clock_timestamp() WHERE id = v_id;
     INSERT INTO public.ga_buyer_company_events (company_id, event_type, actor_id, idempotency_key, payload)
-      VALUES (v_id, CASE WHEN v_active AND NOT c.is_active THEN 'activate' ELSE 'update' END, v_uid, v_key, jsonb_build_object('name', v_name, 'tax_id', v_tax, 'is_default', v_default, 'is_active', v_active));
+      VALUES (v_id, CASE WHEN v_active AND NOT c.is_active THEN 'activate' ELSE 'update' END, v_uid, v_key, jsonb_build_object('name', v_name, 'tax_id', v_tax, 'is_default', v_default, 'is_active', v_active, 'hash', md5(p::text)));
   END IF;
   PERFORM public.ga_ib1_buyer_sync_settings(v_uid);
   RETURN jsonb_build_object('ok', true, 'status', CASE WHEN v_new THEN 201 ELSE 200 END, 'replay', false, 'data', public.ga_ib1_buyer_rows() || jsonb_build_object('id', v_id));

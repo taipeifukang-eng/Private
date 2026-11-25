@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { computed, onMounted, reactive, ref } from "vue";
 import { api, ApiError } from "../../api";
 import Modal from "../Modal.vue";
 import { errorText, money, newKey, timeText } from "../../lib/ga-payments";
@@ -21,6 +21,10 @@ const error = ref("");
 const notice = ref("");
 const companies = ref<BuyerCompany[]>([]);
 const companiesUpdatedAt = ref<string | null>(null);
+// 審查：已停用的公司會一直堆積，預設收起來，需要時再勾選顯示
+const showInactive = ref(false);
+const inactiveCount = computed(() => companies.value.filter((c) => !c.is_active).length);
+const shownCompanies = computed(() => companies.value.filter((c) => c.is_active || showInactive.value || editId.value === c.id));
 const canEditCompanies = ref(false);
 const cBusy = ref(false);
 const cError = ref("");
@@ -118,8 +122,9 @@ const KEY: Record<string, string> = { pay_tolerance_amount: "尾差金額", pay_
         <section class="ps-companies" data-testid="ps-companies">
           <h4>買受人公司清單</h4>
           <p class="muted">可以有多家公司（名稱＋統編）。採購單與請款單各自選抬頭，不選就用預設公司；請款單列印印出所選抬頭。上面兩欄是預設公司的抬頭與統編。</p>
+          <label v-if="inactiveCount" class="ps-inactive-toggle"><input v-model="showInactive" type="checkbox" data-testid="ps-show-inactive" /> 顯示已停用的公司（{{ inactiveCount }} 家）</label>
           <ul class="ps-clist">
-            <li v-for="c in companies" :key="c.id" :class="{ off: !c.is_active }" data-testid="ps-company">
+            <li v-for="c in shownCompanies" :key="c.id" :class="{ off: !c.is_active }" data-testid="ps-company">
               <template v-if="editId === c.id">
                 <label>公司名稱<input v-model="editName" maxlength="100" data-testid="ps-company-edit-name" /></label>
                 <label>統一編號<input v-model="editTax" inputmode="numeric" maxlength="8" data-testid="ps-company-edit-tax" /></label>

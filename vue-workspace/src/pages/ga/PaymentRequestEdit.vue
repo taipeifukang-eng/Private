@@ -388,7 +388,8 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
         <p v-if="pr.vendor_masked" class="muted" data-testid="pe-masked">廠商統編與銀行帳號屬帳務機密，你沒有廠商查看權限，不顯示。</p>
         <template v-else>
           <p data-testid="pe-tax">統一編號：{{ pr.vendor_tax_id_snapshot || "—" }}</p>
-          <p data-testid="pe-bank">收款帳號（建立時快照）：{{ bankText(pr.bank_snapshot) || "廠商未填寫銀行資料" }}</p>
+          <p v-if="!isEmployee" data-testid="pe-bank">收款帳號（建立時快照）：{{ bankText(pr.bank_snapshot) || "廠商未填寫銀行資料" }}</p>
+          <p v-else class="muted" data-testid="pe-bank-hidden">同仁代墊：請依上方「同仁匯款帳戶」付款，這張單不匯給廠商，所以不顯示廠商收款帳號。</p>
         </template>
         <p class="muted">建立 {{ pr.created_by_name || "—" }} {{ timeText(pr.created_at) }}<template v-if="pr.submitted_at">；送出 {{ pr.submitted_by_name || "—" }} {{ timeText(pr.submitted_at) }}</template><template v-if="pr.paid_at">；付款 {{ pr.paid_by_name || "—" }} {{ timeText(pr.paid_at) }}</template></p>
         <p v-if="pr.status === 'PAID'" data-testid="pe-paid-info">付款方式 {{ PAY_METHOD_LABELS[pr.pay_method as keyof typeof PAY_METHOD_LABELS] || pr.pay_method }}<template v-if="pr.pay_card_last4 || pr.card_last4">（卡號末四碼 {{ pr.pay_card_last4 || pr.card_last4 }}）</template><template v-if="pr.pay_platform || pr.platform">（平台 {{ pr.pay_platform || pr.platform }}）</template>，付款日 {{ dateText(pr.paid_date) }}<template v-if="pr.paid_ref">，參考號 {{ pr.paid_ref }}</template></p>
@@ -401,6 +402,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
 
     <section v-if="!loading && isPrepay && pr" class="pe-box" data-testid="pe-prepay">
       <h2>預付款</h2>
+      <p v-if="pr.prepay_unsettled" class="notice error" role="alert" data-testid="pe-prepay-unsettled">採購單已全部到貨，但這張預付款還有餘額 {{ money(pr.prepay_balance) }} 沒有核銷，請向廠商要求退款後，在下方登記退款或轉抵。</p>
       <p v-if="pr.prepay_overdue" class="notice error" role="alert" data-testid="pe-prepay-overdue">超過預計到貨日 {{ pr.prepay_overdue_days }} 天仍未到貨，預付餘額 {{ money(pr.prepay_balance) }} 還沒核銷，請向廠商催貨或登記退款。</p>
       <label>預付金額（含稅，整數元）<input v-model="prepayAmt" inputmode="numeric" maxlength="9" :disabled="!editing" data-testid="pe-prepay-amount" @input="dirty" /></label>
       <p v-if="editing && prepaySplitView" class="muted" data-testid="pe-prepay-split">未稅 {{ money(prepaySplitView.untaxed) }}，稅額 {{ money(prepaySplitView.tax) }}</p>
@@ -463,7 +465,7 @@ function backToList() { openGaPage("ga-payment-requests"); work.remove([props.ta
           <button type="button" :data-testid="'pe-add-' + c.receipt_no" :disabled="(!!vendorId && vendorId !== c.vendor_id) || !!c.prepay_covered" @click="addLine(c)">加入</button>
         </li>
       </ul>
-      <p v-if="!candidates.length && !candError" class="muted" data-testid="pe-cand-empty">沒有可請款的進貨（尚未驗收、全部拒收、已請完或已作廢的進貨不會出現）。</p>
+      <p v-if="!candidates.length && !candError" class="muted" data-testid="pe-cand-empty">沒有可請款的進貨（尚未驗收、全部拒收、已請完、已由預付款全額核銷或已作廢的進貨不會出現；已由預付款核銷的進貨單免再請款）。</p>
     </section>
 
     <section v-if="pr?.events?.length" class="pe-box" data-testid="pe-events">
