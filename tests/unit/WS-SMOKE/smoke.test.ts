@@ -13,10 +13,12 @@ let loginRedirect = false;
 let server: http.Server;
 let base = "";
 const methods: string[] = [];
+const bypassSeen: Array<string | undefined> = [];
 
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     methods.push(req.method || "");
+    bypassSeen.push(req.headers["x-vercel-protection-bypass"] as string | undefined);
     const url = req.url || "";
     const authed = (req.headers.cookie || "") === "sb=ok";
     const json = (s: number, b: unknown) => {
@@ -92,6 +94,26 @@ describe("workspace-prod-smoke", () => {
   it("沒給 cookie 時不會通過", async () => {
     mode = "open";
     expect(failures(await smoke.run(opts(), "")).length).toBeGreaterThan(0);
+  });
+  it("設了 VERCEL_PROTECTION_BYPASS 才帶標頭；沒設就不帶", async () => {
+    mode = "open";
+    const prev = process.env.VERCEL_PROTECTION_BYPASS;
+    try {
+      delete process.env.VERCEL_PROTECTION_BYPASS;
+      bypassSeen.length = 0;
+      await smoke.run(opts(), "sb=ok");
+      expect(bypassSeen.length).toBeGreaterThan(0);
+      expect(bypassSeen.every((v) => v === undefined)).toBe(true);
+
+      process.env.VERCEL_PROTECTION_BYPASS = "unit-test-dummy";
+      bypassSeen.length = 0;
+      expect(failures(await smoke.run(opts(), "sb=ok"))).toEqual([]);
+      expect(bypassSeen.length).toBeGreaterThan(0);
+      expect(bypassSeen.every((v) => v === "unit-test-dummy")).toBe(true);
+    } finally {
+      if (prev === undefined) delete process.env.VERCEL_PROTECTION_BYPASS;
+      else process.env.VERCEL_PROTECTION_BYPASS = prev;
+    }
   });
   it("只送過 GET", () => {
     expect(methods.length).toBeGreaterThan(0);

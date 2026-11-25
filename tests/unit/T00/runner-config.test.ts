@@ -6,6 +6,34 @@ import { ROOT, pwOptions, refs, registry, runAll } from './helpers';
 const runId = 'T20261102-ab12';
 const opts = pwOptions.buildPlaywrightOptions({ root: ROOT, runId });
 
+describe('Playwright 設定：遠端 preview 覆寫', () => {
+  const PREVIEW = 'https://example-git-x.vercel.app';
+  const build = (env: Record<string, string>) => pwOptions.buildPlaywrightOptions({ root: ROOT, runId, env });
+  it('沒設環境變數：維持預設（本機 3002、有 webServer、無額外標頭）', () => {
+    const o = build({});
+    expect(o.use.baseURL).toBe('http://localhost:3002');
+    expect(o.webServer).toBeTruthy();
+    expect(o.use.extraHTTPHeaders).toBeUndefined();
+  });
+  it('E2E_BASE_URL：改打 preview 且不啟動本機 webServer', () => {
+    const o = build({ E2E_BASE_URL: PREVIEW + '/' });
+    expect(o.use.baseURL).toBe(PREVIEW);
+    expect(o.webServer).toBeUndefined();
+  });
+  it('PLAYWRIGHT_BASE_URL 也可用；VERCEL_PROTECTION_BYPASS 會帶標頭', () => {
+    const o = build({ PLAYWRIGHT_BASE_URL: PREVIEW, VERCEL_PROTECTION_BYPASS: 'dummy' });
+    expect(o.use.baseURL).toBe(PREVIEW);
+    expect(o.use.extraHTTPHeaders).toEqual({
+      'x-vercel-protection-bypass': 'dummy',
+      'x-vercel-set-bypass-cookie': 'samesitenone',
+    });
+  });
+  it('拒絕非 vercel.app 的遠端網址', () => {
+    expect(() => build({ E2E_BASE_URL: 'https://www.example.com' })).toThrow();
+    expect(() => build({ E2E_BASE_URL: 'http://foo.vercel.app' })).toThrow();
+  });
+});
+
 describe('Playwright 設定', () => {
   it('只有 desktop-1440 與 mobile-390 兩個 project，viewport 正確', () => {
     expect(opts.projects.map((p: { name: string }) => p.name)).toEqual(['desktop-1440', 'mobile-390']);

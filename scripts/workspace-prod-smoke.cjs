@@ -13,6 +13,8 @@ function get(baseUrl, path, cookie) {
   const lib = url.protocol === "https:" ? https : http;
   const headers = { accept: "*/*", "user-agent": "workspace-smoke/1" };
   if (cookie) headers.cookie = cookie;
+  // Vercel preview 的 Deployment Protection 繞過標頭（只從環境變數讀，不印出）。
+  if (process.env.VERCEL_PROTECTION_BYPASS) headers["x-vercel-protection-bypass"] = process.env.VERCEL_PROTECTION_BYPASS;
   return new Promise((resolve, reject) => {
     const req = lib.request(url, { method: "GET", headers }, (res) => {
       const chunks = [];

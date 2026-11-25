@@ -6,8 +6,15 @@ import { request as playwrightRequest, type APIRequestContext, type Browser, typ
 const { getAccount } = require('./credentials.cjs') as {
   getAccount: (key: string) => { email: string; password: string; userId?: string };
 };
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { resolveBaseUrl, bypassHeaders } = require('./env-refs.cjs') as {
+  resolveBaseUrl: () => string;
+  bypassHeaders: () => Record<string, string>;
+};
 
-export const TEST_ORIGIN = 'http://localhost:3002';
+// 預設 http://localhost:3002；設 E2E_BASE_URL 時改打 Vercel preview（並帶 VERCEL_PROTECTION_BYPASS 標頭）。
+export const TEST_ORIGIN: string = resolveBaseUrl();
+const BYPASS = bypassHeaders();
 const AUTH_DIR = path.resolve(__dirname, '..', 'reports', '.auth');
 // 登入狀態快取有效期（Supabase access token 預設 1 小時，保守取 30 分鐘）。
 const MAX_AGE_MS = 30 * 60 * 1000;
@@ -21,7 +28,7 @@ async function login(role: string): Promise<string> {
   const { email, password } = getAccount(role);
   const file = storageStatePath(role);
   fs.mkdirSync(AUTH_DIR, { recursive: true });
-  const ctx = await playwrightRequest.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: { Origin: TEST_ORIGIN } });
+  const ctx = await playwrightRequest.newContext({ baseURL: TEST_ORIGIN, extraHTTPHeaders: { Origin: TEST_ORIGIN, ...BYPASS } });
   try {
     const res = await ctx.post('/api/workspace/login', { data: { email, password } });
     if (!res.ok()) throw new Error(`角色 ${role} 登入失敗（HTTP ${res.status()}）`);
@@ -48,12 +55,12 @@ export async function apiAs(role: string, opts: { force?: boolean } = {}): Promi
   return playwrightRequest.newContext({
     baseURL: TEST_ORIGIN,
     storageState: state,
-    extraHTTPHeaders: { Origin: TEST_ORIGIN },
+    extraHTTPHeaders: { Origin: TEST_ORIGIN, ...BYPASS },
   });
 }
 
 /** 建立已登入該角色的瀏覽器 context：`const ctx = await loginAs(browser, 'store_manager')`。 */
 export async function loginAs(browser: Browser, role: string, opts: { force?: boolean } = {}): Promise<BrowserContext> {
   const state = await storageStateFor(role, opts);
-  return browser.newContext({ baseURL: TEST_ORIGIN, storageState: state });
+  return browser.newContext({ baseURL: TEST_ORIGIN, storageState: state, extraHTTPHeaders: BYPASS });
 }
