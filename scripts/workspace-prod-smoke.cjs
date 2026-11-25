@@ -75,7 +75,9 @@ async function run(o, cookie, log = () => {}) {
   const legacy = await safe("/");
   check("舊版首頁未壞（200 或轉址）", legacy.status >= 200 && legacy.status < 400, "status=" + legacy.status);
   const login = await safe("/login");
-  check("舊版登入頁 200", login.status === 200, "status=" + login.status);
+  // 本機測試站（--allow-http-localhost）會把 /login 轉到新版登入頁（公開頁轉址只在 DEV 啟用），所以本機接受轉到 /workspace/ 的 3xx；正式區仍要求 200。
+  const devRedirect = o.allowHttpLocalhost && login.status >= 300 && login.status < 400 && /\/workspace\//.test(String(login.headers.location || ""));
+  check("舊版登入頁 200", login.status === 200 || devRedirect, "status=" + login.status + (devRedirect ? "（本機測試站轉到新版登入頁）" : ""));
 
   if (!cookie) {
     check("有提供登入 cookie", false, "未設定 WORKSPACE_SMOKE_COOKIE，略過登入後檢查");

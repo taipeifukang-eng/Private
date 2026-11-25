@@ -12,6 +12,9 @@ export function publicRedirectEnabled(env: Env): boolean {
   } catch {
     ref = '';
   }
+  // 總開關明確關閉（WORKSPACE_ENABLED 或舊別名設成 true 以外的值）時一律不轉址，舊版登入頁與舊頁維持原樣。
+  const enabled = env.WORKSPACE_ENABLED ?? env.WORKSPACE_DEV_ENABLED;
+  if (enabled !== undefined && enabled !== 'true') return false;
   if (ref === DEV_REF) return true;
   return env.WORKSPACE_PUBLIC_REDIRECT_ENABLED === 'true';
 }

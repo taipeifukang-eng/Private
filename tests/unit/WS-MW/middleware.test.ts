@@ -20,6 +20,10 @@ describe('WS-MW 轉址開關', () => {
   });
   it('DEV 網址維持原行為；正式區可用旗標明確開啟', () => {
     expect(publicRedirectEnabled({ NEXT_PUBLIC_SUPABASE_URL: `https://${DEV_REF}.supabase.co` })).toBe(true);
+    expect(publicRedirectEnabled({ NEXT_PUBLIC_SUPABASE_URL: `https://${DEV_REF}.supabase.co`, WORKSPACE_ENABLED: 'true' })).toBe(true);
+    // 總開關明確關閉時，即使是 DEV 網址或明確開了轉址旗標，也不轉址（舊版登入頁不可被導去「暫時關閉」頁）。
+    expect(publicRedirectEnabled({ NEXT_PUBLIC_SUPABASE_URL: `https://${DEV_REF}.supabase.co`, WORKSPACE_ENABLED: 'false' })).toBe(false);
+    expect(publicRedirectEnabled({ NEXT_PUBLIC_SUPABASE_URL: PROD_URL, WORKSPACE_PUBLIC_REDIRECT_ENABLED: 'true', WORKSPACE_ENABLED: 'false' })).toBe(false);
     expect(publicRedirectEnabled({ NEXT_PUBLIC_SUPABASE_URL: PROD_URL, WORKSPACE_PUBLIC_REDIRECT_ENABLED: 'true' })).toBe(true);
   });
   it('網址不合法時不轉址', () => {

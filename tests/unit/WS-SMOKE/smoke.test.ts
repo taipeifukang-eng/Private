@@ -9,6 +9,7 @@ const smoke = require("../../../scripts/workspace-prod-smoke.cjs");
 
 type Mode = "open" | "closed" | "notopen";
 let mode: Mode = "open";
+let loginRedirect = false;
 let server: http.Server;
 let base = "";
 const methods: string[] = [];
@@ -31,6 +32,10 @@ beforeAll(async () => {
       return res.end("x");
     }
     if (url === "/login") {
+      if (loginRedirect) {
+        res.writeHead(307, { location: "/workspace/index.html#/login" });
+        return res.end();
+      }
       res.writeHead(200);
       return res.end("login");
     }
@@ -73,6 +78,16 @@ describe("workspace-prod-smoke", () => {
     expect(failures(await smoke.run(opts({ expectClosed: true }), "sb=ok"))).toEqual([]);
     mode = "open";
     expect(failures(await smoke.run(opts({ expectClosed: true }), "sb=ok")).length).toBeGreaterThan(0);
+  });
+  it("本機測試站把 /login 轉到新版登入頁：本機接受，正式區（無本機旗標）不接受", async () => {
+    mode = "open";
+    loginRedirect = true;
+    try {
+      expect(failures(await smoke.run(opts(), "sb=ok"))).toEqual([]);
+      expect(failures(await smoke.run(opts({ allowHttpLocalhost: false }), "sb=ok")).length).toBeGreaterThan(0);
+    } finally {
+      loginRedirect = false;
+    }
   });
   it("沒給 cookie 時不會通過", async () => {
     mode = "open";

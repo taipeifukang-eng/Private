@@ -12,7 +12,8 @@ test('舊版選單連結直接進新版頁面，且可回舊版', async ({ brows
     await expect.poll(async () => links.count()).toBeGreaterThan(0);
     const href = await links.first().getAttribute('href');
     await page.goto(href!);
-    await expect(page).toHaveURL(/\/workspace\/index\.html#\/open\//);
+    // 開出頁籤後網址會從 #/open/<kind> 換成 #/work/<頁籤編號>
+    await expect(page).toHaveURL(/\/workspace\/index\.html#\/(open|work)\//);
     await expect(page.getByTestId('back-to-legacy').first()).toBeVisible({ timeout: 60_000 });
     expect(errors.filter((e) => !/Failed to load resource/.test(e))).toEqual([]);
   } finally {
