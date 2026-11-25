@@ -30,6 +30,10 @@ beforeAll(async () => {
       res.writeHead(200, { "cache-control": "public, max-age=31536000, immutable" });
       return res.end("x");
     }
+    if (url === "/login") {
+      res.writeHead(200);
+      return res.end("login");
+    }
     if (url === "/") {
       res.writeHead(200);
       return res.end("legacy");

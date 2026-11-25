@@ -71,8 +71,11 @@ async function run(o, cookie, log = () => {}) {
     check("靜態資源 200 且 immutable", a.status === 200 && /immutable/i.test(String(a.headers["cache-control"] || "")), "status=" + a.status);
   }
 
+  // 舊版首頁未登入時可能轉址到登入頁（3xx），所以只要求不是 4xx/5xx；登入頁本身必須 200。
   const legacy = await safe("/");
-  check("舊版首頁 200", legacy.status === 200, "status=" + legacy.status);
+  check("舊版首頁未壞（200 或轉址）", legacy.status >= 200 && legacy.status < 400, "status=" + legacy.status);
+  const login = await safe("/login");
+  check("舊版登入頁 200", login.status === 200, "status=" + login.status);
 
   if (!cookie) {
     check("有提供登入 cookie", false, "未設定 WORKSPACE_SMOKE_COOKIE，略過登入後檢查");
