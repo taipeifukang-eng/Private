@@ -14,9 +14,7 @@ const builder = nodeRequire(path.join(root, 'scripts', 'm9-coverage', 'build.cjs
   OUT_FILE: string;
 };
 
-const sql = fs.readFileSync(builder.OUT_FILE, 'utf8').replace(/
-/g, '
-');
+const sql = fs.readFileSync(builder.OUT_FILE, 'utf8').replace(/\r\n/g, '\n');
 
 /** 去掉 -- 註解與單引號字串內容（保留引號），只留語句骨架。 */
 function skeleton(text: string): string {
