@@ -179,6 +179,18 @@ BEGIN
   -- 測試帳號動過的請款設定（買受人抬頭、統編）：本劇本新建的設定列直接刪回預設，並清除變更紀錄
   DELETE FROM public.ga_workflow_settings WHERE key IN ('pay_buyer_title', 'pay_buyer_tax_id') AND updated_by = ANY (v_users);
   DELETE FROM public.ga_workflow_setting_events WHERE actor_id = ANY (v_users);
+
+  -- ga-improve-b1 G11：舊式「買受人抬頭與統編」設定寫入會建立（或更新）預設買受人公司；本劇本帳號建立的公司與事件一併清掉
+  -- （事件表不可改刪：單一交易內暫停觸發器後立刻恢復；仍被採購單或請款單參照的公司略過；沒有 G11 的資料庫整段略過）
+  IF to_regclass('public.ga_buyer_companies') IS NOT NULL THEN
+    ALTER TABLE public.ga_buyer_company_events DISABLE TRIGGER trg_ga_buyer_company_events_immutable;
+    DELETE FROM public.ga_buyer_company_events WHERE actor_id = ANY (v_users)
+       OR company_id IN (SELECT c.id FROM public.ga_buyer_companies c WHERE c.created_by = ANY (v_users)
+                          AND NOT EXISTS (SELECT 1 FROM public.ga_purchase_orders o WHERE o.buyer_company_id = c.id) AND NOT EXISTS (SELECT 1 FROM public.ga_payment_requests q WHERE q.buyer_company_id = c.id));
+    ALTER TABLE public.ga_buyer_company_events ENABLE TRIGGER trg_ga_buyer_company_events_immutable;
+    DELETE FROM public.ga_buyer_companies c WHERE c.created_by = ANY (v_users)
+       AND NOT EXISTS (SELECT 1 FROM public.ga_purchase_orders o WHERE o.buyer_company_id = c.id) AND NOT EXISTS (SELECT 1 FROM public.ga_payment_requests q WHERE q.buyer_company_id = c.id);
+  END IF;
 END
 $gaj$;
 `;
