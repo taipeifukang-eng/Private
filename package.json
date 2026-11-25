@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/build-workspace.cjs && next build",
     "test:rbac-local-ready": "npm run test:rbac-user-management-cases && npm run test:rbac-safe-preflight",
     "test:rbac-permission-ui-safety": "node scripts/test-rbac-permission-ui-safety.js",
     "test:rbac-safe-preflight": "node scripts/test-rbac-safe-preflight.js",
@@ -35,6 +35,9 @@
     "test:parity": "node tests/run-all.cjs --layers parity",
     "test:page": "node tests/run-all.cjs --layers all --page",
     "test:all": "node tests/run-all.cjs --layers all"
+  },
+  "engines": {
+    "node": "20.x"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",
