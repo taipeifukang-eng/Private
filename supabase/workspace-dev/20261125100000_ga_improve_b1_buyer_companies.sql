@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS public.ga_buyer_company_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   company_id uuid NOT NULL REFERENCES public.ga_buyer_companies(id),
   event_type text NOT NULL,
-  actor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  actor_id uuid,
   idempotency_key text,
   payload jsonb NOT NULL DEFAULT '{}'::jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -92,7 +92,7 @@ BEGIN
 END;
 $f$;
 
--- 舊設定寫入後，把兩個值都合格的設定轉成（或更新成）預設公司
+-- 舊設定寫入後，把兩個值都合格的設定轉成（或更新成）預設公司；舊畫面把抬頭或統編清掉就停用預設公司
 CREATE OR REPLACE FUNCTION public.ga_ib1_buyer_from_settings(p_uid uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'public', 'pg_temp'
 AS $f$
 DECLARE
@@ -102,7 +102,15 @@ DECLARE
 BEGIN
   SELECT btrim(value_text) INTO v_title FROM public.ga_workflow_settings WHERE key = 'pay_buyer_title';
   SELECT btrim(value_text) INTO v_tax FROM public.ga_workflow_settings WHERE key = 'pay_buyer_tax_id';
-  IF COALESCE(v_title, '') = '' OR v_tax IS NULL OR v_tax !~ '^[0-9]{8}$' THEN RETURN; END IF;
+  IF COALESCE(v_title, '') = '' OR v_tax IS NULL OR v_tax !~ '^[0-9]{8}$' THEN
+    -- 舊畫面把抬頭或統編清掉：視為不再設定預設買受人，停用預設公司（舊設定鍵是舊畫面的真相；公司與事件保留）
+    SELECT id INTO v_id FROM public.ga_buyer_companies WHERE is_default AND is_active;
+    IF v_id IS NOT NULL THEN
+      UPDATE public.ga_buyer_companies SET is_active = false, is_default = false, updated_by = p_uid, updated_at = clock_timestamp() WHERE id = v_id;
+      INSERT INTO public.ga_buyer_company_events (company_id, event_type, actor_id, payload) VALUES (v_id, 'deactivate', p_uid, jsonb_build_object('via', 'settings'));
+    END IF;
+    RETURN;
+  END IF;
   SELECT id INTO v_id FROM public.ga_buyer_companies WHERE is_default AND is_active;
   IF v_id IS NOT NULL THEN
     IF EXISTS (SELECT 1 FROM public.ga_buyer_companies WHERE id = v_id AND (name IS DISTINCT FROM v_title OR tax_id IS DISTINCT FROM v_tax)) THEN

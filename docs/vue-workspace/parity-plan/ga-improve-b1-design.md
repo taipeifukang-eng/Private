@@ -396,3 +396,18 @@ DEV 另有 `20261125140000_ga_improve_b1_dev_seed.sql`（測試用假公司、�
 ## 16. 範圍外（這次不做）
 
 第二批 G5 至 G10；工單維修費與需求單報價的請款；舊版（Next.js 舊頁）任何改動；信用卡對帳單匯入；同仁代墊的簽核流程（維持沒有核准關卡）；完整卡號儲存。
+
+## 17. 實作紀錄（資料庫與後端，2026-11-25）與設計的不同處
+
+資料庫與後端已依本設計實作並在 DEV 驗證；畫面（Vue）與 e2e 劇本是下一步。實作與設計不同的地方：
+
+1. **G12 的資料庫部分獨立成階段檔 `20261125090000_ga_improve_b1_perm_label`**（排在 100000 之前）：把函式本體裡的「水電網費管理」換成新名稱；`permissions` 表若有名稱類文字欄位或 description 含舊名稱就只更新含舊名稱的列（DEV 沒有名稱欄位，這一步是空操作）。正式區草稿 `05-ga-improve-b1-permission-label` 與它相同，不是「只有 verify」。畫面標籤來源確認在程式內：新增常數 `UTILITY_BILL_MANAGE_LABEL`。
+2. **調整列走表頭 `header.adjustments`**（建立與草稿修改），沒有另開 RPC 參數；缺省代表不動，空陣列代表清空，下訂後與計價方式、買受人抬頭一起鎖定（PO_LOCKED）。
+3. **「延伸點函式」**：多個階段要加掛同一個地方（採購單表頭、採購單輸出、進貨登錄、作廢進貨、請款單設定抬頭與付款對象、請款單輸出、列表篩選、匯出）時，每個既有函式只加掛一次、呼叫階段 2 建立的 `ga_ib1_*_ext` 函式，後續階段用 `CREATE OR REPLACE` 重新定義它們；撤回時各階段把它們還原成前一階段的版本。
+4. **一般請款單作廢也會觸發補核銷**：預付單若還有餘額、被作廢的一般請款單釋放出的進貨單金額會再由預付餘額核銷（`ga_ib1_prepay_sync` 對一般請款單的作廢也生效）。設計只寫了預付單自己的退回與作廢。
+5. **在職判斷**：`profiles` 沒有在職欄位，用 `store_employees`（以員編對應）：有員編且有紀錄時，要有一筆啟用且非離職才算在職；沒有員編或沒有紀錄（總部同仁）視為在職。
+6. **對帳匯出 `extended`**：用 `ga_ib1_export_enrich` 包在兩個回傳點（採購與水電），沒帶 `extended` 時原樣回傳；帶了才在每列補類型、付款對象類型、付款對象、抬頭、信用卡末四碼、平台（同仁帳戶銀行與帳號只有廠商帳務檢視者看得到，沒有權限整欄省略），並追加預付單列（預付單沒有明細列）。
+7. **付款方式錯誤訊息**：「付款方式只能是轉帳、現金或支票，或是信用卡、網購平台／第三方支付」，保留原句「轉帳、現金或支票」讓既有 G45 單元測試斷言不必修改。
+8. **沒有新增 DEV 測試角色**：整合測試沿用既有 DEV 角色與臨時角色（沒有新增角色代碼，所以也沒有撞名風險）；清除函式 `ga_dev_cleanup_ga_improve_b1` 只處理 `QA-GAIB1-` 標記的廠商與公司、以及 `m7m8-test-` 測試帳號的同仁帳戶與事件，採購單與進貨單仍由既有 `cleanupM7M8` 清除。
+9. **黃金比對**：`tests/integration/GAIB1.db-golden.regression.spec.ts` 必須在「套用前」錄製（`GAIB1_GOLDEN=capture`）、套用後比對（`compare`）；DEV 已用「全撤回→錄製→全套用→比對」做過，27 組輸出只有首頁摘要與徽章的 `generated_at` 不同。
+10. **尚未做（前端與劇本）**：兩個小錯字（`RequestDetail.vue`、`PoDetailDialog.vue`）、所有 Vue 畫面與列印、e2e 多角色劇本與截圖。後端 API 已提供畫面需要的欄位與端點：`/buyer-companies`、`/payee-accounts/own|:profileId`、`/payee-options`、`/my-reimbursements`、`/payment-requests/prepay`、`/payment-requests/prepay/:poId`、`/payment-requests/:id/prepay-refund`、匯出 `extended=1`、採購單與請款單列表新篩選。

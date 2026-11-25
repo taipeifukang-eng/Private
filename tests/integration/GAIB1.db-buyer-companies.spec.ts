@@ -24,7 +24,7 @@ test.beforeAll(async () => {
   const left = await cleanupGaib1();
   if (left.length) throw new Error(`清除上次殘留失敗：${left.join('; ')}`);
   const db = adminDb();
-  const existing = await db.from('ga_buyer_companies').select('id', { count: 'exact', head: true });
+  const existing = await db.from('ga_buyer_companies').select('id', { count: 'exact', head: true }).eq('is_active', true);
   if (existing.error) throw new Error(existing.error.message);
   expect(existing.count, 'DEV 不應有非測試的買受人公司（測試會改預設公司與設定鍵）').toBe(0);
   const s = await db.from('ga_workflow_settings').select('*').in('key', SETTING_KEYS);
@@ -203,4 +203,27 @@ test('三聯式發票買受人統編：任一啟用公司的統編都算相符�
   // 停用公司的統編不再算相符
   okData(await call(clerk(), 'ga_ws_buyer_company_deactivate', { p_id: B.id }));
   expectErr(await mk(B.tax_id), 400, 'TAX_MISMATCH_REASON_REQUIRED');
+});
+
+test('舊畫面把抬頭與統編清空：停用預設公司，設定讀回空值（與改版前行為相同）；填回去再建立預設公司', async () => {
+  const c = fakeCompany('舊畫面');
+  const rows = okData(await save(c)).rows as any[];
+  const row = rows.find((x) => x.tax_id === c.tax_id);
+  okData(await call(clerk(), 'ga_ws_buyer_company_set_default', { p_id: row.id }));
+  const s1 = okData(await call(clerk(), 'ga_ws_pay_settings_get'));
+  expect(s1.buyer_tax_id).toBe(c.tax_id);
+  const s2 = okData(await call(clerk(), 'ga_ws_pay_settings_set', { p_values: { tolerance_amount: 5, buyer_title: null, buyer_tax_id: null }, p_expected_updated_at: s1.updated_at }));
+  expect(s2.buyer_title).toBeNull();
+  expect(s2.buyer_tax_id).toBeNull();
+  const after = (await list()).rows.find((x: any) => x.id === row.id);
+  expect(after).toMatchObject({ is_active: false, is_default: false });
+  // 只改尾差不碰抬頭：不影響公司
+  const s3 = okData(await call(clerk(), 'ga_ws_pay_settings_set', { p_values: { tolerance_amount: 5 }, p_expected_updated_at: s2.updated_at }));
+  expect(s3.buyer_tax_id).toBeNull();
+  // 舊畫面重新填抬頭與統編：建立（或更新）預設公司
+  const t = fakeCompany('舊畫面2');
+  const s4 = okData(await call(clerk(), 'ga_ws_pay_settings_set', { p_values: { buyer_title: t.name, buyer_tax_id: t.tax_id }, p_expected_updated_at: s3.updated_at }));
+  expect(s4.buyer_tax_id).toBe(t.tax_id);
+  const made = (await list()).rows.find((x: any) => x.tax_id === t.tax_id && x.is_active);
+  expect(made).toMatchObject({ is_default: true, name: t.name });
 });

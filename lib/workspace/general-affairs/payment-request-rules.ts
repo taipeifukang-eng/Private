@@ -197,7 +197,7 @@ export function validateActionPayload(action: PrAction, status: PrStatus | null,
     }
     case "mark_paid": {
       const method = String(raw.pay_method ?? "").trim().toUpperCase();
-      if (!isPayMethod(method)) throw new Error("付款方式只能是轉帳、現金、支票、信用卡或網購平台／第三方支付");
+      if (!isPayMethod(method)) throw new Error("付款方式只能是轉帳、現金或支票，或是信用卡、網購平台／第三方支付");
       if (!payMethodAllowed(method, opts.payeeType)) throw new Error("同仁代墊的款項只能用轉帳、現金或支票還給同仁");
       const card = String(raw.card_last4 ?? "").trim();
       const platform = String(raw.platform ?? "").trim();

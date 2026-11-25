@@ -52,8 +52,8 @@ CREATE TABLE IF NOT EXISTS public.ga_employee_payout_accounts (
 );
 CREATE TABLE IF NOT EXISTS public.ga_employee_payout_account_events (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
-  actor_id uuid REFERENCES public.profiles(id) ON DELETE SET NULL,
+  profile_id uuid NOT NULL,
+  actor_id uuid,
   via text NOT NULL,
   changed_fields text[] NOT NULL DEFAULT '{}',
   account_last4 text,
@@ -408,9 +408,9 @@ DECLARE
 BEGIN
   v_def := pg_get_functiondef('public.ga_ws_pay_request_action(uuid,text,jsonb,text,timestamp with time zone)'::regprocedure);
   v_new := v_def;
-  IF position(public.ga_ib1_nl(v_def, $ib1n$    IF v_method IS NULL OR v_method NOT IN ('TRANSFER', 'CASH', 'CHECK', 'CREDIT_CARD', 'ONLINE_PLATFORM') /* GAIB1-S4 */ THEN RETURN public.ga_rq_err(400, 'PAY_METHOD', '付款方式只能是轉帳、現金、支票、信用卡或網購平台／第三方支付'); END IF;
+  IF position(public.ga_ib1_nl(v_def, $ib1n$    IF v_method IS NULL OR v_method NOT IN ('TRANSFER', 'CASH', 'CHECK', 'CREDIT_CARD', 'ONLINE_PLATFORM') /* GAIB1-S4 */ THEN RETURN public.ga_rq_err(400, 'PAY_METHOD', '付款方式只能是轉帳、現金或支票，或是信用卡、網購平台／第三方支付'); END IF;
     PERFORM public.ga_ib1_check_pay_fields(v_method, p); -- GAIB1-S4$ib1n$) IN v_new) = 0 THEN
-    v_new := public.ga_ib1_swap(v_new, public.ga_ib1_nl(v_def, $ib1o$    IF v_method IS NULL OR v_method NOT IN ('TRANSFER', 'CASH', 'CHECK') THEN RETURN public.ga_rq_err(400, 'PAY_METHOD', '付款方式只能是轉帳、現金或支票'); END IF;$ib1o$), public.ga_ib1_nl(v_def, $ib1n$    IF v_method IS NULL OR v_method NOT IN ('TRANSFER', 'CASH', 'CHECK', 'CREDIT_CARD', 'ONLINE_PLATFORM') /* GAIB1-S4 */ THEN RETURN public.ga_rq_err(400, 'PAY_METHOD', '付款方式只能是轉帳、現金、支票、信用卡或網購平台／第三方支付'); END IF;
+    v_new := public.ga_ib1_swap(v_new, public.ga_ib1_nl(v_def, $ib1o$    IF v_method IS NULL OR v_method NOT IN ('TRANSFER', 'CASH', 'CHECK') THEN RETURN public.ga_rq_err(400, 'PAY_METHOD', '付款方式只能是轉帳、現金或支票'); END IF;$ib1o$), public.ga_ib1_nl(v_def, $ib1n$    IF v_method IS NULL OR v_method NOT IN ('TRANSFER', 'CASH', 'CHECK', 'CREDIT_CARD', 'ONLINE_PLATFORM') /* GAIB1-S4 */ THEN RETURN public.ga_rq_err(400, 'PAY_METHOD', '付款方式只能是轉帳、現金或支票，或是信用卡、網購平台／第三方支付'); END IF;
     PERFORM public.ga_ib1_check_pay_fields(v_method, p); -- GAIB1-S4$ib1n$), 'public.ga_ws_pay_request_action(uuid,text,jsonb,text,timestamp with time zone) 付款方式');
   END IF;
   IF position(public.ga_ib1_nl(v_def, $ib1n$    UPDATE public.ga_payment_requests SET status = 'PAID', pay_method = v_method, pay_card_last4 = CASE WHEN v_method = 'CREDIT_CARD' THEN nullif(btrim(COALESCE(p ->> 'card_last4', '')), '') END, pay_platform = CASE WHEN v_method = 'ONLINE_PLATFORM' THEN nullif(btrim(COALESCE(p ->> 'platform', '')), '') END, /* GAIB1-S4 */ paid_date = v_paid,$ib1n$) IN v_new) = 0 THEN
