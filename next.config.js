@@ -21,6 +21,14 @@ const nextConfig = {
           },
         ],
       },
+      {
+        source: '/workspace/index.html',
+        headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }],
+      },
+      {
+        source: '/workspace/assets/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
     ];
   },
 }

@@ -3,12 +3,13 @@ import type { NextRequest } from 'next/server';
 import { resolveWorkspacePublicRedirect } from '@/lib/workspace/public-routes';
 import { activityLegacyTarget } from '@/lib/workspace/activity-view-rules';
 import { calendarLegacyTarget } from '@/lib/workspace/calendar-rules';
+import { publicRedirectEnabled, workspaceEntryNoStore } from '@/lib/workspace/middleware-rules';
 
 export async function middleware(request: NextRequest) {
   // For now, let's disable middleware to allow all routes
   // We'll handle authentication checks in the page components themselves
-  const isDevWorkspace =
-    process.env.NEXT_PUBLIC_SUPABASE_URL === 'https://mjpdfpxqttbhzeimmtqr.supabase.co';
+  // 只有 DEV 工作台網址，或明確設 WORKSPACE_PUBLIC_REDIRECT_ENABLED=true 才轉址；正式區預設不轉址，登入頁與舊頁不受影響。
+  const isDevWorkspace = publicRedirectEnabled(process.env);
   // D14：公開頁保留 Next 原路徑，轉址到 Vue 工作台 hash 路由（目前僅示範路由，僅 DEV 工作台環境）。
   if (isDevWorkspace) {
     const target = resolveWorkspacePublicRedirect(request.nextUrl.pathname, undefined, request.nextUrl.search);
@@ -21,11 +22,8 @@ export async function middleware(request: NextRequest) {
     if (calendarTarget) return NextResponse.redirect(new URL(calendarTarget, request.url), 307);
   }
   const response = NextResponse.next();
-  // The DEV workspace entry must pick up the current hashed bundle after a rebuild.
-  if (
-    isDevWorkspace &&
-    ['/workspace', '/workspace/', '/workspace/index.html'].includes(request.nextUrl.pathname)
-  ) {
+  // 工作台入口頁一律 no-store（不分環境），重新部署後才會取到新的雜湊檔名。
+  if (workspaceEntryNoStore(request.nextUrl.pathname)) {
     response.headers.set('Cache-Control', 'no-store, max-age=0');
   }
   return response;
